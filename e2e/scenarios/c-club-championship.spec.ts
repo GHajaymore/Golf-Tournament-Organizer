@@ -1,4 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
+import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { seed, setPlanFor, names, indexes, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
@@ -124,6 +125,9 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
       await page.getByLabel("Format for every round added").selectOption("Stroke Play");
       await page.getByRole("button", { name: /^Add 2 stroke play rounds/ }).click();
       await expect(page.getByRole("button", { name: /^Round 2 · Stroke Play Round/ })).toBeVisible({ timeout: 20_000 });
+      // Scratch, as a championship is: a new round is off handicap unless the
+      // organizer says Gross (the club default since 2026-10-16).
+      for (const round of ["Round 2", "Round 1"]) await playScratch(page, `${round} · Stroke Play Round`);
       const cutBox = page.getByRole("checkbox", { name: "Cut the field for Round 2" });
       await cutBox.check();
       const n = page.getByLabel("Players who make the cut for Round 2");

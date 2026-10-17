@@ -111,6 +111,6 @@ export function lockoutRefusal(input: LockoutInput): string | null {
     `${who} no email address, and the Round Code is how they sign in. ` +
     `Turning it off would withdraw every code and lock them out of their own card — ` +
     `including anyone out on the course right now. ` +
-    `Add an email address for ${them} on Registration & field first, or leave access codes on.`
+    `Add an email address for ${them} on Entries first, or leave access codes on.`
   );
 }

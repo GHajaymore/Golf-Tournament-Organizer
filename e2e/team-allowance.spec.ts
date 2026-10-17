@@ -362,7 +362,10 @@ test("a committee changes a live four-ball's allowance and how many balls count,
 
   // ── the round's handicaps say all three figures ────────────────────────────
   ({ card } = await openRound());
-  await card.getByRole("button", { name: /Show what it was scored off|Set one for this round/ }).click();
+  // The list is under Customize since 2026-10-16, which starts closed.
+  const customize = card.getByRole("button", { name: /^Customize this round/ });
+  if ((await customize.getAttribute("aria-expanded")) !== "true") await customize.click();
+  await card.getByRole("button", { name: /Show what it was scored off|Change a player's handicap/ }).click();
   const all = scored.flatMap((s) => s.balls);
   // Somebody whose course handicap was rounded, and for whom the two methods differ.
   const shown = all.find((b) => course1130(b.indexTenths, b.tee) % 1130 !== 0 && byTheRule(b.indexTenths, b.tee, 85) !== roundedFirst(b.indexTenths, b.tee, 85));

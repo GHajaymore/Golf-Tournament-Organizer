@@ -28,10 +28,11 @@ test.describe("the organizer's dashboard", () => {
 
     // First thing under the heading: above the leaderboard and the shortcuts.
     const y = async (l: ReturnType<typeof page.locator>) => (await l.boundingBox())!.y;
-    // In `main`: "Live leaderboard" is also a menu entry.
+    // In `main`: "Leaderboard" is also a menu entry.
     const main = page.locator("main");
     expect(await y(needs)).toBeLessThan(await y(main.getByText("Quick actions", { exact: true })));
-    expect(await y(needs)).toBeLessThan(await y(main.getByText("Live leaderboard", { exact: true })));
+    // The leaderboard CARD: Quick actions has a "Leaderboard" button too.
+    expect(await y(needs)).toBeLessThan(await y(main.locator(".card-title", { hasText: /^Leaderboard$/ })));
     // Said once: the "Awaiting review" tile that repeated "1 card" is gone.
     await expect(main.getByText("Awaiting review", { exact: true })).toHaveCount(0);
     // And the heading comes first, the tee sheet's line after the to-do list.

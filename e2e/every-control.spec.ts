@@ -203,7 +203,10 @@ async function controlsOn(page: Page): Promise<Control[]> {
       const fieldset = radios[0].closest("fieldset, .field, .card");
       out.push({
         kind: "radio", nth: g++, group: name, radios: radios.map((r) => allRadios.indexOf(r)), disabled: radios.every((r) => r.disabled),
-        label: clean(fieldset?.querySelector("legend, .card-kicker, label, .text-muted")?.textContent).slice(0, 70) || name,
+        // `.field-caption` is a group's name written as a span (2026-10-16), so its
+        // info button is not pressed by a tap on the name; without it the first
+        // choice's own label ("One tee") was read as the group's name.
+        label: clean(fieldset?.querySelector("legend, .card-kicker, .field-caption, label, .text-muted")?.textContent).slice(0, 70) || name,
         choices: radios.map((_, i) => String(i)), choiceLabels: radios.map((r) => clean(r.closest("label")?.textContent).slice(0, 40)),
         current: String(radios.findIndex((r) => r.checked)),
       });

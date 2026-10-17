@@ -15,7 +15,10 @@ export function BracketModePicker({
   secondLabel,
   readOnly,
   locked = false,
+  embedded = false,
 }: {
+  /** Drawn inside another card (a round on Rounds & formats): no card of its own. */
+  embedded?: boolean;
   mode: BracketMode;
   /** What the second bracket is currently called, or "" when there isn't one. */
   secondLabel: string;
@@ -43,27 +46,47 @@ export function BracketModePicker({
   };
 
   return (
-    <div className="card elev-sm" style={{ gap: 8, marginBottom: 16 }}>
+    // EMBEDDED on a round's card (Rounds & formats), it is not a card inside a card
+    // (the UI/UX designer on the review panel); on the Bracket screen it still is.
+    <div
+      className={embedded ? undefined : "card elev-sm"}
+      style={embedded ? { display: "flex", flexDirection: "column", gap: 8 } : { gap: 8, marginBottom: 16 }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="card-kicker">Arrangement</span>
-        <span style={{ fontSize: 14, fontWeight: 500 }}>{current.label}</span>
-        {secondLabel && <span className="tag tag-neutral">+ {secondLabel}</span>}
+        {!embedded && <span className="card-kicker">Arrangement</span>}
+        <span style={{ fontSize: 14, fontWeight: 500 }}>{embedded ? `Draw: ${current.label}` : current.label}</span>
+        {/* Not where the name already says it: "Main + plate" then "+ Plate" said one thing twice. */}
+        {secondLabel && !current.label.toLowerCase().includes(secondLabel.toLowerCase()) && (
+          <span className="tag tag-neutral">+ {secondLabel}</span>
+        )}
         {!readOnly && !locked && (
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ marginLeft: "auto", padding: "2px 10px", fontSize: 13 }}
+            aria-expanded={open}
+            // A 44px target: it was ~24px tall.
+            style={{ marginLeft: "auto", padding: "2px 14px", fontSize: 13, minHeight: 44 }}
             onClick={() => setOpen((o) => !o)}
           >
             {open ? "Done" : "Change"}
           </button>
         )}
       </div>
-      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{current.blurb}</p>
+      {/* "Every qualifier in a single knockout. Lose and you're out." under "One bracket"
+          says the name twice; the others' lines say something the name does not. */}
+      {!(embedded && mode === "single") && <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{current.blurb}</p>}
+      {/* On a round card the page's own Unlock setup is a scroll away: one short line,
+          not a second, differently worded way to unlock (2026-10-16). */}
       {!readOnly && locked && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-          Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on{" "}
-          <a href="/event">Tournament details</a> to change it.
+          {embedded ? (
+            "Locked with setup."
+          ) : (
+            <>
+              Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on{" "}
+              <a href="/event">Tournament details</a> to change it.
+            </>
+          )}
         </p>
       )}
 
@@ -78,6 +101,8 @@ export function BracketModePicker({
                 key={m.key}
                 type="button"
                 disabled={pending}
+                // Which one is chosen, said to a screen reader as it is shown by the border.
+                aria-pressed={active}
                 onClick={() => choose(m.key)}
                 style={{
                   textAlign: "left",

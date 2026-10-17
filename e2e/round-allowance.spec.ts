@@ -347,7 +347,10 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
     const grossCard = page.locator("main .card", { has: page.locator("button", { hasText: /Round 1/ }) }).first();
     await expect(grossCard).toBeVisible();
     // Opened, so that an absent line is absent from an open card.
-    const opened = grossCard.getByText("Handicaps for this round");
+    // A control every open round shows: since the 2026-10-16 redesign a gross
+    // round draws no handicap panel at all, so that heading is no longer a sign
+    // the card is open.
+    const opened = grossCard.getByText("Holes", { exact: true });
     if (!(await opened.isVisible().catch(() => false))) await grossCard.locator("button", { hasText: /Round 1/ }).first().click();
     await expect(opened, "the gross round's card did not open").toBeVisible();
     await expect(grossCard.locator("p", { hasText: /^Handicap allowance/ }), "a gross round is offered an allowance").toHaveCount(0);

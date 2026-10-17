@@ -43,9 +43,9 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
      * scrollTop 0:
      *
      *   1440x900   172px hidden — Sign out at y=1020, "Viewing as" at y=974,
-     *              and the last link, Group games, ending at 938
+     *              and the last link, Side games, ending at 938
      *   1366x768   304px hidden — the same, plus Messages, Reports & export,
-     *              Prizes & payouts and Group games all below the fold
+     *              Prizes & payouts and Side games all below the fold
      *
      * So on the commonest laptop screen there is no visible way to sign out,
      * the role preview is invisible, and the whole Money section is gone.

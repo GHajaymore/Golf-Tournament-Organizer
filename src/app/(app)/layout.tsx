@@ -99,7 +99,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * The five screens under that heading — tee sheet, score entry, leaderboard,
    * bracket, this week — all describe ONE round, and until this they sat under
    * headings that never said which. On a tournament whose rounds are each a
-   * different format, "Live leaderboard" with no round named is an incomplete
+   * different format, "Leaderboard" with no round named is an incomplete
    * sentence.
    *
    * `loadEventState` is the ONLY honest source: `currentPlayedRoundIndex`

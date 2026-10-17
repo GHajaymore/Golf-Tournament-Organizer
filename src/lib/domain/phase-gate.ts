@@ -60,6 +60,13 @@ export interface LaunchFacts {
    * a Launch button the action then refuses (Ajay, 2026-09-28).
    */
   missingCards: readonly { label: string; course: string }[];
+  /**
+   * Playing rounds whose type and format cannot produce a result together
+   * (`unscorableRoundLabels`), by name. Required for the same reason as the
+   * cards above: launch went live over a stroke round set to Match Play
+   * (2026-10-16).
+   */
+  unscorable: readonly string[];
 }
 
 /**
@@ -75,12 +82,16 @@ export function launchRefusal(facts: LaunchFacts): string | null {
     return "There are no rounds yet, so there is nothing to play. Add a round on Rounds & formats, then launch.";
   }
   if (facts.confirmed < 1) {
-    return "Nobody is in the field yet, so there is nobody to launch it for. Enter the field on Registration & field, then launch.";
+    return "Nobody is entered yet, so there is nobody to launch it for. Add players on Entries, then launch.";
   }
   if (!facts.dated) {
     // "Tournament details" is the screen's name in the sidebar. This said
     // "Tournament setup", which is no screen a newcomer can find.
     return "This tournament has no dates, so nobody can plan around it. Add them on Tournament details — mark them tentative if the committee hasn't fixed them yet — then launch.";
+  }
+  if (facts.unscorable.length > 0) {
+    const names = facts.unscorable.join(" and ");
+    return `${names} cannot be scored in the format ${facts.unscorable.length === 1 ? "it is" : "they are"} set to. Choose another format on ${facts.unscorable.length === 1 ? "its card" : "their cards"} on Rounds & formats, then launch.`;
   }
   /**
    * A round the format cannot score. Score entry already refused it — on the

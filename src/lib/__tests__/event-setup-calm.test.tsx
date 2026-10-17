@@ -94,7 +94,7 @@ describe("a launched tournament's checklist folds to one line", () => {
   const items = [
     { label: "Tournament details", detail: "Named", done: true, href: "/event" },
     { label: "Flights", detail: "No flights yet", done: false, href: "/flights" },
-    { label: "Access & staff", detail: "1 staff", done: true, href: "/access", optional: true },
+    { label: "Staff & helpers", detail: "1 staff", done: true, href: "/access", optional: true },
   ];
 
   it("says how much is done, in one line, with the rows a tap away", () => {

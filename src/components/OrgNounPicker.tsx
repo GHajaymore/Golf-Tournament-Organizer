@@ -70,7 +70,7 @@ export function OrgNounPicker({
 
   return (
     <div className="field" style={{ maxWidth: 340 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span className="field-caption" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         What to call this outfit
         <FieldInfo label="what this outfit is called">
           <p>
@@ -84,7 +84,7 @@ export function OrgNounPicker({
             fronts the minibus.
           </p>
         </FieldInfo>
-      </label>
+      </span>
 
       <select
         className="input"

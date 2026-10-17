@@ -77,7 +77,7 @@ export interface EventCourseFields {
  * went in against the right par and stroke index — and every other reader
  * resolved the card through `courseRef` alone, found nothing, and scored
  * against an empty card. Both sides' cards were in, the dashboard said "Sides
- * in 2/2", and the Live leaderboard, Reports and the public board showed both
+ * in 2/2", and the Leaderboard, Reports and the public board showed both
  * on 0 holes with no score.
  *
  * LAST, and only where the event has no card of its own: a `courseRef` or a

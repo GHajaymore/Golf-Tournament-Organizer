@@ -47,7 +47,7 @@ async function scrub() {
 }
 
 /** A draft tournament, dated and with a field, whose one round is `round`. */
-async function tournament(round: { format: string; scoringBasis: string; courseId?: string }, card = false) {
+async function tournament(round: { format: string; scoringBasis: string; courseId?: string; type?: string }, card = false) {
   const event = await prisma.event.create({
     data: {
       organizationId: orgId, name: `${TAG} ${Math.random()}`, status: "draft", shape: "single", format: "stroke",
@@ -59,7 +59,19 @@ async function tournament(round: { format: string; scoringBasis: string; courseI
   });
   eventId = event.id;
   await prisma.stage.create({
-    data: { eventId, position: 0, type: "Stroke Play Round", holes: 18, format: round.format, scoringBasis: round.scoringBasis, courseId: round.courseId ?? null },
+    data: {
+      eventId,
+      position: 0,
+      // A round of a kind that can be scored in its format. This was a Stroke Play
+      // Round for every case, so the match-play control was Match Play on a round
+      // with no opponents — a round nobody can score, which launch refuses since
+      // 2026-10-16. The fixture was the defect, not the gate.
+      type: round.type ?? (round.format === "Match Play" ? "Round Robin" : "Stroke Play Round"),
+      holes: 18,
+      format: round.format,
+      scoringBasis: round.scoringBasis,
+      courseId: round.courseId ?? null,
+    },
   });
   if (round.courseId) await prisma.eventCourse.create({ data: { eventId, courseId: round.courseId } });
   await prisma.player.create({
@@ -117,5 +129,19 @@ describe("launch and the course card", () => {
     await tournament({ format: "Match Play", scoringBasis: "gross" });
     expect((await roundCardLines(eventId))[0].status).toBe("not-needed");
     expect((await launchTournament()).ok).toBe(true);
+  });
+
+  /**
+   * A ROUND STORED BEFORE THE PICKERS WERE NARROWED (2026-10-16) can still hold a
+   * pair nobody can score — Match Play on a stroke round has no opponents. The
+   * setup step and the dashboard say so; this proves launch itself refuses it,
+   * against a real row, and leaves the tournament in draft.
+   */
+  it("refuses a round its format cannot score, names it, and stays in draft", async () => {
+    await tournament({ format: "Match Play", scoringBasis: "gross", type: "Stroke Play Round" }, true);
+    const res = await launchTournament();
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("Round 1 cannot be scored in the format it is set to");
+    expect(await statusNow()).toBe("draft");
   });
 });

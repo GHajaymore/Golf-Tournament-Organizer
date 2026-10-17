@@ -132,7 +132,9 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
 
   it("an exemption is still true", () => {
     const stages = readSource("src", "app", "(app)", "stages", "page.tsx");
-    expect(stages).toMatch(/const describeTournament = locked \? null :/);
+    // Withheld when locked — and, since 2026-10-16, where the club has no
+    // drafting at all; the lock is still the first thing asked.
+    expect(stages).toMatch(/const describeTournament =\s*locked \|\| [^?]*\? null :/);
     const setup = readSource("src", "app", "actions", "match-setup.ts");
     expect(setup).toMatch(/configUnlocked: true/);
   });

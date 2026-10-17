@@ -5,7 +5,8 @@ import { dayAsDate } from "@/lib/deadline";
 import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
-import { useId, useState, useRef, useEffect, useTransition, useSyncExternalStore } from "react";
+import { Fragment, useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
+import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -102,7 +103,10 @@ export function RegistrationClient({
   teePolicy = "own",
   defaultTeeName = "",
   needsEmail = true,
+  noFormatYet = false,
 }: {
+  /** No round yet and nobody entered: a society taking entries before it chooses a format. */
+  noFormatYet?: boolean;
   event: EventInfo;
   /**
    * Whether this tournament's sign-in actually needs an address — see
@@ -170,10 +174,62 @@ export function RegistrationClient({
   const savedInvite = useRef(event.inviteMessage);
   // Fixed by the plan on free, the organizer's own choice on a paid plan.
   const phoneLocked = event.phoneLocked;
+  /**
+   * A TAP SHOWS AT ONCE. Both switches were drawn straight from the server's
+   * value, so a tick did nothing on screen until the save came back and the page
+   * was drawn again — next door to the server a blink, on a course seconds of a
+   * box that ignores the thumb (found 2026-10-16 by the browser test of this
+   * switch, whose `check()` saw the box unchanged). The shown value follows the
+   * tap while the save is out, and falls back to the server's if it is refused.
+   */
+  const [requirePhoneShown, showRequirePhone] = useOptimistic(event.requirePhone);
+  /** A refused switch, said beside the switches — see the handlers. */
+  const [switchRefused, setSwitchRefused] = useState("");
+  const [approvalShown, showApproval] = useOptimistic(event.registrationApproval);
   // What the import and the public form will actually insist on — the resolved
   // rule, not the raw setting, so the hint can't promise something the action
   // then refuses.
   const phoneRequired = phoneLocked || event.requirePhone;
+  /**
+   * A HANDICAP TYPED HERE CHANGES THIS TOURNAMENT'S COPY, AND ASKS ABOUT MEMBERS
+   * (2026-10-16). It went through `updateSignup`, which pushed every edit on to
+   * the member record without a word or a line in the history, and was greyed
+   * out by the setup lock exactly when a committee cuts a handicap mid-event.
+   * Now it is `setPlayerIndex` — the one door the round's "Change" uses too —
+   * and where Members still holds the old figure, the row offers the correction
+   * in one tap (the tournament director on the review panel: a typo is wrong
+   * everywhere, so the offer is made, not left to be found).
+   */
+  const [memberOffer, setMemberOffer] = useState<{ playerId: string; name: string; to: number; memberFrom: number; done?: string } | null>(null);
+  const commitIndex = (p: { id: string; name: string; handicap: number }, value: number) =>
+    startTransition(async () => {
+      const res = await setPlayerIndex(p.id, { index: value, expectedFrom: p.handicap, alsoMember: false, reason: "" });
+      if (!res.ok) {
+        setRowError(`${p.name}: ${res.error ?? "Couldn't save that handicap."}`);
+        return;
+      }
+      setRowError("");
+      const facts = await indexChangeFacts(p.id);
+      setMemberOffer(
+        facts.ok && !facts.memberRefusal && facts.memberFrom != null && facts.memberFrom !== value
+          ? { playerId: p.id, name: p.name, to: value, memberFrom: facts.memberFrom }
+          : null,
+      );
+    });
+  const pushToMembers = (offer: { playerId: string; name: string; to: number; memberFrom: number }) =>
+    startTransition(async () => {
+      const res = await setPlayerIndex(offer.playerId, {
+        index: offer.to,
+        expectedFrom: offer.to,
+        alsoMember: true,
+        reason: "Correction on Entries",
+      });
+      if (!res.ok) {
+        setRowError(`${offer.name}: ${res.error ?? "Couldn't change Members."}`);
+        return;
+      }
+      setMemberOffer({ ...offer, done: `Done. Members has ${indexFigure(offer.to)} for ${offer.name} now.` });
+    });
   const commitUpdate = (playerId: string, patch: Parameters<typeof updateSignup>[1]) =>
     startTransition(async () => {
       const result = await updateSignup(playerId, patch);
@@ -386,7 +442,7 @@ export function RegistrationClient({
   // The public self-service sign-up link. Empty until registration has been
   // opened at least once (the token is minted then).
   const registerUrl = event.registrationToken ? `${registrationLink}/register/${event.registrationToken}` : "";
-  const approveMode = event.registrationApproval === "approve";
+  const approveMode = approvalShown === "approve";
   // Sign the invitation with the club's name so the recipient recognises who
   // it's from — a bare link from an unknown app reads like spam.
   const signature = event.organizationName ? `\n— ${event.organizationName}` : "";
@@ -479,7 +535,8 @@ export function RegistrationClient({
             </thead>
             <tbody>
               {rows.map((p, i) => (
-                <tr key={p.id}>
+                <Fragment key={p.id}>
+                <tr>
                   <td><input type="checkbox" aria-label={`Select ${p.name}`} checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
                   <td className="text-muted">{i + 1}</td>
                   <td style={{ fontWeight: 500 }}>
@@ -535,7 +592,9 @@ export function RegistrationClient({
                         // so without this it goes on showing a figure the server has replaced.
                         key={`${p.id}:${p.handicap}`}
                         defaultValue={indexFigure(p.handicap)}
-                        disabled={pending || locked}
+                        // Not behind the setup lock: a committee changes a handicap mid-event,
+                        // and a round with a card keeps what it was scored off.
+                        disabled={pending}
                         style={{ width: 56, padding: "3px 4px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
                         onKeyDown={leaveOnEnter}
                         onBlur={(e) => {
@@ -549,7 +608,7 @@ export function RegistrationClient({
                             setRowError(`${p.name}: ${STAFF_HANDICAP_REFUSAL[typed.why]}`);
                             return;
                           }
-                          if (typed.value !== p.handicap) commitUpdate(p.id, { handicap: typed.value });
+                          if (typed.value !== p.handicap) commitIndex(p, typed.value);
                           else setRowError("");
                         }}
                       />
@@ -623,6 +682,29 @@ export function RegistrationClient({
                     />
                   </td>
                 </tr>
+                {memberOffer?.playerId === p.id && (
+                  <tr>
+                    <td colSpan={20} style={{ paddingTop: 0 }}>
+                      {memberOffer.done ? (
+                        <p role="status" className="text-muted" style={{ fontSize: 13, margin: 0 }}>{memberOffer.done}</p>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13 }}>
+                          <span>
+                            Members still has <b>{indexFigure(memberOffer.memberFrom)}</b> for {memberOffer.name}, which every
+                            tournament they enter copies.
+                          </span>
+                          <button type="button" className="btn btn-secondary" style={{ minHeight: 44, fontSize: 13 }} disabled={pending} onClick={() => pushToMembers(memberOffer)}>
+                            Make it {indexFigure(memberOffer.to)} on Members
+                          </button>
+                          <button type="button" className="btn btn-secondary" style={{ minHeight: 44, fontSize: 13 }} onClick={() => setMemberOffer(null)}>
+                            Leave it
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
               {rows.length === 0 && (
                 <tr><td colSpan={showFlight ? 8 : 7} className="text-muted" style={{ padding: "10px 6px" }}>None yet.</td></tr>
@@ -636,12 +718,18 @@ export function RegistrationClient({
 
   return (
     <>
+      {/* The title alone, as on Rounds & formats (2026-10-16): "Set up" is the strip
+          and the sidebar; the subtitle described the lists below. One line only for
+          a society taking entries before it has chosen a format (Ajay: "hard to set
+          up a round or format unless they know how many signed up"). */}
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Set up</div>
-        <h1 className="page-title">Registration &amp; field</h1>
-        <MoreInfo short="Who's in, and who's waiting." style={{ marginTop: 6 }}>
-          Collect the details you need to run the event. Confirmed players fill up to capacity; overflow waitlists.
-        </MoreInfo>
+        <h1 className="page-title">Entries</h1>
+        {noFormatYet && (
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+            No format yet — players see &ldquo;Format to be confirmed&rdquo;. Choose it on{" "}
+            <a href="/stages" style={{ color: "var(--color-accent-200)" }}>Rounds &amp; formats</a> when you know the numbers.
+          </p>
+        )}
       </div>
 
       <SetupLockBanner locked={locked} isAdmin={isAdmin} />
@@ -711,7 +799,7 @@ export function RegistrationClient({
           <span className="card-kicker">Registration closes</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{formatDeadline(event.regDeadline, event.locale) || "—"}</div>
           {/* Both this and the capacity above are SET on Tournament details and
-              only shown here — on the screen called Registration & field, which
+              only shown here — on the screen called Entries, which
               is where an organizer goes to change them. Read-only with no way
               onward, an unset deadline renders as "—" and the screen offers
               nothing to do about it. Says where instead. */}
@@ -1001,7 +1089,20 @@ export function RegistrationClient({
                       name="regapproval"
                       checked={approveMode ? v === "approve" : v === "auto"}
                       disabled={pending || locked}
-                      onChange={() => startTransition(() => void setRegistrationApproval(v))}
+                      onChange={() =>
+                        startTransition(async () => {
+                          setSwitchRefused("");
+                          showApproval(v);
+                          // Caught: these actions THROW on a refusal, and inside an async
+                          // transition that goes to the error screen (the QA manager on
+                          // the review panel). The box falls back by itself.
+                          try {
+                            await setRegistrationApproval(v);
+                          } catch {
+                            setSwitchRefused("That change was not saved. Check the connection, and that setup is unlocked.");
+                          }
+                        })
+                      }
                     />
                     {l}
                   </label>
@@ -1033,11 +1134,20 @@ export function RegistrationClient({
               >
                 <input
                   type="checkbox"
-                  checked={phoneLocked ? true : event.requirePhone}
+                  checked={phoneLocked ? true : requirePhoneShown}
                   disabled={pending || locked || phoneLocked}
-                  onChange={(e) =>
-                    startTransition(() => void setRequirePhone(e.target.checked))
-                  }
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    startTransition(async () => {
+                      setSwitchRefused("");
+                      showRequirePhone(on);
+                      try {
+                        await setRequirePhone(on);
+                      } catch {
+                        setSwitchRefused("That change was not saved. Check the connection, and that setup is unlocked.");
+                      }
+                    });
+                  }}
                   style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
                 />
                 <span>
@@ -1061,6 +1171,11 @@ export function RegistrationClient({
                   </span>
                 </span>
               </label>
+              {switchRefused && (
+                <p role="alert" style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }}>
+                  {switchRefused}
+                </p>
+              )}
             </div>
           </>
         )}
@@ -1073,12 +1188,15 @@ export function RegistrationClient({
           for now this opens a share sheet you confirm.)
         </p>
         <div className="field">
-          <label>Message</label>
+          {/* Tied to its box, so a screen reader names it: this caption had no
+              `htmlFor` and the box was announced as an unnamed text area. */}
+          <label htmlFor={`${fid}-invite`}>Message</label>
           {/* A PLACEHOLDER, never a stored value — see `suggestedInvite`. It is
               rebuilt from the tournament on every render, so it cannot be wrong
               about the date the way a saved sentence can; that is exactly what
               went wrong with the one a copy used to inherit. */}
           <textarea
+            id={`${fid}-invite`}
             className="input"
             rows={3}
             value={invite}

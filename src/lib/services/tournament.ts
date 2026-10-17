@@ -268,7 +268,18 @@ export function currentDatedRoundIndex(
   }
   // Before the season opens there is nothing played, and the round everyone is
   // preparing for is the first — never the last.
-  return lastPlayed >= 0 ? lastPlayed : firstDated;
+  if (lastPlayed >= 0) return lastPlayed;
+  /**
+   * …AND THE FIRST ROUND, not the first DATED one (2026-10-16). With an
+   * undated Round 1 above Rounds 2 and 3 on 7 and 14 November — exactly what
+   * adding a dated pair under an existing round produces — this answered
+   * Round 2, so before a ball was struck the app took Round 2 as the one being
+   * played and Rounds & formats chipped Round 1 "Played". A date not yet come
+   * says nothing about an earlier round with no date at all; -1 hands the
+   * question to the cards (`currentPlayedRoundIndex`), which fall back to the
+   * first round.
+   */
+  return firstDated > 0 ? -1 : firstDated;
 }
 
 /**
@@ -1350,8 +1361,16 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const timeZone = await zoneOfOrganization(event.organizationId);
   const datedIdx = currentDatedRoundIndex(playRounds, clubDay(timeZone));
   const playedIdx = datedIdx >= 0 ? datedIdx : currentPlayedRoundIndex(playRounds, playedCards, matches);
+  /**
+   * WITH NO GROUP MATCHES DRAWN ANYWHERE, the round being played is the
+   * calendar's or the cards' answer, not the LAST round robin (2026-10-16).
+   * A draft of two round robins and a knockout headed every round tool in the
+   * sidebar "Round 2 · Match Play" before a match existed. `currentRoundIndex`
+   * is -1 only in that state; once any round robin has matches it decides, and
+   * past the last one it still answers the last.
+   */
   const activeStage =
-    rrStages[activeRrIdx] ?? rrStages[rrStages.length - 1] ?? playRounds[playedIdx] ?? null;
+    rrStages[activeRrIdx] ?? playRounds[playedIdx] ?? rrStages[rrStages.length - 1] ?? null;
   // The chain runs up to the round being played, not past it. Running it to
   // the end left `overall` holding the last round's standings, which is why a
   // played Round 1 showed as zeroes while Round 2 was nominally current.

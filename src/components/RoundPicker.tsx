@@ -8,12 +8,12 @@ import { useRouter, usePathname } from "next/navigation";
  * falls back to the active one. The control that sets it was written twice and
  * both copies were wrong:
  *
- *   - Group games rendered the picker `disabled`. It listed all four rounds of
+ *   - Side games rendered the picker `disabled`. It listed all four rounds of
  *     a four-round event, showed the current one, and could not be changed —
  *     while the page it sat on supported `?round=` perfectly. The only way to
  *     see another round's pots was to edit the URL.
  *   - The pot card's own picker worked, and navigated to a HARD-CODED
- *     `/prizes?round=…`. That card is rendered on Group games too, so choosing
+ *     `/prizes?round=…`. That card is rendered on Side games too, so choosing
  *     a round there threw the organizer onto Prizes & payouts — a different
  *     screen, showing the club's money instead of the fourball's.
  *

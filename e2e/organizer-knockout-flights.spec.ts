@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Browser, type TestInfo } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession } from "./organizer-fixture.mjs";
 
 /**
@@ -125,6 +126,10 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await page.getByLabel("Format for every round added").selectOption("Match Play");
     await page.getByRole("button", { name: /^Add bracket/ }).click();
     await expect(page.getByRole("button", { name: /^Round 1 · Bracket Stage/ })).toBeVisible({ timeout: 20_000 });
+    // Pure knockouts, scratch: Gross, which a new round is not unless the
+    // organizer chooses it (the club default since 2026-10-16). A net one needs a
+    // course card before launch, and this walk's course has none.
+    await playScratch(page, "Round 1 · Bracket Stage");
   });
 
   await test.step("arranged in several flights: nothing is drawn until the field is divided", async () => {

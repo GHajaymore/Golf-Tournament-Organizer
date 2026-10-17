@@ -1119,10 +1119,10 @@ model Event {
   seriesId         String?
 
   // Scoring rules (round-robin stages)
-  winPts               Float    @default(3)
+  winPts               Float    @default(2) // 3 before 2026-10-16 — see migration A002
   tiePts               Float    @default(1)
   lossPts              Float    @default(0)
-  holeRatioPts         Float    @default(0.5)
+  holeRatioPts         Float    @default(0) // 0.5 before 2026-10-16 — see migration A001
   bonusPts             Float    @default(0)
   /**
    * Points for playing a match, awarded once per match contested.

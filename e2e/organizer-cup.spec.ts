@@ -89,7 +89,7 @@ test("a new organizer sets up a team cup", async ({ page }) => {
     await open(page, "/registration");
     const main = page.locator("main");
     await expect(main).toContainText("2 of 5 done");
-    await expect(main).toContainText("To doTeam cup");
+    await expect(main).toContainText("Team cup");
     await expect(main).not.toContainText("Teams & pairs");
     await expect(main).not.toContainText("Flights");
   });

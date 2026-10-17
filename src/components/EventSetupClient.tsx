@@ -583,7 +583,7 @@ export function EventSetupClient({
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>How the tournament is decided</span>
         <div>
           <div className="field">
-            <label>
+            <span className="field-caption">
               Overall result
               <FieldInfo label="overall result">
                 <p>
@@ -601,7 +601,7 @@ export function EventSetupClient({
                   <i>season</i>, not to what happens to be played next.
                 </p>
               </FieldInfo>
-            </label>
+            </span>
             <div className="seg">
               <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "match"} onChange={() => set("format", "match")} />Match play</label>
               <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "stroke"} onChange={() => set("format", "stroke")} />Stroke play</label>
@@ -716,7 +716,7 @@ export function EventSetupClient({
           <div className="field"><label htmlFor={`${fid}-address`}>Address</label><input id={`${fid}-address`} className="input" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state zip" /></div>
         </div>
 
-        {/* Was one heading, "Registration &amp; field", over three unrelated
+        {/* Was one heading, "Entries", over three unrelated
             things — and it collided by name with the SCREEN called Registration
             & field at /registration, which the "Recommended flow" card on this
             very page then told organizers to go to. Two different things

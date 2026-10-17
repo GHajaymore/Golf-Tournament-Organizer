@@ -15,7 +15,7 @@ import { screenName } from "@/lib/nav";
  */
 const base: SetupFacts = {
   confirmed: 8,
-  rounds: [{ label: "Round 1", drawsPairings: false, scheduled: true, cutFed: false, matches: 0 }],
+  rounds: [{ label: "Round 1", drawsPairings: false, scheduled: true, scorable: true, cutFed: false, matches: 0 }],
   groups: 0,
   named: true,
   dated: true,

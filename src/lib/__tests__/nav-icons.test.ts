@@ -8,7 +8,7 @@ import { NAV } from "@/lib/nav";
  *
  *   ph-squares-four   Dashboard          and  Flights
  *   ph-trophy         Season standings   and  Prizes & payouts
- *   ph-users-three    Teams & pairs      and  Group games
+ *   ph-users-three    Teams & pairs      and  Side games
  *
  * An icon in a list of twenty-one links has exactly one job — to let somebody
  * find a row without reading it — and a duplicate does the opposite of that

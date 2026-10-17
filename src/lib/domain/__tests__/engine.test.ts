@@ -590,8 +590,11 @@ describe("a per-match points cap", () => {
   it("stops one thrashing from being worth several wins", () => {
     // The whole point: uncapped, the 7&6 pays far more than the 1-up, so a
     // flight can be settled before the last match is played.
-    const capped = aggregateStats(players, matches, { ...DEFAULT_SCORING, maxPerMatch: 4 });
-    const uncapped = aggregateStats(players, matches, { ...DEFAULT_SCORING, maxPerMatch: 0 });
+    // Points per hole won, so a thrashing is worth more than a narrow win at all
+    // (no new tournament awards them since 2026-10-16; a club may).
+    const perHole = { ...DEFAULT_SCORING, winPts: 3, holeRatioPts: 0.5 };
+    const capped = aggregateStats(players, matches, { ...perHole, maxPerMatch: 4 });
+    const uncapped = aggregateStats(players, matches, { ...perHole, maxPerMatch: 0 });
     expect(capped.get("p1")!.points).toBeLessThan(uncapped.get("p1")!.points);
     // Two matches, no more than 4 from either.
     expect(capped.get("p1")!.points).toBeLessThanOrEqual(8);

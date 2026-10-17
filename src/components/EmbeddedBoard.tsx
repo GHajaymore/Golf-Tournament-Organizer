@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 
 /**
  * A board placed INSIDE another page: the table, and the one line saying what
- * it is ranked on — without the "Overview · Live leaderboard" heading the
- * console's Live leaderboard gives it.
+ * it is ranked on — without the "Overview · Leaderboard" heading the
+ * console's Leaderboard gives it.
  *
  * `TeamLeaderboard`, `SkinsLeaderboard`, `NassauLeaderboard` and
  * `ModifiedStablefordLeaderboard` are whole pages, heading and all. Reports

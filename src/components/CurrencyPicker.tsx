@@ -49,7 +49,7 @@ export function CurrencyPicker({ currency }: { currency: string }) {
 
   return (
     <div className="field" style={{ maxWidth: 340 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span className="field-caption" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         Currency
         {/* The outfit's own word, not "club". `FieldInfo` renders this into
             `aria-label="More about …"`, so a hardcoded one told a society's
@@ -75,7 +75,7 @@ export function CurrencyPicker({ currency }: { currency: string }) {
             hundred is also a hundred yen.
           </p>
         </FieldInfo>
-      </label>
+      </span>
 
       <select
         className="input"

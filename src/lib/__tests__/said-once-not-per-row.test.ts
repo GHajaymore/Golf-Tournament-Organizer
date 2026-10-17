@@ -19,7 +19,7 @@ import { readSource } from "./source";
  *                course, so a club with a dozen venues printed a dozen copies.
  *
  * Both are the same shape as the deadline sentence that appeared three times
- * on Registration & field: a rule that governs the whole list, attached to
+ * on Entries: a rule that governs the whole list, attached to
  * each row of it. The per-row half that genuinely VARIES stays — "Entered by
  * Alex Rourke" identifies somebody and is different every time.
  *

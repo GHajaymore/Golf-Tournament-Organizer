@@ -81,7 +81,7 @@ export default async function MoneyPage() {
   /**
    * Starting a bet, from where a player already is.
    *
-   * It lived only on the organizer's Group games screen, which is the one
+   * It lived only on the organizer's Side games screen, which is the one
    * place somebody standing on the first tee is not. A side bet is agreed in
    * the thirty seconds before a round and it has to be startable in that
    * thirty seconds, on a phone, from the screen a player already has open.
