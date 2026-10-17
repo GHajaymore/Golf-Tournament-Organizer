@@ -19,7 +19,11 @@ import { watchPageErrors } from "./page-errors";
  *                                             → CONTROL: the poker game, with a
  *                                               winner too, is not on it
  *
- * WHAT IT CANNOT SEE: the printed results, which do not carry contests yet.
+ *   the organizer opens Reports            → the printed standings carry the
+ *                                             same contest, winner and sponsor
+ *
+ * WHAT IT CANNOT SEE: the paper itself — the sheet is checked as the page the
+ * Print button prints.
  */
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8")) as {
@@ -78,6 +82,13 @@ test("an organizer names a contest's sponsor, and the public board shows the win
   await expect
     .poll(async () => (await prisma.contest.findUniqueOrThrow({ where: { id: kp }, select: { sponsorUrl: true } })).sponsorUrl, { timeout: 20_000 })
     .toBe("https://zz-sponsor.example/");
+
+  // ── the printed standings, on Reports ───────────────────────────────────
+  await page.goto(`/reports?round=${stageId}&bust=${Date.now()}`);
+  const sheet = page.locator(".print-card").locator("[aria-label='Contests']");
+  await expect(sheet, "the printed standings carry no contests").toBeVisible({ timeout: 20_000 });
+  await expect(sheet.getByRole("listitem").filter({ hasText: `${MARK} KP` })).toContainText(`${winner} · sponsored by ${MARK} Motors`);
+  await expect(sheet, "an off-course game was printed on the standings").not.toContainText(`${MARK} poker`);
 
   // ── a spectator, on the public board ────────────────────────────────────
   const visitor = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });

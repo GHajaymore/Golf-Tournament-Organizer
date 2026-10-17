@@ -6,6 +6,7 @@ import { toCsv, exportStatus, exportRank } from "@/lib/domain/csv-export";
 import { placesWithin } from "@/lib/domain/flight-places";
 import { todaysThru } from "@/lib/domain/scoreboard";
 import { Icon } from "./Icon";
+import type { ContestBoardLine } from "@/lib/services/contest-board";
 
 function download(filename: string, rows: string[][]) {
   // Player names on this export can come from the public registration form, so
@@ -37,7 +38,13 @@ export function ReportsClient({
   hasTeeSheet = true,
   casual = false,
   rankedOn = "net",
+  contests,
 }: {
+  /**
+   * The closest to the pin and long drive for this round, from `contestBoard`
+   * — printed under the standings with their winners and sponsors (2026-10-17).
+   */
+  contests?: { lines: ContestBoardLine[]; thanks: Array<{ name: string; url: string }> };
   /** What the round is played for, for the casual round's compact table. */
   rankedOn?: "gross" | "net";
   /**
@@ -365,6 +372,26 @@ export function ReportsClient({
             320px phone (2026-10-07). */}
         {board ?? (
           <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} compact={casual} rankedOn={rankedOn} />
+        )}
+        {/* The contests on the sheet that goes to the noticeboard, from the
+            reader the public board uses (`contestBoard`). Names, never stakes. */}
+        {contests && contests.lines.length > 0 && (
+          <section style={{ marginTop: 12 }} aria-label="Contests">
+            <span className="card-kicker">Contests</span>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
+              {contests.lines.map((c) => (
+                <li key={c.id}>
+                  <b>{c.title}</b> — {c.winners.length ? c.winners.join(" & ") : "not decided yet"}
+                  {c.sponsorName ? ` · sponsored by ${c.sponsorName}` : ""}
+                </li>
+              ))}
+            </ul>
+            {contests.thanks.length > 0 && (
+              <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
+                Thanks to our sponsors: {contests.thanks.map((s) => s.name).join(", ")}
+              </p>
+            )}
+          </section>
         )}
       </div>
       )}
