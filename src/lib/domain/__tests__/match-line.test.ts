@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchLine } from "../match-line";
+import { matchLine, storedMatchLine } from "../match-line";
 import { readSource } from "../../__tests__/source";
 import type { HoleResult } from "../types";
 
@@ -62,5 +62,22 @@ describe("matchLine", () => {
     expect(matchLine({ aId: "t-a", bId: "t-b", aName: "Walker & Partner", bName: "Third & Fourth", holes })).toBe(
       "Third & Fourth won 6&5",
     );
+  });
+});
+
+describe("a stored match said in a line, for Score entry (2026-10-17)", () => {
+  // Kept hole by hole on a round code: "A" won the first two of a nine.
+  const nine = (results: HoleResult[]) => JSON.stringify([...results, ...new Array(9 - results.length).fill(null)]);
+  it("says the standing with holes to play, so a back nine needs no hole numbers", () => {
+    expect(storedMatchLine(nine(["A", "A"]), "Blues", "Whites")).toBe("Blues 2 up with 7 to play");
+    expect(storedMatchLine(nine(["A", "B", "H"]), "Blues", "Whites")).toBe("All square with 6 to play");
+  });
+  it("says the result once it is decided: five up with four to play over a nine is 5&4", () => {
+    expect(storedMatchLine(nine(["A", "A", "A", "A", "A"]), "Blues", "Whites")).toBe("Blues 5&4");
+  });
+  it("says nothing when nothing is kept, or the column is junk", () => {
+    expect(storedMatchLine(nine([]), "Blues", "Whites")).toBe("");
+    expect(storedMatchLine("", "Blues", "Whites")).toBe("");
+    expect(storedMatchLine("{}", "Blues", "Whites")).toBe("");
   });
 });

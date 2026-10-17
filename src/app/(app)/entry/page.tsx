@@ -23,6 +23,7 @@ import {
   cardForStage,
 } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
+import { storedMatchLine } from "@/lib/domain/match-line";
 import { needsTeams, entryModeFor, findFormat } from "@/lib/formats";
 import { generatesPairings, isHeadToHead, isKnockoutRound } from "@/lib/stage-types";
 import { isMatch } from "@/lib/tournament-shape";
@@ -313,6 +314,19 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
       return Math.min(...figures.map((n) => Math.round(n)));
     };
     const rows: TeamEntryRow[] = [];
+    /**
+     * A MATCH THE PLAYERS KEPT HOLE BY HOLE (2026-10-17, the cup rehearsal).
+     *
+     * A four-ball kept on a phone with a round code stores who won each hole
+     * on the Match, not strokes on a team card — so this screen read "No score
+     * yet" beside a match standing three up on the public board. The standing
+     * is said instead, in the words the board uses, with "to play" rather
+     * than "thru" so a back-nine match needs no hole numbers.
+     */
+    const matchLineOf = (matchId: string): string => {
+      const m = stageMatches.find((x) => x.id === matchId);
+      return m ? storedMatchLine(m.holes, teamById.get(m.teamAId)?.name ?? "", teamById.get(m.teamBId)?.name ?? "") : "";
+    };
     const pushRow = (teamId: string, matchId: string, opponentName?: string) => {
       const t = teamById.get(teamId);
       if (!t) return;
@@ -391,6 +405,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         grossTotal: card.grossTotal,
         netTotal: card.netTotal,
         played: card.played,
+        matchLine: matchLineOf(matchId),
       });
     };
 
