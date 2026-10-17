@@ -207,7 +207,7 @@ export function RoundHandicaps({
             for its course and tees. <b>Change</b> offers two things. <b>Their strokes in this round
             only</b> is a whole number for this round, and nothing else moves. <b>Their handicap
             index</b> moves every round of this tournament not yet played and, if you tick it and
-            the club keeps its own handicaps, the member&rsquo;s index on Members for every
+            your club, society or league keeps its own handicaps, the member&rsquo;s index on Members for every
             tournament after.
           </p>
           <p>

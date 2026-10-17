@@ -1693,9 +1693,9 @@ function StageCard({
           <FieldInfo label="playing off handicap or scratch">
             <p>
               <b>Net</b> takes each player&rsquo;s handicap strokes off first, so a 20-handicap can
-              win — how most club competitions are played. <b>Gross</b> ranks the strokes actually
+              win — how most club, society and league competitions are played. <b>Gross</b> ranks the strokes actually
               taken, as a scratch championship does. <b>Both</b> keeps the two orders of merit from
-              one card, for a club that gives a gross and a net prize.
+              one card, for a competition that gives a gross and a net prize.
             </p>
           </FieldInfo>
         </span>
@@ -1705,8 +1705,8 @@ function StageCard({
              there is nothing to choose here, and a picker offering
              "Gross" would be offering a result the engine never gave. */
           <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
-            Off handicap — points are worked out after each player&rsquo;s strokes, as club
-            Stableford competitions are played. For a scratch competition, choose Stroke Play.
+            Off handicap — points are worked out after each player&rsquo;s strokes, as
+            Stableford is played everywhere. For a scratch competition, choose Stroke Play.
           </p>
         ) : (
           <>
@@ -1726,7 +1726,7 @@ function StageCard({
                 ? "Scratch: the strokes as taken, no handicaps."
                 : basis === "both"
                   ? "A gross and a net order of merit from the same cards."
-                  : "Off handicap, as most club competitions are."}
+                  : "Off handicap, as most competitions are — club, society or league."}
             </p>
           </>
         )}

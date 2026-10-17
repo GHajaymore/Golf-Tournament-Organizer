@@ -147,7 +147,7 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await expect(async () => {
       await open(page, "/stages");
       await expect(page.locator("label.seg-opt", { hasText: /^\s*Net\s*$/ }).locator("input")).toBeChecked();
-      await expect(page.getByText("Off handicap, as most club competitions are.")).toBeVisible();
+      await expect(page.getByText("Off handicap, as most competitions are — club, society or league.")).toBeVisible();
     }).toPass({ timeout: 20_000 });
   });
 

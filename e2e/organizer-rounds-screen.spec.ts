@@ -89,7 +89,7 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
     if ((await r1.getAttribute("aria-expanded")) !== "true") await r1.click();
     const card = page.locator(".card", { has: r1 });
     await expect(card.locator("label.seg-opt", { hasText: /^\s*Net\s*$/ }).locator("input")).toBeChecked();
-    await expect(card.getByText("Off handicap, as most club competitions are.")).toBeVisible();
+    await expect(card.getByText("Off handicap, as most competitions are — club, society or league.")).toBeVisible();
     // The line itself, not the heading above it that carries the same words.
     await expect(card.getByText(/^Handicap allowance \d+%/)).toBeVisible();
   });
