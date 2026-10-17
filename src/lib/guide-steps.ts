@@ -220,9 +220,10 @@ export const GUIDE_STEPS: GuideSection[] = [
   {
     id: "field",
     part: "Part 4",
-    title: "The field",
+    title: "Entries",
     blocks: [
       { kind: "where", text: "Set up → Entries" },
+      { kind: "p", text: "Waiting to see how many sign up before choosing the format? Take entries first — the entry form says “Format to be confirmed” until you add a round, and Rounds & formats shows how many have entered when you come back to choose." },
       { kind: "h", text: "Add players yourself" },
       {
         kind: "steps",
