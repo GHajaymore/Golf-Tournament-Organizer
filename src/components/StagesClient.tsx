@@ -1798,12 +1798,8 @@ function StageCard({
         <DrawRound stage={stage} label={thisRound || "this round"} />
       )}
       {stage.allowance && (
-        <div>
-          <SectionLabel>Handicap allowance</SectionLabel>
-          <div style={{ marginTop: 6 }}>
-            <RoundAllowance stageId={stage.id} info={stage.allowance} locked={locked} />
-          </div>
-        </div>
+        // The line itself starts "Handicap allowance 95%"; a heading saying the same went (2026-10-16).
+        <RoundAllowance stageId={stage.id} info={stage.allowance} locked={locked} />
       )}
 
       {/* What this kind of round settles — at ROUND level, not inside

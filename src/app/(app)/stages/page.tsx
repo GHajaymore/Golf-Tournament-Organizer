@@ -374,7 +374,9 @@ export default async function StagesPage() {
                 body: <SeasonDates undated={seasonUndated} suggestedStart={state.today} bare />,
               }]
             : []),
-          ...(handicapWarning
+          // One notice per cause: with no course card there is no rating either, and the
+          // card notice already says what to do (2026-10-16, "redundancies").
+          ...(handicapWarning && !missingCardsNote
             ? [{
                 key: "handicaps",
                 tone: "note" as const,
