@@ -1722,6 +1722,14 @@ describe("rounds and format", () => {
         ["A match all square after 18", "Level in the table", "Points for a match", "Ties and points"], ["Level on the round", "All square after 18 →"]],
       ["a stroke-play round robin", { type: "Round Robin", format: "Stroke Play", scoringBasis: "net" },
         ["Level in the table", "lowest net, then lowest gross", "Points for a match"], ["A match all square", "Level on the round"]],
+      // NINE HOLES (Ajay, 2026-10-16: "also consider 9 holes rounds"): the question
+      // names the ninth, and a countback has no "last nine" — that is the whole round.
+      ["a nine-hole medal", { type: "Stroke Play Round", format: "Stroke Play", holes: 9 },
+        ["countback on the card — the better last six, then the last three and the last hole"], ["last nine", "All square after"]],
+      ["a nine-hole knockout", { type: "Bracket Stage", format: "Match Play", holes: 9 },
+        ["All square after 9"], ["All square after 18"]],
+      ["a nine-hole match-play round robin", { type: "Round Robin", format: "Match Play", holes: 9 },
+        ["A match all square after 9"], ["after 18"]],
     ];
     for (const [what, over, shows, hides] of cases) {
       const html = one(over);
