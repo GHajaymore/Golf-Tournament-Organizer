@@ -19,6 +19,7 @@ export async function playScratch(page: Page, round: string): Promise<void> {
   const card = page.locator(".card", { has: head });
   const gross = card.locator("label.seg-opt", { hasText: /^\s*Gross\s*$/ });
   await gross.click();
-  await expect(card.getByText("Scratch: the strokes as taken, no handicaps.")).toBeVisible({ timeout: 20_000 });
-  await expect(gross.locator("input")).toBeChecked();
+  // Saved when the choice reads back ticked — the round no longer repeats the
+  // option in a sentence under it (2026-10-16: Gross and Net say themselves).
+  await expect(gross.locator("input")).toBeChecked({ timeout: 20_000 });
 }
