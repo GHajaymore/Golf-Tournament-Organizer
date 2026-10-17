@@ -442,7 +442,9 @@ export function PlayClient(props: Props) {
               ].map((g, gi) => (
                 <section key={gi} className="card elev-sm" style={{ padding: "10px 12px" }} aria-label={g.label}>
                   <h2 className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>{g.label}</h2>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+                  {/* Two to a row on a phone too (`keep-grid`): a foursome is
+                      two rows of thumb-sized names, not four. */}
+                  <div className="keep-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
                     {g.ids.map((id) => {
                       const p = (players ?? []).find((x) => x.id === id);
                       if (!p) return null;
@@ -1023,10 +1025,24 @@ export function PlayClient(props: Props) {
           const me = m.side ? "Us" : "You";
           const them = m.side ? "Them" : firstName(m.bName) || "Them";
           const text = matchStandingText(r, me, them);
+          // The next step is said where the player is looking: a cup's second
+          // nine is another round with its own code, and the way to it was a
+          // "Sign out" at the foot of the page.
           return r.complete ? (
-            <p role="status" className="card elev-sm" style={{ margin: 0, padding: "10px 12px", fontSize: 15, fontWeight: 600 }}>
-              Match over: {text}. Nothing more to enter.
-            </p>
+            <div className="card elev-sm" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <p role="status" style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
+                Match over: {text}. Nothing more to enter.
+              </p>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ minHeight: 44 }}
+                disabled={pending}
+                onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+              >
+                Enter another round code
+              </button>
+            </div>
           ) : (
             <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{text}</p>
           );

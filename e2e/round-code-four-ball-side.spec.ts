@@ -223,6 +223,11 @@ test("a four-ball partner with a round code keeps their side's match, from their
       await g.getByRole("button", { name: new RegExp(`^Hole ${n} to you`) }).click();
     }
     await expect(page.getByRole("status").filter({ hasText: "Match over: Us 5&4. Nothing more to enter." })).toBeVisible({ timeout: 10_000 });
+
+    // And the way to the next nine's code is right there, not a "Sign out"
+    // at the foot of the page.
+    await page.getByRole("button", { name: "Enter another round code" }).click();
+    await expect(page.getByLabel("Round code")).toBeVisible({ timeout: 15_000 });
     expect(errors).toEqual([]);
   } finally {
     await ctx.close();
