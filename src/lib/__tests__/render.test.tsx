@@ -1385,7 +1385,8 @@ describe("rounds and format", () => {
       <StagesClient {...base} chainsRounds
         stages={[stage(), stage({ id: "r2", position: 2, carryAsked: false })]} />,
     );
-    expect(html).toContain("Carry forward");
+    // One choice since 2026-10-16: Start fresh / Carry all / Carry part.
+    expect(html).toContain("Carry all");
   });
 
   /**
@@ -1515,7 +1516,6 @@ describe("rounds and format", () => {
             b1: { on: true, problem: "", aName: "Ann Reyes", bName: "Bo Kite", made: false },
           }} />,
       );
-      expect(html).toContain("Third and fourth");
       expect(html).toContain("Play off for third");
       expect(html).toContain("Ann Reyes");
       closedPanel(html);
@@ -1642,9 +1642,9 @@ describe("rounds and format", () => {
       // On the day, once play has begun
       "On the day", "Scoring window",
       // Inside "Customize this round": what clubs vary
-      "When scores are due", "Completion deadline",
+      "Play by",
       "Sign-up deadline",
-      "Before the next round", "Carry forward points into Round 2", "Cut the field for Round 2",
+      "Before the next round", "Points into Round 2", "Carry part", "Cut the field for Round 2",
       "Generate",
       // On the face since 2026-10-16: one line per tie question (Ajay could not find them in Customize)
       "Ties", "A match all square after 18", "Level in the table",
@@ -1698,6 +1698,36 @@ describe("rounds and format", () => {
     expect(open("Match Play")).toContain("Level in the table");
     expect(open("Stroke Play")).not.toContain("A match all square");
     expect(open("Stroke Play")).toContain("Level in the table");
+  });
+
+  /**
+   * CUSTOMIZE FOLLOWS THE ROUND (Ajay, 2026-10-16: "the customize options should
+   * be displayed based on the round type"). Each kind of round is offered the
+   * tie lines it raises and nothing else — walked over every kind, with what
+   * each must NOT show beside what it must.
+   */
+  it("offers each kind of round only the tie and points lines it raises", () => {
+    const one = (over: Partial<StageView>) =>
+      render(<StagesClient {...base} chainsRounds={false} stages={[stage({ id: "r1", position: 0, ...over })]} />);
+    const cases: Array<[string, Partial<StageView>, string[], string[]]> = [
+      ["a medal", { type: "Stroke Play Round", format: "Stroke Play" },
+        ["Level on the round", "countback on the card"], ["A match all square", "Level in the table", "Points for a match", "All square after"]],
+      ["a Stableford", { type: "Stroke Play Round", format: "Stableford", scoringBasis: "net" },
+        ["Level on the round"], ["Level in the table", "Points for a match", "All square after"]],
+      ["a knockout", { type: "Bracket Stage", format: "Match Play" },
+        ["All square after 18", "record the winner on Bracket"], ["Level in the table", "Points for a match", "Level on the round"]],
+      ["a single match", { type: "Single Match Stage", format: "Match Play" },
+        ["All square after 18", "record the winner on Score entry"], ["Level in the table", "Points for a match", "Level on the round"]],
+      ["a match-play round robin", { type: "Round Robin", format: "Match Play" },
+        ["A match all square after 18", "Level in the table", "Points for a match", "Ties and points"], ["Level on the round", "All square after 18 →"]],
+      ["a stroke-play round robin", { type: "Round Robin", format: "Stroke Play", scoringBasis: "net" },
+        ["Level in the table", "lowest net, then lowest gross", "Points for a match"], ["A match all square", "Level on the round"]],
+    ];
+    for (const [what, over, shows, hides] of cases) {
+      const html = one(over);
+      for (const t of shows) expect(html, `${what} should show "${t}"`).toContain(t);
+      for (const t of hides) expect(html, `${what} should not show "${t}"`).not.toContain(t);
+    }
   });
 
   it("says what a closed round decides, not just 'Standard settings'", () => {

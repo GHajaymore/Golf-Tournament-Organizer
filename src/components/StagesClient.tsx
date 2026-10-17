@@ -295,6 +295,9 @@ function TieRow({ question, rule, children }: { question: string; rule: string; 
   );
 }
 
+/** Formats every golfer knows by name: no line under the picker explaining them. */
+const WELL_KNOWN_FORMATS = new Set(["Stroke Play", "Match Play", "Stableford"]);
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <span className="card-kicker" style={{ display: "block" }}>{children}</span>;
 }
@@ -492,102 +495,92 @@ function NextRoundTransition({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* Asked outright rather than left as an unchecked box. In a points
-          league whether a strong round still counts is the central decision of
-          the format, and nobody finds it by accident halfway down a panel. */}
-      {carry.ask && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            padding: "12px 14px",
-            borderRadius: 10,
-            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
-          }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{carry.question}</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{carry.detail}</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={pending || locked}
-              onClick={() => commitCarry(true, carryPct > 0 ? carryPct : 100)}
-            >
-              Yes, carry them forward
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={pending || locked}
-              onClick={() => commitCarry(false, 0)}
-            >
-              No, each round starts fresh
-            </button>
-          </div>
-        </div>
-      )}
-
+      {/* ONE ROW FOR ONE DECISION (2026-10-16; the review panel, on Ajay's "I still
+          see redundancies"). Whether points carry into the next round was asked
+          three times over: a prompt card with Yes / No, then a tick-box, a slider
+          and a sentence about the same thing. Now one choice — Start fresh, Carry
+          all, Carry part — with the share only under Carry part. Still ASKED where
+          it matters (`carry.ask`): nothing is chosen until the organizer chooses. */}
       {carry.inert ? (
-        // Offering a switch that does nothing is worse than not offering it:
-        // strokeStandings are built from the returned cards and never read the
-        // carried total, so turning this on for a stroke round changes nothing.
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {carry.detail}
         </p>
       ) : (
-      <>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-          {/* Ticking the box carries the whole total unless a share has
-              already been chosen. It used to commit whatever the slider said,
-              which on a round nobody had touched was 0 — so the switch read as
-              on, the sentence underneath admitted "a player on 12 pts here
-              starts Round 2 with 0 pts", and the organizer had turned on a
-              feature that does nothing. The "Yes, carry them forward" answer
-              directly above already defaults to 100 for the same reason. */}
-          <input
-            type="checkbox"
-            checked={carryEnabled}
-            disabled={pending || locked}
-            onChange={(e) => commitCarry(e.target.checked, e.target.checked && carryPct === 0 ? 100 : carryPct)}
-          />
-          Carry forward points into {roundLabel}
-          <FieldInfo label="carrying points forward">
-            <p>
-              At 100% a player takes their whole total into {roundLabel}, so a strong first round
-              still counts at the end. At 50% it is halved — the lead narrows but does not vanish.
-              At 0% every player starts level and the earlier round decides only who is still in.
+        <div className="field" style={{ gap: 6 }}>
+          <span className="field-caption">
+            Points into {roundLabel}
+            <FieldInfo label="carrying points forward">
+              <p>{carry.detail}</p>
+              <p>
+                Carry all and a player takes their whole total into {roundLabel}, so a strong round still
+                counts at the end. Carry part and it is cut to the share you choose — the lead narrows but
+                does not vanish. Start fresh and every player begins {roundLabel} level.
+              </p>
+            </FieldInfo>
+          </span>
+          <div className="seg" role="radiogroup" aria-label={`Points into ${roundLabel}`} style={{ flexWrap: "wrap" }}>
+            {(
+              [
+                ["fresh", "Start fresh"],
+                ["all", "Carry all"],
+                ["part", "Carry part"],
+              ] as const
+            ).map(([key, label]) => {
+              const chosen = carry.ask
+                ? false
+                : key === "fresh"
+                  ? !carryEnabled
+                  : key === "all"
+                    ? carryEnabled && carryPct === 100
+                    : carryEnabled && carryPct !== 100;
+              return (
+                <label key={key} className="seg-opt" style={{ minHeight: 44 }}>
+                  <input
+                    type="radio"
+                    name={`carry-${stageId}`}
+                    checked={chosen}
+                    disabled={pending || locked}
+                    onChange={() =>
+                      key === "fresh"
+                        ? commitCarry(false, 0)
+                        : key === "all"
+                          ? commitCarry(true, 100)
+                          : commitCarry(true, carryPct > 0 && carryPct < 100 ? carryPct : 50)
+                    }
+                  />
+                  {label}
+                </label>
+              );
+            })}
+          </div>
+          {carry.ask && (
+            <p style={{ fontSize: 13, margin: 0 }}>
+              <b>{carry.question}</b> <span className="text-muted">Until you choose, {roundLabel} starts fresh.</span>
             </p>
-            <p>
-              This only works between rounds measuring the same thing. Carrying match points into a
-              stroke-play round produces a number that means nothing, and the app says so when the
-              rounds don&rsquo;t line up.
+          )}
+          {!carry.ask && carryEnabled && carryPct !== 100 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <input
+                type="range"
+                min={5}
+                max={95}
+                step={5}
+                value={carryPct}
+                disabled={locked}
+                onChange={(e) => commitCarry(true, parseInt(e.target.value, 10))}
+                style={{ flex: 1, minWidth: 120, minHeight: 44 }}
+                aria-label={`Share of points carried into ${roundLabel}`}
+                aria-valuetext={`${carryPct}%`}
+              />
+              <span className="tag tag-accent" style={{ minWidth: 48, textAlign: "center" }}>{carryPct}%</span>
+            </div>
+          )}
+          {!carry.ask && carryEnabled && (
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+              A player on 12 pts here starts {roundLabel} on {(12 * carryPct) / 100}.
             </p>
-          </FieldInfo>
-        </label>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          step={5}
-          value={carryPct}
-          disabled={!carryEnabled || locked}
-          onChange={(e) => commitCarry(carryEnabled, parseInt(e.target.value, 10))}
-          style={{ flex: 1, minWidth: 120 }}
-          aria-label={`Share of points carried into ${roundLabel}`}
-          aria-valuetext={`${carryPct}%`}
-        />
-        <span className="tag tag-accent" style={{ minWidth: 48, textAlign: "center" }}>{carryPct}%</span>
-      </div>
-      <p className="text-muted" style={{ fontSize: 13, margin: "0 0 0 2px" }}>
-        {carryEnabled
-          ? `At ${carryPct}%, a player on 12 pts here starts ${roundLabel} with ${(12 * carryPct) / 100} pts.`
-          : `Off — ${roundLabel} starts scoring from zero; no points carry over from this round.`}
-      </p>
-      </>
+          )}
+        </div>
       )}
 
       <div style={{ borderTop: "1px solid var(--color-divider)", margin: "4px 0", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1118,7 +1111,6 @@ function StageCard({
     decidesParts.push(thirdPlace.on ? "Plays off for third" : "No play-off for third");
   }
 
-  const customizeSummary = customizeParts.length ? customizeParts.join(" · ") : "Nothing changed";
   const summaryParts = [...rowParts, ...customizeParts, ...decidesParts];
   const summaryLine = summaryParts.length ? summaryParts.join(" · ") : "Standard settings";
   /** The row's line beside "Every round": the venue, the customised, what it decides — not the shared three. */
@@ -1142,12 +1134,19 @@ function StageCard({
   const playByOnFace = isHeadToHead(stage.type);
   const whenDue = (
     <>
-            <SettingsGroup
-              title="When scores are due"
-              blurb="For a round players arrange themselves — a knockout's matches, a week's league game — the last day it may be played and its result entered."
-            >
+            {/* ONE FIELD, NOT A HEADING, A SENTENCE AND A LABEL FOR ONE DATE
+                (2026-10-16; the review panel on Ajay's "redundancies"). */}
+            <div>
               <div className="field" style={{ width: 190 }}>
-                <label htmlFor={`deadline-${stage.id}`}>Completion deadline</label>
+                <span className="field-caption">
+                  <label htmlFor={`deadline-${stage.id}`}>Play by</label>
+                  <FieldInfo label="the play-by date">
+                    <p>
+                      For a round players arrange themselves — a knockout&rsquo;s matches, a week&rsquo;s
+                      league game — the last day it may be played and its result entered.
+                    </p>
+                  </FieldInfo>
+                </span>
                 {/* A date input, so it opens the platform calendar rather than
                     asking someone to guess a format. The native picker follows
                     `color-scheme`, which the app shell now sets from the club's
@@ -1174,8 +1173,7 @@ function StageCard({
                   </p>
                 )}
               </div>
-
-            </SettingsGroup>
+            </div>
 
             {/* Weekly sign-up, when the league asks the question. A different
                 question from either date above — who is playing next week, not
@@ -1416,7 +1414,12 @@ function StageCard({
               first sentence only — "Partners play one ball, alternating
               shots…" — is what a newcomer needs while choosing; the full
               description and the round notes stay behind the ⓘ. */}
-          {activeFormat && (
+          {/* ONLY WHERE THE NAME DOES NOT ALREADY SAY IT (2026-10-16, Ajay: "I still see
+              redundancies"). Under Match Play it read "Head-to-head, hole-by-hole…" — what every
+              golfer knows — and a side format's label in the picker already explains it. Kept for
+              the ones a newcomer may not know (Skins, Nassau, Modified Stableford), as Ajay asked on
+              2026-09-28: the first sentence shows, the rest stays behind the ⓘ. */}
+          {activeFormat && !WELL_KNOWN_FORMATS.has(format) && (formatChoicesFor(stage.type, format).find((c) => c.name === format)?.label ?? format) === format && (
             <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13, lineHeight: 1.45 }}>
               {formatTagline(activeFormat.desc)}
             </p>
@@ -1756,13 +1759,12 @@ function StageCard({
                 </label>
               ))}
             </div>
-            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
-              {basis === "gross"
-                ? "Scratch: the strokes as taken, no handicaps."
-                : basis === "both"
-                  ? "A gross and a net order of merit from the same cards."
-                  : "Off handicap, as most competitions are — club, society or league."}
-            </p>
+            {/* Only where the choice needs words (2026-10-16): Gross and Net say themselves. */}
+            {basis === "both" && (
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
+                A gross and a net order of merit from the same cards.
+              </p>
+            )}
           </>
         )}
       </div>
@@ -1909,7 +1911,7 @@ function StageCard({
 
         {stage.type === "Bracket Stage" && thirdPlace && (
           <div>
-            <SectionLabel>Third and fourth</SectionLabel>
+
             <ThirdPlaceControl
               stageId={stage.id}
               on={thirdPlace.on}
@@ -1947,9 +1949,6 @@ function StageCard({
                 <p>{CUT_SCOPE_HELP}</p>
               </FieldInfo>
             </SectionLabel>
-            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px" }}>
-              How many players come through into this bracket — top N per flight, or top N overall.
-            </p>
             <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} locked={locked} flightCount={flightCount} fieldSize={confirmedCount} />
           </div>
           )
@@ -1974,7 +1973,7 @@ function StageCard({
               </FieldInfo>
             </>
           }
-          blurb="What carries forward, who survives the cut, and drawing the next round's matches."
+
         >
           <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} allStages={allStages} confirmedCount={confirmedCount} flightCount={flightCount} carry={carryPrompt} />
         </SettingsGroup>
@@ -2050,7 +2049,7 @@ function StageCard({
               (the UI/UX designer on the review panel). */}
           {!customizeOpen && (
             <span className="text-muted" style={{ fontSize: 13, textAlign: "right", minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>
-              {roundRaisesTies ? `Ties · ${customizeSummary}` : customizeSummary}
+              {[roundRaisesTies ? "Ties" : "", customizeParts.join(" · ")].filter(Boolean).join(" · ")}
             </span>
           )}
         </button>
@@ -2068,8 +2067,8 @@ function StageCard({
                 the customize", so first in it, named on its closed bar. */}
             {roundRaisesTies && (
               <SettingsGroup
-                title="Ties"
-                blurb={stage.type === "Round Robin" ? "The same for every round robin in this tournament." : undefined}
+                title={stage.type === "Round Robin" ? "Ties and points" : "Ties"}
+                blurb={stage.type === "Round Robin" ? "Ties and points are the same for every round robin in this tournament." : undefined}
               >
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {(isKnockoutRound(stage.type) || stage.type === "Single Match Stage") && (
@@ -2086,6 +2085,13 @@ function StageCard({
                   {stage.type === "Round Robin" && (
                     <TieRow question="Level in the table" rule={tableTieInWords(tiebreakers, format === "Match Play" || entryModeFor(format) === "team" ? "" : individualTieBreak(basis, format))}>
                       <TableTiebreakControl tiebreakers={tiebreakers} locked={locked} />
+                    </TieRow>
+                  )}
+                  {/* Points are scoring, not a tie rule; they share this group because they too
+                      are set once for every round robin (2026-10-16). */}
+                  {stage.type === "Round Robin" && (
+                    <TieRow question="Points for a match" rule={pointsInWords(scoring)}>
+                      <PointsControl initial={scoring} locked={locked} />
                     </TieRow>
                   )}
                   {stage.type === "Stroke Play Round" && !isManualFormat(format) && (isIndividualStrokeRound(stage) || entryModeFor(format) === "team") && (
@@ -2188,13 +2194,7 @@ function StageCard({
             {/* POINTS ARE SCORING, NOT A TIEBREAK (2026-10-16; the review panel). They
                 shared one block with the table's tie chain under "Tiebreakers"; the tie
                 chain is on the face now, under Ties. One line here, the figures on Change. */}
-            {stage.type === "Round Robin" && (
-              <SettingsGroup title="Points" blurb="The same for every round robin in this tournament.">
-                <TieRow question="Points for a match" rule={pointsInWords(scoring)}>
-                  <PointsControl initial={scoring} locked={locked} />
-                </TieRow>
-              </SettingsGroup>
-            )}
+
 
             {/* A committee's own figure for one player in one round — a visitor's
                 handicap, a correction for the day. Real, and rare: in Customize,
