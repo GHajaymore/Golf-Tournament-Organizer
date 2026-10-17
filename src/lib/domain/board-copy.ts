@@ -3,7 +3,7 @@
  *
  * `/leaderboard` is one of the screens a casual round deliberately KEEPS —
  * where you stand is exactly what a golfer wants afterwards, and `nav.ts` says
- * so: "Score entry, Live leaderboard, Rules reference and Group games mean
+ * so: "Score entry, Leaderboard, Rules reference and Side games mean
  * exactly the same thing to a fourball as to a championship". The TABLE does.
  * Everything printed around it did not.
  *
@@ -66,7 +66,7 @@ export interface BoardCopyInput {
   advancing: boolean;
 }
 
-/** The line under "Live leaderboard". */
+/** The line under "Leaderboard". */
 export function boardIntro({ isStroke, stableford, casual, flighted }: BoardCopyInput): string {
   const standings = flighted ? "Overall standings across all flights" : "Overall standings";
   if (!isStroke) {

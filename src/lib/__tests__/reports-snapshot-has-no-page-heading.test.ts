@@ -6,17 +6,17 @@ import { readSource } from "./source";
  *
  * `TeamLeaderboard`, `SkinsLeaderboard`, `NassauLeaderboard` and
  * `ModifiedStablefordLeaderboard` are whole pages: each opens with
- * "Overview" and an `<h1>Live leaderboard</h1>`. Reports and the public
+ * "Overview" and an `<h1>Leaderboard</h1>`. Reports and the public
  * `/live` board both dropped them into a page with its own `<h1>`. On the
  * seeded club's foursomes Reports had two — found on 2026-09-26 by a sweep of
  * 220 console loads, the only one of the 220 without exactly one — and printed
- * "Live leaderboard" on the sheet pinned up after the round; `/live` showed a
+ * "Leaderboard" on the sheet pinned up after the round; `/live` showed a
  * club's members the console's "Overview" kicker under the tournament's name.
  *
  * `e2e/layout.spec.ts` requires one `<h1>` per route but runs a stroke
  * fixture, where both screens take the plain table and these four formats
  * never reach it. So the rule is pinned where every format is visible at once:
- * the source. The console's Live leaderboard is the one screen these ARE the
+ * the source. The console's Leaderboard is the one screen these ARE the
  * page for, and is not swept here.
  */
 const EMBEDDERS = ["src/app/(app)/reports/page.tsx", "src/app/live/[token]/page.tsx"];

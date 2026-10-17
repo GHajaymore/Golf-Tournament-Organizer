@@ -29,8 +29,8 @@ describe("going live", () => {
 
   it("refuses a tournament with nobody to play it", () => {
     const r = launchRefusal({ playingRounds: 2, confirmed: 0, dated: true, missingCards: [], unscorable: [] });
-    expect(r).toContain("Nobody is in the field");
-    expect(r).toContain("Registration & field");
+    expect(r).toContain("Nobody is entered yet");
+    expect(r).toContain("Entries");
   });
 
   it("allows the ordinary case", () => {

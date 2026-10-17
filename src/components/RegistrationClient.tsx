@@ -219,7 +219,7 @@ export function RegistrationClient({
         index: offer.to,
         expectedFrom: offer.to,
         alsoMember: true,
-        reason: "Correction on Registration & field",
+        reason: "Correction on Entries",
       });
       if (!res.ok) {
         setRowError(`${offer.name}: ${res.error ?? "Couldn't change Members."}`);
@@ -717,7 +717,7 @@ export function RegistrationClient({
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h1 className="page-title">Registration &amp; field</h1>
+        <h1 className="page-title">Entries</h1>
         <MoreInfo short="Who's in, and who's waiting." style={{ marginTop: 6 }}>
           Collect the details you need to run the event. Confirmed players fill up to capacity; overflow waitlists.
         </MoreInfo>
@@ -790,7 +790,7 @@ export function RegistrationClient({
           <span className="card-kicker">Registration closes</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{formatDeadline(event.regDeadline, event.locale) || "—"}</div>
           {/* Both this and the capacity above are SET on Tournament details and
-              only shown here — on the screen called Registration & field, which
+              only shown here — on the screen called Entries, which
               is where an organizer goes to change them. Read-only with no way
               onward, an unset deadline renders as "—" and the screen offers
               nothing to do about it. Says where instead. */}

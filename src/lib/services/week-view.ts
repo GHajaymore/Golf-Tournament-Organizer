@@ -557,7 +557,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    */
   const potRows = await prisma.skinsPot.findMany({
     // The club's own pots. A fourball's private game is theirs and lives on
-    // Group games; without this filter the week sheet rendered the FIELD's
+    // Side games; without this filter the week sheet rendered the FIELD's
     // pot once per group pot on the round — the same card twice — and showed
     // no group pot at all.
     where: { stageId: stage.id, groupKey: "" },

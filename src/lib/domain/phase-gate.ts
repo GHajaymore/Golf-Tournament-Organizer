@@ -82,7 +82,7 @@ export function launchRefusal(facts: LaunchFacts): string | null {
     return "There are no rounds yet, so there is nothing to play. Add a round on Rounds & formats, then launch.";
   }
   if (facts.confirmed < 1) {
-    return "Nobody is in the field yet, so there is nobody to launch it for. Enter the field on Registration & field, then launch.";
+    return "Nobody is entered yet, so there is nobody to launch it for. Add players on Entries, then launch.";
   }
   if (!facts.dated) {
     // "Tournament details" is the screen's name in the sidebar. This said

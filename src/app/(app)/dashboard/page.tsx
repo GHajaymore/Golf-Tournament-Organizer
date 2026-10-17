@@ -73,10 +73,10 @@ import { flightLabel } from "@/lib/domain/flight-label";
  * NO LABELS HERE. The name of a screen comes from the sidebar, once.
  *
  * These carried their own: "Players", "Rounds", "Prizes", "Reports" — for
- * screens the sidebar calls Registration & field, Rounds & formats, Prizes &
+ * screens the sidebar calls Entries, Rounds & formats, Prizes &
  * payouts and Reports & export. Four screens with two names each, and both
  * names appear on THIS page at the same time: the setup checklist above says
- * "Registration & field" and a tile a few inches below says "Players", and
+ * "Entries" and a tile a few inches below says "Players", and
  * they are the same link.
  *
  * `nav.ts` already states the rule and grants exactly one exception — the
@@ -968,7 +968,7 @@ export default async function DashboardPage() {
           <span className="card-kicker">Quick actions</span>
           {/* `auto-fit` rather than a fixed five, because the labels are the
               sidebar's now and some of them are three words. Five hard columns
-              put "Registration & field" into a 64px tile on a 320px phone. The
+              put "Entries" into a 64px tile on a 320px phone. The
               same fix, for the same reason, as the flights grid in
               QualificationPanel. */}
           {/* `keep-grid`, so a phone keeps the tiles side by side. Without
@@ -1120,7 +1120,7 @@ export default async function DashboardPage() {
             {showStandings ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                  <span className="card-title">Live leaderboard</span>
+                  <span className="card-title">Leaderboard</span>
                   {/* A casual round's version of this card — "Where the match
                       stands", "Holes won" — is on its own screen now, read
                       through `casual-round.ts`. */}
@@ -1146,7 +1146,7 @@ export default async function DashboardPage() {
 
                      BOTH places, since 2026-09-26. This said "they're on
                      Reports & export" only, which sent a newcomer running a
-                     scramble away from the Live leaderboard — the screen built
+                     scramble away from the Leaderboard — the screen built
                      for it, which ranks the sides ("Scramble · 2 sides · lowest
                      net wins"). Checked on the seeded club: both screens show
                      them. */

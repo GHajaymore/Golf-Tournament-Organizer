@@ -190,7 +190,7 @@ export function SkinsPotClient({
           </p>
         </FieldInfo>
         {/* Returns to the screen it is ON. This card is rendered on Prizes and
-            on Group games, and the hard-coded `/prizes?round=` it used to
+            on Side games, and the hard-coded `/prizes?round=` it used to
             carry threw a fourball's organizer onto the club's money screen. */}
         <RoundPicker
           rounds={rounds}

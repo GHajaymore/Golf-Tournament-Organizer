@@ -568,7 +568,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
           : duplicate.status === "disqualified"
             ? // "Already in the field" is the one thing they are not, and a
               // second entry beside the ruling would quietly undo it.
-              `${duplicate.name} is already entered ${how} and has been disqualified — reinstate them on Registration & field rather than adding a second entry.`
+              `${duplicate.name} is already entered ${how} and has been disqualified — reinstate them on Entries rather than adding a second entry.`
             : `${duplicate.name} is already in the field ${how}.`,
     };
   }

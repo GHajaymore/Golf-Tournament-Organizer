@@ -6,11 +6,11 @@ import { readSource } from "./source";
  * A GROUP'S POTS ARE THE ONES STORED, NOT THE ONE EXPECTED (2026-10-09, grid
  * cell T69).
  *
- * A skins pot is keyed on (round, net, scope, group). Group games asked every
+ * A skins pot is keyed on (round, net, scope, group). Side games asked every
  * fourball for its NET, FULL-ROUND pot and nothing else, so a pot set to the
  * front nine — one press of the Holes picker on that same card — was saved as
  * a second row the settle-up counts and this screen never showed: Ann's Money
- * read +$15.00 while the organizer's Group games said "In the pot — 0 players,
+ * read +$15.00 while the organizer's Side games said "In the pot — 0 players,
  * nobody yet" for her group. Prizes was fixed for the field's pots the same
  * way; this is the group half.
  */
@@ -39,7 +39,7 @@ describe("the pots a group has", () => {
   });
 });
 
-describe("Group games", () => {
+describe("Side games", () => {
   it("reads each group's pots off the stored rows, not one fixed pair", () => {
     const src = readSource("src/app/(app)/group-games/page.tsx");
     expect(src).toMatch(/potsOfGroup\(groupPotRows, g\.name, true\)/);

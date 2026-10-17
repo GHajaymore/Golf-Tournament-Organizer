@@ -671,7 +671,7 @@ export function limitRefusal(planName: string, limit: LimitKey, max: number): st
       : `${plan} runs up to ${max} tournaments at once. Complete or delete one to start another, or upgrade to run more.`;
   }
   if (limit === "staffSeats") {
-    return `${plan} includes ${max} staff ${max === 1 ? "seat" : "seats"}. Remove someone under Access & staff, or upgrade to bring more of your committee in.`;
+    return `${plan} includes ${max} staff ${max === 1 ? "seat" : "seats"}. Remove someone under Staff & helpers, or upgrade to bring more of your committee in.`;
   }
   return `${plan} holds up to ${max} ${max === 1 ? "player" : "players"} in a tournament. Upgrade for a bigger field.`;
 }

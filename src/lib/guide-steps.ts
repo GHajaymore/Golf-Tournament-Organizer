@@ -63,7 +63,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },
       { kind: "h", text: "Staff" },
-      { kind: "where", text: "Set up → Access & staff (organizers only)" },
+      { kind: "where", text: "Set up → Staff & helpers (organizers only)" },
       {
         kind: "steps",
         items: [
@@ -222,7 +222,7 @@ export const GUIDE_STEPS: GuideSection[] = [
     part: "Part 4",
     title: "The field",
     blocks: [
-      { kind: "where", text: "Set up → Registration & field" },
+      { kind: "where", text: "Set up → Entries" },
       { kind: "h", text: "Add players yourself" },
       {
         kind: "steps",
@@ -316,8 +316,8 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
-          "Post a notice in **Tell the field → Announcements** (Title, Message, and **Pin to the top of players' Today screen** if it matters). It shows on players' Today screens; it is not pushed to phones.",
-          "Message a group in **Tell the field → Messages**: under **Who is this for?** pick the club, the tournament, players, organizers, a flight, a round, a team, a group, or one person. It opens on this tournament; the line under it says in words who the message is going to, and a message cannot be called back.",
+          "Post a notice in **Tell players → Announcements** (Title, Message, and **Pin to the top of players' Today screen** if it matters). It shows on players' Today screens; it is not pushed to phones.",
+          "Message a group in **Tell players → Messages**: under **Who is this for?** pick the club, the tournament, players, organizers, a flight, a round, a team, a group, or one person. It opens on this tournament; the line under it says in words who the message is going to, and a message cannot be called back.",
         ],
       },
       { kind: "h", text: "How scores come in" },
@@ -362,8 +362,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "list",
         items: [
           "A pairs event over more than one round shows the pairs' **Total over N rounds** above the round's own board — on the public board and on players' phones too — as long as the same pairs played every round. A team board ranks on score to par while a round is being played. Players or sides level on the round's figure are separated by countback on their card (last nine, six, three, then the last hole); only those still level share the place.",
-          "**Live leaderboard** refreshes every 30 seconds and shows Live or Final. For the clubhouse screen or the group chat, set **Who can see the leaderboard** to **Anyone with the link** and share the public link — names and scores, and anything you post as commentary.",
-          "**Commentary**: under the Live leaderboard, write a line — a run of birdies, a delay, where the cut is falling — and press [[Post]]. The latest shows above the scores on the public board and on every player's Board, with how long ago and without your name; the two before it are one tap away. Take one down with the ✕ beside it.",
+          "**Leaderboard** refreshes every 30 seconds and shows Live or Final. For the clubhouse screen or the group chat, set **Who can see the leaderboard** to **Anyone with the link** and share the public link — names and scores, and anything you post as commentary.",
+          "**Commentary**: under the Leaderboard, write a line — a run of birdies, a delay, where the cut is falling — and press [[Post]]. The latest shows above the scores on the public board and on every player's Board, with how long ago and without your name; the two before it are one tap away. Take one down with the ✕ beside it.",
           "**Weather**: [[Suspend play]], add a reason, [[Suspend play now]] — every player and the public board are told. [[Resume play]] when ready.",
           "**Pace of play** on the Dashboard shows each group's Thru and Due in, and names groups running behind.",
           "**Wrong scores**: correct the card on Score entry, or [[Clear scores]] (organizers) for chosen players or the whole round. Entries, flights and tee times are untouched.",
@@ -472,7 +472,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "**Settled by the scores**: low gross, low net, birdies, eagles, The match and Nassau — set a stake per player. The match and Nassau need a head-to-head round.",
           "**You name the winner**: closest to the pin, long drive and the like — [[Start this bet]], pick entrants, then the winner (a tie splits the pot).",
-          "**Group games** (Afterwards → Group games): a pot for one group only, separate from the field's money.",
+          "**Side games** (Afterwards → Side games): a pot for one group only, separate from the field's money.",
         ],
       },
       { kind: "h", text: "When money shows" },

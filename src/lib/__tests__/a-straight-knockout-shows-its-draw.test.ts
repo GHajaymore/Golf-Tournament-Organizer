@@ -22,7 +22,7 @@ import { readSource } from "./source";
  */
 const STRAIGHT = /isStraightKnockout\(state\.stages\)/;
 
-describe("the Live leaderboard", () => {
+describe("the Leaderboard", () => {
   const src = readSource("src/app/(app)/leaderboard/page.tsx");
 
   it("shows the draw, read-only, for a straight knockout", () => {

@@ -716,7 +716,7 @@ export function EventSetupClient({
           <div className="field"><label htmlFor={`${fid}-address`}>Address</label><input id={`${fid}-address`} className="input" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state zip" /></div>
         </div>
 
-        {/* Was one heading, "Registration &amp; field", over three unrelated
+        {/* Was one heading, "Entries", over three unrelated
             things — and it collided by name with the SCREEN called Registration
             & field at /registration, which the "Recommended flow" card on this
             very page then told organizers to go to. Two different things

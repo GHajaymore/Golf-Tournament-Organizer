@@ -153,7 +153,7 @@ export default async function EventPage({
    *
    * `setupFlowFor` already returns null for one — two people on the first tee
    * have no tournament to set up — but the checklist below it went on offering
-   * Flights and Access & staff, which the sidebar closed for a match long ago.
+   * Flights and Staff & helpers, which the sidebar closed for a match long ago.
    */
   const matchEvent = isMatch(e.shape);
 

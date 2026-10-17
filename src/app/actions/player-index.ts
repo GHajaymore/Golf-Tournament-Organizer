@@ -22,7 +22,7 @@ import {
  * ONE DOOR TO A PLAYER'S HANDICAP INDEX, FROM A TOURNAMENT (2026-10-16).
  *
  * Two screens offer it — a round's "Handicaps for this round" and the handicap
- * box on Registration & field — and both come here, so the rules below cannot
+ * box on Entries — and both come here, so the rules below cannot
  * differ between them. Before this the field box wrote every edit through to
  * the member record without a word and without a history line; it now writes
  * the tournament's copy, and the member record only when somebody asks.

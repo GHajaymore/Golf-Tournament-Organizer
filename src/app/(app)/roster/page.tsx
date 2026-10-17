@@ -9,7 +9,7 @@ import { RosterClient } from "@/components/RosterClient";
 import { unlinkedPlayers, memberEntryFor, fieldSizeOf } from "@/lib/domain/roster-link";
 
 // /roster used to be the per-event player list, which now lives inside
-// Registration & field. The path now means what it says: the club's standing
+// Entries. The path now means what it says: the club's standing
 // member roster, which every tournament draws from.
 export const metadata = screenMetadata("/roster");
 

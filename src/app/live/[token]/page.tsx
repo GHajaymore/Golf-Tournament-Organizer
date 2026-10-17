@@ -97,7 +97,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   if (!event || event.leaderboardVisibility !== "public") {
     return { title: "Leaderboard", robots: NOINDEX };
   }
-  return { title: `${event.name} — Live leaderboard`, robots: NOINDEX };
+  return { title: `${event.name} — Leaderboard`, robots: NOINDEX };
 }
 
 export default async function PublicLeaderboardPage({

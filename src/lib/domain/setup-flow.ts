@@ -469,7 +469,7 @@ const STEPS: ReadonlyArray<{
   {
     key: "grouping",
     href: "/grouping",
-    question: "How is the field divided, and who plays whom?",
+    question: "How are the players divided, and who plays whom?",
     /**
      * NOT FOR A STRAIGHT KNOCKOUT. When the bracket is the first round the
      * whole field goes into the draw (`loadEventState`), and flights decide

@@ -102,7 +102,7 @@ describe("forms that open on a click are named too", () => {
 });
 
 describe("console form controls are named", () => {
-  it("Registration & field, with players in both lists", async () => {
+  it("Entries, with players in both lists", async () => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     const html = render(
       <RegistrationClient

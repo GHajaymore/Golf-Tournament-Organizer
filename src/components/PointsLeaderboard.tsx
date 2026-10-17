@@ -23,7 +23,7 @@ export function SkinsLeaderboard({ board, net, roundClosed = false }: { board: S
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Overview</div>
-        <h1 className="page-title">Live leaderboard</h1>
+        <h1 className="page-title">Leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           {SKINS_NOTE(net)}
         </p>
@@ -144,7 +144,7 @@ export function NassauLeaderboard({ rows, roundClosed = false }: { rows: NassauM
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Overview</div>
-        <h1 className="page-title">Live leaderboard</h1>
+        <h1 className="page-title">Leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           {NASSAU_NOTE}
         </p>
@@ -225,7 +225,7 @@ export function ModifiedStablefordLeaderboard({ rows }: { rows: ModStablefordRow
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Overview</div>
-        <h1 className="page-title">Live leaderboard</h1>
+        <h1 className="page-title">Leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           {MOD_STABLEFORD_NOTE}
         </p>

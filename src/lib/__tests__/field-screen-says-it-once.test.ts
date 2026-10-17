@@ -6,7 +6,7 @@ import { readSource } from "./source";
 /**
  * THE FIELD SCREEN SAYS EACH THING ONCE, AND SAYS THE THING IT WAS HIDING.
  *
- * Two faults, read off the demo tournament's Registration & field on
+ * Two faults, read off the demo tournament's Entries on
  * 2026-09-12.
  *
  * ONE SENTENCE, THREE TIMES. "The May 7, 2026 deadline has passed. Reopen it

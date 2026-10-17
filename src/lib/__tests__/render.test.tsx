@@ -433,7 +433,7 @@ describe("the journey card counts phases, not steps", () => {
       });
       const nowAt = html.indexOf("NOW");
       expect(nowAt, "nothing marked").toBeGreaterThan(-1);
-      expect(html.slice(0, nowAt), "the marker landed on an earlier chip").toContain("Registration");
+      expect(html.slice(0, nowAt), "the marker landed on an earlier chip").toContain("Entries");
     });
 
     it("marks nothing once setup is complete", async () => {
@@ -6909,12 +6909,13 @@ describe("tournament details", () => {
   });
 
   it("does not name a section after a screen that already has that name", async () => {
-    // "Registration & field" is the SIDEBAR SCREEN at /registration. A section
+    // "Entries" is the SIDEBAR SCREEN at /registration. A section
     // of this card wore the same name, and the Recommended flow card below it
-    // told organizers to go to "Registration & field" — meaning the screen.
+    // told organizers to go to "Entries" — meaning the screen.
     const html = await setup();
     // Once, in the Recommended flow list, where it means the screen.
-    expect(html.match(/Registration &amp; field/g)?.length ?? 0).toBe(1);
+    // As a NAME (a whole text node), not the "Entries open" date label.
+    expect(html.match(/>Entries</g)?.length ?? 0).toBe(1);
   });
 
   it("separates the field-resizing tool from the registration rules", async () => {
@@ -8659,8 +8660,8 @@ describe("the setup rail", () => {
       />,
     );
     expect(html).toContain(screenName("/event"));
-    // Escaped, because "Registration & field" reaches the markup as
-    // "Registration &amp; field" — and asserting the raw name would fail on
+    // Escaped, because "Entries" reaches the markup as
+    // "Entries" — and asserting the raw name would fail on
     // the ampersand rather than on anything about the button.
     expect(html).toContain(`Next: ${screenName("/registration").replace(/&/g, "&amp;")}`);
     expect(html).not.toContain("disabled");
