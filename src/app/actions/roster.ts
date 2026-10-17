@@ -318,7 +318,8 @@ export async function importCsvMembers(csv: string): Promise<MemberImportResult>
   await refresh();
   // The plan's own rule, so a club that may switch the mobile off is not told
   // it is missing anything.
-  const missingMobile = phoneRequiredFor(await planForOrganization(organizationId), false)
+  // A club screen with no tournament behind it: the strict side ("email").
+  const missingMobile = phoneRequiredFor(await planForOrganization(organizationId), false, "email")
     ? await prisma.member.count({ where: { organizationId, status: "active", phone: "" } })
     : 0;
   return {

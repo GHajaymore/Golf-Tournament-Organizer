@@ -989,15 +989,28 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
  *
  * Kept here rather than inline at the four places that create an entrant,
  * because those four disagreeing is precisely how a rule like this rots.
+ *
+ * AND NOT WHERE PLAYERS USE ROUND CODES (Ajay, 2026-10-17: "I dont understand
+ * why we need mobile number of other players"). A code-scored tournament
+ * reaches its players by the code read out on the first tee; a mobile it
+ * insists on is a number collected for nothing, and it refused thirteen
+ * guests of a real two-team cup the day before it was played. So the free
+ * plan's mandatory mobile does not apply to a tournament whose players sign
+ * in with codes (`playerAccess` code or both). A paid club still decides for
+ * itself with `requirePhone`, codes or not. `playerAccess` is REQUIRED so the
+ * compiler lists every caller the day this rule moves again; a club-level
+ * screen with no tournament passes "email", the strict side.
  */
 export function phoneRequiredFor(
   planKey: string | null | undefined,
   eventRequirePhone: boolean,
+  playerAccess: string | null | undefined,
 ): boolean {
   const plan = planFor(planKey);
+  const codes = playerAccess === "code" || playerAccess === "both";
   // Anything that isn't a known paid plan falls back to free, and free is the
   // stricter side — an unknown plan key asks for more, never less.
-  if (plan.key === "free") return true;
+  if (plan.key === "free") return !codes;
   return eventRequirePhone;
 }
 

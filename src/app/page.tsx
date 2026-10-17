@@ -74,7 +74,7 @@ function planDiff(prices: LandingPrices): [string, React.ReactNode[]][] {
     ["Tournaments at once", each((k) => count(PLANS[k].limits.activeEvents, "One"))],
     ["Organizers and assistants", each((k) => count(PLANS[k].limits.staffSeats, "One"))],
     ["Results kept", each((k) => capitalise(retentionSummary(PLANS[k]).replace(/^results /, "")))],
-    ["Players' mobile numbers", each((k) => (phoneRequiredFor(k, false) ? "Always asked" : <>Your choice<small>per tournament</small></>))],
+    ["Players' mobile numbers", each((k) => (phoneRequiredFor(k, false, "email") ? <>Asked<small>not with round codes</small></> : <>Your choice<small>per tournament</small></>))],
     ["Order of merit across events", each((k) => has(PLANS[k].features.seasonStandings))],
     ["The honors board", each((k) => has(PLANS[k].features.honours))],
     ["Your club's branding in place of ours", each((k) => has(PLANS[k].features.whiteLabel, "with your logo"))],
