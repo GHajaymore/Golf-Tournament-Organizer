@@ -13,7 +13,7 @@ import { orgProfile } from "../domain/org-profile";
  * back to `/choose` without one.
  *
  * So the sidebar in that state offered six live links that all bounced —
- * Dashboard, Live leaderboard, Rules reference, Score entry, Messages, Group
+ * Dashboard, Leaderboard, Rules reference, Score entry, Messages, Group
  * games — read off the rendered page on 2026-09-11. That is the same fault the
  * org setup rail was fixed for, and worse here: a sidebar is on every screen
  * and is the thing somebody navigates by.

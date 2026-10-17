@@ -45,7 +45,19 @@ function sourceFiles(dir: string): string[] {
  * from a list position at the point of display.
  */
 const HAND_COUNTED = /Round \$\{[^}]*\b(?:position|index|i|idx|n)\b[^}]*\+\s*1/;
-const HAND_COUNTED_ALL = new RegExp(HAND_COUNTED.source, "g");
+/**
+ * THE SAME COUNT IN JSX, which the pattern above cannot see (2026-10-16).
+ *
+ * Rounds & formats wrote `Round {stage.position + 1}` in its own heading, and a
+ * badge beside it holding `{stage.position + 1}` alone. Positions are not closed
+ * up when a round is removed, so after deleting Round 1 the list read "Round 2,
+ * Round 3, Round 4" under a banner on the same screen calling them Rounds 1 and
+ * 2 — and this guard, which bans the template-string spelling, was green over
+ * both. Ban the shape, not the spelling: a position or an index plus one, put
+ * on the screen in braces.
+ */
+const JSX_COUNTED = /Round \{[^}]*\b(?:position|index|i|idx|n)\b[^}]*\+\s*1\s*\}|>\s*\{\s*[\w.]*\bposition\s*\+\s*1\s*\}\s*</;
+const HAND_COUNTED_ALL = new RegExp(`${HAND_COUNTED.source}|${JSX_COUNTED.source}`, "g");
 
 /**
  * Where a hand-built round number is still correct, each for a stated reason.
@@ -107,6 +119,17 @@ describe("round numbers come from one place", () => {
       const looksItUp = /matchCarrierGroup\(/.test(src) || /group\.findFirst\(\{\s*where:\s*\{[^}]*name/.test(src);
       expect(looksItUp, `${file}: ${ALLOWED[file].reason}`).toBe(true);
     }
+  });
+
+  it("CONTROL: it sees a count written in JSX, the two lines it once missed", () => {
+    const missed = [
+      "<span>\n              Round {stage.position + 1}\n            </span>",
+      '<div title={stage.type}>\n          {stage.position + 1}\n        </div>',
+    ];
+    for (const line of missed) expect(line.match(HAND_COUNTED_ALL), line).not.toBeNull();
+    // …and not an honest number handed in, or a date.
+    expect("Round {n}".match(HAND_COUNTED_ALL)).toBeNull();
+    expect("{roundNumber(allStages, stage.id)}".match(HAND_COUNTED_ALL)).toBeNull();
   });
 
   it("the helper is the one place that formats the words", () => {

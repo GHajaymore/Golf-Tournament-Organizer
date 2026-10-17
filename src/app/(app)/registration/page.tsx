@@ -97,6 +97,7 @@ export default async function RegistrationPage() {
     <>
       <SetupFlowRail flow={flow} href="/registration" />
     <RegistrationClient
+      noFormatYet={state.stages.length === 0 && state.confirmed.length === 0}
       // The sets an organizer may put somebody on, and what a blank resolves
       // to, so the column never shows an empty box meaning "the round’s".
       tees={eventTees.map((t) => ({ id: t.id, name: t.name }))}

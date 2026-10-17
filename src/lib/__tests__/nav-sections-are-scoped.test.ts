@@ -10,7 +10,7 @@ import { readSource } from "./source";
  * Manage, Results, Money — while the items inside mixed three different
  * scopes. Read off the running console on 2026-09-20:
  *
- *   Live leaderboard   one round, right now      under "Overview"
+ *   Leaderboard   one round, right now      under "Overview"
  *   Score entry        the SAME round            under "Manage"
  *   Bracket            the same round again      under "Manage"
  *   This week          the same round again      under "Overview"
@@ -160,8 +160,11 @@ describe("the sections read in the order the work happens", () => {
     };
     expect(at("tournaments"), "the club comes before its tournament's setup").toBeLessThan(at("stages"));
     expect(at("stages"), "setting up comes before playing").toBeLessThan(at("entry"));
-    expect(at("entry"), "playing comes before settling up").toBeLessThan(at("prizes"));
-    expect(at("reports"), "the golf comes before the money").toBeLessThan(at("prizes"));
+    // Prizes & payouts is SET UP since 2026-10-16 (the review panel): the fee, the
+    // prize table and the money mode are decided before a ball is struck — the
+    // strip has always had it as a setup step. What is left afterwards is reports.
+    expect(at("prizes"), "the prizes are set up before playing").toBeLessThan(at("entry"));
+    expect(at("entry"), "playing comes before the reports").toBeLessThan(at("reports"));
   });
 
   it("keeps no section long enough to be a wall", () => {
@@ -172,7 +175,9 @@ describe("the sections read in the order the work happens", () => {
      * of whichever one is nearest.
      */
     for (const s of NAV) {
-      expect(s.items.length, `${s.label} has ${s.items.length} entries`).toBeLessThanOrEqual(6);
+      // Set up mirrors the strip: its seven include Flights and Teams & pairs, which
+      // one tournament rarely shows together (2026-10-16, Prizes moved in).
+      expect(s.items.length, `${s.label} has ${s.items.length} entries`).toBeLessThanOrEqual(s.label === "Set up" ? 7 : 6);
     }
   });
 });

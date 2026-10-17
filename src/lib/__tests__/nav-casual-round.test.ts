@@ -8,7 +8,7 @@ import { readHandicapIndex } from "../domain/handicap-label";
  *
  * Walked on 2026-09-10: set a quick round up as two people playing on Sunday,
  * pressed "Start the round", and landed in the organizer console with ten
- * links — "Tournament details", "Registration & field", "Rounds & formats",
+ * links — "Tournament details", "Entries", "Rounds & formats",
  * "Messages", "Reports & export" — under headings reading Set up, Manage and
  * Results. A filing cabinet for an event that does not exist, describing a
  * round that is deleted tomorrow.
@@ -77,7 +77,7 @@ describe("what a casual round's sidebar offers", () => {
     // The control, and the one that matters most: a change for ONE shape that
     // leaked would rewrite the console for every club in the product.
     const ls = labels(false);
-    for (const kept of ["Registration & field", "Rounds & formats", "Tournament details", "Messages"]) {
+    for (const kept of ["Entries", "Rounds & formats", "Tournament details", "Messages"]) {
       expect(ls, kept).toContain(kept);
     }
     expect(sidebar(false).map((s) => s.label)).toContain("Set up");

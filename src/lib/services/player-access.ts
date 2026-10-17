@@ -15,7 +15,7 @@ import { prisma } from "../db";
  * matches an Account's email for this event can sign in as that role. A
  * registered player's email is therefore how they get in, not just a
  * contact detail — so registering them also grants their sign-in access
- * directly, instead of requiring a separate manual step on Access & staff.
+ * directly, instead of requiring a separate manual step on Staff & helpers.
  * Never downgrades an existing admin/assistant Account (e.g. an organizer
  * who's also playing in their own event) — only sets role "player" when
  * creating a brand new Account for that email.

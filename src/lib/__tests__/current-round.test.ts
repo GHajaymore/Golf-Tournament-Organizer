@@ -129,6 +129,17 @@ describe("which round a dated league is on", () => {
     expect(currentDatedRoundIndex(weeks, at("2026-05-14"))).toBe(0);
   });
 
+  it("does not skip an undated first round for a dated one still to come", () => {
+    // Walked 2026-10-16: an undated Round 1, then Rounds 2 and 3 on 7 and 14
+    // November, nothing played. This said Round 2, and Rounds & formats chipped
+    // Round 1 "Played". No date has come, so the dates decide nothing (-1) and
+    // the cards — none yet — fall back to the first round.
+    const unplayed = season("", "2026-11-07", "2026-11-14");
+    expect(currentDatedRoundIndex(unplayed, at("2026-10-16"))).toBe(-1);
+    // CONTROL: once a dated round's day has come, the dates decide again.
+    expect(currentDatedRoundIndex(unplayed, at("2026-11-08"))).toBe(1);
+  });
+
   it("is unmoved by a single-round tournament", () => {
     expect(currentDatedRoundIndex(season("2026-05-05"), at("2026-05-14"))).toBe(0);
     expect(currentDatedRoundIndex(season("2026-05-05"), at("2026-04-01"))).toBe(0);

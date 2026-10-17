@@ -7,7 +7,7 @@ import { PrismaClient } from "@prisma/client";
  *
  * The staff-seat limit was asked only when somebody was ADDED as staff. Two
  * doors went round it: add a person to a tournament as a player and promote
- * them on Access & staff, or promote a club Member to admin. A Par club's one
+ * them on Staff & helpers, or promote a club Member to admin. A Par club's one
  * organizer seat could hold as many as anybody cared to promote.
  *
  * And the other direction, which a per-person check fixes as a side effect:

@@ -47,7 +47,7 @@ describe("turning Round Codes off", () => {
     // A refusal that does not say what to do next makes the app the obstacle.
     // Both ways out, because either is legitimate.
     const r = lockoutRefusal(input())!;
-    expect(r).toContain("Registration & field");
+    expect(r).toContain("Entries");
     expect(r).toMatch(/leave access codes on/i);
   });
 
@@ -188,7 +188,7 @@ describe("what the screen says before the dropdown is touched", () => {
   it("names the number and the remedy while codes are still on", () => {
     const notice = lockoutNotice({ usingCodes: true, strandedCount: 12 })!;
     expect(notice).toContain("12 players");
-    expect(notice, "does not say what to do about it").toMatch(/Registration & field/);
+    expect(notice, "does not say what to do about it").toMatch(/Entries/);
   });
 
   it("is the SAME sentence the refusal gives", () => {

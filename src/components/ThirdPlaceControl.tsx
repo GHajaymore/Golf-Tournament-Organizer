@@ -2,6 +2,7 @@
 import { setThirdPlace, createThirdPlaceMatch } from "@/app/actions/tournament";
 import { THIRD_PLACE_HELP } from "@/lib/domain/third-place";
 import { Icon } from "./Icon";
+import { useOptimistic, useTransition } from "react";
 import { useAction } from "./useAction";
 
 /**
@@ -39,27 +40,46 @@ export function ThirdPlaceControl({
    */
   locked?: boolean;
 }) {
-  const { pending, error, run } = useAction();
+  const { pending, error, setError, run } = useAction();
+  /**
+   * THE TICK FOLLOWS THE FINGER (2026-10-16). It waited for the server, so on
+   * one bar a tap looked like nothing happened, and a second tap undid the first.
+   * Shown at once, and put back with the reason if the server says no.
+   */
+  const [shownOn, showOn] = useOptimistic(on);
+  const [switching, startSwitch] = useTransition();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer" }}>
         <input
           type="checkbox"
-          checked={on}
-          disabled={pending || locked}
-          onChange={(e) => run(() => setThirdPlace(stageId, e.target.checked))}
+          checked={shownOn}
+          disabled={pending || switching || locked}
+          onChange={(e) => {
+            const next = e.target.checked;
+            startSwitch(async () => {
+              setError("");
+              showOn(next);
+              try {
+                const res = await setThirdPlace(stageId, next);
+                if (!res.ok) setError(res.error ?? "That change was not saved.");
+              } catch {
+                setError("That change was not saved. Check the connection, and that setup is unlocked.");
+              }
+            });
+          }}
           style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
         />
         <span>
-          <span style={{ fontWeight: 500 }}>Play off for third</span>
+          <span style={{ fontWeight: 500 }}>Play-off for third place</span>
           <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.6 }}>
             {THIRD_PLACE_HELP}
           </span>
         </span>
       </label>
 
-      {on && (
+      {shownOn && (
         <div
           style={{
             padding: "9px 11px",

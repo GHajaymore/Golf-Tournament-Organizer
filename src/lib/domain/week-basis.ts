@@ -137,8 +137,9 @@ export function isStablefordRound(
 }
 
 /**
- * How level players are separated on an individual round, in one sentence —
- * the Rounds & formats line above the tiebreaker steps.
+ * What separates level players in a stroke-play round robin's table BEFORE the
+ * tiebreak steps — the start of the "Level in the table" line under Ties
+ * (2026-10-16; it was a sentence of its own above the steps).
  *
  * Through `isStablefordRound`, never the raw basis: a Stableford FORMAT is
  * stored with basis "net" (the Stableford template has started one since
@@ -151,8 +152,8 @@ export function individualTieBreak(
   format: string | null | undefined,
 ): string {
   return isStablefordRound(scoringBasis, format)
-    ? "This round is scored on Stableford points, so ties break by highest points, then by the steps below."
-    : "This round is scored as Stroke Play, so ties break by lowest net, then lowest gross, then by the steps below.";
+    ? "highest Stableford points"
+    : "lowest net, then lowest gross";
 }
 
 /** What the sheet calls it, in the words a league would use. */

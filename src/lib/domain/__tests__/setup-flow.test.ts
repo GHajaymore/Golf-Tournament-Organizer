@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   setupFlow,
   positionOf,
-  canAdvance,
   roundIsScheduled,
   railSpeaks,
   type SetupFacts,
@@ -24,6 +23,7 @@ const round = (over: Partial<SetupRound> = {}): SetupRound => ({
   label: "Round 1",
   drawsPairings: true,
   scheduled: true,
+  scorable: true,
   cutFed: false,
   matches: 6,
   ...over,
@@ -164,6 +164,16 @@ describe("what counts as done", () => {
     expect(flowOf(andPaid).complete).toBe(true);
   });
 
+  it("is not done over a round that cannot be scored, and says which", () => {
+    // Walked 2026-10-16: a stroke round set to Match Play, its own card saying
+    // "This round cannot be scored as set", and this step DONE above it.
+    const broken = flowOf({ named: true, dated: true, rounds: [round({ label: "Round 1", scorable: false })] });
+    expect(broken.steps[1].done).toBe(false);
+    expect(broken.steps[1].missing).toMatch(/Round 1 cannot be scored/);
+    // CONTROL: the same round, scorable, is done.
+    expect(flowOf({ named: true, dated: true, rounds: [round()] }).steps[1].done).toBe(true);
+  });
+
   it("counts what is finished rather than how far along you are", () => {
     expect(flowOf().doneCount).toBe(0);
     expect(flowOf({ named: true, dated: true }).doneCount).toBe(1);
@@ -220,27 +230,8 @@ describe("moving between steps", () => {
     expect(at.next).toBeNull();
   });
 
-  it("waits for the current step to be finished before offering the next", () => {
-    const flow = flowOf({ named: true });
-    const here = positionOf(flow, "/event").step;
-    expect(canAdvance(here)).toBe(false);
-
-    const ready = positionOf(flowOf({ named: true, dated: true }), "/event").step;
-    expect(canAdvance(ready)).toBe(true);
-  });
-
-  it("never blocks going back to a step that is already finished", () => {
-    // Revisiting Tournament details to change the date is exactly what "back"
-    // is for, and a guide that argues about it is worse than no guide.
-    const flow = flowOf({ named: true, dated: true, rounds: [round()] });
-    const finished = positionOf(flow, "/event").step;
-    expect(finished?.done).toBe(true);
-    expect(canAdvance(finished)).toBe(true);
-  });
-
-  it("advances freely from a screen the flow does not cover", () => {
-    expect(canAdvance(null)).toBe(true);
-  });
+  // canAdvance went on 2026-10-16: Next always goes (see SetupFlowFooter), so
+  // nothing asks any more whether the step is finished before moving on.
 });
 
 describe("the hand-off from setting up to running", () => {
@@ -287,7 +278,7 @@ describe("the hand-off from setting up to running", () => {
      */
     const ready = flowOf({ ...finished, launched: false });
     expect(ready.launchBlocked).toBe(
-      launchRefusal({ playingRounds: 1, confirmed: 2, dated: false, missingCards: [] }),
+      launchRefusal({ playingRounds: 1, confirmed: 2, dated: false, missingCards: [], unscorable: [] }),
     );
     expect(ready.launchBlocked).toContain("no dates");
   });

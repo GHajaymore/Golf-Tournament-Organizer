@@ -55,7 +55,7 @@ export default async function LeaderboardPage({
    * A hand-scored LAST round made this whole screen that round: the seeded
    * Festival of Formats could not show rounds 1–10 from the console at all.
    * `?round=` now points the board at any playing round, through the same
-   * `RoundPicker` Group games uses; with none given, nothing changes.
+   * `RoundPicker` Side games uses; with none given, nothing changes.
    */
   const params = await searchParams;
   const state = withBoardRound(loaded, params.round);
@@ -115,7 +115,7 @@ export default async function LeaderboardPage({
     return (
       <>
         <div className="page-kicker">Overview</div>
-        <h1 className="page-title">Live leaderboard</h1>
+        <h1 className="page-title">Leaderboard</h1>
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <span className="card-title" style={{ fontSize: 15 }}>No rounds yet</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.6 }}>
@@ -142,7 +142,7 @@ export default async function LeaderboardPage({
     return (
       <>
         <div className="page-kicker">Overview</div>
-        <h1 className="page-title">Live leaderboard</h1>
+        <h1 className="page-title">Leaderboard</h1>
         <div style={{ marginTop: 16 }}>
           <CupScoreboard board={cupResult.board} />
         </div>
@@ -337,7 +337,7 @@ export default async function LeaderboardPage({
       >
         <div>
           <div className="page-kicker">Overview</div>
-          <h1 className="page-title">Live leaderboard</h1>
+          <h1 className="page-title">Leaderboard</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {boardIntro(boardCopy)}
           </p>

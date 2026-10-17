@@ -115,11 +115,11 @@ test("a new organizer runs a four-person scramble on net", async ({ page, baseUR
     await page.getByRole("button", { name: /^Add stroke play round/ }).click();
     const customize = page.getByRole("button", { name: /^Customize this round/ });
     await expect(customize).toBeVisible({ timeout: 20_000 });
-    await customize.click();
+    // On the face of the round since 2026-10-16, not behind Customize.
     await page.locator("label.seg-opt", { hasText: /^\s*Net\s*$/ }).click();
     await expect(async () => {
       await open(page, "/stages");
-      await expect(page.getByRole("button", { name: /^Customize this round/ })).toContainText(/Net/);
+      await expect(page.locator("label.seg-opt", { hasText: /^\s*Net\s*$/ }).locator("input")).toBeChecked();
     }).toPass({ timeout: 20_000 });
   });
 

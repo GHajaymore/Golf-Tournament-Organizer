@@ -125,7 +125,12 @@ export type BracketMode = "single" | "split" | "plate" | "flights";
 export const BRACKET_MODES: Array<{ key: BracketMode; label: string; blurb: string }> = [
   { key: "single", label: "One bracket", blurb: "Every qualifier in a single knockout. Lose and you're out." },
   { key: "split", label: "Two flights", blurb: "Top half and bottom half play separate brackets, drawn by qualifying rank." },
-  { key: "plate", label: "Main + plate", blurb: "One knockout; first-round losers drop into a plate. Everyone starts with a shot at the main prize." },
+  // In the words a club uses for it (2026-10-16): Ajay described this shape — the first match's
+  // winner on in the winners' bracket, its loser into a consolation — without finding it, because
+  // it was named only as an arrangement on another screen. NOT "the qualifying match" (the golf
+  // professional and tournament director on the review panel): the first round is the first round
+  // of the main draw, and on the same screen a stroke round can be the qualifier.
+  { key: "plate", label: "Main + plate", blurb: "Lose in the first round and you go into the plate, a knockout of its own. Everyone starts with a shot at the main prize." },
   { key: "flights", label: "Several flights", blurb: "A big field divided into brackets before a ball is struck — by handicap, by your flights, or at random. Each flight is its own knockout." },
 ];
 
@@ -676,3 +681,16 @@ export function buildBracket(
   return { kind, rounds, champion };
 }
 
+
+/**
+ * HOW MANY GO INTO A PLATE: the first-round ties actually played, since the
+ * plate takes their losers (2026-10-16). A draw of n is sized to the next power
+ * of two, and the top seeds' byes are ties nobody loses — so 16 send 8, 12 send
+ * 4 (four byes), and 2 send 1. The Bracket screen counted the plate at the draw,
+ * where it is empty, and showed 0 over sixteen qualifiers.
+ */
+export function plateEntrants(drawSize: number): number {
+  if (drawSize < 2) return 0;
+  const sheet = 2 ** Math.ceil(Math.log2(drawSize));
+  return drawSize - sheet / 2;
+}

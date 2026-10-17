@@ -1,4 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
+import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -196,6 +197,11 @@ test("five I", async ({ page, context, baseURL }, testInfo) => {
       await page.getByLabel("How many rounds to add").fill("2");
       await page.getByRole("button", { name: /^Add (2 )?stroke play rounds?/ }).click();
       await page.waitForTimeout(3000);
+      // Gross, as the Open is: chosen on each round (a new round is off
+      // handicap unless the organizer says otherwise, since 2026-10-16).
+      await open(page, "/stages");
+      await playScratch(page, "Round 1 · ");
+      await playScratch(page, "Round 2 · ");
       note(`rounds: ${(await eventFacts(I_NAME))!.stages.length}`);
     });
     await test.step("launch, the board public", async () => {

@@ -111,11 +111,12 @@ export function CutControl({
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
         <input type="checkbox" checked={on} disabled={pending} onChange={(e) => commit(e.target.checked, m, n, pct)} />
         Cut the field for {roundLabel}
-        <SaveState status={saveStatus} />
       </label>
+      {/* Outside the label, so the checkbox's name is not "… Saved". */}
+      <SaveState status={saveStatus} />
       {on && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div className="seg">
+          <div className="seg" role="radiogroup" aria-label={`How the cut for ${roundLabel} is counted`}>
             <label className="seg-opt">
               <input
                 type="radio"
@@ -165,7 +166,7 @@ export function CutControl({
               onBlur={() => commit(on, m, n, pct)}
             />
           )}
-          <div className="seg">
+          <div className="seg" role="radiogroup" aria-label={`Where the cut for ${roundLabel} applies`}>
             <label className="seg-opt">
               <input
                 type="radio"
@@ -188,14 +189,23 @@ export function CutControl({
             </label>
           </div>
           <span className="text-muted" style={{ fontSize: 13 }}>
-            {perFlight
-              ? `${bucketSurvivors}${tiesGoThrough ? " and ties" : ""} from each of ${plural(flights, "flight")} — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
-              : `${survivors}${tiesGoThrough ? " and ties" : ""} of ${confirmedCount} advance into ${roundLabel}.`}
+            {/* A RULE UNTIL THERE IS A FIELD. With nobody entered this read
+                "16 and ties of 0 advance into Round 3" (2026-10-16) — a count
+                of nothing, and "16 and ties of" read as one phrase. */}
+            {confirmedCount === 0
+              ? `The top ${m === "percent" ? `${pct}%` : n}${perFlight ? " in each flight" : ""}${tiesGoThrough ? ", and anyone tied with the last place," : ""} play ${roundLabel}. Nobody is entered yet.`
+              : perFlight
+                ? `The top ${bucketSurvivors} in each of ${plural(flights, "flight")} play ${roundLabel} — ${survivors} of the ${confirmedCount} entered${tiesGoThrough ? ", and anyone tied with a flight's last place" : ""}.`
+                : `${survivors} of the ${confirmedCount} entered play ${roundLabel}${tiesGoThrough ? ", and anyone tied with the last of them" : ""}.`}
             {/* Why "Per flight" is dead, in the sentence that is already here
                 rather than in a `title` nobody on a phone can reach. The same
                 pattern removed from the draw button, Teams & pairs and the tee
                 sheet. */}
-            {flights < 2 && " The field is in one flight, so a per-flight cut would be the same cut."}
+            {/* None drawn yet is not one flight (2026-10-16): on Rounds &
+                formats the flights usually come later. */}
+            {flightCount === 0
+              ? " Flights are not drawn yet, so the cut is across the whole field."
+              : flights < 2 && " The field is in one flight, so a per-flight cut would be the same cut."}
           </span>
         </div>
       )}

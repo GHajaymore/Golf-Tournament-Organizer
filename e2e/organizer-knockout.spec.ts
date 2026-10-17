@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail } from "./organizer-fixture.mjs";
 
 /**
@@ -121,6 +122,9 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
     await page.getByLabel("Format for every round added").selectOption("Match Play");
     await page.getByRole("button", { name: /^Add bracket/ }).click();
     await expect(page.getByRole("button", { name: /^Round 1 · Bracket Stage/ })).toBeVisible({ timeout: 20_000 });
+    // A scratch knockout, as the header says: Gross, which a new round is not
+    // unless the organizer chooses it (the club default since 2026-10-16).
+    await playScratch(page, "Round 1 · Bracket Stage");
   });
 
   await test.step("launch", async () => {

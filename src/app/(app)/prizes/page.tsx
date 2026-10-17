@@ -126,7 +126,7 @@ export default async function PrizesPage({
    */
   const potRows = week
     ? await prisma.skinsPot.findMany({
-        // The club's pots. A fourball's own game belongs on Group games —
+        // The club's pots. A fourball's own game belongs on Side games —
         // without this the field's pot rendered once per group pot on the
         // round, with a duplicate React key, and no group pot appeared.
         where: { stageId: week.id, groupKey: "" },
@@ -168,7 +168,7 @@ export default async function PrizesPage({
    * The pots the cards settle. No winner is stored for these by design.
    *
    * THE CLUB'S, exactly as the skins query above says of itself — a fourball's
-   * own game belongs on Group games. Without the filter this fetched every
+   * own game belongs on Side games. Without the filter this fetched every
    * side game on the round and the screen picks one per kind, so Group 2's
    * private £5 birdie pot rendered under the club's "Birdie pot" heading. Its
    * membership was then resolved against the whole confirmed field, so a

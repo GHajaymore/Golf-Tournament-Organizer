@@ -273,7 +273,7 @@ export function roundPotKey(round: { scoringBasis: string; nine: string }): { ne
  *
  * A pot is keyed on (round, net, scope, group), so asking for one fixed pair
  * finds an EMPTY pot beside a real one under another pair — exactly what the
- * Group games screen did. `offerDefault` gives a group with no pot yet the
+ * Side games screen did. `offerDefault` gives a group with no pot yet the
  * net full-round game to start; a bet that exists only as rows passes false.
  */
 export function potsOfGroup(

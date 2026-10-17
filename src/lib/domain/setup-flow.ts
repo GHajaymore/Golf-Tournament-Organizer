@@ -101,6 +101,14 @@ export interface SetupRound {
    */
   scheduled: boolean;
   /**
+   * Whether this round's type and format can produce a result together —
+   * `roundShapeMismatch` is null (2026-10-16). Walked as a new organizer: a
+   * stroke round set to Match Play said "This round cannot be scored as set" on
+   * its own card while this step read DONE over it. Required, so every builder
+   * of these facts says.
+   */
+  scorable: boolean;
+  /**
    * Whether this round's field is the survivors of a cut out of the round
    * before it.
    *
@@ -367,6 +375,10 @@ const STEPS: ReadonlyArray<{
      */
     missing: (f) => {
       if (f.rounds.length === 0) return "Add at least one round.";
+      // What cannot be scored is said before what is undated: a round with no
+      // day can still be played, and this one cannot.
+      const broken = f.rounds.find((r) => !r.scorable);
+      if (broken) return `${broken.label || "A round"} cannot be scored in the format it is set to — choose another on its card.`;
       const waiting = f.rounds.filter((r) => !r.scheduled);
       const named = waiting.find((r) => !!r.label)?.label;
       if (waiting.length > 1) return "Some rounds have no day and no deadline.";
@@ -375,7 +387,9 @@ const STEPS: ReadonlyArray<{
         : "One round has no day and no deadline.";
     },
     done: (f) =>
-      f.rounds.length > 0 && (f.rounds.length === 1 || f.rounds.every((r) => r.scheduled)),
+      f.rounds.length > 0 &&
+      f.rounds.every((r) => r.scorable) &&
+      (f.rounds.length === 1 || f.rounds.every((r) => r.scheduled)),
   },
   {
     key: "registration",
@@ -455,7 +469,7 @@ const STEPS: ReadonlyArray<{
   {
     key: "grouping",
     href: "/grouping",
-    question: "How is the field divided, and who plays whom?",
+    question: "How are the players divided, and who plays whom?",
     /**
      * NOT FOR A STRAIGHT KNOCKOUT. When the bracket is the first round the
      * whole field goes into the draw (`loadEventState`), and flights decide
@@ -648,6 +662,8 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
           confirmed: facts.confirmed,
           dated: facts.dated,
           missingCards: facts.missingCards ?? [],
+          // The step's own fact — the same rule (`roundShapeMismatch`).
+          unscorable: facts.rounds.filter((r) => !r.scorable).map((r) => r.label),
         })
       : null,
   };
@@ -691,13 +707,3 @@ export function positionOf(flow: SetupFlow, href: string): SetupPosition {
   };
 }
 
-/**
- * Whether the organizer may move on from this step yet.
- *
- * The guide's one piece of insistence, and it is about the CURRENT step only:
- * finish what you are on. Somebody who has jumped back to a finished step is
- * not blocked, because there is nothing there to finish.
- */
-export function canAdvance(step: SetupStep | null): boolean {
-  return !step || step.done;
-}

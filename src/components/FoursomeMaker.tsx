@@ -514,7 +514,7 @@ export function FoursomeMaker({
             </div>
           </div>
           <div className="field" style={{ width: 260 }}>
-            <label>
+            <span className="field-caption">
               Start{" "}
               <FieldInfo label="how the field goes off">
                 <p>
@@ -537,7 +537,7 @@ export function FoursomeMaker({
                   everybody is already out.
                 </p>
               </FieldInfo>
-            </label>
+            </span>
             <div className="seg" style={{ width: "100%" }}>
               <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                 <input type="radio" name="fsstart" checked={startType === "tee"} onChange={() => setStartType("tee")} /> One tee

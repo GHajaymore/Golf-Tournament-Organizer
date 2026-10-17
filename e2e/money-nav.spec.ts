@@ -111,7 +111,7 @@ test.describe("the organizer's money screens", () => {
     await expect(page.locator("body")).toContainText(money.prizeLabel);
   });
 
-  test("Group games is reachable, and is not the same screen as Prizes", async ({ page }) => {
+  test("Side games is reachable, and is not the same screen as Prizes", async ({ page }) => {
     /**
      * These are DIFFERENT MONEY with different owners — the field's pot is the
      * club's, a group's pot is four players' own — and nav.ts says so in a
@@ -121,7 +121,8 @@ test.describe("the organizer's money screens", () => {
     await page.goto("/dashboard");
     await page.waitForLoadState("networkidle");
 
-    await navigateTo(page, /group games/i);
+    // "Side games" since the menu was named as organizers say it (was Group games).
+    await navigateTo(page, /side games/i);
     await expect(page).toHaveURL(/\/group-games/);
     await rendersCleanly(page);
     await expect(page.locator("body")).not.toContainText(money.prizeLabel);

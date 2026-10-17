@@ -91,7 +91,7 @@ export function TournamentFormatting({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="field" style={{ maxWidth: 380 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="field-caption" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           Dates and numbers
           <FieldInfo label="this tournament's date conventions">
             <p>
@@ -103,7 +103,7 @@ export function TournamentFormatting({
               of the day and month, and where the separators go.
             </p>
           </FieldInfo>
-        </label>
+        </span>
         <select
           className="input"
           aria-label="Dates and numbers for this tournament"
@@ -128,7 +128,7 @@ export function TournamentFormatting({
       </div>
 
       <div className="field" style={{ maxWidth: 380 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="field-caption" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           Currency
           <FieldInfo label="this tournament's currency">
             <p>
@@ -147,7 +147,7 @@ export function TournamentFormatting({
               before you take any money.
             </p>
           </FieldInfo>
-        </label>
+        </span>
         <select
           className="input"
           aria-label="Currency for this tournament"

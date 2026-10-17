@@ -223,7 +223,7 @@ describe("the heading over each screen", () => {
    *
    * Eighteen of the twenty-one already headed themselves with the label on the
    * link that reaches them. `/access` read "Access control" over a sidebar
-   * entry reading "Access & staff", and the tab was about to become a third
+   * entry reading "Staff & helpers", and the tab was about to become a third
    * name for one screen — exactly what `screenName`'s own comment describes
    * going wrong with "Rounds & format" and "Prizes & Reports".
    *
@@ -233,8 +233,8 @@ describe("the heading over each screen", () => {
    */
   it("/access heads itself with the words on its own link", () => {
     const src = readSource(APP_DIR, "access", "page.tsx");
-    expect(src).toMatch(/<h1[^>]*>Access &amp; staff<\/h1>/);
+    expect(src).toMatch(/<h1[^>]*>Staff &amp; helpers<\/h1>/);
     expect(src).not.toMatch(/>Access control</);
-    expect(screenName("/access")).toBe("Access & staff");
+    expect(screenName("/access")).toBe("Staff & helpers");
   });
 });

@@ -9,12 +9,12 @@ import { readSource } from "./source";
  * active round. The control that sets it was written twice and both copies
  * were wrong, in opposite directions:
  *
- *   - Group games rendered its picker `disabled`. It listed all four rounds of
+ *   - Side games rendered its picker `disabled`. It listed all four rounds of
  *     a four-round event and could not be changed, while the page under it
  *     served `?round=` perfectly. The only way to see another round's pots was
  *     to type the URL.
  *   - The pot card's picker worked and navigated to a hard-coded
- *     `/prizes?round=…`. That card renders on Group games as well, so choosing
+ *     `/prizes?round=…`. That card renders on Side games as well, so choosing
  *     a round there landed the organizer on Prizes & payouts — the club's
  *     money instead of the fourball's, on a screen they had not asked for.
  *

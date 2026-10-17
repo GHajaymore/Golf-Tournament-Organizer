@@ -81,6 +81,8 @@ export function LifecycleBar({
   blockedReason?: string;
 }) {
   const [confirming, setConfirming] = useState(false);
+  /** What the server said when it refused a launch — shown in the dialog. */
+  const [launchRefused, setLaunchRefused] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   /**
    * COMPLETING AND REOPENING ARE CONFIRMED (2026-10-10). Completing publishes
@@ -451,15 +453,29 @@ export function LifecycleBar({
                 ))}
               </div>
             </div>
+            {/* THE REFUSAL, WHERE THE PRESS WAS (2026-10-16). The dialog awaited
+                `launchTournament` and closed whatever it answered, so a launch
+                the server refused — a date missing, a round that cannot be
+                scored — closed the dialog and changed nothing, in silence. */}
+            {launchRefused && (
+              <p role="alert" style={{ fontSize: 13, margin: "0 0 10px", lineHeight: 1.55, color: "var(--color-danger)" }}>
+                <Icon name="warning-circle" /> Not launched. {launchRefused}
+              </p>
+            )}
             <div className="dialog-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)}>Cancel</button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setLaunchRefused(""); setConfirming(false); }}>Cancel</button>
               <button
                 type="button"
                 className="btn btn-primary"
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
-                    await launchTournament();
+                    setLaunchRefused("");
+                    const res = await launchTournament();
+                    if (res && !res.ok) {
+                      setLaunchRefused(res.error ?? "The tournament could not be launched.");
+                      return;
+                    }
                     setConfirming(false);
                   })
                 }

@@ -98,7 +98,10 @@ beforeAll(async () => {
       round: 1,
       playerAId: a.id,
       playerBId: b.id,
-      holes: JSON.stringify(["A", "A", "H", "B", "A", ...new Array(13).fill(null)]),
+      // DECIDED: 5 up with 4 to play. It was 2 up after five holes, which no
+      // league counts as a result; it scored only because a new tournament paid
+      // half a point per hole won, which stopped on 2026-10-16 (migration A001).
+      holes: JSON.stringify(["A", "A", "H", "B", "A", "A", "A", "A", "H", "H", "H", "H", "H", "H", ...new Array(4).fill(null)]),
     },
   });
 
