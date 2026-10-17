@@ -79,7 +79,7 @@ import {
   roundHandicapExactOf,
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
-import { playingHandicapInRound } from "@/lib/round-allowance";
+import { overridesAfterFormatChange, playingHandicapInRound } from "@/lib/round-allowance";
 import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
@@ -1925,11 +1925,21 @@ export async function setStageFormat(stageId: string, format: string, force = fa
   const value = format;
   // A round becoming Stableford becomes net with it — `basisFor`. Its current
   // basis is kept for every other format.
-  const before = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { scoringBasis: true } });
+  const before = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { scoringBasis: true, format: true, type: true, handicapAllowance: true, allowanceWeights: true },
+  });
   const flightsBefore = await flightDefaultFor(eventId);
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
-    data: { format: value, scoringBasis: basisFor(value, before?.scoringBasis) },
+    data: {
+      format: value,
+      scoringBasis: basisFor(value, before?.scoringBasis),
+      // A committee's figure is kept only where it still means the same thing
+      // (`overridesAfterFormatChange`): a medal's 95 is not 95% of a foursomes
+      // pair's combined handicaps.
+      ...(before ? overridesAfterFormatChange(before, value) : {}),
+    },
   });
   await followFlightDefault(eventId, flightsBefore);
   await refresh();
