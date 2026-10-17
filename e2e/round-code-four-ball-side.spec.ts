@@ -213,6 +213,16 @@ test("a four-ball partner with a round code keeps their side's match, from their
       )
       // Stored A-relative, and the holder's side is the match's side B.
       .toBe("B");
+    await expect(page.getByText("Us 1 up with 8 to play")).toBeVisible();
+
+    // Four more: five up with four to play over a nine, and the phone says the
+    // match is OVER rather than offering the sixth as if it were still on.
+    for (let n = 2; n <= 5; n += 1) {
+      const g = page.getByRole("group", { name: `Who won hole ${n}` });
+      await expect(g).toBeVisible({ timeout: 10_000 });
+      await g.getByRole("button", { name: new RegExp(`^Hole ${n} to you`) }).click();
+    }
+    await expect(page.getByRole("status").filter({ hasText: "Match over: Us 5&4. Nothing more to enter." })).toBeVisible({ timeout: 10_000 });
     expect(errors).toEqual([]);
   } finally {
     await ctx.close();

@@ -5,7 +5,7 @@ import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
-import { marginRefusal, matchIsOverAfter } from "@/lib/domain/match";
+import { marginRefusal, matchIsOverAfter, matchStandingText, resolveMatch } from "@/lib/domain/match";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { filterNames, showsNameFilter } from "@/lib/domain/name-filter";
@@ -1011,6 +1011,26 @@ export function PlayClient(props: Props) {
           <span><b>{lost}</b> lost</span>
           <span className="text-muted" style={{ marginLeft: "auto" }}>{filled}/{holeCount} holes</span>
         </div>
+        {/* WHERE THE MATCH STANDS, in golf's words, and that it is OVER when
+            it is (found in the 2026-10-16 rehearsal: a match won 2&1 still
+            offered the 18th with nothing to say it was done). Holes tapped
+            after the closeout do not count — `resolveMatch` stops at it — so
+            the card stays open for correcting an earlier hole. */}
+        {(() => {
+          const padded = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);
+          const r = resolveMatch(padded);
+          if (r.played === 0) return null;
+          const me = m.side ? "Us" : "You";
+          const them = m.side ? "Them" : firstName(m.bName) || "Them";
+          const text = matchStandingText(r, me, them);
+          return r.complete ? (
+            <p role="status" className="card elev-sm" style={{ margin: 0, padding: "10px 12px", fontSize: 15, fontWeight: 600 }}>
+              Match over: {text}. Nothing more to enter.
+            </p>
+          ) : (
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{text}</p>
+          );
+        })()}
 
         {/* ONE HOLE AT A TIME (2026-10-07), the card the host's phone shows.
             This was eighteen tiles of three 13px buttons about 28px tall —
