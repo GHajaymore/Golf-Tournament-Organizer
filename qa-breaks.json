@@ -1,0 +1,153 @@
+[
+  {
+    "what": "R1 every format offered to every kind of round again",
+    "file": "src/lib/domain/round-choices.ts",
+    "from": "    const offered = formatFitsRound(type, f.name) && !SAME_GAME_AS[f.name];",
+    "to": "    const offered = isPlayable(f.name) && !SAME_GAME_AS[f.name];",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "starts as a club"
+  },
+  {
+    "what": "R2 a new round starts gross again",
+    "file": "src/lib/domain/round-choices.ts",
+    "from": "  return basisFor(format, \"net\");",
+    "to": "  return basisFor(format, \"gross\");",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "starts as a club"
+  },
+  {
+    "what": "R3 the play-day controls are offered at setup again",
+    "file": "src/components/StagesClient.tsx",
+    "from": "  const underWay = hasResult || stage.closed || (launched && dayHasCome);",
+    "to": "  const underWay = true || hasResult || stage.closed || (launched && dayHasCome);",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "starts as a club"
+  },
+  {
+    "what": "R4 rounds numbered by stored position again",
+    "file": "src/components/StagesClient.tsx",
+    "from": "  const thisRound = roundLabelOf(allStages, stage.id);",
+    "to": "  const thisRound = `Round ${stage.position + 1}`;",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "starts as a club"
+  },
+  {
+    "what": "R5 the cut counts an empty field again",
+    "file": "src/components/CutControl.tsx",
+    "from": "            {confirmedCount === 0",
+    "to": "            {confirmedCount === -1",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "starts as a club"
+  },
+  {
+    "what": "R6 a knockout after a medal qualifies two per flight again",
+    "file": "src/app/actions/tournament.ts",
+    "from": "  if (isKnockoutRound(stageType) && previous && !isHeadToHead(previous.type)) {",
+    "to": "  if (isKnockoutRound(stageType) && previous && !isHeadToHead(previous.type) && stageType === \"zz-never\") {",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "starts as a club"
+  },
+  {
+    "what": "R7 Now marks the first gap, not the step on screen, again",
+    "file": "src/components/SetupFlowRail.tsx",
+    "from": "                      {s.done ? \"Done\" : here ? \"Now\" : \"To do\"}",
+    "to": "                      {s.done ? \"Done\" : s.state === \"current\" ? \"Now\" : \"To do\"}",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "starts as a club"
+  },
+  {
+    "what": "G1 the knockout's draw is not on its card",
+    "file": "src/components/StagesClient.tsx",
+    "from": "        {isKnockoutRound(stage.type) && arrangement && (",
+    "to": "        {isKnockoutRound(stage.type) && arrangement && stage.type === \"zz-never\" && (",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "groups, then a knockout"
+  },
+  {
+    "what": "G2 Before the next round is not on the face of a round robin",
+    "file": "src/components/StagesClient.tsx",
+    "from": "      {showTransition && (",
+    "to": "      {false && showTransition && (",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "groups, then a knockout"
+  },
+  {
+    "what": "G3 no Every round line on a three-round tournament",
+    "file": "src/components/StagesClient.tsx",
+    "from": "      {playing.length >= 3 && (",
+    "to": "      {playing.length >= 30 && (",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "groups, then a knockout"
+  },
+  {
+    "what": "P1 ticking Require a mobile number stores nothing",
+    "file": "src/app/actions/tournament.ts",
+    "from": "  await prisma.event.update({ where: { id: eventId }, data: { requirePhone: !!required } });",
+    "to": "  await prisma.event.update({ where: { id: eventId }, data: { requirePhone: !required && false } });",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "desktop",
+    "grep": "mobile number"
+  },
+  {
+    "what": "N1 Every round changes a round that has a card",
+    "file": "src/components/StagesClient.tsx",
+    "from": "  const unplayed = rounds.filter((s) => !s.closed && !resultIds.includes(s.id) && !(launched && dayHasCome(s)));",
+    "to": "  const unplayed = rounds.filter((s) => !s.closed && !(launched && dayHasCome(s)));",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone",
+    "grep": "groups, then a knockout"
+  },
+  {
+    "what": "N2 the launch dialog keeps a refusal to itself",
+    "file": "src/components/LifecycleBar.tsx",
+    "from": "                      setLaunchRefused(res.error ?? \"The tournament could not be launched.\");",
+    "to": "                      setLaunchRefused(\"\" && (res.error ?? \"The tournament could not be launched.\"));",
+    "spec": "e2e/organizer-medal.spec.ts",
+    "project": "desktop",
+    "grep": "net medal"
+  },
+  {
+    "what": "N3 a new round ignores the last round's gross or net",
+    "file": "src/app/actions/tournament.ts",
+    "from": "  const scoringBasis = previous ? basisFor(common.format, previous.scoringBasis) : newRoundBasis(common.format);",
+    "to": "  const scoringBasis = previous && false ? basisFor(common.format, previous.scoringBasis) : newRoundBasis(common.format);",
+    "audit": [
+      "src/lib/__tests__/a-round-is-added-as-a-club-plays.audit.test.ts"
+    ]
+  },
+  {
+    "what": "N4 launch stops asking whether every round can be scored",
+    "file": "src/app/actions/tournament.ts",
+    "from": "    unscorable: unscorableRoundLabels(stages),",
+    "to": "    unscorable: unscorableRoundLabels(stages).slice(0, 0),",
+    "audit": [
+      "src/lib/__tests__/launch-needs-the-course-card.audit.test.ts"
+    ]
+  },
+  {
+    "what": "BURN-IN 1: organizer-rounds-screen.spec.ts on phone (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/organizer-rounds-screen.spec.ts",
+    "from": " * ROUNDS & FORMATS, AS A NEW ORGANIZER BUILDS THEM — the walk of 2026-10-16.",
+    "to": " * ROUNDS & FORMATS, AS A NEW ORGANIZER BUILDS THEM — the walk of 2026-10-16. (burn-in 1)",
+    "spec": "e2e/organizer-rounds-screen.spec.ts",
+    "project": "phone"
+  },
+  {
+    "what": "BURN-IN 2: organizer-requires-a-phone.spec.ts on desktop (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/organizer-requires-a-phone.spec.ts",
+    "from": " * AN ORGANIZER ON A PAID PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE.",
+    "to": " * AN ORGANIZER ON A PAID PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE. (burn-in 2)",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "desktop"
+  }
+]
