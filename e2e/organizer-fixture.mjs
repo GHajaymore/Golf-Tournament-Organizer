@@ -117,6 +117,49 @@ export async function memberSession(email, name) {
 }
 
 /** Seed from clean, and return the signed session cookie for the organizer. */
+/**
+ * THE ORGANIZER'S OWN TOURNAMENT, AS ROWS — for a spec that must put it in a
+ * state no screen will make: another tab's change landing under an open
+ * dialog, a card returned for one round. Found through the organizer's club,
+ * so it can only ever reach the tournament this run built.
+ */
+export async function organizerEvent(name) {
+  const prisma = new PrismaClient();
+  try {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: ORGANIZER_EMAIL }, select: { id: true } });
+    const orgs = (await prisma.organizationMember.findMany({ where: { userId: user.id }, select: { organizationId: true } })).map((m) => m.organizationId);
+    return await prisma.event.findFirstOrThrow({
+      where: { name, organizationId: { in: orgs } },
+      select: { id: true, stages: { select: { id: true, position: true, type: true, format: true, scoringBasis: true, holes: true }, orderBy: { position: "asc" } } },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Writes one round's format as another tab would — see `organizerEvent`. */
+export async function setRoundFormat(stageId, format) {
+  const prisma = new PrismaClient();
+  try {
+    await prisma.stage.update({ where: { id: stageId }, data: { format } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** A card returned for one round, by an invented, marked player — see `organizerEvent`. */
+export async function returnACard(eventId, stageId) {
+  const prisma = new PrismaClient();
+  try {
+    const player = await prisma.player.create({
+      data: { eventId, name: "Robin Example", email: `${MARK}-card-${Date.now()}@example.invalid`, handicap: 10, seed: 99, status: "confirmed" },
+    });
+    await prisma.scorecard.create({ data: { eventId, stageId, playerId: player.id, strokes: JSON.stringify([4, 5, 3, ...new Array(15).fill(null)]) } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 export async function seedOrganizer() {
   await teardownOrganizer();
   const prisma = new PrismaClient();

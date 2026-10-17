@@ -1444,9 +1444,10 @@ describe("rounds and format", () => {
 
   it("words the countback ladder from the rule the boards apply", () => {
     const eighteen = render(<StagesClient {...base} stages={[stage({ format: "Stroke Play", type: "Stroke Play Round", holes: 18 })]} />);
-    expect(eighteen).toContain("the better last nine, then the last six, the last three and the last hole");
+    // The whole sentence, with its spaces: a JSX line break before the ladder ate one ("card —the better"), which the browser walk caught.
+    expect(eighteen).toContain("placed by countback on the card — the better last nine, then the last six, the last three and the last hole. Anybody");
     const nine = render(<StagesClient {...base} stages={[stage({ format: "Stroke Play", type: "Stroke Play Round", holes: 9 })]} />);
-    expect(nine).toContain("the better last six, then the last three and the last hole");
+    expect(nine).toContain("on the card — the better last six, then the last three and the last hole. Anybody");
   });
 
   it("shows the venue picker only when the tournament has several courses", () => {

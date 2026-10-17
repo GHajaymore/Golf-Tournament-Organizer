@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
-import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
+import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE, organizerEvent, setRoundFormat } from "./organizer-fixture.mjs";
 
 /**
  * A CLUB MEDAL, RUN FROM NOTHING BY SOMEBODY WHO HAS NEVER USED THE APP.
@@ -159,6 +159,19 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     }
     await page.getByRole("button", { name: "Launch tournament" }).click();
     const dialog = page.getByRole("dialog");
+    /**
+     * A REFUSAL IS SAID WHERE THE PRESS WAS (2026-10-16). Another tab sets the
+     * only round to a format it cannot be scored in while this dialog is open —
+     * the dashboard drew the button before the change, so only the server can
+     * say no. The dialog used to close on any answer and change nothing, in
+     * silence. Then the round is put back, and the same press launches.
+     */
+    const { stages } = await organizerEvent(TOURNAMENT);
+    await setRoundFormat(stages[0].id, "Match Play");
+    await dialog.getByRole("button", { name: "Launch tournament" }).click();
+    await expect(dialog.getByRole("alert")).toContainText("Not launched. Round 1 cannot be scored in the format it is set to", { timeout: 20_000 });
+    await expect(page.getByRole("button", { name: "Complete tournament" })).toHaveCount(0);
+    await setRoundFormat(stages[0].id, "Stroke Play");
     await dialog.getByRole("button", { name: "Launch tournament" }).click();
     await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
   });

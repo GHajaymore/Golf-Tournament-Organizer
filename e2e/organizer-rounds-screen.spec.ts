@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
-import { seedOrganizer, teardownOrganizer } from "./organizer-fixture.mjs";
+import { seedOrganizer, teardownOrganizer, organizerEvent, returnACard } from "./organizer-fixture.mjs";
 
 /**
  * ROUNDS & FORMATS, AS A NEW ORGANIZER BUILDS THEM — the walk of 2026-10-16.
@@ -265,6 +265,32 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     // And the closed row says it, in the words of the sheet.
     await page.getByRole("button", { name: /^Round 3 · Bracket Stage/ }).click();
     await expect(page.getByRole("button", { name: /^Round 3 · Bracket Stage/ })).toContainText("Top 16 overall");
+  });
+
+  /**
+   * EVERY ROUND LEAVES A ROUND THAT HAS BEGUN ALONE, AND SAYS SO (2026-10-16; the
+   * QA manager on the review panel). A card is returned for Round 1 — written as
+   * a row, since the tournament is not live — and the whole series is moved to
+   * scratch from the one line. Round 1 must keep its handicap, the screen must
+   * name it before and after the press, and the other two must change.
+   */
+  await test.step("Every round changes the rounds not begun, and names the one it left", async () => {
+    const before = await organizerEvent(NAME);
+    await returnACard(before.id, before.stages[0].id);
+    await open(page, "/stages");
+    const every = page.getByRole("button", { name: /^Every round/ });
+    await every.click();
+    await page.getByRole("radiogroup", { name: "Handicap for every round" }).locator("label.seg-opt", { hasText: /^\s*Gross\s*$/ }).click();
+    await expect(page.getByText("Changes Round 2, Round 3 to scratch. Play has begun in Round 1, so it stays as it is.")).toBeVisible();
+    await page.getByRole("button", { name: "Apply to the 2 unplayed rounds" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "2 rounds changed." })).toContainText(
+      "Left as they were, because play has begun: Round 1 — change those on their own cards.",
+      { timeout: 20_000 },
+    );
+    // Read back from the rows, not from the sentence.
+    const after = await organizerEvent(NAME);
+    expect(after.stages.map((s) => s.scoringBasis)).toEqual([before.stages[0].scoringBasis, "gross", "gross"]);
+    expect(before.stages[0].scoringBasis, "the control: Round 1 was not already scratch").not.toBe("gross");
   });
 
   expect(errors).toEqual([]);

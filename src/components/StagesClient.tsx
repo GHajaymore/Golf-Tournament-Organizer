@@ -2137,7 +2137,7 @@ function StageCard({
             {stage.type !== "Round Robin" && isIndividualStrokeRound(stage) && (
               <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55, maxWidth: "62ch" }}>
                 Players level on {chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the total" : "the round"} are
-                placed by countback on {chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the last round's" : "the"} card —
+                placed by countback on {chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the last round's" : "the"} card —{" "}
                 {countbackInWords(holes)}. Anybody still level shares the place.
               </p>
             )}
@@ -2411,7 +2411,14 @@ function EveryRound({
             {unplayed.length === 0
               ? "Play has begun in every round, so each is changed on its own card."
               : `Changes ${unplayed.length === rounds.length ? `all ${rounds.length} rounds` : names(unplayed)}` +
-                [f && f !== format ? ` to ${f}` : "", h && h !== holes ? `, ${h} holes` : "", b && b !== basis ? `, ${b === "gross" ? "scratch" : b === "both" ? "gross and net" : "off handicap"}` : ""].join("") +
+                (() => {
+                  const to = [
+                    f && f !== format ? f : "",
+                    h && h !== holes ? `${h} holes` : "",
+                    b && b !== basis ? (b === "gross" ? "scratch" : b === "both" ? "gross and net" : "off handicap") : "",
+                  ].filter(Boolean);
+                  return to.length ? ` to ${to.join(", ")}` : "";
+                })() +
                 "." +
                 (played.length ? ` Play has begun in ${names(played)}, so ${played.length === 1 ? "it stays" : "they stay"} as ${played.length === 1 ? "it is" : "they are"}.` : "")}
           </p>
