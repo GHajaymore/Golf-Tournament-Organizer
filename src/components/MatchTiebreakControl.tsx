@@ -55,9 +55,11 @@ export function MatchTiebreakControl({
   };
 
   // "Last 9" on a nine-hole round is the whole round, so it can never separate
-  // anyone — offering it would be offering a step that does nothing.
+  // anyone — offering it would be offering a step that does nothing. The
+  // toughest SIX of a nine is a real countback, and offered (Ajay, 2026-10-16:
+  // "add toughest 6 or 3 for 9 holes and repeat for 18").
   const available = OFFERED_MATCH_TIEBREAKS.filter(
-    (k) => !(holes === 9 && (k === "last-9" || k === "toughest-6")),
+    (k) => !(holes === 9 && k === "last-9"),
   );
   const standard = holes === 9 ? STANDARD_COUNTBACK_9 : STANDARD_COUNTBACK;
   const isStandard = seq.length === standard.length && seq.every((k, i) => k === standard[i]);

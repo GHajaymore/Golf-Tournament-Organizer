@@ -658,11 +658,7 @@ function NextRoundTransition({
             {genError}
           </div>
         )}
-        {nextDrawsPairings && nextStage && nextStage.matchCount === 0 && (
-          <span className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
-            <Icon name="clock" /> {roundLabel} not generated yet
-          </span>
-        )}
+        {/* "Not generated yet" is said once, on the next round's own row (2026-10-16). */}
       </div>
     </div>
   );
@@ -2122,6 +2118,13 @@ function StageCard({
                       readings of it, so a card can be re-scored if the round changes from gross to
                       net. Hole results and a final margin cannot: the strokes were never recorded.
                     </p>
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      {MATCH_ENTRY_MODES.filter((m) => inputChoices(format).includes(m.key)).map((m) => (
+                        <li key={m.key}>
+                          <b>{m.label}</b> — {m.blurb}
+                        </li>
+                      ))}
+                    </ul>
                     <p>
                       Ask for cards from a match-play day when you want the round to count for
                       handicapping. Under WHS a match-play score is acceptable only when a full
@@ -2155,11 +2158,7 @@ function StageCard({
                           {key === DEFAULT_INPUT && !natural && (
                             <span className="text-muted"> — counts for handicapping</span>
                           )}
-                          {info?.blurb && (
-                            <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.5 }}>
-                              {info.blurb}
-                            </span>
-                          )}
+                          {/* Each option's explanation is in the ⓘ above (2026-10-16, "redundancies"). */}
                         </span>
                       </label>
                     );
