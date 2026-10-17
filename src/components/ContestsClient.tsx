@@ -2,6 +2,8 @@
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState } from "react";
 import { addContest, setContestEntrants, setContestWinners, removeContest, confirmContestEntry } from "@/app/actions/contests";
+import { ContestSponsor } from "./ContestSponsor";
+import { shownOnBoard } from "@/lib/domain/contest-board";
 import { saveSideGame, setSideGameEntrants, confirmSideGameEntry, removeSideGame } from "@/app/actions/side-games";
 import { setPotEntryMode, setPotExcluded } from "@/app/actions/money-setup";
 import {
@@ -84,6 +86,9 @@ export interface ContestView {
   entryMode: string;
   /** Taken out of an opt-out pot. */
   excluded: Array<{ playerId: string; name: string }>;
+  /** Who sponsors it, and their website — "" for none. */
+  sponsorName?: string;
+  sponsorUrl?: string;
 }
 
 /**
@@ -776,6 +781,8 @@ export function ContestsClient({
                     : `${money(c.potCents)} split ${won.size} ways.`}
               </p>
             </div>
+
+            {shownOnBoard(c.kind) && <ContestSponsor contestId={c.id} name={c.sponsorName ?? ""} url={c.sponsorUrl ?? ""} />}
 
             {/* A bet with a pot against it. */}
             <ConfirmButton

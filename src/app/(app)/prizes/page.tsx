@@ -362,6 +362,8 @@ export default async function PrizesPage({
               name: c.name,
               hole: c.hole,
               buyInCents: c.buyInCents,
+              sponsorName: c.sponsorName,
+              sponsorUrl: c.sponsorUrl,
               entryMode: modeOf(c.entryMode),
               entrantIds: m.entrants,
               winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),

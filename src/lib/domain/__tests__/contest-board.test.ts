@@ -1,0 +1,56 @@
+import { describe, it, expect } from "vitest";
+import { contestTitle, shownOnBoard, sponsorUrl, sponsorsToThank } from "../contest-board";
+
+/**
+ * The contests a public board announces, and their sponsors (2026-10-17). The
+ * browser half — the organizer saving a sponsor, a refusal said beside the
+ * press, the board showing winner and sponsor — is `e2e/contest-sponsor.spec.ts`.
+ */
+
+describe("a sponsor's website", () => {
+  it("is kept as an https address, with the scheme added when it was left off", () => {
+    expect(sponsorUrl("https://smithmotors.example/")).toBe("https://smithmotors.example/");
+    expect(sponsorUrl("smithmotors.example")).toBe("https://smithmotors.example/");
+    expect(sponsorUrl("  ")).toBe("");
+  });
+
+  it("refuses anything a public board should not link to", () => {
+    for (const bad of ["http://smithmotors.example", "javascript:alert(1)", "data:text/html,hi", "ftp://x.example", "localhost", "not a site", `https://${"a".repeat(200)}.example`]) {
+      expect(sponsorUrl(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe("what the board names a contest", () => {
+  it("by its kind and hole, or by the organizer's own name", () => {
+    expect(contestTitle({ kind: "closest-pin", name: "Closest to the pin", hole: 7 })).toBe("Closest to the pin · 7th");
+    expect(contestTitle({ kind: "long-drive", name: "", hole: 12 })).toBe("Long drive · 12th");
+    expect(contestTitle({ kind: "closest-pin", name: "KP 3rd", hole: 3 })).toBe("KP 3rd");
+    expect(contestTitle({ kind: "closest-pin", name: "Nearest the pin", hole: 0 })).toBe("Nearest the pin");
+    expect(contestTitle({ kind: "long-drive", name: "", hole: 11 })).toBe("Long drive · 11th");
+    expect(contestTitle({ kind: "long-drive", name: "", hole: 2 })).toBe("Long drive · 2nd");
+  });
+
+  it("only for what a club announces: not the poker, not four friends' side bet", () => {
+    expect(shownOnBoard("closest-pin")).toBe(true);
+    expect(shownOnBoard("long-drive")).toBe(true);
+    expect(shownOnBoard("off-course")).toBe(false);
+    expect(shownOnBoard("other")).toBe(false);
+  });
+});
+
+describe("the sponsors thanked", () => {
+  it("once each, in the order they came, keeping a website if any contest gave one", () => {
+    expect(
+      sponsorsToThank([
+        { sponsorName: "Smith Motors", sponsorUrl: "" },
+        { sponsorName: "", sponsorUrl: "" },
+        { sponsorName: "Bay Bakery", sponsorUrl: "https://bay.example/" },
+        { sponsorName: "smith motors", sponsorUrl: "https://smith.example/" },
+      ]),
+    ).toEqual([
+      { name: "Smith Motors", url: "https://smith.example/" },
+      { name: "Bay Bakery", url: "https://bay.example/" },
+    ]);
+  });
+});
