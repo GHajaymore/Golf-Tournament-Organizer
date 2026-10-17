@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { LoginPanel } from "@/components/LoginPanel";
+import { SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
 
 /**
  * The real sign-in form, embedded in the landing page so every "Sign in" and
@@ -19,7 +20,8 @@ import { LoginPanel } from "@/components/LoginPanel";
 export function LandingAuth({
   defaultMode = "login",
   organizers = "organizers",
-}: { defaultMode?: "login" | "signup"; organizers?: string } = {}) {
+  closed = false,
+}: { defaultMode?: "login" | "signup"; organizers?: string; closed?: boolean } = {}) {
   // Where no link said otherwise: the closing section asks the visitor to set
   // up their first event, so it opens on sign-up (Ajay, 2026-09-28).
   const [mode, setMode] = useState<"login" | "signup">(defaultMode);
@@ -40,5 +42,31 @@ export function LandingAuth({
   // instead of the top of the hero.
   // The edition's word (UK "organisers"): the page's server-side dialect swap
   // cannot reach inside this client component, so the word is passed in.
-  return <LoginPanel key={mode} initialMode={mode} autoFocusFields={false} organizers={organizers} />;
+  const panel = <LoginPanel key={mode} initialMode={mode} autoFocusFields={false} organizers={organizers} />;
+  if (!closed) return panel;
+  // Sign-ins closed until launch (sign-in-gate.ts): said before the form, so
+  // nobody fills it in to be refused at the end. The form stays, for the owners.
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div
+        role="status"
+        style={{
+          width: "min(400px, 100%)",
+          padding: "16px 18px",
+          borderRadius: 14,
+          background: "var(--color-surface)",
+          color: "var(--color-text)",
+          fontSize: 15,
+          lineHeight: 1.55,
+          boxShadow: "0 0 0 2px var(--color-accent)",
+        }}
+      >
+        <p style={{ margin: 0 }}>
+          <strong>{SIGNINS_CLOSED_NOTICE.lead}</strong> {SIGNINS_CLOSED_NOTICE.body}
+        </p>
+        <p style={{ margin: "8px 0 0" }}>{SIGNINS_CLOSED_NOTICE.play}</p>
+      </div>
+      {panel}
+    </div>
+  );
 }
