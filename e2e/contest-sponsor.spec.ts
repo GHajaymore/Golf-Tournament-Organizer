@@ -29,13 +29,15 @@ const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "
 };
 const stageId = data.partialCard.stageId;
 const prisma = new PrismaClient();
-const MARK = "zz-sponsor";
+/** Per screen size, because the three run side by side on one fixture. */
+let MARK = "zz-sponsor";
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
 let kp = "";
 let poker = "";
 let winner = "";
-test.beforeAll(async () => {
+test.beforeAll(async ({}, info) => {
+  MARK = `zz-sponsor-${info.project.name}`;
   const field = await prisma.player.findMany({ where: { eventId: data.eventId, status: "confirmed" }, orderBy: { name: "asc" }, take: 2, select: { id: true, name: true } });
   winner = field[0].name;
   kp = (
@@ -62,7 +64,9 @@ test("an organizer names a contest's sponsor, and the public board shows the win
   // ── the organizer, on Prizes ────────────────────────────────────────────
   await page.goto(`/prizes?round=${stageId}&bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
-  const card = page.locator("div", { has: page.getByText(`${MARK} KP`, { exact: true }) }).filter({ has: page.getByRole("button", { name: /sponsor/i }) }).last();
+  // The smallest block holding both the bet and its Remove, as side-bet-named-winner finds one.
+  const card = page.locator("div", { hasText: `${MARK} KP` }).filter({ has: page.getByRole("button", { name: /^Remove (this bet|the bet)$/ }) }).last();
+  await expect(card, "the contest is not on the organizer's screen").toBeVisible({ timeout: 20_000 });
   await card.getByRole("button", { name: "Add a sponsor" }).click();
   await card.getByLabel("Sponsored by").fill(`${MARK} Motors`);
   await card.getByLabel(/Sponsor.s website/).fill("http://zz-sponsor.example");
@@ -89,7 +93,8 @@ test("an organizer names a contest's sponsor, and the public board shows the win
     const link = line.getByRole("link", { name: `${MARK} Motors` });
     await expect(link).toHaveAttribute("href", "https://zz-sponsor.example/");
     await expect(link).toHaveAttribute("rel", "noopener nofollow");
-    await expect(contests).toContainText(`Thanks to our sponsors: ${MARK} Motors`);
+    await expect(contests.locator("p", { hasText: "Thanks to our sponsors:" })).toContainText(`${MARK} Motors`);
+    await contests.screenshot({ path: test.info().outputPath("contests.png") });
     // CONTROL: the poker school's winner is nobody's business on the club's board.
     await expect(contests, "an off-course game was put on the public board").not.toContainText(`${MARK} poker`);
   } finally {
