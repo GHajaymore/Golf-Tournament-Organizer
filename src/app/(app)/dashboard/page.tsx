@@ -949,6 +949,24 @@ export default async function DashboardPage() {
 
       <AnnouncementList items={announcements} />
 
+      {/* A SOCIETY TAKING ENTRIES FIRST (2026-10-16; the tournament director on the
+          review panel). Two things it was not told: "Start taking entries" changes
+          the status and does not publish the sign-up link; and once the first
+          entry lands, the getting-started list goes, so nothing said the format
+          was still to choose. One line each, only while true. */}
+      {isStaff && event.status === "registration" && !event.registrationOpen && (
+        <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+          Players can&rsquo;t sign up themselves until the link is published —{" "}
+          <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>publish it on Entries</Link>.
+        </p>
+      )}
+      {isStaff && state.stages.length === 0 && state.confirmed.length > 0 && (
+        <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+          {state.confirmed.length} entered, no format yet —{" "}
+          <Link href="/stages" style={{ color: "var(--color-accent-200)" }}>choose one on Rounds &amp; formats</Link>.
+        </p>
+      )}
+
       {/* Ahead of the shortcuts, because "what next" outranks "where to". */}
       {unstarted && (
         <div className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>

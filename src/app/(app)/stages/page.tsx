@@ -31,7 +31,7 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
 import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason } from "@/lib/domain/team-entry";
-import { effectiveAllowance, effectiveCountBest, recommendedAllowance } from "@/lib/services/teams";
+import { effectiveAllowance, effectiveCountBest, recommendedAllowance, snakeDraw } from "@/lib/services/teams";
 import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
 import { individualAllowanceFor } from "@/lib/round-allowance";
 import { drawBrackets, isBracketMode } from "@/lib/domain/bracket";
@@ -304,7 +304,11 @@ export default async function StagesPage() {
         {state.confirmed.length > 0 ? (
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
             <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>{state.confirmed.length} entered</Link>
-            {PRE_LAUNCH_STATUSES.includes(state.event.status) ? " so far." : "."}
+            {state.stages.length === 0
+              ? ` — ${formatsThatSuit(state.confirmed.length)}.`
+              : PRE_LAUNCH_STATUSES.includes(state.event.status)
+                ? " so far."
+                : "."}
           </p>
         ) : state.stages.length === 0 ? (
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
@@ -477,4 +481,27 @@ export default async function StagesPage() {
       <SetupFlowFooter flow={flow} href="/stages" />
     </>
   );
+}
+
+/**
+ * WHAT SUITS THE NUMBER ENTERED, in one line, for a society choosing its format
+ * once it knows how many signed up (2026-10-16; the golf professional and the
+ * tournament director on the review panel: "a single next line, not a format
+ * catalogue"). The scramble's sides come from the draw the app will make
+ * (`snakeDraw`, sides of 2 to 4 aiming at 4), so the line cannot promise sides it
+ * would not draw.
+ */
+function formatsThatSuit(n: number): string {
+  const parts = ["suits a Stableford"];
+  if (n >= 4) {
+    const pairs = Math.floor(n / 2);
+    parts.push(`pairs better-ball (${pairs} pairs${n % 2 ? ", one player alone — or add one" : ""})`);
+  }
+  if (n >= 6) {
+    const sides = snakeDraw(Array.from({ length: n }, (_, i) => ({ id: String(i), handicap: 0 })), 4, { min: 2, max: 4 })
+      .map((side) => side.length)
+      .sort((a, b) => b - a);
+    parts.push(`a Texas scramble (sides of ${sides.join(", ")})`);
+  }
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} or ${parts[parts.length - 1]}` : parts[0];
 }
