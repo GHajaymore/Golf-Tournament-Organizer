@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import qrcode from "qrcode-generator";
 import { codeFromLink, roundCodeLink } from "../code-format";
 import { qrModules, qrPath, type QrEncoder } from "../qr";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { readSource } from "./source";
 
 /**
@@ -77,10 +79,19 @@ describe("the encoder is in no screen's first download", () => {
   it("is loaded only when the signs are opened", () => {
     // A static import would put it in the Tournament details bundle for every
     // organizer, every visit; `e2e/weight-budget.json` holds that weight.
-    for (const file of ["src/components/RoundSigns.tsx", "src/components/PlaySettings.tsx", "src/lib/qr.ts"]) {
-      const src = readSource(...file.split("/"));
+    // Every file under src, not a list: the round signs and the sign-up poster
+    // are two users of it already, and the third should not need remembering.
+    const files = (readdirSync("src", { recursive: true }) as string[])
+      .filter((f) => /\.tsx?$/.test(f) && !f.includes("__tests__"))
+      .map((f) => join("src", f));
+    expect(files.length, "CONTROL: the sweep found no source").toBeGreaterThan(300);
+    const lazy: string[] = [];
+    for (const file of files) {
+      const src = readSource(file);
       expect(src, file).not.toMatch(/from\s+["']qrcode-generator["']/);
+      if (/import\(\s*["']qrcode-generator["']\s*\)/.test(src)) lazy.push(file.replace(/\\/g, "/"));
     }
-    expect(readSource("src", "components", "RoundSigns.tsx")).toMatch(/import\(\s*["']qrcode-generator["']\s*\)/);
+    // CONTROL: the sweep sees the two that load it lazily.
+    expect(lazy.sort()).toEqual(["src/components/RoundSigns.tsx", "src/components/SignUpPoster.tsx"]);
   });
 });
