@@ -74,6 +74,8 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
   const link = await sign.getAttribute("data-link");
   expect(link, "the sign's QR is not the round's /play link").toBe(`${new URL(baseURL!).origin}/play#${shown}`);
   // Nobody's name on a sign left in a cart.
+  // Kept with the run, so the sign can be looked at without a printer.
+  await sign.screenshot({ path: test.info().outputPath("sign.png") });
   const signText = await sign.innerText();
   for (const p of field) expect(signText, `a player's name is printed on the sign: ${p.name}`).not.toContain(p.name);
 
@@ -105,6 +107,7 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
     await player.goto(otherLink);
     await expect(asked, "a sign for another round moved the phone without asking").toBeVisible({ timeout: 20_000 });
     await expect(asked).toContainText("This phone is scoring");
+    await player.screenshot({ path: test.info().outputPath("asked.png") });
     await asked.getByRole("button", { name: "Keep scoring this one" }).click();
     await expect(asked).toHaveCount(0);
     await expect(player.getByLabel("Round code"), "keeping the round left it anyway").toHaveCount(0);

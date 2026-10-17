@@ -284,7 +284,9 @@ function ScannedSign({ sessionCode, roundLabel }: { sessionCode: string; roundLa
     <section
       aria-label="A sign for another round"
       className="card elev-sm"
-      style={{ maxWidth: 560, margin: "16px auto 0", padding: "12px 14px", gap: 10, border: "1px solid var(--color-warning)" }}
+      // `calc` keeps the page's 16px gutter on a phone: the play page's own
+      // padding is inside its <main>, and this sits above it.
+      style={{ maxWidth: 560, width: "calc(100% - 32px)", margin: "16px auto 0", padding: "12px 14px", gap: 10, border: "1px solid var(--color-warning)" }}
     >
       <p style={{ margin: 0, fontSize: 15, lineHeight: 1.45 }}>
         This phone is scoring <b>{roundLabel || "another round"}</b>. The code you scanned, {formatAccessCode(other)}, is
