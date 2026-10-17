@@ -15,6 +15,8 @@ import { createOrganizationWithOwner } from "@/lib/services/organization";
 import { isOrgKind } from "@/lib/domain/org-profile";
 import { homeFor } from "@/lib/roles";
 import { markStaffSeen } from "@/lib/services/staff-seen";
+import { normalizeDiscountCode } from "@/lib/plans";
+import { discountRefusal } from "@/lib/domain/discount";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -299,6 +301,7 @@ export async function signUp(
   password: string,
   kind: string,
   next?: string,
+  discountInput?: string,
 ): Promise<{ ok: boolean; error?: string; needsClaim?: boolean }> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
@@ -309,6 +312,15 @@ export async function signUp(
   const weak = passwordProblem(password, { email: cleanEmail, name: cleanName });
   if (weak) return { ok: false, error: weak };
   if (!isOrgKind(kind)) return { ok: false, error: "Choose what you're organizing golf for." };
+  // A discount code is optional; one that is given must be usable, said here
+  // rather than at a checkout weeks later. Counted per address, like a sign-in.
+  const discountCode = normalizeDiscountCode(typeof discountInput === "string" ? discountInput : "");
+  if (discountCode) {
+    const limit = await checkRateLimit("discount-check", cleanEmail);
+    if (!limit.allowed) return { ok: false, error: limit.message };
+    const refusal = discountRefusal(await prisma.discountCode.findUnique({ where: { code: discountCode } }), new Date());
+    if (refusal) return { ok: false, error: refusal };
+  }
 
   // A script is refused before it costs a lookup or a password hash. See
   // bot-check.ts for why this lets a person in when the check itself fails.
@@ -361,7 +373,9 @@ export async function signUp(
     select: { id: true },
   });
   if (!owned) {
-    await createOrganizationWithOwner({ email: cleanEmail, displayName: cleanName, kind });
+    const organizationId = await createOrganizationWithOwner({ email: cleanEmail, displayName: cleanName, kind });
+    // Kept for the club's plan checkout, which asks again whether it is still usable.
+    if (discountCode) await prisma.organization.update({ where: { id: organizationId }, data: { discountCode } });
   }
 
   await createSession(user.id);

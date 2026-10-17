@@ -3,6 +3,7 @@ import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
 import { createDiscountCode, setDiscountCodeActive } from "@/app/actions/owner";
 import { Icon } from "./Icon";
+import { signUpLinkFor } from "@/lib/domain/discount";
 
 /**
  * THE OWNER'S DISCOUNT CODES — generate a percentage-off code and hand it out.
@@ -31,14 +32,14 @@ export function OwnerDiscounts({
   const [max, setMax] = useState("");
   const [expires, setExpires] = useState("");
   const [made, setMade] = useState<{ code: string; percentOff: number } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"" | "code" | "link">("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
 
   const generate = () => {
     setError("");
     setMade(null);
-    setCopied(false);
+    setCopied("");
     // The one reading of a typed whole number: "12.5" is not a whole percent, and was rounded to 13.
     const p = figureOr(readWhole(percent), Number.NaN);
     if (!Number.isInteger(p) || p < 1 || p > 100) {
@@ -62,10 +63,10 @@ export function OwnerDiscounts({
     });
   };
 
-  const copy = (code: string) => {
+  const copy = (text: string, what: "code" | "link" = "code") => {
     try {
-      void navigator.clipboard?.writeText(code);
-      setCopied(true);
+      void navigator.clipboard?.writeText(text);
+      setCopied(what);
     } catch {
       // Clipboard can be unavailable; the code is on screen to copy by hand.
     }
@@ -85,9 +86,12 @@ export function OwnerDiscounts({
       </div>
 
       <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "8px 0 0" }}>
-        Set the percentage and press <strong>Generate</strong>. A code is created for you to copy and send.
-        A <strong>label</strong> is your own note; a <strong>limit</strong> and an <strong>expiry</strong> are
-        optional. Redemption is applied at a paid upgrade, which is coming with billing — codes made now are kept.
+        Set the percentage and press <strong>Generate</strong>. A code is created for you to copy and send — or
+        send the sign-up link, which opens the form with the code filled in. It comes off a club&rsquo;s{" "}
+        <strong>first payment only</strong>: the first month, or the first year if they pay yearly. A club types it
+        when it signs up or on its plan page. A <strong>label</strong> is your own note; a <strong>limit</strong>{" "}
+        (how many clubs may use it) and an <strong>expiry</strong> are optional, and Stripe holds the club to both
+        when it pays.
       </p>
 
       {/* Generate form */}
@@ -151,17 +155,30 @@ export function OwnerDiscounts({
         <div
           style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "var(--color-surface-2)" }}
         >
-          <span className="text-muted" style={{ fontSize: 13 }}>New code — {made.percentOff}% off:</span>
+          <span className="text-muted" style={{ fontSize: 13 }}>New code — {made.percentOff}% off the first payment:</span>
           <code style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 18, fontWeight: 700, letterSpacing: "0.06em" }}>
             {made.code}
           </code>
           <button type="button" className="btn btn-ghost touch-target" onClick={() => copy(made.code)}>
-            {copied ? (
+            {copied === "code" ? (
               <>
                 <Icon name="check-circle" /> Copied
               </>
             ) : (
               "Copy"
+            )}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost touch-target"
+            onClick={() => copy(signUpLinkFor(window.location.origin, made.code), "link")}
+          >
+            {copied === "link" ? (
+              <>
+                <Icon name="check-circle" /> Link copied
+              </>
+            ) : (
+              "Copy sign-up link"
             )}
           </button>
         </div>

@@ -10,6 +10,7 @@ import {
   type SubscriptionWrite,
 } from "@/lib/domain/billing";
 import type { PlanKey, PricingOverrides } from "@/lib/plans";
+import { stripeCouponFor, stripeCouponId, type DiscountRow } from "@/lib/domain/discount";
 
 /**
  * Subscription billing through Stripe — the I/O half. The rules are in
@@ -61,7 +62,45 @@ async function customerFor(stripe: Stripe, organizationId: string, email: string
   return customer.id;
 }
 
+/**
+ * The code's Stripe coupon — found by its id, made the first time a club uses
+ * the code. One code is one coupon, so Stripe's own count of redemptions is the
+ * code's count, and its cap and expiry are enforced at the payment.
+ */
+async function couponFor(stripe: Stripe, row: DiscountRow): Promise<string> {
+  const id = stripeCouponId(row.code);
+  try {
+    return (await stripe.coupons.retrieve(id)).id;
+  } catch (err) {
+    if ((err as { code?: string }).code !== "resource_missing") throw err;
+  }
+  try {
+    return (await stripe.coupons.create(stripeCouponFor(row, new Date()))).id;
+  } catch (err) {
+    // Two clubs at once: the other request made it first, which is the same coupon.
+    if ((err as { code?: string }).code === "resource_already_exists") return id;
+    throw err;
+  }
+}
+
+/**
+ * Copy Stripe's count of a code's redemptions onto its row — idempotent, so a
+ * retried webhook writes the same number again rather than counting twice.
+ */
+export async function syncDiscountRedemptions(code: string): Promise<void> {
+  const stripe = stripeClient();
+  if (!stripe || !code) return;
+  try {
+    const coupon = await stripe.coupons.retrieve(stripeCouponId(code));
+    await prisma.discountCode.updateMany({ where: { code }, data: { timesRedeemed: coupon.times_redeemed } });
+  } catch (err) {
+    console.error("discount redemption sync failed", code, err);
+  }
+}
+
 export interface CheckoutRequest {
+  /** A code the action has already found usable (`discountRefusal`), or none. */
+  discount?: DiscountRow | null;
   organizationId: string;
   plan: PlanKey;
   interval: BillingInterval;
@@ -81,7 +120,16 @@ export async function checkoutUrl(req: CheckoutRequest): Promise<{ url: string }
     const customer = await customerFor(stripe, req.organizationId, req.email);
     // The club and the plan travel on the SUBSCRIPTION, so every later event
     // about it says which club it is for without trusting anything else.
-    const metadata = { organizationId: req.organizationId, plan: req.plan };
+    const metadata = {
+      organizationId: req.organizationId,
+      plan: req.plan,
+      ...(req.discount ? { discountCode: req.discount.code } : {}),
+    };
+    // Stripe takes a discount OR its own promotion-code box, never both: with
+    // our code applied the box would only invite a second one.
+    const discount = req.discount
+      ? { discounts: [{ coupon: await couponFor(stripe, req.discount) }] }
+      : { allow_promotion_codes: true };
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer,
@@ -89,7 +137,7 @@ export async function checkoutUrl(req: CheckoutRequest): Promise<{ url: string }
       line_items: [checkoutLineItem(req.plan, req.interval, req.currency, req.overrides)],
       subscription_data: { metadata },
       metadata,
-      allow_promotion_codes: true,
+      ...discount,
       success_url: `${req.origin}/organization?billing=success#plan`,
       cancel_url: `${req.origin}/organization?billing=cancelled#plan`,
     });

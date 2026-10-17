@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { applySubscriptionWrite, handleStripeEvent, stripeClient } from "@/lib/services/billing";
+import { applySubscriptionWrite, handleStripeEvent, stripeClient, syncDiscountRedemptions } from "@/lib/services/billing";
+import { discountCodeOf } from "@/lib/domain/discount";
 import type { StripeSubscriptionLike } from "@/lib/domain/billing";
 
 /**
@@ -32,6 +33,10 @@ export async function POST(req: Request): Promise<Response> {
       retrieveSubscription: async (id) => (await stripe.subscriptions.retrieve(id)) as unknown as StripeSubscriptionLike,
       apply: (write) => applySubscriptionWrite(write),
     });
+    // A paid checkout that carried a discount code: copy Stripe's count of the
+    // code's uses onto it, so the owner console says how it is doing.
+    const code = discountCodeOf(event as unknown as { type: string; data: { object: Record<string, unknown> } });
+    if (code) await syncDiscountRedemptions(code);
     return NextResponse.json({ received: true, outcome });
   } catch (err) {
     // A 500 makes Stripe retry, which is what a transient database error wants.
