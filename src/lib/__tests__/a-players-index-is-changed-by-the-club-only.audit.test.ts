@@ -171,6 +171,28 @@ describe("the tournament's copy", () => {
   });
 });
 
+describe("a round's strokes, carried to later rounds", () => {
+  /**
+   * The figure is a COURSE handicap: strokes for one course, set of tees and
+   * length of round (Rules of Handicapping 6.1). Carried onto a nine-hole round
+   * it is twice what that round gives; the golf professional on the review
+   * panel found "Use in later rounds too" copied it anyway.
+   */
+  it("goes only to later rounds of the same course, tees and holes", async () => {
+    await tournament();
+    await prisma.stage.update({ where: { id: stageIds[2] }, data: { holes: 9 } });
+    const kim = await entrant("Kim", 16);
+    await signIn(ownerId);
+    const { setRoundHandicapOverride, applyRoundHandicapToRest } = await import("@/app/actions/tournament");
+    expect((await setRoundHandicapOverride(stageIds[0], kim.playerId, 12)).ok).toBe(true);
+    const res = await applyRoundHandicapToRest(stageIds[0], kim.playerId);
+    expect(res).toMatchObject({ ok: true, written: 1, skipped: 1 });
+    const rows = await prisma.roundHandicap.findMany({ where: { playerId: kim.playerId } });
+    expect(rows.find((r) => r.stageId === stageIds[1])?.override).toBe(12);
+    expect(rows.find((r) => r.stageId === stageIds[2])?.override ?? null).toBeNull();
+  });
+});
+
 describe("Members", () => {
   it("takes the index from the club's organizer, with a reason, as a committee adjustment", async () => {
     await tournament();
