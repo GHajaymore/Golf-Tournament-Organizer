@@ -235,6 +235,36 @@ export function groupBySides(
   return groups;
 }
 
+/**
+ * A MATCH GOES OUT AS ONE GROUP (2026-10-17, the cup rehearsal).
+ *
+ * The units `groupBySides` packs, for a round played side against side: one
+ * per match, both of its sides. Left to the sides alone, a cup's four-ball
+ * sheet dealt two pairs of the SAME team into one group — a group that plays
+ * nobody — and their opponents into another. At a cup the four who play each
+ * other go out together. Sides in no match keep their own unit, after the
+ * matches, so nobody leaves the sheet.
+ */
+export function sidesByMatch(
+  sides: ReadonlyArray<{ id: string; playerIds: readonly string[] }>,
+  matches: ReadonlyArray<{ teamAId: string; teamBId: string }>,
+): string[][] {
+  const byId = new Map(sides.map((s) => [s.id, s.playerIds]));
+  const placed = new Set<string>();
+  const units: string[][] = [];
+  for (const m of matches) {
+    if (placed.has(m.teamAId) || placed.has(m.teamBId)) continue;
+    const a = byId.get(m.teamAId);
+    const b = byId.get(m.teamBId);
+    if (!a || !b) continue;
+    placed.add(m.teamAId);
+    placed.add(m.teamBId);
+    units.push([...a, ...b]);
+  }
+  for (const s of sides) if (!placed.has(s.id)) units.push([...s.playerIds]);
+  return units;
+}
+
 export interface StartSlot {
   groupId: string;
   /** Display time, e.g. "8:10 AM". Empty for a shotgun, which has one time. */
