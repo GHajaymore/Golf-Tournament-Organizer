@@ -236,6 +236,42 @@ test("a four-ball partner with a round code keeps their side's match, from their
   }
 });
 
+/**
+ * A NET FOUR-BALL SAYS WHO GETS A SHOT ON EACH HOLE, off the lowest of the
+ * four; and the hole strip marks a played hole W / ½ / L from the holder's side.
+ *
+ *   Ailsa 0, Bram 4, Edda 8, Finn 12: a nine halves each, so 0, 2, 4, 6
+ *   before the round's allowance; Ailsa is the low and gets none anywhere.
+ *   Hole 1 (S.I. 1) — Bram, Edda and Finn all get one. Hole 9 (S.I. 9) —
+ *   nobody does (the most anybody gets is six).
+ */
+test("a net four-ball card says who gets a shot on the hole, and the strip marks W from the holder's side", async ({ browser, baseURL }) => {
+  test.setTimeout(120_000);
+  const stage = await prisma.match.findUniqueOrThrow({ where: { id: ids.match }, select: { stageId: true } });
+  const set = async (name: string, handicap: number) =>
+    prisma.player.updateMany({ where: { eventId: ids.event, name }, data: { handicap } });
+  await prisma.stage.update({ where: { id: stage.stageId }, data: { scoringBasis: "net" } });
+  await Promise.all([set("Zz Ailsa", 0), set("Zz Bram", 4), set("Zz Edda", 8), set("Zz Finn", 12)]);
+  const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  const page = await ctx.newPage();
+  try {
+    await enter(page, "Zz Finn");
+    await page.getByRole("button", { name: /^Hole 1,/ }).click();
+    const note = page.getByText(/^Shots here: /);
+    await expect(note, "the hole does not say who gets a shot").toBeVisible({ timeout: 20_000 });
+    // The four share a first name ("Zz"), so the line names them in full.
+    for (const n of ["Zz Bram", "Zz Edda", "Zz Finn"]) await expect(note).toContainText(n);
+    await expect(note).not.toContainText("Zz Ailsa");
+    await page.getByRole("button", { name: /^Hole 9,/ }).click();
+    await expect(page.getByText("No shots on this hole")).toBeVisible();
+    // Hole 1 went to side B in the first test, and Finn is side B: a W for him.
+    await expect(page.getByRole("button", { name: /^Hole 1, won by you/ })).toContainText("W");
+  } finally {
+    await prisma.stage.update({ where: { id: stage.stageId }, data: { scoringBasis: "gross" } });
+    await ctx.close();
+  }
+});
+
 test("a player in the round with no match is told so, and given nobody's card", async ({ browser, baseURL }) => {
   test.setTimeout(90_000);
   const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });

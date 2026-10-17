@@ -34,6 +34,8 @@ interface PlayMatch {
   flipped: boolean;
   /** A match between two sides (a four-ball pair): the holder speaks for their side. */
   side?: boolean;
+  /** A net side match: each of the four players and their shots per hole (index 0 = the card's first hole). */
+  sideShots?: Array<{ name: string; perHole: number[] }> | null;
 }
 
 interface Props {
@@ -70,6 +72,8 @@ interface Props {
   pars?: number[];
   yards?: number[];
   strokeIndex?: number[];
+  /** The club card's own stroke index for these holes, to print in place of the 1–9 ranking on a nine. */
+  cardStrokeIndex?: number[];
   /** The course's number for the card's first hole — 10 on a back nine (`firstHoleOf`). */
   firstHole?: number;
   netMode?: boolean;
@@ -1091,10 +1095,27 @@ export function PlayClient(props: Props) {
           pars={props.pars ?? []}
           yards={props.yards ?? []}
           strokeIndex={props.strokeIndex ?? []}
+          shownStrokeIndex={props.cardStrokeIndex}
           firstHole={props.firstHole ?? 1}
           canHearNames={(firstName(m.bName) || "").toLowerCase() !== "me"}
           showVoice={props.voiceEntry ?? true}
           shotsOn={props.matchShots ? (h) => ({ a: props.matchShots?.mine[h] ?? 0, b: props.matchShots?.theirs[h] ?? 0 }) : undefined}
+          wonLost
+          noteFor={
+            m.sideShots
+              ? (h) => {
+                  const four = m.sideShots ?? [];
+                  // First names, unless two of the four share one.
+                  const firsts = four.map((p) => firstName(p.name) || p.name);
+                  const called = (i: number) => (firsts.filter((f) => f === firsts[i]).length > 1 ? four[i].name : firsts[i]);
+                  const getting = four
+                    .map((p, i) => ({ p, i }))
+                    .filter(({ p }) => (p.perHole[h] ?? 0) > 0)
+                    .map(({ p, i }) => `${called(i)}${(p.perHole[h] ?? 0) > 1 ? ` (${p.perHole[h]})` : ""}`);
+                  return getting.length ? `Shots here: ${getting.join(", ")}` : "No shots on this hole";
+                }
+              : undefined
+          }
           onPick={(i, v) => setHole(i, v)}
           onSay={(start, values) => {
             const next = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);

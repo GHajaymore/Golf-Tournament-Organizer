@@ -14,6 +14,7 @@ import { NOINDEX } from "@/lib/site";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { matchStrokesGiven } from "@/lib/domain/match";
+import { matchStrokesPerHole } from "@/lib/domain/team";
 import { isHeadToHead } from "@/lib/stage-types";
 import { needsTeams } from "@/lib/formats";
 import { signsCards } from "@/lib/tournament-shape";
@@ -347,6 +348,30 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     matchShots = { mine: given.toA, theirs: given.toB };
   }
 
+  /**
+   * A SIDE'S SHOTS, named per player (2026-10-17). Four players' strokes do not
+   * fit two rows of dots, so a four-ball card says under each hole who gets a
+   * shot there — off the lowest of the four, through `matchStrokesPerHole`,
+   * the one definition the engine and the printed card use too.
+   */
+  let sideShots: Array<{ name: string; perHole: number[] }> | null = null;
+  if (sideMatch && netMatch && playCard?.strokeIndex?.length) {
+    const matchState = await loadEventState(event.id);
+    const members = await prisma.teamMember.findMany({
+      where: { teamId: { in: [match.teamAId, match.teamBId] } },
+      orderBy: [{ teamId: "asc" }, { position: "asc" }],
+      select: { teamId: true, playerId: true, player: { select: { name: true } } },
+    });
+    const ordered = [
+      ...members.filter((x) => x.teamId === (iAmA ? match.teamAId : match.teamBId)),
+      ...members.filter((x) => x.teamId === (iAmA ? match.teamBId : match.teamAId)),
+    ];
+    const playing = ordered.map((x) => matchState?.matchHandicapFor(x.playerId, match.id) ?? 0);
+    const low = playing.length ? Math.min(...playing) : 0;
+    const index = playCard.strokeIndex;
+    sideShots = ordered.map((x, i) => ({ name: x.player.name, perHole: matchStrokesPerHole(playing[i], low, index) }));
+  }
+
   // The other matches, named by opponent, for the picker above the card.
   const others = myMatches.filter((x) => x.id !== match.id);
   const otherIds = others.map((x) =>
@@ -394,6 +419,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         aName: sideNames?.get(iAmA ? match.teamAId : match.teamBId) ?? me?.name ?? "You",
         bName: sideNames?.get(iAmA ? match.teamBId : match.teamAId) ?? opponent?.name ?? "Opponent",
         side: sideMatch,
+        sideShots,
         aHandicap: me?.handicap ?? 0,
         bHandicap: opponent?.handicap ?? 0,
         // Results are stored A-relative; flip them when the holder is B so
@@ -408,6 +434,15 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       pars={playCard?.pars ?? []}
       yards={playCard?.yards ?? []}
       strokeIndex={playCard?.strokeIndex ?? []}
+      // The CLUB's stroke index for the holes of this nine, to print: the card
+      // above is re-ranked 1–9 for allocating shots on a nine, and a golfer
+      // reading "S.I. 9" off the 10th while the club card says 18 thinks the
+      // app has the wrong course. The order is the same, so the dots agree.
+      cardStrokeIndex={
+        playResolved && holeCount === 9
+          ? playResolved.strokeIndex.slice(firstHoleOf(playCard) - 1, firstHoleOf(playCard) - 1 + 9)
+          : undefined
+      }
       firstHole={firstHoleOf(playCard)}
       // The same predicate the console and the server use, so a player and an
       // organizer cannot be shown a different basis for one round.

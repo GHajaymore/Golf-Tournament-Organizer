@@ -44,9 +44,26 @@ export function HoleResultCard({
   canHearNames,
   showVoice = true,
   shotsOn,
+  noteFor,
+  wonLost = false,
+  shownStrokeIndex,
   onPick,
   onSay,
 }: {
+  /** The club card's stroke index to PRINT, where `strokeIndex` is re-ranked for a nine. */
+  shownStrokeIndex?: number[];
+  /**
+   * Mark each played hole on the strip W / ½ / L. Only where side A is the
+   * person holding the phone (the round-code card): on the console's entry
+   * screen A is just the first name, and "won" would be nobody's.
+   */
+  wonLost?: boolean;
+  /**
+   * A line under the hole's par, for what two rows of dots cannot say — a
+   * four-ball's shots, player by player ("Shots here: Ann, Cat"). Empty for
+   * none.
+   */
+  noteFor?: (hole: number) => string;
   /** The organizer's "Voice entry" setting, where a player is holding the phone. */
   showVoice?: boolean;
   /**
@@ -207,9 +224,18 @@ export function HoleResultCard({
               border: i === hole ? "2px solid var(--color-accent)" : "1px solid var(--color-divider)",
               background: tint(holes[i] ?? null),
               color: "var(--color-text)",
+              ...(wonLost ? { height: 48, minWidth: 40, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", lineHeight: 1.1 } : {}),
             }}
           >
             {holeNumber(i, firstHole)}
+            {/* A letter as well as a colour, from the holder's side, so the
+                strip reads in sunlight and without knowing which tint is which
+                (the cup's UI review, 2026-10-17). */}
+            {wonLost && holes[i] && (
+              <span aria-hidden="true" style={{ fontSize: 13, fontWeight: 700 }}>
+                {holes[i] === "A" ? "W" : holes[i] === "B" ? "L" : "½"}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -248,12 +274,19 @@ export function HoleResultCard({
               Par <strong style={{ color: "var(--color-text)", fontSize: 20 }}>{pars[hole] ?? "—"}</strong>
             </div>
             <div style={{ fontVariantNumeric: "tabular-nums" }}>
-              {[(yards[hole] ?? 0) > 0 ? `${yards[hole]} ${distance.short}` : "", strokeIndex[hole] != null ? `S.I. ${strokeIndex[hole]}` : ""]
+              {[
+                (yards[hole] ?? 0) > 0 ? `${yards[hole]} ${distance.short}` : "",
+                (shownStrokeIndex?.[hole] ?? strokeIndex[hole]) != null ? `S.I. ${shownStrokeIndex?.[hole] ?? strokeIndex[hole]}` : "",
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </div>
           </div>
         </div>
+
+        {noteFor && noteFor(hole) && (
+          <p style={{ margin: "10px 0 0", fontSize: 15, fontWeight: 600 }}>{noteFor(hole)}</p>
+        )}
 
         <div className="sc-pick sc-pick-row" role="group" aria-label={`Who won hole ${n}`} style={{ marginTop: 12 }}>
           {answers.map((a) => (
