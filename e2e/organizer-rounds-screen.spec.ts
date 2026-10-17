@@ -271,7 +271,13 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     await expect(card.getByText(/^Draw: /)).toBeVisible();
     await card.getByRole("button", { name: "Change", exact: true }).click();
     await card.getByRole("button", { name: /^Main \+ plate/ }).click();
-    await card.locator("label.seg-opt", { hasText: /^\s*Overall\s*$/ }).click();
+    // Pressed until it takes: the arrangement above is still saving, and Firefox drops a press on a
+    // choice that is disabled for that moment (2026-10-17) — a person would simply press again.
+    const overall = card.locator("label.seg-opt", { hasText: /^\s*Overall\s*$/ });
+    await expect(async () => {
+      await overall.click();
+      await expect(overall.locator("input")).toBeChecked({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     const top = card.getByRole("spinbutton");
     await top.fill("16");
     await top.blur();
