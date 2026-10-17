@@ -153,7 +153,8 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
     const customize = page.getByRole("button", { name: /^Customize this round/ });
     await expect(customize).toContainText("Nothing changed");
     if ((await customize.getAttribute("aria-expanded")) !== "true") await customize.click();
-    await expect(page.getByText(/placed by countback on the card — the better last nine, then the last six, the last three and the last hole/)).toBeVisible();
+    // First under Customize since 2026-10-16, as one line: the question and the rule in use.
+    await expect(page.getByText(/countback on the card — the better last nine, then the last six, the last three and the last hole; anybody still level shares the place/)).toBeVisible();
   });
 
   expect(errors).toEqual([]);
@@ -218,13 +219,33 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     await expect(card.getByRole("checkbox", { name: "Cut the field for Round 2" })).toBeVisible();
   });
 
-  await test.step("the two tiebreaks are named apart", async () => {
+  /**
+   * THE TIES, FIRST UNDER CUSTOMIZE, AND CHANGED THERE (2026-10-16). Ajay could
+   * not find them — they were at the foot of Customize inside the points table.
+   * The closed bar names them; inside, one line per question with the rule in
+   * use, and Change opens the choices.
+   */
+  await test.step("the two tie questions are found, named apart, and changed", async () => {
     const r1 = page.getByRole("button", { name: /^Round 1 · Round Robin/ });
     const card = page.locator(".card", { has: r1 });
     const customize = card.getByRole("button", { name: /^Customize this round/ });
+    await expect(customize, "the closed bar does not say the ties are inside").toContainText("Ties");
     if ((await customize.getAttribute("aria-expanded")) !== "true") await customize.click();
-    await expect(card.getByText("1. If a match is all square after the last hole")).toBeVisible();
-    await expect(card.getByText("2. If players finish level in the table")).toBeVisible();
+    await expect(card.getByText("A match all square after 18")).toBeVisible();
+    await expect(card.getByText("→ stays halved — each side takes the halve points")).toBeVisible();
+    await expect(card.getByText("Level in the table")).toBeVisible();
+    // Change one: the card countback for a halved match, and the line says so after a reload.
+    await card.getByRole("button", { name: "Change: A match all square after 18" }).click();
+    await card.getByRole("button", { name: /Use the standard countback/ }).click();
+    await expect(async () => {
+      await open(page, "/stages");
+      const head = page.getByRole("button", { name: /^Round 1 · Round Robin/ });
+      if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
+      const c = page.locator(".card", { has: head });
+      const cz = c.getByRole("button", { name: /^Customize this round/ });
+      if ((await cz.getAttribute("aria-expanded")) !== "true") await cz.click();
+      await expect(c.getByText("→ card countback: last 9, 6, 3, then the last hole")).toBeVisible();
+    }).toPass({ timeout: 20_000 });
   });
 
   await test.step("the knockout after groups takes the top players per flight", async () => {

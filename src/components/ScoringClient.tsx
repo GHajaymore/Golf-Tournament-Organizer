@@ -8,6 +8,18 @@ import { RuleCite } from "./RuleCite";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 
+/**
+ * A ROUND ROBIN'S POINTS, AND HOW ITS TABLE BREAKS A TIE — two controls, not one
+ * (2026-10-16).
+ *
+ * They were one component, the points card beside the tie chain, under a
+ * heading "Tiebreakers" at the foot of Customize. Ajay looked for the
+ * tiebreakers and did not find them, on a phone, a tablet and a computer. The
+ * review panel: points are SCORING, so they sit under Customize as "Points";
+ * the tie chain is one line of the "Ties" group on the face of the round, and
+ * opens here on Change. Every target in both is at least 44px.
+ */
+
 interface Values {
   winPts: number;
   tiePts: number;
@@ -31,71 +43,34 @@ const FIELDS: Array<{ key: keyof Values; label: string; hint: string; step: numb
   },
 ];
 
-export function ScoringClient({
-  initial,
-  tiebreakers,
-  locked = false,
-}: {
-  initial: Values;
-  tiebreakers: TiebreakerKey[];
-  /** Setup is locked, which `saveScoring` and `saveTiebreakers` refuse by throwing. */
-  locked?: boolean;
-}) {
+const TARGET = { minWidth: 44, minHeight: 44 } as const;
+
+/** The points a round robin awards, in one line: "Win 3 · Halve 1 · Loss 0 · ½ per hole won". */
+export function pointsInWords(v: Values): string {
+  const parts = [`Win ${pts(v.winPts)}`, `Halve ${pts(v.tiePts)}`, `Loss ${pts(v.lossPts)}`];
+  if (v.holeRatioPts) parts.push(`${pts(v.holeRatioPts)} per hole won`);
+  if (v.bonusPts) parts.push(`${pts(v.bonusPts)} bonus`);
+  if (v.maxPerMatch) parts.push(`at most ${pts(v.maxPerMatch)} a match`);
+  return parts.join(" · ");
+}
+
+export function PointsControl({ initial, locked = false }: { initial: Values; locked?: boolean }) {
   const [values, setValues] = useState<Values>(initial);
-  const [order, setOrder] = useState<TiebreakerKey[]>(tiebreakers);
   const [saving, startTransition] = useTransition();
-  // The tiebreaker controls are disabled on this, so the lock rides along;
-  // the "saving…" note reads `saving`, which is what it means.
-  const pending = saving || locked;
-
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    if (j < 0 || j >= order.length) return;
-    const next = [...order];
-    [next[i], next[j]] = [next[j], next[i]];
-    setOrder(next);
-    startTransition(() => saveTiebreakers(next));
-  };
-
-  const toggle = (key: TiebreakerKey, on: boolean) => {
-    const next = on ? [...order, key] : order.filter((k) => k !== key);
-    setOrder(next);
-    startTransition(() => saveTiebreakers(next));
-  };
-
-  /**
-   * The fixed tiebreakers not already in the chain.
-   *
-   * The countbacks are not listed here: there are eighteen of them and a
-   * committee wants one or two, so they are added by naming N below rather
-   * than by scrolling a list of every possibility.
-   */
-  const available = FIXED_TIEBREAKER_KEYS.filter((k) => !order.includes(k));
-
-  /** Which N are still free to add, so the same countback can't go in twice. */
-  const usedN = new Set(order.map((k) => toughestN(k)).filter((n): n is number => n !== null));
-  const addToughest = (n: number) => {
-    const key = `toughest-${n}` as TiebreakerKey;
-    if (order.includes(key)) return;
-    const next = [...order, key];
-    setOrder(next);
-    startTransition(() => saveTiebreakers(next));
-  };
 
   const save = (next: Values) => {
     setValues(next);
     startTransition(() => saveScoring(next));
   };
-
   const onChange = (key: keyof Values, raw: string) => {
     save({ ...values, [key]: figureOr(readDecimal(raw), 0) });
   };
 
   // Worked example: 2 wins, 1 halve, 12 net holes won — four holes a match
   // across the three, so the cap has something to apply to. Written per match
-  // rather than from the totals because that is how the engine now counts,
-  // and an example that ignored the cap would show a number the tournament
-  // would never award.
+  // rather than from the totals because that is how the engine counts, and an
+  // example that ignored the cap would show a number the tournament would never
+  // award.
   const exampleW = 2, exampleT = 1, exampleH = 12;
   const holesPerMatch = exampleH / (exampleW + exampleT);
   const cap = (n: number) => (values.maxPerMatch > 0 ? Math.min(n, values.maxPerMatch) : n);
@@ -108,189 +83,138 @@ export function ScoringClient({
       values.tiePts + holesPerMatch * values.holeRatioPts > values.maxPerMatch);
 
   return (
-    <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
-      <div className="card elev-sm" style={{ gap: 14 }}>
-        <span className="card-title" style={{ fontSize: 15 }}>Points {saving && <span className="text-muted" style={{ fontSize: 13 }}>· saving…</span>}</span>
-        {FIELDS.map((f) => (
-          <div key={f.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{f.label}</div>
-              <div className="text-muted" style={{ fontSize: 13 }}>{f.hint}</div>
-            </div>
-            <input
-              className="input"
-              type="number"
-              step={f.step}
-              style={{ width: 90, textAlign: "right" }}
-              aria-label={`${f.label} — ${f.hint}`}
-              value={values[f.key]}
-              disabled={locked}
-              onChange={(e) => onChange(f.key, e.target.value)}
-            />
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: 520 }}>
+      {saving && <span className="text-muted" style={{ fontSize: 13 }}>Saving…</span>}
+      {FIELDS.map((f) => (
+        <div key={f.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 48 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>{f.label}</div>
+            <div className="text-muted" style={{ fontSize: 13 }}>{f.hint}</div>
           </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div className="card elev-sm">
-          <span className="card-title" style={{ fontSize: 15 }}>Tiebreakers</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>
-            Switch on the ones you want, applied in order when points are level. Reorder the active ones with the arrows.
-          </p>
-          {/* Cited here rather than anywhere else on the screen because this is
-              the setting whose timing is governed: the method has to be settled
-              before play, not chosen once there is a tie to break. */}
-          <p style={{ margin: "0 0 8px" }}>
-            <RuleCite rule="decidingTies" />
-          </p>
-          {order.map((t, i) => (
-            <div
-              key={t}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontSize: 13,
-                padding: "6px 10px",
-                background: "var(--color-bg)",
-                borderRadius: 6,
-                marginBottom: 5,
-              }}
-            >
-              <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
-                {/* The label wraps nothing but the box, so it names nothing —
-                    the tiebreaker's name is two elements along. */}
-                <input type="checkbox" checked disabled={pending} onChange={() => toggle(t, false)} aria-label={`Use ${tiebreakerLabel(t)}`} />
-              </label>
-              <span
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: "50%",
-                  background: "var(--color-accent-900)",
-                  color: "var(--color-accent-100)",
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: 13,
-                  flex: "none",
-                }}
-              >
-                {i + 1}
-              </span>
-              <span style={{ flex: 1 }}>{tiebreakerLabel(t)}</span>
-              <FieldInfo label={tiebreakerLabel(t)}>
-                <p>{tiebreakerHelp(t)}</p>
-              </FieldInfo>
-              <button type="button" className="btn btn-icon" disabled={pending || i === 0} onClick={() => move(i, -1)} title="Move up" style={{ width: 28, height: 28 }}>
-                <Icon name="caret-up" />
-              </button>
-              <button type="button" className="btn btn-icon" disabled={pending || i === order.length - 1} onClick={() => move(i, 1)} title="Move down" style={{ width: 28, height: 28 }}>
-                <Icon name="caret-down" />
-              </button>
-            </div>
-          ))}
-          {order.length === 0 && (
-            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0" }}>
-              None — players level on points share the place.
-            </p>
-          )}
-          {available.length > 0 && (
-            <>
-              <div className="text-muted" style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em", margin: "8px 0 4px" }}>
-                Available
-              </div>
-              {available.map((t) => (
-                // The info button sits OUTSIDE the label. Inside it, a tap on
-                // "what does this mean" would also switch the tiebreaker on —
-                // which is the opposite of what somebody asking the question
-                // wants.
-                <div
-                  key={t}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    fontSize: 13,
-                    padding: "6px 10px",
-                    borderRadius: 6,
-                    marginBottom: 5,
-                    color: "var(--color-neutral-400)",
-                  }}
-                >
-                  <label style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, cursor: "pointer" }}>
-                    <input type="checkbox" checked={false} disabled={pending} onChange={() => toggle(t, true)} />
-                    {tiebreakerLabel(t)}
-                  </label>
-                  <FieldInfo label={tiebreakerLabel(t)}>
-                    <p>{tiebreakerHelp(t)}</p>
-                  </FieldInfo>
-                </div>
-              ))}
-            </>
-          )}
+          <input
+            className="input"
+            type="number"
+            step={f.step}
+            style={{ width: 90, textAlign: "right", minHeight: 44 }}
+            aria-label={`${f.label} — ${f.hint}`}
+            value={values[f.key]}
+            disabled={locked}
+            onChange={(e) => onChange(f.key, e.target.value)}
+          />
+        </div>
+      ))}
+      <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
+        For example, {exampleW} wins, {exampleT} halve and {exampleH} net holes won score{" "}
+        {exampleW}×{pts(perWin)} + {exampleT}×{pts(perHalve)}
+        {values.bonusPts ? ` + ${pts(values.bonusPts)} bonus` : ""} = <strong>{pts(total)} pts</strong>.
+        {capBites &&
+          ` The ${pts(values.maxPerMatch)}-point limit is doing something here: a match worth more counts ${pts(values.maxPerMatch)}, so one runaway result can't settle a flight before the last match.`}
+      </p>
+    </div>
+  );
+}
 
-          {/* Countbacks are added by naming N rather than picked off a list of
-              eighteen. A committee writes its own ladder — hardest 9, then 6,
-              then 3, then the hardest hole — and each one added is a tighter
-              cut than the last, so several in a chain is the normal case
-              rather than an odd one. */}
-          <div className="text-muted" style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em", margin: "12px 0 4px" }}>
-            Add a countback
-          </div>
-          <p className="text-muted" style={{ fontSize: 13, margin: "0 0 7px", lineHeight: 1.6 }}>
-            Compares records over the hardest holes by stroke index. Add as many as you like — each one a
-            tighter cut for players still level after the one before.
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
-            {[9, 6, 3, 1].map((n) => (
-              <button
-                key={n}
-                type="button"
-                className="tag tag-neutral"
-                disabled={pending || usedN.has(n)}
-                onClick={() => addToughest(n)}
-                style={{ cursor: usedN.has(n) ? "default" : "pointer", border: "none", opacity: usedN.has(n) ? 0.45 : 1 }}
-              >
-                <Icon name="plus" /> Toughest {n}
-              </button>
+export function TableTiebreakControl({ tiebreakers, locked = false }: { tiebreakers: TiebreakerKey[]; locked?: boolean }) {
+  const [order, setOrder] = useState<TiebreakerKey[]>(tiebreakers);
+  const [saving, startTransition] = useTransition();
+  const pending = saving || locked;
+
+  const commit = (next: TiebreakerKey[]) => {
+    setOrder(next);
+    startTransition(() => saveTiebreakers(next));
+  };
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j], next[i]];
+    commit(next);
+  };
+  const toggle = (key: TiebreakerKey, on: boolean) => commit(on ? [...order, key] : order.filter((k) => k !== key));
+
+  /**
+   * The fixed tiebreakers not already in the chain. The countbacks are not
+   * listed: there are eighteen and a committee wants one or two, so they are
+   * added by naming N.
+   */
+  const available = FIXED_TIEBREAKER_KEYS.filter((k) => !order.includes(k));
+  const usedN = new Set(order.map((k) => toughestN(k)).filter((n): n is number => n !== null));
+  const addToughest = (n: number) => {
+    const key = `toughest-${n}` as TiebreakerKey;
+    if (!order.includes(key)) commit([...order, key]);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 560 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+        Tried in order when players are level on points; the first that separates them decides.
+      </p>
+      {/* Cited here because this is the setting whose timing is governed: the
+          method is settled before play, not chosen once there is a tie. */}
+      <p style={{ margin: 0 }}>
+        <RuleCite rule="decidingTies" />
+      </p>
+      {order.map((t, i) => (
+        <div
+          key={t}
+          style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "2px 8px", background: "var(--color-bg)", borderRadius: 6, minHeight: 48 }}
+        >
+          <span style={{ width: 22, fontWeight: 700, color: "var(--color-accent-200)", fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>{tiebreakerLabel(t)}</span>
+          <FieldInfo label={tiebreakerLabel(t)}>
+            <p>{tiebreakerHelp(t)}</p>
+          </FieldInfo>
+          <button type="button" className="btn btn-icon" disabled={pending || i === 0} onClick={() => move(i, -1)} aria-label={`Move ${tiebreakerLabel(t)} earlier`} style={TARGET}>
+            <Icon name="caret-up" />
+          </button>
+          <button type="button" className="btn btn-icon" disabled={pending || i === order.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${tiebreakerLabel(t)} later`} style={TARGET}>
+            <Icon name="caret-down" />
+          </button>
+          <button type="button" className="btn btn-icon" disabled={pending} onClick={() => toggle(t, false)} aria-label={`Remove ${tiebreakerLabel(t)}`} style={TARGET}>
+            <Icon name="x" />
+          </button>
+        </div>
+      ))}
+      {order.length === 0 && (
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0" }}>
+          None — players level on points share the place.
+        </p>
+      )}
+      <div className="field" style={{ maxWidth: 360, marginTop: 4 }}>
+        <label htmlFor="table-tie-add">Add a step</label>
+        <select
+          id="table-tie-add"
+          className="input"
+          value=""
+          disabled={pending}
+          style={{ minHeight: 44 }}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) return;
+            if (v.startsWith("toughest:")) addToughest(Number(v.slice("toughest:".length)));
+            else toggle(v as TiebreakerKey, true);
+          }}
+        >
+          <option value="">Choose…</option>
+          {available.map((t) => (
+            <option key={t} value={t}>
+              {tiebreakerLabel(t)}
+            </option>
+          ))}
+          {Array.from({ length: MAX_TOUGHEST_N }, (_, i) => i + 1)
+            .filter((n) => !usedN.has(n))
+            .map((n) => (
+              <option key={`t${n}`} value={`toughest:${n}`}>
+                Toughest {n} {n === 1 ? "hole" : "holes"} (by stroke index)
+              </option>
             ))}
-            <select
-              className="input"
-              value=""
-              disabled={pending}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (n) addToughest(n);
-              }}
-              style={{ fontSize: 13, padding: "3px 6px", width: "auto" }}
-              aria-label="Add another countback"
-            >
-              <option value="">Another N…</option>
-              {Array.from({ length: MAX_TOUGHEST_N }, (_, i) => i + 1)
-                .filter((n) => !usedN.has(n))
-                .map((n) => (
-                  <option key={n} value={n}>
-                    Toughest {n} {n === 1 ? "hole" : "holes"}
-                  </option>
-                ))}
-            </select>
-          </div>
-        </div>
-        <div className="card elev-sm">
-          <span className="card-kicker">Worked example</span>
-          <p className="card-body" style={{ fontSize: 13 }}>
-            A player with {exampleW} wins, {exampleT} halve and {exampleH} net holes won scores{" "}
-            {exampleW}×{pts(perWin)} + {exampleT}×{pts(perHalve)}
-            {values.bonusPts ? ` + ${pts(values.bonusPts)} bonus` : ""} = <strong>{pts(total)} pts</strong>.
-          </p>
-          {capBites && (
-            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
-              The {pts(values.maxPerMatch)}-point limit is doing something here: a match worth more
-              than that only counts {pts(values.maxPerMatch)}. That is the point of it — one runaway
-              result can&rsquo;t settle a flight before the last match is played.
-            </p>
-          )}
-        </div>
+        </select>
       </div>
+      {order.includes("head-to-head" as TiebreakerKey) && (
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+          Head-to-head decides nothing between players who never met; the next step is used.
+        </p>
+      )}
     </div>
   );
 }

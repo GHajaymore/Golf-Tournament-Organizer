@@ -228,12 +228,10 @@ describe("console form controls are named", () => {
   });
 
   it("Match scoring points", async () => {
-    const { ScoringClient } = await import("@/components/ScoringClient");
-    const html = render(
-      <ScoringClient
-        initial={{ winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 }}
-        tiebreakers={["head-to-head" as never]} />,
-    );
+    const { PointsControl, TableTiebreakControl } = await import("@/components/ScoringClient");
+    const html =
+      render(<PointsControl initial={{ winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 }} />) +
+      render(<TableTiebreakControl tiebreakers={["head-to-head" as never]} />);
     expect(html).toContain("Points for winning a match");
     expect(unnamedControls(html)).toEqual([]);
   });

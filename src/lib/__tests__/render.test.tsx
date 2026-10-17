@@ -1445,9 +1445,9 @@ describe("rounds and format", () => {
   it("words the countback ladder from the rule the boards apply", () => {
     const eighteen = render(<StagesClient {...base} stages={[stage({ format: "Stroke Play", type: "Stroke Play Round", holes: 18 })]} />);
     // The whole sentence, with its spaces: a JSX line break before the ladder ate one ("card —the better"), which the browser walk caught.
-    expect(eighteen).toContain("placed by countback on the card — the better last nine, then the last six, the last three and the last hole. Anybody");
+    expect(eighteen).toContain("countback on the card — the better last nine, then the last six, the last three and the last hole; anybody still level shares the place");
     const nine = render(<StagesClient {...base} stages={[stage({ format: "Stroke Play", type: "Stroke Play Round", holes: 9 })]} />);
-    expect(nine).toContain("on the card — the better last six, then the last three and the last hole. Anybody");
+    expect(nine).toContain("on the card — the better last six, then the last three and the last hole; anybody");
   });
 
   it("shows the venue picker only when the tournament has several courses", () => {
@@ -1645,7 +1645,11 @@ describe("rounds and format", () => {
       "When scores are due", "Completion deadline",
       "Sign-up deadline",
       "Before the next round", "Carry forward points into Round 2", "Cut the field for Round 2",
-      "Generate", "Tiebreakers",
+      "Generate",
+      // On the face since 2026-10-16: one line per tie question (Ajay could not find them in Customize)
+      "Ties", "A match all square after 18", "Level in the table",
+      // Scoring, under Customize
+      "Points for a match",
     ]) {
       expect(html, `missing control: ${control}`).toContain(control);
     }
@@ -1676,10 +1680,11 @@ describe("rounds and format", () => {
     expect(html).not.toContain("Whether scores can still be entered for this round");
   });
 
-  it("promises two tiebreaker questions only where there are two", () => {
-    // The 1./2. numbering is conditional on Match Play; the blurb was not, so
-    // a stroke-play round robin advertised a second question and numbers that
-    // never rendered.
+  it("asks the tie questions a round raises, and only those", () => {
+    // One line per tie question on the face of the round (2026-10-16). A
+    // match-play round robin raises two — one match all square, and players
+    // level in the table (Ajay: "one for the match and one for the
+    // leaderboard/rankings"); a stroke-play round robin only the second.
     const open = (format: string) =>
       render(
         <StagesClient {...base} chainsRounds
@@ -1688,12 +1693,11 @@ describe("rounds and format", () => {
             stage({ id: "r2", position: 1, format, carryAsked: false }),
           ]} />,
       );
-    expect(open("Match Play")).toContain("Two different questions");
-    expect(open("Stroke Play")).not.toContain("Two different questions");
-    // Named apart, as a golfer asks them (Ajay, 2026-10-16: "one for the match
-    // and one for the leaderboard/rankings").
-    expect(open("Match Play")).toContain("If a match is all square after the last hole");
-    expect(open("Match Play")).toContain("If players finish level in the table");
+    expect(open("Match Play")).toContain("A match all square after 18");
+    expect(open("Match Play")).toContain("stays halved — each side takes the halve points");
+    expect(open("Match Play")).toContain("Level in the table");
+    expect(open("Stroke Play")).not.toContain("A match all square");
+    expect(open("Stroke Play")).toContain("Level in the table");
   });
 
   it("says what a closed round decides, not just 'Standard settings'", () => {

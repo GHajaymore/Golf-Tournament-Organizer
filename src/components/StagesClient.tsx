@@ -53,7 +53,8 @@ import {
   isHeadToHead,
   type StageTypeKey,
 } from "@/lib/stage-types";
-import { ScoringClient } from "./ScoringClient";
+import { PointsControl, TableTiebreakControl, pointsInWords } from "./ScoringClient";
+import { matchTieInWords, tableTieInWords } from "@/lib/domain/tie-words";
 import { RoundTeamScoring, type RoundScoringInfo } from "./RoundTeamScoring";
 import { RoundHandicaps } from "./RoundHandicaps";
 import { RoundAllowance, type RoundAllowanceInfo } from "./RoundAllowance";
@@ -63,7 +64,7 @@ import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
 import { ThirdPlaceControl } from "@/components/ThirdPlaceControl";
 import { RoundClosedControl } from "@/components/RoundClosedControl";
-import { isStablefordRound, individualTieBreak, isStablefordFormat } from "@/lib/domain/week-basis";
+import { isStablefordRound, isStablefordFormat } from "@/lib/domain/week-basis";
 export interface ThirdPlaceView {
   on: boolean;
   problem: string;
@@ -260,6 +261,38 @@ const Launched = React.createContext(false);
 /** Whether a stored deadline is something a date input can display. */
 function isIsoDate(v: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
+}
+
+/**
+ * ONE TIE QUESTION, ONE LINE (2026-10-16): the question, the rule in use in
+ * words, and Change where there is a choice — which opens the control in place
+ * and closes on Done. See "Ties" on the round card, and the review panel's
+ * brief in docs/tiebreak-brief-2026-10-16.md.
+ */
+function TieRow({ question, rule, children }: { question: string; rule: string; children?: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 6, borderTop: "1px solid var(--color-divider)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44 }}>
+        <span style={{ flex: "1 1 260px", minWidth: 0, fontSize: 14, lineHeight: 1.45 }}>
+          <b>{question}</b> <span className="text-muted">→ {rule}</span>
+        </span>
+        {children && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ minHeight: 44, fontSize: 13 }}
+            aria-expanded={open}
+            aria-label={`${open ? "Done with" : "Change"}: ${question}`}
+            onClick={() => setOpen((o) => !o)}
+          >
+            {open ? "Done" : "Change"}
+          </button>
+        )}
+      </div>
+      {children && open && <div style={{ paddingBottom: 6 }}>{children}</div>}
+    </div>
+  );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -999,6 +1032,8 @@ function StageCard({
    * The Customize button summarises only what is inside it, and inside it now
    * are the things clubs vary — so a round nobody has customised says so.
    */
+  /** Whether this round raises a tie question at all — every kind but a round scored by hand. */
+  const roundRaisesTies = (isKnockoutRound(stage.type) || stage.type === "Round Robin" || (isIndividualStrokeRound(stage) && !isManualFormat(format)) || (stage.type === "Stroke Play Round" && entryModeFor(format) === "team" && !isManualFormat(format)));
   const customizeParts: string[] = [];
   if (deadline) customizeParts.push(`Due ${isIsoDate(deadline) ? shortDate(deadline, locale) : deadline}`);
   if (scoreInput && scoreInput !== declaredInput(format)) {
@@ -2015,7 +2050,7 @@ function StageCard({
               (the UI/UX designer on the review panel). */}
           {!customizeOpen && (
             <span className="text-muted" style={{ fontSize: 13, textAlign: "right", minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>
-              {customizeSummary}
+              {roundRaisesTies ? `Ties · ${customizeSummary}` : customizeSummary}
             </span>
           )}
         </button>
@@ -2024,6 +2059,44 @@ function StageCard({
             survives closing, and the guards that read the card see every control. */}
         {(
           <div style={{ display: customizeOpen ? "flex" : "none", flexDirection: "column", gap: 16, marginTop: 12 }}>
+            {/* TIES, FIRST UNDER CUSTOMIZE (2026-10-16). Ajay could not find the
+                tiebreakers — on a phone, a tablet or a computer: they were at the
+                foot of Customize inside ~2,000px of points and checkbox chains, and
+                a knockout or a medal said nothing at all. One line per tie question,
+                the rule in use in words, Change where there is a choice (the review
+                panel: docs/tiebreak-brief-2026-10-16.md) — and, Ajay: "as part of
+                the customize", so first in it, named on its closed bar. */}
+            {roundRaisesTies && (
+              <SettingsGroup
+                title="Ties"
+                blurb={stage.type === "Round Robin" ? "The same for every round robin in this tournament." : undefined}
+              >
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {isKnockoutRound(stage.type) && (
+                    <TieRow
+                      question={`All square after ${holes}`}
+                      rule={`extra holes from the 1st, hole by hole — record the winner on ${stage.type === "Bracket Stage" ? "Bracket" : "Score entry"}`}
+                    />
+                  )}
+                  {stage.type === "Round Robin" && format === "Match Play" && (
+                    <TieRow question={`A match all square after ${holes}`} rule={matchTieInWords(matchTiebreakers, holes)}>
+                      <MatchTiebreakControl selected={matchTiebreakers} holes={holes} locked={pending || locked} />
+                    </TieRow>
+                  )}
+                  {stage.type === "Round Robin" && (
+                    <TieRow question="Level in the table" rule={tableTieInWords(tiebreakers)}>
+                      <TableTiebreakControl tiebreakers={tiebreakers} locked={locked} />
+                    </TieRow>
+                  )}
+                  {stage.type === "Stroke Play Round" && !isManualFormat(format) && (isIndividualStrokeRound(stage) || entryModeFor(format) === "team") && (
+                    <TieRow
+                      question={`${entryModeFor(format) === "team" ? "Sides level" : "Level"} on ${chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the total" : "the round"}`}
+                      rule={`countback on ${chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the last round's" : "the"} card — ${countbackInWords(holes)}; anybody still level shares the place`}
+                    />
+                  )}
+                </div>
+              </SettingsGroup>
+            )}
             {/* Only where the format offers a choice at all — which is the
                 "opt out, not opt in" rule made visible. Every other round
                 takes a card and has nothing to decide, so it gets no control
@@ -2112,102 +2185,16 @@ function StageCard({
                 heading that repeats the label under it is the trap this pass
                 walked into on its own first screen. */}
 
-            <SettingsGroup
-              title="Tiebreakers"
-              blurb={
-                // Only Match Play shows two questions and the 1./2. numbering.
-                // The blurb used to promise both unconditionally, so a
-                // stroke-play round robin advertised a second question that
-                // was not there and numbers that were never rendered.
-                // A round robin's tiebreakers are the TOURNAMENT's — every round
-                // robin in it shares them — and "Customize this round" must not
-                // suggest otherwise (the UI/UX designer on the review panel).
-                stage.type !== "Round Robin"
-                  ? "How players level on this round are placed."
-                  : format === "Match Play"
-                    ? "Two different questions, settled at different times: one match on the day, then the table at the end. These apply to every round robin in this tournament."
-                    : "How the table is ordered when players finish level. These apply to every round robin in this tournament."
-              }
-            >
-            {/* A ROUND SCORED FROM CARDS BREAKS A TIE ONE WAY, and says which
-                (2026-10-16). There is no setting — countback on the card is the
-                rule the boards apply (`countbackSegments`) — but the group was
-                silent on every round but a round robin, so an organizer looking
-                for "what happens if two players tie" found nothing. */}
-            {stage.type !== "Round Robin" && isIndividualStrokeRound(stage) && (
-              <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55, maxWidth: "62ch" }}>
-                Players level on {chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the total" : "the round"} are
-                placed by countback on {chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the last round's" : "the"} card —{" "}
-                {countbackInWords(holes)}. Anybody still level shares the place.
-              </p>
-            )}
+            {/* POINTS ARE SCORING, NOT A TIEBREAK (2026-10-16; the review panel). They
+                shared one block with the table's tie chain under "Tiebreakers"; the tie
+                chain is on the face now, under Ties. One line here, the figures on Change. */}
             {stage.type === "Round Robin" && (
-              <div>
-                {/* Two different questions that were sharing one heading, which
-                    is why nobody could find the second one. The first settles
-                    ONE MATCH that finished all square; the second settles TWO
-                    PLAYERS level on points once every match is in. They apply
-                    at different moments and neither substitutes for the other,
-                    so they are now separately titled and separately boxed. */}
-                {format === "Match Play" && (
-                  <div style={{ marginBottom: 18 }}>
-                    <SectionLabel>
-                      1. If a match is all square after the last hole
-                      <FieldInfo label="deciding a halved match">
-                        <p>
-                          This decides a single match on the day — who takes the point when two players
-                          finish level after the last hole. It has nothing to do with the standings.
-                        </p>
-                      </FieldInfo>
-                    </SectionLabel>
-                    <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>
-                      Who takes the point when a match ends level. Tried in order; a halved match stays
-                      halved if none of them separates the two.
-                    </p>
-                    <MatchTiebreakControl selected={matchTiebreakers} holes={holes} locked={pending || locked} />
-                  </div>
-                )}
-
-                <div>
-                  <SectionLabel>
-                    {format === "Match Play" ? "2. If players finish level in the table" : "If players finish level in the table"}
-                    <FieldInfo label="deciding the standings">
-                      <p>
-                        This ranks the STANDINGS once every match is in — a different question from the
-                        one above, asked at a different time. Add as many Toughest N steps as you like
-                        and set N on each.
-                      </p>
-                    </FieldInfo>
-                  </SectionLabel>
-                  <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>
-                    {/*
-                     * THE SENTENCE HAS TO KNOW WHAT THE ROUND IS. It had two
-                     * branches for three cases: Match Play, and "everything
-                     * else is Stroke Play". A FOUR-BALL round robin — the
-                     * interclub league shape — is neither, and was told "This
-                     * round is scored as Stroke Play, so ties break by lowest
-                     * net, then lowest gross", which is not true of a match
-                     * between two sides.
-                     *
-                     * `entryModeFor` is the predicate rather than a third
-                     * string comparison: it answers "team", "match" or
-                     * "stroke" off the format's own side size and engine, so a
-                     * format added later is described correctly without this
-                     * screen learning its name. Ajay, 2026-09-22: "make sure
-                     * we adjust the content based on the tournaments and its
-                     * format."
-                     */}
-                    {format === "Match Play"
-                      ? "How the table is ordered when players are level on points. Shared by every round-robin round scored as Match Play."
-                      : entryModeFor(format) === "team"
-                        ? `This round is played between sides, so each pairing is settled as a match and the table is ordered by the steps below when sides finish level.`
-                        : individualTieBreak(basis, format)}
-                  </p>
-                  <ScoringClient initial={scoring} tiebreakers={tiebreakers} locked={locked} />
-                </div>
-              </div>
+              <SettingsGroup title="Points" blurb="The same for every round robin in this tournament.">
+                <TieRow question="Points for a match" rule={pointsInWords(scoring)}>
+                  <PointsControl initial={scoring} locked={locked} />
+                </TieRow>
+              </SettingsGroup>
             )}
-            </SettingsGroup>
 
             {/* A committee's own figure for one player in one round — a visitor's
                 handicap, a correction for the day. Real, and rare: in Customize,

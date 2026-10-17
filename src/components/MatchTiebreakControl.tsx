@@ -134,7 +134,7 @@ export function MatchTiebreakControl({
                   <button
                     type="button"
                     className="btn btn-icon"
-                    style={{ width: 22, height: 22 }}
+                    style={{ width: 44, height: 44 }}
                     aria-label={`Move ${MATCH_TIEBREAK_LABELS[key]} earlier`}
                     disabled={pending || i === 0}
                     onClick={() => move(key, -1)}
@@ -144,7 +144,7 @@ export function MatchTiebreakControl({
                   <button
                     type="button"
                     className="btn btn-icon"
-                    style={{ width: 22, height: 22 }}
+                    style={{ width: 44, height: 44 }}
                     aria-label={`Move ${MATCH_TIEBREAK_LABELS[key]} later`}
                     disabled={pending || i === seq.length - 1}
                     onClick={() => move(key, 1)}
@@ -154,7 +154,7 @@ export function MatchTiebreakControl({
                   <button
                     type="button"
                     className="btn btn-icon"
-                    style={{ width: 22, height: 22 }}
+                    style={{ width: 44, height: 44 }}
                     aria-label={`Remove ${MATCH_TIEBREAK_LABELS[key]}`}
                     disabled={pending}
                     onClick={() => toggle(key)}
