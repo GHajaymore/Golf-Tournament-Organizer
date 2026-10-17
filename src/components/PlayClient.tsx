@@ -249,6 +249,7 @@ export function PlayClient(props: Props) {
   const [error, setError] = useState("");
   const [nameFilter, setNameFilter] = useState("");
   const [players, setPlayers] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [groups, setGroups] = useState<Array<{ label: string; ids: string[] }>>([]);
   const [context, setContext] = useState<{ eventName: string; roundLabel: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -359,6 +360,7 @@ export function PlayClient(props: Props) {
           return;
         }
         setPlayers(res.players ?? []);
+        setGroups(res.groups ?? []);
         setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "" });
       });
     };
@@ -424,6 +426,50 @@ export function PlayClient(props: Props) {
             </div>
           )}
 
+          {/* THE ROUND'S MATCHES, when it draws them and nobody is searching:
+              a player looks for their group, as on a tee sheet, not their
+              name in the whole field. Typing in the box goes back to the
+              plain filtered list. */}
+          {groups.length > 0 && nameFilter.trim() === "" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                ...groups,
+                ...(() => {
+                  const drawn = new Set(groups.flatMap((g) => g.ids));
+                  const rest = (players ?? []).filter((p) => !drawn.has(p.id)).map((p) => p.id);
+                  return rest.length ? [{ label: "Everyone else", ids: rest }] : [];
+                })(),
+              ].map((g, gi) => (
+                <section key={gi} className="card elev-sm" style={{ padding: "10px 12px" }} aria-label={g.label}>
+                  <h2 className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>{g.label}</h2>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+                    {g.ids.map((id) => {
+                      const p = (players ?? []).find((x) => x.id === id);
+                      if (!p) return null;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={pending}
+                          style={{ minHeight: 48, fontSize: 15, justifyContent: "center", overflowWrap: "anywhere" }}
+                          onClick={() =>
+                            startTransition(async () => {
+                              const res = await claimPlayerSlot(code, p.id);
+                              if (!res.ok) setError(res.error ?? "Couldn't start your session.");
+                              else window.location.reload();
+                            })
+                          }
+                        >
+                          {p.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
           <div className="card elev-sm" style={{ padding: 0, overflow: "hidden" }}>
             {shownPlayers.length === 0 && (
               <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "13px 14px", lineHeight: 1.5 }}>
@@ -460,6 +506,7 @@ export function PlayClient(props: Props) {
               </button>
             ))}
           </div>
+          )}
 
           <button
             type="button"

@@ -25,6 +25,8 @@ import { watchPageErrors } from "./page-errors";
  * dots), and two partners keeping one card on two phones at once.
  */
 
+test.describe.configure({ mode: "serial" });
+
 const prisma = new PrismaClient();
 const MARK = "zz-four-ball-code";
 const ALPHABET = "ABCDEFGHJKMNPQRTWXYZ2346789";
@@ -123,13 +125,65 @@ test.afterAll(async () => {
   }
 });
 
-async function enter(page: import("@playwright/test").Page, name: string) {
+async function code(page: import("@playwright/test").Page) {
   await page.goto("/play");
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.getByLabel("Round code").fill(CODE);
   await page.getByRole("button", { name: "Continue" }).click();
+}
+
+async function enter(page: import("@playwright/test").Page, name: string) {
+  await code(page);
   await page.getByRole("button", { name }).click();
 }
+
+/**
+ * THE NAMES COME IN GROUPS, not as the whole field (Ajay, 2026-10-16: "can you
+ * keep it to the foursome?"). With no tee sheet, the round's matches: the
+ * four-ball's four under one heading and the player with no match under
+ * "Everyone else". With a published tee sheet, its foursomes by tee time.
+ */
+test("the names after the code come in the round's groups: the match, then the tee sheet's foursomes", async ({ browser, baseURL }) => {
+  test.setTimeout(120_000);
+  const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  const page = await ctx.newPage();
+  const stage = await prisma.match.findUniqueOrThrow({ where: { id: ids.match }, select: { stageId: true } });
+  try {
+    await code(page);
+    const match = page.getByRole("region", { name: "Zz Ailsa & Zz Bram v Zz Edda & Zz Finn" });
+    await expect(match, "the match is not a group of its own").toBeVisible({ timeout: 20_000 });
+    for (const n of ["Zz Ailsa", "Zz Bram", "Zz Edda", "Zz Finn"]) await expect(match.getByRole("button", { name: n })).toBeVisible();
+    await expect(match.getByRole("button", { name: "Zz Spare" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Everyone else" }).getByRole("button", { name: "Zz Spare" })).toBeVisible();
+
+    // A published tee sheet decides the groups instead — its own foursomes.
+    const ps = await prisma.player.findMany({ where: { eventId: ids.event }, select: { id: true, name: true } });
+    const id = (n: string) => ps.find((p) => p.name === n)!.id;
+    await prisma.stage.update({
+      where: { id: stage.stageId },
+      data: {
+        teeSheetPublished: true,
+        teeSheet: JSON.stringify({
+          savedAt: new Date().toISOString(),
+          startType: "tee",
+          groups: [
+            { name: "Group 1", startHole: 10, time: "12:45 PM", playerIds: [id("Zz Ailsa"), id("Zz Edda"), id("Zz Bram"), id("Zz Finn")] },
+            { name: "Group 2", startHole: 10, time: "12:54 PM", playerIds: [id("Zz Spare")] },
+          ],
+        }),
+      },
+    });
+    await code(page);
+    const first = page.getByRole("region", { name: "12:45 PM · Group 1" });
+    await expect(first, "the tee sheet's foursome is not a group").toBeVisible({ timeout: 20_000 });
+    await expect(first.getByRole("button")).toHaveCount(4);
+    await expect(page.getByRole("region", { name: "12:54 PM · Group 2" }).getByRole("button", { name: "Zz Spare" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Zz Ailsa & Zz Bram v Zz Edda & Zz Finn" })).toHaveCount(0);
+  } finally {
+    await prisma.stage.update({ where: { id: stage.stageId }, data: { teeSheetPublished: false, teeSheet: "" } });
+    await ctx.close();
+  }
+});
 
 test("a four-ball partner with a round code keeps their side's match, from their side", async ({ browser, baseURL }) => {
   test.setTimeout(120_000);

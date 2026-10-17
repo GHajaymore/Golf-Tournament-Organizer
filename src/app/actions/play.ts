@@ -16,6 +16,7 @@ import { writeScorecard, certifyCard, assertRoundOpen } from "@/lib/services/sco
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit } from "@/lib/services/action-shared";
 import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
+import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 
 /**
  * Redeeming a Round Code.
@@ -35,6 +36,12 @@ export interface RedeemResult {
   error?: string;
   /** The field for that round, for the player to pick themselves from. */
   players?: Array<{ id: string; name: string }>;
+  /**
+   * The round's matches, each with the players in it, when the round draws
+   * matches and their lineup is public — so a player finds their own group
+   * rather than their name in the whole field. Empty otherwise.
+   */
+  groups?: Array<{ label: string; ids: string[] }>;
   stageId?: string;
   eventName?: string;
   roundLabel?: string;
@@ -81,10 +88,88 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
   return {
     ok: true,
     players,
+    groups: (await teeSheetGroups(stage.id, stage.eventId, players)) ?? (lineupHidden(stage) ? [] : await matchGroups(stage.id, players)),
     stageId: stage.id,
     eventName: stage.event.name,
     roundLabel: roundLabel(stages, stage.id),
   };
+}
+
+/**
+ * THE ROUND'S MATCHES, AS THE PLAYERS STAND ON THE TEE (2026-10-16).
+ *
+ * Ajay, setting up a real cup: one code for the whole round, then a name to
+ * tap out of twenty — "can you keep it to the foursome?". The code stays one
+ * per round; what changes is the list, which is now the round's matches, each
+ * with its players, in draw order. A four-ball match IS the foursome. Only the
+ * players the code already lists are named, so it reveals nothing the flat
+ * list did not, beyond who is drawn against whom — which is why a cup lineup
+ * the organizer has not announced is never grouped (the caller checks).
+ */
+/**
+ * THE FOURSOMES, FIRST: the round's published tee sheet, or — for a round
+ * with no sheet of its own — the tournament's other published sheet, because
+ * a group plays its eighteen together and a cup's second nine is the same
+ * four (Ajay: "we already have foursome for this tournament"). Each tee time
+ * is a block of its players. Only a PUBLISHED sheet: a draft is the
+ * organizer's. Null when there is none, so the matches are asked instead.
+ */
+async function teeSheetGroups(
+  stageId: string,
+  eventId: string,
+  players: Array<{ id: string; name: string }>,
+): Promise<Array<{ label: string; ids: string[] }> | null> {
+  const sheets = await prisma.stage.findMany({
+    where: { eventId, teeSheetPublished: true, NOT: { teeSheet: "" } },
+    orderBy: { position: "asc" },
+    select: { id: true, teeSheet: true },
+  });
+  const own = sheets.find((s) => s.id === stageId) ?? sheets[0];
+  const sheet = own ? parseTeeSheet(own.teeSheet) : null;
+  if (!sheet || sheet.groups.length === 0) return null;
+  const listed = new Set(players.map((p) => p.id));
+  const groups = sheet.groups
+    .map((g) => ({ label: [g.time, g.name].filter(Boolean).join(" · "), ids: g.playerIds.filter((id) => listed.has(id)) }))
+    .filter((g) => g.ids.length > 0);
+  return groups.length > 0 ? groups : null;
+}
+
+async function matchGroups(
+  stageId: string,
+  players: Array<{ id: string; name: string }>,
+): Promise<Array<{ label: string; ids: string[] }>> {
+  const matches = await prisma.match.findMany({
+    where: { stageId },
+    orderBy: [{ round: "asc" }, { id: "asc" }],
+    select: { playerAId: true, playerBId: true, teamAId: true, teamBId: true },
+  });
+  if (matches.length === 0) return [];
+  const teamIds = matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id !== "");
+  const members = teamIds.length
+    ? await prisma.teamMember.findMany({
+        where: { teamId: { in: teamIds } },
+        orderBy: { position: "asc" },
+        select: { teamId: true, playerId: true },
+      })
+    : [];
+  const listed = new Map(players.map((p) => [p.id, p.name]));
+  const side = (playerId: string, teamId: string) =>
+    (playerId !== "" ? [playerId] : members.filter((m) => m.teamId === teamId).map((m) => m.playerId)).filter((id) =>
+      listed.has(id),
+    );
+  const groups = matches
+    .map((m) => {
+      const a = side(m.playerAId, m.teamAId);
+      const b = side(m.playerBId, m.teamBId);
+      const names = (ids: string[]) => ids.map((id) => listed.get(id)!).join(" & ");
+      return { label: `${names(a)} v ${names(b)}`, ids: [...a, ...b] };
+    })
+    .filter((g) => g.ids.length > 0);
+  // A round robin draws one player into several matches: grouped, each name
+  // would be listed over and over, which is longer than the field. That round
+  // keeps the plain list.
+  const all = groups.flatMap((g) => g.ids);
+  return new Set(all).size === all.length ? groups : [];
 }
 
 export interface ClaimResult {
