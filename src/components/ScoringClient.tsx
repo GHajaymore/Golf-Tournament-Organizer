@@ -139,10 +139,6 @@ export function TableTiebreakControl({ tiebreakers, locked = false }: { tiebreak
    */
   const available = FIXED_TIEBREAKER_KEYS.filter((k) => !order.includes(k));
   const usedN = new Set(order.map((k) => toughestN(k)).filter((n): n is number => n !== null));
-  const addToughest = (n: number) => {
-    const key = `toughest-${n}` as TiebreakerKey;
-    if (!order.includes(key)) commit([...order, key]);
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 560 }}>
@@ -191,8 +187,7 @@ export function TableTiebreakControl({ tiebreakers, locked = false }: { tiebreak
           onChange={(e) => {
             const v = e.target.value;
             if (!v) return;
-            if (v.startsWith("toughest:")) addToughest(Number(v.slice("toughest:".length)));
-            else toggle(v as TiebreakerKey, true);
+            toggle(v as TiebreakerKey, true);
           }}
         >
           <option value="">Choose…</option>
@@ -204,7 +199,7 @@ export function TableTiebreakControl({ tiebreakers, locked = false }: { tiebreak
           {Array.from({ length: MAX_TOUGHEST_N }, (_, i) => i + 1)
             .filter((n) => !usedN.has(n))
             .map((n) => (
-              <option key={`t${n}`} value={`toughest:${n}`}>
+              <option key={`t${n}`} value={`toughest-${n}`}>
                 Toughest {n} {n === 1 ? "hole" : "holes"} (by stroke index)
               </option>
             ))}

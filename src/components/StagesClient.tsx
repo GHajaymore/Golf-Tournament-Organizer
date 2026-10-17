@@ -64,7 +64,7 @@ import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
 import { ThirdPlaceControl } from "@/components/ThirdPlaceControl";
 import { RoundClosedControl } from "@/components/RoundClosedControl";
-import { isStablefordRound, isStablefordFormat } from "@/lib/domain/week-basis";
+import { isStablefordRound, individualTieBreak, isStablefordFormat } from "@/lib/domain/week-basis";
 export interface ThirdPlaceView {
   on: boolean;
   problem: string;
@@ -1033,7 +1033,7 @@ function StageCard({
    * are the things clubs vary — so a round nobody has customised says so.
    */
   /** Whether this round raises a tie question at all — every kind but a round scored by hand. */
-  const roundRaisesTies = (isKnockoutRound(stage.type) || stage.type === "Round Robin" || (isIndividualStrokeRound(stage) && !isManualFormat(format)) || (stage.type === "Stroke Play Round" && entryModeFor(format) === "team" && !isManualFormat(format)));
+  const roundRaisesTies = (isKnockoutRound(stage.type) || stage.type === "Single Match Stage" || stage.type === "Round Robin" || (isIndividualStrokeRound(stage) && !isManualFormat(format)) || (stage.type === "Stroke Play Round" && entryModeFor(format) === "team" && !isManualFormat(format)));
   const customizeParts: string[] = [];
   if (deadline) customizeParts.push(`Due ${isIsoDate(deadline) ? shortDate(deadline, locale) : deadline}`);
   if (scoreInput && scoreInput !== declaredInput(format)) {
@@ -2072,10 +2072,10 @@ function StageCard({
                 blurb={stage.type === "Round Robin" ? "The same for every round robin in this tournament." : undefined}
               >
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  {isKnockoutRound(stage.type) && (
+                  {(isKnockoutRound(stage.type) || stage.type === "Single Match Stage") && (
                     <TieRow
                       question={`All square after ${holes}`}
-                      rule={`extra holes from the 1st, hole by hole — record the winner on ${stage.type === "Bracket Stage" ? "Bracket" : "Score entry"}`}
+                      rule={`extra holes from the 1st, hole by hole — record the winner on ${isKnockoutRound(stage.type) ? "Bracket" : "Score entry"}`}
                     />
                   )}
                   {stage.type === "Round Robin" && format === "Match Play" && (
@@ -2084,7 +2084,7 @@ function StageCard({
                     </TieRow>
                   )}
                   {stage.type === "Round Robin" && (
-                    <TieRow question="Level in the table" rule={tableTieInWords(tiebreakers)}>
+                    <TieRow question="Level in the table" rule={tableTieInWords(tiebreakers, format === "Match Play" || entryModeFor(format) === "team" ? "" : individualTieBreak(basis, format))}>
                       <TableTiebreakControl tiebreakers={tiebreakers} locked={locked} />
                     </TieRow>
                   )}

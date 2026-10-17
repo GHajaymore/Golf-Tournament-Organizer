@@ -51,9 +51,14 @@ function tableStep(key: string): string {
   return TABLE_WORDS[key] ?? key;
 }
 
-/** Players level on points in the table: the order they are separated in, in words. */
-export function tableTieInWords(order: readonly string[]): string {
-  if (order.length === 0) return "players level share the place";
+/**
+ * Players level in the table: the order they are separated in, in words.
+ * `first` is what the table ranks on before the steps, where it is not points
+ * (a stroke-play round robin: "lowest net, then lowest gross").
+ */
+export function tableTieInWords(order: readonly string[], first = ""): string {
+  if (order.length === 0) return first ? `${first}; still level, they share the place` : "players level share the place";
+  if (first) return `${first}, then ${tableTieInWords(order)}`;
   const shown = order.slice(0, 2).map(tableStep).join(", then ");
   return order.length > 2 ? `${shown}, +${order.length - 2} more` : shown;
 }

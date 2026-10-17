@@ -304,7 +304,6 @@ describe("no screen reads a typed number its own way", () => {
     ["setToFlight(Number(e.target.value))", "a dropdown of flights"],
     ["setPlayoffSize(Number(e.target.value) as LeaguePlayoffSize)", "a dropdown of play-off sizes"],
     ["const v = Number(e.target.value);", "a dropdown of paces"],
-    ["const n = Number(e.target.value);", "a dropdown of countbacks"],
     ["setEvery(Number(e.target.value))", "a dropdown of intervals"],
     ['a: side === "a" ? Number(e.target.value) : seedA,', "a dropdown of seeds"],
     ['b: side === "b" ? Number(e.target.value) : seedB,', "a dropdown of seeds"],

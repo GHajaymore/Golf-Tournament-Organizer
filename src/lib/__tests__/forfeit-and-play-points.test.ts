@@ -69,7 +69,7 @@ describe("a forfeited match", () => {
     // conceder the holes he was up would flatter him in the hole differential
     // his flight is ranked on.
     const played = match("m1", "a", "b", { holes: WON_3_AND_2, forfeitedBy: "b" });
-    const stats = aggregateStats(FIELD, [played], scoring({ holeRatioPts: 0.5, lossPts: 0 }));
+    const stats = aggregateStats(FIELD, [played], scoring({ winPts: 3, holeRatioPts: 0.5, lossPts: 0 }));
     expect(stats.get("a")!.holesWon).toBe(0);
     expect(stats.get("b")!.holesWon).toBe(0);
     // 3 for the win and nothing for the holes.

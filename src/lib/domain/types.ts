@@ -268,11 +268,16 @@ export const DEFAULT_TIEBREAKERS: TiebreakerKey[] = [
   "lower-handicap",
 ];
 
+/**
+ * What a new tournament starts on — the same figures as the Event columns' defaults
+ * (Ajay, 2026-10-16: a win is 2, a halve 1, a loss 0, and nothing per hole won;
+ * migrations A001 and A002). It was 3 / 1 / 0 and 0.5 a hole.
+ */
 export const DEFAULT_SCORING: ScoringRules = {
-  winPts: 3,
+  winPts: 2,
   tiePts: 1,
   lossPts: 0,
-  holeRatioPts: 0.5,
+  holeRatioPts: 0,
   bonusPts: 0,
   // Off by default: a tournament that never asked for an appearance point
   // should not suddenly start paying one.
