@@ -8,6 +8,7 @@ import { isPlayingRound } from "@/lib/stage-types";
 import { indexRefusal } from "@/lib/domain/handicap-label";
 import { handicapPolicyOf, mayEditHandicapByHand } from "@/lib/domain/handicap-policy";
 import { roundHasReturnedCard } from "@/lib/services/round-handicap";
+import { orgProfile } from "@/lib/domain/org-profile";
 import {
   planIndexChange,
   indexDecimalRefusal,
@@ -59,7 +60,7 @@ async function factsFor(eventId: string, playerId: string, admin: boolean): Prom
   if (!player) return null;
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { organizationId: true, organization: { select: { handicapPolicy: true } } },
+    select: { organizationId: true, organization: { select: { handicapPolicy: true, kind: true, country: true, communityNoun: true } } },
   });
   const stages = await prisma.stage.findMany({
     where: { eventId },
@@ -96,7 +97,9 @@ async function factsFor(eventId: string, playerId: string, admin: boolean): Prom
         })
       : null;
   const policy = handicapPolicyOf(event?.organization?.handicapPolicy);
+  const org = event?.organization;
   const memberRefusal = memberPushRefusal({
+    noun: org ? orgProfile(org.kind, org.country, org.communityNoun).noun : "club",
     guest: !member,
     name: player.name,
     admin,

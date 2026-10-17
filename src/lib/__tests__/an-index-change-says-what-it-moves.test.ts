@@ -57,6 +57,10 @@ describe("whether Members may take it", () => {
     expect(memberPushRefusal({ ...ok, nineHole: true })).toMatch(/nine-hole/);
     expect(memberPushRefusal({ ...ok, admin: false })).toMatch(/organizer/);
   });
+  it("speaks of a society or a league as what it is, not a club", () => {
+    expect(memberPushRefusal({ ...ok, guest: true, noun: "society" })).toContain("no member record at this society");
+    expect(memberPushRefusal({ ...ok, admin: false, noun: "league" })).toContain("Only the league's organizer");
+  });
 });
 
 describe("the sentences", () => {

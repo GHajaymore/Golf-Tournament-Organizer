@@ -55,8 +55,12 @@ test.afterAll(async ({}, testInfo) => {
 async function openEditor(page: Page) {
   await page.goto(`/stages?bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
-  // A round is a row until it is opened; the league's weeks still to come are marked "Upcoming".
-  const round = page.getByRole("button", { name: /Upcoming/ }).first();
+  // A round is a row until it is opened. The weeks still to come carry no tag
+  // since 2026-10-16 (a tag was "Upcoming" on every one); played and active ones do.
+  const round = page
+    .getByRole("button", { name: /^Round \d+ · / })
+    .filter({ hasNotText: /Played|Active/ })
+    .first();
   await expect(round, "the seeded league has no round still to be played").toBeVisible({ timeout: 20_000 });
   if ((await round.getAttribute("aria-expanded")) !== "true") await round.click();
   // The list is under Customize, which starts closed (2026-10-16).

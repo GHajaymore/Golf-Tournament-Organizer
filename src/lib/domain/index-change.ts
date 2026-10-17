@@ -56,8 +56,15 @@ export function indexDecimalRefusal(value: number): string | null {
     : null;
 }
 
-/** Whether the member record may take the new figure, and if not, the sentence that says why. */
+/**
+ * Whether the member record may take the new figure, and if not, the sentence
+ * that says why — in the outfit's own word: a society or a league of mixed
+ * golfers keeps its own handicaps and adjusts them as often as a club does,
+ * and is not told about "this club" (Ajay, 2026-10-16).
+ */
 export function memberPushRefusal(facts: {
+  /** What the outfit calls itself — "club", "society", "league". */
+  noun?: string;
   /** No member record linked to this entry: a guest. */
   guest: boolean;
   name: string;
@@ -68,14 +75,15 @@ export function memberPushRefusal(facts: {
   /** The member's index is stored as a nine-hole figure. */
   nineHole: boolean;
 }): string | null {
-  if (facts.guest) return `${facts.name} has no member record at this club, so only this tournament changes.`;
+  const noun = facts.noun || "club";
+  if (facts.guest) return `${facts.name} has no member record at this ${noun}, so only this tournament changes.`;
   if (facts.association) {
     return `${facts.name}'s index comes from their association. TourneyHQ won't overwrite it there — an adjustment to it is made by your Handicap Committee in the association's system. This tournament can still use the new figure.`;
   }
   if (facts.nineHole) {
     return `${facts.name}'s index on Members is a nine-hole figure, which the Rules of Handicapping no longer use. Change it on Members as an 18-hole index.`;
   }
-  if (!facts.admin) return "Only the club's organizer can change an index on Members.";
+  if (!facts.admin) return `Only the ${noun}'s organizer can change an index on Members.`;
   return null;
 }
 

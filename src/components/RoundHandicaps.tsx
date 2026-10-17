@@ -402,7 +402,7 @@ export function RoundHandicaps({
                                 className="input"
                                 value={reason}
                                 maxLength={200}
-                                placeholder="e.g. Committee adjustment after the club championship"
+                                placeholder="e.g. Cut after winning the August meeting"
                                 disabled={pending}
                                 onChange={(e) => setReason(e.target.value)}
                               />
