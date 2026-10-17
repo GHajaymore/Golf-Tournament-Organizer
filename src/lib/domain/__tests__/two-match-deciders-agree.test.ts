@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { deriveNetHoles } from "../match";
 import { matchHolesOffTheLow } from "../team";
+import { rankStrokeIndex } from "../stroke";
 
 /**
  * TWO DECIDERS OF A NET MATCH HOLE, AND WHERE THEY MUST AGREE (2026-10-17).
@@ -71,6 +72,49 @@ describe("one ball a side: the two deciders give every hole the same way", () =>
       expect(compared).toBe(HANDICAPS.length * HANDICAPS.length);
     });
   }
+
+  it("and both decide as the Rules do, worked by a route the code does not take (a nine ranked 1 to 9 first, as every caller does)", () => {
+    /**
+     * Rule 6.1 and Appendix C, worked here by RANKING the holes rather than
+     * through `holeStrokesReceived`: each player receives (their handicap less
+     * the lowest in the match) strokes, one on each hole in order of the stroke
+     * index, going round again past the last; the better net ball of each side
+     * takes the hole. Four-balls (two a side) and singles, every index above.
+     */
+    const byRules = (sides: number[][][], hcps: number[][], si: number[], holes: number): (string | null)[] => {
+      const low = Math.min(...hcps.flat());
+      const order = si.map((s, h) => ({ s, h })).sort((x, y) => x.s - y.s).map((x) => x.h);
+      const shots = (d: number) => {
+        const out = new Array(holes).fill(Math.floor(d / holes));
+        for (let k = 0; k < d % holes; k += 1) out[order[k]] += 1;
+        return out;
+      };
+      return Array.from({ length: holes }, (_, h) => {
+        const best = sides.map((side, s) => {
+          const nets = side.map((card, p) => (card[h] == null ? null : card[h]! - shots(hcps[s][p] - low)[h])).filter((n): n is number => n !== null);
+          return nets.length ? Math.min(...nets) : null;
+        });
+        if (best[0] == null || best[1] == null) return null;
+        return best[0] < best[1] ? "A" : best[1] < best[0] ? "B" : "H";
+      });
+    };
+    let compared = 0;
+    for (const { name, holes, si } of INDEXES) {
+      const next = rng(holes * 37 + si[0]);
+      for (let t = 0; t < 400; t += 1) {
+        const perSide = t % 2 === 0 ? 1 : 2;
+        const hcps = [0, 1].map(() => Array.from({ length: perSide }, () => HANDICAPS[Math.floor(next() * HANDICAPS.length)]));
+        const cards = hcps.map((side) => side.map(() => Array.from({ length: holes }, () => (next() < 0.05 ? null : 2 + Math.floor(next() * 8)))));
+        const balls = cards.map((side, s) => side.map((strokes, p) => ({ strokes, playingHandicap: hcps[s][p] })));
+        const got = matchHolesOffTheLow(balls[0], balls[1], rankStrokeIndex(si), holes, 1);
+        const want = byRules(cards as number[][][], hcps, si, holes);
+        expect(got, `${name}: ${JSON.stringify(hcps)}`).toEqual(want);
+        if (perSide === 1) expect(deriveNetHoles(cards[0][0], cards[1][0], hcps[0][0], hcps[1][0], rankStrokeIndex(si), holes), `${name} singles`).toEqual(want);
+        compared += 1;
+      }
+    }
+    expect(compared).toBe(1200);
+  });
 
   it("CONTROL: the sweep can see a disagreement — giving the shots to the LOWER handicap is caught", () => {
     const si = INDEXES[0].si;
