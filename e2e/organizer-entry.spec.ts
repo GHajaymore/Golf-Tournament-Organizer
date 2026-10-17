@@ -100,6 +100,7 @@ test("a member enters from the link, signs in, and scores their own card", async
       expect(await poster.getAttribute("data-link"), "the poster's QR is not the sign-up link").toBe(link);
       await expect(poster.locator("svg path"), "the poster has no QR drawn").toHaveCount(1);
       await expect(poster).toContainText("Scan to sign up");
+      await poster.screenshot({ path: test.info().outputPath("poster.png") });
       await expect(page.getByRole("button", { name: "Print poster" })).toBeVisible();
     });
 
