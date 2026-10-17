@@ -91,13 +91,18 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
 
     // Tapping a name is the player's own act; the sign never does it.
     await player.getByRole("button", { name: somebody }).click();
+    // Scoring as them: their own screen, headed by their name. Waited for, or the next step leaves
+    // before the sign-in lands and walks a phone with no session (Firefox, 2026-10-17).
+    const scoring = player.getByRole("heading", { level: 1, name: somebody });
+    await expect(scoring, "tapping the name did not start the session").toBeVisible({ timeout: 20_000 });
     const asked = player.getByRole("region", { name: "A sign for another round" });
 
     // CONTROL: the same round's sign, scanned again, asks nothing.
     await player.goto("about:blank");
     await player.goto(link!);
     await player.waitForLoadState("networkidle").catch(() => {});
-    await expect(player.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 20_000 });
+    // Still scoring as them — a phone that had lost its session would pass "nothing asked" too.
+    await expect(scoring, "the phone's own round's sign lost its session").toBeVisible({ timeout: 20_000 });
     await expect(asked, "the phone's own round's sign asked to switch").toHaveCount(0);
 
     // A sign for another round: asked, not switched.
@@ -111,6 +116,7 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
     await asked.getByRole("button", { name: "Keep scoring this one" }).click();
     await expect(asked).toHaveCount(0);
     await expect(player.getByLabel("Round code"), "keeping the round left it anyway").toHaveCount(0);
+    await expect(scoring, "keeping the round lost the session").toBeVisible();
 
     // And switching opens the new code — which is nobody's round, so it is refused as if typed.
     await player.goto("about:blank");
