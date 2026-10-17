@@ -490,7 +490,7 @@ export function StrokePlayEntry({
     return (
       <div className="card elev-sm">
         <span className="text-muted" style={{ fontSize: 13 }}>
-          No confirmed players yet — add them on the <Link href="/registration">Registration & field</Link> screen.
+          No confirmed players yet — add them on the <Link href="/registration">Entries</Link> screen.
         </span>
       </div>
     );

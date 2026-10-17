@@ -295,7 +295,7 @@ describe("no screen reads a typed number its own way", () => {
   /** The line, and why it is not somebody's typing. */
   const NOT_TYPED: [string, string][] = [
     ["setRoundIdx(parseInt(e.target.value, 10))", "a dropdown of rounds"],
-    ["commitCarry(carryEnabled, parseInt(e.target.value, 10))", "a slider"],
+    ["commitCarry(true, parseInt(e.target.value, 10))", "a slider"],
     ["setBulkHoles(holesPlayed(parseInt(e.target.value, 10)))", "a dropdown: 9 or 18"],
     ["setInterval(parseInt(e.target.value, 10))", "a dropdown of minutes"],
     ["parseFloat(getComputedStyle(row).columnGap", "a length off the stylesheet"],
@@ -304,7 +304,6 @@ describe("no screen reads a typed number its own way", () => {
     ["setToFlight(Number(e.target.value))", "a dropdown of flights"],
     ["setPlayoffSize(Number(e.target.value) as LeaguePlayoffSize)", "a dropdown of play-off sizes"],
     ["const v = Number(e.target.value);", "a dropdown of paces"],
-    ["const n = Number(e.target.value);", "a dropdown of countbacks"],
     ["setEvery(Number(e.target.value))", "a dropdown of intervals"],
     ['a: side === "a" ? Number(e.target.value) : seedA,', "a dropdown of seeds"],
     ['b: side === "b" ? Number(e.target.value) : seedB,', "a dropdown of seeds"],

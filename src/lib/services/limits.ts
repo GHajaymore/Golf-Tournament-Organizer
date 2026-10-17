@@ -195,7 +195,7 @@ async function holdsSeat(organizationId: string, email: string): Promise<boolean
  * path that grants them — adding and PROMOTING, at the club and on an event.
  *
  * It was asked only when somebody was ADDED as staff (2026-09-30). Adding them
- * as a player and then promoting them on Access & staff, or promoting a club
+ * as a player and then promoting them on Staff & helpers, or promoting a club
  * Member to admin, took a seat with no check at all — a Par club's one
  * organizer seat held as many as anybody cared to promote.
  *

@@ -66,7 +66,7 @@ export interface ChecklistState {
    * predicted:
    *
    *   Tournament details  taken from the flow          agreed
-   *   Registration & field `confirmed.length > 0`      agreed, by luck
+   *   Entries `confirmed.length > 0`      agreed, by luck
    *   Rounds & formats     `stages.length > 0`         the count the rail has
    *                                                    now stopped using
    *   Flights              `groups.length && matches`  DISAGREED ALREADY: no
@@ -115,7 +115,7 @@ export interface ChecklistState {
    * The sidebar has closed the field-only screens for these since it learned
    * about `isMatch`: no flights to divide, no tee sheet to draw, nothing to
    * announce, nobody to hire. This list had never been told, so `/event` went
-   * on offering "Flights" and "Access & staff" one card below a sidebar that
+   * on offering "Flights" and "Staff & helpers" one card below a sidebar that
    * had shut both — the same doors reopened, on the screen a casual round is
    * most likely to be looked at from.
    *
@@ -273,7 +273,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
   ];
 
   // A nudge, never a gate: only offered while the club has set neither a logo
-  // nor colours, and marked optional like "Access & staff" so it never blocks
+  // nor colours, and marked optional like "Staff & helpers" so it never blocks
   // a tournament from being played. Deep-links to Club settings, where both
   // live. Once either is set it drops off — this is a first-run prompt, not a
   // permanent line item.

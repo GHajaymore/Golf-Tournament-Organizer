@@ -1,4 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
+import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -156,6 +157,13 @@ test("five F", async ({ page, context, baseURL }, testInfo) => {
         await page.getByRole("button", { name: /^Add (1 )?stroke play rounds?/ }).click();
         await page.waitForTimeout(2500);
       }
+      // Both rounds gross, as this day is played — and Round 2 must be: one card
+      // for the side is a choice a GROSS four-ball has and a net one does not.
+      // A new round is off handicap unless the organizer says otherwise (since
+      // 2026-10-16), so the organizer says so.
+      await open(page, "/stages");
+      await playScratch(page, "Round 1 · ");
+      await playScratch(page, "Round 2 · ");
       await read(page, "/stages", "stages", 3000);
     });
 

@@ -46,7 +46,7 @@ describe("every screen declares where it is used", () => {
 /**
  * The screens the handoff named, asserted rather than described.
  *
- * "Score entry, Tee sheet, Live leaderboard, Announcements, Messages" plus the
+ * "Score entry, Tee sheet, Leaderboard, Announcements, Messages" plus the
  * player's own screens. These are pinned because the tier is a PRODUCT
  * decision, not an implementation detail: moving Score entry to `at-desk`
  * should be an argument somebody has to win, not a one-word edit that goes

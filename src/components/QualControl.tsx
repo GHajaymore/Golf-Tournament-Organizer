@@ -1,6 +1,6 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { setQualifyPerGroup, setQualifyMode } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
@@ -10,13 +10,33 @@ export function QualControl({
   perFlight,
   overall,
   locked = false,
+  flightCount = 2,
+  fieldSize = 0,
 }: {
   mode: string;
   perFlight: number;
   overall: number;
+  /**
+   * Flights the field is in. With exactly one, "per flight" is the top N of
+   * everybody — top 2 is a final — and the stroke cut beside it already says so
+   * and disables the choice; this said nothing (2026-10-16). Zero is flights
+   * not yet drawn, which is not the same. Defaults to two so a caller not yet
+   * taught is unchanged.
+   */
+  flightCount?: number;
+  /**
+   * How many are entered. Top 16 overall of a field of ten is all ten — the
+   * draw takes everybody and gives byes — and the screen said nothing (the
+   * tournament director on the review panel, 2026-10-16). Zero: nobody yet.
+   */
+  fieldSize?: number;
   /** Setup is locked, which both actions refuse by throwing. */
   locked?: boolean;
 }) {
+  // Radio names unique to this control: they were fixed ("qmode", "qpf"), and a
+  // closed round card stays in the page, so two knockout rounds put their radios
+  // in one group (the UI/UX designer on the review panel).
+  const gid = useId();
   const [m, setM] = useState(mode === "overall" ? "overall" : "perFlight");
   const [pf, setPf] = useState(perFlight);
   const [ov, setOv] = useState(overall);
@@ -39,23 +59,23 @@ export function QualControl({
           explains per-flight versus overall in the same words. A second icon
           an inch away, saying the same thing, teaches people the icons are
           noise. */}
-      <div className="seg">
+      <div className="seg" role="radiogroup" aria-label="Who qualifies for the knockout">
         <label className="seg-opt">
-          <input type="radio" name="qmode" checked={m === "perFlight"} disabled={pending} onChange={() => switchMode("perFlight")} />
+          <input type="radio" name={`${gid}-mode`} checked={m === "perFlight"} disabled={pending || (flightCount === 1 && m !== "perFlight")} onChange={() => switchMode("perFlight")} />
           Per flight
         </label>
         <label className="seg-opt">
-          <input type="radio" name="qmode" checked={m === "overall"} disabled={pending} onChange={() => switchMode("overall")} />
+          <input type="radio" name={`${gid}-mode`} checked={m === "overall"} disabled={pending} onChange={() => switchMode("overall")} />
           Overall
         </label>
       </div>
       {m === "perFlight" ? (
-        <div className="seg">
+        <div className="seg" role="radiogroup" aria-label="Players from each flight">
           {[1, 2, 3].map((n) => (
             <label className="seg-opt" key={n}>
               <input
                 type="radio"
-                name="qpf"
+                name={`${gid}-pf`}
                 checked={pf === n}
                 disabled={pending}
                 onChange={() => {
@@ -81,10 +101,40 @@ export function QualControl({
             onKeyDown={leaveOnEnter}
             onBlur={() => startTransition(() => setQualifyMode("overall", ov))}
           />
-          <span className="text-muted">overall</span>
         </label>
       )}
       <SaveState status={saveStatus} />
+      {/* Said on the page, as the stroke cut says it — not in a tooltip. */}
+      {/* ONE flight, drawn. None yet is not one: flights are usually drawn
+          after the rounds are set, and a club planning groups then a knockout
+          needs Per flight while there are none. */}
+      {/* HOW BIG THE DRAW WILL BE (2026-10-16; the tournament director on the review
+          panel: "a director sets Top 1, 2 or 3 blind"). */}
+      {(() => {
+        const n = m === "overall" ? Math.min(ov, fieldSize || ov) : flightCount > 0 ? pf * flightCount : 0;
+        if (n < 2) return null;
+        const sheet = 2 ** Math.ceil(Math.log2(n));
+        const starts = sheet === 2 ? "a final" : sheet === 4 ? "the semi-finals" : sheet === 8 ? "the quarter-finals" : `a round of ${sheet}`;
+        const byes = sheet - n;
+        return (
+          <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%", lineHeight: 1.5 }}>
+            {n} go through — the draw starts with {starts}
+            {byes > 0 ? `, ${byes} ${byes === 1 ? "bye" : "byes"}` : ""}.
+          </span>
+        );
+      })()}
+      {m === "overall" && fieldSize > 0 && ov >= fieldSize && (
+        <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%", lineHeight: 1.5 }}>
+          {fieldSize} {fieldSize === 1 ? "is" : "are"} entered, so everybody goes into the knockout.
+        </span>
+      )}
+      {flightCount === 1 && (
+        <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%", lineHeight: 1.5 }}>
+          {m === "perFlight"
+            ? `The field is in one flight, so this takes the top ${pf} of everybody${pf === 2 ? " — a final" : ""}. Choose Overall to set how many play the knockout.`
+            : "The field is in one flight, so a per-flight cut would be the same cut."}
+        </span>
+      )}
     </div>
   );
 }

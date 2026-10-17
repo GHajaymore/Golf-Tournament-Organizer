@@ -15,13 +15,15 @@ import { FLIGHT_CRITERIA, proposeShapes } from "@/lib/domain/bracket-flights";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
-import { hasKnockoutStage, isStraightKnockout } from "@/lib/stage-types";
+import { plateEntrants } from "@/lib/domain/bracket";
+import { hasKnockoutStage, isStraightKnockout, isKnockoutRound } from "@/lib/stage-types";
 import { BracketReports, type BracketReportRow } from "@/components/BracketReports";
 import { bracketDraws, openTieReport } from "@/lib/domain/my-tie";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { qualifyingCutoffText } from "@/lib/domain/cut";
 import { toParText } from "@/lib/domain/stroke";
 import { pts } from "@/lib/format";
+import { resolveThirdPlace } from "@/lib/domain/third-place";
 
 export const metadata = screenMetadata("/bracket");
 
@@ -108,6 +110,31 @@ export default async function BracketPage() {
    * over "8 players qualify" with no round anybody qualified in.
    */
   const straight = isStraightKnockout(state.stages);
+  /**
+   * WHETHER ANYBODY HAS PLAYED THE ROUNDS THAT FEED THE DRAW (2026-10-16).
+   * Before then the draw is the entry order, and the screen said "Seeded from
+   * qualification" over a cutoff of 0 points — read as the qualifying being
+   * over. Walked on a two-round-robin championship with nothing played.
+   */
+  const firstKnockout = state.stages.findIndex((s) => isKnockoutRound(s.type));
+  const qualifyingPlayed = state.stages
+    .slice(0, firstKnockout < 0 ? 0 : firstKnockout)
+    .some((s) => state.roundsWithResults.has(s.id));
+  /**
+   * THE PLAY-OFF FOR THIRD, ON THE SCREEN THAT SHOWS THE DRAW (2026-10-16).
+   * It is switched on and made on the knockout's own card on Rounds & formats,
+   * and played as a match; the draw said nothing about it at all.
+   */
+  const koStage = firstKnockout >= 0 ? state.stages[firstKnockout] : null;
+  const third =
+    koStage?.thirdPlace && !state.brackets.draws
+      ? {
+          ...resolveThirdPlace(state.brackets.winners),
+          made: (await prisma.match.count({ where: { eventId: session.eventId, stageId: koStage.id, round: 0 } })) > 0,
+        }
+      : null;
+  /** Every qualifier's place in the qualifying order — the seed a player keeps in any draw. */
+  const seeds = Object.fromEntries(state.qualifiers.map((q, i) => [q.id, i + 1]));
 
   /**
    * The qualification audit, which used to be its own screen.
@@ -144,9 +171,19 @@ export default async function BracketPage() {
           advancingCount: state.advancingCount,
           fieldSize: state.confirmed.length,
           toWinners: draw.main.length,
+          mainLabel: draw.mainLabel,
           secondLabel: draw.secondLabel,
-          toSecond: draw.second.length,
-          cutoff: state.overallCutoff,
+          /**
+           * A PLATE IS FILLED BY THE FIRST ROUND, not at the draw — so its count
+           * was 0 over a draw of sixteen whose eight losers go into it. The losers
+           * are the first-round ties actually played: the field less the byes.
+           */
+          toSecond:
+            mode === "plate"
+              ? plateEntrants(draw.main.length)
+              : draw.second.length,
+          secondNote: mode === "plate" ? "who lose in the first round" : "",
+          cutoff: qualifyingPlayed ? state.overallCutoff : null,
         };
         /**
          * QUALIFIED ON CARDS, SHOWN ON CARDS (2026-10-10). The rows below are
@@ -163,7 +200,7 @@ export default async function BracketPage() {
             !s.ranked ? "—" : stableford ? `${s.points} pts` : toParText(s.toParShown);
           return {
             ...common,
-            cutoffText: qualifyingCutoffText(state.qualifyingCutoff, pts),
+            cutoffText: qualifyingPlayed ? qualifyingCutoffText(state.qualifyingCutoff, pts) : "—",
             qualifiers: state.strokeStandings
               .filter((s) => state.advancingIds.has(s.player.id))
               .map((s) => ({
@@ -281,8 +318,25 @@ export default async function BracketPage() {
         results={results}
         readOnly={!isStaff}
         straight={straight}
+        notYetPlayed={!straight && !qualifyingPlayed}
+        seeds={mode === "flights" ? undefined : seeds}
         awaitingFlights={mode === "flights" && !state.flights}
       />
+      {third && (
+        <div className="card elev-sm" style={{ marginTop: 16, gap: 4 }}>
+          <span className="card-kicker">Third place</span>
+          <p style={{ fontSize: 14, margin: 0 }}>
+            {third.pairing ? `${third.pairing.a.name} v ${third.pairing.b.name}` : "The two beaten semi-finalists"}
+          </p>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            {third.made
+              ? "The play-off is made. Its result goes in on Score entry."
+              : third.pairing
+                ? "Make the play-off on the knockout's card on Rounds & formats, then enter its result on Score entry."
+                : "They play off for third once both semi-finals have a winner."}
+          </p>
+        </div>
+      )}
       {straight && isStaff && mode !== "flights" && (
         <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
           No qualifying round comes before this bracket, so everyone in the field is in the draw

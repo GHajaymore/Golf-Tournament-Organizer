@@ -52,8 +52,13 @@ const NEEDS_OPPONENT = new Set(["match", "nassau"]);
  *
  * Team engines are deliberately absent: a four-ball is a match or a medal
  * depending on the type, which is the whole reason the type exists.
+ *
+ * Skins too (2026-10-16): a skin is won by the lowest score on a hole across
+ * every card in the pot, so a knockout or a round robin of skins draws matches
+ * that decide nothing. It was "no opinion" here, and so the Bracket's format
+ * list offered it.
  */
-const NEEDS_CARD = new Set(["stroke", "stableford", "modified-stableford"]);
+const NEEDS_CARD = new Set(["stroke", "stableford", "modified-stableford", "skins"]);
 
 /**
  * Whether this round's type and format can produce a result together.

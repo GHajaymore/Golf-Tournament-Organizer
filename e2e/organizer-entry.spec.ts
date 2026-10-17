@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 
 /**
@@ -82,6 +83,9 @@ test("a member enters from the link, signs in, and scores their own card", async
       await page.getByLabel("Format for every round added").selectOption("Stroke Play");
       await page.getByRole("button", { name: /^Add stroke play round/ }).click();
       await expect(page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ })).toBeVisible({ timeout: 20_000 });
+      // A scratch medal, said on the round: a new round is net by default since
+      // 2026-10-16, and this walk reads the board's GROSS — 71 on a par 72 is −1.
+      await playScratch(page, "Round 1");
 
       await open(page, "/registration");
       await page.getByRole("button", { name: /Let players sign themselves up/ }).click();

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { makeBoardPublic, readPublicBoard } from "./public-board";
 
@@ -141,6 +142,28 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
     await page.getByRole("button", { name: /^Add 2 stroke play rounds/ }).click();
     await expect(page.getByRole("button", { name: /^Round 2 · Stroke Play Round/ })).toBeVisible({ timeout: 20_000 });
 
+    // A CHAMPIONSHIP IS SCRATCH, and a new round is played off handicap unless
+    // the organizer says otherwise (2026-10-16: the club default). So, as a
+    // championship's organizer does, Gross on each of the two rounds — the
+    // choice is on the face of the round, not behind Customize.
+    const gross = (round: string) =>
+      page
+        .locator(".card", { has: page.getByRole("button", { name: new RegExp(`^${round} · Stroke Play Round`) }) })
+        .locator("label.seg-opt", { hasText: /^\s*Gross\s*$/ });
+    for (const round of ["Round 1", "Round 2"]) await playScratch(page, `${round} · Stroke Play Round`);
+    // Kept: read back from a fresh load, one round at a time.
+    for (const round of ["Round 1", "Round 2"]) {
+      await expect(async () => {
+        await open(page, "/stages");
+        const head = page.getByRole("button", { name: new RegExp(`^${round} · Stroke Play Round`) });
+        if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
+        await expect(gross(round).locator("input")).toBeChecked();
+      }).toPass({ timeout: 20_000 });
+    }
+    // Round 1 open again: the cut is set on it.
+    const r1 = page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ });
+    if ((await r1.getAttribute("aria-expanded")) !== "true") await r1.click();
+
     // Set on Round 1, where the round that decides it is.
     const cutBox = page.getByRole("checkbox", { name: "Cut the field for Round 2" });
     await expect(cutBox, "no cut offered on a stroke round with a round after it").toBeVisible();
@@ -148,7 +171,7 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
     const n = page.getByLabel("Players who make the cut for Round 2");
     await n.fill("2");
     await n.press("Tab");
-    await expect(page.getByText("2 and ties of 5 advance into Round 2.")).toBeVisible();
+    await expect(page.getByText("2 of the 5 entered play Round 2, and anyone tied with the last of them.")).toBeVisible();
     // Kept: read back from a fresh load.
     await expect(async () => {
       await open(page, "/stages");

@@ -11,8 +11,11 @@ export function BracketBoard({
   view,
   results,
   readOnly,
+  seeds,
 }: {
   view: BracketView;
+  /** Each player's place in the qualifying order, shown in place of the draw's own numbering. */
+  seeds?: Record<string, number>;
   results: Record<string, string>;
   readOnly: boolean;
 }) {
@@ -70,7 +73,9 @@ export function BracketBoard({
         }}
       >
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{slot.name}</span>
-        <span style={{ fontSize: 13, color: "var(--color-neutral-500)" }}>{slot.seed ?? ""}</span>
+        {/* THE SEED A PLAYER BROUGHT (2026-10-16): a plate or a second flight
+            numbered its own players from 1, so seed 16 read as a top seed. */}
+        <span style={{ fontSize: 13, color: "var(--color-neutral-500)" }}>{(slot.playerId && seeds?.[slot.playerId]) ?? slot.seed ?? ""}</span>
       </button>
     );
   };
@@ -82,57 +87,73 @@ export function BracketBoard({
           {refused} Reload the draw and record it again.
         </p>
       )}
-      <div style={{ display: "flex", gap: 26, minWidth: 640 }}>
+      {/* A DRAW SHEET LINES UP (2026-10-16). Each round's ties share its height
+          equally and sit in the middle of their share, so a quarter-final is
+          always midway between the two round-of-16 ties that feed it and the
+          Final in the middle of the sheet. The heading sat in the same column as
+          the ties and was spread with them, and a finished tie's result box made
+          it taller than its neighbours, so every later round drifted. The result
+          now hangs below its tie without moving it. */}
+      <div style={{ display: "flex", gap: 22, minWidth: 600 }}>
         {view.rounds.map((rd) => (
-          <div key={rd.roundIndex} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-around", gap: 14, minWidth: 190 }}>
-            <div style={{ fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)", textAlign: "center" }}>
+          <div key={rd.roundIndex} style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 170 }}>
+            <div style={{ fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)", textAlign: "center", minHeight: 22, marginBottom: 6 }}>
               {rd.label}
             </div>
-            {rd.matches.map((m) => (
-              <div key={m.key}>
-                <div style={{ border: "1px solid var(--color-divider)", borderRadius: 8, overflow: "hidden" }}>
-                  {slotButton(m.key, m.a, m.winnerId)}
-                  <div style={{ height: 1, background: "var(--color-divider)" }} />
-                  {slotButton(m.key, m.b, m.winnerId)}
-                </div>
-                {m.winnerId && !readOnly && (
-                  <input
-                    className="input"
-                    defaultValue={results[m.key] ?? ""}
-                    placeholder="Result e.g. 3&2"
-                    // A placeholder is not a name, and there is one of these
-                    // per finished match — each says whose match it records.
-                    aria-label={`Result of ${m.a?.name ?? "TBD"} v ${m.b?.name ?? "TBD"}, ${rd.label}`}
-                    onKeyDown={leaveOnEnter}
-                    onBlur={(e) => {
-                      const value = e.target.value;
-                      // Leaving the box unchanged saves nothing, and says nothing.
-                      if (value.trim() === (results[m.key] ?? "").trim()) return;
-                      setSavedKey("");
-                      startTransition(async () => {
-                        await setBracketResult(m.key, value);
-                        setSavedKey(m.key);
-                      });
-                    }}
-                    style={{ marginTop: 4, fontSize: 13, minHeight: 26, padding: "2px 8px" }}
-                  />
-                )}
-                {m.winnerId && !readOnly && savedKey === m.key && !pending && (
-                  <div role="status" className="text-muted" style={{ fontSize: 13, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
-                    <Icon name="check" /> Saved
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              {rd.matches.map((m) => (
+                <div key={m.key} style={{ flex: 1, minHeight: 124, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                  <div style={{ position: "relative" }}>
+                    <div style={{ border: "1px solid var(--color-divider)", borderRadius: 8, overflow: "hidden" }}>
+                      {slotButton(m.key, m.a, m.winnerId)}
+                      <div style={{ height: 1, background: "var(--color-divider)" }} />
+                      {slotButton(m.key, m.b, m.winnerId)}
+                    </div>
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0 }}>
+                      {m.winnerId && !readOnly && (
+                        <input
+                          className="input"
+                          defaultValue={results[m.key] ?? ""}
+                          placeholder="Result e.g. 3&2"
+                          // A placeholder is not a name, and there is one of these
+                          // per finished match — each says whose match it records.
+                          aria-label={`Result of ${m.a?.name ?? "TBD"} v ${m.b?.name ?? "TBD"}, ${rd.label}`}
+                          onKeyDown={leaveOnEnter}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            // Leaving the box unchanged saves nothing, and says nothing.
+                            if (value.trim() === (results[m.key] ?? "").trim()) return;
+                            setSavedKey("");
+                            startTransition(async () => {
+                              await setBracketResult(m.key, value);
+                              setSavedKey(m.key);
+                            });
+                          }}
+                          style={{ marginTop: 4, fontSize: 13, minHeight: 26, padding: "2px 8px", width: "100%" }}
+                        />
+                      )}
+                      {m.winnerId && !readOnly && savedKey === m.key && !pending && (
+                        <div role="status" className="text-muted" style={{ fontSize: 13, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                          <Icon name="check" /> Saved
+                        </div>
+                      )}
+                      {m.winnerId && readOnly && results[m.key] && (
+                        <div className="text-muted" style={{ fontSize: 13, textAlign: "center", marginTop: 3 }}>{results[m.key]}</div>
+                      )}
+                    </div>
                   </div>
-                )}
-                {m.winnerId && readOnly && results[m.key] && (
-                  <div className="text-muted" style={{ fontSize: 13, textAlign: "center", marginTop: 3 }}>{results[m.key]}</div>
-                )}
-              </div>
-            ))}
+                </div>
+              ))}
+            </div>
           </div>
         ))}
-        <div style={{ flex: "none", width: 150, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 6, textAlign: "center" }}>
-          <div style={{ fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)" }}>Champion</div>
-          <Icon name="trophy" weight="fill" style={{ fontSize: 30, color: "var(--color-accent-200)" }} />
-          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>{view.champion?.name ?? "TBD"}</div>
+        <div style={{ flex: "none", width: 140, display: "flex", flexDirection: "column" }}>
+          <div style={{ minHeight: 22, marginBottom: 6 }} />
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 6, textAlign: "center" }}>
+            <div style={{ fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)" }}>Champion</div>
+            <Icon name="trophy" weight="fill" style={{ fontSize: 30, color: "var(--color-accent-200)" }} />
+            <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>{view.champion?.name ?? "TBD"}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -149,7 +170,12 @@ export function BracketClient({
   straight = false,
   draws,
   awaitingFlights = false,
+  notYetPlayed = false,
+  seeds,
 }: {
+  /** Nothing in the rounds before the draw has been played: it is the entry order for now. */
+  notYetPlayed?: boolean;
+  seeds?: Record<string, number>;
   winners: BracketView;
   consolation: BracketView;
   /**
@@ -196,7 +222,9 @@ export function BracketClient({
     ? "Each flight is its own knockout, seeded in order."
     : straight
       ? "The whole field, seeded in order."
-      : "Seeded from qualification.";
+      : notYetPlayed
+        ? "Nothing before the draw has been played, so it is in entry order for now."
+        : "Seeded from qualification.";
   // Which draw is on screen, by its place in the list.
   const [tab, setTab] = useState(0);
   /**
@@ -253,7 +281,7 @@ export function BracketClient({
           </div>
         )}
       </div>
-      {!awaitingFlights && <BracketBoard view={shown} results={results} readOnly={readOnly} />}
+      {!awaitingFlights && <BracketBoard view={shown} results={results} readOnly={readOnly} seeds={seeds} />}
     </>
   );
 }

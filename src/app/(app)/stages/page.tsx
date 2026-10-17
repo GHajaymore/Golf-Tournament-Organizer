@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { StagesClient } from "@/components/StagesClient";
 import { SeasonDates } from "@/components/SeasonDates";
+import { SetupNotices } from "@/components/SetupNotices";
 import { cleanIsoDate } from "@/lib/domain/round-dates";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
@@ -30,9 +31,10 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
 import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason } from "@/lib/domain/team-entry";
-import { effectiveAllowance, effectiveCountBest, recommendedAllowance } from "@/lib/services/teams";
+import { effectiveAllowance, effectiveCountBest, recommendedAllowance, snakeDraw } from "@/lib/services/teams";
 import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
 import { individualAllowanceFor } from "@/lib/round-allowance";
+import { drawBrackets, isBracketMode } from "@/lib/domain/bracket";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
 
 /**
@@ -256,6 +258,14 @@ export default async function StagesPage() {
   // The day a card was checked, as the club writes a day — see `dayAtClubForEvent`.
   const dayAtClub = await dayAtClubForEvent(session.eventId);
   const venues = venueRows.map((v) => ({ ...v, cardNote: pickedCardNote(v, undefined, dayAtClub) }));
+  /**
+   * Net scoring on unrated tees, asked of EVERY round: this asked the first Round
+   * Robin round and fell back to "gross", so a net MEDAL — which has no Round
+   * Robin at all — was never told its handicaps were approximate, and neither was
+   * a mixed tournament whose round robin happened to be gross. One line in
+   * `SetupNotices` now; it was a card of its own inside the round list.
+   */
+  const handicapWarning = await unratedWarning(session.eventId, state.stages);
 
   // Matches per player in a round robin = (largest flight size − 1).
   const flightSizes = state.groups.map(
@@ -269,21 +279,43 @@ export default async function StagesPage() {
    * The entitlement behind it is a query, so writing the element into both
    * branches below would run that query twice to render it in one place.
    */
-  const describeTournament = locked ? null : (
-    <DescribeTournament
-      available={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}
-    />
-  );
+  /**
+   * ONLY WHERE THE CLUB HAS IT (2026-10-16). Drafting is off on every plan, so
+   * every club saw a "Coming soon" panel in the middle of setting up its rounds —
+   * walked as a new organizer, clutter at the moment of most confusion, offering
+   * nothing to do. Ajay asked for this screen to be simple. Other locked features
+   * still show themselves; this one has no plan to point to yet.
+   */
+  const describeTournament =
+    locked || !(await entitlementForEvent(session.eventId, "aiAssist")).allowed ? null : <DescribeTournament available />;
 
   return (
     <>
       <SetupFlowRail flow={flow} href="/stages" />
+      {/* The title alone (2026-10-16, "redundancies"): "Set up" is the strip above
+          and the sidebar's heading, and the subtitle described the list below it. */}
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Set up</div>
         <h1 className="page-title">Rounds &amp; formats</h1>
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
-          The rounds, in order, each feeding the next.
-        </p>
+        {/* A SOCIETY OFTEN CHOOSES THE FORMAT ONCE IT KNOWS THE NUMBERS (Ajay,
+            2026-10-16: "sometimes it's hard to set up a round or format unless they
+            know how many signed up"). So the way round is offered before a round
+            exists, and the number is in front of them once people have entered. The
+            entry form already says "Format to be confirmed" with no round. */}
+        {state.confirmed.length > 0 ? (
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+            <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>{state.confirmed.length} entered</Link>
+            {state.stages.length === 0
+              ? ` — ${formatsThatSuit(state.confirmed.length)}.`
+              : PRE_LAUNCH_STATUSES.includes(state.event.status)
+                ? " so far."
+                : "."}
+          </p>
+        ) : state.stages.length === 0 ? (
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+            Waiting to see how many sign up?{" "}
+            <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>Take entries first</Link> — the entry form says &ldquo;Format to be confirmed&rdquo; until you choose.
+          </p>
+        ) : null}
       </div>
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
       {/* A way IN to the builder rather than an alternative to it — whatever
@@ -307,72 +339,85 @@ export default async function StagesPage() {
           rounds are being chosen, so a sentence about how they will be scored
           is advice rather than a post-mortem. One rule, in
           `scoringMismatch`, so the two cannot come to say different things. */}
-      {scoring && (
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "flex-start",
-            padding: "10px 12px",
-            borderRadius: 10,
-            marginBottom: 16,
-            background: "var(--color-danger-bg)",
-            border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
-          }}
-        >
-          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-            {/* The rounds score and rank by their own formats; what the setting
-                still decides is a draw or cut made from the standings. */}
-            <b>The Scoring setting does not match these rounds.</b> {scoring.message}{" "}
-            <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
-              Tournament details
-            </Link>
-          </p>
-        </div>
-      )}
-      {missingCardsNote && (
-        <div
-          role="status"
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "flex-start",
-            padding: "10px 12px",
-            borderRadius: 10,
-            marginBottom: 16,
-            background: "var(--color-danger-bg)",
-            border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
-          }}
-        >
-          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-            <b>A course card is missing.</b> {missingCardsNote}{" "}
-            <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
-              Open the course library
-            </Link>
-          </p>
-        </div>
-      )}
       {!locked && stages.length === 0 && describeTournament}
-      {/* Undated rounds cannot go on a player's availability calendar. Only
-          worth offering where there is a season to date — two or more
-          playing rounds — and something left to date. */}
-      {seasonUndated > 0 && playingCount >= 2 && (
-        <SeasonDates undated={seasonUndated} suggestedStart={state.today} />
-      )}
-      {/* A CARD NOBODY HAS CHECKED, NAMED WHERE IT IS CHOSEN (2026-09-19).
-          These rounds are scored against these cards, and a wrong stroke
-          index is invisible — it puts handicap shots on the wrong holes for
-          the life of the course. One line per course that needs a look, with
-          the way to do it; nothing is refused. */}
-      {venues
-        .map((v) => ({ venue: v, si: parseIndex(v.strokeIndex) }))
-        .filter(({ venue, si }) => cardTrustNote(venue, new Date(), undefined, si)?.warn)
-        .map(({ venue, si }) => (
-          <div key={venue.id} className="card elev-sm" style={{ marginBottom: 10 }}>
-            <span className="card-title" style={{ fontSize: 14 }}>{venue.name}</span>
-            <CardTrustNote card={venue} fix={`/event?course=${venue.id}`} strokeIndex={si} formatDate={dayAtClub} />
-          </div>
-        ))}
+      {/* EVERYTHING LEFT TO SORT OUT, IN ONE CARD (2026-10-16) — `SetupNotices`.
+          These were five cards stacked above the rounds, and on a ten-round
+          league at 375px the first round began 950px down. Each is still
+          named on the screen, one line each, its reason a tap away:
+
+            the Scoring setting   the same warning the leaderboard carries, on
+                                  the screen that creates the disagreement —
+                                  one rule, in `scoringMismatch`
+            a course card         the sentence launch refuses with
+            no dates              a round without a day is off the players'
+                                  availability calendar (two or more rounds)
+            approximate handicaps net scoring on unrated tees
+            an unchecked card     a wrong stroke index is invisible; nothing
+                                  is refused */}
+      <SetupNotices
+        items={[
+          ...(scoring
+            ? [{
+                key: "scoring",
+                tone: "block" as const,
+                // The rounds score and rank by their own formats; what the setting
+                // still decides is a draw or cut made from the standings.
+                title: "The Scoring setting does not match these rounds.",
+                body: (
+                  <>
+                    {scoring.message}{" "}
+                    <Link href="/event" style={{ color: "var(--color-accent-200)" }}>Tournament details</Link>
+                  </>
+                ),
+              }]
+            : []),
+          ...(missingCardsNote
+            ? [{
+                key: "cards",
+                tone: "block" as const,
+                title: "A course card is missing",
+                body: (
+                  <>
+                    {missingCardsNote}{" "}
+                    <Link href="/event" style={{ color: "var(--color-accent-200)" }}>Open the course library</Link>
+                  </>
+                ),
+              }]
+            : []),
+          ...(seasonUndated > 0 && playingCount >= 2
+            ? [{
+                key: "dates",
+                tone: "note" as const,
+                title: `${seasonUndated} ${seasonUndated === 1 ? "round has" : "rounds have"} no date`,
+                body: <SeasonDates undated={seasonUndated} suggestedStart={state.today} bare />,
+              }]
+            : []),
+          // One notice per cause: with no course card there is no rating either, and the
+          // card notice already says what to do (2026-10-16, "redundancies").
+          ...(handicapWarning && !missingCardsNote
+            ? [{
+                key: "handicaps",
+                tone: "note" as const,
+                title: "Handicaps are approximate",
+                body: (
+                  <>
+                    {handicapWarning} Add tees with a rating and slope under the course on{" "}
+                    <Link href="/event" style={{ color: "var(--color-accent-200)" }}>Tournament details</Link>.
+                  </>
+                ),
+              }]
+            : []),
+          ...venues
+            .map((v) => ({ venue: v, si: parseIndex(v.strokeIndex) }))
+            .filter(({ venue, si }) => cardTrustNote(venue, new Date(), undefined, si)?.warn)
+            .map(({ venue, si }) => ({
+              key: `card-${venue.id}`,
+              tone: "note" as const,
+              title: `${venue.name}: check its card`,
+              body: <CardTrustNote card={venue} fix={`/event?course=${venue.id}`} strokeIndex={si} formatDate={dayAtClub} />,
+            })),
+        ]}
+      />
       <StagesClient
         stages={stages}
         // Today AT THE CLUB, from the server, so the browser's render asks the
@@ -381,6 +426,14 @@ export default async function StagesPage() {
         // The lock the banner above states; the actions behind most controls
         // refuse it by throwing, so the controls have to know it too.
         locked={locked}
+        // Whether play has begun at all: the controls about PLAY wait for it.
+        launched={!PRE_LAUNCH_STATUSES.includes(state.event.status)}
+        // The knockout's arrangement, chosen on the round that is the knockout —
+        // the same reading of the stored mode the Bracket screen makes.
+        arrangement={(() => {
+          const mode = isBracketMode(state.event.bracketMode) ? state.event.bracketMode : "split";
+          return { mode, secondLabel: drawBrackets([], mode).secondLabel, canChange: session.viewRole === "admin" };
+        })()}
         // Staff, as `setStageCourse` is since Ajay's decision of 2026-09-27.
         canSetVenue={session.viewRole === "admin" || session.viewRole === "assistant"}
         singleMatches={singleMatches}
@@ -393,12 +446,6 @@ export default async function StagesPage() {
         homeVenue={state.event.course?.trim() || ""}
         activeStageId={state.activeStage?.id ?? null}
         roundsWithResults={[...state.roundsWithResults]}
-        // EVERY round, because the banner is one card for the whole screen.
-        // This asked the first Round Robin round and fell back to "gross", so a
-        // net MEDAL — which has no Round Robin at all — was never told its
-        // handicaps were approximate, and neither was a mixed tournament whose
-        // round robin happened to be gross. `unratedWarning` decides now.
-        handicapWarning={await unratedWarning(session.eventId, state.stages)}
         chainsRounds={
           effectiveCapabilities(shapeOf(state.event.shape), {
             roundCount: state.stages.length,
@@ -434,4 +481,27 @@ export default async function StagesPage() {
       <SetupFlowFooter flow={flow} href="/stages" />
     </>
   );
+}
+
+/**
+ * WHAT SUITS THE NUMBER ENTERED, in one line, for a society choosing its format
+ * once it knows how many signed up (2026-10-16; the golf professional and the
+ * tournament director on the review panel: "a single next line, not a format
+ * catalogue"). The scramble's sides come from the draw the app will make
+ * (`snakeDraw`, sides of 2 to 4 aiming at 4), so the line cannot promise sides it
+ * would not draw.
+ */
+function formatsThatSuit(n: number): string {
+  const parts = ["suits a Stableford"];
+  if (n >= 4) {
+    const pairs = Math.floor(n / 2);
+    parts.push(`pairs better-ball (${pairs} pairs${n % 2 ? ", one player alone — or add one" : ""})`);
+  }
+  if (n >= 6) {
+    const sides = snakeDraw(Array.from({ length: n }, (_, i) => ({ id: String(i), handicap: 0 })), 4, { min: 2, max: 4 })
+      .map((side) => side.length)
+      .sort((a, b) => b - a);
+    parts.push(`a Texas scramble (sides of ${sides.join(", ")})`);
+  }
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} or ${parts[parts.length - 1]}` : parts[0];
 }

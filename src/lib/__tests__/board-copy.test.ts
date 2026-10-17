@@ -11,7 +11,7 @@ import { readSource } from "./source";
  * THE LEADERBOARD A FOURBALL READS.
  *
  * `/leaderboard` is one of the screens a casual round deliberately KEEPS —
- * `nav.ts` says "Score entry, Live leaderboard, Rules reference and Group
+ * `nav.ts` says "Score entry, Leaderboard, Rules reference and Group
  * games mean exactly the same thing to a fourball as to a championship", and
  * for the TABLE that is true. Walked on 2026-09-11 with both cards in, the
  * rest of the screen said:

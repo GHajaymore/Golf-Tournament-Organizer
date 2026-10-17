@@ -109,7 +109,7 @@ export function RoundDeadlineControl({
           ? "Scores are still being accepted even though the date has passed. Set it back to follow the date once the last card is in."
           : status.state === "closed-manual"
             ? "No further scores for this round, whatever the date says."
-            : "Scoring follows the completion deadline above."}
+            : "Scoring follows the Play by date."}
       </p>
     </div>
   );

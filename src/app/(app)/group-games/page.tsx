@@ -327,7 +327,7 @@ export default async function GroupGamesPage({
   return (
     <>
       <div className="page-head">
-        <h1 className="page-title">{casual ? "Money game" : "Group games"}</h1>
+        <h1 className="page-title">{casual ? "Money game" : "Side games"}</h1>
         {/* Two screens' worth of wording, because they are two situations.
             A tournament's version is about which of several groups a pot
             belongs to; a casual round has one group and the only question is

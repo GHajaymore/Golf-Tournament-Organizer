@@ -145,7 +145,7 @@ describe("what the checklist says", () => {
   });
 
   it("keeps staff optional — one person can run a tournament", () => {
-    const staff = setupChecklist(empty).find((i) => i.label === "Access & staff");
+    const staff = setupChecklist(empty).find((i) => i.label === "Staff & helpers");
     expect(staff?.optional).toBe(true);
     expect(staff?.detail).toContain("Just you so far");
   });
@@ -402,6 +402,6 @@ describe("a checklist row calls a screen what the sidebar calls it", () => {
   it("falls back to the path rather than guessing for an unknown href", () => {
     expect(screenName("/nowhere")).toBe("/nowhere");
     // The query is not part of which screen this is.
-    expect(screenName("/registration?x=1")).toBe("Registration & field");
+    expect(screenName("/registration?x=1")).toBe("Entries");
   });
 });

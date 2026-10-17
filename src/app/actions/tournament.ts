@@ -61,6 +61,8 @@ import { WIPE_ON_CLOSE, roundWindowRefusal } from "@/lib/domain/close-terms";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
+import { formatFitsRound, naturalFormatFor, newRoundBasis, unscorableRoundLabels } from "@/lib/domain/round-choices";
+import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
@@ -92,7 +94,7 @@ import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { indexRefusal } from "@/lib/domain/handicap-label";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
-import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, KNOCKOUT_STAGE_TYPES, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { randomUUID } from "node:crypto";
 import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
@@ -566,7 +568,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
           : duplicate.status === "disqualified"
             ? // "Already in the field" is the one thing they are not, and a
               // second entry beside the ruling would quietly undo it.
-              `${duplicate.name} is already entered ${how} and has been disqualified — reinstate them on Registration & field rather than adding a second entry.`
+              `${duplicate.name} is already entered ${how} and has been disqualified — reinstate them on Entries rather than adding a second entry.`
             : `${duplicate.name} is already in the field ${how}.`,
     };
   }
@@ -721,7 +723,9 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
       handicapType: (data.handicapType as string) ?? player.handicapType,
       handicapSource: (data.handicapSource as string) ?? player.handicapSource,
     },
-      "staff",
+      // Details only: an existing member's index is changed through
+      // `setPlayerIndex`, which asks first (2026-10-16).
+      "staff-details",
     );
     if (memberId && memberId !== player.memberId) {
       await prisma.player.update({ where: { id: playerId }, data: { memberId } });
@@ -1907,6 +1911,13 @@ export async function setStageFormat(stageId: string, format: string, force = fa
   // Before the cards question, so a caller is never asked to confirm
   // re-scoring a round into a format that does not exist.
   if (!FORMAT_NAMES.includes(format)) return { ok: false as const, error: "That is not a format this round can be played in." };
+  // And not one this KIND of round cannot be scored in — the list the screen
+  // offers, from `formatChoicesFor` (2026-10-16). Asked before the cards
+  // question for the same reason as the line above.
+  const shape = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { type: true, format: true } });
+  if (shape && shape.format !== format && !formatFitsRound(shape.type, format)) {
+    return { ok: false as const, error: roundShapeMismatch(shape.type, format)?.message ?? "That format cannot be played in this kind of round." };
+  }
   if (!force) {
     const cards = await enteredCardCount(eventId, stageId);
     if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
@@ -2089,7 +2100,19 @@ export async function applyRoundHandicapToRest(
       frozen.add(s.id);
     }
   }
-  const open = later.filter((s) => !frozen.has(s.id));
+  /**
+   * ONLY WHERE THE SAME STROKES MEAN THE SAME THING (2026-10-16; the golf
+   * professional on the review panel). The figure is a COURSE handicap: whole
+   * strokes for one course, set of tees and length of round (Rules of
+   * Handicapping 6.1). Copied onto a round at another course, on other tees or
+   * of nine holes, it is simply the wrong number there. Those rounds are left,
+   * and counted with the ones that have cards in; changing the player's INDEX
+   * is how one decision reaches every round.
+   */
+  const source = stages[here];
+  const sameCard = (s: (typeof stages)[number]) =>
+    s.courseId === source.courseId && s.teeId === source.teeId && s.holes === source.holes;
+  const open = later.filter((s) => !frozen.has(s.id) && sameCard(s));
 
   for (const s of open) {
     await prisma.roundHandicap.upsert({
@@ -2099,7 +2122,7 @@ export async function applyRoundHandicapToRest(
     });
   }
   await refresh();
-  return { ok: true, written: open.length, skipped: frozen.size };
+  return { ok: true, written: open.length, skipped: later.length - open.length };
 }
 
 /* ── Tiebreakers & qualification ──────────────────────────────────────── */
@@ -2219,7 +2242,7 @@ export async function addStage(
   const previous = await prisma.stage.findFirst({
     where: { eventId },
     orderBy: { position: "desc" },
-    select: { format: true },
+    select: { format: true, type: true, scoringBasis: true },
   });
   const scoring = ev?.format === "stroke" ? "stroke" : "match";
   const common = {
@@ -2258,15 +2281,37 @@ export async function addStage(
           ? previous.format
           : defaultFormatFor("individual", "stroke"),
   };
+  /**
+   * AND NEVER A PAIR THAT CANNOT BE SCORED (2026-10-16). The backstop above
+   * repeats the last round, and the last round of a match-play qualifier is
+   * Match Play — which a stroke round after it cannot be played in. Where the
+   * seed does not fit this type, the type's own format, as a club plays it.
+   */
+  if (!formatFitsRound(stageType, common.format)) common.format = naturalFormatFor(stageType);
 
   // A format chosen in the create step applies to every round in the run —
   // that is the point of choosing it there rather than on N cards afterwards.
   // Only honoured when the app can actually run it, so a stale or hand-crafted
   // value cannot create rounds with nowhere to enter a card.
-  if (opts.format && isPlayable(opts.format)) common.format = opts.format;
-  // The basis follows the format it ended up with — a Stableford round is net,
-  // anything else opens on gross.
-  const scoringBasis = basisFor(common.format, "gross");
+  if (opts.format && isPlayable(opts.format)) {
+    // REFUSED, in words, where the type cannot be played in it — the same list
+    // the screen offers (`formatChoicesFor`). It used to create the round and
+    // let its card say "This round cannot be scored as set" afterwards.
+    if (!formatFitsRound(stageType, opts.format)) {
+      return { error: roundShapeMismatch(stageType, opts.format)?.message ?? "That format cannot be played in this kind of round." };
+    }
+    common.format = opts.format;
+  }
+  // Off handicap unless the organizer says scratch — `newRoundBasis`. A
+  // Stableford round is net either way.
+  /**
+   * …AND A ROUND AFTER THAT REPEATS THE LAST ONE'S, as the format does (the
+   * golf professional and the tournament director on the review panel, both
+   * ranking it first): Round 2 of a scratch 36-hole championship was created
+   * NET, because only the first round should start from the club default. A
+   * championship is gross every day; a medal series is net every week.
+   */
+  const scoringBasis = previous ? basisFor(common.format, previous.scoringBasis) : newRoundBasis(common.format);
   const holes = Number(opts.holes);
   if (holes === 9 || holes === 18) (common as { holes?: number }).holes = holes;
 
@@ -2314,6 +2359,35 @@ export async function addStage(
    */
   if (!previous && !isHeadToHead(stageType) && ev?.format !== "stroke") {
     await prisma.event.update({ where: { id: eventId }, data: { format: "stroke" } });
+  }
+
+  /**
+   * A KNOCKOUT AFTER STROKE QUALIFYING TAKES THE TOP N OVERALL (2026-10-16).
+   *
+   * The event's qualification starts at "top 2 per flight", which is right for
+   * a knockout after round-robin groups and is a FINAL after a medal: walked as
+   * a new organizer, a stroke round then a bracket drew two players from a field
+   * in one flight. A club qualifying on strokes takes the top 8 or 16 overall.
+   * Set when the knockout is added after a round with no opponents — the moment
+   * the question first means anything — and the organizer can change it there.
+   */
+  /**
+   * ONLY FOR THE FIRST KNOCKOUT, AND ONLY WHERE THE FIELD IS NOT IN FLIGHTS (the
+   * golf professional and the tournament director on the review panel): this
+   * wrote "overall" every time a knockout followed a medal, overwriting a
+   * per-flight choice the organizer had made and merging a flighted
+   * championship — Championship, First and Second flights each qualifying their
+   * own — into one draw.
+   */
+  if (isKnockoutRound(stageType) && previous && !isHeadToHead(previous.type)) {
+    const [knockoutsBefore, flights] = await Promise.all([
+      prisma.stage.count({ where: { eventId, type: { in: [...KNOCKOUT_STAGE_TYPES] }, position: { lt: position } } }),
+      // Flights, not team carriers (`flights-are-not-carriers.test.ts`).
+      prisma.group.count({ where: { eventId, isCarrier: false } }),
+    ]);
+    if (knockoutsBefore === 0 && flights <= 1) {
+      await prisma.event.update({ where: { id: eventId }, data: { qualifyMode: "overall" } });
+    }
   }
 
   // A new round of a code-using tournament needs a code, or it is a round
@@ -4696,7 +4770,7 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
    * inside setting up, gated between phases — see phase-gate.ts.
    */
   const [stages, confirmed, event] = await Promise.all([
-    prisma.stage.findMany({ where: { eventId }, select: { type: true } }),
+    prisma.stage.findMany({ where: { eventId }, select: { id: true, type: true, format: true, position: true } }),
     prisma.player.count({ where: { eventId, status: "confirmed" } }),
     prisma.event.findUnique({ where: { id: eventId }, select: { dates: true } }),
   ]);
@@ -4706,6 +4780,7 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
     confirmed,
     dated: !!event?.dates.trim(),
     missingCards: await roundsMissingCards(eventId),
+    unscorable: unscorableRoundLabels(stages),
   });
   if (refusal) return { ok: false, error: refusal };
 

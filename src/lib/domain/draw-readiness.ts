@@ -69,7 +69,7 @@ export interface DrawReadinessInput {
  * "add some players" anyway — the unlock has to come first or the next click
  * refuses again for a new reason.
  *
- * The empty-field link goes to Registration & field rather than to the club
+ * The empty-field link goes to Entries rather than to the club
  * roster, and the difference matters. The roster is who belongs to the club;
  * the FIELD is who is playing this tournament, and it is the field a draw is
  * made from. Sending somebody to the roster to fix an empty field is sending

@@ -36,7 +36,7 @@ describe("the settings screen says what turning Round Codes off would cost", () 
     expect(html, "an organizer would learn this only after saving").toContain(
       "12 players in this tournament have no email address",
     );
-    expect(html, "does not say what to do about it").toContain("Registration &amp; field");
+    expect(html, "does not say what to do about it").toContain("Entries");
   });
 
   it("warns on BOTH as well as code-only", () => {

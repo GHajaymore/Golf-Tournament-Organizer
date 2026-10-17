@@ -81,7 +81,7 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
       }
     }
     await page.waitForLoadState("networkidle").catch(() => {});
-    expect(new URL(page.url()).pathname, "sent away from Group games — not signed in?").toBe("/group-games");
+    expect(new URL(page.url()).pathname, "sent away from Side games — not signed in?").toBe("/group-games");
   };
 
   // CONTROL: nothing under that name before the walk starts.
@@ -114,7 +114,7 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
   const card = page.locator("section.card, div.card", {
     has: page.locator(".card-title", { hasText: `${NAME} — side bet` }),
   });
-  await expect(card, "a named bet that is not skins has no card on Group games").toHaveCount(1);
+  await expect(card, "a named bet that is not skins has no card on Side games").toHaveCount(1);
   await expect(card).toContainText("Birdie pot");
   await expect(card).toContainText("In the pot (3)");
 

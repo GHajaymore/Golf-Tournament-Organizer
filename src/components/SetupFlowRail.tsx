@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Icon } from "./Icon";
-import { positionOf, canAdvance, type SetupFlow } from "@/lib/domain/setup-flow";
+import { positionOf, type SetupFlow } from "@/lib/domain/setup-flow";
 import { LAUNCH_DOES, VISIBILITY_IS_ELSEWHERE } from "@/lib/domain/lifecycle-state";
 
 /**
@@ -142,9 +142,14 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
             // is an 11px bold uppercase label, and the "Now" pill sits on a
             // 12% tint of the accent — where step 500 measures 3.05:1 for the
             // worst club palette. See accent-is-not-a-text-colour.test.ts.
+            // The colour follows the word (2026-10-16): the step marked "Now" is the
+            // one on screen, so it takes the accent — it followed the first gap
+            // elsewhere, and two steps looked emphasised at once (the UI/UX
+            // designer on the review panel). The first gap is named in the line
+            // below the strip ("Still to do: …").
             const tone = s.done
               ? "var(--color-accent-2-200)"
-              : s.state === "current"
+              : here
                 ? "var(--color-accent-200)"
                 : "var(--color-neutral-500)";
             return (
@@ -173,7 +178,13 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
                   <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: tone, fontWeight: 700 }}>
                     {s.done ? <Icon name="check-circle" weight="fill" /> : <span>{i + 1}</span>}
                     <span style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                      {s.done ? "Done" : s.state === "current" ? "Now" : "To do"}
+                      {/* "NOW" IS THE STEP ON SCREEN (2026-10-16). It was the
+                          first unfinished step wherever the organizer stood, so
+                          on Rounds & formats the strip said "Now" over
+                          Tournament details — read as being on the wrong page.
+                          The first gap keeps its colour, and the line below
+                          names it: "Still to do: Tournament details". */}
+                      {s.done ? "Done" : here ? "Now" : ""}
                     </span>
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{s.label}</span>
@@ -188,12 +199,9 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
           on the screen itself rather than only in a checklist somewhere else.
           Shown only while this step is unfinished, so a screen revisited to
           change a date is not told it is incomplete. */}
-      {step && !step.done && (
-        <p style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-          <b>{step.question}</b>{" "}
-          <span className="text-muted">{step.missing}</span>
-        </p>
-      )}
+      {/* What is still missing is said ONCE, beside the Next button at the foot of
+          the screen where the press is (`SetupFlowFooter`) — it was said here too,
+          and in "To sort out" (2026-10-16, "redundancies"). */}
       {step?.done && flow.current && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
           {/* "Still to do", not "Next": the outstanding step is often BEHIND
@@ -228,7 +236,6 @@ export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: 
   if (!flow || flow.complete || flow.launched) return null;
   const { step, back, next } = positionOf(flow, href);
   if (!step) return null;
-  const ready = canAdvance(step);
 
   return (
     <div
@@ -252,26 +259,14 @@ export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: 
       <div style={{ flex: 1 }} />
       {next && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {/* Says WHY it is waiting rather than sitting there greyed out. A
-              disabled control with no reason is the app refusing to explain
-              itself, and this is the exact moment somebody gives up. */}
-          {!ready && (
-            <span className="text-muted" style={{ fontSize: 13, textAlign: "right" }}>
-              {step.missing}
-            </span>
-          )}
-          {ready ? (
-            <Link href={next.href} className="btn btn-primary">
-              Next: {next.label} <Icon name="arrow-right" />
-            </Link>
-          ) : (
-            /* A real disabled button rather than a dimmed link, so a tap does
-               nothing instead of navigating somewhere the organizer is not
-               ready for. */
-            <button type="button" className="btn btn-primary" disabled>
-              Next: {next.label} <Icon name="arrow-right" />
-            </button>
-          )}
+          {/* NEXT ALWAYS GOES (2026-10-16, the review panel on Ajay's "redundancies").
+              It waited, greyed, with the step's missing piece beside it — said a
+              third time on Rounds & formats, after the strip and "To sort out", and
+              read as if the dates blocked the next screen. Every step is a link in
+              the strip already; what is left is said once, where it is fixed. */}
+          <Link href={next.href} className="btn btn-primary">
+            Next: {next.label} <Icon name="arrow-right" />
+          </Link>
         </div>
       )}
     </div>

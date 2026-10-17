@@ -60,7 +60,7 @@ export function SeasonPicker({ startsOn, endsOn }: { startsOn: string; endsOn: s
 
   return (
     <div className="field" style={{ maxWidth: 420 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span className="field-caption" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         Season
         <FieldInfo label={`when the ${org.noun}'s season runs`}>
           <p>
@@ -72,7 +72,7 @@ export function SeasonPicker({ startsOn, endsOn }: { startsOn: string; endsOn: s
             March, or October to August — crosses the new year and is written {example}.
           </p>
         </FieldInfo>
-      </label>
+      </span>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input
           className="input"

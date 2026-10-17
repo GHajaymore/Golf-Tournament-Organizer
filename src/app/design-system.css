@@ -406,6 +406,16 @@ figcaption {
   letter-spacing: -0.004em;
   color: var(--color-text-muted); /* the one muted token, not a 72% of its own */
 }
+/* A CAPTION THAT CARRIES AN ⓘ IS NOT A <label> (2026-10-16). A label with no
+   `for` labels its first labelable descendant — the ⓘ button — so tapping the
+   words opened the help (the UI/UX designer on the review panel). It looks the
+   same; the control beside it is named in its own right.
+   See `a-caption-does-not-press-its-info-button.test.ts`. */
+.field > .field-caption {
+  display: block; font-size: 13px; margin-bottom: 6px; font-weight: 500;
+  letter-spacing: -0.004em;
+  color: var(--color-text-muted);
+}
 .input {
   width: 100%; min-height: 34px; padding: 6px 10px; font: inherit;
   font-size: 13.5px; color: var(--color-text); caret-color: var(--color-accent);
@@ -491,7 +501,12 @@ textarea.input { min-height: 90px; resize: vertical; }
 /* The LABEL takes the text step and the ring keeps step 500: one is read as
    words at 13px, the other is a border, and only the first owes 4.5:1. */
 .seg-opt:has(input:checked) { color: var(--color-accent-200); box-shadow: inset 0 0 0 1px var(--color-accent); }
-.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:not(:has(input:checked)):not(:has(input:disabled)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+/* LOCKED LOOKS LOCKED (2026-10-16, the review panel): with setup locked, Holes and
+   Gross/Net/Both looked as pressable as ever beside a greyed Format. The muted text
+   colour, not opacity, so the words still clear their contrast floor. */
+.seg-opt:has(input:disabled) { cursor: not-allowed; color: var(--color-text-muted); }
+.seg-opt:has(input:disabled):has(input:checked) { box-shadow: inset 0 0 0 1px var(--color-divider); }
 .seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 
 /* — cards — */

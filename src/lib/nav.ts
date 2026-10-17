@@ -55,18 +55,18 @@ export type NavTier = "on-course" | "at-desk";
  * float, the organizer's ledger, the season's skins — none of which a casual
  * round has. What it also held was the skins pot, which IS what four friends
  * playing for a fiver want, so removing the screen without moving that would
- * have taken the money game away. It lives on Group games now, which is where
+ * have taken the money game away. It lives on Side games now, which is where
  * players' own money already lived.
  *
- * WHAT DELIBERATELY STAYS. Registration & field, because it is where a
+ * WHAT DELIBERATELY STAYS. Entries, because it is where a
  * mistyped name or a wrong handicap gets fixed and there is nowhere else.
  * Rounds & formats, because changing 18 to 9 or gross to net is exactly the
  * second thought people have on the first tee. Tournament details, because it
  * is where the COURSE is set, and a round with no card cannot be scored net.
- * Group games, because a round played for a fiver is the oldest bet in golf.
+ * Side games, because a round played for a fiver is the oldest bet in golf.
  *
  * EXPORTED because the sidebar was not the only thing offering them. The setup
- * checklist on `/event` went on listing "Flights" and "Access & staff" for a
+ * checklist on `/event` went on listing "Flights" and "Staff & helpers" for a
  * match, which is the same doors reopened one card lower down: the nav had
  * shut them and the checklist had never been told. One set, two readers.
  */
@@ -163,12 +163,12 @@ export function screenAppliesToMatch(key: string): boolean {
  * What a casual round calls the screens it keeps.
  *
  * Not a second set of screens — the same ones, named for what they are when
- * the event is four friends rather than a field. "Registration & field" is a
+ * the event is four friends rather than a field. "Entries" is a
  * registration desk with a waitlist and approvals; on a Sunday fourball it is
  * the list of who is playing and what they are off.
  *
- * Only the entries that would read wrongly. Score entry, Live leaderboard,
- * Rules reference and Group games mean exactly the same thing to a fourball
+ * Only the entries that would read wrongly. Score entry, Leaderboard,
+ * Rules reference and Side games mean exactly the same thing to a fourball
  * as to a championship and are deliberately absent from this map.
  */
 const MATCH_ITEM_LABEL: Readonly<Record<string, string>> = {
@@ -195,14 +195,15 @@ const MATCH_ITEM_LABEL: Readonly<Record<string, string>> = {
  * matching a string of their own — a second spelling of this label is how the
  * sidebar and a test come to disagree about which section is the round's.
  */
-export const ROUND_SECTION = "The round in play";
+// "The round in play" was false all through setup, when nothing is (2026-10-16).
+export const ROUND_SECTION = "On the day";
 
 const MATCH_SECTION_LABEL: Readonly<Record<string, string>> = {
   // Two friends playing each other have one round and no field to tell, so
   // "The round in play" would be naming the only thing there is. The old
   // wording for this section is kept exactly.
   [ROUND_SECTION]: "Playing",
-  "Tell the field": "Messages",
+  "Tell players": "Messages",
   Afterwards: "Afterwards",
 };
 
@@ -278,7 +279,7 @@ export interface NavSection {
  *
  * THE FAULT THIS FIXES is that the old grouping named the organizer's PHASE
  * — Overview, Set up, Manage, Results — while the items inside mixed three
- * different scopes. "Live leaderboard" (one round, right now) sat under
+ * different scopes. "Leaderboard" (one round, right now) sat under
  * Overview; "Score entry" for the SAME round sat under Manage; "Bracket",
  * also one round, sat beside it; and nothing anywhere on the screen said
  * WHICH ROUND any of the three was showing. A tournament whose rounds can
@@ -369,13 +370,17 @@ export const NAV: NavSection[] = [
        * had an order to disagree about.
        */
       { key: "stages", label: "Rounds & formats", href: "/stages", icon: "ph ph-stack", tier: "at-desk" },
-      { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus", tier: "at-desk" },
+      { key: "registration", label: "Entries", href: "/registration", icon: "ph ph-user-plus", tier: "at-desk" },
       // Bands across the field, which is what a flight is — and NOT
       // ph-squares-four, which is the Dashboard's icon. Two entries wearing the
       // same glyph is the sidebar losing the only thing an icon is for.
       { key: "grouping", label: "Flights", href: "/grouping", icon: "ph ph-rows", tier: "at-desk" },
       { key: "teams", label: "Teams & pairs", href: "/teams", icon: "ph ph-users-three", tier: "at-desk" },
-      { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check", tier: "at-desk" },
+      // In Set up, where the strip has it (2026-10-16, the review panel): the fee, the
+      // prize table and who handles the money are decided before anybody tees off;
+      // paying out is one short act afterwards. Coins, not the trophy of Season standings.
+      { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-coins", tier: "at-desk" },
+      { key: "access", label: "Staff & helpers", href: "/access", icon: "ph ph-shield-check", tier: "at-desk" },
     ],
   },
   {
@@ -396,7 +401,7 @@ export const NAV: NavSection[] = [
     items: [
       { key: "foursomes", label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four", tier: "on-course" },
       { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", tier: "on-course" },
-      { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking", tier: "on-course" },
+      { key: "leaderboard", label: "Leaderboard", href: "/leaderboard", icon: "ph ph-ranking", tier: "on-course" },
       { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", tier: "on-course" },
       { key: "cup", label: "Team cup", href: "/cup", icon: "ph ph-flag-pennant", tier: "on-course" },
       { key: "week", label: "This week", href: "/week", icon: "ph ph-calendar-check", tier: "on-course" },
@@ -411,7 +416,7 @@ export const NAV: NavSection[] = [
      * group unable to be named after a round, because two of its entries were
      * not about one.
      */
-    label: "Tell the field",
+    label: "Tell players",
     items: [
       { key: "announcements", label: "Announcements", href: "/announcements", icon: "ph ph-megaphone", tier: "on-course" },
       { key: "messages", label: "Messages", href: "/messages", icon: "ph ph-chat-circle-dots", tier: "on-course" },
@@ -451,9 +456,6 @@ export const NAV: NavSection[] = [
     label: "Afterwards",
     items: [
       { key: "reports", label: "Reports & export", href: "/reports", icon: "ph ph-export", tier: "at-desk" },
-      // Coins rather than a trophy: the trophy belongs to Season standings, and
-      // this section is the money. What is being opened here is a payout.
-      { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-coins", tier: "at-desk" },
       // Its own entry, not a section of Prizes, because it is different money
       // with different owners: the field's pot is the club's, a group's pot is
       // four players' own. Two lists of identical-looking cards on one screen
@@ -461,7 +463,7 @@ export const NAV: NavSection[] = [
       // Money among a group, which is exactly what this screen is — and not
       // ph-users-three, which is "Teams & pairs" in Set up. The two screens are
       // already easy to confuse by name; wearing one glyph made it worse.
-      { key: "group-games", label: "Group games", href: "/group-games", icon: "ph ph-hand-coins", tier: "on-course" },
+      { key: "group-games", label: "Side games", href: "/group-games", icon: "ph ph-hand-coins", tier: "on-course" },
     ],
   },
   {
@@ -548,7 +550,7 @@ export function navForRole(
      *
      * What it deliberately keeps is anything a match genuinely has. The field
      * screen stays, because it is where a mistyped name or a wrong handicap
-     * gets fixed and there is nowhere else. Prizes and Group games stay,
+     * gets fixed and there is nowhere else. Prizes and Side games stay,
      * because a match played for a fiver is the oldest bet in golf. Rounds &
      * formats stays, because changing 18 to 9 or gross to net is exactly the
      * kind of second thought two people have on the first tee.
@@ -639,8 +641,8 @@ export function navForRole(
      * resolves its data from the selected event, so `requireEventSession`
      * sends it straight back to `/choose`: read off the rendered sidebar on
      * 2026-09-11 while signed in as a brand-new society, which offered
-     * Dashboard, Live leaderboard, Rules reference, Score entry, Messages and
-     * Group games — and every one of the six bounced. That is the same fault
+     * Dashboard, Leaderboard, Rules reference, Score entry, Messages and
+     * Side games — and every one of the six bounced. That is the same fault
      * the org setup rail was fixed for, and worse in a sidebar, which is
      * present on every screen and is the thing somebody navigates by. It also
      * defeats the point of the club having its own section: a section is only
@@ -733,7 +735,7 @@ export function navForRole(
    * The screens themselves are right to be here — the comment on `isMatch`
    * above says why each one stays, and none of that changes. What was wrong is
    * what they are CALLED. Two people who opened the app to play each other on
-   * Sunday were handed "Tournament details", "Registration & field", "Rounds &
+   * Sunday were handed "Tournament details", "Entries", "Rounds &
    * formats", under headings reading Set up, Manage and Results: a filing
    * cabinet for an event that does not exist, describing a round that will be
    * deleted tomorrow. Read off the screen on 2026-09-10 after setting one up.
@@ -824,7 +826,7 @@ export function navForRole(
  * one, silently, on the surface nobody checks on a desktop.
  *
  * The label is the one thing that legitimately differs — "Board" and "Scores"
- * rather than "Live leaderboard" and "Score entry" — because a tab is about
+ * rather than "Leaderboard" and "Score entry" — because a tab is about
  * 80px wide. That is a deliberate exception to the rule `screenName()` states,
  * and it is confined to this list so it cannot spread.
  */

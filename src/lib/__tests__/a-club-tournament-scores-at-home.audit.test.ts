@@ -16,7 +16,7 @@ const { resolveCourse } = await import("@/lib/courses");
  *
  * Found 2026-09-26 running a club Scramble from scratch as a newcomer. Both
  * sides' cards were entered and Score entry showed "62 gross · 50 net", the
- * dashboard said "Sides in 2/2 · 100% returned" — and the Live leaderboard,
+ * dashboard said "Sides in 2/2 · 100% returned" — and the Leaderboard,
  * Reports and the public board showed both sides on 0 holes, no score.
  *
  * `createEvent` starts a club's tournament at its home course by linking it as

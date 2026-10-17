@@ -135,7 +135,9 @@ beforeAll(async () => {
       round: 1,
       playerAId: ps[0].id,
       playerBId: ps[1].id,
-      holes: JSON.stringify(["A", "A", "A", "A", "A", ...new Array(13).fill(null)]),
+      // DECIDED: 10 up with 8 to play (it was 5 up after five, scoring only on
+      // the half point per hole won that new tournaments stopped paying 2026-10-16).
+      holes: JSON.stringify([...new Array(10).fill("A"), ...new Array(8).fill(null)]),
     },
   });
 }, 120_000);

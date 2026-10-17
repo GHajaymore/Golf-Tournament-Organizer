@@ -102,7 +102,7 @@ describe("forms that open on a click are named too", () => {
 });
 
 describe("console form controls are named", () => {
-  it("Registration & field, with players in both lists", async () => {
+  it("Entries, with players in both lists", async () => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     const html = render(
       <RegistrationClient
@@ -120,6 +120,24 @@ describe("console form controls are named", () => {
     expect(html).toContain("zz-Rob Ferris");
     expect(html).toContain("zz-Cleo Green");
     expect(unnamedControls(html)).toEqual([]);
+  });
+
+  it("Entries, before any format: points back to Rounds & formats, once", async () => {
+    // A society taking entries before it chooses the format (Ajay, 2026-10-16).
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    const ev = {
+      name: "zz-Society Day", capacity: 40, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+      registrationOverride: null, inviteMessage: "", organizationName: "zz-Society",
+      dates: "", course: "", city: "", registrationOpen: true, registrationApproval: "auto",
+      requirePhone: false, phoneLocked: false, registrationToken: "",
+    };
+    const empty = render(<RegistrationClient noFormatYet confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
+    expect(empty).toContain("No format yet");
+    expect(empty).toContain("Format to be confirmed");
+    // CONTROL: not once a format is chosen or somebody has entered.
+    const later = render(<RegistrationClient confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
+    expect(later).not.toContain("No format yet");
+    expect(unnamedControls(empty)).toEqual([]);
   });
 
   it("Club settings", async () => {
@@ -228,12 +246,10 @@ describe("console form controls are named", () => {
   });
 
   it("Match scoring points", async () => {
-    const { ScoringClient } = await import("@/components/ScoringClient");
-    const html = render(
-      <ScoringClient
-        initial={{ winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 }}
-        tiebreakers={["head-to-head" as never]} />,
-    );
+    const { PointsControl, TableTiebreakControl } = await import("@/components/ScoringClient");
+    const html =
+      render(<PointsControl initial={{ winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 }} />) +
+      render(<TableTiebreakControl tiebreakers={["head-to-head" as never]} />);
     expect(html).toContain("Points for winning a match");
     expect(unnamedControls(html)).toEqual([]);
   });

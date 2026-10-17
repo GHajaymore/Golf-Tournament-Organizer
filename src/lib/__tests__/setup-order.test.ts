@@ -72,7 +72,7 @@ describe("the setup sequence is stated once", () => {
   it("keeps the optional steps after the required ones", () => {
     /**
      * `bySetupOrder` sorts anything it does not recognise to the end, which is
-     * what keeps "Access & staff" and the branding nudge out of the middle of
+     * what keeps "Staff & helpers" and the branding nudge out of the middle of
      * the sequence. A stable sort, so the tail keeps the order its caller
      * chose rather than being shuffled.
      */
@@ -236,7 +236,7 @@ describe("the sides step, which only a team event has", () => {
 describe("a team cup's setup", () => {
   const facts = (cup: { flights: number; unplaced: number }) => ({
     confirmed: 8,
-    rounds: [{ label: "Round 1", drawsPairings: false, scheduled: true, cutFed: false, matches: 0 }],
+    rounds: [{ label: "Round 1", drawsPairings: false, scheduled: true, scorable: true, cutFed: false, matches: 0 }],
     groups: cup.flights,
     named: true,
     dated: true,
@@ -288,7 +288,7 @@ describe("a screen has one name", () => {
    *
    * It had spread. The dashboard's Quick actions carried their own labels:
    * "Players", "Rounds", "Prizes", "Reports", for screens the sidebar calls
-   * Registration & field, Rounds & formats, Prizes & payouts and Reports &
+   * Entries, Rounds & formats, Prizes & payouts and Reports &
    * export. Both names appear on the dashboard AT THE SAME TIME — the setup
    * checklist says one, a tile below says the other, and they are the same
    * link.
@@ -306,7 +306,7 @@ describe("a screen has one name", () => {
      *
      * `screenName(a.href` rather than the whole call: it takes a second
      * argument now, because a casual round calls three of these screens
-     * something else — "Who's playing" for Registration & field — and the tile
+     * something else — "Who's playing" for Entries — and the tile
      * has to agree with the sidebar or it recreates the very split this test
      * exists to stop, one shape further along.
      *
@@ -342,7 +342,7 @@ describe("a match is not offered the apparatus of running a field", () => {
    * The sidebar has closed these for a match since it learned about
    * `isMatch`: no flights to divide, no tee sheet to draw, nothing to
    * announce, nobody to hire. The setup checklist had never been told, so
-   * `/event` went on offering "Flights" and "Access & staff" one card below a
+   * `/event` went on offering "Flights" and "Staff & helpers" one card below a
    * sidebar that had shut both — the same doors reopened, on the screen a
    * casual round is most likely to be opened from.
    *

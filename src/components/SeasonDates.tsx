@@ -15,7 +15,16 @@ import { useFormatting } from "./CurrencyProvider";
  * dates every undated round in running order (`planSeasonDates`). Rounds that
  * already have a date are left exactly as they are.
  */
-export function SeasonDates({ undated, suggestedStart }: { undated: number; suggestedStart: string }) {
+export function SeasonDates({
+  undated,
+  suggestedStart,
+  bare = false,
+}: {
+  undated: number;
+  suggestedStart: string;
+  /** Inside another panel (`SetupNotices`), which already says what is missing: the form alone. */
+  bare?: boolean;
+}) {
   const [start, setStart] = useState(suggestedStart);
   const [every, setEvery] = useState(7);
   const [note, setNote] = useState("");
@@ -41,11 +50,37 @@ export function SeasonDates({ undated, suggestedStart }: { undated: number; sugg
     });
   };
 
+  /**
+   * ONE LINE UNTIL IT IS WANTED (2026-10-16). It sat open above the rounds with
+   * a paragraph and three controls — Ajay: the screen is "pretty long specially
+   * for multi round tournament". The line says what is missing and opens on a
+   * tap; once it has dated something it stays open to say so.
+   */
+  const [open, setOpen] = useState(false);
+  const shown = bare || open || !!note || !!error;
+
   return (
-    <section aria-label="Date the rounds" className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
-      <span className="card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <section
+      aria-label="Date the rounds"
+      className={bare ? undefined : "card elev-sm"}
+      style={bare ? { display: "flex", flexDirection: "column", gap: 10 } : { marginBottom: 16, gap: 10 }}
+    >
+      {!bare && (
+      <button
+        type="button"
+        aria-expanded={shown}
+        onClick={() => setOpen((o) => !o)}
+        className="card-title"
+        style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-text)", textAlign: "left", minHeight: 44, width: "100%" }}
+      >
         <Icon name="calendar-plus" /> {undated} {undated === 1 ? "round has" : "rounds have"} no date
-      </span>
+        <span className="text-muted" style={{ marginLeft: "auto", fontSize: 13, fontWeight: 400, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {shown ? "" : "Date them"} <Icon name={shown ? "caret-up" : "caret-down"} />
+        </span>
+      </button>
+      )}
+      {shown && (
+      <>
       <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
         A round without a day can&rsquo;t go on a player&rsquo;s availability calendar — and if none of them has
         one, players get a plain list instead. Date them all at once; rounds that already have a date are left as
@@ -99,6 +134,8 @@ export function SeasonDates({ undated, suggestedStart }: { undated: number; sugg
         <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
           {error}
         </p>
+      )}
+      </>
       )}
     </section>
   );

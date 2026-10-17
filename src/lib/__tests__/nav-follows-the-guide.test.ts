@@ -13,7 +13,7 @@ import { setupFlow, type SetupFacts } from "../domain/setup-flow";
  * It also says what the guide is FOR: so that "the app cannot tell an organizer
  * one order in the rail and a different one in the buttons".
  *
- * The sidebar was telling them a third order. It listed Registration & field
+ * The sidebar was telling them a third order. It listed Entries
  * above Rounds & formats — exactly the sequence that file rejects — so an
  * organizer following the rail went event → rounds → field while the list
  * beside it read event → field → rounds. Nothing reconciled the two, and the
@@ -76,7 +76,7 @@ describe("the sidebar and the setup guide agree about order", () => {
      */
     const sidebar = sidebarSetupHrefs();
     expect(sidebar.indexOf("/stages"), "Rounds & formats is missing").toBeGreaterThan(-1);
-    expect(sidebar.indexOf("/registration"), "Registration & field is missing").toBeGreaterThan(-1);
+    expect(sidebar.indexOf("/registration"), "Entries is missing").toBeGreaterThan(-1);
     expect(sidebar.indexOf("/stages")).toBeLessThan(sidebar.indexOf("/registration"));
 
     const guide = flowHrefs();

@@ -5,6 +5,7 @@ import { setupFlow, roundIsScheduled, type SetupFlow, type SetupFacts } from "..
 import { isMatch } from "../tournament-shape";
 import { generatesPairings, isKnockoutRound, isPlayingRound } from "../stage-types";
 import { roundLabel } from "../domain/round-label";
+import { roundShapeMismatch } from "../domain/round-shape";
 import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
 import { isMoneyMode } from "../domain/money-mode";
 import { TEAM_FORMAT_NAMES } from "../formats";
@@ -59,6 +60,7 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
       select: {
         id: true,
         type: true,
+        format: true,
         playedOn: true,
         deadline: true,
         cutEnabled: true,
@@ -104,6 +106,7 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
       label: roundLabel(stageRows, s.id),
       drawsPairings: generatesPairings(s.type),
       scheduled: roundIsScheduled(s.playedOn, s.deadline),
+      scorable: roundShapeMismatch(s.type, s.format) === null,
       cutFed: s.cutEnabled,
       matches: s._count.matches,
     })),

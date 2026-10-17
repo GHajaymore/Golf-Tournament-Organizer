@@ -35,6 +35,7 @@ import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isStraightKnockout, isWeeklyRound } from "@/lib/stage-types";
 import { playOverOf } from "@/lib/domain/tournament-switcher";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { unscorableRoundLabels } from "@/lib/domain/round-choices";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { overallResultLabel } from "@/lib/domain/overall-result";
@@ -72,10 +73,10 @@ import { flightLabel } from "@/lib/domain/flight-label";
  * NO LABELS HERE. The name of a screen comes from the sidebar, once.
  *
  * These carried their own: "Players", "Rounds", "Prizes", "Reports" — for
- * screens the sidebar calls Registration & field, Rounds & formats, Prizes &
+ * screens the sidebar calls Entries, Rounds & formats, Prizes &
  * payouts and Reports & export. Four screens with two names each, and both
  * names appear on THIS page at the same time: the setup checklist above says
- * "Registration & field" and a tile a few inches below says "Players", and
+ * "Entries" and a tile a few inches below says "Players", and
  * they are the same link.
  *
  * `nav.ts` already states the rule and grants exactly one exception — the
@@ -507,6 +508,7 @@ export default async function DashboardPage() {
           confirmed: state.confirmed.length,
           dated: !!state.event.dates.trim(),
           missingCards,
+          unscorable: unscorableRoundLabels(state.stages),
         })
       : lifecycleAction?.to === "completed"
         ? finishRefusal({
@@ -947,6 +949,24 @@ export default async function DashboardPage() {
 
       <AnnouncementList items={announcements} />
 
+      {/* A SOCIETY TAKING ENTRIES FIRST (2026-10-16; the tournament director on the
+          review panel). Two things it was not told: "Start taking entries" changes
+          the status and does not publish the sign-up link; and once the first
+          entry lands, the getting-started list goes, so nothing said the format
+          was still to choose. One line each, only while true. */}
+      {isStaff && event.status === "registration" && !event.registrationOpen && (
+        <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+          Players can&rsquo;t sign up themselves until the link is published —{" "}
+          <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>publish it on Entries</Link>.
+        </p>
+      )}
+      {isStaff && state.stages.length === 0 && state.confirmed.length > 0 && (
+        <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+          {state.confirmed.length} entered, no format yet —{" "}
+          <Link href="/stages" style={{ color: "var(--color-accent-200)" }}>choose one on Rounds &amp; formats</Link>.
+        </p>
+      )}
+
       {/* Ahead of the shortcuts, because "what next" outranks "where to". */}
       {unstarted && (
         <div className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
@@ -966,7 +986,7 @@ export default async function DashboardPage() {
           <span className="card-kicker">Quick actions</span>
           {/* `auto-fit` rather than a fixed five, because the labels are the
               sidebar's now and some of them are three words. Five hard columns
-              put "Registration & field" into a 64px tile on a 320px phone. The
+              put "Entries" into a 64px tile on a 320px phone. The
               same fix, for the same reason, as the flights grid in
               QualificationPanel. */}
           {/* `keep-grid`, so a phone keeps the tiles side by side. Without
@@ -1118,7 +1138,7 @@ export default async function DashboardPage() {
             {showStandings ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                  <span className="card-title">Live leaderboard</span>
+                  <span className="card-title">Leaderboard</span>
                   {/* A casual round's version of this card — "Where the match
                       stands", "Holes won" — is on its own screen now, read
                       through `casual-round.ts`. */}
@@ -1144,7 +1164,7 @@ export default async function DashboardPage() {
 
                      BOTH places, since 2026-09-26. This said "they're on
                      Reports & export" only, which sent a newcomer running a
-                     scramble away from the Live leaderboard — the screen built
+                     scramble away from the Leaderboard — the screen built
                      for it, which ranks the sides ("Scramble · 2 sides · lowest
                      net wins"). Checked on the seeded club: both screens show
                      them. */

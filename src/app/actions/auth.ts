@@ -61,7 +61,7 @@ async function startSessionFor(email: string): Promise<boolean> {
  * Sign in with email + password.
  *
  * `needsClaim` is returned when the email was pre-provisioned by an organizer
- * (via registration, CSV import, or Access & staff) but has never had a
+ * (via registration, CSV import, or Staff & helpers) but has never had a
  * password set. The UI sends those people to the "set your password" step
  * rather than showing a misleading "wrong password" error.
  */
@@ -204,7 +204,7 @@ export async function requestPasswordReset(email: string): Promise<{ ok: boolean
     // this an oracle: a registered address would error while an unregistered
     // one succeeded, which is exactly the enumeration this function is
     // supposed to prevent. Failures are logged inside sendPasswordResetEmail,
-    // and organizers see mail-configuration problems on Access & staff.
+    // and organizers see mail-configuration problems on Staff & helpers.
     await sendPasswordResetEmail(clean, `${base}/reset-password?token=${token}`);
   }
   // Always the same answer, whether or not the address is registered.

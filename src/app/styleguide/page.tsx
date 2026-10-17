@@ -181,7 +181,7 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
             actually open?" a question nobody could answer without seeding a
             tournament first. Here it is one click. */}
         <div className="field">
-          <label>
+          <span className="field-caption">
             Handicap allowance
             <FieldInfo label="the handicap allowance">
               <p>
@@ -190,7 +190,7 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
               </p>
               <p>A committee may set its own; these are recommendations, not rules.</p>
             </FieldInfo>
-          </label>
+          </span>
           <input className="input" defaultValue="90" style={{ maxWidth: 120 }} />
         </div>
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
