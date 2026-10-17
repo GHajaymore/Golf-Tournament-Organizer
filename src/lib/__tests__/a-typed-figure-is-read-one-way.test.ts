@@ -295,7 +295,7 @@ describe("no screen reads a typed number its own way", () => {
   /** The line, and why it is not somebody's typing. */
   const NOT_TYPED: [string, string][] = [
     ["setRoundIdx(parseInt(e.target.value, 10))", "a dropdown of rounds"],
-    ["commitCarry(carryEnabled, parseInt(e.target.value, 10))", "a slider"],
+    ["commitCarry(true, parseInt(e.target.value, 10))", "a slider"],
     ["setBulkHoles(holesPlayed(parseInt(e.target.value, 10)))", "a dropdown: 9 or 18"],
     ["setInterval(parseInt(e.target.value, 10))", "a dropdown of minutes"],
     ["parseFloat(getComputedStyle(row).columnGap", "a length off the stylesheet"],

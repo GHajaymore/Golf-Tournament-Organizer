@@ -627,13 +627,9 @@ function NextRoundTransition({
       )}
 
       <div style={{ borderTop: "1px solid var(--color-divider)", margin: "4px 0", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-        {nextIsSeeded ? (
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            <Icon name="tree-structure" /> {roundLabel} is a bracket, so its field is
-            whoever qualifies — set that under Qualification. A cut here would not change the
-            draw.
-          </p>
-        ) : (
+        {/* Before a bracket there is no cut to make: its field is its qualifiers,
+            set on the bracket's own card (2026-10-16 — the sentence saying so went). */}
+        {nextIsSeeded ? null : (
           <CutControl
             formId={stageId}
             getStageId={ensureNextStageId}
@@ -1564,6 +1560,10 @@ function StageCard({
           </div>
         </div>
 
+        {/* Not on a knockout (2026-10-16): its ties are played over weeks, and Play by
+            is the date that matters — two dates for one question was a redundancy. */}
+        {!isKnockoutRound(stage.type) && (
+        <>
         {/* The day this round is played — and, when a week is rained off, the
             one field the committee needs. Changing it moves this round only;
             the rest of the season and every score already entered stay put. */}
@@ -1601,6 +1601,8 @@ function StageCard({
             </span>
           )}
         </div>
+        </>
+        )}
 
         {/* Which nine, when the round is 9 holes. Front and back have their own
             pars and stroke indexes, so a net round on the back allocates shots

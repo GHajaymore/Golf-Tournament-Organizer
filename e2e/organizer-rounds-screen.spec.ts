@@ -232,7 +232,7 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     await expect(customize, "the closed bar does not say the ties are inside").toContainText("Ties");
     if ((await customize.getAttribute("aria-expanded")) !== "true") await customize.click();
     await expect(card.getByText("A match all square after 18")).toBeVisible();
-    await expect(card.getByText("→ stays halved — each side takes the halve points")).toBeVisible();
+    await expect(card.getByText("→ stays halved", { exact: true })).toBeVisible();
     await expect(card.getByText("Level in the table")).toBeVisible();
     // Change one: the card countback for a halved match, and the line says so after a reload.
     await card.getByRole("button", { name: "Change: A match all square after 18" }).click();

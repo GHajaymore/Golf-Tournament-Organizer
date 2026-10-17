@@ -10,8 +10,8 @@ import { DEFAULT_TIEBREAKERS, FIXED_TIEBREAKER_KEYS } from "@/lib/domain";
  */
 describe("a match all square after the last hole", () => {
   it("stays halved when nothing is chosen — correct match play", () => {
-    expect(matchTieInWords([], 18)).toBe("stays halved — each side takes the halve points");
-    expect(matchTieInWords(["halved"], 18)).toBe("stays halved — each side takes the halve points");
+    expect(matchTieInWords([], 18)).toBe("stays halved");
+    expect(matchTieInWords(["halved"], 18)).toBe("stays halved");
   });
   it("names the standard card countback, over 18 and over 9", () => {
     expect(matchTieInWords(STANDARD_COUNTBACK, 18)).toBe("card countback: last 9, 6, 3, then the last hole");

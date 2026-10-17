@@ -101,7 +101,6 @@ export function QualControl({
             onKeyDown={leaveOnEnter}
             onBlur={() => startTransition(() => setQualifyMode("overall", ov))}
           />
-          <span className="text-muted">overall</span>
         </label>
       )}
       <SaveState status={saveStatus} />

@@ -1695,7 +1695,7 @@ describe("rounds and format", () => {
           ]} />,
       );
     expect(open("Match Play")).toContain("A match all square after 18");
-    expect(open("Match Play")).toContain("stays halved — each side takes the halve points");
+    expect(open("Match Play")).toContain("→ stays halved");
     expect(open("Match Play")).toContain("Level in the table");
     expect(open("Stroke Play")).not.toContain("A match all square");
     expect(open("Stroke Play")).toContain("Level in the table");

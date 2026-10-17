@@ -72,7 +72,9 @@ export function BracketModePicker({
           </button>
         )}
       </div>
-      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{current.blurb}</p>
+      {/* "Every qualifier in a single knockout. Lose and you're out." under "One bracket"
+          says the name twice; the others' lines say something the name does not. */}
+      {!(embedded && mode === "single") && <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{current.blurb}</p>}
       {!readOnly && locked && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on{" "}

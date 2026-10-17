@@ -47,7 +47,7 @@ export const MATCH_ENTRY_MODES: Array<{
     key: "gross-cards",
     label: "Hole-by-hole scores",
     blurb:
-      "Both players' strokes on every hole. The most to type, and the only one that survives a change from gross to net.",
+      "Both players' strokes on every hole — the most to type, and the only one that counts for handicapping or can be re-scored if the round changes from gross to net.",
     rescorable: true,
   },
   {

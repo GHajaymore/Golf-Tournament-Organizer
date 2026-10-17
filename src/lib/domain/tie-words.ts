@@ -28,7 +28,7 @@ const same = (a: readonly string[], b: readonly string[]) => a.length === b.leng
 /** A round-robin match all square after the last hole: what happens, in words. */
 export function matchTieInWords(seq: readonly MatchTiebreakKey[], holes: number): string {
   const steps = seq.filter((k) => k !== "halved");
-  if (steps.length === 0) return "stays halved — each side takes the halve points";
+  if (steps.length === 0) return "stays halved";
   if (same(steps, holes === 9 ? STANDARD_COUNTBACK_9 : STANDARD_COUNTBACK)) {
     return holes === 9 ? "card countback: last 6, 3, then the last hole" : "card countback: last 9, 6, 3, then the last hole";
   }

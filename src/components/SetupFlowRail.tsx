@@ -199,12 +199,9 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
           on the screen itself rather than only in a checklist somewhere else.
           Shown only while this step is unfinished, so a screen revisited to
           change a date is not told it is incomplete. */}
-      {step && !step.done && (
-        <p style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-          <b>{step.question}</b>{" "}
-          <span className="text-muted">{step.missing}</span>
-        </p>
-      )}
+      {/* What is still missing is said ONCE, beside the Next button at the foot of
+          the screen where the press is (`SetupFlowFooter`) — it was said here too,
+          and in "To sort out" (2026-10-16, "redundancies"). */}
       {step?.done && flow.current && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
           {/* "Still to do", not "Next": the outstanding step is often BEHIND

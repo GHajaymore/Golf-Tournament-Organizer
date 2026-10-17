@@ -95,4 +95,4 @@ export function resolveThirdPlace(view: BracketView | null): ThirdPlaceResolutio
 export const THIRD_PLACE_LABEL = "Play-off for third";
 
 export const THIRD_PLACE_HELP =
-  "The two beaten semi-finalists play for third and fourth. Off by default — plenty of clubs send everyone to the bar instead — and it only appears once both semi-finals have a winner.";
+  "The two beaten semi-finalists play for third and fourth, once both semi-finals have a winner.";
