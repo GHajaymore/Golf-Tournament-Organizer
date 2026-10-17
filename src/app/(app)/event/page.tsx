@@ -362,6 +362,7 @@ export default async function EventPage({
           canEdit={session.viewRole === "admin"}
           strandedCount={strandedCount}
           shareToken={e.shareToken}
+          eventName={e.name}
           rounds={state.stages.map((s) => ({
             stageId: s.id,
             label: roundCodeName(state.stages, s),

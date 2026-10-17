@@ -44,6 +44,7 @@ import {
 import { formatAccessCode } from "@/lib/code-format";
 import { lockoutNotice } from "@/lib/domain/access-lockout";
 import { Icon } from "./Icon";
+import { RoundSigns } from "./RoundSigns";
 import { ConfirmButton } from "./ConfirmButton";
 import { StickySave } from "./StickySave";
 import FieldInfo from "./FieldInfo";
@@ -71,6 +72,8 @@ interface Props {
   rounds?: RoundCode[];
   /** Tournament mode only — the public leaderboard token. */
   shareToken?: string;
+  /** Tournament mode only — the tournament's name, printed at the top of each round's sign. */
+  eventName?: string;
   /**
    * Tournament mode only — the sets this course is rated for.
    *
@@ -206,6 +209,7 @@ export function PlaySettings({
   strandedCount = 0,
   rounds = [],
   shareToken,
+  eventName = "",
   tees = [],
   defaultTeeId = null,
 }: Props) {
@@ -692,9 +696,8 @@ export function PlaySettings({
         <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
           <span className="card-title" style={{ fontSize: 14 }}>Round Codes</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px" }}>
-            One code per round. Read it out on the first tee or put it on the tee sheet — players enter it,
-            then pick their own name. Anyone with the code can report a score for that round, so reissue it if
-            it travels beyond the field.
+            One code per round. Players scan the round&apos;s sign or type the code, then tap their own name.
+            Anyone with the code can report a score for that round, so reissue it if it travels beyond the field.
           </p>
 
           {rounds.length === 0 ? (
@@ -723,7 +726,7 @@ export function PlaySettings({
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            style={{ fontSize: 13, padding: "3px 9px" }}
+                            style={{ fontSize: 13, minHeight: 36 }}
                             onClick={() => copy(formatAccessCode(r.code), r.stageId)}
                           >
                             <Icon name="copy" /> {copied === r.stageId ? "Copied" : "Copy"}
@@ -740,7 +743,7 @@ export function PlaySettings({
                               label="Reissue"
                               title={`Reissue the code for ${r.label}`}
                               confirmLabel={r.code ? `Stop ${formatAccessCode(r.code)}` : "Make a code"}
-                              note={r.code ? `Players holding ${formatAccessCode(r.code)} will be refused.` : undefined}
+                              note={r.code ? `Players holding ${formatAccessCode(r.code)} will be refused, and its printed signs stop working.` : undefined}
                               className="btn btn-secondary"
                               style={{ fontSize: 13, minHeight: 36 }}
                               disabled={pending}
@@ -760,6 +763,7 @@ export function PlaySettings({
               </table>
             </div>
           )}
+          {rounds.length > 0 && <RoundSigns eventName={eventName} rounds={rounds} shareToken={shareToken} />}
         </div>
       )}
     </div>

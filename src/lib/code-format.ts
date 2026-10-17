@@ -41,3 +41,24 @@ export function looksLikeAccessCode(code: string): boolean {
   if (code.length !== CODE_LENGTH) return false;
   return [...code].every((c) => CODE_ALPHABET.includes(c));
 }
+
+/**
+ * THE ADDRESS A ROUND'S SIGN CARRIES (2026-10-17): `/play#ABCD-EFGH`.
+ *
+ * After the `#`, never in a query, because the part after a `#` is never sent
+ * to the server: the code stays out of request logs, out of a Referer, and a
+ * link preview that fetches the address learns nothing and redeems nothing.
+ * The page reads it in the browser and clears it.
+ */
+export function roundCodeLink(origin: string, code: string): string {
+  return `${origin}/play#${formatAccessCode(code)}`;
+}
+
+/** The code a sign's address carries, or "" for anything that is not one. */
+export function codeFromLink(hash: string): string {
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  // Exactly a code and nothing more: a longer fragment is not a sign's.
+  const bare = raw.toUpperCase().replace(/[\s-]/g, "");
+  if (bare.length !== CODE_LENGTH) return "";
+  return looksLikeAccessCode(bare) ? bare : "";
+}
