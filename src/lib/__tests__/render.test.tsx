@@ -1645,7 +1645,8 @@ describe("rounds and format", () => {
       "Play by",
       "Sign-up deadline",
       "Before the next round", "Points into Round 2", "Carry part", "Cut the field for Round 2",
-      "Generate",
+      // On the round it draws, once live (2026-10-16) — not on the round before.
+      "Draw Round 2&#x27;s matches",
       // On the face since 2026-10-16: one line per tie question (Ajay could not find them in Customize)
       "Ties", "A match all square after 18", "Level in the table",
       // Scoring, under Customize
@@ -1706,6 +1707,21 @@ describe("rounds and format", () => {
    * tie lines it raises and nothing else — walked over every kind, with what
    * each must NOT show beside what it must.
    */
+  it("draws a round on that round, once live — never on the round before, never at setup", () => {
+    // Ajay, 2026-10-16, of "Generate Round 2 pairings" on Round 1's card: "is this
+    // needed here?" Drawing is a match-day job, on the round it draws.
+    const two = (launched: boolean) =>
+      render(
+        <StagesClient {...base} chainsRounds launched={launched}
+          stages={[stage({ id: "r1", position: 0 }), stage({ id: "r2", position: 1, carryAsked: true })]} />,
+      );
+    expect(two(false)).not.toMatch(/Draw Round|Generate Round|not generated yet/i);
+    const live = two(true);
+    expect(live).toContain("Draw Round 2&#x27;s matches");
+    expect(live).not.toContain("Generate Round 2");
+    expect(live).not.toContain("Draw Round 1");
+  });
+
   it("offers each kind of round only the tie and points lines it raises", () => {
     const one = (over: Partial<StageView>) =>
       render(<StagesClient {...base} chainsRounds={false} stages={[stage({ id: "r1", position: 0, ...over })]} />);

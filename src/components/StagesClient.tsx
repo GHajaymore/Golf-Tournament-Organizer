@@ -269,6 +269,52 @@ function isIsoDate(v: string): boolean {
  * and closes on Done. See "Ties" on the round card, and the review panel's
  * brief in docs/tiebreak-brief-2026-10-16.md.
  */
+/**
+ * DRAW THIS ROUND, ON THIS ROUND, ONCE THE TOURNAMENT IS LIVE (2026-10-16).
+ * A round that follows another — a second round robin, a round after a cut —
+ * is drawn from the field (or the survivors) when the committee is ready. It
+ * was a button on the round BEFORE, shown from the day the tournament was made.
+ */
+function DrawRound({ stage, label }: { stage: StageView; label: string }) {
+  const [pending, startTransition] = useTransition();
+  const [refused, setRefused] = useState<string | null>(null);
+  const pairings = generatesPairings(stage.type);
+  const drawn = stage.matchCount > 0;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ minHeight: 44 }}
+          // Not gated on the lock: drawing a round is running the event. The server
+          // refuses — in words, shown below — a redraw of a round with scores in.
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              setRefused(null);
+              const res = await generateNextRound(stage.id);
+              if (!res.ok) setRefused(res.error);
+            })
+          }
+        >
+          <Icon name="arrows-clockwise" /> {pairings ? `${drawn ? "Redraw" : "Draw"} ${label}'s matches` : `Give out ${label}'s cards`}
+        </button>
+        {(stage.cutEnabled || drawn) && (
+          <span className="text-muted" style={{ fontSize: 13 }}>
+            {stage.cutEnabled ? "From the standings once the round before is complete." : "Redrawing replaces its matches."}
+          </span>
+        )}
+      </div>
+      {refused && (
+        <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+          <Icon name="warning-circle" /> Not drawn. {refused}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function TieRow({ question, rule, children }: { question: string; rule: string; children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -401,7 +447,6 @@ function NextRoundTransition({
   const [carryEnabled, setCarryEnabled] = useState(nextStage?.carryEnabled ?? false);
   const [carryPct, setCarryPct] = useState(nextStage?.carryPct ?? 0);
   const [pending, startTransition] = useTransition();
-  const [genPending, startGenTransition] = useTransition();
   // Every control in this section is behind the lock — see `SetupLocked`.
   const locked = React.useContext(SetupLocked);
   /**
@@ -412,7 +457,6 @@ function NextRoundTransition({
    * stopped and the round was still empty. The refusal it now returns is the
    * only warning an organizer gets before a cut ranks the field on zero.
    */
-  const [genError, setGenError] = useState<string | null>(null);
 
   // The next round is guaranteed to exist by the time anything below runs —
   // the no-next-round case returns early. Kept as a function because the cut
@@ -478,7 +522,6 @@ function NextRoundTransition({
   // A stroke-play / medal next round draws no pairings — the field returns
   // cards — so it is "generated" by handing the survivors a card, not by
   // building matches. Before it exists, assume a Round Robin (what gets created).
-  const nextDrawsPairings = nextStage ? generatesPairings(nextStage.type) : true;
   /**
    * A bracket takes its field from Qualification, not from a cut here.
    *
@@ -605,60 +648,10 @@ function NextRoundTransition({
             locked={locked}
           />
         )}
-        {!nextIsSeeded && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            // Not gated on the lock: drawing the next round is running the
-            // event. The server refuses — in words, shown below — a redraw of
-            // a round that already has scores while setup is locked.
-            disabled={genPending}
-            onClick={() =>
-              startGenTransition(async () => {
-                setGenError(null);
-                const id = await ensureNextStageId();
-                const res = await generateNextRound(id);
-                if (!res.ok) setGenError(res.error);
-              })
-            }
-          >
-            <Icon name="arrows-clockwise" /> {nextStage?.matchCount ? "Regenerate" : "Generate"} {roundLabel}
-            {nextDrawsPairings ? " pairings" : ""}
-          </button>
-          <span className="text-muted" style={{ fontSize: 13 }}>
-            {nextDrawsPairings
-              ? nextStage?.cutEnabled
-                ? `Builds ${roundLabel}'s matches from this round's current standings — run it once this round is complete.`
-                : `Builds ${roundLabel}'s matches for the full field, from the current flights.`
-              : nextStage?.cutEnabled
-                ? `Gives each player who advances a card for ${roundLabel} — run it once this round is complete.`
-                : `Gives every player a card for ${roundLabel}.`}
-            {nextDrawsPairings && !!nextStage?.matchCount && " Re-running replaces that round's matches."}
-          </span>
-        </div>
-        )}
-        {/* The refusal, in the place the organizer was looking when they
-            pressed the button. Without this the only feedback is the "not
-            generated yet" tag below, which was already there before the
-            click and so reads as nothing having happened. */}
-        {genError && (
-          <div
-            style={{
-              padding: "8px 10px",
-              border: "1px solid var(--color-danger)",
-              borderRadius: 8,
-              fontSize: 13,
-              lineHeight: 1.55,
-            }}
-          >
-            <b style={{ color: "var(--color-danger)" }}>
-              <Icon name="warning-circle" /> Not generated.
-            </b>{" "}
-            {genError}
-          </div>
-        )}
-        {/* "Not generated yet" is said once, on the next round's own row (2026-10-16). */}
+        {/* DRAWING THE NEXT ROUND IS NOT SETTING THIS ONE UP (2026-10-16; Ajay: "is this
+            needed here?"). "Generate Round 2 pairings" sat on Round 1's card from the
+            day the tournament was made. It is a match-day job, so it is on the round it
+            draws, once the tournament is live — see `DrawRound`. */}
       </div>
     </div>
   );
@@ -1001,7 +994,7 @@ function StageCard({
    */
   const showStrokeCut =
     chainsRounds && !showTransition && !!nextStage && isIndividualStrokeRound(stage) && isIndividualStrokeRound(nextStage);
-  const notGenerated = !isFirst && stage.type === "Round Robin" && stage.matchCount === 0;
+  const notGenerated = launched && !isFirst && stage.type === "Round Robin" && stage.matchCount === 0;
 
   // TWO summaries, because they answer to two different places and one string
   // cannot be honest in both. The closed round row has to cover the whole card.
@@ -1799,6 +1792,9 @@ function StageCard({
           above; this is the same line for a medal or a Stableford, which had no
           control at all until 2026-10-13 — and a field under thirty may play at
           100% (Appendix C). */}
+      {launched && !isFirst && !seededFromQualifiers(stage.type) && (
+        <DrawRound stage={stage} label={thisRound || "this round"} />
+      )}
       {stage.allowance && (
         <div>
           <SectionLabel>Handicap allowance</SectionLabel>
