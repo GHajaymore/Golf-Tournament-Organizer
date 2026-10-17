@@ -191,7 +191,7 @@ test("the secretary changes a member's index from the round, and Members shows i
     const who = ((await b.getAttribute("aria-label")) ?? "").replace(/^Change /, "").replace(/'s handicap$/, "");
     await b.click();
     await page.getByRole("radio", { name: /^Their handicap index/ }).check();
-    const box = page.getByLabel("Handicap index");
+    const box = page.getByRole("textbox", { name: "Handicap index", exact: true });
     await expect(box, "the index box never filled in").not.toHaveValue("", { timeout: 20_000 });
     if (await tick.isVisible()) {
       name = who;
@@ -203,7 +203,7 @@ test("the secretary changes a member's index from the round, and Members shows i
   }
   expect(name, "no player in the league could be pushed to Members").not.toBe("");
 
-  const box = page.getByLabel("Handicap index");
+  const box = page.getByRole("textbox", { name: "Handicap index", exact: true });
   await box.fill("7,3");
   await expect(page.getByText(new RegExp(`^Changes ${name}'s index from \\S+ to 7\\.3 for `))).toBeVisible();
   await expect(page.getByRole("button", { name: "Save index", exact: true })).toBeEnabled();
