@@ -100,7 +100,7 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
     const main = page.locator("main");
     await expect(main.getByRole("checkbox", { name: /^This round is finished/ })).toHaveCount(0);
     await expect(main.getByText("Scoring window")).toHaveCount(0);
-    for (const chip of ["Played", "Active", "Upcoming"]) {
+    for (const chip of ["Played", "In play", "Upcoming"]) {
       await expect(main.locator(".tag", { hasText: new RegExp(`^${chip}$`) }), `a ${chip} chip at setup`).toHaveCount(0);
     }
     // The strip's Now is this screen.
@@ -315,7 +315,8 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     await expect(page.locator(".tag", { hasText: /^\+ Plate$/ })).toHaveCount(0);
     // The round tools are headed by the first round, not the last round robin.
     await expect(page.getByText(/^Round 2 · Match Play$/i)).toHaveCount(0);
-    await expect(page.getByText(/^Round 1 · Match Play$/i)).toBeVisible();
+    // In the sidebar on a desktop, inside the closed Menu drawer on a phone.
+    await expect(page.getByText(/^Round 1 · Match Play$/i).first()).toBeAttached();
     await open(page, "/stages");
   });
 

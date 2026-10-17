@@ -59,7 +59,7 @@ async function openEditor(page: Page) {
   // since 2026-10-16 (a tag was "Upcoming" on every one); played and active ones do.
   const round = page
     .getByRole("button", { name: /^Round \d+ · / })
-    .filter({ hasNotText: /Played|Active/ })
+    .filter({ hasNotText: /Played|In play/ })
     .first();
   await expect(round, "the seeded league has no round still to be played").toBeVisible({ timeout: 20_000 });
   if ((await round.getAttribute("aria-expanded")) !== "true") await round.click();
