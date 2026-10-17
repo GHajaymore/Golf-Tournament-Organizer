@@ -2368,7 +2368,8 @@ export async function addStage(
   if (isKnockoutRound(stageType) && previous && !isHeadToHead(previous.type)) {
     const [knockoutsBefore, flights] = await Promise.all([
       prisma.stage.count({ where: { eventId, type: { in: [...KNOCKOUT_STAGE_TYPES] }, position: { lt: position } } }),
-      prisma.group.count({ where: { eventId } }),
+      // Flights, not team carriers (`flights-are-not-carriers.test.ts`).
+      prisma.group.count({ where: { eventId, isCarrier: false } }),
     ]);
     if (knockoutsBefore === 0 && flights <= 1) {
       await prisma.event.update({ where: { id: eventId }, data: { qualifyMode: "overall" } });
