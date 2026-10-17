@@ -28,6 +28,7 @@
  */
 
 import { isPlayingRound } from "@/lib/stage-types";
+import { firstHoleForRound } from "./hole-number";
 
 /** All this needs of a round: which one it is, and whether it is played. */
 export interface NumberedStage {
@@ -133,6 +134,26 @@ export function roundNameFor(
   stage: NumberedStage & { format?: string | null },
 ): string {
   return roundLabelWith(stages, stage.id, stage.format?.trim() || stage.type);
+}
+
+/**
+ * A ROUND CODE'S ROUND, named so two codes cannot be swapped: the format, and
+ * for a nine which holes — "Round 1 · Four-Ball · holes 10–18".
+ *
+ * A two-session cup read "Round 1 · Team Session" and "Round 2 · Team
+ * Session" beside its two codes, so an organizer reading them out at the turn
+ * had nothing to tell them apart by (the cup's UI review, 2026-10-17). The
+ * same name goes on the player's screen after the code, where it confirms
+ * they typed the right one.
+ */
+export function roundCodeName(
+  stages: readonly NumberedStage[],
+  stage: NumberedStage & { format?: string | null; holes?: number | null; nine?: string | null },
+): string {
+  const name = roundNameFor(stages, stage);
+  if (stage.holes !== 9) return name;
+  const first = firstHoleForRound(stage);
+  return `${name} · holes ${first}–${first + 8}`;
 }
 
 /**

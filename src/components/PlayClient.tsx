@@ -5,7 +5,8 @@ import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
-import { marginRefusal, matchIsOverAfter } from "@/lib/domain/match";
+import { countedHoles, marginRefusal, matchIsOverAfter, matchStandingText, resolveMatch } from "@/lib/domain/match";
+import { holeNumber } from "@/lib/domain/hole-number";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { filterNames, showsNameFilter } from "@/lib/domain/name-filter";
@@ -31,6 +32,10 @@ interface PlayMatch {
   /** True when the session holder is stored as player B — results must be
    *  flipped back before saving. */
   flipped: boolean;
+  /** A match between two sides (a four-ball pair): the holder speaks for their side. */
+  side?: boolean;
+  /** A net side match: each of the four players and their shots per hole (index 0 = the card's first hole). */
+  sideShots?: Array<{ name: string; perHole: number[] }> | null;
 }
 
 interface Props {
@@ -67,6 +72,8 @@ interface Props {
   pars?: number[];
   yards?: number[];
   strokeIndex?: number[];
+  /** The club card's own stroke index for these holes, to print in place of the 1–9 ranking on a nine. */
+  cardStrokeIndex?: number[];
   /** The course's number for the card's first hole — 10 on a back nine (`firstHoleOf`). */
   firstHole?: number;
   netMode?: boolean;
@@ -247,16 +254,21 @@ export function PlayClient(props: Props) {
   const [error, setError] = useState("");
   const [nameFilter, setNameFilter] = useState("");
   const [players, setPlayers] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [groups, setGroups] = useState<Array<{ label: string; ids: string[] }>>([]);
   const [context, setContext] = useState<{ eventName: string; roundLabel: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Local copy of the hole results, from the session holder's point of view.
   const [holes, setHoles] = useState<HoleResult[]>(props.match?.holes ?? []);
-  const [saved, setSaved] = useState(false);
+  // Set as the card saves; nothing reads it since the Final result has its own.
+  const [, setSaved] = useState(false);
   // Two ways a finished match arrives: tapped hole by hole as it was played,
   // or phoned in from the green as "3&2". Both write the same record.
   const [entryMode, setEntryMode] = useState<"holes" | "result">("holes");
   const [resultWinner, setResultWinner] = useState<"me" | "them" | "halved">("me");
+  // The Final result's own "saved", apart from the hole-by-hole one: sharing it
+  // read "Saved" on a result nobody had sent.
+  const [resultSaved, setResultSaved] = useState(false);
   const [resultMargin, setResultMargin] = useState("");
   // Whether this card has been signed. Held apart from `saved`, because
   // saving and signing are different statements — see the buttons.
@@ -357,6 +369,7 @@ export function PlayClient(props: Props) {
           return;
         }
         setPlayers(res.players ?? []);
+        setGroups(res.groups ?? []);
         setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "" });
       });
     };
@@ -422,6 +435,52 @@ export function PlayClient(props: Props) {
             </div>
           )}
 
+          {/* THE ROUND'S MATCHES, when it draws them and nobody is searching:
+              a player looks for their group, as on a tee sheet, not their
+              name in the whole field. Typing in the box goes back to the
+              plain filtered list. */}
+          {groups.length > 0 && nameFilter.trim() === "" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                ...groups,
+                ...(() => {
+                  const drawn = new Set(groups.flatMap((g) => g.ids));
+                  const rest = (players ?? []).filter((p) => !drawn.has(p.id)).map((p) => p.id);
+                  return rest.length ? [{ label: "Everyone else", ids: rest }] : [];
+                })(),
+              ].map((g, gi) => (
+                <section key={gi} className="card elev-sm" style={{ padding: "10px 12px" }} aria-label={g.label}>
+                  <h2 className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>{g.label}</h2>
+                  {/* Two to a row on a phone too (`keep-grid`): a foursome is
+                      two rows of thumb-sized names, not four. */}
+                  <div className="keep-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+                    {g.ids.map((id) => {
+                      const p = (players ?? []).find((x) => x.id === id);
+                      if (!p) return null;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={pending}
+                          style={{ minHeight: 48, fontSize: 15, justifyContent: "center", overflowWrap: "anywhere" }}
+                          onClick={() =>
+                            startTransition(async () => {
+                              const res = await claimPlayerSlot(code, p.id);
+                              if (!res.ok) setError(res.error ?? "Couldn't start your session.");
+                              else window.location.reload();
+                            })
+                          }
+                        >
+                          {p.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
           <div className="card elev-sm" style={{ padding: 0, overflow: "hidden" }}>
             {shownPlayers.length === 0 && (
               <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "13px 14px", lineHeight: 1.5 }}>
@@ -458,6 +517,7 @@ export function PlayClient(props: Props) {
               </button>
             ))}
           </div>
+          )}
 
           <button
             type="button"
@@ -850,6 +910,12 @@ export function PlayClient(props: Props) {
 
   const saveResult = () => {
     setError("");
+    // A RESULT REPLACES THE CARD. Typed over holes already tapped, it used to
+    // overwrite them without a word (the cup's UI review, 2026-10-17).
+    const tapped = holes.filter((h) => h !== null).length;
+    if (tapped > 0 && !window.confirm(`This replaces the ${tapped} hole${tapped === 1 ? "" : "s"} already entered with the result. Save it?`)) {
+      return;
+    }
     startTransition(async () => {
       // A-relative like everything stored: "me" flips when this player is B.
       const w =
@@ -859,7 +925,7 @@ export function PlayClient(props: Props) {
         setError(res.error ?? "Couldn't save.");
         return;
       }
-      setSaved(true);
+      setResultSaved(true);
     });
   };
 
@@ -867,9 +933,12 @@ export function PlayClient(props: Props) {
   // "I won" with this box empty used to be stored as a halved match.
   const resultRefusal = marginRefusal(resultWinner === "halved" ? "H" : "A", resultMargin, holeCount);
 
-  const won = holes.filter((h) => h === "A").length;
-  const lost = holes.filter((h) => h === "B").length;
-  const halved = holes.filter((h) => h === "H").length;
+  // Counted up to the closeout only: a hole tapped after the match was decided
+  // does not count, and the tally said it did (the cup's UI review).
+  const counted = countedHoles(Array.from({ length: holeCount }, (_, i) => holes[i] ?? null));
+  const won = counted.filter((h) => h === "A").length;
+  const lost = counted.filter((h) => h === "B").length;
+  const halved = counted.filter((h) => h === "H").length;
 
   return (
     <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
@@ -919,7 +988,7 @@ export function PlayClient(props: Props) {
             {(["me", "halved", "them"] as const).map((w) => (
               <label key={w} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                 <input type="radio" name="playwinner" checked={resultWinner === w} onChange={() => setResultWinner(w)} />
-                {w === "me" ? "I won" : w === "halved" ? "Halved" : "They won"}
+                {w === "me" ? (m.side ? "We won" : "I won") : w === "halved" ? "Halved" : "They won"}
               </label>
             ))}
           </div>
@@ -944,7 +1013,7 @@ export function PlayClient(props: Props) {
             </p>
           )}
           <button type="button" className="btn btn-primary" disabled={pending || !!resultRefusal} onClick={saveResult}>
-            {pending ? "Saving…" : saved ? "Saved" : "Submit result"}
+            {pending ? "Saving…" : resultSaved ? "Result saved" : "Save result"}
           </button>
           {error && (
             <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
@@ -962,6 +1031,55 @@ export function PlayClient(props: Props) {
           <span><b>{lost}</b> lost</span>
           <span className="text-muted" style={{ marginLeft: "auto" }}>{filled}/{holeCount} holes</span>
         </div>
+        {/* WHERE THE MATCH STANDS, in golf's words, and that it is OVER when
+            it is (found in the 2026-10-16 rehearsal: a match won 2&1 still
+            offered the 18th with nothing to say it was done). Holes tapped
+            after the closeout do not count — `resolveMatch` stops at it — so
+            the card stays open for correcting an earlier hole. */}
+        {(() => {
+          const padded = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);
+          const r = resolveMatch(padded);
+          if (r.played === 0) return null;
+          const me = m.side ? "Us" : "You";
+          const them = m.side ? "Them" : firstName(m.bName) || "Them";
+          const text = matchStandingText(r, me, them);
+          // A hole left EMPTY behind ones that have results — a second tap on
+          // an answer clears it — is said, so a standing that counts it as
+          // still to play is not read as the match (the cup's UI review).
+          const last = padded.reduce((at, h, i) => (h !== null ? i : at), -1);
+          const gaps = padded
+            .slice(0, last)
+            .map((h, i) => (h === null ? holeNumber(i, props.firstHole ?? 1) : null))
+            .filter((n): n is number => n !== null);
+          if (gaps.length > 0) {
+            return (
+              <p role="status" style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
+                <Icon name="warning-circle" /> No result yet on hole{gaps.length > 1 ? "s" : ""} {gaps.join(", ")}. Tap who won {gaps.length > 1 ? "them" : "it"}.
+              </p>
+            );
+          }
+          // The next step is said where the player is looking: a cup's second
+          // nine is another round with its own code, and the way to it was a
+          // "Sign out" at the foot of the page.
+          return r.complete ? (
+            <div className="card elev-sm" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <p role="status" style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
+                Match over: {text}. Nothing more to enter.
+              </p>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ minHeight: 44 }}
+                disabled={pending}
+                onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+              >
+                Enter another round code
+              </button>
+            </div>
+          ) : (
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{text}</p>
+          );
+        })()}
 
         {/* ONE HOLE AT A TIME (2026-10-07), the card the host's phone shows.
             This was eighteen tiles of three 13px buttons about 28px tall —
@@ -972,15 +1090,32 @@ export function PlayClient(props: Props) {
           holes={Array.from({ length: holeCount }, (_, i) => holes[i] ?? null)}
           aName="you"
           bName={m.bName}
-          aLabel="Me"
-          bLabel={firstName(m.bName) || "Them"}
+          aLabel={m.side ? "Us" : "Me"}
+          bLabel={m.side ? "Them" : firstName(m.bName) || "Them"}
           pars={props.pars ?? []}
           yards={props.yards ?? []}
           strokeIndex={props.strokeIndex ?? []}
+          shownStrokeIndex={props.cardStrokeIndex}
           firstHole={props.firstHole ?? 1}
           canHearNames={(firstName(m.bName) || "").toLowerCase() !== "me"}
           showVoice={props.voiceEntry ?? true}
           shotsOn={props.matchShots ? (h) => ({ a: props.matchShots?.mine[h] ?? 0, b: props.matchShots?.theirs[h] ?? 0 }) : undefined}
+          wonLost
+          noteFor={
+            m.sideShots
+              ? (h) => {
+                  const four = m.sideShots ?? [];
+                  // First names, unless two of the four share one.
+                  const firsts = four.map((p) => firstName(p.name) || p.name);
+                  const called = (i: number) => (firsts.filter((f) => f === firsts[i]).length > 1 ? four[i].name : firsts[i]);
+                  const getting = four
+                    .map((p, i) => ({ p, i }))
+                    .filter(({ p }) => (p.perHole[h] ?? 0) > 0)
+                    .map(({ p, i }) => `${called(i)}${(p.perHole[h] ?? 0) > 1 ? ` (${p.perHole[h]})` : ""}`);
+                  return getting.length ? `Shots here: ${getting.join(", ")}` : "No shots on this hole";
+                }
+              : undefined
+          }
           onPick={(i, v) => setHole(i, v)}
           onSay={(start, values) => {
             const next = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);
