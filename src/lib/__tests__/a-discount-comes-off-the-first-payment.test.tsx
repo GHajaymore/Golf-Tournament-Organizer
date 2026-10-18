@@ -187,8 +187,11 @@ describe("the doors ask the rule before they act", () => {
   it("sign-up refuses an unusable code before it makes an account, and keeps a usable one on the club", () => {
     const auth = readSource("src/app/actions/auth.ts");
     const signUp = body(auth, "export async function signUp(", "export async function enterTournament(");
-    expect(signUp.indexOf("discountRefusal(")).toBeGreaterThan(-1);
-    expect(signUp.indexOf("discountRefusal(")).toBeLessThan(signUp.indexOf("prisma.user.upsert("));
+    // Asked AND acted on: a refusal that is worked out and then ignored is the
+    // shape this first passed with (a mutation found it).
+    const refused = signUp.search(/const refusal = discountRefusal\([\s\S]*?\);\s*if \(refusal\) return \{ ok: false, error: refusal \};/);
+    expect(refused).toBeGreaterThan(-1);
+    expect(refused).toBeLessThan(signUp.indexOf("prisma.user.upsert("));
     expect(signUp).toMatch(/data: \{ discountCode \}/);
   });
 
