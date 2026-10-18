@@ -15,7 +15,7 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { FoursomeMaker } from "@/components/FoursomeMaker";
 import { WeekField, type WeekFieldRow } from "@/components/WeekField";
-import type { Standing } from "@/lib/domain/draw";
+import { sidesByMatch, type Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
@@ -644,7 +644,12 @@ export default async function FoursomesPage({
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}
         // The round's sides, so partners go out together — `groupBySides`.
         // Loaded above for the cards already; empty for a round with no sides.
-        sides={teams.map((t) => t.members.map((m) => m.playerId))}
+        // Where sides are drawn against each other, a match's two sides are one
+        // unit, so the four who play each other go out together (`sidesByMatch`).
+        sides={sidesByMatch(
+          teams.map((t) => ({ id: t.id, playerIds: t.members.map((m) => m.playerId) })),
+          stage ? state.matches.filter((m) => m.stageId === stage.id && m.teamAId && m.teamBId) : [],
+        )}
         // "7 foursomes · 1 twosome", or "7 fourballs · 1 two-ball" for a UK club.
         terms={await golfTermsForEvent(session.eventId)}
         standings={sideStandings.length > 0 ? sideStandings : standings}

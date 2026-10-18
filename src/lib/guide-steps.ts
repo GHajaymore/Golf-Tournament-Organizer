@@ -209,8 +209,9 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "In Tournament details → Players & scoring, set **How players sign in** to an access-code option.",
           "Each round gets one code under **Round Codes**, with [[Copy]] and [[Reissue]].",
-          "Read it out on the first tee or print it on the tee sheet. Players open tourneyhq.club/play, enter the code and pick their name.",
-          "In a four-ball or foursomes match, any player on either side can keep the match on their phone: the code opens their side's match, and they tap who won each hole. Ask one player per group to keep it, so two phones are not keeping one match.",
+          "Under the codes, [[Show the signs]] draws one sign per round — the round, a QR code and the code in large letters — and **Print** puts each on a page of its own. Put one in every cart and one on the first tee. A player scans it and lands on the round's names; or opens tourneyhq.club/play and types the code. Either way they then tap their own name.",
+          "Before the day, scan a sign with your own phone: it should open that round's names. Stop there — tapping a name starts scoring as that player. A sign carries no names, so it stays right when groups change; reissuing the code stops its signs working, so print them again after a [[Reissue]].",
+          "In a four-ball or foursomes match, any player on either side can keep the match on their phone: the code opens their side's match, and they tap who won each hole. Ask one player per group to keep it, so two phones are not keeping one match. On Score entry such a match shows its standing — “Blues 2 up with 4 to play · kept hole by hole” — rather than strokes.",
         ],
       },
       { kind: "warn", text: "Anyone with the code can report a score for that round. If it spreads beyond the field, [[Reissue]] it." },
@@ -239,6 +240,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Open **Let players sign themselves up** and press [[Publish the link]].",
+          "For the noticeboard or the pro shop, [[Show QR code]] draws a poster — the tournament, its date and course, and a QR code to the sign-up link — and [[Print poster]] prints it on a page of its own. [[New link]] makes printed posters stop working, so print them again after one.",
           "Choose **When someone registers**: **Auto-confirm to capacity** or **Approve each entry**. Tick **Require a mobile number** if you want one.",
           "Share it from **Invite players**: edit the message, then [[WhatsApp]], [[SMS]], [[Share…]], [[Copy message]] or [[Copy link]].",
           "Under **Pending approval**, press [[Accept]] or [[Decline]]. Beyond capacity, entries go to the **Waitlist** and are promoted automatically when a place frees up.",
@@ -289,6 +291,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Choose the order off the tee and the group size (2, 3 or 4).",
           "**Start**: One tee, **Split** (1st and 10th) or **Shotgun** (a group on every hole). Set **First tee** and **Interval**.",
           "Players' pairing requests are kept together where possible (not in a draw by position); any that couldn't fit are listed.",
+          "In a team round partners always go out together, and where sides play a match — a cup's four-balls or foursomes — both sides of each match share a group, so every group is one match.",
           "[[Save sheet]] keeps a draft. [[Save & publish]], then confirm [[Publish the tee sheet]].",
         ],
       },

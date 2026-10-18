@@ -66,6 +66,12 @@ export interface TeamEntryRow {
   grossTotal: number;
   netTotal: number;
   played: number;
+  /**
+   * The match as the players kept it hole by hole on a round code — "CVC 2 up
+   * with 4 to play" — or "" where nobody has. Said where the strokes would be
+   * when there are none, so a match in play does not read "No score yet".
+   */
+  matchLine?: string;
 }
 
 /**
@@ -530,7 +536,11 @@ export function TeamEntryClient({
               </span>
             )}
             <span className="text-muted" style={{ fontSize: 13, marginLeft: "auto" }}>
-              {t.played > 0 ? `${t.grossTotal} gross · ${t.netTotal} net · ${t.played} holes` : "No score yet"}
+              {t.played > 0
+                ? `${t.grossTotal} gross · ${t.netTotal} net · ${t.played} holes`
+                : t.matchLine
+                  ? `${t.matchLine} · kept hole by hole`
+                  : "No score yet"}
             </span>
           </div>
 
