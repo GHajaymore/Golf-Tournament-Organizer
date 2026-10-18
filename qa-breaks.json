@@ -1,0 +1,10 @@
+[
+  {
+    "what": "Use a different code keeps the code just used in the box",
+    "file": "src/components/PlayClient.tsx",
+    "from": "              setCode(\"\");\n              setError(\"\");",
+    "to": "              setError(\"\");",
+    "spec": "e2e/round-code-box-starts-empty.spec.ts",
+    "project": "desktop"
+  }
+]
