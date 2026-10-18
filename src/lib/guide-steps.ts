@@ -67,7 +67,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "**Your handicap body** is the one your members belong to: GHIN (USGA), England Golf, Golf Ireland (north and south), Golf Canada or Golf Australia — or **Your national association** anywhere else. It is suggested from your club's country. Every one of them uses the World Handicap System.",
+          "**Handicap body** is the one your members belong to, and it follows your club's country (set under Branding): GHIN (USGA) in the US, England Golf, Golf Ireland (north and south), Golf Canada or Golf Australia — or **Your national association** anywhere else, and until you have said where the club is. Every one of them uses the World Handicap System.",
           "Then choose: **Entered here only** (organizers type handicaps, or take the one suggested from members' cards); **‹body› where a member has one** (a member with a number plays off that body's index, a guest or new member off the club's figure — most clubs); or **‹body› only** (nobody types a handicap by hand).",
           "None of these bodies is connected to TourneyHQ yet, and the screen says so. Until one is, players keep the index already on file, with its age shown — nobody is moved to zero.",
         ],

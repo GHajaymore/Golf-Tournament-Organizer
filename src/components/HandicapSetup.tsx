@@ -4,8 +4,7 @@ import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
-import { useState } from "react";
-import { HANDICAP_BODIES, aNumber, bodyInProse, bodyShortLabel, handicapBody } from "@/lib/domain/handicap-body";
+import { aNumber, bodyInProse, bodyShortLabel, handicapBody } from "@/lib/domain/handicap-body";
 
 /**
  * Where this club's handicaps come from, and whether rounds go back.
@@ -26,6 +25,8 @@ export interface HandicapSetupView {
   policy: "club" | "hybrid" | "ghin";
   /** The club's handicap body (`domain/handicap-body.ts`). */
   body: { id: string; name: string; number: string };
+  /** Whether the club has said where it is — the only thing that decides its body. */
+  countryKnown?: boolean;
   handicap: { providerId: string; label: string; status: string; howToEnable: string };
   scores: {
     enabled: boolean;
@@ -45,12 +46,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function HandicapSetup({ view }: { view: HandicapSetupView }) {
   const { pending, error, run } = useAction({ refresh: true });
-  // Which body the club belongs to. On its own record nothing is stored, so a
-  // pick here waits for the club to choose "Both" or "<body> only"; once it
-  // uses a body, changing it saves straight away.
-  const [bodyId, setBodyId] = useState(view.body.id);
-  const body = handicapBody(bodyId) ?? handicapBody(view.body.id)!;
-
+  // The club's body, from its country (`clubHandicapBody`) — not picked here.
+  const body = handicapBody(view.body.id) ?? handicapBody("national")!;
   const from = bodyInProse(body);
 
   // Shown for hybrid as well: a hybrid club still needs the connection for
@@ -75,34 +72,20 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
         </FieldInfo>
       </div>
 
-      {/* The body the club's members belong to — GHIN for a US club, England
-          Golf for one in England, Golf Ireland north and south. Every one of
-          them works out an index the same way, under the World Handicap System;
-          what differs is who holds the golfer's record. */}
-      <div className="field" style={{ margin: 0 }}>
-        <label htmlFor="handicap-body" style={{ fontSize: 13, fontWeight: 600 }}>Your handicap body</label>
-        <select
-          id="handicap-body"
-          className="input"
-          style={{ maxWidth: 320 }}
-          value={bodyId}
-          disabled={pending || !view.canEdit}
-          onChange={(e) => {
-            const next = e.target.value;
-            setBodyId(next);
-            if (view.policy !== "club") run(() => saveHandicapPolicy(view.policy, next));
-          }}
-        >
-          {HANDICAP_BODIES.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-        <span className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 5 }}>
-          Every body here uses the World Handicap System.
+      {/* The body the club's members belong to, from where the club is —
+          GHIN in the US, England Golf in England, Golf Ireland north and south
+          (Ajay, 2026-10-17: "make it geographical vs US enforced"). Said, not
+          picked: the way to change it is to say where the club is. */}
+      <p style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
+        <span style={{ fontWeight: 600 }}>Handicap body: {body.name}</span>
+        <span className="text-muted">
+          {" "}
+          — {view.body.id === "national" && !view.countryKnown
+            ? "add your club's country under Branding on this page and this becomes its own body."
+            : "from your club's country."}{" "}
+          It uses the World Handicap System.
         </span>
-      </div>
+      </p>
 
       <div>
         <span className="card-kicker">Where indexes come from</span>
@@ -124,7 +107,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
               style={{ fontSize: 13, padding: "6px 12px" }}
               aria-pressed={view.policy === opt.id}
               disabled={pending || !view.canEdit}
-              onClick={() => run(() => saveHandicapPolicy(opt.id, bodyId))}
+              onClick={() => run(() => saveHandicapPolicy(opt.id))}
             >
               {opt.label}
             </button>

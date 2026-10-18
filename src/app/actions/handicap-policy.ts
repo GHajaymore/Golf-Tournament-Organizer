@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { organizationAccess } from "@/lib/services/org-access";
 import { isHandicapPolicy } from "@/lib/domain/handicap-policy";
 import { handicapAuthority, scoreReporter } from "@/lib/integrations/registry";
+import { clubHandicapBody } from "@/lib/domain/handicap-body";
 
 /**
  * A club deciding where its handicaps come from, and whether rounds go back.
@@ -37,10 +38,7 @@ async function requireClub(): Promise<
 }
 
 /** Switch the club between its own record and an association's figures. */
-export async function saveHandicapPolicy(
-  policy: string,
-  authorityId: string,
-): Promise<PolicyResult> {
+export async function saveHandicapPolicy(policy: string): Promise<PolicyResult> {
   const club = await requireClub();
   if (!club.ok) return { ok: false, error: club.error };
 
@@ -49,17 +47,18 @@ export async function saveHandicapPolicy(
   }
 
   /**
-   * The authority has to be one this app actually has.
+   * THE BODY IS THE CLUB'S COUNTRY'S, worked out here — never taken from the
+   * caller (Ajay, 2026-10-17: "make it geographical vs US enforced"). A public
+   * endpoint handed "ghin" by a club in England would otherwise put it on the
+   * USGA's books. `clubHandicapBody` is the one answer; every screen reads it.
    *
-   * Storing an unknown id would leave the club on a policy with no provider —
-   * `integrationSetup` reports that as unconfigured rather than falling back
-   * to another association, which is right, but it is a state better refused
-   * here than explained later.
+   * Stored with "where a member has one" as surely as with "only" — until
+   * 2026-10-17 only the latter stored a body at all.
    */
-  // "Both" uses a body as surely as "<body> only" does. Until 2026-10-17 only
-  // the latter stored which one, so a "Both" club in England read GHIN.
   const usesBody = policy !== "club";
-  if (usesBody && !handicapAuthority(authorityId)) {
+  const org = await prisma.organization.findUnique({ where: { id: club.organizationId }, select: { country: true } });
+  const body = clubHandicapBody(org ?? {});
+  if (usesBody && !handicapAuthority(body.id)) {
     return { ok: false, error: "That handicapping association isn't available." };
   }
 
@@ -67,7 +66,7 @@ export async function saveHandicapPolicy(
     where: { id: club.organizationId },
     data: {
       handicapPolicy: policy,
-      ...(usesBody ? { handicapAuthorityId: authorityId.trim().toLowerCase() } : {}),
+      ...(usesBody ? { handicapAuthorityId: body.id } : {}),
     },
   });
 

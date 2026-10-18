@@ -47,14 +47,22 @@ export function handicapBody(id: string | null | undefined): HandicapBody | null
 }
 
 /**
- * The body a club in this country most likely answers to — a default to
- * offer, never a choice made for it.
+ * THE BODY A CLUB IN THIS COUNTRY BELONGS TO — decided by where it is.
+ *
+ * Ajay, 2026-10-17: "make it geographical vs US enforced". A club does not
+ * pick its body any more than it picks its country: a club in England is
+ * affiliated to England Golf by being in England. So there is no picker; the
+ * club's country (Club settings) decides.
  *
  * Read from what the club TYPED as well as its ISO code, because "GB" is four
  * nations and two bodies: Northern Ireland is Golf Ireland (one body for the
  * whole island), England is England Golf, and Scotland and Wales have bodies
  * of their own that this list does not carry yet, so they get the national
- * fallback rather than England's. A blank country is the app's default, the US.
+ * fallback rather than England's.
+ *
+ * A club that has not said where it is gets "your national association" —
+ * NOT GHIN. Assuming America for a club that has not said is the US-enforced
+ * default this replaced.
  */
 export function defaultHandicapBody(country: string | null | undefined): HandicapBody {
   const raw = (country ?? "").trim().toLowerCase();
@@ -65,25 +73,21 @@ export function defaultHandicapBody(country: string | null | undefined): Handica
   if (code === "GB") return pick("england-golf");
   if (code === "CA") return pick("golf-canada");
   if (code === "AU") return pick("golf-australia");
-  if (code === "US" || !code) return pick("ghin");
+  if (code === "US") return pick("ghin");
   return pick("national");
 }
 
 /**
- * THE BODY THIS CLUB IS ON — the one question every screen and action asks.
+ * THE BODY THIS CLUB IS ON — the one question every screen and action asks,
+ * answered by the club's country and nothing else (`defaultHandicapBody`).
  *
- * A club that has chosen one ("Both" or "<body> only") is on the body it
- * chose. A club still on its own record has chosen nothing — and the stored
- * column defaults to "ghin" for every club ever made — so it is offered its
- * country's body, which is what its members will have numbers with.
+ * The stored `handicapAuthorityId` is written from the same answer when a club
+ * turns a body on, and is NOT read back here: it defaulted to "ghin" for every
+ * club ever made, and a stored value that disagreed with the country would be
+ * exactly the US-enforced answer this replaced.
  */
-export function clubHandicapBody(org: {
-  handicapPolicy?: string | null;
-  handicapAuthorityId?: string | null;
-  country?: string | null;
-}): HandicapBody {
-  const chose = (org.handicapPolicy ?? "club").trim().toLowerCase() !== "club";
-  return (chose && handicapBody(org.handicapAuthorityId)) || defaultHandicapBody(org.country);
+export function clubHandicapBody(org: { country?: string | null }): HandicapBody {
+  return defaultHandicapBody(org.country);
 }
 
 /** "a GHIN number", "an England Golf membership number (CDH)". */

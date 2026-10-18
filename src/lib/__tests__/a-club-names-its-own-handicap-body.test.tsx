@@ -35,7 +35,9 @@ describe("the body a club is offered, from where it is", () => {
   const cases: Array<[string, string]> = [
     ["United States", "ghin"],
     ["US", "ghin"],
-    ["", "ghin"], // the app's default country
+    // A club that has not said where it is: NOT assumed American (Ajay: "make
+    // it geographical vs US enforced").
+    ["", "national"],
     ["England", "england-golf"],
     ["GB", "england-golf"],
     ["Northern Ireland", "golf-ireland"], // one body for the whole island — never England's
@@ -52,12 +54,15 @@ describe("the body a club is offered, from where it is", () => {
     it(`${country || "(blank)"} → ${id}`, () => expect(defaultHandicapBody(country).id).toBe(id));
   }
 
-  it("a club that chose a body keeps it; one on its own record is offered its country's, whatever the column defaulted to", () => {
-    expect(clubHandicapBody({ handicapPolicy: "hybrid", handicapAuthorityId: "golf-canada", country: "England" }).id).toBe("golf-canada");
-    // Every club ever made stores "ghin" by default — a club in England on its own record is not on GHIN.
-    expect(clubHandicapBody({ handicapPolicy: "club", handicapAuthorityId: "ghin", country: "England" }).id).toBe("england-golf");
-    // A stored body this app no longer has falls back to the country's, never to another body.
-    expect(clubHandicapBody({ handicapPolicy: "ghin", handicapAuthorityId: "gone", country: "AU" }).id).toBe("golf-australia");
+  it("the club's country decides — nothing stored, and nothing a caller sends, can put it on another country's body", () => {
+    expect(clubHandicapBody({ country: "England" }).id).toBe("england-golf");
+    expect(clubHandicapBody({ country: "" }).id).toBe("national");
+    // The stored column (it defaulted to "ghin" for every club ever made) is not read.
+    expect(readSource("src/lib/domain/handicap-body.ts")).toMatch(
+      /export function clubHandicapBody\(org: \{ country\?: string \| null \}\): HandicapBody \{\s*return defaultHandicapBody\(org\.country\);/,
+    );
+    // And the action takes no body from its caller.
+    expect(readSource("src/app/actions/handicap-policy.ts")).toMatch(/export async function saveHandicapPolicy\(policy: string\): Promise<PolicyResult>/);
   });
 });
 
@@ -106,12 +111,13 @@ describe("the words a club in England reads", () => {
     expect(bodyInProse(dear("national"))).toBe("your national association");
   });
 
-  it("the setting offers England Golf, says WHS once, and never says GHIN", () => {
+  it("the setting names England Golf from the club's country, offers no picker, and never says GHIN", () => {
     const html = renderToStaticMarkup(
       <HandicapSetup
         view={{
           policy: "hybrid",
           canEdit: true,
+          countryKnown: true,
           body: { id: ENGLAND.id, name: ENGLAND.name, number: ENGLAND.number },
           handicap: { providerId: ENGLAND.id, label: ENGLAND.name, status: "unconfigured", howToEnable: handicapAuthority(ENGLAND.id)!.howToEnable },
           scores: { enabled: false, providerId: ENGLAND.id, label: ENGLAND.name, status: "unconfigured", howToEnable: "" },
@@ -122,11 +128,32 @@ describe("the words a club in England reads", () => {
     // Not "Both" (Ajay: "what is both means?") — the choice says what it does.
     expect(html).toContain("England Golf where a member has one");
     expect(html).not.toMatch(/>Both</);
-    expect(html).toContain("Every body here uses the World Handicap System.");
+    expect(html).toContain("Handicap body: England Golf");
+    expect(html).toContain("from your club&#x27;s country");
+    expect(html).toContain("It uses the World Handicap System.");
     expect(html).toContain("Members with an England Golf membership number (CDH) play off their index from England Golf");
-    // The list offers GHIN as a choice; nothing else on the panel may name it.
-    const withoutTheList = html.replace(/<select[\s\S]*?<\/select>/, "");
-    expect(withoutTheList).not.toMatch(/GHIN/);
+    // Geographical, not picked (Ajay: "make it geographical vs US enforced").
+    expect(html).not.toMatch(/<select/);
+    expect(html).not.toMatch(/GHIN/);
+  });
+
+  it("a club that has not said where it is is asked to — and is not put on GHIN", () => {
+    const national = dear("national");
+    const html = renderToStaticMarkup(
+      <HandicapSetup
+        view={{
+          policy: "club",
+          canEdit: true,
+          countryKnown: false,
+          body: { id: national.id, name: national.name, number: national.number },
+          handicap: { providerId: national.id, label: national.name, status: "unconfigured", howToEnable: "" },
+          scores: { enabled: false, providerId: national.id, label: national.name, status: "unconfigured", howToEnable: "" },
+        }}
+      />,
+    );
+    expect(html).toContain("Handicap body: Your national association");
+    expect(html).toContain("add your club&#x27;s country under Branding on this page");
+    expect(html).not.toMatch(/GHIN/);
   });
 });
 

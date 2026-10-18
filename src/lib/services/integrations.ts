@@ -24,6 +24,8 @@ export interface IntegrationSetup {
   policy: HandicapPolicy;
   /** The club's handicap body and what its members' numbers are called. */
   body: { id: string; name: string; number: string };
+  /** Whether the club has said where it is — the only thing that decides its body. */
+  countryKnown: boolean;
   handicap: {
     providerId: string;
     label: string;
@@ -108,6 +110,7 @@ export async function integrationSetup(organizationId: string): Promise<Integrat
   return {
     policy: handicapPolicyOf(org?.handicapPolicy),
     body: { id: body.id, name: body.name, number: body.number },
+    countryKnown: !!(org?.country ?? "").trim(),
     handicap: {
       providerId: authorityId,
       label: authority?.label ?? authorityId,
