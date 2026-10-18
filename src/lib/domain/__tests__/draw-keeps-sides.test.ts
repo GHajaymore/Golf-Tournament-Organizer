@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupBySides } from "../draw";
+import { groupBySides, sidesByMatch } from "../draw";
 
 /**
  * PARTNERS GO OUT TOGETHER.
@@ -67,5 +67,40 @@ describe("tee groups made from sides", () => {
       expect(new Set(all).size, `duplicate in trial ${trial}`).toBe(all.length);
       expect(all.length).toBe(sides.flat().length + others.length);
     }
+  });
+});
+
+describe("a match goes out as one group (2026-10-17, the cup rehearsal)", () => {
+  // Two teams, each with two four-ball pairs: Red 1 plays Blue 1, Red 2 plays Blue 2.
+  const sides = [
+    { id: "red1", playerIds: ["r1", "r2"] },
+    { id: "red2", playerIds: ["r3", "r4"] },
+    { id: "blue1", playerIds: ["b1", "b2"] },
+    { id: "blue2", playerIds: ["b3", "b4"] },
+  ];
+  const matches = [
+    { teamAId: "red1", teamBId: "blue1" },
+    { teamAId: "red2", teamBId: "blue2" },
+  ];
+  const team = (id: string) => id[0];
+
+  it("puts both sides of each match in one group, so every group is a match", () => {
+    const groups = groupBySides(sidesByMatch(sides, matches), [], 4);
+    expect(groups.map((g) => g.playerIds)).toEqual([["r1", "r2", "b1", "b2"], ["r3", "r4", "b3", "b4"]]);
+    for (const g of groups) expect(new Set(g.playerIds.map(team)).size, "a group of one team plays nobody").toBe(2);
+  });
+
+  it("CONTROL: drawn by the sides alone, two pairs of the same team share a group", () => {
+    const groups = groupBySides(sides.map((s) => s.playerIds), [], 4);
+    expect(groups.some((g) => new Set(g.playerIds.map(team)).size === 1)).toBe(true);
+  });
+
+  it("keeps a side in no match, after the matches, so nobody leaves the sheet", () => {
+    const units = sidesByMatch([...sides, { id: "spare", playerIds: ["s1", "s2"] }], matches);
+    expect(units).toEqual([["r1", "r2", "b1", "b2"], ["r3", "r4", "b3", "b4"], ["s1", "s2"]]);
+  });
+
+  it("is the sides as they are where nobody plays anybody (a medal of pairs)", () => {
+    expect(sidesByMatch(sides, [])).toEqual(sides.map((s) => s.playerIds));
   });
 });
