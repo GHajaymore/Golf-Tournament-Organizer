@@ -1,0 +1,11 @@
+[
+  {
+    "what": "The match card's answers take a tap before the page is live",
+    "file": "src/components/HoleResultCard.tsx",
+    "from": "              disabled={!live}\n              onClick={() => press(a.v)}",
+    "to": "              disabled={!live && false}\n              onClick={() => press(a.v)}",
+    "spec": "e2e/casual-round.spec.ts",
+    "grep": "still loading",
+    "project": "phone"
+  }
+]
