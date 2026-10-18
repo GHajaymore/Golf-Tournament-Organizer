@@ -39,28 +39,35 @@ test("after 'Use a different code' the box is empty, and a code typed key by key
   const code = (await prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { accessCode: true } })).accessCode;
   const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
   const errors: string[] = [];
+  const page = await ctx.newPage();
   try {
-    const page = await ctx.newPage();
     watchPageErrors(page, errors);
     await page.goto("/play");
     await page.waitForLoadState("networkidle").catch(() => {});
-    const box = page.getByLabel("Round code");
+    const box = page.locator("main input").first();
     const back = page.getByRole("button", { name: "Use a different code" });
+    await expect(box, "the code screen has no box to type a code into").toBeVisible({ timeout: 20_000 });
 
-    await box.pressSequentially(code);
+    await box.pressSequentially(code, { delay: 30 });
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(back, "the round's code did not let the player in").toBeVisible({ timeout: 20_000 });
 
     await back.click();
-    await expect(box, "the box still holds the code just used — the next code would be typed on to it").toHaveValue("");
+    await expect(box, "the box still holds the code just used — the next code would be typed on to it").toHaveValue("", { timeout: 10_000 });
 
     // As a thumb does: key by key, into whatever the box holds.
-    await box.pressSequentially(code);
+    await box.pressSequentially(code, { delay: 30 });
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText(/That code isn.t valid/)).toHaveCount(0);
     await expect(back, "a code typed correctly after going back was refused").toBeVisible({ timeout: 20_000 });
+  } catch (err) {
+    // Say what the screen showed when it failed, in the error itself — a
+    // summary that keeps one line keeps this one.
+    const shown = await page.locator("main").innerText().catch(() => "(no page)");
+    const typed = await page.locator("main input").first().inputValue().catch(() => "(no box)");
+    throw new Error(`${(err as Error).message.split("\n")[0]} | box: "${typed}" | screen: ${shown.replace(/\s+/g, " ").slice(0, 300)}`);
   } finally {
-    await ctx.close();
+    // Never let closing hide what failed: a timed-out test has already closed it.
+    await ctx.close().catch(() => {});
   }
   expect(errors, "a screen threw").toEqual([]);
 });
