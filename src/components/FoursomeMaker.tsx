@@ -295,7 +295,8 @@ export function FoursomeMaker({
         setSaveError(res.error ?? "Couldn't publish the sheet.");
         return;
       }
-      setSaveState((s) => ({ savedAt: s.savedAt || new Date().toISOString(), published: true }));
+      // Only offered over a saved sheet, so it already has its savedAt.
+      setSaveState((s) => ({ ...s, published: true }));
     });
   };
 
