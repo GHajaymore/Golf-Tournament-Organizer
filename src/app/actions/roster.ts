@@ -9,6 +9,7 @@ import { upsertMember, entryContactNeeds } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
 import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap-record";
 import { handicapPolicyOf, refuseHandByHand } from "@/lib/domain/handicap-policy";
+import { clubHandicapBody } from "@/lib/domain/handicap-body";
 import { indexRefusal } from "@/lib/domain/handicap-label";
 import { championFor } from "@/lib/services/honours";
 import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
@@ -144,14 +145,17 @@ export async function addMember(input: MemberInput): Promise<RosterResult> {
    */
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { handicapPolicy: true },
+    select: { handicapPolicy: true, handicapAuthorityId: true, country: true },
   });
   // NaN as the current figure, because a member being created has none: under
   // a GHIN policy any typed index at all is refused, rather than only one that
   // differs from something already on file.
-  const refusal = refuseHandByHand(handicapPolicyOf(org?.handicapPolicy), input, {
-    handicap: Number.NaN,
-  });
+  const refusal = refuseHandByHand(
+    handicapPolicyOf(org?.handicapPolicy),
+    input,
+    { handicap: Number.NaN },
+    clubHandicapBody(org ?? {}),
+  );
   if (refusal) return { ok: false, error: refusal };
 
   const data = cleanMemberData(input);
@@ -342,9 +346,17 @@ export async function updateMember(memberId: string, input: MemberInput): Promis
   // A member with no index has no current figure to compare against — NaN,
   // exactly as on add — so typing 0 for them is a change, and a claim.
   const hadIndex = member.handicapSource !== "none";
-  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { handicapPolicy: true } });
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { handicapPolicy: true, handicapAuthorityId: true, country: true },
+  });
   const policy = handicapPolicyOf(org?.handicapPolicy);
-  const refusal = refuseHandByHand(policy, input, { handicap: hadIndex ? member.handicap : Number.NaN, ghin: member.ghin });
+  const refusal = refuseHandByHand(
+    policy,
+    input,
+    { handicap: hadIndex ? member.handicap : Number.NaN, ghin: member.ghin },
+    clubHandicapBody(org ?? {}),
+  );
   if (refusal) return { ok: false, error: refusal };
 
   const data: Partial<ReturnType<typeof cleanMemberData>> = cleanMemberData(input);

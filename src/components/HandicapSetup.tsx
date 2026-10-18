@@ -4,6 +4,8 @@ import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
+import { useState } from "react";
+import { HANDICAP_BODIES, aNumber, bodyInProse, bodyShortLabel, handicapBody } from "@/lib/domain/handicap-body";
 
 /**
  * Where this club's handicaps come from, and whether rounds go back.
@@ -22,6 +24,8 @@ import { useAction } from "./useAction";
 
 export interface HandicapSetupView {
   policy: "club" | "hybrid" | "ghin";
+  /** The club's handicap body (`domain/handicap-body.ts`). */
+  body: { id: string; name: string; number: string };
   handicap: { providerId: string; label: string; status: string; howToEnable: string };
   scores: {
     enabled: boolean;
@@ -41,6 +45,13 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function HandicapSetup({ view }: { view: HandicapSetupView }) {
   const { pending, error, run } = useAction({ refresh: true });
+  // Which body the club belongs to. On its own record nothing is stored, so a
+  // pick here waits for the club to choose "Both" or "<body> only"; once it
+  // uses a body, changing it saves straight away.
+  const [bodyId, setBodyId] = useState(view.body.id);
+  const body = handicapBody(bodyId) ?? handicapBody(view.body.id)!;
+
+  const from = bodyInProse(body);
 
   // Shown for hybrid as well: a hybrid club still needs the connection for
   // the half of its roster that has numbers.
@@ -64,14 +75,46 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
         </FieldInfo>
       </div>
 
+      {/* The body the club's members belong to — GHIN for a US club, England
+          Golf for one in England, Golf Ireland north and south. Every one of
+          them works out an index the same way, under the World Handicap System;
+          what differs is who holds the golfer's record. */}
+      <div className="field" style={{ margin: 0 }}>
+        <label htmlFor="handicap-body" style={{ fontSize: 13, fontWeight: 600 }}>Your handicap body</label>
+        <select
+          id="handicap-body"
+          className="input"
+          style={{ maxWidth: 320 }}
+          value={bodyId}
+          disabled={pending || !view.canEdit}
+          onChange={(e) => {
+            const next = e.target.value;
+            setBodyId(next);
+            if (view.policy !== "club") run(() => saveHandicapPolicy(view.policy, next));
+          }}
+        >
+          {HANDICAP_BODIES.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+        <span className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 5 }}>
+          Every body here uses the World Handicap System.
+        </span>
+      </div>
+
       <div>
         <span className="card-kicker">Where indexes come from</span>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
           {(
             [
               { id: "club", label: "Entered here only" },
-              { id: "hybrid", label: "Both" },
-              { id: "ghin", label: view.handicap.label + " only" },
+              // Not "Both" (Ajay, 2026-10-17: "what is both means?"): the
+              // button says what it does — the body's index for a member who
+              // has a number, the club's figure for a guest who has none.
+              { id: "hybrid", label: `${bodyShortLabel(body)} where a member has one` },
+              { id: "ghin", label: `${bodyShortLabel(body)} only` },
             ] as const
           ).map((opt) => (
             <button
@@ -81,7 +124,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
               style={{ fontSize: 13, padding: "6px 12px" }}
               aria-pressed={view.policy === opt.id}
               disabled={pending || !view.canEdit}
-              onClick={() => run(() => saveHandicapPolicy(opt.id, view.handicap.providerId))}
+              onClick={() => run(() => saveHandicapPolicy(opt.id, bodyId))}
             >
               {opt.label}
             </button>
@@ -89,9 +132,9 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
         </div>
         <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           {view.policy === "ghin"
-            ? "Every member plays off a GHIN index. Nobody at the club enters a handicap by hand, and a member without a GHIN number can't be entered until they have one."
+            ? `Every member plays off a Handicap Index from ${from}. Nobody at the club enters a handicap by hand, and a member without ${aNumber(body)} can't be entered until they have one.`
             : view.policy === "hybrid"
-              ? "Members with a GHIN number play off it; everyone else plays off the club's own figure. Most clubs are this — a society has visitors, and a club has members who have never held an index."
+              ? `Members with ${aNumber(body)} play off their index from ${from}; everyone else plays off the club's own figure. Most clubs are this — a society has visitors, and a club has members who have never held an index.`
               : "Handicaps are entered here: by an organizer, or suggested from your members' cards."}
         </p>
       </div>

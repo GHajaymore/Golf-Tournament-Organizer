@@ -2,6 +2,7 @@ import "server-only";
 import type { Event } from "@prisma/client";
 import { prisma } from "../db";
 import { handicapPolicyOf, refuseHandByHand } from "../domain/handicap-policy";
+import { clubHandicapBody } from "../domain/handicap-body";
 import { contactGap, type ContactNeeds } from "../domain/registration-intake";
 import { planForEvent } from "./entitlements";
 import { phoneRequiredFor } from "../plans";
@@ -248,10 +249,11 @@ export async function upsertMember(
         }),
     prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { handicapPolicy: true },
+      select: { handicapPolicy: true, handicapAuthorityId: true, country: true },
     }),
   ]);
   const policy = handicapPolicyOf(org?.handicapPolicy);
+  const body = clubHandicapBody(org ?? {});
 
   if (existing) {
     const fill: Record<string, string | number> = {};
@@ -283,7 +285,7 @@ export async function upsertMember(
      */
     const mayWriteIndex =
       writer === "staff" &&
-      refuseHandByHand(policy, input, { handicap: existing.handicap, ghin: existing.ghin }) === null;
+      refuseHandByHand(policy, input, { handicap: existing.handicap, ghin: existing.ghin }, body) === null;
     if (mayWriteIndex && claimed && Number.isFinite(input.handicap) && input.handicap !== existing.handicap) {
       fill.handicap = input.handicap as number;
       // The type it was typed in, or the one already held — never a quiet 18 for a
@@ -314,7 +316,7 @@ export async function upsertMember(
    */
   const newGhin = (input.ghin ?? "").trim();
   const mayRecordIndex =
-    refuseHandByHand(policy, input, { handicap: 0, ghin: newGhin }) === null;
+    refuseHandByHand(policy, input, { handicap: 0, ghin: newGhin }, body) === null;
   const created = await prisma.member.create({
     data: {
       organizationId,

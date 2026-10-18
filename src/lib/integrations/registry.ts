@@ -1,4 +1,5 @@
 import { ghinAuthority, ghinReporter } from "./ghin";
+import { bodyAuthorities, bodyReporters } from "./bodies";
 import type { HandicapAuthority, ScoreReporter } from "./types";
 
 /**
@@ -18,8 +19,10 @@ import type { HandicapAuthority, ScoreReporter } from "./types";
  * take both or neither.
  */
 
-const AUTHORITIES: HandicapAuthority[] = [ghinAuthority];
-const REPORTERS: ScoreReporter[] = [ghinReporter];
+// GHIN, then the other national bodies a club picks from (2026-10-17 —
+// `domain/handicap-body.ts` holds the list and the words).
+const AUTHORITIES: HandicapAuthority[] = [ghinAuthority, ...bodyAuthorities];
+const REPORTERS: ScoreReporter[] = [ghinReporter, ...bodyReporters];
 
 export function handicapAuthorities(): HandicapAuthority[] {
   return [...AUTHORITIES];

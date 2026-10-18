@@ -1,3 +1,5 @@
+import { bodyInProse, type HandicapBody } from "./handicap-body";
+
 /**
  * Where a club's handicaps come from, and what happens when they cannot.
  *
@@ -101,6 +103,8 @@ export function refuseHandByHand(
   policy: HandicapPolicy,
   input: { handicap?: number; handicapSource?: string },
   current: { handicap: number; ghin?: string },
+  /** The club's handicap body, so the sentence names it (`domain/handicap-body.ts`). */
+  body: HandicapBody,
 ): string | null {
   const ghin = (current.ghin ?? "").trim();
   if (mayEditHandicapByHand(policy, { ghin })) return null;
@@ -113,13 +117,14 @@ export function refuseHandByHand(
 
   if (!wantsManual && !changesFigure) return null;
 
+  const from = bodyInProse(body);
   return policy === "ghin"
-    ? "This club plays off GHIN indexes, so handicaps aren't entered by hand. " +
-        "Add or correct the member's GHIN number instead."
+    ? `This club plays off indexes from ${from}, so handicaps aren't entered by hand. ` +
+        `Add or correct the member's ${body.number} instead.`
     : // Hybrid, and this member HAS a number. Naming that is the difference
       // between a rule that reads as arbitrary and one an organizer can act
       // on: the fix is to remove the number, not to argue with the club.
-      "This member's index comes from GHIN. Clear their GHIN number if the club " +
+      `This member's index comes from ${from}. Clear their ${body.number} if the club ` +
         "should set their handicap instead.";
 }
 
@@ -167,8 +172,11 @@ export function handicapStanding(input: {
   ghin: string;
   /** Today, passed in so this stays a pure function. */
   now: Date;
+  /** The club's handicap body, so the note names it. */
+  body: HandicapBody;
 }): HandicapStanding {
-  const { policy, index, syncedAt, ghin, now } = input;
+  const { policy, index, syncedAt, ghin, now, body } = input;
+  const from = bodyInProse(body);
   const hasNumber = !!ghin.trim();
 
   // A club running its own record has nothing to be stale about: the figure on
@@ -194,7 +202,7 @@ export function handicapStanding(input: {
     return {
       usable: false,
       reason: "no-ghin-number",
-      note: "No GHIN number on file, and this club plays off GHIN indexes.",
+      note: `No ${body.number} on file, and this club plays off indexes from ${from}.`,
     };
   }
 
@@ -202,7 +210,7 @@ export function handicapStanding(input: {
     return {
       usable: false,
       reason: "never-synced",
-      note: "No index has been received from GHIN for this member yet.",
+      note: `No index has been received from ${from} for this member yet.`,
     };
   }
 
@@ -214,7 +222,7 @@ export function handicapStanding(input: {
     staleDays,
     stale,
     note: stale
-      ? `Index last received from GHIN ${staleDays} days ago.`
+      ? `Index last received from ${from} ${staleDays} days ago.`
       : "",
   };
 }

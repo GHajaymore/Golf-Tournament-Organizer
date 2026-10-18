@@ -104,7 +104,14 @@ export function RegistrationClient({
   defaultTeeName = "",
   needsEmail = true,
   noFormatYet = false,
+  handicapBody = { label: "GHIN", prose: "GHIN", number: "GHIN number" },
 }: {
+  /**
+   * The club's handicap body in this form's words (`domain/handicap-body.ts`):
+   * the choice beside Manual and None, the body in a sentence, and what a
+   * member's number with it is called.
+   */
+  handicapBody?: { label: string; prose: string; number: string };
   /** No round yet and nobody entered: a society taking entries before it chooses a format. */
   noFormatYet?: boolean;
   event: EventInfo;
@@ -1265,7 +1272,7 @@ export function RegistrationClient({
           <div className="field">
             <label>Handicap source</label>
             <div className="seg" style={{ width: "100%" }}>
-              {[["ghin", "GHIN"], ["manual", "Manual"], ["none", "None"]].map(([v, l]) => (
+              {[["ghin", handicapBody.label], ["manual", "Manual"], ["none", "None"]].map(([v, l]) => (
                 <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
                   <input type="radio" name="hsrc" checked={hSource === v} onChange={() => setHSource(v)} />{l}
                 </label>
@@ -1274,7 +1281,7 @@ export function RegistrationClient({
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div className="field"><label htmlFor={`${fid}-hcp`}>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input id={`${fid}-hcp`} className="input" type="text" inputMode="decimal" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.4" disabled={hSource === "none"} /></div>
-            <div className="field"><label htmlFor={`${fid}-ghin`}>GHIN #</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
+            <div className="field"><label htmlFor={`${fid}-ghin`}>{handicapBody.number.charAt(0).toUpperCase() + handicapBody.number.slice(1)}</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
           </div>
           <div className="field">
             <label>Handicap is a…</label>
@@ -1306,7 +1313,7 @@ export function RegistrationClient({
           )}
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {hSource === "ghin"
-              ? "GHIN lookup is stubbed — enter the index manually for now; live GHIN integration slots in here."
+              ? `Indexes aren't read from ${handicapBody.prose} automatically yet — type this player's index as ${handicapBody.prose} shows it.`
               : "Auto-confirms while under capacity; overflow goes to the waitlist."}
           </p>
           <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>

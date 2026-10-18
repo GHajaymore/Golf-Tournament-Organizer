@@ -56,7 +56,10 @@ export async function saveHandicapPolicy(
    * to another association, which is right, but it is a state better refused
    * here than explained later.
    */
-  if (policy === "ghin" && !handicapAuthority(authorityId)) {
+  // "Both" uses a body as surely as "<body> only" does. Until 2026-10-17 only
+  // the latter stored which one, so a "Both" club in England read GHIN.
+  const usesBody = policy !== "club";
+  if (usesBody && !handicapAuthority(authorityId)) {
     return { ok: false, error: "That handicapping association isn't available." };
   }
 
@@ -64,7 +67,7 @@ export async function saveHandicapPolicy(
     where: { id: club.organizationId },
     data: {
       handicapPolicy: policy,
-      ...(policy === "ghin" ? { handicapAuthorityId: authorityId.trim().toLowerCase() } : {}),
+      ...(usesBody ? { handicapAuthorityId: authorityId.trim().toLowerCase() } : {}),
     },
   });
 

@@ -54,7 +54,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "[[Add member]]: Name, Email (how they sign in), Phone, **Handicap index**, **Handicap is for** (18 or 9 holes), plus optional **Gender**, Member number, GHIN, Home club and private Notes. Gender is used for one thing: in a tournament a woman starts on the course's ladies' tees.",
+          "[[Add member]]: Name, Email (how they sign in), Phone, **Handicap index**, **Handicap is for** (18 or 9 holes), plus optional **Gender**, Member number, the member's number with your handicap body (a GHIN number in the US, an England Golf membership number, a Golf Ireland number, a Golf Canada number or a Golf ID in Australia), Home club and private Notes. Gender is used for one thing: in a tournament a woman starts on the course's ladies' tees.",
           "Or bring everyone in at once with [[Import CSV]]. You'll see what was added, updated or skipped, and any columns it didn't recognise. A plus handicap is written “+2.4”, in the file and in the form, and is shown that way on every list.",
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
@@ -62,6 +62,16 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },
+      { kind: "h", text: "Where handicaps come from" },
+      { kind: "where", text: "Club settings → Handicaps" },
+      {
+        kind: "steps",
+        items: [
+          "**Your handicap body** is the one your members belong to: GHIN (USGA), England Golf, Golf Ireland (north and south), Golf Canada or Golf Australia — or **Your national association** anywhere else. It is suggested from your club's country. Every one of them uses the World Handicap System.",
+          "Then choose: **Entered here only** (organizers type handicaps, or take the one suggested from members' cards); **‹body› where a member has one** (a member with a number plays off that body's index, a guest or new member off the club's figure — most clubs); or **‹body› only** (nobody types a handicap by hand).",
+          "None of these bodies is connected to TourneyHQ yet, and the screen says so. Until one is, players keep the index already on file, with its age shown — nobody is moved to zero.",
+        ],
+      },
       { kind: "h", text: "Staff" },
       { kind: "where", text: "Set up → Staff & helpers (organizers only)" },
       {

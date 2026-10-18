@@ -64,6 +64,8 @@ export interface RosterRow {
 
 interface Props {
   clubName: string;
+  /** What a member's number with the club's handicap body is called — "GHIN number", "Golf ID" (`domain/handicap-body.ts`). */
+  bodyNumber?: string;
   /**
    * The club's handicap policy — club, ghin or hybrid.
    *
@@ -130,6 +132,7 @@ const BLANK: MemberInput = {
 
 export function RosterClient({
   clubName,
+  bodyNumber = "GHIN number",
   handicapPolicy = "club",
   indexesReadable = true,
   eventName,
@@ -593,7 +596,7 @@ export function RosterClient({
             </div>
             <div className="field">
               <label htmlFor={`${fid}-ghin`}>
-                GHIN <span className="text-muted">· optional</span>
+                {bodyNumber.charAt(0).toUpperCase() + bodyNumber.slice(1)} <span className="text-muted">· optional</span>
               </label>
               <input
                 id={`${fid}-ghin`}
