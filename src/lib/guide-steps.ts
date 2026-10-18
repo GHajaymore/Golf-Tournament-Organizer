@@ -290,6 +290,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "**Start**: One tee, **Split** (1st and 10th) or **Shotgun** (a group on every hole). Set **First tee** and **Interval**.",
           "Players' pairing requests are kept together where possible (not in a draw by position); any that couldn't fit are listed.",
           "[[Save sheet]] keeps a draft. [[Save & publish]], then confirm [[Publish the tee sheet]].",
+          "A draft you saved earlier is published as it stands with [[Publish this sheet]] — no re-draw needed. [[Re-draw this sheet]] starts from the saved sheet's first tee and interval, so changing one thing doesn't move the field's times.",
         ],
       },
       { kind: "tip", text: "On publish each player gets “Your tee time is set” (or “has changed”) on their phone and sees their group on Today. [[Unpublish]] hides it again without losing the draw. Print scorecards, one per group, from the tee sheet." },

@@ -8,7 +8,7 @@ import { listNames } from "@/lib/format";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { useTransition } from "react";
 import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
-import { sheetOnScreen, startStyleOf, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
+import { drawTimesFrom, sameSheet, sheetOnScreen, sheetStatusLine, startStyleOf, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
 import { Icon } from "./Icon";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import { useFormatting } from "./CurrencyProvider";
@@ -153,8 +153,15 @@ export function FoursomeMaker({
   // pattern (see ClearScores): a control that changes what it says has to be
   // read, where a dialog gets dismissed on reflex.
   const [confirmPublish, setConfirmPublish] = useState(false);
-  const [firstTee, setFirstTee] = useState("08:00");
-  const [interval, setInterval] = useState(10);
+  // Publishing the SAVED draft as it stands — no re-draw, so nothing resets.
+  const [confirmPublishSaved, setConfirmPublishSaved] = useState(false);
+  // The sheet as last saved, so the status line can ask whether the draw on
+  // screen IS it (`sameSheet`) rather than only whether the controls are open.
+  const [savedSnapshot, setSavedSnapshot] = useState<readonly TeeSheetGroup[]>(savedGroups);
+  // From the saved sheet, so a re-draw starts at its times — `drawTimesFrom`.
+  const savedTimes = drawTimesFrom(savedGroups);
+  const [firstTee, setFirstTee] = useState(savedTimes.firstTee ?? "08:00");
+  const [interval, setInterval] = useState(savedTimes.interval ?? 10);
 
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const positionOf = useMemo(() => positionLookup(standings), [standings]);
@@ -265,7 +272,30 @@ export function FoursomeMaker({
         setSaveError(res.error ?? "Couldn't save the sheet.");
         return;
       }
+      setSavedSnapshot(sheet.groups);
       setSaveState({ savedAt: new Date().toISOString(), published: publish });
+    });
+  };
+
+  /**
+   * PUBLISH THE SHEET THAT IS SAVED, AS IT IS.
+   *
+   * Until 2026-10-17 the only way to publish was "Save & publish" inside the
+   * draw controls, which publishes the draw ON SCREEN — and opening them resets
+   * the draw to Random, 8:00 and ten minutes. So an organizer who had saved the
+   * right sheet the night before had to rebuild it, by hand, to publish it: the
+   * eve of the first real tournament nearly went out at 8 AM. This publishes
+   * the stored sheet and sends the same tee-time notices (`setTeeSheetPublished`).
+   */
+  const publishSaved = () => {
+    setSaveError("");
+    startSaveTransition(async () => {
+      const res = await setTeeSheetPublished(stageId, true);
+      if (!res.ok) {
+        setSaveError(res.error ?? "Couldn't publish the sheet.");
+        return;
+      }
+      setSaveState((s) => ({ savedAt: s.savedAt || new Date().toISOString(), published: true }));
     });
   };
 
@@ -728,14 +758,57 @@ export function FoursomeMaker({
           ) : (
             <>
               <Icon name={saveState.published ? "ph ph-megaphone" : "ph ph-floppy-disk"} />{" "}
-              {shown.source === "saved"
-                ? `${saveState.published ? "Published to players" : "Saved as a draft"} — this is the sheet ${
-                    saveState.published ? "they have" : "you saved"
-                  }. Re-draw it to change it.`
-                : `${saveState.published ? "Published to players" : "Saved as a draft"} — this is a new draw, not the saved sheet, until you save it.`}
+              {sheetStatusLine({
+                published: saveState.published,
+                onScreenIsSaved: shown.source === "saved" || sameSheet(previewSheet, savedSnapshot),
+              })}
+              {shown.source === "saved" ? " Re-draw it to change it." : ""}
             </>
           )}
         </p>
+      )}
+
+      {/* A saved draft is published as it stands — see `publishSaved`. Only
+          while the saved sheet is what is on screen, so what is published is
+          what the organizer is reading. */}
+      {stageId && savedDraw && !saveState.published && shown.source === "saved" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "0 0 14px" }}>
+          {!confirmPublishSaved ? (
+            <button type="button" className="btn btn-primary" disabled={savePending} onClick={() => setConfirmPublishSaved(true)}>
+              <Icon name="megaphone" /> Publish this sheet
+            </button>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+                fontSize: 13,
+                padding: "10px 12px",
+                borderRadius: 8,
+                background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 220 }}>
+                <Icon name="megaphone" style={{ marginRight: 6 }} />
+                This shows the sheet below to every player, as it is. Publish it?
+              </span>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={savePending}
+                onClick={() => { setConfirmPublishSaved(false); publishSaved(); }}
+              >
+                {savePending ? "Publishing…" : "Publish the tee sheet"}
+              </button>
+              <button type="button" className="btn btn-secondary" disabled={savePending} onClick={() => setConfirmPublishSaved(false)}>
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
