@@ -23,20 +23,33 @@ const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "
 const stageId = data.partialCard.stageId;
 const prisma = new PrismaClient();
 
-let was: string | null = null;
+/**
+ * A code of the spec's own, in the round-code alphabet (`code-format.ts`) and
+ * marked ZZ. The fixture's round has no code until somebody opens its
+ * tournament as an organizer — the first draft read that empty code, typed
+ * nothing, and waited for ever on a grey Continue.
+ */
+const CODE = "ZZBX2346";
+let was: { how: string; code: string } | null = null;
 test.beforeAll(async () => {
-  was = (await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playerAccess: true } })).playerAccess;
+  const how = (await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playerAccess: true } })).playerAccess;
+  const code = (await prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { accessCode: true } })).accessCode;
+  was = { how, code };
   await prisma.event.update({ where: { id: data.eventId }, data: { playerAccess: "both" } });
+  await prisma.stage.update({ where: { id: stageId }, data: { accessCode: CODE } });
 });
-/** The fixture's tournament is every later spec's: how its players get in goes back as it was. */
+/** The fixture's tournament is every later spec's: how its players get in, and the round's code, go back as they were. */
 test.afterAll(async () => {
-  if (was !== null) await prisma.event.update({ where: { id: data.eventId }, data: { playerAccess: was } });
+  if (was) {
+    await prisma.stage.update({ where: { id: stageId }, data: { accessCode: was.code } });
+    await prisma.event.update({ where: { id: data.eventId }, data: { playerAccess: was.how } });
+  }
   await prisma.$disconnect();
 });
 
 test("after 'Use a different code' the box is empty, and a code typed key by key lets the player in", async ({ browser, baseURL }) => {
   test.setTimeout(120_000);
-  const code = (await prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { accessCode: true } })).accessCode;
+  const code = `${CODE.slice(0, 4)}-${CODE.slice(4)}`;
   const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
   const errors: string[] = [];
   const page = await ctx.newPage();
