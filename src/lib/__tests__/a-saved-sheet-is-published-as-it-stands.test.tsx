@@ -35,6 +35,8 @@ describe("a re-draw starts from the saved sheet's times", () => {
 
   it("reads the twelve-hour clock right at both noon and midnight, and the 24-hour clock", () => {
     expect(drawTimesFrom([{ ...CUP[0], time: "12:05 AM" }])).toEqual({ firstTee: "00:05" });
+    // An afternoon hour that is NOT twelve — the case a missing PM rule would read as 1 in the morning.
+    expect(drawTimesFrom([{ ...CUP[0], time: "1:03 PM" }, { ...CUP[1], time: "1:12 PM" }])).toEqual({ firstTee: "13:03", interval: 9 });
     expect(drawTimesFrom([{ ...CUP[0], time: "8:10 AM" }, { ...CUP[1], time: "8:20 AM" }])).toEqual({ firstTee: "08:10", interval: 10 });
     expect(drawTimesFrom([{ ...CUP[0], time: "13:05" }, { ...CUP[1], time: "13:13" }])).toEqual({ firstTee: "13:05", interval: 8 });
   });
