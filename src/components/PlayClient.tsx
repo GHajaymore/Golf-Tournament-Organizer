@@ -632,6 +632,12 @@ function PlayScreens(props: Props) {
             onClick={() => {
               setPlayers(null);
               setContext(null);
+              // An EMPTY box (2026-10-17, the night before the first real cup):
+              // it kept the code just used, and a phone puts the cursor at the
+              // end, so typing the other nine's code made "RAE948RW-6J9B-QR7Z"
+              // and "That code isn't valid" — to a player who typed it right.
+              setCode("");
+              setError("");
             }}
           >
             Use a different code
