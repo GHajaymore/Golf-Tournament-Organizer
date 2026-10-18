@@ -90,6 +90,15 @@ export function clubHandicapBody(org: { country?: string | null }): HandicapBody
   return defaultHandicapBody(org.country);
 }
 
+/**
+ * A person's own handicap body, as stored: a body this app has, or "" for the
+ * club's. Anything else a caller sends is read as "" — a public form will be
+ * sent whatever its caller likes.
+ */
+export function homeBodyId(raw: string | null | undefined): string {
+  return handicapBody(raw)?.id ?? "";
+}
+
 /** "a GHIN number", "an England Golf membership number (CDH)". */
 export function aNumber(b: HandicapBody): string {
   return `${/^[aeiou]/i.test(b.number) ? "an" : "a"} ${b.number}`;

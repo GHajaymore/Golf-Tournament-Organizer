@@ -9,7 +9,7 @@ import { upsertMember, entryContactNeeds } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
 import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap-record";
 import { handicapPolicyOf, refuseHandByHand } from "@/lib/domain/handicap-policy";
-import { clubHandicapBody } from "@/lib/domain/handicap-body";
+import { clubHandicapBody, homeBodyId } from "@/lib/domain/handicap-body";
 import { indexRefusal } from "@/lib/domain/handicap-label";
 import { championFor } from "@/lib/services/honours";
 import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
@@ -92,6 +92,8 @@ export interface MemberInput {
   email?: string;
   phone?: string;
   ghin?: string;
+  /** The body `ghin` is a number with — "" for the club's own (a visitor's is their country's). */
+  handicapBodyId?: string;
   homeClub?: string;
   gender?: string;
   preferredTee?: string;
@@ -119,6 +121,7 @@ function cleanMemberData(input: MemberInput) {
     email: (input.email ?? "").trim().toLowerCase(),
     phone: (input.phone ?? "").trim(),
     ghin: (input.ghin ?? "").trim(),
+    handicapBodyId: homeBodyId(input.handicapBodyId),
     homeClub: (input.homeClub ?? "").trim(),
     gender: (input.gender ?? "").trim(),
     preferredTee: (input.preferredTee ?? "").trim(),
@@ -354,7 +357,7 @@ export async function updateMember(memberId: string, input: MemberInput): Promis
   const refusal = refuseHandByHand(
     policy,
     input,
-    { handicap: hadIndex ? member.handicap : Number.NaN, ghin: member.ghin },
+    { handicap: hadIndex ? member.handicap : Number.NaN, ghin: member.ghin, handicapBodyId: member.handicapBodyId },
     clubHandicapBody(org ?? {}),
   );
   if (refusal) return { ok: false, error: refusal };

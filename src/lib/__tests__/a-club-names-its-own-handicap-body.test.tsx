@@ -157,6 +157,32 @@ describe("the words a club in England reads", () => {
   });
 });
 
+describe("a visitor from another country (Ajay: \"do not change the scenarios where person from another country visit to play an outing\")", () => {
+  const GHIN = dear("ghin");
+  it("a US club on GHIN only keeps an England Golf visitor's typed index — under WHS it is their body's official figure", () => {
+    expect(refuseHandByHand("ghin", { handicap: 12.4, handicapBodyId: "england-golf" }, { handicap: Number.NaN }, GHIN)).toBeNull();
+    // Already on the roster as a visitor, their index corrected later.
+    expect(refuseHandByHand("ghin", { handicap: 11.9 }, { handicap: 12.4, handicapBodyId: "england-golf" }, GHIN)).toBeNull();
+  });
+
+  it("CONTROL: the club's own members are still held to the rule", () => {
+    expect(refuseHandByHand("ghin", { handicap: 12.4 }, { handicap: Number.NaN }, GHIN)).toMatch(/aren't entered by hand/);
+    // Naming the club's OWN body is not being a visitor.
+    expect(refuseHandByHand("ghin", { handicap: 12.4, handicapBodyId: "ghin" }, { handicap: Number.NaN }, GHIN)).toMatch(/aren't entered by hand/);
+  });
+
+  it("a body this app does not have is nobody's — it cannot walk a typed index past the rule", () => {
+    expect(refuseHandByHand("ghin", { handicap: 12.4, handicapBodyId: "made-up" }, { handicap: Number.NaN }, GHIN)).toMatch(/aren't entered by hand/);
+  });
+
+  it("only the club's own staff can say somebody is a visitor — never a public form", () => {
+    const src = readSource("src/lib/services/roster.ts");
+    expect(src).toMatch(/const theirBody = writer === "staff" \? homeBodyId\(input\.handicapBodyId\) : "";/);
+    // And both checks in it ask with that, not with what the caller sent.
+    expect(src.match(/refuseHandByHand\(policy, asked,/g)?.length).toBe(2);
+  });
+});
+
 describe("the doors", () => {
   it("'Both' stores the body as surely as '<body> only' does", () => {
     const src = readSource("src/app/actions/handicap-policy.ts");
@@ -166,6 +192,6 @@ describe("the doors", () => {
 
   it("the Members and Entries screens are handed the club's body, not left on their GHIN defaults", () => {
     expect(readSource("src/app/(app)/roster/page.tsx")).toMatch(/bodyNumber=\{clubHandicapBody\(org\)\.number\}/);
-    expect(readSource("src/app/(app)/registration/page.tsx")).toMatch(/handicapBody=\{\{ label: bodyShortLabel\(body\)/);
+    expect(readSource("src/app/(app)/registration/page.tsx")).toMatch(/handicapBody=\{\{ id: body\.id, label: bodyShortLabel\(body\)/);
   });
 });

@@ -1,4 +1,4 @@
-import { bodyInProse, type HandicapBody } from "./handicap-body";
+import { bodyInProse, handicapBody, type HandicapBody } from "./handicap-body";
 
 /**
  * Where a club's handicaps come from, and what happens when they cannot.
@@ -101,11 +101,20 @@ export function mayEditHandicapByHand(
  */
 export function refuseHandByHand(
   policy: HandicapPolicy,
-  input: { handicap?: number; handicapSource?: string },
-  current: { handicap: number; ghin?: string },
+  input: { handicap?: number; handicapSource?: string; handicapBodyId?: string },
+  current: { handicap: number; ghin?: string; handicapBodyId?: string },
   /** The club's handicap body, so the sentence names it (`domain/handicap-body.ts`). */
   body: HandicapBody,
 ): string | null {
+  // A VISITOR (Ajay, 2026-10-17): somebody whose index is with ANOTHER body —
+  // an England Golf member at a US club's outing. Under WHS their index is
+  // valid here; this club cannot read it from their body, so it is typed, and
+  // it is their body's official figure, not a club guess. The club's "only"
+  // rule is about its own members' records.
+  // Only a body this app HAS counts: a made-up id from a public endpoint is
+  // nobody's body, and must not walk past the rule as "a visitor".
+  const theirs = handicapBody(input.handicapBodyId ?? current.handicapBodyId)?.id ?? "";
+  if (theirs && theirs !== body.id) return null;
   const ghin = (current.ghin ?? "").trim();
   if (mayEditHandicapByHand(policy, { ghin })) return null;
 

@@ -52,6 +52,10 @@ async function open(page: Page, path: string) {
   await page.waitForLoadState("networkidle").catch(() => {});
 }
 
+/** An invented visitor, marked, and removed in the test's `finally`. */
+const VISITOR = "zz-hbody Visiting Golfer";
+const VISITOR_EMAIL = "zz-hbody-visitor@example.invalid";
+
 const PLACES = [
   { country: "England", id: "england-golf", name: "England Golf", short: "England Golf", number: "England Golf membership number (CDH)" },
   { country: "", id: "national", name: "Your national association", short: "Association", number: "National association number" },
@@ -97,7 +101,39 @@ test("a club's handicap body follows its country on Club settings, Members and E
         if (place.id !== "ghin") expect(await add.innerText(), "the Entries form still says GHIN").not.toMatch(/GHIN/);
       });
     }
+    /**
+     * THE VISITOR (Ajay: "do not change the scenarios where person from another
+     * country visit to play an outing"). A US club on GHIN ONLY enters an
+     * England Golf member: under WHS their index is valid here, so it is kept
+     * — on their entry and on the club's list, with their own body.
+     */
+    await test.step("a US club on GHIN only keeps an England Golf visitor's own index", async () => {
+      await prisma.organization.update({ where: { id: clubId }, data: { country: "United States", handicapPolicy: "ghin", handicapAuthorityId: "ghin" } });
+      await open(page, "/registration");
+      const add = page.locator(".card", { has: page.locator(".card-title", { hasText: /^Add someone new$/ }) }).first();
+      await add.getByRole("button", { name: "Visitor from another country?" }).click();
+      await add.getByLabel("Visitor's handicap body").selectOption("england-golf");
+      // The number box speaks the visitor's body now, not the club's.
+      await expect(add.getByText(/^England Golf membership number \(CDH\)$/)).toBeVisible();
+      await add.getByLabel("Player name", { exact: true }).fill(VISITOR);
+      const email = add.getByRole("textbox", { name: /^Email/ });
+      if (await email.isVisible()) await email.fill(VISITOR_EMAIL);
+      const mobile = add.getByRole("textbox", { name: /^Mobile/ });
+      if (await mobile.isVisible()) await mobile.fill("5550199");
+      await add.getByLabel(/^Handicap( index)?$/).fill("12.4");
+      await add.getByRole("button", { name: /Add to field/ }).click();
+      await expect
+        .poll(async () => prisma.member.findFirst({ where: { organizationId: clubId, name: VISITOR }, select: { handicap: true, handicapBodyId: true, handicapSource: true } }), {
+          timeout: 20_000,
+          message: "the visitor's own index was not kept on the club's list",
+        })
+        .toMatchObject({ handicap: 12.4, handicapBodyId: "england-golf", handicapSource: "manual" });
+      const entry = await prisma.player.findFirst({ where: { eventId: data.eventId, name: VISITOR }, select: { handicap: true } });
+      expect(entry?.handicap, "the visitor does not play off their own index").toBe(12.4);
+    });
   } finally {
+    await prisma.player.deleteMany({ where: { eventId: data.eventId, name: VISITOR } });
+    await prisma.member.deleteMany({ where: { organizationId: clubId, name: VISITOR } });
     await ctx.close();
   }
   expect(errors, "a screen threw").toEqual([]);
