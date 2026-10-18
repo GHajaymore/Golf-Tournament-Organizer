@@ -445,7 +445,8 @@ export function FoursomeMaker({
                team round they cannot break a side up, only order the sides. */
             <p style={{ fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>
               <Icon name="users-three" /> Partners play together, so each group is made from whole sides
-              from Teams &amp; pairs. The choice below only decides the order the sides go out in.
+              from Teams &amp; pairs — and where sides play a match, both sides of it go out together. The
+              choice below only decides the order they go out in.
             </p>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
