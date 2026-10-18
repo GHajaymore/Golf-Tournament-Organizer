@@ -52,6 +52,10 @@ export const SIGNINS_CLOSED_NOTICE = {
   interestedLead: "Interested?",
   interestedEmail: SALES_EMAIL,
   interestedTail: "and we'll let you know when it opens.",
+  // The early-subscriber offer (panel, 2026-10-17; Ajay: "25% discount is only
+  // for the first term (month or year)"). Honoured with a code made on /owner
+  // and sent in the reply — domain/discount.ts takes it off the first payment.
+  offer: "Clubs that write before we open get 25% off their first payment — the first month, or the first year if they pay yearly.",
   playLead: "Playing today?",
   playLink: "Go to tourneyhq.club/play",
   playTail: "and enter the round code your organizer gave you.",

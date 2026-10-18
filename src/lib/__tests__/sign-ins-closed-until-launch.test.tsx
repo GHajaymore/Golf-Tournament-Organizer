@@ -113,6 +113,9 @@ describe("the front door says so before the form", () => {
     expect(html).toContain("href=\"/play\"");
     // An interested visitor is sent to the live inquiries mailbox.
     expect(html).toContain("href=\"mailto:inquiries@tourneyhq.club?subject=");
+    // The offer is the first payment only — never "for life", never every payment.
+    expect(html).toContain("25% off their first payment");
+    expect(html).not.toMatch(/for life|every payment|forever/i);
     expect(html.indexOf(SIGNINS_CLOSED_NOTICE.lead)).toBeLessThan(html.indexOf("<form"));
   });
 

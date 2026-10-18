@@ -72,7 +72,7 @@ export function LandingAuth({
           >
             {SIGNINS_CLOSED_NOTICE.interestedEmail}
           </a>{" "}
-          {SIGNINS_CLOSED_NOTICE.interestedTail}
+          {SIGNINS_CLOSED_NOTICE.interestedTail} {SIGNINS_CLOSED_NOTICE.offer}
         </p>
         <p style={{ margin: "8px 0 0" }}>
           {SIGNINS_CLOSED_NOTICE.playLead}{" "}
