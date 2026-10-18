@@ -20,6 +20,7 @@ import { setPlayerTee } from "@/app/actions/courses";
 import { ConfirmButton } from "./ConfirmButton";
 import { indexLabel, indexFigure } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
+import { SignUpPoster } from "./SignUpPoster";
 import { MoreInfo } from "./MoreInfo";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { HANDICAP_BODIES, bodyInProse, bodyShortLabel, handicapBody as bodyById } from "@/lib/domain/handicap-body";
@@ -1092,6 +1093,14 @@ export function RegistrationClient({
                   </button>
                 )}
               </div>
+            )}
+            {registerUrl && (
+              <SignUpPoster
+                url={registerUrl}
+                name={event.name}
+                when={event.dates.trim()}
+                where={[event.course.trim(), event.city.trim()].filter(Boolean).join(", ")}
+              />
             )}
 
             {/* Auto-confirm vs approve-each-entry. */}

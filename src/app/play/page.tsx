@@ -82,7 +82,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       },
       orderBy: { id: "asc" },
     }),
-    prisma.stage.findUnique({ where: { id: session.stageId }, select: { type: true, lineupPublished: true } }),
+    prisma.stage.findUnique({ where: { id: session.stageId }, select: { type: true, lineupPublished: true, accessCode: true } }),
   ]);
   // A cup lineup the organizer has not announced is nobody's match yet.
   const myMatches = codeStage && lineupHidden(codeStage) ? [] : drawn;
@@ -147,6 +147,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     if (cardStage && needsTeams(cardStage.format)) {
       return (
         <PlayClient
+          sessionCode={codeStage?.accessCode ?? ""}
           expiryNotice={expiry}
           expiryShort={expiryLine}
           stage="no-match"
@@ -214,6 +215,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         // This card's distances in its own course's unit.
         <DistanceUnitProvider unit={await distanceUnitFor(resolved, event.organizationId)}>
         <PlayClient
+          sessionCode={codeStage?.accessCode ?? ""}
           expiryNotice={expiry}
         expiryShort={expiryLine}
           stage="card"
@@ -249,6 +251,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
 
     return (
       <PlayClient
+        sessionCode={codeStage?.accessCode ?? ""}
         expiryNotice={expiry}
         expiryShort={expiryLine}
         stage="no-match"
@@ -399,6 +402,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     // of its own, which is why it is asked of `playResolved` and not the round.
     <DistanceUnitProvider unit={await distanceUnitFor(playResolved, event.organizationId)}>
     <PlayClient
+      sessionCode={codeStage?.accessCode ?? ""}
       expiryNotice={expiry}
         expiryShort={expiryLine}
       stage="score"

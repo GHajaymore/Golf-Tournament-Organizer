@@ -19,6 +19,7 @@ import { stablefordPickUp } from "@/lib/domain/card-points";
 import { certifyPrompt } from "@/lib/domain/card-approval";
 import { HoleResultCard } from "./HoleResultCard";
 import { firstName } from "@/lib/format";
+import { codeFromLink, formatAccessCode } from "@/lib/code-format";
 
 interface PlayMatch {
   id: string;
@@ -178,6 +179,12 @@ interface Props {
    * its signature whatever an un-updated caller sends.
    */
   signs?: boolean;
+  /**
+   * The code this phone's session was opened with, unformatted — so a sign
+   * scanned on a phone already scoring can be told apart from the round it is
+   * on. The holder typed or scanned it themselves; it is never in the cookie.
+   */
+  sessionCode?: string;
 }
 
 /**
@@ -249,7 +256,82 @@ function Shell({
   );
 }
 
+/**
+ * A SIGN SCANNED ON A PHONE THAT IS ALREADY SCORING (2026-10-17).
+ *
+ * The round's printed sign opens `/play#CODE`. On a phone with no session the
+ * code step reads it. On a phone holding a session the server shows that
+ * session and knows nothing of the `#`, so without this the second round's
+ * sign silently reopened the first round's card. It asks, and never switches
+ * by itself: switching mid-card is a decision, not a side effect of a scan.
+ */
+function ScannedSign({ sessionCode, roundLabel }: { sessionCode: string; roundLabel?: string }) {
+  const [other, setOther] = useState("");
+  const [pending, startTransition] = useTransition();
+  useEffect(() => {
+    const fromSign = codeFromLink(window.location.hash);
+    if (!fromSign) return;
+    if (fromSign === sessionCode) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      return;
+    }
+    setOther(fromSign);
+  }, [sessionCode]);
+  if (!other) return null;
+  return (
+    // A section in the page, not a dialog: nothing behind it is blocked, and
+    // `dialogs-are-swept` counts the app's real dialogs.
+    <section
+      aria-label="A sign for another round"
+      className="card elev-sm"
+      // `calc` keeps the page's 16px gutter on a phone: the play page's own
+      // padding is inside its <main>, and this sits above it.
+      style={{ maxWidth: 560, width: "calc(100% - 32px)", margin: "16px auto 0", padding: "12px 14px", gap: 10, border: "1px solid var(--color-warning)" }}
+    >
+      <p style={{ margin: 0, fontSize: 15, lineHeight: 1.45 }}>
+        This phone is scoring <b>{roundLabel || "another round"}</b>. The code you scanned, {formatAccessCode(other)}, is
+        for a different round.
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ minHeight: 44 }}
+          disabled={pending}
+          // The `#` stays on the address, so the code step reads it after the reload.
+          onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+        >
+          Switch to that round
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ minHeight: 44 }}
+          disabled={pending}
+          onClick={() => {
+            history.replaceState(null, "", window.location.pathname + window.location.search);
+            setOther("");
+          }}
+        >
+          Keep scoring this one
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function PlayClient(props: Props) {
+  return (
+    <>
+      {props.stage !== "code" && props.sessionCode ? (
+        <ScannedSign sessionCode={props.sessionCode} roundLabel={props.roundLabel} />
+      ) : null}
+      <PlayScreens {...props} />
+    </>
+  );
+}
+
+function PlayScreens(props: Props) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [nameFilter, setNameFilter] = useState("");
@@ -359,20 +441,44 @@ export function PlayClient(props: Props) {
 
   /* ── Step 1: enter the code ───────────────────────────────────────── */
 
+  const openCode = (typed: string) => {
+    setError("");
+    startTransition(async () => {
+      const res = await redeemRoundCode(typed);
+      if (!res.ok) {
+        setError(res.error ?? "That code isn't valid.");
+        return;
+      }
+      setPlayers(res.players ?? []);
+      setGroups(res.groups ?? []);
+      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "" });
+    });
+  };
+
+  /**
+   * A SCANNED SIGN OPENS ITS ROUND (2026-10-17).
+   *
+   * The sign's address carries the code after a `#` (`roundCodeLink`), so this
+   * runs in the browser only: a link preview or a prefetch never redeems. It
+   * goes straight to the names — tapping your own name is the confirmation,
+   * and the name step is unchanged, so a scan can never pick a player. The `#`
+   * is cleared at once so a reload does not open the round again. Somebody who
+   * typed into the box before the page woke keeps what they typed.
+   */
+  useEffect(() => {
+    if (props.stage !== "code") return;
+    const fromSign = codeFromLink(window.location.hash);
+    if (!fromSign) return;
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    const box = document.getElementById("play-round-code") as HTMLInputElement | null;
+    if (box && box.value.trim()) return;
+    setCode(formatAccessCode(fromSign));
+    openCode(fromSign);
+    // Once, on arrival.
+  }, [props.stage]);
+
   if (props.stage === "code") {
-    const submit = () => {
-      setError("");
-      startTransition(async () => {
-        const res = await redeemRoundCode(code);
-        if (!res.ok) {
-          setError(res.error ?? "That code isn't valid.");
-          return;
-        }
-        setPlayers(res.players ?? []);
-        setGroups(res.groups ?? []);
-        setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "" });
-      });
-    };
+    const submit = () => openCode(code);
 
     // Filtered, never reordered — see name-filter.ts for why, and for the
     // threshold below.
@@ -526,6 +632,12 @@ export function PlayClient(props: Props) {
             onClick={() => {
               setPlayers(null);
               setContext(null);
+              // An EMPTY box (2026-10-17, the night before the first real cup):
+              // it kept the code just used, and a phone puts the cursor at the
+              // end, so typing the other nine's code made "RAE948RW-6J9B-QR7Z"
+              // and "That code isn't valid" — to a player who typed it right.
+              setCode("");
+              setError("");
             }}
           >
             Use a different code
