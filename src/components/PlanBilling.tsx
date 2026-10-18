@@ -58,12 +58,14 @@ export function PlanBilling({
     });
   };
 
-  const go = (fn: () => Promise<{ ok: true; url: string } | { ok: false; error: string }>, which = "") => {
+  const go = (fn: () => Promise<{ ok: true; url: string } | { ok: false; error: string; about?: "discount" }>, which = "") => {
     setError("");
     setChosen(which);
     startTransition(async () => {
       const res = await fn();
       if (res.ok) window.location.assign(res.url);
+      // A refused CODE is said at the code box, once — not again under the buttons.
+      else if (res.about === "discount") setCodeNote({ ok: false, text: res.error });
       else setError(res.error);
     });
   };

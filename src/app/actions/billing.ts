@@ -20,7 +20,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
  * if it came from anyone: an unknown plan or interval is refused, never coerced.
  */
 
-export type BillingResult = { ok: true; url: string } | { ok: false; error: string };
+/** `about: "discount"` when it is the code that was refused, so the panel says it at the code box. */
+export type BillingResult = { ok: true; url: string } | { ok: false; error: string; about?: "discount" };
 
 /** The origin this request came in on, so a preview deploy returns to itself. */
 async function requestOrigin(): Promise<string> {
@@ -72,7 +73,7 @@ export async function startCheckout(planInput: string, intervalInput: string, di
   // Judged again here, whatever the panel was told: a code can expire or be
   // switched off between Apply and Pay, and this is a public endpoint.
   const discount = await usableDiscount(discountInput);
-  if ("error" in discount) return { ok: false, error: discount.error };
+  if ("error" in discount) return { ok: false, error: discount.error, about: "discount" };
 
   const club = await prisma.organization.findUnique({
     where: { id: org.organizationId },
