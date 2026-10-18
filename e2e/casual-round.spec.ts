@@ -781,6 +781,53 @@ test.describe("a casual round at the course", () => {
     }
   });
 
+  test("a match card that is still loading does not take a tap it would lose", async ({ page, browser, baseURL }, testInfo) => {
+    /**
+     * Picking your name reloads the page, so the card arrives drawn by the
+     * server before its script. A tap in that gap went nowhere: found by a
+     * round on a small phone (2026-10-18), where "Hole 1 halved" was pressed
+     * and the hole stayed "not played". On one bar of signal the gap is
+     * seconds. So the script is HELD BACK here, as `typed-before-load.spec.ts`
+     * does, and the answers must say they cannot act yet — then take the tap
+     * once they can.
+     */
+    test.skip(testInfo.project.name !== "phone", "one phone is enough: this is about time, not width");
+    await setUp(page, "Match Play", false, [ANN, BEA]);
+    await page.goto(`/entry?bust=${Date.now()}`);
+    await page.locator("summary", { hasText: /^More: Friends/ }).click();
+    const code = (await page.locator("code").filter({ hasText: /^[A-Z0-9-]{6,}$/ }).first().innerText()).trim();
+
+    const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
+    try {
+      const p = await ctx.newPage();
+      await p.goto("/play");
+      await p.getByLabel("Round code").fill(code);
+      await p.getByRole("button", { name: "Continue" }).click();
+      const bea = p.getByRole("button", { name: BEA, exact: true });
+      await expect(bea).toBeEnabled();
+      // From here every script arrives four seconds late (a route also turns
+      // the browser's cache off, so the reload cannot borrow the last copy).
+      let held = 0;
+      await p.route("**/_next/static/**/*.js", async (route) => {
+        held += 1;
+        await new Promise((r) => setTimeout(r, 4000));
+        await route.continue();
+      });
+      await bea.click();
+      const halved = p.getByRole("button", { name: "Hole 1 halved" });
+      await expect(halved, "the reloaded card was not drawn by the server").toBeVisible({ timeout: 30_000 });
+      // CONTROL: the page really is not live yet — its scripts are still held.
+      expect(held, "no script was held back: the card was not reloaded").toBeGreaterThan(0);
+      await expect(halved, "an answer on a card whose script has not arrived looks pressable, and its tap is lost").toBeDisabled();
+
+      await expect(halved, "the answers never woke up").toBeEnabled({ timeout: 30_000 });
+      await halved.click();
+      await expect(p.getByRole("button", { name: /^Hole 1, halved/ }), "a tap once the card was live was not kept").toBeVisible();
+    } finally {
+      await ctx.close().catch(() => {});
+    }
+  });
+
   test("a friend keeping a net match by the code sees who gets a shot, where the host's card does", async ({ page, browser, baseURL }, testInfo) => {
     /**
      * Ann plays off 8 and Bea off 12. The tee is rated 72.0 / 113 over par
