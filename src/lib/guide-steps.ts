@@ -293,6 +293,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Players' pairing requests are kept together where possible (not in a draw by position); any that couldn't fit are listed.",
           "In a team round partners always go out together, and where sides play a match — a cup's four-balls or foursomes — both sides of each match share a group, so every group is one match.",
           "[[Save sheet]] keeps a draft. [[Save & publish]], then confirm [[Publish the tee sheet]].",
+          "A draft you saved earlier is published as it stands with [[Publish this sheet]] — no re-draw needed. [[Re-draw this sheet]] starts from the saved sheet's first tee and interval, so changing one thing doesn't move the field's times.",
         ],
       },
       { kind: "tip", text: "On publish each player gets “Your tee time is set” (or “has changed”) on their phone and sees their group on Today. [[Unpublish]] hides it again without losing the draw. Print scorecards, one per group, from the tee sheet." },
