@@ -131,6 +131,7 @@ const CARDS: [string, () => string][] = [
   ["handicaps", () => render(
     <HandicapSetup view={{
       policy: "club", canEdit: true,
+      body: { id: "ghin", name: "GHIN (USGA)", number: "GHIN number" },
       handicap: { providerId: "ghin", label: "GHIN", status: "unconfigured", howToEnable: "" },
       scores: { enabled: false, providerId: "ghin", label: "GHIN", status: "unconfigured", howToEnable: "" },
     }} />,

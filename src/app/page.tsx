@@ -19,6 +19,7 @@ import { HOME_CSS } from "@/lib/landing/home-styles";
 import { COMPARED_ON, PRICES_READ_ON, RIVALS, TOP_PUBLISHED, compareRows, type Cell } from "@/lib/landing/compare";
 import { SALES_EMAIL } from "@/lib/contact";
 import { LandingAuth } from "@/components/LandingAuth";
+import { signInsClosed } from "@/lib/sign-in-gate";
 import { LandingEffects } from "@/components/LandingEffects";
 import { LandingHomeEffects } from "@/components/LandingHomeEffects";
 import { FeatureSearch } from "@/components/landing/FeatureSearch";
@@ -811,7 +812,7 @@ export default async function LandingPage() {
               </p>
               </div>
               <div className="authpanel m-auth">
-                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} />
+                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} closed={signInsClosed()} />
               </div>
               <div className="m-close-more">
               <div className="m-stores">

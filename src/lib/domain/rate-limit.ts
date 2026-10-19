@@ -49,6 +49,7 @@ export type RateLimitKind =
   | "claim-password"
   | "password-reset"
   | "round-code"
+  | "discount-check"
   | "register-token"
   | "register-email"
   | "card-photo"
@@ -80,6 +81,11 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  ten wrong entries is a group that needs to ask, not an attack. It still
    *  turns "a thousand guesses a second" into "forty an hour". */
   "round-code": { limit: 10, windowMs: 15 * MINUTE },
+  /** Discount codes, tried at sign-up or on a club's plan panel. A code is
+   *  eight characters from 31, so this is not about guessing one — it is about
+   *  a script trying to, and ten typos in fifteen minutes is a person who
+   *  should check the email the code came in. */
+  "discount-check": { limit: 10, windowMs: 15 * MINUTE },
   /**
    * Open registration, keyed on the shared link's token — the coarse flood cap.
    *
@@ -308,6 +314,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many reset requests. Try again in ${wait}.`;
     case "round-code":
       return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
+    case "discount-check":
+      return `Too many discount code attempts. Wait ${wait}, and check the code against the email it came in.`;
     // Its own sentence (2026-10-03). It fell through to the card-photo message,
     // so somebody entering a tournament through a busy public link was told
     // "Too many card readings just now … type the scores in".

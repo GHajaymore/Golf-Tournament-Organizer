@@ -66,6 +66,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Open My card.",
       "Tap a hole, then your strokes.",
       "It saves as you go, even with no signal.",
+      "Buttons grey? The page is still loading. Wait a moment.",
       "[[Full card]] shows every hole at once.",
     ],
   },

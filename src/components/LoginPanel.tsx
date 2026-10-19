@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
 import { askForBotCheck } from "@/lib/bot-check-fetch";
 import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
@@ -77,6 +77,18 @@ export function LoginPanel({
   const [kind, setKind] = useState<OrgKind | "">("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const [discountCode, setDiscountCode] = useState("");
+  const [codeOpen, setCodeOpen] = useState(false);
+
+  // A sign-up link that carries a code (?code=…) opens the box filled in.
+  // Read after mount, never while rendering, for the reason `intendedNext` gives.
+  useEffect(() => {
+    const fromLink = new URLSearchParams(window.location.search).get("code");
+    if (fromLink) {
+      setDiscountCode(fromLink);
+      setCodeOpen(true);
+    }
+  }, []);
 
   const switchMode = (next: Mode) => {
     setMode(next);
@@ -129,7 +141,7 @@ export function LoginPanel({
       // The one request on this page the bot check is FOR — and so the only
       // one that waits for it (`lib/bot-check-fetch.ts`).
       askForBotCheck(Date.now());
-      const result = await signUp(name, email, password, kind, intendedNext());
+      const result = await signUp(name, email, password, kind, intendedNext(), discountCode);
       /**
        * Same branch signing in takes. An email that was invited but never
        * claimed goes to "Set your password", which says whose account it is,
@@ -573,6 +585,46 @@ export function LoginPanel({
             </div>
           </fieldset>
         )}
+
+        {/* A discount code the owner handed out. Folded away, because almost
+            nobody has one and an empty box reads as a price to pay; a link that
+            carries one (?code=…) opens it filled in. Kept on the club and offered
+            at its plan checkout — it comes off the first payment only. */}
+        {!login &&
+          (codeOpen ? (
+            <Field label="Discount code" boxId="login-discount" hint="Optional. It comes off your first payment when you choose a paid plan.">
+              <input
+                id="login-discount"
+                className="input"
+                name="discountCode"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                value={discountCode}
+                onChange={(e) => setDiscountCode(e.target.value)}
+                placeholder="e.g. 7KQ2MXRP"
+                aria-describedby="login-discount-hint"
+              />
+            </Field>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCodeOpen(true)}
+              style={{
+                alignSelf: "flex-start",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 13,
+                color: "var(--color-accent-200)",
+                minHeight: 44,
+                padding: 0,
+                margin: "-10px 0",
+              }}
+            >
+              Have a discount code?
+            </button>
+          ))}
 
         {errorBlock}
 

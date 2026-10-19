@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useDistanceWords } from "./DistanceUnitProvider";
 import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
+import { usePageIsLive } from "./usePageIsLive";
 import { startDictation, type Dictation } from "@/lib/dictation";
 import { parseHolesTranscript } from "@/lib/domain/match";
 
@@ -91,6 +92,8 @@ export function HoleResultCard({
   onSay: (start: number, values: HoleResult[]) => void;
 }) {
   const distance = useDistanceWords();
+  // An answer pressed before the page is live goes nowhere — see the hook.
+  const live = usePageIsLive();
   const count = holes.length || 18;
   // Open on the first hole with no result; the last once every one has one.
   const [hole, setHole] = useState(() => {
@@ -296,6 +299,7 @@ export function HoleResultCard({
               className={a.cls}
               aria-pressed={value === a.v}
               aria-label={a.aria}
+              disabled={!live}
               onClick={() => press(a.v)}
             >
               {a.label}

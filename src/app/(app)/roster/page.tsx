@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { loadRoster } from "@/lib/services/roster";
 import { handicapReadable } from "@/lib/services/integrations";
+import { clubHandicapBody } from "@/lib/domain/handicap-body";
 import { RosterClient } from "@/components/RosterClient";
 import { unlinkedPlayers, memberEntryFor, fieldSizeOf } from "@/lib/domain/roster-link";
 
@@ -47,7 +48,7 @@ export default async function RosterPage() {
       // `handicapPolicy` comes too: this screen shows indexes, and whether a
       // blank one is an unfinished row or an ordinary club-handicap member is
       // a question only the policy answers.
-      select: { name: true, shortName: true, kind: true, handicapPolicy: true },
+      select: { name: true, shortName: true, kind: true, handicapPolicy: true, handicapAuthorityId: true, country: true },
     }),
     loadRoster(organizationId),
     session.eventId
@@ -102,6 +103,7 @@ export default async function RosterPage() {
   return (
     <RosterClient
       clubName={org.shortName || org.name}
+      bodyNumber={clubHandicapBody(org).number}
       /**
        * WHETHER THIS CLUB CAN READ INDEXES AT ALL.
        *
