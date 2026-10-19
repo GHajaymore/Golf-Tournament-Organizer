@@ -341,3 +341,35 @@ test("a player in the round with no match is told so, and given nobody's card", 
     await ctx.close();
   }
 });
+
+/**
+ * THE LEADERBOARD IS ONE TAP AWAY FROM THE CARD (2026-10-18). At the first real
+ * cup every player scored by the code, and this page was score entry and
+ * nothing else: nobody could see how the cup stood without the link on the
+ * printed sheet. Where the organizer has made the board public, the page's
+ * header carries it; where not, nothing is drawn (the control).
+ */
+test("the card links to the public leaderboard, and only when the board is public", async ({ browser, baseURL }) => {
+  test.setTimeout(120_000);
+  const was = await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { leaderboardVisibility: true, shareToken: true } });
+  const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  const page = await ctx.newPage();
+  try {
+    await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: "participants" } });
+    await enter(page, "Zz Finn");
+    await expect(page.getByRole("heading", { name: /Zz Edda & Zz Finn\s*vs/ })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("link", { name: "Leaderboard" }), "a board only players may see is offered to a code").toHaveCount(0);
+
+    await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: "public" } });
+    await page.goto(`/play?bust=${Date.now()}`);
+    const board = page.getByRole("link", { name: "Leaderboard" });
+    await expect(board, "the card has no way to the public board").toBeVisible({ timeout: 20_000 });
+    await expect(board).toHaveAttribute("href", `/live/${was.shareToken}`);
+    await board.click();
+    await expect(page).toHaveURL(new RegExp(`/live/${was.shareToken}`));
+    await expect(page.getByText(`${MARK} Autumn Cup`).first(), "the link does not open this tournament's board").toBeVisible({ timeout: 20_000 });
+  } finally {
+    await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: was.leaderboardVisibility } });
+    await ctx.close();
+  }
+});

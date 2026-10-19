@@ -2,7 +2,7 @@ import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf, loadEventState } from "@/lib/services/tournament";
-import { allowsAutoConfirm } from "@/lib/tournament-settings";
+import { allowsAutoConfirm, isLeaderboardPublic } from "@/lib/tournament-settings";
 import { courseForMatch, cardForMatch, courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { brandForEvent } from "@/lib/services/organization";
@@ -90,6 +90,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
   if (!event) return <PlayClient stage="code" />;
 
   const settings = settingsOf(event);
+  // The board a code holder may open: only one the organizer has made public.
+  const boardHref = isLeaderboardPublic(settings) && event.shareToken ? `/live/${event.shareToken}` : undefined;
   const brand = await brandForEvent(event.id);
   /**
    * That this round is temporary, worded for somebody who cannot keep it.
@@ -147,6 +149,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     if (cardStage && needsTeams(cardStage.format)) {
       return (
         <PlayClient
+          boardHref={boardHref}
           sessionCode={codeStage?.accessCode ?? ""}
           expiryNotice={expiry}
           expiryShort={expiryLine}
@@ -215,6 +218,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         // This card's distances in its own course's unit.
         <DistanceUnitProvider unit={await distanceUnitFor(resolved, event.organizationId)}>
         <PlayClient
+          boardHref={boardHref}
           sessionCode={codeStage?.accessCode ?? ""}
           expiryNotice={expiry}
         expiryShort={expiryLine}
@@ -251,6 +255,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
 
     return (
       <PlayClient
+        boardHref={boardHref}
         sessionCode={codeStage?.accessCode ?? ""}
         expiryNotice={expiry}
         expiryShort={expiryLine}
@@ -402,6 +407,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     // of its own, which is why it is asked of `playResolved` and not the round.
     <DistanceUnitProvider unit={await distanceUnitFor(playResolved, event.organizationId)}>
     <PlayClient
+      boardHref={boardHref}
       sessionCode={codeStage?.accessCode ?? ""}
       expiryNotice={expiry}
         expiryShort={expiryLine}

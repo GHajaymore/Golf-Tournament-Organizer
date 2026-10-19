@@ -42,6 +42,15 @@ interface PlayMatch {
 interface Props {
   stage: "code" | "score" | "no-match" | "card";
   /**
+   * THE LEADERBOARD, ONE TAP AWAY (2026-10-18). At the first real cup every
+   * player scored by the code, and this page was score entry and nothing
+   * else: nobody could see how the cup stood without the link from the
+   * printed sheet. The tournament's public board, where the organizer has
+   * made it public ("Anyone with the link"); otherwise none, and nothing is
+   * drawn.
+   */
+  boardHref?: string;
+  /**
    * The round and the code holder, for keeping their card on the phone while
    * it is sent (`usePendingCard`). Both come from the play session.
    */
@@ -199,9 +208,12 @@ function Shell({
   brand,
   notice,
   short = "",
+  boardHref,
   children,
 }: {
   brand?: Brand | null;
+  /** The tournament's public board, when it has one — see `boardHref` on the page's props. */
+  boardHref?: string;
   /** Already-worded, from `expiryNotice`. Empty renders nothing. */
   notice?: string;
   /**
@@ -227,6 +239,11 @@ function Shell({
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
           <OrgBrand brand={brand} />
+          {boardHref && (
+            <a href={boardHref} className="btn btn-secondary" style={{ marginLeft: "auto", minHeight: 44, fontSize: 14, flex: "none" }}>
+              <Icon name="ranking" /> Leaderboard
+            </a>
+          )}
         </div>
         {notice && (
           <div
@@ -486,7 +503,7 @@ function PlayScreens(props: Props) {
 
     if (players && context) {
       return (
-        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
           <div style={{ marginBottom: 16 }}>
             <div className="page-kicker">{context.roundLabel}</div>
             <h1 style={{ fontSize: 24, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -669,7 +686,7 @@ function PlayScreens(props: Props) {
     }
 
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 24, margin: 0, fontFamily: "var(--font-heading)" }}>Enter your score</h1>
           {/* TRUE FOR BOTH KINDS OF ROUND, because this screen cannot know
@@ -805,7 +822,7 @@ function PlayScreens(props: Props) {
     };
 
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
         <div style={{ marginBottom: 14 }}>
           <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
           <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -968,7 +985,7 @@ function PlayScreens(props: Props) {
 
   if (props.stage === "no-match") {
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
         <div className="card elev-sm">
           {props.sideRound ? (
             <>
@@ -1097,7 +1114,7 @@ function PlayScreens(props: Props) {
   const halved = counted.filter((h) => h === "H").length;
 
   return (
-    <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+    <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
       <div style={{ marginBottom: 14 }}>
         <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
         <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
