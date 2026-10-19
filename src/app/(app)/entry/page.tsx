@@ -49,10 +49,16 @@ import { CupSessionNav } from "@/components/CupSessionNav";
 import { CasualRoundScreen } from "@/components/CasualRoundScreen";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import Link from "next/link";
+import { MatchKeeper } from "@/components/MatchKeeper";
+import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
+import { matchCardFor } from "@/lib/services/match-card";
+import { matchKeptBy } from "@/lib/domain/match-kept-by";
+import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
 
 export const metadata = screenMetadata("/entry");
 
-export default async function EntryPage({ searchParams }: { searchParams?: Promise<{ round?: string }> }) {
+export default async function EntryPage({ searchParams }: { searchParams?: Promise<{ round?: string; m?: string }> }) {
   const session = await requireScreen("entry");
   // A round asked for by link — the cup's session links, or anybody's — read
   // before anything else so every branch below scores the same round.
@@ -231,6 +237,84 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
     const stageMatches = state.matches.filter(
       (m) => m.stageId === activeStage.id && m.teamAId && m.teamBId,
     );
+
+    /**
+     * A TEAM MATCH ROUND KEPT BY TAPPING (`matchKeptBy`, 2026-10-19).
+     *
+     * Its matches are kept one hole at a time, who won it, and a stroke card
+     * would rebuild them over the taps — so this screen offers no cards for it
+     * (the server refuses them too). Staff pick a match and keep or correct it
+     * on the very card the players tap (`MatchKeeper`); a player keeps their
+     * own on My match.
+     */
+    if (stageMatches.length > 0 && matchKeptBy(activeStage) === "holes") {
+      const nameOf = (id: string) => teamById.get(id)?.name ?? "Side";
+      const pickedMatchId = String((await searchParams)?.m ?? "");
+      // The one asked for, in this round of this tournament; otherwise the first.
+      const rows = isStaff
+        ? await prisma.match.findMany({
+            where: { eventId: session.eventId, stageId: activeStage.id, teamAId: { not: "" } },
+            orderBy: { id: "asc" },
+          })
+        : [];
+      const row = rows.find((r) => r.id === pickedMatchId) ?? rows[0] ?? null;
+      const tapCard = row ? await matchCardFor({ match: row, holderId: "", holderSides: [row.teamAId] }) : null;
+      return (
+        <>
+          <p className="kicker">Manage</p>
+          <h1 className="page-title">Score entry</h1>
+          {cupNav}
+          <div className="card elev-sm" style={{ marginTop: 8 }}>
+            <span className="card-title" style={{ fontSize: 15 }}>Kept by tapping who won each hole</span>
+            <p className="text-muted" style={{ fontSize: 14, margin: "6px 0 0" }}>
+              {isStaff
+                ? "Players tap their matches on their phones. Open one here to keep it or correct it — stroke cards are switched off for this round on Rounds & formats."
+                : "Your match is kept on your phone, one tap a hole."}
+            </p>
+            {!isStaff && (
+              <Link className="btn btn-primary" href="/me/match" style={{ marginTop: 10, alignSelf: "flex-start" }}>
+                Score my match
+              </Link>
+            )}
+          </div>
+          {isStaff && (
+            <nav aria-label="Matches in this round" style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "12px 0" }}>
+              {stageMatches.map((m) => (
+                <Link
+                  key={m.id}
+                  href={`/entry?round=${encodeURIComponent(activeStage.id)}&m=${encodeURIComponent(m.id)}`}
+                  className={m.id === row?.id ? "btn btn-primary" : "btn btn-secondary"}
+                  aria-current={m.id === row?.id ? "page" : undefined}
+                  style={{ fontSize: 13 }}
+                >
+                  {nameOf(m.teamAId)} v {nameOf(m.teamBId)}
+                </Link>
+              ))}
+            </nav>
+          )}
+          {tapCard && row && (
+            <DistanceUnitProvider unit={tapCard.unit}>
+              <MatchKeeper
+                match={tapCard.match}
+                holes={tapCard.holes}
+                pars={tapCard.pars}
+                yards={tapCard.yards}
+                strokeIndex={tapCard.strokeIndex}
+                cardStrokeIndex={tapCard.cardStrokeIndex}
+                firstHole={tapCard.firstHole}
+                matchShots={tapCard.matchShots}
+                voiceEntry={settingsOf(state.event).voiceEntry}
+                stageId={activeStage.id}
+                roundLabel={roundLabel(state.stages, activeStage.id)}
+                eventName={state.event.name}
+                saveHoles={keepMyMatchHoles}
+                saveResult={keepMyMatchResult}
+              />
+            </DistanceUnitProvider>
+          )}
+        </>
+      );
+    }
     const cards = await prisma.teamScorecard.findMany({
       where: { eventId: session.eventId, stageId: activeStage.id },
     });

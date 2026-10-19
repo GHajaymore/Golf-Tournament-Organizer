@@ -43,8 +43,10 @@ export const TEAMS = [
   },
 ];
 export const SESSIONS = [
-  { key: "fourball", description: "Saturday four-balls", format: "Four-Ball" },
-  { key: "foursomes", description: "Saturday foursomes", format: "Foursomes" },
+  // Saturday is decided off the low and a picked-up hole, so its matches are
+  // kept on stroke cards (`matchKeptBy`); a cup session is tapped by default.
+  { key: "fourball", description: "Saturday four-balls", format: "Four-Ball", kept: "cards" },
+  { key: "foursomes", description: "Saturday foursomes", format: "Foursomes", kept: "cards" },
   { key: "singles", description: "Sunday singles", format: "Match Play" },
 ];
 export const cupEmail = (key) => `${CUP}-${key}@example.invalid`;
@@ -126,6 +128,7 @@ export async function seedCup() {
           holes: 18,
           scoringBasis: "net",
           courseId: course.id,
+          matchKeptBy: s.kept ?? "",
         },
       });
       sessions[s.key] = stage.id;

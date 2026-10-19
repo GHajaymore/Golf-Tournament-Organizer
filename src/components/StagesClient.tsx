@@ -1050,6 +1050,12 @@ function StageCard({
   if (scoreInput && scoreInput !== declaredInput(format)) {
     customizeParts.push(MATCH_ENTRY_MODES.find((m) => m.key === scoreInput)?.label ?? "Scores recorded differently");
   }
+  // How players keep the matches, when the organizer chose other than the round's own default.
+  if (!keptByScoreInput(format)) {
+    const keptNow = matchKeptBy({ type: stage.type, format, scoreInput, matchKeptBy: keptBy });
+    const keptUsual = matchKeptBy({ type: stage.type, format, scoreInput, matchKeptBy: "" });
+    if (keptNow && keptNow !== keptUsual) customizeParts.push(MATCH_KEPT_BY.find((m) => m.key === keptNow)?.label ?? "");
+  }
   const changedHandicaps = stage.handicaps.filter((h) => h.override !== null).length;
   if (changedHandicaps > 0) customizeParts.push(`${changedHandicaps} handicap${changedHandicaps === 1 ? "" : "s"} set for the round`);
   /** The closed row's line: everything the round is, in one place. */
