@@ -82,6 +82,14 @@ model Organization {
   kind String @default("personal")
 
   /**
+   * A discount code the club gave when it signed up (`DiscountCode.code`), or
+   * "" for none. Kept so the club's plan checkout offers it without being
+   * retyped; whether it can still be used is asked again at checkout
+   * (`discountRefusal`), because a code can expire or be switched off between.
+   */
+  discountCode String @default("")
+
+  /**
    * none | float | split — the club default for what a tournament does with
    * money. Empty follows the kind of outfit (see resolveMoneyMode), which is
    * what every existing club does today.
@@ -633,6 +641,18 @@ model Member {
   email        String @default("")
   phone        String @default("")
   ghin         String @default("")
+  /**
+   * The handicap body this person's index and number are with
+   * (`domain/handicap-body.ts`), or "" for the CLUB's own body.
+   *
+   * For the visitor (Ajay, 2026-10-17: "make sure you do not change the
+   * scenarios where person from another country visit to play an outing"):
+   * under WHS an index is valid everywhere, so an England Golf member at a US
+   * club plays off their England Golf index. `ghin` then holds their number
+   * with THAT body, and a club that plays off its own body only still keeps
+   * the visitor's typed index — it is their body's official figure.
+   */
+  handicapBodyId String @default("")
   homeClub     String @default("")
   gender       String @default("")
   preferredTee String @default("")
@@ -1800,6 +1820,17 @@ model Stage {
    * between a round counting and not, which is not a preference.
    */
   scoreInput String @default("")
+
+  /**
+   * How PLAYERS keep this round's matches (Ajay, 2026-10-19: "provide both
+   * options for organizer to decide while setting up the tournament").
+   * "holes" — tap who won each hole, the card a whole cup praised;
+   * "cards" — each ball's strokes, the match worked out from them.
+   * Empty means the round's own default — see `matchKeptBy` in
+   * lib/domain/match-kept-by.ts, the only reader. Match Play and Nassau answer
+   * from `scoreInput` instead, which already holds this choice for them.
+   */
+  matchKeptBy String @default("")
 
   /**
    * Per-player allowance shares for this round, best player first — the

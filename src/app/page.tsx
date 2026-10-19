@@ -19,6 +19,7 @@ import { HOME_CSS } from "@/lib/landing/home-styles";
 import { COMPARED_ON, PRICES_READ_ON, RIVALS, TOP_PUBLISHED, compareRows, type Cell } from "@/lib/landing/compare";
 import { SALES_EMAIL } from "@/lib/contact";
 import { LandingAuth } from "@/components/LandingAuth";
+import { signInsClosed } from "@/lib/sign-in-gate";
 import { LandingEffects } from "@/components/LandingEffects";
 import { LandingHomeEffects } from "@/components/LandingHomeEffects";
 import { FeatureSearch } from "@/components/landing/FeatureSearch";
@@ -118,8 +119,8 @@ const WEEK: Array<{ when: string; tab: string; who: string; h: string; p: string
   { when: "Thu 18:00", tab: "The draw", who: "Organizer", h: "You publish the draw.",
     p: "Drawn from who's in, then yours to adjust. Every player has their group and tee time on their phone.",
     shot: "org-teesheet", alt: "The organizer's tee sheet: two pairing requests above the published draw." },
-  { when: "Sat 08:05", tab: "The code", who: "Players", h: "They type the code.",
-    p: "Eight characters put a player on their round. No account and no password.",
+  { when: "Sat 08:05", tab: "The code", who: "Players", h: "They scan the sign.",
+    p: "Each round's printed sign carries a QR code and its eight-character code. Scan or type it, tap your name, and you're on your round. No account and no password.",
     shot: "club-today", alt: "A player's Today screen: the round, a pinned notice, their card so far and their position." },
   { when: "10:50", tab: "The card", who: "Players", h: "They tap the score, or say it.",
     p: "The card saves as they go, and keeps saving when there is no signal.",
@@ -811,7 +812,7 @@ export default async function LandingPage() {
               </p>
               </div>
               <div className="authpanel m-auth">
-                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} />
+                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} closed={signInsClosed()} />
               </div>
               <div className="m-close-more">
               <div className="m-stores">

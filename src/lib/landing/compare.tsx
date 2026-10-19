@@ -175,7 +175,9 @@ export function compareRows(prices: LandingPrices): CompareRow[] {
     {
       label: "Handicap service link",
       detail: "Scores posted to GHIN or the WHS.",
-      ours: v("Coming soon", "GHIN numbers kept per member today"),
+      // Live posting is still to come; what is true today is the plus point
+      // (Ajay, 2026-10-17): every WHS country's body, and visitors from any of them.
+      ours: v("Coming soon", "Your country's handicap body on every screen, and visitors from any WHS country, today"),
       theirs: [y("GHIN"), y("WHS"), y("WHS"), na(), na()],
     },
   ];

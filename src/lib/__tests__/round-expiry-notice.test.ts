@@ -214,10 +214,16 @@ describe("the play shell tells a code-redeemed player too", () => {
     expect(shell).toMatch(/\{notice && \(/);
     // And every surface passes it — and its one-line form (2026-10-07), the
     // words the host reads on the round's own screen.
-    expect(
-      src.split("<Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>").length - 1,
-    ).toBeGreaterThanOrEqual(4);
-    expect(src).not.toMatch(/<Shell brand=\{props\.brand\}>/);
+    // Read per opening tag, so a prop added beside these (the board link,
+    // 2026-10-18) does not read as one taken away.
+    const shells = src.match(/<Shell\b[^>]*>/g) ?? [];
+    expect(shells.length).toBeGreaterThanOrEqual(4);
+    for (const tag of shells) {
+      expect(tag).toContain("notice={props.expiryNotice}");
+      expect(tag).toContain("short={props.expiryShort}");
+      // And the way to the public board, on every surface a code holder sees.
+      expect(tag).toContain("boardHref={props.boardHref}");
+    }
   });
 
   it("is worded for somebody who cannot keep the round", () => {

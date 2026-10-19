@@ -18,6 +18,11 @@ export function lineupHidden(stage: { type: string; lineupPublished?: boolean | 
   return stage.type === CUP_SESSION && !stage.lineupPublished;
 }
 
+/** A round played as a cup session, between the cup's two teams. */
+export function isCupSession(stage: { type: string }): boolean {
+  return stage.type === CUP_SESSION;
+}
+
 /** What a player is told when they try to score one. */
 export const LINEUP_HIDDEN = "This session's lineup hasn't been announced yet — your match appears once the organizer publishes it.";
 

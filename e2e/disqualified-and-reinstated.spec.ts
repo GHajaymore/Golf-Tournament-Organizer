@@ -94,8 +94,15 @@ test("a player is disqualified and reinstated, and the committee, the board and 
     expect(await status(), "one press disqualified somebody without asking").toBe("confirmed");
     await p.getByRole("button", { name: "Disqualify", exact: true }).click();
     await expect.poll(status, { timeout: 20_000, message: "the ruling was not stored" }).toBe("disqualified");
-    const logged = await prisma.auditLog.findFirst({ where: { eventId: data.eventId, detail: { contains: "zz-dq" } }, orderBy: { createdAt: "desc" } });
-    expect(logged?.detail ?? "", "the reason is not on the record").toContain(REASON);
+    // Polled, not read once: the action stores the ruling and THEN writes its audit line, so the
+    // status above can be read in the moment between the two (CI, 2026-10-17, phone).
+    await expect
+      .poll(
+        async () =>
+          (await prisma.auditLog.findFirst({ where: { eventId: data.eventId, detail: { contains: "zz-dq" } }, orderBy: { createdAt: "desc" } }))?.detail ?? "",
+        { timeout: 20_000, message: "the reason is not on the record" },
+      )
+      .toContain(REASON);
 
     p = await panel();
     await expect(p.getByRole("list", { name: "Disqualified" }), "the committee's own list does not name who it ruled out").toContainText(me.name);

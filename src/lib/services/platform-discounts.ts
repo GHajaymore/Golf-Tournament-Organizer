@@ -1,15 +1,17 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { randomInt } from "node:crypto";
 import { normalizeDiscountCode, isValidPercentOff } from "@/lib/plans";
+import { discountRefusal, discountSaid } from "@/lib/domain/discount";
 
 /**
  * OWNER-GENERATED DISCOUNT CODES — a percentage off, handed to a club.
  *
- * The owner creates these on the console and gives the code out. Redemption at
- * a paid upgrade is a future step — there is no billing flow yet — so for now
- * this is generation and management: create a code, see how it is doing, switch
- * it off. Everything a redemption will need (the cap, the expiry, the count) is
- * recorded so wiring it up later needs no schema change.
+ * The owner creates these on the console and gives the code out. Since
+ * 2026-10-17 a club USES one: at sign-up (kept on the club) or in the code box
+ * on its plan panel, and it comes off the club's first payment only — the rule
+ * is `domain/discount.ts`, the Stripe coupon `services/billing.ts`. The count
+ * of uses is Stripe's, copied here when a paid checkout completes.
  */
 
 export interface DiscountInput {
@@ -36,7 +38,8 @@ const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 function randomCode(len = 8): string {
   let out = "";
-  for (let i = 0; i < len; i += 1) out += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+  // A code is now money off a payment, so it is drawn from a secure source.
+  for (let i = 0; i < len; i += 1) out += ALPHABET[randomInt(ALPHABET.length)];
   return out;
 }
 
@@ -79,6 +82,17 @@ export async function createDiscount(input: DiscountInput): Promise<DiscountCode
     });
   }
   throw new Error("Couldn't generate a unique code — try again.");
+}
+
+/**
+ * What a club's stored code does now, for its plan panel: what comes off, or
+ * why it can no longer be used. Read on the server, so opening the page does
+ * not spend the club's tries at the code box.
+ */
+export async function discountNoteFor(code: string): Promise<{ ok: boolean; text: string }> {
+  const row = await prisma.discountCode.findUnique({ where: { code: normalizeDiscountCode(code) } });
+  const refusal = discountRefusal(row, new Date());
+  return refusal || !row ? { ok: false, text: refusal ?? "" } : { ok: true, text: discountSaid(row.percentOff) };
 }
 
 /** Switch a code on or off. Uses updateMany so an unknown code is a no-op

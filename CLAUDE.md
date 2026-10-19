@@ -44,6 +44,21 @@ refused, and a refused fixture does not fail loudly — every screen answers 307
 page, which a route walk reads as the app working. `session-token.test.ts` sweeps `e2e/` and
 `scripts/` for the old spellings.
 
+## Sign-ins until launch: the list is the switch
+
+Ajay, 2026-10-17: "block the signins until I say so or when we launch … app is not ready yet".
+`src/lib/sign-in-gate.ts`. When `SIGNIN_ALLOW_EMAILS` (comma-separated) names anybody, only
+those people and the owners on `OWNER_EMAILS` may sign in, set or reset a password, sign up, or
+keep a session; everybody else is told the app "opens soon" above the front door's form, with
+`inquiries@` for the interested and `/play` for a player. Round codes and public boards are not
+touched. Empty or unset — dev, CI, e2e — it is open. To open production: delete the variable
+(or `SIGNINS=open`) and redeploy. The check is in `createSession` and `getSession`, so a new door
+is shut without knowing the rule. Never the word "closed" on screen (his ruling).
+
+It does NOT close on its own in production with the owners let through, which was the first
+draft: `/owner` answered 404 to the owner, signed in, so production's `OWNER_EMAILS` did not hold
+his address and that draft would have locked him out the night before a real tournament.
+
 ## The club's clock: "today" is asked of the club, never of the server
 
 A deadline is a DAY, and a day belongs to a place. Until 2026-10-11 the day was whatever the

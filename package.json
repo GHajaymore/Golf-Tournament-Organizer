@@ -79,6 +79,7 @@
     "botid": "^1.5.11",
     "geist": "^1.7.2",
     "next": "15.5.27",
+    "qrcode-generator": "2.0.4",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "resend": "^6.18.1",

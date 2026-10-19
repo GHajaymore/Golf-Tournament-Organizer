@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { handicapAuthority, scoreReporter } from "../integrations/registry";
 import type { IntegrationCredential, IntegrationStatus } from "../integrations/types";
 import { handicapPolicyOf, indexesReadable, type HandicapPolicy } from "../domain/handicap-policy";
+import { clubHandicapBody, type HandicapBody } from "../domain/handicap-body";
 
 /**
  * A club's association setup, and the ONE place a credential is read.
@@ -21,6 +22,10 @@ import { handicapPolicyOf, indexesReadable, type HandicapPolicy } from "../domai
 /** What a screen may know about a club's association setup. Never the key. */
 export interface IntegrationSetup {
   policy: HandicapPolicy;
+  /** The club's handicap body and what its members' numbers are called. */
+  body: { id: string; name: string; number: string };
+  /** Whether the club has said where it is — the only thing that decides its body. */
+  countryKnown: boolean;
   handicap: {
     providerId: string;
     label: string;
@@ -84,11 +89,16 @@ export async function integrationSetup(organizationId: string): Promise<Integrat
       handicapAuthorityId: true,
       scoreReportingEnabled: true,
       scoreReporterId: true,
+      country: true,
     },
   });
 
-  const authorityId = org?.handicapAuthorityId ?? "ghin";
-  const reporterId = org?.scoreReporterId ?? "ghin";
+  // The club's own body: the one it chose, or — on its own record, having
+  // chosen nothing — its country's (`clubHandicapBody`). Never "GHIN (USGA)"
+  // for a club in England because a column defaulted to it.
+  const body = clubHandicapBody(org ?? {});
+  const authorityId = body.id;
+  const reporterId = org?.scoreReportingEnabled ? (org.scoreReporterId ?? body.id) : body.id;
   const authority = handicapAuthority(authorityId);
   const reporter = scoreReporter(reporterId);
 
@@ -99,6 +109,8 @@ export async function integrationSetup(organizationId: string): Promise<Integrat
 
   return {
     policy: handicapPolicyOf(org?.handicapPolicy),
+    body: { id: body.id, name: body.name, number: body.number },
+    countryKnown: !!(org?.country ?? "").trim(),
     handicap: {
       providerId: authorityId,
       label: authority?.label ?? authorityId,
@@ -113,6 +125,15 @@ export async function integrationSetup(organizationId: string): Promise<Integrat
       howToEnable: reporter?.howToEnable ?? "",
     },
   };
+}
+
+/** The handicap body of the club running this tournament — for the words on its screens. */
+export async function handicapBodyForEvent(eventId: string): Promise<HandicapBody> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organization: { select: { handicapPolicy: true, handicapAuthorityId: true, country: true } } },
+  });
+  return clubHandicapBody(event?.organization ?? {});
 }
 
 /**

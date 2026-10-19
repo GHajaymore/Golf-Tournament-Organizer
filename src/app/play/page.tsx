@@ -2,19 +2,18 @@ import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf, loadEventState } from "@/lib/services/tournament";
-import { allowsAutoConfirm } from "@/lib/tournament-settings";
-import { courseForMatch, cardForMatch, courseForRound, cardForStage } from "@/lib/services/course-resolution";
+import { allowsAutoConfirm, isLeaderboardPublic } from "@/lib/tournament-settings";
+import { courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { brandForEvent } from "@/lib/services/organization";
+import { matchCardFor, matchStrokeCardFor } from "@/lib/services/match-card";
+import { matchKeptBy } from "@/lib/domain/match-kept-by";
+import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { PlayClient } from "@/components/PlayClient";
 import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { distanceUnitFor } from "@/lib/services/round-card";
-import type { HoleResult } from "@/lib/domain";
 import { NOINDEX } from "@/lib/site";
-import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
-import { matchStrokesGiven } from "@/lib/domain/match";
-import { matchStrokesPerHole } from "@/lib/domain/team";
 import { isHeadToHead } from "@/lib/stage-types";
 import { needsTeams } from "@/lib/formats";
 import { signsCards } from "@/lib/tournament-shape";
@@ -82,7 +81,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       },
       orderBy: { id: "asc" },
     }),
-    prisma.stage.findUnique({ where: { id: session.stageId }, select: { type: true, lineupPublished: true } }),
+    prisma.stage.findUnique({ where: { id: session.stageId }, select: { type: true, lineupPublished: true, accessCode: true, format: true, scoreInput: true, scoringBasis: true, matchKeptBy: true } }),
   ]);
   // A cup lineup the organizer has not announced is nobody's match yet.
   const myMatches = codeStage && lineupHidden(codeStage) ? [] : drawn;
@@ -90,6 +89,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
   if (!event) return <PlayClient stage="code" />;
 
   const settings = settingsOf(event);
+  // The board a code holder may open: only one the organizer has made public.
+  const boardHref = isLeaderboardPublic(settings) && event.shareToken ? `/live/${event.shareToken}` : undefined;
   const brand = await brandForEvent(event.id);
   /**
    * That this round is temporary, worded for somebody who cannot keep it.
@@ -147,6 +148,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     if (cardStage && needsTeams(cardStage.format)) {
       return (
         <PlayClient
+          boardHref={boardHref}
+          sessionCode={codeStage?.accessCode ?? ""}
           expiryNotice={expiry}
           expiryShort={expiryLine}
           stage="no-match"
@@ -214,6 +217,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         // This card's distances in its own course's unit.
         <DistanceUnitProvider unit={await distanceUnitFor(resolved, event.organizationId)}>
         <PlayClient
+          boardHref={boardHref}
+          sessionCode={codeStage?.accessCode ?? ""}
           expiryNotice={expiry}
         expiryShort={expiryLine}
           stage="card"
@@ -249,6 +254,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
 
     return (
       <PlayClient
+        boardHref={boardHref}
+        sessionCode={codeStage?.accessCode ?? ""}
         expiryNotice={expiry}
         expiryShort={expiryLine}
         stage="no-match"
@@ -260,117 +267,19 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     );
   }
 
-  // A match between two sides: the holder's side is A when they are on it.
-  const sideMatch = match.teamAId !== "" && match.teamBId !== "" && match.playerAId === "" && match.playerBId === "";
-  const iAmA = sideMatch ? mySides.includes(match.teamAId) : match.playerAId === session.playerId;
-  const sideNames = sideMatch
-    ? new Map(
-        (
-          await prisma.team.findMany({
-            where: { id: { in: [match.teamAId, match.teamBId] }, eventId: session.eventId },
-            select: { id: true, name: true },
-          })
-        ).map((t) => [t.id, t.name]),
-      )
-    : null;
-
-  const [opponent, stage] = await Promise.all([
-    sideMatch
-      ? null
-      : prisma.player.findUnique({
-          where: { id: match.playerAId === session.playerId ? match.playerBId : match.playerAId },
-          select: { name: true, handicap: true },
-        }),
-    prisma.stage.findUnique({
-      where: { id: session.stageId },
-      select: { holes: true, scoringBasis: true, nine: true, courseId: true },
-    }),
-  ]);
-
-  const holeCount = holesPlayed(stage?.holes);
-
-  /**
-   * The card this match is played on, narrowed to the holes it is played over.
-   *
-   * This handed the player the EVENT's whole eighteen, which broke the screen
-   * in two ways at once for a nine-hole match. `PlayClient` sized its grid
-   * from the length of this array, so it drew eighteen cells for a nine-hole
-   * match; the submit button then read "Fill all 18 holes to submit" and
-   * stayed disabled forever, because only nine of them can ever be filled. A
-   * player with a round code had no way to hand in their card at all.
-   *
-   * And the card itself was the wrong one — the event's, ignoring the match's
-   * venue and the round's, and never narrowed to the nine. Same chain as
-   * `saveMatchScorecard`, read the same way, so the screen and the save agree.
-   */
-  const [playMatchVenue, playStageVenue] = await Promise.all([
-    match.courseId ? prisma.course.findUnique({ where: { id: match.courseId } }) : null,
-    stage?.courseId ? prisma.course.findUnique({ where: { id: stage.courseId } }) : null,
-  ]);
-  const playResolved = courseForMatch(playMatchVenue, playStageVenue, event);
-  const playCard = playResolved ? cardForMatch(playResolved, match, stage) : null;
-  let holes: HoleResult[];
-  try {
-    holes = JSON.parse(match.holes) as HoleResult[];
-  } catch {
-    holes = new Array(holeCount).fill(null);
-  }
-
-  const me = await prisma.player.findUnique({
-    where: { id: session.playerId },
-    select: { name: true, handicap: true },
-  });
-
-  /**
-   * WHO GETS A SHOT WHERE, in a net match (2026-10-07).
-   *
-   * A player keeping a net match by the code taps who won each hole, and that
-   * depends on the shots — which the console's card shows as dots and this
-   * screen did not, leaving the allocation to be done in somebody's head on
-   * the 14th tee. Through the console's own two readers, so the two screens
-   * cannot disagree: `matchHandicapFor` (the PLAYING handicap for this match,
-   * not the roster index `me.handicap` carries) and `matchStrokesGiven`, over
-   * the card this screen already shows. From the holder's side: "mine" first.
-   */
-  const netMatch = isNetBasis(stage?.scoringBasis ?? "");
-  let matchShots: { mine: number[]; theirs: number[] } | null = null;
-  // One player against one: a side of two has four players' shots, which two
-  // rows of dots cannot say, so a side's card shows none rather than one
-  // player's as if it were the side's.
-  if (!sideMatch && netMatch && playCard?.strokeIndex?.length) {
-    const matchState = await loadEventState(event.id);
-    const opponentId = iAmA ? match.playerBId : match.playerAId;
-    const given = matchStrokesGiven(
-      matchState?.matchHandicapFor(session.playerId, match.id) ?? 0,
-      matchState?.matchHandicapFor(opponentId, match.id) ?? 0,
-      playCard.strokeIndex,
-    );
-    matchShots = { mine: given.toA, theirs: given.toB };
-  }
-
-  /**
-   * A SIDE'S SHOTS, named per player (2026-10-17). Four players' strokes do not
-   * fit two rows of dots, so a four-ball card says under each hole who gets a
-   * shot there — off the lowest of the four, through `matchStrokesPerHole`,
-   * the one definition the engine and the printed card use too.
-   */
-  let sideShots: Array<{ name: string; perHole: number[] }> | null = null;
-  if (sideMatch && netMatch && playCard?.strokeIndex?.length) {
-    const matchState = await loadEventState(event.id);
-    const members = await prisma.teamMember.findMany({
-      where: { teamId: { in: [match.teamAId, match.teamBId] } },
-      orderBy: [{ teamId: "asc" }, { position: "asc" }],
-      select: { teamId: true, playerId: true, player: { select: { name: true } } },
-    });
-    const ordered = [
-      ...members.filter((x) => x.teamId === (iAmA ? match.teamAId : match.teamBId)),
-      ...members.filter((x) => x.teamId === (iAmA ? match.teamBId : match.teamAId)),
-    ];
-    const playing = ordered.map((x) => matchState?.matchHandicapFor(x.playerId, match.id) ?? 0);
-    const low = playing.length ? Math.min(...playing) : 0;
-    const index = playCard.strokeIndex;
-    sideShots = ordered.map((x, i) => ({ name: x.player.name, perHole: matchStrokesPerHole(playing[i], low, index) }));
-  }
+  // The card, built where the player app builds it too — see `matchCardFor`.
+  const card = await matchCardFor({ match, holderId: session.playerId, holderSides: mySides });
+  // How the organizer has this round kept (`matchKeptBy`): a tap card, or the
+  // holder's own stroke card — never both on one round.
+  const strokeCard =
+    codeStage && matchKeptBy(codeStage) === "cards"
+      ? await matchStrokeCardFor({
+          match,
+          holderId: session.playerId,
+          data: card,
+          oneBallPerSide: oneCardPerSide(codeStage.format, codeStage.scoreInput, codeStage.scoringBasis),
+        })
+      : undefined;
 
   // The other matches, named by opponent, for the picker above the card.
   const others = myMatches.filter((x) => x.id !== match.id);
@@ -396,11 +305,13 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
 
   return (
     // This match's card in its own course's unit — a match can have a venue
-    // of its own, which is why it is asked of `playResolved` and not the round.
-    <DistanceUnitProvider unit={await distanceUnitFor(playResolved, event.organizationId)}>
+    // of its own, which is why it is asked of the match and not the round.
+    <DistanceUnitProvider unit={card.unit}>
     <PlayClient
+      boardHref={boardHref}
+      sessionCode={codeStage?.accessCode ?? ""}
       expiryNotice={expiry}
-        expiryShort={expiryLine}
+      expiryShort={expiryLine}
       stage="score"
       stageId={session.stageId}
       playerId={session.playerId}
@@ -410,44 +321,16 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       eventName={event.name}
       roundLabel={session.roundLabel}
       submitWhole={settings.scoreEntryWindow === "after"}
-      match={{
-        id: match.id,
-        // Slot A is always the session holder, so the card reads from their
-        // point of view rather than from the database's ordering.
-        aId: iAmA ? match.playerAId : match.playerBId,
-        bId: iAmA ? match.playerBId : match.playerAId,
-        aName: sideNames?.get(iAmA ? match.teamAId : match.teamBId) ?? me?.name ?? "You",
-        bName: sideNames?.get(iAmA ? match.teamBId : match.teamAId) ?? opponent?.name ?? "Opponent",
-        side: sideMatch,
-        sideShots,
-        aHandicap: me?.handicap ?? 0,
-        bHandicap: opponent?.handicap ?? 0,
-        // Results are stored A-relative; flip them when the holder is B so
-        // "you won this hole" means the same thing on screen and in the data.
-        holes: iAmA ? holes : holes.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h)),
-        flipped: !iAmA,
-      }}
-      // The round's own hole count, sent explicitly rather than inferred from
-      // the length of the card. A card can be absent, or a different length
-      // from the round — neither is a reason to draw the wrong number of holes.
-      holes={holeCount}
-      pars={playCard?.pars ?? []}
-      yards={playCard?.yards ?? []}
-      strokeIndex={playCard?.strokeIndex ?? []}
-      // The CLUB's stroke index for the holes of this nine, to print: the card
-      // above is re-ranked 1–9 for allocating shots on a nine, and a golfer
-      // reading "S.I. 9" off the 10th while the club card says 18 thinks the
-      // app has the wrong course. The order is the same, so the dots agree.
-      cardStrokeIndex={
-        playResolved && holeCount === 9
-          ? playResolved.strokeIndex.slice(firstHoleOf(playCard) - 1, firstHoleOf(playCard) - 1 + 9)
-          : undefined
-      }
-      firstHole={firstHoleOf(playCard)}
-      // The same predicate the console and the server use, so a player and an
-      // organizer cannot be shown a different basis for one round.
-      netMode={isNetBasis(stage?.scoringBasis ?? "")}
-      matchShots={matchShots}
+      match={card.match}
+      holes={card.holes}
+      pars={card.pars}
+      yards={card.yards}
+      strokeIndex={card.strokeIndex}
+      cardStrokeIndex={card.cardStrokeIndex}
+      firstHole={card.firstHole}
+      netMode={card.netMode}
+      matchShots={card.matchShots}
+      strokeCard={strokeCard}
       voiceEntry={settings.voiceEntry}
     />
     </DistanceUnitProvider>
