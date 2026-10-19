@@ -129,6 +129,12 @@ jobs:
     # a round is everything it found, not the first thing.
     strategy:
       fail-fast: false
+      # EIGHT PARTS AT A TIME, so a round never starves a production deploy
+      # (docs/release-strategy.md, step 9). The free plan runs about twenty
+      # jobs at once; on 2026-10-19 two rounds of ~30 parts each held every
+      # runner and main's deploy sat queued for an hour behind them. Two rounds
+      # at eight each leave room for CI and the deploy job.
+      max-parallel: 8
       matrix:
         part: ${{ fromJson(needs.plan.outputs.parts) }}
     services:

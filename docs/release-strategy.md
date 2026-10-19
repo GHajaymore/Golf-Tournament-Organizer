@@ -96,6 +96,14 @@ database that is not empty.
    and no member data is committed. After launch that is every production
    event; synthetic checks in production are read-only.
 
+9. **A production deploy never waits behind tests.** — *in place from the
+   merge that carries it.* On 2026-10-19 two full rounds (~30 parts each)
+   held every GitHub runner the free plan gives (about twenty jobs at once),
+   and `main`'s verify-and-deploy sat queued for an hour behind them. Each
+   round now runs eight parts at a time (`round.yml`, `max-parallel: 8`), and
+   **no more than two rounds run at once** — push the third when one has
+   finished. That leaves room for CI and the deploy job at all times.
+
 ## How we know it is working
 
 The testing board (`testing-board` in memory) carries the figures. The ones
