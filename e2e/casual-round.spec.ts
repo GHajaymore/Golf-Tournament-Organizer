@@ -781,7 +781,12 @@ test.describe("a casual round at the course", () => {
     }
   });
 
-  test("a match card that is still loading does not take a tap it would lose", async ({ page, browser, baseURL }, testInfo) => {
+  test("a match card that is still loading does not take a tap it would lose", async ({ page, browser, baseURL, browserName }, testInfo) => {
+    // Chromium only: Safari's engine served the reload's scripts from its own
+    // cache, past `page.route`, so nothing could be held back there — the
+    // control below said so on round G155 (2026-10-19) rather than pass on a
+    // page that was never slow. The fix itself is engine-blind.
+    test.skip(browserName !== "chromium", "scripts cannot be held back on this engine: its cache answers the reload past page.route");
     /**
      * Picking your name reloads the page, so the card arrives drawn by the
      * server before its script. A tap in that gap went nowhere: found by a
