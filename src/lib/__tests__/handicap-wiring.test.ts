@@ -110,7 +110,9 @@ describe("every engine receives a Course Handicap, not an Index", () => {
   // to use a rated tee.
   const service = read("src/lib/services/tournament.ts");
   const teams = read("src/lib/services/teams.ts");
-  const actions = read("src/app/actions/tournament.ts");
+  // The two functions that turn cards into a match result moved out of the
+  // actions file on 2026-10-19 (the round-code card stores through them too).
+  const actions = read("src/lib/services/match-from-cards.ts");
 
   it("resolves the field once, where players are loaded", () => {
     expect(service).toMatch(/courseHandicapMap\(withFlightTee, teeRatings, defaultTeeId/);
@@ -244,7 +246,7 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // the player plays off. Either one missing is a wrong answer with no
     // symptom, since an unrated course and a round with no override both leave
     // the number untouched.
-    const save = actions.slice(actions.indexOf("saveMatchScorecard"));
+    const save = actions.slice(actions.indexOf("deriveMatchFromItsCards"));
     // And since 2026-10-14 the PLAYING handicap the screens show, through the one
     // place a round is priced: the allowance and the strokes for the pars with it.
     expect(save).toMatch(/playingHandicapInRound\(stage, netRound\.get\(p\.id\), \{/);

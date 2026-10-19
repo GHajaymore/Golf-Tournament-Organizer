@@ -98,7 +98,7 @@ test("a round code is reissued, the old one is refused at the door and the new o
   // changed until the second (the cup's UI review, 2026-10-17).
   const oldShown = `${old.slice(0, 4)}-${old.slice(4)}`;
   await table.getByRole("button", { name: "Reissue" }).first().click();
-  await expect(table.getByText(`Players holding ${oldShown} will be refused.`)).toBeVisible();
+  await expect(table.getByText(`Players holding ${oldShown} will be refused, and its printed signs stop working.`)).toBeVisible();
   expect(await code(), "one tap on Reissue changed the code without asking").toBe(old);
   await table.getByRole("button", { name: `Stop ${oldShown}` }).click();
   await expect.poll(code, { timeout: 20_000, message: "reissuing did not change the code" }).not.toBe(old);

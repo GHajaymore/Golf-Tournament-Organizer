@@ -678,6 +678,24 @@ describe("team screens", () => {
     expect(shared).toContain("Team card");
   });
 
+  it("says a match the players kept hole by hole, not 'No score yet' (2026-10-17)", () => {
+    // A four-ball kept on a phone with a round code stores who won each hole
+    // on the match and no strokes, so the side's row had nothing to total.
+    const side = (matchLine?: string) =>
+      render(
+        <TeamEntryClient round="Four-Ball" note={teamEntryNote("Four-Ball")} holes={9}
+          pars={Array(9).fill(4)} strokeIndex={Array.from({ length: 9 }, (_, i) => i + 1)}
+          teams={[{ teamId: "t1", teamName: "Side A", matchId: "m1", opponentName: "Side B",
+            playingHandicap: 14, grossTotal: 0, netTotal: 0, played: 0, matchLine,
+            cards: [{ playerId: "p1", playerName: "Ann", handicap: 8, strokes: Array(9).fill(null) }] }]} />,
+      );
+    const kept = side("Side A 2 up with 4 to play");
+    expect(kept).toContain("Side A 2 up with 4 to play · kept hole by hole");
+    expect(kept).not.toContain("No score yet");
+    // CONTROL: nothing kept either way still says so.
+    expect(side()).toContain("No score yet");
+  });
+
   it("shows a team card's shots, and its Out / In / Total", async () => {
     /**
      * The one card in the app that carried NEITHER.
@@ -1100,7 +1118,7 @@ describe("rounds and format", () => {
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
     // Open, which is every stored round until an organizer says otherwise.
     closed: false,
-    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
     carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });
@@ -2383,7 +2401,7 @@ describe("round card — which nine and the deadline", () => {
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
     // Open, which is every stored round until an organizer says otherwise.
     closed: false,
-    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
     carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });
@@ -8397,13 +8415,15 @@ describe("a net match on the round code shows the shots", () => {
   it("puts the holder's shot on their own answer for the hole on screen", () => {
     // The card opens on hole 1, SI 1: Bea receives there.
     const html = play({ mine: [1, ...new Array(17).fill(0)], theirs: new Array(18).fill(0) });
-    expect(html).toContain("Hole 1 to you, who gets a shot");
+    // Each answer names the player it gives the hole to (2026-10-18) — the
+    // holder by name, never "you", which means whoever's name was tapped.
+    expect(html).toContain("Hole 1 to zz-Bea Zed, who gets a shot");
     expect(html).not.toContain("Hole 1 to zz-Ann Zed, who gets");
   });
 
   it("CONTROL: a gross match draws no dots", () => {
     const html = play(null);
-    expect(html).toContain('aria-label="Hole 1 to you"');
+    expect(html).toContain('aria-label="Hole 1 to zz-Bea Zed"');
     expect(html).not.toContain("who gets a shot");
   });
 });

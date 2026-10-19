@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams("") }));
-vi.mock("@/app/actions/billing", () => ({ startCheckout: vi.fn(), openBillingPortal: vi.fn() }));
+vi.mock("@/app/actions/billing", () => ({ startCheckout: vi.fn(), openBillingPortal: vi.fn(), checkDiscountCode: vi.fn() }));
 
 import { PlanPanel } from "@/components/PlanPanel";
 import { PLANS, parsePricingOverrides } from "@/lib/plans";

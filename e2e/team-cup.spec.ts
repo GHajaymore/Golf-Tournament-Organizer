@@ -195,16 +195,30 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await expect(page.getByText(/Who would you like to play with/)).toHaveCount(0);
   });
 
-  await test.step("Score this match opens their own session, with par and stroke index", async () => {
+  await test.step("Score this match opens her own stroke card — Saturday is kept on cards", async () => {
+    // How the organizer set Saturday up (`matchKeptBy`, seeded as chosen
+    // before launch — the choice itself is walked in match-kept-by.spec): on
+    // stroke cards, so the four-ball is decided off the low, below. Sunday's
+    // singles keep the cup-day tap card, walked further down. Ajay,
+    // 2026-10-19: "provide both options for organizer to decide".
     await myMatch(page, "Saturday four-balls").getByRole("link", { name: /Score this match/ }).click();
-    await page.waitForURL(/\/entry\?round=/);
-    await page.waitForLoadState("networkidle");
+    await page.waitForURL(/\/me\/match\?m=/);
+    await expect(page.getByText(/Your own card, hole by hole/)).toBeVisible({ timeout: 20_000 });
+    // Never the tap card on a round kept on cards — the two cannot share a match.
+    await expect(page.getByRole("group", { name: "Who won hole 1" })).toHaveCount(0);
+    for (let hole = 1; hole <= 13; hole += 1) {
+      // The pad moves on by itself; the hole on screen is the proof it did.
+      await expect(page.getByLabel(`Strokes on hole ${hole}`)).toBeVisible({ timeout: 20_000 });
+      await page.getByRole("button", { name: /Par$/ }).click();
+    }
+    await expect(page.getByText("13/18 holes")).toBeVisible();
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 20_000 });
+    // And the side's cards are on Score entry too: only the card she may save.
+    await open(page, `/entry?round=${(f.sessions as Record<string, string>).fourball}`);
     await expect(page.getByText(/Saturday four-balls · Four-Ball/).first()).toBeVisible();
-    // Only the card this player may save — not their partner's.
     await page.getByRole("button", { name: "Full card" }).click();
-    await expect(page.getByLabel(`Ailsa Blue, hole 1, par ${PARS[0]}`, { exact: true })).toBeVisible();
+    await expect(page.getByLabel(`Ailsa Blue, hole 13, par ${PARS[12]}`, { exact: true }), "her card, kept in the app, is not the card on Score entry").toHaveValue(String(PARS[12]), { timeout: 20_000 });
     await expect(page.getByLabel(`Bram Blue, hole 1, par ${PARS[0]}`, { exact: true })).toHaveCount(0);
-    await scorePars(page, "Ailsa Blue", 13);
   });
 
   await test.step("the other three four-ball players return their own cards", async () => {
@@ -234,8 +248,8 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await as(page, baseURL!, "a3");
     await open(page, "/me");
     await expect(myMatch(page, "Saturday foursomes")).toContainText("You & Dev Blue v Gwen White & Hal White");
-    await myMatch(page, "Saturday foursomes").getByRole("link", { name: /Score this match/ }).click();
-    await page.waitForURL(/\/entry\?round=/);
+    // The side's one card, on Score entry with the session named (see above).
+    await open(page, `/entry?round=${(f.sessions as Record<string, string>).foursomes}`);
     await page.waitForLoadState("networkidle");
     // The hole-by-hole card offers "Picked up" on a match — and fits.
     const byHole = page.getByRole("button", { name: "Hole by hole" });
@@ -286,15 +300,15 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     const m = myMatch(page, "Sunday singles");
     await expect(m).toContainText("You v Edda White");
     await m.getByRole("link", { name: /Score this match/ }).click();
-    await page.waitForURL(/\/entry\?round=/);
-    await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("navigation", { name: "Cup sessions" }).getByRole("link", { name: /Sunday singles/ })).toHaveAttribute("aria-current", "page");
-    // The match by both its names — never "—" v "—", which is how a pair
-    // session read on this screen.
-    await expect(page.getByText("Ailsa Blue").filter({ visible: true }).first()).toBeVisible();
-    await expect(page.getByText("Edda White").filter({ visible: true }).first()).toBeVisible();
+    // The one match card (2026-10-18), on THIS match: the singles, by both
+    // its names — never "—" v "—", which is how a pair session once read.
+    await page.waitForURL(/\/me\/match\?m=/);
+    await expect(page.getByRole("heading", { name: /Ailsa Blue\s*vs\s*Edda White/ })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("— v —")).toHaveCount(0);
-    // Match by match only — a stroke card here is one nothing reads.
+    // Hole by hole, who won it — no stroke card, which here is one nothing reads.
+    const hole1 = page.getByRole("group", { name: "Who won hole 1" });
+    await expect(hole1.getByRole("button", { name: /^Hole 1 to Ailsa Blue/ })).toBeVisible();
+    await expect(hole1.getByRole("button", { name: /^Hole 1 to Edda White/ })).toBeVisible();
     await expect(page.getByRole("radiogroup", { name: "How to enter the scores" })).toHaveCount(0);
   });
 

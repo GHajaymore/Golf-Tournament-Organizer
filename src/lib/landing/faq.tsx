@@ -208,6 +208,24 @@ export const FAQ: FaqGroup[] = [
         a: () => <p>No. TourneyHQ works out each player&rsquo;s course and playing handicap for the round, from the index you give it. It doesn&rsquo;t calculate, post or look up an official handicap index — that stays with your golf association, and TourneyHQ never overwrites it.</p>,
       },
       {
+        // Ajay, 2026-10-17: "make this a plus point for our app". True today:
+        // the body follows the club's country and every screen names it; a
+        // visitor's own index is kept. NOT claimed: any live link — none of
+        // these bodies is connected, and the answer says so.
+        id: "countries",
+        q: "Does it work outside the US, and with visitors from other countries?",
+        a: () => (
+          <p>
+            Yes. Every club works under the World Handicap System, and TourneyHQ speaks your club&rsquo;s own
+            handicap body — GHIN in the US, England Golf, Golf Ireland, Golf Canada or Golf Australia, or your
+            national association anywhere else — from the country you give it, on every screen. A visitor from
+            another country plays off their own home index, which is valid everywhere under WHS, and it is kept
+            with their own body&rsquo;s name. Indexes are entered by you for now: live links to these bodies
+            are coming.
+          </p>
+        ),
+      },
+      {
         id: "divisions",
         q: "Can divisions play off different tees?",
         a: () => <p>Yes. Set the tees once per division — the championship off the blues, the seniors off the whites — and the course handicap does the rest, all on one leaderboard. Or set one tee for everyone, or let players choose until a card is returned.</p>,

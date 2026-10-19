@@ -1,12 +1,9 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
-import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard } from "@/app/actions/play";
+import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard, savePlayMatchCard } from "@/app/actions/play";
 import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
-import type { HoleResult } from "@/lib/domain";
-import { countedHoles, marginRefusal, matchIsOverAfter, matchStandingText, resolveMatch } from "@/lib/domain/match";
-import { holeNumber } from "@/lib/domain/hole-number";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { filterNames, showsNameFilter } from "@/lib/domain/name-filter";
@@ -17,29 +14,25 @@ import { boardKind } from "@/lib/formats";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { stablefordPickUp } from "@/lib/domain/card-points";
 import { certifyPrompt } from "@/lib/domain/card-approval";
-import { HoleResultCard } from "./HoleResultCard";
-import { firstName } from "@/lib/format";
+import { MatchKeeper } from "./MatchKeeper";
+import { MatchStrokeKeeper } from "./MatchStrokeKeeper";
+import type { KeptMatch, MatchStrokeCard } from "@/lib/services/match-card";
+import { codeFromLink, formatAccessCode } from "@/lib/code-format";
 
-interface PlayMatch {
-  id: string;
-  aId: string;
-  bId: string;
-  aName: string;
-  bName: string;
-  aHandicap: number;
-  bHandicap: number;
-  holes: HoleResult[];
-  /** True when the session holder is stored as player B — results must be
-   *  flipped back before saving. */
-  flipped: boolean;
-  /** A match between two sides (a four-ball pair): the holder speaks for their side. */
-  side?: boolean;
-  /** A net side match: each of the four players and their shots per hole (index 0 = the card's first hole). */
-  sideShots?: Array<{ name: string; perHole: number[] }> | null;
-}
+/** A match as its holder keeps it — built by `matchCardFor`, one type for both pages. */
+type PlayMatch = KeptMatch;
 
 interface Props {
   stage: "code" | "score" | "no-match" | "card";
+  /**
+   * THE LEADERBOARD, ONE TAP AWAY (2026-10-18). At the first real cup every
+   * player scored by the code, and this page was score entry and nothing
+   * else: nobody could see how the cup stood without the link from the
+   * printed sheet. The tournament's public board, where the organizer has
+   * made it public ("Anyone with the link"); otherwise none, and nothing is
+   * drawn.
+   */
+  boardHref?: string;
   /**
    * The round and the code holder, for keeping their card on the phone while
    * it is sent (`usePendingCard`). Both come from the play session.
@@ -85,6 +78,8 @@ interface Props {
    * Null for a gross match, or a card with no stroke index.
    */
   matchShots?: { mine: number[]; theirs: number[] } | null;
+  /** The holder's own stroke card, where the round keeps its matches on cards (`matchKeptBy`). */
+  strokeCard?: MatchStrokeCard;
   /**
    * The format, when the code is for a round played by SIDES — a four-ball or
    * foursomes, kept on one phone. This surface keeps a player's own card or
@@ -178,6 +173,12 @@ interface Props {
    * its signature whatever an un-updated caller sends.
    */
   signs?: boolean;
+  /**
+   * The code this phone's session was opened with, unformatted — so a sign
+   * scanned on a phone already scoring can be told apart from the round it is
+   * on. The holder typed or scanned it themselves; it is never in the cookie.
+   */
+  sessionCode?: string;
 }
 
 /**
@@ -192,9 +193,12 @@ function Shell({
   brand,
   notice,
   short = "",
+  boardHref,
   children,
 }: {
   brand?: Brand | null;
+  /** The tournament's public board, when it has one — see `boardHref` on the page's props. */
+  boardHref?: string;
   /** Already-worded, from `expiryNotice`. Empty renders nothing. */
   notice?: string;
   /**
@@ -220,6 +224,11 @@ function Shell({
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
           <OrgBrand brand={brand} />
+          {boardHref && (
+            <a href={boardHref} className="btn btn-secondary" style={{ marginLeft: "auto", minHeight: 44, fontSize: 14, flex: "none" }}>
+              <Icon name="ranking" /> Leaderboard
+            </a>
+          )}
         </div>
         {notice && (
           <div
@@ -249,27 +258,92 @@ function Shell({
   );
 }
 
+/**
+ * A SIGN SCANNED ON A PHONE THAT IS ALREADY SCORING (2026-10-17).
+ *
+ * The round's printed sign opens `/play#CODE`. On a phone with no session the
+ * code step reads it. On a phone holding a session the server shows that
+ * session and knows nothing of the `#`, so without this the second round's
+ * sign silently reopened the first round's card. It asks, and never switches
+ * by itself: switching mid-card is a decision, not a side effect of a scan.
+ */
+function ScannedSign({ sessionCode, roundLabel }: { sessionCode: string; roundLabel?: string }) {
+  const [other, setOther] = useState("");
+  const [pending, startTransition] = useTransition();
+  useEffect(() => {
+    const fromSign = codeFromLink(window.location.hash);
+    if (!fromSign) return;
+    if (fromSign === sessionCode) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      return;
+    }
+    setOther(fromSign);
+  }, [sessionCode]);
+  if (!other) return null;
+  return (
+    // A section in the page, not a dialog: nothing behind it is blocked, and
+    // `dialogs-are-swept` counts the app's real dialogs.
+    <section
+      aria-label="A sign for another round"
+      className="card elev-sm"
+      // `calc` keeps the page's 16px gutter on a phone: the play page's own
+      // padding is inside its <main>, and this sits above it.
+      style={{ maxWidth: 560, width: "calc(100% - 32px)", margin: "16px auto 0", padding: "12px 14px", gap: 10, border: "1px solid var(--color-warning)" }}
+    >
+      <p style={{ margin: 0, fontSize: 15, lineHeight: 1.45 }}>
+        This phone is scoring <b>{roundLabel || "another round"}</b>. The code you scanned, {formatAccessCode(other)}, is
+        for a different round.
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ minHeight: 44 }}
+          disabled={pending}
+          // The `#` stays on the address, so the code step reads it after the reload.
+          onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+        >
+          Switch to that round
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ minHeight: 44 }}
+          disabled={pending}
+          onClick={() => {
+            history.replaceState(null, "", window.location.pathname + window.location.search);
+            setOther("");
+          }}
+        >
+          Keep scoring this one
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function PlayClient(props: Props) {
+  return (
+    <>
+      {props.stage !== "code" && props.sessionCode ? (
+        <ScannedSign sessionCode={props.sessionCode} roundLabel={props.roundLabel} />
+      ) : null}
+      <PlayScreens {...props} />
+    </>
+  );
+}
+
+function PlayScreens(props: Props) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [nameFilter, setNameFilter] = useState("");
-  const [players, setPlayers] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [players, setPlayers] = useState<Array<{ id: string; name: string; side?: string }> | null>(null);
   const [groups, setGroups] = useState<Array<{ label: string; ids: string[] }>>([]);
   const [context, setContext] = useState<{ eventName: string; roundLabel: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Local copy of the hole results, from the session holder's point of view.
-  const [holes, setHoles] = useState<HoleResult[]>(props.match?.holes ?? []);
-  // Set as the card saves; nothing reads it since the Final result has its own.
+  // Set as the card saves; nothing reads it.
   const [, setSaved] = useState(false);
-  // Two ways a finished match arrives: tapped hole by hole as it was played,
-  // or phoned in from the green as "3&2". Both write the same record.
-  const [entryMode, setEntryMode] = useState<"holes" | "result">("holes");
-  const [resultWinner, setResultWinner] = useState<"me" | "them" | "halved">("me");
-  // The Final result's own "saved", apart from the hole-by-hole one: sharing it
-  // read "Saved" on a result nobody had sent.
-  const [resultSaved, setResultSaved] = useState(false);
-  const [resultMargin, setResultMargin] = useState("");
   // Whether this card has been signed. Held apart from `saved`, because
   // saving and signing are different statements — see the buttons.
   const [certified, setCertified] = useState(false);
@@ -331,48 +405,46 @@ export function PlayClient(props: Props) {
     pushCard(back);
   }, [props.stage, cardRecovered, clearCardRecovered, pushCard, holeCount0]);
 
-  const matchQueue = usePendingCard<HoleResult[]>({
-    stageId: props.stageId ?? "play",
-    playerId: `match:${props.match?.id ?? "none"}`,
-    enabled: props.stage === "score" && !!props.match,
-    // Held until the MATCH is decided, not until every cell is filled: a match
-    // won 5&4 is over with four holes nobody plays (Rule 3.2a(3)). Asked of the
-    // round's length, since a short list would read as fewer holes left.
-    holding: !!props.submitWhole && !matchIsOverAfter(holes, holeCount0),
-    send: async (value) => {
-      const m = props.match!;
-      // Stored results are always A-relative; flip back if this player is B.
-      const outgoing = m.flipped ? value.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h)) : value;
-      const res = await savePlayMatchHoles(m.id, outgoing as Array<"A" | "B" | "H" | null>);
-      if (!res.ok) throw new Error(res.error ?? "Couldn't save.");
-      setSaved(true);
-      return "sent";
-    },
-  });
-  const { recovered: matchRecovered, clearRecovered: clearMatchRecovered, push: pushMatch } = matchQueue;
-  useEffect(() => {
-    if (props.stage !== "score" || !matchRecovered) return;
-    setHoles(matchRecovered);
-    clearMatchRecovered();
-    pushMatch(matchRecovered);
-  }, [props.stage, matchRecovered, clearMatchRecovered, pushMatch]);
-
   /* ── Step 1: enter the code ───────────────────────────────────────── */
 
+  const openCode = (typed: string) => {
+    setError("");
+    startTransition(async () => {
+      const res = await redeemRoundCode(typed);
+      if (!res.ok) {
+        setError(res.error ?? "That code isn't valid.");
+        return;
+      }
+      setPlayers(res.players ?? []);
+      setGroups(res.groups ?? []);
+      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "" });
+    });
+  };
+
+  /**
+   * A SCANNED SIGN OPENS ITS ROUND (2026-10-17).
+   *
+   * The sign's address carries the code after a `#` (`roundCodeLink`), so this
+   * runs in the browser only: a link preview or a prefetch never redeems. It
+   * goes straight to the names — tapping your own name is the confirmation,
+   * and the name step is unchanged, so a scan can never pick a player. The `#`
+   * is cleared at once so a reload does not open the round again. Somebody who
+   * typed into the box before the page woke keeps what they typed.
+   */
+  useEffect(() => {
+    if (props.stage !== "code") return;
+    const fromSign = codeFromLink(window.location.hash);
+    if (!fromSign) return;
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    const box = document.getElementById("play-round-code") as HTMLInputElement | null;
+    if (box && box.value.trim()) return;
+    setCode(formatAccessCode(fromSign));
+    openCode(fromSign);
+    // Once, on arrival.
+  }, [props.stage]);
+
   if (props.stage === "code") {
-    const submit = () => {
-      setError("");
-      startTransition(async () => {
-        const res = await redeemRoundCode(code);
-        if (!res.ok) {
-          setError(res.error ?? "That code isn't valid.");
-          return;
-        }
-        setPlayers(res.players ?? []);
-        setGroups(res.groups ?? []);
-        setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "" });
-      });
-    };
+    const submit = () => openCode(code);
 
     // Filtered, never reordered — see name-filter.ts for why, and for the
     // threshold below.
@@ -380,7 +452,7 @@ export function PlayClient(props: Props) {
 
     if (players && context) {
       return (
-        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
           <div style={{ marginBottom: 16 }}>
             <div className="page-kicker">{context.roundLabel}</div>
             <h1 style={{ fontSize: 24, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -451,10 +523,29 @@ export function PlayClient(props: Props) {
               ].map((g, gi) => (
                 <section key={gi} className="card elev-sm" style={{ padding: "10px 12px" }} aria-label={g.label}>
                   <h2 className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>{g.label}</h2>
+                  {/* In a cup, the foursome as its two pairs, each under its
+                      team — four names in one block is how a scorer came to
+                      tap an opponent's name (`redeemRoundCode`). Otherwise
+                      one block, as before. */}
+                  {(() => {
+                    const bySide = new Map<string, string[]>();
+                    for (const id of g.ids) {
+                      const s = (players ?? []).find((x) => x.id === id)?.side ?? "";
+                      bySide.set(s, [...(bySide.get(s) ?? []), id]);
+                    }
+                    const rows = [...bySide.entries()];
+                    const split = rows.length > 1 && rows.every(([s]) => s !== "");
+                    return (split ? rows : [["", g.ids] as [string, string[]]]).map(([s, ids]) => (
+                      <div key={s || "all"} style={{ marginTop: split && s !== rows[0][0] ? 10 : 0 }}>
+                        {split && (
+                          <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 6px", color: "var(--color-neutral-400)" }}>
+                            {s}
+                          </h3>
+                        )}
                   {/* Two to a row on a phone too (`keep-grid`): a foursome is
                       two rows of thumb-sized names, not four. */}
                   <div className="keep-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-                    {g.ids.map((id) => {
+                    {ids.map((id) => {
                       const p = (players ?? []).find((x) => x.id === id);
                       if (!p) return null;
                       return (
@@ -477,6 +568,9 @@ export function PlayClient(props: Props) {
                       );
                     })}
                   </div>
+                      </div>
+                    ));
+                  })()}
                 </section>
               ))}
             </div>
@@ -526,6 +620,12 @@ export function PlayClient(props: Props) {
             onClick={() => {
               setPlayers(null);
               setContext(null);
+              // An EMPTY box (2026-10-17, the night before the first real cup):
+              // it kept the code just used, and a phone puts the cursor at the
+              // end, so typing the other nine's code made "RAE948RW-6J9B-QR7Z"
+              // and "That code isn't valid" — to a player who typed it right.
+              setCode("");
+              setError("");
             }}
           >
             Use a different code
@@ -535,7 +635,7 @@ export function PlayClient(props: Props) {
     }
 
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 24, margin: 0, fontFamily: "var(--font-heading)" }}>Enter your score</h1>
           {/* TRUE FOR BOTH KINDS OF ROUND, because this screen cannot know
@@ -671,7 +771,7 @@ export function PlayClient(props: Props) {
     };
 
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
         <div style={{ marginBottom: 14 }}>
           <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
           <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -834,7 +934,7 @@ export function PlayClient(props: Props) {
 
   if (props.stage === "no-match") {
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
         <div className="card elev-sm">
           {props.sideRound ? (
             <>
@@ -875,293 +975,86 @@ export function PlayClient(props: Props) {
 
   /* ── Step 2: the card ─────────────────────────────────────────────── */
 
-  const m = props.match!;
-  // The round's own answer first. The card's length is a fallback for a caller
-  // that has not been taught to send one, and 18 the last resort — but neither
-  // of those is what decides how many holes a round is.
-  const holeCount = props.holes || props.pars?.length || holes.length || 18;
-  const filled = holes.filter((h) => h !== null).length;
+  // A cup's second nine is another round with its own code, and the way
+  // to it was a "Sign out" at the foot of the page.
+  const next = (
+    <button
+      type="button"
+      className="btn btn-secondary"
+      style={{ minHeight: 44 }}
+      disabled={pending}
+      onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+    >
+      Enter another round code
+    </button>
+  );
+  const footer = (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+      <span className="text-muted" style={{ fontSize: 13 }}>Playing as {props.playerName}</span>
+      <button
+        type="button"
+        className="btn"
+        style={{ marginLeft: "auto", fontSize: 13, padding: "4px 10px" }}
+        onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+      >
+        Sign out
+      </button>
+    </div>
+  );
+  const otherMatches = props.otherMatches?.map((o) => ({ href: `/play?m=${encodeURIComponent(o.id)}`, label: o.label }));
 
-  const setHole = (i: number, value: HoleResult) => {
-    const next = [...holes];
-    while (next.length < holeCount) next.push(null);
-    next[i] = next[i] === value ? null : value;
-    setHoles(next);
-    setSaved(false);
-    // Onto the phone now, to the server a moment later — see matchQueue.
-    matchQueue.push(next);
-  };
-
-  const save = () => {
-    setError("");
-    startTransition(async () => {
-      // Stored results are always A-relative; flip back if this player is B.
-      const outgoing = m.flipped
-        ? holes.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h))
-        : holes;
-      const res = await savePlayMatchHoles(m.id, outgoing as Array<"A" | "B" | "H" | null>);
-      if (!res.ok) {
-        setError(res.error ?? "Couldn't save.");
-        return;
-      }
-      setSaved(true);
-    });
-  };
-
-  const saveResult = () => {
-    setError("");
-    // A RESULT REPLACES THE CARD. Typed over holes already tapped, it used to
-    // overwrite them without a word (the cup's UI review, 2026-10-17).
-    const tapped = holes.filter((h) => h !== null).length;
-    if (tapped > 0 && !window.confirm(`This replaces the ${tapped} hole${tapped === 1 ? "" : "s"} already entered with the result. Save it?`)) {
-      return;
-    }
-    startTransition(async () => {
-      // A-relative like everything stored: "me" flips when this player is B.
-      const w =
-        resultWinner === "halved" ? "H" : (resultWinner === "me") !== !!m.flipped ? "A" : "B";
-      const res = await savePlayMatchResult(m.id, w, resultMargin);
-      if (!res.ok) {
-        setError(res.error ?? "Couldn't save.");
-        return;
-      }
-      setResultSaved(true);
-    });
-  };
-
-  // Why this result cannot be sent as it stands — the rule the server asks too.
-  // "I won" with this box empty used to be stored as a halved match.
-  const resultRefusal = marginRefusal(resultWinner === "halved" ? "H" : "A", resultMargin, holeCount);
-
-  // Counted up to the closeout only: a hole tapped after the match was decided
-  // does not count, and the tally said it did (the cup's UI review).
-  const counted = countedHoles(Array.from({ length: holeCount }, (_, i) => holes[i] ?? null));
-  const won = counted.filter((h) => h === "A").length;
-  const lost = counted.filter((h) => h === "B").length;
-  const halved = counted.filter((h) => h === "H").length;
-
-  return (
-    <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
-      <div style={{ marginBottom: 14 }}>
-        <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
-        <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
-          {m.aName} <span className="text-muted" style={{ fontSize: 15 }}>vs</span> {m.bName}
-        </h1>
-        {/* THE OTHER MATCHES THIS CODE HOLDER HAS IN THE ROUND — a round robin
-            has several, and only one was ever reachable. */}
-        {props.otherMatches && props.otherMatches.length > 0 && (
-          <nav aria-label="Your other matches" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-            <span className="text-muted" style={{ fontSize: 13, alignSelf: "center" }}>
-              Your other matches:
-            </span>
-            {props.otherMatches.map((o) => (
-              <a key={o.id} href={`/play?m=${encodeURIComponent(o.id)}`} className="btn btn-secondary" style={{ fontSize: 13, minHeight: 44 }}>
-                {o.label}
-              </a>
-            ))}
-          </nav>
-        )}
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Tap who won each hole. {props.submitWhole
-            ? "Your organizer wants the full round submitted at the end."
-            : "Saves as you go."}
-        </p>
-      </div>
-
-      <div className="seg" style={{ marginBottom: 10 }}>
-        <label className="seg-opt">
-          <input type="radio" name="playmode" checked={entryMode === "holes"} onChange={() => setEntryMode("holes")} />
-          Hole by hole
-        </label>
-        <label className="seg-opt">
-          <input type="radio" name="playmode" checked={entryMode === "result"} onChange={() => setEntryMode("result")} />
-          Final result
-        </label>
-      </div>
-
-      {entryMode === "result" && (
-        <div className="card elev-sm" style={{ gap: 12 }}>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-            The finished match, straight from the green. This replaces anything tapped hole by hole.
-          </p>
-          <div className="seg" style={{ width: "100%" }}>
-            {(["me", "halved", "them"] as const).map((w) => (
-              <label key={w} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                <input type="radio" name="playwinner" checked={resultWinner === w} onChange={() => setResultWinner(w)} />
-                {w === "me" ? (m.side ? "We won" : "I won") : w === "halved" ? "Halved" : "They won"}
-              </label>
-            ))}
-          </div>
-          {resultWinner !== "halved" && (
-            <div className="field">
-              <label>By how much</label>
-              <input
-                className="input"
-                value={resultMargin}
-                onChange={(e) => setResultMargin(e.target.value)}
-                placeholder={'e.g. "3&2", "2 UP", "1 UP"'}
-                inputMode="text"
-              />
-            </div>
-          )}
-          {resultRefusal && (
-            <p
-              className={resultMargin.trim() ? undefined : "text-muted"}
-              style={{ fontSize: 13, margin: 0, color: resultMargin.trim() ? "var(--color-danger)" : undefined }}
-            >
-              {resultRefusal}
-            </p>
-          )}
-          <button type="button" className="btn btn-primary" disabled={pending || !!resultRefusal} onClick={saveResult}>
-            {pending ? "Saving…" : resultSaved ? "Result saved" : "Save result"}
-          </button>
-          {error && (
-            <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
-              <Icon name="warning-circle" /> {error}
-            </p>
-          )}
-        </div>
-      )}
-
-      {entryMode === "holes" && (
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", gap: 14, fontSize: 13 }}>
-          <span><b>{won}</b> won</span>
-          <span><b>{halved}</b> halved</span>
-          <span><b>{lost}</b> lost</span>
-          <span className="text-muted" style={{ marginLeft: "auto" }}>{filled}/{holeCount} holes</span>
-        </div>
-        {/* WHERE THE MATCH STANDS, in golf's words, and that it is OVER when
-            it is (found in the 2026-10-16 rehearsal: a match won 2&1 still
-            offered the 18th with nothing to say it was done). Holes tapped
-            after the closeout do not count — `resolveMatch` stops at it — so
-            the card stays open for correcting an earlier hole. */}
-        {(() => {
-          const padded = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);
-          const r = resolveMatch(padded);
-          if (r.played === 0) return null;
-          const me = m.side ? "Us" : "You";
-          const them = m.side ? "Them" : firstName(m.bName) || "Them";
-          const text = matchStandingText(r, me, them);
-          // A hole left EMPTY behind ones that have results — a second tap on
-          // an answer clears it — is said, so a standing that counts it as
-          // still to play is not read as the match (the cup's UI review).
-          const last = padded.reduce((at, h, i) => (h !== null ? i : at), -1);
-          const gaps = padded
-            .slice(0, last)
-            .map((h, i) => (h === null ? holeNumber(i, props.firstHole ?? 1) : null))
-            .filter((n): n is number => n !== null);
-          if (gaps.length > 0) {
-            return (
-              <p role="status" style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
-                <Icon name="warning-circle" /> No result yet on hole{gaps.length > 1 ? "s" : ""} {gaps.join(", ")}. Tap who won {gaps.length > 1 ? "them" : "it"}.
-              </p>
-            );
-          }
-          // The next step is said where the player is looking: a cup's second
-          // nine is another round with its own code, and the way to it was a
-          // "Sign out" at the foot of the page.
-          return r.complete ? (
-            <div className="card elev-sm" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-              <p role="status" style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
-                Match over: {text}. Nothing more to enter.
-              </p>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{ minHeight: 44 }}
-                disabled={pending}
-                onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
-              >
-                Enter another round code
-              </button>
-            </div>
-          ) : (
-            <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{text}</p>
-          );
-        })()}
-
-        {/* ONE HOLE AT A TIME (2026-10-07), the card the host's phone shows.
-            This was eighteen tiles of three 13px buttons about 28px tall —
-            "Me", "½", "Opp" — under the thumb of somebody walking off a green.
-            Slot A is always the phone's holder (see /play), so "Me" against
-            the opponent's first name, and "me" is a word the mic hears. */}
-        <HoleResultCard
-          holes={Array.from({ length: holeCount }, (_, i) => holes[i] ?? null)}
-          aName="you"
-          bName={m.bName}
-          aLabel={m.side ? "Us" : "Me"}
-          bLabel={m.side ? "Them" : firstName(m.bName) || "Them"}
+  // A round the organizer keeps on stroke cards (`matchKeptBy`): the holder's
+  // own ball, and the app works the match out. Never both cards on one round.
+  if (props.strokeCard) {
+    return (
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+        <MatchStrokeKeeper
+          match={props.match!}
+          card={props.strokeCard}
+          holes={props.holes ?? 18}
           pars={props.pars ?? []}
           yards={props.yards ?? []}
           strokeIndex={props.strokeIndex ?? []}
-          shownStrokeIndex={props.cardStrokeIndex}
           firstHole={props.firstHole ?? 1}
-          canHearNames={(firstName(m.bName) || "").toLowerCase() !== "me"}
-          showVoice={props.voiceEntry ?? true}
-          shotsOn={props.matchShots ? (h) => ({ a: props.matchShots?.mine[h] ?? 0, b: props.matchShots?.theirs[h] ?? 0 }) : undefined}
-          wonLost
-          noteFor={
-            m.sideShots
-              ? (h) => {
-                  const four = m.sideShots ?? [];
-                  // First names, unless two of the four share one.
-                  const firsts = four.map((p) => firstName(p.name) || p.name);
-                  const called = (i: number) => (firsts.filter((f) => f === firsts[i]).length > 1 ? four[i].name : firsts[i]);
-                  const getting = four
-                    .map((p, i) => ({ p, i }))
-                    .filter(({ p }) => (p.perHole[h] ?? 0) > 0)
-                    .map(({ p, i }) => `${called(i)}${(p.perHole[h] ?? 0) > 1 ? ` (${p.perHole[h]})` : ""}`);
-                  return getting.length ? `Shots here: ${getting.join(", ")}` : "No shots on this hole";
-                }
-              : undefined
-          }
-          onPick={(i, v) => setHole(i, v)}
-          onSay={(start, values) => {
-            const next = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);
-            values.forEach((v, k) => { next[start + k] = v; });
-            setHoles(next);
-            setSaved(false);
-            matchQueue.push(next);
-          }}
+          voiceEntry={props.voiceEntry}
+          submitWhole={props.submitWhole}
+          stageId={props.stageId ?? "play"}
+          holderId={props.playerId ?? "code"}
+          holderName={props.playerName ?? "You"}
+          roundLabel={props.roundLabel}
+          eventName={props.eventName}
+          otherMatches={otherMatches}
+          save={savePlayMatchCard}
+          next={next}
+          footer={footer}
         />
+      </Shell>
+    );
+  }
 
-        {error && (
-          <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
-            <Icon name="warning-circle" /> {error}
-          </p>
-        )}
-
-        {/* Where the holes are — saved as they are tapped, so there is no
-            button to forget. Only a refusal offers one, to try by hand. */}
-        <p role="status" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-          {matchQueue.status.label}
-        </p>
-        {/* Counted out of the ROUND's holes — render.test pins nine for a nine. */}
-        {props.submitWhole && !matchIsOverAfter(holes, holeCount) && (
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            Fill in each hole until the match is decided, up to all {holeCount}. The card goes in when it is.
-          </p>
-        )}
-        {matchQueue.status.tone === "warn" && (
-          <button type="button" className="btn btn-secondary btn-block" disabled={pending} onClick={save}>
-            Try saving again
-          </button>
-        )}
-      </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
-        <span className="text-muted" style={{ fontSize: 13 }}>Playing as {props.playerName}</span>
-        <button
-          type="button"
-          className="btn"
-          style={{ marginLeft: "auto", fontSize: 13, padding: "4px 10px" }}
-          onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
-        >
-          Sign out
-        </button>
-      </div>
+  // The one match card, shared with the player app — see `MatchKeeper`.
+  return (
+    <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+      <MatchKeeper
+        match={props.match!}
+        holes={props.holes}
+        pars={props.pars}
+        yards={props.yards}
+        strokeIndex={props.strokeIndex}
+        cardStrokeIndex={props.cardStrokeIndex}
+        firstHole={props.firstHole}
+        voiceEntry={props.voiceEntry}
+        matchShots={props.matchShots}
+        submitWhole={props.submitWhole}
+        stageId={props.stageId}
+        roundLabel={props.roundLabel}
+        eventName={props.eventName}
+        otherMatches={otherMatches}
+        saveHoles={savePlayMatchHoles}
+        saveResult={savePlayMatchResult}
+        next={next}
+        footer={footer}
+      />
     </Shell>
   );
 }

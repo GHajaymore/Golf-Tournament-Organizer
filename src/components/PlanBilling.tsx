@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { startCheckout, openBillingPortal } from "@/app/actions/billing";
+import { startCheckout, openBillingPortal, checkDiscountCode } from "@/app/actions/billing";
 import { Icon } from "./Icon";
 
 /**
@@ -18,7 +18,13 @@ export function PlanBilling({
   pastDue,
   canEdit,
   heldUntil,
+  discountCode = "",
+  discountNote,
 }: {
+  /** The code the club gave at sign-up, if any — offered here without retyping. */
+  discountCode?: string;
+  /** What the server found that code does now: what comes off, or why it can't be used. */
+  discountNote?: { ok: boolean; text: string };
   /** A paid plan ended: the date its tournaments are kept until, already formatted. */
   heldUntil?: string;
   /** What can be bought, already priced by the panel: one per plan and interval. */
@@ -34,13 +40,32 @@ export function PlanBilling({
   const [pending, startTransition] = useTransition();
   /** Which offer was pressed, so THAT button says it is opening — not all four. */
   const [chosen, setChosen] = useState("");
+  // The discount code: what is typed, and what the server last said about it.
+  const [code, setCode] = useState(discountCode);
+  const [codeNote, setCodeNote] = useState<{ ok: boolean; text: string } | null>(discountCode ? discountNote ?? null : null);
+  const [checking, startChecking] = useTransition();
+  const applyCode = () => {
+    if (!code.trim()) {
+      setCodeNote(null);
+      return;
+    }
+    startChecking(async () => {
+      const res = await checkDiscountCode(code);
+      if (res.ok) {
+        setCode(res.code);
+        setCodeNote({ ok: true, text: res.said });
+      } else setCodeNote({ ok: false, text: res.error });
+    });
+  };
 
-  const go = (fn: () => Promise<{ ok: true; url: string } | { ok: false; error: string }>, which = "") => {
+  const go = (fn: () => Promise<{ ok: true; url: string } | { ok: false; error: string; about?: "discount" }>, which = "") => {
     setError("");
     setChosen(which);
     startTransition(async () => {
       const res = await fn();
       if (res.ok) window.location.assign(res.url);
+      // A refused CODE is said at the code box, once — not again under the buttons.
+      else if (res.about === "discount") setCodeNote({ ok: false, text: res.error });
       else setError(res.error);
     });
   };
@@ -83,6 +108,55 @@ export function PlanBilling({
       ) : (
         offers.length > 0 && (
           <div>
+            {/* A code the owner handed out — said before the card is asked for,
+                and judged again by the server when a button is pressed. It
+                comes off the FIRST payment only (domain/discount.ts). */}
+            <div style={{ marginBottom: 10 }}>
+              <label htmlFor="plan-discount" style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                Discount code <span className="text-muted" style={{ fontWeight: 400 }}>(optional)</span>
+              </label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <input
+                  id="plan-discount"
+                  className="input"
+                  style={{ flex: "1 1 160px", minWidth: 0, maxWidth: 240 }}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    setCodeNote(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyCode();
+                    }
+                  }}
+                  aria-describedby="plan-discount-note"
+                />
+                <button type="button" className="btn btn-secondary" disabled={checking || !code.trim()} onClick={applyCode}>
+                  {checking ? "Checking…" : "Apply"}
+                </button>
+              </div>
+              <p
+                id="plan-discount-note"
+                role={codeNote && !codeNote.ok ? "alert" : "status"}
+                style={{
+                  margin: codeNote ? "6px 0 0" : 0,
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  color: codeNote ? (codeNote.ok ? "var(--color-accent-2-200)" : "var(--color-danger)") : undefined,
+                }}
+              >
+                {codeNote ? (
+                  <>
+                    {codeNote.ok && <Icon name="check-circle" />} {codeNote.text}
+                  </>
+                ) : null}
+              </p>
+            </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {offers.map((o) => {
                 const key = `${o.plan}-${o.interval}`;
@@ -92,7 +166,7 @@ export function PlanBilling({
                     type="button"
                     className={o.interval === "year" ? "btn btn-primary" : "btn btn-secondary"}
                     disabled={pending}
-                    onClick={() => go(() => startCheckout(o.plan, o.interval), key)}
+                    onClick={() => go(() => startCheckout(o.plan, o.interval, code), key)}
                   >
                     {pending && chosen === key ? "Opening checkout…" : o.label}
                   </button>

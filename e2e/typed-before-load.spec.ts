@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "./coverage";
+import { landingSettled } from "./landing-settled";
 
 /**
  * WHAT SOMEBODY TYPES BEFORE THE PAGE HAS FINISHED LOADING IS TAKEN (2026-10-11).
@@ -76,6 +77,11 @@ test.describe("typed while the page was still loading", () => {
 
       await live(page);
       await expect(name).toHaveValue("Zz Early Typer");
+      // The front door grows by thousands of pixels once its script is running
+      // (CLAUDE.md), and a press made while it grows lands where the button
+      // was: round G156 (Firefox, 2026-10-19) pressed Create account and got
+      // no answer at all. Pressed once the page has its full height.
+      await landingSettled(page);
       // Nothing else filled in, so the form must refuse — and what it asks for
       // tells us what it believes it already has.
       await page.getByRole("button", { name: "Create account" }).click();

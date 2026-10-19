@@ -72,8 +72,7 @@ const WHO: Record<string, string> = {
   // ignores it for anybody who is not an admin.
   setPreviewAction: "anyone",
   // round code
-  savePlayMatchHoles: "round code", savePlayMatchResult: "round code", savePlayCard: "round code", certifyPlayCard: "round code",
-  // themselves
+  savePlayMatchHoles: "round code", savePlayMatchResult: "round code", savePlayCard: "round code", certifyPlayCard: "round code", savePlayMatchCard: "round code",  // themselves
   deleteMyAccount: "themselves", signOutEverywhereAction: "themselves", leaveOrganization: "themselves", setOwnAttendance: "themselves", enterTournament: "themselves", switchEvent: "themselves",
   enterThisTournament: "themselves", withdrawMyEntry: "themselves", askToJoinNamesake: "themselves",
   requestContestEntry: "themselves", requestSideGameEntry: "themselves", requestSkinsEntry: "themselves",
@@ -85,6 +84,8 @@ const WHO: Record<string, string> = {
   setMatchCourse: "themselves", nameMatchVenue: "themselves", setPlayerTee: "themselves", draftMessage: "themselves",
   // their match, their card
   setAttendance: "their match", saveMatchHoles: "their match", applyMatchResult: "their match", clearMatch: "their match",
+  // The player app's match card (2026-10-18): the same two saves, with the refusal said in words.
+  keepMyMatchHoles: "their match", keepMyMatchResult: "their match", keepMyMatchCard: "their match",
   saveScorecard: "their match", saveScorecards: "their match", saveMatchScorecard: "their match",
   saveTeamScorecard: "their match", saveTeamScorecards: "their match", confirmMatch: "their match",
   confirmMatches: "their match", disputeMatch: "their match", reportBracketResult: "their match",
@@ -95,7 +96,7 @@ const WHO: Record<string, string> = {
   confirmSideGameEntry: "the pot", removeSideGame: "the pot", saveSkinsPot: "the pot", setSkinsEntrants: "the pot",
   removeSkinsPot: "the pot", confirmSkinsEntry: "the pot",
   // club role
-  startCheckout: "club role", openBillingPortal: "club role", deleteClub: "club role", approveJoinRequest: "club role",
+  startCheckout: "club role", openBillingPortal: "club role", checkDiscountCode: "club role", deleteClub: "club role", approveJoinRequest: "club role",
   declineJoinRequest: "club role", setOrgMoneyMode: "club role", addOrganizationMember: "club role",
   setOrganizationMemberRole: "club role", removeOrganizationMember: "club role", saveOrganizationBranding: "club role",
   saveOrganizationTheme: "club role", saveOrganizationCurrency: "club role", saveOrganizationSeason: "club role",

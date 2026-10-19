@@ -763,8 +763,10 @@ describe("a round code obeys the tournament's score-entry setting", () => {
    * so it belongs to the same set. Anything that starts doing any of them
    * fails this block the day it is written, which the signing door did.
    */
+  // And a match's own cards (2026-10-19): a round kept on stroke cards takes
+  // each ball's strokes from a code, written to the match's card rows.
   const writers = actions("play.ts").filter(
-    (a) => /prisma\.match\.update\(|writeScorecard\(|certifyCard\(/.test(a.body),
+    (a) => /prisma\.match\.update\(|writeScorecard\(|certifyCard\(|matchScorecard\.upsert\(|teamScorecard\.upsert\(/.test(a.body),
   );
 
   it("finds the write actions it is about to assert on", () => {
@@ -773,6 +775,7 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     expect(writers.map((a) => a.name).sort()).toEqual([
       "certifyPlayCard",
       "savePlayCard",
+      "savePlayMatchCard",
       "savePlayMatchHoles",
       "savePlayMatchResult",
     ]);
@@ -2462,14 +2465,22 @@ describe("a round's card is narrowed in exactly one place", () => {
    * renders is covered in `render.test.tsx`.
    */
   it("the round-code play screen resolves the match's own card", () => {
+    // Built by `matchCardFor` since 2026-10-18, which the player app's own
+    // match screen uses too — so the resolution is pinned THERE, and the page
+    // is pinned to going through it.
     const page = stripComments(
       readFileSync(join(process.cwd(), "src", "app", "play", "page.tsx"), "utf8"),
     );
-    expect(page).toMatch(/courseForMatch\(playMatchVenue, playStageVenue, event\)/);
-    expect(page).toMatch(/cardForMatch\(playResolved, match, stage\)/);
+    const card = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "services", "match-card.ts"), "utf8"),
+    );
+    expect(page).toMatch(/matchCardFor\(\{ match,/);
+    expect(card).toMatch(/courseForMatch\(matchVenue, stageVenue, event\)/);
+    expect(card).toMatch(/cardForMatch\(resolved, match, stage\)/);
     // The round's hole count travels explicitly, so the grid never has to
     // guess it from the length of a card.
-    expect(page).toMatch(/holes=\{holeCount\}/);
+    expect(card).toMatch(/holes: holeCount,/);
+    expect(page).toMatch(/holes=\{card\.holes\}/);
     // And the event's whole card is no longer handed down.
     expect(page).not.toMatch(/pars=\{course\.pars\}/);
   });

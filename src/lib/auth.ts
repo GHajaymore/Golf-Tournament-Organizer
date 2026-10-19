@@ -6,6 +6,7 @@ import { SECURE_COOKIES } from "./secure-cookies";
 import { accessibleEvents, effectiveAccess } from "./services/access";
 import { landingEvent } from "./domain/landing-event";
 import { SESSION_SECONDS, readSessionValue, sessionRefusal, sessionValue } from "./domain/session-token";
+import { maySignIn, signInsClosed } from "./sign-in-gate";
 
 // Lightweight signed-cookie sessions plus scrypt password hashing (both
 // Node built-ins, no external auth provider). Swap this module for
@@ -137,6 +138,13 @@ export interface Session {
 /** Start a session for a person. Takes a User id — sessions are not tied to
  *  any one tournament, so signing up before creating one is possible. */
 export async function createSession(userId: string): Promise<void> {
+  // Sign-ins closed until launch (sign-in-gate.ts). Checked HERE, where every
+  // session is made, so a door added later is shut without knowing the rule;
+  // the actions check first only to say why.
+  if (signInsClosed()) {
+    const who = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (!maySignIn(who?.email)) return;
+  }
   const jar = await cookies();
   // Who, and WHEN — see session-token.ts. The bare user id this used to sign
   // was one value per person for ever, with no end and no way to end it.
@@ -177,6 +185,8 @@ export async function getSession(): Promise<Session | null> {
   // Older than a sign-in lasts, or issued before this person last reset their
   // password: not a session, whatever the browser still holds.
   if (sessionRefusal(held, user.sessionsValidFrom)) return null;
+  // A session made before sign-ins closed is not honoured either.
+  if (!maySignIn(user.email)) return null;
 
   // A session belongs to a person, not to a tournament. Which tournament
   // they're currently working in is resolved separately — from the active-event

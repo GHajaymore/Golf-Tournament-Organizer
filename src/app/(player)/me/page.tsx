@@ -811,6 +811,15 @@ export default async function PlayTodayPage() {
                   Nothing yet — it fills in hole by hole.
                 </p>
               )}
+              {/* The one match card — who won each hole, one at a time — the
+                  card round-code holders keep a match on (2026-10-18). Only
+                  where players report their own scores, and not once the
+                  match is decided. */}
+              {!m.complete && canEnterScores(settingsOf(state.event), session.viewRole) && (
+                <Link className="btn btn-primary" href={`/me/match?m=${encodeURIComponent(m.id)}`} style={{ alignSelf: "flex-start", marginTop: 8 }}>
+                  <Icon name="pencil-simple" /> {m.notStarted ? "Score this match" : "Carry on scoring"}
+                </Link>
+              )}
             </section>
           ))}
           {/* A KNOCKOUT'S "WHO AM I PLAYING". `matches` above is empty for a

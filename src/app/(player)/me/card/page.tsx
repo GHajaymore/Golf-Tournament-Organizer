@@ -28,6 +28,7 @@ import { isWaiting } from "@/lib/domain/tournament-switcher";
 import { parsePinSheet } from "@/lib/domain/pin-sheet";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { notInItWords, signsCards } from "@/lib/tournament-shape";
+import { matchKeptBy } from "@/lib/domain/match-kept-by";
 
 export const metadata = screenMetadata("/me/card");
 
@@ -316,6 +317,8 @@ export default async function PlayCardPage() {
      */
     // Whose card it is follows the committee's entry setting (`oneCardPerSide`).
     const ownBall = teamRound && !!stage && !oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis);
+    // How the organizer has this round's matches kept, where it has matches.
+    const matchKept = matchRound && stage ? matchKeptBy(stage) : null;
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
@@ -327,7 +330,9 @@ export default async function PlayCardPage() {
           short={
             myCardedSide
               ? `Your side's card is in: ${myCardedSide.gross} gross, ${myCardedSide.net} net.`
-              : teamRound
+              : matchKept === "holes"
+                ? "Your match is kept by tapping who won each hole."
+                : teamRound
                 ? ownBall
                   ? "Keep your own card; the better ball counts for your side."
                   : "Your side keeps one card; either of you enters it."
@@ -352,9 +357,15 @@ export default async function PlayCardPage() {
             offered first, and only when there is one to offer. */}
         <WayForward
           links={[
-            ...(teamRound && stage
-              ? [{ href: `/entry?round=${stage.id}`, label: ownBall ? "Enter my card" : "Enter our side's card", icon: "pencil-simple" }]
-              : []),
+            // A team MATCH is kept on the player's own match card, which is
+            // drawn the way the organizer chose (`matchKeptBy`): tapped, or a
+            // stroke card. A team medal has no match, and its cards are on
+            // Score entry.
+            ...(teamRound && stage && matchKept
+              ? [{ href: "/me/match", label: "Score my match", icon: "pencil-simple" }]
+              : teamRound && stage
+                ? [{ href: `/entry?round=${stage.id}`, label: ownBall ? "Enter my card" : "Enter our side's card", icon: "pencil-simple" }]
+                : []),
             ...(me.round.matches.length > 0
               ? [
                   {

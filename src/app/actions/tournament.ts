@@ -1,24 +1,23 @@
 "use server";
 import { byAddress } from "@/lib/domain/my-entry";
-import type { Match as MatchRow } from "@prisma/client";
+import { clearsConcession, deriveMatchFromItsCards, recomputeTeamMatch } from "@/lib/services/match-from-cards";
 import { COURSE_REF, roundCard } from "@/lib/services/course-resolution";
 import { playedOnBy } from "@/lib/services/courses";
 import { parseDeadlineIso } from "@/lib/deadline";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
-import { roundCourseHandicaps, flightTeeByPlayer, confirmedField, FIELD_PLAYER } from "@/lib/services/handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { prizeStructure, prizeStructureLines } from "@/lib/domain/prize-structures";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { oneCardPerSide, teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
-import { isNetBasis } from "@/lib/domain/match-entry";
 import { prisma } from "@/lib/db";
 // No `createSession` or `destroySession` here on purpose: deleting a
 // tournament moves the active event and must never re-sign or drop the
 // session — see deleteEvent.
 import { getSession, setActiveEvent } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
 import { applyStrokeCut, strokeCutField, strokeCutRefusal } from "@/lib/services/stroke-cut";
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
@@ -76,10 +75,9 @@ import {
 import {
   acceptsHandicapChange,
   isReturnedCard,
-  roundHandicapExactOf,
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
-import { playingHandicapInRound } from "@/lib/round-allowance";
+import { overridesAfterFormatChange, playingHandicapInRound } from "@/lib/round-allowance";
 import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
@@ -97,6 +95,8 @@ import { phoneRequiredFor, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, KNOCKOUT_STAGE_TYPES, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { randomUUID } from "node:crypto";
 import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
+import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
+import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
 import { launchRefusal, finishRefusal, statusMove } from "@/lib/domain/phase-gate";
@@ -132,8 +132,6 @@ import {
   marginRefusal,
   marginToHoles,
   matchIsOver,
-  resolveMatch,
-  deriveNetHoles,
   isTiebreakerKey,
   isBracketMode,
   holeStrokesReceived,
@@ -143,11 +141,8 @@ import {
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
-import { cardForMatch, courseForMatch } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
-import { matchHolesOffTheLow } from "@/lib/domain/team";
-import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
 import { holesChanged } from "@/lib/domain/card-correction";
@@ -438,6 +433,8 @@ export interface SignupInput {
   email?: string;
   phone?: string;
   ghin?: string;
+  /** A visitor's own handicap body — `ghin` is their number with it. "" for the club's. */
+  handicapBodyId?: string;
   homeClub?: string;
   handicapSource?: string;
   handicapType?: string;
@@ -1894,6 +1891,64 @@ export async function setStageScoreInput(stageId: string, input: string) {
   await refresh();
 }
 
+/**
+ * HOW PLAYERS KEEP THIS ROUND'S MATCHES — tap who won each hole, or stroke
+ * cards (Ajay, 2026-10-19). Read through `matchKeptBy`, the only reader.
+ *
+ * Match Play and Nassau are refused here: they carry this choice in "How scores
+ * are recorded" (`setStageScoreInput`), and two controls for one choice is two
+ * answers waiting to disagree.
+ *
+ * AND NOT ONCE A MATCH HAS A SCORE. A round kept half one way and half the
+ * other is the fault this setting exists to prevent — a stroke card rebuilds
+ * a match over holes somebody tapped — so a switch is refused, in words, while
+ * any match in the round holds a hole or a card.
+ */
+export async function setStageMatchKeptBy(stageId: string, kept: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  const stage = await prisma.stage.findFirst({
+    where: { id: String(stageId), eventId },
+    select: { id: true, type: true, format: true, scoreInput: true, matchKeptBy: true },
+  });
+  if (!stage) return { ok: false, error: "Round not found." };
+  const wanted = String(kept ?? "").trim();
+  if (wanted !== "holes" && wanted !== "cards") return { ok: false, error: "Choose tapping or stroke cards." };
+  const now = matchKeptBy(stage);
+  if (now === null) return { ok: false, error: "This round has no matches to keep." };
+  if (keptByScoreInput(stage.format)) {
+    return { ok: false, error: `${stage.format} is set under How scores are recorded.` };
+  }
+  if (now !== wanted && (await roundHoldsAScore(stage.id))) {
+    return {
+      ok: false,
+      error:
+        "Some matches in this round already have scores, so they stay kept the way they were started. Change this before anyone scores.",
+    };
+  }
+  await prisma.stage.updateMany({ where: { id: stage.id, eventId }, data: { matchKeptBy: wanted } });
+  await refresh();
+  return { ok: true };
+}
+
+/** Whether any match in this round holds a hole, a result or a card. */
+async function roundHoldsAScore(stageId: string): Promise<boolean> {
+  const [matches, teamCards, matchCards] = await Promise.all([
+    prisma.match.findMany({ where: { stageId }, select: { holes: true } }),
+    prisma.teamScorecard.count({ where: { stageId, matchId: { not: "" } } }),
+    prisma.matchScorecard.count({ where: { match: { stageId } } }),
+  ]);
+  if (teamCards > 0 || matchCards > 0) return true;
+  return matches.some((m) => {
+    try {
+      const holes = JSON.parse(m.holes || "[]") as unknown[];
+      return Array.isArray(holes) && holes.some((h) => h !== null && h !== "");
+    } catch {
+      return false;
+    }
+  });
+}
+
 export async function setStageFormat(stageId: string, format: string, force = false) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
@@ -1925,11 +1980,21 @@ export async function setStageFormat(stageId: string, format: string, force = fa
   const value = format;
   // A round becoming Stableford becomes net with it — `basisFor`. Its current
   // basis is kept for every other format.
-  const before = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { scoringBasis: true } });
+  const before = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { scoringBasis: true, format: true, type: true, handicapAllowance: true, allowanceWeights: true },
+  });
   const flightsBefore = await flightDefaultFor(eventId);
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
-    data: { format: value, scoringBasis: basisFor(value, before?.scoringBasis) },
+    data: {
+      format: value,
+      scoringBasis: basisFor(value, before?.scoringBasis),
+      // A committee's figure is kept only where it still means the same thing
+      // (`overridesAfterFormatChange`): a medal's 95 is not 95% of a foursomes
+      // pair's combined handicaps.
+      ...(before ? overridesAfterFormatChange(before, value) : {}),
+    },
   });
   await followFlightDefault(eventId, flightsBefore);
   await refresh();
@@ -2442,8 +2507,11 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   // by `resolveMatch(list).complete`: an empty list was a finished match, and
   // ["A"] an eighteen-hole match won 1 up
   // (`a-match-result-is-a-card-of-its-length.audit.test.ts`).
-  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { stage: { select: { holes: true } } } });
+  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { stageId: true, stage: { select: { holes: true } } } });
   if (!owner) throw new Error("Match not found.");
+  // Not on a round kept on stroke cards: the next card would rebuild over it.
+  const keptOnCards = await keptByRefusal(owner.stageId, "holes");
+  if (keptOnCards) throw new Error(keptOnCards);
   const clean = cleanHoleResults(holes, holesPlayed(owner.stage?.holes));
   if (!clean) throw new Error("Each hole is won by one side or halved. Check the card and save again.");
   const complete = matchIsOver(clean);
@@ -2472,16 +2540,6 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   await refresh();
 }
 
-/**
- * The `forfeitedBy` a score write leaves behind: cleared, except in a cup,
- * where a concession is the organizer's and outlives the cards the players go
- * on saving. Spread into the write — `{}` keeps whatever is stored.
- */
-async function clearsConcession(matchId: string): Promise<{ forfeitedBy?: string }> {
-  const m = await prisma.match.findUnique({ where: { id: matchId }, select: { stage: { select: { type: true } } } });
-  return keepsConcession(m?.stage?.type ?? "") ? {} : { forfeitedBy: "" };
-}
-
 /** Existing hole count for a match, from its stored holes array (18 or 9 depending on the round). */
 function matchHoleCount(holesJson: string): number {
   try {
@@ -2501,6 +2559,12 @@ export async function applyMatchResult(
   await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
+  // A player on a round kept on stroke cards enters strokes, not a result.
+  // Staff may still record one — a walkover, a committee's decision.
+  if (session.role !== "admin" && session.role !== "assistant") {
+    const keptOnCards = await keptByRefusal(match.stageId, "holes");
+    if (keptOnCards) throw new Error(keptOnCards);
+  }
   // A "use server" export is called with whatever the caller likes: a winner
   // that is none of the three was read as B.
   if (winner !== "A" && winner !== "B" && winner !== "H") throw new Error("Pick a winner, or halved.");
@@ -2518,6 +2582,83 @@ export async function applyMatchResult(
     data: { holes: JSON.stringify(holes), ...(await clearsConcession(matchId)), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name, enteredById: await authorPlayerId(eventId, session), attestedBy: "[]" },
   });
   await refresh();
+}
+
+/**
+ * A SIGNED-IN PLAYER KEEPING THEIR OWN MATCH, from the player app (2026-10-18).
+ *
+ * The card is `MatchKeeper`, the one the round-code page draws, and it expects
+ * a save that RETURNS its refusal in words. `saveMatchHoles` and
+ * `applyMatchResult` throw instead, and a thrown message does not survive to
+ * the browser in a production build, so a player would read "Couldn't save."
+ * over a refusal that had a reason. These two say it — after asking the same
+ * two questions themselves: the tournament lets players score, and the match
+ * is the caller's own, on either side of it, in an announced lineup.
+ */
+export async function keepMyMatchHoles(matchId: string, holes: HoleResult[]): Promise<{ ok: boolean; error?: string }> {
+  const { eventId, session } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, String(matchId));
+  try {
+    await saveMatchHoles(String(matchId), holes);
+    return { ok: true };
+  } catch (err) {
+    unstable_rethrow(err);
+    return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
+  }
+}
+
+export async function keepMyMatchResult(matchId: string, winner: "A" | "B" | "H", margin: string): Promise<{ ok: boolean; error?: string }> {
+  const { eventId, session } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, String(matchId));
+  try {
+    await applyMatchResult(String(matchId), winner, String(margin ?? ""));
+    return { ok: true };
+  } catch (err) {
+    unstable_rethrow(err);
+    return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
+  }
+}
+
+/**
+ * A SIGNED-IN PLAYER'S OWN STROKE CARD for a match on a round kept on cards
+ * (`matchKeptBy`, 2026-10-19) — the `MatchStrokeKeeper` card on `/me/match`.
+ *
+ * The ball is the caller's, worked out here and never taken from the caller:
+ * their slot in a singles match, their own card in a four-ball, or their side's
+ * one card where the side plays one ball. Then the console's own savers
+ * (`saveMatchScorecard`, `saveTeamScorecard`), which refuse a round kept by
+ * tapping and store the match through `services/match-from-cards.ts`. Answered
+ * in words, like the two above.
+ */
+export async function keepMyMatchCard(matchId: string, strokes: (number | null)[]): Promise<{ ok: boolean; error?: string }> {
+  const { eventId, session } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, String(matchId));
+  const match = await prisma.match.findFirst({ where: { id: String(matchId), eventId } });
+  if (!match) return { ok: false, error: "Match not found." };
+  const mine = await myPlayerIds(eventId, session.email);
+  try {
+    const sideMatch = match.teamAId !== "" && match.teamBId !== "" && match.playerAId === "" && match.playerBId === "";
+    if (!sideMatch) {
+      const slot = mine.has(match.playerAId) ? "A" : mine.has(match.playerBId) ? "B" : null;
+      if (!slot) return { ok: false, error: "You can only enter your own card." };
+      await saveMatchScorecard(match.id, slot, strokes);
+      return { ok: true };
+    }
+    const member = await prisma.teamMember.findFirst({
+      where: { playerId: { in: [...mine] }, teamId: { in: [match.teamAId, match.teamBId] } },
+      select: { teamId: true, playerId: true },
+    });
+    if (!member) return { ok: false, error: "You can only enter your own card." };
+    const stage = await prisma.stage.findUnique({
+      where: { id: match.stageId },
+      select: { format: true, scoreInput: true, scoringBasis: true },
+    });
+    const oneBall = !!stage && oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis);
+    return await saveTeamScorecard(member.teamId, oneBall ? "" : member.playerId, match.id, strokes);
+  } catch (err) {
+    unstable_rethrow(err);
+    return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
+  }
 }
 
 /**
@@ -2869,6 +3010,9 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
+  // Not on a round kept by tapping: this card would rebuild over the taps.
+  const keptByHoles = await keptByRefusal(match.stageId, "cards");
+  if (keptByHoles) throw new Error(keptByHoles);
 
   // `slot` is half the unique key this upserts on, and its "A" | "B" type is
   // erased at runtime — an unrecognised value would not overwrite a card, it
@@ -2903,172 +3047,6 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
 
   await deriveMatchFromItsCards(eventId, match, { name: session.name, playerId: await authorPlayerId(eventId, session) });
   await refresh();
-}
-
-/**
- * A MATCH'S HOLE RESULTS, DERIVED FROM ITS TWO PLAYERS' CARDS — net of their
- * handicaps where the round is.
- *
- * This was the second half of `saveMatchScorecard`, and the only code that
- * could turn a card into a match result. A file of cards imported into a
- * match-play round therefore could not: it wrote `Scorecard` rows — the table
- * a stroke round files in — which no match reads, and the night's matches
- * stayed unplayed under a message saying the cards were in (sweep 1, b14,
- * 2026-10-10). The import files its cards on the fixture and calls this, so
- * a typed card and an imported one are the same result by construction.
- *
- * Not exported: a `"use server"` export is a public endpoint, and this takes
- * a match row on trust.
- */
-async function deriveMatchFromItsCards(
-  eventId: string,
-  match: MatchRow,
-  enteredBy: { name: string; playerId: string },
-): Promise<void> {
-  const matchId = match.id;
-  const [cardA, cardB, playerA, playerB, event, stage] = await Promise.all([
-    prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId, slot: "A" } } }),
-    prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId, slot: "B" } } }),
-    prisma.player.findUnique({ where: { id: match.playerAId } }),
-    prisma.player.findUnique({ where: { id: match.playerBId } }),
-    prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
-    prisma.stage.findUnique({ where: { id: match.stageId } }),
-  ]);
-  /**
-   * The card THIS MATCH was played on: match → round → event.
-   *
-   * This resolved the EVENT's card and nothing else, so `Match.courseId` and
-   * `Stage.courseId` were both ignored — a match played at another venue, or a
-   * round moved to one, was scored against a course nobody played, and the
-   * per-hole winners derived from it were STORED. Meanwhile `/live` read the
-   * same match through `courseForMatch` and showed the right answer, so the
-   * board and the record disagreed with no way to tell which was which.
-   *
-   * `resolveCourse` also never fails: it falls back to a demo preset. That is
-   * right for a screen, which would otherwise crash, and wrong here, because a
-   * fabricated par and stroke index decided who won each hole and the result
-   * was written down. `courseForMatch` returns null when there is genuinely no
-   * card, and the net path below refuses rather than inventing one.
-   */
-  const [matchVenue, stageVenue] = await Promise.all([
-    match.courseId ? prisma.course.findUnique({ where: { id: match.courseId } }) : null,
-    stage?.courseId ? prisma.course.findUnique({ where: { id: stage.courseId } }) : null,
-  ]);
-  const resolved = courseForMatch(matchVenue, stageVenue, {
-    course: event?.course ?? "",
-    city: event?.city ?? "",
-    customPars: event?.customPars ?? "",
-    customYards: event?.customYards ?? "",
-    customStrokeIndex: event?.customStrokeIndex ?? "",
-    // Passed explicitly: this site builds the fields by hand rather than
-    // handing the row over, so without this line it would go on resolving by
-    // name however the query above changed.
-    courseRef: event?.courseRef ?? null,
-  });
-  // Handicap strokes only apply when the round is scored Net — a Gross round
-  // uses the same card, decided scratch (lower strokes wins the hole).
-  //
-  // Through `isNetBasis`, which `resolveMatchEntry` already uses, so the two
-  // paths into a match result cannot disagree about what the round is. The
-  // hand-rolled `=== "net"` here said GROSS for a "both" round while the
-  // resolver said net.
-  const netMode = isNetBasis(stage?.scoringBasis ?? "");
-  const strokesA = cardA ? (JSON.parse(cardA.strokes) as (number | null)[]) : [];
-  const strokesB = cardB ? (JSON.parse(cardB.strokes) as (number | null)[]) : [];
-  // Net match play allocates off Course Handicaps, not roster Indexes. Two
-  // players on the same index but different tees are owed different strokes,
-  // and deriveNetHoles works from the difference between them.
-  const holeCount = holesPlayed(stage?.holes);
-  const netTees = await prisma.tee.findMany({
-    where: { course: playedOnBy(eventId) },
-    orderBy: [{ position: "asc" }],
-  });
-  // Net match play under the `flight` policy: each side plays off their own
-  // flight's tees, which this never asked for.
-  const netFlightTee = await flightTeeByPlayer(eventId);
-  /**
-   * MATCH, THEN ROUND, THEN EVENT — and the venue scoping with it.
-   *
-   * This asked `roundTeeId(netTees, event?.defaultTeeId)`, which is the EVENT's
-   * configured set and nothing else. Two rungs were missing above it: this
-   * match's own set, which `nameMatchVenue` collects from the scorer, and this
-   * round's. So the venue resolution directly above — which walks match → round
-   * → event, and whose comment describes the exact damage — was reading one
-   * chain while the HANDICAPS were read off another.
-   *
-   * It is the worse half of that pair, because the per-hole winners derived from
-   * these strokes are STORED. The comment this replaces says so itself: "the
-   * match result was decided by a handicap no screen was showing". That was true
-   * of the tee POSITION fallback it fixed and stayed true of the venue.
-   */
-  const netHcp = roundCourseHandicaps({
-    tees: netTees,
-    players: [playerA, playerB]
-      .filter((x): x is NonNullable<typeof x> => !!x)
-      .map((p) => ({ id: p.id, handicap: p.handicap, handicapType: p.handicapType, teeId: p.teeId, gender: p.gender })),
-    // The lowest par being played is the field's, not this pair's (Rule 6.2b).
-    field: await confirmedField(eventId),
-    flightTeeOf: netFlightTee,
-    match,
-    stage,
-    event,
-    holes: holeCount,
-  });
-  // What this ROUND says they play off, which is not always what the roster
-  // says. This path converts its own handicaps rather than going through the
-  // board's resolver, so without these two lines a net match is the one round
-  // type that ignores an override — silently, and after the organizer has been
-  // shown a control that appeared to work.
-  const netRound = await roundHandicapRows(eventId, match.stageId);
-  //
-  // And the PLAYING handicap, as the screens show it (`matchHandicapFor`): the
-  // allowance, and the strokes for tees of a higher par (Rule 6.2b). This took
-  // the round's figure alone, so a player shown a stroke for the pars had her
-  // win stored as a half.
-  const netFor = (p: { id: string; handicap: number } | null) =>
-    p
-      ? playingHandicapInRound(stage, netRound.get(p.id), {
-          whole: netHcp.get(p.id) ?? p.handicap,
-          exact: netHcp.exact(p.id) ?? p.handicap,
-          parStrokes: netHcp.parStrokes(p.id),
-        })
-      : 0;
-  /**
-   * A net match cannot be scored without a card, and must not pretend to be.
-   *
-   * Handicap strokes are allocated by stroke index. With no card there is no
-   * index, so every hole was decided scratch — and then stored as the NET
-   * result. The organizer sees a settled match, correctly formatted, decided
-   * by a rule the round is not being played under.
-   *
-   * Gross match play is untouched: it needs no par and no stroke index, and a
-   * community league with no fixed venue is exactly the case the app supports.
-   */
-  if (netMode && !resolved) {
-    throw new Error(
-      "This round is scored Net, and there is no course card to allocate strokes from. Set the round's course before entering scores.",
-    );
-  }
-  // The card the MATCH is actually played on: its own nine when it has one,
-  // otherwise the round's, with the stroke indexes re-ranked 1..9. Passing the
-  // full eighteen allocated strokes off the wrong holes AND sized the match at
-  // eighteen holes, so a nine-hole match could never be closed out.
-  const course = resolved ?? { name: "", pars: [], yards: [], strokeIndex: [] };
-  const roundCard = cardForMatch(course, match, stage);
-  const holes = deriveNetHoles(
-    strokesA,
-    strokesB,
-    netMode ? netFor(playerA) : 0,
-    netMode ? netFor(playerB) : 0,
-    roundCard.strokeIndex,
-    holeCount,
-  );
-  const complete = resolveMatch(holes).complete;
-
-  await prisma.match.update({
-    where: { id: matchId },
-    data: { holes: JSON.stringify(holes), ...(await clearsConcession(matchId)), scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: enteredBy.name, enteredById: enteredBy.playerId, attestedBy: "[]" },
-  });
 }
 
 /**
@@ -3135,6 +3113,10 @@ export async function saveTeamScorecard(
     }
     match = m;
     stageId = m.stageId;
+    // A match on a round kept by tapping takes no card: it would rebuild the
+    // match over the taps. A team MEDAL (no match) is untouched.
+    const keptByHoles = await keptByRefusal(m.stageId, "cards");
+    if (keptByHoles) return { ok: false, error: keptByHoles };
   }
   if (!stageId) return { ok: false, error: "This card has no round to belong to." };
 
@@ -3290,215 +3272,6 @@ export async function saveTeamScorecards(
     }
   }
   return out;
-}
-
-/** Rebuild a team match's hole results from the two sides' cards. */
-async function recomputeTeamMatch(
-  eventId: string,
-  match: { id: string; stageId: string; teamAId: string; teamBId: string },
-  formatName: string,
-  holeCount: number,
-): Promise<void> {
-  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
-  if (!event) return;
-  const format = findFormat(formatName);
-  // The round's own handicap settings, not just the format's defaults. This
-  // used to score off `format.allowance` and an unoverridden side handicap,
-  // which meant a committee that set its own allowance saw it honoured on the
-  // leaderboard and ignored here — the same round settled two ways.
-  //
-  // `holes` and `nine` are selected for the same reason: which nine a round is
-  // played over decides both the pars and where a stroke lands, and this path
-  // was reading the front nine of the raw card whatever the round said.
-  const stage = await prisma.stage.findUnique({
-    where: { id: match.stageId },
-    select: {
-      handicapAllowance: true,
-      allowanceWeights: true,
-      countBest: true,
-      holes: true,
-      nine: true,
-      // And WHERE it was played. The three fields above were added because
-      // the round's own settings decide how a side is scored; the venue is
-      // one of those settings and was the one still missing, so this path
-      // could not have read the right card even if it had asked for it.
-      courseId: true,
-      // And off WHICH SET, which is the same settings list one column along:
-      // the venue decided which card was read and the tees decide what the
-      // side plays off it. Reading the card from the round and the rating from
-      // the tournament is two chains for one act.
-      teeId: true,
-      // A cup session keeps an organizer's concession through a card save.
-      type: true,
-      // Whether each side returned one card — see `oneCardPerSide`.
-      scoreInput: true,
-      scoringBasis: true,
-    },
-  });
-  /**
-   * AND THE FIXTURE'S OWN VENUE, because a team match can name one.
-   *
-   * `nameMatchVenue` serves team matches deliberately — its player check reads
-   * the TEAM columns for exactly that reason — so a four-ball that played
-   * somewhere else has it on the row. The `match` argument is a narrow object
-   * built by several callers and widening it would put this question to all of
-   * them; one read here asks it once, on a path that already writes.
-   */
-  const matchVenue = await prisma.match.findUnique({
-    where: { id: match.id },
-    select: { teeId: true, courseId: true },
-  });
-  /**
-   * The round's card, for the same reason the net import needs it.
-   *
-   * This scored a team match off `resolveCourse(event)` — the tournament's
-   * venue — so a side playing a round somewhere else received its strokes on
-   * the holes that are hardest at HOME. The comment above already establishes
-   * the principle for the allowance and the nine ("the round's own handicap
-   * settings, not just the format's defaults"); the venue belongs with them.
-   */
-  const roundVenue = stage?.courseId
-    ? await prisma.course.findFirst({
-        where: { id: stage.courseId, ...playedOnBy(eventId) },
-      })
-    : null;
-  const course = roundCard(stage, event, roundVenue);
-  // The format this match is scored under, which may be the tournament's where
-  // the round names none — so the round, with that format.
-  const teamPricing = stage ? { ...stage, format: formatName } : null;
-
-  /**
-   * What each player on a side plays off in this round.
-   *
-   * Course Handicaps, and the round's own numbers on top of them. This scored
-   * off `Player.handicap` — the roster INDEX, unconverted — while the Teams
-   * screen priced the identical side through `teamsForStage`, which converts
-   * for the tees. So a club that rates its tees saw one side handicap on
-   * screen and was scored by another: the 2026-08-12 audit's defect exactly,
-   * in the one place it had not been looked for. Both read the same rule now.
-   */
-  const teeRows = await prisma.tee.findMany({
-    where: { course: playedOnBy(eventId) },
-    orderBy: [{ position: "asc" }],
-  });
-  const teamRound = await roundHandicapRows(eventId, match.stageId);
-  // One field for BOTH sides. Each side's handicaps are worked out from its own
-  // members below, and the strokes for tees of a higher par (Rule 6.2b) are a
-  // difference from the lowest par the field is playing — which two maps of
-  // two players each would otherwise each find for themselves.
-  const teamField = await confirmedField(eventId);
-
-  const sideCard = async (teamId: string) => {
-    const [cards, members] = await Promise.all([
-      prisma.teamScorecard.findMany({ where: { stageId: match.stageId, matchId: match.id, teamId } }),
-      prisma.teamMember.findMany({
-        where: { teamId },
-        include: {
-          player: { select: FIELD_PLAYER },
-        },
-      }),
-    ]);
-    const teamFlightTee = await flightTeeByPlayer(eventId);
-    // Match, then round, then event, venue-scoped — the same chain as the net
-    // match path above, and the same reason: what this writes down is a result.
-    const teamHcp = roundCourseHandicaps({
-      tees: teeRows,
-      players: members.map((m) => m.player),
-      field: teamField,
-      flightTeeOf: teamFlightTee,
-      match: matchVenue,
-      stage,
-      event,
-      holes: holeCount,
-    });
-    // Before rounding: both uses below take an allowance of it (Rule 6.2a).
-    const playsOffExact = (p: { id: string; handicap: number }) =>
-      roundHandicapExactOf(teamRound.get(p.id), teamHcp.get(p.id) ?? p.handicap, teamHcp.exact(p.id) ?? p.handicap);
-    const parse = (s: string): (number | null)[] => {
-      try {
-        return JSON.parse(s) as (number | null)[];
-      } catch {
-        return [];
-      }
-    };
-    // Which holes this ball picked up on. Anything unreadable reads as none.
-    const picks = (s: string | undefined): boolean[] => {
-      try {
-        const v = JSON.parse(s ?? "[]") as unknown;
-        return Array.isArray(v) ? v.map((x) => x === true) : [];
-      } catch {
-        return [];
-      }
-    };
-    /**
-     * THE SIDE AS BALLS, because this is a MATCH.
-     *
-     * This built a `TeamCard` per side with full allowances and compared the
-     * two net better balls. That is the net-medal method; a match is played
-     * off the lowest handicap in it. See `matchHolesOffTheLow`, which carries
-     * the measurement of how far the two diverge and why it lands on the
-     * hardest holes.
-     *
-     * A shared ball is ONE ball at the side's own playing handicap, which is
-     * the same figure `singleBallTeamCard` scores it on — so foursomes match
-     * play comes off the low side rather than the low player, correctly.
-     */
-    if (format.ball === "single") {
-      const one = cards.find((c) => c.playerId === "");
-      const hcp = sidePlayingHandicap(
-        members.map((m) => playsOffExact(m.player)),
-        formatName,
-        stage?.handicapAllowance ?? 0,
-        stage?.allowanceWeights,
-      );
-      return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: hcp, pickedUp: picks(one?.pickedUp) }];
-    }
-    // A two-ball round the committee entered as one card for the side: that
-    // card is the side's gross (the choice exists only on gross), so it plays
-    // off nothing — as the board reads it.
-    if (oneCardPerSide(formatName, stage?.scoreInput, stage?.scoringBasis)) {
-      const one = cards.find((c) => c.playerId === "");
-      return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: 0, pickedUp: picks(one?.pickedUp) }];
-    }
-    return members.map((m) => {
-      const card = cards.find((c) => c.playerId === m.playerId);
-      return {
-        strokes: parse(card?.strokes ?? "[]"),
-        playingHandicap: playingHandicapInRound(teamPricing, teamRound.get(m.player.id), {
-          whole: teamHcp.get(m.player.id) ?? m.player.handicap,
-          exact: teamHcp.exact(m.player.id) ?? m.player.handicap,
-          parStrokes: teamHcp.parStrokes(m.player.id),
-        }),
-        pickedUp: picks(card?.pickedUp),
-      };
-    });
-  };
-
-  const [a, b] = await Promise.all([sideCard(match.teamAId), sideCard(match.teamBId)]);
-  const holes = matchHolesOffTheLow(
-    a,
-    b,
-    course.strokeIndex,
-    course.pars.length,
-    effectiveCountBest(formatName, stage?.countBest ?? 0),
-  );
-  const complete = resolveMatch(holes).complete;
-
-  await prisma.match.update({
-    where: { id: match.id },
-    data: {
-      holes: JSON.stringify(holes),
-      // A real result supersedes a forfeit. Without this, an organizer who
-      // forfeited against the wrong name and then entered the true card would
-      // see the card on screen and the forfeit in the standings — the entered
-      // result silently discarded. Except in a cup, where the concession is
-      // the organizer's and outlives the cards — see `keepsConcession`.
-      ...(keepsConcession(stage?.type ?? "") ? {} : { forfeitedBy: "" }),
-      scoreStatus: "pending",
-      scoredAt: complete ? new Date() : null,
-      confirmedById: null,
-    },
-  });
 }
 
 /* ── Score confirmation ───────────────────────────────────────────────── */
@@ -4504,6 +4277,12 @@ export async function createEvent(
         format: r.format,
         holes: r.holes,
         scoringBasis: basisFor(r.format, r.scoringBasis),
+        // How the template keeps its matches, where it says (`TemplateRound.kept`).
+        ...(r.kept
+          ? keptByScoreInput(r.format)
+            ? { scoreInput: r.kept === "cards" ? "gross-cards" : "hole-results" }
+            : { matchKeptBy: r.kept }
+          : {}),
       })),
     });
     // A new event has no flights and the schema's rule — the default for no
@@ -5445,6 +5224,9 @@ export async function importScores(
   // A round whose results are MATCHES files a card on the player's fixture —
   // see the stroke branch below.
   const matchRound = lookupFormat(stage.format)?.family === "match";
+  // And only in the way this round keeps its matches (`matchKeptBy`).
+  const keptOtherwise = await keptByRefusal(stage.id, isStrokeShape(shape as ScoreImportShape) ? "cards" : "holes");
+  if (keptOtherwise) return { ok: false, written: 0, error: keptOtherwise };
 
   const fieldRows = await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true } });
   const field = new Set(fieldRows.map((p) => p.id));
@@ -5806,6 +5588,9 @@ export async function importTeamScores(
   // One card per side on a shared ball, and on a two-ball round the committee
   // entered that way — the shape the board reads (`oneCardPerSide`).
   const shared = oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis);
+  // A side's cards for a match round kept by tapping would rebuild its matches.
+  const keptByHoles = await keptByRefusal(stage.id, "cards");
+  if (keptByHoles) return { ok: false, written: 0, error: keptByHoles };
   const holes = holesPlayed(stage.holes);
   const teams = await prisma.team.findMany({
     where: { eventId, OR: [{ stageId }, { stageId: null }] },

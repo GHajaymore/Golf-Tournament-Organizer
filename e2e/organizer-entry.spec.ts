@@ -96,6 +96,16 @@ test("a member enters from the link, signs in, and scores their own card", async
         (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "",
       );
       expect(link, "no sign-up link is shown").toMatch(/\/register\//);
+
+      // The noticeboard poster (2026-10-17): its QR is THIS link, and it names the tournament.
+      await page.getByRole("button", { name: "Show QR code" }).click();
+      const poster = page.locator("#signup-poster section.signup-poster");
+      await expect(poster, "the sign-up poster was not drawn").toBeVisible({ timeout: 20_000 });
+      expect(await poster.getAttribute("data-link"), "the poster's QR is not the sign-up link").toBe(link);
+      await expect(poster.locator("svg path"), "the poster has no QR drawn").toHaveCount(1);
+      await expect(poster).toContainText("Scan to sign up");
+      await poster.screenshot({ path: test.info().outputPath("poster.png") });
+      await expect(page.getByRole("button", { name: "Print poster" })).toBeVisible();
     });
 
     await test.step("member: enters on the link, with no account", async () => {

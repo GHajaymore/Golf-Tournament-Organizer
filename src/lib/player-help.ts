@@ -66,7 +66,20 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Open My card.",
       "Tap a hole, then your strokes.",
       "It saves as you go, even with no signal.",
+      "Buttons grey? The page is still loading. Wait a moment.",
       "[[Full card]] shows every hole at once.",
+    ],
+  },
+  {
+    id: "match",
+    question: "How do I keep my match?",
+    href: "/me/match",
+    steps: [
+      "On Today, tap [[Score this match]].",
+      "After each hole, tap who won it, or [[Halved]].",
+      "If your organizer chose stroke cards, enter your own strokes instead. The app works out who won each hole.",
+      "It saves as you go.",
+      "The board shows your match as you play.",
     ],
   },
   {

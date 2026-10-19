@@ -1,4 +1,4 @@
-import { resolveMatch } from "./match";
+import { matchStandingText, resolveMatch } from "./match";
 import type { HoleResult } from "./types";
 
 /**
@@ -42,4 +42,28 @@ export function matchLine({ aId, bId, aName, bName, holes, forfeitedBy = "" }: M
   }
   if (r.lead === 0) return `All square through ${r.played}`;
   return `${r.lead > 0 ? aName : bName} ${Math.abs(r.lead)} up through ${r.played}`;
+}
+
+/**
+ * A STORED MATCH, SAID IN A LINE, FROM ITS COLUMN (2026-10-17, the cup
+ * rehearsal) — "Blues 2 up with 4 to play", "Blues 5&4", or "" when nothing
+ * has been kept.
+ *
+ * For a match the players kept hole by hole on a round code: it stores who won
+ * each hole and no strokes, so Score entry, which totals strokes, said "No
+ * score yet" beside a match three up on the board. "To play" rather than the
+ * "through" above, because a cup session played on the back nine is "through
+ * 12" after three holes, and this has no hole numbers to say that with. Junk
+ * in the column reads as nothing kept.
+ */
+export function storedMatchLine(holesJson: string, aName: string, bName: string): string {
+  let holes: HoleResult[];
+  try {
+    holes = JSON.parse(holesJson) as HoleResult[];
+  } catch {
+    return "";
+  }
+  if (!Array.isArray(holes)) return "";
+  const r = resolveMatch(holes);
+  return r.played === 0 ? "" : matchStandingText(r, aName, bName);
 }

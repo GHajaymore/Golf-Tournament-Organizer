@@ -116,19 +116,44 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
       expect(await member.locator("main").innerText()).not.toMatch(/Group \d+ · \d/);
     });
 
-    await test.step("the secretary draws threes, balanced on handicap, off two tees, and publishes", async () => {
+    await test.step("the secretary draws threes, balanced on handicap, off two tees, and saves a draft", async () => {
       await open(page, "/foursomes");
       await expect(page.getByRole("heading", { level: 1, name: "Tee sheet" })).toBeVisible();
       await page.getByRole("button", { name: /^Balanced handicap/ }).click();
       await page.locator("label.seg-opt", { hasText: /^\s*3\s*$/ }).click();
       await page.locator("label.seg-opt", { hasText: /^\s*Split\s*$/ }).click();
       await page.getByLabel("First tee").fill("07:30");
-      await page.getByRole("button", { name: /^Save & publish/ }).click();
+      await page.getByRole("button", { name: /^Save sheet/ }).click();
+      await expect(async () => {
+        await open(page, "/foursomes");
+        await expect(page.getByText("Saved as a draft — this is the sheet you saved.")).toBeVisible();
+      }).toPass({ timeout: 20_000 });
+      // A draft is the secretary's: the member still sees nothing.
+      await open(member, "/me");
+      expect(await member.locator("main").innerText()).not.toMatch(/Group \d+ · \d/);
+    });
+
+    /**
+     * THE NIGHT BEFORE, AS IT HAPPENED (2026-10-17). The draft is right; the
+     * secretary comes back to publish it. A re-draw used to reopen at 8:00, and
+     * "Save & publish" publishes what is ON SCREEN — so publishing a saved
+     * draft meant rebuilding it by hand. Now a re-draw starts from the saved
+     * times, and the draft is published as it stands.
+     */
+    await test.step("a re-draw starts from the saved times, and the saved draft is published as it stands", async () => {
+      await page.getByRole("button", { name: /^Re-draw this sheet/ }).click();
+      await expect(page.getByLabel("First tee")).toHaveValue("07:30");
+      await page.getByRole("button", { name: "Close the draw controls" }).click();
+
+      await page.getByRole("button", { name: /^Publish this sheet/ }).click();
       await page.getByRole("button", { name: "Publish the tee sheet" }).click();
+      await expect(page.getByText("Published to players — this is the sheet they have.")).toBeVisible({ timeout: 20_000 });
+      // Never the contradiction it used to print straight after publishing.
+      await expect(page.getByText(/new draw/)).toHaveCount(0);
 
       await expect(async () => {
         await open(page, "/foursomes");
-        await expect(page.getByText(/Published to players/)).toBeVisible();
+        await expect(page.getByText(/Published to players — this is the sheet they have/)).toBeVisible();
       }).toPass({ timeout: 20_000 });
 
       // The draw the secretary sees, group by group.
