@@ -18,7 +18,7 @@ import { prisma } from "@/lib/db";
 // tournament moves the active event and must never re-sign or drop the
 // session — see deleteEvent.
 import { getSession, setActiveEvent } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
 import { applyStrokeCut, strokeCutField, strokeCutRefusal } from "@/lib/services/stroke-cut";
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
@@ -2530,6 +2530,41 @@ export async function applyMatchResult(
     data: { holes: JSON.stringify(holes), ...(await clearsConcession(matchId)), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name, enteredById: await authorPlayerId(eventId, session), attestedBy: "[]" },
   });
   await refresh();
+}
+
+/**
+ * A SIGNED-IN PLAYER KEEPING THEIR OWN MATCH, from the player app (2026-10-18).
+ *
+ * The card is `MatchKeeper`, the one the round-code page draws, and it expects
+ * a save that RETURNS its refusal in words. `saveMatchHoles` and
+ * `applyMatchResult` throw instead, and a thrown message does not survive to
+ * the browser in a production build, so a player would read "Couldn't save."
+ * over a refusal that had a reason. These two say it — after asking the same
+ * two questions themselves: the tournament lets players score, and the match
+ * is the caller's own, on either side of it, in an announced lineup.
+ */
+export async function keepMyMatchHoles(matchId: string, holes: HoleResult[]): Promise<{ ok: boolean; error?: string }> {
+  const { eventId, session } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, String(matchId));
+  try {
+    await saveMatchHoles(String(matchId), holes);
+    return { ok: true };
+  } catch (err) {
+    unstable_rethrow(err);
+    return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
+  }
+}
+
+export async function keepMyMatchResult(matchId: string, winner: "A" | "B" | "H", margin: string): Promise<{ ok: boolean; error?: string }> {
+  const { eventId, session } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, String(matchId));
+  try {
+    await applyMatchResult(String(matchId), winner, String(margin ?? ""));
+    return { ok: true };
+  } catch (err) {
+    unstable_rethrow(err);
+    return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
+  }
 }
 
 /**

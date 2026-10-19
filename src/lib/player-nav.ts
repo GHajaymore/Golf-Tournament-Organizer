@@ -142,6 +142,18 @@ export const PLAYER_HELP: PlayerScreen = {
   icon: "ph ph-question",
 };
 
+/**
+ * MY MATCH — a player keeping their own match, who won each hole, one at a
+ * time (2026-10-18): the round-code card, which players praised at the first
+ * real cup, in the player app (`MatchKeeper`). Not a tab: reached from "Score
+ * this match" on Today and in the cup's own card, and only for a match.
+ */
+export const PLAYER_MATCH: PlayerScreen = {
+  href: "/me/match",
+  label: "My match",
+  icon: "ph ph-sword",
+};
+
 /** Every player screen, tab or not — the lookup `screenName` walks. */
 export const ALL_PLAYER_SCREENS: readonly PlayerScreen[] = [
   ...PLAYER_TABS,
@@ -150,4 +162,5 @@ export const ALL_PLAYER_SCREENS: readonly PlayerScreen[] = [
   PLAYER_RULES,
   PLAYER_CALENDAR,
   PLAYER_HELP,
+  PLAYER_MATCH,
 ];

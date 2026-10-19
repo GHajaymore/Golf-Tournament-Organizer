@@ -1,6 +1,8 @@
+import { createHmac } from "node:crypto";
 import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
  * A FOUR-BALL PARTNER SCORES THEIR SIDE'S MATCH WITH A ROUND CODE.
@@ -371,5 +373,87 @@ test("the card links to the public leaderboard, and only when the board is publi
   } finally {
     await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: was.leaderboardVisibility } });
     await ctx.close();
+  }
+});
+
+/**
+ * THE PLAYER APP KEEPS A MATCH ON THE SAME CARD (2026-10-18). At the first real
+ * cup the round-code card was praised, and the player app had nothing like it:
+ * its "Score this match" opened the console's stroke cards, which, saved,
+ * rebuild the match from strokes over the holes a scorer had tapped. Ajay: "keep
+ * it in player app … it was very simple today and I want to keep it that way".
+ *
+ * Finn, signed in with his own account, opens his cup match from Today, gives
+ * hole 1 to his own pair by name — stored for side B — and hole 2 to the other
+ * pair — side A (the control). Then Edda, his partner, opens the same match by
+ * the round code and her phone shows the same two holes, the same way round.
+ */
+test("a signed-in player keeps their four-ball in the player app on the same card, and a code holder sees the same holes", async ({ browser, baseURL }) => {
+  test.setTimeout(150_000);
+  const before = await prisma.match.findUniqueOrThrow({ where: { id: ids.match }, select: { holes: true } });
+  await prisma.match.update({ where: { id: ids.match }, data: { holes: JSON.stringify(new Array(9).fill(null)) } });
+  const finn = await prisma.player.findFirstOrThrow({ where: { eventId: ids.event, name: "Zz Finn" }, select: { email: true } });
+  const user = await prisma.user.create({ data: { email: finn.email, name: "Zz Finn", password: "x:unusable" } });
+  const account = await prisma.account.create({ data: { eventId: ids.event, email: finn.email, name: "Zz Finn", role: "player" } });
+  const secret = process.env.AUTH_SECRET ?? "dev-secret";
+  const sign = (v: string) => `${v}.${createHmac("sha256", secret).update(v).digest("base64url")}`;
+  const stored = async (i: number) => {
+    const m = await prisma.match.findUniqueOrThrow({ where: { id: ids.match }, select: { holes: true } });
+    return (JSON.parse(m.holes) as (string | null)[])[i];
+  };
+  const app = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  const code = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  const errors: string[] = [];
+  try {
+    await app.addCookies([
+      { name: "ng_session", value: sign(signedInNow(user.id)), url: baseURL! },
+      { name: "ng_active_event", value: sign(ids.event), url: baseURL! },
+    ]);
+    const page = await app.newPage();
+    watchPageErrors(page, errors, "Finn, signed in");
+    await page.goto(`/me?bust=${Date.now()}`);
+    const score = page.getByRole("link", { name: /Score this match|Carry on scoring/ }).first();
+    await expect(score, "Today offers no way to score the match").toBeVisible({ timeout: 30_000 });
+    await score.click();
+    await expect(page).toHaveURL(/\/me\/match\?m=/);
+    await expect(page.getByRole("heading", { name: /Zz Edda & Zz Finn\s*vs\s*Zz Ailsa & Zz Bram/ }), "the player app's card is not the match from his side").toBeVisible({ timeout: 30_000 });
+
+    await page.getByRole("group", { name: "Who won hole 1" }).getByRole("button", { name: /^Hole 1 to Zz Edda & Zz Finn/ }).click();
+    await expect.poll(() => stored(0), { timeout: 15_000, message: "hole 1, given to Finn's pair, was not stored for their side" }).toBe("B");
+    const hole2 = page.getByRole("group", { name: "Who won hole 2" });
+    await expect(hole2).toBeVisible({ timeout: 10_000 });
+    await hole2.getByRole("button", { name: /^Hole 2 to Zz Ailsa & Zz Bram/ }).click();
+    await expect.poll(() => stored(1), { timeout: 15_000, message: "hole 2, given to the other pair, was not stored for their side" }).toBe("A");
+
+    // His partner, by the code: the same two holes, the same way round.
+    const p = await code.newPage();
+    watchPageErrors(p, errors, "Edda, by the code");
+    await enter(p, "Zz Edda");
+    await expect(p.getByRole("button", { name: /^Hole 1, won by Zz Edda & Zz Finn/ }), "the code holder's card disagrees about hole 1").toBeVisible({ timeout: 30_000 });
+    await expect(p.getByRole("button", { name: /^Hole 2, won by Zz Ailsa & Zz Bram/ }), "the code holder's card disagrees about hole 2").toBeVisible();
+
+    // And the finished match phoned in from the green: Finn, in the app, gives
+    // it to his own pair 5&4 — a result replaces the holes tapped, so the
+    // card asks first, and the match is stored as side B's, five holes up.
+    await page.goto(`/me/match?bust=${Date.now()}`);
+    await page.getByText("Final result", { exact: true }).click();
+    await page.getByLabel(/^Zz E\. & Zz F\. won$/).check();
+    await page.getByPlaceholder(/3&2/).fill("5&4");
+    page.once("dialog", (d) => void d.accept());
+    await page.getByRole("button", { name: "Save result" }).click();
+    await expect(page.getByRole("button", { name: "Result saved" }), "the result was not saved").toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(async () => {
+        const m = await prisma.match.findUniqueOrThrow({ where: { id: ids.match }, select: { holes: true } });
+        return (JSON.parse(m.holes) as (string | null)[]).slice(0, 6).join(",");
+      }, { timeout: 15_000, message: "the result was not stored as Finn's pair winning 5&4" })
+      .toBe("B,B,B,B,B,");
+    expect(errors).toEqual([]);
+  } finally {
+    await app.close().catch(() => {});
+    await code.close().catch(() => {});
+    await prisma.match.update({ where: { id: ids.match }, data: { holes: before.holes } });
+    await prisma.account.deleteMany({ where: { id: account.id } });
+    await prisma.user.deleteMany({ where: { id: user.id } });
   }
 });

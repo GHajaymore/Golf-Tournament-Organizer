@@ -54,7 +54,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "[[Add member]]: Name, Email (how they sign in), Phone, **Handicap index**, **Handicap is for** (18 or 9 holes), plus optional **Gender**, Member number, the member's number with your handicap body (a GHIN number in the US, an England Golf membership number, a Golf Ireland number, a Golf Canada number or a Golf ID in Australia), Home club and private Notes. Gender is used for one thing: in a tournament a woman starts on the course's ladies' tees.",
+          "[[Add member]]: Name, Email (how they sign in), Phone, **Handicap index**, **Handicap is for** (18 or 9 holes), plus optional **Gender**, Member number, GHIN, Home club and private Notes. Gender is used for one thing: in a tournament a woman starts on the course's ladies' tees.",
           "Or bring everyone in at once with [[Import CSV]]. You'll see what was added, updated or skipped, and any columns it didn't recognise. A plus handicap is written “+2.4”, in the file and in the form, and is shown that way on every list.",
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
@@ -62,16 +62,6 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },
-      { kind: "h", text: "Where handicaps come from" },
-      { kind: "where", text: "Club settings → Handicaps" },
-      {
-        kind: "steps",
-        items: [
-          "**Handicap body** is the one your members belong to, and it follows your club's country (set under Branding): GHIN (USGA) in the US, England Golf, Golf Ireland (north and south), Golf Canada or Golf Australia — or **Your national association** anywhere else, and until you have said where the club is. Every one of them uses the World Handicap System.",
-          "Then choose: **Entered here only** (organizers type handicaps, or take the one suggested from members' cards); **‹body› where a member has one** (a member with a number plays off that body's index, a guest or new member off the club's figure — most clubs); or **‹body› only** (nobody types a handicap by hand).",
-          "None of these bodies is connected to TourneyHQ yet, and the screen says so. Until one is, players keep the index already on file, with its age shown — nobody is moved to zero.",
-        ],
-      },
       { kind: "h", text: "Staff" },
       { kind: "where", text: "Set up → Staff & helpers (organizers only)" },
       {
@@ -83,16 +73,6 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Club staff are added the same way under Club settings, by email address. There is nothing for them to accept: they are staff at once, and are emailed. Until they next sign in the list shows the address you typed and **Invited — not opened yet**, not their name.",
           "A role at the club is changed the same way as one on a tournament: pick it, then confirm. It reaches further — an **Admin** is an organizer on every tournament the club runs, and the confirmation says so before you agree.",
           "Anyone added can leave again themselves, from Your account → Your clubs. A club's only Commissioner can't leave until somebody else is one.",
-        ],
-      },
-      { kind: "h", text: "Your plan and a discount code" },
-      { kind: "where", text: "Club settings → Plan (a Commissioner or Admin)" },
-      {
-        kind: "steps",
-        items: [
-          "Choose a plan, yearly or monthly. You pay on Stripe's secure page; TourneyHQ never sees the card.",
-          "If you were given a **discount code**, type it in the box above the plans and press [[Apply]] — it says what comes off before you pay. A code you gave when you signed up is already in the box.",
-          "A discount comes off your **first payment only**: the first month on a monthly plan, or the first year on a yearly one.",
         ],
       },
     ],
@@ -184,7 +164,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Under [[Customize this round]] is what clubs, societies and leagues vary — above all for a field of mixed abilities: **Ties** first, how scores are recorded, **Handicaps for this round**, and the **Play by** date of a round the field plays on one day. It shows only what this kind of round raises — a medal has no match lines, a knockout no table — and its closed bar names the ties and anything you have changed.",
           "**Ties** is first under [[Customize this round]], and its closed bar says so. Each tie question the round raises is one line, with the rule in use — the standard rules of golf until you change it. A knockout all square after 18 plays extra holes from the 1st, hole by hole, and you record the winner on Bracket. A medal or Stableford places players level by countback on the card — the last nine, six, three, then the last hole — and anybody still level shares the place. A match-play round robin raises two questions: **A match all square after 18** (it stays halved unless you choose a countback or a play-off) and **Level in the table** (head-to-head, then hole difference, and so on). Press [[Change]] beside either to choose; they apply to every round robin in the tournament. A round robin's **Points for a match** — win, halve, loss — are under Customize too, as their own line.",
           "**On the day** appears once the tournament is live or the round has a card: **Is this round over?** and the **Scoring window**. Before then there is nothing to finish.",
-          "Each format comes with the usual handicap allowance (Stroke Play 95%, Foursomes 50%, a Four-Ball 85% at stroke play and 90% in a match…). On a team round you can change it: the round's card has a section named for its format, **Handicaps for Four-Ball**, with [[Change]] beside the allowance. If cards are already in you are asked first, because every one of them is re-scored. An individual net round — a medal, a Stableford — has the same line on its card under **Handicap allowance**: the Rules of Handicapping recommend 95% for a field of thirty or more, and a committee may play a smaller field at 100%. A gross round and a match have no such line, because neither takes a share of a handicap. If you change a round's format, a figure you set is kept only where it still means the same thing — a medal's 100% carries into a Stableford, but not into Foursomes, where an allowance is a share of the pair's combined handicaps — and otherwise the round goes back to the usual allowance for its new format, for you to change again if you mean to.",
+          "Each format comes with the usual handicap allowance (Stroke Play 95%, Foursomes 50%, a Four-Ball 85% at stroke play and 90% in a match…). On a team round you can change it: the round's card has a section named for its format, **Handicaps for Four-Ball**, with [[Change]] beside the allowance. If cards are already in you are asked first, because every one of them is re-scored. An individual net round — a medal, a Stableford — has the same line on its card under **Handicap allowance**: the Rules of Handicapping recommend 95% for a field of thirty or more, and a committee may play a smaller field at 100%. A gross round and a match have no such line, because neither takes a share of a handicap.",
           "The allowance is taken of a player's course handicap before that is rounded, and the result rounded once, as the Rules of Handicapping say. So a course handicap of 7 that was 6.6 plays off 6 at 95%, not 7. **Handicaps for this round** shows all three figures for every player — the course handicap, what it was before rounding, and what they play off — so you can check any card by hand.",
           "To change one player's handicap, press [[Change a player's handicap]] there, then **Change** beside their name, and say what you are changing. **Their strokes in this round only** is whole strokes — 12, not 12.4 — and a plus handicap is typed “+2”; nothing else moves, and **Use in later rounds too** copies it to later rounds on the same course, tees and holes. **Their handicap index** is to one decimal — 14.2, or 14,2 — and moves every round of this tournament not yet played; a round with cards in keeps what it was scored off, and a round with its own strokes keeps those. The sentence above **Save** says exactly which rounds move.",
           "Tick **Also make it their handicap on Members** to make the new index the member's own, for every tournament they enter from now on. Only the organizer of the club, society or league can, a reason is asked for and kept in the history, and it is not offered for a guest, for a member whose index comes from an association such as GHIN, or for a nine-hole index. Their entries in other tournaments keep the figure they entered with.",
@@ -231,7 +211,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Each round gets one code under **Round Codes**, with [[Copy]] and [[Reissue]].",
           "Under the codes, [[Show the signs]] draws one sign per round — the round, a QR code and the code in large letters — and **Print** puts each on a page of its own. Put one in every cart and one on the first tee. A player scans it and lands on the round's names; or opens tourneyhq.club/play and types the code. Either way they then tap their own name.",
           "Before the day, scan a sign with your own phone: it should open that round's names. Stop there — tapping a name starts scoring as that player. A sign carries no names, so it stays right when groups change; reissuing the code stops its signs working, so print them again after a [[Reissue]].",
-          "In a four-ball or foursomes match, any player on either side can keep the match on their phone: the code lists each foursome as its two pairs under their teams, and once they tap their name they tap, by name, the pair who won each hole — so a scorer who picks the wrong name still records every hole for the right pair. Ask one player per group to keep it, so two phones are not keeping one match. On Score entry such a match shows its standing — “Blues 2 up with 4 to play · kept hole by hole” — rather than strokes.",
+          "In a four-ball or foursomes match, any player on either side can keep the match on their phone: the code lists each foursome as its two pairs under their teams, and once they tap their name they tap, by name, the pair who won each hole — so a scorer who picks the wrong name still records every hole for the right pair. A player signed in to the app keeps their match on the same card: **Score this match** on Today. Ask one player per group to keep it, so two phones are not keeping one match. On Score entry such a match shows its standing — “Blues 2 up with 4 to play · kept hole by hole” — rather than strokes.",
         ],
       },
       { kind: "warn", text: "Anyone with the code can report a score for that round. If it spreads beyond the field, [[Reissue]] it." },
@@ -250,7 +230,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Under **Add someone new**: Player name, Email (required or optional depending on how players sign in), Mobile if required — a tournament whose players sign in with Round Codes never asks for one — **Handicap source** (your club's handicap body, Manual or None — for a visitor from another country press **Visitor from another country?** and pick their body: their own index is valid here under WHS and is kept with their body's name), the handicap (a plus handicap is typed “+2.4”) and whether it's an 18- or 9-hole index. Press [[Add to field]]. A handicap in the list below can be corrected in its own box, the same way; it saves when you leave the box, changes this tournament only, and works after setup has locked. Where Members still holds the old figure, the row says so and offers [[Make it … on Members]] — press it when the old figure was a mistake.",
+          "Under **Add someone new**: Player name, Email (required or optional depending on how players sign in), Mobile if required — a tournament whose players sign in with Round Codes never asks for one — **Handicap source** (GHIN, Manual or None), the handicap (a plus handicap is typed “+2.4”) and whether it's an 18- or 9-hole index. Press [[Add to field]]. A handicap in the list below can be corrected in its own box, the same way; it saves when you leave the box, changes this tournament only, and works after setup has locked. Where Members still holds the old figure, the row says so and offers [[Make it … on Members]] — press it when the old figure was a mistake.",
           "Or [[Import CSV]] with a header row: a **name** column (or First Name and Last Name), plus email and phone if this tournament needs them. A plus handicap is written “+2.4”; a blank means no handicap, not scratch.",
         ],
       },
@@ -313,7 +293,6 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Players' pairing requests are kept together where possible (not in a draw by position); any that couldn't fit are listed.",
           "In a team round partners always go out together, and where sides play a match — a cup's four-balls or foursomes — both sides of each match share a group, so every group is one match.",
           "[[Save sheet]] keeps a draft. [[Save & publish]], then confirm [[Publish the tee sheet]].",
-          "A draft you saved earlier is published as it stands with [[Publish this sheet]] — no re-draw needed. [[Re-draw this sheet]] starts from the saved sheet's first tee and interval, so changing one thing doesn't move the field's times.",
         ],
       },
       { kind: "tip", text: "On publish each player gets “Your tee time is set” (or “has changed”) on their phone and sees their group on Today. [[Unpublish]] hides it again without losing the draw. Print scorecards, one per group, from the tee sheet." },

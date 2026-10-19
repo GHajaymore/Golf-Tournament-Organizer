@@ -214,9 +214,10 @@ export interface MyRound {
    * a single round, and picking one of them to show would be picking arbitrarily
    * among fixtures that are all equally theirs.
    *
-   * Empty for a stroke-play round, where there is no opponent to name.
+   * Empty for a stroke-play round, where there is no opponent to name. Each
+   * carries its match's id, for "Score this match" (`/me/match`).
    */
-  matches: MyMatchView[];
+  matches: Array<MyMatchView & { id: string }>;
   /**
    * My tie in the draw, when this round is a knockout — `matches` above is
    * always empty for one, because a bracket files no `Match` rows. Null for
@@ -483,7 +484,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
         // throwing a player's whole screen away over one bad JSON blob.
         holeResults = [];
       }
-      return myMatchView({
+      const view = myMatchView({
         meId: playerId,
         playerAId: m.playerAId,
         playerBId: m.playerBId,
@@ -492,8 +493,9 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
         nameOf,
         roundClosed: stage.closedAt != null,
       });
+      return view ? { ...view, id: m.id } : null;
     })
-    .filter((v): v is MyMatchView => v !== null);
+    .filter((v): v is MyMatchView & { id: string } => v !== null);
 
   const cutOut = madeIt ? "" : await cutFeederName(state.event.id, stage.id);
 

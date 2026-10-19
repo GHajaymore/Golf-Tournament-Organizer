@@ -71,6 +71,17 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     ],
   },
   {
+    id: "match",
+    question: "How do I keep my match?",
+    href: "/me/match",
+    steps: [
+      "On Today, tap [[Score this match]].",
+      "After each hole, tap who won it, or [[Halved]].",
+      "It saves as you go.",
+      "The board shows your match as you play.",
+    ],
+  },
+  {
     id: "strokes",
     question: "How many strokes do I get?",
     href: "/me/card",

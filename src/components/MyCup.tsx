@@ -86,7 +86,10 @@ export function MyCup({ board, meId, canScore }: { board: CupBoard; meId: string
                   {line}
                 </span>
                 {canScore && open && (
-                  <Link className="btn btn-primary" href={`/entry?round=${encodeURIComponent(session.id)}`} style={{ alignSelf: "flex-start", marginTop: 4 }}>
+                  // The one match card, who won each hole (`/me/match`), not
+                  // the console's stroke cards: saved, those rebuild the match
+                  // from strokes over the holes a scorer tapped (2026-10-18).
+                  <Link className="btn btn-primary" href={`/me/match?m=${encodeURIComponent(match.id)}`} style={{ alignSelf: "flex-start", marginTop: 4 }}>
                     <Icon name="pencil-simple" /> {match.state.status === "not-started" ? "Score this match" : "Carry on scoring"}
                   </Link>
                 )}
