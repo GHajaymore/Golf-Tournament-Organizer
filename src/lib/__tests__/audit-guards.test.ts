@@ -763,8 +763,10 @@ describe("a round code obeys the tournament's score-entry setting", () => {
    * so it belongs to the same set. Anything that starts doing any of them
    * fails this block the day it is written, which the signing door did.
    */
+  // And a match's own cards (2026-10-19): a round kept on stroke cards takes
+  // each ball's strokes from a code, written to the match's card rows.
   const writers = actions("play.ts").filter(
-    (a) => /prisma\.match\.update\(|writeScorecard\(|certifyCard\(/.test(a.body),
+    (a) => /prisma\.match\.update\(|writeScorecard\(|certifyCard\(|matchScorecard\.upsert\(|teamScorecard\.upsert\(/.test(a.body),
   );
 
   it("finds the write actions it is about to assert on", () => {
@@ -773,6 +775,7 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     expect(writers.map((a) => a.name).sort()).toEqual([
       "certifyPlayCard",
       "savePlayCard",
+      "savePlayMatchCard",
       "savePlayMatchHoles",
       "savePlayMatchResult",
     ]);

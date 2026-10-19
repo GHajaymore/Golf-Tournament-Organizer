@@ -26,7 +26,7 @@ export interface KeptMatch {
   /** A match between two sides (a four-ball pair): the holder keeps it for their side. */
   side?: boolean;
   /** A net side match: each of the four players and their shots per hole (index 0 = the card's first hole). */
-  sideShots?: Array<{ name: string; perHole: number[] }> | null;
+  sideShots?: Array<{ name: string; perHole: number[]; playerId?: string }> | null;
 }
 
 /** Everything the match card (`MatchKeeper`) is drawn from. */
@@ -158,7 +158,7 @@ export async function matchCardFor(input: { match: Match; holderId: string; hold
    * shot there — off the lowest of the four, through `matchStrokesPerHole`,
    * the one definition the engine and the printed card use too.
    */
-  let sideShots: Array<{ name: string; perHole: number[] }> | null = null;
+  let sideShots: Array<{ name: string; perHole: number[]; playerId?: string }> | null = null;
   if (sideMatch && netMatch && card?.strokeIndex?.length) {
     const state = await loadEventState(event.id);
     const members = await prisma.teamMember.findMany({
@@ -173,7 +173,7 @@ export async function matchCardFor(input: { match: Match; holderId: string; hold
     const playing = ordered.map((x) => state?.matchHandicapFor(x.playerId, match.id) ?? 0);
     const low = playing.length ? Math.min(...playing) : 0;
     const index = card.strokeIndex;
-    sideShots = ordered.map((x, i) => ({ name: x.player.name, perHole: matchStrokesPerHole(playing[i], low, index) }));
+    sideShots = ordered.map((x, i) => ({ name: x.player.name, playerId: x.playerId, perHole: matchStrokesPerHole(playing[i], low, index) }));
   }
 
   return {
@@ -213,5 +213,61 @@ export async function matchCardFor(input: { match: Match; holderId: string; hold
     netMode: netMatch,
     matchShots,
     unit: await distanceUnitFor(resolved, event.organizationId),
+  };
+}
+
+/** The holder's own stroke card for a match kept on cards (`matchKeptBy`). */
+export interface MatchStrokeCard {
+  /** What is already saved for this ball — a card is never opened blank over strokes already in. */
+  strokes: (number | null)[];
+  /** Shots this ball receives per hole in the match, or none where the side plays one ball. */
+  shots: number[];
+  /** True where the side plays one ball and keeps one card between them. */
+  sideBall: boolean;
+}
+
+/**
+ * The ball a code holder or a signed-in player keeps on a stroke card in a
+ * match: their slot in a singles match, their own card in a four-ball, or the
+ * side's one card where the side plays one ball. The same rows the console's
+ * Score entry writes (`MatchScorecard`, `TeamScorecard`), so a card started at
+ * the desk opens here with its strokes.
+ */
+export async function matchStrokeCardFor(input: {
+  match: Match;
+  holderId: string;
+  data: MatchCardData;
+  oneBallPerSide: boolean;
+}): Promise<MatchStrokeCard> {
+  const { match, holderId, data, oneBallPerSide } = input;
+  const parse = (raw: string | undefined): (number | null)[] => {
+    try {
+      const v = JSON.parse(raw ?? "[]") as unknown;
+      return Array.isArray(v) ? v.map((x) => (typeof x === "number" ? x : null)) : [];
+    } catch {
+      return [];
+    }
+  };
+  if (!data.match.side) {
+    const slot = match.playerAId === holderId ? "A" : "B";
+    const row = await prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId: match.id, slot } } });
+    return { strokes: parse(row?.strokes), shots: data.matchShots?.mine ?? [], sideBall: false };
+  }
+  const mine = await prisma.teamMember.findFirst({
+    where: { playerId: holderId, teamId: { in: [match.teamAId, match.teamBId] } },
+    select: { teamId: true },
+  });
+  const row = mine
+    ? await prisma.teamScorecard.findFirst({
+        where: { stageId: match.stageId, matchId: match.id, teamId: mine.teamId, playerId: oneBallPerSide ? "" : holderId },
+        select: { strokes: true },
+      })
+    : null;
+  return {
+    strokes: parse(row?.strokes),
+    // A side's one ball takes the side's strokes, which the app works out; a
+    // four-ball partner's own ball takes their own, off the lowest of the four.
+    shots: oneBallPerSide ? [] : (data.match.sideShots?.find((s) => s.playerId === holderId)?.perHole ?? []),
+    sideBall: oneBallPerSide,
   };
 }

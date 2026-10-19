@@ -1118,7 +1118,7 @@ describe("rounds and format", () => {
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
     // Open, which is every stored round until an organizer says otherwise.
     closed: false,
-    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
     carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });
@@ -2401,7 +2401,7 @@ describe("round card — which nine and the deadline", () => {
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
     // Open, which is every stored round until an organizer says otherwise.
     closed: false,
-    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
     carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });

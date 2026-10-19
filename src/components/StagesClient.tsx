@@ -10,6 +10,7 @@ import {
   setStageCarry,
   setStageScoringBasis,
   setStageScoreInput,
+  setStageMatchKeptBy,
   setStageFormat,
   setStageHoles,
   setStagePlayedOn,
@@ -20,6 +21,7 @@ import {
 import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS, declaredInput, inputChoices, entryModeFor, formatTagline, isManualFormat } from "@/lib/formats";
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
+import { MATCH_KEPT_BY, keptByScoreInput, matchKeptBy, type MatchKeptBy } from "@/lib/domain/match-kept-by";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
 import { SaveState, useSaveStatus } from "./SaveState";
@@ -101,6 +103,8 @@ export interface StageView {
    * input the format declares. See `GolfFormat.inputs`.
    */
   scoreInput: string;
+  /** How players keep this round's matches, or "" for the round's default. See `matchKeptBy`. */
+  matchKeptBy: string;
   /** The organizer has declared this round over. See `RoundClosedControl`. */
   closed: boolean;
   carryEnabled: boolean;
@@ -945,6 +949,22 @@ function StageCard({
   const commitScoreInput = (next: string) => {
     setScoreInput(next);
     startTransition(() => setStageScoreInput(stage.id, next));
+  };
+  // How players keep the matches (`matchKeptBy`). A refusal — a round with
+  // scores already in — is said beside the choice and the radio goes back.
+  const [keptBy, setKeptBy] = useState(stage.matchKeptBy);
+  const [keptByRefusal, setKeptByRefusal] = useState("");
+  const commitKeptBy = (next: MatchKeptBy) => {
+    const before = keptBy;
+    setKeptBy(next);
+    setKeptByRefusal("");
+    startTransition(async () => {
+      const res = await setStageMatchKeptBy(stage.id, next);
+      if (!res.ok) {
+        setKeptBy(before);
+        setKeptByRefusal(res.error ?? "Couldn't change that.");
+      }
+    });
   };
 
   const activeFormat = GOLF_FORMATS.find((f) => f.name === format);
@@ -2187,6 +2207,57 @@ function StageCard({
                 </div>
               </div>
             )}
+
+            {/* HOW PLAYERS KEEP THEIR MATCHES (Ajay, 2026-10-19: "provide both
+                options for organizer to decide while setting up the
+                tournament"). Only on a round with matches whose format does
+                not already carry the choice above — Match Play and Nassau ask
+                it as "How scores are recorded", and one choice never gets two
+                controls. */}
+            {(() => {
+              const kept = matchKeptBy({ type: stage.type, format, scoreInput, matchKeptBy: keptBy });
+              if (kept === null || keptByScoreInput(format)) return null;
+              return (
+                <div className="field" style={{ maxWidth: 420, width: "100%" }}>
+                  <span className="field-caption">
+                    How players keep their matches
+                    <FieldInfo label="how players keep their matches">
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>
+                        {MATCH_KEPT_BY.map((m) => (
+                          <li key={m.key}>
+                            <b>{m.label}</b> — {m.detail}
+                          </li>
+                        ))}
+                      </ul>
+                      <p>
+                        A round is kept one way, so choose before anyone scores: once a match has a
+                        score the choice stays as it is.
+                      </p>
+                    </FieldInfo>
+                  </span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {MATCH_KEPT_BY.map((m) => (
+                      <label key={m.key} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}>
+                        <input
+                          type="radio"
+                          name={`match-kept-by-${stage.id}`}
+                          checked={kept === m.key}
+                          disabled={pending || locked}
+                          onChange={() => commitKeptBy(m.key)}
+                          style={{ marginTop: 3 }}
+                        />
+                        <span>{m.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {keptByRefusal && (
+                    <p role="alert" style={{ margin: "6px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
+                      {keptByRefusal}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Was two headings for one thing: a group titled "On the day"
                 blurbed "whether scores can still go in", holding one control

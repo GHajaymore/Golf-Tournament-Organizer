@@ -95,6 +95,8 @@ import { phoneRequiredFor, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, KNOCKOUT_STAGE_TYPES, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { randomUUID } from "node:crypto";
 import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
+import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
+import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
 import { launchRefusal, finishRefusal, statusMove } from "@/lib/domain/phase-gate";
@@ -1887,6 +1889,64 @@ export async function setStageScoreInput(stageId: string, input: string) {
   await refresh();
 }
 
+/**
+ * HOW PLAYERS KEEP THIS ROUND'S MATCHES — tap who won each hole, or stroke
+ * cards (Ajay, 2026-10-19). Read through `matchKeptBy`, the only reader.
+ *
+ * Match Play and Nassau are refused here: they carry this choice in "How scores
+ * are recorded" (`setStageScoreInput`), and two controls for one choice is two
+ * answers waiting to disagree.
+ *
+ * AND NOT ONCE A MATCH HAS A SCORE. A round kept half one way and half the
+ * other is the fault this setting exists to prevent — a stroke card rebuilds
+ * a match over holes somebody tapped — so a switch is refused, in words, while
+ * any match in the round holds a hole or a card.
+ */
+export async function setStageMatchKeptBy(stageId: string, kept: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  const stage = await prisma.stage.findFirst({
+    where: { id: String(stageId), eventId },
+    select: { id: true, type: true, format: true, scoreInput: true, matchKeptBy: true },
+  });
+  if (!stage) return { ok: false, error: "Round not found." };
+  const wanted = String(kept ?? "").trim();
+  if (wanted !== "holes" && wanted !== "cards") return { ok: false, error: "Choose tapping or stroke cards." };
+  const now = matchKeptBy(stage);
+  if (now === null) return { ok: false, error: "This round has no matches to keep." };
+  if (keptByScoreInput(stage.format)) {
+    return { ok: false, error: `${stage.format} is set under How scores are recorded.` };
+  }
+  if (now !== wanted && (await roundHoldsAScore(stage.id))) {
+    return {
+      ok: false,
+      error:
+        "Some matches in this round already have scores, so they stay kept the way they were started. Change this before anyone scores.",
+    };
+  }
+  await prisma.stage.updateMany({ where: { id: stage.id, eventId }, data: { matchKeptBy: wanted } });
+  await refresh();
+  return { ok: true };
+}
+
+/** Whether any match in this round holds a hole, a result or a card. */
+async function roundHoldsAScore(stageId: string): Promise<boolean> {
+  const [matches, teamCards, matchCards] = await Promise.all([
+    prisma.match.findMany({ where: { stageId }, select: { holes: true } }),
+    prisma.teamScorecard.count({ where: { stageId, matchId: { not: "" } } }),
+    prisma.matchScorecard.count({ where: { match: { stageId } } }),
+  ]);
+  if (teamCards > 0 || matchCards > 0) return true;
+  return matches.some((m) => {
+    try {
+      const holes = JSON.parse(m.holes || "[]") as unknown[];
+      return Array.isArray(holes) && holes.some((h) => h !== null && h !== "");
+    } catch {
+      return false;
+    }
+  });
+}
+
 export async function setStageFormat(stageId: string, format: string, force = false) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
@@ -2435,8 +2495,11 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   // by `resolveMatch(list).complete`: an empty list was a finished match, and
   // ["A"] an eighteen-hole match won 1 up
   // (`a-match-result-is-a-card-of-its-length.audit.test.ts`).
-  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { stage: { select: { holes: true } } } });
+  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { stageId: true, stage: { select: { holes: true } } } });
   if (!owner) throw new Error("Match not found.");
+  // Not on a round kept on stroke cards: the next card would rebuild over it.
+  const keptOnCards = await keptByRefusal(owner.stageId, "holes");
+  if (keptOnCards) throw new Error(keptOnCards);
   const clean = cleanHoleResults(holes, holesPlayed(owner.stage?.holes));
   if (!clean) throw new Error("Each hole is won by one side or halved. Check the card and save again.");
   const complete = matchIsOver(clean);
@@ -2484,6 +2547,12 @@ export async function applyMatchResult(
   await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
+  // A player on a round kept on stroke cards enters strokes, not a result.
+  // Staff may still record one — a walkover, a committee's decision.
+  if (session.role !== "admin" && session.role !== "assistant") {
+    const keptOnCards = await keptByRefusal(match.stageId, "holes");
+    if (keptOnCards) throw new Error(keptOnCards);
+  }
   // A "use server" export is called with whatever the caller likes: a winner
   // that is none of the three was read as B.
   if (winner !== "A" && winner !== "B" && winner !== "H") throw new Error("Pick a winner, or halved.");
@@ -2532,6 +2601,48 @@ export async function keepMyMatchResult(matchId: string, winner: "A" | "B" | "H"
   try {
     await applyMatchResult(String(matchId), winner, String(margin ?? ""));
     return { ok: true };
+  } catch (err) {
+    unstable_rethrow(err);
+    return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
+  }
+}
+
+/**
+ * A SIGNED-IN PLAYER'S OWN STROKE CARD for a match on a round kept on cards
+ * (`matchKeptBy`, 2026-10-19) — the `MatchStrokeKeeper` card on `/me/match`.
+ *
+ * The ball is the caller's, worked out here and never taken from the caller:
+ * their slot in a singles match, their own card in a four-ball, or their side's
+ * one card where the side plays one ball. Then the console's own savers
+ * (`saveMatchScorecard`, `saveTeamScorecard`), which refuse a round kept by
+ * tapping and store the match through `services/match-from-cards.ts`. Answered
+ * in words, like the two above.
+ */
+export async function keepMyMatchCard(matchId: string, strokes: (number | null)[]): Promise<{ ok: boolean; error?: string }> {
+  const { eventId, session } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, String(matchId));
+  const match = await prisma.match.findFirst({ where: { id: String(matchId), eventId } });
+  if (!match) return { ok: false, error: "Match not found." };
+  const mine = await myPlayerIds(eventId, session.email);
+  try {
+    const sideMatch = match.teamAId !== "" && match.teamBId !== "" && match.playerAId === "" && match.playerBId === "";
+    if (!sideMatch) {
+      const slot = mine.has(match.playerAId) ? "A" : mine.has(match.playerBId) ? "B" : null;
+      if (!slot) return { ok: false, error: "You can only enter your own card." };
+      await saveMatchScorecard(match.id, slot, strokes);
+      return { ok: true };
+    }
+    const member = await prisma.teamMember.findFirst({
+      where: { playerId: { in: [...mine] }, teamId: { in: [match.teamAId, match.teamBId] } },
+      select: { teamId: true, playerId: true },
+    });
+    if (!member) return { ok: false, error: "You can only enter your own card." };
+    const stage = await prisma.stage.findUnique({
+      where: { id: match.stageId },
+      select: { format: true, scoreInput: true, scoringBasis: true },
+    });
+    const oneBall = !!stage && oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis);
+    return await saveTeamScorecard(member.teamId, oneBall ? "" : member.playerId, match.id, strokes);
   } catch (err) {
     unstable_rethrow(err);
     return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
@@ -2887,6 +2998,9 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
+  // Not on a round kept by tapping: this card would rebuild over the taps.
+  const keptByHoles = await keptByRefusal(match.stageId, "cards");
+  if (keptByHoles) throw new Error(keptByHoles);
 
   // `slot` is half the unique key this upserts on, and its "A" | "B" type is
   // erased at runtime — an unrecognised value would not overwrite a card, it
@@ -2987,6 +3101,10 @@ export async function saveTeamScorecard(
     }
     match = m;
     stageId = m.stageId;
+    // A match on a round kept by tapping takes no card: it would rebuild the
+    // match over the taps. A team MEDAL (no match) is untouched.
+    const keptByHoles = await keptByRefusal(m.stageId, "cards");
+    if (keptByHoles) return { ok: false, error: keptByHoles };
   }
   if (!stageId) return { ok: false, error: "This card has no round to belong to." };
 
@@ -5088,6 +5206,9 @@ export async function importScores(
   // A round whose results are MATCHES files a card on the player's fixture —
   // see the stroke branch below.
   const matchRound = lookupFormat(stage.format)?.family === "match";
+  // And only in the way this round keeps its matches (`matchKeptBy`).
+  const keptOtherwise = await keptByRefusal(stage.id, isStrokeShape(shape as ScoreImportShape) ? "cards" : "holes");
+  if (keptOtherwise) return { ok: false, written: 0, error: keptOtherwise };
 
   const fieldRows = await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true } });
   const field = new Set(fieldRows.map((p) => p.id));
@@ -5449,6 +5570,9 @@ export async function importTeamScores(
   // One card per side on a shared ball, and on a two-ball round the committee
   // entered that way — the shape the board reads (`oneCardPerSide`).
   const shared = oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis);
+  // A side's cards for a match round kept by tapping would rebuild its matches.
+  const keptByHoles = await keptByRefusal(stage.id, "cards");
+  if (keptByHoles) return { ok: false, written: 0, error: keptByHoles };
   const holes = holesPlayed(stage.holes);
   const teams = await prisma.team.findMany({
     where: { eventId, OR: [{ stageId }, { stageId: null }] },

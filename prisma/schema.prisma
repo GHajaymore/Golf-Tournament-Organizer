@@ -1802,6 +1802,17 @@ model Stage {
   scoreInput String @default("")
 
   /**
+   * How PLAYERS keep this round's matches (Ajay, 2026-10-19: "provide both
+   * options for organizer to decide while setting up the tournament").
+   * "holes" — tap who won each hole, the card a whole cup praised;
+   * "cards" — each ball's strokes, the match worked out from them.
+   * Empty means the round's own default — see `matchKeptBy` in
+   * lib/domain/match-kept-by.ts, the only reader. Match Play and Nassau answer
+   * from `scoreInput` instead, which already holds this choice for them.
+   */
+  matchKeptBy String @default("")
+
+  /**
    * Per-player allowance shares for this round, best player first — the
    * committee's version of greensomes' 60/40 or a scramble's descending
    * table.

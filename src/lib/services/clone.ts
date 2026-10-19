@@ -318,6 +318,9 @@ export const CLONED_STAGE_FIELDS = [
   // scored. A club that asks for cards from its match-play day is running that
   // tournament again next year for the same reason.
   "scoreInput",
+  // And how players keep the round's matches — a cup run again next year is
+  // kept the way the club chose for it.
+  "matchKeptBy",
   /**
    * Carried, but TRANSLATED — the one field on this list that cannot be copied
    * as it stands. See `cloneSingleMatchRule`.

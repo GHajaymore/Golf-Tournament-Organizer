@@ -183,12 +183,7 @@ export function MatchKeeper(props: MatchKeeperProps) {
    * saying how the match stands and the tally. A tap on the pair that won is
    * then right whichever name was picked.
    */
-  const [sideA, sideB] = (() => {
-    const a = m.side ? m.aName.split(" & ") : [m.aName];
-    const b = m.side ? m.bName.split(" & ") : [m.bName];
-    const short = distinctLabels([...a, ...b]);
-    return [short.slice(0, a.length).join(" & "), short.slice(a.length).join(" & ")];
-  })();
+  const [sideA, sideB] = matchSideLabels(m);
 
   return (
     <>
@@ -391,4 +386,12 @@ export function MatchKeeper(props: MatchKeeperProps) {
       {props.footer}
     </>
   );
+}
+
+/** The two sides as the card names them — first names, widened only where two clash. */
+export function matchSideLabels(m: { side?: boolean; aName: string; bName: string }): [string, string] {
+  const a = m.side ? m.aName.split(" & ") : [m.aName];
+  const b = m.side ? m.bName.split(" & ") : [m.bName];
+  const short = distinctLabels([...a, ...b]);
+  return [short.slice(0, a.length).join(" & "), short.slice(a.length).join(" & ")];
 }

@@ -6,7 +6,9 @@ import { allowsAutoConfirm, isLeaderboardPublic } from "@/lib/tournament-setting
 import { courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { brandForEvent } from "@/lib/services/organization";
-import { matchCardFor } from "@/lib/services/match-card";
+import { matchCardFor, matchStrokeCardFor } from "@/lib/services/match-card";
+import { matchKeptBy } from "@/lib/domain/match-kept-by";
+import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { PlayClient } from "@/components/PlayClient";
 import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { distanceUnitFor } from "@/lib/services/round-card";
@@ -79,7 +81,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       },
       orderBy: { id: "asc" },
     }),
-    prisma.stage.findUnique({ where: { id: session.stageId }, select: { type: true, lineupPublished: true, accessCode: true } }),
+    prisma.stage.findUnique({ where: { id: session.stageId }, select: { type: true, lineupPublished: true, accessCode: true, format: true, scoreInput: true, scoringBasis: true, matchKeptBy: true } }),
   ]);
   // A cup lineup the organizer has not announced is nobody's match yet.
   const myMatches = codeStage && lineupHidden(codeStage) ? [] : drawn;
@@ -267,6 +269,17 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
 
   // The card, built where the player app builds it too — see `matchCardFor`.
   const card = await matchCardFor({ match, holderId: session.playerId, holderSides: mySides });
+  // How the organizer has this round kept (`matchKeptBy`): a tap card, or the
+  // holder's own stroke card — never both on one round.
+  const strokeCard =
+    codeStage && matchKeptBy(codeStage) === "cards"
+      ? await matchStrokeCardFor({
+          match,
+          holderId: session.playerId,
+          data: card,
+          oneBallPerSide: oneCardPerSide(codeStage.format, codeStage.scoreInput, codeStage.scoringBasis),
+        })
+      : undefined;
 
   // The other matches, named by opponent, for the picker above the card.
   const others = myMatches.filter((x) => x.id !== match.id);
@@ -317,6 +330,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       firstHole={card.firstHole}
       netMode={card.netMode}
       matchShots={card.matchShots}
+      strokeCard={strokeCard}
       voiceEntry={settings.voiceEntry}
     />
     </DistanceUnitProvider>
