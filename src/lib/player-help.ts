@@ -139,6 +139,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Anything the committee has posted is above the scores.",
       "Your own line is always shown.",
       "A cup on stroke cards shows gross and net under names.",
+      "A cup can have other points, like a team net total.",
       "It reads Final once the committee closes the round.",
     ],
   },

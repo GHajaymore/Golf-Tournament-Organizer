@@ -23,6 +23,9 @@ export function CupOtherPoints({
   const [label, setLabel] = useState("");
   const [worth, setWorth] = useState("1");
   const [error, setError] = useState("");
+  // The team just chosen, shown at once rather than after the page comes back;
+  // a refusal puts the radio back where the server has it.
+  const [chosen, setChosen] = useState<Record<string, "A" | "B" | null>>({});
   const run = (act: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => {
     setError("");
     start(async () => {
@@ -68,9 +71,23 @@ export function CupOtherPoints({
                     <input
                       type="radio"
                       name={`cup-point-${p.id}`}
-                      checked={p.side === o.side}
+                      checked={(p.id in chosen ? chosen[p.id] : p.side) === o.side}
                       disabled={pending}
-                      onChange={() => run(() => awardCupPoint(p.id, o.key))}
+                      onChange={() => {
+                        setChosen((c) => ({ ...c, [p.id]: o.side }));
+                        setError("");
+                        start(async () => {
+                          const res = await awardCupPoint(p.id, o.key);
+                          if (!res.ok) {
+                            setError(res.error ?? "Couldn't save that.");
+                            setChosen((c) => {
+                              const next = { ...c };
+                              delete next[p.id];
+                              return next;
+                            });
+                          }
+                        });
+                      }}
                     />
                     {o.name}
                   </label>

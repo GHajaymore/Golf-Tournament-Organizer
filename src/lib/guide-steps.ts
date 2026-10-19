@@ -411,6 +411,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "On Flights choose **Manual** and make exactly two flights, named for the teams.",
           "Add rounds of type **Team session** (four-ball, foursomes or singles match play).",
           "On **Team cup**, set each session's **Lineups**. A match is worth a point, a half each for a halve.",
+          "A point that isn't a match — the lower team net total, say — goes under **Other points**: name it and give it a value with [[Add point]], and it counts in the cup's total straight away, so the target is right before it is decided. Give it to a team when it is; until then the board says **To be decided**.",
         ],
       },
       { kind: "h", text: "League or season" },
