@@ -431,6 +431,23 @@ test("a signed-in player keeps their four-ball in the player app on the same car
     await enter(p, "Zz Edda");
     await expect(p.getByRole("button", { name: /^Hole 1, won by Zz Edda & Zz Finn/ }), "the code holder's card disagrees about hole 1").toBeVisible({ timeout: 30_000 });
     await expect(p.getByRole("button", { name: /^Hole 2, won by Zz Ailsa & Zz Bram/ }), "the code holder's card disagrees about hole 2").toBeVisible();
+
+    // And the finished match phoned in from the green: Finn, in the app, gives
+    // it to his own pair 5&4 — a result replaces the holes tapped, so the
+    // card asks first, and the match is stored as side B's, five holes up.
+    await page.goto(`/me/match?bust=${Date.now()}`);
+    await page.getByText("Final result", { exact: true }).click();
+    await page.getByLabel(/^Zz E\. & Zz F\. won$/).check();
+    await page.getByPlaceholder(/3&2/).fill("5&4");
+    page.once("dialog", (d) => void d.accept());
+    await page.getByRole("button", { name: "Save result" }).click();
+    await expect(page.getByRole("button", { name: "Result saved" }), "the result was not saved").toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(async () => {
+        const m = await prisma.match.findUniqueOrThrow({ where: { id: ids.match }, select: { holes: true } });
+        return (JSON.parse(m.holes) as (string | null)[]).slice(0, 6).join(",");
+      }, { timeout: 15_000, message: "the result was not stored as Finn's pair winning 5&4" })
+      .toBe("B,B,B,B,B,");
     expect(errors).toEqual([]);
   } finally {
     await app.close().catch(() => {});
