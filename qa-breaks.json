@@ -1,0 +1,20 @@
+[
+  {
+    "what": "The cup's Score this match opens the console's stroke cards again",
+    "file": "src/components/MyCup.tsx",
+    "from": "href={`/me/match?m=${encodeURIComponent(match.id)}`}",
+    "to": "href={`/entry?round=${encodeURIComponent(session.id)}&m=${encodeURIComponent(match.id)}`}",
+    "spec": "e2e/round-code-four-ball-side.spec.ts",
+    "grep": "keeps their four-ball in the player app",
+    "project": "phone"
+  },
+  {
+    "what": "The player app's match card says saved and saves nothing",
+    "file": "src/app/actions/tournament.ts",
+    "from": "    await saveMatchHoles(String(matchId), holes);",
+    "to": "    if (holes.length < 0) await saveMatchHoles(String(matchId), holes);",
+    "spec": "e2e/round-code-four-ball-side.spec.ts",
+    "grep": "keeps their four-ball in the player app",
+    "project": "phone"
+  }
+]
