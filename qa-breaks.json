@@ -1,0 +1,11 @@
+[
+  {
+    "what": "The round-code page has no way to the public leaderboard again",
+    "file": "src/components/PlayClient.tsx",
+    "from": "          {boardHref && (",
+    "to": "          {boardHref && false && (",
+    "spec": "e2e/round-code-four-ball-side.spec.ts",
+    "grep": "public leaderboard",
+    "project": "phone"
+  }
+]
