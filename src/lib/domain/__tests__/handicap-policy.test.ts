@@ -3,9 +3,16 @@ import {
   handicapPolicyOf,
   handicapStanding,
   mayEditHandicapByHand,
-  refuseHandByHand,
+  refuseHandByHand as refuseWithBody,
   STALE_AFTER_DAYS,
 } from "../handicap-policy";
+import { handicapBody } from "../handicap-body";
+
+// These cases are a US club's: the body is GHIN, named so the sentences can be
+// read. Other bodies' wording is held in `a-club-names-its-own-handicap-body.test.ts`.
+const GHIN = handicapBody("ghin")!;
+const refuseHandByHandGhin = (...a: [Parameters<typeof refuseWithBody>[0], Parameters<typeof refuseWithBody>[1], Parameters<typeof refuseWithBody>[2]]) =>
+  refuseWithBody(...a, GHIN);
 
 /**
  * What a club plays off when the association cannot be reached.
@@ -22,7 +29,7 @@ const NOW = AT("2026-08-25T12:00:00Z");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
 
 const ghinClub = (over: Partial<Parameters<typeof handicapStanding>[0]> = {}) =>
-  handicapStanding({
+  handicapStanding({ body: GHIN,
     policy: "ghin",
     index: 12.4,
     syncedAt: daysAgo(1),
@@ -111,7 +118,7 @@ describe("a club on its own record is not affected by any of this", () => {
     // The club's record IS the authority here, and it is as current as the
     // last card. Borrowing GHIN's staleness language would invent a doubt
     // that does not exist.
-    const s = handicapStanding({
+    const s = handicapStanding({ body: GHIN,
       policy: "club",
       index: 8.1,
       syncedAt: null,
@@ -134,39 +141,39 @@ describe("no manual, enforced rather than displayed", () => {
   const CURRENT = { handicap: 12.4 };
 
   it("lets a club on its own record type whatever it likes", () => {
-    expect(refuseHandByHand("club", { handicap: 9, handicapSource: "manual" }, CURRENT)).toBeNull();
+    expect(refuseHandByHandGhin("club", { handicap: 9, handicapSource: "manual" }, CURRENT)).toBeNull();
   });
 
   it("refuses a typed index when the club plays off GHIN", () => {
     // A greyed-out box is a suggestion. The action behind it is a public HTTP
     // endpoint and will be called with whatever the caller likes.
-    const r = refuseHandByHand("ghin", { handicap: 9 }, CURRENT);
+    const r = refuseHandByHandGhin("ghin", { handicap: 9 }, CURRENT);
     expect(r).toBeTruthy();
     expect(r).toContain("GHIN number");
   });
 
   it("refuses an attempt to mark the source manual, even at the same figure", () => {
-    expect(refuseHandByHand("ghin", { handicap: 12.4, handicapSource: "manual" }, CURRENT)).toBeTruthy();
+    expect(refuseHandByHandGhin("ghin", { handicap: 12.4, handicapSource: "manual" }, CURRENT)).toBeTruthy();
   });
 
   it("ALLOWS changing the GHIN number under a GHIN policy", () => {
     // Otherwise the policy is impossible to adopt: connecting a member is
     // exactly the edit a club has to make after switching.
-    expect(refuseHandByHand("ghin", { handicapSource: "ghin" }, CURRENT)).toBeNull();
-    expect(refuseHandByHand("ghin", {}, CURRENT)).toBeNull();
+    expect(refuseHandByHandGhin("ghin", { handicapSource: "ghin" }, CURRENT)).toBeNull();
+    expect(refuseHandByHandGhin("ghin", {}, CURRENT)).toBeNull();
   });
 
   it("allows an edit that leaves the figure exactly where it was", () => {
     // Saving a member after correcting their phone number must not be refused
     // because the form posted the handicap it was showing.
-    expect(refuseHandByHand("ghin", { handicap: 12.4 }, CURRENT)).toBeNull();
+    expect(refuseHandByHandGhin("ghin", { handicap: 12.4 }, CURRENT)).toBeNull();
   });
 
   it("refuses any figure at all when there is nothing to compare to", () => {
     // A member being created has no current handicap, so under a GHIN policy
     // every typed index is a hand-entered one.
-    expect(refuseHandByHand("ghin", { handicap: 0 }, { handicap: Number.NaN })).toBeTruthy();
-    expect(refuseHandByHand("ghin", { handicap: 18 }, { handicap: Number.NaN })).toBeTruthy();
+    expect(refuseHandByHandGhin("ghin", { handicap: 0 }, { handicap: Number.NaN })).toBeTruthy();
+    expect(refuseHandByHandGhin("ghin", { handicap: 18 }, { handicap: Number.NaN })).toBeTruthy();
   });
 });
 
@@ -178,7 +185,7 @@ describe("hybrid — the policy most clubs are actually on", () => {
     // A society visitor, or a member who has never held an index. Under
     // "both", these people are ordinary — not an unfinished roster row.
     expect(mayEditHandicapByHand("hybrid", { ghin: "" })).toBe(true);
-    expect(refuseHandByHand("hybrid", { handicap: 20, handicapSource: "manual" }, WITHOUT)).toBeNull();
+    expect(refuseHandByHandGhin("hybrid", { handicap: 20, handicapSource: "manual" }, WITHOUT)).toBeNull();
   });
 
   it("refuses a hand-typed figure for a member who HAS one", () => {
@@ -186,7 +193,7 @@ describe("hybrid — the policy most clubs are actually on", () => {
     // clear the number — because a rule an organizer cannot act on reads as
     // arbitrary.
     expect(mayEditHandicapByHand("hybrid", { ghin: "1234567" })).toBe(false);
-    const r = refuseHandByHand("hybrid", { handicap: 9 }, WITH);
+    const r = refuseHandByHandGhin("hybrid", { handicap: 9 }, WITH);
     expect(r).toBeTruthy();
     expect(r).toContain("Clear their GHIN number");
   });
@@ -198,7 +205,7 @@ describe("hybrid — the policy most clubs are actually on", () => {
      * must not be decorated with a warning — a club that deliberately chose
      * "both" would otherwise see half its roster flagged forever.
      */
-    const s = handicapStanding({
+    const s = handicapStanding({ body: GHIN,
       policy: "hybrid",
       index: 18,
       syncedAt: null,
@@ -209,7 +216,7 @@ describe("hybrid — the policy most clubs are actually on", () => {
   });
 
   it("still ages an association figure for a member who has one", () => {
-    const s = handicapStanding({
+    const s = handicapStanding({ body: GHIN,
       policy: "hybrid",
       index: 12.4,
       syncedAt: daysAgo(30),
@@ -225,7 +232,7 @@ describe("hybrid — the policy most clubs are actually on", () => {
   it("still blocks a member with a number that has never been fetched", () => {
     // They are on the association's side of the roster, and nothing has come
     // back for them — so there is no figure to play off, and zero is not one.
-    const s = handicapStanding({
+    const s = handicapStanding({ body: GHIN,
       policy: "hybrid",
       index: 0,
       syncedAt: null,

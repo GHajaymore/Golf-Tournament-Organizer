@@ -50,7 +50,7 @@ export function PlanPanel({
   /** The club's locale, which decides how the number is written. */
   locale?: string;
   /** Online billing, when Stripe is configured. Absent or disabled: no buy buttons. */
-  billing?: { enabled: boolean; hasSubscription: boolean; pastDue: boolean; canEdit: boolean; heldUntil?: string };
+  billing?: { enabled: boolean; hasSubscription: boolean; pastDue: boolean; canEdit: boolean; heldUntil?: string; discountCode?: string; discountNote?: { ok: boolean; text: string } };
 }) {
   const current = planFor(planKey);
   const quoteIn = planCurrency(currency);
@@ -219,6 +219,8 @@ export function PlanPanel({
             pastDue={billing.pastDue}
             canEdit={billing.canEdit}
             heldUntil={billing.heldUntil}
+            discountCode={billing.discountCode}
+            discountNote={billing.discountNote}
           />
         </Suspense>
       ) : (

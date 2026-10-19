@@ -2,6 +2,7 @@ import "server-only";
 import type { Event } from "@prisma/client";
 import { prisma } from "../db";
 import { handicapPolicyOf, refuseHandByHand } from "../domain/handicap-policy";
+import { clubHandicapBody, homeBodyId } from "../domain/handicap-body";
 import { contactGap, type ContactNeeds } from "../domain/registration-intake";
 import { planForEvent } from "./entitlements";
 import { phoneRequiredFor } from "../plans";
@@ -170,6 +171,8 @@ export interface MemberIdentity {
   email?: string;
   phone?: string;
   ghin?: string;
+  /** The body `ghin` is with — "" for the club's own; a visitor's is their country's. Staff only. */
+  handicapBodyId?: string;
   homeClub?: string;
   gender?: string;
   preferredTee?: string;
@@ -248,10 +251,16 @@ export async function upsertMember(
         }),
     prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { handicapPolicy: true },
+      select: { handicapPolicy: true, handicapAuthorityId: true, country: true },
     }),
   ]);
   const policy = handicapPolicyOf(org?.handicapPolicy);
+  const body = clubHandicapBody(org ?? {});
+  // A visitor's own body is the club's word, never a public form's: saying
+  // "I'm with Golf Canada" would otherwise walk any stranger past the club's
+  // rule about typed indexes.
+  const theirBody = writer === "staff" ? homeBodyId(input.handicapBodyId) : "";
+  const asked = { ...input, handicapBodyId: theirBody };
 
   if (existing) {
     const fill: Record<string, string | number> = {};
@@ -260,6 +269,7 @@ export async function upsertMember(
     if (!existing.email && email) fill.email = email;
     if (!existing.phone && input.phone?.trim()) fill.phone = input.phone.trim();
     if (!existing.ghin && input.ghin?.trim()) fill.ghin = input.ghin.trim();
+    if (!existing.handicapBodyId && theirBody) fill.handicapBodyId = theirBody;
     if (!existing.homeClub && input.homeClub?.trim()) fill.homeClub = input.homeClub.trim();
     if (!existing.gender && input.gender?.trim()) fill.gender = input.gender.trim();
     if (!existing.preferredTee && input.preferredTee?.trim()) fill.preferredTee = input.preferredTee.trim();
@@ -283,7 +293,7 @@ export async function upsertMember(
      */
     const mayWriteIndex =
       writer === "staff" &&
-      refuseHandByHand(policy, input, { handicap: existing.handicap, ghin: existing.ghin }) === null;
+      refuseHandByHand(policy, asked, { handicap: existing.handicap, ghin: existing.ghin, handicapBodyId: existing.handicapBodyId }, body) === null;
     if (mayWriteIndex && claimed && Number.isFinite(input.handicap) && input.handicap !== existing.handicap) {
       fill.handicap = input.handicap as number;
       // The type it was typed in, or the one already held — never a quiet 18 for a
@@ -314,7 +324,7 @@ export async function upsertMember(
    */
   const newGhin = (input.ghin ?? "").trim();
   const mayRecordIndex =
-    refuseHandByHand(policy, input, { handicap: 0, ghin: newGhin }) === null;
+    refuseHandByHand(policy, asked, { handicap: 0, ghin: newGhin }, body) === null;
   const created = await prisma.member.create({
     data: {
       organizationId,
@@ -322,6 +332,7 @@ export async function upsertMember(
       email,
       phone: (input.phone ?? "").trim(),
       ghin: newGhin,
+      handicapBodyId: theirBody,
       homeClub: (input.homeClub ?? "").trim(),
       gender: (input.gender ?? "").trim(),
       preferredTee: (input.preferredTee ?? "").trim(),

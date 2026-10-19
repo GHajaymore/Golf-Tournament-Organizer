@@ -12,6 +12,8 @@ import { entryNeedsEmail } from "@/lib/tournament-settings";
 import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
 import { planForEvent } from "@/lib/services/entitlements";
+import { handicapBodyForEvent } from "@/lib/services/integrations";
+import { bodyInProse, bodyShortLabel } from "@/lib/domain/handicap-body";
 import { phoneRequiredFor } from "@/lib/plans";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
@@ -32,6 +34,9 @@ export default async function RegistrationPage() {
   const brand = await brandForEvent(session.eventId);
   const roster = await rosterForEvent(session.eventId);
   const plan = await planForEvent(session.eventId);
+  // The club's handicap body — GHIN, England Golf, Golf Ireland … — for the
+  // "where this player's handicap comes from" words on the add form.
+  const body = await handicapBodyForEvent(session.eventId);
 
   // Flight label per player, for the confirmed-field table (absorbs the old Roster screen).
   const flightByPlayer = new Map<string, string>();
@@ -97,6 +102,7 @@ export default async function RegistrationPage() {
     <>
       <SetupFlowRail flow={flow} href="/registration" />
     <RegistrationClient
+      handicapBody={{ id: body.id, label: bodyShortLabel(body), prose: bodyInProse(body), number: body.number }}
       noFormatYet={state.stages.length === 0 && state.confirmed.length === 0}
       // The sets an organizer may put somebody on, and what a blank resolves
       // to, so the column never shows an empty box meaning "the round’s".

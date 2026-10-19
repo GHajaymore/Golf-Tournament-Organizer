@@ -116,6 +116,75 @@ export function sheetOnScreen(
     : { source: "preview", groups: preview };
 }
 
+/**
+ * Whether two sheets send the same people off the same tee at the same time —
+ * names aside, since "Group 3" is a label and not a fact anybody acts on.
+ */
+export function sameSheet(a: readonly TeeSheetGroup[], b: readonly TeeSheetGroup[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((g, i) => {
+    const h = b[i];
+    return (
+      g.startHole === h.startHole &&
+      (g.half ?? "") === (h.half ?? "") &&
+      g.time === h.time &&
+      g.playerIds.length === h.playerIds.length &&
+      g.playerIds.every((id, j) => id === h.playerIds[j])
+    );
+  });
+}
+
+/** A sheet's printed time ("12:45 PM", "8:10 AM", "13:05") as minutes after midnight, or null. */
+function minutesOf(display: string): number | null {
+  const m = /^\s*(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s*$/.exec(display);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ampm = m[3]?.toUpperCase();
+  if (ampm === "PM" && h < 12) h += 12;
+  if (ampm === "AM" && h === 12) h = 0;
+  return h < 24 && min < 60 ? h * 60 + min : null;
+}
+
+/**
+ * THE FIRST TEE AND THE INTERVAL A RE-DRAW STARTS FROM — the saved sheet's own.
+ *
+ * A re-draw opened at 8:00 and ten minutes whatever the sheet said, so changing
+ * one thing about a sheet off at 12:45 at nine-minute intervals meant typing
+ * both back in, and a re-draw saved without noticing moved the whole field to
+ * the morning (the eve of the first real tournament, 2026-10-17). Read off the
+ * first two groups from the same tee; a time this cannot read leaves the
+ * default, which is what happened before.
+ */
+export function drawTimesFrom(saved: readonly TeeSheetGroup[]): { firstTee?: string; interval?: number } {
+  const first = saved[0];
+  const start = first ? minutesOf(first.time) : null;
+  if (start === null) return {};
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const out: { firstTee?: string; interval?: number } = { firstTee: `${pad(Math.floor(start / 60))}:${pad(start % 60)}` };
+  const next = saved.slice(1).find((g) => g.startHole === first.startHole && (g.half ?? "") === (first.half ?? ""));
+  const then = next ? minutesOf(next.time) : null;
+  if (then !== null && then > start) out.interval = then - start;
+  return out;
+}
+
+/**
+ * THE LINE UNDER THE DRAW CONTROLS — what the organizer is looking at, and
+ * whether the players have it.
+ *
+ * Found on the eve of the first real tournament (2026-10-17): straight after
+ * "Save & publish" it read "Published to players — this is a new draw, not the
+ * saved sheet, until you save it." The draw on screen WAS the sheet just
+ * published; the line asked only whether the controls were open, not whether
+ * what they showed differed from what was saved. Asked of the groups now.
+ */
+export function sheetStatusLine(s: { published: boolean; onScreenIsSaved: boolean }): string {
+  const what = s.published ? "Published to players" : "Saved as a draft";
+  return s.onScreenIsSaved
+    ? `${what} — this is the sheet ${s.published ? "they have" : "you saved"}.`
+    : `${what} — the draw below is new and not saved. ${s.published ? "Players still have the published sheet" : "The saved sheet is unchanged"} until you save this one.`;
+}
+
 /** The group a player is drawn in, for "your tee time" on their dashboard. */
 export function groupForPlayer(sheet: TeeSheet, playerId: string): TeeSheetGroup | null {
   return sheet.groups.find((g) => g.playerIds.includes(playerId)) ?? null;

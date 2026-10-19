@@ -23,6 +23,7 @@ import { Icon } from "./Icon";
 import { SignUpPoster } from "./SignUpPoster";
 import { MoreInfo } from "./MoreInfo";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { HANDICAP_BODIES, bodyInProse, bodyShortLabel, handicapBody as bodyById } from "@/lib/domain/handicap-body";
 
 /** The page's origin never changes while it is open, so nothing to subscribe to. */
 const noSubscription = () => () => {};
@@ -105,7 +106,14 @@ export function RegistrationClient({
   defaultTeeName = "",
   needsEmail = true,
   noFormatYet = false,
+  handicapBody = { id: "ghin", label: "GHIN", prose: "GHIN", number: "GHIN number" },
 }: {
+  /**
+   * The club's handicap body in this form's words (`domain/handicap-body.ts`):
+   * its id, the choice beside Manual and None, the body in a sentence, and
+   * what a member's number with it is called.
+   */
+  handicapBody?: { id: string; label: string; prose: string; number: string };
   /** No round yet and nobody entered: a society taking entries before it chooses a format. */
   noFormatYet?: boolean;
   event: EventInfo;
@@ -158,6 +166,14 @@ export function RegistrationClient({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [ghin, setGhin] = useState("");
+  // A visitor's own body ("" = the club's). Their index is their body's
+  // official figure under WHS, and the number box takes their body's words.
+  const [visitorBody, setVisitorBody] = useState("");
+  const [visitorOpen, setVisitorOpen] = useState(false);
+  const theirBody = bodyById(visitorBody);
+  const bodyWords = theirBody
+    ? { label: bodyShortLabel(theirBody), prose: bodyInProse(theirBody), number: theirBody.number }
+    : handicapBody;
   const [homeClub, setHomeClub] = useState("");
   const [hSource, setHSource] = useState("manual");
   const [invite, setInvite] = useState(event.inviteMessage);
@@ -375,6 +391,7 @@ export function RegistrationClient({
         email,
         phone,
         ghin,
+        handicapBodyId: visitorBody,
         homeClub,
         handicapSource: hSource,
         handicapType: newHandicapType,
@@ -388,6 +405,8 @@ export function RegistrationClient({
       setEmail("");
       setPhone("");
       setGhin("");
+      setVisitorBody("");
+      setVisitorOpen(false);
       setHomeClub("");
     });
   };
@@ -1271,10 +1290,33 @@ export function RegistrationClient({
               <input id={`${fid}-phone`} className="input" type="tel" required={phoneRequired} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" style={phoneRequired && !phone.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
             </div>
           </div>
+          {/* A visitor from another country plays off their own body's index —
+              valid everywhere under WHS. Folded away (Ajay: "I dont want to
+              complicate"): almost every entrant is local, and the form reads
+              exactly as before until somebody needs it. */}
+          {visitorOpen ? (
+            <div className="field">
+              <label htmlFor={`${fid}-body`}>Visitor&rsquo;s handicap body</label>
+              <select id={`${fid}-body`} className="input" value={visitorBody} onChange={(e) => setVisitorBody(e.target.value)}>
+                <option value="">{`${handicapBody.label === "Association" ? "This club's national association" : handicapBody.label} (this club's)`}</option>
+                {HANDICAP_BODIES.filter((b) => b.id !== handicapBody.id).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setVisitorOpen(true)}
+              style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, minHeight: 32, cursor: "pointer", fontSize: 13, color: "var(--color-accent-200)" }}
+            >
+              Visitor from another country?
+            </button>
+          )}
           <div className="field">
             <label>Handicap source</label>
             <div className="seg" style={{ width: "100%" }}>
-              {[["ghin", "GHIN"], ["manual", "Manual"], ["none", "None"]].map(([v, l]) => (
+              {[["ghin", bodyWords.label], ["manual", "Manual"], ["none", "None"]].map(([v, l]) => (
                 <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
                   <input type="radio" name="hsrc" checked={hSource === v} onChange={() => setHSource(v)} />{l}
                 </label>
@@ -1283,7 +1325,7 @@ export function RegistrationClient({
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div className="field"><label htmlFor={`${fid}-hcp`}>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input id={`${fid}-hcp`} className="input" type="text" inputMode="decimal" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.4" disabled={hSource === "none"} /></div>
-            <div className="field"><label htmlFor={`${fid}-ghin`}>GHIN #</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
+            <div className="field"><label htmlFor={`${fid}-ghin`}>{bodyWords.number.charAt(0).toUpperCase() + bodyWords.number.slice(1)}</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
           </div>
           <div className="field">
             <label>Handicap is a…</label>
@@ -1315,7 +1357,7 @@ export function RegistrationClient({
           )}
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {hSource === "ghin"
-              ? "GHIN lookup is stubbed — enter the index manually for now; live GHIN integration slots in here."
+              ? `Indexes aren't read from ${bodyWords.prose} automatically yet — type this player's index as ${bodyWords.prose} shows it.`
               : "Auto-confirms while under capacity; overflow goes to the waitlist."}
           </p>
           <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>

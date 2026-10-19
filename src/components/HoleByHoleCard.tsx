@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDistanceWords } from "./DistanceUnitProvider";
 import { useSeenOnce } from "./useSeenOnce";
+import { usePageIsLive } from "./usePageIsLive";
 import { toParText } from "@/lib/domain";
 import { distinctLabels } from "@/lib/format";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
@@ -192,6 +193,8 @@ export function HoleByHoleCard({
 }) {
   // Yards or metres — the course's own unit, from the nearest provider.
   const distance = useDistanceWords();
+  // A score tapped before the page is live goes nowhere — see the hook.
+  const live = usePageIsLive();
   const [listening, setListening] = useState(false);
   const dictationRef = useRef<Dictation | null>(null);
   const [heard, setHeard] = useState("");
@@ -549,12 +552,14 @@ export function HoleByHoleCard({
               value={strokesOf(players[0].id)[hole] ?? null}
               onPick={(v, moveOn) => set(players[0].id, v, moveOn)}
               onDone={() => advanceFrom(hole)}
+              live={live}
             />
             {onPickUp && (
               <PickUpToggle
                 name={players[0].name}
                 hole={holeNumber(hole, firstHole)}
                 on={pickedUp?.[players[0].id]?.[hole] === true}
+                live={live}
                 onToggle={(on) => {
                   onPickUp(players[0].id, hole, on);
                   // Out of the hole is a hole finished: on to the next.
@@ -615,6 +620,7 @@ export function HoleByHoleCard({
                       type="button"
                       className="btn btn-secondary"
                       aria-label={`One fewer stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
+                      disabled={!live}
                       onClick={() => set(p.id, Math.max(1, (value ?? (par ?? 4) + 1) - 1))}
                       style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
                     >
@@ -650,6 +656,7 @@ export function HoleByHoleCard({
                       type="button"
                       className="btn btn-secondary"
                       aria-label={`One more stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
+                      disabled={!live}
                       onClick={() => set(p.id, (value ?? (par ?? 4) - 1) + 1)}
                       style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
                     >
@@ -664,6 +671,7 @@ export function HoleByHoleCard({
                     name={p.name}
                     hole={holeNumber(hole, firstHole)}
                     on={picked}
+                    live={live}
                     compact
                     onToggle={(on) => onPickUp(p.id, hole, on)}
                   />
@@ -717,12 +725,15 @@ function PickUpToggle({
   on,
   onToggle,
   compact = false,
+  live = true,
 }: {
   name: string;
   hole: number;
   on: boolean;
   onToggle: (on: boolean) => void;
   compact?: boolean;
+  /** False until the page's script is running: a tap before then is lost. */
+  live?: boolean;
 }) {
   return (
     <button
@@ -730,6 +741,7 @@ function PickUpToggle({
       className="btn btn-secondary"
       aria-pressed={on}
       aria-label={`${name} picked up on hole ${hole}`}
+      disabled={!live}
       onClick={() => onToggle(!on)}
       style={{
         marginTop: compact ? 6 : 12,
@@ -753,6 +765,7 @@ function SoloPad({
   onPick,
   onDone,
   firstHole = 1,
+  live,
 }: {
   player: CardPlayer;
   hole: number;
@@ -764,6 +777,8 @@ function SoloPad({
   onPick: (v: number | null, moveOn?: boolean) => void;
   /** The typed score is finished (Enter): move on as a tap would. */
   onDone?: () => void;
+  /** False until the page's script is running: a tap before then is lost. */
+  live: boolean;
 }) {
   const shots = player.shotsOn?.(hole) ?? 0;
   return (
@@ -800,6 +815,7 @@ function SoloPad({
               // member's phone, both of her first two holes gone. Clearing is
               // still there, deliberately, by emptying "Other".
               onClick={() => onPick(n)}
+              disabled={!live}
               aria-pressed={chosen}
               style={{
                 // 56px: above the 44px touch minimum, with a glove on.
