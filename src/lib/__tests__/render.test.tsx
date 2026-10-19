@@ -8415,13 +8415,15 @@ describe("a net match on the round code shows the shots", () => {
   it("puts the holder's shot on their own answer for the hole on screen", () => {
     // The card opens on hole 1, SI 1: Bea receives there.
     const html = play({ mine: [1, ...new Array(17).fill(0)], theirs: new Array(18).fill(0) });
-    expect(html).toContain("Hole 1 to you, who gets a shot");
+    // Each answer names the player it gives the hole to (2026-10-18) — the
+    // holder by name, never "you", which means whoever's name was tapped.
+    expect(html).toContain("Hole 1 to zz-Bea Zed, who gets a shot");
     expect(html).not.toContain("Hole 1 to zz-Ann Zed, who gets");
   });
 
   it("CONTROL: a gross match draws no dots", () => {
     const html = play(null);
-    expect(html).toContain('aria-label="Hole 1 to you"');
+    expect(html).toContain('aria-label="Hole 1 to zz-Bea Zed"');
     expect(html).not.toContain("who gets a shot");
   });
 });

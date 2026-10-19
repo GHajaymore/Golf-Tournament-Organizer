@@ -737,8 +737,9 @@ test.describe("a casual round at the course", () => {
   test("a friend keeps a gross match on their own phone by the round code", async ({ page, browser, baseURL }, testInfo) => {
     /**
      * Bea joins Ann's match by the code and keeps the match herself, one hole
-     * at a time, from HER side: "Me" is Bea and the other answer is Ann
-     * (2026-10-07 — it was eighteen tiles of 28px "Me / ½ / Opp" buttons).
+     * at a time, from HER side: one answer is Bea and the other is Ann, each
+     * by name (2026-10-07 — it was eighteen tiles of 28px "Me / ½ / Opp"
+     * buttons; "Me" itself went on 2026-10-18, see PlayClient).
      * Bea is the second player, so every result she taps is flipped before it
      * is stored. Ann wins the 2nd and 4th, Bea the 11th, 13th and 15th:
      * Bea wins 1 up on the HOST's screen. A flip that went the wrong way
@@ -756,19 +757,19 @@ test.describe("a casual round at the course", () => {
       await p.getByLabel("Round code").fill(code);
       await p.getByRole("button", { name: "Continue" }).click();
       await p.getByRole("button", { name: BEA, exact: true }).click();
-      const mine = p.getByRole("button", { name: "Hole 1 to you" });
+      const mine = p.getByRole("button", { name: `Hole 1 to ${BEA}` });
       await expect(mine, "the friend's match card did not open on hole 1").toBeVisible({ timeout: 30_000 });
       const box = (await mine.boundingBox())!;
       expect(box.height, "the friend's answers are not thumb-sized").toBeGreaterThanOrEqual(44);
       expect(await p.evaluate(() => document.documentElement.scrollWidth - innerWidth), "/play scrolls sideways").toBeLessThanOrEqual(0);
 
       for (let h = 1; h <= 18; h += 1) {
-        const name = [2, 4].includes(h) ? `Hole ${h} to ${ANN}` : [11, 13, 15].includes(h) ? `Hole ${h} to you` : `Hole ${h} halved`;
+        const name = [2, 4].includes(h) ? `Hole ${h} to ${ANN}` : [11, 13, 15].includes(h) ? `Hole ${h} to ${BEA}` : `Hole ${h} halved`;
         const answer = p.getByRole("button", { name });
         await expect(answer).toBeVisible();
         await answer.click();
         // Recorded, off the strip: the answer is pressed for only 160ms.
-        const said = [2, 4].includes(h) ? `won by ${ANN}` : [11, 13, 15].includes(h) ? `won by (?!${ANN})` : "halved";
+        const said = [2, 4].includes(h) ? `won by ${ANN}` : [11, 13, 15].includes(h) ? `won by ${BEA}` : "halved";
         await expect(p.getByRole("button", { name: new RegExp(`^Hole ${h}, ${said}`) })).toBeVisible();
       }
       await expect(p.getByText("18/18 holes")).toBeVisible();
@@ -815,11 +816,11 @@ test.describe("a casual round at the course", () => {
       await p.getByRole("button", { name: BEA, exact: true }).click();
       // Hole 1 (SI 7): nobody gets a shot. Exact names — a substring match
       // would accept ", who gets a shot" on the end and prove nothing.
-      await expect(p.getByRole("button", { name: "Hole 1 to you", exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(p.getByRole("button", { name: `Hole 1 to ${BEA}`, exact: true })).toBeVisible({ timeout: 30_000 });
       await expect(p.getByRole("button", { name: `Hole 1 to ${ANN}`, exact: true })).toBeVisible();
       await p.getByRole("button", { name: "Hole 1 halved" }).click();
       // Hole 2 (SI 3): Bea's shot, on her own answer and not on Ann's.
-      const mine2 = p.getByRole("button", { name: "Hole 2 to you, who gets a shot", exact: true });
+      const mine2 = p.getByRole("button", { name: `Hole 2 to ${BEA}, who gets a shot`, exact: true });
       await expect(mine2, "the friend's screen gives Bea no shot where the host's card does").toBeVisible();
       await expect(mine2).toContainText("•");
       await expect(p.getByRole("button", { name: `Hole 2 to ${ANN}`, exact: true })).toBeVisible();
