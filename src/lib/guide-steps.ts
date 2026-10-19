@@ -75,6 +75,16 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Anyone added can leave again themselves, from Your account → Your clubs. A club's only Commissioner can't leave until somebody else is one.",
         ],
       },
+      { kind: "h", text: "Your plan and a discount code" },
+      { kind: "where", text: "Club settings → Plan (a Commissioner or Admin)" },
+      {
+        kind: "steps",
+        items: [
+          "Choose a plan, yearly or monthly. You pay on Stripe's secure page; TourneyHQ never sees the card.",
+          "If you were given a **discount code**, type it in the box above the plans and press [[Apply]] — it says what comes off before you pay. A code you gave when you signed up is already in the box.",
+          "A discount comes off your **first payment only**: the first month on a monthly plan, or the first year on a yearly one.",
+        ],
+      },
     ],
   },
   {

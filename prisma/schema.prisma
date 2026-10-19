@@ -82,6 +82,14 @@ model Organization {
   kind String @default("personal")
 
   /**
+   * A discount code the club gave when it signed up (`DiscountCode.code`), or
+   * "" for none. Kept so the club's plan checkout offers it without being
+   * retyped; whether it can still be used is asked again at checkout
+   * (`discountRefusal`), because a code can expire or be switched off between.
+   */
+  discountCode String @default("")
+
+  /**
    * none | float | split — the club default for what a tournament does with
    * money. Empty follows the kind of outfit (see resolveMoneyMode), which is
    * what every existing club does today.

@@ -15,6 +15,9 @@ import { createOrganizationWithOwner } from "@/lib/services/organization";
 import { isOrgKind } from "@/lib/domain/org-profile";
 import { homeFor } from "@/lib/roles";
 import { markStaffSeen } from "@/lib/services/staff-seen";
+import { normalizeDiscountCode } from "@/lib/plans";
+import { discountRefusal } from "@/lib/domain/discount";
+import { maySignIn, SIGNINS_CLOSED_MESSAGE } from "@/lib/sign-in-gate";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -72,6 +75,7 @@ export async function signInWithPassword(
 ): Promise<{ ok: boolean; error?: string; needsClaim?: boolean }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+  if (!maySignIn(clean)) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
   if (!password) return { ok: false, error: "Enter your password." };
 
   // Counted before the lookup, and keyed on the email rather than the caller,
@@ -112,6 +116,7 @@ export async function signInWithPassword(
 export async function claimPassword(email: string, password: string, next?: string): Promise<{ ok: boolean; error?: string }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+  if (!maySignIn(clean)) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
 
   const limit = await checkRateLimit("claim-password", clean);
   if (!limit.allowed) return { ok: false, error: limit.message };
@@ -173,6 +178,7 @@ export async function claimPassword(email: string, password: string, next?: stri
 export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string; sent?: boolean }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+  if (!maySignIn(clean)) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
 
   const limit = await checkRateLimit("password-reset", clean);
   if (!limit.allowed) return { ok: false, error: limit.message };
@@ -236,6 +242,7 @@ export async function resetPassword(token: string, password: string): Promise<{ 
     where: { id: record.userId },
     select: { email: true, name: true },
   });
+  if (!maySignIn(owner?.email)) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
   const weak = passwordProblem(password, owner ?? undefined);
   if (weak) return { ok: false, error: weak };
 
@@ -299,16 +306,27 @@ export async function signUp(
   password: string,
   kind: string,
   next?: string,
+  discountInput?: string,
 ): Promise<{ ok: boolean; error?: string; needsClaim?: boolean }> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanName) return { ok: false, error: "Enter your name." };
   if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+  if (!maySignIn(cleanEmail)) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
   // Both are on the form being submitted, so this is the one path that can
   // refuse a password made of the name typed two fields above it.
   const weak = passwordProblem(password, { email: cleanEmail, name: cleanName });
   if (weak) return { ok: false, error: weak };
   if (!isOrgKind(kind)) return { ok: false, error: "Choose what you're organizing golf for." };
+  // A discount code is optional; one that is given must be usable, said here
+  // rather than at a checkout weeks later. Counted per address, like a sign-in.
+  const discountCode = normalizeDiscountCode(typeof discountInput === "string" ? discountInput : "");
+  if (discountCode) {
+    const limit = await checkRateLimit("discount-check", cleanEmail);
+    if (!limit.allowed) return { ok: false, error: limit.message };
+    const refusal = discountRefusal(await prisma.discountCode.findUnique({ where: { code: discountCode } }), new Date());
+    if (refusal) return { ok: false, error: refusal };
+  }
 
   // A script is refused before it costs a lookup or a password hash. See
   // bot-check.ts for why this lets a person in when the check itself fails.
@@ -361,7 +379,9 @@ export async function signUp(
     select: { id: true },
   });
   if (!owned) {
-    await createOrganizationWithOwner({ email: cleanEmail, displayName: cleanName, kind });
+    const organizationId = await createOrganizationWithOwner({ email: cleanEmail, displayName: cleanName, kind });
+    // Kept for the club's plan checkout, which asks again whether it is still usable.
+    if (discountCode) await prisma.organization.update({ where: { id: organizationId }, data: { discountCode } });
   }
 
   await createSession(user.id);

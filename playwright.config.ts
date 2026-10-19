@@ -271,6 +271,15 @@ export default defineConfig({
       // `src/lib/secure-cookies.ts`. A server already running — the usual case
       // locally — has to have been started with the same variable.
       ...(ENGINE === "webkit" ? { E2E_PLAIN_HTTP: "1" } : {}),
+      // BILLING SWITCHED ON, WITH A KEY THAT CAN CHARGE NOTHING. With no
+      // `STRIPE_SECRET_KEY` the plan panel draws none of its buying controls,
+      // so the discount box and the action behind it were never reached by a
+      // browser (round G149, 2026-10-18). The plan panel is the only reader of
+      // `billingEnabled()`; a press that went as far as Stripe would be refused
+      // by Stripe and said as "Couldn't reach the payment page". Always this
+      // key, never one from the environment: a test must not reach a real
+      // Stripe account.
+      STRIPE_SECRET_KEY: "sk_test_e2e_charges_nothing",
     },
   },
 });

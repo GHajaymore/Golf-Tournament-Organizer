@@ -129,7 +129,16 @@ async function serve(mode) {
   if (serving === mode && (await answers())) return true;
   stopServer();
   await new Promise((r) => setTimeout(r, 2000));
-  const env = { ...process.env, NEXT_DIST_DIR: DIST, AUTH_SECRET: SECRET, ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}) };
+  // The same key as playwright.config.ts gives its server, for the same reason:
+  // billing on, so the plan panel's buying controls are drawn, and nothing that
+  // could ever charge. Always this one, never the environment's.
+  const env = {
+    ...process.env,
+    NEXT_DIST_DIR: DIST,
+    AUTH_SECRET: SECRET,
+    STRIPE_SECRET_KEY: "sk_test_e2e_charges_nothing",
+    ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),
+  };
   delete env.E2E_TZ;
   delete env.E2E_LOCALE;
   const log = createWriteStream(join(OUT, "server.log"), { flags: "a" });

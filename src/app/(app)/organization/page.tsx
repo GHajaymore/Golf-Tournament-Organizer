@@ -21,6 +21,7 @@ import { limitStatus } from "@/lib/services/limits";
 import { organizationAccessReport } from "@/lib/services/access";
 import { organizationAccess } from "@/lib/services/org-access";
 import { PlaySettings } from "@/components/PlaySettings";
+import { discountNoteFor } from "@/lib/services/platform-discounts";
 import { PlanPanel } from "@/components/PlanPanel";
 import { billingEnabled } from "@/lib/services/billing";
 import { retainUntilAfter } from "@/lib/domain/billing";
@@ -341,6 +342,9 @@ export default async function OrganizationPage() {
             pastDue: org.subscription?.status === "past_due",
             canEdit,
             heldUntil: heldUntilLabel(org.subscription, org.locale, org.timeZone),
+            // The code the club gave at sign-up, offered at checkout; judged again there.
+            discountCode: org.discountCode,
+            discountNote: org.discountCode ? await discountNoteFor(org.discountCode) : undefined,
           }}
         />
       </SettingsSectionAnchor>
