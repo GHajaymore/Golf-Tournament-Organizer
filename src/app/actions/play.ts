@@ -15,7 +15,7 @@ import { marginRefusal, marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard, assertRoundOpen } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit } from "@/lib/services/action-shared";
-import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
+import { isCupSession, lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 
 /**
@@ -34,8 +34,12 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 export interface RedeemResult {
   ok: boolean;
   error?: string;
-  /** The field for that round, for the player to pick themselves from. */
-  players?: Array<{ id: string; name: string }>;
+  /**
+   * The field for that round, for the player to pick themselves from. In a
+   * cup session each carries their team's name (`side`), so a foursome is
+   * shown as its two pairs, each under its team.
+   */
+  players?: Array<{ id: string; name: string; side?: string }>;
   /**
    * The round's matches, each with the players in it, when the round draws
    * matches and their lineup is public — so a player finds their own group
@@ -70,11 +74,22 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     return { ok: false, error: "That code isn't valid. Check it with your organizer." };
   }
 
-  const players = await prisma.player.findMany({
-    where: { eventId: stage.eventId, status: "confirmed" },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  });
+  /**
+   * WHICH TEAM, IN A CUP (2026-10-18). A foursome was four names in one block,
+   * two to a row with nothing between the pairs, and at the first real cup a
+   * scorer tapped an opponent's name and kept the whole four-ball from the
+   * other pair's side. So a cup session's names carry their team, and the
+   * list shows each pair under it. Only a cup's: a club's flights are not two
+   * sides of a match, and nobody else's list should change.
+   */
+  const cup = isCupSession(stage);
+  const players = (
+    await prisma.player.findMany({
+      where: { eventId: stage.eventId, status: "confirmed" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, group: { select: { name: true } } },
+    })
+  ).map(({ group, ...p }) => (cup && group?.name ? { ...p, side: group.name } : p));
 
   // `type` as well as `id` — see play-auth: the number counts rounds, not rows,
   // and a cut is a row that is not a round.

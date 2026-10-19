@@ -105,7 +105,8 @@ test("a match decided 5&4 on a round code is handed in at the fourteenth, not he
       await expect(group).toBeVisible({ timeout: 10_000 });
       await group.getByRole("button", { name: who }).click();
     };
-    for (let n = 1; n <= 5; n += 1) await press(n, new RegExp(`^Hole ${n} to you`));
+    // Each answer names its player — the holder is Zz Decider (2026-10-18).
+    for (let n = 1; n <= 5; n += 1) await press(n, new RegExp(`^Hole ${n} to Zz Decider`));
     for (let n = 6; n <= 13; n += 1) await press(n, new RegExp(`^Hole ${n} halved`));
 
     // Five up with five to play: not over, and so nothing has been sent.

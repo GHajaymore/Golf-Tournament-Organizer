@@ -12,9 +12,14 @@ import { watchPageErrors } from "./page-errors";
  * member of either side keep the card. Found 2026-10-16, setting up a real
  * Ryder-style cup whose players have codes and no accounts.
  *
- *   the holder is on the SECOND side       → the card reads "Us" v "Them", the
- *                                            two sides by name, and hole 1 to
- *                                            "you" is stored as hole 1 to side B
+ *   the holder is on the SECOND side       → the answers name the two PAIRS
+ *                                            (never "Us" v "Them"), and hole 1
+ *                                            to the holder's pair is stored as
+ *                                            hole 1 to side B
+ *   the holder picked an OPPONENT's name   → a hole given to a pair by name is
+ *                                            stored for that pair all the same
+ *   a tee-sheet foursome                   → listed as its two pairs, each
+ *                                            under its team
  *   a player in the round with no match    → told so, and shown no card (the control:
  *                                            the lookup did not just hand everybody
  *                                            the first match)
@@ -179,6 +184,13 @@ test("the names after the code come in the round's groups: the match, then the t
     const first = page.getByRole("region", { name: "12:45 PM · Group 1" });
     await expect(first, "the tee sheet's foursome is not a group").toBeVisible({ timeout: 20_000 });
     await expect(first.getByRole("button")).toHaveCount(4);
+    // AS TWO PAIRS, each under its team (2026-10-18). The sheet lists the four
+    // mixed — Ailsa, Edda, Bram, Finn, as a real cup's sheet did — and at the
+    // first real cup a scorer, looking at four names in one block, tapped an
+    // opponent's and kept the whole four-ball from the other pair's side.
+    await expect(first.getByRole("heading", { name: "Blues", exact: true }), "the foursome is not split into its pairs").toBeVisible();
+    await expect(first.getByRole("heading", { name: "Whites", exact: true })).toBeVisible();
+    expect((await first.innerText()).replace(/\s+/g, " "), "a pair is not under its own team").toMatch(/blues zz ailsa zz bram whites zz edda zz finn/i);
     await expect(page.getByRole("region", { name: "12:54 PM · Group 2" }).getByRole("button", { name: "Zz Spare" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Zz Ailsa & Zz Bram v Zz Edda & Zz Finn" })).toHaveCount(0);
   } finally {
@@ -200,10 +212,13 @@ test("a four-ball partner with a round code keeps their side's match, from their
 
     const hole1 = page.getByRole("group", { name: "Who won hole 1" });
     await expect(hole1).toBeVisible({ timeout: 10_000 });
-    // The holder speaks for their side: "Us" against "Them", not "Me" against a first name.
-    await expect(hole1.getByText("Us", { exact: true })).toBeVisible();
-    await expect(hole1.getByText("Them", { exact: true })).toBeVisible();
-    await hole1.getByRole("button", { name: /^Hole 1 to you/ }).click();
+    // Each answer names a PAIR — never "Us" and "Them", which mean whoever's
+    // name was tapped (2026-10-18). The four share a first name here, so the
+    // pairs are widened to "Zz E. & Zz F." against "Zz A. & Zz B.".
+    await expect(hole1.getByRole("button", { name: /^Hole 1 to Zz Edda & Zz Finn/ })).toHaveText(/^Zz E\. & Zz F\./);
+    await expect(hole1.getByRole("button", { name: /^Hole 1 to Zz Ailsa & Zz Bram/ })).toHaveText(/^Zz A\. & Zz B\./);
+    await expect(hole1.getByText(/^(Us|Them)$/)).toHaveCount(0);
+    await hole1.getByRole("button", { name: /^Hole 1 to Zz Edda & Zz Finn/ }).click();
 
     await expect
       .poll(
@@ -215,16 +230,16 @@ test("a four-ball partner with a round code keeps their side's match, from their
       )
       // Stored A-relative, and the holder's side is the match's side B.
       .toBe("B");
-    await expect(page.getByText("Us 1 up with 8 to play")).toBeVisible();
+    await expect(page.getByText("Zz E. & Zz F. 1 up with 8 to play")).toBeVisible();
 
     // Four more: five up with four to play over a nine, and the phone says the
     // match is OVER rather than offering the sixth as if it were still on.
     for (let n = 2; n <= 5; n += 1) {
       const g = page.getByRole("group", { name: `Who won hole ${n}` });
       await expect(g).toBeVisible({ timeout: 10_000 });
-      await g.getByRole("button", { name: new RegExp(`^Hole ${n} to you`) }).click();
+      await g.getByRole("button", { name: new RegExp(`^Hole ${n} to Zz Edda & Zz Finn`) }).click();
     }
-    await expect(page.getByRole("status").filter({ hasText: "Match over: Us 5&4. Nothing more to enter." })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("status").filter({ hasText: "Match over: Zz E. & Zz F. 5&4. Nothing more to enter." })).toBeVisible({ timeout: 10_000 });
 
     // And the way to the next nine's code is right there, not a "Sign out"
     // at the foot of the page.
@@ -265,9 +280,51 @@ test("a net four-ball card says who gets a shot on the hole, and the strip marks
     await page.getByRole("button", { name: /^Hole 9,/ }).click();
     await expect(page.getByText("No shots on this hole")).toBeVisible();
     // Hole 1 went to side B in the first test, and Finn is side B: a W for him.
-    await expect(page.getByRole("button", { name: /^Hole 1, won by you/ })).toContainText("W");
+    await expect(page.getByRole("button", { name: /^Hole 1, won by Zz Edda & Zz Finn/ })).toContainText("W");
   } finally {
     await prisma.stage.update({ where: { id: stage.stageId }, data: { scoringBasis: "gross" } });
+    await ctx.close();
+  }
+});
+
+/**
+ * A SCORER WHO PICKS THE WRONG NAME STILL GIVES EACH HOLE TO THE PAIR THAT WON
+ * IT (2026-10-18). At the first real cup a scorer on the second side tapped an
+ * OPPONENT's name, got the card from the opponents' side, and tapped "Us" for
+ * his own pair's holes: the whole four-ball was stored the wrong way round, on
+ * a card that looked right to him. The answers now name the pairs, so the tap
+ * means the same whichever name was picked.
+ *
+ * Here a Whites scorer picks Ailsa — a Blues name — and gives hole 1 to his own
+ * pair, Edda & Finn, by name: it must be stored for side B. And the control,
+ * the same phone giving hole 2 to Ailsa & Bram: side A.
+ */
+test("a scorer who picked an opponent's name still gives each hole to the pair that won it", async ({ browser, baseURL }) => {
+  test.setTimeout(120_000);
+  const before = await prisma.match.findUniqueOrThrow({ where: { id: ids.match }, select: { holes: true } });
+  await prisma.match.update({ where: { id: ids.match }, data: { holes: JSON.stringify(new Array(9).fill(null)) } });
+  const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  const page = await ctx.newPage();
+  const stored = async (i: number) => {
+    const m = await prisma.match.findUniqueOrThrow({ where: { id: ids.match }, select: { holes: true } });
+    return (JSON.parse(m.holes) as (string | null)[])[i];
+  };
+  try {
+    await enter(page, "Zz Ailsa");
+    // The card is the picked name's side, as it was on the course.
+    await expect(page.getByRole("heading", { name: /Zz Ailsa & Zz Bram\s*vs\s*Zz Edda & Zz Finn/ })).toBeVisible({ timeout: 20_000 });
+
+    await page.getByRole("group", { name: "Who won hole 1" }).getByRole("button", { name: /^Hole 1 to Zz Edda & Zz Finn/ }).click();
+    await expect.poll(() => stored(0), { timeout: 15_000, message: "hole 1, given to Edda & Finn by name, was not stored for their side" }).toBe("B");
+
+    const hole2 = page.getByRole("group", { name: "Who won hole 2" });
+    await expect(hole2).toBeVisible({ timeout: 10_000 });
+    await hole2.getByRole("button", { name: /^Hole 2 to Zz Ailsa & Zz Bram/ }).click();
+    await expect.poll(() => stored(1), { timeout: 15_000, message: "hole 2, given to Ailsa & Bram by name, was not stored for their side" }).toBe("A");
+    // One hole each: the phone agrees it is all square.
+    await expect(page.getByText("All square with 7 to play")).toBeVisible();
+  } finally {
+    await prisma.match.update({ where: { id: ids.match }, data: { holes: before.holes } });
     await ctx.close();
   }
 });
@@ -281,6 +338,38 @@ test("a player in the round with no match is told so, and given nobody's card", 
     await expect(page.getByText(/is scored side by side on one card/)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("group", { name: "Who won hole 1" })).toHaveCount(0);
   } finally {
+    await ctx.close();
+  }
+});
+
+/**
+ * THE LEADERBOARD IS ONE TAP AWAY FROM THE CARD (2026-10-18). At the first real
+ * cup every player scored by the code, and this page was score entry and
+ * nothing else: nobody could see how the cup stood without the link on the
+ * printed sheet. Where the organizer has made the board public, the page's
+ * header carries it; where not, nothing is drawn (the control).
+ */
+test("the card links to the public leaderboard, and only when the board is public", async ({ browser, baseURL }) => {
+  test.setTimeout(120_000);
+  const was = await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { leaderboardVisibility: true, shareToken: true } });
+  const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  const page = await ctx.newPage();
+  try {
+    await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: "participants" } });
+    await enter(page, "Zz Finn");
+    await expect(page.getByRole("heading", { name: /Zz Edda & Zz Finn\s*vs/ })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("link", { name: "Leaderboard" }), "a board only players may see is offered to a code").toHaveCount(0);
+
+    await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: "public" } });
+    await page.goto(`/play?bust=${Date.now()}`);
+    const board = page.getByRole("link", { name: "Leaderboard" });
+    await expect(board, "the card has no way to the public board").toBeVisible({ timeout: 20_000 });
+    await expect(board).toHaveAttribute("href", `/live/${was.shareToken}`);
+    await board.click();
+    await expect(page).toHaveURL(new RegExp(`/live/${was.shareToken}`));
+    await expect(page.getByText(`${MARK} Autumn Cup`).first(), "the link does not open this tournament's board").toBeVisible({ timeout: 20_000 });
+  } finally {
+    await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: was.leaderboardVisibility } });
     await ctx.close();
   }
 });

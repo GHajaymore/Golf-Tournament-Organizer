@@ -18,7 +18,7 @@ import { isStablefordRound } from "@/lib/domain/week-basis";
 import { stablefordPickUp } from "@/lib/domain/card-points";
 import { certifyPrompt } from "@/lib/domain/card-approval";
 import { HoleResultCard } from "./HoleResultCard";
-import { firstName } from "@/lib/format";
+import { distinctLabels, firstName } from "@/lib/format";
 import { codeFromLink, formatAccessCode } from "@/lib/code-format";
 
 interface PlayMatch {
@@ -41,6 +41,15 @@ interface PlayMatch {
 
 interface Props {
   stage: "code" | "score" | "no-match" | "card";
+  /**
+   * THE LEADERBOARD, ONE TAP AWAY (2026-10-18). At the first real cup every
+   * player scored by the code, and this page was score entry and nothing
+   * else: nobody could see how the cup stood without the link from the
+   * printed sheet. The tournament's public board, where the organizer has
+   * made it public ("Anyone with the link"); otherwise none, and nothing is
+   * drawn.
+   */
+  boardHref?: string;
   /**
    * The round and the code holder, for keeping their card on the phone while
    * it is sent (`usePendingCard`). Both come from the play session.
@@ -199,9 +208,12 @@ function Shell({
   brand,
   notice,
   short = "",
+  boardHref,
   children,
 }: {
   brand?: Brand | null;
+  /** The tournament's public board, when it has one — see `boardHref` on the page's props. */
+  boardHref?: string;
   /** Already-worded, from `expiryNotice`. Empty renders nothing. */
   notice?: string;
   /**
@@ -227,6 +239,11 @@ function Shell({
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
           <OrgBrand brand={brand} />
+          {boardHref && (
+            <a href={boardHref} className="btn btn-secondary" style={{ marginLeft: "auto", minHeight: 44, fontSize: 14, flex: "none" }}>
+              <Icon name="ranking" /> Leaderboard
+            </a>
+          )}
         </div>
         {notice && (
           <div
@@ -335,7 +352,7 @@ function PlayScreens(props: Props) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [nameFilter, setNameFilter] = useState("");
-  const [players, setPlayers] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [players, setPlayers] = useState<Array<{ id: string; name: string; side?: string }> | null>(null);
   const [groups, setGroups] = useState<Array<{ label: string; ids: string[] }>>([]);
   const [context, setContext] = useState<{ eventName: string; roundLabel: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -486,7 +503,7 @@ function PlayScreens(props: Props) {
 
     if (players && context) {
       return (
-        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
           <div style={{ marginBottom: 16 }}>
             <div className="page-kicker">{context.roundLabel}</div>
             <h1 style={{ fontSize: 24, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -557,10 +574,29 @@ function PlayScreens(props: Props) {
               ].map((g, gi) => (
                 <section key={gi} className="card elev-sm" style={{ padding: "10px 12px" }} aria-label={g.label}>
                   <h2 className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>{g.label}</h2>
+                  {/* In a cup, the foursome as its two pairs, each under its
+                      team — four names in one block is how a scorer came to
+                      tap an opponent's name (`redeemRoundCode`). Otherwise
+                      one block, as before. */}
+                  {(() => {
+                    const bySide = new Map<string, string[]>();
+                    for (const id of g.ids) {
+                      const s = (players ?? []).find((x) => x.id === id)?.side ?? "";
+                      bySide.set(s, [...(bySide.get(s) ?? []), id]);
+                    }
+                    const rows = [...bySide.entries()];
+                    const split = rows.length > 1 && rows.every(([s]) => s !== "");
+                    return (split ? rows : [["", g.ids] as [string, string[]]]).map(([s, ids]) => (
+                      <div key={s || "all"} style={{ marginTop: split && s !== rows[0][0] ? 10 : 0 }}>
+                        {split && (
+                          <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 6px", color: "var(--color-neutral-400)" }}>
+                            {s}
+                          </h3>
+                        )}
                   {/* Two to a row on a phone too (`keep-grid`): a foursome is
                       two rows of thumb-sized names, not four. */}
                   <div className="keep-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-                    {g.ids.map((id) => {
+                    {ids.map((id) => {
                       const p = (players ?? []).find((x) => x.id === id);
                       if (!p) return null;
                       return (
@@ -583,6 +619,9 @@ function PlayScreens(props: Props) {
                       );
                     })}
                   </div>
+                      </div>
+                    ));
+                  })()}
                 </section>
               ))}
             </div>
@@ -647,7 +686,7 @@ function PlayScreens(props: Props) {
     }
 
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 24, margin: 0, fontFamily: "var(--font-heading)" }}>Enter your score</h1>
           {/* TRUE FOR BOTH KINDS OF ROUND, because this screen cannot know
@@ -783,7 +822,7 @@ function PlayScreens(props: Props) {
     };
 
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
         <div style={{ marginBottom: 14 }}>
           <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
           <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -946,7 +985,7 @@ function PlayScreens(props: Props) {
 
   if (props.stage === "no-match") {
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
         <div className="card elev-sm">
           {props.sideRound ? (
             <>
@@ -1050,10 +1089,32 @@ function PlayScreens(props: Props) {
   const counted = countedHoles(Array.from({ length: holeCount }, (_, i) => holes[i] ?? null));
   const won = counted.filter((h) => h === "A").length;
   const lost = counted.filter((h) => h === "B").length;
+
+  /**
+   * EVERY ANSWER NAMES WHO WON THE HOLE (2026-10-18). They said "Us" and
+   * "Them" on a four-ball, "Me" and the opponent's name in a single — words
+   * that mean whoever's name was tapped on the list, and a scorer who taps
+   * the wrong name gets a card from the other side. At the first real cup a
+   * scorer did exactly that: tapped an opponent's name, then tapped "Us"
+   * for his own pair's holes, and the four-ball was recorded the wrong way
+   * round, every hole, on a card that looked right to him. The board showed
+   * all five four-balls reversed.
+   *
+   * So the answers carry the players' own first names ("Sachin & Ajay",
+   * "Pinakin & Girish"; widened only where two clash), and so do the line
+   * saying how the match stands and the tally. A tap on the pair that won is
+   * then right whichever name was picked.
+   */
+  const [sideA, sideB] = (() => {
+    const a = m.side ? m.aName.split(" & ") : [m.aName];
+    const b = m.side ? m.bName.split(" & ") : [m.bName];
+    const short = distinctLabels([...a, ...b]);
+    return [short.slice(0, a.length).join(" & "), short.slice(a.length).join(" & ")];
+  })();
   const halved = counted.filter((h) => h === "H").length;
 
   return (
-    <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
+    <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
       <div style={{ marginBottom: 14 }}>
         <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
         <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -1100,7 +1161,7 @@ function PlayScreens(props: Props) {
             {(["me", "halved", "them"] as const).map((w) => (
               <label key={w} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                 <input type="radio" name="playwinner" checked={resultWinner === w} onChange={() => setResultWinner(w)} />
-                {w === "me" ? (m.side ? "We won" : "I won") : w === "halved" ? "Halved" : "They won"}
+                {w === "me" ? `${sideA} won` : w === "halved" ? "Halved" : `${sideB} won`}
               </label>
             ))}
           </div>
@@ -1138,9 +1199,9 @@ function PlayScreens(props: Props) {
       {entryMode === "holes" && (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 14, fontSize: 13 }}>
-          <span><b>{won}</b> won</span>
-          <span><b>{halved}</b> halved</span>
-          <span><b>{lost}</b> lost</span>
+          <span>{sideA} <b>{won}</b></span>
+          <span>Halved <b>{halved}</b></span>
+          <span>{sideB} <b>{lost}</b></span>
           <span className="text-muted" style={{ marginLeft: "auto" }}>{filled}/{holeCount} holes</span>
         </div>
         {/* WHERE THE MATCH STANDS, in golf's words, and that it is OVER when
@@ -1152,8 +1213,8 @@ function PlayScreens(props: Props) {
           const padded = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);
           const r = resolveMatch(padded);
           if (r.played === 0) return null;
-          const me = m.side ? "Us" : "You";
-          const them = m.side ? "Them" : firstName(m.bName) || "Them";
+          const me = sideA;
+          const them = sideB;
           const text = matchStandingText(r, me, them);
           // A hole left EMPTY behind ones that have results — a second tap on
           // an answer clears it — is said, so a standing that counts it as
@@ -1200,16 +1261,18 @@ function PlayScreens(props: Props) {
             the opponent's first name, and "me" is a word the mic hears. */}
         <HoleResultCard
           holes={Array.from({ length: holeCount }, (_, i) => holes[i] ?? null)}
-          aName="you"
+          aName={m.aName}
           bName={m.bName}
-          aLabel={m.side ? "Us" : "Me"}
-          bLabel={m.side ? "Them" : firstName(m.bName) || "Them"}
+          aLabel={sideA}
+          bLabel={sideB}
           pars={props.pars ?? []}
           yards={props.yards ?? []}
           strokeIndex={props.strokeIndex ?? []}
           shownStrokeIndex={props.cardStrokeIndex}
           firstHole={props.firstHole ?? 1}
-          canHearNames={(firstName(m.bName) || "").toLowerCase() !== "me"}
+          // The mic listens for the first word of each answer — a player's
+          // first name, or a pair's first player's — which two can share.
+          canHearNames={sideA.split(" ")[0].toLowerCase() !== sideB.split(" ")[0].toLowerCase()}
           showVoice={props.voiceEntry ?? true}
           shotsOn={props.matchShots ? (h) => ({ a: props.matchShots?.mine[h] ?? 0, b: props.matchShots?.theirs[h] ?? 0 }) : undefined}
           wonLost
