@@ -1,0 +1,10 @@
+[
+  {
+    "what": "An expired discount code is accepted on the plan panel",
+    "file": "src/app/actions/billing.ts",
+    "from": "  const refusal = discountRefusal(row, new Date());",
+    "to": "  const refusal = row ? null : discountRefusal(row, new Date());",
+    "spec": "e2e/discount-code.spec.ts",
+    "project": "phone"
+  }
+]
