@@ -408,5 +408,54 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     }).toPass({ timeout: 30_000 });
   });
 
+  /**
+   * THE FINAL REPORT (2026-10-19), worked by hand from the cup above: the
+   * four-ball to the Whites 6&5, the foursomes to the Whites 7&6, the singles
+   * to the Blues on a concession, and the team net total to the Whites — so
+   * Blues 1, Whites 3. Nobody played two matches and won both, so there are
+   * no stars; no match went to the last hole. Edda White and Ailsa Blue each
+   * played two and won one, which is what "of two" counts against.
+   */
+  await test.step("the final report tells the whole cup, from the board's own link", async () => {
+    await page.context().clearCookies();
+    await open(page, `/live/${f.shareToken}`);
+    await page.getByRole("link", { name: "Read the final report" }).click();
+    await page.waitForURL(/\/live\/[^/]+\/report$/);
+    const report = page.getByRole("main");
+    await expect(report.getByRole("heading", { level: 1 })).toHaveText(CUP_EVENT);
+    await expect(report.getByRole("group", { name: "Score: Blues 1, Whites 3" })).toBeVisible();
+    await expect(report).toContainText("Whites win the cup");
+    const story = report.getByRole("region", { name: "The story" });
+    await expect(story).toContainText(
+      "Whites won the cup 3 – 1. Whites took Saturday four-balls 1 – 0, Whites took Saturday foursomes 1 – 0 " +
+        "and Blues took Sunday singles 1 – 0.",
+    );
+    await expect(story).toContainText("The team net total went to Whites.");
+    await expect(story).not.toContainText("last hole");
+    await expect(report).toContainText("Team match play, three sessions");
+    await expect(report).toContainText("8 players, 4 a side");
+    await expect(report).toContainText("Hole by hole, and from stroke cards");
+    await expect(report).toContainText("Ailsa Blue (Blues) and Edda White (Whites)");
+    await expect(report.getByRole("heading", { name: "Won every match" })).toHaveCount(0);
+    await expect(report.getByRole("heading", { name: "Points won, of two" })).toBeVisible();
+    // The report states results, never how the committee came to record them.
+    await expect(report).not.toContainText(/committee|amended|recorded/i);
+    await fits(page, "the final report");
+  });
+
+  await test.step("the organizer writes the story, and the report carries their words", async () => {
+    await as(page, baseURL!, "organizer");
+    await open(page, "/cup");
+    await page.getByRole("link", { name: "Final report", exact: true }).click();
+    await page.waitForURL(/\/cup\/report$/);
+    await page.getByRole("textbox", { name: "The story" }).fill("A cold start at Bushwood.\n\nThe Whites never trailed.");
+    await page.getByRole("button", { name: "Save the story" }).click();
+    await expect(page.getByText("Story saved.")).toBeVisible({ timeout: 20_000 });
+    await page.context().clearCookies();
+    await open(page, `/live/${f.shareToken}/report?bust=1`);
+    const story = page.getByRole("region", { name: "The story" });
+    await expect(story.locator("p")).toHaveText(["The story", "A cold start at Bushwood.", "The Whites never trailed."]);
+  });
+
   expect(errors, `a screen threw in ${CUP_EVENT}`).toEqual([]);
 });

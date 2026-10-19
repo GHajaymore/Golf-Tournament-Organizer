@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { playerRecords, stars, pointsTrack, marginWords, type ReportSession } from "@/lib/domain/final-report";
+import {
+  playerRecords,
+  stars,
+  pointsTrack,
+  marginWords,
+  reportStory,
+  reportRibbon,
+  sessionInSentence,
+  sessionDescription,
+  scoringWords,
+  type ReportSession,
+} from "@/lib/domain/final-report";
 
 /**
  * Worked by hand from a cup shaped like the first real one: five four-balls
@@ -64,7 +75,8 @@ describe("the final report's arithmetic", () => {
     expect(pointsTrack({ a: 5.5, b: 10.5, outside: [{ side: "B", points: 1 }], inPlay: 16 })).toEqual({
       a: 11,
       b: 19,
-      outside: 2,
+      outsideA: 0,
+      outsideB: 2,
       open: 0,
       cells: 32,
     });
@@ -74,10 +86,83 @@ describe("the final report's arithmetic", () => {
     expect(pointsTrack({ a: 7.5, b: 7.5, outside: [{ side: null, points: 1 }], inPlay: 16 })).toEqual({
       a: 15,
       b: 15,
-      outside: 0,
+      outsideA: 0,
+      outsideB: 0,
       open: 2,
       cells: 32,
     });
+  });
+
+  it("a point outside the matches to side A is drawn at A's end, and taken out of A's match cells", () => {
+    expect(pointsTrack({ a: 9, b: 7, outside: [{ side: "A", points: 1 }], inPlay: 16 })).toMatchObject({
+      a: 16,
+      outsideA: 2,
+      b: 14,
+      outsideB: 0,
+      open: 0,
+    });
+  });
+
+  /*
+   * The story, worked by hand from the sessions above with one decided
+   * point outside the matches. Four-balls: B 2, A 1. Singles decided: A 1+½+1
+   * = 2½, B 1+½ = 1½ — the fifth singles is still on the course and counts
+   * for nobody. Cup: A 3½, B 3½ in the matches, plus the outside point to B.
+   */
+  const story = (verdict: Parameters<typeof reportStory>[0]["verdict"]) =>
+    reportStory({
+      teams: ["Ardlui", "Balfron"],
+      score: [3.5, 4.5],
+      verdict,
+      sessions,
+      outside: [
+        { label: "Team net total", points: 1, side: "B" },
+        { label: "Longest drive", points: 1, side: null },
+      ],
+    });
+
+  it("the story says who won, each session's score, the stars, the last hole and the other points", () => {
+    expect(story({ kind: "won", by: "B" })).toEqual([
+      "Balfron won the cup 4½ – 3½. Balfron took the four-balls 2 – 1 and Ardlui took the singles 2½ – 1½.",
+      "Two players won every match they played: A6 for Ardlui and B1 for Balfron. " +
+        "Three matches went to the last hole. The team net total went to Balfron.",
+    ]);
+  });
+
+  it("a point nobody has been given yet is not in the story", () => {
+    expect(story({ kind: "won", by: "B" }).join(" ")).not.toMatch(/longest drive/i);
+  });
+
+  it("a retained cup, a shared one and an open one each read as what they are", () => {
+    expect(story({ kind: "retained", by: "B" })[0]).toMatch(/^Balfron retained the cup, 4½ – 3½\./);
+    expect(story({ kind: "tied" })[0]).toMatch(/^The cup finished level, 3½ – 4½\./);
+    expect(story({ kind: "open" })[0]).toMatch(/^Ardlui 3½, Balfron 4½, with the cup still to be decided\./);
+  });
+
+  it("the ribbon names the winner, and says nothing while the cup is open", () => {
+    expect(reportRibbon({ teams: ["Ardlui", "Balfron"], verdict: { kind: "won", by: "A" } })).toBe("Ardlui win the cup");
+    expect(reportRibbon({ teams: ["Ardlui", "Balfron"], verdict: { kind: "retained", by: "B" } })).toBe(
+      "Balfron retain the cup",
+    );
+    expect(reportRibbon({ teams: ["Ardlui", "Balfron"], verdict: { kind: "open" } })).toBe("");
+  });
+
+  it("a session the club named keeps its capitals; a format word is a common noun", () => {
+    expect(sessionInSentence("Singles")).toBe("the singles");
+    expect(sessionInSentence("Four-balls")).toBe("the four-balls");
+    expect(sessionInSentence("Saturday Foursomes")).toBe("Saturday Foursomes");
+  });
+
+  it("a session reads as a programme's format line", () => {
+    expect(sessionDescription({ kind: "Four-Ball", basis: "net", holes: 9, nine: "back" })).toBe("Net four-ball, back nine");
+    expect(sessionDescription({ kind: "Singles", basis: "both", holes: 9, nine: "front" })).toBe("Net singles, front nine");
+    expect(sessionDescription({ kind: "Foursomes", basis: "gross", holes: 18, nine: "full" })).toBe("Gross foursomes, 18 holes");
+  });
+
+  it("says how the matches were kept", () => {
+    expect(scoringWords(["holes", "holes"])).toBe("Hole by hole");
+    expect(scoringWords(["cards"])).toBe("From stroke cards, hole by hole");
+    expect(scoringWords(["holes", "cards"])).toBe("Hole by hole, and from stroke cards");
   });
 
   it("writes a margin as it reads in a sentence", () => {

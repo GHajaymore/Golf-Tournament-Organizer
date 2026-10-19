@@ -9,7 +9,7 @@ import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, standingRows, settingsOf, cutLineNote, withBoardRound } from "@/lib/services/tournament";
 import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
 import { RoundPicker } from "@/components/RoundPicker";
-import { canSeeLeaderboard } from "@/lib/tournament-settings";
+import { canSeeLeaderboard, isLeaderboardPublic } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { boardKind } from "@/lib/formats";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
@@ -120,7 +120,16 @@ export default async function PlayBoardPage({
         {said}
         <CupScoreboard board={cup.board} />
         {/* My matches, not "My card": a cup files no card of a player's own. */}
-        <WayForward links={[{ href: "/me", label: "My matches", icon: "sword" }]} />
+        {/* And once it is decided, the whole cup on one page — the report the
+            public board links to, so only where the board is public. */}
+        <WayForward
+          links={[
+            { href: "/me", label: "My matches", icon: "sword" },
+            ...(cup.board.verdict.kind !== "open" && isLeaderboardPublic(settingsOf(state.event))
+              ? [{ href: `/live/${state.event.shareToken}/report`, label: "Final report", icon: "trophy" }]
+              : []),
+          ]}
+        />
       </div>
     );
   }

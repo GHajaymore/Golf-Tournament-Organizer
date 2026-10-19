@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
@@ -254,7 +255,17 @@ export default async function PublicLeaderboardPage({
             chose between tables of it. The cup board already lists every
             match in every session. */}
         {cup.ok ? (
-          <CupScoreboard board={cup.board} />
+          <>
+            <CupScoreboard board={cup.board} />
+            {/* The cup is decided: the whole of it, on one page to send round. */}
+            {cup.board.verdict.kind !== "open" && (
+              <p style={{ margin: "14px 0 0", fontSize: 15 }}>
+                <Link href={`/live/${token}/report`} style={{ fontWeight: 600 }}>
+                  Read the final report
+                </Link>
+              </p>
+            )}
+          </>
         ) : board.straightKnockout ? (
           /* A knockout from the first tee: the draw IS the board. Its
              match-points table ranks everybody on nothing (see #633). */
