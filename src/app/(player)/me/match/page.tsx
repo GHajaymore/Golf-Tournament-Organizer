@@ -6,7 +6,7 @@ import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
 import { meFor } from "@/lib/services/me";
 import { prisma } from "@/lib/db";
-import { matchCardFor } from "@/lib/services/match-card";
+import { matchCardFor, matchStrokeCardFor } from "@/lib/services/match-card";
 import { lineupHidden } from "@/lib/domain/cup-lineup";
 import { roundCodeName } from "@/lib/domain/round-label";
 import { matchIsOver } from "@/lib/domain/match";
@@ -14,7 +14,10 @@ import type { HoleResult } from "@/lib/domain";
 import { MatchKeeper } from "@/components/MatchKeeper";
 import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { WayForward } from "@/components/WayForward";
-import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
+import { keepMyMatchHoles, keepMyMatchResult, keepMyMatchCard } from "@/app/actions/tournament";
+import { MatchStrokeKeeper } from "@/components/MatchStrokeKeeper";
+import { matchKeptBy } from "@/lib/domain/match-kept-by";
+import { oneCardPerSide } from "@/lib/domain/team-entry";
 
 export const metadata = screenMetadata("/me/match");
 
@@ -62,7 +65,19 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
     prisma.stage.findMany({
       where: { eventId: state.event.id },
       orderBy: { position: "asc" },
-      select: { id: true, type: true, position: true, format: true, holes: true, nine: true, lineupPublished: true },
+      select: {
+        id: true,
+        type: true,
+        position: true,
+        format: true,
+        holes: true,
+        nine: true,
+        lineupPublished: true,
+        // How the organizer has each round's matches kept (`matchKeptBy`).
+        scoreInput: true,
+        scoringBasis: true,
+        matchKeptBy: true,
+      },
     }),
   ]);
   const stageById = new Map(stages.map((s) => [s.id, s]));
@@ -133,6 +148,47 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
       ])
     : new Map<string, string>();
 
+  const otherMatches = others.map((x, i) => ({ href: `/me/match?m=${encodeURIComponent(x.id)}`, label: `v ${otherNames.get(otherIds[i]) ?? "opponent"}` }));
+  const backToToday = (
+    <Link className="btn btn-secondary" href="/me" style={{ minHeight: 44 }}>
+      Back to Today
+    </Link>
+  );
+
+  // A round the organizer keeps on stroke cards: the player's own ball, and the
+  // app works the match out. Never a tap card on that round, nor the reverse.
+  if (stage && matchKeptBy(stage) === "cards") {
+    const strokeCard = await matchStrokeCardFor({
+      match,
+      holderId: me.playerId,
+      data: card,
+      oneBallPerSide: oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis),
+    });
+    return (
+      <DistanceUnitProvider unit={card.unit}>
+        <MatchStrokeKeeper
+          match={card.match}
+          card={strokeCard}
+          holes={card.holes}
+          pars={card.pars}
+          yards={card.yards}
+          strokeIndex={card.strokeIndex}
+          firstHole={card.firstHole}
+          voiceEntry={settings.voiceEntry}
+          submitWhole={settings.scoreEntryWindow === "after"}
+          stageId={match.stageId}
+          holderId={me.playerId}
+          holderName={me.name ?? "You"}
+          roundLabel={roundCodeName(stages, stage)}
+          eventName={state.event.name}
+          otherMatches={otherMatches}
+          save={keepMyMatchCard}
+          next={backToToday}
+        />
+      </DistanceUnitProvider>
+    );
+  }
+
   return (
     <DistanceUnitProvider unit={card.unit}>
       <MatchKeeper
@@ -149,14 +205,10 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
         stageId={match.stageId}
         roundLabel={stage ? roundCodeName(stages, stage) : ""}
         eventName={state.event.name}
-        otherMatches={others.map((x, i) => ({ href: `/me/match?m=${encodeURIComponent(x.id)}`, label: `v ${otherNames.get(otherIds[i]) ?? "opponent"}` }))}
+        otherMatches={otherMatches}
         saveHoles={keepMyMatchHoles}
         saveResult={keepMyMatchResult}
-        next={
-          <Link className="btn btn-secondary" href="/me" style={{ minHeight: 44 }}>
-            Back to Today
-          </Link>
-        }
+        next={backToToday}
       />
     </DistanceUnitProvider>
   );

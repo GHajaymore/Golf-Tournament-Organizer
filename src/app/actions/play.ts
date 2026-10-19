@@ -8,7 +8,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { usesAccessCodes, canPlayerSavePartial, canEnterScores } from "@/lib/tournament-settings";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { playRefusalFor } from "@/lib/services/action-shared";
-import { cleanHoleResults } from "@/lib/domain/score-payload";
+import { cleanHoleResults, cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { matchIsOver } from "@/lib/domain/match";
 import { roundCodeName } from "@/lib/domain/round-label";
 import { marginRefusal, marginToHoles } from "@/lib/domain";
@@ -16,6 +16,11 @@ import { writeScorecard, certifyCard, assertRoundOpen } from "@/lib/services/sco
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit } from "@/lib/services/action-shared";
 import { isCupSession, lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
+import { keptByRefusal } from "@/lib/services/match-kept-by";
+import { deriveMatchFromItsCards, recomputeTeamMatch } from "@/lib/services/match-from-cards";
+import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
+import { isReturnedCard } from "@/lib/domain/round-handicap";
+import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 
 /**
@@ -293,6 +298,9 @@ export async function savePlayMatchHoles(
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
     return { ok: false, error: "That match isn't in your round." };
   }
+  // Not on a round kept on stroke cards (`matchKeptBy`).
+  const keptOnCards = await keptByRefusal(match.stageId, "holes");
+  if (keptOnCards) return { ok: false, error: keptOnCards };
   // Being "in" a match means being on one of its sides. In an individual
   // format the sides are the two player columns; in a team format those are
   // empty by design and the sides are teams — so checking the player columns
@@ -421,6 +429,9 @@ export async function savePlayMatchResult(
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
     return { ok: false, error: "That match isn't in your round." };
   }
+  // A round kept on stroke cards takes strokes, not a phoned-in result.
+  const keptOnCards = await keptByRefusal(match.stageId, "holes");
+  if (keptOnCards) return { ok: false, error: keptOnCards };
 
   // Same membership rule as savePlayMatchHoles: player columns in an
   // individual format, team membership in a team format.
@@ -624,6 +635,118 @@ export async function certifyPlayCard(): Promise<ClaimResult> {
   }
 
   await logAudit(session.eventId, "card.certify", "Card certified via round code", { actor: session.playerName });
+  boardChanged(session.eventId);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * A MATCH KEPT ON STROKE CARDS, FROM A ROUND CODE (2026-10-19).
+ *
+ * Where the organizer has chosen stroke cards for a round (`matchKeptBy`),
+ * each player enters their own strokes and the app works out who won each
+ * hole, shots included. The match is stored through the SAME functions the
+ * console's Score entry uses (`services/match-from-cards.ts`), so a card typed
+ * on the course and a card typed at the desk are one result by construction.
+ *
+ * The card is the holder's own ball: the slot they play in a singles match,
+ * their own card in a four-ball, or their side's one card where the side plays
+ * one ball (`oneCardPerSide`). Never a ball the caller names — a round code is
+ * a shared secret announced to a field, so anybody holding it could otherwise
+ * write anybody's card. The same gates as the tap card, plus the round's own:
+ * open, and kept on cards.
+ */
+export async function savePlayMatchCard(matchId: string, strokes: (number | null)[]): Promise<ClaimResult> {
+  const session = await getPlaySession();
+  if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+
+  const [event, match] = await Promise.all([
+    prisma.event.findUnique({ where: { id: session.eventId } }),
+    prisma.match.findUnique({ where: { id: matchId } }),
+  ]);
+  if (!event || !match) return { ok: false, error: "Match not found." };
+  const settings = settingsOf(event);
+  if (!canEnterScores(settings, "player")) {
+    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
+  }
+  const notStarted = await playRefusalFor(session.eventId);
+  if (notStarted) return { ok: false, error: notStarted };
+  if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
+    return { ok: false, error: "That match isn't in your round." };
+  }
+  try {
+    await assertRoundOpen(session.eventId, session.stageId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "This round is closed." };
+  }
+  const keptByHoles = await keptByRefusal(match.stageId, "cards");
+  if (keptByHoles) return { ok: false, error: keptByHoles };
+
+  const stage = await prisma.stage.findUnique({
+    where: { id: match.stageId },
+    select: { holes: true, type: true, lineupPublished: true, format: true, scoreInput: true, scoringBasis: true },
+  });
+  if (!stage) return { ok: false, error: "Round not found." };
+  if (lineupHidden(stage)) return { ok: false, error: LINEUP_HIDDEN };
+
+  // Whose ball this card is, from the session — never from the caller.
+  const sideMatch = match.teamAId !== "" && match.teamBId !== "" && match.playerAId === "" && match.playerBId === "";
+  let slot: "A" | "B" | null = null;
+  let teamId = "";
+  if (!sideMatch) {
+    slot = match.playerAId === session.playerId ? "A" : match.playerBId === session.playerId ? "B" : null;
+  } else {
+    const mine = await prisma.teamMember.findFirst({
+      where: { playerId: session.playerId, teamId: { in: [match.teamAId, match.teamBId] } },
+      select: { teamId: true },
+    });
+    teamId = mine?.teamId ?? "";
+  }
+  if (!slot && !teamId) return { ok: false, error: "You can only enter scores for your own match." };
+
+  const holeCount = holesPlayed(stage.holes);
+  const clean = cleanStrokes(strokes, holeCount);
+  if (!clean) return { ok: false, error: strokeFault(strokes, holeCount) };
+  if (!canPlayerSavePartial(settings)) {
+    const filled = clean.filter((s) => typeof s === "number" && s > 0).length;
+    if (filled < clean.length) return { ok: false, error: "Enter the full round, then submit it." };
+  }
+
+  try {
+    if (slot) {
+      await prisma.matchScorecard.upsert({
+        where: { matchId_slot: { matchId: match.id, slot } },
+        update: { strokes: JSON.stringify(clean) },
+        create: { eventId: session.eventId, matchId: match.id, slot, strokes: JSON.stringify(clean) },
+      });
+      if (isReturnedCard(clean)) await freezeRoundHandicaps(session.eventId, match.stageId);
+      await deriveMatchFromItsCards(session.eventId, match, { name: session.playerName, playerId: session.playerId });
+    } else {
+      // A side playing one ball keeps one card between them; otherwise each
+      // partner keeps their own — the committee's shape for this round.
+      const playerId = oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis) ? "" : session.playerId;
+      await prisma.teamScorecard.upsert({
+        where: { stageId_matchId_teamId_playerId: { stageId: match.stageId, matchId: match.id, teamId, playerId } },
+        update: { strokes: JSON.stringify(clean) },
+        create: {
+          eventId: session.eventId,
+          stageId: match.stageId,
+          matchId: match.id,
+          teamId,
+          playerId,
+          strokes: JSON.stringify(clean),
+          pickedUp: "[]",
+        },
+      });
+      if (isReturnedCard(clean)) await freezeRoundHandicaps(session.eventId, match.stageId);
+      await recomputeTeamMatch(session.eventId, match, stage.format, holeCount);
+    }
+  } catch (e) {
+    // A net round with no course card, said by the deriver in words.
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't save that card." };
+  }
+
+  await logAudit(session.eventId, "score", "Card entered via round code", { matchId: match.id, actor: session.playerName });
   boardChanged(session.eventId);
   revalidatePath("/", "layout");
   return { ok: true };

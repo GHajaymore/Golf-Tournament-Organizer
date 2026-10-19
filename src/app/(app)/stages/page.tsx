@@ -184,6 +184,8 @@ export default async function StagesPage() {
     // How scores are RECORDED, as opposed to how they are scored. "" means
     // the round takes whatever its format declares.
     scoreInput: s.scoreInput,
+    // How players keep the round's matches — read through `matchKeptBy`.
+    matchKeptBy: s.matchKeptBy,
     // Whether the organizer has declared the round over. A boolean across the
     // wire because the screen only asks whether, not when — the timestamp is
     // kept for the record and read where that matters.

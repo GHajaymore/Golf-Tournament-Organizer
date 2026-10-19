@@ -195,24 +195,30 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await expect(page.getByText(/Who would you like to play with/)).toHaveCount(0);
   });
 
-  await test.step("Score this match opens the one match card; a side's stroke cards are on Score entry", async () => {
-    // The card round-code holders keep a match on, who won each hole — in the
-    // player app since 2026-10-18 (Ajay, after the first real cup: "keep it in
-    // player app … very simple"). It was the console's stroke cards, which,
-    // saved, rebuild the match from strokes over any holes tapped.
+  await test.step("Score this match opens her own stroke card — Saturday is kept on cards", async () => {
+    // How the organizer set Saturday up (`matchKeptBy`, seeded as chosen
+    // before launch — the choice itself is walked in match-kept-by.spec): on
+    // stroke cards, so the four-ball is decided off the low, below. Sunday's
+    // singles keep the cup-day tap card, walked further down. Ajay,
+    // 2026-10-19: "provide both options for organizer to decide".
     await myMatch(page, "Saturday four-balls").getByRole("link", { name: /Score this match/ }).click();
     await page.waitForURL(/\/me\/match\?m=/);
-    await expect(page.getByRole("group", { name: "Who won hole 1" })).toBeVisible({ timeout: 20_000 });
-    // This cup's sides return stroke cards instead, through Score entry, the
-    // session named — so the four-ball is decided off the low, below.
+    await expect(page.getByText(/Your own card, hole by hole/)).toBeVisible({ timeout: 20_000 });
+    // Never the tap card on a round kept on cards — the two cannot share a match.
+    await expect(page.getByRole("group", { name: "Who won hole 1" })).toHaveCount(0);
+    for (let hole = 1; hole <= 13; hole += 1) {
+      // The pad moves on by itself; the hole on screen is the proof it did.
+      await expect(page.getByLabel(`Strokes on hole ${hole}`)).toBeVisible({ timeout: 20_000 });
+      await page.getByRole("button", { name: /Par$/ }).click();
+    }
+    await expect(page.getByText("13/18 holes")).toBeVisible();
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 20_000 });
+    // And the side's cards are on Score entry too: only the card she may save.
     await open(page, `/entry?round=${(f.sessions as Record<string, string>).fourball}`);
-    await page.waitForLoadState("networkidle");
     await expect(page.getByText(/Saturday four-balls · Four-Ball/).first()).toBeVisible();
-    // Only the card this player may save — not their partner's.
     await page.getByRole("button", { name: "Full card" }).click();
-    await expect(page.getByLabel(`Ailsa Blue, hole 1, par ${PARS[0]}`, { exact: true })).toBeVisible();
+    await expect(page.getByLabel(`Ailsa Blue, hole 13, par ${PARS[12]}`, { exact: true }), "her card, kept in the app, is not the card on Score entry").toHaveValue(String(PARS[12]), { timeout: 20_000 });
     await expect(page.getByLabel(`Bram Blue, hole 1, par ${PARS[0]}`, { exact: true })).toHaveCount(0);
-    await scorePars(page, "Ailsa Blue", 13);
   });
 
   await test.step("the other three four-ball players return their own cards", async () => {

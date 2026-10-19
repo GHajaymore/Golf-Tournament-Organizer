@@ -209,7 +209,7 @@ describe("console form controls are named", () => {
         chainsRounds={false}
         stages={[{
           id: "r1", position: 0, type: "Stroke Play Round", description: "", format: "Scramble", closed: false,
-          holes: 18, playedOn: "", deadline: "", scoringBasis: "net", scoreInput: "", carryEnabled: false, carryPct: 0,
+          holes: 18, playedOn: "", deadline: "", scoringBasis: "net", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
           carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall",
           deadlineOverride: null, optDeadline: "", attendance: null, matchCount: 0, courseId: null, nine: "full",
           teamScoring: null, allowance: null, handicaps: [],
@@ -235,7 +235,7 @@ describe("console form controls are named", () => {
         chainsRounds={false}
         stages={[{
           id: "w1", position: 0, type: "Stroke Play Round", description: "", format: "Stableford", closed: false,
-          holes: 9, playedOn: "", deadline: "", scoringBasis: "net", scoreInput: "", carryEnabled: false, carryPct: 0,
+          holes: 9, playedOn: "", deadline: "", scoringBasis: "net", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
           carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall",
           deadlineOverride: null, optDeadline: "", attendance: null,
           matchCount: 0, courseId: null, nine: "front", teamScoring: null, allowance: null, handicaps: [],

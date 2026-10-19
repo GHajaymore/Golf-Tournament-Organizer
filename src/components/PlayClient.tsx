@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
-import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard } from "@/app/actions/play";
+import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard, savePlayMatchCard } from "@/app/actions/play";
 import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
@@ -15,7 +15,8 @@ import { isStablefordRound } from "@/lib/domain/week-basis";
 import { stablefordPickUp } from "@/lib/domain/card-points";
 import { certifyPrompt } from "@/lib/domain/card-approval";
 import { MatchKeeper } from "./MatchKeeper";
-import type { KeptMatch } from "@/lib/services/match-card";
+import { MatchStrokeKeeper } from "./MatchStrokeKeeper";
+import type { KeptMatch, MatchStrokeCard } from "@/lib/services/match-card";
 import { codeFromLink, formatAccessCode } from "@/lib/code-format";
 
 /** A match as its holder keeps it — built by `matchCardFor`, one type for both pages. */
@@ -77,6 +78,8 @@ interface Props {
    * Null for a gross match, or a card with no stroke index.
    */
   matchShots?: { mine: number[]; theirs: number[] } | null;
+  /** The holder's own stroke card, where the round keeps its matches on cards (`matchKeptBy`). */
+  strokeCard?: MatchStrokeCard;
   /**
    * The format, when the code is for a round played by SIDES — a four-ball or
    * foursomes, kept on one phone. This surface keeps a player's own card or
@@ -972,6 +975,63 @@ function PlayScreens(props: Props) {
 
   /* ── Step 2: the card ─────────────────────────────────────────────── */
 
+  // A cup's second nine is another round with its own code, and the way
+  // to it was a "Sign out" at the foot of the page.
+  const next = (
+    <button
+      type="button"
+      className="btn btn-secondary"
+      style={{ minHeight: 44 }}
+      disabled={pending}
+      onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+    >
+      Enter another round code
+    </button>
+  );
+  const footer = (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+      <span className="text-muted" style={{ fontSize: 13 }}>Playing as {props.playerName}</span>
+      <button
+        type="button"
+        className="btn"
+        style={{ marginLeft: "auto", fontSize: 13, padding: "4px 10px" }}
+        onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+      >
+        Sign out
+      </button>
+    </div>
+  );
+  const otherMatches = props.otherMatches?.map((o) => ({ href: `/play?m=${encodeURIComponent(o.id)}`, label: o.label }));
+
+  // A round the organizer keeps on stroke cards (`matchKeptBy`): the holder's
+  // own ball, and the app works the match out. Never both cards on one round.
+  if (props.strokeCard) {
+    return (
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+        <MatchStrokeKeeper
+          match={props.match!}
+          card={props.strokeCard}
+          holes={props.holes ?? 18}
+          pars={props.pars ?? []}
+          yards={props.yards ?? []}
+          strokeIndex={props.strokeIndex ?? []}
+          firstHole={props.firstHole ?? 1}
+          voiceEntry={props.voiceEntry}
+          submitWhole={props.submitWhole}
+          stageId={props.stageId ?? "play"}
+          holderId={props.playerId ?? "code"}
+          holderName={props.playerName ?? "You"}
+          roundLabel={props.roundLabel}
+          eventName={props.eventName}
+          otherMatches={otherMatches}
+          save={savePlayMatchCard}
+          next={next}
+          footer={footer}
+        />
+      </Shell>
+    );
+  }
+
   // The one match card, shared with the player app — see `MatchKeeper`.
   return (
     <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
@@ -989,35 +1049,11 @@ function PlayScreens(props: Props) {
         stageId={props.stageId}
         roundLabel={props.roundLabel}
         eventName={props.eventName}
-        otherMatches={props.otherMatches?.map((o) => ({ href: `/play?m=${encodeURIComponent(o.id)}`, label: o.label }))}
+        otherMatches={otherMatches}
         saveHoles={savePlayMatchHoles}
         saveResult={savePlayMatchResult}
-        // A cup's second nine is another round with its own code, and the way
-        // to it was a "Sign out" at the foot of the page.
-        next={
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ minHeight: 44 }}
-            disabled={pending}
-            onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
-          >
-            Enter another round code
-          </button>
-        }
-        footer={
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
-            <span className="text-muted" style={{ fontSize: 13 }}>Playing as {props.playerName}</span>
-            <button
-              type="button"
-              className="btn"
-              style={{ marginLeft: "auto", fontSize: 13, padding: "4px 10px" }}
-              onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
-            >
-              Sign out
-            </button>
-          </div>
-        }
+        next={next}
+        footer={footer}
       />
     </Shell>
   );

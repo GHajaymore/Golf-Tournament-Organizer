@@ -25,6 +25,13 @@ export interface TemplateRound {
   holes: number;
   /** Shown on the round card so the sequence explains itself. */
   description?: string;
+  /**
+   * How players keep the round's matches, stated rather than left to the
+   * round's default — so the server holds the round to it (`matchKeptBy`).
+   * Written as `scoreInput` on Match Play and Nassau, which carry the choice
+   * there, and as `matchKeptBy` on any other match.
+   */
+  kept?: "holes" | "cards";
 }
 
 /**
@@ -470,9 +477,12 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       teePolicy: "own",
     },
     rounds: [
-      { type: "Team Session", format: "Four-Ball", scoringBasis: "net", holes: 18, description: "Four-balls" },
-      { type: "Team Session", format: "Foursomes", scoringBasis: "net", holes: 18, description: "Foursomes" },
-      { type: "Team Session", format: "Match Play", scoringBasis: "net", holes: 18, description: "Singles" },
+      // Kept by tapping who won each hole — the card the first real cup was
+      // played on and praised (2026-10-18). The organizer can choose stroke
+      // cards for any session before it is scored.
+      { type: "Team Session", format: "Four-Ball", scoringBasis: "net", holes: 18, description: "Four-balls", kept: "holes" },
+      { type: "Team Session", format: "Foursomes", scoringBasis: "net", holes: 18, description: "Foursomes", kept: "holes" },
+      { type: "Team Session", format: "Match Play", scoringBasis: "net", holes: 18, description: "Singles", kept: "holes" },
     ],
   },
   {
