@@ -15,6 +15,12 @@ import {
 import type { HoleResult } from "../domain/types";
 import { lineupHidden } from "../domain/cup-lineup";
 import { firstHoleForRound } from "../domain/hole-number";
+import { cardLine, type CardLine } from "../domain/card-line";
+import { matchKeptBy } from "../domain/match-kept-by";
+import { oneCardPerSide } from "../domain/team-entry";
+import { holesPlayed } from "../domain/handicap";
+import { loadEventState } from "./tournament";
+import { teamsForStage } from "./teams";
 
 /**
  * THE TEAM CUP BOARD — every session, every match, the running score.
@@ -53,6 +59,12 @@ export interface CupBoardMatch {
   /** Which team conceded, or null. */
   conceded: CupSide | null;
   state: CupMatchState;
+  /**
+   * Each ball's gross and net, side A's and side B's, for a match kept on
+   * stroke cards (`matchKeptBy`) once a card has a hole on it; null otherwise.
+   * "Always publish gross and net" — Ajay, 2026-10-17.
+   */
+  cards: { a: CardLine[]; b: CardLine[]; holes: number } | null;
 }
 
 export interface CupSession {
@@ -205,7 +217,22 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
     prisma.stage.findMany({
       where: { eventId, type: TEAM_SESSION },
       orderBy: { position: "asc" },
-      select: { id: true, format: true, description: true, lineupPublished: true, holes: true, nine: true },
+      select: {
+        id: true,
+        format: true,
+        description: true,
+        lineupPublished: true,
+        holes: true,
+        nine: true,
+        // How the session's matches are kept, and what a side plays off — for
+        // the gross and net under each name of a match kept on cards.
+        type: true,
+        scoreInput: true,
+        matchKeptBy: true,
+        scoringBasis: true,
+        handicapAllowance: true,
+        allowanceWeights: true,
+      },
     }),
   ]);
   const published = new Set(stages.filter((s) => s.lineupPublished).map((s) => s.id));
@@ -234,6 +261,7 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
   ]);
   const sideById = new Map(sides.map((s) => [s.id, s]));
   const playerById = new Map(players.map((p) => [p.id, p]));
+  const cardsByMatch = await cardLinesFor(eventId, stages, matches, sideById, playerById);
 
   /** The flight and the names on one stored side of a match. */
   const sideOf = (
@@ -293,6 +321,10 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
       bSideId: flipped ? m.teamAId || m.playerAId : m.teamBId || m.playerBId,
       conceded,
       state: cupMatchState(input),
+      cards: (() => {
+        const c = cardsByMatch.get(m.id);
+        return c ? { a: flipped ? c.B : c.A, b: flipped ? c.A : c.B, holes: c.holes } : null;
+      })(),
     };
     bySession.set(m.stageId, [...(bySession.get(m.stageId) ?? []), row]);
   }
@@ -327,4 +359,111 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
       verdict: cupVerdict(tally, event.cupPointsToWin, holder, totalKnown),
     },
   };
+}
+
+/**
+ * EACH BALL'S GROSS AND NET, per match, for the sessions kept on stroke cards.
+ *
+ * Read from the rows the cards are saved in — `MatchScorecard` for a singles
+ * match (slot A and B are its two player columns), `TeamScorecard` for a pair
+ * (one card per partner, or the side's one card where the side plays one ball
+ * — `oneCardPerSide`). Keyed by the STORED side, A and B, so the caller flips
+ * them with the rest of the row.
+ *
+ * Net goes through the handicaps the round is scored with: a player's playing
+ * handicap in the match (`matchHandicapFor`, which falls through to the round),
+ * a side's playing handicap (`teamsForStage`), each allocated over the round's
+ * own card (`strokeCourseFor`). The event state is loaded only when a session
+ * kept on cards has a card in it, so a tapped cup's board costs nothing more.
+ */
+async function cardLinesFor(
+  eventId: string,
+  stages: Array<{
+    id: string;
+    type: string;
+    format: string;
+    holes: number;
+    scoreInput: string;
+    matchKeptBy: string;
+    scoringBasis: string;
+    handicapAllowance: number;
+    allowanceWeights: number[];
+  }>,
+  matches: Array<{ id: string; stageId: string; playerAId: string; playerBId: string; teamAId: string; teamBId: string }>,
+  sideById: Map<string, { id: string; members: Array<{ playerId: string; player: { name: string } }> }>,
+  playerById: Map<string, { id: string; name: string }>,
+): Promise<Map<string, { A: CardLine[]; B: CardLine[]; holes: number }>> {
+  const out = new Map<string, { A: CardLine[]; B: CardLine[]; holes: number }>();
+  const onCards = stages.filter((s) => matchKeptBy({ ...s, type: s.type }) === "cards");
+  if (onCards.length === 0) return out;
+  const cardStageIds = new Set(onCards.map((s) => s.id));
+  const cardMatches = matches.filter((m) => cardStageIds.has(m.stageId));
+  if (cardMatches.length === 0) return out;
+  const matchIds = cardMatches.map((m) => m.id);
+  const [singles, sides] = await Promise.all([
+    prisma.matchScorecard.findMany({ where: { matchId: { in: matchIds } }, select: { matchId: true, slot: true, strokes: true } }),
+    prisma.teamScorecard.findMany({
+      where: { stageId: { in: [...cardStageIds] }, matchId: { in: matchIds } },
+      select: { matchId: true, teamId: true, playerId: true, strokes: true },
+    }),
+  ]);
+  if (singles.length === 0 && sides.length === 0) return out;
+
+  const parse = (raw: string): (number | null)[] => {
+    try {
+      const v = JSON.parse(raw) as unknown;
+      return Array.isArray(v) ? v.map((x) => (typeof x === "number" ? x : null)) : [];
+    } catch {
+      return [];
+    }
+  };
+  const state = await loadEventState(eventId);
+  if (!state) return out;
+  const stageById = new Map(onCards.map((s) => [s.id, s]));
+  // A side's playing handicap, per session that plays one ball a side.
+  const sidePlaying = new Map<string, number>();
+  for (const s of onCards) {
+    if (!oneCardPerSide(s.format, s.scoreInput, s.scoringBasis)) continue;
+    for (const t of await teamsForStage(eventId, s.id, s.format, s.handicapAllowance, holesPlayed(s.holes), s.allowanceWeights)) {
+      sidePlaying.set(t.id, t.playingHandicap);
+    }
+  }
+
+  for (const m of cardMatches) {
+    const s = stageById.get(m.stageId)!;
+    const holeCount = holesPlayed(s.holes);
+    const index = state.strokeCourseFor(s.id).holeDifficulty;
+    const line = (name: string, raw: string, playing: number) =>
+      cardLine({ name, strokes: parse(raw), playing, strokeIndex: index, holeCount });
+    const lines = { A: [] as CardLine[], B: [] as CardLine[], holes: holeCount };
+    if (m.playerAId && m.playerBId) {
+      for (const slot of ["A", "B"] as const) {
+        const pid = slot === "A" ? m.playerAId : m.playerBId;
+        const row = singles.find((c) => c.matchId === m.id && c.slot === slot);
+        const l = row ? line(playerById.get(pid)?.name ?? "", row.strokes, state.matchHandicapFor(pid, m.id)) : null;
+        if (l) lines[slot].push(l);
+      }
+    } else {
+      const oneBall = oneCardPerSide(s.format, s.scoreInput, s.scoringBasis);
+      for (const slot of ["A", "B"] as const) {
+        const side = sideById.get(slot === "A" ? m.teamAId : m.teamBId);
+        if (!side) continue;
+        if (oneBall) {
+          const row = sides.find((c) => c.matchId === m.id && c.teamId === side.id && c.playerId === "");
+          const l = row
+            ? line(side.members.map((x) => x.player.name).join(" & "), row.strokes, sidePlaying.get(side.id) ?? 0)
+            : null;
+          if (l) lines[slot].push(l);
+          continue;
+        }
+        for (const member of side.members) {
+          const row = sides.find((c) => c.matchId === m.id && c.teamId === side.id && c.playerId === member.playerId);
+          const l = row ? line(member.player.name, row.strokes, state.matchHandicapFor(member.playerId, m.id)) : null;
+          if (l) lines[slot].push(l);
+        }
+      }
+    }
+    if (lines.A.length || lines.B.length) out.set(m.id, lines);
+  }
+  return out;
 }
