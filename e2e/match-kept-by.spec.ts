@@ -267,6 +267,21 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
     expect((await prisma.stage.findUniqueOrThrow({ where: { id: ids.cards }, select: { matchKeptBy: true } })).matchKeptBy).toBe("cards");
   });
 
+  await test.step("the cup board publishes each ball's gross and net under the names", async () => {
+    // "Always publish gross and net" (Ajay, 2026-10-17): a match kept on cards
+    // has strokes, so the board says what each ball went round in. Gross is
+    // pinned by hand — Edda 3 + 4, Ailsa 4 + 4; the net arithmetic is pinned
+    // in card-line.test.ts.
+    await page.goto(`/cup?bust=${Date.now()}`);
+    const board = page.getByRole("region", { name: "The cup" });
+    await expect(board.getByText(/^7 · net -?\d+ · thru 2$/), "Edda's card is not on the board").toBeVisible({ timeout: 20_000 });
+    await expect(board.getByText(/^8 · net -?\d+ · thru 2$/), "Ailsa's card is not on the board").toBeVisible();
+    // And each under its own side: the Blues on the left, the Whites on the right.
+    const row = board.getByRole("listitem").filter({ hasText: "Zz Ailsa & Zz Bram" }).filter({ hasText: "Zz Edda & Zz Finn" }).first();
+    await expect(row.locator(":scope > span").first(), "Ailsa's figures are not under the Blues").toContainText(/8 · net/);
+    await expect(row.locator(":scope > span").last(), "Edda's figures are not under the Whites").toContainText(/7 · net/);
+  });
+
   await test.step("a round kept by tapping: Score entry offers no cards, and the organizer keeps the match on the tap card", async () => {
     await page.goto(`/entry?round=${encodeURIComponent(ids.taps)}&bust=${Date.now()}`);
     await expect(page.getByText("Kept by tapping who won each hole")).toBeVisible({ timeout: 30_000 });

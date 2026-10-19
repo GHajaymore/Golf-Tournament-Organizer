@@ -1,5 +1,7 @@
 import { cupPoints, type CupVerdict } from "@/lib/domain/cup";
 import type { CupBoard } from "@/lib/services/cup";
+import { cardLineText, type CardLine } from "@/lib/domain/card-line";
+import { distinctLabels } from "@/lib/format";
 
 /** One sentence under the score: who has the cup, or what each team needs. */
 export function cupVerdictLine(board: CupBoard): string {
@@ -109,7 +111,10 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
                     borderTop: "1px solid var(--color-divider)",
                   }}
                 >
-                  <span style={{ fontWeight: m.state.leader === "A" ? 600 : 400, minWidth: 0 }}>{m.a.join(" & ")}</span>
+                  <span style={{ fontWeight: m.state.leader === "A" ? 600 : 400, minWidth: 0 }}>
+                    {m.a.join(" & ")}
+                    <CardFigures lines={m.cards?.a} holes={m.cards?.holes ?? 18} align="left" />
+                  </span>
                   <span
                     style={{
                       fontSize: 13,
@@ -130,6 +135,7 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
                   </span>
                   <span style={{ textAlign: "right", fontWeight: m.state.leader === "B" ? 600 : 400, minWidth: 0 }}>
                     {m.b.join(" & ")}
+                    <CardFigures lines={m.cards?.b} holes={m.cards?.holes ?? 18} align="right" />
                   </span>
                 </li>
               ))}
@@ -154,5 +160,27 @@ function TeamScore({ name, captain, points }: { name: string; captain: string; p
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Each ball's gross and net under the names, for a match kept on stroke cards
+ * — "always publish gross and net" (Ajay, 2026-10-17). One line a ball; a pair
+ * that plays one ball has one. Nothing at all for a tapped match: it has no
+ * strokes to show.
+ */
+function CardFigures({ lines, holes, align }: { lines?: CardLine[]; holes: number; align: "left" | "right" }) {
+  if (!lines || lines.length === 0) return null;
+  // Named only when the side has two balls, by first name, widened where two clash.
+  const short = lines.length > 1 ? distinctLabels(lines.map((l) => l.name)) : [];
+  return (
+    <span className="text-muted" style={{ display: "block", fontSize: 13, fontWeight: 400, textAlign: align, fontVariantNumeric: "tabular-nums" }}>
+      {lines.map((l, i) => (
+        <span key={l.name} style={{ display: "block" }}>
+          {short[i] ? `${short[i]} ` : ""}
+          {cardLineText(l, holes)}
+        </span>
+      ))}
+    </span>
   );
 }
