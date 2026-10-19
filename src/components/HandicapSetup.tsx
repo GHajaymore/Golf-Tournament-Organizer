@@ -4,6 +4,7 @@ import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
+import { aNumber, bodyInProse, bodyShortLabel, handicapBody } from "@/lib/domain/handicap-body";
 
 /**
  * Where this club's handicaps come from, and whether rounds go back.
@@ -22,6 +23,10 @@ import { useAction } from "./useAction";
 
 export interface HandicapSetupView {
   policy: "club" | "hybrid" | "ghin";
+  /** The club's handicap body (`domain/handicap-body.ts`). */
+  body: { id: string; name: string; number: string };
+  /** Whether the club has said where it is — the only thing that decides its body. */
+  countryKnown?: boolean;
   handicap: { providerId: string; label: string; status: string; howToEnable: string };
   scores: {
     enabled: boolean;
@@ -41,6 +46,9 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function HandicapSetup({ view }: { view: HandicapSetupView }) {
   const { pending, error, run } = useAction({ refresh: true });
+  // The club's body, from its country (`clubHandicapBody`) — not picked here.
+  const body = handicapBody(view.body.id) ?? handicapBody("national")!;
+  const from = bodyInProse(body);
 
   // Shown for hybrid as well: a hybrid club still needs the connection for
   // the half of its roster that has numbers.
@@ -64,14 +72,32 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
         </FieldInfo>
       </div>
 
+      {/* The body the club's members belong to, from where the club is —
+          GHIN in the US, England Golf in England, Golf Ireland north and south
+          (Ajay, 2026-10-17: "make it geographical vs US enforced"). Said, not
+          picked: the way to change it is to say where the club is. */}
+      <p style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
+        <span style={{ fontWeight: 600 }}>Handicap body: {body.name}</span>
+        <span className="text-muted">
+          {" "}
+          — {view.body.id === "national" && !view.countryKnown
+            ? "add your club's country under Branding on this page and this becomes its own body."
+            : "from your club's country."}{" "}
+          It uses the World Handicap System.
+        </span>
+      </p>
+
       <div>
         <span className="card-kicker">Where indexes come from</span>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
           {(
             [
               { id: "club", label: "Entered here only" },
-              { id: "hybrid", label: "Both" },
-              { id: "ghin", label: view.handicap.label + " only" },
+              // Not "Both" (Ajay, 2026-10-17: "what is both means?"): the
+              // button says what it does — the body's index for a member who
+              // has a number, the club's figure for a guest who has none.
+              { id: "hybrid", label: `${bodyShortLabel(body)} where a member has one` },
+              { id: "ghin", label: `${bodyShortLabel(body)} only` },
             ] as const
           ).map((opt) => (
             <button
@@ -81,7 +107,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
               style={{ fontSize: 13, padding: "6px 12px" }}
               aria-pressed={view.policy === opt.id}
               disabled={pending || !view.canEdit}
-              onClick={() => run(() => saveHandicapPolicy(opt.id, view.handicap.providerId))}
+              onClick={() => run(() => saveHandicapPolicy(opt.id))}
             >
               {opt.label}
             </button>
@@ -89,9 +115,9 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
         </div>
         <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           {view.policy === "ghin"
-            ? "Every member plays off a GHIN index. Nobody at the club enters a handicap by hand, and a member without a GHIN number can't be entered until they have one."
+            ? `Every member plays off a Handicap Index from ${from}. Nobody at the club enters a handicap by hand, and a member without ${aNumber(body)} can't be entered until they have one.`
             : view.policy === "hybrid"
-              ? "Members with a GHIN number play off it; everyone else plays off the club's own figure. Most clubs are this — a society has visitors, and a club has members who have never held an index."
+              ? `Members with ${aNumber(body)} play off their index from ${from}; everyone else plays off the club's own figure. Most clubs are this — a society has visitors, and a club has members who have never held an index.`
               : "Handicaps are entered here: by an organizer, or suggested from your members' cards."}
         </p>
       </div>

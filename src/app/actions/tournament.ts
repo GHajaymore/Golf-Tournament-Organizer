@@ -438,6 +438,8 @@ export interface SignupInput {
   email?: string;
   phone?: string;
   ghin?: string;
+  /** A visitor's own handicap body — `ghin` is their number with it. "" for the club's. */
+  handicapBodyId?: string;
   homeClub?: string;
   handicapSource?: string;
   handicapType?: string;

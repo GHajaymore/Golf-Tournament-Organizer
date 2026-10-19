@@ -641,6 +641,18 @@ model Member {
   email        String @default("")
   phone        String @default("")
   ghin         String @default("")
+  /**
+   * The handicap body this person's index and number are with
+   * (`domain/handicap-body.ts`), or "" for the CLUB's own body.
+   *
+   * For the visitor (Ajay, 2026-10-17: "make sure you do not change the
+   * scenarios where person from another country visit to play an outing"):
+   * under WHS an index is valid everywhere, so an England Golf member at a US
+   * club plays off their England Golf index. `ghin` then holds their number
+   * with THAT body, and a club that plays off its own body only still keeps
+   * the visitor's typed index — it is their body's official figure.
+   */
+  handicapBodyId String @default("")
   homeClub     String @default("")
   gender       String @default("")
   preferredTee String @default("")

@@ -54,7 +54,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "[[Add member]]: Name, Email (how they sign in), Phone, **Handicap index**, **Handicap is for** (18 or 9 holes), plus optional **Gender**, Member number, GHIN, Home club and private Notes. Gender is used for one thing: in a tournament a woman starts on the course's ladies' tees.",
+          "[[Add member]]: Name, Email (how they sign in), Phone, **Handicap index**, **Handicap is for** (18 or 9 holes), plus optional **Gender**, Member number, the member's number with your handicap body (a GHIN number in the US, an England Golf membership number, a Golf Ireland number, a Golf Canada number or a Golf ID in Australia), Home club and private Notes. Gender is used for one thing: in a tournament a woman starts on the course's ladies' tees.",
           "Or bring everyone in at once with [[Import CSV]]. You'll see what was added, updated or skipped, and any columns it didn't recognise. A plus handicap is written “+2.4”, in the file and in the form, and is shown that way on every list.",
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
@@ -62,6 +62,16 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },
+      { kind: "h", text: "Where handicaps come from" },
+      { kind: "where", text: "Club settings → Handicaps" },
+      {
+        kind: "steps",
+        items: [
+          "**Handicap body** is the one your members belong to, and it follows your club's country (set under Branding): GHIN (USGA) in the US, England Golf, Golf Ireland (north and south), Golf Canada or Golf Australia — or **Your national association** anywhere else, and until you have said where the club is. Every one of them uses the World Handicap System.",
+          "Then choose: **Entered here only** (organizers type handicaps, or take the one suggested from members' cards); **‹body› where a member has one** (a member with a number plays off that body's index, a guest or new member off the club's figure — most clubs); or **‹body› only** (nobody types a handicap by hand).",
+          "None of these bodies is connected to TourneyHQ yet, and the screen says so. Until one is, players keep the index already on file, with its age shown — nobody is moved to zero.",
+        ],
+      },
       { kind: "h", text: "Staff" },
       { kind: "where", text: "Set up → Staff & helpers (organizers only)" },
       {
@@ -240,7 +250,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Under **Add someone new**: Player name, Email (required or optional depending on how players sign in), Mobile if required — a tournament whose players sign in with Round Codes never asks for one — **Handicap source** (GHIN, Manual or None), the handicap (a plus handicap is typed “+2.4”) and whether it's an 18- or 9-hole index. Press [[Add to field]]. A handicap in the list below can be corrected in its own box, the same way; it saves when you leave the box, changes this tournament only, and works after setup has locked. Where Members still holds the old figure, the row says so and offers [[Make it … on Members]] — press it when the old figure was a mistake.",
+          "Under **Add someone new**: Player name, Email (required or optional depending on how players sign in), Mobile if required — a tournament whose players sign in with Round Codes never asks for one — **Handicap source** (your club's handicap body, Manual or None — for a visitor from another country press **Visitor from another country?** and pick their body: their own index is valid here under WHS and is kept with their body's name), the handicap (a plus handicap is typed “+2.4”) and whether it's an 18- or 9-hole index. Press [[Add to field]]. A handicap in the list below can be corrected in its own box, the same way; it saves when you leave the box, changes this tournament only, and works after setup has locked. Where Members still holds the old figure, the row says so and offers [[Make it … on Members]] — press it when the old figure was a mistake.",
           "Or [[Import CSV]] with a header row: a **name** column (or First Name and Last Name), plus email and phone if this tournament needs them. A plus handicap is written “+2.4”; a blank means no handicap, not scratch.",
         ],
       },
