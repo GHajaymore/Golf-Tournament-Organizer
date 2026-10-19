@@ -4,6 +4,7 @@ import { lookupFormat } from "../formats";
 import {
   cupMatchState,
   cupTally,
+  cupPointsInPlay,
   cupVerdict,
   pointsToWin,
   type CupMatchInput,
@@ -83,10 +84,21 @@ export interface CupSession {
   matches: CupBoardMatch[];
 }
 
+/** A point in the cup that is not a match — see `CupPoint` — and who has it. */
+export interface CupBoardOutsidePoint {
+  id: string;
+  label: string;
+  points: number;
+  /** The team it went to, or null while it is still to be decided. */
+  side: CupSide | null;
+}
+
 export interface CupBoard {
   teams: [CupTeam, CupTeam];
   sessions: CupSession[];
   tally: CupTally;
+  /** Points outside the matches, in the order the organizer added them. */
+  outside: CupBoardOutsidePoint[];
   target: number;
   verdict: CupVerdict;
 }
@@ -329,7 +341,19 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
     bySession.set(m.stageId, [...(bySession.get(m.stageId) ?? []), row]);
   }
 
-  const tally = cupTally(inputs);
+  // Points outside the matches — a team net total point — counted with them.
+  const outsideRows = await prisma.cupPoint.findMany({
+    where: { eventId },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    select: { id: true, label: true, points: true, groupId: true },
+  });
+  const outside: CupBoardOutsidePoint[] = outsideRows.map((o) => ({
+    id: o.id,
+    label: o.label,
+    points: o.points,
+    side: o.groupId === ta.id ? "A" : o.groupId === tb.id ? "B" : null,
+  }));
+  const tally = cupTally(inputs, outside);
   const holder: CupSide | null =
     event.cupHolderGroupId === ta.id ? "A" : event.cupHolderGroupId === tb.id ? "B" : null;
   // Every session lined up AND announced, so "more than half" is half of the
@@ -354,8 +378,9 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
         };
       }),
       tally,
+      outside,
       // Zero when there is no target yet — see `cupVerdict`'s `totalKnown`.
-      target: event.cupPointsToWin > 0 || totalKnown ? pointsToWin(event.cupPointsToWin, tally.total) : 0,
+      target: event.cupPointsToWin > 0 || totalKnown ? pointsToWin(event.cupPointsToWin, cupPointsInPlay(tally)) : 0,
       verdict: cupVerdict(tally, event.cupPointsToWin, holder, totalKnown),
     },
   };
