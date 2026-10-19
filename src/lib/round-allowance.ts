@@ -157,6 +157,58 @@ export function roundTakesAllowance(s: { format: string; type: string; scoringBa
   return needsTeams(s.format) || individualAllowanceFor(s) !== null;
 }
 
+/**
+ * WHAT A COMMITTEE'S ALLOWANCE IS A PERCENTAGE OF, in a round of this format.
+ *
+ *   "player"       each player's own handicap — an individual net round
+ *   "side:<name>"  the side's handicaps, the way THIS format combines them:
+ *                  foursomes takes a share of the combined figure, a four-ball
+ *                  a share of each partner's, a scramble a table of shares
+ *   "none"         nothing — a gross round's strokes, a match's difference, a
+ *                  bet, a round scored by hand
+ *
+ * Basis-free on purpose: a medal flipped from net to gross and back is the same
+ * round, and the committee's 100% (Appendix C lets a field under thirty play
+ * at it) still means what it meant.
+ */
+export function allowanceMeans(s: { format: string; type: string }): string {
+  if (needsTeams(s.format)) return `side:${findFormat(s.format).name}`;
+  if (isManualFormat(s.format) || !isIndividualStrokeRound(s)) return "none";
+  const engine = findFormat(s.format).engine;
+  return engine === "stroke" || engine === "stableford" || engine === "modified-stableford" ? "player" : "none";
+}
+
+/**
+ * THE COMMITTEE'S FIGURES A ROUND KEEPS WHEN ITS FORMAT CHANGES.
+ *
+ * Found by the panel on 2026-10-17: `setStageFormat` kept `handicapAllowance`
+ * and `allowanceWeights` whatever the new format was. A committee's 95 on a
+ * medal, switched to Foursomes, then played at 95% of the pair's COMBINED
+ * handicaps — the side given nearly twice the strokes Appendix C gives it
+ * (50%) — and a greensomes 55/45 switched to foursomes overrode foursomes'
+ * flat half with a split foursomes does not use (`sidePlayingHandicap` lets a
+ * committee's split win over anything). Nothing said so; the screen showed
+ * the committee's figure as if it had been chosen for the round in front of it.
+ *
+ * The rule: a figure is kept only where it still means the same thing.
+ *   - the allowance, when `allowanceMeans` is the same before and after;
+ *   - the per-player split, only when the format itself is unchanged — a split
+ *     is a statement about one format's table.
+ * Otherwise the round goes back to the recommendation (0 and []), which the
+ * screen shows as such, for the committee to set again if it means to.
+ */
+export function overridesAfterFormatChange(
+  before: { format: string; type: string; handicapAllowance: number; allowanceWeights: number[] },
+  nextFormat: string,
+): { handicapAllowance: number; allowanceWeights: number[] } {
+  const after = { format: nextFormat, type: before.type };
+  const sameFormat = findFormat(before.format).name === findFormat(nextFormat).name;
+  return {
+    handicapAllowance: allowanceMeans(before) === allowanceMeans(after) ? before.handicapAllowance : 0,
+    allowanceWeights: sameFormat ? before.allowanceWeights : [],
+  };
+}
+
 /** What an individual net round's card says about its allowance. */
 export interface RoundAllowanceInfo {
   /** The allowance in force — the committee's, or the recommendation. */
