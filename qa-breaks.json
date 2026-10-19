@@ -1,0 +1,23 @@
+[
+  {
+    "what": "The match card says Us / Them again instead of naming the pairs",
+    "file": "src/components/PlayClient.tsx",
+    "from": "          aName={m.aName}",
+    "to": "          aName={m.side ? \"you\" : m.aName}",
+    "also": [
+      { "from": "          aLabel={sideA}\n          bLabel={sideB}", "to": "          aLabel={m.side ? \"Us\" : sideA}\n          bLabel={m.side ? \"Them\" : sideB}" }
+    ],
+    "spec": "e2e/round-code-four-ball-side.spec.ts",
+    "grep": "picked an opponent",
+    "project": "phone"
+  },
+  {
+    "what": "A cup foursome is listed as one block of four again",
+    "file": "src/components/PlayClient.tsx",
+    "from": "                    const split = rows.length > 1 && rows.every(([s]) => s !== \"\");",
+    "to": "                    const split = rows.length > 1 && rows.every(([s]) => s !== \"\") && rows.length > 9;",
+    "spec": "e2e/round-code-four-ball-side.spec.ts",
+    "grep": "come in the round's groups",
+    "project": "phone"
+  }
+]
