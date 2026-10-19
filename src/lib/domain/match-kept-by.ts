@@ -8,13 +8,14 @@
  * Both are good. What is NOT good is both on one match: a stroke card rebuilds
  * the match from strokes, over holes somebody tapped, and the tapped holes
  * leave card rows behind that the next card save rebuilds from. So a round is
- * kept ONE way, and every surface — the round-code card, the player app, the
- * console's Score entry and the server — asks this function which.
+ * kept ONE way: every surface — the round-code card, the player app, the
+ * console's Score entry — asks `matchKeptBy` which card to draw, and the server
+ * refuses the other kind wherever the choice was stated (`matchKeptByChosen`).
  *
  * Pure, and the only reader of `Stage.matchKeptBy`.
  */
 import { isHeadToHead, isKnockoutRound } from "@/lib/stage-types";
-import { findFormat, inputChoices, resolveScoreInput } from "@/lib/formats";
+import { findFormat, inputChoices, inputOverrideApplies, resolveScoreInput } from "@/lib/formats";
 import { isCupSession } from "@/lib/domain/cup-lineup";
 
 export type MatchKeptBy = "holes" | "cards";
@@ -71,6 +72,34 @@ export function matchKeptBy(stage: {
   const chosen = (stage.matchKeptBy ?? "").trim();
   if (chosen === "holes" || chosen === "cards") return chosen;
   return isCupSession(stage) ? "holes" : "cards";
+}
+
+/**
+ * The way this round's matches are kept WHERE SOMEBODY SAID SO, or null.
+ *
+ * What a screen offers follows `matchKeptBy`, defaults included. What the
+ * SERVER refuses follows this: a stated choice — "How scores are recorded" on
+ * Match Play and Nassau, the setting on any other match round, or a template
+ * that states it (a cup is created kept by tapping). A round nobody has
+ * decided keeps taking both, as it always has: the console's own default for
+ * a net match with a course card is a stroke card, so refusing cards on every
+ * undecided Match Play round would refuse the committee's ordinary entry.
+ * Measured before deciding (2026-10-19, dev): 54 Match Play rounds, none with
+ * a stated choice.
+ */
+export function matchKeptByChosen(stage: {
+  type: string;
+  format: string;
+  scoreInput: string | null;
+  matchKeptBy: string | null;
+}): MatchKeptBy | null {
+  if (matchKeptBy(stage) === null) return null;
+  if (keptByScoreInput(stage.format)) {
+    // Only a value the format offers counts as said (`inputOverrideApplies`).
+    return inputOverrideApplies(stage.format, stage.scoreInput) ? matchKeptBy(stage) : null;
+  }
+  const chosen = (stage.matchKeptBy ?? "").trim();
+  return chosen === "holes" || chosen === "cards" ? chosen : null;
 }
 
 /** Said when a tap reaches a round kept on cards. */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { matchKeptBy, keptByScoreInput, MATCH_KEPT_BY } from "@/lib/domain/match-kept-by";
+import { matchKeptBy, matchKeptByChosen, keptByScoreInput, MATCH_KEPT_BY } from "@/lib/domain/match-kept-by";
+import { TOURNAMENT_TEMPLATES } from "@/lib/tournament-templates";
 import { GOLF_FORMATS } from "@/lib/formats";
 
 const round = (type: string, format: string, scoreInput = "", kept = "") => ({
@@ -62,6 +63,35 @@ describe("how a round's matches are kept", () => {
 
   it("the formats that carry the choice in scoreInput are the two that offer hole results", () => {
     expect(GOLF_FORMATS.filter((f) => keptByScoreInput(f.name)).map((f) => f.name).sort()).toEqual(["Match Play", "Nassau"]);
+  });
+
+  it("the server holds a round only to a STATED choice", () => {
+    // Undecided: what screens offer has a default, and nothing is refused —
+    // the console's own default for a net match is a stroke card.
+    expect(matchKeptByChosen(round("Round Robin", "Match Play"))).toBeNull();
+    expect(matchKeptByChosen(round("Team Session", "Four-Ball"))).toBeNull();
+    expect(matchKeptByChosen(round("Round Robin", "Four-Ball"))).toBeNull();
+    // Said on How scores are recorded, or on the setting.
+    expect(matchKeptByChosen(round("Round Robin", "Match Play", "hole-results"))).toBe("holes");
+    expect(matchKeptByChosen(round("Round Robin", "Match Play", "gross-cards"))).toBe("cards");
+    expect(matchKeptByChosen(round("Team Session", "Four-Ball", "", "holes"))).toBe("holes");
+    expect(matchKeptByChosen(round("Round Robin", "Four-Ball", "", "cards"))).toBe("cards");
+    // A value the format does not offer is not a statement.
+    expect(matchKeptByChosen(round("Round Robin", "Match Play", "side-only"))).toBeNull();
+    expect(matchKeptByChosen(round("Team Session", "Four-Ball", "", "strokes"))).toBeNull();
+    // And never on a round with no matches.
+    expect(matchKeptByChosen(round("Stroke Play Round", "Stroke Play", "", "cards"))).toBeNull();
+  });
+
+  it("a cup made from the template is kept by tapping, stated", () => {
+    const cup = TOURNAMENT_TEMPLATES.find((t) => t.rounds?.some((r) => r.type === "Team Session"));
+    expect(cup, "no cup template").toBeDefined();
+    for (const r of cup!.rounds ?? []) {
+      const stated = keptByScoreInput(r.format)
+        ? round(r.type, r.format, r.kept === "cards" ? "gross-cards" : "hole-results")
+        : round(r.type, r.format, "", r.kept ?? "");
+      expect(matchKeptByChosen(stated), `${r.description}`).toBe("holes");
+    }
   });
 
   it("offers exactly the two ways, each said in words", () => {

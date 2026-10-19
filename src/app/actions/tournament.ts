@@ -4265,6 +4265,12 @@ export async function createEvent(
         format: r.format,
         holes: r.holes,
         scoringBasis: basisFor(r.format, r.scoringBasis),
+        // How the template keeps its matches, where it says (`TemplateRound.kept`).
+        ...(r.kept
+          ? keptByScoreInput(r.format)
+            ? { scoreInput: r.kept === "cards" ? "gross-cards" : "hole-results" }
+            : { matchKeptBy: r.kept }
+          : {}),
       })),
     });
     // A new event has no flights and the schema's rule — the default for no
