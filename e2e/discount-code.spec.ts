@@ -66,6 +66,12 @@ test("a club's Commissioner applies a discount code on the plan panel and is tol
     await expect(box, "the plan panel has no discount box for the club's Commissioner").toBeVisible({ timeout: 20_000 });
     const apply = page.getByRole("button", { name: "Apply" });
     const note = page.locator("#plan-discount-note");
+    // Where somebody typing a code has it: in the middle of the screen. A click
+    // only scrolls as far as the button, and at 1280x900 that left the box on
+    // the bottom edge, with the answer drawn under it — beside the box, and a
+    // line below the fold (desktop, CI, 2026-10-18). The answer's place is
+    // what is tested here; the window's last scroll is not.
+    await box.evaluate((el) => el.scrollIntoView({ block: "center" }));
 
     // A code nobody issued: refused, in words, beside the box.
     await box.fill("ZZNOSUCHCODE");
