@@ -1226,6 +1226,13 @@ model Event {
   cupPointsToWin        Float   @default(0)
   cupHolderGroupId      String  @default("")
   /**
+   * THE FINAL REPORT'S STORY (2026-10-19), as the organizer wrote it; a blank
+   * line between paragraphs. Empty means the report tells the story from the
+   * results alone (`reportStory`), which is what every cup has until somebody
+   * writes one.
+   */
+  reportRecap           String  @default("")
+  /**
    * PLAY IS SUSPENDED — set by the organizer, cleared on resume (2026-09-28).
    * Rule 5.7: the committee may stop play, most often for lightning, and every
    * player must stop. Null while play is on. The note says why ("Lightning in

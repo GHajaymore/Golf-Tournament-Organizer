@@ -411,3 +411,22 @@ export async function removeCupPoint(pointId: string): Promise<Result> {
   await refresh(eventId);
   return { ok: true };
 }
+
+/**
+ * THE FINAL REPORT'S STORY, in the organizer's words (2026-10-19). An empty
+ * story hands the report back to the one it writes from the results.
+ */
+export async function saveReportRecap(text: string): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const recap = String(text ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .slice(0, 4000);
+  const cupStages = await prisma.stage.count({ where: { eventId, type: TEAM_SESSION } });
+  if (cupStages === 0) return { ok: false, error: "This tournament isn't a cup." };
+  await prisma.event.update({ where: { id: eventId }, data: { reportRecap: recap } });
+  await logAudit(eventId, "cup.report", recap ? "Final report story written" : "Final report story cleared");
+  revalidatePath("/cup/report");
+  revalidatePath("/live", "layout");
+  return { ok: true };
+}
