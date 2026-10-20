@@ -9,8 +9,9 @@ import { readSource } from "./source";
  * `placesByValue(rows, (r) => teamPlaceValue(basis, r), …)` — the figure alone,
  * no countback — so a team board shared a place the individual board would
  * have separated (`a-side-is-placed-by-countback.audit.test.ts`). They print the
- * row's place now. The one reader left is the pairs' total over a season's
- * rounds (`PairTotalsTable`), which has no single card to count back on.
+ * row's place now. The one numbering left is the pairs' total over a season's
+ * rounds (`pairTotalPlaces`, which `PairTotalsTable` and the final report both
+ * print), which has no single card to count back on.
  */
 describe("a side's place", () => {
   function sources(dir: string, out: string[] = []): string[] {
@@ -46,7 +47,11 @@ describe("a side's place", () => {
       const code = readSource(f).replace(/export function teamPlaceValue\(/g, "");
       return (code.match(NUMBERED_HERE) ?? []).map(() => f);
     });
-    expect(calls, "print TeamStanding.place").toEqual(["src/components/TeamLeaderboard.tsx"]);
-    expect(readSource("src/components/TeamLeaderboard.tsx")).toMatch(/export function PairTotalsTable[\s\S]*teamPlaceValue\(basis, r\)/);
+    // ONE numbering of the pairs' totals, `pairTotalPlaces`, which the board's
+    // totals table and the final report both print (2026-10-19). It lived
+    // inside `PairTotalsTable` until the report needed the same places.
+    expect(calls, "print TeamStanding.place").toEqual(["src/lib/domain/pair-totals.ts"]);
+    expect(readSource("src/lib/domain/pair-totals.ts")).toMatch(/export function pairTotalPlaces[\s\S]*teamPlaceValue\(basis, r\)/);
+    expect(readSource("src/components/TeamLeaderboard.tsx")).toMatch(/export function PairTotalsTable[\s\S]*pairTotalPlaces\(rows, basis\)/);
   });
 });

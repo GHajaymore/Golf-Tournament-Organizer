@@ -47,6 +47,7 @@ export const REPORT_CSS = `
     radial-gradient(120% 90% at 50% -10%, var(--fr-navy2) 0%, var(--fr-navy) 62%); }
 .fr-mast::after { content: ""; position: absolute; inset: auto 0 0 0; height: 4px;
   background: linear-gradient(90deg, var(--fr-a) 0 var(--fr-split), var(--fr-gold) var(--fr-split) calc(var(--fr-split) + 1.2%), var(--fr-b) calc(var(--fr-split) + 1.2%) 100%); }
+.fr-mast.fr-plain::after { background: var(--fr-gold); }
 .fr-crest { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--fr-gold); font: 600 13px/1 var(--font-body), sans-serif; letter-spacing: .22em; text-transform: uppercase; }
 .fr-crest svg { width: 30px; height: 30px; flex: none; }
 .fr-mast h1 { font: 600 clamp(1.75rem, 5.4vw, 2.6rem)/1.12 var(--font-heading); text-align: center; margin: 12px 0 4px; text-wrap: balance; }
@@ -119,6 +120,22 @@ export const REPORT_CSS = `
 .fr-bar { height: 8px; border-radius: 99px; background: var(--fr-rule); overflow: hidden; }
 .fr-bar i { display: block; height: 100%; border-radius: 99px; background: var(--fr-muted); }
 .fr-pts { text-align: right; font: 600 16px var(--font-scoreboard), sans-serif; font-variant-numeric: tabular-nums; }
+
+/* A tournament that is not a cup: the champion where the cup has its score. */
+.fr-champ { margin-top: 18px; text-align: center; }
+.fr-champ-name { font: 600 clamp(2rem, 8vw, 3.2rem)/1.08 var(--font-heading); color: var(--fr-on-navy); text-wrap: balance; overflow-wrap: anywhere; }
+.fr-champ-fig { margin-top: 6px; font: 600 18px var(--font-scoreboard), "Arial Narrow", sans-serif; letter-spacing: .06em; color: var(--fr-on-navy-muted); }
+.fr-board-wrap { overflow-x: auto; margin-top: 12px; }
+.fr-board { width: 100%; border-collapse: collapse; font-size: 16px; font-variant-numeric: tabular-nums; }
+.fr-board th { font: 600 13px var(--font-body), sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--fr-muted); text-align: right; padding: 0 0 6px 10px; white-space: nowrap; }
+.fr-board th:nth-child(1), .fr-board th:nth-child(2) { text-align: left; }
+.fr-board td { border-top: 1px solid var(--fr-rule); padding: 9px 0 9px 10px; text-align: right; white-space: nowrap; }
+.fr-board td:nth-child(1) { width: 3.2em; padding-left: 0; text-align: left; color: var(--fr-muted); font-family: var(--font-scoreboard), sans-serif; }
+.fr-board td:nth-child(2) { text-align: left; white-space: normal; overflow-wrap: anywhere; min-width: 9em; }
+.fr-board td.fr-note { color: var(--fr-muted); font-size: 14px; }
+.fr-board tr.fr-top td { font-weight: 700; color: var(--fr-ink); }
+.fr-board tr.fr-top td:nth-child(1) { color: var(--fr-ink); }
+.fr-board td.fr-figs { font-family: var(--font-scoreboard), sans-serif; }
 
 .fr-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--fr-muted); padding: 2px 4px 0; }
 .fr-foot b { color: var(--fr-ink); font-weight: 600; letter-spacing: .08em; }

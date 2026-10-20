@@ -299,3 +299,108 @@ export function reportStory(input: ReportStoryInput): string[] {
   }
   return [first.join(" "), second.join(" ")].filter(Boolean);
 }
+
+/* ------------------------------------------------------------------------ */
+/*  Every other tournament: a champion, not a cup score                      */
+/* ------------------------------------------------------------------------ */
+
+/** What a board ranks on, as the board itself decides it (see `rankedScore`). */
+export interface RankBasis {
+  isStroke: boolean;
+  isStableford: boolean;
+  isNet: boolean;
+}
+
+/**
+ * The figure a finishing place was won on, in words: "net 66", "gross 72",
+ * "38 points", "4 match points". Read off the same row and the same basis the
+ * board ranks on, so the report cannot name a different figure from the board.
+ */
+export function placeFigure(
+  row: { gross: number; net: number; points: number; pts: string },
+  basis: RankBasis,
+): string {
+  if (!basis.isStroke) return `${row.pts || "0"} match points`;
+  if (basis.isStableford) return `${row.points} points`;
+  return basis.isNet ? `net ${row.net}` : `gross ${row.gross}`;
+}
+
+/**
+ * A SIDE's figure in a team round, on the basis that round is decided on
+ * (`WeekBasis`): "41 points", "net 62", "gross 70".
+ */
+export function sideFigure(row: { gross: number; net: number; points: number }, basis: "stableford" | "gross" | "net"): string {
+  if (basis === "stableford") return `${row.points} points`;
+  return basis === "net" ? `net ${row.net}` : `gross ${row.gross}`;
+}
+
+/** A finishing place: who holds it — one name, or several when it is shared — and on what. */
+export interface Place {
+  names: string[];
+  figure: string;
+}
+
+/**
+ * The line under the champion's name. A tie at the top is never broken here:
+ * the committee settles it (a countback, a play-off, a shared title), and the
+ * report says only what is true — that the place is shared. Nothing while the
+ * tournament is still being played.
+ */
+export function eventRibbon(input: { completed: boolean; first: Place | null }): string {
+  if (!input.completed || !input.first || input.first.names.length === 0) return "";
+  return input.first.names.length === 1 ? "Champion" : "Shared first place";
+}
+
+/**
+ * THE STORY OF A TOURNAMENT, told from the results alone, until the organizer
+ * writes their own: who won and on what, who was second, and — where there was
+ * more than one round — each round's result as the board words it. Nothing a
+ * result cannot show is guessed at.
+ */
+export function eventStory(input: {
+  completed: boolean;
+  first: Place | null;
+  second: Place | null;
+  /** Each round's result, one sentence a round (`resultLinesFor`); said only where there were several. */
+  rounds: Array<{ label: string; result: string }>;
+}): string[] {
+  const out: string[] = [];
+  const { first, second } = input;
+  if (first && first.names.length > 0) {
+    const who = listWords(first.names);
+    const several = first.names.length > 1;
+    const lead: string[] = [];
+    // A knockout's places are won in matches, not on a figure: " on …" only where there is one.
+    const on = (p: Place) => (p.figure ? ` on ${p.figure}` : "");
+    if (!input.completed) {
+      lead.push(`${who} ${several ? "lead" : "leads"}${on(first)}, with the tournament still to finish.`);
+    } else if (several) {
+      lead.push(`${who} finished level at the top${on(first)}. A tie for first place is the committee's to settle.`);
+    } else if (second && first.figure && second.figure === first.figure) {
+      // Level on the figure and still placed apart: the board's countback
+      // decided it. Said, so "won on gross 74 … second, on gross 74" never
+      // reads as one equal score beating another.
+      lead.push(`${who} won${on(first)}, ahead of ${listWords(second.names)} on countback.`);
+      out.push(lead.join(" "));
+      if (input.rounds.length > 1) {
+        out.push(input.rounds.map((r) => `${r.label}: ${r.result.replace(/\.?$/, ".")}`).join(" "));
+      }
+      return out;
+    } else {
+      lead.push(`${who} won${on(first)}.`);
+    }
+    if (second && second.names.length > 0 && !(several && input.completed)) {
+      const by = second.figure ? `, on ${second.figure}` : "";
+      lead.push(
+        second.names.length === 1
+          ? `${second.names[0]} ${input.completed ? "was second" : "is next"}${by}.`
+          : `${listWords(second.names)} ${input.completed ? "shared second" : "are next"}${by}.`,
+      );
+    }
+    out.push(lead.join(" "));
+  }
+  if (input.rounds.length > 1) {
+    out.push(input.rounds.map((r) => `${r.label}: ${r.result.replace(/\.?$/, ".")}`).join(" "));
+  }
+  return out;
+}

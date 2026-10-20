@@ -29,6 +29,7 @@ import { CommentaryFeed } from "@/components/CommentaryFeed";
 import { PublicContests } from "@/components/PublicContests";
 import { playStatusOf } from "@/lib/domain/play-status";
 import { golfTermsForEvent } from "@/lib/services/organization";
+import { isMatch } from "@/lib/tournament-shape";
 
 /**
  * The public read-only leaderboard.
@@ -242,6 +243,22 @@ export default async function PublicLeaderboardPage({
             </div>
           )}
         </header>
+
+        {/* A FINISHED TOURNAMENT'S REPORT (2026-10-19): the whole of it on one
+            page, which is what somebody opening this link after the day came
+            for. A cup's button sits with the cup board below; a casual round
+            has no report. */}
+        {!cup.ok && event.status === "completed" && !isMatch(event.shape) && (
+          <p style={{ margin: "0 0 18px" }}>
+            <Link
+              href={`/live/${token}/report`}
+              className="btn btn-primary"
+              style={{ minHeight: 44, display: "inline-flex", alignItems: "center", fontWeight: 600 }}
+            >
+              Read the final report
+            </Link>
+          </p>
+        )}
 
         {/* What the committee has said, above the scores it is about. Read on every request, not from the
             board's cache: a line posted is a line the next refresh shows. */}
