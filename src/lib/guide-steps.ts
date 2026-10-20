@@ -412,6 +412,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "On Flights choose **Manual** and make exactly two flights, named for the teams.",
           "Add rounds of type **Team session** (four-ball, foursomes or singles match play).",
           "On **Team cup**, set each session's **Lineups**. A match is worth a point, a half each for a halve.",
+          "Name a session — “Saturday four-balls” — with [[Rename]] beside its title; that name is what the board, the players and the final report call it. Leave it empty and it is “Session 1”, “Session 2”.",
           "A point that isn't a match — the lower team net total, say — goes under **Other points**: name it and give it a value with [[Add point]], and it counts in the cup's total straight away, so the target is right before it is decided. Give it to a team when it is; until then the board says **To be decided**.",
           "**Final report**, under the cup's score, is the whole cup on one page to send round: the score, every session's matches, who won every match they played and each player's points. Write **The story** in your own words and [[Save the story]], or leave it empty and the report tells it from the results. Once the cup is decided, the public leaderboard and the players' Board link to it.",
         ],

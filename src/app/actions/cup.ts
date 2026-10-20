@@ -124,6 +124,40 @@ export async function renameCupTeam(groupId: string, name: string): Promise<Resu
   return { ok: true };
 }
 
+/** The longest name a session's label slot shows (`roundKicker`). */
+const SESSION_NAME_MAX = 24;
+
+/**
+ * A SESSION'S NAME (2026-10-20) — "Saturday four-balls", "Sunday singles".
+ *
+ * Until now a cup session had whatever its template wrote, or — added with
+ * "Add round" — the type's own sentence, with no way to change either; the
+ * name is what the board, the players and the final report call it. Not
+ * behind the setup lock: like the lineup, it is the captains' to settle on
+ * the day. A name is a label, so it is held to a label's length; an empty one
+ * hands the session back to "Session N".
+ */
+export async function nameCupSession(stageId: string, name: string): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const clean = String(name ?? "")
+    .trim()
+    .replace(/[.!?]+$/, "")
+    .trim();
+  if (clean.length > SESSION_NAME_MAX) {
+    return { ok: false, error: `Keep it to ${SESSION_NAME_MAX} characters — it is a name, like “Saturday four-balls”.` };
+  }
+  // Narrowed to this event's cup sessions in the query itself.
+  const stage = await prisma.stage.findFirst({
+    where: { id: String(stageId), eventId, type: TEAM_SESSION },
+    select: { id: true, description: true },
+  });
+  if (!stage) return { ok: false, error: "That isn't one of this cup's sessions." };
+  await prisma.stage.update({ where: { id: stage.id }, data: { description: clean } });
+  await logAudit(eventId, "cup.session", clean ? `Session named: ${clean}` : "Session name cleared");
+  await refresh(eventId);
+  return { ok: true };
+}
+
 /**
  * Put a player on a team, or take them off ("" for neither).
  *
