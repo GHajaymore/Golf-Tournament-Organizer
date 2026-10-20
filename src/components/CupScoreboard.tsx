@@ -1,4 +1,4 @@
-import { cupPoints, type CupVerdict } from "@/lib/domain/cup";
+import { cupPoints, cupPointsDecided, cupPointsInPlay, type CupVerdict } from "@/lib/domain/cup";
 import type { CupBoard } from "@/lib/services/cup";
 import { cardLineText, type CardLine } from "@/lib/domain/card-line";
 import { distinctLabels } from "@/lib/format";
@@ -12,7 +12,7 @@ export function cupVerdictLine(board: CupBoard): string {
   if (v.kind === "retained") {
     // Level only when every match is in; before that the holder has simply
     // got out of reach, which is how a cup is usually kept.
-    const level = board.tally.decided === board.tally.total && board.tally.a === board.tally.b;
+    const level = cupPointsDecided(board.tally) === cupPointsInPlay(board.tally) && board.tally.a === board.tally.b;
     return level ? `Level — ${name(v.by)} retain the cup.` : `${name(v.by)} retain the cup.`;
   }
   if (v.kind === "tied") return "Level — the cup is shared.";
@@ -143,6 +143,31 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
           )}
         </div>
       ))}
+
+      {/* POINTS OUTSIDE THE MATCHES — a team net total, say — under the
+          sessions, each with who has it or that it is still to be decided. */}
+      {board.outside.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <h3 style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 6px", color: "var(--color-neutral-500)" }}>
+            Other points
+          </h3>
+          <ul aria-label="Other points" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {board.outside.map((o) => (
+              <li
+                key={o.id}
+                style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13.5, padding: "6px 0", borderTop: "1px solid var(--color-divider)" }}
+              >
+                <span style={{ minWidth: 0 }}>
+                  {o.label} <span className="text-muted">· {cupPoints(o.points)} {o.points === 1 ? "point" : "points"}</span>
+                </span>
+                <span style={{ fontWeight: o.side ? 600 : 400, textAlign: "right" }}>
+                  {o.side ? board.teams[o.side === "A" ? 0 : 1].name : <span className="text-muted">To be decided</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

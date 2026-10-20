@@ -6,6 +6,7 @@ import { cupBoard, type CupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { CupLineup } from "@/components/CupLineup";
 import { CupTeams, CreateCupTeams } from "@/components/CupTeams";
+import { CupOtherPoints } from "@/components/CupOtherPoints";
 
 export const metadata = screenMetadata("/cup");
 
@@ -148,6 +149,13 @@ async function StaffLineup({ eventId, board }: { eventId: string; board: CupBoar
         }))}
       />
     </section>
+    <CupOtherPoints
+      teams={[
+        { id: board.teams[0].id, name: board.teams[0].name },
+        { id: board.teams[1].id, name: board.teams[1].name },
+      ]}
+      points={board.outside}
+    />
     </>
   );
 }

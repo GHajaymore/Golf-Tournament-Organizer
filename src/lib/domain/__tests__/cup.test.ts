@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cupMatchState, cupPoints, cupTally, cupVerdict, lineupNotices, pointsToWin, yourMatchLine, type CupMatchInput } from "../cup";
+import { cupMatchState, cupPoints, cupPointsDecided, cupPointsInPlay, cupTally, cupVerdict, lineupNotices, pointsToWin, yourMatchLine, type CupMatchInput } from "../cup";
 import type { HoleResult } from "../types";
 
 /**
@@ -134,7 +134,7 @@ describe("the lineup notice", () => {
 describe("the cup", () => {
   it("adds decided matches only — a lead is not a point", () => {
     const t = cupTally([m("AAAA" + "H".repeat(12)), m("AB" + "H".repeat(16)), m("BB")]);
-    expect(t).toEqual({ a: 1.5, b: 0.5, total: 3, decided: 2, inPlay: 1, notStarted: 0 });
+    expect(t).toEqual({ a: 1.5, b: 0.5, total: 3, decided: 2, inPlay: 1, notStarted: 0, outside: 0, outsideDecided: 0 });
   });
 
   it("the target is more than half the points on offer unless the organizer sets one", () => {
@@ -146,18 +146,18 @@ describe("the cup", () => {
   });
 
   it("is won the moment a team reaches the target, with matches still out", () => {
-    const t = { a: 14.5, b: 9, total: 28, decided: 24, inPlay: 4, notStarted: 0 };
+    const t = { a: 14.5, b: 9, total: 28, decided: 24, inPlay: 4, notStarted: 0, outside: 0, outsideDecided: 0 };
     expect(cupVerdict(t, 0, null)).toEqual({ kind: "won", by: "A" });
   });
 
   it("a holder retains on a tie; without one it is shared", () => {
-    const t = { a: 14, b: 14, total: 28, decided: 28, inPlay: 0, notStarted: 0 };
+    const t = { a: 14, b: 14, total: 28, decided: 28, inPlay: 0, notStarted: 0, outside: 0, outsideDecided: 0 };
     expect(cupVerdict(t, 0, "B")).toEqual({ kind: "retained", by: "B" });
     expect(cupVerdict(t, 0, null)).toEqual({ kind: "tied" });
   });
 
   it("while open, says what each team still needs", () => {
-    const t = { a: 8.5, b: 7.5, total: 28, decided: 16, inPlay: 4, notStarted: 8 };
+    const t = { a: 8.5, b: 7.5, total: 28, decided: 16, inPlay: 4, notStarted: 8, outside: 0, outsideDecided: 0 };
     expect(cupVerdict(t, 0, null)).toEqual({ kind: "open", needA: 6, needB: 7 });
   });
 
@@ -170,11 +170,11 @@ describe("the cup", () => {
   it("a holder retains as soon as the challenger cannot reach the target", () => {
     // B hold. 14 each would be a tie at best for A: 14 + 0 left... A has 13,
     // three matches out, so A can reach 16 and the cup is still open.
-    expect(cupVerdict({ a: 13, b: 12, total: 28, decided: 25, inPlay: 3, notStarted: 0 }, 0, "B")).toMatchObject({ kind: "open" });
+    expect(cupVerdict({ a: 13, b: 12, total: 28, decided: 25, inPlay: 3, notStarted: 0, outside: 0, outsideDecided: 0 }, 0, "B")).toMatchObject({ kind: "open" });
     // B reach 14 with two out: A has 12, can make 14 at most — a tie, which B keep.
-    expect(cupVerdict({ a: 12, b: 14, total: 28, decided: 26, inPlay: 2, notStarted: 0 }, 0, "B")).toEqual({ kind: "retained", by: "B" });
+    expect(cupVerdict({ a: 12, b: 14, total: 28, decided: 26, inPlay: 2, notStarted: 0, outside: 0, outsideDecided: 0 }, 0, "B")).toEqual({ kind: "retained", by: "B" });
     // CONTROL: the same score with NOBODY holding it is not decided — A can still tie.
-    expect(cupVerdict({ a: 12, b: 14, total: 28, decided: 26, inPlay: 2, notStarted: 0 }, 0, null)).toMatchObject({ kind: "open" });
+    expect(cupVerdict({ a: 12, b: 14, total: 28, decided: 26, inPlay: 2, notStarted: 0, outside: 0, outsideDecided: 0 }, 0, null)).toMatchObject({ kind: "open" });
   });
 
   /**
@@ -184,7 +184,7 @@ describe("the cup", () => {
    * weekend existed.
    */
   it("with no target set, nothing is decided while a session has no lineup", () => {
-    const friday = { a: 5, b: 3, total: 8, decided: 8, inPlay: 0, notStarted: 0 };
+    const friday = { a: 5, b: 3, total: 8, decided: 8, inPlay: 0, notStarted: 0, outside: 0, outsideDecided: 0 };
     expect(cupVerdict(friday, 0, null, false)).toEqual({ kind: "open", needA: null, needB: null });
     // CONTROL: once every session is lined up, the same arithmetic decides it.
     expect(cupVerdict(friday, 0, null, true)).toEqual({ kind: "won", by: "A" });
@@ -197,5 +197,50 @@ describe("the cup", () => {
     expect(cupPoints(0.5)).toBe("½");
     expect(cupPoints(14)).toBe("14");
     expect(cupPoints(0)).toBe("0");
+  });
+});
+
+/**
+ * POINTS OUTSIDE THE MATCHES (2026-10-19). The first real cup was fifteen
+ * matches and a sixteenth point for the lower team net total — which CDG won,
+ * and which the app had nowhere to put. Worked by hand: sixteen points, so 8½
+ * to win.
+ */
+describe("a point outside the matches", () => {
+  const won = (side: "A" | "B"): CupMatchInput => ({ holes: Array(18).fill(side) as HoleResult[], conceded: null });
+  const halved: CupMatchInput = { holes: Array(18).fill("H") as HoleResult[], conceded: null };
+  const level = [...Array(7).fill(won("A")), ...Array(7).fill(won("B")), halved];
+
+  it("counts in the total before it is awarded, and in nobody's score", () => {
+    const t = cupTally(level, [{ side: null, points: 1 }]);
+    expect([t.a, t.b, t.total, t.decided, t.outside, t.outsideDecided]).toEqual([7.5, 7.5, 15, 15, 1, 0]);
+    expect(cupPointsInPlay(t)).toBe(16);
+    expect(cupPointsDecided(t)).toBe(15);
+    // Fifteen matches level: the sixteenth point decides it, so the cup is open.
+    expect(cupVerdict(t, 0, null)).toEqual({ kind: "open", needA: 1, needB: 1 });
+  });
+
+  it("decides the cup when it is awarded", () => {
+    const t = cupTally(level, [{ side: "B", points: 1 }]);
+    expect([t.a, t.b]).toEqual([7.5, 8.5]);
+    expect(cupVerdict(t, 0, null)).toEqual({ kind: "won", by: "B" });
+  });
+
+  it("the first cup: 5½ – 9½ in the matches, the 16th point to CDG — 5½ – 10½", () => {
+    const matches = [...Array(5).fill(won("A")), ...Array(9).fill(won("B")), halved];
+    const t = cupTally(matches, [{ side: "B", points: 1 }]);
+    expect([t.a, t.b, cupPointsInPlay(t)]).toEqual([5.5, 10.5, 16]);
+    expect(pointsToWin(0, cupPointsInPlay(t))).toBe(8.5);
+  });
+
+  it("CONTROL: without it, the same matches are a cup of fifteen", () => {
+    const t = cupTally(level);
+    expect([t.outside, cupPointsInPlay(t)]).toEqual([0, 15]);
+    expect(cupVerdict(t, 0, null)).toEqual({ kind: "tied" });
+  });
+
+  it("a value that is not a positive number counts for nothing", () => {
+    const t = cupTally(level, [{ side: "A", points: Number.NaN }, { side: "A", points: -1 }]);
+    expect([t.a, t.outside]).toEqual([7.5, 0]);
   });
 });

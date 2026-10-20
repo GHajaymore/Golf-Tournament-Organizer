@@ -459,3 +459,10 @@ jobs:
       # green, rather than on push regardless.
       - name: Deploy
         run: vercel deploy --prod --token="$VERCEL_TOKEN"
+
+      # AND THEN LOOK AT WHAT SHIPPED (docs/release-strategy.md, step 2). The
+      # gate above proved a build; this proves the site members open: the
+      # public doors of tourneyhq.club answer as pages, and a missing page is
+      # a 404 rather than a 500. Read-only — no cookie, nothing written.
+      - name: Smoke-test production
+        run: node scripts/prod-smoke.mjs
