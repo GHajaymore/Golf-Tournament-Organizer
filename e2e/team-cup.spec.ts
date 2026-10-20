@@ -482,7 +482,7 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await open(page, "/cup");
     await page.getByRole("button", { name: "Rename Sunday singles" }).click();
     await page.getByRole("textbox", { name: "Session name" }).fill("Final day singles");
-    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByRole("button", { name: "Save name" }).click();
     await expect(page.getByRole("region", { name: "Final day singles lineup" })).toBeVisible({ timeout: 20_000 });
 
     await page.context().clearCookies();

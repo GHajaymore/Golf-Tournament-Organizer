@@ -356,7 +356,7 @@ function SessionNamer({ stageId, name }: { stageId: string; name: string }) {
         style={{ flex: "1 1 160px", minWidth: 0 }}
       />
       <button type="submit" className="btn btn-primary" disabled={pending} style={{ minHeight: 44 }}>
-        {pending ? "Saving…" : "Save"}
+        {pending ? "Saving…" : "Save name"}
       </button>
       <button
         type="button"
