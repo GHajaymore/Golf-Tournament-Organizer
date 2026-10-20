@@ -419,7 +419,14 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
   await test.step("the final report tells the whole cup, from the board's own link", async () => {
     await page.context().clearCookies();
     await open(page, `/live/${f.shareToken}`);
-    await page.getByRole("link", { name: "Read the final report" }).click();
+    // Above the cup board, where a member who opened the link looks first.
+    const toReport = page.getByRole("link", { name: "Read the final report" });
+    const [linkBox, boardBox] = await Promise.all([
+      toReport.boundingBox(),
+      page.getByRole("region", { name: "The cup" }).boundingBox(),
+    ]);
+    expect(linkBox!.y, "the report's button sits above the cup board").toBeLessThan(boardBox!.y);
+    await toReport.click();
     await page.waitForURL(/\/live\/[^/]+\/report$/);
     const report = page.getByRole("main");
     await expect(report.getByRole("heading", { level: 1 })).toHaveText(CUP_EVENT);

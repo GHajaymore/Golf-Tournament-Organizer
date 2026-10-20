@@ -256,15 +256,21 @@ export default async function PublicLeaderboardPage({
             match in every session. */}
         {cup.ok ? (
           <>
-            <CupScoreboard board={cup.board} />
-            {/* The cup is decided: the whole of it, on one page to send round. */}
+            {/* The cup is decided: the whole of it, on one page to send round.
+                ABOVE the board, as a button, because once the result is in it
+                is what a member opening this link has come for. */}
             {cup.board.verdict.kind !== "open" && (
-              <p style={{ margin: "14px 0 0", fontSize: 15 }}>
-                <Link href={`/live/${token}/report`} style={{ fontWeight: 600 }}>
+              <p style={{ margin: "0 0 14px" }}>
+                <Link
+                  href={`/live/${token}/report`}
+                  className="btn btn-primary"
+                  style={{ minHeight: 44, display: "inline-flex", alignItems: "center", fontWeight: 600 }}
+                >
                   Read the final report
                 </Link>
               </p>
             )}
+            <CupScoreboard board={cup.board} />
           </>
         ) : board.straightKnockout ? (
           /* A knockout from the first tee: the draw IS the board. Its
