@@ -36,19 +36,36 @@ describe("who may sign in while closed", () => {
     expect(maySignIn(undefined, CLOSED)).toBe(false);
   });
 
-  it("THE LIST IS THE SWITCH: with nobody on it, everybody may — dev, CI, every e2e run, and production today", () => {
-    for (const SIGNIN_ALLOW_EMAILS of [undefined, "", "  ", " , "]) {
-      const env = { VERCEL_ENV: "production", SIGNIN_ALLOW_EMAILS };
+  it("OPEN EVERYWHERE THAT IS NOT PRODUCTION — dev, CI, every e2e run, every preview — with no list", () => {
+    for (const VERCEL_ENV of [undefined, "", "preview", "development"]) {
+      for (const SIGNIN_ALLOW_EMAILS of [undefined, "", "  ", " , "]) {
+        const env = { VERCEL_ENV, SIGNIN_ALLOW_EMAILS, OWNER_EMAILS: "boss@example.invalid" };
+        expect(signInsClosed(env), `${VERCEL_ENV}`).toBe(false);
+        expect(maySignIn("visitor@example.invalid", env)).toBe(true);
+      }
+    }
+  });
+
+  it("PRODUCTION IS HELD UNTIL LAUNCH, its owners let through (Ajay, 2026-10-21)", () => {
+    // Measured that day: production's owner list holds his address (/owner answered 200).
+    const env = { VERCEL_ENV: "production", OWNER_EMAILS: "boss@example.invalid" };
+    expect(signInsClosed(env)).toBe(true);
+    expect(maySignIn("boss@example.invalid", env)).toBe(true);
+    expect(maySignIn("visitor@example.invalid", env)).toBe(false);
+  });
+
+  it("…but never with nobody to let through: an empty owner list leaves production open, so it cannot lock everyone out", () => {
+    for (const OWNER_EMAILS of [undefined, "", " , "]) {
+      const env = { VERCEL_ENV: "production", OWNER_EMAILS };
       expect(signInsClosed(env)).toBe(false);
       expect(maySignIn("visitor@example.invalid", env)).toBe(true);
     }
   });
 
-  it("OWNER_EMAILS alone does not close anything — an owner list that does not hold the owner cannot lock them out", () => {
-    // Measured 2026-10-17: production's OWNER_EMAILS did not hold the owner's address.
-    const env = { VERCEL_ENV: "production", OWNER_EMAILS: "somebody-else@example.invalid" };
+  it("LAUNCH: SIGNINS=open opens production", () => {
+    const env = { VERCEL_ENV: "production", OWNER_EMAILS: "boss@example.invalid", SIGNINS: "open" };
     expect(signInsClosed(env)).toBe(false);
-    expect(maySignIn("owner@example.invalid", env)).toBe(true);
+    expect(maySignIn("visitor@example.invalid", env)).toBe(true);
   });
 
   it("SIGNINS=open opens it without deleting the list", () => {
@@ -113,9 +130,13 @@ describe("the front door says so before the form", () => {
     expect(html).toContain("href=\"/play\"");
     // An interested visitor is sent to the live inquiries mailbox.
     expect(html).toContain("href=\"mailto:inquiries@tourneyhq.club?subject=");
-    // The offer is the first payment only — never "for life", never every payment.
-    expect(html).toContain("25% off their first payment");
-    expect(html).not.toMatch(/for life|every payment|forever/i);
+    // NO DISCOUNT IS PUBLISHED (Ajay, 2026-10-21: "do not publish the discount
+    // code") — the notice invites them to write, and the offer goes in the reply.
+    // The notice's WORDS, before the form: the form keeps its own optional
+    // discount box, and the markup's styles are full of percentages.
+    const notice = html.slice(0, html.indexOf("<form")).replace(/<[^>]*>/g, " ");
+    expect(notice).toContain(SIGNINS_CLOSED_NOTICE.interestedLead);
+    expect(notice).not.toMatch(/\d+\s*%|discount|off (their|your) first/i);
     expect(html.indexOf(SIGNINS_CLOSED_NOTICE.lead)).toBeLessThan(html.indexOf("<form"));
   });
 
