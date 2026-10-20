@@ -44,20 +44,26 @@ refused, and a refused fixture does not fail loudly — every screen answers 307
 page, which a route walk reads as the app working. `session-token.test.ts` sweeps `e2e/` and
 `scripts/` for the old spellings.
 
-## Sign-ins until launch: the list is the switch
+## Sign-ins until launch: production is held
 
-Ajay, 2026-10-17: "block the signins until I say so or when we launch … app is not ready yet".
-`src/lib/sign-in-gate.ts`. When `SIGNIN_ALLOW_EMAILS` (comma-separated) names anybody, only
-those people and the owners on `OWNER_EMAILS` may sign in, set or reset a password, sign up, or
-keep a session; everybody else is told the app "opens soon" above the front door's form, with
-`inquiries@` for the interested and `/play` for a player. Round codes and public boards are not
-touched. Empty or unset — dev, CI, e2e — it is open. To open production: delete the variable
-(or `SIGNINS=open`) and redeploy. The check is in `createSession` and `getSession`, so a new door
-is shut without knowing the rule. Never the word "closed" on screen (his ruling).
+Ajay, 2026-10-17: "block the signins until I say so or when we launch … app is not ready yet";
+and 2026-10-21: "block/hold the signup/signin until when we say let's Launch".
+`src/lib/sign-in-gate.ts`. PRODUCTION IS HELD BY ITSELF: only the owners on `OWNER_EMAILS` (and
+anybody on `SIGNIN_ALLOW_EMAILS`) may sign in, set or reset a password, sign up, or keep a
+session; everybody else is told the app "opens soon" above the front door's form, with
+`inquiries@` for the interested and `/play` for a player. No discount is printed there (his
+ruling, 2026-10-21) — the early-subscriber code goes in the reply. Round codes and public boards
+are not touched. Previews, dev, CI and e2e are not production and stay open (a list on
+`SIGNIN_ALLOW_EMAILS` closes any of them, to try the closed state). **TO LAUNCH: `SIGNINS=open`
+in Vercel's production variables, and redeploy.** The check is in `createSession` and
+`getSession`, so a new door is shut without knowing the rule. Never the word "closed" on screen.
 
-It does NOT close on its own in production with the owners let through, which was the first
-draft: `/owner` answered 404 to the owner, signed in, so production's `OWNER_EMAILS` did not hold
-his address and that draft would have locked him out the night before a real tournament.
+It is held only while `OWNER_EMAILS` names somebody, so it can never lock everyone out. The
+first draft held production with the owners let through on 2026-10-17 and was withdrawn: `/owner`
+answered 404 to the owner then, so production's list did not hold his address. On 2026-10-21 it
+answered 200 to his session, and the hold went in. Until then the list was the only switch and
+production's was never set, so the front door stood open — measured from the page, which drew
+no notice.
 
 ## The club's clock: "today" is asked of the club, never of the server
 
