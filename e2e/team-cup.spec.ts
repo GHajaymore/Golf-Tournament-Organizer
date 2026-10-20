@@ -529,7 +529,9 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     const whites = page.getByRole("group", { name: "Team Whites" });
     await whites.getByLabel("Team name").fill("Blues");
     await whites.getByRole("button", { name: "Save name" }).click();
-    await expect(page.getByRole("alert")).toContainText("The other team already has that name.", { timeout: 20_000 });
+    const refused = page.getByText("The other team already has that name.");
+    await expect(refused).toBeVisible({ timeout: 20_000 });
+    await expect(refused, "the refusal is not on screen where the press was").toBeInViewport();
     await whites.getByLabel("Team name").fill("White Knights");
     await whites.getByRole("button", { name: "Save name" }).click();
     await expect(page.getByRole("group", { name: "Team White Knights" })).toBeVisible({ timeout: 20_000 });
