@@ -82,6 +82,13 @@ export interface CupSession {
    */
   published: boolean;
   matches: CupBoardMatch[];
+  /** The round it is played over — 9 or 18, and which nine — for the final report. */
+  holes: number;
+  nine: string;
+  /** `Stage.scoringBasis`: "gross", "net", "both", "stableford". */
+  basis: string;
+  /** How its matches are kept: tapped hole by hole, or worked out from stroke cards. */
+  keptBy: "holes" | "cards";
 }
 
 /** A point in the cup that is not a match — see `CupPoint` — and who has it. */
@@ -375,6 +382,10 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
           sideSize: kind === "Singles" ? 1 : Math.max(1, lookupFormat(s.format.trim())?.sideSize ?? 1),
           published: published.has(s.id),
           matches: bySession.get(s.id) ?? [],
+          holes: s.holes,
+          nine: s.nine,
+          basis: s.scoringBasis,
+          keptBy: matchKeptBy({ ...s, type: s.type }) ?? "holes",
         };
       }),
       tally,

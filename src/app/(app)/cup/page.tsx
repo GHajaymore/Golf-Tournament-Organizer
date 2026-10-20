@@ -71,6 +71,11 @@ export default async function CupPage() {
       ) : (
         <>
           <CupScoreboard board={result.board} />
+          <p style={{ margin: "12px 0 0" }}>
+            <Link href="/cup/report" className="btn" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
+              {result.board.verdict.kind === "open" ? "The report so far" : "Final report"}
+            </Link>
+          </p>
           {isStaff && <StaffLineup eventId={session.eventId} board={result.board} />}
         </>
       )}
