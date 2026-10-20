@@ -317,6 +317,13 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               ))}
             </nav>
           )}
+          {/* ABOVE the card, not below it: the card keeps its own bar fixed to
+              the foot of a small phone, and the end of the page sat under it
+              for good at 320px. It is also where somebody sent here by the
+              Dashboard's "Review" looks first. */}
+          {isStaff && row && rowSignOff?.waiting && (
+            <ConfirmMatchResult key={row.id} matchId={row.id} result={rowSignOff.result} />
+          )}
           {tapCard && row && (
             <DistanceUnitProvider unit={tapCard.unit}>
               <MatchKeeper
@@ -336,9 +343,6 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
                 saveResult={keepMyMatchResult}
               />
             </DistanceUnitProvider>
-          )}
-          {isStaff && row && rowSignOff?.waiting && (
-            <ConfirmMatchResult key={row.id} matchId={row.id} result={rowSignOff.result} />
           )}
         </>
       );
