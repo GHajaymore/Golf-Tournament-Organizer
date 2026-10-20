@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { addCupMatch, removeCupMatch, setCupSettings, publishCupLineup, hideCupLineup } from "@/app/actions/cup";
+import { addCupMatch, removeCupMatch, setCupSettings, publishCupLineup, hideCupLineup, nameCupSession } from "@/app/actions/cup";
 import { forfeitMatch } from "@/app/actions/tournament";
 import { useAction } from "./useAction";
 import { figureOr, readDecimal } from "@/lib/domain/decimal-text";
@@ -181,6 +181,7 @@ function SessionLineup({
         <span className={`tag ${session.published ? "tag-accent" : "tag-neutral"}`}>
           {session.published ? "Announced" : "Draft"}
         </span>
+        <SessionNamer stageId={session.id} name={session.name} />
       </div>
       {/* WHO CAN SEE IT, said where the lineup is built. A captain picks the
           afternoon's pairs knowing the morning's score, so each session is
@@ -306,5 +307,71 @@ function SessionLineup({
       </form>
       )}
     </section>
+  );
+}
+
+/**
+ * NAME A SESSION (2026-10-20): the name the board, the players and the final
+ * report call it. "Session 2" reads as unnamed, so the box starts empty for
+ * it; an empty save hands the session back to that. A refusal is said here,
+ * beside the box, and the box stays open with what was typed.
+ */
+function SessionNamer({ stageId, name }: { stageId: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  const unnamed = /^Session \d+$/.test(name);
+  const [text, setText] = useState(unnamed ? "" : name);
+  const { pending, error, run } = useAction({ refresh: true });
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="btn btn-ghost"
+        style={{ minHeight: 44, fontSize: 13 }}
+        onClick={() => setOpen(true)}
+        aria-label={`Rename ${name}`}
+      >
+        Rename
+      </button>
+    );
+  }
+  const boxId = `session-name-${stageId}`;
+  return (
+    <form
+      style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, width: "100%" }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(() => nameCupSession(stageId, text), () => setOpen(false));
+      }}
+    >
+      <label htmlFor={boxId} style={{ fontSize: 13 }}>
+        Session name
+      </label>
+      <input
+        id={boxId}
+        className="input"
+        value={text}
+        maxLength={24}
+        placeholder="Saturday four-balls"
+        onChange={(e) => setText(e.target.value)}
+        style={{ flex: "1 1 160px", minWidth: 0 }}
+      />
+      <button type="submit" className="btn btn-primary" disabled={pending} style={{ minHeight: 44 }}>
+        {pending ? "Saving…" : "Save"}
+      </button>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        disabled={pending}
+        style={{ minHeight: 44 }}
+        onClick={() => setOpen(false)}
+      >
+        Cancel
+      </button>
+      {error && (
+        <span role="alert" className="form-error" style={{ width: "100%" }}>
+          {error}
+        </span>
+      )}
+    </form>
   );
 }

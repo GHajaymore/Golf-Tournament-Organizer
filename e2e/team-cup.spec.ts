@@ -471,5 +471,26 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await expect(story.locator("p")).toHaveText(["The story", "A cold start at Bushwood.", "The Whites never trailed."]);
   });
 
+  /**
+   * A SESSION IS NAMED ON THE TEAM CUP SCREEN (2026-10-20). Until now a
+   * session had whatever its template wrote, with no way to change it, and the
+   * name is what the board and the final report call it. Last, so no step
+   * after it looks for the old name.
+   */
+  await test.step("the organizer names a session, and the board and the report call it that", async () => {
+    await as(page, baseURL!, "organizer");
+    await open(page, "/cup");
+    await page.getByRole("button", { name: "Rename Sunday singles" }).click();
+    await page.getByRole("textbox", { name: "Session name" }).fill("Final day singles");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Final day singles lineup" })).toBeVisible({ timeout: 20_000 });
+
+    await page.context().clearCookies();
+    await open(page, `/live/${f.shareToken}`);
+    await expect(page.getByRole("region", { name: "The cup" })).toContainText("Final day singles");
+    await open(page, `/live/${f.shareToken}/report`);
+    await expect(page.getByRole("main").getByRole("heading", { name: "Final day singles" })).toBeVisible();
+  });
+
   expect(errors, `a screen threw in ${CUP_EVENT}`).toEqual([]);
 });

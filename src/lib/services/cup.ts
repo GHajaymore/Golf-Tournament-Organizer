@@ -20,6 +20,7 @@ import { cardLine, type CardLine } from "../domain/card-line";
 import { matchKeptBy } from "../domain/match-kept-by";
 import { oneCardPerSide } from "../domain/team-entry";
 import { holesPlayed } from "../domain/handicap";
+import { roundKicker } from "../domain/round-label";
 import { loadEventState } from "./tournament";
 import { teamsForStage } from "./teams";
 
@@ -121,7 +122,12 @@ export function sessionKind(format: string): string {
 
 /** A session by the name the club gave it, or its place in the cup. */
 export function sessionName(s: { description: string }, index: number): string {
-  return s.description.trim() || `Session ${index + 1}`;
+  // A NAME, not a blurb (2026-10-20): a session added with "Add round" carries
+  // the type's own sentence ("A session of the team cup: the captains'
+  // lineup, …") as its description, and the board and the final report
+  // printed that sentence as the session's title. The same rule every other
+  // label slot uses — `roundKicker`: no closing full stop, not too long.
+  return roundKicker(s.description, `Session ${index + 1}`);
 }
 
 interface StageLike {
