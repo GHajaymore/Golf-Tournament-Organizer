@@ -211,6 +211,145 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
     );
   }
 
+  /**
+   * A MATCH ROUND KEPT BY TAPPING (`matchKeptBy`, 2026-10-19).
+   *
+   * Its matches are kept one hole at a time, who won it, and a stroke card
+   * would rebuild them over the taps — so this screen offers no cards for it
+   * (the server refuses them too). Staff pick a match and keep or correct it
+   * on the very card the players tap (`MatchKeeper`); a player keeps their
+   * own on My match.
+   *
+   * One view for a cup's four-balls and for its singles (2026-10-20): the
+   * singles went on to the stroke-card screen below, which offered boxes the
+   * server then refused.
+   */
+  const tapRoundView = async (
+    stage: NonNullable<typeof activeStage>,
+    roundMatches: NonNullable<typeof state>["matches"],
+    sidesOf: (m: NonNullable<typeof state>["matches"][number]) => [string, string],
+  ) => {
+    const pickedMatchId = String((await searchParams)?.m ?? "");
+    // The one asked for, in this round of this tournament; otherwise the first.
+    const rows = isStaff
+      ? await prisma.match.findMany({
+          where: { eventId: session.eventId, stageId: stage.id, id: { in: roundMatches.map((m) => m.id) } },
+          orderBy: { id: "asc" },
+        })
+      : [];
+    const row = rows.find((r) => r.id === pickedMatchId) ?? rows[0] ?? null;
+    // A side's match is held from side A; a singles match from player A.
+    const tapCard = row
+      ? await matchCardFor(
+          row.teamAId
+            ? { match: row, holderId: "", holderSides: [row.teamAId] }
+            : { match: row, holderId: row.playerAId, holderSides: [] },
+        )
+      : null;
+    /**
+     * WHAT IS WAITING TO BE SIGNED OFF (2026-10-20) — by the review queue's
+     * own rule: a FINISHED match whose effective status is pending. The
+     * Dashboard counts these and links here; until this, the tap view
+     * showed neither which they were nor a way to confirm one, so a round
+     * kept by tapping could not be closed by hand.
+     */
+    const autoConfirm = allowsAutoConfirm(settingsOf(state.event));
+    const signOff = new Map(
+      rows.map((r) => {
+        let holes: HoleResult[] = [];
+        try {
+          holes = JSON.parse(r.holes) as HoleResult[];
+        } catch {
+          holes = [];
+        }
+        const resolved = resolveMatch(holes);
+        const status = effectiveScoreStatus(r, autoConfirm);
+        return [r.id, { waiting: resolved.complete && status === "pending", disputed: status === "disputed", result: resolved.resultText }] as const;
+      }),
+    );
+    const rowSignOff = row ? signOff.get(row.id) : undefined;
+    return (
+      <>
+        <p className="kicker">Manage</p>
+        <h1 className="page-title">Score entry</h1>
+        {cupNav}
+        <div className="card elev-sm" style={{ marginTop: 8 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>Kept by tapping who won each hole</span>
+          <p className="text-muted" style={{ fontSize: 14, margin: "6px 0 0" }}>
+            {isStaff
+              ? "Players tap their matches on their phones. Open one here to keep it or correct it — stroke cards are switched off for this round on Rounds & formats."
+              : "Your match is kept on your phone, one tap a hole."}
+          </p>
+          {!isStaff && (
+            <Link className="btn btn-primary" href="/me/match" style={{ marginTop: 10, alignSelf: "flex-start" }}>
+              Score my match
+            </Link>
+          )}
+        </div>
+        {isStaff && (
+          <nav aria-label="Matches in this round" style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "12px 0" }}>
+            {roundMatches.map((m) => {
+              const [a, b] = sidesOf(m);
+              return (
+                <Link
+                  key={m.id}
+                  href={`/entry?round=${encodeURIComponent(stage.id)}&m=${encodeURIComponent(m.id)}`}
+                  className={m.id === row?.id ? "btn btn-primary" : "btn btn-secondary"}
+                  aria-current={m.id === row?.id ? "page" : undefined}
+                  style={{ fontSize: 13 }}
+                >
+                  {a} v {b}
+                  {signOff.get(m.id)?.waiting ? " · Awaiting approval" : signOff.get(m.id)?.disputed ? " · Disputed" : ""}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
+        {/* ABOVE the card, not below it: the card keeps its own bar fixed to
+            the foot of a small phone, and the end of the page sat under it
+            for good at 320px. It is also where somebody sent here by the
+            Dashboard's "Review" looks first. */}
+        {isStaff && row && rowSignOff?.waiting && (
+          <ConfirmMatchResult key={row.id} matchId={row.id} result={rowSignOff.result} />
+        )}
+        {tapCard && row && (
+          <DistanceUnitProvider unit={tapCard.unit}>
+            <MatchKeeper
+              match={tapCard.match}
+              holes={tapCard.holes}
+              pars={tapCard.pars}
+              yards={tapCard.yards}
+              strokeIndex={tapCard.strokeIndex}
+              cardStrokeIndex={tapCard.cardStrokeIndex}
+              firstHole={tapCard.firstHole}
+              matchShots={tapCard.matchShots}
+              voiceEntry={settingsOf(state.event).voiceEntry}
+              stageId={stage.id}
+              roundLabel={roundLabel(state.stages, stage.id)}
+              eventName={state.event.name}
+              saveHoles={keepMyMatchHoles}
+              saveResult={keepMyMatchResult}
+            />
+          </DistanceUnitProvider>
+        )}
+      </>
+    );
+  };
+
+  /**
+   * A CUP'S SINGLES SESSION KEPT BY TAPPING gets the same view (Ajay,
+   * 2026-10-20: cup sessions only). An ordinary match-play round kept by
+   * tapping stays on the screen below, which keeps its bulk approval and
+   * filters for a big field.
+   */
+  if (activeStage && activeStage.type === TEAM_SESSION && !needsTeams(activeStage.format) && matchKeptBy(activeStage) === "holes") {
+    const singles = state.matches.filter((m) => m.stageId === activeStage.id && m.playerAId && m.playerBId);
+    if (singles.length > 0) {
+      const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? "—";
+      return await tapRoundView(activeStage, singles, (m) => [nameOf(m.playerAId), nameOf(m.playerBId)]);
+    }
+  }
+
   // A team round is entered differently enough that it gets its own screen
   // rather than a mode inside the individual one: the unit is a side, the card
   // count depends on the format, and there is no A/B slot to fill.
@@ -240,112 +379,10 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
       (m) => m.stageId === activeStage.id && m.teamAId && m.teamBId,
     );
 
-    /**
-     * A TEAM MATCH ROUND KEPT BY TAPPING (`matchKeptBy`, 2026-10-19).
-     *
-     * Its matches are kept one hole at a time, who won it, and a stroke card
-     * would rebuild them over the taps — so this screen offers no cards for it
-     * (the server refuses them too). Staff pick a match and keep or correct it
-     * on the very card the players tap (`MatchKeeper`); a player keeps their
-     * own on My match.
-     */
+    // Kept by tapping: the one tap view above.
     if (stageMatches.length > 0 && matchKeptBy(activeStage) === "holes") {
       const nameOf = (id: string) => teamById.get(id)?.name ?? "Side";
-      const pickedMatchId = String((await searchParams)?.m ?? "");
-      // The one asked for, in this round of this tournament; otherwise the first.
-      const rows = isStaff
-        ? await prisma.match.findMany({
-            where: { eventId: session.eventId, stageId: activeStage.id, teamAId: { not: "" } },
-            orderBy: { id: "asc" },
-          })
-        : [];
-      const row = rows.find((r) => r.id === pickedMatchId) ?? rows[0] ?? null;
-      const tapCard = row ? await matchCardFor({ match: row, holderId: "", holderSides: [row.teamAId] }) : null;
-      /**
-       * WHAT IS WAITING TO BE SIGNED OFF (2026-10-20) — by the review queue's
-       * own rule: a FINISHED match whose effective status is pending. The
-       * Dashboard counts these and links here; until this, the tap view
-       * showed neither which they were nor a way to confirm one, so a round
-       * kept by tapping could not be closed by hand.
-       */
-      const autoConfirm = allowsAutoConfirm(settingsOf(state.event));
-      const signOff = new Map(
-        rows.map((r) => {
-          let holes: HoleResult[] = [];
-          try {
-            holes = JSON.parse(r.holes) as HoleResult[];
-          } catch {
-            holes = [];
-          }
-          const resolved = resolveMatch(holes);
-          const status = effectiveScoreStatus(r, autoConfirm);
-          return [r.id, { waiting: resolved.complete && status === "pending", disputed: status === "disputed", result: resolved.resultText }] as const;
-        }),
-      );
-      const rowSignOff = row ? signOff.get(row.id) : undefined;
-      return (
-        <>
-          <p className="kicker">Manage</p>
-          <h1 className="page-title">Score entry</h1>
-          {cupNav}
-          <div className="card elev-sm" style={{ marginTop: 8 }}>
-            <span className="card-title" style={{ fontSize: 15 }}>Kept by tapping who won each hole</span>
-            <p className="text-muted" style={{ fontSize: 14, margin: "6px 0 0" }}>
-              {isStaff
-                ? "Players tap their matches on their phones. Open one here to keep it or correct it — stroke cards are switched off for this round on Rounds & formats."
-                : "Your match is kept on your phone, one tap a hole."}
-            </p>
-            {!isStaff && (
-              <Link className="btn btn-primary" href="/me/match" style={{ marginTop: 10, alignSelf: "flex-start" }}>
-                Score my match
-              </Link>
-            )}
-          </div>
-          {isStaff && (
-            <nav aria-label="Matches in this round" style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "12px 0" }}>
-              {stageMatches.map((m) => (
-                <Link
-                  key={m.id}
-                  href={`/entry?round=${encodeURIComponent(activeStage.id)}&m=${encodeURIComponent(m.id)}`}
-                  className={m.id === row?.id ? "btn btn-primary" : "btn btn-secondary"}
-                  aria-current={m.id === row?.id ? "page" : undefined}
-                  style={{ fontSize: 13 }}
-                >
-                  {nameOf(m.teamAId)} v {nameOf(m.teamBId)}
-                  {signOff.get(m.id)?.waiting ? " · Awaiting approval" : signOff.get(m.id)?.disputed ? " · Disputed" : ""}
-                </Link>
-              ))}
-            </nav>
-          )}
-          {/* ABOVE the card, not below it: the card keeps its own bar fixed to
-              the foot of a small phone, and the end of the page sat under it
-              for good at 320px. It is also where somebody sent here by the
-              Dashboard's "Review" looks first. */}
-          {isStaff && row && rowSignOff?.waiting && (
-            <ConfirmMatchResult key={row.id} matchId={row.id} result={rowSignOff.result} />
-          )}
-          {tapCard && row && (
-            <DistanceUnitProvider unit={tapCard.unit}>
-              <MatchKeeper
-                match={tapCard.match}
-                holes={tapCard.holes}
-                pars={tapCard.pars}
-                yards={tapCard.yards}
-                strokeIndex={tapCard.strokeIndex}
-                cardStrokeIndex={tapCard.cardStrokeIndex}
-                firstHole={tapCard.firstHole}
-                matchShots={tapCard.matchShots}
-                voiceEntry={settingsOf(state.event).voiceEntry}
-                stageId={activeStage.id}
-                roundLabel={roundLabel(state.stages, activeStage.id)}
-                eventName={state.event.name}
-                saveHoles={keepMyMatchHoles}
-                saveResult={keepMyMatchResult}
-              />
-            </DistanceUnitProvider>
-          )}
-        </>
-      );
+      return await tapRoundView(activeStage, stageMatches, (m) => [nameOf(m.teamAId), nameOf(m.teamBId)]);
     }
     const cards = await prisma.teamScorecard.findMany({
       where: { eventId: session.eventId, stageId: activeStage.id },
