@@ -26,6 +26,7 @@ import { cupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { PlaySuspendedBanner } from "@/components/PlaySuspendedBanner";
 import { CommentaryFeed } from "@/components/CommentaryFeed";
+import { PublicContests } from "@/components/PublicContests";
 import { playStatusOf } from "@/lib/domain/play-status";
 import { golfTermsForEvent } from "@/lib/services/organization";
 
@@ -322,6 +323,10 @@ export default async function PublicLeaderboardPage({
         )}
 
         {!cup.ok && board.draws.length > 0 && <TheDraw draws={board.draws} results={board.bracketResults} />}
+
+        {/* Closest to the pin, long drive, and who sponsors them — for the round
+            on show, or every round on a cup's all-sessions board. */}
+        <PublicContests eventId={event.id} stageId={cup.ok ? null : board.shownStageId || null} />
 
         {/*
           Stamped HERE, outside the cache, on every request.

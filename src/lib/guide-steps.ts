@@ -482,6 +482,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "**Settled by the scores**: low gross, low net, birdies, eagles, The match and Nassau — set a stake per player. The match and Nassau need a head-to-head round.",
           "**You name the winner**: closest to the pin, long drive and the like — [[Start this bet]], pick entrants, then the winner (a tie splits the pot).",
+          "A closest to the pin or long drive is shown on the public leaderboard under **Contests** — its winner once you name one, never the stake. If somebody sponsors it, [[Add a sponsor]] on its card: their name, and their website if they have one (https only). The board says **Sponsored by** beside the contest and thanks every sponsor at the foot. The printed standings on Reports carry the same list. Poker and other side bets stay off both.",
           "**Side games** (Afterwards → Side games): a pot for one group only, separate from the field's money.",
         ],
       },
