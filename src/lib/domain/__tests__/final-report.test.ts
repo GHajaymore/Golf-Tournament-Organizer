@@ -231,6 +231,14 @@ describe("the report of any other tournament", () => {
     expect(
       eventStory({ completed: false, first: { names: ["Ada"], figure: "net 66" }, second: null, rounds: [] })[0],
     ).toBe("Ada leads on net 66, with the tournament still to finish.");
+    expect(
+      eventStory({
+        completed: false,
+        first: { names: ["Ada"], figure: "net 66" },
+        second: { names: ["Bo"], figure: "net 68" },
+        rounds: [],
+      })[0],
+    ).toBe("Ada leads on net 66, with the tournament still to finish. Bo is next, on net 68.");
   });
 
   it("a winner level on the figure with second place won on countback, and says so", () => {

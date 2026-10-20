@@ -219,6 +219,51 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     }
   });
 
+  /**
+   * THE REPORT, BEFORE THE TOURNAMENT IS COMPLETED (2026-10-19). Worked from
+   * the table above: Dune leads on net 70, Cedar is next on net 71, and every
+   * row prints gross AND net in net order. Read here, before "complete",
+   * because a new club is on the free plan and completing deletes the
+   * tournament — so this spec can only see "The results so far". The
+   * completed state (Champion, the board's button) is NOT WALKED here; the
+   * cup's spec walks it for a cup, and the domain tests pin its words.
+   */
+  await test.step("the report so far, from the console and the public link", async () => {
+    await open(page, "/reports");
+    await page.getByRole("link", { name: "The results so far" }).click();
+    await page.waitForURL(/\/reports\/final$/);
+    const report = page.locator(".fr");
+    await expect(report.getByRole("heading", { level: 1 })).toHaveText(TOURNAMENT);
+    await expect(report.getByRole("group", { name: "Leading" })).toContainText("Dune Quayle");
+    await expect(report.getByRole("group", { name: "Leading" })).toContainText("net 70");
+    await expect(report).not.toContainText("Champion");
+    await expect(report.getByRole("region", { name: "The story" })).toContainText(
+      "Dune Quayle leads on net 70, with the tournament still to finish. Cedar Quayle is next, on net 71.",
+    );
+    await expect(report).toContainText("Ranked by net strokes");
+    // Every row, gross and net, in net order — the reverse of the gross order.
+    const rows = await report.locator(".fr-board tbody tr").evaluateAll((trs) =>
+      trs.map((tr) => [...tr.children].slice(0, 4).map((td) => td.textContent?.trim())),
+    );
+    expect(rows).toEqual(
+      [...FIELD].sort((a, b) => a.net - b.net).map((p, i) => [String(i + 1), p.name, String(p.gross), String(p.net)]),
+    );
+
+    await open(page, "/event");
+    const link = (await page.locator("code", { hasText: "/live/" }).first().innerText()).trim();
+    const path = new URL(link, "http://x").pathname;
+    const outsider = await page.context().browser()!.newContext();
+    try {
+      const pub = await outsider.newPage();
+      await pub.goto(`${path}/report?bust=${Date.now()}`, { waitUntil: "networkidle" });
+      await expect(pub.getByRole("main").getByRole("group", { name: "Leading" })).toContainText("Dune Quayle");
+      const over = await pub.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(over, `the public report scrolls sideways by ${over}px`).toBeLessThanOrEqual(1);
+    } finally {
+      await outsider.close();
+    }
+  });
+
   await test.step("complete", async () => {
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Complete tournament" }).click();

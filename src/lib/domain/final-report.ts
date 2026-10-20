@@ -393,7 +393,7 @@ export function eventStory(input: {
       const by = second.figure ? `, on ${second.figure}` : "";
       lead.push(
         second.names.length === 1
-          ? `${second.names[0]} was ${input.completed ? "second" : "next"}${by}.`
+          ? `${second.names[0]} ${input.completed ? "was second" : "is next"}${by}.`
           : `${listWords(second.names)} ${input.completed ? "shared second" : "are next"}${by}.`,
       );
     }
