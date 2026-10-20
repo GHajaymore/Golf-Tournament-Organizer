@@ -129,6 +129,21 @@ describe("the final report's arithmetic", () => {
     ]);
   });
 
+  it("sessions in a row taken by one team name that team once", () => {
+    const one = (name: string, winner: "A" | "B") => ({ name, matches: [W(["x"], ["y"], winner, "2&1")] });
+    const told = reportStory({
+      teams: ["Blues", "Whites"],
+      score: [1, 2],
+      verdict: { kind: "won", by: "B" },
+      sessions: [one("Saturday four-balls", "B"), one("Saturday foursomes", "B"), one("Sunday singles", "A")],
+      outside: [],
+    })[0];
+    expect(told).toBe(
+      "Whites won the cup 2 – 1. Whites took Saturday four-balls 1 – 0 and Saturday foursomes 1 – 0, " +
+        "and Blues took Sunday singles 1 – 0.",
+    );
+  });
+
   it("a point nobody has been given yet is not in the story", () => {
     expect(story({ kind: "won", by: "B" }).join(" ")).not.toMatch(/longest drive/i);
   });

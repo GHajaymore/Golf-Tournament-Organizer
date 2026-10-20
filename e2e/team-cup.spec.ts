@@ -434,9 +434,16 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await expect(report).toContainText("Whites win the cup");
     const story = report.getByRole("region", { name: "The story" });
     await expect(story).toContainText(
-      "Whites won the cup 3 – 1. Whites took Saturday four-balls 1 – 0, Whites took Saturday foursomes 1 – 0 " +
+      "Whites won the cup 3 – 1. Whites took Saturday four-balls 1 – 0 and Saturday foursomes 1 – 0, " +
         "and Blues took Sunday singles 1 – 0.",
     );
+    // The points track is ONE row at every width: on a phone the app stacks
+    // inline grids, which once drew its four points as eight stripes.
+    const cellTops = await report.locator(".fr-track i").evaluateAll((els) =>
+      els.map((e) => Math.round(e.getBoundingClientRect().top)),
+    );
+    expect(cellTops.length, "the track has a cell for every half point").toBe(8);
+    expect(new Set(cellTops).size, `the track's cells sit in one row: ${cellTops.join(", ")}`).toBe(1);
     await expect(story).toContainText("The team net total went to Whites.");
     await expect(story).not.toContainText("last hole");
     await expect(report).toContainText("Team match play, three sessions");

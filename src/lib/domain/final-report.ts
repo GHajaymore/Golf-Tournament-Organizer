@@ -243,17 +243,36 @@ export function reportStory(input: ReportStoryInput): string[] {
     first.push(`${name("A")} ${halves(sa)}, ${name("B")} ${halves(sb)}, with the cup still to be decided.`);
   }
 
-  const clauses: string[] = [];
+  // Each session's result, and sessions in a row taken by the same team are
+  // said once: "Whites took the four-balls 1 – 0 and the foursomes 1 – 0, and
+  // Blues took the singles", never "Whites took …, Whites took …".
+  const groups: Array<{ winner: ReportSide | null; items: string[] }> = [];
   for (const s of input.sessions) {
     const decided = s.matches.filter((m) => m.final);
     if (decided.length === 0) continue;
     const a = decided.reduce((t, m) => t + m.points[0], 0);
     const b = decided.reduce((t, m) => t + m.points[1], 0);
     const what = sessionInSentence(s.name);
-    if (a === b) clauses.push(`${what} ${/^the /.test(what) ? "were" : "was"} shared ${halves(a)} – ${halves(b)}`);
-    else clauses.push(`${name(a > b ? "A" : "B")} took ${what} ${halves(Math.max(a, b))} – ${halves(Math.min(a, b))}`);
+    if (a === b) {
+      groups.push({ winner: null, items: [`${what} ${/^the /.test(what) ? "were" : "was"} shared ${halves(a)} – ${halves(b)}`] });
+      continue;
+    }
+    const winner: ReportSide = a > b ? "A" : "B";
+    const item = `${what} ${halves(Math.max(a, b))} – ${halves(Math.min(a, b))}`;
+    const last = groups[groups.length - 1];
+    if (last && last.winner === winner) last.items.push(item);
+    else groups.push({ winner, items: [item] });
   }
-  if (clauses.length) first.push(`${capital(listWords(clauses))}.`);
+  const said = groups.map((g) => (g.winner ? `${name(g.winner)} took ${listWords(g.items)}` : g.items[0]));
+  if (said.length) {
+    // With a list inside a clause, a comma keeps the clauses apart.
+    const joined = groups.some((g) => g.items.length > 1)
+      ? said.length === 1
+        ? said[0]
+        : `${said.slice(0, -1).join(", ")}, and ${said[said.length - 1]}`
+      : listWords(said);
+    first.push(`${capital(joined)}.`);
+  }
 
   const second: string[] = [];
   const unbeaten = stars(input.sessions);

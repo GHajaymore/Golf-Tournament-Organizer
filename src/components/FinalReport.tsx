@@ -81,7 +81,10 @@ export function FinalReport({
                 {report.target > 0 && <span>{halves(report.target)} to win</span>}
               </div>
               <div
-                className="fr-track"
+                // keep-grid: on a phone the app stacks every inline grid into
+                // one column (globals.css), which drew the track as a pile of
+                // full-width stripes. The track is one row at every width.
+                className="fr-track keep-grid"
                 aria-hidden="true"
                 style={{
                   gridTemplateColumns: `repeat(${t.cells}, minmax(0, 1fr))`,
