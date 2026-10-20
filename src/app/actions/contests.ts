@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { isContestKind, CONTEST_LABEL } from "@/lib/domain/contests";
+import { SPONSOR_NAME_MAX, sponsorUrl } from "@/lib/domain/contest-board";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { logAudit } from "@/lib/services/action-shared";
 import { money } from "@/lib/domain/money-format";
@@ -346,6 +347,25 @@ export async function confirmContestEntry(
   );
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/**
+ * Who sponsors a contest, and their website (2026-10-17).
+ *
+ * A record and a thank-you on the public board, never money. Empty name clears
+ * it. A website that is not https is refused in words rather than dropped, so
+ * nobody finds the link missing on the day.
+ */
+export async function setContestSponsor(contestId: string, sponsorName: string, website: string): Promise<ContestResult> {
+  const { eventId } = await requireStaff();
+  const contest = await contestInEvent(eventId, contestId);
+  const name = (sponsorName ?? "").trim().slice(0, SPONSOR_NAME_MAX);
+  const url = name ? sponsorUrl(website ?? "") : "";
+  if (url === null) return { ok: false, error: "The website must be an https address, like https://example.com." };
+  await prisma.contest.update({ where: { id: contest.id }, data: { sponsorName: name, sponsorUrl: url } });
+  await logAudit(eventId, "contest.sponsor", name ? `${contest.name}: sponsored by ${name}` : `${contest.name}: no sponsor`);
+  revalidatePath("/", "layout");
+  return { ok: true, id: contest.id };
 }
 
 export async function removeContest(contestId: string): Promise<ContestResult> {

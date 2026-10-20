@@ -2,6 +2,7 @@ import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import { hasKnockoutStage } from "@/lib/stage-types";
 import Link from "next/link";
 import { requireScreen } from "@/lib/page-helpers";
+import { contestBoard } from "@/lib/services/contest-board";
 import { loadEventState, standingRows, withBoardRound } from "@/lib/services/tournament";
 import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
 import { RoundPicker } from "@/components/RoundPicker";
@@ -455,6 +456,8 @@ export default async function ReportsPage({
         snapshotNote={standing.note}
         casual={casual}
         rankedOn={activeStage?.scoringBasis === "gross" ? "gross" : "net"}
+        // The round's closest to the pin and long drive, from the reader the public board uses.
+        contests={await contestBoard(event.id, activeStage?.id ?? null)}
         board={board}
         extraCsv={extraCsv}
         /* Offered only where there is something to export — a tournament that

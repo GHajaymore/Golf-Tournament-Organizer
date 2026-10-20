@@ -2824,6 +2824,18 @@ model Contest {
    */
   entryMode String @default("opt-in")
 
+  /**
+   * Who sponsors it, as the hole sign says — "sponsored by Smith Motors" — or
+   * "" for none (2026-10-17). A record and a thank-you, never money: what the
+   * sponsor paid, if anything, is the Float's "sponsor" income line.
+   */
+  sponsorName String @default("")
+  /**
+   * The sponsor's website, https only (`sponsorUrl` in domain/contest-board.ts),
+   * or "". Linked from the public board with rel="noopener nofollow".
+   */
+  sponsorUrl  String @default("")
+
   entrants ContestEntry[]
 
   createdBy String   @default("")
