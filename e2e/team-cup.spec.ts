@@ -312,6 +312,23 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await expect(page.getByRole("radiogroup", { name: "How to enter the scores" })).toHaveCount(0);
   });
 
+  await test.step("on Score entry the organizer keeps the singles on the same tap card, never stroke boxes", async () => {
+    // The singles went to the stroke-card screen until 2026-10-20, offering
+    // boxes the server refuses on a round kept by tapping. Cup sessions only:
+    // an ordinary match-play round keeps its bulk approval (Ajay, 2026-10-20).
+    await as(page, baseURL!, "organizer");
+    await open(page, `/entry?round=${(f.sessions as Record<string, string>).singles}`);
+    await expect(page.getByText("Kept by tapping who won each hole")).toBeVisible({ timeout: 20_000 });
+    const matches = page.getByRole("navigation", { name: "Matches in this round" });
+    await expect(matches.getByRole("link", { name: /^Ailsa Blue v Edda White/ })).toBeVisible();
+    const hole1 = page.getByRole("group", { name: "Who won hole 1" });
+    await expect(hole1.getByRole("button", { name: /^Hole 1 to Ailsa Blue/ })).toBeVisible();
+    await expect(hole1.getByRole("button", { name: /^Hole 1 to Edda White/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Full card" })).toHaveCount(0);
+    await expect(page.getByLabel(/^Ailsa Blue, hole 1, par/)).toHaveCount(0);
+    await fits(page, "/entry on a tapped singles session");
+  });
+
   await test.step("the Whites concede the singles — the organizer records it", async () => {
     await as(page, baseURL!, "organizer");
     await open(page, "/cup");
