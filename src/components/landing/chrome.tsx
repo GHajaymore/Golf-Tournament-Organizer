@@ -92,7 +92,7 @@ export function icon(id: string, className = "i") {
  * The nav. On `/` the section links are in-page anchors; on `/faq` they lead
  * back to them. Sign-in and sign-up live on `/`, where the form is.
  */
-export function landingNav(at: "home" | "faq" | "privacy" | "terms") {
+export function landingNav(at: "home" | "faq" | "privacy" | "terms" | "interest") {
   const home = at === "home" ? "" : "/";
   // The product menu: every part of the page, with what it shows.
   const product: Array<[string, string, string, string]> = [
@@ -177,7 +177,7 @@ export function editionNote(local: Edition, overridden: boolean): ReactNode {
   );
 }
 
-export function landingFooter(at: "home" | "faq" | "privacy" | "terms", editionNoteNode: ReactNode) {
+export function landingFooter(at: "home" | "faq" | "privacy" | "terms" | "interest", editionNoteNode: ReactNode) {
   const home = at === "home" ? "" : "/";
   const links: Array<[string, string]> = [
     [`${home}#pricing`, "Pricing"],

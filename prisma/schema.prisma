@@ -3532,3 +3532,26 @@ model CupPoint {
 
   @@index([eventId])
 }
+
+/// Somebody interested in TourneyHQ before it opens (2026-10-21), from the
+/// public /interest form: who they are and their club, so the owner can write
+/// back. Listed on /owner and copied to inquiries@. Personal data — never in a
+/// fixture with a real name, and deleted on request like any other.
+model InterestRequest {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  /// Optional (Ajay, 2026-10-21: "take both email and phone … one optional,
+  /// one required"). Email is the required one: the code is sent to it.
+  phone     String   @default("")
+  /// Their club or society, as they wrote it.
+  club      String   @default("")
+  /// secretary | committee | society | player | other
+  role      String   @default("")
+  /// How many members, as a band: under-50 | 50-150 | 150-400 | over-400 | unsure
+  members   String   @default("")
+  note      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -51,8 +51,11 @@ and 2026-10-21: "block/hold the signup/signin until when we say let's Launch".
 `src/lib/sign-in-gate.ts`. PRODUCTION IS HELD BY ITSELF: only the owners on `OWNER_EMAILS` (and
 anybody on `SIGNIN_ALLOW_EMAILS`) may sign in, set or reset a password, sign up, or keep a
 session; everybody else is told the app "opens soon" above the front door's form, with
-`inquiries@` for the interested and `/play` for a player. No discount is printed there (his
-ruling, 2026-10-21) — the early-subscriber code goes in the reply. Round codes and public boards
+a link to the register-your-interest form (`/interest`, with `inquiries@` as the fallback) and
+`/play` for a player. The notice and the form promise 25% off the first term, and the CODE is
+never printed — it is emailed at launch (his ruling, 2026-10-21). The form's words, worded with
+the panel's marketing manager, are all in `src/lib/domain/interest.ts`; the notes are listed on
+`/owner` and copied to inquiries@. Round codes and public boards
 are not touched. Previews, dev, CI and e2e are not production and stay open (a list on
 `SIGNIN_ALLOW_EMAILS` closes any of them, to try the closed state). **TO LAUNCH: `SIGNINS=open`
 in Vercel's production variables, and redeploy.** The check is in `createSession` and

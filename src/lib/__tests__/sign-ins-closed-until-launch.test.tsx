@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { maySignIn, signInsClosed, SIGNINS_CLOSED_MESSAGE, SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
 import { LandingAuth } from "@/components/LandingAuth";
+import { INTEREST_COPY } from "@/lib/domain/interest";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
@@ -130,13 +131,20 @@ describe("the front door says so before the form", () => {
     expect(html).toContain("href=\"/play\"");
     // An interested visitor is sent to the live inquiries mailbox.
     expect(html).toContain("href=\"mailto:inquiries@tourneyhq.club?subject=");
-    // NO DISCOUNT IS PUBLISHED (Ajay, 2026-10-21: "do not publish the discount
-    // code") — the notice invites them to write, and the offer goes in the reply.
-    // The notice's WORDS, before the form: the form keeps its own optional
-    // discount box, and the markup's styles are full of percentages.
-    const notice = html.slice(0, html.indexOf("<form")).replace(/<[^>]*>/g, " ");
-    expect(notice).toContain(SIGNINS_CLOSED_NOTICE.interestedLead);
-    expect(notice).not.toMatch(/\d+\s*%|discount|off (their|your) first/i);
+    // THE OFFER, AND NEVER A CODE (Ajay, 2026-10-21: "do not publish the
+    // discount code" … "just mention that if you are interested, you will
+    // receive 25% discount code … and the code will be shared with you"). The
+    // notice's WORDS, before the form — the form below keeps its own box for a
+    // code somebody was sent.
+    const notice = html
+      .slice(0, html.indexOf("<form"))
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&#x27;/g, "'");
+    expect(notice).toContain(INTEREST_COPY.noticeOffer);
+    expect(notice).toMatch(/first term/);
+    expect(html.slice(0, html.indexOf("<form"))).toContain('href="/interest"');
+    // No code is printed: nothing shaped like one (letters and digits, upper case).
+    expect(notice).not.toMatch(/\b[A-Z0-9]{6,}\b/);
     expect(html.indexOf(SIGNINS_CLOSED_NOTICE.lead)).toBeLessThan(html.indexOf("<form"));
   });
 

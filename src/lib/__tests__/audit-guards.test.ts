@@ -97,6 +97,12 @@ describe("every server action is guarded", () => {
     // database, so there is no row for a guard to protect. `savePushSubscription`
     // and `removePushSubscription` DO write, and both call `getSession` first.
     "push.ts": ["getVapidPublicKey"],
+    // Registering interest before launch (2026-10-21) is for people who cannot
+    // sign in yet, by design. Its defences replace a session guard: every field
+    // read as unknown and cut to length (`checkInterest`), a hidden box that
+    // turns a script away, and a rate limit on the address before any write —
+    // held against real rows in `interest-is-kept-and-copied.audit.test.ts`.
+    "interest.ts": ["registerInterest"],
   };
 
   const GUARDS = [

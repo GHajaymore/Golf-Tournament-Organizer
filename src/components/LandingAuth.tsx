@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { LoginPanel } from "@/components/LoginPanel";
 import { SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
+import { INTEREST_COPY } from "@/lib/domain/interest";
 
 /**
  * The real sign-in form, embedded in the landing page so every "Sign in" and
@@ -64,15 +65,23 @@ export function LandingAuth({
         <p style={{ margin: 0 }}>
           <strong>{SIGNINS_CLOSED_NOTICE.lead}</strong> {SIGNINS_CLOSED_NOTICE.body}
         </p>
+        {/* The offer and the form (2026-10-21, worded with the panel's
+            marketing manager): a form turns interest into a list, where
+            "write to us" asks a visitor to compose an email. The address stays,
+            for anybody who would rather write. */}
+        <p style={{ margin: "8px 0 0" }}>{INTEREST_COPY.noticeOffer}</p>
         <p style={{ margin: "8px 0 0" }}>
-          {SIGNINS_CLOSED_NOTICE.interestedLead} Write to{" "}
+          <a href="/interest" style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}>
+            {INTEREST_COPY.noticeLink}
+          </a>{" "}
+          {INTEREST_COPY.noticeOr}{" "}
           <a
             href={`mailto:${SIGNINS_CLOSED_NOTICE.interestedEmail}?subject=${encodeURIComponent("Interested in TourneyHQ")}`}
-            style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}
+            style={{ color: "inherit", textDecoration: "underline" }}
           >
             {SIGNINS_CLOSED_NOTICE.interestedEmail}
-          </a>{" "}
-          {SIGNINS_CLOSED_NOTICE.interestedTail}
+          </a>
+          .
         </p>
         <p style={{ margin: "8px 0 0" }}>
           {SIGNINS_CLOSED_NOTICE.playLead}{" "}

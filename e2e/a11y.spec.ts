@@ -121,7 +121,7 @@ test.describe("as the organizer", () => {
   const improved: string[] = [];
   const anon = await browser.newContext();
   const data = JSON.parse(readFileSync(".e2e/data.json", "utf8")) as { shareToken: string };
-  const publicLooked = await sweep(await anon.newPage(), "public", ["/", "/faq", "/privacy", "/terms", "/play", `/live/${data.shareToken}`], record, faults, improved);
+  const publicLooked = await sweep(await anon.newPage(), "public", ["/", "/faq", "/privacy", "/terms", "/interest", "/play", `/live/${data.shareToken}`], record, faults, improved);
   await anon.close();
   const consoleLooked = await sweep(page, "organizer", consoleScreens(), record, faults, improved);
   // CONTROL: the screens were really opened and really audited.
