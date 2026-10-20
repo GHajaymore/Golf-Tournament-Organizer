@@ -46,14 +46,13 @@ under it, and a ribbon — "Wins the April Medal", or "Shared first place" for a
 tie. A tournament still being played says "The results so far" and has no
 ribbon, as an open cup does.
 
-## Open, for the panel before building
+## Decided (Ajay, 2026-10-19: "go with your recommendations")
 
-- How many leaderboard rows: the whole field (a club sends it to everybody,
-  and everybody looks for themselves) — recommended — or the top ten.
-- A multi-round tournament: one table of the totals plus a line per round, or
-  a table per round. Recommended: the totals, plus `resultLinesFor`'s line per
-  round in the story.
-- What a player not ranked (withdrew, no return, missed the cut) shows: the
+- **The whole field** on the leaderboard, not the top ten: a club sends the
+  report to everybody, and everybody looks for themselves.
+- **A tournament of several rounds**: one table of the totals, and each round's
+  result as a sentence in the story (`resultLinesFor`).
+- **A player with no position** (withdrew, no return, missed the cut) shows the
   board's own words for them, never a position.
 
 ## Tests owed
