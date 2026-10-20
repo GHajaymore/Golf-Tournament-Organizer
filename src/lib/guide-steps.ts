@@ -374,7 +374,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "**Commentary**: under the Leaderboard, write a line — a run of birdies, a delay, where the cut is falling — and press [[Post]]. The latest shows above the scores on the public board and on every player's Board, with how long ago and without your name; the two before it are one tap away. Take one down with the ✕ beside it.",
           "**Weather**: [[Suspend play]], add a reason, [[Suspend play now]] — every player and the public board are told. [[Resume play]] when ready.",
           "**Pace of play** on the Dashboard shows each group's Thru and Due in, and names groups running behind.",
-          "**Wrong scores**: correct the card on Score entry, or [[Clear scores]] (organizers) for chosen players or the whole round. Entries, flights and tee times are untouched.",
+          "**Wrong scores**: correct the card on Score entry, or [[Clear scores]] (organizers) for chosen players or the whole round. Entries, flights and tee times are untouched. A card or result the committee has approved is reopened first.",
         ],
       },
     ],
