@@ -9,6 +9,9 @@ import {
   sessionInSentence,
   sessionDescription,
   scoringWords,
+  placeFigure,
+  eventRibbon,
+  eventStory,
   type ReportSession,
 } from "@/lib/domain/final-report";
 
@@ -184,5 +187,62 @@ describe("the final report's arithmetic", () => {
     expect(marginWords("1 UP")).toBe("1 up");
     expect(marginWords("A/S")).toBe("halved");
     expect(marginWords("3&2")).toBe("3&2");
+  });
+});
+
+describe("the report of any other tournament", () => {
+  const row = { gross: 78, net: 66, points: 38, pts: "4" };
+
+  it("names the figure the board ranked on, and only that one", () => {
+    expect(placeFigure(row, { isStroke: true, isStableford: false, isNet: true })).toBe("net 66");
+    expect(placeFigure(row, { isStroke: true, isStableford: false, isNet: false })).toBe("gross 78");
+    expect(placeFigure(row, { isStroke: true, isStableford: true, isNet: true })).toBe("38 points");
+    expect(placeFigure(row, { isStroke: false, isStableford: false, isNet: false })).toBe("4 match points");
+  });
+
+  it("a single winner is the champion; a tie at the top is shared, never broken", () => {
+    expect(eventRibbon({ completed: true, first: { names: ["Ada"], figure: "net 66" } })).toBe("Champion");
+    expect(eventRibbon({ completed: true, first: { names: ["Ada", "Bo"], figure: "net 66" } })).toBe("Shared first place");
+    expect(eventRibbon({ completed: false, first: { names: ["Ada"], figure: "net 66" } })).toBe("");
+  });
+
+  it("tells a finished medal: the winner, the figure, and second place", () => {
+    expect(
+      eventStory({
+        completed: true,
+        first: { names: ["Ada Ferris"], figure: "net 66" },
+        second: { names: ["Bo Lund", "Cy Marr"], figure: "net 68" },
+        rounds: [{ label: "Round 1", result: "Ada Ferris won on net 66" }],
+      }),
+    ).toEqual(["Ada Ferris won on net 66. Bo Lund and Cy Marr shared second, on net 68."]);
+  });
+
+  it("a tie at the top says it is the committee's to settle, and names no second", () => {
+    const told = eventStory({
+      completed: true,
+      first: { names: ["Ada", "Bo"], figure: "38 points" },
+      second: { names: ["Cy"], figure: "36 points" },
+      rounds: [],
+    })[0];
+    expect(told).toBe("Ada and Bo finished level at the top on 38 points. A tie for first place is the committee's to settle.");
+  });
+
+  it("a tournament still being played has a leader, not a winner", () => {
+    expect(
+      eventStory({ completed: false, first: { names: ["Ada"], figure: "net 66" }, second: null, rounds: [] })[0],
+    ).toBe("Ada leads on net 66, with the tournament still to finish.");
+  });
+
+  it("several rounds each get their own sentence; one round needs none", () => {
+    const told = eventStory({
+      completed: true,
+      first: { names: ["Ada"], figure: "net 132" },
+      second: null,
+      rounds: [
+        { label: "Round 1", result: "Ada won on net 66" },
+        { label: "Round 2", result: "Bo won on net 65." },
+      ],
+    });
+    expect(told[1]).toBe("Round 1: Ada won on net 66. Round 2: Bo won on net 65.");
   });
 });
