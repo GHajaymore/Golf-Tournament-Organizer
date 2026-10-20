@@ -356,3 +356,58 @@ export async function removeCupMatch(matchId: string): Promise<Result> {
   await refresh(eventId);
   return { ok: true };
 }
+
+/**
+ * POINTS OUTSIDE THE MATCHES (2026-10-19) — the first real cup's sixteenth
+ * point, for the lower team net total, which CDG won and the app had nowhere
+ * to put. The organizer names a point and gives it a value; it counts in the
+ * cup's total from the moment it exists, so the target is right before it is
+ * decided, and in a team's score once it is awarded (`cupTally`).
+ */
+function cleanPoints(points: unknown): number | null {
+  const n = Number(points);
+  // Whole or half points, as a cup counts: 1, ½, 2.
+  return Number.isFinite(n) && n > 0 && n <= 50 && Math.round(n * 2) === n * 2 ? n : null;
+}
+
+export async function addCupPoint(label: string, points: number): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const name = String(label ?? "").trim().slice(0, 80);
+  if (!name) return { ok: false, error: "Name the point — for example, Team net total." };
+  const worth = cleanPoints(points);
+  if (worth === null) return { ok: false, error: "A point is worth a whole or half number, like 1 or ½." };
+  const cupStages = await prisma.stage.count({ where: { eventId, type: TEAM_SESSION } });
+  if (cupStages === 0) return { ok: false, error: "This tournament isn't a cup." };
+  const position = await prisma.cupPoint.count({ where: { eventId } });
+  await prisma.cupPoint.create({ data: { eventId, label: name, points: worth, position } });
+  await logAudit(eventId, "cup.point", `Point outside the matches added: ${name} (${worth})`);
+  await refresh(eventId);
+  return { ok: true };
+}
+
+/** Award it to a team, or "" to take it back to "to be decided". */
+export async function awardCupPoint(pointId: string, groupId: string): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const point = await prisma.cupPoint.findFirst({ where: { id: String(pointId), eventId }, select: { id: true, label: true } });
+  if (!point) return { ok: false, error: "That point isn't in this cup." };
+  groupId = String(groupId ?? "").trim();
+  // Narrowed to one of THIS event's two team flights, in the query itself.
+  const team = groupId
+    ? await prisma.group.findFirst({ where: { id: groupId, eventId, stageId: null, isCarrier: false }, select: { id: true, name: true } })
+    : null;
+  if (groupId && !team) return { ok: false, error: "A point goes to one of the two teams." };
+  await prisma.cupPoint.update({ where: { id: point.id }, data: { groupId: team?.id ?? "" } });
+  await logAudit(eventId, "cup.point", team ? `${point.label} awarded to ${team.name}` : `${point.label} back to be decided`);
+  await refresh(eventId);
+  return { ok: true };
+}
+
+export async function removeCupPoint(pointId: string): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const point = await prisma.cupPoint.findFirst({ where: { id: String(pointId), eventId }, select: { id: true, label: true } });
+  if (!point) return { ok: false, error: "That point isn't in this cup." };
+  await prisma.cupPoint.delete({ where: { id: point.id } });
+  await logAudit(eventId, "cup.point", `Point outside the matches removed: ${point.label}`);
+  await refresh(eventId);
+  return { ok: true };
+}

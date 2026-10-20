@@ -161,7 +161,7 @@ describe("the score", () => {
     await announce(f.singles);
 
     const b = await board(f.eventId);
-    expect(b.tally).toEqual({ a: 1.5, b: 1.5, total: 4, decided: 3, inPlay: 1, notStarted: 0 });
+    expect(b.tally).toEqual({ a: 1.5, b: 1.5, total: 4, decided: 3, inPlay: 1, notStarted: 0, outside: 0, outsideDecided: 0 });
     const reversed = b.sessions[1].matches.find((m) => m.b.includes(`${TAG} U4`))!;
     expect(reversed.a).toEqual([`${TAG} E4`]);
     expect(reversed.state).toMatchObject({ points: [0, 1], leader: "B", label: "5&4" });

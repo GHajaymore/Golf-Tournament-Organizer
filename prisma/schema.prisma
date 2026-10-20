@@ -1417,6 +1417,7 @@ model Event {
   contests        Contest[]
   sideGames       SideGame[]
   threads         Thread[]
+  cupPoints       CupPoint[]
 
   @@index([organizationId])
   @@index([courseId])
@@ -3500,4 +3501,27 @@ model DiscountCode {
   timesRedeemed  Int       @default(0)
   expiresAt      DateTime?
   createdAt      DateTime  @default(now())
+}
+
+/**
+ * A POINT IN A CUP THAT IS NOT A MATCH (2026-10-19) — the first real cup's
+ * sixteenth point, for the lower team net total, which CDG won and the app had
+ * nowhere to record. The organizer names it and gives it a value; it counts in
+ * the cup's total from the moment it exists (so the target is right before it
+ * is decided) and in a team's score once it is awarded. Read through
+ * `cupTally`'s outside points.
+ */
+model CupPoint {
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  /** What it is for, as the organizer names it: "Team net total". */
+  label   String
+  points  Float  @default(1)
+  /** The team (flight) it went to, or "" while it is still to be decided. */
+  groupId String @default("")
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
 }
