@@ -1,4 +1,5 @@
-import { compareTeamRows, valueOnBasis, type WeekBasis } from "./week-basis";
+import { compareTeamRows, teamPlaceValue, valueOnBasis, type WeekBasis } from "./week-basis";
+import { placesByValue } from "./flight-places";
 
 /**
  * A PAIRS EVENT OVER MORE THAN ONE ROUND IS WON ON THE TOTAL (2026-10-10).
@@ -50,6 +51,16 @@ export interface PairTotal {
 }
 
 const keyOf = (memberIds: readonly string[]) => [...memberIds].sort().join("|");
+
+/**
+ * THE PLACES OF A SEASON'S PAIR TOTALS — the one numbering of them, read by
+ * the board's totals table (`PairTotalsTable`) and the final report alike.
+ * The figure alone, ties shared: a total over several rounds has no single
+ * card to count back on. Rows in board order; null for a pair with no card.
+ */
+export function pairTotalPlaces(rows: readonly PairTotal[], basis: WeekBasis): (number | null)[] {
+  return placesByValue(rows, (r) => teamPlaceValue(basis, r), (r) => r.played > 0);
+}
 
 export function pairTotals(rounds: readonly (readonly PairRoundRow[])[], basis: WeekBasis): PairTotal[] {
   if (rounds.length < 2) return [];

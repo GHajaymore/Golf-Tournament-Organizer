@@ -3,6 +3,7 @@ import { WayForward } from "@/components/WayForward";
 import { CommentaryFeed } from "@/components/CommentaryFeed";
 import { MoreInfo } from "@/components/MoreInfo";
 import Link from "next/link";
+import { isMatch } from "@/lib/tournament-shape";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
@@ -144,6 +145,23 @@ export default async function PlayBoardPage({
    */
   const prizes = await prizesForEntrant(session.eventId, session.email);
 
+  // A FINISHED TOURNAMENT'S REPORT (2026-10-19): the page its public board
+  // links to — so only where the board is public. A casual round has none.
+  const reportHref =
+    state.event.status === "completed" && !isMatch(state.event.shape) && isLeaderboardPublic(settingsOf(state.event))
+      ? `/live/${state.event.shareToken}/report`
+      : "";
+  const reportLink = reportHref ? (
+    <p style={{ margin: "0 0 14px" }}>
+      <Link
+        href={reportHref}
+        style={{ fontWeight: 600, minHeight: 44, display: "inline-flex", alignItems: "center", color: "var(--color-accent-200)" }}
+      >
+        Read the final report
+      </Link>
+    </p>
+  ) : null;
+
   // The round this board shows, and whether IT is stroke-scored — both
   // from the state, which is where the four screens that used to work this
   // out for themselves now agree. See `boardIsStroke`.
@@ -261,6 +279,7 @@ export default async function PlayBoardPage({
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: "0 0 10px" }}>Board</h1>
         {said}
+        {reportLink}
         {picker}
         {kind === "manual" ? (
           // No "when it's settled": also shown on a finished tournament.
@@ -395,6 +414,7 @@ export default async function PlayBoardPage({
         </Link>
       </div>
       {said}
+      {reportLink}
 
       {picker}
 

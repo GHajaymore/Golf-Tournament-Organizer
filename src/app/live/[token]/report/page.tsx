@@ -4,16 +4,19 @@ import { prisma } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
 import { settingsOf } from "@/lib/services/tournament";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
-import { finalReport } from "@/lib/services/final-report";
+import { reportFor } from "@/lib/services/event-report";
 import { FinalReport } from "@/components/FinalReport";
+import { EventReport } from "@/components/EventReport";
 
 /**
- * A team cup's final report, for anybody holding the board's link.
+ * A tournament's final report, for anybody holding the board's link — a
+ * cup's (`FinalReport`) or any other's (`EventReport`).
  *
  * The same credential as `/live/<token>` and the same rule: the share token
  * and a public leaderboard, checked on every request, and one 404 for a wrong
- * token, an unpublished board and a tournament that is not a cup. It shows
- * what the public board shows — names, matches and points — and nothing else.
+ * token, an unpublished board and a casual round. It shows what the public
+ * board shows — names, positions, scores, matches and points — and the names
+ * of prize winners; never what a prize is worth.
  */
 export const dynamic = "force-dynamic";
 
@@ -31,16 +34,16 @@ export default async function PublicFinalReportPage({ params }: { params: Promis
   const { token } = await params;
   const event = await prisma.event.findUnique({ where: { shareToken: token } });
   if (!event || !isLeaderboardPublic(settingsOf(event))) notFound();
-  const report = await finalReport(event.id);
-  if (!report) notFound();
-  return (
-    <FinalReport
-      report={report}
-      footer={
-        <Link href={`/live/${token}`} className="fr-noprint">
-          The live board
-        </Link>
-      }
-    />
+  const found = await reportFor(event.id);
+  if (!found) notFound();
+  const footer = (
+    <Link href={`/live/${token}`} className="fr-noprint">
+      The live board
+    </Link>
+  );
+  return found.kind === "cup" ? (
+    <FinalReport report={found.report} footer={footer} />
+  ) : (
+    <EventReport report={found.report} footer={footer} />
   );
 }

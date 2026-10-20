@@ -315,6 +315,12 @@ export function LifecycleBar({
               {WIPE_ON_CLOSE}
             </div>
             <div className="dialog-actions">
+              {/* Completing deletes it, so the report can only be kept by
+                  opening it first — to print, or save as a PDF (Ajay,
+                  2026-10-19: "go with your recommendations"). */}
+              <Link className="btn btn-secondary" href="/reports/final">
+                <Icon name="trophy" /> Open the final report
+              </Link>
               <Link className="btn btn-secondary" href="/reports">
                 <Icon name="download-simple" /> Go to Reports
               </Link>
