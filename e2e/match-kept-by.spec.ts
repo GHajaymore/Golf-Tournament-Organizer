@@ -290,6 +290,44 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
     await expect.poll(() => stored(ids.tapsMatch), { timeout: 15_000, message: "the organizer's tap was not stored" }).toBe("A,");
   });
 
+  /**
+   * A FINISHED RESULT WAITING ON THE COMMITTEE IS SIGNED OFF HERE (2026-10-20).
+   * Found on the first real cup: two four-balls corrected after play sat
+   * "Awaiting approval", the Dashboard would not complete the tournament
+   * until they were signed off, and this screen — where its "Review" link
+   * lands — had no way to do it. The finished, unsigned match is written as a
+   * row (a correction made after play: Ailsa & Bram won the first five holes,
+   * 5&4), not played through the taps; the signing off is done on the screen.
+   */
+  await test.step("a finished result waiting on the committee is signed off on Score entry", async () => {
+    await prisma.match.update({
+      where: { id: ids.tapsMatch },
+      data: {
+        holes: JSON.stringify(["A", "A", "A", "A", "A", null, null, null, null]),
+        scoreStatus: "pending",
+        scoredAt: new Date(),
+      },
+    });
+    await page.goto(`/entry?round=${encodeURIComponent(ids.taps)}&bust=${Date.now()}`);
+    const nav = page.getByRole("navigation", { name: "Matches in this round" });
+    await expect(nav).toContainText("Awaiting approval", { timeout: 30_000 });
+    const signOff = page.getByRole("group", { name: "Sign off this result" });
+    await expect(signOff).toContainText("Awaiting approval: 5&4");
+    await signOff.getByRole("button", { name: "Confirm result" }).click();
+    // Signed off: nothing is waiting, so the card goes and the list says so.
+    await expect(signOff).toHaveCount(0, { timeout: 20_000 });
+    await expect(nav).not.toContainText("Awaiting approval");
+    await expect
+      .poll(async () => (await prisma.match.findUniqueOrThrow({ where: { id: ids.tapsMatch } })).scoreStatus, {
+        timeout: 15_000,
+        message: "the result was not signed off",
+      })
+      .toBe("confirmed");
+    await page.goto(`/entry?round=${encodeURIComponent(ids.taps)}&bust=${Date.now()}`);
+    await expect(page.getByRole("navigation", { name: "Matches in this round" })).not.toContainText("Awaiting approval");
+    await expect(page.getByRole("group", { name: "Sign off this result" })).toHaveCount(0);
+  });
+
   await test.step("and a player there is sent to their own match", async () => {
     const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
     try {
