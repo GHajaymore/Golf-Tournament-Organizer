@@ -9,6 +9,7 @@ import { lookupFormat } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { TEAM_SESSION, cupBoard, sessionKind } from "@/lib/services/cup";
 import { notifyLineupPublished } from "@/lib/services/cup-notify";
+import { isMatch } from "@/lib/tournament-shape";
 
 /**
  * THE TEAM CUP'S CONTROLS (2026-09-28): the target, the holder, and the
@@ -422,11 +423,13 @@ export async function saveReportRecap(text: string): Promise<Result> {
     .replace(/\r\n/g, "\n")
     .trim()
     .slice(0, 4000);
-  const cupStages = await prisma.stage.count({ where: { eventId, type: TEAM_SESSION } });
-  if (cupStages === 0) return { ok: false, error: "This tournament isn't a cup." };
+  // Every tournament has a final report since 2026-10-19; a casual round has none.
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } });
+  if (!event || isMatch(event.shape)) return { ok: false, error: "A casual round has no final report." };
   await prisma.event.update({ where: { id: eventId }, data: { reportRecap: recap } });
   await logAudit(eventId, "cup.report", recap ? "Final report story written" : "Final report story cleared");
   revalidatePath("/cup/report");
+  revalidatePath("/reports/final");
   revalidatePath("/live", "layout");
   return { ok: true };
 }

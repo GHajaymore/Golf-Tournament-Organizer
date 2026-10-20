@@ -1,5 +1,6 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import { hasKnockoutStage } from "@/lib/stage-types";
+import Link from "next/link";
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, standingRows, withBoardRound } from "@/lib/services/tournament";
 import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
@@ -346,6 +347,13 @@ export default async function ReportsPage({
         <h1 className="page-title">Reports &amp; export</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Download standings and results, or print a snapshot.
+        </p>
+        {/* The whole tournament on one page to send round — the same report
+            the public board links to once the tournament is finished. */}
+        <p style={{ margin: "12px 0 0" }}>
+          <Link href="/reports/final" className="btn" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
+            {state.event.status === "completed" ? "Final report" : "The results so far"}
+          </Link>
         </p>
         {choices.length > 1 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>

@@ -1,8 +1,9 @@
 import type { TeamStanding } from "@/lib/services/teams";
-import { teamPlaceValue, valueOnBasis, type WeekBasis } from "@/lib/domain/week-basis";
+import { valueOnBasis, type WeekBasis } from "@/lib/domain/week-basis";
+import { pairTotalPlaces } from "@/lib/domain/pair-totals";
 import type { EventPairTotals } from "@/lib/services/pair-totals";
 import { toParText } from "@/lib/domain";
-import { placesByValue, placeTexts } from "@/lib/domain/flight-places";
+import { placeTexts } from "@/lib/domain/flight-places";
 import { MoreInfo } from "./MoreInfo";
 import { namedAfterPlayers } from "@/lib/domain/side-name";
 
@@ -240,7 +241,7 @@ export function TeamStandingsTable({
 export function PairTotalsTable({ totals }: { totals: EventPairTotals }) {
   const { basis, labels, rows } = totals;
   const stableford = basis === "stableford";
-  const places = placeTexts(placesByValue(rows, (r) => teamPlaceValue(basis, r), (r) => r.played > 0));
+  const places = placeTexts(pairTotalPlaces(rows, basis));
   const num = { textAlign: "right", fontVariantNumeric: "tabular-nums" } as const;
   return (
     <div className="card elev-sm" style={{ marginBottom: 16 }}>

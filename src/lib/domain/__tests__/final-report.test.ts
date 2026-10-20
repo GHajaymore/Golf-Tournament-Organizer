@@ -233,6 +233,28 @@ describe("the report of any other tournament", () => {
     ).toBe("Ada leads on net 66, with the tournament still to finish.");
   });
 
+  it("a winner level on the figure with second place won on countback, and says so", () => {
+    expect(
+      eventStory({
+        completed: true,
+        first: { names: ["Team 3"], figure: "gross 74" },
+        second: { names: ["Team 37"], figure: "gross 74" },
+        rounds: [],
+      })[0],
+    ).toBe("Team 3 won on gross 74, ahead of Team 37 on countback.");
+  });
+
+  it("a knockout's champion won matches, not a figure", () => {
+    expect(
+      eventStory({
+        completed: true,
+        first: { names: ["Ada"], figure: "" },
+        second: { names: ["Bo"], figure: "" },
+        rounds: [],
+      })[0],
+    ).toBe("Ada won. Bo was second.");
+  });
+
   it("several rounds each get their own sentence; one round needs none", () => {
     const told = eventStory({
       completed: true,

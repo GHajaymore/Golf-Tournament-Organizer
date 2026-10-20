@@ -325,6 +325,15 @@ export function placeFigure(
   return basis.isNet ? `net ${row.net}` : `gross ${row.gross}`;
 }
 
+/**
+ * A SIDE's figure in a team round, on the basis that round is decided on
+ * (`WeekBasis`): "41 points", "net 62", "gross 70".
+ */
+export function sideFigure(row: { gross: number; net: number; points: number }, basis: "stableford" | "gross" | "net"): string {
+  if (basis === "stableford") return `${row.points} points`;
+  return basis === "net" ? `net ${row.net}` : `gross ${row.gross}`;
+}
+
 /** A finishing place: who holds it — one name, or several when it is shared — and on what. */
 export interface Place {
   names: string[];
@@ -361,18 +370,31 @@ export function eventStory(input: {
     const who = listWords(first.names);
     const several = first.names.length > 1;
     const lead: string[] = [];
+    // A knockout's places are won in matches, not on a figure: " on …" only where there is one.
+    const on = (p: Place) => (p.figure ? ` on ${p.figure}` : "");
     if (!input.completed) {
-      lead.push(`${who} ${several ? "lead" : "leads"} on ${first.figure}, with the tournament still to finish.`);
+      lead.push(`${who} ${several ? "lead" : "leads"}${on(first)}, with the tournament still to finish.`);
     } else if (several) {
-      lead.push(`${who} finished level at the top on ${first.figure}. A tie for first place is the committee's to settle.`);
+      lead.push(`${who} finished level at the top${on(first)}. A tie for first place is the committee's to settle.`);
+    } else if (second && first.figure && second.figure === first.figure) {
+      // Level on the figure and still placed apart: the board's countback
+      // decided it. Said, so "won on gross 74 … second, on gross 74" never
+      // reads as one equal score beating another.
+      lead.push(`${who} won${on(first)}, ahead of ${listWords(second.names)} on countback.`);
+      out.push(lead.join(" "));
+      if (input.rounds.length > 1) {
+        out.push(input.rounds.map((r) => `${r.label}: ${r.result.replace(/\.?$/, ".")}`).join(" "));
+      }
+      return out;
     } else {
-      lead.push(`${who} won on ${first.figure}.`);
+      lead.push(`${who} won${on(first)}.`);
     }
     if (second && second.names.length > 0 && !(several && input.completed)) {
+      const by = second.figure ? `, on ${second.figure}` : "";
       lead.push(
         second.names.length === 1
-          ? `${second.names[0]} was ${input.completed ? "second" : "next"}, on ${second.figure}.`
-          : `${listWords(second.names)} ${input.completed ? "shared second" : "are next"}, on ${second.figure}.`,
+          ? `${second.names[0]} was ${input.completed ? "second" : "next"}${by}.`
+          : `${listWords(second.names)} ${input.completed ? "shared second" : "are next"}${by}.`,
       );
     }
     out.push(lead.join(" "));
