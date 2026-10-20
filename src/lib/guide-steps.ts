@@ -281,7 +281,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Add each side with [[Add team]], or press [[Draw sides automatically]] to balance by handicap.",
           "Fill sides with [[Add player]]; **Not on a side yet** shows who is left.",
-          "Press [[Generate matches]] once there are at least two sides.",
+          "In a round robin of sides, press [[Generate matches]] once there are at least two sides. A stroke-play round has no matches to draw, so the button is not there.",
+          "Rename a side in its name box. Taking out a player who has returned a card asks first, because the side's score changes; a side with scores on it cannot be removed.",
         ],
       },
       { kind: "h", text: "Tee sheet" },

@@ -10,6 +10,7 @@ import { TeamsClient } from "@/components/TeamsClient";
 import { teamsForStage, unassignedPlayers, teamProblems, effectiveAllowance, effectiveCountBest, recommendedAllowance } from "@/lib/services/teams";
 import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 
@@ -119,6 +120,7 @@ export default async function TeamsPage({
         problems={teamProblems(teams, active.format)}
         unassigned={unassigned}
         matchCount={matchCount}
+        drawsMatches={generatesPairings(active.type)}
         league={isLeaguePointsSystem(leagueEvent?.leaguePoints)}
       />
 

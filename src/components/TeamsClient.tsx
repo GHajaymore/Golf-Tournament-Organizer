@@ -82,9 +82,17 @@ export function TeamsClient({
   problems,
   unassigned,
   matchCount,
+  drawsMatches,
   league = false,
   locked = false,
 }: {
+  /**
+   * The round draws matches between its sides — a round robin, and nothing
+   * else (`generatesPairings`). Required, so a caller says. A stroke-play
+   * four-ball was offered "Generate matches" and made matches nobody plays
+   * (2026-10-20); a bracket and a single match make their own.
+   */
+  drawsMatches: boolean;
   /**
    * Setup is locked. Every action here that changes a side refuses a locked
    * tournament by THROWING (`assertUnlocked(…, "change teams")`), so each of
@@ -318,14 +326,16 @@ export function TeamsClient({
         <button type="button" className="btn btn-primary" disabled={busy} onClick={() => draw(false)}>
           <Icon name="shuffle" /> Draw sides automatically
         </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={busy || !!sideBlock}
-          onClick={() => makeMatches(false)}
-        >
-          <Icon name="arrows-clockwise" /> {matchCount > 0 ? "Regenerate" : "Generate"} matches
-        </button>
+        {drawsMatches && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || !!sideBlock}
+            onClick={() => makeMatches(false)}
+          >
+            <Icon name="arrows-clockwise" /> {matchCount > 0 ? "Regenerate" : "Generate"} matches
+          </button>
+        )}
         {/* A side's name saves when its box is left, and a player when picked —
             said here, as self-saving controls do. */}
         <SaveState status={saveStatus} />
@@ -338,7 +348,7 @@ export function TeamsClient({
 
           No link: both ways out are controls on this screen, so it names them
           by the words on them instead of pointing somewhere. */}
-      {sideBlock && (
+      {drawsMatches && sideBlock && (
         <p
           style={{
             fontSize: 13,
