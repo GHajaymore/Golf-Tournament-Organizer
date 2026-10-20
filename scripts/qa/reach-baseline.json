@@ -45,9 +45,6 @@
   "app/actions/draft-message.ts": [
    "draftMessage"
   ],
-  "app/actions/handicap-policy.ts": [
-   "saveHandicapPolicy"
-  ],
   "app/actions/join.ts": [
    "approveJoinRequest",
    "askToJoinNamesake",
@@ -70,7 +67,6 @@
   ],
   "app/actions/play.ts": [
    "certifyPlayCard",
-   "leavePlay",
    "savePlayMatchResult"
   ],
   "app/actions/push.ts": [
@@ -96,9 +92,6 @@
    "renameTeam",
    "setStageAllowanceWeights"
   ],
-  "app/actions/tee-sheet.ts": [
-   "setTeeSheetPublished"
-  ],
   "app/actions/tournament.ts": [
    "applyMatchResult",
    "applyRoundHandicapToRest",
@@ -116,7 +109,6 @@
    "movePlayerToGroup",
    "rejectBracketReport",
    "removeSignups",
-   "removeStage",
    "renameGroup",
    "reopenMatch",
    "reopenScorecard",
@@ -126,7 +118,6 @@
    "saveScoring",
    "saveTiebreakers",
    "setFlightsConfirmed",
-   "setMatchTiebreakers",
    "setQualifyPerGroup",
    "setSingleMatchRule",
    "setStageCarry",
@@ -136,7 +127,6 @@
    "setStageFormat",
    "setStageHoles",
    "setStagePlayedOn",
-   "setThirdPlace",
    "switchEvent"
   ]
  }
