@@ -228,7 +228,7 @@ export const FAQ: FaqGroup[] = [
       {
         id: "divisions",
         q: "Can divisions play off different tees?",
-        a: () => <p>Yes. Set the tees once per division — the championship off the blues, the seniors off the whites — and the course handicap does the rest, all on one leaderboard. Or set one tee for everyone, or let players choose until a card is returned.</p>,
+        a: () => <p>Yes. Set the tees once per division — the championship off the blues, the seniors off the whites — and the course handicap does the rest, all on one leaderboard. Or set one tee for everyone, and move a single player when you need to. The organizer decides the tees, not the entrant.</p>,
       },
       {
         id: "ties",

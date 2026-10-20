@@ -148,6 +148,17 @@ export default async function PrivacyPage() {
           call you if you left a number.
         </p>
         <p>
+          If you arrived by one of our links or advertisements, the link&rsquo;s campaign label
+          (which post or advertisement you followed) and the name of the site that sent you are kept
+          with your registration, so we can tell which ones work. They are read from the web address
+          you arrived at; nothing is stored on your device and nothing is shared.
+        </p>
+        <p>
+          If you register through a form inside Facebook, Instagram or LinkedIn instead, that platform
+          passes us what you typed in it, and we keep it in the same way; the platform&rsquo;s own
+          privacy policy covers what it keeps.
+        </p>
+        <p>
           It is used for nothing else and never sold. Write to us and we will delete it, whenever you
           ask.
         </p>

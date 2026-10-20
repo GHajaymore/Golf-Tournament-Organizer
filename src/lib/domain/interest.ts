@@ -23,7 +23,7 @@ export const INTEREST_COPY = {
   sub: "Register now and we'll email you a code for 25% off the paid plan you choose at launch. It covers your first term: your first month, or your first year if you pay yearly.",
   bullets: [
     "Entries, tee sheets and live scoring on players' own phones — players need only a round code, no account.",
-    "Match play, team cups, money games and a final report in one place.",
+    "Match play, team cups, skins and side games with who owes what worked out, and a final report — in one place.",
     "Already used for a real 20-player team match, scored live on players' phones.",
   ],
   labels: {
@@ -94,8 +94,42 @@ export interface InterestInput {
   role: string;
   members: string;
   note: string;
+  /** Which link brought them — see `interestSource`. Never typed by them. */
+  source?: string;
   /** The hidden box. A person never fills it; a script fills every box. */
   website?: string;
+}
+
+/** The URL parameters a campaign link carries, kept in this order. */
+export const SOURCE_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref"] as const;
+
+/**
+ * WHERE A NOTE OF INTEREST CAME FROM (2026-10-21), from the address they
+ * arrived at and the site that sent them — no cookie, nothing stored on their
+ * device. "utm_source=meta; utm_campaign=pre-c1; from=facebook.com". The
+ * panel's marketing manager and ad director both called it blocking: without
+ * it no post or advertisement can be judged.
+ */
+export function interestSource(search: string, referrer: string, ownHost: string): string {
+  const params = new URLSearchParams(search);
+  const parts: string[] = [];
+  for (const k of SOURCE_KEYS) {
+    const v = (params.get(k) ?? "").trim();
+    if (v) parts.push(`${k}=${v}`);
+  }
+  let from = "";
+  try {
+    from = referrer ? new URL(referrer).hostname.replace(/^www\./, "") : "";
+  } catch {
+    from = "";
+  }
+  if (from && from !== ownHost.replace(/^www\./, "")) parts.push(`from=${from}`);
+  return cleanSource(parts.join("; "));
+}
+
+/** Only the characters a tag is made of, and a short line of them. */
+export function cleanSource(raw: unknown): string {
+  return (typeof raw === "string" ? raw : "").replace(/[^\w.=;:/ +-]/g, "").trim().slice(0, 300);
 }
 
 export type InterestCheck =
@@ -136,7 +170,7 @@ export function checkInterest(raw: unknown): InterestCheck {
   if (!INTEREST_ROLES.some((x) => x.key === role)) return { ok: false, error: "Choose who you are.", field: "role" };
   // Size is optional: "Not sure" is an answer, and so is leaving it.
   const size = INTEREST_SIZES.some((x) => x.key === members) ? members : "";
-  return { ok: true, clean: { name, email, phone, club, role, members: size, note } };
+  return { ok: true, clean: { name, email, phone, club, role, members: size, note, source: cleanSource(r.source) } };
 }
 
 export const roleLabel = (key: string) => INTEREST_ROLES.find((x) => x.key === key)?.label ?? key;

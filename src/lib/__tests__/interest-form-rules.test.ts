@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkInterest, interestSubject, INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES } from "@/lib/domain/interest";
+import { checkInterest, cleanSource, interestSource, interestSubject, INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES } from "@/lib/domain/interest";
 
 /**
  * THE /interest FORM'S RULES (2026-10-21) — `checkInterest` is the only door,
@@ -31,7 +31,7 @@ describe("email required, phone optional (Ajay, 2026-10-21)", () => {
 describe("what the form accepts", () => {
   it("a whole answer, tidied: the address lower-cased and trimmed", () => {
     const r = checkInterest(good);
-    expect(r).toEqual({ ok: true, clean: { ...good, email: "pat@example.invalid" } });
+    expect(r).toEqual({ ok: true, clean: { ...good, email: "pat@example.invalid", source: "" } });
   });
 
   it("size is optional, and an unknown size is dropped rather than stored", () => {
@@ -82,6 +82,30 @@ describe("what it refuses, and which box the refusal belongs to", () => {
 
   it("CONTROL: an empty hidden box is a person", () => {
     expect(checkInterest({ ...good, website: "" }).ok).toBe(true);
+  });
+});
+
+describe("where a note came from — read off the address, no cookie", () => {
+  it("keeps the campaign tags and the site that sent them, in a fixed order", () => {
+    expect(interestSource("?utm_campaign=pre-c1&utm_source=meta&x=1", "https://www.facebook.com/ads", "tourneyhq.club")).toBe(
+      "utm_source=meta; utm_campaign=pre-c1; from=facebook.com",
+    );
+  });
+
+  it("our own pages are not a source, and nothing at all is 'direct' (empty)", () => {
+    expect(interestSource("", "https://tourneyhq.club/faq", "tourneyhq.club")).toBe("");
+    expect(interestSource("", "", "tourneyhq.club")).toBe("");
+  });
+
+  it("a caller cannot store markup or a novel in it", () => {
+    const s = cleanSource("utm_source=<script>alert(1)</script>" + "x".repeat(900));
+    expect(s).not.toMatch(/[<>()]/);
+    expect(s.length).toBeLessThanOrEqual(300);
+  });
+
+  it("the action keeps it from the form, cleaned", () => {
+    const r = checkInterest({ ...good, source: "utm_source=google; <b>" });
+    expect(r.ok && r.clean.source).toBe("utm_source=google; b");
   });
 });
 

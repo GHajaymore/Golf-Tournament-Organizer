@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { registerInterest } from "@/app/actions/interest";
-import { INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES, INTEREST_SIZES } from "@/lib/domain/interest";
+import { INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES, INTEREST_SIZES, interestSource } from "@/lib/domain/interest";
 
 type Field = "name" | "email" | "phone" | "club" | "role" | "members" | "note";
 
@@ -64,7 +64,9 @@ export function InterestForm() {
         e.preventDefault();
         setRefusal(null);
         start(async () => {
-          const res = await registerInterest({ ...v, website });
+          // Which link brought them, read off this page's own address — see `interestSource`.
+          const source = interestSource(window.location.search, document.referrer, window.location.hostname);
+          const res = await registerInterest({ ...v, website, source });
           if (res.ok) setSent({ name: v.name.trim(), email: v.email.trim().toLowerCase(), role: v.role });
           else setRefusal({ error: res.error ?? "That could not be sent — try again, or write to inquiries@tourneyhq.club.", field: res.field });
         });

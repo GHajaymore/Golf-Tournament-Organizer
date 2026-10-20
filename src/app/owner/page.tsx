@@ -201,6 +201,7 @@ export default async function OwnerConsolePage() {
                   <th>Who</th>
                   <th>Size</th>
                   <th>Note</th>
+                  <th>From</th>
                 </tr>
               </thead>
               <tbody>
@@ -216,6 +217,7 @@ export default async function OwnerConsolePage() {
                     <td>{roleLabel(r.role)}</td>
                     <td>{sizeLabel(r.members)}</td>
                     <td style={{ minWidth: 160 }}>{r.note}</td>
+                    <td className="text-muted" style={{ fontSize: 12, minWidth: 140 }}>{r.source || "direct"}</td>
                   </tr>
                 ))}
               </tbody>

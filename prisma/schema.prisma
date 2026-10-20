@@ -3551,6 +3551,10 @@ model InterestRequest {
   /// How many members, as a band: under-50 | 50-150 | 150-400 | over-400 | unsure
   members   String   @default("")
   note      String   @default("")
+  /// Which link brought them: the campaign tags on the address they arrived
+  /// at (utm_*, ref) and the site that sent them — read from the URL, no
+  /// cookie. So the panel can tell which post or advertisement works.
+  source    String   @default("")
   createdAt DateTime @default(now())
 
   @@index([createdAt])
