@@ -132,10 +132,25 @@ export interface CupTally {
   decided: number;
   inPlay: number;
   notStarted: number;
+  /**
+   * POINTS OUTSIDE THE MATCHES (2026-10-19) — a cup's "team net total" point,
+   * say: all of them, and those already awarded. Counted apart from the
+   * matches so "15 of 15 matches decided" stays a sentence about matches,
+   * while the target and the verdict are worked out on every point there is
+   * (`cupPointsInPlay`, `cupPointsDecided`). `a` and `b` include the awarded.
+   */
+  outside: number;
+  outsideDecided: number;
 }
 
-export function cupTally(matches: CupMatchInput[]): CupTally {
-  const t: CupTally = { a: 0, b: 0, total: matches.length, decided: 0, inPlay: 0, notStarted: 0 };
+/** One point outside the matches: who it went to (null while undecided), and what it is worth. */
+export interface CupOutsidePoint {
+  side: CupSide | null;
+  points: number;
+}
+
+export function cupTally(matches: CupMatchInput[], outside: CupOutsidePoint[] = []): CupTally {
+  const t: CupTally = { a: 0, b: 0, total: matches.length, decided: 0, inPlay: 0, notStarted: 0, outside: 0, outsideDecided: 0 };
   for (const m of matches) {
     const s = cupMatchState(m);
     t.a += s.points[0];
@@ -144,7 +159,25 @@ export function cupTally(matches: CupMatchInput[]): CupTally {
     else if (s.status === "in-play") t.inPlay += 1;
     else t.notStarted += 1;
   }
+  for (const o of outside) {
+    const worth = Number.isFinite(o.points) && o.points > 0 ? o.points : 0;
+    t.outside += worth;
+    if (o.side === null) continue;
+    t.outsideDecided += worth;
+    if (o.side === "A") t.a += worth;
+    else t.b += worth;
+  }
   return t;
+}
+
+/** Every point in the cup: one a match, and the points outside the matches. */
+export function cupPointsInPlay(t: CupTally): number {
+  return t.total + t.outside;
+}
+
+/** The points already settled, matches and outside points alike. */
+export function cupPointsDecided(t: CupTally): number {
+  return t.decided + t.outsideDecided;
 }
 
 /**
@@ -187,15 +220,17 @@ export type CupVerdict =
  */
 export function cupVerdict(t: CupTally, target: number, holder: CupSide | null, totalKnown = true): CupVerdict {
   if (target <= 0 && !totalKnown) return { kind: "open", needA: null, needB: null };
-  const win = pointsToWin(target, t.total);
+  // On every point there is — the matches and any points outside them.
+  const points = cupPointsInPlay(t);
+  const win = pointsToWin(target, points);
   if (win > 0 && t.a >= win) return { kind: "won", by: "A" };
   if (win > 0 && t.b >= win) return { kind: "won", by: "B" };
-  const left = t.total - t.decided;
-  if (holder && totalKnown && t.total > 0) {
+  const left = points - cupPointsDecided(t);
+  if (holder && totalKnown && points > 0) {
     const challenger = holder === "A" ? t.b : t.a;
     if (challenger + left < win) return { kind: "retained", by: holder };
   }
-  if (t.total > 0 && left === 0) {
+  if (points > 0 && left === 0) {
     return holder ? { kind: "retained", by: holder } : { kind: "tied" };
   }
   return { kind: "open", needA: Math.max(0, win - t.a), needB: Math.max(0, win - t.b) };

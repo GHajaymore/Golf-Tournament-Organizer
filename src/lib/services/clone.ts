@@ -290,6 +290,10 @@ export const CLONE_IGNORED_RELATIONS = [
   // them to a field that has changed — including, in a direct thread, to
   // people who were never in it. A new tournament starts quiet.
   "threads",
+  // A cup's points outside the matches were won by last year's teams — the
+  // teams themselves are not carried — so a copy starts without them, and the
+  // organizer adds this year's team net total point on the Team cup screen.
+  "cupPoints",
 ];
 
 /**

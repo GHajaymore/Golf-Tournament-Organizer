@@ -1,5 +1,7 @@
-import { cupPoints, type CupVerdict } from "@/lib/domain/cup";
+import { cupPoints, cupPointsDecided, cupPointsInPlay, type CupVerdict } from "@/lib/domain/cup";
 import type { CupBoard } from "@/lib/services/cup";
+import { cardLineText, type CardLine } from "@/lib/domain/card-line";
+import { distinctLabels } from "@/lib/format";
 
 /** One sentence under the score: who has the cup, or what each team needs. */
 export function cupVerdictLine(board: CupBoard): string {
@@ -10,7 +12,7 @@ export function cupVerdictLine(board: CupBoard): string {
   if (v.kind === "retained") {
     // Level only when every match is in; before that the holder has simply
     // got out of reach, which is how a cup is usually kept.
-    const level = board.tally.decided === board.tally.total && board.tally.a === board.tally.b;
+    const level = cupPointsDecided(board.tally) === cupPointsInPlay(board.tally) && board.tally.a === board.tally.b;
     return level ? `Level — ${name(v.by)} retain the cup.` : `${name(v.by)} retain the cup.`;
   }
   if (v.kind === "tied") return "Level — the cup is shared.";
@@ -109,7 +111,10 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
                     borderTop: "1px solid var(--color-divider)",
                   }}
                 >
-                  <span style={{ fontWeight: m.state.leader === "A" ? 600 : 400, minWidth: 0 }}>{m.a.join(" & ")}</span>
+                  <span style={{ fontWeight: m.state.leader === "A" ? 600 : 400, minWidth: 0 }}>
+                    {m.a.join(" & ")}
+                    <CardFigures lines={m.cards?.a} holes={m.cards?.holes ?? 18} align="left" />
+                  </span>
                   <span
                     style={{
                       fontSize: 13,
@@ -130,6 +135,7 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
                   </span>
                   <span style={{ textAlign: "right", fontWeight: m.state.leader === "B" ? 600 : 400, minWidth: 0 }}>
                     {m.b.join(" & ")}
+                    <CardFigures lines={m.cards?.b} holes={m.cards?.holes ?? 18} align="right" />
                   </span>
                 </li>
               ))}
@@ -137,6 +143,31 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
           )}
         </div>
       ))}
+
+      {/* POINTS OUTSIDE THE MATCHES — a team net total, say — under the
+          sessions, each with who has it or that it is still to be decided. */}
+      {board.outside.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <h3 style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 6px", color: "var(--color-neutral-500)" }}>
+            Other points
+          </h3>
+          <ul aria-label="Other points" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {board.outside.map((o) => (
+              <li
+                key={o.id}
+                style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13.5, padding: "6px 0", borderTop: "1px solid var(--color-divider)" }}
+              >
+                <span style={{ minWidth: 0 }}>
+                  {o.label} <span className="text-muted">· {cupPoints(o.points)} {o.points === 1 ? "point" : "points"}</span>
+                </span>
+                <span style={{ fontWeight: o.side ? 600 : 400, textAlign: "right" }}>
+                  {o.side ? board.teams[o.side === "A" ? 0 : 1].name : <span className="text-muted">To be decided</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -154,5 +185,27 @@ function TeamScore({ name, captain, points }: { name: string; captain: string; p
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Each ball's gross and net under the names, for a match kept on stroke cards
+ * — "always publish gross and net" (Ajay, 2026-10-17). One line a ball; a pair
+ * that plays one ball has one. Nothing at all for a tapped match: it has no
+ * strokes to show.
+ */
+function CardFigures({ lines, holes, align }: { lines?: CardLine[]; holes: number; align: "left" | "right" }) {
+  if (!lines || lines.length === 0) return null;
+  // Named only when the side has two balls, by first name, widened where two clash.
+  const short = lines.length > 1 ? distinctLabels(lines.map((l) => l.name)) : [];
+  return (
+    <span className="text-muted" style={{ display: "block", fontSize: 13, fontWeight: 400, textAlign: align, fontVariantNumeric: "tabular-nums" }}>
+      {lines.map((l, i) => (
+        <span key={l.name} style={{ display: "block" }}>
+          {short[i] ? `${short[i]} ` : ""}
+          {cardLineText(l, holes)}
+        </span>
+      ))}
+    </span>
   );
 }

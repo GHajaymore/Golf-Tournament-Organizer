@@ -73,10 +73,15 @@ if (env === "preview" && previewDirect && previewPooled) {
   process.exit(0);
 }
 
+// Said for the database actually being migrated: a preview reaches this line
+// too, with its own database, and its log used to say "production deploy" —
+// which read, on 2026-10-19, like a branch migrating production.
 console.log(
-  env
+  env === "production"
     ? "deploy-migrations: production deploy — applying migrations."
-    : "deploy-migrations: no VERCEL_ENV (local or CI) — applying migrations.",
+    : env === "preview"
+      ? "deploy-migrations: applying migrations to the PREVIEW database."
+      : "deploy-migrations: no VERCEL_ENV (local or CI) — applying migrations.",
 );
 
 // `inherit`, so Prisma's own output and its exit code reach the build log
