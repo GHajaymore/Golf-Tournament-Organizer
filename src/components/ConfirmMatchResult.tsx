@@ -43,7 +43,7 @@ export function ConfirmMatchResult({ matchId, result }: { matchId: string; resul
     <div className="card elev-sm" role="group" aria-label="Sign off this result" style={{ marginTop: 12 }}>
       <p style={{ margin: 0, fontWeight: 600 }}>Awaiting approval: {result}</p>
       <p className="text-muted" style={{ margin: "4px 0 10px", fontSize: 13.5 }}>
-        The match is finished. Confirm the result to make it official, or correct the holes above first.
+        The match is finished. Confirm the result to make it official, or correct the holes below first.
       </p>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <button type="button" className="btn btn-primary" disabled={pending} onClick={confirm} style={{ minHeight: 44 }}>
