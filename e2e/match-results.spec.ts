@@ -35,7 +35,7 @@ test.describe.configure({ mode: "serial" });
 
 const prisma = new PrismaClient();
 const MARK = "zz-match-results";
-const ids = { org: "", event: "", match: "", users: [] as string[] };
+const ids = { org: "", event: "", match: "", medal: "", ailsa: "", bram: "", users: [] as string[] };
 const secret = process.env.AUTH_SECRET ?? "dev-secret";
 const sign = (v: string) => `${v}.${createHmac("sha256", secret).update(v).digest("base64url")}`;
 let organizerCookie = "";
@@ -48,6 +48,9 @@ test.beforeAll(async () => {
       organizationId: org.id,
       name: `${MARK} Singles Matchplay`,
       status: "live",
+      // Setup opened again: clearing scores refuses a locked tournament, which
+      // `ClearScores` says rather than offers (walked elsewhere).
+      configUnlocked: true,
       shape: "single",
       format: "match",
       dates: "",
@@ -65,6 +68,11 @@ test.beforeAll(async () => {
   const stage = await prisma.stage.create({
     data: { eventId: event.id, position: 0, type: "Round Robin", format: "Match Play", description: "Group stage", scoringBasis: "gross", holes: 18 },
   });
+  ids.medal = (
+    await prisma.stage.create({
+      data: { eventId: event.id, position: 1, type: "Stroke Play Round", format: "Stroke Play", description: "Medal", scoringBasis: "gross", holes: 18 },
+    })
+  ).id;
   const flight = await prisma.group.create({ data: { eventId: event.id, name: "Group A", position: 0 } });
   const person = (name: string, i: number) =>
     prisma.player.create({
@@ -87,6 +95,14 @@ test.beforeAll(async () => {
       },
     })
   ).id;
+  // Both medal cards returned and approved.
+  for (const p of [ailsa, bram]) {
+    await prisma.scorecard.create({
+      data: { eventId: event.id, stageId: ids.medal, playerId: p.id, strokes: JSON.stringify(new Array(18).fill(4)), status: "approved" },
+    });
+  }
+  ids.ailsa = ailsa.id;
+  ids.bram = bram.id;
   const organizer = await prisma.user.create({ data: { email: `${MARK}-organizer@example.invalid`, name: "Zz Organizer", password: "x:unusable" } });
   await prisma.account.create({ data: { eventId: event.id, email: organizer.email, name: "Zz Organizer", role: "admin" } });
   ids.users = [organizer.id];
@@ -173,6 +189,64 @@ test("the committee types a result, has it disputed, confirms it, reopens it and
     await page.getByRole("button", { name: "Clear", exact: true }).click();
     await expect.poll(async () => (await row()).played, { message: "Clear did not empty the card" }).toBe(0);
     expect((await row()).status).toBe("pending");
+  });
+
+  expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * AND A MEDAL ROUND'S CARDS: an approved card reopened for correction
+ * (`reopenScorecard`), and one player's scores cleared without touching the
+ * other's (`clearRoundScores`) — both never pressed by a test before.
+ */
+test("the organizer reopens an approved card and clears one player's scores, and nobody else's", async ({ page, baseURL }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  watchPageErrors(page, errors, "organizer");
+  await page.context().addCookies([
+    { name: "ng_session", value: organizerCookie, url: baseURL! },
+    { name: "ng_active_event", value: sign(ids.event), url: baseURL! },
+  ]);
+  const card = (playerId: string) =>
+    prisma.scorecard.findFirst({ where: { stageId: ids.medal, playerId }, select: { status: true, strokes: true } });
+  const scored = async (playerId: string) => ((JSON.parse((await card(playerId))?.strokes ?? "[]") as unknown[]).filter((s) => typeof s === "number")).length;
+
+  await page.goto(`/entry?round=${ids.medal}&bust=${Date.now()}`);
+  await page.waitForLoadState("networkidle").catch(() => {});
+
+  await test.step("an approved card is reopened, and only that one", async () => {
+    await page.getByText(/^Approved \(2\)$/).click();
+    const ailsaRow = page.locator("details div", { hasText: "Zz Ailsa" }).last();
+    await ailsaRow.getByRole("button", { name: "Reopen" }).click();
+    await expect(page.getByText("Reopened Zz Ailsa's card.")).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => (await card(ids.ailsa))?.status, { message: "the card was not reopened" }).toBe("entered");
+    expect((await card(ids.bram))?.status, "the other card was reopened too").toBe("approved");
+  });
+
+  await test.step("an approved card is not cleared — reopen it first, said beside the button", async () => {
+    await page.getByRole("button", { name: /Clear scores/ }).click();
+    await page.getByRole("checkbox", { name: "Zz Bram" }).check();
+    await page.getByRole("button", { name: "Clear 1 selected" }).click();
+    await page.getByRole("button", { name: "Yes — clear 1 player" }).click();
+    const refused = page.getByText(/One card here has been approved by the committee\. Reopen it first/);
+    await expect(refused).toBeVisible({ timeout: 20_000 });
+    await expect(refused, "the refusal is not on screen where the press was").toBeInViewport();
+    expect(await scored(ids.bram), "an approved card was cleared").toBe(18);
+  });
+
+  await test.step("reopened, one player's scores are cleared, and the other's are kept", async () => {
+    await page.goto(`/entry?round=${ids.medal}&bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.getByText(/^Approved \(1\)$/).click();
+    await page.locator("details div", { hasText: "Zz Bram" }).last().getByRole("button", { name: "Reopen" }).click();
+    await expect.poll(async () => (await card(ids.bram))?.status, { message: "Zz Bram's card was not reopened" }).toBe("entered");
+    await page.getByRole("button", { name: /Clear scores/ }).click();
+    await page.getByRole("checkbox", { name: "Zz Bram" }).check();
+    await page.getByRole("button", { name: "Clear 1 selected" }).click();
+    await page.getByRole("button", { name: "Yes — clear 1 player" }).click();
+    await expect(page.getByText("Cleared 1 card.")).toBeVisible({ timeout: 20_000 });
+    expect(await scored(ids.bram), "Zz Bram's scores are still stored").toBe(0);
+    expect(await scored(ids.ailsa), "clearing one player took Zz Ailsa's card too").toBe(18);
   });
 
   expect(errors, errors.join("\n")).toEqual([]);
