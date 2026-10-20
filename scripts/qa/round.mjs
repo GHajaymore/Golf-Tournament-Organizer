@@ -38,6 +38,7 @@ import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFi
 import { join } from "node:path";
 import { layersFor, partsFor, SCENARIOS } from "./layers.mjs";
 import { appId } from "./app-id.mjs";
+import { E2E_OWNER_EMAIL } from "../../e2e/owner-email.mjs";
 
 const PORT = Number(process.env.E2E_PORT ?? 3101);
 const DIST = ".next-e2e";
@@ -137,6 +138,8 @@ async function serve(mode) {
     NEXT_DIST_DIR: DIST,
     AUTH_SECRET: SECRET,
     STRIPE_SECRET_KEY: "sk_test_e2e_charges_nothing",
+    // The test server's owner, as playwright.config.ts gives it — see e2e/owner-email.mjs.
+    OWNER_EMAILS: E2E_OWNER_EMAIL,
     ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),
   };
   delete env.E2E_TZ;
