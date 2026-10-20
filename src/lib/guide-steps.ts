@@ -281,7 +281,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Add each side with [[Add team]], or press [[Draw sides automatically]] to balance by handicap.",
           "Fill sides with [[Add player]]; **Not on a side yet** shows who is left.",
-          "Press [[Generate matches]] once there are at least two sides.",
+          "In a round robin of sides, press [[Generate matches]] once there are at least two sides. A stroke-play round has no matches to draw, so the button is not there.",
+          "Rename a side in its name box. Taking out a player who has returned a card asks first, because the side's score changes; a side with scores on it cannot be removed.",
         ],
       },
       { kind: "h", text: "Tee sheet" },
@@ -362,7 +363,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Press [[Approve N clean cards]]. Only approved cards are results.",
           "Work through **Needs attention** (for example “Incomplete — 14 of 18”) with [[Approve anyway]] where right. An organizer can [[Reopen]] an approved card.",
           "For match play, filter to Awaiting approval and press [[Approve N shown results]].",
-          "A round kept by tapping who won each hole lists its matches with **Awaiting approval** beside any finished result still to be signed off; open it and press [[Confirm result]] above the card.",
+          "A team match round or a cup session kept by tapping who won each hole — the singles too — lists its matches with **Awaiting approval** beside any finished result still to be signed off; open it and press [[Confirm result]] above the card.",
         ],
       },
       { kind: "h", text: "Leaderboard and the unexpected" },

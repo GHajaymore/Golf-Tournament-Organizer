@@ -22,21 +22,36 @@ const usable = (name: string) =>
  * It lived in `layout.spec` until `legible.spec` needed the same list, at
  * which point the comment at the top of this file applied to it: two copies of
  * a filesystem walk is how one of them quietly stops covering a route.
+ *
+ * AT EVERY DEPTH (2026-10-20). It read one level, so a screen in a folder of
+ * its own — /cup/report, /reports/final, /guide/steps — was in no sweep at all:
+ * the final report shipped with every walk, the heading and layout sweeps and
+ * the accessibility check blind to it, and the reach report listed it as never
+ * opened. A screen is a page.tsx, wherever it sits.
  */
 export function consoleScreens(cwd: string = process.cwd()): string[] {
   const root = join(cwd, "src", "app", "(app)");
-  return readdirSync(root, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .filter((e) => usable(e.name))
-    .filter((e) => existsSync(join(root, e.name, "page.tsx")))
-    // Legacy redirect stubs — /scorecard sends you to /foursomes, /scoring to
-    // /stages. They have a page.tsx and no page: asserting the URL afterwards
-    // fails on the redirect, and there is no layout of their own to measure.
-    // Detected rather than listed, so a route that stops being a stub rejoins
-    // the sweep on its own.
-    .filter((e) => !/^\s*redirect\(/m.test(readSource("src", "app", "(app)", e.name, "page.tsx")))
-    .map((e) => `/${e.name}`)
-    .sort();
+  const found: string[] = [];
+  const walk = (parts: string[]) => {
+    for (const e of readdirSync(join(root, ...parts), { withFileTypes: true })) {
+      if (!e.isDirectory() || !usable(e.name)) continue;
+      const here = [...parts, e.name];
+      // Legacy redirect stubs — /scorecard sends you to /foursomes, /scoring to
+      // /stages. They have a page.tsx and no page: asserting the URL afterwards
+      // fails on the redirect, and there is no layout of their own to measure.
+      // Detected rather than listed, so a route that stops being a stub rejoins
+      // the sweep on its own.
+      if (
+        existsSync(join(root, ...here, "page.tsx")) &&
+        !/^\s*redirect\(/m.test(readSource("src", "app", "(app)", ...here, "page.tsx"))
+      ) {
+        found.push(`/${here.join("/")}`);
+      }
+      walk(here);
+    }
+  };
+  walk([]);
+  return found.sort();
 }
 
 /**

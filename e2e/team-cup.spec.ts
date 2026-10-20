@@ -284,6 +284,32 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
 
     await as(page, baseURL!, "organizer");
     await open(page, "/cup");
+    /**
+     * A MATCH PUT UP BY MISTAKE COMES OFF AGAIN (2026-10-20, `removeCupMatch`,
+     * which no test had ever pressed). A draft, not started, so it may go.
+     */
+    const singles = page.getByRole("region", { name: "Sunday singles lineup" });
+    await lineUp(page, "Sunday singles", ["Bram Blue"], ["Finn White"]);
+    await singles.getByRole("button", { name: "Remove Bram Blue v Finn White" }).click();
+    await singles.getByRole("button", { name: "Remove match" }).click();
+    await expect(singles.getByRole("listitem", { name: "Bram Blue v Finn White" })).toHaveCount(0, { timeout: 20_000 });
+    await expect(singles.getByRole("listitem", { name: "Ailsa Blue v Edda White" })).toBeVisible();
+    await announce(page, "Sunday singles");
+
+    /**
+     * AND AN ANNOUNCEMENT IS TAKEN BACK while nobody has scored (`hideCupLineup`,
+     * also never pressed): the players are told it is still to come, as they
+     * were before it went out, and it can go out again.
+     */
+    await singles.getByRole("button", { name: "Take the announcement back" }).click();
+    await singles.getByRole("button", { name: "Hide this lineup" }).click();
+    await expect(singles.getByRole("button", { name: "Announce lineup" })).toBeVisible({ timeout: 20_000 });
+    await as(page, baseURL!, "a1");
+    await open(page, "/me");
+    await expect(cupCard(page)).toContainText("Still to be announced: Sunday singles.");
+    await expect(myMatch(page, "Sunday singles")).toHaveCount(0);
+    await as(page, baseURL!, "organizer");
+    await open(page, "/cup");
     await announce(page, "Sunday singles");
     // The organizer's own leaderboard is the same board the members read.
     await open(page, "/leaderboard");
@@ -310,6 +336,23 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await expect(hole1.getByRole("button", { name: /^Hole 1 to Ailsa Blue/ })).toBeVisible();
     await expect(hole1.getByRole("button", { name: /^Hole 1 to Edda White/ })).toBeVisible();
     await expect(page.getByRole("radiogroup", { name: "How to enter the scores" })).toHaveCount(0);
+  });
+
+  await test.step("on Score entry the organizer keeps the singles on the same tap card, never stroke boxes", async () => {
+    // The singles went to the stroke-card screen until 2026-10-20, offering
+    // boxes the server refuses on a round kept by tapping. Cup sessions only:
+    // an ordinary match-play round keeps its bulk approval (Ajay, 2026-10-20).
+    await as(page, baseURL!, "organizer");
+    await open(page, `/entry?round=${(f.sessions as Record<string, string>).singles}`);
+    await expect(page.getByText("Kept by tapping who won each hole")).toBeVisible({ timeout: 20_000 });
+    const matches = page.getByRole("navigation", { name: "Matches in this round" });
+    await expect(matches.getByRole("link", { name: /^Ailsa Blue v Edda White/ })).toBeVisible();
+    const hole1 = page.getByRole("group", { name: "Who won hole 1" });
+    await expect(hole1.getByRole("button", { name: /^Hole 1 to Ailsa Blue/ })).toBeVisible();
+    await expect(hole1.getByRole("button", { name: /^Hole 1 to Edda White/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Full card" })).toHaveCount(0);
+    await expect(page.getByLabel(/^Ailsa Blue, hole 1, par/)).toHaveCount(0);
+    await fits(page, "/entry on a tapped singles session");
   });
 
   await test.step("the Whites concede the singles — the organizer records it", async () => {
@@ -490,6 +533,29 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await expect(page.getByRole("region", { name: "The cup" })).toContainText("Final day singles");
     await open(page, `/live/${f.shareToken}/report`);
     await expect(page.getByRole("main").getByRole("heading", { name: "Final day singles" })).toBeVisible();
+  });
+
+  /**
+   * A TEAM IS RENAMED (`renameCupTeam`, never pressed by a test until
+   * 2026-10-20) — refused, in words beside the box, when it would give both
+   * teams one name; then saved, and the board names the winner by it.
+   */
+  await test.step("the organizer renames a team, and the board calls the winners by it", async () => {
+    await as(page, baseURL!, "organizer");
+    await open(page, "/cup");
+    const whites = page.getByRole("group", { name: "Team Whites" });
+    await whites.getByLabel("Team name").fill("Blues");
+    await whites.getByRole("button", { name: "Save name" }).click();
+    const refused = page.getByText("The other team already has that name.");
+    await expect(refused).toBeVisible({ timeout: 20_000 });
+    await expect(refused, "the refusal is not on screen where the press was").toBeInViewport();
+    await whites.getByLabel("Team name").fill("White Knights");
+    await whites.getByRole("button", { name: "Save name" }).click();
+    await expect(page.getByRole("group", { name: "Team White Knights" })).toBeVisible({ timeout: 20_000 });
+
+    await page.context().clearCookies();
+    await open(page, `/live/${f.shareToken}`);
+    await expect(page.getByRole("region", { name: "The cup" })).toContainText("White Knights win the cup.");
   });
 
   expect(errors, `a screen threw in ${CUP_EVENT}`).toEqual([]);
