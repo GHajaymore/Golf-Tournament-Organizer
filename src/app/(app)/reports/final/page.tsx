@@ -5,6 +5,7 @@ import { reportFor } from "@/lib/services/event-report";
 import { FinalReport } from "@/components/FinalReport";
 import { EventReport } from "@/components/EventReport";
 import { ReportRecapEditor } from "@/components/ReportRecapEditor";
+import { PrintReportButton } from "@/components/PrintReportButton";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
 import { settingsOf } from "@/lib/services/tournament";
 
@@ -28,8 +29,9 @@ export default async function FinalReportPage() {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+      <div className="no-print" style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
         <Link href="/reports">← Reports &amp; export</Link>
+        {found && <PrintReportButton />}
         {found && shareable && (
           <Link href={`/live/${event!.shareToken}/report`} target="_blank">
             Open the report&rsquo;s public link
@@ -48,13 +50,17 @@ export default async function FinalReportPage() {
       ) : (
         <>
           {isStaff && !shareable && (
-            <p className="text-muted" style={{ margin: 0, fontSize: 13.5, maxWidth: "70ch" }}>
+            <p className="text-muted no-print" style={{ margin: 0, fontSize: 13.5, maxWidth: "70ch" }}>
               The report has no link to send yet: only people signed in can see this tournament&rsquo;s leaderboard. To
               share it, set <strong>Who can see the leaderboard</strong> to <strong>Anyone with the link</strong> in{" "}
               <Link href="/event">Tournament details</Link> → Players &amp; scoring.
             </p>
           )}
-          {isStaff && <ReportRecapEditor recap={event?.reportRecap ?? ""} />}
+          {isStaff && (
+            <div className="no-print">
+              <ReportRecapEditor recap={event?.reportRecap ?? ""} />
+            </div>
+          )}
           <div style={{ borderRadius: 14, overflow: "hidden" }}>
             {found.kind === "cup" ? (
               <FinalReport report={found.report} embedded />

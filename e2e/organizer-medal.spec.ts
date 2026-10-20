@@ -248,6 +248,14 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     expect(rows).toEqual(
       [...FIELD].sort((a, b) => a.net - b.net).map((p, i) => [String(i + 1), p.name, String(p.gross), String(p.net)]),
     );
+    // Printed, it is the report alone: the menu, the toolbar and the story
+    // editor stay off the paper (or the PDF a free club keeps).
+    await expect(page.getByRole("button", { name: "Print or save as PDF" })).toBeVisible();
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByRole("textbox", { name: "The story" })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Print or save as PDF" })).toBeHidden();
+    await expect(report.getByRole("group", { name: "Leading" })).toBeVisible();
+    await page.emulateMedia({ media: "screen" });
 
     await open(page, "/event");
     const link = (await page.locator("code", { hasText: "/live/" }).first().innerText()).trim();
@@ -268,6 +276,9 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Complete tournament" }).click();
     const confirm = page.getByRole("alertdialog");
+    // A free club's tournament is deleted on completion, so the warning offers
+    // the report first — the only way to keep it (2026-10-19).
+    await expect(confirm.getByRole("link", { name: "Open the final report" })).toHaveAttribute("href", "/reports/final");
     await confirm.getByRole("button", { name: /^Complete/ }).click();
     await page.waitForURL((u) => !u.pathname.startsWith("/dashboard"), { timeout: 30_000 });
   });
