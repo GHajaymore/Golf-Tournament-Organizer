@@ -362,6 +362,39 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await expect(board).toContainText("3 of 3 matches decided");
   });
 
+  /**
+   * A point added by mistake comes off again, and the cup's total with it:
+   * five in play would be 3 to win, and taking the fifth away puts it back
+   * to 2½. Two presses, because removing a point can change who has the cup.
+   */
+  await test.step("a point added by mistake is removed, and the target goes back", async () => {
+    await as(page, baseURL!, "organizer");
+    await open(page, "/cup");
+    const other = page.getByRole("region", { name: "Other points" });
+    await other.getByLabel("Add a point").fill("Longest drive");
+    await other.getByLabel("Worth").fill("1");
+    await other.getByRole("button", { name: "Add point" }).click();
+    const extra = other.getByRole("listitem").filter({ hasText: "Longest drive" });
+    await expect(extra).toContainText("Longest drive · 1 point", { timeout: 20_000 });
+
+    await page.context().clearCookies();
+    await open(page, `/live/${f.shareToken}`);
+    await expect(page.getByRole("region", { name: "The cup" })).toContainText("3 to win");
+
+    await as(page, baseURL!, "organizer");
+    await open(page, "/cup");
+    const row = page.getByRole("region", { name: "Other points" }).getByRole("listitem").filter({ hasText: "Longest drive" });
+    await row.getByRole("button", { name: "Remove", exact: true }).click();
+    await row.getByRole("button", { name: "Remove Longest drive" }).click();
+    await expect(page.getByRole("region", { name: "Other points" })).not.toContainText("Longest drive", { timeout: 20_000 });
+
+    await page.context().clearCookies();
+    await open(page, `/live/${f.shareToken}`);
+    const board = page.getByRole("region", { name: "The cup" });
+    await expect(board).toContainText("2½ to win · Blues need 1½, Whites need ½.");
+    await expect(board.getByRole("list", { name: "Other points" })).not.toContainText("Longest drive");
+  });
+
   await test.step("given to the Whites, it wins them the cup", async () => {
     await as(page, baseURL!, "organizer");
     await open(page, "/cup");
