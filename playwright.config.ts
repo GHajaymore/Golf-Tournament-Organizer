@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_OWNER_EMAIL } from "./e2e/owner-email.mjs";
 
 /**
  * End-to-end tests, for the class of bug the unit suite cannot see.
@@ -280,6 +281,11 @@ export default defineConfig({
       // key, never one from the environment: a test must not reach a real
       // Stripe account.
       STRIPE_SECRET_KEY: "sk_test_e2e_charges_nothing",
+      // AN OWNER FOR THIS SERVER ONLY — an invented address, so the owner console
+      // can be walked (`e2e/owner-console.spec.ts`); without one `/owner` is a 404
+      // to everybody and its five actions were never pressed (2026-10-21).
+      // Production's own list is set in Vercel and is not this.
+      OWNER_EMAILS: E2E_OWNER_EMAIL,
     },
   },
 });
