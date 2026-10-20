@@ -314,7 +314,9 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
     const signOff = page.getByRole("group", { name: "Sign off this result" });
     await expect(signOff).toContainText("Awaiting approval: 5&4");
     await signOff.getByRole("button", { name: "Confirm result" }).click();
-    await expect(signOff.getByText("Confirmed.")).toBeVisible({ timeout: 20_000 });
+    // Signed off: nothing is waiting, so the card goes and the list says so.
+    await expect(signOff).toHaveCount(0, { timeout: 20_000 });
+    await expect(nav).not.toContainText("Awaiting approval");
     await expect
       .poll(async () => (await prisma.match.findUniqueOrThrow({ where: { id: ids.tapsMatch } })).scoreStatus, {
         timeout: 15_000,

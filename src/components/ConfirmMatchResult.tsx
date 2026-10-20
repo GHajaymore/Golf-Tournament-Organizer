@@ -16,8 +16,8 @@ import { Icon } from "./Icon";
  * rule (`confirmMatches`: staff only, this tournament's matches, only what is
  * genuinely waiting), now on both.
  *
- * Not optimistic, as the stroke panel's `doConfirm` is not: the screen says
- * "Confirmed" only after the server has, and a refusal is said here, where
+ * Not optimistic, as the stroke panel's `doConfirm` is not: the card goes only
+ * when the server has signed the result off, and a refusal is said here, where
  * the press was.
  */
 export function ConfirmMatchResult({ matchId, result }: { matchId: string; result: string }) {
@@ -33,11 +33,9 @@ export function ConfirmMatchResult({ matchId, result }: { matchId: string; resul
         setSaid({ ok: false, text: r.error ?? "The result wasn't signed off. Try again." });
         return;
       }
-      setSaid(
-        r.confirmed > 0
-          ? { ok: true, text: "Confirmed." }
-          : { ok: true, text: "Already signed off — nothing left to confirm here." },
-      );
+      // Signed off (or by somebody else a moment ago): nothing is waiting any
+      // more, so the refreshed page drops this card and the match list stops
+      // saying "Awaiting approval" — that is the confirmation.
       router.refresh();
     });
 
