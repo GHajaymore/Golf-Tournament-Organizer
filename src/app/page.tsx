@@ -123,7 +123,7 @@ const WEEK: Array<{ when: string; tab: string; who: string; h: string; p: string
     p: "Each round's printed sign carries a QR code and its eight-character code. Scan or type it, tap your name, and you're on your round. No account and no password.",
     shot: "club-today", alt: "A player's Today screen: the round, a pinned notice, their card so far and their position." },
   { when: "10:50", tab: "The card", who: "Players", h: "They tap the score, or say it.",
-    p: "The card saves as they go, and keeps saving when there is no signal.",
+    p: "The card saves as they go, and keeps saving when there is no signal. In a match the organizer chooses how it is kept: one tap for who won each hole, or stroke cards with gross and net.",
     shot: "club-card", alt: "My card, by hole: hole 10, par 4, score buttons and a microphone." },
   { when: "11:42", tab: "The board", who: "Everyone", h: "The board moves.",
     p: "Their own line first, then the field, as every card comes in.",
