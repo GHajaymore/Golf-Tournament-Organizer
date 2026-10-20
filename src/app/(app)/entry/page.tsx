@@ -55,6 +55,8 @@ import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { matchCardFor } from "@/lib/services/match-card";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
+import { resolveMatch } from "@/lib/domain/match";
+import { ConfirmMatchResult } from "@/components/ConfirmMatchResult";
 
 export const metadata = screenMetadata("/entry");
 
@@ -259,6 +261,28 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         : [];
       const row = rows.find((r) => r.id === pickedMatchId) ?? rows[0] ?? null;
       const tapCard = row ? await matchCardFor({ match: row, holderId: "", holderSides: [row.teamAId] }) : null;
+      /**
+       * WHAT IS WAITING TO BE SIGNED OFF (2026-10-20) — by the review queue's
+       * own rule: a FINISHED match whose effective status is pending. The
+       * Dashboard counts these and links here; until this, the tap view
+       * showed neither which they were nor a way to confirm one, so a round
+       * kept by tapping could not be closed by hand.
+       */
+      const autoConfirm = allowsAutoConfirm(settingsOf(state.event));
+      const signOff = new Map(
+        rows.map((r) => {
+          let holes: HoleResult[] = [];
+          try {
+            holes = JSON.parse(r.holes) as HoleResult[];
+          } catch {
+            holes = [];
+          }
+          const resolved = resolveMatch(holes);
+          const status = effectiveScoreStatus(r, autoConfirm);
+          return [r.id, { waiting: resolved.complete && status === "pending", disputed: status === "disputed", result: resolved.resultText }] as const;
+        }),
+      );
+      const rowSignOff = row ? signOff.get(row.id) : undefined;
       return (
         <>
           <p className="kicker">Manage</p>
@@ -288,6 +312,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
                   style={{ fontSize: 13 }}
                 >
                   {nameOf(m.teamAId)} v {nameOf(m.teamBId)}
+                  {signOff.get(m.id)?.waiting ? " · Awaiting approval" : signOff.get(m.id)?.disputed ? " · Disputed" : ""}
                 </Link>
               ))}
             </nav>
@@ -311,6 +336,9 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
                 saveResult={keepMyMatchResult}
               />
             </DistanceUnitProvider>
+          )}
+          {isStaff && row && rowSignOff?.waiting && (
+            <ConfirmMatchResult key={row.id} matchId={row.id} result={rowSignOff.result} />
           )}
         </>
       );
