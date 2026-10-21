@@ -151,6 +151,25 @@ describe("the front door says so before the form", () => {
     expect(renderToStaticMarkup(<LandingAuth />)).not.toContain(SIGNINS_CLOSED_NOTICE.lead);
   });
 
+  /**
+   * NO SIGN-UP FORM WHILE HELD (Ajay, 2026-10-21: "the sign up/signin is still not gated … it still
+   * allow to sign up"). The server refused every stranger, but under the notice sat a working form
+   * with a Sign up tab, a "Create your account" heading and a discount box — and for an owner, whom
+   * the hold lets through, it worked. Held, the door offers signing in and nothing else, even when a
+   * link asked for sign-up ("Start free" goes to #signup).
+   */
+  it("offers signing in only while held — no Sign up tab, no account form — even when a link asked for sign-up", () => {
+    const held = renderToStaticMarkup(<LandingAuth closed defaultMode="signup" />);
+    expect(held, "a Sign up tab is on the held front door").not.toMatch(/>\s*Sign up\s*</);
+    expect(held, "the held front door offers to create an account").not.toContain("Create your account");
+    expect(held).not.toContain('role="tablist"');
+    expect(held, "the owners have no way in").toContain("Already have access?");
+    // CONTROL: open, the same link opens the sign-up form with its tab.
+    const open = renderToStaticMarkup(<LandingAuth defaultMode="signup" />);
+    expect(open).toContain("Create your account");
+    expect(open).toMatch(/>\s*Sign up\s*</);
+  });
+
   it("the landing page hands the gate's answer to the box", () => {
     expect(readSource("src/app/page.tsx")).toMatch(/closed=\{signInsClosed\(\)\}/);
   });
