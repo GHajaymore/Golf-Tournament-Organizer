@@ -183,7 +183,7 @@ function read(log) {
     skipped: count("skipped"),
     didNotRun: count("did not run"),
     failures: [...text.matchAll(/^\s+\d+\) (\[.*)$/gm)].map((m) => m[1].trim().slice(0, 220)),
-    said: text.split("\n").filter((l) => /^\[everything\]|^\[every-control\] [a-z]+: |^\[every-action\] [a-z ]+: \d|^\[formats-agree\]/.test(l)).map((l) => l.slice(0, 260)),
+    said: text.split("\n").filter((l) => /^\[everything\]|^\[every-control\] [a-z]+: |^\[every-text-box\] (share|control)|^\[every-action\] [a-z ]+: \d|^\[formats-agree\]/.test(l)).map((l) => l.slice(0, 260)),
     hydration: text.split("[hydration #418]").length - 1,
     stopped: text.includes("[round] stopped after"),
   };

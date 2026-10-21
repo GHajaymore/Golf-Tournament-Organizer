@@ -136,6 +136,18 @@ const crawled = shares.reduce((a, b) => a + b, 0);
 if (shares.length > 1 && crawled <= CRAWL_AT_LEAST) {
   findings.push(`suite: the console crawl's ${shares.length} shares operated ${crawled} controls between them — the crawl finds more than ${CRAWL_AT_LEAST}`);
 }
+// The text-box crawl runs as TEXT_PARTS shares, one test each (`e2e/every-text-box.spec.ts`). Each says
+// how many boxes it tried; a share cannot know the total, so the crawl's own minimum is held to the sum
+// here — once every share has reported, which is the only time the sum means anything.
+const TEXT_BOXES_AT_LEAST = 40;
+const textShares = (rows.find((r) => r.key === "text-boxes" && r.ran)?.said ?? [])
+  .map((line) => /^\[every-text-box\] share (\d+)\/(\d+): \d+ boxes found .*?, (\d+) tried/.exec(line))
+  .filter(Boolean);
+const textOf = textShares[0] ? Number(textShares[0][2]) : 0;
+const textTried = textShares.reduce((n, m) => n + Number(m[3]), 0);
+if (textOf > 1 && new Set(textShares.map((m) => m[1])).size === textOf && textTried <= TEXT_BOXES_AT_LEAST) {
+  findings.push(`text-boxes: the text-box crawl's ${textOf} shares tried ${textTried} boxes between them — the crawl tries more than ${TEXT_BOXES_AT_LEAST}`);
+}
 for (const n of newlyUnreached) findings.push(`reach: no screen test calls ${n} (not in reach-baseline.json: new, or its test was lost)`);
 if (baselineMissing) findings.push("reach: scripts/qa/reach-baseline.json is missing, so nothing checked for an action no screen test performs");
 

@@ -99,6 +99,21 @@ export function layersFor(round) {
       reach: true,
     },
     {
+      // Added 2026-10-21: the dropdowns, choices and tick-boxes were every one operated by the control
+      // crawl, and the text boxes — a third of the console's controls — by nothing in particular. Its own
+      // layer, cut into TEXT_PARTS shares by `--shard`, so that no part of the suite grows by an hour.
+      key: "text-boxes",
+      name: "Every text box",
+      standsFor: "an organizer or a member typing into any box: nothing, far too much, the wrong kind of thing, the right thing",
+      reallyIs: "Chromium at 1280×900: every text box on every console and player screen of every seeded tournament given empty, over-long, bad and good input, saved the way its screen saves, reloaded and read back, then put back as it was — with a control in each share proving it can see a silent press and a refusal out of view",
+      cannotSee: "a box that appears only after a press it does not make (a dialog, a second step); whether a value it calls kept is right for the club; boxes behind a button that sends, deletes or spends an allowance, which it never presses",
+      cookies: "secure",
+      env: { E2E_EVERYTHING: "1", E2E_TEXT_BOXES: "1" },
+      specs: ["e2e/every-text-box.spec.ts"],
+      projects: ["desktop"],
+      minutes: 40,
+    },
+    {
       // Added 2026-10-13: every other layer asks the browser for reduced motion, which is what almost
       // nobody has set. The first round on GitHub met the page with its motion on by accident (Safari's
       // engine on Linux ignores the request) and three front-door tests failed on pictures measured before
@@ -281,6 +296,15 @@ export function layersFor(round) {
 export const CRAWL_PARTS = 4;
 
 /**
+ * How many machines the text-box crawl (`e2e/every-text-box.spec.ts`) is shared between. The spec is
+ * one test per share, so Playwright's `--shard=k/TEXT_PARTS` runs exactly share k; `SHARDS` below
+ * names the same number for its layer. Measured 2026-10-21 on one machine as one share: 27 minutes,
+ * of which about seven is opening every screen on every tournament (which each share repeats). Three
+ * shares is about fifteen minutes each.
+ */
+export const TEXT_PARTS = 3;
+
+/**
  * HOW MANY MACHINES EACH LONG PART IS SHARED BETWEEN, by Playwright's `--shard`.
  *
  * Keyed `layer:size` for a layer that runs every spec (it is cut by size first),
@@ -315,6 +339,7 @@ export const SHARDS = {
   chrome: 2,
   "tablet-android": 2,
   safari: 2,
+  "text-boxes": TEXT_PARTS,
 };
 
 export function partsFor(round) {
