@@ -58,6 +58,14 @@ So the tiers begin to bite the moment a subscription row has a `provider` set �
 with **no code change**. Until then nothing is refused, which is correct: a
 limit with no paid tier to buy is an outage, not a business model.
 
+**CORRECTION (2026-10-21): that rule is no longer the whole of it.** Since 29 September 2026 every
+new club's subscription is created with `planTermsApply` true, and `enforcementActive` is true for
+it too — so a club created since then IS held to its tier's limits today, provider or not. The
+owner's "Enforce these limits" switch (`/owner`) extends the limits to the older clubs as well. In
+full: `enforcementActive(orgId)` ⇔ the owner switch is on, OR `planTermsApply`, OR a non-empty
+`provider`. At launch the pre-29-September clubs are moved onto the terms (the owner's own
+excepted) — Ajay, 2026-10-21.
+
 ## To take money — the remaining steps
 
 The app never moves an event's money (hard rule 7). A **subscription** bills for
