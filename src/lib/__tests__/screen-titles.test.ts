@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
 import { allNavItems, navForRole, screenName } from "../nav";
@@ -98,6 +98,37 @@ describe("every console screen names itself", () => {
         new RegExp(`screenMetadata(ForEvent)?\\("/${dir}"\\)`),
       );
       expect(src).toMatch(/export const (metadata|generateMetadata) =/);
+    });
+  }
+
+  /**
+   * A SCREEN IN A FOLDER OF ITS OWN — /cup/report, /reports/final, /guide/steps
+   * (2026-10-20). The walk above reads one level, as `e2e/routes.ts` did until
+   * the same day, when the final report was found in no browser sweep at all.
+   * These are reached from a screen rather than the sidebar, so the sidebar
+   * cannot name them; each must still name itself.
+   */
+  const nested: string[] = [];
+  const walk = (parts: string[]) => {
+    for (const e of readdirSync(join(process.cwd(), APP_DIR, ...parts), { withFileTypes: true })) {
+      if (!e.isDirectory() || /^[[(_]/.test(e.name)) continue;
+      const here = [...parts, e.name];
+      if (here.length > 1 && existsSync(join(process.cwd(), APP_DIR, ...here, "page.tsx"))) nested.push(here.join("/"));
+      walk(here);
+    }
+  };
+  walk([]);
+
+  it("finds the screens in folders of their own", () => {
+    expect(nested).toContain("reports/final");
+    expect(nested).toContain("cup/report");
+  });
+
+  for (const dir of nested) {
+    it(`/${dir} names itself`, () => {
+      const src = readSource(APP_DIR, ...dir.split("/"), "page.tsx");
+      expect(src).toMatch(/export const (metadata|generateMetadata) =/);
+      expect(src).toMatch(/title:|screenMetadata(ForEvent)?\(/);
     });
   }
 
