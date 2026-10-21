@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
 import { askForBotCheck } from "@/lib/bot-check-fetch";
 import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
@@ -224,9 +225,13 @@ export function LoginPanel({
   // A tinted block with role="alert", so the failure is both visible and
   // announced. Plain red text below a field is easy to miss and invisible to
   // a screen reader that has already moved on.
+  // Brought into view as well: it sits ABOVE the button, so a press with the button at the top
+  // of the screen drew it just out of sight (round G245-1, "To create your account, add …",
+  // 2026-10-21).
   const errorBlock = error ? (
     <p
       role="alert"
+      ref={bringIntoView}
       style={{
         fontSize: 13,
         margin: 0,

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { clearFlights, divideIntoFlights, moveFlightPlayer, renameFlight, reseedFlight } from "@/app/actions/tournament";
 import type { FlightCriterion } from "@/lib/domain/bracket-flights";
 import { ConfirmButton } from "./ConfirmButton";
@@ -370,7 +371,7 @@ export function BracketFlights({
               ))}
             </ol>
             {error && errorAt === i && (
-              <p className="form-error" role="alert" style={{ margin: "10px 0 0" }} ref={(el) => el?.scrollIntoView({ block: "nearest" })}>
+              <p className="form-error" role="alert" style={{ margin: "10px 0 0" }} ref={bringIntoView}>
                 {error}
               </p>
             )}

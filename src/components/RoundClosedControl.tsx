@@ -1,5 +1,6 @@
 "use client";
 import { setRoundClosed } from "@/app/actions/tournament";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 
@@ -72,8 +73,11 @@ export function RoundClosedControl({
         </div>
       )}
 
+      {/* An alert, brought into view: it sits under the paragraph above, which on a phone is
+          most of a screen, and round G245-1 saw "1 card is disputed. Closing Round 1 makes the
+          cut…" refused out of view of the tick that was pressed (2026-10-21). */}
       {error && (
-        <p className="form-error">
+        <p className="form-error" role="alert" ref={bringIntoView}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}

@@ -1,5 +1,6 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { useState } from "react";
 import { TEAM_ENTRY_MODES, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { typedAllowance } from "@/lib/domain/team";
@@ -95,9 +96,15 @@ export function RoundTeamScoring({
    * saved — it used to close on the click, so a refused save threw away what
    * was typed.
    */
+  /* WHICH setting a refusal belongs to, so it is said under that setting's Save rather than at the
+     foot of the panel, below every other setting — out of view on a phone (round G245-1 saw
+     "0% is playing off scratch" there, 2026-10-21). */
+  const [errorKind, setErrorKind] = useState<RescoreKind | null>(null);
+
   const save = (kind: RescoreKind, call: (force: boolean) => Promise<TeamResult>, close: () => void) =>
     startTransition(async () => {
       setError("");
+      setErrorKind(kind);
       setRescore(null);
       const res = await call(false);
       if (res.needsConfirm) {
@@ -114,6 +121,7 @@ export function RoundTeamScoring({
   const confirmRescore = () => {
     const r = rescore;
     if (!r) return;
+    setErrorKind(r.kind);
     run(
       () => r.call(true),
       () => {
@@ -123,7 +131,7 @@ export function RoundTeamScoring({
     );
   };
 
-  const warning = (kind: RescoreKind, keepLabel: string) =>
+  const rescoreWarning = (kind: RescoreKind, keepLabel: string) =>
     rescore?.kind === kind ? (
       <RescoreWarning
         cards={rescore.cards}
@@ -137,6 +145,18 @@ export function RoundTeamScoring({
         }}
       />
     ) : null;
+
+  /** Under each setting's Save: its own refusal, then the server's question before re-scoring. */
+  const warning = (kind: RescoreKind, keepLabel: string) => (
+    <>
+      {error && errorKind === kind && (
+        <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
+          <Icon name="warning-circle" /> {error}
+        </p>
+      )}
+      {rescoreWarning(kind, keepLabel)}
+    </>
+  );
 
   const [editingAllowance, setEditingAllowance] = useState(false);
   /** One ball per side — `countBest` is null exactly there (see the field). */
@@ -169,15 +189,16 @@ export function RoundTeamScoring({
               style={{ width: "auto", fontSize: 13, padding: "3px 8px" }}
               disabled={pending}
               value={info.entryMode}
-              onChange={(e) =>
+              onChange={(e) => {
+                setErrorKind(null);
                 // `setStageScoreInput` returns nothing — it either writes the
                 // value or discards one the format does not offer, and the
                 // refresh brings back whichever it settled on.
                 run(async () => {
                   await setStageScoreInput(stageId, e.target.value);
                   return { ok: true };
-                })
-              }
+                });
+              }}
             >
               {info.entryChoices.map((key: TeamEntryMode) => (
                 <option key={key} value={key}>
@@ -474,8 +495,8 @@ export function RoundTeamScoring({
       )}
       {warning("countBest", `best ${info.countBest ?? 1} of ${info.maxSide}`)}
 
-      {error && (
-        <p className="form-error">
+      {error && errorKind === null && (
+        <p className="form-error" role="alert">
           <Icon name="warning-circle" /> {error}
         </p>
       )}
