@@ -144,7 +144,7 @@ import { FORMAT_NAMES } from "@/lib/formats";
 import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { assertUnlocked, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
+import { assertUnlocked, lockedRefusal, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
@@ -1412,7 +1412,14 @@ export async function movePlayerToGroup(
   force = false,
 ): Promise<MovePlayerResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  // Returned, not thrown: the board can be open in a tab while the tournament is launched in
+  // another, and a throw made the whole screen "This screen didn't load" (2026-10-21).
+  const locked = await lockedRefusal(eventId, "change the flights");
+  if (locked) return { ok: false, error: locked };
+  // A confirmed draw is moved by nobody until it is reopened — checked here, not only hidden on the
+  // board, because a server action is a public endpoint.
+  const confirmedDraw = await prisma.event.findUnique({ where: { id: eventId }, select: { flightsConfirmed: true } });
+  if (confirmedDraw?.flightsConfirmed) return { ok: false, error: "Draw confirmed. Reopen it to move anyone." };
 
   // Both ends scoped to the caller's tournament. Either one unscoped would let
   // an organizer of any event move a stranger's player into a stranger's
@@ -4958,7 +4965,8 @@ export async function renameFlight(flight: unknown, name: unknown): Promise<{ ok
  */
 export async function renameGroup(groupId: string, name: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await lockedRefusal(eventId, "change the flights");
+  if (locked) return { ok: false, error: locked };
   const clean = name.trim().slice(0, 40);
   if (!clean) return { ok: false, error: "Give the flight a name." };
 
@@ -4989,7 +4997,8 @@ export async function renameGroup(groupId: string, name: string): Promise<{ ok: 
  */
 export async function setFlightsConfirmed(confirmed: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await lockedRefusal(eventId, "change the flights");
+  if (locked) return { ok: false, error: locked };
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { formationRule: true } });
   if (event?.formationRule !== "manual") {
     return { ok: false, error: "Only a manual draw is confirmed by hand — the other rules regenerate." };

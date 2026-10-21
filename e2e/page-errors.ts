@@ -46,7 +46,10 @@ function leftMidRequest(page: Page, message: string): boolean {
   if (page.context().browser()?.browserType().name() !== "webkit") return false;
   // This site's own host, so a request to anywhere ELSE that was refused is still an error.
   const host = new URL(page.url()).host;
-  return message.includes("Fetch API cannot load") && message.includes("due to access control checks") && message.includes(host);
+  // Two wordings of it: a data fetch ("Fetch API cannot load …") and the service worker's script,
+  // whose registration the app already catches ("Cannot load …/sw.js …", iPhone, 2026-10-21).
+  const dropped = message.includes("Fetch API cannot load") || message.includes("Cannot load ");
+  return dropped && message.includes("due to access control checks") && message.includes(host);
 }
 
 const explaining = new WeakSet<Page>();

@@ -217,6 +217,7 @@ export function PlaySettings({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState("");
+  const [rotateError, setRotateError] = useState("");
   const [rotating, setRotating] = useState(false);
   const [origin, setOrigin] = useState("");
   const [teeId, setTeeId] = useState<string | null>(defaultTeeId);
@@ -361,11 +362,21 @@ export function PlaySettings({
                   return;
                 }
                 setRotating(true);
-                void rotatePublicToken("share").finally(() => setRotating(false));
+                setRotateError("");
+                // The answer was dropped: a refusal said nothing (2026-10-21).
+                void rotatePublicToken("share")
+                  .then((res) => { if (!res.ok) setRotateError(res.error ?? "Couldn't replace the link."); })
+                  .catch(() => setRotateError("Couldn't replace the link."))
+                  .finally(() => setRotating(false));
               }}
             >
               <Icon name="arrows-clockwise" /> New link
             </button>
+          )}
+          {rotateError && (
+            <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)", flexBasis: "100%" }}>
+              {rotateError}
+            </p>
           )}
         </div>
       )}

@@ -387,7 +387,10 @@ describe("moving a player between flights", () => {
 
   it("is staff-only and refuses once setup is locked", () => {
     expect(body).toMatch(/requireStaffEvent\(\)/);
-    expect(body).toMatch(/assertUnlocked\(eventId\)/);
+    // Thrown (`assertUnlocked`) or, since 2026-10-21, RETURNED (`lockedRefusal`) so the board can say
+    // it — the guarantee is the refusal, not its spelling. The behaviour itself is held against real
+    // rows in `a-confirmed-draw-moves-nobody.audit.test.ts`.
+    expect(body).toMatch(/assertUnlocked\(eventId\)|const locked = await lockedRefusal\(eventId[^)]*\);\s*if \(locked\) return \{ ok: false, error: locked \}/);
   });
 
   it("scopes BOTH ids to the caller's tournament", () => {
