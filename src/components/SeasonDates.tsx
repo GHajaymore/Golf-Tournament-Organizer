@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { dateUndatedRounds } from "@/app/actions/tournament";
 import { weekdayOf, isIsoDate, shortDate, INTERVAL_OPTIONS } from "@/lib/domain/round-dates";
 import { Icon } from "./Icon";
@@ -30,6 +31,7 @@ export function SeasonDates({
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   // The club's own date order — see `shortDate`.
   const { locale } = useFormatting();
 
@@ -43,7 +45,11 @@ export function SeasonDates({
           setError(res.error);
           return;
         }
-        setNote(`${res.dated} ${res.dated === 1 ? "round" : "rounds"} dated. Players now see them on their calendar.`);
+        // THE ANSWER STAYS WHERE THE PRESS WAS (2026-10-21). Dating the rounds removes the "N rounds have
+        // no date" notice this form sits in, so a note set here was never seen. The page keeps the notice
+        // as the success line instead, from these two values, until OK or leaving the screen.
+        setNote(`${res.dated} ${res.dated === 1 ? "round" : "rounds"} dated.`);
+        if (bare) router.replace(`/stages?dated=${res.dated}&first=${encodeURIComponent(res.first ?? "")}`, { scroll: false });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't date the rounds.");
       }

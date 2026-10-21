@@ -7,6 +7,7 @@ import type { RoundHandicapView } from "@/lib/services/round-handicap";
 import { indexFigure, parseStrokesInput, readHandicapIndex } from "@/lib/domain/handicap-label";
 import { indexChangePreview, indexDecimalRefusal } from "@/lib/domain/index-change";
 import { useAction } from "./useAction";
+import { laterRoundsSaid } from "@/lib/domain/later-rounds-said";
 
 /**
  * What each player plays off in THIS round, and the one place a committee
@@ -467,13 +468,7 @@ export function RoundHandicaps({
                             run(
                               () =>
                                 applyRoundHandicapToRest(stageId, r.playerId).then((res) => {
-                                  if (res.ok) {
-                                    text =
-                                      res.written === 0
-                                        ? "There are no later rounds to use it in."
-                                        : `Set on ${res.written} later ${res.written === 1 ? "round" : "rounds"}` +
-                                          (res.skipped > 0 ? `, leaving ${res.skipped} that ${res.skipped === 1 ? "has" : "have"} cards in or ${res.skipped === 1 ? "is" : "are"} on other tees.` : ".");
-                                  }
+                                  if (res.ok) text = laterRoundsSaid(res.written, res.skippedCards, res.skippedOther);
                                   return res;
                                 }),
                               () => {
