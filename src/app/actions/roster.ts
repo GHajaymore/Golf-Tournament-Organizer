@@ -508,7 +508,9 @@ export async function addFieldToRoster(): Promise<{
     linked += 1;
   }
 
-  if (linked > 0) refresh();
+  // AWAITED: left floating, the board's revalidateTag ran after the action had answered, inside
+  // the re-render of /roster, and Next refused it as an unhandled rejection (2026-10-21).
+  if (linked > 0) await refresh();
   return { ok: true, added, linked };
 }
 

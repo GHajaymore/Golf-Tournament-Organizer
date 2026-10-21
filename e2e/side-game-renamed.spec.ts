@@ -96,16 +96,18 @@ test("a crew's game is renamed with its pots and its people, and a clash with an
     await centre(rename);
     await rename.click();
     await card.locator(".field", { has: page.getByText("What to call it", { exact: true }) }).locator("input").fill(OTHER);
-    await card.getByRole("button", { name: "Save name", exact: true }).click();
+    const save = card.getByRole("button", { name: "Save name", exact: true });
+    await save.click();
     const refused = card.locator(".form-error", { hasText: `There is already a game called ${OTHER} on this round.` });
     await expect(refused, "renaming onto another crew's game was not refused in words").toBeVisible();
     const after = await state();
     expect([after.skins.groupKey, after.birdies.groupKey, after.theirs.groupKey], "a refused rename moved something").toEqual([TO, TO, OTHER]);
     expect(after.theirs.entrants, "the other crew's pot gained or lost players").toHaveLength(3);
-    // Last, because it is the assertion the app currently fails: the refusal is printed at the foot
-    // of the pot's card, below the setup and the list of who paid in, off the screen of the person
-    // who pressed Save name at its head.
-    await saidBeside(refused, rename, "renaming onto another crew's game");
+    // The refusal was printed at the foot of the pot's card, below the setup and the list of who
+    // paid in, off the screen of the person who pressed Save name at its head (fixed 2026-10-21).
+    // The box stays open with what was typed, so the name can be changed and saved again.
+    await saidBeside(refused, save, "renaming onto another crew's game");
+    await expect(card.locator(".field", { has: page.getByText("What to call it", { exact: true }) }).locator("input"), "a refused name was thrown away").toHaveValue(OTHER);
   } finally {
     await dropClub(mark);
   }
