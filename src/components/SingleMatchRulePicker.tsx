@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { setSingleMatchRule, createSingleMatch } from "@/app/actions/tournament";
 import { idsForKind, type SingleMatchRule } from "@/lib/domain/single-match";
 import { Icon } from "./Icon";
@@ -54,6 +54,8 @@ export function SingleMatchRulePicker({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  // Ties each picker to its label: "First player", "Against" and the rest had no accessible name.
+  const uid = useId();
   /**
    * NULL until a rule is actually stored or the organizer picks one.
    *
@@ -157,8 +159,9 @@ export function SingleMatchRulePicker({
         <div className="pair-grid">
           {([["a", seedA], ["b", seedB]] as Array<["a" | "b", number]>).map(([side, value]) => (
             <div className="field" key={side}>
-              <label>{side === "a" ? "First player" : "Second player"}</label>
+              <label htmlFor={`${uid}-seed-${side}`}>{side === "a" ? "First player" : "Second player"}</label>
               <select
+                id={`${uid}-seed-${side}`}
                 className="input"
                 value={value}
                 disabled={pending || locked}
@@ -185,8 +188,9 @@ export function SingleMatchRulePicker({
         <div className="pair-grid">
           {([["a", stageA], ["b", stageB]] as Array<["a" | "b", string]>).map(([side, value]) => (
             <div className="field" key={side}>
-              <label>{side === "a" ? "Winner of" : "Against winner of"}</label>
+              <label htmlFor={`${uid}-stage-${side}`}>{side === "a" ? "Winner of" : "Against winner of"}</label>
               <select
+                id={`${uid}-stage-${side}`}
                 className="input"
                 value={value || others[side === "a" ? 0 : 1]?.id || ""}
                 disabled={pending || locked}
@@ -211,8 +215,9 @@ export function SingleMatchRulePicker({
         <div className="pair-grid">
           {([["a", playerA], ["b", playerB]] as Array<["a" | "b", string]>).map(([side, value]) => (
             <div className="field" key={side}>
-              <label>{side === "a" ? "Player" : "Against"}</label>
+              <label htmlFor={`${uid}-named-${side}`}>{side === "a" ? "Player" : "Against"}</label>
               <select
+                id={`${uid}-named-${side}`}
                 className="input"
                 value={value}
                 disabled={pending || locked}

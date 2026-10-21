@@ -13,7 +13,9 @@ import { entitlementForEvent } from "@/lib/services/entitlements";
 import { StagesClient } from "@/components/StagesClient";
 import { SeasonDates } from "@/components/SeasonDates";
 import { SetupNotices } from "@/components/SetupNotices";
-import { cleanIsoDate } from "@/lib/domain/round-dates";
+import { cleanIsoDate, datedSaid } from "@/lib/domain/round-dates";
+import { formatDay } from "@/lib/domain/locale";
+import { formattingForEvent } from "@/lib/services/organization";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import type { ThirdPlaceView } from "@/components/StagesClient";
@@ -85,10 +87,19 @@ function teamScoringFor(s: {
 
 export const metadata = screenMetadata("/stages");
 
-export default async function StagesPage() {
+export default async function StagesPage({ searchParams }: { searchParams: Promise<{ dated?: string; first?: string }> }) {
   const session = await requireScreen("stages");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
+  // "N rounds dated" — said in the notice the form sat in, which dating would otherwise remove
+  // (`SeasonDates`). Words by the UI/UX designer and the golf professional, 2026-10-21.
+  const sp = await searchParams;
+  const datedCount = Number(sp?.dated);
+  const datedFirst = cleanIsoDate(sp?.first ?? "");
+  const dated =
+    Number.isInteger(datedCount) && datedCount > 0 && datedFirst
+      ? datedSaid(datedCount, formatDay(datedFirst, (await formattingForEvent(session.eventId)).locale))
+      : "";
   const locked = isSetupLocked(state.event);
   // For "date the season": playing rounds, and how many of them have no day.
   const playingRounds = playingStages(state.stages);
@@ -386,12 +397,28 @@ export default async function StagesPage() {
                 ),
               }]
             : []),
-          ...(seasonUndated > 0 && playingCount >= 2
+          ...(seasonUndated > 0 && playingCount >= 2 && !dated
             ? [{
                 key: "dates",
                 tone: "note" as const,
                 title: `${seasonUndated} ${seasonUndated === 1 ? "round has" : "rounds have"} no date`,
                 body: <SeasonDates undated={seasonUndated} suggestedStart={state.today} bare />,
+              }]
+            : []),
+          // The same line, kept as the answer once the rounds are dated (same key, so it stays open).
+          ...(dated
+            ? [{
+                key: "dates",
+                tone: "note" as const,
+                title: `${datedCount} ${datedCount === 1 ? "round" : "rounds"} dated`,
+                body: (
+                  <>
+                    <p role="status" style={{ margin: 0 }}>{dated}</p>
+                    <Link href="/stages" scroll={false} className="btn btn-secondary btn-sm" style={{ marginTop: 8, minHeight: 44, display: "inline-flex", alignItems: "center" }}>
+                      OK
+                    </Link>
+                  </>
+                ),
               }]
             : []),
           // One notice per cause: with no course card there is no rating either, and the

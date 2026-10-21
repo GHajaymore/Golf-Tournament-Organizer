@@ -196,3 +196,13 @@ export const INTERVAL_OPTIONS = [
   { days: 1, label: "Consecutive days" },
   { days: 0, label: "All on the same day" },
 ] as const;
+
+/**
+ * What a secretary is told once the undated rounds are dated, `firstDay` already in the club's
+ * words. Worded by the UI/UX designer and the golf professional (2026-10-21).
+ */
+export function datedSaid(count: number, firstDay: string): string {
+  return count === 1
+    ? `1 round dated, on ${firstDay}. Players now see it on their calendar.`
+    : `${count} rounds dated, the first on ${firstDay}. Players now see them on their calendar.`;
+}
