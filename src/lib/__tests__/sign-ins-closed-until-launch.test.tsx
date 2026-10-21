@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { maySignIn, signInsClosed, SIGNINS_CLOSED_MESSAGE, SIGNINS_CLOSED_NOTICE, HELD_FRONT_DOOR } from "@/lib/sign-in-gate";
 import { LandingAuth } from "@/components/LandingAuth";
-import { INTEREST_COPY } from "@/lib/domain/interest";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
