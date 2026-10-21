@@ -1743,7 +1743,7 @@ export async function setStagePlayedOn(stageId: string, date: string): Promise<{
 export async function dateUndatedRounds(
   startDate: string,
   intervalDays: unknown,
-): Promise<{ dated: number; error?: string }> {
+): Promise<{ dated: number; first?: string; error?: string }> {
   const eventId = await requireStaffEvent();
   // Not behind the setup lock, for the reason on setStagePlayedOn: a live
   // league is exactly the one whose players are missing their calendar.
@@ -1770,7 +1770,9 @@ export async function dateUndatedRounds(
     await prisma.stage.updateMany({ where: { id: p.id, eventId }, data: { playedOn: p.playedOn } });
   }
   await refresh();
-  return { dated: plan.length };
+  // The earliest day given, for the confirmation ("…, the first on Sat 7 Nov").
+  const first = plan.map((p) => p.playedOn).sort()[0] ?? "";
+  return { dated: plan.length, first };
 }
 
 export async function setStageCarry(stageId: string, enabled: boolean, pct: number) {
@@ -2128,7 +2130,7 @@ export async function setRoundHandicapOverride(
 export async function applyRoundHandicapToRest(
   stageId: string,
   playerId: string,
-): Promise<{ ok: boolean; written: number; skipped: number; error?: string }> {
+): Promise<{ ok: boolean; written: number; skipped: number; skippedCards: number; skippedOther: number; error?: string }> {
   const eventId = await requireStaffEvent();
   await assertEventStage(eventId, stageId);
   await assertEventPlayer(eventId, playerId);
@@ -2141,15 +2143,15 @@ export async function applyRoundHandicapToRest(
     prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
   ]);
   if (from?.override == null) {
-    return { ok: false, written: 0, skipped: 0, error: "Set this round's handicap first." };
+    return { ok: false, written: 0, skipped: 0, skippedCards: 0, skippedOther: 0, error: "Set this round's handicap first." };
   }
 
   const here = stages.findIndex((s) => s.id === stageId);
-  if (here < 0) return { ok: false, written: 0, skipped: 0, error: "That round isn't in this tournament." };
+  if (here < 0) return { ok: false, written: 0, skipped: 0, skippedCards: 0, skippedOther: 0, error: "That round isn't in this tournament." };
   // Rounds the field actually plays. A cut or a bracket seeding round is not
   // somewhere a handicap gets used.
   const later = playingStages(stages.slice(here + 1));
-  if (later.length === 0) return { ok: true, written: 0, skipped: 0 };
+  if (later.length === 0) return { ok: true, written: 0, skipped: 0, skippedCards: 0, skippedOther: 0 };
 
   const frozenRows = await prisma.roundHandicap.findMany({
     where: { eventId, playerId, stageId: { in: later.map((s) => s.id) }, frozen: { not: null } },
@@ -2187,7 +2189,10 @@ export async function applyRoundHandicapToRest(
     });
   }
   await refresh();
-  return { ok: true, written: open.length, skipped: later.length - open.length };
+  // Each reason counted apart, so the screen can say the true one (`laterRoundsSaid`).
+  const skippedCards = later.filter((s) => frozen.has(s.id)).length;
+  const skippedOther = later.filter((s) => !frozen.has(s.id) && !sameCard(s)).length;
+  return { ok: true, written: open.length, skipped: later.length - open.length, skippedCards, skippedOther };
 }
 
 /* ── Tiebreakers & qualification ──────────────────────────────────────── */
