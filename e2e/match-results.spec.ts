@@ -186,6 +186,10 @@ test("the committee types a result, has it disputed, confirms it, reopens it and
     await page.getByRole("button", { name: "Reopen" }).click();
     await expect(tag("Pending confirmation")).toBeVisible({ timeout: 20_000 });
     expect((await row()).status).toBe("pending");
+    // Dispute, Confirm result and Reopen together: the row ran off a phone's edge, the page grew
+    // wider than the screen, and the next tap landed beside the button (2026-10-21).
+    const wide = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, screen: window.innerWidth }));
+    expect(wide.page, `the page is ${wide.page}px wide on a ${wide.screen}px screen with the review buttons showing`).toBeLessThanOrEqual(wide.screen);
     await page.getByRole("button", { name: "Clear", exact: true }).click();
     await expect.poll(async () => (await row()).played, { message: "Clear did not empty the card" }).toBe(0);
     expect((await row()).status).toBe("pending");

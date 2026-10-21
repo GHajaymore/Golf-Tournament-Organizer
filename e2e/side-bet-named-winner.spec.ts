@@ -110,7 +110,7 @@ test("a side game is started, joined, paid into, won, tied, opened to the field 
     /** This bet's own block on that card: the smallest thing holding both its name and its Remove. */
     const bet = async () => {
       const card = await sideBets();
-      const b = card.locator("div", { hasText: BET }).filter({ has: desk.getByRole("button", { name: /^Remove (this bet|the bet)$/ }) }).last();
+      const b = card.locator("div", { hasText: BET }).filter({ has: desk.getByRole("button", { name: /^Remove (this game|the game)$/ }) }).last();
       await expect(b, "the bet is not on the organizer's screen").toBeVisible();
       return b;
     };
