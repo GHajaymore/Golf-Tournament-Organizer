@@ -1,5 +1,6 @@
 "use client";
 import { useId, useState, useTransition } from "react";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { saveTee, deleteTee } from "@/app/actions/courses";
 import { courseHandicap, STANDARD_SLOPE } from "@/lib/domain/handicap";
 import { figureOr, readDecimal, readWhole } from "@/lib/domain/decimal-text";
@@ -63,6 +64,10 @@ export function TeeEditor({
    */
   const [unfolded, setUnfolded] = useState(defaultOpen || tees.length === 0);
   const [error, setError] = useState("");
+  /* WHERE it is said: a refusal of "Save tees" under that button, at the foot of the form; one
+     from removing a set stays above it, by the list. Every refusal used to sit above the form,
+     a screen above Save on a phone (round G247-1, "Slope Rating is between …", 2026-10-21). */
+  const [errorFromSave, setErrorFromSave] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     name: "",
@@ -91,6 +96,7 @@ export function TeeEditor({
 
   const save = () => {
     setError("");
+    setErrorFromSave(true);
     // A TYPO IN A RATING IS SAID, NOT READ. `parseFloat("7l.3")` is 7 and
     // `parseInt("13O")` is 13. Each went to the server as the figure, and what
     // came back described a number nobody had typed — or, for "71.3x", nothing
@@ -118,6 +124,7 @@ export function TeeEditor({
 
   const remove = (id: string) => {
     setError("");
+    setErrorFromSave(false);
     startTransition(async () => {
       const res = await deleteTee(id);
       if (!res.ok) setError(res.error ?? "Couldn't save that.");
@@ -341,7 +348,11 @@ export function TeeEditor({
         </p>
       )}
 
-      {error && <p className="form-error">{error}</p>}
+      {error && !(errorFromSave && editing && canEdit) && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
 
       {editing && canEdit && (
         <div
@@ -436,6 +447,11 @@ export function TeeEditor({
               Cancel
             </button>
           </div>
+          {error && errorFromSave && (
+            <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
+              {error}
+            </p>
+          )}
         </div>
       )}
     </div>
