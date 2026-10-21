@@ -43,10 +43,11 @@ export function LandingAuth({
   // instead of the top of the hero.
   // The edition's word (UK "organisers"): the page's server-side dialect swap
   // cannot reach inside this client component, so the word is passed in.
-  const panel = <LoginPanel key={mode} initialMode={mode} autoFocusFields={false} organizers={organizers} />;
+  const panel = <LoginPanel key={closed ? "held" : mode} initialMode={mode} autoFocusFields={false} organizers={organizers} signupClosed={closed} />;
   if (!closed) return panel;
-  // Sign-ins closed until launch (sign-in-gate.ts): said before the form, so
-  // nobody fills it in to be refused at the end. The form stays, for the owners.
+  // Sign-ins held until launch (sign-in-gate.ts): said before the form, and the form below is
+  // signing in only — no Sign up tab, so nobody is offered an account the server would refuse.
+  // It stays for the owners the hold lets through.
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div
