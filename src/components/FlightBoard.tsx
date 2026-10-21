@@ -1,5 +1,6 @@
 "use client";
 import { indexLabel } from "@/lib/domain/handicap-label";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { useState, useTransition } from "react";
 import { movePlayerToGroup, renameGroup, setFlightsConfirmed } from "@/app/actions/tournament";
 import { setFlightCaptain } from "@/app/actions/attendance";
@@ -303,7 +304,7 @@ export function FlightBoard({
             {error && errorAt === g.id && (
               // Brought into view, only as far as it needs: a flight at the foot of the screen put its
               // own refusal just below the fold.
-              <p role="alert" ref={(el) => el?.scrollIntoView({ block: "nearest" })} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+              <p role="alert" ref={bringIntoView} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
                 <Icon name="warning-circle" /> {error}
               </p>
             )}

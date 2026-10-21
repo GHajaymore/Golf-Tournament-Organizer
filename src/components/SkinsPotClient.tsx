@@ -1,5 +1,6 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { useId, useState } from "react";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
@@ -241,7 +242,7 @@ export function SkinsPotClient({
             Cancel
           </button>
           {renamePressed && error && (
-            <p className="form-error" role="alert" style={{ margin: 0, flexBasis: "100%" }} ref={(el) => el?.scrollIntoView({ block: "nearest" })}>
+            <p className="form-error" role="alert" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}

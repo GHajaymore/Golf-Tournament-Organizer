@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { typedAllowance } from "@/lib/domain/team";
 import { allowanceSaid } from "@/lib/domain/allowance-words";
 import { setStageAllowance, type TeamResult } from "@/app/actions/teams";
@@ -151,8 +152,10 @@ export function RoundAllowance({
         />
       )}
 
+      {/* Brought into view: the box often sits at the foot of a phone's screen, and round G245-1
+          saw "0% is playing off scratch" refused out of view (2026-10-21). */}
       {error && (
-        <p className="form-error" role="alert">
+        <p className="form-error" role="alert" ref={bringIntoView}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}

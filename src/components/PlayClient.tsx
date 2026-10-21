@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard, savePlayMatchCard } from "@/app/actions/play";
 import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
@@ -919,7 +920,7 @@ function PlayScreens(props: Props) {
           {/* Brought into view: Certify is the last thing on the card, often at the very foot of a
               phone's screen, and a refusal drawn under it was below the fold (Firefox, 2026-10-21). */}
           {error && (
-            <p role="alert" ref={(el) => el?.scrollIntoView({ block: "nearest" })} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+            <p role="alert" ref={bringIntoView} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}
