@@ -7,19 +7,14 @@
  * somebody who reads tourneyhq.club off it is told the app is under
  * development rather than making an account in an app that is not finished.
  *
- * THE SWITCH IS THE LIST. Sign-ins close when `SIGNIN_ALLOW_EMAILS` (comma-
- * separated) names anybody, and only the people it names — plus the platform
- * owners on `OWNER_EMAILS` — may sign in. Empty or unset: open, as before.
- * So the person who closes the door has, in the same keystroke, typed the
- * address that still opens it. It was first written to close on its own in
- * production with the owners let through, and production's `OWNER_EMAILS` was
- * then measured to NOT hold the owner's address (/owner answered 404 to him,
- * signed in): that version would have locked him out of his own console the
- * night before a real tournament.
+ * PRODUCTION IS HELD (2026-10-21), its owners on `OWNER_EMAILS` let through,
+ * and anybody on `SIGNIN_ALLOW_EMAILS` too — see `signInsClosed`. Elsewhere
+ * a non-empty `SIGNIN_ALLOW_EMAILS` closes it, to try the closed state on a
+ * preview. The list alone was the switch until that day, and production's was
+ * never set, so the door stood open.
  *
- * TO OPEN: delete the variable (or set `SIGNINS=open`) and redeploy. An
- * environment variable reaches the app at deploy time on Vercel, so either way
- * it takes a redeploy.
+ * TO LAUNCH: `SIGNINS=open` in Vercel's production variables, and redeploy —
+ * an environment variable reaches the app at deploy time.
  *
  * WHAT IS CLOSED: making a session for a PERSON — signing in, setting a first
  * password, resetting one, signing up — and honouring a session made before.
@@ -27,8 +22,7 @@
  * slot rather than a person) and every public board. A tournament scored by
  * code is played with sign-ins shut.
  *
- * Every environment is ruled by the same variable, so the closed state can be
- * tried on a preview before production. Dev, CI and e2e never set it.
+ * Dev, CI and e2e are not production and never set the list, so they are open.
  */
 import { parseOwnerEmails } from "@/lib/owner";
 import { SALES_EMAIL } from "@/lib/contact";
@@ -52,10 +46,9 @@ export const SIGNINS_CLOSED_NOTICE = {
   interestedLead: "Interested?",
   interestedEmail: SALES_EMAIL,
   interestedTail: "and we'll let you know when it opens.",
-  // The early-subscriber offer (panel, 2026-10-17; Ajay: "25% discount is only
-  // for the first term (month or year)"). Honoured with a code made on /owner
-  // and sent in the reply — domain/discount.ts takes it off the first payment.
-  offer: "Clubs that write before we open get 25% off their first payment — the first month, or the first year if they pay yearly.",
+  // NO OFFER IS PRINTED HERE (Ajay, 2026-10-21: "do not publish the discount
+  // code"). The early-subscriber discount is still honoured — a code made on
+  // /owner and sent in the reply — but the notice only invites them to write.
   playLead: "Playing today?",
   playLink: "Go to tourneyhq.club/play",
   playTail: "and enter the round code your organizer gave you.",
@@ -63,10 +56,24 @@ export const SIGNINS_CLOSED_NOTICE = {
 
 type Env = Record<string, string | undefined>;
 
-/** Are sign-ins shut to everybody not on the lists? */
+/**
+ * Are sign-ins shut to everybody not on the lists?
+ *
+ * HELD IN PRODUCTION UNTIL LAUNCH (Ajay, 2026-10-21: "we need to block/hold the
+ * signup/signin until when we say let's Launch"). The list alone was the switch,
+ * and production's list was never set, so the front door stood open. Now
+ * production is held by itself — but ONLY with an owner to let through: an empty
+ * `OWNER_EMAILS` leaves it open, which is the lock-out the first draft of this
+ * file nearly shipped. Measured before this was written: production's owner list
+ * holds his address (/owner answered 200 to his session).
+ *
+ * TO LAUNCH: `SIGNINS=open` in Vercel's production variables, and redeploy.
+ * Previews, dev, CI and e2e are not production and stay open.
+ */
 export function signInsClosed(env: Env = process.env): boolean {
   if ((env.SIGNINS ?? "").trim().toLowerCase() === "open") return false;
-  return parseOwnerEmails(env.SIGNIN_ALLOW_EMAILS).length > 0;
+  if (parseOwnerEmails(env.SIGNIN_ALLOW_EMAILS).length > 0) return true;
+  return env.VERCEL_ENV === "production" && parseOwnerEmails(env.OWNER_EMAILS).length > 0;
 }
 
 /** May this address be signed in (or keep a session) right now? */
