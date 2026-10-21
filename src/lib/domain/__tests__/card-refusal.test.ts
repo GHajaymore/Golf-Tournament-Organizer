@@ -27,6 +27,19 @@ describe("what the one standard refuses", () => {
     expect(cardRefusal(REAL, [], SI)).toBeNull();
   });
 
+  // Yardage is optional and nothing scores off it: it is never why a card is refused. The venue
+  // prompt sends 0 for every "optional" box left empty, and refused every such card (2026-10-21).
+  it("takes a real card whatever its yardage says: blank boxes sent as 0, or a figure mistyped", () => {
+    expect(cardRefusal(REAL, new Array(18).fill(0), SI)).toBeNull();
+    expect(cardRefusal(REAL, [400, 5200, ...new Array(16).fill(380)], SI)).toBeNull();
+  });
+
+  it("still refuses a bad stroke index when the yardage is wrong as well — yardage is skipped, not the card", () => {
+    const si = [...SI];
+    si[1] = si[0];
+    expect(cardRefusal(REAL, new Array(18).fill(0), si)).toBeTruthy();
+  });
+
   it("takes a blank placeholder card, which is how a course starts life", () => {
     // A club adds the course first and types the card later. Flat par 4s with
     // a 1..18 stroke index is what the library stores meanwhile, and refusing

@@ -573,7 +573,7 @@ export function ScoreEntryClient({
    * at the foot of the card: "That result has been confirmed…" came up a
    * screen away and the press looked like it did nothing.
    */
-  const [noteAt, setNoteAt] = useState<"card" | "review" | "foot">("card");
+  const [noteAt, setNoteAt] = useState<"card" | "review" | "foot" | "venue">("card");
 
   /**
    * WHERE THIS MATCH WAS PLAYED, which is a score edit wearing a dropdown.
@@ -593,7 +593,7 @@ export function ScoreEntryClient({
     nine: string,
     undo: () => void,
   ) => {
-    setNoteAt("card");
+    setNoteAt("venue");
     setSaveState("saving");
     setSaveNote("");
     startTransition(async () => {
@@ -1563,6 +1563,9 @@ export function ScoreEntryClient({
                   }}
                 />
               ))}
+            {/* Under the picker that was changed: on a phone the line under the match score is
+                over 200px above it, and a refused venue read as a choice that silently undid. */}
+            {noteAt === "venue" && <div style={{ flexBasis: "100%" }}>{statusLine}</div>}
 
             {/* Which nine, when this round is 9 holes. Front and back carry
                 different pars and stroke indexes, so on a net match this

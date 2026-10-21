@@ -521,7 +521,12 @@ export function cardRefusal(
 ): string | null {
   const card = validateCard(pars, yards, strokeIndex, holes);
   if (card.ok) return null;
-  const first = card.problems[0];
+  // NEVER ON YARDAGE. Yardage is optional and nothing scores off it, so it must never be why a
+  // card is thrown away (CLAUDE.md, "Course cards"). The paste screen still lists a yardage
+  // problem beside its box; this is the gate a card is STORED through, and until 2026-10-21 a
+  // player naming a new venue had every card refused, because the prompt sends 0 for each
+  // yardage box its "optional" label invites them to leave empty.
+  const first = card.problems.find((p) => p.row !== "yards");
   if (!first) return null;
   if (first.holes.length === 0) return first.message;
   const which = first.holes.length === 1 ? "hole" : "holes";

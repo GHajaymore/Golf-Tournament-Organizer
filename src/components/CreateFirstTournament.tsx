@@ -148,6 +148,7 @@ export function CreateFirstTournament({
    * rather than leaving somebody pressing a button that keeps refusing.
    */
   const [sameName, setSameName] = useState(false);
+  const [askError, setAskError] = useState("");
   /** One line they can send with the ask: "I run the Thursday draw with Dana." */
   const [askNote, setAskNote] = useState("");
   /** Set once they have asked, so the panel says so instead of offering again. */
@@ -622,14 +623,23 @@ export function CreateFirstTournament({
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
+                    setAskError("");
                     const res = await askToJoinNamesake(orgName, askNote);
                     if (res.ok) setAsked(res.asked ?? "them");
-                    else setRefusal(res.error ?? "That could not be sent.");
+                    else setAskError(res.error ?? "That could not be sent.");
                   })
                 }
               >
                 <Icon name="user-plus" /> Ask them to add me
               </button>
+              {/* The ask's own refusal, under its own button and as an ALERT. It used to replace
+                  the "already here" sentence above, which is a question (role status), so
+                  "You have already asked…" was announced as a status (2026-10-21). */}
+              {askError && (
+                <p className="form-error" role="alert" style={{ margin: 0 }}>
+                  {askError}
+                </p>
+              )}
             </>
           )}
         </div>

@@ -777,6 +777,8 @@ function StageCard({
   /** "Round 3" — the tournament's own count; empty for a stage the field does not play. */
   const thisRound = roundLabelOf(allStages, stage.id);
   const [deadline, setDeadline] = useState(stage.deadline);
+  // The date box's refusal, said under the box (a round removed in another tab, say).
+  const [dueError, setDueError] = useState("");
   // The sign-up deadline's refusal, said under its own box. It used to be dropped (`void`).
   const [optError, setOptError] = useState("");
   const [basis, setBasis] = useState(stage.scoringBasis);
@@ -1196,10 +1198,19 @@ function StageCard({
                   // Open while live: `setStageDeadline` is not behind the lock.
                   disabled={pending}
                   onChange={(e) => {
-                    setDeadline(e.target.value);
-                    startTransition(() => setStageDeadline(stage.id, e.target.value));
+                    const date = e.target.value;
+                    setDeadline(date);
+                    startTransition(async () => {
+                      const res = await setStageDeadline(stage.id, date);
+                      setDueError(res.ok ? "" : res.error ?? "Couldn't save that.");
+                    });
                   }}
                 />
+                {dueError && (
+                  <p className="form-error" role="alert" style={{ margin: "4px 0 0" }}>
+                    {dueError}
+                  </p>
+                )}
                 {/* Deadlines were free text, so older rounds hold things like
                     "Sat 14 Jun" that a date input cannot show. Rather than
                     render an empty box and let the next save quietly erase it,

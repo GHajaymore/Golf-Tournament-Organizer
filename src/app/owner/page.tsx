@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { prisma } from "@/lib/db";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
-import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
 import { wholeMoney } from "@/lib/domain/money-format";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
@@ -367,7 +367,9 @@ export default async function OwnerConsolePage() {
                 <tr key={o.id}>
                   <td style={{ fontWeight: 500 }}>{o.name}</td>
                   <td className="text-muted" style={{ textTransform: "capitalize" }}>{o.kind}</td>
-                  <td className="text-muted" style={{ textTransform: "capitalize" }}>{o.subscription?.plan ?? "free"}</td>
+                  {/* The plan's NAME, through planFor as the Tier mix above reads it. The stored key
+                      ("club") was printed here under a line saying "is now on Eagle" (2026-10-21). */}
+                  <td className="text-muted">{planFor(o.subscription?.plan).name}</td>
                   <td style={{ textAlign: "right" }}>{o._count.events}</td>
                   <td className="text-muted">{shortDate(o.createdAt)}</td>
                 </tr>
