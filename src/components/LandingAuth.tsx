@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { LoginPanel } from "@/components/LoginPanel";
-import { SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
+import { HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
 
 /**
  * The real sign-in form, embedded in the landing page so every "Sign in" and
@@ -25,12 +25,17 @@ export function LandingAuth({
   // Where no link said otherwise: the closing section asks the visitor to set
   // up their first event, so it opens on sign-up (Ajay, 2026-09-28).
   const [mode, setMode] = useState<"login" | "signup">(defaultMode);
+  // Held: the owners' sign-in box is folded away until somebody asks for it (or follows #signin).
+  const [staffOpen, setStaffOpen] = useState(false);
 
   useEffect(() => {
     const sync = () => {
       const hash = window.location.hash;
       if (hash === "#signup") setMode("signup");
-      else if (hash === "#signin") setMode("login");
+      else if (hash === "#signin") {
+        setMode("login");
+        setStaffOpen(true);
+      }
     };
     sync();
     window.addEventListener("hashchange", sync);
@@ -85,7 +90,28 @@ export function LandingAuth({
           {SIGNINS_CLOSED_NOTICE.playTail}
         </p>
       </div>
-      {panel}
+      {/* NO LOGIN BOXES FOR A VISITOR (Ajay, 2026-10-21: he looked at the front page and it was
+          "allowing me to enter the userid and password"). The owners' sign-in is folded behind one
+          quiet link, and the boxes are not on the page at all until it is pressed. */}
+      <button
+        type="button"
+        aria-expanded={staffOpen}
+        onClick={() => setStaffOpen((v) => !v)}
+        style={{
+          alignSelf: "flex-start",
+          minHeight: 44,
+          padding: "0 2px",
+          border: "none",
+          background: "transparent",
+          color: "var(--color-text-muted)",
+          fontSize: 13.5,
+          textDecoration: "underline",
+          cursor: "pointer",
+        }}
+      >
+        {HELD_FRONT_DOOR.staffLink}
+      </button>
+      {staffOpen && panel}
     </div>
   );
 }

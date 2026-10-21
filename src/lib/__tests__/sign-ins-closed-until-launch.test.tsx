@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { maySignIn, signInsClosed, SIGNINS_CLOSED_MESSAGE, SIGNINS_CLOSED_NOTICE, HELD_FRONT_DOOR } from "@/lib/sign-in-gate";
 import { LandingAuth } from "@/components/LandingAuth";
+import { LoginPanel } from "@/components/LoginPanel";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
@@ -131,9 +132,12 @@ describe("the front door says so before the form", () => {
     // The early list goes to the live inquiries mailbox, under a subject inquiries@ can sort by.
     expect(html).toContain(`href="mailto:inquiries@tourneyhq.club?subject=${encodeURIComponent(SIGNINS_CLOSED_NOTICE.interestedSubject)}"`);
     // THE OFFER, AND NEVER A CODE (Ajay, 2026-10-21: "still there is no early discount marketing";
-    // earlier, "do not publish the discount code"). The notice's WORDS, before the form.
+    // earlier, "do not publish the discount code"). The notice's WORDS, before the staff link (held,
+    // there is no form on the page until that link is pressed).
+    const staffAt = html.indexOf(HELD_FRONT_DOOR.staffLink);
+    expect(staffAt, "the staff link is not after the notice").toBeGreaterThan(html.indexOf(SIGNINS_CLOSED_NOTICE.lead));
     const notice = html
-      .slice(0, html.indexOf("<form"))
+      .slice(0, staffAt)
       .replace(/<[^>]*>/g, " ")
       .replace(/&#x27;/g, "'");
     expect(notice).toContain(SIGNINS_CLOSED_NOTICE.offer);
@@ -141,7 +145,6 @@ describe("the front door says so before the form", () => {
     expect(notice).toMatch(/25% off your first term/);
     // No code is printed: nothing shaped like one (letters and digits, upper case).
     expect(notice).not.toMatch(/\b[A-Z0-9]{6,}\b/);
-    expect(html.indexOf(SIGNINS_CLOSED_NOTICE.lead)).toBeLessThan(html.indexOf("<form"));
   });
 
   it("tells a visitor what is coming, never that they are shut out — and never 'under development'", () => {
@@ -164,16 +167,28 @@ describe("the front door says so before the form", () => {
    * the hold lets through, it worked. Held, the door offers signing in and nothing else, even when a
    * link asked for sign-up ("Start free" goes to #signup).
    */
-  it("offers signing in only while held — no Sign up tab, no account form — even when a link asked for sign-up", () => {
+  it("shows a visitor no login boxes while held — only one quiet link for the staff — even when a link asked for sign-up", () => {
+    // Ajay, 2026-10-21, looking at the front page: it was "allowing me to enter the userid and password".
     const held = renderToStaticMarkup(<LandingAuth closed defaultMode="signup" />);
+    expect(held, "a password box is on the held front door").not.toContain('type="password"');
+    expect(held, "an email box is on the held front door").not.toContain('type="email"');
     expect(held, "a Sign up tab is on the held front door").not.toMatch(/>\s*Sign up\s*</);
     expect(held, "the held front door offers to create an account").not.toContain("Create your account");
-    expect(held).not.toContain('role="tablist"');
-    expect(held, "the owners have no way in").toContain("Already have access?");
-    // CONTROL: open, the same link opens the sign-up form with its tab.
+    expect(held, "the owners have no way in").toContain(HELD_FRONT_DOOR.staffLink);
+    expect(held).toContain('aria-expanded="false"');
+    // CONTROL: open, the same link opens the sign-up form with its tab and its boxes.
     const open = renderToStaticMarkup(<LandingAuth defaultMode="signup" />);
     expect(open).toContain("Create your account");
     expect(open).toMatch(/>\s*Sign up\s*</);
+    expect(open).toContain('type="password"');
+  });
+
+  it("the box the staff link opens signs in and does nothing else", () => {
+    const box = renderToStaticMarkup(<LoginPanel initialMode="signup" signupClosed autoFocusFields={false} />);
+    expect(box).toContain(HELD_FRONT_DOOR.signInTitle);
+    expect(box).toContain('type="password"');
+    expect(box).not.toContain('role="tablist"');
+    expect(box).not.toContain("Create your account");
   });
 
   it("the landing page hands the gate's answer to the box", () => {
