@@ -153,9 +153,17 @@ test("a member adds a bill, changes it, settles and unsettles a handover, and re
   await expect.poll(() => prisma.settlement.count({ where: { eventId: data.eventId } }), { timeout: 20_000, message: "the settlement was not undone" }).toBe(settledBefore);
   expect(await standing(page), "undoing the handover did not put back what I am owed").toBe(afterEdit);
 
+  // ── the day on the bill reads as a date (2026-10-21) ─────────────────────
+  // It was printed as the database keeps it, "2026-05-14", under handovers dated "May 14, 2026",
+  // and on a phone it broke across two lines at the hyphen. A day somebody typed is already a day.
+  await prisma.expense.updateMany({ where: { eventId: data.eventId, description: BILL }, data: { spentOn: "2026-05-14" } });
+  await page.reload();
+
   // ── the bill is removed: asked first, then gone ──────────────────────────
   await page.locator("summary", { hasText: /^More:/ }).click();
   const again = page.locator("details", { hasText: BILL }).last();
+  await expect(again, "the bill's day is not written as a date").toContainText(/May 14, 2026|14 May 2026|14\. Mai 2026/);
+  expect(await again.innerText(), "the bill's day is printed as the database keeps it").not.toContain("2026-05-14");
   await again.getByRole("button", { name: "Remove" }).click();
   expect(await prisma.expense.count({ where: { eventId: data.eventId, description: BILL } }), "one press removed a bill without asking").toBe(1);
   await again.getByRole("button", { name: "Yes, remove it" }).click();
