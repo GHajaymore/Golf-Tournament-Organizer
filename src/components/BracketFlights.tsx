@@ -93,13 +93,20 @@ export function BracketFlights({
   const [renaming, setRenaming] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
 
+  /* WHERE a refusal is said: the flight whose own button was pressed, or null for the controls
+     at the top. A reseed is pressed inside a flight's card, a screen and more below the top on a
+     phone, so one line up there was a press that seemed to do nothing (2026-10-21, 320px). */
+  const [errorAt, setErrorAt] = useState<number | null>(null);
+
   const canChange = !readOnly && !finished && !fixed;
-  const run = (action: () => Promise<{ ok: boolean; error?: string }>, then?: () => void) => {
+  const run = (action: () => Promise<{ ok: boolean; error?: string }>, then?: () => void, at: number | null = null) => {
     setError("");
     startTransition(async () => {
       const res = await action();
-      if (!res.ok) setError(res.error ?? "Couldn't save that.");
-      else then?.();
+      if (!res.ok) {
+        setErrorAt(at);
+        setError(res.error ?? "Couldn't save that.");
+      } else then?.();
     });
   };
 
@@ -216,7 +223,7 @@ export function BracketFlights({
     const to = at + dir;
     if (to < 0 || to >= ids.length) return;
     [ids[at], ids[to]] = [ids[to], ids[at]];
-    run(() => reseedFlight(flight, ids));
+    run(() => reseedFlight(flight, ids), undefined, flight);
   };
 
   return (
@@ -271,7 +278,7 @@ export function BracketFlights({
           the opponent goes through by walkover.
         </p>
       )}
-      {error && <p className="form-error">{error}</p>}
+      {error && errorAt === null && <p className="form-error" role="alert">{error}</p>}
 
       {canChange && (
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -334,7 +341,7 @@ export function BracketFlights({
                     onChange={(e) => setNewName(e.target.value)}
                     style={{ flex: "1 1 140px", minWidth: 0 }}
                   />
-                  <button type="button" className="btn btn-secondary" disabled={pending || !newName.trim()} onClick={() => run(() => renameFlight(i, newName), () => setRenaming(null))}>
+                  <button type="button" className="btn btn-secondary" disabled={pending || !newName.trim()} onClick={() => run(() => renameFlight(i, newName), () => setRenaming(null), i)}>
                     Save name
                   </button>
                 </div>
@@ -362,6 +369,11 @@ export function BracketFlights({
                 </li>
               ))}
             </ol>
+            {error && errorAt === i && (
+              <p className="form-error" role="alert" style={{ margin: "10px 0 0" }} ref={(el) => el?.scrollIntoView({ block: "nearest" })}>
+                {error}
+              </p>
+            )}
           </details>
         ))}
       </div>

@@ -916,8 +916,10 @@ function PlayScreens(props: Props) {
           </p>
           </>
           )}
+          {/* Brought into view: Certify is the last thing on the card, often at the very foot of a
+              phone's screen, and a refusal drawn under it was below the fold (Firefox, 2026-10-21). */}
           {error && (
-            <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+            <p role="alert" ref={(el) => el?.scrollIntoView({ block: "nearest" })} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}
