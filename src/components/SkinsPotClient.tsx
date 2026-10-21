@@ -112,6 +112,9 @@ export function SkinsPotClient({
   const [picking, setPicking] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState("");
+  /* A refused name is said in the rename box, where Save name was pressed — not at the foot of
+     the card, a screen below — and the box stays open with what was typed (2026-10-21). */
+  const [renamePressed, setRenamePressed] = useState(false);
   // Prefilled from who has returned a card, so it is a tick-through rather
   // than twenty names typed out — but nothing counts until staff save it.
   const [chosen, setChosen] = useState<string[]>(() =>
@@ -215,15 +218,33 @@ export function SkinsPotClient({
             className="btn btn-primary"
             disabled={pending || !newName.trim() || newName.trim() === groupKey}
             onClick={() => {
-              run(() => renameBet(activeStageId, groupKey, newName.trim()));
-              setRenaming(false);
+              setRenamePressed(true);
+              run(
+                () => renameBet(activeStageId, groupKey, newName.trim()),
+                () => {
+                  setRenaming(false);
+                  setRenamePressed(false);
+                },
+              );
             }}
           >
             Save name
           </button>
-          <button type="button" className="btn btn-secondary" onClick={() => setRenaming(false)}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setRenaming(false);
+              setRenamePressed(false);
+            }}
+          >
             Cancel
           </button>
+          {renamePressed && error && (
+            <p className="form-error" role="alert" style={{ margin: 0, flexBasis: "100%" }} ref={(el) => el?.scrollIntoView({ block: "nearest" })}>
+              <Icon name="warning-circle" /> {error}
+            </p>
+          )}
           <p className="text-muted" style={{ fontSize: 13, margin: 0, flexBasis: "100%", lineHeight: 1.5 }}>
             Every game under this name moves with it, and nobody loses their place — the people who
             have paid stay paid.
@@ -541,8 +562,8 @@ export function SkinsPotClient({
         </div>
       )}
 
-      {error && (
-        <p className="form-error">
+      {error && !(renaming && renamePressed) && (
+        <p className="form-error" role="alert">
           <Icon name="warning-circle" /> {error}
         </p>
       )}
