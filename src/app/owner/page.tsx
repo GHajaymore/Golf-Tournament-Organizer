@@ -14,6 +14,9 @@ import { OwnerLimits } from "@/components/OwnerLimits";
 import { OwnerClubPlan } from "@/components/OwnerClubPlan";
 import { peopleOwningSeveralParClubs } from "@/lib/services/close-terms";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
+import { OwnerAccounts } from "@/components/OwnerAccounts";
+import { signInsHeld } from "@/lib/services/signins-switch";
+import { signInsClosed } from "@/lib/sign-in-gate";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
@@ -233,6 +236,9 @@ export default async function OwnerConsolePage() {
         {stat("Tournaments", m.totalEvents.toLocaleString(DEFAULT_LOCALE), `${m.liveEvents} live now`)}
         {stat("Players", m.totalPlayers.toLocaleString(DEFAULT_LOCALE), "across every event")}
       </div>
+
+      {/* The launch switch first: the one control that decides who can get in at all. */}
+      <OwnerAccounts held={await signInsHeld()} ruleHolds={signInsClosed()} />
 
       {/* The controls that write: the price every screen quotes, and the caps
           every entry gate reads. */}

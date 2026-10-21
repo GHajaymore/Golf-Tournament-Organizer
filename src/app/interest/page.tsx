@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { signInsHeld } from "@/lib/services/signins-switch";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
@@ -66,7 +67,7 @@ export default async function InterestPage() {
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS + FORM_CSS }} />
       <LandingEffects />
       {iconSprite()}
-      {landingNav("interest")}
+      {landingNav("interest", await signInsHeld())}
 
       <main className="legal">
         <section className="fq-hero">

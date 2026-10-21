@@ -8,6 +8,7 @@ import { savePricingOverride } from "@/lib/services/platform-pricing";
 import { drainWaitlist } from "@/lib/services/waitlist";
 import { saveLimitOverride } from "@/lib/services/platform-limits";
 import { createDiscount, setDiscountActive } from "@/lib/services/platform-discounts";
+import { setSignInsOpen } from "@/lib/services/signins-switch";
 
 /**
  * Owner-only writes — the platform's own controls, not a club's.
@@ -22,6 +23,22 @@ import { createDiscount, setDiscountActive } from "@/lib/services/platform-disco
 export interface OwnerActionResult {
   ok: boolean;
   error?: string;
+}
+
+/**
+ * OPEN ACCOUNTS, OR HOLD THEM AGAIN — the one switch for launch (Ajay, 2026-10-21: "make sure its
+ * an easy control which we can flip back to allow signup / signin"). A row, not a deploy: it takes
+ * effect on the next page anybody opens. It can only open what production's hold shut; it never
+ * shuts dev, CI or a preview (`services/signins-switch.ts`).
+ */
+export async function setAccountsOpen(open: boolean): Promise<OwnerActionResult & { now?: "open" | "held" }> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  if (typeof open !== "boolean") return { ok: false, error: "Say open or held." };
+  const now = await setSignInsOpen(open);
+  revalidatePath("/owner");
+  revalidatePath("/");
+  return { ok: true, now };
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { signInsHeld } from "@/lib/services/signins-switch";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { privacyContact } from "@/lib/domain/privacy-contact";
@@ -69,7 +70,7 @@ export default async function TermsPage() {
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS }} />
       <LandingEffects />
       {iconSprite()}
-      {landingNav("terms")}
+      {landingNav("terms", await signInsHeld())}
 
       <main className="legal">
       <section className="fq-hero">

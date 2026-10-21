@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { LoginPanel } from "@/components/LoginPanel";
 import { SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
-import { INTEREST_COPY } from "@/lib/domain/interest";
 
 /**
  * The real sign-in form, embedded in the landing page so every "Sign in" and
@@ -66,24 +65,27 @@ export function LandingAuth({
         <p style={{ margin: 0 }}>
           <strong>{SIGNINS_CLOSED_NOTICE.lead}</strong> {SIGNINS_CLOSED_NOTICE.body}
         </p>
-        {/* The offer and the form (2026-10-21, worded with the panel's
-            marketing manager): a form turns interest into a list, where
-            "write to us" asks a visitor to compose an email. The address stays,
-            for anybody who would rather write. */}
-        <p style={{ margin: "8px 0 0" }}>{INTEREST_COPY.noticeOffer}</p>
+        {/* The early-list offer leads, its terms right under it, and the form is the way in (the
+            marketing manager's words, checked by the ad director: an offer on an ad's destination
+            carries its terms on the page, and a form can be counted where an email cannot). The
+            address stays for anybody who would rather write. */}
+        <p style={{ margin: "8px 0 0", fontWeight: 600 }}>{SIGNINS_CLOSED_NOTICE.offer}</p>
         <p style={{ margin: "8px 0 0" }}>
           <a href="/interest" style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}>
-            {INTEREST_COPY.noticeLink}
-          </a>{" "}
-          {INTEREST_COPY.noticeOr}{" "}
+            {SIGNINS_CLOSED_NOTICE.joinLink}
+          </a>
+        </p>
+        <p style={{ margin: "6px 0 0", fontSize: 14 }}>
+          {SIGNINS_CLOSED_NOTICE.emailLead}{" "}
           <a
-            href={`mailto:${SIGNINS_CLOSED_NOTICE.interestedEmail}?subject=${encodeURIComponent("Interested in TourneyHQ")}`}
+            href={`mailto:${SIGNINS_CLOSED_NOTICE.interestedEmail}?subject=${encodeURIComponent(SIGNINS_CLOSED_NOTICE.interestedSubject)}`}
             style={{ color: "inherit", textDecoration: "underline" }}
           >
             {SIGNINS_CLOSED_NOTICE.interestedEmail}
           </a>
           .
         </p>
+        <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "var(--color-text-muted)" }}>{SIGNINS_CLOSED_NOTICE.terms}</p>
         <p style={{ margin: "8px 0 0" }}>
           {SIGNINS_CLOSED_NOTICE.playLead}{" "}
           <a href="/play" style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}>

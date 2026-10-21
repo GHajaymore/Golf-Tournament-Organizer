@@ -50,16 +50,23 @@ Ajay, 2026-10-17: "block the signins until I say so or when we launch … app is
 and 2026-10-21: "block/hold the signup/signin until when we say let's Launch".
 `src/lib/sign-in-gate.ts`. PRODUCTION IS HELD BY ITSELF: only the owners on `OWNER_EMAILS` (and
 anybody on `SIGNIN_ALLOW_EMAILS`) may sign in, set or reset a password, sign up, or keep a
-session; everybody else is told the app "opens soon" above the front door's form, with
-a link to the register-your-interest form (`/interest`, with `inquiries@` as the fallback) and
-`/play` for a player. The notice and the form promise 25% off the first term, and the CODE is
-never printed — it is emailed at launch (his ruling, 2026-10-21). The form's words, worded with
-the panel's marketing manager, are all in `src/lib/domain/interest.ts`; the notes are listed on
-`/owner` and copied to inquiries@. Round codes and public boards
-are not touched. Previews, dev, CI and e2e are not production and stay open (a list on
-`SIGNIN_ALLOW_EMAILS` closes any of them, to try the closed state). **TO LAUNCH: `SIGNINS=open`
-in Vercel's production variables, and redeploy.** The check is in `createSession` and
-`getSession`, so a new door is shut without knowing the rule. Never the word "closed" on screen.
+session; everybody else is told the app "opens soon" above the front door, which then offers
+SIGNING IN ONLY (no Sign up tab, no account form) and `/play` for a player. Held, the page's
+words are the marketing panel's (`HELD_FRONT_DOOR`, `SIGNINS_CLOSED_NOTICE` — the manager wrote
+them, the ad director checked them as an ad's landing page): sign-ups "paused" (never "under
+development"), the 25% early-list offer with its terms beside it (the first month if they pay
+monthly, the first year if yearly — Ajay's ruling, and what billing does), "Join the early list"
+in place of "Start free" and every button pointed at `/interest`, and the free plan's
+"Free for fields of up to 10" and "No card" taken down until launch (Ajay: "I dont want it until
+go live"). The CODE is never printed; it is emailed at launch. The form's own words are in
+`src/lib/domain/interest.ts`; the notes are listed on `/owner` and copied to inquiries@. Round
+codes and public boards are not touched. Previews, dev, CI and e2e are not production and stay
+open (a list on `SIGNIN_ALLOW_EMAILS` closes any of them, to try the closed state). **TO LAUNCH:
+the Accounts card on `/owner` — one press opens accounts to everybody at once, one press holds
+them again** (`services/signins-switch.ts`, a `PlatformSetting` row; a database fault leaves the
+hold standing). `SIGNINS=open` in Vercel still opens it too. Every door asks `maySignInNow` /
+`signInsHeld` — `createSession`, `getSession`, the sign-in actions, the front door — so a new
+door is shut without knowing the rule. Never the word "closed" on screen.
 
 It is held only while `OWNER_EMAILS` names somebody, so it can never lock everyone out. The
 first draft held production with the owners let through on 2026-10-17 and was withdrawn: `/owner`
