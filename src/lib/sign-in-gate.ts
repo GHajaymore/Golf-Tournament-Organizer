@@ -68,8 +68,12 @@ export const SIGNINS_CLOSED_NOTICE = {
 export const HELD_FRONT_DOOR = {
   heading: "Opening soon. Get in early.",
   lead: "New accounts open at launch. Register your interest now and we'll email you 25% off your first paid term. Got a round code? You can play today.",
-  signInTitle: "Already have access?",
-  signInSub: "Sign in below. New accounts open at launch.",
+  // The one quiet way in for the owners, folded under the notice: no login boxes for a visitor.
+  // The UI/UX designer and the ad director: not "Team" (a golf team presses it), not "Staff" alone
+  // (a club's secretaries are staff too, and are held out) — "TourneyHQ" says who it is for.
+  staffLink: "TourneyHQ staff sign-in",
+  signInTitle: "TourneyHQ staff",
+  signInSub: "Sign in with your TourneyHQ account. Club accounts open at launch.",
   pricingNote: "Paid plans start at launch. Join the early list now and we'll email you 25% off your first term.",
   // The ad director: a button that promises "Start free" and lands on a paused door reads as bait.
   // And not "Get early access" (second round): joining gets a code, not use of the app before launch.
