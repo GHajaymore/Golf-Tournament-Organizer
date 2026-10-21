@@ -313,6 +313,7 @@ describe("no screen reads a typed number its own way", () => {
     ["const to = Number(el.dataset.to);", "a figure the front door's own markup carries"],
     ["divide(Number(range.value));", "the front door's slider"],
     ["at = Number(range.value);", "the front door's slider"],
+    ["const datedCount = Number(sp?.dated);", "the count the app put in its own address after dating the rounds"],
     ["fromV = Number(range.value);", "the front door's slider, where a finger takes its knob"],
     ["indexFigure(Number(r.exact.toFixed(2)))", "a figure the app computed, shortened to print"],
   ];
