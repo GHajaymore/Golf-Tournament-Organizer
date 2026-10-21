@@ -7,10 +7,14 @@ import { setAccountsOpen } from "@/app/actions/owner";
 /**
  * THE LAUNCH SWITCH, on the owner console (Ajay, 2026-10-21: "make sure its an easy control which
  * we can flip back to allow signup / signin"). One press, asked twice, either way; the answer is
- * said beside the press. `ruleHolds` is whether this deployment holds accounts at all — on a
- * preview or in dev they are open whatever the switch says, and the card says so.
+ * said beside the press.
+ *
+ * `opened` is the SWITCH's own position (the row), and `ruleHolds` whether this deployment holds
+ * accounts at all. They are shown apart, because on a preview or in dev nothing is held whatever
+ * the switch says — and the card says so rather than hiding the switch, which is also what lets a
+ * browser test press it where the app is never held.
  */
-export function OwnerAccounts({ held, ruleHolds }: { held: boolean; ruleHolds: boolean }) {
+export function OwnerAccounts({ opened, ruleHolds }: { opened: boolean; ruleHolds: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [said, setSaid] = useState("");
@@ -25,25 +29,26 @@ export function OwnerAccounts({ held, ruleHolds }: { held: boolean; ruleHolds: b
   return (
     <div className="card elev-sm" style={{ marginBottom: 16 }} id="accounts">
       <span className="card-title" style={{ fontSize: 15 }}>Accounts</span>
-      <p style={{ fontSize: 14, margin: "6px 0 10px" }}>
-        {!ruleHolds
-          ? "Open: this deployment does not hold accounts, so the switch has nothing to hold."
-          : held
-            ? "Held until launch. Visitors see “opening soon”; only you can sign in, and nobody can sign up."
-            : "Open. Anybody can sign up and sign in."}
+      <p style={{ fontSize: 14, margin: "6px 0 4px" }}>
+        {opened ? "Open. Anybody can sign up and sign in." : "Held until launch. Visitors see “opening soon”; only you can sign in, and nobody can sign up."}
       </p>
-      {ruleHolds && (
-        <ConfirmButton
-          className={held ? "btn btn-primary" : "btn btn-secondary"}
-          icon={held ? "lock-key-open" : "lock"}
-          label={held ? "Open accounts" : "Hold accounts again"}
-          title={held ? "Open accounts to everybody" : "Hold accounts until launch"}
-          confirmLabel={held ? "Yes, open to everybody" : "Yes, hold them"}
-          note={held ? "Takes effect on the next page anybody opens. You can hold them again here." : "Everybody but you is signed out at their next page."}
-          disabled={pending}
-          onConfirm={() => flip(held)}
-        />
+      {!ruleHolds && (
+        <p className="text-muted" style={{ fontSize: 13, margin: "0 0 4px" }}>
+          This deployment never holds accounts (it is not production), so here the switch changes nothing. Production reads it.
+        </p>
       )}
+      <div style={{ marginTop: 6 }}>
+        <ConfirmButton
+          className={opened ? "btn btn-secondary" : "btn btn-primary"}
+          icon={opened ? "lock" : "lock-key-open"}
+          label={opened ? "Hold accounts again" : "Open accounts"}
+          title={opened ? "Hold accounts until launch" : "Open accounts to everybody"}
+          confirmLabel={opened ? "Yes, hold them" : "Yes, open to everybody"}
+          note={opened ? "Everybody but you is signed out at their next page." : "Takes effect on the next page anybody opens. You can hold them again here."}
+          disabled={pending}
+          onConfirm={() => flip(!opened)}
+        />
+      </div>
       {said && (
         <p role="status" style={{ fontSize: 13, margin: "8px 0 0" }}>
           {said}

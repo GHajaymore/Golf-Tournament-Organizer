@@ -46,7 +46,7 @@ async function cleanup() {
 
 test.beforeAll(async () => {
   await cleanup();
-  for (const key of ["pricing", "limits"]) {
+  for (const key of ["pricing", "limits", "signins"]) {
     saved[key] = await prisma.platformSetting.findUnique({ where: { key }, select: { value: true } });
   }
   ids.org = (await prisma.organization.create({ data: { name: CLUB, kind: "club" } })).id;
@@ -60,8 +60,8 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   try {
-    // The whole app's prices and limits, back exactly as they were.
-    for (const key of ["pricing", "limits"]) {
+    // The whole app's prices, limits and launch switch, back exactly as they were.
+    for (const key of ["pricing", "limits", "signins"]) {
       const was = saved[key];
       if (was) await prisma.platformSetting.upsert({ where: { key }, update: { value: was.value }, create: { key, value: was.value } });
       else await prisma.platformSetting.deleteMany({ where: { key } });
@@ -89,6 +89,31 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
 
   await page.context().clearCookies();
   await page.context().addCookies([{ name: "ng_session", value: cookies.owner, url: baseURL! }]);
+
+  /**
+   * THE LAUNCH SWITCH (Ajay, 2026-10-21: "make sure its an easy control which we can flip back").
+   * This server is not production, so nothing is held here whatever the switch says — the card says
+   * so — but the press is the same press, and the row it writes is the one production reads (what the
+   * row DOES is held to real rows in `the-launch-switch.audit.test.ts`).
+   */
+  await test.step("the launch switch: accounts opened, then held again — each asked first, each said", async () => {
+    await prisma.platformSetting.deleteMany({ where: { key: "signins" } });
+    await open();
+    const card = page.locator("#accounts");
+    await expect(card).toContainText("Held until launch");
+    await expect(card, "the card does not say this server never holds accounts").toContainText("never holds accounts");
+    await card.getByRole("button", { name: "Open accounts" }).click();
+    expect(await prisma.platformSetting.findUnique({ where: { key: "signins" } }), "one press opened accounts without asking").toBeNull();
+    await card.getByRole("button", { name: "Yes, open to everybody" }).click();
+    await expect(card.getByRole("status")).toContainText("Accounts are open");
+    await expect.poll(async () => (await prisma.platformSetting.findUnique({ where: { key: "signins" } }))?.value).toBe("open");
+    await open();
+    await expect(page.locator("#accounts")).toContainText("Open. Anybody can sign up");
+    await page.locator("#accounts").getByRole("button", { name: "Hold accounts again" }).click();
+    await page.locator("#accounts").getByRole("button", { name: "Yes, hold them" }).click();
+    await expect(page.locator("#accounts").getByRole("status")).toContainText("held again");
+    await expect.poll(async () => (await prisma.platformSetting.findUnique({ where: { key: "signins" } }))?.value).toBe("held");
+  });
 
   await test.step("a club's tier: refused for a name nobody has, then set", async () => {
     await open();
