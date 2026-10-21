@@ -38,7 +38,7 @@ reverse; the ones worth a second look are marked **↺**.
 | **Guests are not added to the roster** | Non-members play and are scored, and leave no trace | Your instruction. Also fixes a real corruption: a member with no email is matched BY NAME, so a second Dave overwrote the first Dave's index |
 | **Sides in entry order** | First two v next two | No balancing, no draw. The screen says so above the name fields, so the rule is visible before it is applied |
 | **No plan check** | Casual rounds don't consume the tournament allowance | A club at its cap was refused a Sunday fourball — the app declining a free feature because a paid one was full |
-| **`moneyMode: "none"`** | The golf bet, never the travel-expenses ledger | Your instruction. "none" turns off fees and shared costs; skins and side bets still settle |
+| **`moneyMode: "none"`** | The golf bet, never the travel-expenses ledger | Your instruction. "none" turns off fees and shared costs; skins and side games still settle |
 | **`leaderboardVisibility: "participants"`** | Never public by inheritance | A guest entered by a third party did not consent to their name on a link anyone can open |
 
 ## What is hidden, and what deliberately is not

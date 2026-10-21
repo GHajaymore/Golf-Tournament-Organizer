@@ -1545,7 +1545,12 @@ MOST holes played, so mid-round it pays whoever is furthest round, a leader dres
 A Nassau passes both tests and is correctly paid LIVE. `nassauNets` pays only segments
 `resolveMatch` calls complete, and a finished front nine cannot be re-decided by a back nine
 nobody has started. Gating it would be withholding a settled result — the opposite failure, and
-just as wrong. So judge each side bet on its own; they do not behave alike.
+just as wrong. So judge each side game on its own; they do not behave alike.
+
+**The app says "side game", never "bet"** (Ajay, 2026-10-21: "side games will resonate with our
+moto of no gambling"). On every screen, in the guide and in the player's Help, not only on the
+public pages that ads land on. `public-pages-never-say-bet.test.ts` sweeps the whole of `src` for
+the phrases a sentence makes of the word; `bet` as a code NAME (`bet.name`, `renameBet`) is fine.
 
 Enforce it at the SINK, as `gameNets` now does for both the skins pots and the derived ones. The
 caller that had it right — `roundMoneyFor`, which gates on `roundMoneyIsFinal` — and the caller

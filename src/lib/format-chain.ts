@@ -136,7 +136,7 @@ export function chainIssues(rounds: ChainRound[]): ChainIssue[] {
         issues.push({
           kind: "carry-from-nassau",
           round: cur.position,
-          message: `${label(prev)} is a Nassau, which settles three bets per match. Only the overall result carries into ${label(cur)} — the front and back nine are not counted separately.`,
+          message: `${label(prev)} is a Nassau, which settles three games per match. Only the overall result carries into ${label(cur)} — the front and back nine are not counted separately.`,
         });
       } else if (prevFmt.engine === "skins") {
         issues.push({

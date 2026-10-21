@@ -223,7 +223,7 @@ export default async function MoneyPage() {
         <MoneyClient
           view={ledger}
           terms={await golfTermsForEvent(session.eventId)}
-          moreParts={[!liveStake && rounds.anyGame ? "Pots" : "", sideBet ? "Side bet" : ""].filter(Boolean)}
+          moreParts={[!liveStake && rounds.anyGame ? "Pots" : "", sideBet ? "Side game" : ""].filter(Boolean)}
           more={
             <>
               {!liveStake && <RoundMoney view={rounds} casual={casual} />}

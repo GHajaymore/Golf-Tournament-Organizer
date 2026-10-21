@@ -46,7 +46,7 @@ export const CONTEST_LABEL: Record<ContestKind, string> = {
    * the form does not ask for it.
    */
   "off-course": "Off-course game (poker, cards, darts)",
-  other: "Side bet",
+  other: "Side game",
 };
 
 /**

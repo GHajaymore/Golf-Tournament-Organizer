@@ -98,7 +98,7 @@ CONTINUITY, then SCALE, then the club's own identity.
 | Tournaments | — | 1 per purchase | unlimited | unlimited |
 | Rounds per tournament | 1 | unlimited | unlimited | unlimited |
 | Every format, handicaps, live board | ✓ | ✓ | ✓ | ✓ |
-| Skins, side bets, expenses, splits | ✓ | ✓ | ✓ | ✓ |
+| Skins, side games, expenses, splits | ✓ | ✓ | ✓ | ✓ |
 | Public leaderboard link | — | ✓ | ✓ | ✓ |
 | Flights, cuts, brackets, tee sheet | — | ✓ | ✓ | ✓ |
 | **Roster & handicap history** | — | — | ✓ | ✓ |

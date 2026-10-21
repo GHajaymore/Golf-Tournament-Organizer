@@ -10,8 +10,8 @@ import { stripComments } from "./source";
  * treat "bet", "wager" and "gambling" as gambling — an ad to a page that says
  * them is refused, or the account restricted. The panel's ad director found
  * the front page saying "side bets" three times. The words a stranger reads
- * before signing in come from these files; the app's own screens, behind a
- * sign-in, keep the club's word.
+ * before signing in come from these files; the app's own screens are swept
+ * for the phrases below, at the foot of this file.
  *
  * Comments are stripped first, so a note explaining this rule cannot trip it.
  */
@@ -45,4 +45,52 @@ describe("the words a stranger reads before signing in", () => {
       expect(hit ? src.slice(Math.max(0, hit.index - 60), hit.index + 40) : null).toBeNull();
     });
   }
+});
+
+/**
+ * AND THE APP'S OWN SCREENS SAY IT TOO (Ajay, 2026-10-21: "side games will
+ * resonate with our moto of no gambling"). The paragraph above once kept "the
+ * club's word" behind the sign-in; he ruled otherwise, so "Start a side bet",
+ * "Add a bet" and "Remove this bet" are "game" now, on every screen, in the
+ * guide and in the player's Help.
+ *
+ * Code is full of `bet` as a NAME — `bet.name`, `renameBet`, `sideBet` — which
+ * a person never reads, so this sweep looks for the PHRASES a sentence makes
+ * of the word rather than the word itself. The control shows it sees each one
+ * the rename removed, and passes over the names it must leave alone.
+ */
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const f of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+    const p = join(dir, f.name);
+    if (f.isDirectory()) {
+      if (f.name !== "__tests__") sourceFiles(p, out);
+    } else if (/\.(ts|tsx)$/.test(f.name)) out.push(p);
+  }
+  return out;
+}
+const PHRASES = /\b(side bets?|add a bet|start this bet|(?:this|the|a|one|friendly) bet|three bets|bets? (?:on|in|and|between))\b/i;
+
+describe("the words a member reads after signing in", () => {
+  const all = sourceFiles("src");
+
+  it("CONTROL: the sweep reads the whole app and sees every phrase it guards", () => {
+    expect(all.length).toBeGreaterThan(400);
+    for (const said of [
+      "Start a side bet", "Side bets — Round 1", "Add a bet", "Remove this bet", "Start this bet",
+      "One bet on the match itself", "three bets on one match", "a bet between two sides", "a friendly bet",
+    ]) expect(PHRASES.test(said), said).toBe(true);
+    for (const name of ["bet.name", "renameBet(", "sideBet ? x : y", "const bets = []", "betName"]) {
+      expect(PHRASES.test(name), name).toBe(false);
+    }
+  });
+
+  it("no screen, guide line or help topic calls a side game a bet", () => {
+    const hits: string[] = [];
+    for (const f of all) {
+      const src = stripComments(readFileSync(join(ROOT, f), "utf8"));
+      const m = PHRASES.exec(src);
+      if (m) hits.push(`${f}: …${src.slice(Math.max(0, m.index - 40), m.index + 30).replace(/\s+/g, " ")}…`);
+    }
+    expect(hits).toEqual([]);
+  });
 });

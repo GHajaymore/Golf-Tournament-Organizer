@@ -166,20 +166,20 @@ export default async function GuidePage() {
         <div className="card elev-sm" style={{ padding: "14px 16px", gap: 4, borderLeft: "4px solid var(--color-accent-300)" }}>
           <div style={{ fontWeight: 600 }}>TourneyHQ calculates and records money. It never moves money.</div>
           <div className="text-muted" style={{ fontSize: 13.5 }}>
-            Skins, side bets, prize splits and shared costs are arithmetic and a record of who owes whom. Paying happens between people, outside the app.
+            Skins, side games, prize splits and shared costs are arithmetic and a record of who owes whom. Paying happens between people, outside the app.
           </div>
         </div>
         <Diagram
           src="/guide/money.png"
           width={1920}
           height={578}
-          alt="Entries and stakes lead to a question: can the amount still change? While the round is live, players see only their exposure. Once the result is final, the ledger records skins, bets and prizes, together with shared costs, and the settle-up shows who pays whom."
+          alt="Entries and stakes lead to a question: can the amount still change? While the round is live, players see only their exposure. Once the result is final, the ledger records skins, side games and prizes, together with shared costs, and the settle-up shows who pays whom."
         />
         <P>A pot is paid only when its amount can no longer change, which is why skins wait for the round to finish. A Nassau segment that is already decided is paid as it happens.</P>
       </Section>
 
       <Section id="casual" kicker="Casual rounds" title="A quick game at the course, or a planned event">
-        <P>A casual round is set up in a minute on the first tee, for a few friends and a friendly bet. Anything planned ahead is a tournament, which is free to start on Par.</P>
+        <P>A casual round is set up in a minute on the first tee, for a few friends and a friendly game. Anything planned ahead is a tournament, which is free to start on Par.</P>
         <div className="card elev-sm" style={{ padding: 0, overflowX: "auto" }}>
           <table className="table" style={{ minWidth: 520 }}>
             <thead>
@@ -189,7 +189,7 @@ export default async function GuidePage() {
               <tr><td>For</td><td>2 to 8 players, decided on the day</td><td>A club, society or league event</td></tr>
               <tr><td>Rounds</td><td>One</td><td>One or many, with cuts, flights and brackets</td></tr>
               <tr><td>Who runs it</td><td>The player who set it up, for that round only</td><td>The organizer and staff, in the console</td></tr>
-              <tr><td>Money</td><td>A game between the players</td><td>Skins, side bets, prizes and shared costs</td></tr>
+              <tr><td>Money</td><td>A game between the players</td><td>Skins, side games, prizes and shared costs</td></tr>
               <tr><td>Afterwards</td><td>Expires after its window</td><td>Kept, except on Par, where it is removed on close</td></tr>
             </tbody>
           </table>

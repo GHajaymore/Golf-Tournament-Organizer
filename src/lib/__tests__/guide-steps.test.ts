@@ -22,7 +22,7 @@ const PINNED: [label: string, file: string][] = [
   ["Reopen tournament", "src/components/LifecycleBar.tsx"],
   ["Import scores", "src/components/EntryModes.tsx"],
   ["Suspend play now", "src/components/PlayStatusControl.tsx"],
-  ["Start this bet", "src/components/ContestsClient.tsx"],
+  ["Start this game", "src/components/ContestsClient.tsx"],
   ["Everyone with a card", "src/components/SkinsPotClient.tsx"],
   ["Unlock setup", "src/components/SetupLockBanner.tsx"],
   ["Save scorecard", "src/components/StrokePlayEntry.tsx"],

@@ -89,13 +89,13 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
 
   // ── start it with three ────────────────────────────────────────────────
   await open();
-  await page.getByRole("button", { name: "Start a side bet" }).click();
-  const form = page.locator("section.card", { has: page.locator(".card-title", { hasText: "Start a side bet" }) });
+  await page.getByRole("button", { name: "Start a side game" }).click();
+  const form = page.locator("section.card", { has: page.locator(".card-title", { hasText: "Start a side game" }) });
   await form.getByRole("button", { name: "Birdie pot", exact: true }).click();
   await form.getByPlaceholder("Saturday sweep").fill(NAME);
   await form.locator("#side-bet-buyin").fill("5");
   const people = form.locator("button.touch-target[aria-pressed]:not(.btn)");
-  expect(await people.count(), "nobody to pick for a side bet on a live medal").toBeGreaterThanOrEqual(3);
+  expect(await people.count(), "nobody to pick for a side game on a live medal").toBeGreaterThanOrEqual(3);
   for (let i = 0; i < 3; i++) await people.nth(i).click();
   await form.getByRole("button", { name: "Start it with 3" }).click();
 
@@ -112,7 +112,7 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
   // ── it has a card of its own ───────────────────────────────────────────
   await open();
   const card = page.locator("section.card, div.card", {
-    has: page.locator(".card-title", { hasText: `${NAME} — side bet` }),
+    has: page.locator(".card-title", { hasText: `${NAME} — side game` }),
   });
   await expect(card, "a named bet that is not skins has no card on Side games").toHaveCount(1);
   await expect(card).toContainText("Birdie pot");
@@ -161,7 +161,7 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
   await card.getByRole("button", { name: "Take it off" }).click();
   await expect.poll(async () => (await games()).length, { message: "an empty pot could not be taken off" }).toBe(0);
   await open();
-  await expect(page.locator(".card-title", { hasText: `${NAME} — side bet` })).toHaveCount(0);
+  await expect(page.locator(".card-title", { hasText: `${NAME} — side game` })).toHaveCount(0);
 
   [game] = await games();
   expect(game).toBeUndefined();
