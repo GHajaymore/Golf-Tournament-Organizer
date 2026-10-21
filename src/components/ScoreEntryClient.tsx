@@ -2069,7 +2069,11 @@ export function ScoreEntryClient({
                 </span>
               </span>
               )}
-              <div style={{ display: "flex", gap: 8 }}>
+              {/* WRAPS. Dispute, Confirm result and Reopen side by side are wider than a phone: the row
+                  ran off the right edge with Reopen cut in half, and on a phone a page that runs past
+                  its edge can pan sideways, so a tap landed beside the button meant (2026-10-21: the
+                  match-results walk failed four runs of five on a phone without it, none with it). */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0 }}>
                 {reviews && activeStatus !== "confirmed" && activeStatus !== "auto-confirmed" && (
                   <>
                     <button type="button" className="btn btn-secondary" onClick={doDispute}>

@@ -186,6 +186,13 @@ test("the committee types a result, has it disputed, confirms it, reopens it and
     await page.getByRole("button", { name: "Reopen" }).click();
     await expect(tag("Pending confirmation")).toBeVisible({ timeout: 20_000 });
     expect((await row()).status).toBe("pending");
+    // Dispute, Confirm result and Reopen together ran off a phone's right edge, Reopen cut in half
+    // (2026-10-21). The page clips what overflows, so its width says nothing: the buttons are measured.
+    const screen = page.viewportSize()!.width;
+    for (const name of ["Dispute", "Confirm result", "Reopen"]) {
+      const box = (await page.getByRole("button", { name, exact: true }).boundingBox())!;
+      expect(box.x + box.width, `${name} runs off the right edge of a ${screen}px screen`).toBeLessThanOrEqual(screen);
+    }
     await page.getByRole("button", { name: "Clear", exact: true }).click();
     await expect.poll(async () => (await row()).played, { message: "Clear did not empty the card" }).toBe(0);
     expect((await row()).status).toBe("pending");
