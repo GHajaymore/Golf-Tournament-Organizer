@@ -1,5 +1,5 @@
 {
- "measuredOn": "round G23-4 on GitHub (commit a054c9d, app 6ed0d1fb4c52, 2026-10-13), less the actions the specs written after it perform",
+ "measuredOn": "round G23-4 on GitHub (commit a054c9d, app 6ed0d1fb4c52, 2026-10-13), less the actions the specs written after it perform; less the 13 round G226-1 (2026-10-21) measured as performed",
  "note": "Server actions no screen test performs. It may only get shorter: a round fails on any unperformed action that is not listed here. See scripts/qa/merge.mjs and docs/testing.md.",
  "neverCalled": {
   "app/actions/account.ts": [
@@ -36,11 +36,6 @@
    "importClubCourseCard",
    "nameMatchVenue",
    "setMatchCourse"
-  ],
-  "app/actions/cup.ts": [
-   "hideCupLineup",
-   "removeCupMatch",
-   "renameCupTeam"
   ],
   "app/actions/draft-message.ts": [
    "draftMessage"
@@ -86,32 +81,22 @@
    "suggestSetup"
   ],
   "app/actions/teams.ts": [
-   "deleteTeam",
    "generateTeamMatches",
-   "removeTeamMember",
-   "renameTeam",
    "setStageAllowanceWeights"
   ],
   "app/actions/tournament.ts": [
-   "applyMatchResult",
    "applyRoundHandicapToRest",
    "clearFlights",
-   "clearMatch",
-   "clearRoundScores",
    "cloneEvent",
-   "confirmMatch",
    "createSingleMatch",
    "createThirdPlaceMatch",
    "dateUndatedRounds",
    "deleteEvent",
-   "disputeMatch",
    "generateNextRound",
    "movePlayerToGroup",
    "rejectBracketReport",
    "removeSignups",
    "renameGroup",
-   "reopenMatch",
-   "reopenScorecard",
    "reseedFlight",
    "rotatePublicToken",
    "saveCustomCourse",
