@@ -1,5 +1,5 @@
 import "server-only";
-import { dayAtClubForEvent } from "./club-clock";
+import { dayAtClubForEvent, typedDayInWordsForEvent } from "./club-clock";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import {
@@ -61,6 +61,7 @@ export interface ExpenseRow {
   description: string;
   amountCents: number;
   category: string;
+  /** The day on the bill in the club's words ("Oct 17, 2026"), or "" when nobody gave one. */
   spentOn: string;
   paidBy: string;
   /** The payer's name, or "" when they are no longer in the field. */
@@ -1277,6 +1278,10 @@ export async function moneyFor(
     toName: nameOf.get(t.toPlayerId) ?? "Someone no longer in the field",
   }));
 
+  // The day on a bill, written the way every other day on this screen is: it was printed as the
+  // database keeps it, "2026-10-17", under "Already settled · Oct 20, 2026" — and on a phone it broke
+  // across two lines at the hyphen. Seen in the first capture of the money screens for a reel (2026-10-21).
+  const spentOnInWords = await typedDayInWordsForEvent(eventId);
   const expenses: ExpenseRow[] = rows.map((r) => {
     const cents = shareOf({
       id: r.id,
@@ -1295,7 +1300,7 @@ export async function moneyFor(
       description: r.description,
       amountCents: r.amountCents,
       category: r.category,
-      spentOn: r.spentOn,
+      spentOn: spentOnInWords(r.spentOn),
       paidBy: r.paidBy,
       paidByName: nameOf.get(r.paidBy) ?? "",
       /**
