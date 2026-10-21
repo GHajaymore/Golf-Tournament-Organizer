@@ -1621,12 +1621,16 @@ export async function setQualifyPerGroup(n: number) {
 
 /* ── Stages ───────────────────────────────────────────────────────────── */
 
-export async function setStageDeadline(stageId: string, deadline: string) {
+export async function setStageDeadline(stageId: string, deadline: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
   // Not behind the lock: moving the day scores are due is a decision made
   // during an event (rain, a late group) — Ajay, 2026-09-27.
-  await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
+  const updated = await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
+  // A round removed in another tab matched nothing, and the box went on showing a date nobody
+  // held, with nothing said (2026-10-21). The same words the sign-up deadline uses.
+  if (updated.count === 0) return { ok: false, error: "That round isn't in this tournament." };
   await refresh();
+  return { ok: true };
 }
 
 /**
