@@ -1,5 +1,6 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { useClubDistanceWords } from "@/components/DistanceUnitProvider";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { nameMatchVenue } from "@/app/actions/courses";
@@ -532,8 +533,11 @@ export function VenuePrompt({
         </div>
       )}
 
+      {/* An alert, brought into view: it sits above "Use this course", so a press with the
+          button at the top of the screen drew it just out of sight (round G247-1, "These pars
+          are in sorted order …", 2026-10-21). */}
       {error && (
-        <div style={{ fontSize: 13, color: "var(--color-danger)", fontWeight: 500 }}>
+        <div role="alert" ref={bringIntoView} style={{ fontSize: 13, color: "var(--color-danger)", fontWeight: 500 }}>
           <Icon name="warning-circle" /> {error}
         </div>
       )}

@@ -244,8 +244,16 @@ test("a club's own course is typed in, checked, given rated tees, used and remov
   // ── a slope nobody's course has ───────────────────────────────────────────
   await teeRow.getByTitle("Edit these tees").click();
   await box(teeTable, /^Slope$/).fill("200");
-  await teeTable.getByRole("button", { name: "Save tees" }).click();
-  await expect(teeTable.getByText(/Slope Rating is between 55 and 155/), "a slope of 200 is not refused in words").toBeVisible({ timeout: 20_000 });
+  const saveTees = teeTable.getByRole("button", { name: "Save tees" });
+  await saveTees.click();
+  const slopeRefused = teeTable.getByText(/Slope Rating is between 55 and 155/);
+  await expect(slopeRefused, "a slope of 200 is not refused in words").toBeVisible({ timeout: 20_000 });
+  // Said by Save tees, not above the form a screen away (round G247-1 saw it out of view, 2026-10-21).
+  await expect(slopeRefused, "the slope refusal is not on the screen of the person who pressed Save tees").toBeInViewport();
+  const [said, pressed] = [await slopeRefused.boundingBox(), await saveTees.boundingBox()];
+  expect(said && pressed, "could not measure the refusal or Save tees").toBeTruthy();
+  const gap = Math.max(0, said!.y - (pressed!.y + pressed!.height), pressed!.y - (said!.y + said!.height));
+  expect(gap, `the slope refusal is ${Math.round(gap)}px from Save tees`).toBeLessThanOrEqual(200);
   expect((await stored())!.tees[0].slopeRating, "a slope of 200 was stored").toBe(128);
   await teeTable.getByRole("button", { name: "Cancel" }).click();
 

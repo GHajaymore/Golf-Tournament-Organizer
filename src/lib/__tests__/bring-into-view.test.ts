@@ -56,6 +56,8 @@ describe("a refusal is brought into view by the one stable function", () => {
       "src/components/RoundClosedControl.tsx",
       "src/components/RoundTeamScoring.tsx",
       "src/components/SkinsPotClient.tsx",
+      "src/components/TeeEditor.tsx",
+      "src/components/VenuePrompt.tsx",
     ]) {
       expect(readSource(f), `${f} no longer brings its refusal into view`).toContain("ref={bringIntoView}");
     }
