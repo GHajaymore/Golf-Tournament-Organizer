@@ -149,8 +149,8 @@ export function compareRows(prices: LandingPrices): CompareRow[] {
       theirs: [na(), na(), y(), na("scores in its app"), na("optional mobile app")],
     },
     {
-      label: "Skins and side bets",
-      detail: "Skins, Nassau, pots and side bets from the cards.",
+      label: "Skins and side games",
+      detail: "Skins, Nassau, pots and side games from the cards.",
       ours: y(),
       theirs: [y("skins and purses"), y("skins"), na(), y("skins format"), na()],
     },

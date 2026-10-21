@@ -70,16 +70,25 @@ export function LandingAuth({
         <p style={{ margin: 0 }}>
           <strong>{SIGNINS_CLOSED_NOTICE.lead}</strong> {SIGNINS_CLOSED_NOTICE.body}
         </p>
-        {/* The early-list offer leads (the marketing manager's words), its terms right under it
-            (the ad director's: an offer on an ad's destination carries its terms on the page). */}
+        {/* The early-list offer leads, its terms right under it, and the form is the way in (the
+            marketing manager's words, checked by the ad director: an offer on an ad's destination
+            carries its terms on the page, and a form can be counted where an email cannot). The
+            address stays for anybody who would rather write. */}
         <p style={{ margin: "8px 0 0", fontWeight: 600 }}>{SIGNINS_CLOSED_NOTICE.offer}</p>
         <p style={{ margin: "8px 0 0" }}>
+          <a href="/interest" style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}>
+            {SIGNINS_CLOSED_NOTICE.joinLink}
+          </a>
+        </p>
+        <p style={{ margin: "6px 0 0", fontSize: 14 }}>
+          {SIGNINS_CLOSED_NOTICE.emailLead}{" "}
           <a
             href={`mailto:${SIGNINS_CLOSED_NOTICE.interestedEmail}?subject=${encodeURIComponent(SIGNINS_CLOSED_NOTICE.interestedSubject)}`}
-            style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}
+            style={{ color: "inherit", textDecoration: "underline" }}
           >
-            Email {SIGNINS_CLOSED_NOTICE.interestedEmail}
+            {SIGNINS_CLOSED_NOTICE.interestedEmail}
           </a>
+          .
         </p>
         <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "var(--color-text-muted)" }}>{SIGNINS_CLOSED_NOTICE.terms}</p>
         <p style={{ margin: "8px 0 0" }}>

@@ -43,6 +43,8 @@ const SENDERS: Array<[string, () => Promise<unknown>]> = [
   ["registration", () => email.sendRegistrationEmail(TO, { eventName: HOSTILE, status: "confirmed", organizationId: "zz", eventId: "zz" })],
   ["staff invite", () => email.sendStaffInviteEmail(TO, { organizationName: HOSTILE, organizationId: "zz", role: HOSTILE, hasPassword: true })],
   ["join request", () => email.sendJoinRequestEmail(TO, { organizationName: HOSTILE, askerName: HOSTILE, askerEmail: HOSTILE, note: HOSTILE })],
+  // Every field of it is typed by a stranger on a public form.
+  ["interest", () => email.sendInterestEmail(TO, { name: HOSTILE, email: HOSTILE, phone: HOSTILE, club: HOSTILE, role: HOSTILE, size: HOSTILE, note: HOSTILE })],
   ["field: promoted", () => email.sendFieldStatusEmail(TO, { change: "promoted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
   ["field: waitlisted", () => email.sendFieldStatusEmail(TO, { change: "waitlisted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
 ];
@@ -94,7 +96,7 @@ describe("an email never carries markup somebody typed", () => {
     // person-typed field to attack; it is the one deliberate exemption.
     const EXEMPT = new Set(["sendPasswordResetEmail"]);
     const exported = Object.keys(email).filter((k) => /^send[A-Z]/.test(k) && !EXEMPT.has(k));
-    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail"]);
+    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail"]);
     expect(exported.length, "found no senders — the sweep would pass on nothing").toBeGreaterThan(0);
     expect(exported.filter((k) => !covered.has(k))).toEqual([]);
   });

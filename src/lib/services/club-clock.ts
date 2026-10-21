@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "../db";
 import { clubDay, clubDayInWords, clubToday } from "../domain/club-clock";
+import { formatDay } from "../domain/locale";
 import { formattingForEvent } from "./organization";
 
 /**
@@ -59,6 +60,15 @@ export async function todayForEvent(eventId: string | null | undefined): Promise
 export async function dayAtClubForEvent(eventId: string | null | undefined): Promise<(at: Date) => string> {
   const [zone, locale] = await Promise.all([zoneOfEvent(eventId), eventId ? formattingForEvent(eventId).then((f) => f.locale) : undefined]);
   return (at: Date) => clubDayInWords(zone, locale, at);
+}
+
+/**
+ * A day somebody TYPED ("2026-10-17", an expense's date), in the club's words. It is already a
+ * day, so no clock and no zone come into it — only the club's way of writing one.
+ */
+export async function typedDayInWordsForEvent(eventId: string | null | undefined): Promise<(iso: string) => string> {
+  const locale = eventId ? (await formattingForEvent(eventId)).locale : undefined;
+  return (iso: string) => (iso ? formatDay(iso, locale || undefined) : "");
 }
 
 export async function clubDayForEvent(eventId: string | null | undefined): Promise<Date> {

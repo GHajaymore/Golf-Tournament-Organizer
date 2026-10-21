@@ -5844,7 +5844,7 @@ describe("side bets", () => {
         expect(html, `casual rounds still play ${game}`).toContain(game);
       }
       // And none of the club's machinery.
-      expect(html, "no contest adder").not.toContain("Add a bet");
+      expect(html, "no contest adder").not.toContain("Add a game");
       expect(html, "no winner-picking section").not.toContain("You name the winner");
       expect(html).not.toContain("Closest to the pin, long drive");
       // Nor a pointer at a screen a casual round does not have: `prizes` is in
@@ -5855,7 +5855,7 @@ describe("side bets", () => {
     it("and a club round keeps every bit of it", async () => {
       // THE ASSERTION THAT STOPS THIS BECOMING "DROP CONTESTS".
       const html = await bets();
-      expect(html).toContain("Add a bet");
+      expect(html).toContain("Add a game");
       expect(html).toContain("You name the winner");
       expect(html).toContain("Closest to the pin, long drive");
       expect(html).toContain("belongs under");
@@ -6135,7 +6135,7 @@ describe("side bets", () => {
   it("keeps every control on the side-bets card", async () => {
     const html = await bets();
     for (const control of [
-      "Side bets — Round 1", "Add a bet",
+      "Side games — Round 1", "Add a game",
       "Settled by the scores", "You name the winner",
       "Low gross", "Nassau", "Stake",
     ]) {
@@ -7881,7 +7881,7 @@ describe("the draw's refusal", () => {
  * this gap: a component that typechecked, passed 1300 tests and threw on every
  * request.
  */
-describe("starting a side bet", () => {
+describe("starting a side game", () => {
   const FIELD = [
     { id: "ann", name: "Ann" },
     { id: "bob", name: "Bob" },
@@ -7896,19 +7896,19 @@ describe("starting a side bet", () => {
 
   it("renders closed, as one button and nothing else", () => {
     const html = render(<SideBetStart stageId="s1" field={FIELD} taken={[]} groups={GROUPS} />);
-    expect(html).toMatch(/side bet/i);
+    expect(html).toMatch(/side game/i);
   });
 
   it("renders with no tee sheet at all", () => {
     // A casual round with no draw published is still a round people bet on,
     // and `groups` is optional precisely so it does not have to be invented.
     const html = render(<SideBetStart stageId="s1" field={FIELD} taken={[]} />);
-    expect(html).toMatch(/side bet/i);
+    expect(html).toMatch(/side game/i);
   });
 
   it("renders with an empty field, which is the first day of every event", () => {
     const html = render(<SideBetStart stageId="s1" field={[]} taken={[]} groups={[]} />);
-    expect(html).toMatch(/side bet/i);
+    expect(html).toMatch(/side game/i);
   });
 
   it("survives a tee sheet naming players who are no longer in the field", () => {
@@ -7916,7 +7916,7 @@ describe("starting a side bet", () => {
     // mapping an id that resolves to nothing.
     const stale = [{ name: "Group 1", playerIds: ["ann", "ghost"] }];
     const html = render(<SideBetStart stageId="s1" field={FIELD} taken={[]} groups={stale} />);
-    expect(html).toMatch(/side bet/i);
+    expect(html).toMatch(/side game/i);
   });
 });
 

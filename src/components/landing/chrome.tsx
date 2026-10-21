@@ -94,7 +94,7 @@ export function icon(id: string, className = "i") {
  * back to them. Sign-in and sign-up live on `/`, where the form is.
  */
 /** `held`: accounts held until launch, so the button does not promise "Start free" (the ad director). */
-export function landingNav(at: "home" | "faq" | "privacy" | "terms", held = false) {
+export function landingNav(at: "home" | "faq" | "privacy" | "terms" | "interest", held = false) {
   const cta = held ? HELD_FRONT_DOOR.cta : "Start free";
   const home = at === "home" ? "" : "/";
   // The product menu: every part of the page, with what it shows.
@@ -137,11 +137,11 @@ export function landingNav(at: "home" | "faq" | "privacy" | "terms", held = fals
           {/* Players have their own door: a round code needs no account. */}
           <a className="play" href="/play">Playing today? <u>Enter code</u></a>
           <a className="si" href={`${home}#signin`}>Sign in</a>
-          <a className="btn sm" href={`${home}#signup`}>{cta}</a>
+          <a className="btn sm" href={held ? "/interest" : `${home}#signup`}>{cta}</a>
           <details className="nav-menu">
             <summary aria-label="Menu">{icon("menu")}</summary>
             <nav className="menu-panel" aria-label="Sections">
-              <a className="menu-cta" href={`${home}#signup`}>{cta}</a>
+              <a className="menu-cta" href={held ? "/interest" : `${home}#signup`}>{cta}</a>
               {product.map(([href, , title]) => <a key={href} href={href}>{title}</a>)}
               {links.map(([href, label]) => (
                 <a key={href} href={href} aria-current={at === "faq" && href === "/faq" ? "page" : undefined}>{label}</a>
@@ -180,7 +180,7 @@ export function editionNote(local: Edition, overridden: boolean): ReactNode {
   );
 }
 
-export function landingFooter(at: "home" | "faq" | "privacy" | "terms", editionNoteNode: ReactNode) {
+export function landingFooter(at: "home" | "faq" | "privacy" | "terms" | "interest", editionNoteNode: ReactNode) {
   const home = at === "home" ? "" : "/";
   const links: Array<[string, string]> = [
     [`${home}#pricing`, "Pricing"],

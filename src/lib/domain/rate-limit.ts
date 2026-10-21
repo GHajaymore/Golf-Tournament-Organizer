@@ -54,6 +54,7 @@ export type RateLimitKind =
   | "register-email"
   | "card-photo"
   | "join-request"
+  | "interest"
   | "course-search"
   | "course-search-staff";
 
@@ -129,6 +130,12 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * rather than sending a second mail.
    */
   "join-request": { limit: 3, windowMs: 60 * MINUTE },
+  /**
+   * Registering interest before launch (2026-10-21), keyed on the address
+   * given. It mails inquiries@, so a loop on one address is a loop on our inbox;
+   * three an hour covers a person correcting a typo twice.
+   */
+  interest: { limit: 3, windowMs: 60 * MINUTE },
   /**
    * Looking a course up in the LIVE directory, for anybody who is not an
    * organizer (2026-10-03). The directory allows 500 requests a day for the
@@ -330,6 +337,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many registration attempts. Wait ${wait} and try again.`;
     case "join-request":
       return `Too many requests to join. Wait ${wait} and try again.`;
+    case "interest":
+      return `We already have your note — thank you. To add anything, wait ${wait} or write to inquiries@tourneyhq.club.`;
   }
 }
 

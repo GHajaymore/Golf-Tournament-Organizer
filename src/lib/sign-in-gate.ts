@@ -51,10 +51,14 @@ export const SIGNINS_CLOSED_NOTICE = {
   lead: "TourneyHQ opens soon.",
   body: "Sign-ups are paused until launch while we add the finishing touches.",
   offer: "Get 25% off your first term. Join the early list and we'll email your code at launch, good on the paid plan you choose.",
-  // The address is the link's words, so a phone with no mail app still shows it to copy.
+  // The way in is the /interest form; the address stays for anybody who would rather write.
+  joinLink: "Join the early list",
+  emailLead: "Rather email? Write to",
   interestedEmail: SALES_EMAIL,
   interestedSubject: "Early list: 25% off at launch",
-  terms: "25% off the first billing term of one paid plan, for clubs that join the early list before launch. One code per club, emailed at launch.",
+  // "First term" is the term they sign up on (Ajay, 2026-10-21): billing takes the percent off the
+  // first invoice only (`domain/discount.ts`, a Stripe coupon with duration "once").
+  terms: "25% off the first term of one paid plan: your first month if you pay monthly, your first year if you pay yearly. For clubs that join the early list before launch. One code per club, emailed at launch.",
   playLead: "Playing today?",
   playLink: "Go to tourneyhq.club/play",
   playTail: "and enter your organizer's round code.",
@@ -72,9 +76,18 @@ export const HELD_FRONT_DOOR = {
   signInSub: "Sign in with your TourneyHQ account. Club accounts open at launch.",
   pricingNote: "Paid plans start at launch. Join the early list now and we'll email you 25% off your first term.",
   // The ad director: a button that promises "Start free" and lands on a paused door reads as bait.
-  cta: "Get early access",
+  // And not "Get early access" (second round): joining gets a code, not use of the app before launch.
+  cta: "Join the early list",
   // The ad director's second placement, in the hero's announcement pill.
   pill: "Opening soon: join the early list for 25% off your first term",
+  // The facts under the hero while held. "Free for fields of up to 10" and "No card" are out: the
+  // free plan is not offered until launch (Ajay: "I dont want it until go live") and its limits are
+  // not yet enforced, and "No card" read as a trial there is not.
+  facts: ["Handicaps by the Rules", "No app for players"],
+  // The free plan's card: no date, and no 25% — the code is for paid plans.
+  freeCard: "Opens at launch.",
+  // "Join for", not "Claim": the discount is emailed at launch, not handed over now.
+  planButton: (plan: string) => `Join for 25% off ${plan}`,
 } as const;
 
 type Env = Record<string, string | undefined>;

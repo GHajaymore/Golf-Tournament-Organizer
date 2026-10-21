@@ -31,6 +31,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.6,
     },
     {
+      // Register your interest before launch (added 2026-10-21).
+      url: siteUrl("/interest"),
+      changeFrequency: "monthly",
+      priority: 0.5,
+    },
+    {
       url: siteUrl("/privacy"),
       changeFrequency: "yearly",
       priority: 0.3,

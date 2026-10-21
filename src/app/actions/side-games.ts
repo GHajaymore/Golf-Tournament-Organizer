@@ -226,7 +226,7 @@ export async function saveSideGame(
     return {
       ok: false,
       error:
-        "A Nassau and a match bet are bets on a match, and nobody in this round is playing a match — they could never be settled. Use low gross, low net, birdies or skins on a stroke round.",
+        "A Nassau and a game on the match need a match, and nobody in this round is playing one — they could never be settled. Use low gross, low net, birdies or skins on a stroke round.",
     };
   }
 
@@ -350,8 +350,8 @@ export async function setSideGameEntrants(
         ok: false,
         error:
           uninvited.length === 1
-            ? "One of those players hasn't asked to join this bet. They can put their own name down, then you can tick them in."
-            : `${uninvited.length} of those players haven't asked to join this bet. They can put their own names down, then you can tick them in.`,
+            ? "One of those players hasn't asked to join this game. They can put their own name down, then you can tick them in."
+            : `${uninvited.length} of those players haven't asked to join this game. They can put their own names down, then you can tick them in.`,
       };
     }
   }
@@ -422,7 +422,7 @@ export async function requestSideGameEntry(
       error:
         game.kind === "nassau"
           ? "The Nassau applies to your match — there's nothing to join."
-          : "That bet is on your match — you're in it because you're playing.",
+          : "That game is on your match — you're in it because you're playing.",
     };
   }
 

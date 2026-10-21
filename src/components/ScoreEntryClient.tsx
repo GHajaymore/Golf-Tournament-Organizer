@@ -2070,9 +2070,8 @@ export function ScoreEntryClient({
               </span>
               )}
               {/* WRAPS. Dispute, Confirm result and Reopen side by side are wider than a phone: the row
-                  ran off the right edge with Reopen cut in half, and on a phone a page that runs past
-                  its edge can pan sideways, so a tap landed beside the button meant (2026-10-21: the
-                  match-results walk failed four runs of five on a phone without it, none with it). */}
+                  ran off the right edge, the page grew wider than the screen, and the phone zoomed out
+                  so that a tap landed beside the button meant (2026-10-21, the match-results walk). */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0 }}>
                 {reviews && activeStatus !== "confirmed" && activeStatus !== "auto-confirmed" && (
                   <>

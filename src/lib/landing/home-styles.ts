@@ -321,6 +321,12 @@ export const HOME_CSS = `
 .m-home .m-compare .m-knob { position: absolute; top: 50%; left: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: var(--m-hl); color: var(--ground); display: grid; place-items: center; font: 700 1rem/1 var(--m-mono); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); }
 .m-home .m-compare input[type="range"] { position: absolute; inset: 0; z-index: 4; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
 .m-home .m-compare:focus-within { outline: 3px solid var(--m-flag); outline-offset: 3px; }
+/* Under a finger the board scrolls with the page; only the knob drags it (LandingHomeEffects). */
+@media (pointer: coarse) {
+  .m-home .m-compare input[type="range"] { pointer-events: none; }
+  .m-home .m-compare .m-knob { z-index: 5; pointer-events: auto; touch-action: none; cursor: ew-resize; }
+  .m-home .m-compare .m-knob::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; }
+}
 @media (max-width: 760px) {
   .m-home .m-colours { grid-template-columns: minmax(0, 1fr); }
   .m-home .m-colours .m-pic { max-width: 240px; margin-inline: auto; width: 100%; }
@@ -502,7 +508,7 @@ export const HOME_CSS = `
 .m-home .m-putt .m-hole { fill: var(--m-ground-deep); stroke: var(--m-on-ground-soft); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .m-home .m-putt .m-ball { fill: var(--ink); offset-path: path("M2 14 C 55 0, 130 30, 190 12"); offset-distance: 100%; opacity: 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .m-home .m-putt path { stroke-dasharray: 220; stroke-dashoffset: 220; animation: m-draw 1.1s ease-out 1.5s forwards; }
+  .m-home .m-putt path { stroke-dasharray: var(--m-putt-len, 600); stroke-dashoffset: var(--m-putt-len, 600); animation: m-draw 1.1s ease-out 1.5s forwards; }
   .m-home .m-putt .m-ball { animation: m-roll 1.5s cubic-bezier(0.3, 0.6, 0.3, 1) 1.6s both; }
 }
 @keyframes m-draw { to { stroke-dashoffset: 0; } }

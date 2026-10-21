@@ -342,9 +342,9 @@ export default async function GroupGamesPage({
             </>
           ) : (
             <>
-              Games that are not the club&rsquo;s: a {terms.group}&rsquo;s own skins, or a bet between
+              Games that are not the club&rsquo;s: a {terms.group}&rsquo;s own skins, or a game between
               whoever wants in wherever they are playing. Anyone in a group can set up that
-              group&rsquo;s game and anyone can start a side bet — neither touches the
+              group&rsquo;s game and anyone can start a side game — neither touches the
               field&rsquo;s money, and the settle-up folds all of it into one number per player.
             </>
           )}
@@ -443,7 +443,7 @@ export default async function GroupGamesPage({
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <p className="text-muted" style={{ margin: 0, fontSize: 13.5 }}>
             No tee sheet on this round yet, so the app doesn&rsquo;t know who is playing with whom
-            — publish one and every group gets its own pot here. A side bet doesn&rsquo;t wait for
+            — publish one and every group gets its own pot here. A side game doesn&rsquo;t wait for
             it: name it, pick who&rsquo;s in, and it settles the same way.
           </p>
         </div>
@@ -518,7 +518,7 @@ export default async function GroupGamesPage({
           <ContestsClient
             key={`named-${bet.name}`}
             roundLabel={bet.name}
-            title={`${bet.name} — side bet`}
+            title={`${bet.name} — side game`}
             stageId={week.id}
             groupKey={bet.name}
             contests={[]}

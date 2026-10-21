@@ -29,7 +29,7 @@ export type EmailFailureReason =
   | "unconfigured";
 
 /** What the email was for. Drives the wording, and who is affected. */
-export type EmailKind = "registration" | "reset" | "invite" | "field" | "join";
+export type EmailKind = "registration" | "reset" | "invite" | "field" | "join" | "interest";
 
 /**
  * Classify a provider error.
@@ -155,6 +155,11 @@ const KIND_WORDING: Record<EmailKind, (n: number) => string> = {
     n === 1
       ? "One request to join did not reach you by email, so somebody may be waiting — it is still on the access screen."
       : `${n} requests to join did not reach you by email, so those people may be waiting — they are still on the access screen.`,
+  /** The owner's copy of a /interest form. The row is on /owner either way. */
+  interest: (n) =>
+    n === 1
+      ? "One note of interest did not reach inquiries@ by email — it is still listed on the owner console."
+      : `${n} notes of interest did not reach inquiries@ by email — they are still listed on the owner console.`,
 };
 
 /** Who was affected, derived from the rows rather than from counts passed in. */

@@ -82,7 +82,7 @@ async function standing(page: Page): Promise<number> {
   return (/owed/.test(head[at]) ? 1 : -1) * cents(head[at + 1]);
 }
 
-test("a side bet is started, joined, paid into, won, tied, opened to the field and removed — and the winner's money is right throughout", async ({ browser, baseURL }, testInfo) => {
+test("a side game is started, joined, paid into, won, tied, opened to the field and removed — and the winner's money is right throughout", async ({ browser, baseURL }, testInfo) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
   const device = testInfo.project.use;
@@ -110,7 +110,7 @@ test("a side bet is started, joined, paid into, won, tied, opened to the field a
     /** This bet's own block on that card: the smallest thing holding both its name and its Remove. */
     const bet = async () => {
       const card = await sideBets();
-      const b = card.locator("div", { hasText: BET }).filter({ has: desk.getByRole("button", { name: /^Remove (this bet|the bet)$/ }) }).last();
+      const b = card.locator("div", { hasText: BET }).filter({ has: desk.getByRole("button", { name: /^Remove (this game|the game)$/ }) }).last();
       await expect(b, "the bet is not on the organizer's screen").toBeVisible();
       return b;
     };
@@ -127,18 +127,18 @@ test("a side bet is started, joined, paid into, won, tied, opened to the field a
 
     // ── a stake that is not an amount starts nothing ────────────────────────
     let card = await sideBets();
-    await card.getByRole("button", { name: "Add a bet" }).click();
-    await card.getByLabel("Bet", { exact: true }).selectOption({ label: "Closest to the pin" });
+    await card.getByRole("button", { name: "Add a game" }).click();
+    await card.getByLabel("Game", { exact: true }).selectOption({ label: "Closest to the pin" });
     await card.getByLabel("Hole (optional)").fill("7");
     await card.getByLabel("Name", { exact: true }).fill(BET);
     await card.getByLabel("Stake per player").fill("ten");
-    await card.getByRole("button", { name: "Start this bet" }).click();
+    await card.getByRole("button", { name: "Start this game" }).click();
     await expect(card, "a stake that is not an amount is not refused in words").toContainText("Enter a stake per player");
     expect(await theBet(), "CONTROL: a bet with no stake was started").toBeNull();
 
     // ── started ─────────────────────────────────────────────────────────────
     await card.getByLabel("Stake per player").fill("10");
-    await card.getByRole("button", { name: "Start this bet" }).click();
+    await card.getByRole("button", { name: "Start this game" }).click();
     await expect.poll(theBet, { timeout: 20_000, message: "the bet was not stored" }).not.toBeNull();
     expect(await theBet()).toMatchObject({ kind: "closest-pin", hole: 7, buyInCents: STAKE, stageId, entryMode: "opt-in" });
     expect(await paidIn(), "a new bet has somebody in it").toBe(0);
@@ -236,9 +236,9 @@ test("a side bet is started, joined, paid into, won, tied, opened to the field a
     expect(await standing(phone), "taking one person out did not take one stake off my winnings").toBe(before + (everyone - 2) * STAKE);
 
     // ── removed: asked first ────────────────────────────────────────────────
-    await b.getByRole("button", { name: "Remove this bet" }).click();
+    await b.getByRole("button", { name: "Remove this game" }).click();
     expect(await theBet(), "one press removed a bet with a pot against it").not.toBeNull();
-    await b.getByRole("button", { name: "Remove the bet" }).click();
+    await b.getByRole("button", { name: "Remove the game" }).click();
     await expect.poll(theBet, { timeout: 20_000, message: "the bet was not removed" }).toBeNull();
     expect(await prisma.contestEntry.count({ where: { contest: { eventId: data.eventId, name: BET } } })).toBe(0);
     await phone.goto(`/me/money?bust=${Date.now()}`);
@@ -298,17 +298,17 @@ test("a club that writes a decimal comma has its stakes read as it wrote them", 
 
     // ── no figure in it: nothing is started ─────────────────────────────────
     let card = await sideBets();
-    await card.getByRole("button", { name: "Add a bet" }).click();
-    await card.getByLabel("Bet", { exact: true }).selectOption({ label: "Long drive" });
+    await card.getByRole("button", { name: "Add a game" }).click();
+    await card.getByLabel("Game", { exact: true }).selectOption({ label: "Long drive" });
     await card.getByLabel("Name", { exact: true }).fill(BET_DE);
     await card.getByLabel("Stake per player").fill("zehn");
-    await card.getByRole("button", { name: "Start this bet" }).click();
+    await card.getByRole("button", { name: "Start this game" }).click();
     await expect(card, "a stake with no figure in it is not refused in words").toContainText("Enter a stake per player");
     expect(await stored(), "CONTROL: a bet with no stake was started").toBeNull();
 
     // ── 10,50 is ten and a half ─────────────────────────────────────────────
     await card.getByLabel("Stake per player").fill("10,50");
-    await card.getByRole("button", { name: "Start this bet" }).click();
+    await card.getByRole("button", { name: "Start this game" }).click();
     await expect.poll(stored, { timeout: 20_000, message: "the bet was not stored" }).not.toBeNull();
     expect((await stored())!.buyInCents, "a stake typed 10,50 was not stored as ten euros fifty").toBe(1050);
     card = await sideBets();

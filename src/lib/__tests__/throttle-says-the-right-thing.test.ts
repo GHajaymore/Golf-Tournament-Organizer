@@ -19,6 +19,7 @@ const ABOUT: Record<RateLimitKind, RegExp> = {
   "register-email": /registration/i,
   "card-photo": /card reading/i,
   "join-request": /join/i,
+  interest: /your note/i,
   "course-search": /course search/i,
   "course-search-staff": /course search/i,
 };

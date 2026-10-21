@@ -41,7 +41,7 @@ export function LandingHomeEffects() {
     const stop = new AbortController();
     const on = { signal: stop.signal };
     const passive = { signal: stop.signal, passive: true };
-    const observers: IntersectionObserver[] = [];
+    const observers: Array<{ disconnect(): void }> = [];
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const intervals = new Set<ReturnType<typeof setInterval>>();
     let alive = true;
@@ -108,6 +108,14 @@ export function LandingHomeEffects() {
       observers.push(arriving);
       if (momentTime) momentTime.textContent = "11:41.";
       $$(".m-moment, .m-wide .m-screen, .m-card, .m-colours, .m-plan, .m-bars, .m-close, .m-chapter .m-head, .m-world").forEach((el) => {
+        // Something already in sight is not dimmed to be brought back: somebody reading it when the
+        // script starts saw it blink out and in again (the colours board, 2026-10-21).
+        const r = el.getBoundingClientRect();
+        if (r.bottom > 0 && r.top < window.innerHeight) {
+          if (el.classList.contains("m-bars")) countUp(el);
+          if (el.classList.contains("m-moment") && momentTime) momentTime.textContent = "11:42.";
+          return;
+        }
         el.classList.add("m-armed");
         arriving.observe(el);
       });
@@ -294,6 +302,10 @@ export function LandingHomeEffects() {
     const putt = $("#putt");
     const word = $("#hero-word");
     const heading = $("#hero-h");
+    // The line is drawn by a dash as long as the line. Its stroke does not scale, so that length is
+    // measured on SCREEN, where it is as long as the word is wide: a typed 220 drew 62% of it on a
+    // laptop and left the hole on its own (2026-10-21).
+    const puttPath = putt?.querySelector("path") ?? null;
     const layPutt = () => {
       if (!putt || !word || !heading) return;
       const w = word.getBoundingClientRect();
@@ -301,15 +313,34 @@ export function LandingHomeEffects() {
       putt.style.left = `${w.left - h.left}px`;
       putt.style.top = `${w.bottom - h.top - w.height * 0.06}px`;
       putt.style.width = `${w.width}px`;
+      const ctm = puttPath instanceof SVGGeometryElement ? puttPath.getScreenCTM() : null;
+      if (!(puttPath instanceof SVGGeometryElement) || !ctm) return;
+      const total = puttPath.getTotalLength();
+      let len = 0;
+      let prev: DOMPoint | null = null;
+      for (let k = 0; k <= 48; k++) {
+        const p = puttPath.getPointAtLength((total * k) / 48).matrixTransform(ctm);
+        if (prev) len += Math.hypot(p.x - prev.x, p.y - prev.y);
+        prev = p;
+      }
+      if (len > 0) putt.style.setProperty("--m-putt-len", `${Math.ceil(len + 4)}`);
     };
     const fit = () => {
       home.style.setProperty("--m-hdr", `${header()}px`);
       layPutt();
     };
-    // Laid once the headline has finished rising (measured where it rests, not mid-flight), and on resize.
+    // Laid once the headline has finished rising (measured where it rests, not mid-flight), again when
+    // the club's typeface arrives — on a slow phone the word changes width after the first measure —
+    // and whenever the word itself changes size.
     fit();
     wait(layPutt, 1380);
     window.addEventListener("resize", fit, on);
+    document.fonts?.ready.then(() => { if (alive) layPutt(); });
+    if (word && typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(() => layPutt());
+      ro.observe(word);
+      observers.push(ro);
+    }
 
     // A link to something inside a closed panel (the comparison, every feature) opens that panel.
     const openTarget = () => {
@@ -485,17 +516,72 @@ export function LandingHomeEffects() {
       };
       let lastTouch = -1e9;
       let holding = false;
-      range.addEventListener("input", () => { lastTouch = performance.now(); divide(Number(range.value)); }, on);
-      range.addEventListener("pointerdown", () => { holding = true; lastTouch = performance.now(); }, on);
+      // Once somebody has moved the bands, they stay where that person put them.
+      let touched = false;
+      const took = () => { touched = true; lastTouch = performance.now(); };
+      range.addEventListener("input", () => { took(); divide(Number(range.value)); }, on);
+      range.addEventListener("pointerdown", () => { holding = true; took(); }, on);
       window.addEventListener("pointerup", () => { if (holding) { holding = false; lastTouch = performance.now(); } }, on);
-      range.addEventListener("keydown", () => { lastTouch = performance.now(); }, on);
+      range.addEventListener("keydown", took, on);
+
+      // ON A PHONE THE BOARD IS SCROLLED PAST, NOT DRAGGED. The range covers the board for a mouse;
+      // under a finger it took every touch, so a swipe up the page snapped the bands to wherever the
+      // swipe began — about sixty pixels at once, which read as the board reloading (2026-10-21).
+      // There the range takes no touches (the stylesheet says so) and only the visible knob drags,
+      // by how far the finger has moved, so the bands follow it and never jump. The range stays
+      // the keyboard's way in.
+      const knob = compare.querySelector<HTMLElement>(".m-knob");
+      if (knob) {
+        let fromX = 0;
+        let fromV = 50;
+        let dragging: number | null = null;
+        knob.addEventListener("pointerdown", (e) => {
+          dragging = e.pointerId;
+          fromX = e.clientX;
+          fromV = Number(range.value);
+          holding = true;
+          took();
+          knob.setPointerCapture?.(e.pointerId);
+          e.preventDefault();
+        }, on);
+        knob.addEventListener("pointermove", (e) => {
+          if (dragging !== e.pointerId) return;
+          const width = compare.getBoundingClientRect().width || 1;
+          // divide() moves the edges by 0.4% of the board per step, so a finger's pixels are steps / 0.4.
+          const v = Math.max(0, Math.min(100, fromV + ((e.clientX - fromX) / width) * 100 / 0.4));
+          range.value = String(v);
+          lastTouch = performance.now();
+          divide(v);
+        }, on);
+        const letGo = (e: PointerEvent) => {
+          if (dragging !== e.pointerId) return;
+          dragging = null;
+          holding = false;
+          lastTouch = performance.now();
+        };
+        knob.addEventListener("pointerup", letGo, on);
+        knob.addEventListener("pointercancel", letGo, on);
+      }
+
+      // The four bands are one picture: fetch them together, well before the board is reached, so
+      // they never arrive one band at a time (Safari's lazy margin is a few hundred pixels).
+      if (canWatch) {
+        const early = new IntersectionObserver((entries) => {
+          if (!entries[0].isIntersecting) return;
+          early.disconnect();
+          bands.forEach((img) => { if (img instanceof HTMLImageElement) img.loading = "eager"; });
+        }, { rootMargin: "1600px 0px" });
+        observers.push(early);
+        early.observe(compare);
+      }
+
       divide(50);
       if (!calm && canWatch) {
         let onScreen = false;
         let swaying = false;
         let at = 50;
         const sway = (now: number) => {
-          if (!onScreen || !alive) { swaying = false; return; }
+          if (!onScreen || !alive || touched) { swaying = false; return; }
           if (!holding && now - lastTouch > 3200) {
             const want = 50 + Math.sin((now / 1000) * ((Math.PI * 2) / 5.5)) * 21;
             at += (want - at) * 0.05;

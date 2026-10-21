@@ -264,7 +264,7 @@ export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
      */
     key: "match",
     label: "The match",
-    blurb: "One bet on the match itself. The winning side takes a stake from each opponent.",
+    blurb: "One game on the match itself. The winning side takes the stake from each opponent.",
     pot: "side",
     kind: "match",
     matchOnly: true,
@@ -272,7 +272,7 @@ export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
   {
     key: "nassau",
     label: "Nassau",
-    blurb: "Three bets in one: the front nine, the back nine, and the match overall.",
+    blurb: "Three games in one: the front nine, the back nine, and the match overall.",
     pot: "side",
     kind: "nassau",
     matchOnly: true,
@@ -323,8 +323,8 @@ export const MATCH_TITLE_MAX = 120;
 export function matchOnlyRefusal(game: QuickMoneyGame): string {
   const what =
     game.key === "nassau"
-      ? "three bets on one match"
-      : "a bet between two sides";
+      ? "three games on one match"
+      : "a game between two sides";
   return `${game.label} is ${what}, so it needs an opponent. Pick another game, or play match play.`;
 }
 
@@ -843,7 +843,7 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
     if (!game && !stake && !note) return null;
     if (!game) return { error: "Pick one of the money games offered." };
     if (game.needsEighteen && holes === 9) {
-      return { error: "A Nassau is three bets — the front nine, the back nine and the match — so it needs eighteen holes. Over nine, play “The match”." };
+      return { error: "A Nassau is three games — the front nine, the back nine and the match — so it needs eighteen holes. Over nine, play “The match”." };
     }
     /**
      * BOTH is the one thing that cannot be honoured.

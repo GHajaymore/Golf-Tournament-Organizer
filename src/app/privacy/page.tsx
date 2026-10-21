@@ -139,6 +139,32 @@ export default async function PrivacyPage() {
         </p>
       </Section>
 
+      <Section title="If you register your interest">
+        <p>
+          Before TourneyHQ opens, the <Link href="/interest">register your interest</Link> form asks for
+          your name, email address, club or society, which best describes you, and, if you choose, a
+          phone number, how many members it has and a note. <strong>We hold this ourselves</strong>, not on any club&rsquo;s
+          behalf: it is copied to our inquiries mailbox and kept in our records so we can tell you when
+          TourneyHQ opens, send the discount code you were promised, answer any question you asked, and
+          call you if you left a number.
+        </p>
+        <p>
+          If you arrived by one of our links or advertisements, the link&rsquo;s campaign label
+          (which post or advertisement you followed) and the name of the site that sent you are kept
+          with your registration, so we can tell which ones work. They are read from the web address
+          you arrived at; nothing is stored on your device and nothing is shared.
+        </p>
+        <p>
+          If you register through a form inside Facebook, Instagram or LinkedIn instead, that platform
+          passes us what you typed in it, and we keep it in the same way; the platform&rsquo;s own
+          privacy policy covers what it keeps.
+        </p>
+        <p>
+          It is used for nothing else and never sold. Write to us and we will delete it, whenever you
+          ask.
+        </p>
+      </Section>
+
       <Section title="What is not collected">
         <p>
           No payment card details. When a club pays for a plan it pays on Stripe&rsquo;s own page, and
@@ -302,6 +328,10 @@ export default async function PrivacyPage() {
           date below changes and the change is described here rather than made quietly.
         </p>
         <p>
+          <strong>21 October 2026:</strong> the register-your-interest form is described: what it
+          asks, that we hold it ourselves, and that it is deleted on request.
+        </p>
+        <p>
           <strong>3 October 2026:</strong> Vercel&rsquo;s cookie-free page counts are described, for
           when they are switched on; &ldquo;no third-party analytics&rdquo; becomes &ldquo;no
           analytics cookies&rdquo;, which is what stays true either way. A club&rsquo;s owner can
@@ -318,7 +348,7 @@ export default async function PrivacyPage() {
           deletion on the free plan, which is built and running; the icon stylesheet on a public CDN is
           no longer listed, because the icons are now part of the page and nothing is fetched from it.
         </p>
-        <p className="lg-date">Last updated 3 October 2026.</p>
+        <p className="lg-date">Last updated 21 October 2026.</p>
       </Section>
 
       <p className="lg-back">

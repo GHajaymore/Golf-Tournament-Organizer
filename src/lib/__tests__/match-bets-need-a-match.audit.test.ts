@@ -73,7 +73,7 @@ describe("a bet on a match needs a match", () => {
     for (const kind of ["nassau", "match"]) {
       const r = await saveSideGame(strokeStage, kind, 500);
       expect(r.ok, `${kind} was accepted on a stroke round`).toBe(false);
-      expect("error" in r && r.error).toMatch(/nobody in this round is playing a match/);
+      expect("error" in r && r.error).toMatch(/need a match, and nobody in this round is playing one/);
       expect(await games(strokeStage, kind)).toBe(0);
     }
     // Played for a pint is still a bet on a match that is not there.

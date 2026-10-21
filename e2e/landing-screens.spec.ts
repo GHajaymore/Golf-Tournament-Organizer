@@ -265,6 +265,129 @@ test("the theme slider shows one board in four themes, and dragging moves the ba
 });
 
 /**
+ * THE PUTT UNDER "RECOGNITION." ENDS IN THE CUP (2026-10-21).
+ *
+ * Ajay: "the worm is not finishing". The line is drawn by a dash, and its stroke does not scale,
+ * so the dash has to be as long as the line is ON SCREEN — which is as long as the word is wide.
+ * It was a typed 220: 100% of the line on a phone, 62% at 1280 and 59% at 1440, the hole left
+ * sitting on its own. And it was laid out before the club's typeface arrived and never again, so
+ * on a slow phone it ran under a word in the fallback face. Measured here at three widths, one of
+ * them with the fonts held back, after the draw has finished.
+ */
+test("the putt under the headline is drawn to the hole at every width, even when the typeface is late", async ({ page }) => {
+  const measure = () =>
+    page.evaluate(() => {
+      const svg = document.querySelector("#putt")!;
+      const path = svg.querySelector("path") as SVGPathElement;
+      const ctm = path.getScreenCTM()!;
+      const total = path.getTotalLength();
+      let len = 0;
+      let prev: DOMPoint | null = null;
+      for (let k = 0; k <= 96; k++) {
+        const p = path.getPointAtLength((total * k) / 96).matrixTransform(ctm);
+        if (prev) len += Math.hypot(p.x - prev.x, p.y - prev.y);
+        prev = p;
+      }
+      const cs = getComputedStyle(path);
+      const word = document.querySelector("#hero-word")!.getBoundingClientRect();
+      const box = svg.getBoundingClientRect();
+      return { len, dash: cs.strokeDasharray, offset: parseFloat(cs.strokeDashoffset) || 0, ends: [box.left - word.left, box.right - word.right] };
+    });
+  for (const [width, late] of [[393, true], [1024, false], [1440, false]] as const) {
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    if (late) await page.route(/\.woff2?(\?|$)/, async (r) => { await new Promise((x) => setTimeout(x, 2500)); await r.continue().catch(() => {}); });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/?putt=${width}`);
+    await landingSettled(page);
+    await page.evaluate(() => document.fonts.ready);
+    // The draw starts 1.5s in and takes 1.1s.
+    await expect.poll(async () => (await measure()).offset, { message: `the putt never finished drawing at ${width}px`, timeout: 10_000 }).toBeLessThan(1);
+    const m = await measure();
+    const dash = parseFloat(m.dash);
+    expect(Number.isFinite(dash) ? dash : Infinity, `at ${width}px the dash (${m.dash}) is shorter than the ${Math.round(m.len)}px line, so the line stops short of the hole`).toBeGreaterThanOrEqual(m.len - 1);
+    for (const end of m.ends) expect(Math.abs(end), `at ${width}px${late ? " with the typeface late" : ""} the putt is not under the word (${m.ends.map(Math.round).join(", ")}px out)`).toBeLessThan(3);
+  }
+});
+
+/**
+ * ON A PHONE THE COLOURS BOARD IS SCROLLED PAST, NOT DRAGGED (2026-10-21).
+ *
+ * Ajay: "there is a reload around the colors". The slider covered the board, so under a finger it
+ * took every touch: a swipe up the page that began on the board snapped the bands to where the
+ * swipe began, a quarter of the board in one frame, and the sway took over again three seconds
+ * later. Now only the visible knob drags, and by how far the finger moves. The bands sway on their
+ * own, gently, so this reads the slider every frame and refuses a JUMP between two of them — the
+ * old one was forty-odd steps; the sway moves about one.
+ */
+test.describe("the colours board under a finger", () => {
+  test.use({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 });
+  test("a swipe or a tap on the board moves the page, not the bands; the knob drags them", async ({ page, browserName }) => {
+    test.skip(browserName !== "chromium", "NOT WALKED on this engine: touches are sent through Chromium's own protocol");
+    await page.goto("/?board=touch");
+    await landingSettled(page);
+    const frame = page.locator("#themes");
+    await page.evaluate(() => document.querySelector("#themes")!.scrollIntoView({ block: "center" }));
+    await expect(frame).toBeInViewport();
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", x = 0, y = 0) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
+    // Every frame's slider value, from now until `stopWatch`.
+    const watch = () =>
+      page.evaluate(() => {
+        const w = window as unknown as { __vals: number[]; __on: boolean };
+        w.__vals = [];
+        w.__on = true;
+        const range = document.querySelector<HTMLInputElement>("#themes-range")!;
+        const tick = () => { w.__vals.push(Number(range.value)); if (w.__on) requestAnimationFrame(tick); };
+        requestAnimationFrame(tick);
+      });
+    const biggestJump = () =>
+      page.evaluate(() => {
+        const w = window as unknown as { __vals: number[]; __on: boolean };
+        w.__on = false;
+        let most = 0;
+        for (let k = 1; k < w.__vals.length; k++) most = Math.max(most, Math.abs(w.__vals[k] - w.__vals[k - 1]));
+        return { most, first: w.__vals[0], last: w.__vals[w.__vals.length - 1], frames: w.__vals.length };
+      });
+
+    const box = (await frame.boundingBox())!;
+    const scrolled = await page.evaluate(() => scrollY);
+    await watch();
+    await touch("touchStart", box.x + 12, box.y + box.height * 0.7);
+    for (let k = 1; k <= 10; k++) { await touch("touchMove", box.x + 12, box.y + box.height * (0.7 - 0.04 * k)); await page.waitForTimeout(16); }
+    await touch("touchEnd");
+    await page.waitForTimeout(150);
+    const swipe = await biggestJump();
+    expect(await page.evaluate(() => scrollY), "the swipe did not scroll the page").toBeGreaterThan(scrolled + 50);
+    expect(swipe.most, `a swipe up the board jumped the bands ${swipe.most.toFixed(1)} steps in one frame`).toBeLessThan(3);
+
+    await page.evaluate(() => document.querySelector("#themes")!.scrollIntoView({ block: "center" }));
+    const at = (await frame.boundingBox())!;
+    await watch();
+    await touch("touchStart", at.x + 6, at.y + at.height / 2);
+    await touch("touchEnd");
+    await page.waitForTimeout(150);
+    const tap = await biggestJump();
+    expect(tap.most, `a tap on the board's edge jumped the bands ${tap.most.toFixed(1)} steps in one frame`).toBeLessThan(3);
+
+    // The knob is the handle a finger takes, and the bands follow it.
+    const knob = (await frame.locator(".m-knob").boundingBox())!;
+    const kx = knob.x + knob.width / 2;
+    const ky = knob.y + knob.height / 2;
+    const from = await page.evaluate(() => Number(document.querySelector<HTMLInputElement>("#themes-range")!.value));
+    await touch("touchStart", kx, ky);
+    for (let k = 1; k <= 10; k++) { await touch("touchMove", kx - 3 * k, ky); await page.waitForTimeout(16); }
+    await touch("touchEnd");
+    const to = await page.evaluate(() => Number(document.querySelector<HTMLInputElement>("#themes-range")!.value));
+    expect(to, "dragging the knob left did not move the bands").toBeLessThan(from - 10);
+    // And once somebody has moved them, the bands stay where they were put.
+    await page.waitForTimeout(4500);
+    const still = await page.evaluate(() => Number(document.querySelector<HTMLInputElement>("#themes-range")!.value));
+    expect(Math.abs(still - to), "the bands swayed off where the visitor left them").toBeLessThan(0.5);
+  });
+});
+
+/**
  * THE PAGE ENDS WHERE ITS FOOTER ENDS (2026-10-12).
  *
  * The closing section has a glow that reaches below it on purpose, and that

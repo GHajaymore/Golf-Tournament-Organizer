@@ -260,7 +260,7 @@ export default async function LandingPage() {
   );
   const doors = (
     <div className="m-cta-row">
-      <a className="m-btn m-primary" href="#signup">{held ? HELD_FRONT_DOOR.cta : "Run an event"} <span className="m-arrow" aria-hidden="true">→</span></a>
+      <a className="m-btn m-primary" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.cta : "Run an event"} <span className="m-arrow" aria-hidden="true">→</span></a>
       <a className="m-btn m-line" href="/play"><span className="m-long">I have a round code</span><span className="m-short">Enter a code</span></a>
     </div>
   );
@@ -292,7 +292,7 @@ export default async function LandingPage() {
             <div className="m-hero-grid">
               <div className="m-copy">
                 {held ? (
-                  <a className="m-news m-rise" href="#signup">{HELD_FRONT_DOOR.pill} <span aria-hidden="true">→</span></a>
+                  <a className="m-news m-rise" href="/interest">{HELD_FRONT_DOOR.pill} <span aria-hidden="true">→</span></a>
                 ) : (
                   <a className="m-news m-rise" href="#does"><b>New</b> Ryder-style cups, on every player&rsquo;s phone <span aria-hidden="true">→</span></a>
                 )}
@@ -309,9 +309,15 @@ export default async function LandingPage() {
                 <p className="m-sub m-rise m-d2"><span>Run the whole competition.</span> <span>Your players just type a code.</span></p>
                 <div className="m-rise m-d3">{doors}</div>
                 <ul className="m-facts3 m-rise m-d4">
-                  <li>Free for fields of up to {PLANS.free.limits.playersPerEvent}</li>
-                  <li>No card</li>
-                  <li>No app for players</li>
+                  {held ? (
+                    HELD_FRONT_DOOR.facts.map((f) => <li key={f}>{f}</li>)
+                  ) : (
+                    <>
+                      <li>Free for fields of up to {PLANS.free.limits.playersPerEvent}</li>
+                      <li>No card</li>
+                      <li>No app for players</li>
+                    </>
+                  )}
                 </ul>
               </div>
 
@@ -580,8 +586,8 @@ export default async function LandingPage() {
                 <p className="m-who">{PLANS.free.tagline}</p>
                 <h3>{PLANS.free.name}</h3>
                 <div className="m-price">{prices.zero}</div>
-                <p className="m-year">Free for good</p>
-                <a className="m-btn m-line" href="#signup">{held ? HELD_FRONT_DOOR.cta : "Start free"}</a>
+                <p className="m-year">{held ? HELD_FRONT_DOOR.freeCard : "Free for good"}</p>
+                <a className="m-btn m-line" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.cta : "Start free"}</a>
                 <ul>
                   <li>Up to {PLANS.free.limits.playersPerEvent} players</li>
                   <li>One tournament at a time</li>
@@ -594,7 +600,7 @@ export default async function LandingPage() {
                 <h3>{PLANS.society.name}</h3>
                 <div className="m-price">{prices.society.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.society.yearly} a year</p>
-                <a className="m-btn" href="#signup">{held ? `Claim 25% off ${PLANS.society.name}` : `Choose ${PLANS.society.name}`}</a>
+                <a className="m-btn" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.planButton(PLANS.society.name) : `Choose ${PLANS.society.name}`}</a>
                 <ul>
                   <li>Up to {PLANS.society.limits.playersPerEvent} players in a field</li>
                   <li>As many events as your season runs</li>
@@ -606,7 +612,7 @@ export default async function LandingPage() {
                 <h3>{PLANS.club.name}</h3>
                 <div className="m-price">{prices.club.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.club.yearly} a year</p>
-                <a className="m-btn m-line" href="#signup">{held ? `Claim 25% off ${PLANS.club.name}` : `Choose ${PLANS.club.name}`}</a>
+                <a className="m-btn m-line" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.planButton(PLANS.club.name) : `Choose ${PLANS.club.name}`}</a>
                 <ul>
                   <li>Any size of field</li>
                   <li>Up to {PLANS.club.limits.staffSeats} organizers and assistants</li>
@@ -848,7 +854,7 @@ export default async function LandingPage() {
 
         {/* The two doors, within reach on a phone once the first screen's have scrolled away. */}
         <div className="m-dock" id="dock">
-          <a className="m-btn m-primary" href="#signup">{held ? HELD_FRONT_DOOR.cta : "Run an event"}</a>
+          <a className="m-btn m-primary" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.cta : "Run an event"}</a>
           <a className="m-btn m-line" href="/play">Enter a code</a>
         </div>
       </main>

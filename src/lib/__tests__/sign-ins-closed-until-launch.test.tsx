@@ -129,7 +129,9 @@ describe("the front door says so before the form", () => {
     const html = renderToStaticMarkup(<LandingAuth closed />);
     expect(html).toContain(SIGNINS_CLOSED_NOTICE.lead);
     expect(html).toContain("href=\"/play\"");
-    // The early list goes to the live inquiries mailbox, under a subject inquiries@ can sort by.
+    // The early list is the /interest form; the inquiries mailbox stays for anybody who would rather
+    // write, under a subject inquiries@ can sort by.
+    expect(html.slice(0, html.indexOf("<form"))).toContain('href="/interest"');
     expect(html).toContain(`href="mailto:inquiries@tourneyhq.club?subject=${encodeURIComponent(SIGNINS_CLOSED_NOTICE.interestedSubject)}"`);
     // THE OFFER, AND NEVER A CODE (Ajay, 2026-10-21: "still there is no early discount marketing";
     // earlier, "do not publish the discount code"). The notice's WORDS, before the staff link (held,
@@ -143,12 +145,15 @@ describe("the front door says so before the form", () => {
     expect(notice).toContain(SIGNINS_CLOSED_NOTICE.offer);
     expect(notice, "the offer has no terms beside it (an ad's destination needs them)").toContain(SIGNINS_CLOSED_NOTICE.terms);
     expect(notice).toMatch(/25% off your first term/);
+    // "First term" is the term they sign up on (Ajay): the terms say which, both ways.
+    expect(notice).toMatch(/first month if you pay monthly, your first year if you pay yearly/);
     // No code is printed: nothing shaped like one (letters and digits, upper case).
     expect(notice).not.toMatch(/\b[A-Z0-9]{6,}\b/);
   });
 
   it("tells a visitor what is coming, never that they are shut out — and never 'under development'", () => {
-    const words = [SIGNINS_CLOSED_MESSAGE, ...Object.values(SIGNINS_CLOSED_NOTICE), ...Object.values(HELD_FRONT_DOOR)].join(" ").toLowerCase();
+    const said = (v: unknown): string => (typeof v === "function" ? String(v("Birdie")) : Array.isArray(v) ? v.join(" ") : String(v));
+    const words = [SIGNINS_CLOSED_MESSAGE, ...Object.values(SIGNINS_CLOSED_NOTICE), ...Object.values(HELD_FRONT_DOOR).map(said)].join(" ").toLowerCase();
     expect(words).toContain("opens soon");
     expect(words).toContain("paused");
     // The ad director: Google reads an "under construction" destination as a reason to refuse the ad.

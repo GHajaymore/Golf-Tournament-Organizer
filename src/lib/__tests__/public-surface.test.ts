@@ -74,8 +74,10 @@ describe("nothing but the marketing pages invites indexing", () => {
    * same module as the landing's eight. It describes the product and carries
    * nobody's data. `/terms` joined on 2026-10-02, for the same reason as
    * `/privacy`: a club must be able to read what it agrees to before it signs in.
+   * `/interest` joined on 2026-10-21: the register-your-interest page before
+   * launch — a page a club is meant to find, and it shows nobody's data.
    */
-  const INDEXABLE = new Set(["/", "/privacy", "/faq", "/terms"]);
+  const INDEXABLE = new Set(["/", "/privacy", "/faq", "/terms", "/interest"]);
 
   /** A page's own file, plus every layout above it up to src/app. */
   const chainFor = (pageFile: string) => {
@@ -128,7 +130,7 @@ describe("nothing but the marketing pages invites indexing", () => {
 
   it("robots.txt allows only those, and names the sitemap", () => {
     const robots = stripComments(read("app", "robots.ts"));
-    expect(robots).toMatch(/allow:\s*\["\/", "\/privacy", "\/faq", "\/terms"\]/);
+    expect(robots).toMatch(/allow:\s*\["\/", "\/privacy", "\/faq", "\/terms", "\/interest"\]/);
     for (const p of ["/live/", "/register/", "/reset-password", "/play"]) {
       expect(robots, `robots.txt should disallow ${p}`).toContain(`"${p}"`);
     }

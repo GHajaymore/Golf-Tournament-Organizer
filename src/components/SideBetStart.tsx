@@ -227,7 +227,7 @@ export function SideBetStart({
         style={{ marginTop: 16, alignSelf: "flex-start" }}
         onClick={() => setOpen(true)}
       >
-        <Icon name="plus" /> Start a side bet
+        <Icon name="plus" /> Start a side game
       </button>
     );
   }
@@ -236,9 +236,10 @@ export function SideBetStart({
 
   return (
     <section className="card elev-sm" style={{ marginTop: 16, gap: 12 }}>
-      <span className="card-title" style={{ fontSize: 15 }}>Start a side bet</span>
-      <MoreInfo short="Yours to set up — no organizer needed.">
-        Pick the game, pick who is in, and it settles like every other pot into the same one number.
+      <span className="card-title" style={{ fontSize: 15 }}>Start a side game</span>
+      <MoreInfo short="Pick the game, who's in, and what it's for: money or something else.">
+        Yours to set up, no organizer needed. A game played for money settles like every other pot,
+        into the same one number.
       </MoreInfo>
 
       <div>
