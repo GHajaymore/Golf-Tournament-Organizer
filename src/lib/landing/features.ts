@@ -126,7 +126,7 @@ export function featureGroups({ localGolf }: { localGolf: boolean }): FeatureGro
         { t: "Adds to the home screen" },
         { t: "One phone keeps the whole group's card", s: "each player still signs their own" },
         { t: "Two phones, one card", s: "it asks which to keep — never overwrites" },
-        { t: "Players start their own side bets" },
+        { t: "Players start their own side games" },
         { t: "A board that says how fresh it is", s: "Live or Final" },
       ],
     },
@@ -134,7 +134,7 @@ export function featureGroups({ localGolf }: { localGolf: boolean }): FeatureGro
       key: "money",
       title: "Money & the club",
       items: [
-        { t: "Skins, Nassau, pots and side bets", s: "skins and Nassau straight off the cards", top: true },
+        { t: "Skins, Nassau, pots and side games", s: "skins and Nassau straight off the cards", top: true },
         { t: "Costs split four ways", s: "evenly, by shares, exact amounts or percent", top: true },
         { t: "Fewest handovers, mark settled" },
         { t: "Any currency" },

@@ -86,7 +86,7 @@ async function main() {
       prisma.expenseShare.count({ where: { amountCents: { not: null } } }),
       prisma.expensePayment.count(),
     ]);
-  check(true, `skins pots: ${pots}`, `${potsWithGroup} belong to a group or side bet`);
+  check(true, `skins pots: ${pots}`, `${potsWithGroup} belong to a group or side game`);
   check(true, `side games: ${games}`, `${gamesWithGroup} belong to a group`);
   check(true, `expense shares: ${shares}`, `${sharesWithAmount} split by exact amount`);
   check(true, `expense payments: ${payments}`, payments === 0 ? "none yet — every bill has one payer" : "");

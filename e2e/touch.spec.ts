@@ -89,6 +89,10 @@ async function undersizedTargets(page: Page) {
       .filter(({ el, box }) => {
         const cs = getComputedStyle(box);
         if (cs.display === "none" || cs.visibility === "hidden") return false;
+        // Hidden from people on purpose — the interest form's trap for scripts sits off screen in an
+        // aria-hidden box, out of the tab order. Nobody is asked to tap it. (A control a person CAN
+        // reach inside aria-hidden is a fault the accessibility walk reports.)
+        if (el.closest('[aria-hidden="true"]')) return false;
         const r = box.getBoundingClientRect();
         if (!r.width || !r.height) return false;
         // A link set inline is text in a sentence, not a target.

@@ -38,6 +38,9 @@ const CLUBS = [
 const made: Record<string, { eventId: string; email: string }> = {};
 
 async function cleanup() {
+  const bills = await prisma.expense.findMany({ where: { description: { startsWith: TAG } }, select: { id: true } });
+  await prisma.expenseShare.deleteMany({ where: { expenseId: { in: bills.map((b) => b.id) } } });
+  await prisma.expense.deleteMany({ where: { description: { startsWith: TAG } } });
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
 }
@@ -55,6 +58,13 @@ beforeAll(async () => {
       ),
     );
     await prisma.settlement.create({ data: { eventId: event.id, fromPlayerId: bea.id, toPlayerId: ann.id, cents: 1000, recordedBy: "the secretary", settledAt: AT } });
+    // A bill with a day on it, as somebody typed it: 14 May, whatever the clock says.
+    await prisma.expense.create({
+      data: {
+        eventId: event.id, description: `${TAG} dinner`, amountCents: 4000, paidBy: ann.id, spentOn: "2026-05-14",
+        shares: { create: [{ playerId: ann.id }, { playerId: bea.id }] },
+      },
+    });
     made[club.key] = { eventId: event.id, email: ann.email };
   }
 });
@@ -83,5 +93,24 @@ describe("the day a handover was recorded", () => {
     expect(days[1]).toContain("14");
     // And neither is the bare notation a database writes.
     for (const day of days) expect(day).not.toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+/**
+ * AND THE DAY ON A BILL IS WRITTEN THE SAME WAY (2026-10-21). Each expense printed the day it was
+ * spent as the database keeps it, "2026-10-17", under "Already settled · Oct 20, 2026" on the same
+ * screen — and on a phone it broke across two lines at the hyphen. Seen in the first capture of the
+ * money screens for a reel. A typed day is already a day, so no clock comes into it: 14 May is
+ * 14 May in every club, written each club's way.
+ */
+describe("the day on a bill", () => {
+  it("is written the way the club writes a date, never as the database keeps it", async () => {
+    const want = { tokyo: "14 May 2026", newyork: "May 14, 2026", unsaid: "14. Mai 2026" } as const;
+    for (const club of CLUBS) {
+      const view = await moneyFor(made[club.key].eventId, made[club.key].email);
+      const bill = view.expenses.find((e) => e.description.endsWith("dinner"));
+      expect(bill, `${club.key}: the bill is not on the screen`).toBeTruthy();
+      expect(bill!.spentOn, `${club.key}: the bill's day is in another notation`).toBe(want[club.key]);
+    }
   });
 });

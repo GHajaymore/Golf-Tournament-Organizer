@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { signInsHeld } from "@/lib/services/signins-switch";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
@@ -61,7 +62,7 @@ export default async function FaqPage() {
       />
       <LandingEffects />
       {iconSprite()}
-      {landingNav("faq")}
+      {landingNav("faq", await signInsHeld())}
 
       <main>
         <section className="fq-hero">

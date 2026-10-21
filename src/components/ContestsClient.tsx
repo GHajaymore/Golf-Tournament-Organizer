@@ -41,12 +41,12 @@ const DERIVED_ROWS: Array<{ kind: string; label: string; help: string }> = [
     // stake had to describe it as three bets and divide by three.
     kind: "match",
     label: "The match",
-    help: "One bet on the match itself. The winning side takes a stake from each opponent.",
+    help: "One game on the match itself. The winning side takes the stake from each opponent.",
   },
   {
     kind: "nassau",
     label: "Nassau",
-    help: "Front, back and overall — three bets on every match at this stake.",
+    help: "Front, back and overall — three games on every match at this stake.",
   },
 ];
 
@@ -338,10 +338,10 @@ export function ContestsClient({
   return (
     <section className="card elev-sm" style={{ marginTop: 16 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-        <span className="card-title">{title ?? `Side bets — ${roundLabel}`}</span>
+        <span className="card-title">{title ?? `Side games — ${roundLabel}`}</span>
         {contestsApply && !adding && (
           <button type="button" className="btn btn-secondary" onClick={() => setAdding(true)} disabled={pending}>
-            <Icon name="plus" /> Add a bet
+            <Icon name="plus" /> Add a game
           </button>
         )}
       </div>
@@ -370,7 +370,7 @@ export function ContestsClient({
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <div className="pair-grid">
             <div className="field">
-              <label htmlFor="c-kind">Bet</label>
+              <label htmlFor="c-kind">Game</label>
               <select id="c-kind" className="input" value={kind} onChange={(e) => setKind(e.target.value as ContestKind)}>
                 {CONTEST_KINDS.map((k) => (
                   <option key={k} value={k}>{CONTEST_LABEL[k]}</option>
@@ -413,7 +413,7 @@ export function ContestsClient({
               Cancel
             </button>
             <button type="button" className="btn btn-primary" style={{ flex: 2 }} disabled={pending} onClick={create}>
-              Start this bet
+              Start this game
             </button>
           </div>
         </div>
@@ -539,7 +539,7 @@ export function ContestsClient({
                 <p style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, color: "var(--color-danger)" }}>
                   <Icon name="warning-circle" /> Nobody plays anybody in this round, so there is no
                   match for {row.label.toLowerCase()} to be between and this stake cannot settle. Set
-                  it to 0 to take it off, or move the bet to a match-play round.
+                  it to 0 to take it off, or move the game to a match-play round.
                 </p>
               )}
 
@@ -669,7 +669,7 @@ export function ContestsClient({
 
         {contests.length === 0 && !adding && (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            None on this round yet — start one with &ldquo;Add a bet&rdquo;.
+            None on this round yet — start one with &ldquo;Add a game&rdquo;.
           </p>
         )}
 
@@ -788,9 +788,9 @@ export function ContestsClient({
             <ConfirmButton
               className="btn btn-secondary touch-target"
               style={{ fontSize: 13, marginTop: 10 }}
-              label="Remove this bet"
-              title="Remove this bet"
-              confirmLabel="Remove the bet"
+              label="Remove this game"
+              title="Remove this game"
+              confirmLabel="Remove the game"
               disabled={pending}
               onConfirm={() => run(() => removeContest(c.id))}
             />

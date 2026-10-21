@@ -46,7 +46,7 @@ export const MONEY_MODE_LABEL: Record<MoneyMode, string> = {
 };
 
 export const MONEY_MODE_HELP: Record<MoneyMode, string> = {
-  none: "Entry fees and prizes are handled outside the app — the shop, the bar, an envelope. Skins, 2s and side bets are still worked out and shown to the players.",
+  none: "Entry fees and prizes are handled outside the app — the shop, the bar, an envelope. Skins, 2s and side games are still worked out and shown to the players.",
   float:
     "Track the entry fees in and the costs out — trophies, prizes, the meal — and see whether the tournament balanced and what is left over. One pot belonging to the tournament; nobody owes anybody.",
   split:

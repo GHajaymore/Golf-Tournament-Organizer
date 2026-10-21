@@ -66,7 +66,7 @@ const WHO: Record<string, string> = {
   // anyone
   signInWithPassword: "anyone", claimPassword: "anyone", requestPasswordReset: "anyone", resetPassword: "anyone",
   signUp: "anyone", signOutAction: "anyone", registerForEvent: "anyone", getVapidPublicKey: "anyone",
-  redeemRoundCode: "anyone", claimPlayerSlot: "anyone", leavePlay: "anyone",
+  redeemRoundCode: "anyone", claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
   // Sets a cookie and nothing else, and the cookie can only ever show an
   // organizer LESS (the player's view of their own tournament): `getSession`
   // ignores it for anybody who is not an admin.
@@ -108,7 +108,7 @@ const WHO: Record<string, string> = {
   broadcastToScope: "organizer", previewSmsBroadcast: "organizer", broadcastWithText: "organizer",
   // the business
   setClubPlan: "the business", saveTierPrices: "the business", saveTierLimits: "the business",
-  createDiscountCode: "the business", setDiscountCodeActive: "the business",
+  createDiscountCode: "the business", setDiscountCodeActive: "the business", setAccountsOpen: "the business",
 };
 
 /** What must appear in the body of an action of each kind. Not proof the check is right — proof it is there. */

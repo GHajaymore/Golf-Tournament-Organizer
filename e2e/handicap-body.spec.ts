@@ -137,8 +137,14 @@ test("a club's handicap body follows its country on Club settings, Members and E
           message: "the visitor's own index was not kept on the club's list",
         })
         .toMatchObject({ handicap: 12.4, handicapBodyId: "england-golf", handicapSource: "manual" });
-      const entry = await prisma.player.findFirst({ where: { eventId: data.eventId, name: VISITOR }, select: { handicap: true } });
-      expect(entry?.handicap, "the visitor does not play off their own index").toBe(12.4);
+      // The club's list and the entry are two writes: the entry is waited for too, not read once the
+      // instant the list has it (read once, it was not there yet, on one phone run of 2026-10-21).
+      await expect
+        .poll(async () => (await prisma.player.findFirst({ where: { eventId: data.eventId, name: VISITOR }, select: { handicap: true } }))?.handicap, {
+          timeout: 20_000,
+          message: "the visitor does not play off their own index",
+        })
+        .toBe(12.4);
     });
   } finally {
     await prisma.player.deleteMany({ where: { eventId: data.eventId, name: VISITOR } });

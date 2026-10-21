@@ -38,7 +38,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/privacy", "/faq", "/terms"],
+        allow: ["/", "/privacy", "/faq", "/terms", "/interest"],
         disallow: [
           // Credentialed by a token in the URL. Each of these renders real
           // people, an event's details, or a password-reset credential.

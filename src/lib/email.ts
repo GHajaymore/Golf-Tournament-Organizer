@@ -8,6 +8,7 @@ import { emailDocument, emailText, escapeHtml } from "@/lib/domain/email-layout"
 import { emailBrandFor } from "@/lib/services/email-brand";
 import { EMAIL } from "@/lib/themes";
 import { SUPPORT_EMAIL } from "@/lib/contact";
+import { interestSubject } from "@/lib/domain/interest";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -503,6 +504,62 @@ export type FieldChange = "promoted" | "waitlisted";
  * written, so a bounced notification loses nothing: the ask still exists and is
  * still on the screen.
  */
+/**
+ * A NOTE OF INTEREST, TO INQUIRIES@ (2026-10-21) — somebody filled in /interest
+ * before launch. Reply-To is THEIR address, so answering it answers them. The
+ * row is on /owner whether or not this arrives; a failure is recorded like
+ * every other send.
+ */
+export async function sendInterestEmail(
+  to: string,
+  who: { name: string; email: string; phone: string; club: string; role: string; size: string; note: string },
+): Promise<void> {
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping a note of interest to ${maskEmail(to)}.`);
+    return;
+  }
+  const base = appUrl().base;
+  const line = (label: string, value: string) =>
+    value ? `<p style="margin:4px 0"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>` : "";
+  const fail = async (message: string, status?: number) =>
+    recordFailure({
+      kind: "interest",
+      reason: classifySendFailure(message, status),
+      detail: message,
+      organizationIds: [],
+      toEmail: to,
+      toName: "",
+    });
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      replyTo: who.email,
+      to,
+      ...(await compose(
+        interestSubject(who),
+        line("Name", who.name) +
+          line("Email", who.email) +
+          line("Phone", who.phone) +
+          line("Club or society", who.club) +
+          line("Who they are", who.role) +
+          line("Size", who.size) +
+          (who.note ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid ${EMAIL.flag}">${escapeHtml(who.note)}</blockquote>` : "") +
+          `<p>They were told they will be emailed a code for 25% off their first term when TourneyHQ opens. Reply to this email to write to them.</p>`,
+        "You're getting this because the /interest form on tourneyhq.club sends here.",
+        { preview: `${who.club || "A club"} — ${who.role || "interested"}.`, action: { label: "See every note", url: `${base}/owner#interest` } },
+      )),
+    });
+    if (error) {
+      console.error(`[email] Resend rejected a note of interest: ${error.message}`);
+      await fail(error.message, (error as { statusCode?: number }).statusCode);
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "unknown error";
+    console.error(`[email] Failed sending a note of interest: ${message}`);
+    await fail(message);
+  }
+}
+
 export async function sendJoinRequestEmail(
   to: string,
   opts: {

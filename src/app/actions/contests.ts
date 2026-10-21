@@ -252,7 +252,7 @@ export async function requestContestEntry(contestId: string, join: boolean): Pro
     where: { id: contestId, eventId: session.eventId },
     select: { id: true, name: true, entryMode: true },
   });
-  if (!contest) return { ok: false, error: "That bet isn't in this tournament." };
+  if (!contest) return { ok: false, error: "That game isn't in this tournament." };
 
   const me = await prisma.player.findFirst({
     where: { eventId: session.eventId, ...byAddress(session.email) },

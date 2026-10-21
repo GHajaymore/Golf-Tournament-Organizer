@@ -399,7 +399,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
      * is actually better at than the field.
      */
     blurb:
-      "Low score on a hole wins it; a tie carries into the next. The oldest bet in golf, scored and settled hole by hole.",
+      "Low score on a hole wins it; a tie carries into the next. The oldest side game in golf, scored and settled hole by hole.",
     settings: {
       leaderboardVisibility: "participants",
       scoreEntryBy: "players",

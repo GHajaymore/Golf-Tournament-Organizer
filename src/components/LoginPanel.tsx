@@ -6,6 +6,7 @@ import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import { signupMissing } from "@/lib/domain/signup-missing";
 import type { OrgKind } from "@/lib/domain/org-profile";
 import { SUPPORT_EMAIL } from "@/lib/contact";
+import { HELD_FRONT_DOOR } from "@/lib/sign-in-gate";
 import { Icon } from "./Icon";
 
 /**
@@ -58,9 +59,16 @@ export function LoginPanel({
   initialMode = "login",
   autoFocusFields = true,
   organizers = "organizers",
+  signupClosed = false,
 }: {
   initialMode?: Mode;
   autoFocusFields?: boolean;
+  /**
+   * Sign-ins held until launch (`sign-in-gate.ts`): no Sign up tab and no sign-up form at all,
+   * only signing in, for the owners the hold lets through. Ajay, 2026-10-21: "it still allow to
+   * sign up" — the server refused every stranger, but a working form under the notice said otherwise.
+   */
+  signupClosed?: boolean;
   /**
    * The visitor's word for the people who run events — "organisers" on the UK
    * edition (`golf-terms.ts`). A client component cannot reach the landing's
@@ -68,7 +76,7 @@ export function LoginPanel({
    */
   organizers?: string;
 } = {}) {
-  const [mode, setMode] = useState<Mode>(initialMode);
+  const [mode, setMode] = useState<Mode>(signupClosed ? "login" : initialMode);
   const [extra, setExtra] = useState<Extra>(null);
 
   const [email, setEmail] = useState("");
@@ -370,7 +378,7 @@ export function LoginPanel({
 
   /* ── Log in / Sign up ────────────────────────────────────────────── */
 
-  const login = mode === "login";
+  const login = signupClosed || mode === "login";
 
   return shell(
     <>
@@ -379,6 +387,7 @@ export function LoginPanel({
       {/* `keep-grid`: phones stack inline grids inside <main> (globals.css), and
           this control is two halves of one choice — stacked, it read as two
           separate buttons, one of them unexplained. */}
+      {!signupClosed && (
       <div
         role="tablist"
         aria-label="Log in or sign up"
@@ -425,13 +434,16 @@ export function LoginPanel({
           </button>
         ))}
       </div>
+      )}
 
       <Title
-        title={login ? "Welcome back" : "Create your account"}
+        title={signupClosed ? HELD_FRONT_DOOR.signInTitle : login ? "Welcome back" : "Create your account"}
         sub={
-          login
-            ? "Log in to reach the tournaments you have access to."
-            : `For ${organizers} running an event, and for players invited to one.`
+          signupClosed
+            ? HELD_FRONT_DOOR.signInSub
+            : login
+              ? "Log in to reach the tournaments you have access to."
+              : `For ${organizers} running an event, and for players invited to one.`
         }
       />
 

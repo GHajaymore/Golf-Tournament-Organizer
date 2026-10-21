@@ -294,8 +294,8 @@ export async function setSkinsEntrants(
           ok: false,
           error:
             uninvited.length === 1
-              ? "One of those players hasn't asked to join this bet. They can put their own name down, then you can tick them in."
-              : `${uninvited.length} of those players haven't asked to join this bet. They can put their own names down, then you can tick them in.`,
+              ? "One of those players hasn't asked to join this game. They can put their own name down, then you can tick them in."
+              : `${uninvited.length} of those players haven't asked to join this game. They can put their own names down, then you can tick them in.`,
         };
       }
     }

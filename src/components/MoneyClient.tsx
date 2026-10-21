@@ -357,7 +357,7 @@ export function MoneyClient({
    * money works is always inside, which is what the bare label points at.
    */
   const named = [
-    view.contests.length > 0 || view.sideGames.length > 0 || unaccounted !== 0 ? "Side bets" : "",
+    view.contests.length > 0 || view.sideGames.length > 0 || unaccounted !== 0 ? "Side games" : "",
     view.expenses.length > 0 ? `Expenses (${view.expenses.length})` : "",
     view.settlements.length > 0 ? "Already settled" : "",
     ...moreParts,
@@ -383,15 +383,15 @@ export function MoneyClient({
           {money(Math.abs(view.netCents))}
         </div>
         {/* The parts, always — never make the total take it on faith. */}
-        {/* "Side bets", not "Side games". Three names for one pile of money:
-            this figure said "Side games", the section below it said "Side
-            bets", and the one under that said "Pots on the scores" — so a
-            player looking for what made up "Side games" found no section by
-            that name. "Side bets" is also what the organizer's screen calls the
-            card holding both kinds, so the two screens now agree. */}
+        {/* ONE NAME FOR ONE PILE OF MONEY. Three names once lived here — this
+            figure, the section below it and "Pots on the scores" — so a player
+            looking for what made up the figure found no section by that name.
+            It is "Side games" everywhere since 2026-10-21 (it was "Side bets":
+            ad platforms read the words on a screen as gambling, and a side
+            game can be played for a pint). The organizer's card says the same. */}
         <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 13, color: "var(--color-neutral-400)" }}>
           <span>Expenses {money(view.expensesCents)}</span>
-          {view.gamesCents !== 0 && <span>Side bets {money(view.gamesCents)}</span>}
+          {view.gamesCents !== 0 && <span>Side games {money(view.gamesCents)}</span>}
           {view.settledCents !== 0 && <span>Settled {money(view.settledCents)}</span>}
         </div>
       </section>
@@ -854,11 +854,11 @@ export function MoneyClient({
           <Icon name="caret-down" aria-hidden />
           {moreLabel}
         </summary>
-      {/* Part of what makes up the "Side bets" figure in the summary. A total a
+      {/* Part of what makes up the "Side games" figure in the summary. A total a
           player cannot expand is a number they have to take on trust, and this
           is the screen that can least afford one.
 
-          "Decided on the day", not "Side bets" — that is now the name of the
+          "Decided on the day", not "Side games" — that is now the name of the
           WHOLE, so it cannot also be the name of one of its two halves. This is
           the half a person judges: closest to the pin, long drive, whatever the
           first tee invented. The other half is worked out from the cards. Same
@@ -1024,7 +1024,7 @@ export function MoneyClient({
         </section>
       )}
 
-      {/* The rest of the "Side bets" figure, which had nowhere to appear.
+      {/* The rest of the "Side games" figure, which had nowhere to appear.
           `gameNets` settles from three tables — the skins pot, side games and
           contests — and only CONTESTS carry a per-player figure. The score pots
           are listed but say nothing about what they did for you, and the skins
@@ -1042,7 +1042,7 @@ export function MoneyClient({
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>
-                The rest of your side bets
+                The rest of your side games
               </span>
               <span className="text-muted" style={{ fontSize: 13 }}>
                 Your share of the skins and score pots.

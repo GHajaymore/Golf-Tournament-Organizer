@@ -36,7 +36,8 @@ import { consoleScreens, playerScreens } from "./routes";
  * are measured at every size by the landing specs.
  */
 
-const PUBLIC = ["/", "/faq", "/privacy", "/terms"];
+// /interest since 2026-10-21: the early-list form is a public page, in the sitemap and allowed to crawlers.
+const PUBLIC = ["/", "/faq", "/privacy", "/terms", "/interest"];
 
 type Head = {
   status: number;
@@ -185,7 +186,7 @@ test("the sitemap lists exactly the public pages, and robots.txt answers", async
   // altogether), it must never allow what is private. `public-surface.test.ts` holds both answers at the source.
   expect(text).toMatch(/Disallow: \//i);
   for (const line of text.split("\n")) {
-    if (/^Allow:/i.test(line)) expect(line.replace(/^Allow:\s*/i, "").trim(), "robots.txt allows something that is not a public page").toMatch(/^\/(privacy|faq|terms)?$/);
+    if (/^Allow:/i.test(line)) expect(line.replace(/^Allow:\s*/i, "").trim(), "robots.txt allows something that is not a public page").toMatch(/^\/(privacy|faq|terms|interest)?$/);
   }
 });
 

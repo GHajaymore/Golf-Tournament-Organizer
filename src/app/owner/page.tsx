@@ -14,8 +14,15 @@ import { OwnerLimits } from "@/components/OwnerLimits";
 import { OwnerClubPlan } from "@/components/OwnerClubPlan";
 import { peopleOwningSeveralParClubs } from "@/lib/services/close-terms";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
+import { OwnerAccounts } from "@/components/OwnerAccounts";
+import { signInsOpenedOnConsole } from "@/lib/services/signins-switch";
+import { signInsClosed } from "@/lib/sign-in-gate";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
+import { roleLabel, sizeLabel } from "@/lib/domain/interest";
+
+/** How many registrations the console lists; the rest are a query away. */
+const INTEREST_SHOWN = 200;
 
 /**
  * THE OWNER CONSOLE — the whole business on one screen, for the people who run
@@ -144,6 +151,7 @@ export default async function OwnerConsolePage() {
 
   // Discount codes the owner has generated, with their usage rendered ready for
   // the client (which stays free of Date objects and locale calls).
+  const interest = await prisma.interestRequest.findMany({ orderBy: { createdAt: "desc" }, take: INTEREST_SHOWN });
   const discountRows = await listDiscountCodes();
   const discounts = discountRows.map((c) => ({
     code: c.code,
@@ -174,6 +182,53 @@ export default async function OwnerConsolePage() {
         </p>
       </div>
 
+      {/* PEOPLE WHO REGISTERED INTEREST before launch (/interest, 2026-10-21),
+          newest first — who to write to with their 25% code when it opens.
+          First, because it is the list that grows while nothing else can. */}
+      <section id="interest" className="card elev-sm" style={{ margin: "16px 0" }} aria-label="Registered interest">
+        <span className="card-title" style={{ fontSize: 15 }}>
+          Registered interest ({interest.length === INTEREST_SHOWN ? `latest ${INTEREST_SHOWN}` : interest.length})
+        </span>
+        {interest.length === 0 ? (
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>Nobody yet. The form is at /interest, linked from the front door.</p>
+        ) : (
+          <div className="table-scroll" style={{ marginTop: 8 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Club or society</th>
+                  <th>Who</th>
+                  <th>Size</th>
+                  <th>Note</th>
+                  <th>From</th>
+                </tr>
+              </thead>
+              <tbody>
+                {interest.map((r) => (
+                  <tr key={r.id}>
+                    <td style={{ whiteSpace: "nowrap" }}>{shortDate(r.createdAt)}</td>
+                    <td>{r.name}</td>
+                    <td>
+                      <a href={`mailto:${r.email}`}>{r.email}</a>
+                    </td>
+                    <td style={{ whiteSpace: "nowrap" }}>{r.phone ? <a href={`tel:${r.phone.replace(/[^\d+]/g, "")}`}>{r.phone}</a> : ""}</td>
+                    <td>{r.club}</td>
+                    <td>{roleLabel(r.role)}</td>
+                    <td>{sizeLabel(r.members)}</td>
+                    <td style={{ minWidth: 160 }}>{r.note}</td>
+                    <td className="text-muted" style={{ fontSize: 12, minWidth: 140 }}>{r.source || "direct"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       {/* Headline numbers */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "16px 0" }}>
         {stat("Organizations", m.totalOrgs.toLocaleString(DEFAULT_LOCALE), `${m.paidOrgs} paid · ${m.freeOrgs} free`)}
@@ -181,6 +236,9 @@ export default async function OwnerConsolePage() {
         {stat("Tournaments", m.totalEvents.toLocaleString(DEFAULT_LOCALE), `${m.liveEvents} live now`)}
         {stat("Players", m.totalPlayers.toLocaleString(DEFAULT_LOCALE), "across every event")}
       </div>
+
+      {/* The launch switch first: the one control that decides who can get in at all. */}
+      <OwnerAccounts opened={await signInsOpenedOnConsole()} ruleHolds={signInsClosed()} />
 
       {/* The controls that write: the price every screen quotes, and the caps
           every entry gate reads. */}

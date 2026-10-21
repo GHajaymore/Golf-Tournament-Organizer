@@ -561,8 +561,8 @@ describe("setting up a round with money on it", () => {
      */
     const nassau = matchOnlyRefusal(QUICK_MONEY_GAMES.find((g) => g.key === "nassau")!);
     const match = matchOnlyRefusal(QUICK_MONEY_GAMES.find((g) => g.key === "match")!);
-    expect(nassau).toMatch(/three bets/);
-    expect(match).not.toMatch(/three bets/);
+    expect(nassau).toMatch(/three games/);
+    expect(match).not.toMatch(/three games/);
     expect(match).not.toMatch(/A The match/);
     // Both still say what to do instead, which is the half a refusal is for.
     expect(nassau).toMatch(/match play/i);

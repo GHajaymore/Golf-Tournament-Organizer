@@ -69,7 +69,7 @@ test("an organizer names a contest's sponsor, and the public board shows the win
   await page.goto(`/prizes?round=${stageId}&bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
   // The smallest block holding both the bet and its Remove, as side-bet-named-winner finds one.
-  const card = page.locator("div", { hasText: `${MARK} KP` }).filter({ has: page.getByRole("button", { name: /^Remove (this bet|the bet)$/ }) }).last();
+  const card = page.locator("div", { hasText: `${MARK} KP` }).filter({ has: page.getByRole("button", { name: /^Remove (this game|the game)$/ }) }).last();
   await expect(card, "the contest is not on the organizer's screen").toBeVisible({ timeout: 20_000 });
   await card.getByRole("button", { name: "Add a sponsor" }).click();
   await card.getByLabel("Sponsored by").fill(`${MARK} Motors`);
