@@ -74,21 +74,15 @@ export function CreateCupTeams() {
  * side is on the wrong team.
  */
 export function CupTeams({ teams, unplaced, inLineup }: { teams: [Team, Team]; unplaced: Person[]; inLineup: string[] }) {
-  const { pending, error, run } = useAction();
   const busy = new Set(inLineup);
   return (
     <section aria-labelledby="cup-teams" style={{ marginTop: 8, marginBottom: 16 }}>
       <h2 id="cup-teams" className="card-title" style={{ fontSize: 18, margin: "0 0 10px" }}>
         Teams
       </h2>
-      {error && (
-        <p role="alert" className="form-error" style={{ margin: "0 0 10px" }}>
-          {error}
-        </p>
-      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
         {teams.map((t) => (
-          <TeamCard key={t.id} team={t} unplaced={unplaced} busy={busy} pending={pending} run={run} />
+          <TeamCard key={t.id} team={t} unplaced={unplaced} busy={busy} />
         ))}
       </div>
       <p className="text-muted" style={{ margin: "10px 0 0", fontSize: 14 }}>
@@ -100,23 +94,23 @@ export function CupTeams({ teams, unplaced, inLineup }: { teams: [Team, Team]; u
   );
 }
 
-function TeamCard({
-  team,
-  unplaced,
-  busy,
-  pending,
-  run,
-}: {
-  team: Team;
-  unplaced: Person[];
-  busy: Set<string>;
-  pending: boolean;
-  run: (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => void;
-}) {
+/**
+ * Its own action state, so a refusal is said ON THE CARD that was pressed
+ * (2026-10-20). It was one line above both cards: on a phone the second
+ * team's "Save name" sits a screen below it, and "The other team already has
+ * that name" came up out of sight — the press looked like it did nothing.
+ */
+function TeamCard({ team, unplaced, busy }: { team: Team; unplaced: Person[]; busy: Set<string> }) {
+  const { pending, error, run } = useAction();
   const [name, setName] = useState(team.name);
   const renamed = name.trim() !== team.name && name.trim() !== "";
   return (
     <div className="card elev-sm" role="group" aria-label={`Team ${team.name}`} style={{ display: "grid", gap: 10 }}>
+      {error && (
+        <p role="alert" className="form-error" style={{ margin: 0 }}>
+          {error}
+        </p>
+      )}
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div className="field" style={{ flex: "1 1 140px", minWidth: 0, margin: 0 }}>
           <label htmlFor={`cup-name-${team.id}`}>Team name</label>
