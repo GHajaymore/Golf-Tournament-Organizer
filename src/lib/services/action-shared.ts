@@ -41,14 +41,23 @@ export async function assertUnlocked(
   eventId: string,
   what = "make structural changes",
 ): Promise<void> {
+  const refusal = await lockedRefusal(eventId, what);
+  if (refusal) throw new Error(refusal);
+}
+
+/**
+ * The same refusal, RETURNED — for a screen a person can reach after the lock: the flights board
+ * open in one tab while the tournament is launched in another (or by a co-organizer). There the
+ * throw above turned the whole screen into "This screen didn't load", and in production Next blanks
+ * a thrown message anyway (2026-10-21 — found by the first browser test of the flights board).
+ */
+export async function lockedRefusal(eventId: string, what = "make structural changes"): Promise<string | null> {
   const e = await prisma.event.findUnique({
     where: { id: eventId },
     select: { status: true, configUnlocked: true },
   });
   // One definition of "locked", shared with isSetupLocked and LifecycleBar.
-  if (e && configurationLocked(e)) {
-    throw new Error(`Configuration is locked. Unlock the tournament to ${what}.`);
-  }
+  return e && configurationLocked(e) ? `Configuration is locked. Unlock the tournament to ${what}.` : null;
 }
 
 /**

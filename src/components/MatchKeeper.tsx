@@ -261,7 +261,7 @@ export function MatchKeeper(props: MatchKeeperProps) {
             {pending ? "Saving…" : resultSaved ? "Result saved" : "Save result"}
           </button>
           {error && (
-            <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+            <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}

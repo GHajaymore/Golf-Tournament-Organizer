@@ -100,6 +100,11 @@ interface Props {
    */
   card?: (number | null)[];
   /**
+   * Whether this card is already signed (certified by the player, or approved by the committee).
+   * It started unsigned on every visit, so a signed card offered "Certify my card" again.
+   */
+  signed?: boolean;
+  /**
    * That this round is temporary, in words, or "" for a tournament.
    *
    * A casual round deletes itself about a day after it is set up, and the
@@ -346,7 +351,7 @@ function PlayScreens(props: Props) {
   const [, setSaved] = useState(false);
   // Whether this card has been signed. Held apart from `saved`, because
   // saving and signing are different statements — see the buttons.
-  const [certified, setCertified] = useState(false);
+  const [certified, setCertified] = useState(props.signed === true);
   // The player's own card, for a round with no opponent in it. Sized to the
   // ROUND rather than to what arrived, so a short stored card still draws
   // every hole the round is played over.
@@ -675,7 +680,7 @@ function PlayScreens(props: Props) {
           </div>
 
           {error && (
-            <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+            <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}
@@ -912,7 +917,7 @@ function PlayScreens(props: Props) {
           </>
           )}
           {error && (
-            <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+            <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}
