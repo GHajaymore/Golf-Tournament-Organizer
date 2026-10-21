@@ -131,17 +131,6 @@ export function RoundTeamScoring({
     );
   };
 
-  const warning = (kind: RescoreKind, keepLabel: string) => (
-    <>
-      {error && errorKind === kind && (
-        <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
-          <Icon name="warning-circle" /> {error}
-        </p>
-      )}
-      {rescoreWarning(kind, keepLabel)}
-    </>
-  );
-
   const rescoreWarning = (kind: RescoreKind, keepLabel: string) =>
     rescore?.kind === kind ? (
       <RescoreWarning
@@ -156,6 +145,18 @@ export function RoundTeamScoring({
         }}
       />
     ) : null;
+
+  /** Under each setting's Save: its own refusal, then the server's question before re-scoring. */
+  const warning = (kind: RescoreKind, keepLabel: string) => (
+    <>
+      {error && errorKind === kind && (
+        <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
+          <Icon name="warning-circle" /> {error}
+        </p>
+      )}
+      {rescoreWarning(kind, keepLabel)}
+    </>
+  );
 
   const [editingAllowance, setEditingAllowance] = useState(false);
   /** One ball per side — `countBest` is null exactly there (see the field). */
