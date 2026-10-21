@@ -42,9 +42,12 @@ export const REPORT_CSS = `
 .fr-page { max-width: 880px; margin: 0 auto; padding: 20px 16px 56px; display: grid; gap: 18px; }
 
 .fr-mast { position: relative; overflow: hidden; border-radius: 14px; color: var(--fr-on-navy); padding: 26px clamp(16px, 4vw, 40px) 24px;
+  /* The navy is a COLOUR under the gradients, not only a gradient: with none,
+     anything that reads the ground from colours (the legibility sweep, a print
+     engine with backgrounds off) found the light page behind it (2026-10-20). */
   background:
     radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 1.6px) 0 0 / 11px 11px,
-    radial-gradient(120% 90% at 50% -10%, var(--fr-navy2) 0%, var(--fr-navy) 62%); }
+    radial-gradient(120% 90% at 50% -10%, var(--fr-navy2) 0%, var(--fr-navy) 62%) var(--fr-navy); }
 .fr-mast::after { content: ""; position: absolute; inset: auto 0 0 0; height: 4px;
   background: linear-gradient(90deg, var(--fr-a) 0 var(--fr-split), var(--fr-gold) var(--fr-split) calc(var(--fr-split) + 1.2%), var(--fr-b) calc(var(--fr-split) + 1.2%) 100%); }
 .fr-mast.fr-plain::after { background: var(--fr-gold); }

@@ -566,6 +566,14 @@ export function ScoreEntryClient({
    *  action that REFUSED is not an outage, and "check your connection" would
    *  send the scorer looking for the wrong problem. */
   const [saveNote, setSaveNote] = useState("");
+  /**
+   * WHERE THE LAST PRESS WAS, so its answer is said there (2026-10-21). One
+   * line under the match score answered every write — right for a hole just
+   * tapped, and out of sight on a phone for Clear and Confirm/Dispute/Reopen
+   * at the foot of the card: "That result has been confirmed…" came up a
+   * screen away and the press looked like it did nothing.
+   */
+  const [noteAt, setNoteAt] = useState<"card" | "review" | "foot">("card");
 
   /**
    * WHERE THIS MATCH WAS PLAYED, which is a score edit wearing a dropdown.
@@ -585,6 +593,7 @@ export function ScoreEntryClient({
     nine: string,
     undo: () => void,
   ) => {
+    setNoteAt("card");
     setSaveState("saving");
     setSaveNote("");
     startTransition(async () => {
@@ -622,6 +631,7 @@ export function ScoreEntryClient({
   const save = (run: () => Promise<unknown>) => {
     if (outstanding.current === 0) failedInBatch.current = false;
     outstanding.current += 1;
+    setNoteAt("card");
     setSaveState("saving");
     setSaveNote("");
     startTransition(async () => {
@@ -777,6 +787,7 @@ export function ScoreEntryClient({
      * match" a VALID signature leaves the result pending, so even the happy
      * path is not necessarily a confirmation. The server says which it was.
      */
+    setNoteAt("review");
     setSaveState("saving");
     setSaveNote("");
     startTransition(async () => {
@@ -806,6 +817,7 @@ export function ScoreEntryClient({
     // committee confirmed the result a moment ago, on a screen that had not
     // yet heard — and "disputed" painted over a result that is not would be
     // the same lie in the other direction.
+    setNoteAt("review");
     setSaveState("saving");
     setSaveNote("");
     startTransition(async () => {
@@ -832,6 +844,7 @@ export function ScoreEntryClient({
     // organizer may reopen a result, so a refusal (a sign-in that has lapsed,
     // a role changed since the screen was drawn) left the screen saying a
     // confirmed match was open again.
+    setNoteAt("review");
     setSaveState("saving");
     setSaveNote("");
     startTransition(async () => {
@@ -862,6 +875,7 @@ export function ScoreEntryClient({
    */
   const doForfeit = (playerId: string) => {
     if (!active) return;
+    setNoteAt("card");
     setSaveState("saving");
     setSaveNote("");
     startTransition(async () => {
@@ -906,6 +920,7 @@ export function ScoreEntryClient({
     // blanking the card before the answer comes back would show a scorer an
     // erased match that is still stored, which is the one outcome worse than
     // the refusal itself.
+    setNoteAt("foot");
     setSaveState("saving");
     setSaveNote("");
     startTransition(async () => {
@@ -924,6 +939,42 @@ export function ScoreEntryClient({
       }
     });
   };
+
+  /**
+   * What the last write did. A failure has to be loud: the number is on screen
+   * but not in the database, and the person entering it has no other way to
+   * tell. Drawn where the press was — see `noteAt`.
+   */
+  const statusLine =
+    saveState === "idle" ? null : (
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          fontSize: 13,
+          marginTop: 4,
+          fontWeight: saveState === "failed" ? 600 : 400,
+          color:
+            saveState === "failed"
+              ? "var(--color-danger)"
+              : saveState === "saved"
+                ? "var(--color-accent-2-200)"
+                : "var(--color-neutral-500)",
+        }}
+      >
+        {saveState === "saving" && (<><Icon name="circle-notch" /> Saving…</>)}
+        {/* `saveNote` on success too, not only on failure: a signed
+            card that still needs other players is a SUCCESS that is
+            not a confirmation, and "Saved" alone would read as one. */}
+        {saveState === "saved" && (<><Icon name="check" /> {saveNote || "Saved"}</>)}
+        {saveState === "failed" && (
+          <>
+            <Icon name="warning-circle" />{" "}
+            {saveNote || "Not saved — check your connection and re-enter."}
+          </>
+        )}
+      </div>
+    );
 
   const applyStrokes = (slot: "A" | "B", next: (number | null)[]) => {
     const nextA = slot === "A" ? next : aStrokes;
@@ -1350,38 +1401,9 @@ export function ScoreEntryClient({
                   {resolution.played} played · {resolution.remaining} to play
                 </div>
               )}
-              {/* Sits under the score the eye is already on. A failure has to
-                  be loud: the number is on screen but not in the database,
-                  and the person entering it has no other way to tell. */}
-              {saveState !== "idle" && (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  style={{
-                    fontSize: 13,
-                    marginTop: 4,
-                    fontWeight: saveState === "failed" ? 600 : 400,
-                    color:
-                      saveState === "failed"
-                        ? "var(--color-danger)"
-                        : saveState === "saved"
-                          ? "var(--color-accent-2-200)"
-                          : "var(--color-neutral-500)",
-                  }}
-                >
-                  {saveState === "saving" && (<><Icon name="circle-notch" /> Saving…</>)}
-                  {/* `saveNote` on success too, not only on failure: a signed
-                      card that still needs other players is a SUCCESS that is
-                      not a confirmation, and "Saved" alone would read as one. */}
-                  {saveState === "saved" && (<><Icon name="check" /> {saveNote || "Saved"}</>)}
-                  {saveState === "failed" && (
-                    <>
-                      <Icon name="warning-circle" />{" "}
-                      {saveNote || "Not saved — check your connection and re-enter."}
-                    </>
-                  )}
-                </div>
-              )}
+              {/* Sits under the score the eye is already on — for a press on
+                  the card. See `noteAt` for the presses at its foot. */}
+              {noteAt === "card" && statusLine}
             </div>
           </div>
 
@@ -2083,6 +2105,7 @@ export function ScoreEntryClient({
                   />
                 )}
               </div>
+              {noteAt === "review" && <div style={{ flexBasis: "100%" }}>{statusLine}</div>}
             </div>
           )}
 
@@ -2113,6 +2136,7 @@ export function ScoreEntryClient({
           <div
             style={{
               display: "flex",
+              flexWrap: "wrap",
               alignItems: "center",
               justifyContent: "space-between",
               marginTop: 14,
@@ -2137,6 +2161,7 @@ export function ScoreEntryClient({
                 <Icon name="ranking" /> Leaderboard
               </Link>
             </div>
+            {noteAt === "foot" && <div style={{ flexBasis: "100%" }}>{statusLine}</div>}
           </div>
           )}
 

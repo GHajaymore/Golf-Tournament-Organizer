@@ -548,7 +548,7 @@ describe("team screens", () => {
   it("renders the teams screen with no sides drawn", () => {
     const html = render(
       <TeamsClient rounds={[{ id: "r1", label: "Round 1 — Four-Ball", format: "Four-Ball" }]}
-        activeRoundId="r1" format={format} teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+        activeRoundId="r1" format={format} teams={[]} problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(html).toContain("Four-Ball");
     expect(html).toContain("Draw sides automatically");
@@ -563,7 +563,7 @@ describe("team screens", () => {
       <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
         format={format}
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
-        problems={[]} unassigned={[]} matchCount={0} />,
+        problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(one).toContain("A match is between two sides and there is only one so far");
     expect(one).toContain("Draw sides automatically");
@@ -576,9 +576,24 @@ describe("team screens", () => {
           { id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] },
           { id: "t2", name: "Side B", seed: 2, stageId: "r1", playingHandicap: 15, members: [] },
         ]}
-        problems={[]} unassigned={[]} matchCount={0} />,
+        problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(two).not.toContain("only one so far");
+  });
+
+  it("offers no matches to a round that draws none — a stroke-play four-ball", () => {
+    // 2026-10-20: "Generate matches" was on every team round, and made matches
+    // nobody plays for a medal four-ball. Only a round robin draws them.
+    const html = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        format={format}
+        teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
+        problems={[]} unassigned={[]} matchCount={0} drawsMatches={false} />,
+    );
+    expect(html).not.toContain("Generate matches");
+    expect(html).not.toContain("only one so far");
+    // CONTROL: the rest of the toolbar is there.
+    expect(html).toContain("Draw sides automatically");
   });
 
   it("renders sides, their problems, and the unassigned list", () => {
@@ -588,7 +603,7 @@ describe("team screens", () => {
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14,
           members: [{ playerId: "p1", name: "Ann", handicap: 8, position: 0 }] }]}
         problems={[{ teamId: "t1", teamName: "Side A", problem: "has 1 of 2 players" }]}
-        unassigned={[{ id: "p2", name: "Bob", handicap: 20 }]} matchCount={0} />,
+        unassigned={[{ id: "p2", name: "Bob", handicap: 20 }]} matchCount={0} drawsMatches />,
     );
     expect(html).toContain("Side A");
     expect(html).toContain("has 1 of 2 players");
@@ -612,7 +627,7 @@ describe("team screens", () => {
           unassigned={Array.from({ length: spare }, (_, i) => ({
             id: `u${i}`, name: `zz-U${i}`, handicap: 12,
           }))}
-          matchCount={0} />,
+          matchCount={0} drawsMatches />,
       );
 
     expect(board(2, 3)).toContain("This side is full");
@@ -630,7 +645,7 @@ describe("team screens", () => {
       <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
         format={format}
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
-        problems={[]} unassigned={[]} matchCount={0} />,
+        problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(html).toContain("Plays off 14");
     expect(html).not.toContain("The side&#x27;s playing handicap");
@@ -645,7 +660,7 @@ describe("team screens", () => {
       <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Scramble" }]} activeRoundId="r1"
         format={{ ...format, name: "Scramble", min: 4, max: 4, sharesOneCard: true,
           allowance: 25, recommendedAllowance: 25, allowanceIsConvention: true }}
-        teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+        teams={[]} problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(html).toContain("Handicap allowance");
     expect(html).toContain("25%");
@@ -4194,7 +4209,7 @@ describe("the Teams screen's summary of what the sides play off", () => {
     const { TeamsClient } = await import("@/components/TeamsClient");
     const html = render(
       <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Texas Scramble" }]} activeRoundId="r1"
-        format={base as never} teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+        format={base as never} teams={[]} problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(html).toContain("Handicap split");
     expect(html).toContain("25 / 20 / 15 / 10");
@@ -4205,7 +4220,7 @@ describe("the Teams screen's summary of what the sides play off", () => {
     const { TeamsClient } = await import("@/components/TeamsClient");
     const html = render(
       <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Texas Scramble" }]} activeRoundId="r1"
-        format={{ ...base, allowance: 40, allowanceOverridden: true } as never} teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+        format={{ ...base, allowance: 40, allowanceOverridden: true } as never} teams={[]} problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
     expect(html).toContain("Handicap allowance");
     expect(html).toContain("40%");

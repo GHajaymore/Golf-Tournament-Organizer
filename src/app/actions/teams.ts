@@ -12,6 +12,9 @@ import { assertUnlocked } from "@/lib/services/action-shared";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { TEAM_SESSION as CUP_SESSION } from "@/lib/services/cup";
+import { generatesPairings } from "@/lib/stage-types";
+
+const NO_MATCHES_TO_DRAW = "Only a round robin draws matches between sides — this round has none to draw.";
 
 /**
  * A team cup session's sides and matches are its LINEUP, set on the Team cup
@@ -285,6 +288,16 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
   if (stage.type === CUP_SESSION) return { ok: false, error: CUP_SESSION_REFUSAL };
   if (!needsTeams(stage.format)) {
     return { ok: false, error: `${stage.format} is played by individuals — use the flight generator.` };
+  }
+  /**
+   * ONLY A ROUND ROBIN DRAWS ITS MATCHES (2026-10-20). Teams & pairs offered
+   * "Generate matches" on every team round, and this made them for a stroke
+   * play four-ball too — matches nobody plays, in a round whose cards are filed
+   * per side. The flight generator has refused the same for a medal round since
+   * it was found there (`regroup.ts`): such matches can be scored and counted.
+   */
+  if (!generatesPairings(stage.type)) {
+    return { ok: false, error: NO_MATCHES_TO_DRAW };
   }
 
   const teams = await prisma.team.findMany({

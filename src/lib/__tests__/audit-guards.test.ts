@@ -285,6 +285,13 @@ describe("team match generation", () => {
     expect(src()).toMatch(/is played by individuals/);
   });
 
+  it("refuses a round that draws no pairings — a medal four-ball has no matches", () => {
+    // 2026-10-20: offered on every team round, it made matches nobody plays for
+    // a stroke-play four-ball. The same rule the flight generator keeps.
+    const body = src().slice(src().indexOf("export async function generateTeamMatches"));
+    expect(body.slice(0, body.indexOf("prisma.team.findMany"))).toMatch(/if \(!generatesPairings\(stage\.type\)\)/);
+  });
+
   it("will not silently discard scored matches", () => {
     const body = src().slice(src().indexOf("generateTeamMatches"));
     expect(body).toMatch(/needsConfirm: true/);

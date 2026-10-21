@@ -281,7 +281,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Add each side with [[Add team]], or press [[Draw sides automatically]] to balance by handicap.",
           "Fill sides with [[Add player]]; **Not on a side yet** shows who is left.",
-          "Press [[Generate matches]] once there are at least two sides.",
+          "In a round robin of sides, press [[Generate matches]] once there are at least two sides. A stroke-play round has no matches to draw, so the button is not there.",
+          "Rename a side in its name box. Taking out a player who has returned a card asks first, because the side's score changes; a side with scores on it cannot be removed.",
         ],
       },
       { kind: "h", text: "Tee sheet" },
@@ -374,7 +375,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "**Commentary**: under the Leaderboard, write a line — a run of birdies, a delay, where the cut is falling — and press [[Post]]. The latest shows above the scores on the public board and on every player's Board, with how long ago and without your name; the two before it are one tap away. Take one down with the ✕ beside it.",
           "**Weather**: [[Suspend play]], add a reason, [[Suspend play now]] — every player and the public board are told. [[Resume play]] when ready.",
           "**Pace of play** on the Dashboard shows each group's Thru and Due in, and names groups running behind.",
-          "**Wrong scores**: correct the card on Score entry, or [[Clear scores]] (organizers) for chosen players or the whole round. Entries, flights and tee times are untouched.",
+          "**Wrong scores**: correct the card on Score entry, or [[Clear scores]] (organizers) for chosen players or the whole round. Entries, flights and tee times are untouched. A card or result the committee has approved is reopened first.",
         ],
       },
     ],

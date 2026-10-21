@@ -5770,11 +5770,19 @@ export async function clearRoundScores(
 
   // Per-player gross cards behind a net match, which would otherwise re-derive
   // the result the moment anything recalculated.
+  /**
+   * THE STROKE CARDS OF THE MATCHES JUST CLEARED — both of each one's cards,
+   * since the whole match was emptied above, and a card left behind would
+   * rebuild its holes. A match card is keyed by match and slot, not by player:
+   * this asked it for a `playerId` it does not have, so clearing chosen
+   * players threw AFTER deleting their cards and emptying their matches — no
+   * audit line, and "Something went wrong" over a clear that had half
+   * happened (found 2026-10-21 by the first test to tick a name).
+   */
   await prisma.matchScorecard.deleteMany({
-    where: {
-      match: { eventId, stageId },
-      ...(scoped.length ? { playerId: { in: scoped } } : {}),
-    },
+    where: scoped.length
+      ? { matchId: { in: matches.map((m) => m.id) } }
+      : { match: { eventId, stageId } },
   });
 
   // Clearing the WHOLE round un-plays it, so the handicaps it froze are
