@@ -192,6 +192,10 @@ test("a league member, whose round is played in sides", async ({ page }) => {
 });
 
 test("a cup player, before and after their session is announced, and one sitting it out", async ({ page, baseURL }) => {
+  // Every player screen three times, as three people, an organizer announcing a lineup between, and
+  // the public board: the default thirty seconds ran out mid-walk on Safari's engine in round G233-1
+  // (in `waitForLoadState`, nothing asserted wrong) after the same walk passed in G226-1.
+  test.setTimeout(150_000);
   await asCup(page, baseURL!, "a1");
   await sweep(page, "a cup player, nothing announced");
 
