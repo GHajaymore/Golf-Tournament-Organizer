@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { HELD_FRONT_DOOR } from "@/lib/sign-in-gate";
 import { LOGO_SIZE } from "@/components/Logo";
 import { Lockup } from "@/components/Lockup";
 import type { Edition } from "@/lib/landing/edition";
@@ -92,7 +93,9 @@ export function icon(id: string, className = "i") {
  * The nav. On `/` the section links are in-page anchors; on `/faq` they lead
  * back to them. Sign-in and sign-up live on `/`, where the form is.
  */
-export function landingNav(at: "home" | "faq" | "privacy" | "terms") {
+/** `held`: accounts held until launch, so the button does not promise "Start free" (the ad director). */
+export function landingNav(at: "home" | "faq" | "privacy" | "terms", held = false) {
+  const cta = held ? HELD_FRONT_DOOR.cta : "Start free";
   const home = at === "home" ? "" : "/";
   // The product menu: every part of the page, with what it shows.
   const product: Array<[string, string, string, string]> = [
@@ -134,11 +137,11 @@ export function landingNav(at: "home" | "faq" | "privacy" | "terms") {
           {/* Players have their own door: a round code needs no account. */}
           <a className="play" href="/play">Playing today? <u>Enter code</u></a>
           <a className="si" href={`${home}#signin`}>Sign in</a>
-          <a className="btn sm" href={`${home}#signup`}>Start free</a>
+          <a className="btn sm" href={`${home}#signup`}>{cta}</a>
           <details className="nav-menu">
             <summary aria-label="Menu">{icon("menu")}</summary>
             <nav className="menu-panel" aria-label="Sections">
-              <a className="menu-cta" href={`${home}#signup`}>Start free</a>
+              <a className="menu-cta" href={`${home}#signup`}>{cta}</a>
               {product.map(([href, , title]) => <a key={href} href={href}>{title}</a>)}
               {links.map(([href, label]) => (
                 <a key={href} href={href} aria-current={at === "faq" && href === "/faq" ? "page" : undefined}>{label}</a>

@@ -6,6 +6,7 @@ import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import { signupMissing } from "@/lib/domain/signup-missing";
 import type { OrgKind } from "@/lib/domain/org-profile";
 import { SUPPORT_EMAIL } from "@/lib/contact";
+import { HELD_FRONT_DOOR } from "@/lib/sign-in-gate";
 import { Icon } from "./Icon";
 
 /**
@@ -436,10 +437,10 @@ export function LoginPanel({
       )}
 
       <Title
-        title={signupClosed ? "Already have access?" : login ? "Welcome back" : "Create your account"}
+        title={signupClosed ? HELD_FRONT_DOOR.signInTitle : login ? "Welcome back" : "Create your account"}
         sub={
           signupClosed
-            ? "Log in here. New accounts open at launch."
+            ? HELD_FRONT_DOOR.signInSub
             : login
               ? "Log in to reach the tournaments you have access to."
               : `For ${organizers} running an event, and for players invited to one.`

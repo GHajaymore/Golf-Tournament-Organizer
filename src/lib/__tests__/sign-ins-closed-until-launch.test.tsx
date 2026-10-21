@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { maySignIn, signInsClosed, SIGNINS_CLOSED_MESSAGE, SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
+import { maySignIn, signInsClosed, SIGNINS_CLOSED_MESSAGE, SIGNINS_CLOSED_NOTICE, HELD_FRONT_DOOR } from "@/lib/sign-in-gate";
 import { LandingAuth } from "@/components/LandingAuth";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -87,19 +87,19 @@ describe("every door asks", () => {
 
   it("createSession refuses before it sets the cookie", () => {
     const body = fnBody(auth, "createSession");
-    const asks = body.indexOf("maySignIn(");
+    const asks = body.indexOf("maySignInNow(");
     expect(asks).toBeGreaterThan(-1);
     expect(asks).toBeLessThan(body.indexOf("jar.set("));
   });
 
   it("getSession does not honour a session made before sign-ins closed", () => {
-    expect(fnBody(auth, "getSession")).toMatch(/if \(!maySignIn\(user\.email\)\) return null;/);
+    expect(fnBody(auth, "getSession")).toMatch(/if \(!\(await maySignInNow\(user\.email\)\)\) return null;/);
   });
 
   it("each sign-in action says why, before it does any work", () => {
     const actions = readSource("src/app/actions/auth.ts");
     for (const name of ["signInWithPassword", "claimPassword", "requestPasswordReset", "resetPassword", "signUp"]) {
-      expect(fnBody(actions, name), `${name} does not ask maySignIn`).toMatch(/if \(!maySignIn\([^)]*\)\) return \{ ok: false, error: SIGNINS_CLOSED_MESSAGE \};/);
+      expect(fnBody(actions, name), `${name} does not ask maySignInNow`).toMatch(/if \(!\(await maySignInNow\([^)]*\)\)\) return \{ ok: false, error: SIGNINS_CLOSED_MESSAGE \};/);
     }
   });
 
@@ -124,26 +124,32 @@ describe("every door asks", () => {
 });
 
 describe("the front door says so before the form", () => {
-  it("shows the under-development notice when closed", () => {
+  it("shows the notice when held: paused, the early-list offer with its terms, and never a code", () => {
     const html = renderToStaticMarkup(<LandingAuth closed />);
     expect(html).toContain(SIGNINS_CLOSED_NOTICE.lead);
     expect(html).toContain("href=\"/play\"");
-    // An interested visitor is sent to the live inquiries mailbox.
-    expect(html).toContain("href=\"mailto:inquiries@tourneyhq.club?subject=");
-    // NO DISCOUNT IS PUBLISHED (Ajay, 2026-10-21: "do not publish the discount
-    // code") — the notice invites them to write, and the offer goes in the reply.
-    // The notice's WORDS, before the form: the form keeps its own optional
-    // discount box, and the markup's styles are full of percentages.
-    const notice = html.slice(0, html.indexOf("<form")).replace(/<[^>]*>/g, " ");
-    expect(notice).toContain(SIGNINS_CLOSED_NOTICE.interestedLead);
-    expect(notice).not.toMatch(/\d+\s*%|discount|off (their|your) first/i);
+    // The early list goes to the live inquiries mailbox, under a subject inquiries@ can sort by.
+    expect(html).toContain(`href="mailto:inquiries@tourneyhq.club?subject=${encodeURIComponent(SIGNINS_CLOSED_NOTICE.interestedSubject)}"`);
+    // THE OFFER, AND NEVER A CODE (Ajay, 2026-10-21: "still there is no early discount marketing";
+    // earlier, "do not publish the discount code"). The notice's WORDS, before the form.
+    const notice = html
+      .slice(0, html.indexOf("<form"))
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&#x27;/g, "'");
+    expect(notice).toContain(SIGNINS_CLOSED_NOTICE.offer);
+    expect(notice, "the offer has no terms beside it (an ad's destination needs them)").toContain(SIGNINS_CLOSED_NOTICE.terms);
+    expect(notice).toMatch(/25% off your first term/);
+    // No code is printed: nothing shaped like one (letters and digits, upper case).
+    expect(notice).not.toMatch(/\b[A-Z0-9]{6,}\b/);
     expect(html.indexOf(SIGNINS_CLOSED_NOTICE.lead)).toBeLessThan(html.indexOf("<form"));
   });
 
-  it("tells a visitor what is coming, never that they are shut out", () => {
-    const words = [SIGNINS_CLOSED_MESSAGE, ...Object.values(SIGNINS_CLOSED_NOTICE)].join(" ").toLowerCase();
+  it("tells a visitor what is coming, never that they are shut out — and never 'under development'", () => {
+    const words = [SIGNINS_CLOSED_MESSAGE, ...Object.values(SIGNINS_CLOSED_NOTICE), ...Object.values(HELD_FRONT_DOOR)].join(" ").toLowerCase();
     expect(words).toContain("opens soon");
-    expect(words).toContain("under development");
+    expect(words).toContain("paused");
+    // The ad director: Google reads an "under construction" destination as a reason to refuse the ad.
+    expect(words).not.toContain("under development");
     for (const shut of ["closed", "blocked", "denied", "not allowed"]) expect(words).not.toContain(shut);
   });
 
@@ -171,6 +177,6 @@ describe("the front door says so before the form", () => {
   });
 
   it("the landing page hands the gate's answer to the box", () => {
-    expect(readSource("src/app/page.tsx")).toMatch(/closed=\{signInsClosed\(\)\}/);
+    expect(readSource("src/app/page.tsx")).toMatch(/const held = await signInsHeld\(\);[\s\S]*closed=\{held\}/);
   });
 });

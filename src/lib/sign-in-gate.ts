@@ -30,28 +30,47 @@ import { SALES_EMAIL } from "@/lib/contact";
 /** What a person is told when they try. Points a player at the one door that is open. */
 // Never the word "closed" (Ajay: "instead of closed can we say not opened yet
 // or something better?"): a visitor is told what is coming, not shut out.
+// Worded by the panel's marketing manager, 2026-10-21; "under development" went on the ad director's
+// word — Google reads an "under construction" page as a reason to refuse the ad that lands on it.
 export const SIGNINS_CLOSED_MESSAGE =
-  "TourneyHQ opens soon. It's under development, and accounts aren't open yet. Playing today? Go to tourneyhq.club/play and enter your round code.";
+  "TourneyHQ opens soon. Sign-ups are paused until launch. Playing today? Go to tourneyhq.club/play and enter your organizer's round code.";
 
 /**
  * Said ABOVE the sign-in box while it is closed (Ajay: "if we are blocking we
  * can put a message about under development"), so nobody fills in a form to be
  * refused at the end of it.
  */
+/*
+ * THE WORDS ARE THE MARKETING PANEL'S (2026-10-21, Ajay: "always involve the experts"). The marketing
+ * manager wrote them and the ad agency creative director checked them as an ad's landing page:
+ * "paused", not "under development"; the 25% leads; its terms sit right under it, because an offer
+ * on an ad's destination needs its terms on the same page. The CODE is never printed (Ajay: "do not
+ * publish the discount code") — it is emailed at launch.
+ */
 export const SIGNINS_CLOSED_NOTICE = {
   lead: "TourneyHQ opens soon.",
-  body: "It's under development, and accounts aren't open yet.",
-  // Ajay: "may be we can add interested and divert it to inquiry@" — the live
-  // mailbox is inquiries@ (contact.ts), so a visitor who wants in is not lost.
-  interestedLead: "Interested?",
+  body: "Sign-ups are paused until launch while we add the finishing touches.",
+  offer: "Get 25% off your first term. Join the early list and we'll email your code at launch, good on the paid plan you choose.",
+  // The address is the link's words, so a phone with no mail app still shows it to copy.
   interestedEmail: SALES_EMAIL,
-  interestedTail: "and we'll let you know when it opens.",
-  // NO OFFER IS PRINTED HERE (Ajay, 2026-10-21: "do not publish the discount
-  // code"). The early-subscriber discount is still honoured — a code made on
-  // /owner and sent in the reply — but the notice only invites them to write.
+  interestedSubject: "Early list: 25% off at launch",
+  terms: "25% off the first billing term of one paid plan, for clubs that join the early list before launch. One code per club, emailed at launch.",
   playLead: "Playing today?",
   playLink: "Go to tourneyhq.club/play",
-  playTail: "and enter the round code your organizer gave you.",
+  playTail: "and enter your organizer's round code.",
+} as const;
+
+/** The front door's own words while held (the marketing manager's). */
+export const HELD_FRONT_DOOR = {
+  heading: "Opening soon. Get in early.",
+  lead: "New accounts open at launch. Register your interest now and we'll email you 25% off your first paid term. Got a round code? You can play today.",
+  signInTitle: "Already have access?",
+  signInSub: "Sign in below. New accounts open at launch.",
+  pricingNote: "Paid plans start at launch. Join the early list now and we'll email you 25% off your first term.",
+  // The ad director: a button that promises "Start free" and lands on a paused door reads as bait.
+  cta: "Get early access",
+  // The ad director's second placement, in the hero's announcement pill.
+  pill: "Opening soon: join the early list for 25% off your first term",
 } as const;
 
 type Env = Record<string, string | undefined>;

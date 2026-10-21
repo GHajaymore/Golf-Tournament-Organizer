@@ -65,16 +65,18 @@ export function LandingAuth({
         <p style={{ margin: 0 }}>
           <strong>{SIGNINS_CLOSED_NOTICE.lead}</strong> {SIGNINS_CLOSED_NOTICE.body}
         </p>
+        {/* The early-list offer leads (the marketing manager's words), its terms right under it
+            (the ad director's: an offer on an ad's destination carries its terms on the page). */}
+        <p style={{ margin: "8px 0 0", fontWeight: 600 }}>{SIGNINS_CLOSED_NOTICE.offer}</p>
         <p style={{ margin: "8px 0 0" }}>
-          {SIGNINS_CLOSED_NOTICE.interestedLead} Write to{" "}
           <a
-            href={`mailto:${SIGNINS_CLOSED_NOTICE.interestedEmail}?subject=${encodeURIComponent("Interested in TourneyHQ")}`}
+            href={`mailto:${SIGNINS_CLOSED_NOTICE.interestedEmail}?subject=${encodeURIComponent(SIGNINS_CLOSED_NOTICE.interestedSubject)}`}
             style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}
           >
-            {SIGNINS_CLOSED_NOTICE.interestedEmail}
-          </a>{" "}
-          {SIGNINS_CLOSED_NOTICE.interestedTail}
+            Email {SIGNINS_CLOSED_NOTICE.interestedEmail}
+          </a>
         </p>
+        <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "var(--color-text-muted)" }}>{SIGNINS_CLOSED_NOTICE.terms}</p>
         <p style={{ margin: "8px 0 0" }}>
           {SIGNINS_CLOSED_NOTICE.playLead}{" "}
           <a href="/play" style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}>
