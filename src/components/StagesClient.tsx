@@ -779,6 +779,8 @@ function StageCard({
   const [deadline, setDeadline] = useState(stage.deadline);
   // The date box's refusal, said under the box (a round removed in another tab, say).
   const [dueError, setDueError] = useState("");
+  // The sign-up deadline's refusal, said under its own box. It used to be dropped (`void`).
+  const [optError, setOptError] = useState("");
   const [basis, setBasis] = useState(stage.scoringBasis);
   const [scoreInput, setScoreInput] = useState(stage.scoreInput);
   const [format, setFormat] = useState(stage.format);
@@ -1242,7 +1244,13 @@ function StageCard({
                     style={{ width: 170 }}
                     defaultValue={isIsoDate(stage.optDeadline) ? stage.optDeadline : ""}
                     disabled={pending}
-                    onChange={(e) => startTransition(() => void setStageOptDeadline(stage.id, e.target.value))}
+                    onChange={(e) => {
+                      const date = e.target.value;
+                      startTransition(async () => {
+                        const res = await setStageOptDeadline(stage.id, date);
+                        setOptError(res.ok ? "" : res.error ?? "Couldn't save that.");
+                      });
+                    }}
                   />
                   <span className="text-muted" style={{ fontSize: 13 }}>
                     {stage.attendance.in} in
@@ -1251,6 +1259,11 @@ function StageCard({
                     {stage.attendance.out} out
                   </span>
                 </div>
+                {optError && (
+                  <p className="form-error" role="alert" style={{ margin: "4px 0 0" }}>
+                    {optError}
+                  </p>
+                )}
                 <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.4 }}>
                   {stage.attendance.playersAnswer
                     ? "Players may answer until the end of this day; after it, changes go through you."

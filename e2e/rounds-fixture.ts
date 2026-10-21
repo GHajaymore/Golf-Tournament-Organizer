@@ -173,11 +173,30 @@ export async function returnCard(eventId: string, stageId: string, playerId: str
 }
 
 export async function signIn(context: BrowserContext, baseURL: string, club: Club, eventId: string) {
+  await signInWith(context, baseURL, club.session, eventId);
+}
+
+/** Any signed session, into one tournament — a member's phone, a second secretary. */
+export async function signInWith(context: BrowserContext, baseURL: string, session: string, eventId: string) {
   await context.addCookies([
-    { name: "ng_session", value: club.session, url: baseURL },
+    { name: "ng_session", value: session, url: baseURL },
     { name: "ng_active_event", value: sign(eventId), url: baseURL },
   ]);
 }
+
+/**
+ * A MEMBER WHO SIGNS IN AS THEMSELVES: a User at the address their entry carries,
+ * and the tournament's player account. The address must begin with the club's
+ * mark (the entries `makeEvent` makes do), so `dropClub` takes the User too.
+ */
+export async function memberSession(eventId: string, email: string, name: string): Promise<{ userId: string; session: string }> {
+  const user = await prisma.user.create({ data: { email, name, password: "x:unusable" } });
+  await prisma.account.create({ data: { eventId, name, email, role: "player" } });
+  return { userId: user.id, session: sign(signedInNow(user.id)) };
+}
+
+/** A signed session for a User this spec made. */
+export const sessionOf = (userId: string) => sign(signedInNow(userId));
 
 export async function gotoStages(page: Page) {
   await page.goto(`/stages?bust=${Date.now()}`);

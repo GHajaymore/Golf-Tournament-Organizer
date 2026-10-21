@@ -87,6 +87,13 @@ export function FlightBoard({
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [error, setError] = useState("");
+  // WHERE the refusal belongs: a flight's id, or null for the board as a whole. One line at the top
+  // of the board was off a phone's screen when the press was a flight further down (2026-10-21).
+  const [errorAt, setErrorAt] = useState<string | null>(null);
+  const refuse = (text: string, at: string | null) => {
+    setError(text);
+    setErrorAt(at);
+  };
   const [confirming, setConfirming] = useState<{ playerId: string; groupId: string; scored: number } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -103,7 +110,7 @@ export function FlightBoard({
         setConfirming({ playerId, groupId, scored: res.scoredMatches ?? 0 });
         return;
       }
-      if (!res.ok) setError(res.error ?? "Couldn't move that player.");
+      if (!res.ok) refuse(res.error ?? "Couldn't move that player.", groupId);
     });
   };
 
@@ -117,8 +124,8 @@ export function FlightBoard({
 
   return (
     <>
-      {error && (
-        <p style={{ fontSize: 13, margin: "0 0 10px", color: "var(--color-danger)" }}>
+      {error && errorAt === null && (
+        <p role="alert" style={{ fontSize: 13, margin: "0 0 10px", color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
@@ -202,7 +209,7 @@ export function FlightBoard({
               setError("");
               startTransition(async () => {
                 const res = await setFlightsConfirmed(!confirmed);
-                if (!res.ok) setError(res.error ?? "Couldn't update the draw.");
+                if (!res.ok) refuse(res.error ?? "Couldn't update the draw.", null);
               });
             }}
           >
@@ -264,7 +271,7 @@ export function FlightBoard({
                   setError("");
                   startTransition(async () => {
                     const res = await renameGroup(g.id, name);
-                    if (!res.ok) setError(res.error ?? "Couldn't rename that flight.");
+                    if (!res.ok) refuse(res.error ?? "Couldn't rename that flight.", g.id);
                   });
                 }}
                 style={{ minHeight: 26, fontSize: 13, fontWeight: 600 }}
@@ -293,6 +300,14 @@ export function FlightBoard({
               </div>
             )}
 
+            {error && errorAt === g.id && (
+              // Brought into view, only as far as it needs: a flight at the foot of the screen put its
+              // own refusal just below the fold.
+              <p role="alert" ref={(el) => el?.scrollIntoView({ block: "nearest" })} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+                <Icon name="warning-circle" /> {error}
+              </p>
+            )}
+
             {/* Leadership lives with the flight, not the round: a captain
                 leads these people all season. Both pickers only offer the
                 flight's own members — the server refuses anyone else, and a
@@ -312,7 +327,7 @@ export function FlightBoard({
                         // picker showing a captain the club does not have.
                         startTransition(async () => {
                           const res = await setFlightCaptain(g.id, e.target.value || null, role);
-                          if (!res.ok) setError(res.error ?? "Couldn't set that captain.");
+                          if (!res.ok) refuse(res.error ?? "Couldn't set that captain.", g.id);
                           else setError("");
                         })
                       }
@@ -347,7 +362,7 @@ export function FlightBoard({
                     const teeId = e.target.value || null;
                     startTransition(async () => {
                       const res = await setFlightTee(g.id, teeId);
-                      if (!res.ok) setError(res.error ?? "Couldn't set those tees.");
+                      if (!res.ok) refuse(res.error ?? "Couldn't set those tees.", g.id);
                     });
                   }}
                 >

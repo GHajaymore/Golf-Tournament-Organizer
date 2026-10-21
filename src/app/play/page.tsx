@@ -176,7 +176,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       // erase a round somebody entered on the ninth tee.
       const existing = await prisma.scorecard.findFirst({
         where: { eventId: event.id, stageId: cardStage.id, playerId: session.playerId },
-        select: { strokes: true },
+        select: { strokes: true, status: true },
       });
       let entered: (number | null)[] = [];
       try {
@@ -235,6 +235,9 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
           strokeIndex={roundCard?.strokeIndex ?? []}
           firstHole={firstHoleOf(roundCard)}
           card={entered}
+          /* Signed already (or approved): the card opens saying so, not offering to be signed again
+             (2026-10-21 — found by the first browser test to certify a card by code). */
+          signed={existing?.status === "certified" || existing?.status === "approved"}
           /* How the round is scored, so the card reports the figure it is won
              on. A Stableford showed gross and to-par — the two numbers the
              format exists to stop a first-timer reading. */
