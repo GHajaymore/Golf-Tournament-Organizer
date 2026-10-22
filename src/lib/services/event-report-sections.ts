@@ -24,6 +24,7 @@ import { isManualFormat, needsTeams } from "../formats";
 import { roundIsStroke } from "../stage-types";
 import { listWords } from "../domain/final-report";
 import { plural } from "../format";
+import { byAddress } from "../domain/my-entry";
 import type { HighlightRound } from "../domain/report-highlights";
 import type { MovementRound } from "../domain/report-movement";
 import type { WeekBasis } from "../domain/week-basis";
@@ -73,10 +74,7 @@ export async function reportAudienceFor(
   const email = (viewer?.email ?? "").trim();
   if (!viewer || !email) return { kind: "public" };
   if (viewer.staff) return { kind: "staff", email };
-  const inField = await prisma.player.findFirst({
-    where: { eventId, email: { equals: email, mode: "insensitive" } },
-    select: { id: true },
-  });
+  const inField = await prisma.player.findFirst({ where: { eventId, ...byAddress(email) }, select: { id: true } });
   return inField ? { kind: "player", email } : { kind: "public" };
 }
 
@@ -106,7 +104,8 @@ export async function highlightRoundsFor(state: EventState): Promise<HighlightRo
       label: roundLabel(state.stages, stage.id) || stage.description || "Round",
       holes,
       firstHole: holes === 9 && stage.nine === "back" ? 10 : 1,
-      pars: card.pars.slice(0, holes),
+      // Already the nine played, re-ranked — `strokeCourseFor` narrows it.
+      pars: card.pars,
       strokePlay: roundIsStroke(stage.type, stage.format) && !needsTeams(stage.format),
       venue: stage.courseId ?? "",
       cards: rows
@@ -275,7 +274,7 @@ export async function moneySections(state: EventState, audience: ReportAudience)
       if (lines.length > 0) {
         sideGames.push({
           title: named("Nassau", stage.id),
-          line: amounts && g.buyInCents > 0 ? `${money(g.buyInCents)} a bet. What it came to is in the settle-up.` : "",
+          line: amounts && g.buyInCents > 0 ? `${money(g.buyInCents)} on each nine and the match. What it came to is in the settle-up.` : "",
           winners: lines,
         });
       }

@@ -55,6 +55,56 @@ ribbon, as an open cup does.
 - **A player with no position** (withdrew, no return, missed the cut) shows the
   board's own words for them, never a position.
 
+## The conclusion: everything the tournament used (2026-10-21)
+
+Ajay: "the Round/Tournament conclusion report providing the highlights and
+player accomplishments, leaderboard movement, any schedule deadline … THE
+REPORT CAN INCLUDE EVERYTHING THE TOURNAMENT IS USING INCLUDING MONEY … the app
+should be able to produce that report and available in the report section
+(auto send is the next)". The approved mock was the layout; numbers are a
+figure and a sentence, never a chart.
+
+The same report, widened — not a second one. Four parts, each section drawn
+only when the tournament used that part of the app:
+
+| Section | Appears when | Read from |
+|---|---|---|
+| Flight winners | two or more flights | `flightStandings` (Prizes' and Today's reader) |
+| The draw | a knockout | the board's draws, with the margins on `BracketWinner` |
+| How it was won, place after each round | more than one round whose result is in the table | `weekViewFor` standings (`movementBetween`) per round; the Final column is the board's place |
+| Each round | more than one round | `roundOutcomesFor` / `resultLinesFor` |
+| Prizes and contests | a winner named | Prize rows; a contest's pot from `moneyFor` |
+| Highlights, In numbers | any card | `report-highlights.ts` over `roundStrokes`, each round on `state.strokeCourseFor` |
+| Best round | several rounds in one unit and length | each round's winner, from `roundOutcomesFor` |
+| Biggest climb | a climb of two places or more | the movement |
+| Skins | a club pot that is final | `skinsPotFor` (a provisional pot is left out, as `gameNets` leaves it out) |
+| Side games | a pot the cards settle, or a Nassau | `sidePotResults`, `nassauBoard` |
+| Entry fees and costs | a kitty, or shared costs | the fund (`floatSummary`), `moneyFor` expenses |
+| Settle-up | anything owed | `moneyFor(...).transfers` |
+| Coming up | a next round, a deadline, a club tournament taking entries, a pinned notice | the rounds' dates, `registrationStatus`, `Announcement.pinned` |
+
+What a card cannot say is left out rather than guessed: a shared-ball round
+(foursomes, a scramble) files a side's card with no player on it, so it gives no
+birdies to anybody; and only a STROKE round's cards make a lowest gross, a best
+nine, a run or a hardest hole — a four-ball partner picks up and a match
+concedes holes.
+
+**Who sees amounts** (decided by recommendation; the owner may change it): the
+organizer's copy in Reports and a signed-in player in the field (their own line
+first). The public link, signed out, names the winners only: no amounts, no
+costs, no settle-up, no pinned notices. One rule, `showsAmounts(audience)`, in
+`event-report-sections.ts`; `reportFor` defaults to the public copy.
+
+**Next: sending it.** The report is one `EventReport` value of strings, drawn by
+one component with one stylesheet, so an email can render the same value. Not
+built yet.
+
+Tests: `report-highlights.test.ts` and `report-movement.test.ts` (worked by
+hand); `final-report-reads-the-readers.audit.test.ts` (every section against
+its reader, and the public copy, rendered, holds no money);
+`e2e/final-report.spec.ts` (the organizer opens it from Reports; the public
+link shows winners without amounts).
+
 ## Tests owed
 
 - Unit: the champion line for a win, a tie and an unfinished event; gross and
