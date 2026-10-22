@@ -242,6 +242,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "It proves the address is yours. Nobody else can use it.",
       "Playing with a round code? You need no account and no code.",
       "Password refused as leaked? It was found in a leak elsewhere. Pick another.",
+      "Signed in on a new phone? We email you to say so. Not you? Reset your password.",
     ],
   },
   {
