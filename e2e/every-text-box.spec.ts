@@ -7,7 +7,7 @@ import { consoleScreens, playerScreens } from "./routes";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { TEXT_PARTS } from "../scripts/qa/layers.mjs";
-import { addBelongsToBox, newlyShown, refusalGap, spacedValue, type Shown } from "./text-box-reading";
+import { heldInstead, holdsTheSame, howItSaves, newlyShown, refusalGap, spacedValue, type Matched, type Shown } from "./text-box-reading";
 
 /**
  * EVERY TEXT BOX IS GIVEN EMPTY, OVER-LONG, BAD AND GOOD INPUT, AND READ BACK.
@@ -129,8 +129,8 @@ interface Box {
   numberType: boolean;
   /** How the box is saved, worked out the way a person would. */
   save: { how: "save" | "form" | "leave" | "skip"; label: string; why: string };
-  /** Where the "Add" it was matched to sits — see `addBelongsToBox`. */
-  addAt?: { followsTheBox: boolean; sameForm: boolean };
+  /** The Save or Add it was matched to, and where the two sit — see `howItSaves`. */
+  addAt?: Matched;
 }
 
 /** Words on a button that this crawl never presses. */
@@ -267,16 +267,25 @@ async function boxesOn(page: Page): Promise<Box[]> {
           if (pick) {
             const w = word(pick);
             const sameForm = !!el.closest("form") && el.closest("form") === pick.closest("form");
+            // Whether the button is really the box's is decided outside the page, by `howItSaves`
+            // (e2e/text-box-reading.ts), from where the two sit and whether the box acts when left.
+            const cardOf = (n: Element) => n.closest(".card, section");
+            const props = Object.entries(el).find(([k]) => k.startsWith("__reactProps"))?.[1] as { onBlur?: unknown } | undefined;
+            const where = {
+              followsTheBox: after.includes(pick),
+              sameForm,
+              sameCard: !!cardOf(el) && cardOf(el) === cardOf(pick),
+              actsOnLeave: typeof props?.onBlur === "function",
+            };
             if (NEVER.test(w)) {
               save = { how: "skip", label: w.slice(0, 40), why: OTHER.test(w) ? "destroys" : "sends" };
             } else if (SAVES.test(w)) {
               save = { how: "save", label: w.slice(0, 40), why: "" };
+              addAt = { how: "save", ...where };
               markSave(pick, nth);
             } else if (!el.value || sameForm) {
-              // Whether this Add is the box's form's is decided outside the page, by
-              // `addBelongsToBox` (e2e/text-box-reading.ts), from where it sits.
               save = { how: "form", label: w.slice(0, 40), why: "" };
-              addAt = { followsTheBox: after.includes(pick), sameForm };
+              addAt = { how: "form", ...where };
               markSave(pick, nth);
             }
             // Otherwise an Add beside a box that already holds something (a team's name beside
@@ -301,7 +310,7 @@ async function boxesOn(page: Page): Promise<Box[]> {
     },
     { never: NEVER.source, saves: SAVES.source, adds: ADDS.source, allowance: ALLOWANCE.source },
   ).then((boxes) =>
-    boxes.map((b) => (b.save.how === "form" && b.addAt && !addBelongsToBox(b.addAt) ? { ...b, save: { how: "leave" as const, label: "", why: "" } } : b)),
+    boxes.map((b) => (b.addAt && (b.save.how === "form" || b.save.how === "save") && howItSaves(b.addAt) === "leave" ? { ...b, save: { how: "leave" as const, label: "", why: "" } } : b)),
   );
 }
 
@@ -603,10 +612,9 @@ async function attempt(page: Page, path: string, was: Box, value: string, t: Try
     // THE BOX ITSELF SAID NO: it would not hold what was typed. That is a refusal made where the typing
     // is, and there is nothing to save. (Over-long input a box shortens is its limit doing its job; an
     // address box trims the spaces round an address as it is typed, which is the browser's own rule.)
-    if (typed !== value && typed !== value.trim() && !sabotage) {
-      if (t === "over-long") return { outcome: "cut", note: `the box itself took ${typed.length} of ${value.length} characters${b.maxLength > 0 ? ` (its limit is ${b.maxLength})` : ""}` };
-      if (t !== "good" && t !== "empty") return { outcome: "refused in view", note: `the box would not hold it: it reads "${short(typed)}"` };
-    }
+    const held = sabotage ? null : heldInstead(t, typed, value);
+    if (held === "cut") return { outcome: "cut", note: `the box itself took ${typed.length} of ${value.length} characters${b.maxLength > 0 ? ` (its limit is ${b.maxLength})` : ""}` };
+    if (held === "refused") return { outcome: "refused in view", note: t === "empty" ? `the box would not be emptied: it reads "${short(typed)}"` : `the box would not hold it: it reads "${short(typed)}"` };
     await page.waitForTimeout(150);
     const textTyped = await page.locator("main").innerText().catch(() => "");
 
@@ -822,11 +830,11 @@ async function restore(page: Page, path: string, b: Box, threw: string[]): Promi
   await open(page, path);
   const now = await find(page, b);
   if (!now) return { outcome: "not restored", note: "the box was not there to put back" };
-  if (now.value === b.value) return null;
+  if (holdsTheSame(b.kind, now.value, b.value)) return null;
   await attempt(page, path, b, b.value, "good", threw);
   await open(page, path);
   const back = await find(page, b);
-  if (!back || back.value !== b.value) return { outcome: "not restored", note: `it reads "${short(back?.value ?? "(gone)")}", and held "${short(b.value)}"` };
+  if (!back || !holdsTheSame(b.kind, back.value, b.value)) return { outcome: "not restored", note: `it reads "${short(back?.value ?? "(gone)")}", and held "${short(b.value)}"` };
   return null;
 }
 

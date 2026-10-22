@@ -1,23 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { addBelongsToBox, newlyShown, refusalGap, spacedValue } from "../../../e2e/text-box-reading";
+import { heldInstead, holdsTheSame, howItSaves, newlyShown, refusalGap, spacedValue, type Matched } from "../../../e2e/text-box-reading";
 import { readSource } from "./source";
 
 /**
  * THE TEXT-BOX CRAWL'S OWN READINGS, held where they can be held without a browser.
  *
- * The first three rounds of the crawl on GitHub (2026-10-21) reported eleven findings. Four were the
- * app's. Seven were the crawl reading a correct screen wrong, each in one of the four ways below —
- * and a finding the crawl invents is chased in the app, or teaches everybody to stop believing it.
- * Each case is the screen as it was measured that day.
+ * The first three rounds of the crawl on GitHub (2026-10-21) reported eleven findings, the same each
+ * time. One was the app's (`the-text-box-crawl-found.test.tsx`). Ten were the crawl reading a
+ * correct screen wrong, in the ways below — and a finding the crawl invents is chased in the app, or
+ * teaches everybody to stop believing it.
  */
 describe("how far a refusal is from the press", () => {
   it("is measured on the page: a refusal that scrolls itself into view is still beside its box", () => {
-    // Prizes, an amount box near the foot of the screen: measured at 740–776 before it was left,
-    // the refusal under it appeared below the fold and brought itself up by 300px.
+    // A box near the foot of the screen, measured at 740–776 before it was left; the refusal under
+    // it appears below the fold and brings itself up by 300px.
     const press = { top: 740, bottom: 776, scrollY: 0 };
     const refusal = { top: 478, bottom: 530, scrollY: 300 };
     expect(refusalGap(press, refusal)).toBe(2);
-    // The reading that called it 223px off: both taken as places on the screen.
+    // Read as two places on the screen, it is as far off as the page moved.
     expect(refusalGap({ ...press, scrollY: 0 }, { ...refusal, scrollY: 0 })).toBeGreaterThan(200);
   });
 
@@ -47,23 +47,86 @@ describe("whether what an Add form was given is on the screen afterwards", () =>
   });
 });
 
-describe("which form an Add button belongs to", () => {
-  it("an Add below the box, or in its form, is the box's", () => {
-    expect(addBelongsToBox({ followsTheBox: true, sameForm: false })).toBe(true);
-    expect(addBelongsToBox({ followsTheBox: false, sameForm: true })).toBe(true);
+describe("how a box is saved, once the nearest button has been found", () => {
+  const m = (over: Partial<Matched>): Matched => ({ how: "form", followsTheBox: true, sameForm: false, sameCard: true, actsOnLeave: false, ...over });
+
+  it("a box that saves as it is left is not another form's: the side games' stake and 'Add a sponsor'", () => {
+    // Every stake box saves when it is left. The nearest Add after it was a contest's "Add a sponsor",
+    // in the same card, which opens a form of its own.
+    expect(howItSaves(m({ how: "form", actsOnLeave: true }))).toBe("leave");
   });
 
-  it("an Add above the box and outside any form with it is not — the side games' 'Add a game'", () => {
-    // The stake boxes save as they are left; "Add a game" opens a contest's form at the card's head.
-    expect(addBelongsToBox({ followsTheBox: false, sameForm: false })).toBe(false);
+  it("nor another card's Save: a prize's amount and the skins pot's Save below it", () => {
+    expect(howItSaves(m({ how: "save", sameCard: false, actsOnLeave: true }))).toBe("leave");
+  });
+
+  it("an Add above a box, outside any form with it, is not the box's: the card's 'Add a game'", () => {
+    expect(howItSaves(m({ how: "form", followsTheBox: false }))).toBe("leave");
+  });
+
+  it("CONTROL: an Add form's own boxes, and a card's own Save, are still pressed", () => {
+    // Entries' "Add someone new": boxes that do nothing when left, the Add after them.
+    expect(howItSaves(m({ how: "form" }))).toBe("form");
+    // A form in a <form>, even where a box also checks itself when left.
+    expect(howItSaves(m({ how: "form", sameForm: true, actsOnLeave: true, followsTheBox: false }))).toBe("form");
+    // Club settings' name and its Save, in one card, whatever the box does when left.
+    expect(howItSaves(m({ how: "save" }))).toBe("save");
+    expect(howItSaves(m({ how: "save", actsOnLeave: true }))).toBe("save");
+    // A Save in another card, for a box that does nothing when left, is still the nearest Save.
+    expect(howItSaves(m({ how: "save", sameCard: false }))).toBe("save");
   });
 
   it("the crawl decides with it, outside the page", () => {
     const spec = readSource("e2e/every-text-box.spec.ts");
-    expect(spec).toContain("addAt = { followsTheBox: after.includes(pick), sameForm };");
-    expect(spec).toMatch(/b\.save\.how === "form" && b\.addAt && !addBelongsToBox\(b\.addAt\)/);
+    expect(spec).toContain("actsOnLeave: typeof props?.onBlur === \"function\",");
+    expect(spec).toContain('addAt = { how: "save", ...where };');
+    expect(spec).toContain('addAt = { how: "form", ...where };');
+    expect(spec).toMatch(/howItSaves\(b\.addAt\) === "leave"/);
     expect(spec).toMatch(/refusalGap\(press, c\)/);
     expect(spec).toMatch(/newlyShown\(v, shownBefore, shownAfter\)/);
+  });
+});
+
+describe("a box that will not hold what was typed has said no, where the typing was", () => {
+  it("emptied and reading its figure again at once: Rounds & formats' 'How many?'", () => {
+    // Emptied, it reads "1" before anything is left or pressed: nothing to send, the refusal is the box.
+    expect(heldInstead("empty", "1", "")).toBe("refused");
+    expect(heldInstead("bad: letters", "1", "-1")).toBe("refused");
+    expect(heldInstead("over-long", "zzxx", "zzxxxxxxxx")).toBe("cut");
+  });
+
+  it("CONTROL: a box holding what was typed, or a good value the box reshaped, is not a refusal", () => {
+    expect(heldInstead("empty", "", "")).toBeNull();
+    expect(heldInstead("bad: spaces", "zz sp", "  zz sp  ")).toBeNull();
+    // A good value is read back after the save, by `judge`.
+    expect(heldInstead("good", "10.00", "10")).toBeNull();
+  });
+
+  it("the crawl reads every try with it, the empty one included", () => {
+    const spec = readSource("e2e/every-text-box.spec.ts");
+    expect(spec).toContain("const held = sabotage ? null : heldInstead(t, typed, value);");
+    expect(spec).not.toContain('t !== "good" && t !== "empty"');
+  });
+});
+
+describe("whether a box was put back as it was", () => {
+  it("a figure that held nothing and reads nought holds the same thing", () => {
+    // A side game's stake: "" before any game, "0.00" once the game made and emptied is still there.
+    expect(holdsTheSame("figure", "0.00", "")).toBe(true);
+    expect(holdsTheSame("figure", "40.00", "40")).toBe(true);
+    expect(holdsTheSame("figure", "12,5", "12.5")).toBe(true);
+  });
+
+  it("CONTROL: a figure that is not nought, a word box, and junk are not the same as empty", () => {
+    expect(holdsTheSame("figure", "10.00", "")).toBe(false);
+    expect(holdsTheSame("words", "0", "")).toBe(false);
+    expect(holdsTheSame("name", "zz-Club", "zz-Club zz")).toBe(false);
+    expect(holdsTheSame("figure", "abc", "")).toBe(false);
+  });
+
+  it("the crawl's putting back reads with it", () => {
+    const spec = readSource("e2e/every-text-box.spec.ts");
+    expect(spec.match(/holdsTheSame\(b\.kind, (now|back)\.value, b\.value\)/g)?.length).toBe(2);
   });
 });
 

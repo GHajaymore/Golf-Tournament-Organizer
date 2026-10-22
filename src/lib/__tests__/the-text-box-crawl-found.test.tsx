@@ -28,10 +28,12 @@ vi.mock("@/app/actions/event", actionModule);
  * WHAT THE TEXT-BOX CRAWL FOUND IN THE APP, held without the crawl (2026-10-21).
  *
  * The first three rounds of `e2e/every-text-box.spec.ts` on GitHub reported eleven findings, the same
- * eleven each time. Seven were the crawl reading a correct screen wrong (`text-box-reading.test.ts`).
- * These are the four that were the app's — each the screen as a person meets it, rendered here so a
- * test that needs no browser fails the day it comes back. The doors a home club comes in by are
- * `a-home-club-reaches-the-entry.audit.test.ts`.
+ * eleven each time. Ten were the crawl reading a correct screen wrong (`text-box-reading.test.ts`).
+ * One was the app's: the home club below. And one more was seen while proving the stake boxes'
+ * findings the crawl's: every one was named "Stake", so nothing — a screen reader, or the crawl after
+ * a save had moved the row — could tell which game a box was the stake of. Each is the screen as a
+ * person meets it, held here so a test that needs no browser fails the day it comes back. The doors
+ * a home club comes in by are `a-home-club-reaches-the-entry.audit.test.ts`.
  */
 const render = (el: ReactElement) => renderToStaticMarkup(el);
 
@@ -61,7 +63,8 @@ describe("Entries shows the home club its Add form took", () => {
     expect(html).toMatch(/zz-Ann Visitor(?:(?!<\/td>).)*zz-Braeside Golf Club/s);
     // CONTROL: the player with no home club has no empty line drawn under the name.
     expect(html).not.toMatch(/zz-Rob Member(?:(?!<\/td>).)*class="text-muted"/s);
-  });
+    // The first import of the screen is a few seconds on a busy machine.
+  }, 30_000);
 
   it("the screen hands the home club to every list it draws", () => {
     const page = readSource("src/app/(app)/registration/page.tsx");
@@ -85,18 +88,5 @@ describe("every side game's stake box says which game it is the stake of", () =>
     const boxes = (html.match(/<input[^>]*placeholder="0.00"/g) ?? []).length;
     expect(boxes).toBeGreaterThanOrEqual(5);
     expect(names.length).toBe(boxes);
-  });
-});
-
-describe("Rounds & formats: 'How many?' says again how many will be added when it is left empty", () => {
-  it("the box puts back the figure Add will use", () => {
-    // A number box React does not redraw while its figure is unchanged: emptied, it read blank while
-    // "Add" would make one round. A server render cannot leave a box, so this reads the box's handler.
-    const src = readSource("src/components/StagesClient.tsx");
-    const at = src.indexOf('aria-label="How many rounds to add"');
-    expect(at, "the box is not there to read").toBeGreaterThan(0);
-    const box = src.slice(src.lastIndexOf("<input", at), at);
-    expect(box).toMatch(/value=\{howMany\}/);
-    expect(box).toMatch(/onBlur=\{\(e\) => \{\s*if \(e\.target\.value !== String\(howMany\)\) e\.target\.value = String\(howMany\);\s*\}\}/);
-  });
+  }, 30_000);
 });
