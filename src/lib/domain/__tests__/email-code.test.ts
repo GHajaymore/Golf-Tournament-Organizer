@@ -113,6 +113,7 @@ describe("the words are the panel's", () => {
       wrong: "That code isn't right. Check it, or send a new one.",
       expired: "That code has expired. Send a new one.",
       "too-many": "Too many tries. Send a new code to carry on.",
+      today: "Too many tries for this address today. Try again tomorrow.",
     });
     expect(throttleMessage("email-code-send", 240)).toBe(
       "We've sent three codes in the last few minutes. You can ask for another in 4 minutes.",
