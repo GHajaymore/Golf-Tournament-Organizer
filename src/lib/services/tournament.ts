@@ -638,6 +638,13 @@ export interface EventState {
    */
   strokeStandingsOn: (basis: "gross" | "net") => StrokeStanding[];
   /**
+   * The one figure `strokeStandings` is ordered on — the board's own
+   * `rankingBasis`. A reader that PRINTS a total beside the board's places
+   * prints it on this, or the column it prints cannot be read down
+   * (`standingsThroughRound`).
+   */
+  strokeRankingBasis: RankingBasis;
+  /**
    * Players withdrawn after they began, as WD rows — NOT part of the field,
    * so not in `strokeStandings`. Only the printed sheet adds them.
    */
@@ -2966,6 +2973,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     cutReady,
     strokeStandings,
     strokeStandingsOn,
+    strokeRankingBasis: rankingBasis,
     withdrawnStandings,
     strokeUnit,
     // Only "strokes" is ambiguous; points name themselves. Derived once above,

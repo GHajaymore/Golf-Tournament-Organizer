@@ -30,6 +30,7 @@ import {
 } from "../domain/week-basis";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { formattingForEvent } from "./organization";
+import { standingsThroughRound } from "./standings-through";
 
 /**
  * One week of a league, gathered in the order a member reads it.
@@ -520,11 +521,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   // as though this one had been counted.
   const standings = manual
     ? []
-    : await standingsWithMovement(state, weeks, idx, cards, {
-        holeDifficulty,
-        handicapFor,
-        basis,
-      });
+    : await standingsWithMovement(state, weeks, idx, { holeDifficulty });
   /**
    * Does this week's result reach the season table?
    *
@@ -534,10 +531,10 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * of it, phrased as `type === "Round Robin"`, is how the heading would come
    * to disagree with the rows underneath it the next time either changes.
    *
-   * A stroke league sums every counted week, so all of them feed it.
+   * A stroke season is the board through each week, so all of them feed it.
    */
   //
-  // AND A TEAM NIGHT REACHES NEITHER. `standingsWithMovement` sums individual
+  // AND A TEAM NIGHT REACHES NEITHER. The stroke board ranks individual
   // cards, which a side's round does not file, so a foursomes week contributes
   // nothing to the table however the league is scored — and the heading would
   // have said "after this week" over a column of dashes, which is the fault
@@ -631,22 +628,17 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
  * Cumulative standings through a given week, and the same through the week
  * before it, reduced to a position and a change.
  *
- * Match-play leagues already have this chained for them; stroke leagues are
- * summed here from the same aggregator, cards filtered by which weeks count.
+ * Match-play leagues already have this chained for them; a stroke season is
+ * the board's own table through each week (`standingsThroughRound`).
  */
 async function standingsWithMovement(
   state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>,
-  // `format` too, because summing several weeks means each of them chooses
-  // its own Stableford table.
-  weeks: Array<{ id: string; format: string }>,
+  weeks: Array<{ id: string }>,
   idx: number,
-  cards: Array<{ playerId: string; stageId: string; strokes: string }>,
   opts: {
-    // No `pars`: the stroke card comes from `state.strokeCourseFor`, per round.
-    // This one is the match-play tiebreak order, which is an event-level chain.
+    // The match-play tiebreak order, which is an event-level chain. A stroke
+    // season's cards are the board's business, per round.
     holeDifficulty: number[];
-    handicapFor: (playerId: string, stageId: string) => number;
-    basis: WeekBasis;
   },
 ): Promise<WeekRow[]> {
   const nameOf = new Map(state.confirmed.map((p) => [p.id, p.name]));
@@ -720,41 +712,28 @@ async function standingsWithMovement(
     );
   }
 
-  const through = (n: number) => {
-    const ids = new Set(weeks.slice(0, n + 1).map((s) => s.id));
-    const agg = aggregateStroke(parseStrokeCards(cards.filter((c) => ids.has(c.stageId))), {
-      // Per stage, and here it matters twice over: this totals SEVERAL weeks,
-      // so one card for all of them is wrong the moment a season plays two
-      // venues or mixes a nine among the eighteens.
-      courseFor: state.strokeCourseFor,
-      handicapFor: opts.handicapFor,
-      holeStrokesReceived,
-      // Per week, because this totals several of them and a league can run a
-      // modified round among ordinary ones.
-      stablefordPointsForHole: stablefordTableFor(
-        (stageId) => weeks.find((w) => w.id === stageId)?.format,
-        stablefordPointsForHole,
-        modifiedStablefordForHole,
-      ),
-      allocationHoles,
-    });
-    return state.confirmed
-      .map((p) => {
-        const a = agg.get(p.id) ?? emptyAgg();
-        return {
-          playerId: p.id,
-          name: p.name,
-          // The season total is on the same figure the night was decided on,
-          // or the table under the sheet ranks the league on something the
-          // round was never set to.
-          value: valueOnBasis(opts.basis, { gross: a.gross, net: netOf(a), points: a.points }),
-          thru: a.thru,
-        };
-      })
-      .filter((r) => r.thru > 0);
-  };
-
+  /**
+   * A STROKE SEASON'S TABLE IS THE BOARD, RANKED THROUGH THAT WEEK.
+   *
+   * This added up whatever cards each player held through the week and ranked
+   * the totals. On a stroke basis that ranked anybody with FEWER rounds above
+   * everybody with more: the seeded Club Championship's "standings after round
+   * 2" were led by the twelve who missed the cut, on one round's gross, and a
+   * stroke league member who skipped a week went top for it. The board never
+   * did — it ranks against par for the holes played, unranks a missed cut and
+   * a missed closed round, and breaks a tie by countback — so the sheet and the
+   * board named different leaders of one tournament.
+   *
+   * Now it asks the board (`standingsThroughRound`) for both weeks, so the
+   * places, the countback and who holds a place at all are the board's, and the
+   * movement is the difference between two of the board's own tables. The
+   * figure is the board's too (`strokeRankingBasis`): the night's basis was
+   * used here, and in a season where the two differ the totals would not have
+   * run in the order of the places beside them.
+   */
+  const at = (n: number) => (n >= 0 && weeks[n] ? standingsThroughRound(state.event.id, weeks[n].id) : null);
+  const [after, before] = await Promise.all([at(idx), at(idx - 1)]);
+  if (!after) return [];
   // Stableford totals rank high-to-low; strokes low-to-high.
-  const dir = directionOnBasis(opts.basis);
-  return movementBetween(through(idx), idx > 0 ? through(idx - 1) : [], dir);
+  return movementBetween(after.rows, before?.rows ?? [], directionOnBasis(after.basis));
 }
