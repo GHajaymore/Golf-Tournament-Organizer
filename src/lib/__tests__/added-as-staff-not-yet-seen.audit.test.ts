@@ -44,6 +44,7 @@ vi.mock("@/lib/email", () => ({
 
 import { hashPassword, sign } from "@/lib/auth";
 import { sessionValue } from "@/lib/domain/session-token";
+import { hashBrowserValue } from "@/lib/domain/email-code-hash";
 import { addOrganizationMember, leaveOrganization, setOrganizationMemberRole } from "@/app/actions/organization";
 import { signInWithPassword, enterTournament } from "@/app/actions/auth";
 import { organizationAccessReport } from "@/lib/services/access";
@@ -127,6 +128,11 @@ describe("adding somebody as staff by their address", () => {
 
   it("names them once they have signed in", async () => {
     jar.clear();
+    // On a browser they have used before: staff on a NEW one are asked for an
+    // emailed code first (a-new-device-proves-itself), which is not this test.
+    const stranger = await prisma.user.findUniqueOrThrow({ where: { email: at("stranger") } });
+    jar.set("ng_device", `${MARK}-their-laptop`);
+    await prisma.knownDevice.create({ data: { userId: stranger.id, deviceHash: hashBrowserValue(`${MARK}-their-laptop`) } });
     await signInWithPassword(at("stranger"), PASSWORD);
     const seen = await row("stranger");
     expect(seen!.name).toBe(SECRET_NAME);
