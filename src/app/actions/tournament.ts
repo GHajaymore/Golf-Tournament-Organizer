@@ -56,7 +56,8 @@ import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor, fieldCapFor, seatRefusalFor } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
-import { WIPE_ON_CLOSE, roundWindowRefusal } from "@/lib/domain/close-terms";
+import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal } from "@/lib/domain/close-terms";
+import { dayAtClubForEvent } from "@/lib/services/club-clock";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
@@ -4497,12 +4498,23 @@ export async function setEventStatus(
   // A status is moved, not set: see `statusMove` for the three things that
   // followed from writing whatever arrived, an unknown word read as "draft"
   // among them.
-  const current = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true } });
+  const current = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, closesAt: true } });
   if (!current) return { ok: false, error: "That tournament no longer exists." };
   const move = statusMove(current.status, status);
   if (move.kind === "refuse") return { ok: false, error: move.error };
   if (move.kind === "launch") return launchTournament();
   const s = status;
+  /**
+   * A COMPLETED PAR TOURNAMENT IS READ-ONLY (Ajay, 2026-10-21): it stays open to view for fifteen
+   * days and is then deleted. Reopening it would be a way round the fifteen days, so it is refused
+   * — upgrading lifts it, because `wipesOnClose` no longer holds for a paid plan.
+   */
+  if (current.status === "completed" && s !== "completed" && (await wipesOnCloseFor(eventId))) {
+    // An instant, worded as the day it is at the club (`dayAtClubForEvent`).
+    const words = current.closesAt ? (await dayAtClubForEvent(eventId))(current.closesAt) : null;
+    const refusal = reopenRefusal({ planTermsApply: true, plan: "free", shape: "stroke" }, words);
+    if (refusal) return { ok: false, error: refusal };
+  }
   /**
    * FINISHING IS A STATEMENT, not a tidy-up.
    *
@@ -4534,12 +4546,19 @@ export async function setEventStatus(
      * rather than trusted to have asked it. Checked after `finishRefusal`, so a
      * tournament with cards still disputed is never deleted as "finished".
      */
+    /**
+     * …AND SINCE 2026-10-21 COMPLETING KEEPS IT, READ-ONLY, FOR FIFTEEN DAYS (Ajay: "keep it for 15
+     * days"). Deleting it on the spot took the link the members had just been sent, and the
+     * settle-up, at prize-giving. Completing now stamps `closesAt` fifteen days on
+     * (`closesAtOnComplete`), and the daily sweep (`sweepClosedPar`) deletes it then. Still asked
+     * first: the organizer is told when it goes.
+     */
     if (await wipesOnCloseFor(eventId)) {
       if (!confirmDelete) return { ok: false, needsDeleteConfirm: true, error: WIPE_ON_CLOSE };
-      const session = await getSession();
-      if (!session) return { ok: false, error: "Not signed in." };
-      await prisma.event.delete({ where: { id: eventId } }); // cascades to all children
-      await landAfterDeleting(session);
+      await prisma.event.update({
+        where: { id: eventId },
+        data: { closesAt: closesAtOnComplete(current.closesAt) },
+      });
     }
   }
   // Stamp the completion time, because on a free plan it starts the clock the

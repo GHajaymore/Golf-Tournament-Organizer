@@ -169,7 +169,11 @@ export function casualKeepRefusal(
   return `On the free ${PLANS.free.name} plan a casual round is kept for 24 hours. Upgrade to ${PLANS.society.name} to keep it for good.`;
 }
 
-/** What the organizer is told before they complete a tournament that this deletes. */
+/**
+ * What the organizer is told before they complete a tournament on the Par terms. Completing no
+ * longer deletes it on the spot (Ajay, 2026-10-21): it stays open to view, read-only, for
+ * KEPT_AFTER_COMPLETE_DAYS, and is deleted after that. Worded with the terms draft's own sentence.
+ */
 export const WIPE_ON_CLOSE =
-  `On the free ${PLANS.free.name} plan, completing a tournament deletes it for good — entries, cards, results, prizes and money. ` +
-  "Nobody can open it afterwards, not you and not the players. Download anything you want to keep from Reports first.";
+  `On the free ${PLANS.free.name} plan, a completed tournament's board, results and settle-up stay open to view, read-only, for ${KEPT_AFTER_COMPLETE_DAYS} days. ` +
+  "After that it is deleted for good — entries, cards, results, prizes and money. Download anything you want to keep from Reports before then, or move to a paid plan to keep it.";

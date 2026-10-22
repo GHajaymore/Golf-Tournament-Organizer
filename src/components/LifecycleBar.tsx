@@ -295,7 +295,7 @@ export function LifecycleBar({
             aria-describedby="complete-delete-body"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="dialog-title" id="complete-delete-title">Complete and delete “{summary.name}”?</div>
+            <div className="dialog-title" id="complete-delete-title">Complete “{summary.name}”?</div>
             <div className="dialog-body" id="complete-delete-body">
               {/* The upgrade FIRST, before the terms and the delete button —
                   asked before anything goes, never after. */}
@@ -315,9 +315,9 @@ export function LifecycleBar({
               {WIPE_ON_CLOSE}
             </div>
             <div className="dialog-actions">
-              {/* Completing deletes it, so the report can only be kept by
-                  opening it first — to print, or save as a PDF (Ajay,
-                  2026-10-19: "go with your recommendations"). */}
+              {/* Completing starts the fifteen days after which it is deleted
+                  (Ajay, 2026-10-21), so the report is offered here to keep —
+                  to print, or save as a PDF (2026-10-19). */}
               <Link className="btn btn-secondary" href="/reports/final">
                 <Icon name="trophy" /> Open the final report
               </Link>
@@ -331,15 +331,15 @@ export function LifecycleBar({
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
-                    // On success the action deletes and redirects, so nothing
-                    // after it runs; a refusal (a disputed card) comes back here.
+                    // Completes it and starts its fifteen days, read-only; a
+                    // refusal (a disputed card) comes back here.
                     const res = await setEventStatus("completed", true);
                     setConfirmingDelete(false);
                     if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
                   })
                 }
               >
-                <Icon name="trash" /> Complete and delete
+                <Icon name="check-circle" /> Complete it
               </button>
             </div>
           </div>

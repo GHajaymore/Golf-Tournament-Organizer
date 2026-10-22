@@ -514,7 +514,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "**Final report**, on Reports & export, is the whole tournament on one page to send round: the champion, the story, the format and field, the full leaderboard with gross and net, and who won the prizes. A tie for first is shown as shared — the committee settles it. Write **The story** yourself and [[Save the story]], or leave it and the report tells it from the results. Once the tournament is complete, the public leaderboard and the players' Board link to it.",
         ],
       },
-      { kind: "warn", text: "**On the free Par plan** completing a tournament deletes it. The dialog offers [[Open the final report]] — then [[Print or save as PDF]] to keep it — and [[Go to Reports]] to export first, or an upgrade to keep it. A Par tournament is also removed 14 days after its first round." },
+      { kind: "warn", text: "**On the free Par plan** a completed tournament stays open to view, read-only, for 15 days, and is then deleted for good. The dialog offers [[Open the final report]] — then [[Print or save as PDF]] to keep it — and [[Go to Reports]] to export first, or an upgrade to keep it. It cannot be reopened in those 15 days without an upgrade. A Par tournament is also removed 14 days after its first round if nobody completes it." },
     ],
   },
   {
