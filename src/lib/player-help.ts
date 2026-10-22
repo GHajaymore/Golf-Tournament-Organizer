@@ -241,6 +241,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Nothing came? Check your spam folder, or press Send a new code.",
       "It proves the address is yours. Nobody else can use it.",
       "Playing with a round code? You need no account and no code.",
+      "Password refused as leaked? It was found in a leak elsewhere. Pick another.",
     ],
   },
   {
