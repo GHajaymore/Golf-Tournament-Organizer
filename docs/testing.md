@@ -147,6 +147,14 @@ and `-3` for the second and third of a count; the number decides which three cou
 visits), or use *Run workflow* on the **Round** workflow. The verdict and the table are the run's
 summary. Three rounds can be asked for at once.
 
+**Reading what a part found.** The verdict lists every finding a part printed, not only the line
+saying it failed — each of the text-box crawl's, by share. Each machine's own files are an artifact
+named `part-<id>`, and inside it every file of the part's own is named by the part
+(`.qa/rounds/<tag>/text-boxes-2of3.log`, `…-kept/` with the crawl's ledger of every try,
+`summary-text-boxes-2of3.md`), so two parts fetched into one folder do not overwrite each other
+(`partFile` in `layers.mjs`; until 2026-10-21 three shares wrote one `text-boxes.log`). Fetch
+them one artifact to a folder with a short path: `gh run download <run> -n part-<id> -D <dir>`.
+
 **On one machine** — for one layer, or when a part needs looking at:
 
 ```bash
@@ -301,7 +309,7 @@ A change is not finished until the tests know about it. What to add, by what was
 | An allowance, a share, any percentage of a handicap | Take it with `playingHandicapFrom(exact, pct)`, of the figure BEFORE rounding (`CourseHandicaps.exact`, `resolveRoundHandicap().exact`, a side member's `handicapExact`). The sweep in `allowance-is-taken-of-the-exact-figure.test.ts` reads every caller and refuses the arithmetic written out by hand. |
 | A block inside an answer or a page that shares the landing chrome | A rule for its class in `lib/landing/styles.ts` (`landing-answers-are-dressed.test.ts` refuses a class with none), and a look at it OPEN in a browser: `e2e/faq-blocks.spec.ts` measures the three the questions page has. |
 | Anything in the seeded club (`scripts/seed-club.mjs`), or a control on a console screen | Before a round, the crawl, locally: `E2E_EVERYTHING=1 npx playwright test e2e/every-control.spec.ts e2e/everything.spec.ts --project=desktop`. The ordinary local run leaves it out because it takes most of an hour, and it is the one layer that reads every control on every seeded tournament. Putting the seeded club on a paid plan unlocked one tick-box, the crawl lost track of it, and a round of thirty-four parts was spent finding that out (2026-10-13). `E2E_ONLY_EVENT=<slug> E2E_ONLY_SCREEN=<name>` narrows it to one screen in a few minutes. |
-| A text box | Nothing new: the text-box crawl finds it. Run its share locally before a round: `E2E_EVERYTHING=1 E2E_TEXT_BOXES=1 npx playwright test e2e/every-text-box.spec.ts --project=desktop` (add `--shard=k/6` for one share, `E2E_TEXT_SHARES=1` for the whole crawl as one test, `E2E_ONLY_SCREEN` / `E2E_ONLY_BOX` to narrow it, `E2E_TEXT_INVENTORY=1` to list the boxes without typing). Give the box a `maxLength` where the server keeps only so many characters, or the crawl reports it **cut silently**; say a refusal beside the press, or it reports **refused out of view**. |
+| A text box | Nothing new: the text-box crawl finds it. Run its share locally before a round: `E2E_EVERYTHING=1 E2E_TEXT_BOXES=1 npx playwright test e2e/every-text-box.spec.ts --project=desktop` (add `--shard=k/6` for one share, `E2E_TEXT_SHARES=1` for the whole crawl as one test, `E2E_ONLY_SCREEN` / `E2E_ONLY_BOX` to narrow it, `E2E_TEXT_INVENTORY=1` to list the boxes without typing). Give the box a `maxLength` where the server keeps only so many characters, or the crawl reports it **cut silently**; say a refusal beside the press, or it reports **refused out of view**. Where the crawl reports a fault on a screen that is right, prove it from the screen and fix how it READS (`e2e/text-box-reading.ts`, with a case in `text-box-reading.test.ts`): ten of its first eleven findings were its own. |
 | Anything on the front door | `await landingSettled(page)` before measuring or pressing: the page grows by thousands of pixels when its script starts (`e2e/landing-settled.ts`). |
 | A kind of file nothing here names | A line in `TIER_RULES`. Until then it is treated as core, which is the safe mistake. |
 
