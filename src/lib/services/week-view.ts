@@ -22,7 +22,6 @@ import { skinsBoard, nassauBoard, type SkinsBoard, type NassauMatchRow } from ".
 import { teamStandings, type TeamStanding } from "./teams";
 import {
   weekBasis,
-  valueOnBasis,
   directionOnBasis,
   compareNight,
   nightLevel,
