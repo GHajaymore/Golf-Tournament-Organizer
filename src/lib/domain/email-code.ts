@@ -1,4 +1,6 @@
-import { SUPPORT_EMAIL } from "@/lib/contact";
+// Relative, not "@/": the e2e specs import this file (through rate-limit.ts and
+// the code helper), and they run outside the app's path aliases.
+import { SUPPORT_EMAIL } from "../contact";
 
 /**
  * PROVING AN ADDRESS (2026-10-21, Ajay: "go for email verification").
