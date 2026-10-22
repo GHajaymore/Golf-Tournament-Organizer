@@ -86,6 +86,7 @@ import { Icon } from "./Icon";
 import { countbackSegments } from "@/lib/domain/stroke-countback";
 import { useFormatting } from "./CurrencyProvider";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 export interface StageView {
   id: string;
@@ -2977,6 +2978,7 @@ export function StagesClient({
               // LEFT EMPTY, IT SAYS AGAIN HOW MANY WILL BE ADDED. An emptied box is read as one,
               // and React does not redraw a number box whose figure has not changed — so it sat
               // blank while Add would make one round, nothing said (the text-box crawl, 2026-10-21).
+              onKeyDown={leaveOnEnter}
               onBlur={(e) => {
                 if (e.target.value !== String(howMany)) e.target.value = String(howMany);
               }}
