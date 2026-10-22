@@ -98,8 +98,16 @@ function moneyActions(): Array<{ name: string; file: string; body: string; write
       const end = i + 1 < starts.length ? starts[i + 1].at : src.length;
       const body = src.slice(starts[i].at, end);
       const writes: string[] = [];
+      /**
+       * Through the client OR a transaction's (`tx.`). Found 2026-10-21: the
+       * one-prize rule moved `setPrizeWinner`'s write inside a locked
+       * transaction, and the sweep's control lost it — a write it could not
+       * see is a write it would have passed unaudited.
+       */
       for (const model of MONEY_MODELS) {
-        for (const w of WRITES) if (body.includes(`prisma.${model}.${w}(`)) writes.push(`${model}.${w}`);
+        for (const w of WRITES) {
+          if (body.includes(`prisma.${model}.${w}(`) || body.includes(`tx.${model}.${w}(`)) writes.push(`${model}.${w}`);
+        }
       }
       if (writes.length) found.push({ name: starts[i].name, file, body, writes });
     }

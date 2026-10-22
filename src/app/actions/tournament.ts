@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { prizeStructure, prizeStructureLines } from "@/lib/domain/prize-structures";
+import { looksLikeSkillPrize, onePrizeRefusal, onePrizeTickRefusal, type PrizeHolding } from "@/lib/domain/one-prize";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { oneCardPerSide, teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { prisma } from "@/lib/db";
@@ -4624,6 +4625,9 @@ export async function addPrize(category: string, amount: number, detail = "") {
       detail: detail.trim(),
       amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
       position: (agg._max.position ?? 0) + 1,
+      // A line typed by hand counts toward one prize per player unless its
+      // name says it is a skill prize — switchable on the row.
+      countsForOnePrize: !looksLikeSkillPrize(clean),
     },
   });
   await logAudit(eventId, "prize.add", `${clean}${amount > 0 ? ` — ${amount}` : ""}`);
@@ -4651,7 +4655,10 @@ export async function updatePrize(prizeId: string, data: { category?: string; de
   await refresh();
 }
 
-export async function setPrizeWinner(prizeId: string, winnerId: string): Promise<{ ok: boolean; error?: string }> {
+export async function setPrizeWinner(
+  prizeId: string,
+  winnerId: string,
+): Promise<{ ok: boolean; error?: string; choose?: boolean }> {
   const eventId = await requireStaffEvent();
   /**
    * A PRIZE GOES TO SOMEBODY IN THE FIELD, AND THE RECORD NAMES THEM
@@ -4667,12 +4674,127 @@ export async function setPrizeWinner(prizeId: string, winnerId: string): Promise
     ? await prisma.player.findFirst({ where: { id, eventId }, select: { name: true } })
     : null;
   if (id && !awardedTo) return { ok: false, error: "A prize goes to somebody in this tournament's field." };
-  const moved = await prisma.prize.updateMany({
-    where: { id: prizeId, eventId },
-    data: { winnerId: id || null },
+  /**
+   * ONE PRIZE PER PLAYER IS KEPT HERE, where the award is saved — not only in
+   * the picker, which is a guard a later screen could forget to draw
+   * (2026-10-21). Read and written under a lock on the tournament's row, so two
+   * awards pressed at once on two phones cannot both see the player holding
+   * nothing. `choose` tells the screen the remedy is another name, not a reload.
+   */
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockEventForPrizes(tx, eventId);
+    const event = await tx.event.findUnique({ where: { id: eventId }, select: { onePrizePerPlayer: true } });
+    const holdings = await prizeHoldings(tx, eventId);
+    if (!holdings.some((p) => p.id === prizeId)) return { ok: false, error: "That prize isn't in this tournament." };
+    const refusal = onePrizeRefusal({
+      on: !!event?.onePrizePerPlayer,
+      prizes: holdings,
+      prizeId,
+      playerId: id,
+      playerName: awardedTo?.name ?? "",
+    });
+    if (refusal) return { ok: false, error: refusal, choose: true };
+    await tx.prize.updateMany({ where: { id: prizeId, eventId }, data: { winnerId: id || null } });
+    return { ok: true };
   });
-  if (moved.count === 0) return { ok: false, error: "That prize isn't in this tournament." };
+  if (!outcome.ok) return outcome;
   await logAudit(eventId, "prize.winner", awardedTo ? `Awarded to ${awardedTo.name}` : "Winner cleared");
+  await refresh();
+  return { ok: true };
+}
+
+type PrizeTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/** Every award on the tournament's prize list, as the rule reads it. */
+async function prizeHoldings(tx: PrizeTx, eventId: string): Promise<PrizeHolding[]> {
+  const rows = await tx.prize.findMany({
+    where: { eventId },
+    orderBy: { position: "asc" },
+    select: { id: true, category: true, winnerId: true, countsForOnePrize: true },
+  });
+  return rows.map((r) => ({ id: r.id, category: r.category, winnerId: r.winnerId, counts: r.countsForOnePrize }));
+}
+
+/** One writer at a time on a tournament's awards and its one-prize rule. */
+async function lockEventForPrizes(tx: PrizeTx, eventId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
+}
+
+/** Players' names for a refusal that names them. */
+async function prizeWinnerNames(eventId: string, ids: string[]): Promise<Map<string, string>> {
+  const rows = await prisma.player.findMany({ where: { eventId, id: { in: ids } }, select: { id: true, name: true } });
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+/**
+ * The tick-box "One prize per player", on Prizes.
+ *
+ * TICKING IT WHILE SOMEBODY HOLDS TWO COUNTING PRIZES IS REFUSED, naming who and
+ * what. Ticking it anyway and listing the clash would leave the tournament in a
+ * state its own rule says cannot exist — the report would name one player for
+ * two placings under a line saying one prize per player — and nothing would say
+ * which of the two awards the rule meant to undo. That is the committee's
+ * choice, so the tick waits for them to clear one; nothing changes silently.
+ * Unticking is never refused.
+ */
+export async function setOnePrizePerPlayer(on: boolean): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const want = on === true;
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockEventForPrizes(tx, eventId);
+    if (want) {
+      const holdings = await prizeHoldings(tx, eventId);
+      const names = await prizeWinnerNames(eventId, holdings.flatMap((p) => (p.winnerId ? [p.winnerId] : [])));
+      const refusal = onePrizeTickRefusal(holdings, (pid) => names.get(pid) ?? "");
+      if (refusal) return { ok: false, error: refusal };
+    }
+    await tx.event.update({ where: { id: eventId }, data: { onePrizePerPlayer: want } });
+    return { ok: true };
+  });
+  if (!outcome.ok) return outcome;
+  await logAudit(eventId, "prize.rule", want ? "One prize per player: on" : "One prize per player: off");
+  await refresh();
+  return { ok: true };
+}
+
+/**
+ * Whether one line counts toward one prize per player — the switch on its row.
+ *
+ * Switching a line ON is refused where it would give its winner a second
+ * counting prize, for the reason the tick above is: the rule must never be
+ * found already broken.
+ */
+export async function setPrizeCounts(prizeId: string, counts: boolean): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const want = counts === true;
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockEventForPrizes(tx, eventId);
+    const event = await tx.event.findUnique({ where: { id: eventId }, select: { onePrizePerPlayer: true } });
+    const holdings = await prizeHoldings(tx, eventId);
+    const prize = holdings.find((p) => p.id === prizeId);
+    if (!prize) return { ok: false, error: "That prize isn't in this tournament." };
+    if (want && event?.onePrizePerPlayer && prize.winnerId) {
+      const names = await prizeWinnerNames(eventId, [prize.winnerId]);
+      const refusal = onePrizeRefusal({
+        on: true,
+        prizes: holdings.map((p) => (p.id === prizeId ? { ...p, counts: true } : p)),
+        prizeId,
+        playerId: prize.winnerId,
+        playerName: names.get(prize.winnerId) ?? "",
+      });
+      if (refusal) {
+        const held = holdings.find((p) => p.id !== prizeId && p.counts && p.winnerId === prize.winnerId);
+        return {
+          ok: false,
+          error: `${names.get(prize.winnerId) ?? "Its winner"} already has ${held?.category ?? "a prize that counts"}, so ${prize.category} can't count as well. Clear one of the two awards first.`,
+        };
+      }
+    }
+    await tx.prize.updateMany({ where: { id: prizeId, eventId }, data: { countsForOnePrize: want } });
+    return { ok: true, category: prize.category };
+  });
+  if (!outcome.ok) return { ok: false, error: outcome.error };
+  await logAudit(eventId, "prize.counts", `${"category" in outcome ? outcome.category : "A prize"}: ${want ? "counts" : "does not count"} toward one prize per player`);
   await refresh();
   return { ok: true };
 }
@@ -4738,6 +4860,7 @@ export async function applyPrizeStructure(key: string): Promise<{ ok: boolean; e
       detail: (line.detail ?? "").trim(),
       amount: 0,
       position: (position += 1),
+      countsForOnePrize: line.counts,
     })),
   });
   await logAudit(eventId, "prize.structure", `${key} — added ${lines.length} line${lines.length === 1 ? "" : "s"}`);

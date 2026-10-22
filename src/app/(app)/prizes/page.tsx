@@ -297,10 +297,12 @@ export default async function PrizesPage({
           detail: p.detail,
           amount: p.amount,
           winnerId: p.winnerId,
+          counts: p.countsForOnePrize,
         }))}
         players={orderedForPrizes}
         flights={prizeFlights}
         byScore={prizeOrders}
+        onePrizePerPlayer={state.event.onePrizePerPlayer}
       />
       {/* ONE BALL PER SIDE, SO NO PER-PLAYER POT — THE CLUB'S OWN SCREEN.
           `/group-games` said this from the day the rule landed (#495) and this
