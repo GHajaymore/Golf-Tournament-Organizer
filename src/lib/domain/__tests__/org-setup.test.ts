@@ -173,8 +173,24 @@ describe("the checklist links somewhere that exists", () => {
    */
   it("points every step at a route that exists", () => {
     for (const [key, href] of Object.entries(SETUP_HREF)) {
-      const path = href.split("?")[0];
+      const path = href.split(/[?#]/)[0];
       expect(ROUTES.has(path), `${key} -> ${href} (routes: ${[...ROUTES].sort().join(", ")})`).toBe(true);
+    }
+  });
+
+  it("points a step at a section only where the screen has that section", () => {
+    /**
+     * `money` is `/organization#money` since Club settings became one section
+     * at a time (2026-10-21): the hash is which tab opens. A hash the screen
+     * does not have opens its first tab, which is the dead link above wearing
+     * a working address — so the id must be on the screen's own source.
+     */
+    const hashed = Object.entries(SETUP_HREF).filter(([, href]) => href.includes("#"));
+    expect(hashed.map(([k]) => k), "CONTROL: the money step names its section").toContain("money");
+    for (const [key, href] of hashed) {
+      const [path, id] = href.split("#");
+      const file = join("src", "app", "(app)", ...path.split("/").filter(Boolean), "page.tsx");
+      expect(readFileSync(file, "utf8"), `${key} -> ${href}: no id="${id}" on ${file}`).toContain(`id="${id}"`);
     }
   });
 

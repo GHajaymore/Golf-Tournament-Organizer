@@ -245,7 +245,17 @@ async function watchRefusals(context: BrowserContext): Promise<void> {
       setTimeout(() => {
         if (!el.isConnected) return;
         const box = el.getBoundingClientRect();
-        if (box.width === 0 || box.height === 0) return;
+        if (box.width === 0 || box.height === 0) {
+          // DRAWN IN A SECTION THE PERSON HAS LEFT: a tab of Club settings that is not the one
+          // open (2026-10-21). Out of sight by definition, so it counts as seen only if the tab
+          // it is behind is marked — which `SettingsTabs` does for exactly this.
+          const panel = el.closest('[role="tabpanel"][hidden]');
+          const tab = panel ? document.getElementById(panel.getAttribute("aria-labelledby") ?? "") : null;
+          if (panel && !tab?.hasAttribute("data-refused")) {
+            console.info(`[refusal out of sight] ${location.pathname} | pressed: ${what || "?"} | ${kind}, in a hidden tab with no mark | ${words(el).slice(0, 140)}`);
+          }
+          return;
+        }
         const onScreen = box.bottom > 0 && box.top < window.innerHeight && box.right > 0 && box.left < window.innerWidth;
         if (!onScreen) console.info(`[refusal out of sight] ${location.pathname} | pressed: ${what || "?"} | ${kind} | ${words(el).slice(0, 140)}`);
       }, 400);

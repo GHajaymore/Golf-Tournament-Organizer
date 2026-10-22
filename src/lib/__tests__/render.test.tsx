@@ -6459,13 +6459,21 @@ describe("members", () => {
 });
 
 describe("club settings", () => {
+  // The heading and the branding card, as the page draws them: the heading
+  // sits above the tabs since Club settings became one section at a time, and
+  // the branding card is the first section.
   const club = async (over: Record<string, unknown> = {}) => {
-    const { OrganizationClient } = await import("@/components/OrganizationClient");
+    const { OrganizationClient, OrganizationHeading } = await import("@/components/OrganizationClient");
+    const props = {
+      name: "Ridgeline National", shortName: "", logoUrl: "", city: "", region: "", country: "",
+      brandDisplay: "short", kind: "club", communityNoun: "", plan: "free", eventCount: 2, memberCount: 9, canEdit: true,
+      ...over,
+    } as Parameters<typeof OrganizationClient>[0];
     return render(
-      <OrganizationClient
-        name="Ridgeline National" shortName="" logoUrl="" city="" region="" country=""
-        brandDisplay="short" kind="club" communityNoun="" plan="free" eventCount={2} memberCount={9} canEdit
-        {...over} />,
+      <>
+        <OrganizationHeading kind={props.kind} country={props.country} communityNoun={props.communityNoun} />
+        <OrganizationClient {...props} />
+      </>,
     );
   };
 
@@ -6637,7 +6645,9 @@ describe("how money works", () => {
     // disclosure inside a card titled "Money in this tournament", on Prizes &
     // payouts — so the step could not be ticked by following its own link.
     const { SETUP_HREF } = await import("@/lib/domain/org-setup");
-    expect(SETUP_HREF.money).toBe("/organization");
+    // On its Money tab: Club settings shows one section at a time, and the
+    // bare address opens Name & branding, which has no money question.
+    expect(SETUP_HREF.money).toBe("/organization#money");
     const html = await money({ mode: "organization", orgMode: "", canEdit: true });
     for (const label of ["Costs handled outside the app", "Tournament kitty", "Split shared costs", "Follow what we are"]) {
       expect(html, `missing club money option: ${label}`).toContain(label);
@@ -6651,7 +6661,8 @@ describe("how money works", () => {
     for (const label of ["Costs handled outside the app", "Tournament kitty", "Split shared costs"]) {
       expect(html, `missing tournament money option: ${label}`).toContain(label);
     }
-    expect(html).toContain('href="/organization"');
+    // To the Money tab: Club settings shows one section at a time.
+    expect(html).toContain('href="/organization#money"');
   });
 
   it("does not let a read-only viewer change the club default", async () => {
