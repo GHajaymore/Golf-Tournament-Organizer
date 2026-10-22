@@ -16,6 +16,7 @@ import { useAction } from "./useAction";
 import { roleName, orgRoleName } from "@/lib/roles";
 import { describeOrgRoleChange } from "@/lib/access-roles";
 import { RoleChangeConfirm } from "./AccessClient";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 /**
  * "Commissioner", not "Owner". Ajay's call, 2026-08-21 — a considered choice,
@@ -117,7 +118,10 @@ export function OrganizationAccess({
   };
   const refusedAt = (where: string) =>
     error && pressed === where ? (
-      <p role="alert" className="form-error" style={{ margin: "6px 0 0" }}>
+      // Brought into view once: said under the row's button, which can be the
+      // last thing on the screen — Staff & access opens near the top since
+      // Club settings became tabs, so nothing scrolls the row up first.
+      <p role="alert" className="form-error" style={{ margin: "6px 0 0" }} ref={bringIntoView}>
         <Icon name="warning-circle" /> {error}
       </p>
     ) : null;
