@@ -207,7 +207,7 @@ export function EventReport({
           {report.rounds.length > 0 && (
             <section className="fr-card" aria-labelledby="fr-rounds-h">
               <h2 id="fr-rounds-h">Each round</h2>
-              <div className="fr-lines">
+              <div className="fr-lines fr-stack">
                 {report.rounds.map((r) => (
                   <div key={r.label}>
                     <span>

@@ -18,7 +18,7 @@ import {
 } from "./event-report-sections";
 import { tournamentResult, type RoundOutcome } from "../domain/tournament-result";
 import { averageWords, reportHighlights, toParWords, type HoleStat } from "../domain/report-highlights";
-import { movementStory, placeIn } from "../domain/report-movement";
+import { movementStory, placeIn, whoWords } from "../domain/report-movement";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { placeOrdinal } from "../format";
 import { finalReport, recapParagraphs, type FinalReport } from "./final-report";
@@ -370,7 +370,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   let movement: EventReport["movement"] = null;
   let climb: ReturnType<typeof movementStory>["climb"] = null;
   if (individual && !knockout && stages.length > 1) {
-    const moved = await movementRoundsFor(state);
+    const moved = await movementRoundsFor(state, basis.isStableford ? "stableford" : basis.isNet ? "net" : "gross");
     if (moved.rounds.length > 1) {
       const words = (v: number) =>
         !state.isStroke
@@ -407,29 +407,33 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   const severalVenues = new Set(cardRounds.filter((r) => r.strokePlay).map((r) => r.venue)).size > 1;
   const holeWords = (h: HoleStat) => `Hole ${h.hole}${severalVenues && venues.get(h.venue) ? ` at ${venues.get(h.venue)}` : ""}`;
   const best = bestRoundOf(outcomes, stages);
+  const several = stages.length > 1;
+  // The names once each, however many rounds they did it in, and the rounds beside them.
+  const whoOf = (holders: Array<{ name: string }>) => whoWords([...new Set(holders.map((h) => h.name))]);
+  const whereOf = (holders: Array<{ name: string; round: string }>) => (several ? holdersWords(holders, true, 3) : "");
+  const feat = (label: string, feats: typeof found.eagles) =>
+    feats.length <= 4
+      ? feats.map((e) => ({
+          label: label === "Hole-in-one" ? label : e.what === "albatross" ? "Albatross" : "Eagle",
+          who: e.name,
+          what: e.what === "hole-in-one" ? `Hole ${e.hole}${e.par ? `, par ${e.par}` : ""}${several ? `, ${e.round}` : ""}` : `${e.strokes} on the par-${e.par} hole ${e.hole}${several ? `, ${e.round}` : ""}`,
+        }))
+      : [{ label: label === "Hole-in-one" ? "Holes-in-one" : "Eagles", who: whoOf(feats), what: `${feats.length} of them` }];
+  // On a gross board the best round IS the lowest gross; said once.
+  const lowSameAsBest = !!best && !!found.lowestGross && best.figure === `gross ${found.lowestGross.score}`;
   const highlights = [
-    ...found.aces.map((a) => ({ label: "Hole-in-one", who: a.name, what: `Hole ${a.hole}${a.par ? `, par ${a.par}` : ""}, ${a.round}` })),
-    ...found.eagles.map((e) => ({
-      label: e.what === "albatross" ? "Albatross" : "Eagle",
-      who: e.name,
-      what: `${e.strokes} on the par-${e.par} hole ${e.hole}, ${e.round}`,
-    })),
-    ...(best ? [{ label: "Best round", who: `${listWords(best.names)} · ${best.figure}`, what: listWords(best.rounds) }] : []),
-    ...(found.lowestGross
-      ? [
-          {
-            label: "Lowest gross",
-            who: found.lowestGross.holders.length === 1 ? `${found.lowestGross.holders[0].name} · ${found.lowestGross.score}` : `${found.lowestGross.score} · ${countWords(found.lowestGross.holders.length)} players`,
-            what: found.lowestGross.holders.length === 1 ? found.lowestGross.holders[0].round : holdersWords(found.lowestGross.holders, stages.length > 1),
-          },
-        ]
+    ...feat("Hole-in-one", found.aces),
+    ...feat("Eagle", found.eagles),
+    ...(best ? [{ label: "Best round", who: `${whoWords(best.names)} · ${best.figure}`, what: listWords(best.rounds) }] : []),
+    ...(found.lowestGross && !lowSameAsBest
+      ? [{ label: "Lowest gross", who: `${whoOf(found.lowestGross.holders)} · ${found.lowestGross.score}`, what: whereOf(found.lowestGross.holders) }]
       : []),
     ...(found.bestNine
       ? [
           {
             label: "Best nine holes",
-            who: `${listWords(found.bestNine.holders.map((h) => h.name))} · ${found.bestNine.score}`,
-            what: `${capital(toParWords(found.bestNine.toPar))} on the ${found.bestNine.holders[0].nine} nine${stages.length > 1 ? `, ${listWords([...new Set(found.bestNine.holders.map((h) => h.round))])}` : ""}`,
+            who: `${whoOf(found.bestNine.holders)} · ${found.bestNine.score}`,
+            what: [`${capital(toParWords(found.bestNine.toPar))} on the ${found.bestNine.holders[0].nine} nine`, whereOf(found.bestNine.holders)].filter(Boolean).join(", "),
           },
         ]
       : []),
@@ -437,30 +441,31 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       ? [
           {
             label: "Longest run at par or better",
-            who: `${listWords(found.longestRun.holders.map((h) => h.name))} · ${found.longestRun.length} holes`,
-            what: found.longestRun.holders.length === 1
-              ? `Hole ${found.longestRun.holders[0].from} to ${found.longestRun.holders[0].to}${stages.length > 1 ? `, ${found.longestRun.holders[0].round}` : ""}`
-              : "",
+            who: `${whoOf(found.longestRun.holders)} · ${found.longestRun.length} holes`,
+            what:
+              found.longestRun.holders.length === 1
+                ? `Hole ${found.longestRun.holders[0].from} to ${found.longestRun.holders[0].to}${several ? `, ${found.longestRun.holders[0].round}` : ""}`
+                : whereOf(found.longestRun.holders),
           },
         ]
       : []),
     ...(found.mostBirdiesInARound
       ? [
           {
-            label: stages.length > 1 ? "Most birdies in a round" : "Most birdies",
-            who: `${listWords(found.mostBirdiesInARound.holders.map((h) => h.name))} · ${found.mostBirdiesInARound.count}`,
-            what: stages.length > 1 ? listWords([...new Set(found.mostBirdiesInARound.holders.map((h) => h.round))]) : "",
+            label: several ? "Most birdies in a round" : "Most birdies",
+            who: `${whoOf(found.mostBirdiesInARound.holders)} · ${found.mostBirdiesInARound.count}`,
+            what: whereOf(found.mostBirdiesInARound.holders),
           },
         ]
       : []),
     ...(found.mostBirdies
-      ? [{ label: "Most birdies in the tournament", who: `${listWords(found.mostBirdies.names)} · ${found.mostBirdies.count}`, what: "Across every round" }]
+      ? [{ label: "Most birdies in the tournament", who: `${whoWords(found.mostBirdies.names)} · ${found.mostBirdies.count}`, what: "Across every round" }]
       : []),
     ...(climb
       ? [
           {
             label: "Biggest climb",
-            who: `${listWords(climb.names)} · up ${climb.places}`,
+            who: `${whoWords(climb.names)} · up ${climb.places}`,
             what: climb.place ? `To ${climb.place.startsWith("T") ? `share ${placeOrdinal(Number(climb.place.slice(1)))}` : placeOrdinal(Number(climb.place))} after ${climb.round}` : `After ${climb.round}`,
           },
         ]
@@ -546,12 +551,18 @@ function capital(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** "Ann and Bob, Round 1; Cat, Round 2" — or just the names where there is one round. */
-function holdersWords(holders: Array<{ name: string; round: string }>, rounds: boolean): string {
-  if (!rounds) return listWords(holders.map((h) => h.name));
-  const byRound = new Map<string, string[]>();
-  for (const h of holders) byRound.set(h.round, [...(byRound.get(h.round) ?? []), h.name]);
-  return [...byRound.entries()].map(([round, names]) => `${listWords(names)}, ${round}`).join("; ");
+/**
+ * "Round 1 and Round 2" for one holder, "Ann in Round 1; Bob and Cat in Round 2"
+ * for several — or just the rounds once there are more holders than a line holds.
+ */
+function holdersWords(holders: Array<{ name: string; round: string }>, rounds: boolean, most: number): string {
+  const names = [...new Set(holders.map((h) => h.name))];
+  if (!rounds) return names.length > most ? "" : listWords(names);
+  const roundsIn = [...new Set(holders.map((h) => h.round))];
+  if (names.length === 1 || names.length > most) return listWords(roundsIn);
+  return roundsIn
+    .map((round) => `${listWords([...new Set(holders.filter((h) => h.round === round).map((h) => h.name))])} in ${round}`)
+    .join("; ");
 }
 
 /**

@@ -13,12 +13,11 @@ import { PrismaClient } from "@prisma/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { eventReport, reportAudienceFor, type EventReport as Report } from "@/lib/services/event-report";
 import { liveBoard } from "@/lib/services/live-board";
-import { weekViewFor } from "@/lib/services/week-view";
+import { loadEventState } from "@/lib/services/tournament";
 import { skinsPotFor } from "@/lib/services/skins-pot";
 import { moneyFor, sidePotResults } from "@/lib/services/expenses";
 import { formattingForEvent } from "@/lib/services/organization";
 import { formatMoney } from "@/lib/domain/locale";
-import { placeIn } from "@/lib/domain/report-movement";
 import { EventReport } from "@/components/EventReport";
 // A plain .mjs fixture, shared with the browser spec so the two walk the same tournament.
 import { seedReport, teardownReport } from "../../../e2e/report-fixture.mjs";
@@ -27,8 +26,9 @@ import { seedReport, teardownReport } from "../../../e2e/report-fixture.mjs";
  * THE FINAL REPORT SAYS WHAT THE APP'S OWN READERS SAY (2026-10-21).
  *
  * Every figure in the conclusion is supposed to be READ from the screen that
- * already holds it — the board, the week sheet, the skins pot, the side-game
- * pass that pays the players, the money screen's settle-up. This holds each
+ * already holds it — the board (and the board ranked through each round, as the
+ * cut reads it), the skins pot, the side-game pass that pays the players, the
+ * money screen's settle-up. This holds each
  * section against that reader, on a real two-round medal with money in it
  * (`e2e/report-fixture.mjs`, worked out by hand in its header), so the report
  * cannot drift into a second opinion about any of them.
@@ -79,14 +79,15 @@ describe("the final report reads the app's own readers", () => {
     expect(staff.columns).toEqual(["Gross", "Net", "To par"]);
   });
 
-  it("the place after each round is the week sheet's; the final place is the board's", async () => {
-    const r1 = (await weekViewFor(seeded.eventId, seeded.stageIds[0]))!;
+  it("the place after each round is the board's own, ranked through that round (the cut's reading)", async () => {
+    const r1 = (await loadEventState(seeded.eventId, seeded.stageIds[0]))!;
     expect(staff.movement).not.toBeNull();
     const m = staff.movement!;
     expect(m.columns).toEqual(["R1", "Final"]);
     for (const row of m.rows) {
-      const id = Object.values(seeded.players).find((p) => p.name === row.name)!.id;
-      expect(row.places[0], row.name).toBe(placeIn(r1.standings, id));
+      const s = r1.strokeStandings.find((x) => x.player.name === row.name)!;
+      const shared = r1.strokeStandings.filter((x) => x.ranked && x.rank === s.rank).length > 1;
+      expect(row.places[0], row.name).toBe(`${shared ? "T" : ""}${s.rank}`);
     }
     // Worked by hand: after round 1 Ann led (70), Bob 2nd (72), Cat 3rd (73).
     expect(m.rows.map((r) => [r.name, ...r.places])).toEqual([
@@ -96,6 +97,26 @@ describe("the final report reads the app's own readers", () => {
     ]);
     expect(m.story[0].text).toBe(`${seeded.players.Ann.name} led after Round 1 on gross 70. ${seeded.players.Bob.name} was next on gross 72.`);
     expect(m.story[1].text).toBe(`${seeded.players.Bob.name} went top after Round 2 on gross 141, up from 2nd.`);
+  });
+
+  it("a player with no card in a closed round is in nobody's table after it — never 'top' on one round's total", async () => {
+    // Walked on the seeded club before this shipped: a championship with a cut
+    // read "… were level at the top after Round 2, on gross 89" — eighteen-hole
+    // totals ranked above thirty-six-hole ones. Here Dan's round-2 card is
+    // taken away: on 74 for one round he would lead a table that adds up
+    // whatever cards exist.
+    const prisma = new PrismaClient();
+    const dan = await prisma.scorecard.findFirstOrThrow({ where: { stageId: seeded.stageIds[1], playerId: seeded.players.Dan.id } });
+    try {
+      await prisma.scorecard.delete({ where: { id: dan.id } });
+      const r = (await eventReport(seeded.eventId, { kind: "staff", email: seeded.organizerEmail }))!;
+      expect(r.movement?.story[1].text).toBe(`${seeded.players.Bob.name} went top after Round 2 on gross 141, up from 2nd.`);
+    } finally {
+      await prisma.scorecard.create({
+        data: { eventId: seeded.eventId, stageId: dan.stageId, playerId: dan.playerId, strokes: dan.strokes, status: dan.status },
+      });
+      await prisma.$disconnect();
+    }
   });
 
   it("each round's winner is the board's round result", () => {
@@ -108,7 +129,8 @@ describe("the final report reads the app's own readers", () => {
   it("the highlights are off the cards: Bob's eagle at the top, Bob's 69 the best round", () => {
     expect(staff.highlights[0]).toEqual({ label: "Eagle", who: seeded.players.Bob.name, what: "2 on the par-4 hole 5, Round 2" });
     expect(staff.highlights).toContainEqual({ label: "Best round", who: `${seeded.players.Bob.name} · gross 69`, what: "Round 2" });
-    expect(staff.highlights).toContainEqual({ label: "Lowest gross", who: `${seeded.players.Bob.name} · 69`, what: "Round 2" });
+    // On a gross board the best round IS the lowest gross, so it is said once.
+    expect(staff.highlights.some((h) => h.label === "Lowest gross")).toBe(false);
     // Birdies: Ann 2 (round 1), Bob 1 and Cat 1 (round 2) — the eagle is not a birdie.
     expect(staff.numbers).toContainEqual({ figure: "4", label: "birdies" });
     expect(staff.numbers).toContainEqual({ figure: "8", label: "cards returned" });
@@ -156,7 +178,8 @@ describe("the final report reads the app's own readers", () => {
   });
 
   it("coming up: the club's next tournament taking entries, and the pinned notice for the field only", () => {
-    expect(staff.comingUp.some((c) => c.text === `Entries close for ${MARK} Autumn Foursomes. Enter from the app.`)).toBe(true);
+    // One line: the day entries close, and the day it is played (12 days out, after the deadline at 5).
+    expect(staff.comingUp.some((c) => c.text.startsWith(`Entries close for ${MARK} Autumn Foursomes; it is played on `))).toBe(true);
     expect(staff.comingUp.some((c) => c.when === "Notice" && c.text.startsWith("Prize giving in the clubhouse"))).toBe(true);
     expect(pub.comingUp.some((c) => c.text.startsWith(`Entries close for ${MARK} Autumn Foursomes`))).toBe(true);
     expect(pub.comingUp.some((c) => c.when === "Notice")).toBe(false);

@@ -71,7 +71,7 @@ only when the tournament used that part of the app:
 |---|---|---|
 | Flight winners | two or more flights | `flightStandings` (Prizes' and Today's reader) |
 | The draw | a knockout | the board's draws, with the margins on `BracketWinner` |
-| How it was won, place after each round | more than one round whose result is in the table | `weekViewFor` standings (`movementBetween`) per round; the Final column is the board's place |
+| How it was won, place after each round | more than one round in the table | a stroke board: the board ranked through each round (`loadEventState(eventId, throughStageId)`, the cut's reading), only players holding a place; a match league: `weekViewFor`'s chained standings. Movement by `movementBetween` |
 | Each round | more than one round | `roundOutcomesFor` / `resultLinesFor` |
 | Prizes and contests | a winner named | Prize rows; a contest's pot from `moneyFor` |
 | Highlights, In numbers | any card | `report-highlights.ts` over `roundStrokes`, each round on `state.strokeCourseFor` |
@@ -94,6 +94,14 @@ organizer's copy in Reports and a signed-in player in the field (their own line
 first). The public link, signed out, names the winners only: no amounts, no
 costs, no settle-up, no pinned notices. One rule, `showsAmounts(audience)`, in
 `event-report-sections.ts`; `reportFor` defaults to the public copy.
+
+**Walked before shipping, on the seeded club at 375px, and two things changed.**
+The first draft read the week sheet's stroke table for the movement, which adds
+up whatever cards each player has: on the 36-hole championship with a cut it
+reported round two "led" by twelve players on gross 89 — their ONE round's total.
+And a long list of names ("12 players each climbed 16 places") is said as a count
+past three names. The audit test now takes a closed round's card away and asserts
+that player tops nothing.
 
 **Next: sending it.** The report is one `EventReport` value of strings, drawn by
 one component with one stylesheet, so an email can render the same value. Not

@@ -1,7 +1,9 @@
 import "server-only";
 import { prisma } from "../db";
 import type { EventState } from "./tournament";
-import { playingStages } from "./tournament";
+import { loadEventState, playingStages } from "./tournament";
+import { movementBetween } from "../domain/week-movement";
+import { directionOnBasis, valueOnBasis } from "../domain/week-basis";
 import { roundStrokes } from "./round-cards";
 import { weekViewFor } from "./week-view";
 import { skinsPotFor } from "./skins-pot";
@@ -137,23 +139,62 @@ export async function venueNames(state: EventState, ids: string[]): Promise<Map<
 /* ------------------------------------------------------------------------ */
 
 /**
- * The table after each round, as the week sheet prints it — only the rounds
- * whose result is IN that table (`standingsIncludeThisWeek`): a medal night in
- * a match league earns no match points, and a column for it would repeat the
- * round before under a new heading.
+ * THE TABLE AFTER EACH ROUND, from the reader that already answers it.
+ *
+ * A STROKE BOARD: the board itself, ranked on the rounds up to that one —
+ * `loadEventState(eventId, throughStageId)`, the reading the CUT is made on
+ * (`applyStrokeCut`), with the board's own places and countback. Only players
+ * who hold a place: somebody who missed the cut, withdrew or has no card is not
+ * "top" of anything. Its last table is the board's final one, so the Final
+ * column and the champion cannot disagree with the story.
+ *
+ * Not the week sheet's stroke table, which this first read: it adds up whatever
+ * cards each player has and ranks the totals, which in a championship with a
+ * cut put eighteen-hole totals above thirty-six-hole ones and told the story of
+ * a round two "led" by twelve players who were not in it (walked on the seeded
+ * club, 2026-10-21, before this shipped).
+ *
+ * A MATCH LEAGUE: the week sheet's table (`weekViewFor`), which chains the
+ * match points exactly as the board does — only the rounds whose result is in
+ * that table (`standingsIncludeThisWeek`), since a medal night earns no match
+ * points and a column for it would repeat the round before.
  */
 export async function movementRoundsFor(
   state: EventState,
+  basis: WeekBasis,
 ): Promise<{ rounds: MovementRound[]; basis: WeekBasis | null }> {
   const rounds: MovementRound[] = [];
-  let basis: WeekBasis | null = null;
+  const label = (stage: { id: string; description: string }) => roundLabel(state.stages, stage.id) || stage.description || "Round";
+
+  if (state.boardIsStroke) {
+    const dir = directionOnBasis(basis);
+    let before: Array<{ playerId: string; name: string; value: number; rank: number }> = [];
+    for (const stage of state.strokeRounds) {
+      const through = await loadEventState(state.event.id, stage.id);
+      if (!through) continue;
+      const rows = through.strokeStandings
+        .filter((s) => s.ranked && s.thru > 0)
+        .map((s) => ({
+          playerId: s.player.id,
+          name: s.player.name,
+          value: valueOnBasis(basis, { gross: s.gross, net: s.net, points: s.points }),
+          rank: s.rank,
+        }));
+      if (rows.length === 0) continue;
+      rounds.push({ label: label(stage), rows: movementBetween(rows, before, dir) });
+      before = rows;
+    }
+    return { rounds, basis };
+  }
+
+  let found: WeekBasis | null = null;
   for (const stage of playingStages(state.stages)) {
     const view = await weekViewFor(state.event.id, stage.id);
     if (!view || view.stageId !== stage.id || !view.standingsIncludeThisWeek || view.standings.length === 0) continue;
-    basis = view.basis;
-    rounds.push({ label: roundLabel(state.stages, stage.id) || stage.description || "Round", rows: view.standings });
+    found = view.basis;
+    rounds.push({ label: label(stage), rows: view.standings });
   }
-  return { rounds, basis };
+  return { rounds, basis: found };
 }
 
 /* ------------------------------------------------------------------------ */
@@ -439,18 +480,20 @@ export async function comingUpFor(state: EventState, audience: ReportAudience): 
         now: clubDay(e.organization?.timeZone),
         locale,
       });
+      // One line a tournament: the day entries close, and the day it is played.
       const closes = parseDeadlineIso(e.regDeadline);
       if (status.acceptingEntries && closes && closes >= today) {
-        dated.push({ iso: closes, text: `Entries close for ${e.name}. Enter from the app.` });
+        const starts = cleanIsoDate(e.startOn);
+        const played = starts && starts >= closes ? `; it is played on ${shortDate(starts, locale) || formatDay(starts, locale)}` : "";
+        dated.push({ iso: closes, text: `Entries close for ${e.name}${played}.` });
       }
-      const starts = cleanIsoDate(e.startOn);
-      if (status.acceptingEntries && starts && starts >= today) dated.push({ iso: starts, text: `${e.name}.` });
     }
   }
 
+  // The nearest three: a document's "what's next", not the club's calendar.
   const out = dated
     .sort((a, b) => (a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : 0))
-    .slice(0, 5)
+    .slice(0, 3)
     .map((d) => ({ when: shortDate(d.iso as Parameters<typeof shortDate>[0], locale) || formatDay(d.iso, locale), text: d.text }));
 
   if (audience.kind !== "public") {

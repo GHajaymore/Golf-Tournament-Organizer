@@ -150,7 +150,10 @@ export const REPORT_CSS = `
 .fr-lines > div > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .fr-lines > .fr-sub-eyebrow { margin: 8px 0 4px; }
 .fr-amt { font: 600 16px var(--font-scoreboard), sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.fr-res { text-align: right; overflow-wrap: anywhere; min-width: 0; max-width: 60%; }
+.fr-res { overflow-wrap: anywhere; min-width: 0; }
+/* A round and its result: one under the other on a phone, side by side when there is room. */
+.fr-lines.fr-stack > div { grid-template-columns: minmax(0,1fr); gap: 0; }
+@media (min-width: 620px) { .fr-lines.fr-stack > div { grid-template-columns: minmax(0, 15em) minmax(0,1fr); gap: 12px; } }
 .fr-total { border-top: 2px solid var(--fr-ink) !important; }
 .fr-game + .fr-game { margin-top: 14px; }
 .fr-moves { display: grid; gap: 10px; margin-top: 12px; }
@@ -164,8 +167,9 @@ export const REPORT_CSS = `
 .fr-mini td:first-child { text-align: left; padding-left: 0; font-family: inherit; overflow-wrap: anywhere; }
 .fr-mini td.fr-up { font-weight: 700; }
 .fr-mini td.fr-up::after { content: " \\2191"; }
-.fr-feats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 10px; margin-top: 12px; }
-.fr-feat { border: 1px solid var(--fr-rule); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; min-width: 0; }
+.fr-feats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); column-gap: 24px; margin-top: 8px; }
+.fr-feat { border-top: 1px solid var(--fr-rule); padding: 8px 0; display: grid; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
+.fr-feat .fr-who { font-size: 16px; }
 .fr-k { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--fr-muted); }
 .fr-nums { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px 16px; margin-top: 12px; }
 @media (min-width: 620px) { .fr-nums { grid-template-columns: repeat(3, minmax(0,1fr)); } }

@@ -53,6 +53,14 @@ function placeWords(rows: ReadonlyArray<MovementRow>, row: MovementRow): string 
   return `${shared ? "a share of " : ""}${placeOrdinal(row.position)}`;
 }
 
+/**
+ * Who, in a sentence somebody can read: the names up to three, and past that a
+ * count — a dozen players level is "12 players", not a paragraph of names.
+ */
+export function whoWords(names: string[]): string {
+  return names.length > 3 ? plural(names.length, "player") : listWords(names);
+}
+
 /** The biggest climb in one round: every player who made it, when it is two places or more. */
 function biggestClimb(round: MovementRound, except: ReadonlySet<string>): MovementRow[] {
   const climbers = round.rows.filter((r) => !r.isNew && r.change >= 2 && !except.has(r.playerId));
@@ -75,7 +83,7 @@ export function movementStory(
       before = round;
       continue;
     }
-    const names = listWords(leaders.map((l) => l.name));
+    const names = whoWords(leaders.map((l) => l.name));
     const figure = valueWords(leaders[0].value);
     const parts: string[] = [];
 
@@ -89,7 +97,7 @@ export function movementStory(
       const next = Number.isFinite(nextPlace) ? round.rows.filter((r) => r.position === nextPlace) : [];
       if (next.length > 0) {
         parts.push(
-          `${listWords(next.map((n) => n.name))} ${next.length === 1 ? "was" : "were"} next on ${valueWords(next[0].value)}.`,
+          `${whoWords(next.map((n) => n.name))} ${next.length === 1 ? "was" : "were"} next on ${valueWords(next[0].value)}.`,
         );
       }
     } else {
@@ -113,7 +121,7 @@ export function movementStory(
         const c = climbers[0];
         parts.push(`${c.name} climbed ${plural(c.change, "place")} to ${placeWords(round.rows, c)}.`);
       } else if (climbers.length > 1) {
-        parts.push(`${listWords(climbers.map((c) => c.name))} each climbed ${plural(climbers[0].change, "place")}.`);
+        parts.push(`${whoWords(climbers.map((c) => c.name))} each climbed ${plural(climbers[0].change, "place")}.`);
       }
       // Leaders count too for the tournament's biggest move — a climb to the top is a climb.
       const all = biggestClimb(round, new Set());

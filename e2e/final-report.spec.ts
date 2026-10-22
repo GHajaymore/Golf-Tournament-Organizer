@@ -88,7 +88,7 @@ test("the organizer opens the conclusion from Reports; the public link names win
     await expect(section("Skins (Gross), Round 1")).toContainText(/\$5(\.00)? each, 4 in/);
     await expect(section("Settle-up")).toContainText("TourneyHQ records them; players pay each other.");
     await expect(section("Settle-up")).toContainText(/pays .*\$\d/);
-    await expect(section("Coming up")).toContainText(`Entries close for ${RUN} Autumn Foursomes.`);
+    await expect(section("Coming up")).toContainText(`Entries close for ${RUN} Autumn Foursomes; it is played on`);
     await expect(section("Coming up")).toContainText("Prize giving in the clubhouse");
 
     // Nothing sideways, and the height said beside the result.
