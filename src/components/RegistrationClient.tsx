@@ -48,6 +48,8 @@ interface Signup {
   seed: number;
   email?: string;
   phone?: string;
+  /** The club a visitor plays from, as the Add form took it. "" for none. */
+  homeClub?: string;
   flight?: string;
   /** ISO string, set only for entries promoted off the waitlist. */
   promotedAt?: string | null;
@@ -571,6 +573,12 @@ export function RegistrationClient({
                   <td style={{ fontWeight: 500 }}>
                     {p.name}
                     <PromotedBadge promotedAt={p.promotedAt} />
+                    {/* SHOWN WHERE IT WAS TYPED. "Home club" on the Add form was stored and then
+                        drawn nowhere on this screen, so the organizer who typed it could not see
+                        it had been kept (the text-box crawl, 2026-10-21). */}
+                    {p.homeClub ? (
+                      <div className="text-muted" style={{ fontSize: 13, fontWeight: 400 }}>{p.homeClub}</div>
+                    ) : null}
                   </td>
                   {showTees && (
                     <td>

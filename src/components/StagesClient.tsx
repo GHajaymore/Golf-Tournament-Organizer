@@ -2974,6 +2974,12 @@ export function StagesClient({
               value={howMany}
               disabled={pending}
               onChange={(e) => setHowMany(Math.max(1, Math.min(MAX_ROUNDS_AT_ONCE, figureOr(readWhole(e.target.value), 1) || 1)))}
+              // LEFT EMPTY, IT SAYS AGAIN HOW MANY WILL BE ADDED. An emptied box is read as one,
+              // and React does not redraw a number box whose figure has not changed — so it sat
+              // blank while Add would make one round, nothing said (the text-box crawl, 2026-10-21).
+              onBlur={(e) => {
+                if (e.target.value !== String(howMany)) e.target.value = String(howMany);
+              }}
               style={{ width: 72, textAlign: "center" }}
               aria-label="How many rounds to add"
             />

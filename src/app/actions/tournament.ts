@@ -1067,11 +1067,17 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     // One reading, shared with the roster importer — see `parseHandicapType`.
     const handicapType = parseHandicapType(cell(table, cols, "handicapType"));
     const phone = cell(table, cols, "phone");
+    // THE COLUMNS THE ROSTER IMPORT READS, READ HERE TOO. A "Home club" or "GHIN"
+    // column in an entry list was recognised by its header and then dropped, so
+    // the same file put a visitor's club on Members and not on the entry
+    // (2026-10-21, checking every door that adds a player).
+    const ghin = cell(table, cols, "ghin").trim();
+    const homeClub = cell(table, cols, "homeClub").trim();
     // Importing a field also builds the roster: a club that uploads its
     // spring CSV has its member list from then on, without a second import.
     const memberId = await upsertMember(
       event.organizationId,
-      { name, email: emailKey, phone, handicap, handicapType, handicapSource },
+      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource },
       "staff",
     );
     await prisma.player.create({
@@ -1084,6 +1090,8 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         status,
         email: emailKey,
         phone,
+        ghin,
+        homeClub,
         handicapType,
         handicapSource,
       },

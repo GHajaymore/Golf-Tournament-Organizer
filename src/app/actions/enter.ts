@@ -268,6 +268,11 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
         handicapType: member?.handicapType ?? "18",
         handicapSource: member?.handicapSource ?? "manual",
         gender: member?.gender ?? "",
+        // What the club's record holds, as the roster's "Add to field" copies it: this door
+        // dropped the home club and the handicap number, so a member who entered themselves
+        // was a thinner row than the one the organizer would have made (2026-10-21).
+        ghin: member?.ghin ?? "",
+        homeClub: member?.homeClub ?? "",
         preferredTee,
         seed: (maxSeed._max.seed ?? 0) + 1,
         status: d.status,

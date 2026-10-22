@@ -497,6 +497,10 @@ export function ContestsClient({
                   <input
                     className="input"
                     inputMode="decimal"
+                    // NAMED FOR ITS GAME. Every row's box was "Stake", so a screen reader heard six
+                    // boxes of one name, and the text-box crawl (2026-10-21) could not tell the Low
+                    // gross stake from the Birdie pot's once a save moved the row.
+                    aria-label={`Stake for ${row.label}`}
                     defaultValue={game ? plain(game.buyInCents) : ""}
                     placeholder="0.00"
                     disabled={pending}
