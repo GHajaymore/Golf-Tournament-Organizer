@@ -112,6 +112,9 @@ export function layersFor(round) {
       specs: ["e2e/every-text-box.spec.ts"],
       projects: ["desktop"],
       minutes: 40,
+      // Each share's ledger (every try and its verdict) and its reach, written as it goes. Kept with
+      // the part's own files (`round.mjs`), or a failing share's findings exist only in its log.
+      keeps: ".e2e/every-text-box",
     },
     {
       // Added 2026-10-13: every other layer asks the browser for reduced motion, which is what almost
@@ -341,6 +344,36 @@ export const SHARDS = {
   safari: 2,
   "text-boxes": TEXT_PARTS,
 };
+
+/**
+ * WHAT A PART'S OWN FILES ARE CALLED, inside `.qa/rounds/<tag>/` — its log, what it kept, its summary.
+ *
+ * Every part of a round writes into a folder of the same name (the round's tag), and each machine's is
+ * handed on as an artifact of its own. They were named by LAYER, so the three shares of the text-box
+ * crawl each held `.qa/rounds/G253-1/text-boxes.log` and `summary.md`: three files of one name, and
+ * fetched into one place the last one won — while the verdict carried one line per failed share and
+ * none of its findings, so those logs were the only place the findings were. Two of three shares'
+ * were read as lost (2026-10-21). Named by the PART, no two machines' files share a name, and the
+ * verdict lists every finding (`details` in `round.mjs` and `merge.mjs`). No part named (a round run
+ * here): the layer's.
+ */
+export function partFile(layerKey, partId) {
+  if (!partId) return layerKey;
+  return partId.startsWith(layerKey) ? partId : `${partId}-${layerKey}`;
+}
+
+/**
+ * EVERY FINDING A PART'S LOG PRINTS, for the verdict. The text-box crawl prints each finding under its
+ * share's tally as `[every-text-box]   <WHAT> · …`; what it skipped and what was locked everywhere are
+ * printed the same way and are not findings. Playwright's own failure line names the share and none of
+ * what it found.
+ */
+export function findingsSaid(log) {
+  return String(log ?? "")
+    .split(/\r?\n/)
+    .filter((l) => /^\[every-text-box\] {3}(?!skipped · |locked on every )\S/.test(l))
+    .map((l) => l.replace(/^\[every-text-box\] {3}/, "").trim().slice(0, 400));
+}
 
 export function partsFor(round) {
   const parts = [];
