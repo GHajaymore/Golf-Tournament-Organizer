@@ -47,6 +47,8 @@ const SENDERS: Array<[string, () => Promise<unknown>]> = [
   ["interest", () => email.sendInterestEmail(TO, { name: HOSTILE, email: HOSTILE, phone: HOSTILE, club: HOSTILE, role: HOSTILE, size: HOSTILE, note: HOSTILE })],
   ["field: promoted", () => email.sendFieldStatusEmail(TO, { change: "promoted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
   ["field: waitlisted", () => email.sendFieldStatusEmail(TO, { change: "waitlisted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
+  // The device's words come from a header the browser chose (2026-10-21).
+  ["new sign-in", () => email.sendNewSignInEmail(TO, HOSTILE, HOSTILE)],
 ];
 
 describe("an email never carries markup somebody typed", () => {
@@ -77,6 +79,7 @@ describe("an email never carries markup somebody typed", () => {
     ["password reset", () => email.sendPasswordResetEmail(TO, "https://tourneyhq.club/reset-password?token=zz")],
     ["email code", () => email.sendEmailCodeEmail(TO, "042917", "signup")],
     ["email code, invited", () => email.sendEmailCodeEmail(TO, "042917", "claim")],
+    ["email code, new device", () => email.sendEmailCodeEmail(TO, "042917", "device")],
   ];
   for (const [name, send] of ALL) {
     it(`${name}: arrives in the shared layout, with a text part and a reason`, async () => {
@@ -99,7 +102,7 @@ describe("an email never carries markup somebody typed", () => {
     // address-proving code (2026-10-21) is the same: six digits the app made.
     const EXEMPT = new Set(["sendPasswordResetEmail", "sendEmailCodeEmail"]);
     const exported = Object.keys(email).filter((k) => /^send[A-Z]/.test(k) && !EXEMPT.has(k));
-    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail"]);
+    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail", "sendNewSignInEmail"]);
     expect(exported.length, "found no senders — the sweep would pass on nothing").toBeGreaterThan(0);
     expect(exported.filter((k) => !covered.has(k))).toEqual([]);
   });
