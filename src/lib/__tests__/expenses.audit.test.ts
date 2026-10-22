@@ -98,13 +98,13 @@ beforeAll(async () => {
       data: { eventId, name: `${TAG} ${who}`, email: at(who), seed: i + 1, status: "confirmed" },
     });
     player[who] = p.id;
-    const u = await prisma.user.create({ data: { email: at(who), name: who, password: "x" } });
+    const u = await prisma.user.create({ data: { email: at(who), name: who, password: "x", emailVerifiedAt: new Date() } });
     userIds[who] = u.id;
     await prisma.account.create({ data: { eventId, email: at(who), name: who, role: "player" } });
   }
 
   // An organizer, and a player who belongs to a DIFFERENT tournament.
-  const org1 = await prisma.user.create({ data: { email: at("organizer"), name: "Organizer", password: "x" } });
+  const org1 = await prisma.user.create({ data: { email: at("organizer"), name: "Organizer", password: "x", emailVerifiedAt: new Date() } });
   userIds.organizer = org1.id;
   await prisma.account.create({ data: { eventId, email: at("organizer"), name: "Organizer", role: "admin" } });
 

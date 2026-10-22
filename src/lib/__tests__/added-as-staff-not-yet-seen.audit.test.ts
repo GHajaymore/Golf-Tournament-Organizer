@@ -73,7 +73,7 @@ beforeAll(async () => {
   const event = await prisma.event.create({ data: { organizationId: orgId, name: `${MARK} Open`, dates: "", course: "", city: "", address: "", regDeadline: "", shareToken: `${MARK}-tok` } });
   eventId = event.id;
   for (const [who, name, password] of [["owner", "Zz Owner", PASSWORD], ["stranger", SECRET_NAME, PASSWORD], ["second", "Zz Second", PASSWORD]] as const) {
-    const u = await prisma.user.create({ data: { email: at(who), name, password: hashPassword(password) } });
+    const u = await prisma.user.create({ data: { email: at(who), name, password: hashPassword(password), emailVerifiedAt: new Date() } });
     ids[who] = u.id;
   }
   await prisma.organizationMember.create({ data: { organizationId: orgId, userId: ids.owner, role: "owner" } });

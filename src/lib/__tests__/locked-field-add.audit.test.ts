@@ -77,7 +77,7 @@ beforeAll(async () => {
   await prisma.stage.create({
     data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 },
   });
-  const user = await prisma.user.create({ data: { email: at("organizer"), name: `${TAG} Organizer`, password: "x" } });
+  const user = await prisma.user.create({ data: { email: at("organizer"), name: `${TAG} Organizer`, password: "x", emailVerifiedAt: new Date() } });
   await prisma.account.create({ data: { eventId, email: at("organizer"), name: `${TAG} Organizer`, role: "admin" } });
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: user.id, role: "owner" } });
   jar.clear();

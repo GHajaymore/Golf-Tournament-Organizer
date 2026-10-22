@@ -75,6 +75,8 @@ describe("an email never carries markup somebody typed", () => {
   const ALL: Array<[string, () => Promise<unknown>]> = [
     ...SENDERS,
     ["password reset", () => email.sendPasswordResetEmail(TO, "https://tourneyhq.club/reset-password?token=zz")],
+    ["email code", () => email.sendEmailCodeEmail(TO, "042917", "signup")],
+    ["email code, invited", () => email.sendEmailCodeEmail(TO, "042917", "claim")],
   ];
   for (const [name, send] of ALL) {
     it(`${name}: arrives in the shared layout, with a text part and a reason`, async () => {
@@ -93,8 +95,9 @@ describe("an email never carries markup somebody typed", () => {
 
   it("covers every sender the module exports — a new one fails here until it is listed", () => {
     // The reset email interpolates only a URL the app built, so it has no
-    // person-typed field to attack; it is the one deliberate exemption.
-    const EXEMPT = new Set(["sendPasswordResetEmail"]);
+    // person-typed field to attack; it is the one deliberate exemption. The
+    // address-proving code (2026-10-21) is the same: six digits the app made.
+    const EXEMPT = new Set(["sendPasswordResetEmail", "sendEmailCodeEmail"]);
     const exported = Object.keys(email).filter((k) => /^send[A-Z]/.test(k) && !EXEMPT.has(k));
     const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail"]);
     expect(exported.length, "found no senders — the sweep would pass on nothing").toBeGreaterThan(0);
