@@ -1,8 +1,26 @@
 import { prisma } from "../db";
 import { liveBoard } from "./live-board";
 import { loadEventState, playingStages } from "./tournament";
-import { resultLinesFor } from "./tournament-result";
+import { roundOutcomesFor } from "./tournament-result";
 import { finishingPositions } from "./finish-order";
+import { flightStandings } from "./me";
+import { formattingForEvent } from "./organization";
+import {
+  comingUpFor,
+  highlightRoundsFor,
+  moneySections,
+  movementRoundsFor,
+  showsAmounts,
+  venueNames,
+  type ReportAudience,
+  type ReportMoney,
+  type ReportPot,
+} from "./event-report-sections";
+import { tournamentResult, type RoundOutcome } from "../domain/tournament-result";
+import { averageWords, reportHighlights, toParWords, type HoleStat } from "../domain/report-highlights";
+import { movementStory, placeIn, whoWords } from "../domain/report-movement";
+import { cleanIsoDate, shortDate } from "../domain/round-dates";
+import { placeOrdinal } from "../format";
 import { finalReport, recapParagraphs, type FinalReport } from "./final-report";
 import { TEAM_SESSION } from "./cup";
 import { isMatch } from "../tournament-shape";
@@ -19,6 +37,8 @@ import {
   countWords,
   eventRibbon,
   eventStory,
+  halves,
+  listWords,
   nineWords,
   placeFigure,
   sideFigure,
@@ -44,10 +64,32 @@ import {
  *   prizes, contests    the winners the organizer recorded on Prizes
  *
  * A tie at the top is said as shared and never broken: the committee settles
- * it. Prize AMOUNTS are left off — the report goes to everybody, and what a
- * prize is worth is the club's business. A casual round has no report, as it
- * has no honours board.
+ * it. A casual round has no report, as it has no honours board.
+ *
+ * WIDENED 2026-10-21 into the tournament's conclusion (Ajay: "the highlights
+ * and player accomplishments, leaderboard movement, any schedule deadline …
+ * THE REPORT CAN INCLUDE EVERYTHING THE TOURNAMENT IS USING INCLUDING MONEY").
+ * Each section appears only where the tournament used that part of the app,
+ * and each is a read of the reader the screen holding it uses — see
+ * `event-report-sections.ts` for the list, and `report-highlights.ts` for the
+ * one new piece of arithmetic (what the cards show: aces, birdies, runs).
+ *
+ * WHO SEES AMOUNTS (decided by recommendation, 2026-10-21; the owner may
+ * change it). This header used to say prize amounts were left off because the
+ * report goes to everybody. That was a recommendation and it is superseded:
+ *
+ *   the organizer's copy (Reports)      amounts, the costs, the whole settle-up
+ *   a signed-in player in the field     the same, with their own line first
+ *   the public link, signed out         winners, NEVER what they won; no costs,
+ *                                       no settle-up, no pinned notices
+ *
+ * The rule is `showsAmounts(audience)`, decided once where the report is
+ * built, so a section written later cannot print an amount on the public copy
+ * by forgetting to ask. Money itself is reported FINAL ONLY: a pot still being
+ * played is absent, exactly as it is absent from the settle-up.
  */
+
+export { reportAudienceFor, type ReportAudience } from "./event-report-sections";
 
 export interface EventReportRow {
   /** "1", "T2", or "" for somebody who holds no position. */
@@ -75,19 +117,49 @@ export interface EventReport {
   boardTitle: string;
   columns: string[];
   rows: EventReportRow[];
-  prizes: Array<{ what: string; winners: string[] }>;
+  /** `amount` is "" on the public copy, and for a prize or contest with none. */
+  prizes: Array<{ what: string; winners: string[]; amount: string }>;
+
+  /** Who this copy is for — and so whether `amounts` appear anywhere in it. */
+  audience: ReportAudience["kind"];
+  amounts: boolean;
+  /** Each flight's winner, when the field is divided into flights. */
+  flights: Array<{ label: string; names: string[]; figure: string }>;
+  /** A knockout's ties, round by round, as the draw holds them. */
+  draw: Array<{ label: string; ties: string[] }>;
+  /** Each round's result, when there is more than one — `resultLinesFor`'s sentence. */
+  rounds: Array<{ label: string; date: string; result: string }>;
+  /** How it was won, and the podium's place after each round. Null with one round. */
+  movement: {
+    story: Array<{ label: string; text: string }>;
+    columns: string[];
+    rows: Array<{ name: string; places: string[]; up: boolean[] }>;
+  } | null;
+  /** One line each: the label, who, and what. Aces and eagles first. */
+  highlights: Array<{ label: string; who: string; what: string }>;
+  /** A number and what it counts. */
+  numbers: Array<{ figure: string; label: string }>;
+  skins: ReportPot[];
+  sideGames: ReportPot[];
+  costs: ReportMoney["costs"];
+  settleUp: ReportMoney["settleUp"];
+  comingUp: Array<{ when: string; text: string }>;
 }
 
 export type AnyReport = { kind: "cup"; report: FinalReport } | { kind: "event"; report: EventReport };
 
-/** The report for any tournament: a cup's, or a champion's. Null for a casual round. */
-export async function reportFor(eventId: string): Promise<AnyReport | null> {
+/**
+ * The report for any tournament: a cup's, or a champion's. Null for a casual
+ * round. The audience defaults to the PUBLIC copy — the safe direction: a
+ * caller that forgets to say who is looking shows nobody an amount.
+ */
+export async function reportFor(eventId: string, audience: ReportAudience = { kind: "public" }): Promise<AnyReport | null> {
   const cupRounds = await prisma.stage.count({ where: { eventId, type: TEAM_SESSION } });
   if (cupRounds > 0) {
     const cup = await finalReport(eventId);
     return cup ? { kind: "cup", report: cup } : null;
   }
-  const event = await eventReport(eventId);
+  const event = await eventReport(eventId, audience);
   return event ? { kind: "event", report: event } : null;
 }
 
@@ -101,7 +173,7 @@ function unrankedWords(r: StandingRow): string {
   return unrankedNote(r) || "No return";
 }
 
-export async function eventReport(eventId: string): Promise<EventReport | null> {
+export async function eventReport(eventId: string, audience: ReportAudience = { kind: "public" }): Promise<EventReport | null> {
   const [event, state, board] = await Promise.all([
     prisma.event.findUnique({
       where: { id: eventId },
@@ -172,11 +244,12 @@ export async function eventReport(eventId: string): Promise<EventReport | null> 
   if (confirmed) first = { names: [confirmed.championName], figure: first?.names.includes(confirmed.championName) ? first.figure : "" };
 
   const stages = playingStages(state.stages);
-  const lines = await resultLinesFor(state);
+  const outcomes = await roundOutcomesFor(state);
+  const lines = tournamentResult(outcomes.map((o) => o.outcome));
   const recap = recapParagraphs(event.reportRecap);
-  const story = recap.length
-    ? recap
-    : eventStory({ completed, first, second, rounds: lines.map((l) => ({ label: l.label, result: l.result })) });
+  // Each round's result has its own table now (`rounds` below), so the story
+  // told from the results says who won and leaves the rounds to the table.
+  const story = recap.length ? recap : eventStory({ completed, first, second, rounds: [] });
 
   // The leaderboard, the whole field: a club sends this to everybody, and
   // everybody looks for themselves. Gross AND net wherever there are strokes.
@@ -221,28 +294,197 @@ export async function eventReport(eventId: string): Promise<EventReport | null> 
     };
   });
 
-  const [prizeRows, contests] = await Promise.all([
+  const [prizeRows, contests, money] = await Promise.all([
     prisma.prize.findMany({
       where: { eventId, winnerId: { not: null } },
       orderBy: { position: "asc" },
-      select: { category: true, winnerId: true },
+      select: { category: true, winnerId: true, amount: true },
     }),
     prisma.contest.findMany({
       where: { eventId },
       orderBy: { createdAt: "asc" },
-      select: { name: true, hole: true, entrants: { where: { won: true }, select: { playerId: true } } },
+      select: { id: true, name: true, hole: true, entrants: { where: { won: true }, select: { playerId: true } } },
     }),
+    moneySections(state, audience),
   ]);
   const nameOf = new Map(state.players.map((p) => [p.id, p.name]));
   const prizes = [
-    ...prizeRows.map((p) => ({ what: p.category, winners: [nameOf.get(p.winnerId ?? "") ?? ""].filter(Boolean) })),
+    ...prizeRows.map((p) => ({
+      what: p.category,
+      winners: [nameOf.get(p.winnerId ?? "") ?? ""].filter(Boolean),
+      amount: money.prizeAmount(p.amount),
+    })),
     ...contests
       .filter((c) => c.entrants.length > 0)
-      .map((c) => ({
-        what: c.hole > 0 && !c.name.includes(String(c.hole)) ? `${c.name} (hole ${c.hole})` : c.name,
-        winners: c.entrants.map((e) => nameOf.get(e.playerId) ?? "").filter(Boolean),
-      })),
+      .map((c) => {
+        const pot = money.contestPots.get(c.id) ?? 0;
+        return {
+          what: c.hole > 0 && !c.name.includes(String(c.hole)) ? `${c.name} (hole ${c.hole})` : c.name,
+          winners: c.entrants.map((e) => nameOf.get(e.playerId) ?? "").filter(Boolean),
+          // The pot the money screen holds for it (`moneyFor`), shared where it was shared.
+          amount: pot > 0 ? `${money.money(pot)}${c.entrants.length > 1 ? ", shared" : ""}` : "",
+        };
+      }),
   ].filter((p) => p.winners.length > 0);
+
+  // ── Flights: each flight's winner, from the reader Prizes and Today use ──
+  const rowById = new Map(rows.map((r) => [r.id, r]));
+  const flights =
+    individual && !knockout && state.groups.length > 1
+      ? flightStandings(state).flatMap((f) => {
+          const top = f.rows.filter((r) => r.rank === 1);
+          if (top.length === 0) return [];
+          const row = rowById.get(top[0].id);
+          return [{ label: f.label, names: top.map((t) => nameOf.get(t.id) ?? "").filter(Boolean), figure: row ? placeFigure(row, basis) : "" }];
+        })
+      : [];
+
+  // ── A knockout's draw, round by round, with the margins the committee recorded ──
+  const margins = knockout
+    ? new Map((await prisma.bracketWinner.findMany({ where: { eventId }, select: { key: true, result: true } })).map((w) => [w.key, w.result.trim()]))
+    : new Map<string, string>();
+  const draw = board.draws.flatMap((d) => {
+    const ties = d.view.rounds.flatMap((round) =>
+      round.matches.flatMap((m) => {
+        if (!m.winnerId || !m.a.playerId || !m.b.playerId) return [];
+        const [w, l] = m.winnerId === m.a.playerId ? [m.a, m.b] : [m.b, m.a];
+        const margin = margins.get(m.key) ?? "";
+        return [`${round.label}: ${w.name} beat ${l.name}${margin ? ` ${margin}` : ""}`];
+      }),
+    );
+    return ties.length ? [{ label: board.draws.length > 1 ? d.label : "The draw", ties }] : [];
+  });
+
+  // ── Each round, when there is more than one ──────────────────────────────
+  const { locale } = await formattingForEvent(eventId);
+  const rounds =
+    stages.length > 1
+      ? lines.map((l, i) => ({
+          label: l.label,
+          date: shortDate(cleanIsoDate(stages[i]?.playedOn), locale),
+          result: l.result,
+        }))
+      : [];
+
+  // ── How it was won: the week sheet's table after each round ──────────────
+  let movement: EventReport["movement"] = null;
+  let climb: ReturnType<typeof movementStory>["climb"] = null;
+  if (individual && !knockout && stages.length > 1) {
+    const moved = await movementRoundsFor(state, basis.isStableford ? "stableford" : basis.isNet ? "net" : "gross");
+    if (moved.rounds.length > 1) {
+      const words = (v: number) =>
+        !state.isStroke
+          ? `${halves(v)} match points`
+          : moved.basis === "stableford"
+            ? `${v} points`
+            : moved.basis === "gross"
+              ? `gross ${v}`
+              : `net ${v}`;
+      const told = movementStory(moved.rounds, words);
+      climb = told.climb;
+      // The podium, by the BOARD's places — the table under the champion.
+      const podium = rows.filter((r) => r.ranked && r.rank <= 3);
+      const earlier = moved.rounds.slice(0, -1);
+      movement = {
+        story: told.story,
+        columns: [...earlier.map((r) => shortRound(r.label)), "Final"],
+        rows: podium.map((r) => {
+          const places = [...earlier.map((round) => placeIn(round.rows, r.id)), placeText(r, shared)];
+          const nums = places.map((p) => Number(p.replace(/^T/, "")) || 0);
+          return { name: r.name, places, up: nums.map((n, i) => i > 0 && n > 0 && nums[i - 1] > 0 && n < nums[i - 1]) };
+        }),
+      };
+    }
+  }
+
+  // ── Highlights and the numbers, off the cards ────────────────────────────
+  const cardRounds = await highlightRoundsFor(state);
+  const found = reportHighlights(cardRounds);
+  const venues = await venueNames(
+    state,
+    cardRounds.map((r) => r.venue),
+  );
+  const severalVenues = new Set(cardRounds.filter((r) => r.strokePlay).map((r) => r.venue)).size > 1;
+  const holeWords = (h: HoleStat) => `Hole ${h.hole}${severalVenues && venues.get(h.venue) ? ` at ${venues.get(h.venue)}` : ""}`;
+  const best = bestRoundOf(outcomes, stages);
+  const several = stages.length > 1;
+  // The names once each, however many rounds they did it in, and the rounds beside them.
+  const whoOf = (holders: Array<{ name: string }>) => whoWords([...new Set(holders.map((h) => h.name))]);
+  const whereOf = (holders: Array<{ name: string; round: string }>) => (several ? holdersWords(holders, true, 3) : "");
+  const feat = (label: string, feats: typeof found.eagles) =>
+    feats.length <= 4
+      ? feats.map((e) => ({
+          label: label === "Hole-in-one" ? label : e.what === "albatross" ? "Albatross" : "Eagle",
+          who: e.name,
+          what: e.what === "hole-in-one" ? `Hole ${e.hole}${e.par ? `, par ${e.par}` : ""}${several ? `, ${e.round}` : ""}` : `${e.strokes} on the par-${e.par} hole ${e.hole}${several ? `, ${e.round}` : ""}`,
+        }))
+      : [{ label: label === "Hole-in-one" ? "Holes-in-one" : "Eagles", who: whoOf(feats), what: `${feats.length} of them` }];
+  // On a gross board the best round IS the lowest gross; said once.
+  const lowSameAsBest = !!best && !!found.lowestGross && best.figure === `gross ${found.lowestGross.score}`;
+  const highlights = [
+    ...feat("Hole-in-one", found.aces),
+    ...feat("Eagle", found.eagles),
+    ...(best ? [{ label: "Best round", who: `${whoWords(best.names)} · ${best.figure}`, what: listWords(best.rounds) }] : []),
+    ...(found.lowestGross && !lowSameAsBest
+      ? [{ label: "Lowest gross", who: `${whoOf(found.lowestGross.holders)} · ${found.lowestGross.score}`, what: whereOf(found.lowestGross.holders) }]
+      : []),
+    ...(found.bestNine
+      ? [
+          {
+            label: "Best nine holes",
+            who: `${whoOf(found.bestNine.holders)} · ${found.bestNine.score}`,
+            what: [`${capital(toParWords(found.bestNine.toPar))} on the ${found.bestNine.holders[0].nine} nine`, whereOf(found.bestNine.holders)].filter(Boolean).join(", "),
+          },
+        ]
+      : []),
+    ...(found.longestRun
+      ? [
+          {
+            label: "Longest run at par or better",
+            who: `${whoOf(found.longestRun.holders)} · ${found.longestRun.length} holes`,
+            what:
+              found.longestRun.holders.length === 1
+                ? `Hole ${found.longestRun.holders[0].from} to ${found.longestRun.holders[0].to}${several ? `, ${found.longestRun.holders[0].round}` : ""}`
+                : whereOf(found.longestRun.holders),
+          },
+        ]
+      : []),
+    ...(found.mostBirdiesInARound
+      ? [
+          {
+            label: several ? "Most birdies in a round" : "Most birdies",
+            who: `${whoOf(found.mostBirdiesInARound.holders)} · ${found.mostBirdiesInARound.count}`,
+            what: whereOf(found.mostBirdiesInARound.holders),
+          },
+        ]
+      : []),
+    ...(found.mostBirdies
+      ? [{ label: "Most birdies in the tournament", who: `${whoWords(found.mostBirdies.names)} · ${found.mostBirdies.count}`, what: "Across every round" }]
+      : []),
+    ...(climb
+      ? [
+          {
+            label: "Biggest climb",
+            who: `${whoWords(climb.names)} · up ${climb.places}`,
+            what: climb.place ? `To ${climb.place.startsWith("T") ? `share ${placeOrdinal(Number(climb.place.slice(1)))}` : placeOrdinal(Number(climb.place))} after ${climb.round}` : `After ${climb.round}`,
+          },
+        ]
+      : []),
+  ];
+  const n = found.numbers;
+  const numbers: Array<{ figure: string; label: string }> =
+    cardRounds.length === 0
+      ? []
+      : [
+          ...(n.cards > 0 ? [{ figure: String(n.cards), label: n.cards === 1 ? "card returned" : "cards returned" }] : []),
+          { figure: String(n.birdies), label: n.birdies === 1 ? "birdie" : "birdies" },
+          ...(n.eagles > 0 ? [{ figure: String(n.eagles), label: n.eagles === 1 ? "eagle or better" : "eagles or better" }] : []),
+          ...(n.everyRound !== null ? [{ figure: String(n.everyRound), label: "played every round" }] : []),
+          ...n.hardest.slice(0, 1).map((h) => ({ figure: holeWords(h), label: `hardest: par ${h.par}, average ${averageWords(h.average)}` })),
+          ...n.easiest.slice(0, 1).map((h) => ({ figure: holeWords(h), label: `easiest: par ${h.par}, average ${averageWords(h.average)}` })),
+        ];
+
+  const comingUp = await comingUpFor(state, audience);
 
   const facts: Array<{ label: string; value: string }> = [
     { label: "Format", value: stages.length === 1 ? "One round" : `${countWords(stages.length).replace(/^./, (c) => c.toUpperCase())} rounds` },
@@ -283,5 +525,76 @@ export async function eventReport(eventId: string): Promise<EventReport | null> 
     columns,
     rows: team ? sideRows : playerRows,
     prizes,
+    audience: audience.kind,
+    amounts: showsAmounts(audience),
+    flights,
+    draw,
+    rounds,
+    movement,
+    highlights,
+    numbers,
+    skins: money.skins,
+    sideGames: money.sideGames,
+    costs: money.costs,
+    settleUp: money.settleUp,
+    comingUp,
+  };
+}
+
+/** "Round 2" → "R2" for a narrow column; anything else as it is. */
+function shortRound(label: string): string {
+  const m = /^Round (\d+)$/.exec(label.trim());
+  return m ? `R${m[1]}` : label;
+}
+
+function capital(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * "Round 1 and Round 2" for one holder, "Ann in Round 1; Bob and Cat in Round 2"
+ * for several — or just the rounds once there are more holders than a line holds.
+ */
+function holdersWords(holders: Array<{ name: string; round: string }>, rounds: boolean, most: number): string {
+  const names = [...new Set(holders.map((h) => h.name))];
+  if (!rounds) return names.length > most ? "" : listWords(names);
+  const roundsIn = [...new Set(holders.map((h) => h.round))];
+  if (names.length === 1 || roundsIn.length === 1 || names.length > most) return listWords(roundsIn);
+  return roundsIn
+    .map((round) => `${listWords([...new Set(holders.filter((h) => h.round === round).map((h) => h.name))])} in ${round}`)
+    .join("; ");
+}
+
+/**
+ * THE BEST ROUND OF A TOURNAMENT OF SEVERAL, read off the board's own winner
+ * of each round (`roundOutcomesFor` — the reader `resultLinesFor` words) and
+ * never worked out again. Only where every counted round is scored in the same
+ * unit over the same holes: a Stableford round is not compared with a medal,
+ * nor a nine with an eighteen. Null with one round — the champion is that.
+ */
+function bestRoundOf(
+  outcomes: Array<{ stageId: string; outcome: RoundOutcome }>,
+  stages: Array<{ id: string; holes: number }>,
+): { names: string[]; figure: string; rounds: string[] } | null {
+  if (stages.length < 2) return null;
+  const scored = outcomes.flatMap(({ stageId, outcome }) =>
+    outcome.kind === "stroke" &&
+    (outcome.unit === "net" || outcome.unit === "gross" || outcome.unit === "pts") &&
+    outcome.winners.length > 0 &&
+    Number.isFinite(Number(outcome.winners[0].score))
+      ? [{ stageId, unit: outcome.unit, label: outcome.label, value: Number(outcome.winners[0].score), names: outcome.winners.map((w) => w.name) }]
+      : [],
+  );
+  if (scored.length < 2) return null;
+  const unit = scored[0].unit;
+  const holes = stages.find((s) => s.id === scored[0].stageId)?.holes;
+  if (scored.some((s) => s.unit !== unit || stages.find((x) => x.id === s.stageId)?.holes !== holes)) return null;
+  const higher = unit === "pts";
+  const top = higher ? Math.max(...scored.map((s) => s.value)) : Math.min(...scored.map((s) => s.value));
+  const at = scored.filter((s) => s.value === top);
+  return {
+    names: [...new Set(at.flatMap((s) => s.names))],
+    figure: unit === "pts" ? `${top} points` : `${unit} ${top}`,
+    rounds: at.map((s) => s.label),
   };
 }

@@ -351,11 +351,18 @@ export default async function ReportsPage({
         </p>
         {/* The whole tournament on one page to send round — the same report
             the public board links to once the tournament is finished. */}
-        <p style={{ margin: "12px 0 0" }}>
+        <div style={{ margin: "12px 0 0", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <Link href="/reports/final" className="btn" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
             {state.event.status === "completed" ? "Final report" : "The results so far"}
           </Link>
-        </p>
+          {/* What it holds, in one line, so the report is found here rather
+              than mistaken for the snapshot below (2026-10-21). */}
+          {!casual && (
+            <span className="text-muted" style={{ fontSize: 13, maxWidth: "52ch" }}>
+              The tournament on one page: the result, how it was won, the highlights, the money and what&rsquo;s next.
+            </span>
+          )}
+        </div>
         {choices.length > 1 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             <span className="text-muted" style={{ fontSize: 13 }}>
