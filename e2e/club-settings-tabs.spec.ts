@@ -135,6 +135,22 @@ test("the hash picks the section, a hash it does not know is the first, and a ta
     await page.reload();
     await page.waitForLoadState("networkidle").catch(() => {});
     expect(await shownSection(page), "a reload lost the tab").toBe("handicaps");
+
+    // AND A SAVE DOES NOT TAKE THE HASH AWAY. A save refreshes the page from
+    // the server, and the router writes back the address it holds — which,
+    // told the hash the wrong way, had none: the first run of this lost the
+    // tab at the next click after a save, half way through setting a season.
+    await openSettingsTab(page, "Money");
+    await page.getByLabel("Currency", { exact: true }).selectOption("EUR");
+    await expect
+      .poll(async () => (await prisma.organization.findUniqueOrThrow({ where: { id: club.orgId } })).currency, { message: "CONTROL: the currency was not saved" })
+      .toBe("EUR");
+    await page.locator("main h1").click();
+    await expect(tab(page, "Money"), "a save and a click took the person off Money").toHaveAttribute("aria-selected", "true");
+    await expect.poll(() => new URL(page.url()).hash, { message: "a save took the section out of the address" }).toBe("#money");
+    await page.reload();
+    await page.waitForLoadState("networkidle").catch(() => {});
+    expect(await shownSection(page), "after a save, a reload opened another section").toBe("money");
   });
   expect(errors, errors.join("\n")).toEqual([]);
 });

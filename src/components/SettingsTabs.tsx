@@ -45,6 +45,22 @@ const TabsContext = createContext<TabsState | null>(null);
 /** The id the tab for a section carries, for `aria-labelledby`. */
 const tabId = (id: string) => `tab-${id}`;
 
+/**
+ * Put the section in the address, and tell the router so.
+ *
+ * Replace, not push: Back leaves the screen rather than walking back through
+ * every tab looked at. And `null` for the state, deliberately: Next patches
+ * `replaceState` to adopt a URL somebody else wrote, but only when the state
+ * is not its own — handed `history.state`, it writes the address and leaves
+ * its own copy of the URL without the hash, and the next save's refresh puts
+ * that copy back. The tab then reverted to Name & branding at the next click,
+ * which is how the first browser run of this found it: a season half saved,
+ * and the second box gone from under the test.
+ */
+function tellTheRouter(id: string) {
+  window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${id}`);
+}
+
 export function SettingsTabs({
   sections,
   label,
@@ -55,7 +71,11 @@ export function SettingsTabs({
   label: string;
   children: React.ReactNode;
 }) {
-  const ids = useMemo(() => sections.map((s) => s.id), [sections]);
+  // Keyed on the ids' TEXT: a save refreshes the page from the server, which
+  // hands down a new `sections` array with the same ids, and that must not
+  // count as a new set of tabs.
+  const idsKey = sections.map((s) => s.id).join("|");
+  const ids = useMemo(() => idsKey.split("|"), [idsKey]);
   // The first section, on the server and on the first client render alike, so
   // the two agree; the hash is read once the page is live.
   const [selected, setSelected] = useState(ids[0] ?? "");
@@ -71,39 +91,39 @@ export function SettingsTabs({
     setFlagged((now) => (now.has(id) ? now : new Set(now).add(id)));
   }, []);
 
-  const select = useCallback(
-    (id: string) => {
-      reveal.current = true;
-      setSelected(id);
-      if (typeof window !== "undefined" && window.location.hash !== `#${id}`) {
-        // Replace, not push: Back leaves the screen rather than walking back
-        // through every tab looked at. `history.state` is kept because it is
-        // the router's.
-        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#${id}`);
-      }
-    },
-    [],
-  );
+  const select = useCallback((id: string) => {
+    reveal.current = true;
+    setSelected(id);
+    if (typeof window !== "undefined" && window.location.hash !== `#${id}`) tellTheRouter(id);
+  }, []);
 
   // The hash picks the tab: on arrival, on Back and Forward, and on a link to
   // a section of this same screen — which the router follows with pushState,
   // where no `hashchange` fires, so a click anywhere is followed by a look.
   useEffect(() => {
-    const fromHash = (fromLink: boolean) => {
+    const fromHash = (fromLink: boolean, sync: boolean) => {
       const next = tabFromHash(window.location.hash, ids);
+      // Once the page is open, only a hash that NAMES a section moves the
+      // tab. An address that has lost its hash — whatever took it — is not an
+      // instruction to go back to the first section.
+      if (fromLink && window.location.hash !== `#${next}`) return;
+      // A hash the browser set by itself (arrival, a link pressed before the
+      // script ran, Back) is news to the router: tell it, or its next refresh
+      // writes the address back without it.
+      if (sync && window.location.hash === `#${next}`) tellTheRouter(next);
       setSelected((now) => {
         if (now !== next && fromLink) reveal.current = true;
         return next;
       });
     };
-    fromHash(false);
-    const onHash = () => fromHash(true);
+    fromHash(false, true);
+    const onHash = () => fromHash(true, true);
     // The router writes the address when it commits, which can be a moment
     // after the click, so it is looked at again a little later as well.
     let timers: Array<ReturnType<typeof setTimeout>> = [];
     const onClick = () => {
       timers.forEach(clearTimeout);
-      timers = [0, 60, 300].map((ms) => setTimeout(() => fromHash(true), ms));
+      timers = [0, 60, 300].map((ms) => setTimeout(() => fromHash(true, false), ms));
     };
     window.addEventListener("hashchange", onHash);
     window.addEventListener("popstate", onHash);
@@ -169,7 +189,12 @@ export function SettingsTabs({
         <span className="card-kicker">On this page</span>
         {/* Scrolls sideways inside itself at narrow widths rather than
             wrapping into rows of chips; the page body never scrolls sideways. */}
-        <div style={{ overflowX: "auto", margin: "0 -2px", padding: "0 2px" }}>
+        {/* `position: relative` so the words a screen reader hears beside a
+            tab (`.sr-only`, which is absolutely placed) are placed AND clipped
+            in here. Without it they were placed against the sticky card, outside
+            this scroller, and a count on the last tab widened a phone's page to
+            599px — measured, the first browser run of this. */}
+        <div style={{ overflowX: "auto", margin: "0 -2px", padding: "0 2px", position: "relative" }}>
           <div
             role="tablist"
             aria-label={label}
