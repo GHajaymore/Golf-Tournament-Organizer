@@ -9,6 +9,7 @@ import { emailBrandFor } from "@/lib/services/email-brand";
 import { EMAIL } from "@/lib/themes";
 import { SUPPORT_EMAIL } from "@/lib/contact";
 import { interestSubject } from "@/lib/domain/interest";
+import { EMAIL_CODE_WORDS } from "@/lib/domain/email-code";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -286,6 +287,66 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
       detail: message,
       organizationIds: await organizationsFor(to),
     });
+    return { ok: false, error: message };
+  }
+}
+
+/**
+ * THE SIX-DIGIT CODE THAT PROVES AN ADDRESS (2026-10-21) — the marketing
+ * panel's words, `EMAIL_CODE_WORDS.email`. Same sender and reply-to as a reset.
+ *
+ * With no mail provider the code is written to the SERVER's log and nowhere
+ * else — never on the screen, never in the action's answer — so a developer, CI
+ * and the e2e server can still finish a sign-up. Not on Vercel's production,
+ * though: a log there is read by more people than an inbox, and a code in it is
+ * the address. Production without a provider says it could not send.
+ */
+export async function sendEmailCodeEmail(
+  to: string,
+  code: string,
+  purpose: "signup" | "claim",
+): Promise<{ ok: boolean; error?: string }> {
+  const words = EMAIL_CODE_WORDS.email;
+  if (!resend) {
+    if (process.env.VERCEL_ENV === "production") {
+      console.warn("[email] RESEND_API_KEY not set — email code not sent.");
+      return { ok: false, error: "Email isn't configured on this server." };
+    }
+    console.warn(`[email] RESEND_API_KEY not set — the ${purpose} code for ${maskEmail(to)} is ${code}`);
+    return { ok: true };
+  }
+  const subject = purpose === "claim" ? words.claimSubject : words.subject;
+  const intro = purpose === "claim" ? words.claimIntro : words.intro;
+  // Every word here is the app's own and the code is six digits it made, so
+  // it all goes in raw; nothing anybody typed reaches this body.
+  const body =
+    `<p>${intro}</p>` +
+    `<p style="font-size:30px;font-weight:700;letter-spacing:0.32em;margin:18px 0;font-family:ui-monospace,Menlo,Consolas,monospace">${code}</p>` +
+    `<p>${words.where}</p>` +
+    `<p>${words.ignore}</p>` +
+    `<p>${words.signoff}</p>`;
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      replyTo: SUPPORT_EMAIL,
+      to,
+      ...(await compose(subject, body, words.why, { preview: words.preheader })),
+    });
+    if (error) {
+      console.error(`[email] Resend rejected the code email for ${maskEmail(to)}: ${error.message}`);
+      await recordFailure({
+        kind: "code",
+        reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
+        detail: error.message,
+        organizationIds: await organizationsFor(to),
+      });
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to send email.";
+    console.error(`[email] Failed sending code email to ${maskEmail(to)}: ${message}`);
+    await recordFailure({ kind: "code", reason: classifySendFailure(message), detail: message, organizationIds: await organizationsFor(to) });
     return { ok: false, error: message };
   }
 }

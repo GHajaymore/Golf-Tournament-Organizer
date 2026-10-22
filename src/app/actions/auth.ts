@@ -19,6 +19,14 @@ import { normalizeDiscountCode } from "@/lib/plans";
 import { discountRefusal } from "@/lib/domain/discount";
 import { SIGNINS_CLOSED_MESSAGE } from "@/lib/sign-in-gate";
 import { maySignInNow } from "@/lib/services/signins-switch";
+import {
+  checkEmailCode,
+  latestCodeHere,
+  latestSignupPending,
+  proveAddress,
+  sendEmailCode,
+  type PendingProof,
+} from "@/lib/services/email-code";
 // The app's one shape of an address — see `typed-limits.ts`.
 import { EMAIL_RE } from "@/lib/domain/typed-limits";
 
@@ -55,11 +63,38 @@ function afterSignIn(next?: string | null): string {
 async function startSessionFor(email: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return false;
-  await createSession(user.id);
+  // `createSession` refuses an address nobody has proved, and a sign-in hold.
+  if (!(await createSession(user.id))) return false;
   // Whoever added this person as staff while they were away may now be shown
   // who they added (`markStaffSeen`).
   await markStaffSeen(user.id);
   return true;
+}
+
+/**
+ * A password somebody PROVED is theirs: set, and on an address they showed
+ * they read. A password on an unproved address is a sign-up nobody finished —
+ * it stops nobody claiming or signing up again, and lets nobody in.
+ */
+function hasProvedPassword(user: { password: string; emailVerifiedAt: Date | null } | null): boolean {
+  return !!user?.password && !!user.emailVerifiedAt;
+}
+
+/**
+ * Send a code to prove this address, counted against the address first.
+ * `needsCode` turns the panel into "Enter your code".
+ */
+async function askForCode(input: {
+  userId: string;
+  email: string;
+  purpose: "signup" | "claim";
+  pending: PendingProof | null;
+}): Promise<{ ok: false; error?: string; needsCode?: boolean }> {
+  const limit = await checkRateLimit("email-code-send", input.email);
+  if (!limit.allowed) return { ok: false, error: limit.message };
+  const sent = await sendEmailCode(input);
+  if (!sent.ok) return { ok: false, error: sent.error };
+  return { ok: false, needsCode: true };
 }
 
 /**
@@ -74,7 +109,7 @@ export async function signInWithPassword(
   email: string,
   password: string,
   next?: string,
-): Promise<{ ok: boolean; error?: string; needsClaim?: boolean }> {
+): Promise<{ ok: boolean; error?: string; needsClaim?: boolean; needsCode?: boolean }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
   if (!(await maySignInNow(clean))) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
@@ -95,8 +130,25 @@ export async function signInWithPassword(
     return { ok: false, needsClaim: true };
   }
 
+  /**
+   * Signed up, and gone before the code came. Their password is still waiting
+   * on that code's row, not on the account; the right one earns a NEW code to
+   * the inbox — the password is still only applied when that is typed back.
+   */
+  if (user && !user.password) {
+    const waiting = await latestSignupPending(user.id);
+    if (waiting?.passwordHash && verifyPasswordHash(password, waiting.passwordHash)) {
+      return askForCode({ userId: user.id, email: clean, purpose: "signup", pending: waiting });
+    }
+  }
+
   if (!user || !user.password || !verifyPasswordHash(password, user.password)) {
     return { ok: false, error: "Wrong email or password." };
+  }
+
+  // The right password on an address nobody has proved: prove it first.
+  if (!user.emailVerifiedAt) {
+    return askForCode({ userId: user.id, email: clean, purpose: "signup", pending: null });
   }
 
   const signedIn = await startSessionFor(clean);
@@ -114,8 +166,20 @@ export async function signInWithPassword(
  * Account row and sign the caller straight in, which is account takeover of
  * every player and organizer whose address someone knows. `signUp` has always
  * refused to overwrite an existing password; this is the same rule.
+ *
+ * AND IT SETS NOTHING UNTIL THE ADDRESS IS PROVED (2026-10-21). "A password
+ * that isn't there yet" was the whole check, so whoever typed an invited
+ * address FIRST became that person — an Admin seat, a member's card. Now the
+ * password, hashed, waits on a code emailed to the address
+ * (`services/email-code.ts`), and is set by `verifyEmailCode` when the code is
+ * typed back in the same browser. `next` is carried by the panel to that step.
  */
-export async function claimPassword(email: string, password: string, next?: string): Promise<{ ok: boolean; error?: string }> {
+export async function claimPassword(
+  email: string,
+  password: string,
+  next?: string,
+): Promise<{ ok: boolean; error?: string; needsCode?: boolean }> {
+  void next;
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
   if (!(await maySignInNow(clean))) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
@@ -137,7 +201,7 @@ export async function claimPassword(email: string, password: string, next?: stri
   }
 
   const existing = await prisma.user.findUnique({ where: { email: clean } });
-  if (existing?.password) {
+  if (hasProvedPassword(existing)) {
     return {
       ok: false,
       error: "This email already has a password. Log in instead, or use Forgot password if you don't have it.",
@@ -159,15 +223,84 @@ export async function claimPassword(email: string, password: string, next?: stri
     select: { name: true },
   });
 
-  await prisma.user.upsert({
+  // A row to hang the code on, and NO password on it: the one chosen here is
+  // held, hashed, on the code's row until the code comes back.
+  const user = await prisma.user.upsert({
     where: { email: clean },
-    update: { password: hashPassword(password) },
-    create: { email: clean, name: provisioned?.name ?? "", password: hashPassword(password) },
+    update: {},
+    create: { email: clean, name: provisioned?.name ?? "" },
+    select: { id: true },
   });
-  await clearRateLimit("claim-password", clean);
+  return askForCode({ userId: user.id, email: clean, purpose: "claim", pending: { passwordHash: hashPassword(password) } });
+}
+
+/**
+ * The code typed back: the address is proved, what waited on it takes effect,
+ * and the person is signed in and sent on as a sign-in would send them.
+ *
+ * The code is checked against THIS browser's newest one for the address
+ * (`checkEmailCode`), so a code a stranger caused to be sent cannot be used
+ * here to apply the stranger's password, and five wrong tries spend it.
+ */
+export async function verifyEmailCode(
+  email: string,
+  code: string,
+  next?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const clean = typeof email === "string" ? email.trim().toLowerCase() : "";
+  if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+  if (!(await maySignInNow(clean))) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
+
+  const checked = await checkEmailCode(clean, code);
+  if (!checked.ok) return { ok: false, error: checked.error };
+  await proveAddress(checked);
+
+  /**
+   * A sign-up's club is made NOW, not when the form was sent: an address that
+   * was never proved is nobody, and a club made for nobody would be a club a
+   * stranger could make in your name. Only when they do not already run one —
+   * see the note in `signUp`.
+   */
+  const { pending } = checked;
+  if (checked.purpose === "signup" && pending.kind && isOrgKind(pending.kind)) {
+    const owned = await prisma.organizationMember.findFirst({
+      where: { userId: checked.userId, role: { in: ["owner", "admin"] } },
+      select: { id: true },
+    });
+    if (!owned) {
+      const person = await prisma.user.findUniqueOrThrow({ where: { id: checked.userId }, select: { name: true } });
+      const organizationId = await createOrganizationWithOwner({ email: clean, displayName: person.name, kind: pending.kind });
+      // Kept for the club's plan checkout, which asks again whether it is still usable.
+      if (pending.discountCode) {
+        await prisma.organization.update({ where: { id: organizationId }, data: { discountCode: pending.discountCode } });
+      }
+    }
+  }
+  if (checked.purpose === "claim") await clearRateLimit("claim-password", clean);
+
   const signedIn = await startSessionFor(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
   redirect(afterSignIn(next));
+}
+
+/**
+ * "Send a new code": another code of the same kind to the same address, from
+ * this browser's last one. Counted against the address BEFORE anything is
+ * looked up, and the same answer whether or not there was anything to resend.
+ */
+export async function resendEmailCode(email: string): Promise<{ ok: boolean; error?: string }> {
+  const clean = typeof email === "string" ? email.trim().toLowerCase() : "";
+  if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+  if (!(await maySignInNow(clean))) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
+
+  const limit = await checkRateLimit("email-code-send", clean);
+  if (!limit.allowed) return { ok: false, error: limit.message };
+
+  const user = await prisma.user.findUnique({ where: { email: clean }, select: { id: true, emailVerifiedAt: true } });
+  const last = user && !user.emailVerifiedAt ? await latestCodeHere(user.id) : null;
+  if (!user || !last) return { ok: true };
+  const sent = await sendEmailCode({ userId: user.id, email: clean, purpose: last.purpose, pending: last.pending });
+  return sent.ok ? { ok: true } : { ok: false, error: sent.error };
 }
 
 /**
@@ -242,10 +375,10 @@ export async function resetPassword(token: string, password: string): Promise<{ 
 
   const owner = await prisma.user.findUnique({
     where: { id: record.userId },
-    select: { email: true, name: true },
+    select: { email: true, name: true, emailVerifiedAt: true },
   });
   if (!(await maySignInNow(owner?.email))) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
-  const weak = passwordProblem(password, owner ?? undefined);
+  const weak = passwordProblem(password, owner ? { email: owner.email, name: owner.name } : undefined);
   if (weak) return { ok: false, error: weak };
 
   /**
@@ -263,9 +396,11 @@ export async function resetPassword(token: string, password: string): Promise<{ 
    * using one must not leave the other good.
    */
   const now = new Date();
+  // A reset link only ever reaches the inbox, so finishing one PROVES the
+  // address as a typed-back code does (2026-10-21) — kept from the first proof.
   const user = await prisma.user.update({
     where: { id: record.userId },
-    data: { password: hashPassword(password), sessionsValidFrom: now },
+    data: { password: hashPassword(password), sessionsValidFrom: now, emailVerifiedAt: owner?.emailVerifiedAt ?? now },
   });
   await prisma.passwordResetToken.updateMany({ where: { userId: record.userId, usedAt: null }, data: { usedAt: now } });
 
@@ -309,7 +444,7 @@ export async function signUp(
   kind: string,
   next?: string,
   discountInput?: string,
-): Promise<{ ok: boolean; error?: string; needsClaim?: boolean }> {
+): Promise<{ ok: boolean; error?: string; needsClaim?: boolean; needsCode?: boolean }> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanName) return { ok: false, error: "Enter your name." };
@@ -337,7 +472,8 @@ export async function signUp(
   const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
 
   // Already has a password: this is a person who forgot they had signed up.
-  if (existing?.password) {
+  // (A sign-up nobody finished proving is not one — it may be a stranger's.)
+  if (hasProvedPassword(existing)) {
     return { ok: false, error: "An account already exists for this email — log in instead." };
   }
 
@@ -360,34 +496,36 @@ export async function signUp(
     return { ok: false, needsClaim: true };
   }
 
+  /**
+   * THE ADDRESS IS PROVED BEFORE ANYTHING IS ITS (2026-10-21). The account row
+   * is made (or kept) with NO password and no name; what was typed — the
+   * password hashed, the name, the club's kind, a discount code — waits on a
+   * code emailed to the address, and `verifyEmailCode` applies it, makes the
+   * club and signs them in. Until then this address is nobody: access follows
+   * the address, so a session here would have been every tournament it was
+   * ever entered in, for whoever typed it first.
+   *
+   * The club is made at verification and only when they do not already run
+   * one. Someone invited as staff already has a User row and a membership but
+   * no password; creating a second organization for them would leave a junk
+   * personal tenant beside their real club, and the answer they just gave must
+   * not restate what their club is — the same rule `newOrganizationName`
+   * follows in never renaming an existing organization from a later form.
+   */
   const user = await prisma.user.upsert({
     where: { email: cleanEmail },
-    update: { name: cleanName, password: hashPassword(password) },
-    create: { email: cleanEmail, name: cleanName, password: hashPassword(password) },
-  });
-
-  /**
-   * Only when they do not already run one.
-   *
-   * Someone invited as staff already has a User row and a membership but no
-   * password, and claims the account by signing up. Creating a second
-   * organization for them would leave a junk personal tenant beside their real
-   * club, and the answer they just gave must not restate what their club is —
-   * the same rule `newOrganizationName` follows in never renaming an existing
-   * organization from a later form.
-   */
-  const owned = await prisma.organizationMember.findFirst({
-    where: { userId: user.id, role: { in: ["owner", "admin"] } },
+    update: {},
+    create: { email: cleanEmail, name: "" },
     select: { id: true },
   });
-  if (!owned) {
-    const organizationId = await createOrganizationWithOwner({ email: cleanEmail, displayName: cleanName, kind });
-    // Kept for the club's plan checkout, which asks again whether it is still usable.
-    if (discountCode) await prisma.organization.update({ where: { id: organizationId }, data: { discountCode } });
-  }
-
-  await createSession(user.id);
-  redirect(afterSignIn(next));
+  // `next` rides with the panel to the code step, as the email does.
+  void next;
+  return askForCode({
+    userId: user.id,
+    email: cleanEmail,
+    purpose: "signup",
+    pending: { passwordHash: hashPassword(password), name: cleanName, kind, discountCode },
+  });
 }
 
 /**
