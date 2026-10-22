@@ -918,6 +918,7 @@ export default async function DashboardPage() {
           status={event.status}
           isAdmin={isAdmin}
           configUnlocked={event.configUnlocked}
+          archived={!!event.archivedAt}
           resultsIn={state.resultsIn}
           blockedReason={phaseBlock ?? undefined}
           {...(isAdmin && (await wipesOnCloseFor(event.id))
