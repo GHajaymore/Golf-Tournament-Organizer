@@ -45,8 +45,18 @@ model User {
    * somebody who has never reset: nothing of theirs has been ended.
    */
   sessionsValidFrom DateTime?
+  /**
+   * When this person proved they read this address's mail (2026-10-21): a
+   * six-digit code typed back (`EmailCode`), or a password reset finished from
+   * its emailed link. NULL is nobody's proof, and `createSession` makes no
+   * session for it — so whoever types an invited address first is not, by
+   * typing it, that person. Users who had a password before this column were
+   * marked verified by the migration that added it.
+   */
+  emailVerifiedAt DateTime?
 
   resetTokens PasswordResetToken[]
+  emailCodes  EmailCode[]
   memberships OrganizationMember[]
   joinRequests JoinRequest[]
 }
@@ -884,6 +894,40 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/**
+ * A six-digit code emailed to prove somebody reads an address (2026-10-21) —
+ * see `services/email-code.ts`. Only a sha256 of the code (bound to the user)
+ * is stored, as a reset token's is. Good for 15 minutes, five wrong tries, and
+ * one use.
+ *
+ * `purpose` is "signup" (a new account) or "claim" (a first password for an
+ * address a club invited). `pending` is what takes effect only once the code is
+ * right: the HASHED password chosen, and for a sign-up the name, club kind and
+ * discount code — so a password chosen by somebody who cannot read the mail
+ * never becomes anybody's password.
+ *
+ * `browserHash` ties the code to the browser that asked for it (a sha256 of an
+ * HttpOnly cookie's random value). Without it, a stranger signing up with your
+ * address a minute after you would send you a second code carrying THEIR
+ * password, and the code you typed from the newest email would set it.
+ */
+model EmailCode {
+  id          String    @id @default(cuid())
+  userId      String
+  codeHash    String
+  browserHash String
+  purpose     String
+  pending     Json?
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, browserHash])
 }
 
 /**
