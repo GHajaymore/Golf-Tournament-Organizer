@@ -298,7 +298,6 @@ describe("no screen reads a typed number its own way", () => {
     ["commitCarry(true, parseInt(e.target.value, 10))", "a slider"],
     ["setBulkHoles(holesPlayed(parseInt(e.target.value, 10)))", "a dropdown: 9 or 18"],
     ["setInterval(parseInt(e.target.value, 10))", "a dropdown of minutes"],
-    ["parseFloat(getComputedStyle(row).columnGap", "a length off the stylesheet"],
     ['parseInt(a.replace(/\\D/g, ""), 10)', "the digits of a label, to sort flights by number"],
     ['parseInt(b.replace(/\\D/g, ""), 10)', "the digits of a label, to sort flights by number"],
     ["setToFlight(Number(e.target.value))", "a dropdown of flights"],

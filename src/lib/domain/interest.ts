@@ -1,3 +1,5 @@
+import { EMAIL_RE } from "./typed-limits";
+
 /**
  * SOMEBODY INTERESTED BEFORE WE OPEN (2026-10-21) — the rules of the public
  * /interest form, in one place: what it asks, what it offers, and what it
@@ -138,8 +140,8 @@ export type InterestCheck =
   | { ok: false; spam: true };
 
 const text = (v: unknown) => (typeof v === "string" ? v : "").trim();
-/** One address, plainly shaped — the reply goes to it, so it has to be one. */
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** One address, plainly shaped — the reply goes to it, so it has to be one. The app's one shape. */
+const EMAIL = EMAIL_RE;
 const PHONE = /^[+()\-.\s\d]+$/;
 
 /**

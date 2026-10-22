@@ -89,6 +89,22 @@ import { cloneSingleMatchRule, parseSingleMatchRule, singleMatchRuleRefusal } fr
 import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
+import {
+  EMAIL_RE,
+  EMAIL_REFUSAL,
+  isEmailAddress,
+  nameRefusal,
+  PERSON_NAME_MAX,
+  PHONE_MAX,
+  PLACE_MAX,
+  TITLE_MAX,
+} from "@/lib/domain/typed-limits";
+import {
+  PRIZE_CATEGORY_BLANK,
+  PRIZE_CATEGORY_MAX,
+  PRIZE_DETAIL_MAX,
+  prizeAmountRefusal,
+} from "@/lib/domain/prize-amount";
 import { indexRefusal } from "@/lib/domain/handicap-label";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
@@ -440,8 +456,6 @@ export interface SignupInput {
   handicapType?: string;
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export interface SignupResult {
   ok: boolean;
   error?: string;
@@ -462,9 +476,15 @@ async function casualRoundFull(event: { id: string; shape: string }, adding: num
 
 export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const eventId = await requireStaffEvent();
-  const clean = input.name.trim();
-  if (!clean) return { ok: false, error: "Enter a player name." };
-  const cleanEmail = (input.email ?? "").trim().toLowerCase();
+  const clean = String(input.name ?? "").trim();
+  const badName = nameRefusal(clean, PERSON_NAME_MAX, "Enter a player name.");
+  if (badName) return { ok: false, error: badName };
+  const cleanEmail = String(input.email ?? "").trim().toLowerCase();
+  // A home club is a place's name, held to a place's length like the club's
+  // own town — said, not cut (the text-box crawl, 2026-10-21).
+  if (String(input.homeClub ?? "").trim().length > PLACE_MAX) {
+    return { ok: false, error: `Keep the home club to ${PLACE_MAX} characters.` };
+  }
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return { ok: false, error: "Event not found." };
   /**
@@ -494,7 +514,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   if (!cleanEmail && entryNeedsEmail(settingsOf(event))) {
     return { ok: false, error: "Email is required — it's how this player signs in." };
   }
-  if (cleanEmail && !EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+  if (cleanEmail && !isEmailAddress(cleanEmail)) return { ok: false, error: EMAIL_REFUSAL };
   // A handicap that was typed is one a golfer can have. Not finite is "left
   // blank", which is allowed and is recorded below as no index.
   if (Number.isFinite(input.handicap)) {
@@ -504,10 +524,14 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // The same rule the public form follows. An organizer typing someone in must
   // not be able to create an entrant the tournament cannot reach, when the
   // stranger filling in the form on their phone cannot.
-  const cleanPhone = (input.phone ?? "").trim();
+  const cleanPhone = String(input.phone ?? "").trim();
   if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone, event.playerAccess)) {
     if (!cleanPhone) return { ok: false, error: "Enter a mobile number for this player." };
-    if (!looksLikePhone(cleanPhone)) return { ok: false, error: "That doesn't look like a phone number." };
+  }
+  // A number that was typed is a number, whether or not this tournament asks
+  // for one: "call me" stored here is a text nobody can be sent.
+  if (cleanPhone && (!looksLikePhone(cleanPhone) || cleanPhone.length > PHONE_MAX)) {
+    return { ok: false, error: "That doesn't look like a phone number." };
   }
   /**
    * The same de-duplication the public form has always done.
@@ -631,7 +655,11 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player || player.eventId !== eventId) return { ok: false, error: "Player not found." };
   const data: Record<string, string | number> = {};
-  if (patch.name !== undefined && patch.name.trim()) data.name = patch.name.trim();
+  if (patch.name !== undefined && String(patch.name).trim()) {
+    const name = String(patch.name).trim();
+    if (name.length > PERSON_NAME_MAX) return { ok: false, error: `Keep the name to ${PERSON_NAME_MAX} characters.` };
+    data.name = name;
+  }
   if (patch.handicap !== undefined && Number.isFinite(patch.handicap)) {
     // THE RANGE, HERE AS WELL AS IN THE FORMS. This stored any finite number:
     // the Registration box checks what is typed, a casual round's box did
@@ -648,8 +676,8 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   const oldEmail = player.email.trim().toLowerCase();
   let emailChanged = false;
   if (patch.email !== undefined) {
-    const cleanEmail = patch.email.trim().toLowerCase();
-    if (cleanEmail && !EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+    const cleanEmail = String(patch.email).trim().toLowerCase();
+    if (cleanEmail && !isEmailAddress(cleanEmail)) return { ok: false, error: EMAIL_REFUSAL };
     /**
      * Correcting an email must not create the duplicate `addSignup` now refuses.
      *
@@ -675,7 +703,14 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
     data.email = cleanEmail;
     emailChanged = cleanEmail !== oldEmail;
   }
-  if (patch.phone !== undefined) data.phone = patch.phone.trim();
+  if (patch.phone !== undefined) {
+    // Blank clears it; anything typed is a number, as on the Add form.
+    const phone = String(patch.phone).trim();
+    if (phone && (!looksLikePhone(phone) || phone.length > PHONE_MAX)) {
+      return { ok: false, error: "That doesn't look like a phone number." };
+    }
+    data.phone = phone;
+  }
   if (Object.keys(data).length === 0) return { ok: true };
   await prisma.player.update({ where: { id: playerId }, data });
 
@@ -1113,9 +1148,19 @@ export async function saveEvent(data: {
   capacity: number;
   playerCountMode: string;
   courseMode: string;
-}) {
+}): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
   await assertUnlocked(eventId);
+
+  /**
+   * A TOURNAMENT HAS A NAME (the text-box crawl, 2026-10-21). This stored
+   * whatever arrived: a blank, which every list then drew as nothing, and
+   * 2,000 characters, which every header then drew. Refused in words; the
+   * screen says it beside its Save.
+   */
+  const name = String(data.name ?? "").trim();
+  const badName = nameRefusal(name, TITLE_MAX, "Name the tournament before saving.");
+  if (badName) return { ok: false, error: badName };
 
   /**
    * The course id is proven to be this club's before it is stored.
@@ -1168,7 +1213,7 @@ export async function saveEvent(data: {
   await prisma.event.update({
     where: { id: eventId },
     data: {
-      name: data.name,
+      name,
       ...calendar,
       // Only a word this app offers, because a `"use server"` export is a
       // public endpoint and this one prints into a member's sentence.
@@ -1272,6 +1317,7 @@ export async function saveEvent(data: {
   }
 
   await refresh();
+  return { ok: true };
 }
 
 export async function applyManualCount(target: number, force = false): Promise<RegenResult> {
@@ -3780,9 +3826,15 @@ const cleanRole = (role: string) => (ACCOUNT_ROLES.includes(role) ? role : "play
 
 export async function addAccount(name: string, email: string, role: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
-  const clean = name.trim();
-  const cleanEmail = email.trim().toLowerCase();
+  const clean = String(name ?? "").trim();
+  const cleanEmail = String(email ?? "").trim().toLowerCase();
   if (!clean || !cleanEmail) return { ok: false, error: "Enter a name and email." };
+  // The same two rules as every other door a person is named at: a name of a
+  // person's length, and an address that is one (the text-box crawl stored
+  // both, 2026-10-21).
+  const badName = nameRefusal(clean, PERSON_NAME_MAX, "Enter a name and email.");
+  if (badName) return { ok: false, error: badName };
+  if (!isEmailAddress(cleanEmail)) return { ok: false, error: EMAIL_REFUSAL };
   const next = cleanRole(role);
 
   // Per-event organizer and assistant roles consume a staff seat too. Without
@@ -4612,35 +4664,64 @@ export async function setConfigUnlocked(unlocked: boolean) {
  * Found by sweeping every server action that writes a money row for the audit
  * line beside it, 2026-09-13. Same sweep, same day, as the whole of skins.ts.
  */
-export async function addPrize(category: string, amount: number, detail = "") {
+export async function addPrize(category: string, amount: number, detail = ""): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  const clean = category.trim();
-  if (!clean) return;
+  // REFUSED IN WORDS (the text-box crawl, 2026-10-21): a blank name returned
+  // nothing, and the screen pressing Add said nothing; an impossible amount
+  // was stored as no prize. See `prize-amount.ts`.
+  const clean = String(category ?? "").trim();
+  if (!clean) return { ok: false, error: PRIZE_CATEGORY_BLANK };
+  if (clean.length > PRIZE_CATEGORY_MAX) return { ok: false, error: `Keep the prize's name to ${PRIZE_CATEGORY_MAX} characters.` };
+  const cleanDetail = String(detail ?? "").trim();
+  if (cleanDetail.length > PRIZE_DETAIL_MAX) return { ok: false, error: `Keep the detail to ${PRIZE_DETAIL_MAX} characters.` };
+  const sum = typeof amount === "number" ? amount : Number.NaN;
+  const badAmount = prizeAmountRefusal(sum);
+  if (badAmount) return { ok: false, error: badAmount };
   const agg = await prisma.prize.aggregate({ where: { eventId }, _max: { position: true } });
   await prisma.prize.create({
     data: {
       eventId,
       category: clean,
-      detail: detail.trim(),
-      amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
+      detail: cleanDetail,
+      amount: sum,
       position: (agg._max.position ?? 0) + 1,
     },
   });
-  await logAudit(eventId, "prize.add", `${clean}${amount > 0 ? ` — ${amount}` : ""}`);
+  await logAudit(eventId, "prize.add", `${clean}${sum > 0 ? ` — ${sum}` : ""}`);
   await refresh();
+  return { ok: true };
 }
 
-export async function updatePrize(prizeId: string, data: { category?: string; detail?: string; amount?: number }) {
+export async function updatePrize(
+  prizeId: string,
+  data: { category?: string; detail?: string; amount?: number },
+): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
   const patch: { category?: string; detail?: string; amount?: number } = {};
-  if (data.category !== undefined) patch.category = data.category.trim();
-  if (data.detail !== undefined) patch.detail = data.detail.trim();
-  if (data.amount !== undefined) patch.amount = Number.isFinite(data.amount) && data.amount > 0 ? data.amount : 0;
+  if (data.category !== undefined) {
+    const category = String(data.category).trim();
+    if (!category) return { ok: false, error: PRIZE_CATEGORY_BLANK };
+    if (category.length > PRIZE_CATEGORY_MAX) return { ok: false, error: `Keep the prize's name to ${PRIZE_CATEGORY_MAX} characters.` };
+    patch.category = category;
+  }
+  if (data.detail !== undefined) {
+    const detail = String(data.detail).trim();
+    if (detail.length > PRIZE_DETAIL_MAX) return { ok: false, error: `Keep the detail to ${PRIZE_DETAIL_MAX} characters.` };
+    patch.detail = detail;
+  }
+  if (data.amount !== undefined) {
+    // An impossible amount is REFUSED and the prize keeps what it had. This
+    // used to store it as no prize — "-5" made the purse smaller without a word.
+    const sum = typeof data.amount === "number" ? data.amount : Number.NaN;
+    const badAmount = prizeAmountRefusal(sum);
+    if (badAmount) return { ok: false, error: badAmount };
+    patch.amount = sum;
+  }
   const moved = await prisma.prize.updateMany({ where: { id: prizeId, eventId }, data: patch });
   // Only what happened is on the record: a prize that is not this
   // tournament's changes nothing, and used to be logged as edited all the same
   // (the class of `disputeMatch`, 2026-10-11).
-  if (moved.count === 0) return;
+  if (moved.count === 0) return { ok: false, error: "That prize isn't in this tournament." };
   // What actually changed, rather than "a prize was edited" — the amount is
   // the half somebody would come back and ask about.
   await logAudit(
@@ -4649,6 +4730,7 @@ export async function updatePrize(prizeId: string, data: { category?: string; de
     Object.entries(patch).map(([k, v]) => `${k}: ${v}`).join(", ") || "no change",
   );
   await refresh();
+  return { ok: true };
 }
 
 export async function setPrizeWinner(prizeId: string, winnerId: string): Promise<{ ok: boolean; error?: string }> {
