@@ -91,7 +91,10 @@ test("an organizer of a lapsed club sees the tournament read-only, and a press i
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toBeVisible({ timeout: 15_000 });
     await dialog.getByRole("button", { name: "Complete tournament" }).click();
-    const refused = page.getByText(/This club.s subscription ended on .+, so this tournament is paused where it stands\./).last();
+    // The card the lifecycle bar draws under its button (the banner says the same words higher up).
+    const refused = page.locator(".card").filter({ hasText: /^\s*Not yet/ }).filter({
+      hasText: /This club.s subscription ended on .+, so this tournament is paused where it stands\./,
+    });
     await expect(refused, "the refusal was not said").toBeVisible({ timeout: 20_000 });
     await expect(refused, "the refusal is not where the press was").toBeInViewport();
     expect((await prisma.event.findUnique({ where: { id: event.id } }))?.status, "a refused Complete changed the tournament").toBe("live");
