@@ -518,6 +518,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "warn", text: "**On the free Par plan** a completed tournament stays open to view, read-only, for 15 days, and is then deleted for good. The dialog offers [[Open the final report]] — then [[Print or save as PDF]] to keep it — and [[Go to Reports]] to export first, or an upgrade to keep it. It cannot be reopened in those 15 days without an upgrade. A Par tournament is also removed 14 days after its first round if nobody completes it." },
+      { kind: "warn", text: "**If a payment fails**, the club keeps its plan while Stripe tries the card again, and Club settings → Your plan (and the top of every screen, for the club's owners and admins) asks you to update it with Manage billing. **If the paid plan ends** — cancelled, or Stripe stops trying — every tournament the club had that day is kept **read-only for 12 months**: boards, results, reports, money and exports stay open, but nothing can be changed or scored, and an unfinished tournament is paused where it stands. Every screen of it says so, with the dates. Choose a plan again at any time in those 12 months and everything carries on where it stopped. Otherwise the club's owners are emailed 30 days and 7 days before those tournaments are deleted. A tournament you start after the plan ended is on the free Par plan's terms, and the kept ones don't count against Par's limits." },
     ],
   },
   {

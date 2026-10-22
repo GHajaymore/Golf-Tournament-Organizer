@@ -2,6 +2,8 @@ import { byAddress } from "@/lib/domain/my-entry";
 import Link from "next/link";
 import { Suspense } from "react";
 import { DeniedNotice } from "@/components/DeniedNotice";
+import { ArchiveBanner } from "@/components/ArchiveBanner";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { requireSession } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { hasLeftTheField } from "@/lib/domain/left-the-field";
@@ -104,6 +106,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
       })
     : null;
   const shut = gateEvent ? playerAppShut(gateEvent, isStaff) : false;
+  const archived = session.eventId ? await archiveRefusalFor(session.eventId, "player") : null;
 
   /**
    * Messages sit in the header, not the tab bar.
@@ -284,6 +287,9 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
             {/* Above everything, on every screen: a player scoring on the 14th
                 is looking at their card, not at Today. */}
             <PlaySuspendedBanner status={playStatusOf(gateEvent)} organizer={organizer} />
+            {/* A lapsed club's tournament: paused and read-only, said before
+                anybody taps a card (`domain/club-archive.ts`). */}
+            <ArchiveBanner sentence={archived} resubscribe={false} />
             {/* The siren when it happens while the screen is open. */}
             {session.eventId && <SuspensionAlarm suspended={playStatusOf(gateEvent).suspended} />}
             {children}

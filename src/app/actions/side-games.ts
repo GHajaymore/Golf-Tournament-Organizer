@@ -8,6 +8,7 @@ import { isDerivedKind, DERIVED_LABEL } from "@/lib/domain/derived-games";
 import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { requirePotAccess } from "@/lib/services/game-access";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { logAudit } from "@/lib/services/action-shared";
@@ -403,6 +404,8 @@ export async function requestSideGameEntry(
 ): Promise<SideGameResult> {
   const session = await getSession();
   if (!session?.eventId) throw new Error("Not signed in");
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const game = await prisma.sideGame.findFirst({
     where: { id: sideGameId, eventId: session.eventId },

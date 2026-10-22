@@ -30,6 +30,8 @@
  * what `Subscription.plan` stores, so they never change with a rename —
  * `society` is Birdie and `enterprise` is Albatross.
  */
+import { ARCHIVE_MONTHS } from "./domain/club-archive";
+
 export type PlanKey = "free" | "society" | "club" | "enterprise";
 
 export interface Plan {
@@ -724,6 +726,16 @@ export function retentionNotice(planKey: string, termsApply = true): string | nu
   // plan-copy.test.ts holds the two to one number.
   return `A completed tournament on this plan stays open to view, read-only, for 15 days, and is then deleted — entries, cards, results and money. One nobody completes is deleted ${PAR_LIFESPAN_DAYS} days after its first round is played. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.`;
 }
+
+/**
+ * WHAT A LAPSED CLUB'S KEPT TOURNAMENTS ARE ON (2026-10-21, decision A4) — said
+ * under the Par terms above on the plan panel of a club whose paid plan ended,
+ * because those terms are not what happens to them: they are a read-only
+ * archive for ARCHIVE_MONTHS (`domain/club-archive.ts`). Not part of
+ * `retentionNotice` itself, which the landing page and FAQ print to everybody.
+ */
+export const LAPSED_ARCHIVE_TERMS =
+  `Tournaments kept from your paid plan are not on these terms: they stay open to view, read-only, for ${ARCHIVE_MONTHS} months from the day the plan ended, and are deleted after that unless you choose a plan again. A tournament you start now is.`;
 
 /**
  * The same term in a few words, for a bullet or a one-line plan summary.

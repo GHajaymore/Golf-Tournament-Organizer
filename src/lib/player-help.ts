@@ -128,6 +128,9 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Signed already? Ask your organizer to reopen it.",
       "Someone else kept your card? Tap [[Something on this card is wrong]].",
       "The committee settles it before it counts.",
+      "Says Read-only at the top? The club's plan has ended.",
+      "You can still see your card and the board.",
+      "Nothing can change until the club renews.",
     ],
   },
   {

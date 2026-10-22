@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { organizationIdForEvent } from "@/lib/services/roster";
 import { DEFAULT_POINTS_TABLE } from "@/lib/domain/series";
 import { isMatch } from "@/lib/tournament-shape";
@@ -133,6 +134,8 @@ export async function setEventSeries(eventId: string, seriesId: string | null): 
   const organizationId = await requireOrg();
   const event = await prisma.event.findFirst({ where: { id: eventId, organizationId } });
   if (!event) return { ok: false, error: "Tournament not found." };
+  const archived = await archiveRefusalFor(event.id);
+  if (archived) return { ok: false, error: archived };
   /**
    * A CASUAL ROUND IS NOT A LEG OF A SEASON.
    *

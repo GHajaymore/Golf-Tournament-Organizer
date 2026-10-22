@@ -167,6 +167,14 @@ describe("every server action is guarded", () => {
      */
     "requireGameAccess",
     /**
+     * tournament.ts: `requireAdminEvent` called inside a try, so that an
+     * archived tournament's refusal (2026-10-21) comes back in words for the
+     * dashboard's Launch and Complete. Verified by reading: it returns the
+     * eventId only from `requireAdminEvent`, and rethrows anything that is not
+     * the archive's refusal.
+     */
+    "adminEventOrRefusal",
+    /**
      * handicap-policy.ts: `getSession`, then `organizationAccess`, then a
      * `canEdit` check — the same three steps `saveOrganizationDefaults` in
      * settings.ts performs inline, lifted into a helper because both actions

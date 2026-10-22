@@ -2,6 +2,7 @@
 import { byAddress } from "@/lib/domain/my-entry";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entryLimitKey } from "@/lib/domain/rate-limit";
@@ -79,6 +80,8 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
     // exists to somebody who cannot see it.
     return { ok: false, error: NOT_OPEN };
   }
+  const archived = await archiveRefusalFor(eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -336,6 +339,8 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
 
   const reachable = await accessibleEvents(session.email);
   if (!reachable.some((r) => r.eventId === eventId)) return { ok: false, error: NOT_ENTERED };
+  const archived = await archiveRefusalFor(eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
