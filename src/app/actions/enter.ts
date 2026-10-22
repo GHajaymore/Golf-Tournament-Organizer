@@ -7,7 +7,6 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { entryLimitKey } from "@/lib/domain/rate-limit";
 import { accessibleEvents } from "@/lib/services/access";
 import { decideIntake, approvalModeOf, looksLikePhone } from "@/lib/domain/registration-intake";
-import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -94,9 +93,8 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       playerCountMode: true,
       manualPlayerCount: true,
       status: true,
+      // Whether a mobile is asked is this setting alone (`phoneRequiredFor`).
       requirePhone: true,
-      // How its players sign in decides whether a mobile is asked (`phoneRequiredFor`).
-      playerAccess: true,
     },
   });
   if (!event) return { ok: false, error: NOT_OPEN };
@@ -203,7 +201,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    *
    * The public form, the organizer adding a player and the roster import all
    * refuse an entrant without a mobile when `phoneRequiredFor` says one is
-   * needed (a free club always; a paid club when it asks). This door took the
+   * needed (whenever the organizer has asked, on any plan). This door took the
    * roster's phone as it found it — often none — so a member entered in one tap
    * and Registration then said "19 players have no mobile on file … entered
    * before that applied", which was false for the entry just made. Walked
@@ -213,7 +211,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    * entry form", which asks for the number, so the member is one step from in.
    */
   const phone = member?.phone ?? "";
-  if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone, event.playerAccess) && !looksLikePhone(phone)) {
+  if (phoneRequiredFor(event.requirePhone) && !looksLikePhone(phone)) {
     return {
       ok: false,
       error: "This tournament needs a mobile number, and the club doesn't have one for you yet — add it on the entry form.",

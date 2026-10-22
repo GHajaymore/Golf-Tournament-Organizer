@@ -2247,15 +2247,12 @@ describe("roster CSV import", () => {
     expect(html).toContain("130 updated");
   });
 
-  it("says at the import when members have no mobile, and how to fill them in", () => {
-    // Walked 2026-09-30: twelve imported on Par, and the first word about
-    // mobiles came on Registration with every one of them blocked.
-    const html = render(<ImportSummary result={result({ imported: 12, missingMobile: 12 })} onDismiss={() => {}} />);
-    expect(html).toContain("12 members have no mobile number yet");
-    expect(html).toContain("every entrant in a Par tournament gives one");
-    expect(html).toContain("upload the file again");
-    // CONTROL: a plan that lets the club choose is told nothing about it.
-    expect(render(<ImportSummary result={result({ imported: 12 })} onDismiss={() => {}} />)).not.toContain("mobile");
+  it("says nothing about mobiles: no plan makes an entrant give one (A7, 2026-10-21)", () => {
+    // It used to tell a Par club its members had no mobile, because Par made
+    // every entrant give one. A tournament asks only when its organizer does.
+    const html = render(<ImportSummary result={result({ imported: 12 })} onDismiss={() => {}} />);
+    expect(html).toContain("12 added");
+    expect(html).not.toContain("mobile");
   });
 
   it("says plainly when a file changed nothing", () => {
@@ -6672,7 +6669,7 @@ describe("registration and field", () => {
           name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
-          requirePhone: false, phoneLocked: false, registrationToken: "",
+          requirePhone: false, registrationToken: "",
           ...over,
         }} />,
     );

@@ -90,7 +90,6 @@ import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { indexRefusal } from "@/lib/domain/handicap-label";
-import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, KNOCKOUT_STAGE_TYPES, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { randomUUID } from "node:crypto";
@@ -505,7 +504,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // not be able to create an entrant the tournament cannot reach, when the
   // stranger filling in the form on their phone cannot.
   const cleanPhone = (input.phone ?? "").trim();
-  if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone, event.playerAccess)) {
+  if (phoneRequiredFor(event.requirePhone)) {
     if (!cleanPhone) return { ok: false, error: "Enter a mobile number for this player." };
     if (!looksLikePhone(cleanPhone)) return { ok: false, error: "That doesn't look like a phone number." };
   }
@@ -920,11 +919,12 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   const noAddresses = emailIdx === -1 || table.rows.every((cols) => !cell(table, cols, "email").trim());
   const codesTurnedOn = needsEmail && noAddresses;
   const phoneIdx = headerCols.indexOf("phone");
-  // Same plan rule as every other way in. Refused at the header rather than
-  // row by row: a file with no phone column at all would otherwise be read as
-  // a hundred individually invalid rows, and the organizer would be told
-  // "skipped 100" with no hint that one missing column caused it.
-  const needsPhone = phoneRequiredFor(await planForEvent(eventId), event.requirePhone, event.playerAccess);
+  // Same rule as every other way in: the organizer's setting, on any plan.
+  // Refused at the header rather than row by row: a file with no phone column
+  // at all would otherwise be read as a hundred individually invalid rows, and
+  // the organizer would be told "skipped 100" with no hint that one missing
+  // column caused it.
+  const needsPhone = phoneRequiredFor(event.requirePhone);
   if (needsPhone && phoneIdx === -1) {
     return {
       imported: 0,
@@ -6056,6 +6056,10 @@ export async function reopenScorecard(stageId: string, playerId: string) {
  * competition — email is identity here and the app reaches people in the app —
  * so a required field that costs entries belongs to the organizer of the event
  * that actually needs one, rather than being imposed on every club.
+ *
+ * ON EVERY PLAN (decisions review A7, 2026-10-21). The free plan used to force
+ * the mobile on and lock this switch; it no longer does, so nothing here asks
+ * the plan. See `phoneRequiredFor`.
  */
 export async function setRequirePhone(required: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();

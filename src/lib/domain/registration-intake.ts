@@ -234,7 +234,8 @@ export interface ContactNeeds {
  * the roster picker now shows it beside the member BEFORE anybody ticks them.
  * Found walking the app as a new organizer (2026-09-26): eight members ticked,
  * "Add 8 members" pressed, and the reply was "Added 0 · no mobile for …" — a
- * free club collects a mobile from every entrant, and the roster had none. The
+ * that tournament collected a mobile from every entrant (then every free club's
+ * did; since 2026-10-21 only one whose organizer asks), and the roster had none. The
  * rule is right; finding out after the click is the fault. Both readers call
  * this, so the warning and the refusal cannot disagree.
  *

@@ -11,7 +11,6 @@ import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { entryNeedsEmail } from "@/lib/tournament-settings";
 import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
-import { planForEvent } from "@/lib/services/entitlements";
 import { handicapBodyForEvent } from "@/lib/services/integrations";
 import { bodyInProse, bodyShortLabel } from "@/lib/domain/handicap-body";
 import { phoneRequiredFor } from "@/lib/plans";
@@ -33,7 +32,6 @@ export default async function RegistrationPage() {
   const flow = await setupFlowFor(session.eventId);
   const brand = await brandForEvent(session.eventId);
   const roster = await rosterForEvent(session.eventId);
-  const plan = await planForEvent(session.eventId);
   // The club's handicap body — GHIN, England Golf, Golf Ireland … — for the
   // "where this player's handicap comes from" words on the add form.
   const body = await handicapBodyForEvent(session.eventId);
@@ -131,11 +129,9 @@ export default async function RegistrationPage() {
         city: state.event.city,
         registrationOpen: state.event.registrationOpen,
         registrationApproval: state.event.registrationApproval,
-        // What the add action will insist on — the plan, the setting and how the
-        // players sign in, asked once — so the form cannot say "required" over a
-        // code-scored tournament the server lets in without a mobile.
-        requirePhone: phoneRequiredFor(plan, state.event.requirePhone, state.event.playerAccess),
-        phoneLocked: phoneRequiredFor(plan, false, state.event.playerAccess),
+        // What the add action will insist on, through the one rule it asks, so
+        // the form cannot say "required" where the server lets in no mobile.
+        requirePhone: phoneRequiredFor(state.event.requirePhone),
         registrationToken: state.event.registrationToken,
         locale: (await formattingForEvent(session.eventId)).locale,
         today: state.today,
