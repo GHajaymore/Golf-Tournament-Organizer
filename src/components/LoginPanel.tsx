@@ -101,12 +101,12 @@ export function LoginPanel({
   const [codeOpen, setCodeOpen] = useState(false);
   // The emailed code step: what it is for (an invited address reads its own
   // heading), what has been typed, and the "Sent — check your inbox" note.
-  const [codeFor, setCodeFor] = useState<"signup" | "claim">("signup");
+  const [codeFor, setCodeFor] = useState<"signup" | "claim" | "device">("signup");
   const [emailCode, setEmailCode] = useState("");
   const [codeNote, setCodeNote] = useState("");
 
   /** The server said: prove the address. The form's own fields stay as typed. */
-  const toCodeStep = (purpose: "signup" | "claim") => {
+  const toCodeStep = (purpose: "signup" | "claim" | "device") => {
     setCodeFor(purpose);
     setEmailCode("");
     setCodeNote("");
@@ -160,7 +160,8 @@ export function LoginPanel({
         return;
       }
       if (result.needsCode) {
-        toCodeStep("signup");
+        // Club staff on a new device read their own heading (2026-10-21).
+        toCodeStep(result.codePurpose ?? "signup");
         return;
       }
       if (!result.ok) setError(result.error ?? "Something went wrong.");
@@ -413,8 +414,8 @@ export function LoginPanel({
         style={{ display: "contents" }}
       >
         <Title
-          title={codeFor === "claim" ? w.claimHeading : w.heading}
-          sub={codeFor === "claim" ? w.claimLine(masked) : w.line(masked)}
+          title={codeFor === "claim" ? w.claimHeading : codeFor === "device" ? w.deviceHeading : w.heading}
+          sub={codeFor === "claim" ? w.claimLine(masked) : codeFor === "device" ? w.deviceLine(masked) : w.line(masked)}
         />
         <Field label={w.box} boxId="email-code">
           <input

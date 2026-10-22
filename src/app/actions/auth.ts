@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomBytes, createHash } from "node:crypto";
 import { createSession, destroySession, setPreviewRole, setActiveEvent, getSession, hashPassword, verifyPasswordHash } from "@/lib/auth";
-import { emailConfig, sendPasswordResetEmail } from "@/lib/email";
+import { emailConfig, sendNewSignInEmail, sendPasswordResetEmail } from "@/lib/email";
+import { isClubStaff, isKnownDevice, rememberDevice } from "@/lib/services/known-device";
+import { formatClock, formatDayAt } from "@/lib/domain/locale";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { signUpLooksAutomated, AUTOMATED_SIGNUP } from "@/lib/services/bot-check";
 import { passwordRefusal } from "@/lib/services/password-breach";
@@ -87,7 +89,7 @@ function hasProvedPassword(user: { password: string; emailVerifiedAt: Date | nul
 async function askForCode(input: {
   userId: string;
   email: string;
-  purpose: "signup" | "claim";
+  purpose: "signup" | "claim" | "device";
   pending: PendingProof | null;
 }): Promise<{ ok: false; error?: string; needsCode?: boolean }> {
   const limit = await checkRateLimit("email-code-send", input.email);
@@ -109,7 +111,7 @@ export async function signInWithPassword(
   email: string,
   password: string,
   next?: string,
-): Promise<{ ok: boolean; error?: string; needsClaim?: boolean; needsCode?: boolean }> {
+): Promise<{ ok: boolean; error?: string; needsClaim?: boolean; needsCode?: boolean; codePurpose?: "device" }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
   if (!(await maySignInNow(clean))) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
@@ -151,9 +153,26 @@ export async function signInWithPassword(
     return askForCode({ userId: user.id, email: clean, purpose: "signup", pending: null });
   }
 
+  /**
+   * A NEW DEVICE (2026-10-21; `services/known-device.ts`). Club staff on a
+   * browser not seen before are asked for a code from the inbox first: a
+   * password alone opens members' details and the money records. Anybody
+   * else is signed in, and told by email that a new browser was used.
+   */
+  const known = await isKnownDevice(user.id);
+  if (!known && (await isClubStaff(user.id, clean))) {
+    const asked = await askForCode({ userId: user.id, email: clean, purpose: "device", pending: null });
+    return asked.needsCode ? { ...asked, codePurpose: "device" } : asked;
+  }
+
   const signedIn = await startSessionFor(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
   await clearRateLimit("signin", clean);
+  if (!known) {
+    const device = await rememberDevice(user.id);
+    const now = new Date();
+    await sendNewSignInEmail(clean, device, `${formatDayAt(now, undefined, "UTC")} at ${formatClock(now, undefined, { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`);
+  }
   redirect(afterSignIn(next));
 }
 
@@ -280,6 +299,10 @@ export async function verifyEmailCode(
 
   const signedIn = await startSessionFor(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
+  // A code typed back here came out of the inbox: this browser is now known,
+  // and its sign-in needs no "new sign-in" email — the code was one.
+  await rememberDevice(checked.userId);
+  if (checked.purpose === "device") await clearRateLimit("signin", clean);
   redirect(afterSignIn(next));
 }
 
@@ -297,8 +320,10 @@ export async function resendEmailCode(email: string): Promise<{ ok: boolean; err
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   const user = await prisma.user.findUnique({ where: { email: clean }, select: { id: true, emailVerifiedAt: true } });
-  const last = user && !user.emailVerifiedAt ? await latestCodeHere(user.id) : null;
-  if (!user || !last) return { ok: true };
+  const last = user ? await latestCodeHere(user.id) : null;
+  // A proved address is sent a new code only for a new device; the password
+  // that earned the first one was checked then, and this browser holds its row.
+  if (!user || !last || (user.emailVerifiedAt && last.purpose !== "device")) return { ok: true };
   const sent = await sendEmailCode({ userId: user.id, email: clean, purpose: last.purpose, pending: last.pending });
   return sent.ok ? { ok: true } : { ok: false, error: sent.error };
 }
@@ -406,6 +431,8 @@ export async function resetPassword(token: string, password: string): Promise<{ 
 
   const signedIn = await startSessionFor(user.email);
   if (!signedIn) return { ok: false, error: "Password updated, but sign-in failed. Try logging in." };
+  // The link came out of the inbox, so this browser is the inbox's (2026-10-21).
+  await rememberDevice(user.id);
   /**
    * No `next` here, deliberately. A reset arrives by following a link out of an
    * email, so there is no interrupted journey to resume — the destination they

@@ -194,11 +194,18 @@ describe("signing up", () => {
   });
 
   it("and the password chosen is now the password", async () => {
-    newBrowser();
+    // On the browser that proved the address (it is remembered — see
+    // a-new-device-proves-itself): straight in.
+    use(theirs);
     went.to = "";
     await signInWithPassword(EMAIL, PASSWORD);
     expect(went.to).toBe("/choose");
     expect(signedIn()).not.toBe("");
+    // On any other browser this club's owner is asked for a code first, so
+    // the password is right but is not, on its own, a session.
+    newBrowser();
+    expect((await signInWithPassword(EMAIL, PASSWORD)).codePurpose).toBe("device");
+    expect(signedIn()).toBe("");
   });
 });
 

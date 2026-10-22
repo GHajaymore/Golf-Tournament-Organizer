@@ -55,9 +55,10 @@ model User {
    */
   emailVerifiedAt DateTime?
 
-  resetTokens PasswordResetToken[]
-  emailCodes  EmailCode[]
-  memberships OrganizationMember[]
+  resetTokens  PasswordResetToken[]
+  emailCodes   EmailCode[]
+  knownDevices KnownDevice[]
+  memberships  OrganizationMember[]
   joinRequests JoinRequest[]
 }
 
@@ -928,6 +929,27 @@ model EmailCode {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, browserHash])
+}
+
+/**
+ * A browser this person has signed in on before (2026-10-21). The browser
+ * carries a random value in a year-long HttpOnly cookie; only its hash is here.
+ * Club staff on a browser not listed are asked for an emailed code first, and
+ * anybody signing in on one is sent a "new sign-in" email
+ * (`services/known-device.ts`). `label` is the browser in words ("Chrome on
+ * Windows"), for that email.
+ */
+model KnownDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  deviceHash String
+  label      String   @default("")
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceHash])
 }
 
 /**
