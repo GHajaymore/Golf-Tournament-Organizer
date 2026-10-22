@@ -559,7 +559,7 @@ function holdersWords(holders: Array<{ name: string; round: string }>, rounds: b
   const names = [...new Set(holders.map((h) => h.name))];
   if (!rounds) return names.length > most ? "" : listWords(names);
   const roundsIn = [...new Set(holders.map((h) => h.round))];
-  if (names.length === 1 || names.length > most) return listWords(roundsIn);
+  if (names.length === 1 || roundsIn.length === 1 || names.length > most) return listWords(roundsIn);
   return roundsIn
     .map((round) => `${listWords([...new Set(holders.filter((h) => h.round === round).map((h) => h.name))])} in ${round}`)
     .join("; ");

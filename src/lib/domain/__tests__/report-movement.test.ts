@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { movementStory, placeIn, type MovementRound } from "../report-movement";
+import { movementStory, placeIn, whoWords, type MovementRound } from "../report-movement";
 import { movementBetween } from "../week-movement";
 
 /**
@@ -66,6 +66,31 @@ describe("how it was won", () => {
       "Ash and Bea were still level at the top after Round 2, on 20 points.",
     ]);
     expect(t.climb).toBeNull();
+  });
+
+  it("level on the figure and placed apart by the board's countback says so", () => {
+    const rows = [
+      { playerId: "Ash", name: "Ash", value: 74, rank: 1 },
+      { playerId: "Bea", name: "Bea", value: 74, rank: 2 },
+    ];
+    const t = movementStory([{ label: "Round 1", rows: movementBetween(rows, [], "asc") }], (v) => `gross ${v}`);
+    expect(t.story[0].text).toBe("Ash led after Round 1 on gross 74. Bea was next on gross 74, behind on countback.");
+  });
+
+  it("past three names a list is a count, so a sentence stays a sentence", () => {
+    const a = values({ A: 10, B: 9, C: 8, D: 7, E: 6, F: 5 });
+    // B to F all reach 30 and share the top; A, who led, drops to 6th.
+    const b = values({ A: 10, B: 30, C: 30, D: 30, E: 30, F: 30 });
+    const t = movementStory(
+      [
+        { label: "Round 1", rows: movementBetween(a, [], "desc") },
+        { label: "Round 2", rows: movementBetween(b, a, "desc") },
+      ],
+      points,
+    );
+    expect(t.story[1].text).toBe("5 players were level at the top after Round 2, on 30 points.");
+    expect(whoWords(["A", "B", "C"])).toBe("A, B and C");
+    expect(whoWords(["A", "B", "C", "D"])).toBe("4 players");
   });
 
   it("a stroke table ranks low to high, and somebody new to it has not climbed", () => {

@@ -96,8 +96,10 @@ export function movementStory(
       const nextPlace = Math.min(...round.rows.filter((r) => r.position > 1).map((r) => r.position));
       const next = Number.isFinite(nextPlace) ? round.rows.filter((r) => r.position === nextPlace) : [];
       if (next.length > 0) {
+        // Level on the figure and placed apart: the board's countback did it, and is said.
+        const level = next[0].value === leaders[0].value && leaders.length === 1;
         parts.push(
-          `${whoWords(next.map((n) => n.name))} ${next.length === 1 ? "was" : "were"} next on ${valueWords(next[0].value)}.`,
+          `${whoWords(next.map((n) => n.name))} ${next.length === 1 ? "was" : "were"} next on ${valueWords(next[0].value)}${level ? ", behind on countback" : ""}.`,
         );
       }
     } else {
