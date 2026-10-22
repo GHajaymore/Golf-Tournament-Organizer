@@ -23,6 +23,15 @@ export const EMAIL_CODE_LENGTH = 6;
 export const EMAIL_CODE_TTL_MS = 15 * 60 * 1000;
 /** Five wrong tries on one code, then a new code is needed. */
 export const EMAIL_CODE_MAX_TRIES = 5;
+/**
+ * Twenty wrong tries on one ADDRESS in a day, whichever browsers made them.
+ * Five a code and three codes in fifteen minutes is fifteen guesses a quarter
+ * of an hour, which over a day is 1,440 tries at a million codes: about one
+ * chance in 700 of somebody guessing their way onto an invited address. Twenty
+ * a day makes that one in 50,000. Somebody who mistypes twenty times is told
+ * to come back tomorrow, which costs them a day and nothing else.
+ */
+export const EMAIL_CODE_DAILY_TRIES = 20;
 
 /**
  * What a code proves the address FOR — which decides what takes effect when it
@@ -69,7 +78,7 @@ export interface StoredEmailCode {
   usedAt: Date | null;
 }
 
-export type EmailCodeRefusal = "wrong" | "expired" | "too-many";
+export type EmailCodeRefusal = "wrong" | "expired" | "too-many" | "today";
 
 /**
  * Whether a stored code can be tried at all, before anything is compared.
@@ -115,6 +124,7 @@ export const EMAIL_CODE_WORDS = {
     wrong: "That code isn't right. Check it, or send a new one.",
     expired: "That code has expired. Send a new one.",
     "too-many": "Too many tries. Send a new code to carry on.",
+    today: "Too many tries for this address today. Try again tomorrow.",
   } satisfies Record<EmailCodeRefusal, string>,
   /** `wait` is worded by `retryAfterText` — "4 minutes". */
   tooManySends: (wait: string) => `We've sent three codes in the last few minutes. You can ask for another in ${wait}.`,

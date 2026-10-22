@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { SECURE_COOKIES } from "@/lib/secure-cookies";
 import { sendEmailCodeEmail } from "@/lib/email";
 import {
+  EMAIL_CODE_DAILY_TRIES,
   EMAIL_CODE_MAX_TRIES,
   EMAIL_CODE_TTL_MS,
   EMAIL_CODE_WORDS,
@@ -170,6 +171,15 @@ export async function checkEmailCode(email: string, typed: unknown): Promise<Che
   const now = new Date();
   const unusable = codeUnusable(row, now);
   if (unusable || !row || !user) return { ok: false, error: refusal[unusable ?? "expired"] };
+
+  // Every try on this address in the last day, from every browser — see
+  // EMAIL_CODE_DAILY_TRIES. Read before this try is counted, so the twenty-first
+  // is refused without being compared.
+  const today = await prisma.emailCode.aggregate({
+    where: { userId: user.id, createdAt: { gt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+    _sum: { attempts: true },
+  });
+  if ((today._sum.attempts ?? 0) >= EMAIL_CODE_DAILY_TRIES) return { ok: false, error: refusal.today };
 
   const counted = await prisma.emailCode.updateMany({
     where: { id: row.id, usedAt: null, attempts: { lt: EMAIL_CODE_MAX_TRIES } },

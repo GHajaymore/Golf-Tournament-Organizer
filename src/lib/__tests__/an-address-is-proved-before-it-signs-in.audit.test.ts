@@ -111,7 +111,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
-    const emails = ["signup", "expired", "tries", "invited-admin", "invited-member", "unproved", "closed-tab", "squatted"].map(at);
+    const emails = ["signup", "expired", "tries", "daily", "invited-admin", "invited-member", "unproved", "closed-tab", "squatted"].map(at);
     const keys = emails.map((e) => createHash("sha256").update(e).digest("hex"));
     for (const k of keys) await prisma.rateLimitHit.deleteMany({ where: { key: { contains: k } } }).catch(() => {});
     // The clubs a proved sign-up made: found through their owners, so nothing
@@ -224,6 +224,37 @@ describe("a code's limits", () => {
     expect(answers).toEqual([refusal.wrong, refusal.wrong, refusal.wrong, refusal.wrong, refusal["too-many"]]);
     expect(await verifyEmailCode(EMAIL, code)).toEqual({ ok: false, error: refusal["too-many"] });
     expect(signedIn()).toBe("");
+  });
+
+  /**
+   * Twenty wrong tries on one ADDRESS in a day, from any browsers, and even the
+   * right code is refused until tomorrow — EMAIL_CODE_DAILY_TRIES. The earlier
+   * tries are written as spent rows (four codes of five), since the send limit
+   * would stop a real run asking for four codes in a quarter of an hour.
+   */
+  it("twenty wrong tries in a day on one address refuse even the right code; tries a day old do not count", async () => {
+    const EMAIL = at("daily");
+    newBrowser();
+    await signUp("Zz Daily", EMAIL, "patient-Putter-on-the-2nd", "personal");
+    const user = await userOf(EMAIL);
+    const spent = (createdAt: Date) =>
+      Array.from({ length: 4 }, () => ({
+        userId: user!.id, codeHash: "zz-spent", browserHash: "zz-elsewhere", purpose: "signup",
+        expiresAt: createdAt, attempts: 5, usedAt: createdAt, createdAt,
+      }));
+    // CONTROL: twenty tries made more than a day ago leave today's code working.
+    const yesterday = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    await prisma.emailCode.createMany({ data: spent(yesterday) });
+    const code = lastCode(EMAIL);
+    // Twenty made today: the right code, in the browser that asked for it, is refused.
+    await prisma.emailCode.createMany({ data: spent(new Date()) });
+    expect(await verifyEmailCode(EMAIL, code)).toEqual({ ok: false, error: refusal.today });
+    expect(signedIn()).toBe("");
+    expect((await userOf(EMAIL))?.emailVerifiedAt).toBeNull();
+    // And once today's are a day old, the same code proves the address.
+    await prisma.emailCode.updateMany({ where: { userId: user!.id, codeHash: "zz-spent", createdAt: { gt: yesterday } }, data: { createdAt: yesterday } });
+    await verifyEmailCode(EMAIL, code);
+    expect((await userOf(EMAIL))?.emailVerifiedAt).toBeInstanceOf(Date);
   });
 });
 
