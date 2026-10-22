@@ -6,7 +6,7 @@ import { createSession, destroySession, setPreviewRole, setActiveEvent, getSessi
 import { emailConfig, sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { signUpLooksAutomated, AUTOMATED_SIGNUP } from "@/lib/services/bot-check";
-import { passwordProblem } from "@/lib/domain/password";
+import { passwordRefusal } from "@/lib/services/password-breach";
 import { safeNextPath } from "@/lib/domain/safe-next";
 import { appUrl } from "@/lib/domain/app-url";
 import { prisma } from "@/lib/db";
@@ -190,7 +190,7 @@ export async function claimPassword(
   // The address is the only thing known about them at this point, and it is
   // enough for the rule that matters here: an invited assistant claiming an
   // account should not set their password to their own email local part.
-  const weak = passwordProblem(password, { email: clean });
+  const weak = await passwordRefusal(password, { email: clean });
   if (weak) return { ok: false, error: weak };
 
   // Club staff have no Account row until they are added to a specific event,
@@ -378,7 +378,7 @@ export async function resetPassword(token: string, password: string): Promise<{ 
     select: { email: true, name: true, emailVerifiedAt: true },
   });
   if (!(await maySignInNow(owner?.email))) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
-  const weak = passwordProblem(password, owner ? { email: owner.email, name: owner.name } : undefined);
+  const weak = await passwordRefusal(password, owner ? { email: owner.email, name: owner.name } : undefined);
   if (weak) return { ok: false, error: weak };
 
   /**
@@ -452,7 +452,7 @@ export async function signUp(
   if (!(await maySignInNow(cleanEmail))) return { ok: false, error: SIGNINS_CLOSED_MESSAGE };
   // Both are on the form being submitted, so this is the one path that can
   // refuse a password made of the name typed two fields above it.
-  const weak = passwordProblem(password, { email: cleanEmail, name: cleanName });
+  const weak = await passwordRefusal(password, { email: cleanEmail, name: cleanName });
   if (weak) return { ok: false, error: weak };
   if (!isOrgKind(kind)) return { ok: false, error: "Choose what you're organizing golf for." };
   // A discount code is optional; one that is given must be usable, said here
