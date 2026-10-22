@@ -7,6 +7,7 @@ import { consoleScreens, playerScreens } from "./routes";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { TEXT_PARTS } from "../scripts/qa/layers.mjs";
+import { addBelongsToBox, newlyShown, refusalGap, spacedValue, type Shown } from "./text-box-reading";
 
 /**
  * EVERY TEXT BOX IS GIVEN EMPTY, OVER-LONG, BAD AND GOOD INPUT, AND READ BACK.
@@ -128,6 +129,8 @@ interface Box {
   numberType: boolean;
   /** How the box is saved, worked out the way a person would. */
   save: { how: "save" | "form" | "leave" | "skip"; label: string; why: string };
+  /** Where the "Add" it was matched to sits — see `addBelongsToBox`. */
+  addAt?: { followsTheBox: boolean; sameForm: boolean };
 }
 
 /** Words on a button that this crawl never presses. */
@@ -230,6 +233,7 @@ async function boxesOn(page: Page): Promise<Box[]> {
         // buy-in box the card's "Rename", and gave a box sitting in no card at all ("Add a team", whose Add
         // button is its neighbour) no button.
         let save: Box["save"] = { how: "leave", label: "", why: "" };
+        let addAt: Box["addAt"];
         const isButton = (b: HTMLButtonElement) => b.getBoundingClientRect().width > 0 && !b.closest('[aria-hidden="true"]');
         const word = (b: HTMLButtonElement) => tidy(b);
         if (ALLOWANCE.test(label) || /search.*\b(course|address|place|town)/i.test(el.getAttribute("placeholder") ?? "") || type === "search") {
@@ -269,7 +273,10 @@ async function boxesOn(page: Page): Promise<Box[]> {
               save = { how: "save", label: w.slice(0, 40), why: "" };
               markSave(pick, nth);
             } else if (!el.value || sameForm) {
+              // Whether this Add is the box's form's is decided outside the page, by
+              // `addBelongsToBox` (e2e/text-box-reading.ts), from where it sits.
               save = { how: "form", label: w.slice(0, 40), why: "" };
+              addAt = { followsTheBox: after.includes(pick), sameForm };
               markSave(pick, nth);
             }
             // Otherwise an Add beside a box that already holds something (a team's name beside
@@ -287,11 +294,14 @@ async function boxesOn(page: Page): Promise<Box[]> {
           required: el.required || el.getAttribute("aria-required") === "true",
           numberType: type === "number",
           save,
+          addAt,
         });
       });
       return out;
     },
     { never: NEVER.source, saves: SAVES.source, adds: ADDS.source, allowance: ALLOWANCE.source },
+  ).then((boxes) =>
+    boxes.map((b) => (b.save.how === "form" && b.addAt && !addBelongsToBox(b.addAt) ? { ...b, save: { how: "leave" as const, label: "", why: "" } } : b)),
   );
 }
 
@@ -368,13 +378,15 @@ function triesFor(b: Box): Array<{ try: Try; value: string }> {
     const n = (fresh += 1);
     list.push(
       { try: "bad: typo", value: `zz-text-box-not-an-address-${n}` },
-      { try: "bad: spaces", value: `  ${goodFor(b)}  ` },
+      // Never the good value with spaces round it: a box that trims would store the good value
+      // here, and the good try would then type what the box already holds (`spacedValue`).
+      { try: "bad: spaces", value: spacedValue(goodFor(b), b.kind, b.maxLength) },
       { try: "bad: html", value: `<b>${HTML_MARK}</b>zz-text-box-${n}@example.invalid` },
     );
   } else if (b.kind === "phone") {
     list.push({ try: "bad: letters", value: "call me" }, { try: "bad: emoji", value: "⛳" });
   } else {
-    list.push({ try: "bad: emoji", value: "⛳" }, { try: "bad: spaces", value: `  ${goodFor(b)}  ` }, { try: "bad: html", value: `<b>${HTML_MARK}</b>` });
+    list.push({ try: "bad: emoji", value: "⛳" }, { try: "bad: spaces", value: spacedValue(goodFor(b), b.kind, b.maxLength) }, { try: "bad: html", value: `<b>${HTML_MARK}</b>` });
   }
   list.push({ try: "good", value: goodFor(b) });
   return list;
@@ -419,9 +431,9 @@ const ACTION_NAMES: Record<string, string> = (() => {
  * What the screen is saying is WRONG, read off how it says it — an alert, the shared form-error, or a
  * sentence in the danger colour — and where it is. Never a control, never inside one.
  */
-async function complaints(page: Page): Promise<Array<{ text: string; top: number; bottom: number; onScreen: boolean }>> {
+async function complaints(page: Page): Promise<Array<{ text: string; top: number; bottom: number; scrollY: number; onScreen: boolean }>> {
   return page.evaluate(() => {
-    const out: Array<{ text: string; top: number; bottom: number; onScreen: boolean }> = [];
+    const out: Array<{ text: string; top: number; bottom: number; scrollY: number; onScreen: boolean }> = [];
     const danger = (el: HTMLElement) => {
       const probe = document.createElement("span");
       probe.style.color = "var(--color-danger)";
@@ -444,11 +456,27 @@ async function complaints(page: Page): Promise<Array<{ text: string; top: number
       const loose = /\b(error|danger)\b/.test(cls) || (el.getAttribute("style") ?? "").includes("--color-danger");
       const red = !marked && !loose && el.children.length <= 2 && /^(P|SPAN|DIV)$/.test(el.tagName) && getComputedStyle(el).color === danger(el);
       if (!marked && !((loose || red) && sentence)) continue;
-      out.push({ text: text.slice(0, 200), top: r.top, bottom: r.bottom, onScreen: r.bottom > 0 && r.top < window.innerHeight });
+      out.push({ text: text.slice(0, 200), top: r.top, bottom: r.bottom, scrollY: window.scrollY, onScreen: r.bottom > 0 && r.top < window.innerHeight });
     }
     return out;
   });
 }
+
+/** What every text box in the working area holds. */
+async function boxValues(page: Page): Promise<string[]> {
+  return page
+    .locator("main input, main textarea")
+    .evaluateAll((els) =>
+      els
+        .filter((el) => el.tagName === "TEXTAREA" || ["text", "email", "tel", "url", "number"].includes((el as HTMLInputElement).type))
+        .map((el) => (el as HTMLInputElement).value)
+        .filter(Boolean),
+    )
+    .catch(() => [] as string[]);
+}
+
+/** Where the page is scrolled to, for a position measured on the screen to be put back on the page. */
+const scrolled = (page: Page) => page.evaluate(() => window.scrollY).catch(() => 0);
 
 const flat = (s: string) => s.replace(/\s+/g, " ").trim();
 const short = (s: string) => (s.length > 40 ? `${s.slice(0, 18)}…(${s.length} chars)` : s);
@@ -518,6 +546,9 @@ async function attempt(page: Page, path: string, was: Box, value: string, t: Try
   try {
     const before = await complaints(page);
     const textBefore = await page.locator("main").innerText().catch(() => "");
+    // What the screen showed before anything was typed, its boxes' values included: a row a form
+    // adds may show what was typed only as the value of a box of its own (see `newlyShown`).
+    const shownBefore: Shown = { text: textBefore, values: await boxValues(page) };
     // An "Add" form: the other boxes in it are given good values, so the one under test is the only question.
     const siblingValues: string[] = [];
     if (b.save.how === "form") {
@@ -589,6 +620,9 @@ async function attempt(page: Page, path: string, was: Box, value: string, t: Try
     }
     // Where the press is, for "said where the press was".
     let pressBox = await box.boundingBox();
+    // …and how far the page was scrolled when it was measured: a refusal that brings itself into view
+    // moves the page under the press (`refusalGap`).
+    let pressScroll = await scrolled(page);
     if (b.save.how === "leave") {
       await box.press("Tab");
     } else {
@@ -649,6 +683,7 @@ async function attempt(page: Page, path: string, was: Box, value: string, t: Try
       }
       await chosen.scrollIntoViewIfNeeded().catch(() => {});
       pressBox = (await chosen.boundingBox()) ?? pressBox;
+      pressScroll = await scrolled(page);
       await chosen.click();
       // A SECOND PRESS, where the screen asks for one: "Use this colour" puts a colour into the theme
       // being drawn up, and the card's own "Save theme" is what stores it. Only a Save in the same card,
@@ -659,6 +694,7 @@ async function attempt(page: Page, path: string, was: Box, value: string, t: Try
         const then = card.locator("button:visible:enabled").filter({ hasText: /^\s*save\b/i }).first();
         if (await then.count()) {
           pressBox = (await then.boundingBox()) ?? pressBox;
+          pressScroll = await scrolled(page);
           await then.click().catch(() => {});
         }
       }
@@ -676,8 +712,8 @@ async function attempt(page: Page, path: string, was: Box, value: string, t: Try
     const after = await complaints(page);
     const fresh = after.filter((c) => !before.some((o) => o.text === c.text));
     if (fresh.length) {
-      const press = pressBox ? { top: pressBox.y, bottom: pressBox.y + pressBox.height } : { top: 0, bottom: 0 };
-      const gapOf = (c: { top: number; bottom: number }) => Math.max(0, c.top - press.bottom, press.top - c.bottom);
+      const press = pressBox ? { top: pressBox.y, bottom: pressBox.y + pressBox.height, scrollY: pressScroll } : { top: 0, bottom: 0, scrollY: pressScroll };
+      const gapOf = (c: { top: number; bottom: number; scrollY: number }) => refusalGap(press, c);
       const near = fresh.find((c) => c.onScreen && gapOf(c) <= 200);
       if (near) return { outcome: "refused in view", note: `${near.text.slice(0, 140)}${by() ? ` · ${by()}` : ""}` };
       const c = fresh[0];
@@ -711,10 +747,8 @@ async function attempt(page: Page, path: string, was: Box, value: string, t: Try
     if (b.save.how === "form") {
       // A row was added, or not: look on the screen for what was typed — into this box, and into the
       // others of its form, each of which no row held before.
-      const newly = (v: string) => {
-        const probe = v.trim().slice(0, 40);
-        return !!probe && main.includes(probe) && !textBefore.includes(probe);
-      };
+      const shownAfter: Shown = { text: main, values: await boxValues(page) };
+      const newly = (v: string) => newlyShown(v, shownBefore, shownAfter);
       const added = newly(typed) || siblingValues.some(newly);
       if (newly(typed) && b.kind !== "figure") return judge(b, t, typed, typed.trim(), `${by()}${pageNote}`);
       // A FIGURE IS SHOWN IN THE SCREEN'S OWN FORMAT ("£10.00", "1 point"), and "10" is on every screen
