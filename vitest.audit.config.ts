@@ -9,6 +9,10 @@ import { resolve } from "node:path";
  * hermetic and nobody's CI quietly starts depending on a database.
  */
 export default defineConfig({
+  // The automatic JSX runtime, as `vitest.config.ts` has it, so an audit test
+  // can render a screen from real rows (the final report's public copy is
+  // checked on the page it draws, not only on its data).
+  esbuild: { jsx: "automatic" },
   resolve: {
     alias: {
       "@": resolve(__dirname, "src"),
