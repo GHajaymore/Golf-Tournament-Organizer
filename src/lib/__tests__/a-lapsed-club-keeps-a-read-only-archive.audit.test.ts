@@ -82,7 +82,8 @@ async function scrub() {
 
 /** A club paying through Stripe, with a live league under way and a completed medal. */
 async function payingClub(who: string): Promise<Club> {
-  const user = await prisma.user.create({ data: { email: email(who), name: `Owner ${who}`, password: "x" } });
+  // A proved address: `createSession` makes no session for one nobody has proved (email verification).
+  const user = await prisma.user.create({ data: { email: email(who), name: `Owner ${who}`, password: "x", emailVerifiedAt: new Date() } });
   const org = await prisma.organization.create({
     data: {
       name: `${TAG} ${who}`,

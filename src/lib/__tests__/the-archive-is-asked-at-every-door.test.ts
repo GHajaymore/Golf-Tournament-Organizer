@@ -53,6 +53,7 @@ const NOT_A_DOOR: Record<string, string> = {
   // person
   deleteMyAccount: "person", signInWithPassword: "person", claimPassword: "person", requestPasswordReset: "person",
   resetPassword: "person", signUp: "person", signOutAction: "person", signOutEverywhereAction: "person",
+  verifyEmailCode: "person", resendEmailCode: "person",
   savePushSubscription: "person", removePushSubscription: "person", getVapidPublicKey: "person",
   setMyMessagesOptOut: "person", setMySmsOptIn: "person", registerInterest: "person", askToJoinNamesake: "person",
   // club
