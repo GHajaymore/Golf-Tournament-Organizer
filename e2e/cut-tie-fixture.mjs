@@ -52,8 +52,9 @@ export async function roundTwoField(eventId) {
   const prisma = new PrismaClient();
   try {
     const r2 = await prisma.stage.findFirst({ where: { eventId, position: 1 }, select: { id: true } });
-    const cards = await prisma.scorecard.findMany({ where: { stageId: r2.id }, select: { player: { select: { name: true } } } });
-    return cards.map((c) => c.player.name).sort();
+    const cards = await prisma.scorecard.findMany({ where: { stageId: r2.id }, select: { playerId: true } });
+    const players = await prisma.player.findMany({ where: { id: { in: cards.map((c) => c.playerId) } }, select: { name: true } });
+    return players.map((p) => p.name).sort();
   } finally {
     await prisma.$disconnect();
   }
