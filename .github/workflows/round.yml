@@ -162,10 +162,20 @@ jobs:
         # A part with no browser (the dependency check) installs none: with no
         # name given, this command would fetch all of them.
         if: matrix.part.browsers != ''
-        # The limit ci.yml gives this step, for the reason it gives: the apt
-        # step behind --with-deps has hung for half an hour before.
-        timeout-minutes: 12
-        run: npx playwright install --with-deps ${{ matrix.part.browsers }}
+        # The apt step behind --with-deps has hung for half an hour before, and
+        # on 2026-10-23, with a dozen rounds queued, one hung attempt failed a
+        # dozen parts that had not run a single test. A hang is now one attempt
+        # of three, each held to four minutes, and only three hangs in a row
+        # fail the part — which still says so, in the same words, before any test.
+        timeout-minutes: 14
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 240 npx playwright install --with-deps ${{ matrix.part.browsers }}; then exit 0; fi
+            echo "::warning::Installing the browser did not finish (attempt $attempt of 3); trying again."
+            sleep 15
+          done
+          echo "::error::The browser this part drives could not be installed in three attempts."
+          exit 1
       - name: ${{ matrix.part.id }}
         run: node scripts/qa/round.mjs ${{ needs.plan.outputs.tag }} --round=${{ needs.plan.outputs.round }} --id=${{ matrix.part.id }} ${{ matrix.part.args }}
       - name: Hand on what it found
