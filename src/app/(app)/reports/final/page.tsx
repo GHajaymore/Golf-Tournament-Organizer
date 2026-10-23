@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireScreen } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
-import { reportFor } from "@/lib/services/event-report";
+import { reportAudienceFor, reportFor } from "@/lib/services/event-report";
 import { FinalReport } from "@/components/FinalReport";
 import { EventReport } from "@/components/EventReport";
 import { ReportRecapEditor } from "@/components/ReportRecapEditor";
@@ -21,8 +21,12 @@ export const metadata = { title: "Final report" };
 export default async function FinalReportPage() {
   const session = await requireScreen("reports");
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  // The organizer's copy carries the amounts and the whole settle-up; anybody
+  // else who reaches this screen gets what they would on the link — see
+  // `reportAudienceFor`.
+  const audience = await reportAudienceFor(session.eventId, { email: session.email, staff: isStaff });
   const [found, event] = await Promise.all([
-    reportFor(session.eventId),
+    reportFor(session.eventId, audience),
     prisma.event.findUnique({ where: { id: session.eventId } }),
   ]);
   const shareable = event && isLeaderboardPublic(settingsOf(event));

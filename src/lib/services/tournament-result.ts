@@ -33,6 +33,17 @@ import { teamStandings } from "./teams";
  */
 
 export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
+  return tournamentResult((await roundOutcomesFor(state)).map((r) => r.outcome));
+}
+
+/**
+ * THE SAME ROUNDS, BEFORE THEY ARE WORDED — each playing round's outcome with
+ * its winners and their score, beside the round it belongs to. For a reader
+ * that needs the figure itself rather than the sentence: the final report's
+ * "each round" table and its best round (2026-10-21), which must name the
+ * round winner the board names, from this one reader.
+ */
+export async function roundOutcomesFor(state: EventState): Promise<Array<{ stageId: string; outcome: RoundOutcome }>> {
   const stages = playingStages(state.stages);
   if (stages.length === 0) return [];
 
@@ -355,7 +366,7 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
       : { kind: "stroke", label, winners, unit: unit.label, unofficial };
   });
 
-  return tournamentResult(outcomes);
+  return outcomes.map((outcome, i) => ({ stageId: stages[i].id, outcome }));
 }
 
 /** The handicap this player played that round off, as the state resolved it. */
