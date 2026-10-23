@@ -18,6 +18,8 @@
  * Only DECIDED matches count. A report is made when the cup is over, but the
  * rule must hold on the day too: a match two up is not a point to anybody.
  */
+import { toParText } from "./stroke";
+
 export type ReportSide = "A" | "B";
 
 export interface ReportMatch {
@@ -317,12 +319,37 @@ export interface RankBasis {
  * board ranks on, so the report cannot name a different figure from the board.
  */
 export function placeFigure(
-  row: { gross: number; net: number; points: number; pts: string },
+  row: { gross: number; net: number; points: number; pts: string; thru: number; holesOwed: number; toPar: number; parKnown?: boolean },
   basis: RankBasis,
 ): string {
   if (!basis.isStroke) return `${row.pts || "0"} match points`;
-  if (basis.isStableford) return `${row.points} points`;
-  return basis.isNet ? `net ${row.net}` : `gross ${row.gross}`;
+  /**
+   * A CARD STILL BEING PLAYED IS RANKED ON ITS TO-PAR, NOT ITS TOTAL
+   * (walked 2026-10-23 on the seeded club's live medal). The board places a
+   * part-played card by strokes against the par of the holes played, so a
+   * total says nothing about the order: the report read "Marnie leads on net
+   * 30 … Nkechi is next, on net 67" — a 37-shot lead that was two. While the
+   * card is open the figure is the one the board ranks on, with how far round:
+   * "net −6 through 8", "19 points through 9".
+   */
+  const open = row.holesOwed > 0 && row.thru < row.holesOwed;
+  if (basis.isStableford) return `${row.points} points${open ? ` through ${row.thru}` : ""}`;
+  if (open && row.parKnown !== false) {
+    return `${basis.isNet ? "net " : ""}${row.toPar === 0 ? "level par" : toParText(row.toPar)} through ${row.thru}`;
+  }
+  const total = basis.isNet ? `net ${row.net}` : `gross ${row.gross}`;
+  return open ? `${total} through ${row.thru}` : total;
+}
+
+/**
+ * The figure a place is held on — but only when everybody holding it holds it
+ * on the SAME figure. Mid-round two players share a place on their to-par or
+ * their points against the holes played, and one of their figures said of
+ * both ("Gordon Pyle and Rafe Sandoval are next, on 9 points", with Rafe on
+ * 19 — walked 2026-10-23) is wrong about the other.
+ */
+export function sharedFigure(figures: string[]): string {
+  return figures.length > 0 && figures.every((f) => f === figures[0]) ? figures[0] : "";
 }
 
 /**
@@ -372,7 +399,15 @@ export function eventStory(input: {
     const lead: string[] = [];
     // A knockout's places are won in matches, not on a figure: " on …" only where there is one.
     const on = (p: Place) => (p.figure ? ` on ${p.figure}` : "");
-    if (!input.completed) {
+    if (!input.completed && !several && second && first.figure && second.figure === first.figure) {
+      // Level and placed apart while it is still being played: the board's
+      // countback, said — "leads on 16 points … next, on 16 points" otherwise.
+      out.push(`${who} leads${on(first)}, ahead of ${listWords(second.names)} on countback, with the tournament still to finish.`);
+      if (input.rounds.length > 1) {
+        out.push(input.rounds.map((r) => `${r.label}: ${r.result.replace(/\.?$/, ".")}`).join(" "));
+      }
+      return out;
+    } else if (!input.completed) {
       lead.push(`${who} ${several ? "lead" : "leads"}${on(first)}, with the tournament still to finish.`);
     } else if (several) {
       lead.push(`${who} finished level at the top${on(first)}. A tie for first place is the committee's to settle.`);
