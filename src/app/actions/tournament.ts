@@ -4562,7 +4562,9 @@ export async function setEventStatus(
   if (current.status === "completed" && s !== "completed" && (await wipesOnCloseFor(eventId))) {
     // An instant, worded as the day it is at the club (`dayAtClubForEvent`).
     const words = current.closesAt ? (await dayAtClubForEvent(eventId))(current.closesAt) : null;
-    const refusal = reopenRefusal({ planTermsApply: true, plan: "free", shape: "stroke" }, words);
+    // `wipesOnCloseFor` has already said Par's terms hold here, which an archived tournament never
+    // meets (it follows the lapsed-club archive instead), so this one is not archived.
+    const refusal = reopenRefusal({ planTermsApply: true, plan: "free", shape: "stroke", archivedAt: null }, words);
     if (refusal) return { ok: false, error: refusal };
   }
   /**

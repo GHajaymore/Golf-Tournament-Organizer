@@ -19,12 +19,14 @@ describe("a Par tournament completed is kept, read-only, for 15 days (Ajay, 2026
     expect(closesAtOnComplete(at(20), at(1))).toEqual(at(20));
   });
   it("a completed Par tournament cannot be reopened — so completing cannot be repeated to buy time", () => {
-    const par = { planTermsApply: true, plan: "free", shape: "stroke" };
+    const par = { planTermsApply: true, plan: "free", shape: "stroke", archivedAt: null };
     expect(reopenRefusal(par, "Mon 19 Oct")).toMatch(/kept read-only until Mon 19 Oct, then deleted/);
     // a paid club, a grandfathered club, and a casual round may reopen as before
     expect(reopenRefusal({ ...par, plan: "society" }, "Mon 19 Oct")).toBeNull();
     expect(reopenRefusal({ ...par, planTermsApply: false }, "Mon 19 Oct")).toBeNull();
     expect(reopenRefusal({ ...par, shape: "match" }, "Mon 19 Oct")).toBeNull();
+    // a lapsed club's archived tournament follows the archive, never Par's fifteen days
+    expect(reopenRefusal({ ...par, archivedAt: new Date("2026-10-01T00:00:00Z") }, "Mon 19 Oct")).toBeNull();
   });
 });
 
