@@ -186,7 +186,13 @@ function Choice<T extends string>({
                 alignItems: "center",
                 gap: 8,
                 fontSize: 14,
-                minHeight: 36,
+                // 36px under a mouse, 44 under a finger. Read through a
+                // variable because an inline `minHeight` beats every
+                // stylesheet rule: the touch rule for a label round a radio
+                // (globals.css) was dead here, and each option was a 36px
+                // target on a phone — found the first time the touch sweep
+                // opened Club settings' Defaults tab (2026-10-23).
+                minHeight: "var(--choice-row-min, 36px)",
                 cursor: disabled ? "default" : "pointer",
                 opacity: disabled ? 0.6 : 1,
               }}

@@ -889,6 +889,9 @@ body {
   label:has(> input[type="checkbox"]),
   label:has(> input[type="radio"]) {
     min-height: 44px;
+    /* For a label that sets its own `minHeight` inline, which no rule here can
+       beat: it reads this instead (PlaySettings' options). */
+    --choice-row-min: 44px;
   }
 }
 
