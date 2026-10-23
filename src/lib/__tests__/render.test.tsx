@@ -1134,7 +1134,7 @@ describe("rounds and format", () => {
     // Open, which is every stored round until an organizer says otherwise.
     closed: false,
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
-    carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
+    carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", cutTies: "ties", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });
   const base = {
@@ -2417,7 +2417,7 @@ describe("round card — which nine and the deadline", () => {
     // Open, which is every stored round until an organizer says otherwise.
     closed: false,
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
-    carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
+    carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", cutTies: "ties", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });
   const base = {

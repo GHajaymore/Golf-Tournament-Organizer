@@ -19,7 +19,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
-import { applyStrokeCut, strokeCutField, strokeCutRefusal } from "@/lib/services/stroke-cut";
+import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
@@ -124,7 +124,7 @@ import { isPlayKind } from "@/lib/domain/play-kind";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { organizationWasNamed } from "@/lib/org-naming";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
-import { isCutScope } from "@/lib/domain/cut";
+import { isCutScope, cutTieRuleOf, cutTieDecisionsOf } from "@/lib/domain/cut";
 import { importShapesFor, isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import { placementOnApproval, parseHandicapInput, parseHandicapType } from "@/lib/domain/registration-intake";
@@ -5160,6 +5160,75 @@ export async function setStageCutScope(stageId: string, scope: string): Promise<
     data: { cutScope: isCutScope(scope) ? scope : "overall" },
   });
   await refresh();
+}
+
+/**
+ * HOW A TIE FOR THE LAST PLACE AT THIS CUT IS SETTLED (2026-10-23) — everybody
+ * level goes through, a play-off, or a countback then a draw. Part of the cut's
+ * terms, which a committee publishes before play (Committee Procedures 5A(6)),
+ * so it locks with the rest of setup. See `strokeCutOutcome`.
+ */
+export async function setStageCutTies(stageId: string, rule: string): Promise<void> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { cutTies: cutTieRuleOf(rule) },
+  });
+  await refresh();
+}
+
+/**
+ * THE COMMITTEE RECORDS WHO WON THE PLAY-OFF, OR THE DRAW, FOR THE LAST PLACE
+ * at the cut out of `feederId` (2026-10-23). `tied` is who was level — it must
+ * be exactly a tie the cut is waiting on, so a decision cannot be recorded for
+ * players who are not level — and `through` is who goes on: as many as there
+ * are places, all of them out of the tie. An empty `through` takes a recorded
+ * decision back. It does not make the cut; marking the round finished does.
+ *
+ * Not behind the lock: a play-off is played on the day, after launch by
+ * definition. Refused once the round is closed — the cut has been made, and
+ * re-opening the round is how it is changed.
+ */
+export async function settleCutTie(
+  feederId: string,
+  tied: string[],
+  through: string[],
+): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const feeder = await prisma.stage.findFirst({
+    where: { id: feederId, eventId },
+    select: { id: true, closedAt: true },
+  });
+  if (!feeder) return { ok: false, error: "That round isn't in this tournament." };
+  if (feeder.closedAt) return { ok: false, error: "This round is closed, so its cut has been made. Re-open it on Rounds & formats to change who went through." };
+  const made = await strokeCutOutcomeOf(eventId, feeder.id);
+  if (!made) return { ok: false, error: "There is no cut out of this round." };
+  const wanted = Array.isArray(tied) ? tied.filter((x) => typeof x === "string") : [];
+  const same = (a: readonly string[]) => a.length === wanted.length && a.every((id) => wanted.includes(id));
+  const tie = [...made.outcome.undecided, ...made.outcome.decided].find((t) => same(t.playerIds));
+  if (!tie) return { ok: false, error: "Those players are not tied for the last place any more — the board has changed. Reload to see the tie as it stands." };
+  const picked = [...new Set(Array.isArray(through) ? through.filter((x) => typeof x === "string") : [])];
+  if (picked.some((id) => !tie.playerIds.includes(id))) return { ok: false, error: "Only a player in the tie can go through on it." };
+  if (picked.length > 0 && picked.length !== tie.places) {
+    return { ok: false, error: `Pick ${tie.places === 1 ? "the one player" : `the ${tie.places} players`} who went through — ${picked.length} ${picked.length === 1 ? "is" : "are"} ticked.` };
+  }
+  const rest = cutTieDecisionsOf(made.next.cutTieDecisions).filter((d) => !same(d.tied));
+  const decisions = picked.length > 0 ? [...rest, { tied: [...tie.playerIds], through: picked }] : rest;
+  await prisma.stage.updateMany({
+    where: { id: made.next.id, eventId },
+    data: { cutTieDecisions: JSON.stringify(decisions) },
+  });
+  const name = (id: string) => made.names.get(id) ?? "A player";
+  await logAudit(
+    eventId,
+    "cut-tie-settled",
+    picked.length > 0
+      ? `${picked.map(name).join(" and ")} won the ${tie.by === "playoff" ? "play-off" : "draw"} for ${tie.places === 1 ? "the last place" : `the last ${tie.places} places`} in the cut, of ${tie.playerIds.map(name).join(", ")}.`
+      : `The ${tie.by === "playoff" ? "play-off" : "draw"} for the last place in the cut was taken back — ${tie.playerIds.map(name).join(", ")} are level again.`,
+  );
+  await refresh();
+  return { ok: true };
 }
 
 /**
