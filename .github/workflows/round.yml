@@ -120,9 +120,51 @@ jobs:
           include-hidden-files: true
           retention-days: 7
 
+  browser-packages:
+    # THE SYSTEM PACKAGES THE BROWSERS NEED, FETCHED ONCE FOR THE WHOLE ROUND.
+    # `playwright install --with-deps` takes them from Ubuntu's mirror, and on
+    # 2026-10-23 that mirror served each part at about 40 KB/s: 26 MB of fonts
+    # and libraries per part, thirty parts, and three rounds in a row failed
+    # every part that drives a browser before a single test ran. So one job
+    # fetches them, beside the build and as slowly as it must, and every part
+    # takes them from this run's artifacts instead of the mirror. If this job
+    # fails, the parts still run and fetch from the mirror as before.
+    name: The packages the browsers need
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install (the Playwright of this branch, nothing else run)
+        run: npm ci --ignore-scripts
+      - name: Fetch every package the three engines need
+        run: |
+          # apt-get keeps what it downloads in its cache unless told not to;
+          # say so, so the runner's own settings cannot empty it.
+          printf 'APT::Keep-Downloaded-Packages "true";\nBinary::apt-get::APT::Keep-Downloaded-Packages "true";\nAcquire::Retries "5";\n' | sudo tee /etc/apt/apt.conf.d/80-round-keep
+          npx playwright install-deps chromium firefox webkit
+          mkdir -p browser-packages
+          cp /var/cache/apt/archives/*.deb browser-packages/ 2>/dev/null || true
+          COUNT=$(ls browser-packages/*.deb 2>/dev/null | wc -l)
+          echo "Kept $COUNT packages ($(du -sh browser-packages | cut -f1))."
+          if [ "$COUNT" -eq 0 ]; then echo "::warning::No packages were kept; every part will fetch from the mirror."; fi
+      - name: Hand them on
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-packages
+          path: browser-packages/
+          retention-days: 1
+          if-no-files-found: ignore
+
   part:
     name: ${{ matrix.part.id }}
-    needs: [plan, build]
+    needs: [plan, build, browser-packages]
+    # The packages job is a shortcut, not a gate: without it a part fetches
+    # from the mirror as it always did.
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 100
     # A part that fails says so on its own line and stops nothing: the point of
@@ -158,6 +200,13 @@ jobs:
         with:
           name: build
           path: .next-e2e
+      - name: Take the packages the browsers need
+        if: matrix.part.browsers != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: browser-packages
+          path: browser-packages
       - name: Install the browser this part drives
         # A part with no browser (the dependency check) installs none: with no
         # name given, this command would fetch all of them.
@@ -167,8 +216,18 @@ jobs:
         # dozen parts that had not run a single test. A hang is now one attempt
         # of three, each held to four minutes, and only three hangs in a row
         # fail the part — which still says so, in the same words, before any test.
+        #
+        # The packages come from the job above when it kept them, so apt finds
+        # them in its cache and fetches nothing. And a cut-off attempt leaves
+        # apt running with the lock held, which failed the first version of
+        # these retries in a second each: the next attempt now WAITS for it.
         timeout-minutes: 14
         run: |
+          printf 'DPkg::Lock::Timeout "300";\nAcquire::Retries "3";\n' | sudo tee /etc/apt/apt.conf.d/80-round-wait
+          if ls browser-packages/*.deb >/dev/null 2>&1; then
+            sudo cp browser-packages/*.deb /var/cache/apt/archives/
+            echo "Took $(ls browser-packages/*.deb | wc -l) packages from this round's packages job."
+          fi
           for attempt in 1 2 3; do
             if timeout 240 npx playwright install --with-deps ${{ matrix.part.browsers }}; then exit 0; fi
             echo "::warning::Installing the browser did not finish (attempt $attempt of 3); trying again."
