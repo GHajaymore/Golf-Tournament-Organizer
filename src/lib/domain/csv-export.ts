@@ -69,7 +69,7 @@ export interface ExportRowStatus {
   advancing?: boolean;
   tiedAtCut?: boolean;
   /** "draw" where a cut's countback left the tie to be drawn by lot. */
-  cutTieBy?: "" | "draw";
+  cutTieBy?: "" | "playoff" | "draw";
   missedCut?: string;
   withdrew?: boolean;
   disqualified?: boolean;

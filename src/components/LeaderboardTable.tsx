@@ -45,12 +45,13 @@ export interface StandingRow {
    */
   tiedAtCut?: boolean;
   /**
-   * How a stroke cut's tie is to be settled, where this row is in one the
-   * committee has still to decide (2026-10-23): "draw" when the cut's countback
-   * could not separate them and lots are drawn, else "" — a play-off, which is
-   * also what every other tie at a line is (`strokeCutOutcome`).
+   * Where this row is in a STROKE CUT's tie the committee has still to settle
+   * (2026-10-23), how it is to be settled: "playoff", or "draw" when the cut's
+   * countback could not separate them. "" otherwise — including a knockout's
+   * tie at its qualifying line, which keeps its provisional pick
+   * (`strokeCutOutcome`). A row with one is neither through nor out.
    */
-  cutTieBy?: "" | "draw";
+  cutTieBy?: "" | "playoff" | "draw";
   /**
    * Marked out of THIS round by a weekly league.
    *

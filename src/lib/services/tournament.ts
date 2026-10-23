@@ -3245,11 +3245,11 @@ export function standingRows(state: EventState): StandingRow[] {
   // Nobody in it is lit, so the shared-place reading above cannot see it: the
   // play-off is for players level on the SCORE, whom the board's countback may
   // have given different places.
-  const drawn = new Set<string>();
+  const tieBy = new Map<string, "playoff" | "draw">();
   for (const t of state.boardIsStroke ? state.cutTiesUndecided : []) {
     for (const id of t.playerIds) {
       tied.add(id);
-      if (t.by === "draw") drawn.add(id);
+      tieBy.set(id, t.by);
     }
   }
 
@@ -3273,7 +3273,7 @@ export function standingRows(state: EventState): StandingRow[] {
       flight: flight(s.player.id),
       advancing: state.advancingIds.has(s.player.id),
       tiedAtCut: tied.has(s.player.id),
-      cutTieBy: drawn.has(s.player.id) ? ("draw" as const) : ("" as const),
+      cutTieBy: tieBy.get(s.player.id) ?? ("" as const),
       record: "",
       diff: "",
       pts: "",
