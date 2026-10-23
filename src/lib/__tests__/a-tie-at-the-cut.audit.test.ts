@@ -188,11 +188,12 @@ describe("a countback cut, worked from the rule", () => {
       name: "gross-18",
       basis: "gross" as const,
       si: SI18,
-      // Both 72. A: a bogey on 1, a birdie on 18 — back nine 35. B: all fours,
-      // back nine 36. The last nine sends A through.
+      // Both 72. A: back nine 35 — but a 5 on the LAST hole, so a countback
+      // that skipped the ladder and read the last hole alone would send B.
+      // B: all fours, back nine 36. The last nine sends A through.
       players: [
         { label: "LEAD", handicap: 0, holes: [...flat(17), 3].map((v, i) => (i === 0 ? 3 : v)) },
-        { label: "A", handicap: 0, holes: [5, ...flat(16), 3] },
+        { label: "A", handicap: 0, holes: [5, ...flat(8), 4, 4, 4, 4, 4, 3, 3, 4, 5] },
         { label: "B", handicap: 0, holes: flat(18) },
         { label: "LAST", handicap: 0, holes: flat(18, 5) },
       ],
@@ -218,11 +219,12 @@ describe("a countback cut, worked from the rule", () => {
       name: "gross-9",
       basis: "gross" as const,
       si: SI9,
-      // A nine: the ladder starts at the last 6. Both 36. A: 5 on 1, 3 on 9 —
-      // last six 23 against B's 24.
+      // A nine: the ladder starts at the last 6. Both 36. A's last six 23
+      // against B's 24 — with a 5 on the last hole, so the last hole alone
+      // would send B.
       players: [
         { label: "LEAD", handicap: 0, holes: flat(9, 3) },
-        { label: "A", handicap: 0, holes: [5, ...flat(7), 3] },
+        { label: "A", handicap: 0, holes: [5, 4, 4, 4, 4, 4, 3, 3, 5] },
         { label: "B", handicap: 0, holes: flat(9) },
         { label: "LAST", handicap: 0, holes: flat(9, 6) },
       ],
@@ -235,15 +237,16 @@ describe("a countback cut, worked from the rule", () => {
       si: SI9_LATE,
       /**
        * A off 0 on fours, net 36. B's strokes are whatever the board gives an
-       * index of 6 over nine holes (read below, not assumed — at least two);
-       * B's card puts its extra strokes on holes 1–3 and its last six at 25:
-       * worse than A's 24 on gross, better on net once two strokes land there.
-       * The precondition below makes the fixture prove the two are level.
+       * index of 8 over nine holes (read below, not assumed — at least three);
+       * B's card puts its extra strokes on holes 1–3 and its last six at 26,
+       * ending with a 6: worse than A's 24 on gross, better on net once three
+       * strokes land there, and worse on the last hole alone (net 5 against
+       * 4). The precondition below makes the fixture prove the two are level.
        */
       players: [
         { label: "LEAD", handicap: 0, holes: flat(9, 3) },
         { label: "A", handicap: 0, holes: flat(9) },
-        { label: "B", handicap: 6, holes: [] as number[] },
+        { label: "B", handicap: 8, holes: [] as number[] },
         { label: "LAST", handicap: 0, holes: flat(9, 7) },
       ],
     },
@@ -256,15 +259,16 @@ describe("a countback cut, worked from the rule", () => {
       if (c.name === "net-9") {
         // B's playing handicap first, from a throwaway card, so the fixture
         // can be built level on net rather than hoping it is.
-        const probe = await championship({ name: `${c.name}-probe`, pars, si: c.si, basis: "net", count: 2, cutTies: "countback", players: [{ label: "B", handicap: 6, holes: flat(9, 5) }] });
+        const probe = await championship({ name: `${c.name}-probe`, pars, si: c.si, basis: "net", count: 2, cutTies: "countback", players: [{ label: "B", handicap: 8, holes: flat(9, 5) }] });
         const s = (await loadEventState(probe.eventId))!.strokeStandings[0];
         const ph = s.gross - s.net;
-        expect(ph, "a nine-hole handicap of a few strokes").toBeGreaterThanOrEqual(2);
-        // Net 36: gross 36 + ph, last six 25 (fours bar one five), the rest on holes 1-3.
-        const front = 36 + ph - 25;
+        expect(ph, "a nine-hole handicap of a few strokes").toBeGreaterThanOrEqual(3);
+        expect(ph, "no more strokes than the last six can hold").toBeLessThanOrEqual(6);
+        // Net 36: gross 36 + ph, last six 26 ending in a 6, the rest on holes 1-3.
+        const front = 36 + ph - 26;
         const first3 = [Math.ceil(front / 3), Math.ceil((front - Math.ceil(front / 3)) / 2)];
         first3.push(front - first3[0] - first3[1]);
-        players = c.players.map((p) => (p.label === "B" ? { ...p, holes: [...first3, 5, 4, 4, 4, 4, 4] } : p));
+        players = c.players.map((p) => (p.label === "B" ? { ...p, holes: [...first3, 4, 4, 4, 4, 4, 6] } : p));
       }
       const t = await championship({ name: c.name, pars, si: c.si, basis: c.basis, count: 2, cutTies: "countback", players });
       const state = (await loadEventState(t.eventId, t.r1))!;
@@ -280,6 +284,9 @@ describe("a countback cut, worked from the rule", () => {
       const expected = countbackByHand(onBasis("A", c.basis), onBasis("B", c.basis)) < 0 ? "A" : "B";
       const other = countbackByHand(onBasis("A", c.basis === "net" ? "gross" : "net"), onBasis("B", c.basis === "net" ? "gross" : "net"));
       if (c.basis === "net") expect(other < 0 ? "A" : other > 0 ? "B" : "level", `${c.name}: gross would decide it differently`).not.toBe(expected);
+      // And the ladder matters: the last hole alone would not give this answer.
+      const last = (who: string) => onBasis(who, c.basis)[onBasis(who, c.basis).length - 1];
+      expect(last("A") < last("B") ? "A" : last("A") > last("B") ? "B" : "level", `${c.name}: the last hole alone`).not.toBe(expected);
 
       const made = (await strokeCutOutcomeOf(t.eventId, t.r1))!;
       expect(made.outcome.undecided, `${c.name}: the countback separated them`).toEqual([]);
