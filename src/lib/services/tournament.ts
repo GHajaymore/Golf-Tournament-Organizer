@@ -62,6 +62,7 @@ import {
   parseBracketDraw,
   roundRobinMatchCount,
   resolveMatch,
+  matchIsOver,
   storedMatchIsOver,
   courseHandicapMap,
   type Player,
@@ -637,6 +638,13 @@ export interface EventState {
    * board's own sort and countback, for a prize named for one. See `orderOn`.
    */
   strokeStandingsOn: (basis: "gross" | "net") => StrokeStanding[];
+  /**
+   * The one figure `strokeStandings` is ordered on — the board's own
+   * `rankingBasis`. A reader that PRINTS a total beside the board's places
+   * prints it on this, or the column it prints cannot be read down
+   * (`standingsThroughRound`).
+   */
+  strokeRankingBasis: RankingBasis;
   /**
    * Players withdrawn after they began, as WD rows — NOT part of the field,
    * so not in `strokeStandings`. Only the printed sheet adds them.
@@ -2607,7 +2615,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         return { complete: false, status: "disputed", unreadable: true };
       }
       return {
-        complete: resolveMatch(holes).complete,
+        // `matchIsOver`: a stored "[]" is complete to `resolveMatch` and is
+        // no result anybody can sign off.
+        complete: matchIsOver(holes),
         status: effectiveScoreStatus(m, autoConfirm),
       };
     }),
@@ -2966,6 +2976,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     cutReady,
     strokeStandings,
     strokeStandingsOn,
+    strokeRankingBasis: rankingBasis,
     withdrawnStandings,
     strokeUnit,
     // Only "strokes" is ambiguous; points name themselves. Derived once above,

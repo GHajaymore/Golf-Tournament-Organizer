@@ -89,7 +89,7 @@ beforeAll(async () => {
   const org = await prisma.organization.create({ data: { name: `${TAG} club`, kind: "club" }, select: { id: true } });
   orgId = org.id;
   await prisma.subscription.create({ data: { organizationId: org.id, plan: "free", planTermsApply: true } });
-  const user = await prisma.user.create({ data: { email: at("organizer"), name: `${TAG} Organizer`, password: "x:unusable" } });
+  const user = await prisma.user.create({ data: { email: at("organizer"), name: `${TAG} Organizer`, password: "x:unusable", emailVerifiedAt: new Date() } });
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: user.id, role: "owner" } });
   for (const [key, requirePhone] of [["quiet", false], ["asks", true]] as const) {
     const token = `${TAG}-${key}-${RUN}`;
