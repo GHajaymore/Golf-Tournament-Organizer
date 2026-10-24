@@ -75,7 +75,7 @@ test("last year's medal is copied without its field, cards or money, and Manage 
     await page.getByLabel("Create a new tournament", { exact: true }).fill(copyName);
     const from = page.getByLabel("Start from", { exact: true });
     await from.selectOption({ label: springName });
-    await expect(page.getByText(/Copies the settings, rounds and courses from .*Spring Medal — never its players, scores or access codes\./)).toBeVisible();
+    await expect(page.getByText(/Copies the settings, rounds, courses and side games from .*Spring Medal — never its players, scores, money or access codes\./)).toBeVisible();
     const create = page.getByRole("button", { name: "Create tournament" });
     await centre(create);
     await create.click();
@@ -92,7 +92,9 @@ test("last year's medal is copied without its field, cards or money, and Manage 
     // Not the field, the cards or the money — and a new tournament, not last year's running on.
     expect(await prisma.player.count({ where: { eventId: copy!.id } }), "the copy carried the field").toBe(0);
     expect(await prisma.scorecard.count({ where: { eventId: copy!.id } }), "the copy carried cards").toBe(0);
-    expect(await prisma.skinsPot.count({ where: { eventId: copy!.id } }), "the copy carried the skins money").toBe(0);
+    // The skins GAME comes across (2026-10-24: "keep … side games"); the money in it never does.
+    expect(await prisma.skinsPot.count({ where: { eventId: copy!.id } }), "the copy lost the skins game").toBe(1);
+    expect(await prisma.skinsEntry.count({ where: { pot: { eventId: copy!.id } } }), "the copy carried the skins money").toBe(0);
     expect({ status: copy!.status, dates: copy!.dates, sameLink: copy!.shareToken === spring.event.shareToken }).toEqual({
       status: "draft",
       dates: "",

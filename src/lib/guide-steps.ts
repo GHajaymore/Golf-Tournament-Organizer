@@ -98,6 +98,18 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Press [[Create tournament]], then [[Manage]] to open it.",
         ],
       },
+      { kind: "h", text: "Copy last event" },
+      { kind: "where", text: "Dashboard → Copy last event (the club's Commissioner and Admins)" },
+      {
+        kind: "steps",
+        items: [
+          "It starts from your most recent tournament. To start from another, pick it under **Copy from**.",
+          "Check **Name of the copy**, then pick the **First day** (and the **Last day** if it runs over more than one). Press [[Create the copy]] and you are taken into the new tournament.",
+          "Comes across: the format, rounds, handicap allowances, who decides the tees, flight rules, side games (with nobody entered), entry settings and who can see the leaderboard.",
+          "Never comes across: players, cards, results, money, notices, the tee sheet, round codes or the public links. The copy gets a new sign-up link when you publish it, and the old tournament keeps its own.",
+          "The entry window and each round keep the same distance from the first day as last time — entries closed three days before, so they do again. A day that has already gone at your club is left empty, and a first day that has already gone is refused.",
+        ],
+      },
       {
         kind: "table",
         head: ["Template", "What it sets up"],
@@ -328,6 +340,17 @@ export const GUIDE_STEPS: GuideSection[] = [
     part: "Part 7",
     title: "On the day",
     blocks: [
+      { kind: "h", text: "What's next" },
+      { kind: "where", text: "Dashboard → What's next" },
+      {
+        kind: "list",
+        items: [
+          "One line for each job waiting on you in the club's tournaments, the soonest first: entries waiting for approval (with the day entries close), a tee sheet for the next fortnight not yet published, cards not returned in a round being played, and results not released once every round is closed.",
+          "Each line names its tournament and has one button that opens that tournament on the screen that does the job: [[Approve entries]], [[Publish the tee sheet]], [[Open score entry]] or [[Complete the tournament]].",
+          "The buttons are for the club's Commissioner and Admins. Anyone else running a tournament sees the same lines without them.",
+          "Nothing waiting says so. A completed tournament never appears.",
+        ],
+      },
       {
         kind: "list",
         items: [

@@ -112,6 +112,25 @@ fourth is not testable and is yours: a flow that works differently under the sam
 The day this rule was written, the guide already held a sentence that morning's work had made
 false — "Only Manual lets you … set tees per flight".
 
+## The secretary's home: what's next, and copy last event
+
+The panel's item 4 (approved by Ajay, 2026-10-24). The dashboard's **What's next** is one line for
+each job waiting on the person in every tournament they run at the open tournament's club — entries
+awaiting approval, a tee sheet for the next fortnight unpublished, cards not returned, results not
+released — soonest first. The facts come from the screens' own functions (`services/whats-next.ts`:
+`awaitingApproval`, `nextUnplayedRound`, `boardProgress`, `playOverOf`) and `whatsNext` in
+`domain/needs-you-now.ts` only words and orders them, so the home cannot disagree with the screen it
+sends you to. Buttons only with the club's `canEdit`; a job in another tournament opens it through
+`enterTournament(eventId, screen)`, which honours `JOB_SCREENS` and nothing else.
+
+**Copy last event** is `cloneEvent` given a first day: `copiedCalendar` moves the entry window and the
+rounds by the same distance against the club's own today, side games come across as games with nobody
+in them (`CLONED_CONTEST_FIELDS` and its two siblings in `clone.ts`), and the copy is made only by the
+club's Commissioner or an Admin (`organizationAccessFor`). **Time to a first event is MEASURED** by
+`e2e/secretary-first-event.spec.ts` — sign up as a club to a working entry link, at a person's pace —
+and held under ten minutes; it prints the seconds, screens, presses and characters. A change that adds
+a screen or a press to that path shows in those figures before it shows in the time.
+
 ## End-to-end means across the board
 
 Ajay, 2026-10-10: the e2e "should cover EVERYTHING IN THE APP". **A browser-test result is never reported
