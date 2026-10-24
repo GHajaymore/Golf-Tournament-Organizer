@@ -177,10 +177,12 @@ export function PlanPanel({
           <span style={{ fontSize: 13 }}>
             <Icon name="users-three" /> {usage(standing.staffSeats, terms.organizer, terms.organizers)}
           </span>
-          {/* Only claimed when it is true. `enforced` is false until a payment
-              provider is attached, and until then nothing is refused — saying
-              otherwise would be a small lie on the one panel whose whole job
-              is to be straight about what a club has bought. */}
+          {/* Only claimed when it is true. `enforced` is `enforcementActive`: true
+              for a club created since 29 September 2026 (its terms hold it), for
+              one with a payment provider, or for every club once the owner
+              switches enforcement on — and false otherwise, when nothing is
+              refused. Saying otherwise would be a small lie on the one panel
+              whose whole job is to be straight about what a club has bought. */}
           {standing.enforced && !standing.activeEvents.allowed && (
             <span style={{ fontSize: 13, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> Another tournament needs a bigger plan.

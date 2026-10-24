@@ -54,8 +54,8 @@ async function cleanup() {
   await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
 }
 
-/** A complete, valid public entry. A phone is present because a free club always
- *  collects one (`phoneRequiredFor`), so its absence would be rejected before
+/** A complete, valid public entry. A phone is present so that, should the
+ *  tournament ask for one (`phoneRequiredFor`), its absence is not rejected before
  *  the count is ever read — a refusal that has nothing to do with the race. */
 const form = (who: string) => ({
   name: `${TAG} ${who} ${RUN}`,
