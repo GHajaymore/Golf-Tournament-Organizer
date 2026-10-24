@@ -8,6 +8,7 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { requirePotAccess } from "@/lib/services/game-access";
 import { potScopeOn } from "@/lib/services/skins-pot";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
@@ -410,6 +411,8 @@ export async function requestSkinsEntry(
   const session = await getSession();
   if (!session?.eventId) return { ok: false, error: "Not signed in" };
   const eventId = session.eventId;
+  const archived = await archiveRefusalFor(eventId, "player");
+  if (archived) return { ok: false, error: archived };
   const key = (groupKeyInput ?? "").trim();
 
   if (!isSkinsScope(scope)) {

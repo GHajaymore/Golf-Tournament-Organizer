@@ -36,6 +36,8 @@ import { readSource } from "./source";
 
 /** A gate that refuses anybody who is not staff of the tournament or the club. */
 const STAFF_GATES = [
+  // `requireAdminEvent` with an archived tournament's refusal returned in words (tournament.ts).
+  "adminEventOrRefusal(",
   "requireStaffEvent(",
   "requireStaff(",
   "requireAdminEvent(",
