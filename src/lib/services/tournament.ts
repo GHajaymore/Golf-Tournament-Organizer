@@ -652,7 +652,8 @@ export interface EventState {
    * The one figure `strokeStandings` is ordered on — the board's own
    * `rankingBasis`. A reader that PRINTS a total beside the board's places
    * prints it on this, or the column it prints cannot be read down
-   * (`standingsThroughRound`).
+   * (`standingsThroughRound`). It is also the basis every "level" is asked
+   * on, a tie at the cut included (`cutTiesUndecided`).
    */
   strokeRankingBasis: RankingBasis;
   /**
@@ -779,8 +780,6 @@ export interface EventState {
    * settled (`strokeCutOutcome`, `strokeCutRefusal`).
    */
   cutTiesUndecided: CutTie[];
-  /** What a stroke board is decided on — the basis every "level" is asked on. */
-  strokeRankingBasis: RankingBasis;
   /**
    * How many results are waiting for a sign-off, across the whole tournament.
    *
@@ -3057,7 +3056,6 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     advancingIds,
     qualifying,
     cutTiesUndecided,
-    strokeRankingBasis: rankingBasis,
     pendingConfirmations,
     reviewing,
     resultsIn: played,
