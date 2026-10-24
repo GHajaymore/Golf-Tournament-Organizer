@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { createHmac, randomInt } from "node:crypto";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { runMark } from "../scripts/run-mark.mjs";
 
 /**
  * THE PRINT KIT'S OWN CLUB (2026-10-23): two invented tournaments shaped like
@@ -13,11 +14,11 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
  *     hole: with a lady on the red tees, a plus handicap, a 54, a member whose
  *     index nobody has claimed, and a name of fifty-nine characters.
  *
- * Its own mark (`zz-print`), outside the shared e2e fixture's, so its teardown
- * cannot reach another run's rows and another run cannot reach these. Invented
+ * Its own mark (`zz-print`, per worktree through `runMark`), outside the shared
+ * e2e fixture's, so its teardown cannot reach another run's rows. Invented
  * names, `@example.invalid` addresses, nothing real. Delete with `teardownPrint`.
  */
-export const MARK = "zz-print";
+export const MARK = runMark("zz-print");
 export const CLUB = `${MARK}-Rowan Vale Golf Club`;
 export const CUP_EVENT = `${MARK}-Autumn Cup — Larches v Rowans`;
 export const SF_EVENT = `${MARK}-Captain’s Stableford`;
