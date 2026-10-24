@@ -29,7 +29,7 @@ export type EmailFailureReason =
   | "unconfigured";
 
 /** What the email was for. Drives the wording, and who is affected. */
-export type EmailKind = "registration" | "reset" | "invite" | "field" | "join" | "interest";
+export type EmailKind = "registration" | "reset" | "code" | "invite" | "field" | "join" | "interest";
 
 /**
  * Classify a provider error.
@@ -131,6 +131,12 @@ const KIND_WORDING: Record<EmailKind, (n: number) => string> = {
     n === 1
       ? "One password reset link did not arrive, so that person cannot sign back in."
       : `${n} password reset links did not arrive, so those people cannot sign back in.`,
+  // The six-digit code that proves an address (2026-10-21). Recorded only for
+  // somebody a club invited — a stranger signing up belongs to no club yet.
+  code: (n) =>
+    n === 1
+      ? "One email code did not arrive, so somebody you invited could not set their password."
+      : `${n} email codes did not arrive, so people you invited could not set their passwords.`,
   invite: (n) =>
     n === 1
       ? "One staff invitation did not arrive, so that person does not know they have access yet."

@@ -1,7 +1,15 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
 import { bringIntoView } from "@/lib/bring-into-view";
-import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
+import {
+  signInWithPassword,
+  claimPassword,
+  signUp,
+  requestPasswordReset,
+  verifyEmailCode,
+  resendEmailCode,
+} from "@/app/actions/auth";
+import { EMAIL_CODE_WORDS, codeFromTyped, maskedAddress } from "@/lib/domain/email-code";
 import { askForBotCheck } from "@/lib/bot-check-fetch";
 import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import { signupMissing } from "@/lib/domain/signup-missing";
@@ -17,6 +25,9 @@ import { Icon } from "./Icon";
  * because you only reach them from a login attempt:
  *   claim  - the email was invited by an organizer but has no password yet
  *   forgot - password reset request
+ *   code   - "Enter your code": the six digits emailed to prove the address,
+ *            after a sign-up, a claim, or a sign-in on an address not yet
+ *            proved (2026-10-21). Nobody is signed in until it is typed back.
  *
  * Everything is inside a real <form>. It was a stack of inputs with an Enter
  * handler bolted onto the password field, which meant Enter did nothing from
@@ -24,7 +35,7 @@ import { Icon } from "./Icon";
  * things people actually notice about a sign-in box.
  */
 type Mode = "login" | "signup";
-type Extra = null | "claim" | "forgot" | "forgot-sent" | "forgot-unsent";
+type Extra = null | "claim" | "forgot" | "forgot-sent" | "forgot-unsent" | "code";
 
 /**
  * The sign-up question, in an organizer's own words.
@@ -88,6 +99,21 @@ export function LoginPanel({
   const [pending, startTransition] = useTransition();
   const [discountCode, setDiscountCode] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
+  // The emailed code step: what it is for (an invited address reads its own
+  // heading), what has been typed, and the "Sent — check your inbox" note.
+  const [codeFor, setCodeFor] = useState<"signup" | "claim" | "device">("signup");
+  const [emailCode, setEmailCode] = useState("");
+  const [codeNote, setCodeNote] = useState("");
+
+  /** The server said: prove the address. The form's own fields stay as typed. */
+  const toCodeStep = (purpose: "signup" | "claim" | "device") => {
+    setCodeFor(purpose);
+    setEmailCode("");
+    setCodeNote("");
+    setError("");
+    setPassword("");
+    setExtra("code");
+  };
 
   // A sign-up link that carries a code (?code=…) opens the box filled in.
   // Read after mount, never while rendering, for the reason `intendedNext` gives.
@@ -133,6 +159,11 @@ export function LoginPanel({
         setPassword("");
         return;
       }
+      if (result.needsCode) {
+        // Club staff on a new device read their own heading (2026-10-21).
+        toCodeStep(result.codePurpose ?? "signup");
+        return;
+      }
       if (!result.ok) setError(result.error ?? "Something went wrong.");
     });
   };
@@ -161,6 +192,10 @@ export function LoginPanel({
         setPassword("");
         return;
       }
+      if (result.needsCode) {
+        toCodeStep("signup");
+        return;
+      }
       if (!result.ok) setError(result.error ?? "Something went wrong.");
     });
   };
@@ -169,7 +204,40 @@ export function LoginPanel({
     setError("");
     startTransition(async () => {
       const result = await claimPassword(email, password, intendedNext());
+      if (result.needsCode) {
+        toCodeStep("claim");
+        return;
+      }
       if (!result.ok) setError(result.error ?? "Something went wrong.");
+    });
+  };
+
+  const submitCode = () => {
+    setCodeNote("");
+    // Said under the box, before a round trip, when what is there is not six digits.
+    if (!codeFromTyped(emailCode)) {
+      setError(EMAIL_CODE_WORDS.refusal.wrong);
+      return;
+    }
+    setError("");
+    startTransition(async () => {
+      // A right code redirect()s server-side and never returns here.
+      const result = await verifyEmailCode(email, emailCode, intendedNext());
+      if (!result.ok) setError(result.error ?? "Something went wrong.");
+    });
+  };
+
+  const sendNewCode = () => {
+    setError("");
+    setCodeNote("");
+    startTransition(async () => {
+      const result = await resendEmailCode(email);
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      setEmailCode("");
+      setCodeNote(EMAIL_CODE_WORDS.resent);
     });
   };
 
@@ -331,6 +399,57 @@ export function LoginPanel({
           {pending ? "Sending…" : "Send reset link"}
         </button>
         <BackLink onClick={() => { setExtra(null); setError(""); }} label="Back to log in" />
+      </form>,
+    );
+  }
+
+  /* ── The emailed code: proving the address ───────────────────────── */
+
+  if (extra === "code") {
+    const w = EMAIL_CODE_WORDS;
+    const masked = maskedAddress(email.trim().toLowerCase());
+    return shell(
+      <form
+        onSubmit={(e) => { e.preventDefault(); submitCode(); }}
+        style={{ display: "contents" }}
+      >
+        <Title
+          title={codeFor === "claim" ? w.claimHeading : codeFor === "device" ? w.deviceHeading : w.heading}
+          sub={codeFor === "claim" ? w.claimLine(masked) : codeFor === "device" ? w.deviceLine(masked) : w.line(masked)}
+        />
+        <Field label={w.box} boxId="email-code">
+          <input
+            id="email-code"
+            className="input"
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={9}
+            value={emailCode}
+            onChange={(e) => { setEmailCode(e.target.value); setCodeNote(""); }}
+            placeholder={w.placeholder}
+            aria-describedby={error ? "email-code-refusal" : undefined}
+            autoFocus={autoFocusFields}
+            style={{ letterSpacing: "0.24em", fontVariantNumeric: "tabular-nums" }}
+          />
+        </Field>
+        {/* A refusal of the code is said HERE, under the box, beside the press. */}
+        {error ? <div id="email-code-refusal">{errorBlock}</div> : null}
+        {codeNote ? (
+          <p role="status" className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            {codeNote}
+          </p>
+        ) : null}
+        <button type="submit" className="btn btn-primary btn-block" disabled={pending}>
+          {pending ? w.confirming : w.confirm}
+        </button>
+        <button type="button" className="btn btn-block" onClick={sendNewCode} disabled={pending}>
+          {w.resend}
+        </button>
+        <BackLink
+          onClick={() => { setExtra(null); setError(""); setEmailCode(""); setCodeNote(""); }}
+          label={w.startAgain}
+        />
       </form>,
     );
   }

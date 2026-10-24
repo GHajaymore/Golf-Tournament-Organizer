@@ -75,6 +75,31 @@ answered 200 to his session, and the hold went in. Until then the list was the o
 production's was never set, so the front door stood open — measured from the page, which drew
 no notice.
 
+## Signing in: a proved address, a password nobody leaked, a device that is known
+
+Ajay, 2026-10-21: "go with your recommendations". Three rules, each held at one place.
+
+- **No session for an address nobody has proved.** `createSession` refuses a User whose
+  `emailVerifiedAt` is null; a six-digit code typed back from the inbox (`services/email-code.ts`)
+  or a finished password reset sets it. Sign-up and claim set no password and make no session:
+  what was typed waits, hashed, on the `EmailCode` row and `verifyEmailCode` applies it. A code
+  belongs to the browser that asked for it (`browserHash`), five wrong tries spend it, and twenty
+  wrong tries on one address in a day stop all of them until tomorrow. A fixture that signs in
+  through `createSession` sets `emailVerifiedAt: new Date()`; a spec that signs up or claims
+  through the form calls `verifyByCode(page, email)` from `e2e/verify-by-code.ts`.
+  `the-session-asks-for-a-proved-address.test.ts` lists every caller of `createSession`.
+- **Every new password goes through `passwordRefusal`** (`services/password-breach.ts`): the
+  rules in `password.ts`, then Have I Been Pwned's range API (five characters of the SHA-1,
+  padded). Only on Vercel, and a check that cannot answer lets the password through and logs it.
+  `a-new-password-asks-about-leaks.test.ts` holds every action that hashes a password to it.
+- **Club staff confirm a new device** (`services/known-device.ts`, `KnownDevice`). A browser
+  keeps a random value in a year-long `ng_device` cookie. Staff — a seat at a club, or admin or
+  assistant on a tournament — signing in with a password on a browser not seen before are sent a
+  code (purpose `device`) first; anybody else is let in and sent a "new sign-in" email. A code
+  typed back, a reset finished, or a first sign-in remembers the browser. A spec that signs a
+  STAFF member in through the password form in a fresh context gets the code step: pass it with
+  `verifyByCode`, or sign in with `signedInNow` instead.
+
 ## The club's clock: "today" is asked of the club, never of the server
 
 A deadline is a DAY, and a day belongs to a place. Until 2026-10-11 the day was whatever the

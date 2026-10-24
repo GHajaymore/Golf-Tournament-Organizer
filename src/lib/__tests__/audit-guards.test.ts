@@ -70,6 +70,11 @@ describe("every server action is guarded", () => {
       "requestPasswordReset",
       "resetPassword",
       "signUp",
+      // The emailed code that proves an address (2026-10-21): reached before
+      // sign-in by definition, and its own authorization — a code only the
+      // inbox holds, checked against the browser that asked for it.
+      "verifyEmailCode",
+      "resendEmailCode",
       "signOutAction",
       // The "Viewing as" toggle. Sets a cookie on the caller and nothing else,
       // and the value is whitelisted to assistant/player — anything else
@@ -3001,7 +3006,8 @@ describe("one engine decides how many strokes a hole gives", () => {
     "src/app/(player)/me/card/page.tsx": "the player's own card, already narrowed upstream",
     "src/app/play/page.tsx": "a casual round has no tournament to resolve against",
     "src/app/(app)/entry/page.tsx": "the individual entry path; the TEAM path goes through matchStrokesPerHole",
-    "src/lib/services/expenses.ts": "money reads the full allowance deliberately, never a match differential",
+    // expenses.ts left the list 2026-10-23: the low-net pot asks
+    // `strokesReceivedOnHolesPlayed` in the domain, as the cup's card line does.
     "src/lib/services/points-standings.ts": "league points, off the round's own resolver",
     "src/lib/services/skins-pot.ts": "skins read the full allowance deliberately",
   };
