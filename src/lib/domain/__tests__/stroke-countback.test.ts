@@ -89,7 +89,8 @@ describe("which step of the countback decided it (the report's 'won on countback
     expect(Math.sign(countbackStep(a, b, 18)!.compare)).toBe(Math.sign(countbackCompare(a, b, 18)));
     expect(countbackStep(card("a", { 1: 5, 10: 3 }), b, 18)?.holes).toBe(9);
     expect(countbackStep(card("a", { 0: 5, 17: 3 }), b, 18)?.holes).toBe(9);
-    expect(countbackStep(card("a", { 8: 5, 17: 3 }), b, 18)?.holes).toBe(1);
+    // (`card` counts holes from 0: 16 and 17 are the 17th and the 18th.)
+    expect(countbackStep(card("a", { 16: 5, 17: 3 }), b, 18)?.holes).toBe(1);
   });
 
   it("is null where the countback cannot part them", () => {
