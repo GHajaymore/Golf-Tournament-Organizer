@@ -87,7 +87,7 @@ async function club(name: string, stageType: string) {
     players.push(p.id);
   }
   const email = `${TAG}-${name}-admin@example.invalid`;
-  const user = await prisma.user.create({ data: { email, name: `${TAG} ${name} Admin`, password: "x:unusable" }, select: { id: true } });
+  const user = await prisma.user.create({ data: { email, name: `${TAG} ${name} Admin`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } });
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: user.id, role: "owner" } });
   await prisma.account.create({ data: { eventId: event.id, name: `${TAG} ${name} Admin`, email, role: "admin" } });
   return { org: org.id, event: event.id, stage: stage.id, admin: user.id, players };
@@ -104,7 +104,7 @@ beforeAll(async () => {
     select: { id: true },
   });
   away.match = match.id;
-  const ann = await prisma.user.create({ data: { email: ANN, name: "Ann Fairweather", password: "x:unusable" }, select: { id: true } });
+  const ann = await prisma.user.create({ data: { email: ANN, name: "Ann Fairweather", password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } });
   annId = ann.id;
 });
 
@@ -297,7 +297,7 @@ describe("who may dispute a match", () => {
     const emails = { inIt: `${TAG}-away-p1@example.invalid`, outsider: `${TAG}-away-p3@example.invalid` };
     const made = { inIt: "", outsider: "" };
     for (const [who, email] of Object.entries(emails) as ["inIt" | "outsider", string][]) {
-      made[who] = (await prisma.user.create({ data: { email, name: `${TAG} ${who}`, password: "x:unusable" }, select: { id: true } })).id;
+      made[who] = (await prisma.user.create({ data: { email, name: `${TAG} ${who}`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } })).id;
       await prisma.account.create({ data: { eventId: away.event, name: `${TAG} ${who}`, email, role: "player" } });
     }
     users = made;

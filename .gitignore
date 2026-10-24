@@ -61,3 +61,9 @@ tsconfig.tsbuildinfo
 .course-walk.json
 .gca-walk.json
 .gca-queue.json
+
+# Mutation testing (npm run mutation): the report and the sandbox are made
+# per run. reports/stryker-incremental.json is the incremental cache.
+/reports/mutation/
+/.stryker-tmp/
+/reports/stryker-incremental.json

@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { roundLabel } from "@/lib/domain/round-label";
 import { isPlayingRound } from "@/lib/stage-types";
@@ -38,6 +39,7 @@ async function requireStaffEvent(): Promise<{ eventId: string; admin: boolean; a
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Organizer access required");
   }
+  await assertEventWritable(session.eventId);
   return { eventId: session.eventId, admin: session.role === "admin", actor: session.name || "organizer" };
 }
 

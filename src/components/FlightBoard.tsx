@@ -275,7 +275,7 @@ export function FlightBoard({
                     if (!res.ok) refuse(res.error ?? "Couldn't rename that flight.", g.id);
                   });
                 }}
-                style={{ minHeight: 26, fontSize: 13, fontWeight: 600 }}
+                style={{ minHeight: "var(--tap-min, 26px)", fontSize: 13, fontWeight: 600 }}
                 aria-label={`Rename ${g.label}`}
               />
             ) : (
@@ -416,7 +416,7 @@ export function FlightBoard({
                     aria-label={`Move ${pl.name} to another flight`}
                     value={g.id}
                     onChange={(e) => move(pl.id, e.target.value)}
-                    style={{ width: 30, minHeight: 22, padding: "0 0 0 4px", fontSize: 13, background: "transparent", border: "none" }}
+                    style={{ width: 30, minHeight: "var(--tap-min, 22px)", padding: "0 0 0 4px", fontSize: 13, background: "transparent", border: "none" }}
                   >
                     {cards.map((c) => (
                       <option key={c.id} value={c.id}>{c.label}</option>

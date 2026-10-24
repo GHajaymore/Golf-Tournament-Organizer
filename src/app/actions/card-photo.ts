@@ -1,6 +1,7 @@
 "use server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -94,6 +95,7 @@ async function requireStaff(): Promise<{ eventId: string; who: string }> {
   // The User id is set for every session, survives a change of address, and is
   // one budget per person rather than one per person per event — which is what
   // a spend limit should be, given the bill is the club's either way.
+  await assertEventWritable(session.eventId);
   return { eventId: session.eventId, who: session.userId };
 }
 

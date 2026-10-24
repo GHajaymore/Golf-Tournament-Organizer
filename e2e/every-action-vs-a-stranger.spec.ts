@@ -82,6 +82,17 @@ const OPEN_DOORS: { who: RegExp; action: RegExp; what: RegExp; why: string }[] =
       "only to that address, only its hash is stored, it lasts fifteen minutes, and asking is limited to five an hour.",
   },
   {
+    who: /./,
+    action: /^claimPassword$/,
+    what: /^made a EmailCode row pointing at the club \(userId\)$/,
+    why:
+      "Choosing a first password for an invited address is open to whoever types the address, and since 2026-10-21 it " +
+      "changes nothing until the address is PROVED: the row holds a code sent only to that address (its hash, bound to " +
+      "the person and to the browser that asked), lasting fifteen minutes and five tries, sends limited per address. " +
+      "The password typed waits on the row and is applied only when the code comes back in that same browser, so a " +
+      "stranger's request can neither sign the stranger in nor set the member's password (services/email-code.ts).",
+  },
+  {
     who: /^a member/,
     action: /^addExpense$/,
     what: /^made a Expense(Share|Payment) row pointing at the club \(playerId\)$/,

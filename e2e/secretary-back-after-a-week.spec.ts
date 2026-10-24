@@ -4,6 +4,8 @@ import { createHmac, randomBytes, scryptSync } from "node:crypto";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { watchPageErrors } from "./page-errors";
 import { landingSettled } from "./landing-settled";
+import { verifyByCode } from "./verify-by-code";
+import { hashBrowserValue } from "../src/lib/domain/email-code-hash";
 
 /**
  * SEVEN O'CLOCK ON THE MORNING OF THE TOURNAMENT, AND THE SECRETARY HAS NOT
@@ -30,9 +32,13 @@ import { landingSettled } from "./landing-settled";
  * both browsers in it, while the server stays where it is — the state
  * production is always in. A control asserts the browser really reads 7.
  *
- * THE PASSWORD PATH. A new-device code for organizers is ruled for after email
- * verification (the sign-in security plan) and is not on main; when it lands,
- * this spec is where its first step belongs.
+ * THE PASSWORD PATH, AND THE NEW-DEVICE CODE (sign-in security, #929). Club
+ * staff on a browser TourneyHQ has not seen are emailed a 6-digit code and are
+ * signed in once it is typed back (`services/known-device.ts`). The old device
+ * is one the secretary has used — it holds its year-long `ng_device` cookie and
+ * a `KnownDevice` row — so the password alone lets them back in there; the
+ * clubhouse tablet has never seen them, so it asks for the code first, and the
+ * spec types it as the person would (`verify-by-code.ts`).
  *
  * Its own club, an invented secretary, `@example.invalid`, deleted afterwards.
  */
@@ -74,6 +80,8 @@ const ids = { org: "", event: "", secretary: "", owner: "" };
 let zone = "";
 const EMAIL = `${MARK}-secretary@example.invalid`;
 const EVENT_NAME = `${MARK} Autumn Foursomes — Men’s & Ladies’`;
+/** The old device's own `ng_device` value: random, as the app's is. */
+const OLD_DEVICE = randomBytes(24).toString("base64url");
 
 test.describe.configure({ mode: "serial" });
 
@@ -87,8 +95,13 @@ test.beforeAll(async () => {
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: owner.id, role: "owner" } });
   // Last signed in eight days ago: the account is old, and nothing has ended its sessions since.
   const eightDaysAgo = new Date(Date.now() - 8 * DAY_MS);
-  const secretary = await prisma.user.create({ data: { email: EMAIL, name: "Zz Weekback Secretary", password: hash(PASSWORD), sessionsValidFrom: eightDaysAgo } });
+  // An address proved long ago, as every account that has ever signed in has.
+  const secretary = await prisma.user.create({
+    data: { email: EMAIL, name: "Zz Weekback Secretary", password: hash(PASSWORD), sessionsValidFrom: eightDaysAgo, emailVerifiedAt: eightDaysAgo },
+  });
   ids.secretary = secretary.id;
+  // The old device: a browser they signed in on before (deleted with the user).
+  await prisma.knownDevice.create({ data: { userId: secretary.id, deviceHash: hashBrowserValue(OLD_DEVICE), label: "the office laptop" } });
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: secretary.id, role: "admin" } });
   const today = dayIn(zone);
   const event = await prisma.event.create({
@@ -161,7 +174,10 @@ test("a secretary eight days away, at seven in the morning, gets back in on the 
   expect(await opens(stale), "a sign-in eight days old still opens the console").toBe(307);
 
   const old = await device(browser);
-  await old.addCookies([{ name: "ng_session", value: stale, url: baseURL! }]);
+  await old.addCookies([
+    { name: "ng_session", value: stale, url: baseURL! },
+    { name: "ng_device", value: OLD_DEVICE, url: baseURL!, httpOnly: true },
+  ]);
   const tablet = await old.newPage();
   const errors: string[] = [];
   watchPageErrors(tablet, errors, "old device");
@@ -183,6 +199,9 @@ test("a secretary eight days away, at seven in the morning, gets back in on the 
   await page.goto("/");
   expect(await page.evaluate(() => new Date().getHours())).toBe(7);
   await logIn(page);
+  // A browser that has never seen them: the right password, then the code emailed to them.
+  await expect(page.getByRole("heading", { name: "Confirm it's you" }), "a new device let club staff in on the password alone").toBeVisible({ timeout: 20_000 });
+  await verifyByCode(page, EMAIL);
   await page.waitForURL((u) => u.pathname !== "/" && u.pathname !== "/choose", { timeout: 30_000 });
   expect(path(page), "the secretary did not land in the console").toBe("/dashboard");
   await expect(page.locator("h1")).toHaveCount(1);

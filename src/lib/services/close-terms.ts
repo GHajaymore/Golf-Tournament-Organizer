@@ -64,6 +64,7 @@ export async function wipesOnCloseFor(eventId: string): Promise<boolean> {
     select: {
       shape: true,
       retainUntil: true,
+      archivedAt: true,
       organization: { select: { subscription: { select: { plan: true, planTermsApply: true } } } },
     },
   });
@@ -74,5 +75,6 @@ export async function wipesOnCloseFor(eventId: string): Promise<boolean> {
     plan: sub?.plan,
     shape: event.shape,
     retainUntil: event.retainUntil,
+    archivedAt: event.archivedAt,
   });
 }

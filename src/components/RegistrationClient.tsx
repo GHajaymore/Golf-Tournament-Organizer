@@ -1312,7 +1312,7 @@ export function RegistrationClient({
             <button
               type="button"
               onClick={() => setVisitorOpen(true)}
-              style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, minHeight: 32, cursor: "pointer", fontSize: 13, color: "var(--color-accent-200)" }}
+              style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, minHeight: "var(--tap-min, 32px)", cursor: "pointer", fontSize: 13, color: "var(--color-accent-200)" }}
             >
               Visitor from another country?
             </button>
