@@ -170,6 +170,13 @@ export async function movementRoundsFor(
     const dir = directionOnBasis(basis);
     let before: Array<{ playerId: string; name: string; value: number; rank: number }> = [];
     for (const stage of state.strokeRounds) {
+      /**
+       * A ROUND NOBODY HAS PLAYED IS NOT A TABLE (walked 2026-10-23). The
+       * board "through" a future week is the board through the last week
+       * played, so the seeded league read "Wallace Ferrity stayed top after
+       * Round 5 … Round 6 … Round 7" with three weeks still on the calendar.
+       */
+      if (!state.roundsWithResults.has(stage.id)) continue;
       const through = await loadEventState(state.event.id, stage.id);
       if (!through) continue;
       const rows = through.strokeStandings
@@ -189,6 +196,7 @@ export async function movementRoundsFor(
 
   let found: WeekBasis | null = null;
   for (const stage of playingStages(state.stages)) {
+    if (!state.roundsWithResults.has(stage.id)) continue;
     const view = await weekViewFor(state.event.id, stage.id);
     if (!view || view.stageId !== stage.id || !view.standingsIncludeThisWeek || view.standings.length === 0) continue;
     found = view.basis;

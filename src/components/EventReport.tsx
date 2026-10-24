@@ -77,7 +77,8 @@ export function EventReport({
 
           {report.flights.length > 0 && (
             <section className="fr-card" aria-labelledby="fr-flights-h">
-              <h2 id="fr-flights-h">Flight winners</h2>
+              {/* Nobody has won a flight while it is still being played. */}
+              <h2 id="fr-flights-h">{open ? "Flight leaders" : "Flight winners"}</h2>
               <div className="fr-lines">
                 {report.flights.map((f) => (
                   <div key={f.label}>

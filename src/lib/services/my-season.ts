@@ -259,7 +259,7 @@ export async function mySeasonFor(email: string, activeEventId: string): Promise
     const honour = honoursOn && honours.some((h) => h.eventId === row.eventId) ? "Champion" : "";
 
     // Not on the board at all — a withdrawal before a shot, say — is said as the entry.
-    const result = (await resultOn(row.eventId, own, cup.has(row.eventId), counted)) ?? {
+    const result = (await resultOn(row.eventId, own, cup.has(row.eventId), final, counted)) ?? {
       kind: "entry" as const,
       note: entryWords(entry, rounds, final),
     };
@@ -286,7 +286,13 @@ export async function mySeasonFor(email: string, activeEventId: string): Promise
  * the way its final report reads it. `counted` collects the complete,
  * single-round results the season's best figures are taken from.
  */
-async function resultOn(eventId: string, own: Set<string>, cup: boolean, counted: CountedResult[]): Promise<SeasonResult | null> {
+async function resultOn(
+  eventId: string,
+  own: Set<string>,
+  cup: boolean,
+  completed: boolean,
+  counted: CountedResult[],
+): Promise<SeasonResult | null> {
   if (cup) return { kind: "board", note: "Team cup · see the board" };
   const board = await liveBoard(eventId);
   if (!board) return { kind: "board", note: "See the board" };
@@ -322,7 +328,7 @@ async function resultOn(eventId: string, own: Set<string>, cup: boolean, counted
   const row = standing.rows.find((r) => own.has(r.id));
   if (!row) return null;
   const place = reportPlace(row, standing.shared);
-  if (!place) return { kind: "unplaced", note: unrankedWords(row) };
+  if (!place) return { kind: "unplaced", note: unrankedWords(row, completed) };
 
   // The report's own columns: played and points for match play; points and
   // gross on a Stableford board; gross and net on a stroke one.

@@ -211,15 +211,25 @@ function oneTie(round: string): string {
   return round.replace(/finals$/, "final");
 }
 
+/**
+ * A tie's result as it follows "beat Toby" or "lost to Toby" in a sentence:
+ * " 3&2", " 1 up" — and " at the 19th", because "19th" is a hole, not a
+ * margin: a tie settled on extra holes was won AT the 19th. "" for none.
+ * The one wording of it, for the player's own line and the final report's draw.
+ */
+export function tieResultWords(result: string | null | undefined): string {
+  const r = (result ?? "").trim();
+  if (!r) return "";
+  return /^\d+(st|nd|rd|th)$/i.test(r) ? ` at the ${r}` : ` ${r}`;
+}
+
 /** One line a player can read: "Semifinal v Toby Marchetti". */
 export function myTieLine(t: MyTie): string {
   const round = oneTie(t.round);
   const draw = t.draw ? ` (${t.draw})` : "";
   if (t.state === "champion") return `Champion${draw}`;
   if (t.state === "out") {
-    // "19th" is a hole, not a margin: a tie settled on extra holes was lost
-    // AT the 19th, where "3&2" and "1 up" are margins and read as they stand.
-    const score = !t.result ? "" : /^\d+(st|nd|rd|th)$/i.test(t.result.trim()) ? ` at the ${t.result.trim()}` : ` ${t.result}`;
+    const score = tieResultWords(t.result);
     if (round === "Final") return `Runner-up${draw} · lost the final to ${t.opponent}${score}`;
     return `Out in the ${round.toLowerCase()}${draw} · lost to ${t.opponent}${score}`;
   }

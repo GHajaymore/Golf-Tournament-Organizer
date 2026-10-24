@@ -32,6 +32,7 @@ import { pairTotalPlaces } from "../domain/pair-totals";
 import { isStablefordRound } from "../domain/week-basis";
 import { namedAfterPlayers } from "../domain/side-name";
 import { lookupFormat } from "../formats";
+import { tieResultWords } from "../domain/my-tie";
 import { unrankedNote, type StandingRow } from "@/components/LeaderboardTable";
 import {
   countWords,
@@ -41,6 +42,7 @@ import {
   listWords,
   nineWords,
   placeFigure,
+  sharedFigure,
   sideFigure,
   type Place,
   type RankBasis,
@@ -169,8 +171,10 @@ export async function reportFor(eventId: string, audience: ReportAudience = { ki
  * The board leaves a player who returned nothing uncaptioned; a report sent
  * after the event says so.
  */
-export function unrankedWords(r: StandingRow): string {
-  return unrankedNote(r) || "No return";
+export function unrankedWords(r: StandingRow, completed: boolean): string {
+  // While the tournament is still being played, somebody with nothing on a
+  // card has not FAILED to return one — they have not teed off yet.
+  return unrankedNote(r) || (completed ? "No return" : "Not started");
 }
 
 /** A side on the report's table: the round's side, or a pair's total over every team round. */
@@ -264,6 +268,21 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   const basis: RankBasis = { isStroke: board.isStroke, isStableford: board.isStableford, isNet: unitIsNet(board.unit) };
   // Who holds which place — the one reading of the board, shared with a member's own season.
   const { totals, teamBasis, team, individual, rows, sides, sidePlaces, shared } = reportStandings(board);
+  /**
+   * A TABLE ONLY ONCE SOMEBODY HAS A RESULT (walked 2026-10-23). A tournament
+   * taking entries printed its whole field as "No return", and a knockout
+   * drawn in flights — which has no qualifying round — printed "The qualifying
+   * round" as thirty-six rows of dashes. Nothing has been played, so there is
+   * no table to send.
+   */
+  const anyResult = rows.some((r) => r.started);
+  /**
+   * HOW FAR ROUND, while any card is still open: the board prints "Thru 8"
+   * beside a part-played card, and without it a gross 44 above a gross 75
+   * reads as a 31-shot lead.
+   */
+  const thruColumn =
+    !completed && board.isStroke && rows.some((r) => r.started && r.holesOwed > 0 && r.thru < r.holesOwed);
 
   /**
    * The places: off the draw for a knockout, off the sides for a team round,
@@ -279,10 +298,10 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
     }
     if (team) {
       const at = sides.filter((s) => s.place === rank);
-      return at.length ? { names: at.map((s) => s.name), figure: sideFigure(at[0], teamBasis) } : null;
+      return at.length ? { names: at.map((s) => s.name), figure: sharedFigure(at.map((s) => sideFigure(s, teamBasis))) } : null;
     }
     const at = rows.filter((r) => r.ranked && r.rank === rank);
-    return at.length ? { names: at.map((r) => r.name), figure: placeFigure(at[0], basis) } : null;
+    return at.length ? { names: at.map((r) => r.name), figure: sharedFigure(at.map((r) => placeFigure(r, basis))) } : null;
   };
   const ranks = (
     knockout
@@ -319,9 +338,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       : ["Gross", "Net"]
     : !basis.isStroke
       ? ["Played", "Points"]
-      : basis.isStableford
-        ? ["Points", "Gross"]
-        : ["Gross", "Net", "To par"];
+      : [...(basis.isStableford ? ["Points", "Gross"] : ["Gross", "Net", "To par"]), ...(thruColumn ? ["Thru"] : [])];
   const sideRows: EventReportRow[] = sides.map((s, i) => ({
     place: sidePlaces[i] ?? "",
     name: namedAfterPlayers(s.name, s.members) || s.members.length === 0 ? s.name : `${s.name} (${s.members.join(", ")})`,
@@ -334,18 +351,19 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   // the public board prints, on the basis it ranks on (`rankedScore`) — so a
   // net board's to-par is net to par, as it is on the board.
   const playerRows: EventReportRow[] = rows.map((r) => {
+    const thru = thruColumn ? [r.holesOwed > 0 && r.thru >= r.holesOwed ? "F" : String(r.thru)] : [];
     const cells = !r.started
       ? columns.map(() => "")
       : !basis.isStroke
         ? [String(r.played), r.pts]
         : basis.isStableford
-          ? [String(r.points), String(r.gross)]
-          : [String(r.gross), String(r.net), rankedScore(r, basis).text];
+          ? [String(r.points), String(r.gross), ...thru]
+          : [String(r.gross), String(r.net), rankedScore(r, basis).text, ...thru];
     return {
       place: reportPlace(r, shared),
       name: r.name,
       cells,
-      note: r.ranked ? "" : unrankedWords(r),
+      note: r.ranked ? "" : unrankedWords(r, completed),
       first: !!first && r.ranked && first.names.includes(r.name) && r.rank === ranks[0],
     };
   });
@@ -404,8 +422,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       round.matches.flatMap((m) => {
         if (!m.winnerId || !m.a.playerId || !m.b.playerId) return [];
         const [w, l] = m.winnerId === m.a.playerId ? [m.a, m.b] : [m.b, m.a];
-        const margin = margins.get(m.key) ?? "";
-        return [`${round.label}: ${w.name} beat ${l.name}${margin ? ` ${margin}` : ""}`];
+        return [`${round.label}: ${w.name} beat ${l.name}${tieResultWords(margins.get(m.key))}`];
       }),
     );
     return ties.length ? [{ label: board.draws.length > 1 ? d.label : "The draw", ties }] : [];
@@ -443,7 +460,8 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       const earlier = moved.rounds.slice(0, -1);
       movement = {
         story: told.story,
-        columns: [...earlier.map((r) => shortRound(r.label)), "Final"],
+        // The board's own places — the final ones only once it is over.
+        columns: [...earlier.map((r) => shortRound(r.label)), completed ? "Final" : "Now"],
         rows: podium.map((r) => {
           const places = [...earlier.map((round) => placeIn(round.rows, r.id)), placeText(r, shared)];
           const nums = places.map((p) => Number(p.replace(/^T/, "")) || 0);
@@ -528,14 +546,15 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       : []),
   ];
   const n = found.numbers;
+  // Only once a card is in: a knockout with no cards read "0 birdies".
   const numbers: Array<{ figure: string; label: string }> =
-    cardRounds.length === 0
+    !cardRounds.some((r) => r.cards.length > 0)
       ? []
       : [
           ...(n.cards > 0 ? [{ figure: String(n.cards), label: n.cards === 1 ? "card returned" : "cards returned" }] : []),
           { figure: String(n.birdies), label: n.birdies === 1 ? "birdie" : "birdies" },
           ...(n.eagles > 0 ? [{ figure: String(n.eagles), label: n.eagles === 1 ? "eagle or better" : "eagles or better" }] : []),
-          ...(n.everyRound !== null ? [{ figure: String(n.everyRound), label: "played every round" }] : []),
+          ...(n.everyRound ? [{ figure: String(n.everyRound), label: "played every round" }] : []),
           ...n.hardest.slice(0, 1).map((h) => ({ figure: holeWords(h), label: `hardest: par ${h.par}, average ${averageWords(h.average)}` })),
           ...n.easiest.slice(0, 1).map((h) => ({ figure: holeWords(h), label: `easiest: par ${h.par}, average ${averageWords(h.average)}` })),
         ];
@@ -573,13 +592,13 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
     facts,
     rankedBy: team
       ? `Ranked by ${teamBasis === "stableford" ? "Stableford points" : `${teamBasis} strokes`}${totals ? ", every round added together" : ""}`
-      : rows.length
+      : anyResult
         ? `Ranked by ${board.unit}`
         : "",
     // A knockout's table is the round that seeded the draw, and says so.
     boardTitle: knockout ? "The qualifying round" : team ? "The sides" : "The leaderboard",
     columns,
-    rows: team ? sideRows : playerRows,
+    rows: team ? (sides.some((s) => s.played > 0) ? sideRows : []) : anyResult ? playerRows : [],
     prizes,
     audience: audience.kind,
     amounts: showsAmounts(audience),
