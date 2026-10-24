@@ -97,7 +97,7 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
     const today = dayIn("");
     await test.step("the secretary opens on To play, and sets each round's play-by date there", async () => {
       await open(page, "/bracket");
-      await expect(page.getByRole("tab", { name: "To play" })).toHaveAttribute("aria-selected", "true");
+      await expect(page.getByRole("tab", { name: "To play", exact: true })).toHaveAttribute("aria-selected", "true");
       await expect(page.getByRole("heading", { name: "To play", level: 2 })).toBeVisible();
       const form = page.locator("section", { has: page.getByRole("heading", { name: "Play-by dates" }) });
       await form.getByLabel("Round 1", { exact: true }).fill(addDays(today, -1));
@@ -150,18 +150,18 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
       await row2.getByLabel(`How it was settled, ${second.a.name} v ${second.b.name}`).selectOption("walkover");
       await row2.getByRole("button", { name: "Save result" }).click();
       await expect(said).toContainText(`Recorded — Round 1: ${second.a.name} beat ${second.b.name} by walkover.`);
-      await page.getByRole("tab", { name: "To play" }).scrollIntoViewIfNeeded();
+      await page.getByRole("tab", { name: "To play", exact: true }).scrollIntoViewIfNeeded();
       await capture(page, `to-play-${project}`);
     });
 
     await test.step("The draw is the next tab, its headings carry the dates, and Back returns", async () => {
-      await page.getByRole("tab", { name: "The draw" }).click();
+      await page.getByRole("tab", { name: "The draw", exact: true }).click();
       expect(new URL(page.url()).searchParams.get("view")).toBe("draw");
       const head = page.locator(".bracket-round-head").first();
       await expect(head.locator(".bracket-round-name")).toHaveText(/Round 1/i);
       await expect(head).toContainText("Overdue");
       await page.goBack();
-      await expect(page.getByRole("tab", { name: "To play" })).toHaveAttribute("aria-selected", "true");
+      await expect(page.getByRole("tab", { name: "To play", exact: true })).toHaveAttribute("aria-selected", "true");
     });
 
     await test.step("a member opens on their own tie", async () => {
