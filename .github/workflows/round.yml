@@ -20,29 +20,89 @@ name: Round
 #             round is judged by, and writes the table as this run's summary
 #
 # HOW TO ASK FOR ONE
-#   push a branch named  round/<anything>-1   (-2, -3 for the second and third
-#   of a count: the number decides which three countries the round visits), or
-#   use "Run workflow" once this file is on main.
+#   `npm run qa:changed` prints the exact branches a change needs. Push them:
+#   round/<anything>-1 (and -2, -3 when it says three). The plan job reads the
+#   changed files with the same function (`roundPlan` in layers.mjs), so a core
+#   change's round visits all six countries and a change that touches no input
+#   screen leaves the console crawl out — without anybody choosing.
+#   Or "Run workflow", with the plan given by hand.
 #
-# It is not a required check and gates nothing by itself. A round is evidence;
-# whoever reads the verdict decides (and records it: `npm run qa:status`).
+# THREE KINDS OF ROUND (the panel, 2026-10-23 — docs/testing-panel-2026-10-23.md):
+#   pr        a pushed round/** branch: the round a change asks for before it merges
+#   nightly   nightly.yml calls this file at 02:00 UTC on main: every pr layer, all
+#             six countries, the console crawl in full, the Android tablet and the
+#             libraries' published holes. A core change reaches production only
+#             after one of these is clean on a commit containing it (deploy.yml).
+#   weekly    weekly.yml calls it on Sundays: Chrome and Edge as installed, the
+#             front door with its animation on
+#
+# A verdict is CLEAN, NOT CLEAN, CLEAN BUT NOT ALL OVER, or INCOMPLETE — re-run:
+# a part the MACHINE did not run (the browser not installed, the build not
+# downloaded, the runner lost) is not a finding about the app. Each part writes
+# what its setup steps did (`job-status.json`) so the verdict can tell, and the
+# waiter (round-waiter.yml) re-runs the failed jobs of an INCOMPLETE round, up to
+# three attempts.
+#
+# A round is evidence; whoever reads the verdict decides (and records it:
+# `npm run qa:status`). It is not a required check.
 #
 # WHAT IT IS NOT: a phone in a hand, the App Store or Google Play build, or
 # Safari and Firefox on a Mac or on Windows. Every browser here is its Linux
 # build. The summary says so each time.
+#
+# WHY THE PARTS DO NOT RUN IN PLAYWRIGHT'S OWN CONTAINER IMAGE (measured against
+# the docs 2026-10-23, and kept as the packages job below): a container job
+# reaches its Postgres service by the service's NAME, not localhost — and
+# `scripts/seed-club.mjs` refuses any database host that is not localhost, on
+# purpose (a seed pointed elsewhere cannot be undone). GitHub refuses `--network`
+# in a job container's options, so the service cannot be put on localhost; the
+# only ways round that are a TCP forwarder started inside every part or
+# loosening the guard, and neither is clean. The image also lacks the installed
+# Chrome and Edge two layers drive, `lsof` (round.mjs stops its server with it)
+# and `sudo`, and runs Firefox as root. The packages job keeps the mirror out of
+# all but one job instead, and can no longer fail a round (continue-on-error,
+# with its own twenty-minute limit — the same change as #923).
 
 on:
   workflow_dispatch:
     inputs:
       round:
-        description: "Which round of a count: 1, 2 or 3 (decides the countries visited)"
+        description: "Which round of a count: 1, 2 or 3 (with countries 'trio', decides the three visited)"
         required: true
         default: "1"
+      schedule:
+        description: "pr, nightly or weekly"
+        required: true
+        default: "pr"
+      countries:
+        description: "trio (the three the round number picks), all (all six), or auto (from the changed files)"
+        required: true
+        default: "auto"
+      crawl:
+        description: "on, off, or auto (from the changed files)"
+        required: true
+        default: "auto"
+  workflow_call:
+    inputs:
+      round:
+        type: string
+        default: "1"
+      schedule:
+        type: string
+        default: "nightly"
+      countries:
+        type: string
+        default: "all"
+      crawl:
+        type: string
+        default: "on"
   push:
     branches: ["round/**"]
 
 concurrency:
-  group: round-${{ github.ref }}
+  # The schedule is in the name: the nightly and the weekly both run on main and
+  # must not cancel each other.
+  group: round-${{ github.ref }}-${{ inputs.schedule || 'pr' }}
   cancel-in-progress: true
 
 env:
@@ -60,24 +120,49 @@ jobs:
       parts: ${{ steps.plan.outputs.parts }}
       round: ${{ steps.plan.outputs.round }}
       tag: ${{ steps.plan.outputs.tag }}
+      planargs: ${{ steps.plan.outputs.planargs }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The whole history, so the changed files can be read against main.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Read the parts of a round
         id: plan
         env:
-          ASKED: ${{ github.event.inputs.round }}
+          ASKED: ${{ inputs.round }}
+          SCHEDULE_ASKED: ${{ inputs.schedule }}
+          COUNTRIES_ASKED: ${{ inputs.countries }}
+          CRAWL_ASKED: ${{ inputs.crawl }}
           REF: ${{ github.ref_name }}
           RUN: ${{ github.run_number }}
         run: |
           ROUND="$ASKED"
           if [ -z "$ROUND" ]; then ROUND=$(echo "$REF" | grep -oE '[0-9]+$' || true); fi
           if [ -z "$ROUND" ]; then ROUND=1; fi
+          SCHEDULE="${SCHEDULE_ASKED:-pr}"
+          COUNTRIES="${COUNTRIES_ASKED:-auto}"
+          CRAWL="${CRAWL_ASKED:-auto}"
+          # The nightly is the full round, whatever it is asked: all six, the crawl in full.
+          if [ "$SCHEDULE" = "nightly" ]; then COUNTRIES=all; CRAWL=on; fi
+          if [ "$COUNTRIES" = "auto" ] || [ "$CRAWL" = "auto" ]; then
+            # What the change touches, read by the same function `npm run qa:changed` prints from.
+            node scripts/qa/what-changed.mjs origin/main --json > change-plan.json
+            echo "The change, as qa:changed reads it: $(cat change-plan.json)"
+            if [ "$COUNTRIES" = "auto" ]; then COUNTRIES=$(node -p "require('./change-plan.json').countries"); fi
+            if [ "$CRAWL" = "auto" ]; then CRAWL=$(node -p "require('./change-plan.json').crawl ? 'on' : 'off'"); fi
+          fi
+          ARGS="--schedule=$SCHEDULE --countries=$COUNTRIES"
+          if [ "$CRAWL" = "off" ]; then ARGS="$ARGS --no-crawl"; fi
+          SUFFIX=""
+          if [ "$SCHEDULE" != "pr" ]; then SUFFIX="-$SCHEDULE"; fi
           echo "round=$ROUND" >> "$GITHUB_OUTPUT"
-          echo "tag=G${RUN}-${ROUND}" >> "$GITHUB_OUTPUT"
-          echo "parts=$(node scripts/qa/round.mjs --parts --round=$ROUND)" >> "$GITHUB_OUTPUT"
+          echo "tag=G${RUN}-${ROUND}${SUFFIX}" >> "$GITHUB_OUTPUT"
+          echo "planargs=$ARGS" >> "$GITHUB_OUTPUT"
+          echo "parts=$(node scripts/qa/round.mjs --parts --round=$ROUND $ARGS)" >> "$GITHUB_OUTPUT"
+          echo "### Round $ROUND: $ARGS" >> "$GITHUB_STEP_SUMMARY"
 
   build:
     name: Database suite and the one build
@@ -132,6 +217,14 @@ jobs:
     name: The packages the browsers need
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # A shortcut cannot fail a round. On 2026-10-23 this job hit its time limit on a crawling
+    # mirror while all 47 parts passed by fetching for themselves, and the run still read
+    # "failure", so a re-run of its failed jobs re-ran every part that depends on this one: the
+    # whole round again. A job that runs out of time is CANCELLED, which continue-on-error does not
+    # cover, so the slow step carries its own limit and gives up as a failed step: the job ends
+    # green, and the parts — which wait on it — wait twenty minutes at most.
+    # (The same change as claude/textbox-crawl, #923; whichever merges second keeps one copy.)
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -141,6 +234,8 @@ jobs:
       - name: Install (the Playwright of this branch, nothing else run)
         run: npm ci --ignore-scripts
       - name: Fetch every package the three engines need
+        timeout-minutes: 20
+        continue-on-error: true
         run: |
           # apt-get keeps what it downloads in its cache unless told not to;
           # say so, so the runner's own settings cannot empty it.
@@ -194,8 +289,12 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
+      # Every step a failure of which is the MACHINE's has an id, and "Say what ran" writes their
+      # outcomes down: see scripts/qa/infra.mjs for which steps those are and why only those.
+      - id: setup
+        uses: ./.github/actions/setup
       - name: Take the build
+        id: build
         uses: actions/download-artifact@v4
         with:
           name: build
@@ -208,6 +307,7 @@ jobs:
           name: browser-packages
           path: browser-packages
       - name: Install the browser this part drives
+        id: browser
         # A part with no browser (the dependency check) installs none: with no
         # name given, this command would fetch all of them.
         if: matrix.part.browsers != ''
@@ -236,7 +336,23 @@ jobs:
           echo "::error::The browser this part drives could not be installed in three attempts."
           exit 1
       - name: ${{ matrix.part.id }}
-        run: node scripts/qa/round.mjs ${{ needs.plan.outputs.tag }} --round=${{ needs.plan.outputs.round }} --id=${{ matrix.part.id }} ${{ matrix.part.args }}
+        id: run
+        run: node scripts/qa/round.mjs ${{ needs.plan.outputs.tag }} --round=${{ needs.plan.outputs.round }} --id=${{ matrix.part.id }} ${{ needs.plan.outputs.planargs }} ${{ matrix.part.args }}
+      - name: Say what ran
+        # Written whatever happened, so the verdict can tell a part the machine stopped from one the
+        # app failed. A part with neither this nor a result was lost with its runner.
+        if: always()
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          ID: ${{ matrix.part.id }}
+          SETUP: ${{ steps.setup.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          BROWSER: ${{ steps.browser.outcome }}
+          RUN: ${{ steps.run.outcome }}
+        run: |
+          mkdir -p ".qa/rounds/$TAG"
+          printf '{"id":"%s","setup":"%s","build":"%s","browser":"%s","run":"%s"}\n' "$ID" "$SETUP" "$BUILD" "$BROWSER" "$RUN" > ".qa/rounds/$TAG/job-status.json"
+          cat ".qa/rounds/$TAG/job-status.json"
       - name: Hand on what it found
         if: always()
         uses: actions/upload-artifact@v4
@@ -247,6 +363,8 @@ jobs:
             .e2e/coverage/
           include-hidden-files: true
           retention-days: 7
+          # A re-run of this part replaces what the attempt before it handed on.
+          overwrite: true
       - name: Keep the trace of what failed
         if: failure()
         uses: actions/upload-artifact@v4
@@ -257,6 +375,7 @@ jobs:
             .qa/tmp/
           include-hidden-files: true
           retention-days: 7
+          overwrite: true
 
   verdict:
     name: Verdict
@@ -264,6 +383,9 @@ jobs:
     if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -279,6 +401,21 @@ jobs:
         with:
           pattern: part-*
           path: parts
+      - name: The run's own clock, for the retro
+        # Wall-clock minutes from the run's start, and the runner-minutes of every job so far —
+        # read from GitHub, written beside the verdict (scripts/qa/retro.mjs reads them back).
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run view ${{ github.run_id }} -R ${{ github.repository }} --json createdAt,jobs > run.json
+          node -e '
+            const r = require("./run.json");
+            const min = (a, b) => (Date.parse(b) - Date.parse(a)) / 60000;
+            const runner = r.jobs.filter((j) => j.startedAt && j.completedAt && !j.startedAt.startsWith("0001")).reduce((n, j) => n + Math.max(0, min(j.startedAt, j.completedAt)), 0);
+            require("fs").writeFileSync("run-facts.json", JSON.stringify({ wallMinutes: Math.round(min(r.createdAt, new Date().toISOString())), runnerMinutes: Math.round(runner) }));
+          '
+          cat run-facts.json
       - name: Add them up
         env:
           TAG: ${{ needs.plan.outputs.tag }}
@@ -295,17 +432,23 @@ jobs:
           done
           node scripts/e2e-coverage.mjs --json > reach.json || echo '{}' > reach.json
           STATUS=0
-          node scripts/qa/merge.mjs "$TAG" $(find parts -name part.json | sort) --expect-parts --reach=reach.json || STATUS=$?
+          # The plan's own arguments too, so a round whose every machine was lost still gets a
+          # verdict (INCOMPLETE) rather than a usage error. Each part's job-status.json is under
+          # parts/, and says which of them the machine stopped (scripts/qa/infra.mjs).
+          node scripts/qa/merge.mjs "$TAG" $(find parts -name part.json | sort) --expect-parts --reach=reach.json --statuses=parts --run-facts=run-facts.json --round=${{ needs.plan.outputs.round }} ${{ needs.plan.outputs.planargs }} || STATUS=$?
           cat ".qa/rounds/$TAG/summary.md" >> "$GITHUB_STEP_SUMMARY"
           exit $STATUS
       - name: Keep the verdict
         if: always()
         uses: actions/upload-artifact@v4
         with:
+          # The waiter (round-waiter.yml) reads this to decide whether to re-run the round.
           name: verdict
           path: |
             .qa/rounds/${{ needs.plan.outputs.tag }}/verdict.json
             .qa/rounds/${{ needs.plan.outputs.tag }}/summary.md
+            .qa/rounds/${{ needs.plan.outputs.tag }}/retro.json
             reach.json
           include-hidden-files: true
           retention-days: 30
+          overwrite: true
