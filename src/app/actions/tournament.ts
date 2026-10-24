@@ -104,7 +104,7 @@ import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { bracketDraws, tieByKey, tieReportRefusal, marginWords } from "@/lib/domain/my-tie";
-import { cleanPlayBy, resultLine } from "@/lib/domain/knockout-play-by";
+import { cleanPlayBy, resultLine, tieStillHolds } from "@/lib/domain/knockout-play-by";
 import {
   planWithPlayerAdded,
   isFlightCriterion,
@@ -3712,10 +3712,11 @@ export async function recordTieResult(input: {
   const tie = state ? tieByKey(bracketDraws(state.brackets), key) : null;
   const m = tie?.match;
   if (!tie || !m) return { ok: false, error: "That tie isn't in the draw any more. Reload and record it again." };
-  const holds = [m.a.playerId, m.b.playerId].sort().join("|") === [...players].map(String).sort().join("|");
-  if (!holds) return { ok: false, error: "The draw has changed: that place now holds a different tie. Reload and record it again." };
   const notReady = tieNotReady(m);
   if (notReady) return { ok: false, error: notReady };
+  if (!tieStillHolds(m, players)) {
+    return { ok: false, error: "The draw has changed: that place now holds a different tie. Reload and record it again." };
+  }
   if (winnerId !== m.a.playerId && winnerId !== m.b.playerId) return { ok: false, error: "The winner of a tie is one of the two players in it." };
   if (m.winnerId) return { ok: false, error: "That tie already has a result. Change it on the draw." };
 
@@ -3726,7 +3727,7 @@ export async function recordTieResult(input: {
   await prisma.bracketReport.deleteMany({ where: { eventId, key } });
   const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
   const said = `${resultLine(round, { a: m.a, b: m.b, winnerId })}${marginWords(result)}`;
-  await logAudit(eventId, "knockout.result", said);
+  await logAudit(eventId, "knockout.result", `${said}, recorded from To play`);
   await refresh();
   return { ok: true, said };
 }
@@ -3744,7 +3745,7 @@ export async function setKnockoutPlayBy(stageId: string, dates: Record<string, s
   const clean = cleanPlayBy(dates);
   if (!clean.ok) return { ok: false, error: clean.error };
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { knockoutPlayBy: clean.json } });
-  await logAudit(eventId, "knockout.play-by", clean.json ? `Play-by dates set for the knockout: ${clean.json}` : "Play-by dates cleared for the knockout");
+  await logAudit(eventId, "knockout.play-by", `Play-by dates for the knockout ${clean.json ? `set: ${clean.json}` : "cleared"}`);
   await refresh();
   return { ok: true };
 }

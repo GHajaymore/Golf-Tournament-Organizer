@@ -1,6 +1,7 @@
 import { cleanIsoDate, shortDate } from "./round-dates";
 import { isByeTie } from "./bracket-layout";
 import { winnerOfWords, type BracketMatch, type BracketView } from "./bracket";
+import { myTie, myTieLine } from "./my-tie";
 
 /**
  * A KNOCKOUT'S "PLAY BY" DATES, AND WHAT EACH SURFACE OPENS ON (the panel,
@@ -131,6 +132,19 @@ export function toPlay(
   return { rounds, waiting };
 }
 
+/**
+ * WHETHER A TIE IS STILL THE ONE A RESULT WAS ENTERED FOR: the same two players,
+ * in either order. A result is saved by the TIE — its key and its two players —
+ * never by the place alone (the panel, 2026-10-23); a place that now holds
+ * somebody else refuses it.
+ */
+export function tieStillHolds(m: Pick<BracketMatch, "a" | "b">, players: readonly unknown[]): boolean {
+  if (!Array.isArray(players) || players.length !== 2) return false;
+  if (!m.a.playerId || !m.b.playerId) return false;
+  const sent = players.map(String).sort();
+  return [m.a.playerId, m.b.playerId].sort().every((id, i) => id === sent[i]);
+}
+
 /** One knockout result in a sentence: "Round 2: Ann Ash beat Bob Birch". The margin is added by the caller. */
 export function resultLine(round: string, m: Pick<BracketMatch, "a" | "b" | "winnerId">): string {
   const won = m.winnerId === m.a.playerId ? m.a : m.b;
@@ -182,6 +196,38 @@ export function nextTieWords(view: BracketView, m: BracketMatch): string {
   const words = winnerOfWords(sibling);
   if (words) return `Win, and you play the ${words.charAt(0).toLowerCase()}${words.slice(1)}.`;
   return `Win, and you are through to the ${next.toLowerCase()}.`;
+}
+
+/**
+ * EVERYTHING A PLAYER'S OWN TIE CARD SAYS, from the draw the console shows (so
+ * the two cannot disagree about who plays whom), or null for somebody the draw
+ * does not hold.
+ */
+export function myTieCard(input: {
+  draws: ReadonlyArray<{ label: string; view: BracketView }>;
+  playerId: string;
+  results: Record<string, string>;
+  dates: PlayByDates;
+  today: string;
+  locale: string;
+  /** Whether the knockout is played off handicaps (`isNetBasis` of its round). */
+  net: boolean;
+  /** Each player's playing handicap for the knockout round. */
+  playing: (playerId: string) => number;
+}): { heading: string; line: string; strokes: string; playBy: PlayBy | null; next: string } | null {
+  const t = myTie([...input.draws], input.playerId, input.results);
+  if (!t) return null;
+  const draw = input.draws.find((d) => d.view.rounds.some((r) => r.matches.some((m) => m.key === t.key)));
+  const m = draw?.view.rounds.flatMap((r) => r.matches).find((x) => x.key === t.key);
+  const toPlayNow = t.state === "to-play";
+  const playBy = toPlayNow && draw && m ? (roundPlayBy(draw.view, input.dates, input.today, input.locale)[m.roundIndex] ?? null) : null;
+  return {
+    heading: toPlayNow ? "Your tie" : "Your knockout",
+    line: myTieLine(t),
+    strokes: toPlayNow && t.opponentId ? strokesWords(input.playing(input.playerId), input.playing(t.opponentId), input.net, t.opponent) : "",
+    playBy,
+    next: toPlayNow && draw && m ? nextTieWords(draw.view, m) : "",
+  };
 }
 
 /**

@@ -387,6 +387,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
     "when last year's cut was made into this round. A copy's cut has not been made — carrying it would read the copy's first cut as a re-made one, and keep the card of a player it leaves out",
   deadline: "same — a copied deadline is always in the past",
   deadlineOverride: "belongs to the deadline that was not copied",
+  knockoutPlayBy: "same as deadline — last year's play-by dates for each knockout round have all passed, and a copy would open with every tie Overdue",
   carryForwardAsked:
     "records that an organizer was ASKED about carry-forward on the original; the copy asks again",
   accessCode: "a credential — a new tournament gets new Round Codes, and only if it turns them on",
