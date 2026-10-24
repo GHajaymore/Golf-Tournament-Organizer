@@ -453,6 +453,18 @@ export function bracketFinishOrderAll(
   return out;
 }
 
+/**
+ * HOW MANY ARE STILL IN, over every draw: each decided tie puts exactly one
+ * player out, so it is the players drawn less the ties decided. The same count
+ * of ties as the dashboard's "Ties decided" (`knockoutProgress`), so the report
+ * and the dashboard cannot disagree about how far the knockout has got.
+ */
+export function stillInTheDraw(...views: BracketView[]): { stillIn: number; drawn: number } {
+  let drawn = 0;
+  for (const v of views) drawn += drawnInto(v);
+  return { stillIn: drawn - knockoutProgress(...views).decided, drawn };
+}
+
 /** How many players a draw holds: the people in its first round, a bye being nobody. */
 function drawnInto(view: BracketView): number {
   let n = 0;

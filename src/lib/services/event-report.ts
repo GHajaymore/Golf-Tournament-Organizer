@@ -32,6 +32,9 @@ import { pairTotalPlaces } from "../domain/pair-totals";
 import { isStablefordRound } from "../domain/week-basis";
 import { namedAfterPlayers } from "../domain/side-name";
 import { lookupFormat } from "../formats";
+import { marginWords } from "../domain/my-tie";
+import { isStraightKnockout } from "../stage-types";
+import { knockoutProgress, stillInTheDraw } from "../domain/bracket";
 import { unrankedNote, type StandingRow } from "@/components/LeaderboardTable";
 import {
   countWords,
@@ -348,8 +351,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       round.matches.flatMap((m) => {
         if (!m.winnerId || !m.a.playerId || !m.b.playerId) return [];
         const [w, l] = m.winnerId === m.a.playerId ? [m.a, m.b] : [m.b, m.a];
-        const margin = margins.get(m.key) ?? "";
-        return [`${round.label}: ${w.name} beat ${l.name}${margin ? ` ${margin}` : ""}`];
+        return [`${round.label}: ${w.name} beat ${l.name}${marginWords(margins.get(m.key))}`];
       }),
     );
     return ties.length ? [{ label: board.draws.length > 1 ? d.label : "The draw", ties }] : [];
@@ -472,8 +474,11 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       : []),
   ];
   const n = found.numbers;
+  // Counted off hole scores, so where nobody wrote one there is nothing to
+  // count: a knockout kept by "tap who won" said "0 birdies" over 128 ties.
+  const anyHoleScored = cardRounds.some((r) => r.cards.some((c) => c.strokes.some((s) => s !== null)));
   const numbers: Array<{ figure: string; label: string }> =
-    cardRounds.length === 0
+    !anyHoleScored
       ? []
       : [
           ...(n.cards > 0 ? [{ figure: String(n.cards), label: n.cards === 1 ? "card returned" : "cards returned" }] : []),
@@ -504,6 +509,23 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       };
     }),
     { label: "Field", value: `${state.confirmed.length} ${state.confirmed.length === 1 ? "player" : "players"}` },
+    /**
+     * A KNOCKOUT STILL BEING PLAYED SAYS HOW FAR IT HAS GOT (2026-10-23). It
+     * names no leader, rightly, and said nothing else either: sixty-five
+     * results of a draw of 129 and no word of how many were left. One draw
+     * only — a plate's field is the main draw's losers, counted twice.
+     */
+    ...(knockout && !completed && board.draws.length === 1
+      ? (() => {
+          const views = board.draws.map((d) => d.view);
+          const ties = knockoutProgress(...views);
+          const left = stillInTheDraw(...views);
+          return [
+            { label: "Ties played", value: `${ties.decided} of ${ties.total}` },
+            { label: "Still in", value: `${left.stillIn} of ${left.drawn}` },
+          ];
+        })()
+      : []),
   ];
 
   return {
@@ -520,10 +542,12 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       : rows.length
         ? `Ranked by ${board.unit}`
         : "",
-    // A knockout's table is the round that seeded the draw, and says so.
+    // A knockout's table is the round that seeded the draw, and says so. A
+    // STRAIGHT knockout has no such round (2026-10-23: a draw of 129 printed
+    // "The qualifying round" over 129 rows of dashes): its draw is the result.
     boardTitle: knockout ? "The qualifying round" : team ? "The sides" : "The leaderboard",
     columns,
-    rows: team ? sideRows : playerRows,
+    rows: team ? sideRows : knockout && isStraightKnockout(stages) ? [] : playerRows,
     prizes,
     audience: audience.kind,
     amounts: showsAmounts(audience),
