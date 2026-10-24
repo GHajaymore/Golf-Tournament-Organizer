@@ -92,5 +92,19 @@ describe("the report of a straight knockout, part-played", () => {
     // Not finished: nobody named, and how far it has got, in the dashboard's own count.
     expect(r!.first).toBeNull();
     expect(r!.facts).toEqual(expect.arrayContaining([{ label: "Ties played", value: "2 of 4" }, { label: "Still in", value: "3 of 5" }]));
+    expect(r!.completed).toBe(false);
+  });
+
+  it("names the champion the moment the final is played, before anybody presses Complete", async () => {
+    // The other semi-final (2 v 3), then the final.
+    await prisma.bracketWinner.create({ data: { eventId, key: "winners-1-1", winnerId: ids[1], result: "2&1" } });
+    await prisma.bracketWinner.create({ data: { eventId, key: "winners-2-0", winnerId: ids[0], result: "1 up" } });
+    expect((await prisma.event.findUnique({ where: { id: eventId } }))!.status).toBe("live");
+    const r = await eventReport(eventId, { kind: "public" });
+    expect(r!.first?.names).toEqual([`${TAG} P1`]);
+    expect(r!.completed).toBe(true);
+    expect(r!.ribbon).toBe("Champion");
+    expect(r!.story.join(" ")).not.toMatch(/still to finish/);
+    expect(r!.facts.map((f) => f.label)).not.toContain("Still in");
   });
 });

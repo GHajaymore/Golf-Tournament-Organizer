@@ -236,7 +236,14 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   )
     .filter((v, i, all) => all.indexOf(v) === i)
     .sort((a, b) => a - b);
-  const placesKnown = !knockout || completed;
+  /**
+   * A KNOCKOUT IS OVER WHEN ITS FINAL IS PLAYED (2026-10-23), whether or not
+   * the secretary has pressed Complete yet. A draw of 129 with all 128 ties
+   * played read "The results so far … Still in: 1 of 129" and named nobody,
+   * over a Final line that said who won it.
+   */
+  const over = completed || (knockout && finishingPositions(state).length > 0);
+  const placesKnown = !knockout || over;
   let first = placesKnown && ranks.length ? placeAt(ranks[0]) : null;
   const second = placesKnown && ranks.length > 1 ? placeAt(ranks[1]) : null;
 
@@ -252,7 +259,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   const recap = recapParagraphs(event.reportRecap);
   // Each round's result has its own table now (`rounds` below), so the story
   // told from the results says who won and leaves the rounds to the table.
-  const story = recap.length ? recap : eventStory({ completed, first, second, rounds: [] });
+  const story = recap.length ? recap : eventStory({ completed: over, first, second, rounds: [] });
 
   // The leaderboard, the whole field: a club sends this to everybody, and
   // everybody looks for themselves. Gross AND net wherever there are strokes.
@@ -515,7 +522,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
      * results of a draw of 129 and no word of how many were left. One draw
      * only — a plate's field is the main draw's losers, counted twice.
      */
-    ...(knockout && !completed && board.draws.length === 1
+    ...(knockout && !over && board.draws.length === 1
       ? (() => {
           const views = board.draws.map((d) => d.view);
           const ties = knockoutProgress(...views);
@@ -531,9 +538,10 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   return {
     name: event.name,
     where: [event.dates.trim(), event.course.trim()].filter(Boolean).join(" · "),
-    completed,
+    // What the report calls finished: a knockout with its final played is (`over`).
+    completed: over,
     first,
-    ribbon: eventRibbon({ completed, first }),
+    ribbon: eventRibbon({ completed: over, first }),
     story,
     storyByOrganizer: recap.length > 0,
     facts,
