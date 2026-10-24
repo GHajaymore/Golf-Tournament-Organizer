@@ -102,7 +102,7 @@ describe("a player's place is the same on every screen", () => {
     const staff = (await eventReport(seeded.eventId, { kind: "staff", email: seeded.organizerEmail }))!;
     const pub = (await eventReport(seeded.eventId, { kind: "public" }))!;
     for (const [who, p] of Object.entries(seeded.players)) {
-      const by = {
+      const by: Record<string, string> = {
         ...places[who],
         reportStaff: staff.rows.find((r) => r.name === p.name)?.place ?? "",
         reportPublic: pub.rows.find((r) => r.name === p.name)?.place ?? "",
