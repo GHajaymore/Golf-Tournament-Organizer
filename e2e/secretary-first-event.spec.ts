@@ -69,6 +69,8 @@ async function teardown(mark: string) {
 test.afterAll(async () => {
   await prisma.$disconnect();
 });
+// A press that cannot land fails in seconds and says where, rather than waiting out the whole clock.
+test.use({ actionTimeout: 20_000, navigationTimeout: 60_000 });
 
 test("a new club secretary has a tournament with a working entry link in under ten minutes", async ({ page, browser, baseURL }, testInfo) => {
   test.setTimeout(LIMIT_MS + 120_000);
@@ -127,7 +129,7 @@ test("a new club secretary has a tournament with a working entry link in under t
     await test.step("adds the club's first member", async () => {
       // The club is asked for its members before its first tournament, and says so.
       await page.waitForLoadState("networkidle").catch(() => {});
-      await press(page.getByRole("link", { name: /Add your members/ }).first());
+      await press(visible(page.getByRole("link", { name: /Add your members/ })));
       await page.waitForURL(/\/roster/, { timeout: 30_000 });
       await page.waitForLoadState("networkidle").catch(() => {});
       const add = page.getByRole("button", { name: "Add member" }).first();
@@ -140,7 +142,7 @@ test("a new club secretary has a tournament with a working entry link in under t
     });
 
     await test.step("names the club and its first tournament", async () => {
-      await press(page.getByRole("link", { name: /Create your first tournament|Your tournaments|Tournaments/ }).first());
+      await press(visible(page.getByRole("link", { name: /Create your first tournament/ })));
       await page.waitForURL(/\/choose/, { timeout: 30_000 });
       await page.waitForLoadState("networkidle").catch(() => {});
       await type(page.getByLabel("Tournament name"), tournament);
@@ -154,7 +156,7 @@ test("a new club secretary has a tournament with a working entry link in under t
 
     await test.step("publishes the sign-up link", async () => {
       await page.waitForLoadState("networkidle").catch(() => {});
-      await press(page.locator("main").getByRole("link", { name: "Entries", exact: true }).first());
+      await press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })));
       await page.waitForURL(/\/registration/, { timeout: 30_000 });
       await page.waitForLoadState("networkidle").catch(() => {});
       await press(page.getByRole("button", { name: /Let players sign themselves up/ }));

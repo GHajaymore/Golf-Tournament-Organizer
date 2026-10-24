@@ -64,6 +64,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
           "An active member who signs in with the email on the roster sees the club's tournaments straight away — no invitation needed. An inactive member does not.",
+          "Before the club's first tournament, the list of what is still to set up sits above the members, so once the first one is added **Create your first tournament** is one press away.",
         ],
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },

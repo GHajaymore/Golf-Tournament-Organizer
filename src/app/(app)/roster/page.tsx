@@ -8,6 +8,9 @@ import { handicapReadable } from "@/lib/services/integrations";
 import { clubHandicapBody } from "@/lib/domain/handicap-body";
 import { RosterClient } from "@/components/RosterClient";
 import { unlinkedPlayers, memberEntryFor, fieldSizeOf } from "@/lib/domain/roster-link";
+import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
+import { orgSetupFactsFor } from "@/lib/services/organization";
+import { orgSetupState } from "@/lib/domain/org-setup";
 
 // /roster used to be the per-event player list, which now lives inside
 // Entries. The path now means what it says: the club's standing
@@ -100,7 +103,24 @@ export default async function RosterPage() {
    */
   const fieldLocked = !!event && configurationLocked(event);
 
+  /**
+   * THE WAY ON, BEFORE THE FIRST TOURNAMENT (the secretary's home, 2026-10-24).
+   * A new club is sent here to add its members before its first tournament —
+   * and then this screen offered no way back: on a phone, after "Isla added to
+   * the roster", nothing on the page led anywhere but the Menu. Found by
+   * measuring the time to a first event (`e2e/secretary-first-event.spec.ts`).
+   * The club's own checklist, the one /choose shows, says what is next.
+   */
+  const facts = event ? null : await orgSetupFactsFor(session.email, session.name);
+  const setup = facts ? orgSetupState(facts) : null;
+
   return (
+    <>
+    {setup && (
+      <div style={{ marginBottom: 16 }}>
+        <OrgSetupChecklist state={setup} currentPath="/roster" />
+      </div>
+    )}
     <RosterClient
       clubName={org.shortName || org.name}
       bodyNumber={clubHandicapBody(org).number}
@@ -127,5 +147,6 @@ export default async function RosterPage() {
         return { ...m, entered: entry.live, entryStatus: entry.status };
       })}
     />
+    </>
   );
 }
