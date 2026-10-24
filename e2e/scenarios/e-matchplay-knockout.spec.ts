@@ -184,7 +184,7 @@ test("five E", async ({ page, context, baseURL }, testInfo) => {
     const ROUNDS = ["Round 1", "Round 2", "Round 3", "Quarter-finals", "Semi-finals", "Final"];
     const MARGINS = ["3&2", "2&1", "1 UP", "4&3", "19th", "5&4"];
     await test.step("the committee records the knockout, round by round", async () => {
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       // The first column, in draw order: "Name seed Name seed …".
       const text = (await page.locator("main").innerText()).replace(/\s+/g, " ");
       // The Whole draw tab, which the secretary's screen opens on; the first column follows its heading.
