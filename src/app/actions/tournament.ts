@@ -137,6 +137,7 @@ import {
   holeStrokesReceived,
   allocationHoles,
   serializeBracketDraw,
+  tieNotReady,
   FORMATION_RULES,
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
@@ -3585,6 +3586,10 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
     return { ok: false, error: "The winner of a tie is one of the two players in it." };
   }
   const existing = await prisma.bracketWinner.findFirst({ where: { eventId, key } });
+  // Taking a result back is always allowed; recording one needs both players
+  // (`tieNotReady` — the same rule a player's report is held to).
+  const notReady = existing?.winnerId === winnerId ? null : tieNotReady(tie.match);
+  if (notReady) return { ok: false, error: notReady };
 
   if (existing?.winnerId === winnerId) {
     // Toggle off if the same slot is clicked again.

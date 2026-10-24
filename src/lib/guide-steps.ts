@@ -392,7 +392,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Add a **Bracket** round. After a qualifying round, set the bracket's **Qualification cut** — Per flight (top 1, 2 or 3) or Overall (top N). As the first round, the whole field is seeded in.",
           "Optionally turn on the **Third and fourth** play-off.",
           "On **Bracket**, click each match's winner and add the result (3&2, 1 up). Winners move on automatically; players can report results for you to approve.",
-          "A place in a later round reads **TBD** until the tie that feeds it is played. Nobody goes through a round unplayed; the only byes are in the first round, where a field is short of 4, 8, 16 or 32, and they go to the top seeds.",
+          "A place in a later round reads **TBD** until the tie that feeds it is played. Nobody goes through a round unplayed; the only byes are in the first round, where a field does not fill a draw of 4, 8, 16, 32, 64 or 128, and they go to the top seeds. A bye has no result to enter, and a tie can be decided only once both its players are known.",
         ],
       },
       { kind: "h", text: "A big field: several flights" },

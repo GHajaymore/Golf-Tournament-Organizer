@@ -1,4 +1,4 @@
-import type { BracketMatch, BracketView } from "./bracket";
+import { tieNotReady, type BracketMatch, type BracketView } from "./bracket";
 
 /**
  * WHERE I AM IN THE DRAW — the knockout player's version of "who am I playing".
@@ -158,7 +158,8 @@ export function tieReportRefusal(input: {
 }): string | null {
   const m = input.tie?.match;
   if (!m) return "That tie isn't in the draw.";
-  if (!m.a.playerId || !m.b.playerId) return "Both players in that tie aren't known yet.";
+  const notReady = tieNotReady(m);
+  if (notReady) return notReady;
   if (!input.reporterIds.has(m.a.playerId) && !input.reporterIds.has(m.b.playerId)) {
     return "You can only report a tie you are playing in.";
   }

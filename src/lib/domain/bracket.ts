@@ -497,6 +497,23 @@ export function serializeBracketDraw(playerIds: string[]): string {
   return JSON.stringify(playerIds);
 }
 
+/**
+ * WHAT THE BYES ARE, for a field of `n` in one draw — said in numbers.
+ *
+ * The Bracket screen said "where the numbers are not 4, 8, 16 or 32, the top
+ * seeds get byes", which over a field of 129 reads as though 64 or 128 would
+ * have byes too and says nothing about this draw (2026-10-23). This says the
+ * draw: its size, how many byes, and how many ties the first round holds.
+ */
+export function byeLine(n: number): string {
+  if (n < 2) return "";
+  const size = bracketSizeFor(n);
+  const byes = size - n;
+  if (byes === 0) return `That is a full draw of ${size}, so nobody has a bye.`;
+  const ties = n - size / 2;
+  return `That is a draw of ${size}: the top ${byes} ${byes === 1 ? "seed has a bye" : "seeds have a bye"}, and the other ${n - byes} players meet in ${ties === 1 ? "the one tie" : `${ties} ties`} of the first round.`;
+}
+
 /** Smallest power of two that holds `n` players, minimum 2. */
 export function bracketSizeFor(n: number): number {
   let size = 2;
@@ -552,6 +569,28 @@ function claimedWinner(
 ): string | null {
   if (!stored) return null;
   return stored === aId || stored === bId ? stored : null;
+}
+
+/**
+ * WHY NOBODY CAN BE RECORDED AS WINNING THIS TIE YET, or null when somebody can.
+ *
+ * A tie is won on the course or conceded (Rule 3.2), and that takes two
+ * players. Found 2026-10-23 on a knockout of 129: the round of 128 drew the
+ * top seed against "TBD" — the winner of the one preliminary tie, 128 v 129,
+ * not yet played — and the Bracket manager let the secretary press his name.
+ * He went through to the round of 64 over a tie with nobody in it, and every
+ * one of the 127 byes carried a "Result e.g. 3&2" box inviting a margin for a
+ * match that never exists. A player's own report has refused this since it was
+ * written; the organizer's door never asked.
+ *
+ * The ONE answer for every door: the organizer's (`setBracketWinner`), a
+ * player's report (`tieReportRefusal`) and the screen, which offers the names
+ * and the result box only on a tie this says may be decided. A bye still goes
+ * through on its own, in the first round, without anybody pressing anything.
+ */
+export function tieNotReady(m: Pick<BracketMatch, "a" | "b">): string | null {
+  if (!m.a.playerId || !m.b.playerId) return "Both players in that tie aren't known yet.";
+  return null;
 }
 
 export function buildBracket(
@@ -669,7 +708,9 @@ export function buildBracket(
         matchIndex: i,
         a: slotFor(aId),
         b: slotFor(bId),
-        winnerId: claimedWinner(winners[key], aId, bId),
+        // Only between two players (`tieNotReady`): a stored winner whose
+        // opponent is not known — the tie before it taken back — is not a win.
+        winnerId: aId && bId ? claimedWinner(winners[key], aId, bId) : null,
       });
     }
     rounds.push({ label: labels[round], roundIndex: round, matches });

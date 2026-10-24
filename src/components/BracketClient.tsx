@@ -1,7 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setBracketWinner, setBracketResult } from "@/app/actions/tournament";
-import type { BracketView } from "@/lib/domain";
+import type { BracketMatch, BracketView } from "@/lib/domain";
+import { tieNotReady } from "@/lib/domain/bracket";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { Icon } from "./Icon";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
@@ -39,12 +40,15 @@ export function BracketBoard({
   const [refused, setRefused] = useState("");
 
   const slotButton = (
-    matchKey: string,
+    m: BracketMatch,
     slot: { playerId: string | null; seed: number | null; name: string },
-    winnerId: string | null,
   ) => {
+    const matchKey = m.key;
+    const winnerId = m.winnerId;
     const isWinner = winnerId !== null && slot.playerId === winnerId;
-    const clickable = !readOnly && slot.playerId !== null;
+    // A name is pressed only in a tie between two players (`tieNotReady`): not a
+    // bye, which goes through on its own, and not a tie waiting on "TBD".
+    const clickable = !readOnly && slot.playerId !== null && !tieNotReady(m);
     return (
       <button
         type="button"
@@ -105,12 +109,13 @@ export function BracketBoard({
                 <div key={m.key} style={{ flex: 1, minHeight: 124, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                   <div style={{ position: "relative" }}>
                     <div style={{ border: "1px solid var(--color-divider)", borderRadius: 8, overflow: "hidden" }}>
-                      {slotButton(m.key, m.a, m.winnerId)}
+                      {slotButton(m, m.a)}
                       <div style={{ height: 1, background: "var(--color-divider)" }} />
-                      {slotButton(m.key, m.b, m.winnerId)}
+                      {slotButton(m, m.b)}
                     </div>
                     <div style={{ position: "absolute", top: "100%", left: 0, right: 0 }}>
-                      {m.winnerId && !readOnly && (
+                      {/* No margin for a bye: nobody played it. */}
+                      {m.winnerId && !readOnly && !tieNotReady(m) && (
                         <input
                           className="input"
                           defaultValue={results[m.key] ?? ""}
