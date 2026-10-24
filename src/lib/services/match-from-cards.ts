@@ -22,7 +22,7 @@ import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { findFormat } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { matchHolesOffTheLow } from "@/lib/domain/team";
-import { resolveMatch, deriveNetHoles } from "@/lib/domain";
+import { matchIsOver, deriveNetHoles } from "@/lib/domain";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { keepsConcession } from "@/lib/domain/cup-lineup";
@@ -195,7 +195,9 @@ export async function deriveMatchFromItsCards(
     roundCard.strokeIndex,
     holeCount,
   );
-  const complete = resolveMatch(holes).complete;
+  // `matchIsOver`, not `resolveMatch(...).complete`: an empty card reads as
+  // complete and halved there, and would be stamped scored (2026-10-23).
+  const complete = matchIsOver(holes);
 
   await prisma.match.update({
     where: { id: matchId },
@@ -393,7 +395,14 @@ export async function recomputeTeamMatch(
     course.pars.length,
     effectiveCountBest(formatName, stage?.countBest ?? 0),
   );
-  const complete = resolveMatch(holes).complete;
+  /**
+   * `matchIsOver`, not `resolveMatch(...).complete` (2026-10-23).
+   * `matchHolesOffTheLow` returns `[]` for two sides with nobody on them, and
+   * `course.pars.length` is nought for a round with no card — and an empty
+   * list is COMPLETE and HALVED to `resolveMatch`, so this stamped a match
+   * scored, as a half, that nobody had played a hole of.
+   */
+  const complete = matchIsOver(holes);
 
   await prisma.match.update({
     where: { id: match.id },

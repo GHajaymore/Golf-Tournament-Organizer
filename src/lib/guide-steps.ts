@@ -353,7 +353,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Pick the match from **Matches** (filter by Not started, Live, Awaiting approval, Final or Disputed).",
-          "Enter a **Hole-by-hole result**, a **Full scorecard**, or the **Final result only** — winner and margin such as 3&2, then [[Apply result]].",
+          "Enter a **Hole-by-hole result**, a **Full scorecard**, or the **Final result only** — winner and margin such as 3&2, then [[Apply result]]. A margin no match can finish on — 6&3 (that match was over at 5&4), or 3 UP — is refused beside the box, so the board never shows a different result from the one typed.",
           "A finished match can be confirmed ([[Confirm result]]) or disputed ([[Dispute]]); an organizer can [[Reopen]] it. Record a concession or walkover with [[‹Player› concedes]].",
         ],
       },

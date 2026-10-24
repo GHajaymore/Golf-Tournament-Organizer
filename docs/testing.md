@@ -27,6 +27,7 @@ whether it can be read and used.
 | The **Round** workflow on GitHub | The same round, its parts side by side, in under an hour | The normal way to run a whole round. |
 | `node scripts/qa/burn-in.mjs` | Do the tests this change adds or touches pass every time, not most times? | Before a round is spent on them. See "What a round costs" below. |
 | The **Breaks** workflow on GitHub | Does each new test go red when the app is broken the way it is meant to catch? | With every change that adds a test. See "Proving a test by breaking the app". |
+| `npm run mutation` | Would the unit tests notice the foundation being broken, module by module? | Nightly (`--ratchet`), and after adding tests to a core module. See "How strong are the tests". |
 | `node scripts/qa/retro.mjs --write` | What did the last rounds cost, whose failures were they, and which layers found anything? | When deciding to change the testing. See "The retro". |
 | `node scripts/qa/quarantine.mjs` | Is every quarantined test sound and in date? | Before adding to `e2e/quarantine.json`; the nightly runs it. |
 
@@ -379,6 +380,48 @@ new test can fail"). For a browser test that is a build per break, so it is not 
 One break on a desk, to see it work before pushing a list: `node scripts/qa/breaks.mjs --run=1
 qa-breaks.json`. Quote the count in the pull request, with every break that was not caught explained.
 
+## How strong are the tests: properties and mutation
+
+Ajay, 2026-10-23: "I need the foundation / backbone of the app really strong and tested." Two
+instruments answer a question a green suite cannot — not "did the tests pass" but "would they have
+noticed".
+
+**Property tests** (`src/lib/domain/__tests__/properties-*.test.ts`, fast-check). Each states a
+Rule — of Handicapping, of Golf, of a side game, of money — and checks it over thousands of
+generated cases against the same Rule worked a second way, in whole numbers, in
+`properties-reference.ts`: a Course Handicap as an exact fraction over 1130, strokes handed out one
+at a time from stroke index 1, a match walked hole by hole the way a referee walks the card. Fixed
+seeds, so a run is the same run on every machine. **A failure fast-check shrinks is pinned as an
+ordinary test** beside the property (the first one found a margin no match can finish on —
+"6&3" — accepted and stored as 5&4). When you change a rule they cover, run them; when you add a
+rule, add its property, worked by a route the code does not take.
+
+**Mutation testing** (`npm run mutation`, Stryker, `stryker.config.mjs`). It breaks the foundation
+one small change at a time — a `<` made `<=`, a `+ 1` made `- 1`, a condition made `true` — in the
+modules that hold a rule (handicap, strokes by stroke index, a card's points and to-par, a match,
+ranking and countback, the cut, the draw, money, a round's allowance, the club's dates) and runs
+the unit suite against each. A change no test notices SURVIVED. The score per module is the share
+that were noticed.
+
+| Command | What it does |
+|---|---|
+| `npm run mutation` | the whole set; hours on one machine (incremental: a second run re-tests only what changed) |
+| `npm run mutation -- --mutate src/lib/domain/money.ts` | one module, minutes |
+| `npm run mutation -- --report-only` | the scores of the last run, from `reports/mutation/mutation.json` |
+| `npm run mutation -- --ratchet` | the same, and FAILS if any module is below `mutation-baseline.json` |
+| `npm run mutation -- --write-baseline` | record this run's scores as the floor — after the tests that earned them |
+
+It is **not in `ci.yml`**: a run is too long for every push. It is a NIGHTLY RATCHET — the score of
+a module may rise and may never fall below its baseline, which started at the first measured
+score per module (2026-10-23, `docs/foundation-pass-2026-10-23.md`). The unit suite runs whole
+under it except three files that cannot run in Stryker's sandbox, listed with their reasons in
+`vitest.mutation.config.ts`.
+
+Read a survivor before writing a test for it. Some are EQUIVALENT — the change does nothing a
+golfer could see (a `>=` that can only ever meet a strict case) — and a test written to kill one
+asserts nothing about golf. A survivor in strokes by stroke index or in money is a real gap until
+shown otherwise.
+
 ## Keeping it true when the app changes
 
 A change is not finished until the tests know about it. What to add, by what was added:
@@ -387,7 +430,7 @@ A change is not finished until the tests know about it. What to add, by what was
 |---|---|
 | A screen | Nothing for the walk or the layout sweep — they read the screens from the filesystem. Its guide and Help lines (`CLAUDE.md`, "Help and docs travel with the change"). |
 | An action, a form, a flow | A spec in `e2e/` that **does** it as the person who would, and reads the result back. Prove it can fail: break the code, watch it go red, put it back. Until it exists the next round reports the action as *no screen test calls it* — a finding, not a note. |
-| A format, a draw, a cut, a money rule | A scenario in `e2e/scenarios/`, or a phase in one: a tournament of that kind played by a full field, with a check against the Rules rather than against the app. List it in `SCENARIOS`. And the cell in `src/lib/__tests__/matrix.test.ts`. |
+| A format, a draw, a cut, a money rule | A scenario in `e2e/scenarios/`, or a phase in one: a tournament of that kind played by a full field, with a check against the Rules rather than against the app. List it in `SCENARIOS`. And the cell in `src/lib/__tests__/matrix.test.ts`. And its property in `src/lib/domain/__tests__/properties-*.test.ts`, worked by a route the code does not take — and for a money rule, its row in `SIDE_GAME_PAYS` (when its amount may be reported) and a case worked by hand in `side-games-by-their-own-rules.test.ts`. |
 | A country, a currency, a language | A language's dates are the app's own: add its tag to `TAGS` in `scripts/build-date-words.mjs`, run it, **read the new line by eye** (it is what a club will see), and only then offer it in `LOCALES` — `date-words.test.ts` refuses a tag the picker offers and the table does not hold. The row in `LOCALES` / `CURRENCIES` is then swept by `formats-agree`. A place for the seeded club is a line in `scripts/seed-club.mjs` and in `ABROAD`. |
 | A date or a time on a screen | Nothing new: write it with `formatDay` / `formatDayAt` / `formatMonthDayAt` / `formatDayRange` / `formatClock` / `shortDate`. A screen that asks the platform to word one itself is refused by `date-words.test.ts`, because two browsers word it two ways. |
 | A box with no Save button | `onKeyDown={leaveOnEnter}` above its `onBlur` (`src/lib/leave-on-enter.ts`), so Enter keeps what was typed. `saves-on-leave-saves-on-enter.test.ts` finds every box that acts when it is left and holds it to that, or to a stated reason. |
