@@ -250,9 +250,10 @@ test("a new organizer divides a field of ten into three flights and plays them t
       // Nobody from another flight is in this one, and nothing played above has landed here.
       const before = await page.locator("main").innerText();
       expect(before.slice(before.indexOf("Bracket manager")), "a result from another flight is on this one").not.toMatch(/2&1|4&3|1 UP/);
-      // A flight of three: the top seed has the bye and is already in the final, waiting.
+      // A flight of three: the top seed has the bye and is already in the final, waiting —
+      // not drawn as a tie, but "bye" under the name (the panel, 2026-10-23).
       const drawn = before.slice(before.indexOf("Bracket manager"));
-      expect(drawn, `the third flight's bye is not its top seed's:\n${drawn}`).toMatch(/Hazel Marsh\s+1\s+Bye/);
+      expect(drawn, `the third flight's bye is not its top seed's:\n${drawn}`).toMatch(/Hazel Marsh\s+bye\s+1/);
       await decide(page, "Juniper Marsh", "Iris Marsh", "Semi-finals", "19th");
       await open(page, "/bracket");
       await showFlight(page, "Second flight");
