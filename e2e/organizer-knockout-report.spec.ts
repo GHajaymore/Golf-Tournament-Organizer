@@ -108,7 +108,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
   try {
     await test.step("Dune reports beating the top seed, 2&1", async () => {
       await open(dune, "/me");
-      await expect(dune.getByText("Semifinal v Alder Quayle")).toBeVisible({ timeout: 20_000 });
+      await expect(dune.getByText("Semi-final v Alder Quayle")).toBeVisible({ timeout: 20_000 });
       await dune.getByRole("button", { name: "Report the result" }).click();
       await dune.getByRole("radio", { name: "I won" }).check();
       await dune.getByLabel("By how much (optional)").fill("2&1");
@@ -133,7 +133,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
       await expect(page.getByText("A result to approve")).toHaveCount(0, { timeout: 20_000 });
       await expect(async () => {
         await open(page, "/bracket");
-        await expect(page.getByRole("textbox", { name: /^Result of Alder Quayle v Dune Quayle, Semifinals$/ })).toHaveValue("2&1");
+        await expect(page.getByRole("textbox", { name: /^Result of Alder Quayle v Dune Quayle, Semi-finals$/ })).toHaveValue("2&1");
       }).toPass({ timeout: 20_000 });
     });
 

@@ -32,6 +32,9 @@ import { pairTotalPlaces } from "../domain/pair-totals";
 import { isStablefordRound } from "../domain/week-basis";
 import { namedAfterPlayers } from "../domain/side-name";
 import { lookupFormat } from "../formats";
+import { marginWords } from "../domain/my-tie";
+import { isStraightKnockout } from "../stage-types";
+import { knockoutProgress, stillInTheDraw } from "../domain/bracket";
 import { unrankedNote, type StandingRow } from "@/components/LeaderboardTable";
 import {
   countWords,
@@ -233,7 +236,14 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   )
     .filter((v, i, all) => all.indexOf(v) === i)
     .sort((a, b) => a - b);
-  const placesKnown = !knockout || completed;
+  /**
+   * A KNOCKOUT IS OVER WHEN ITS FINAL IS PLAYED (2026-10-23), whether or not
+   * the secretary has pressed Complete yet. A draw of 129 with all 128 ties
+   * played read "The results so far … Still in: 1 of 129" and named nobody,
+   * over a Final line that said who won it.
+   */
+  const over = completed || (knockout && finishingPositions(state).length > 0);
+  const placesKnown = !knockout || over;
   let first = placesKnown && ranks.length ? placeAt(ranks[0]) : null;
   const second = placesKnown && ranks.length > 1 ? placeAt(ranks[1]) : null;
 
@@ -249,7 +259,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   const recap = recapParagraphs(event.reportRecap);
   // Each round's result has its own table now (`rounds` below), so the story
   // told from the results says who won and leaves the rounds to the table.
-  const story = recap.length ? recap : eventStory({ completed, first, second, rounds: [] });
+  const story = recap.length ? recap : eventStory({ completed: over, first, second, rounds: [] });
 
   // The leaderboard, the whole field: a club sends this to everybody, and
   // everybody looks for themselves. Gross AND net wherever there are strokes.
@@ -348,8 +358,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       round.matches.flatMap((m) => {
         if (!m.winnerId || !m.a.playerId || !m.b.playerId) return [];
         const [w, l] = m.winnerId === m.a.playerId ? [m.a, m.b] : [m.b, m.a];
-        const margin = margins.get(m.key) ?? "";
-        return [`${round.label}: ${w.name} beat ${l.name}${margin ? ` ${margin}` : ""}`];
+        return [`${round.label}: ${w.name} beat ${l.name}${marginWords(margins.get(m.key))}`];
       }),
     );
     return ties.length ? [{ label: board.draws.length > 1 ? d.label : "The draw", ties }] : [];
@@ -472,8 +481,11 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       : []),
   ];
   const n = found.numbers;
+  // Counted off hole scores, so where nobody wrote one there is nothing to
+  // count: a knockout kept by "tap who won" said "0 birdies" over 128 ties.
+  const anyHoleScored = cardRounds.some((r) => r.cards.some((c) => c.strokes.some((s) => s !== null)));
   const numbers: Array<{ figure: string; label: string }> =
-    cardRounds.length === 0
+    !anyHoleScored
       ? []
       : [
           ...(n.cards > 0 ? [{ figure: String(n.cards), label: n.cards === 1 ? "card returned" : "cards returned" }] : []),
@@ -504,14 +516,32 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       };
     }),
     { label: "Field", value: `${state.confirmed.length} ${state.confirmed.length === 1 ? "player" : "players"}` },
+    /**
+     * A KNOCKOUT STILL BEING PLAYED SAYS HOW FAR IT HAS GOT (2026-10-23). It
+     * names no leader, rightly, and said nothing else either: sixty-five
+     * results of a draw of 129 and no word of how many were left. One draw
+     * only — a plate's field is the main draw's losers, counted twice.
+     */
+    ...(knockout && !over && board.draws.length === 1
+      ? (() => {
+          const views = board.draws.map((d) => d.view);
+          const ties = knockoutProgress(...views);
+          const left = stillInTheDraw(...views);
+          return [
+            { label: "Ties played", value: `${ties.decided} of ${ties.total}` },
+            { label: "Still in", value: `${left.stillIn} of ${left.drawn}` },
+          ];
+        })()
+      : []),
   ];
 
   return {
     name: event.name,
     where: [event.dates.trim(), event.course.trim()].filter(Boolean).join(" · "),
-    completed,
+    // What the report calls finished: a knockout with its final played is (`over`).
+    completed: over,
     first,
-    ribbon: eventRibbon({ completed, first }),
+    ribbon: eventRibbon({ completed: over, first }),
     story,
     storyByOrganizer: recap.length > 0,
     facts,
@@ -520,10 +550,12 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       : rows.length
         ? `Ranked by ${board.unit}`
         : "",
-    // A knockout's table is the round that seeded the draw, and says so.
+    // A knockout's table is the round that seeded the draw, and says so. A
+    // STRAIGHT knockout has no such round (2026-10-23: a draw of 129 printed
+    // "The qualifying round" over 129 rows of dashes): its draw is the result.
     boardTitle: knockout ? "The qualifying round" : team ? "The sides" : "The leaderboard",
     columns,
-    rows: team ? sideRows : playerRows,
+    rows: team ? sideRows : knockout && isStraightKnockout(stages) ? [] : playerRows,
     prizes,
     audience: audience.kind,
     amounts: showsAmounts(audience),

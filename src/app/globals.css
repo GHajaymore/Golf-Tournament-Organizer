@@ -366,6 +366,29 @@ body {
   white-space: nowrap;
 }
 
+/* The words under a name on a knockout's draw: "You" on the player's own app,
+   "bye" where the seed had a bye in a round that is drawn, "through the
+   preliminary round", and the winner's margin. Words, never a colour alone (the
+   panel, 2026-10-23), and UNDER the name so they never cut it short. */
+.bracket-notes {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+.bracket-tag {
+  font-weight: 600;
+}
+.bracket-tag-you {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
 .page-kicker {
   font-size: 13px; /* the type floor, 2026-10-05 */
   letter-spacing: 0.07em;
