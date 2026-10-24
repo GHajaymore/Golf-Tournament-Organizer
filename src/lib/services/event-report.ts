@@ -1,5 +1,5 @@
 import { prisma } from "../db";
-import { liveBoard } from "./live-board";
+import { liveBoard, type LiveBoardView } from "./live-board";
 import { loadEventState, playingStages } from "./tournament";
 import { roundOutcomesFor } from "./tournament-result";
 import { finishingPositions } from "./finish-order";
@@ -171,10 +171,86 @@ export async function reportFor(eventId: string, audience: ReportAudience = { ki
  * The board leaves a player who returned nothing uncaptioned; a report sent
  * after the event says so.
  */
-function unrankedWords(r: StandingRow, completed: boolean): string {
+export function unrankedWords(r: StandingRow, completed: boolean): string {
   // While the tournament is still being played, somebody with nothing on a
   // card has not FAILED to return one — they have not teed off yet.
   return unrankedNote(r) || (completed ? "No return" : "Not started");
+}
+
+/** A side on the report's table: the round's side, or a pair's total over every team round. */
+export interface ReportStandingSide {
+  name: string;
+  members: string[];
+  /** Who is on it, by id — so a member's own screen finds THEIR side, never one sharing a name. */
+  memberIds: string[];
+  gross: number;
+  net: number;
+  points: number;
+  played: number;
+  place: number | null;
+}
+
+/**
+ * WHO HOLDS WHICH PLACE, AS THE REPORT AND THE PUBLIC BOARD PLACE THEM — the
+ * report's table and a member's own season (`services/my-season.ts`, 2026-10-24)
+ * both read this, so the two cannot place one player two ways. Built from the
+ * public board's own view (`liveBoard`), at its default round:
+ *
+ *   a player board   the board's rows; "T2" is `placeText` over `sharedRanks`
+ *   a team round     the sides as `teamStandings` placed them, countback and
+ *                    all — or, over several team rounds, the pairs' TOTALS,
+ *                    placed as the board's totals table places them
+ *   a hand-scored    nothing at all: the app does not rank that round
+ *
+ * A pure read of the board: nothing here decides a figure.
+ */
+export function reportStandings(board: LiveBoardView): {
+  team: boolean;
+  individual: boolean;
+  teamBasis: LiveBoardView["teamBasis"];
+  /** The pairs' totals, when the team event is decided on them. */
+  totals: LiveBoardView["pairTotals"];
+  rows: StandingRow[];
+  sides: ReportStandingSide[];
+  /** Each side's place as the team board writes it ("T1", "2"); "" for one with no card. */
+  sidePlaces: string[];
+  shared: Set<number>;
+} {
+  /**
+   * A TEAM EVENT OF SEVERAL ROUNDS is decided on its TOTALS — the pairs' total
+   * over every team round (`pairTotals`), placed exactly as the board's totals
+   * table places them (`placesByValue` over `teamPlaceValue`, ties shared). The
+   * team board itself shows one round at a time; a report of one round would
+   * name that round's winner as the event's.
+   */
+  const totals = board.teamRound ? board.pairTotals : null;
+  const teamBasis = totals?.basis ?? board.teamBasis;
+  const team = board.teamRound && (board.teamRows.length > 0 || (totals?.rows.length ?? 0) > 0);
+  const individual = !board.teamRound && !board.manualFormat;
+  const rows = individual ? board.rows : [];
+  const totalPlaces = totals ? pairTotalPlaces(totals.rows, teamBasis) : [];
+  const sides: ReportStandingSide[] = !team
+    ? []
+    : totals
+      ? totals.rows.map((r, i) => ({ ...r, place: totalPlaces[i] ?? null }))
+      : board.teamRows;
+  return {
+    team,
+    individual,
+    teamBasis,
+    totals,
+    rows,
+    sides,
+    // A side's place is the one `teamStandings` decided, countback and all,
+    // written the way the team board writes it (`placeTexts`).
+    sidePlaces: placeTexts(sides.map((s) => s.place)).map((p) => p ?? ""),
+    shared: sharedRanks(rows),
+  };
+}
+
+/** A player's place on the board, as the board prints it: "1", "T2" — or "" for no position. */
+export function reportPlace(r: StandingRow, shared: ReadonlySet<number>): string {
+  return holdsPosition(r) ? placeText(r, shared) : "";
 }
 
 export async function eventReport(eventId: string, audience: ReportAudience = { kind: "public" }): Promise<EventReport | null> {
@@ -190,18 +266,8 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   const completed = event.status === "completed";
 
   const basis: RankBasis = { isStroke: board.isStroke, isStableford: board.isStableford, isNet: unitIsNet(board.unit) };
-  /**
-   * A TEAM EVENT OF SEVERAL ROUNDS is decided on its TOTALS — the pairs' total
-   * over every team round (`pairTotals`), placed exactly as the board's totals
-   * table places them (`placesByValue` over `teamPlaceValue`, ties shared). The
-   * team board itself shows one round at a time; a report of one round would
-   * name that round's winner as the event's.
-   */
-  const totals = board.teamRound ? board.pairTotals : null;
-  const teamBasis = totals?.basis ?? board.teamBasis;
-  const team = board.teamRound && (board.teamRows.length > 0 || (totals?.rows.length ?? 0) > 0);
-  const individual = !board.teamRound && !board.manualFormat;
-  const rows = individual ? board.rows : [];
+  // Who holds which place — the one reading of the board, shared with a member's own season.
+  const { totals, teamBasis, team, individual, rows, sides, sidePlaces, shared } = reportStandings(board);
   /**
    * A TABLE ONLY ONCE SOMEBODY HAS A RESULT (walked 2026-10-23). A tournament
    * taking entries printed its whole field as "No return", and a knockout
@@ -217,12 +283,6 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
    */
   const thruColumn =
     !completed && board.isStroke && rows.some((r) => r.started && r.holesOwed > 0 && r.thru < r.holesOwed);
-  const totalPlaces = totals ? pairTotalPlaces(totals.rows, teamBasis) : [];
-  const sides: Array<{ name: string; members: string[]; gross: number; net: number; points: number; played: number; place: number | null }> = !team
-    ? []
-    : totals
-      ? totals.rows.map((r, i) => ({ ...r, place: totalPlaces[i] ?? null }))
-      : board.teamRows;
 
   /**
    * The places: off the draw for a knockout, off the sides for a team round,
@@ -279,9 +339,6 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
     : !basis.isStroke
       ? ["Played", "Points"]
       : [...(basis.isStableford ? ["Points", "Gross"] : ["Gross", "Net", "To par"]), ...(thruColumn ? ["Thru"] : [])];
-  // A side's place is the one `teamStandings` decided, countback and all,
-  // written the way the team board writes it (`placeTexts`).
-  const sidePlaces = placeTexts(sides.map((s) => s.place));
   const sideRows: EventReportRow[] = sides.map((s, i) => ({
     place: sidePlaces[i] ?? "",
     name: namedAfterPlayers(s.name, s.members) || s.members.length === 0 ? s.name : `${s.name} (${s.members.join(", ")})`,
@@ -290,10 +347,9 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
     first: !!first && s.place !== null && s.place === ranks[0],
   }));
   // The position and the to-par through the board's own readers: "T2" is
-  // `placeText` over `sharedRanks`, and "To par" is the figure the public
-  // board prints, on the basis it ranks on (`rankedScore`) — so a net board's
-  // to-par is net to par, as it is on the board.
-  const shared = sharedRanks(rows);
+  // `placeText` over `sharedRanks` (`reportPlace`), and "To par" is the figure
+  // the public board prints, on the basis it ranks on (`rankedScore`) — so a
+  // net board's to-par is net to par, as it is on the board.
   const playerRows: EventReportRow[] = rows.map((r) => {
     const thru = thruColumn ? [r.holesOwed > 0 && r.thru >= r.holesOwed ? "F" : String(r.thru)] : [];
     const cells = !r.started
@@ -304,7 +360,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
           ? [String(r.points), String(r.gross), ...thru]
           : [String(r.gross), String(r.net), rankedScore(r, basis).text, ...thru];
     return {
-      place: holdsPosition(r) ? placeText(r, shared) : "",
+      place: reportPlace(r, shared),
       name: r.name,
       cells,
       note: r.ranked ? "" : unrankedWords(r, completed),

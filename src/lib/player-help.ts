@@ -195,6 +195,21 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     ],
   },
   {
+    id: "season",
+    question: "How has my season gone?",
+    href: "/me/season",
+    steps: [
+      "Open My season from Events.",
+      "It counts your tournaments, rounds and prizes this season.",
+      "Each tournament shows your place, as its board shows it.",
+      "A team round shows your side's place.",
+      "Results not published yet? Your club has not released them.",
+      "Best scores compare rounds of the same length.",
+      "It is your club's season, or the calendar year.",
+      "Nobody else can see this page.",
+    ],
+  },
+  {
     id: "switch",
     question: "I'm in more than one tournament.",
     href: "/me/events",
