@@ -27,7 +27,8 @@ import { roundReadyForCut, cutProgress, cutHasBeenMade } from "../domain/cut-rea
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
-import { playingHandicapInRound } from "../round-allowance";
+import { playingHandicapInRound, playingHandicapPartsInRound } from "../round-allowance";
+import type { HandicapParts, TieWith } from "../domain/figure-working";
 import {
   holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles } from "../domain";
 import {
@@ -41,7 +42,8 @@ import {
 } from "../domain/stroke-agg";
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
 import {
-  countbackCompare,
+  countbackBetween,
+  fromTheOtherSide,
   compareOnBasis,
   levelOnBasis,
   type RankingBasis,
@@ -446,6 +448,12 @@ export interface StrokeStanding {
   withdrew?: boolean;
   /** Disqualified by the committee — DQ, the last line. See actions/disqualify.ts. */
   disqualified?: boolean;
+  /**
+   * The neighbours this row is LEVEL with on the score, and what the countback
+   * found between them — kept by the rank pass from the very decision that gave
+   * the places, so the board's "why" cannot be a second opinion (2026-10-24).
+   */
+  tiedWith?: TieWith[];
 }
 
 export interface EventState {
@@ -699,6 +707,13 @@ export interface EventState {
    * maps and drifting.
    */
   strokeHandicapFor: (playerId: string, stageId: string) => number;
+  /**
+   * The same figure with what it was priced from — the course handicap before
+   * rounding, its source, the allowance and the strokes for the pars — for a
+   * card whose net says how it was reached. `strokeHandicapFor` is this one's
+   * `.playing`; both are built from one context (`strokeHandicapPartsResolver`).
+   */
+  strokeHandicapPartsFor: (playerId: string, stageId: string) => HandicapParts;
   /**
    * The same, for a match that names its OWN tees.
    *
@@ -993,6 +1008,20 @@ export function strokeHandicapResolver(ctx: {
    */
   roundHandicapFor?: (playerId: string, stageId: string) => RoundHandicapRow | null;
 }): (playerId: string, stageId: string) => number {
+  const parts = strokeHandicapPartsResolver(ctx);
+  return (playerId, stageId) => parts(playerId, stageId).playing;
+}
+
+/**
+ * THE SAME FIGURE WITH ITS PARTS — what the round was priced from, for the
+ * card's net to say how its playing handicap was worked out (2026-10-24,
+ * "every figure explains itself"). `strokeHandicapResolver` is this one's
+ * `.playing`, so the number on the board and the parts in the sentence are one
+ * calculation (`playingHandicapPartsInRound`).
+ */
+export function strokeHandicapPartsResolver(
+  ctx: Parameters<typeof strokeHandicapResolver>[0],
+): (playerId: string, stageId: string) => HandicapParts {
   return (playerId, stageId) => {
     const stage = ctx.stageById.get(stageId);
     // This round's own map first — its tees and its hole count. The pair
@@ -1000,14 +1029,21 @@ export function strokeHandicapResolver(ctx: {
     // that supplies no per-stage maps behaves exactly as it did.
     const byRound =
       ctx.courseHcpByStage?.get(stageId) ?? (stage?.holes === 9 ? ctx.courseHcp9 : ctx.courseHcp18);
-    // One reader for the rule — `playingHandicapInRound` — so the board, the
-    // screen that shows the number, the freeze that writes it and a match's
-    // stored result cannot disagree.
-    return playingHandicapInRound(stage, ctx.roundHandicapFor?.(playerId, stageId) ?? null, {
+    // One reader for the rule — `playingHandicapPartsInRound` — so the board,
+    // the screen that shows the number, the freeze that writes it and a
+    // match's stored result cannot disagree.
+    const p = playingHandicapPartsInRound(stage, ctx.roundHandicapFor?.(playerId, stageId) ?? null, {
       whole: byRound.get(playerId) ?? ctx.fallback.get(playerId) ?? 0,
       exact: byRound.exact(playerId) ?? ctx.fallback.get(playerId) ?? 0,
       parStrokes: byRound.parStrokes(playerId),
     });
+    return {
+      courseExact: p.resolved.exact,
+      source: p.resolved.source,
+      allowance: p.allowance,
+      parStrokes: p.parStrokes,
+      playing: p.playing,
+    };
   };
 }
 
@@ -1892,7 +1928,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * Shared with the weekly view via strokeHandicapResolver so a league night
    * and the event totals can never price the same card differently.
    */
-  const handicapFor = strokeHandicapResolver({
+  const handicapCtx: Parameters<typeof strokeHandicapResolver>[0] = {
     stageById,
     courseHcpByStage,
     courseHcp9,
@@ -1901,7 +1937,11 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     // One lookup, built once, so every board in this event reads the same row.
     // A round with no row resolves exactly as it did before this existed.
     roundHandicapFor: (playerId, stageId) => roundHandicapBy.get(roundHandicapKey(stageId, playerId)) ?? null,
-  });
+  };
+  const handicapFor = strokeHandicapResolver(handicapCtx);
+  // The same figure with its parts, off the same context — `handicapFor` is
+  // this one's `.playing` (see `strokeHandicapResolver`).
+  const handicapPartsFor = strokeHandicapPartsResolver(handicapCtx);
 
   /**
    * The course each round is played on, walking round → event.
@@ -2093,8 +2133,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     };
   };
   // Points run the other way: most wins. See countbackCompare's `higherWins`.
+  // The decision with its working (`countbackBetween`), so the place a board
+  // prints and the sentence saying what decided it are one call.
+  const cbDecide = (a: ReturnType<typeof cbCard>, b: ReturnType<typeof cbCard>, basis: RankingBasis) =>
+    countbackBetween(a, b, lastRoundHoles, basis === "stableford");
   const cbCompare = (a: ReturnType<typeof cbCard>, b: ReturnType<typeof cbCard>, basis: RankingBasis) =>
-    countbackCompare(a, b, lastRoundHoles, basis === "stableford");
+    cbDecide(a, b, basis).order;
 
   /**
    * THE HOLES A PLAYER IS MEASURED OVER — which is NOT the holes they played.
@@ -2417,9 +2461,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     const sameScore = prev !== null && prev.ranked && levelOnBasis(prev, s, basis);
     // The same comparison the sort used, through the same helper — these two
     // reading the countback differently is exactly what produced a rank the
-    // order did not support.
-    const level = sameScore && cbCompare(cbCard(prev!.player.id, basis), cbCard(s.player.id, basis), basis) === 0;
+    // order did not support. Kept, with its working, on both rows: what the
+    // board says decided a tie is this decision and no other.
+    const decision = sameScore ? cbDecide(cbCard(prev!.player.id, basis), cbCard(s.player.id, basis), basis) : null;
+    const level = sameScore && decision!.order === 0;
     s.rank = level ? ordered[i - 1].rank : i + 1;
+    if (decision) {
+      // The round the countback read, named where the board holds more than one.
+      const round = strokeRounds.length > 1 && lastStrokeRound ? nameOfRound(lastStrokeRound.id) : "";
+      prev!.tiedWith = [...(prev!.tiedWith ?? []), { name: s.player.name, decision, round }];
+      s.tiedWith = [...(s.tiedWith ?? []), { name: prev!.player.name, decision: fromTheOtherSide(decision), round }];
+    }
   }
   return ordered;
   };
@@ -3017,6 +3069,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     strokeUnitLabel,
     strokeRounds,
     strokeHandicapFor: handicapFor,
+    strokeHandicapPartsFor: handicapPartsFor,
     /**
      * The round's answer unless this match named its own set.
      *
@@ -3294,6 +3347,10 @@ export function standingRows(state: EventState): StandingRow[] {
       net: s.net,
       toPar: asRanked(s),
       parKnown: s.parKnown,
+      // What the printed figure was worked from, and what decided a tie — for
+      // the board's "how was this worked out" (`figure-working.ts`).
+      parThru: s.parThru,
+      ...(s.tiedWith ? { tiedWith: s.tiedWith } : {}),
       points: s.points,
       thru: s.thru,
       holesOwed: s.holesOwed,

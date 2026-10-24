@@ -92,7 +92,22 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "That is your course handicap with the round's allowance.",
       "The allowance is taken before rounding, as the Rules say.",
       "So 95% of 7 can be 6.",
-      "Your organizer can show you the figures.",
+      "Tap a hole's dot, or your Net, to see how.",
+    ],
+  },
+  {
+    id: "working",
+    question: "How was a figure worked out?",
+    href: "/me/card",
+    steps: [
+      "Tap a figure with a dotted line under it.",
+      "One sentence opens: the sum, and the Rule it follows.",
+      "On your card: a hole's strokes, your Net, your points.",
+      "On [[Full card]], tap a hole's box to see its strokes.",
+      "On the board: a place, a net score, a DQ.",
+      "A tie says what the countback found, or that it's shared.",
+      "Tap the figure again to close it.",
+      "No board published yet? Then there is nothing to explain.",
     ],
   },
   {

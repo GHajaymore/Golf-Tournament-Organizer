@@ -13,6 +13,8 @@ import { parseHoleTranscript } from "@/lib/domain/score-entry-input";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 import { pinLong, pinShort, type PinSheet } from "@/lib/domain/pin-sheet";
 import { holeNumber } from "@/lib/domain/hole-number";
+import type { Working } from "@/lib/domain/figure-working";
+import { FigureWhy } from "./FigureWhy";
 
 /**
  * One hole at a time, for everyone sharing the card.
@@ -51,6 +53,12 @@ export interface CardPlayer {
   /** Handicap strokes received on a given hole, from the real course-handicap
    *  allocation. Optional: an event with no ratings has none to show. */
   shotsOn?: (hole: number) => number;
+  /**
+   * Why that hole has those strokes, in one sentence (2026-10-24) — from
+   * `strokesOnHole`, the function the strokes were allocated by. The one-player
+   * pad's "1 stroke on this hole" opens it. Absent, the line is as it was.
+   */
+  shotsWhy?: (hole: number) => Working | null;
   /**
    * Exactly what to call this card, bypassing the "First L." shortening.
    *
@@ -781,12 +789,23 @@ function SoloPad({
   live: boolean;
 }) {
   const shots = player.shotsOn?.(hole) ?? 0;
+  // The dot's sentence, when one was handed down — `strokesOnHole`'s.
+  const why = shots !== 0 ? (player.shotsWhy?.(hole) ?? null) : null;
+  const mark =
+    shots > 0
+      ? `${"•".repeat(shots)} ${shots === 1 ? "1 shot" : `${shots} shots`} on this hole`
+      : `${"+".repeat(-shots)} ${shots === -1 ? "1 shot" : `${-shots} shots`} given back on this hole`;
   return (
     <>
-      {shots > 0 && (
-        <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--color-accent-200)", fontWeight: 600 }}>
-          {"•".repeat(shots)} {shots === 1 ? "1 shot" : `${shots} shots`} on this hole
-        </p>
+      {shots !== 0 && (
+        <div style={{ margin: "10px 0 0", fontSize: 14, color: "var(--color-accent-200)", fontWeight: 600 }}>
+          <FigureWhy
+            figure={mark}
+            working={why}
+            name={mark}
+            shape="inline"
+          />
+        </div>
       )}
       {/* `keep-grid` is not decoration. globals.css stacks every inline grid
           inside <main> on phones — `main [style*="grid-template-columns"]` with

@@ -1,8 +1,11 @@
 "use client";
+import { useId, useState } from "react";
 import { toParText } from "@/lib/domain";
+import { cardWorking, type HandicapParts } from "@/lib/domain/figure-working";
+import { useFormatting } from "./CurrencyProvider";
 import { cardHeading } from "@/lib/domain/card-heading";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
-import { cardPoints, type PointsTable } from "@/lib/domain/card-points";
+import type { PointsTable } from "@/lib/domain/card-points";
 import { useDistanceWords } from "./DistanceUnitProvider";
 import { holeNumber } from "@/lib/domain/hole-number";
 
@@ -76,7 +79,21 @@ export function ScoreCell({
   firstHole = 1,
   pickedUp = false,
   onPickUp,
+  onExplain,
+  explained = false,
+  explainId,
 }: {
+  /**
+   * HOW THIS HOLE'S STROKES WERE WORKED OUT (2026-10-24): called when the box
+   * is pressed (a read card) or entered (a card being typed), so the card's
+   * working line says why this hole has the dots it has. Absent, the cell is
+   * exactly what it was.
+   */
+  onExplain?: () => void;
+  /** This hole's working is the one on show. */
+  explained?: boolean;
+  /** The working line's id, for `aria-describedby` / `aria-controls`. */
+  explainId?: string;
   /**
    * MATCH PLAY ONLY (2026-10-06): this ball picked up here, shown as the "X" a
    * paper card carries — and typed as one. Absent on every card that is holed
@@ -123,13 +140,21 @@ export function ScoreCell({
   const mark = scoreMark(value, par);
 
   const dots =
-    shots > 0 ? (
+    shots !== 0 ? (
       <span
         /* HOW MANY, not merely that there are some. This printed one dot
            whatever the number, so a player receiving TWO shots on the
            stroke-index-1 hole — an ordinary twenty-shot difference — saw the
-           same mark as somebody receiving one. */
-        title={`${shotsFor || who || "This player"} receives ${shots} shot${shots === 1 ? "" : "s"} here`}
+           same mark as somebody receiving one. A stroke a plus handicap GIVES
+           BACK is a "+" (2026-10-24): it printed nothing, so the one hole a
+           plus player's net is worse than their gross carried no mark at all. */
+        title={
+          shots > 0
+            ? `${shotsFor || who || "This player"} receives ${shots} shot${shots === 1 ? "" : "s"} here`
+            : `${shotsFor || who || "This player"} gives back ${-shots} shot${shots === -1 ? "" : "s"} here`
+        }
+        aria-hidden
+        data-shots={shots}
         style={{
           position: "absolute",
           top: 1,
@@ -138,30 +163,44 @@ export function ScoreCell({
           fontSize: 11,
           lineHeight: 1,
           letterSpacing: -1,
+          pointerEvents: "none",
         }}
       >
-        {"•".repeat(shots)}
+        {shots > 0 ? "•".repeat(shots) : "+".repeat(-shots)}
       </span>
     ) : null;
 
   if (!onSet) {
+    const box = {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: 30,
+      fontVariantNumeric: "tabular-nums",
+    } as const;
     return (
       <td style={{ padding: 2, position: "relative" }}>
-        <span
-          className={`sc-score${mark}`}
-          role="img"
-          aria-label={label}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minWidth: 30,
-            minHeight: 30,
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {value ?? "–"}
-        </span>
+        {onExplain ? (
+          // A read card's box is pressed to hear why its hole has the strokes
+          // it has — a button, so a keyboard reaches it and a phone can hit it.
+          <button
+            type="button"
+            className={`sc-score${mark} sc-explain touch-target`}
+            aria-label={`${label}${value != null ? `, ${value}` : ""}${shots !== 0 ? `, ${Math.abs(shots)} ${shots > 0 ? "received" : "given back"}` : ""} — how its strokes were worked out`}
+            aria-expanded={explained}
+            aria-controls={explainId}
+            onClick={onExplain}
+            // The finger's 44px where the pointer is one (`--tap-min`), the
+            // grid's 30px at a desk.
+            style={{ ...box, minHeight: "var(--tap-min, 30px)", background: "transparent", border: 0, color: "inherit", font: "inherit", cursor: "pointer" }}
+          >
+            {value ?? "–"}
+          </button>
+        ) : (
+          <span className={`sc-score${mark}`} role="img" aria-label={label} style={{ ...box, minHeight: 30 }}>
+            {value ?? "–"}
+          </span>
+        )}
         {/* The net for this hole, small, under the gross. Only where there is
             one to show, so a level card or an empty hole is not captioned with
             a second copy of the same number. "net 3" to a screen reader, so
@@ -197,6 +236,10 @@ export function ScoreCell({
         aria-label={label}
         value={pickedUp ? "X" : value ?? ""}
         data-score-cell
+        // Entering a box says why its hole has the strokes it has, on the
+        // card's working line (2026-10-24) — the dot is in this box.
+        onFocus={onExplain}
+        aria-describedby={onExplain && explained ? explainId : undefined}
         onChange={(e) => {
           // "X" — picked up — where a card offers it. Anything else typed over
           // an X takes the pick-up back and is read as a score.
@@ -278,7 +321,14 @@ export function ScorecardTable({
   venueIsHome = false,
   pointsTable = null,
   firstHole = 1,
+  handicapParts = null,
 }: {
+  /**
+   * What `playingHandicap` was priced from — the round's parts
+   * (`state.strokeHandicapPartsFor`) — so the net's working can say how the
+   * playing handicap was reached. Null leaves the net's working at the strokes.
+   */
+  handicapParts?: HandicapParts | null;
   /** The Stableford table this round is decided on, or null — see `cardPoints`. */
   pointsTable?: PointsTable | null;
   /** The course's number for the first hole on this card — 10 on a back nine (`firstHoleOf`). */
@@ -346,22 +396,47 @@ export function ScorecardTable({
   const front = Array.from({ length: Math.min(9, holes) }, (_, i) => i);
   const back = isEighteen ? Array.from({ length: holes - 9 }, (_, i) => i + 9) : [];
 
-  const played = strokes.slice(0, holes).filter((s) => typeof s === "number" && s > 0).length;
-  const gross = sum(strokes, 0, holes);
   // Par and strokes received over the holes actually PLAYED, so both mean
   // something through nine as well as eighteen — the same rule the board
-  // totals by. Typed as numbers explicitly: the array holds nulls, and an
-  // accumulator that can be null is an accumulator that will be.
-  let parThru = 0;
-  let received = 0;
-  for (let i = 0; i < holes; i += 1) {
-    const s = strokes[i];
-    if (typeof s !== "number" || s <= 0) continue;
-    parThru += pars[i] ?? 0;
-    received += shotsPerHole[i] ?? 0;
-  }
-  const net = gross - Math.round(received);
-  const hasShots = shotsPerHole.some((n) => (n ?? 0) > 0);
+  // totals by. One function (`cardFigures`), whose figures the net's working
+  // is worded from, so the total and its "why" are one calculation.
+  const { locale } = useFormatting();
+  const cw = cardWorking({
+    holes,
+    pars,
+    strokeIndex,
+    strokes,
+    shotsPerHole,
+    playingHandicap,
+    handicapParts,
+    pointsTable,
+    firstHole,
+    locale,
+  });
+  const fig = cw.figures;
+  const { played, gross, parThru, received, net } = fig;
+  const hasShots = shotsPerHole.some((n) => (n ?? 0) !== 0);
+
+  /**
+   * THE CARD'S WORKING LINE (2026-10-24): which figure's "why" is on show — a
+   * hole (pressed, or entered to type), the net, or the points — and the
+   * sentence for it, from `cardWorking`, the function the totals came from.
+   */
+  const whyId = useId();
+  const [why, setWhy] = useState<{ kind: "hole"; i: number } | { kind: "net" } | { kind: "points" } | null>(null);
+  const netWhy = cw.net;
+  const pointsWhy = cw.pointsWhy;
+  const whyText =
+    why?.kind === "hole"
+      ? cw.hole(why.i)
+      : why?.kind === "net" && netWhy
+        ? `${netWhy.says} (${netWhy.cite})`
+        : why?.kind === "points" && pointsWhy
+          ? `${pointsWhy.says} (${pointsWhy.cite})`
+          : "";
+  const explains = hasShots || !!pointsTable;
+  const toggle = (next: NonNullable<typeof why>) =>
+    setWhy((cur) => (cur && cur.kind === next.kind && (cur.kind !== "hole" || (next.kind === "hole" && cur.i === next.i)) && !onSet ? null : next));
   const hasYards = yards.some((y) => typeof y === "number" && y > 0);
   // Yards or metres — the course's own unit, from the nearest provider.
   const distance = useDistanceWords();
@@ -392,6 +467,13 @@ export function ScorecardTable({
         net={netHole}
         firstHole={firstHole}
         onSet={onSet ? (v) => onSet(i, v) : undefined}
+        {...(explains
+          ? {
+              onExplain: () => toggle({ kind: "hole", i }),
+              explained: why?.kind === "hole" && why.i === i,
+              explainId: whyId,
+            }
+          : {})}
       />
     );
   };
@@ -562,7 +644,10 @@ export function ScorecardTable({
         {pars.length > 0 && pointsTable && (
           <Total
             label="Points"
-            value={played ? String(cardPoints(strokes.slice(0, holes), pars, shotsPerHole, pointsTable)) : "—"}
+            value={played ? String(cw.points) : "—"}
+            {...(pointsWhy
+              ? { onExplain: () => toggle({ kind: "points" }), explained: why?.kind === "points", explainId: whyId }
+              : {})}
           />
         )}
         {pars.length > 0 && !pointsTable && (
@@ -577,20 +662,68 @@ export function ScorecardTable({
                 ? `${gross || 0} gross less ${Math.round(received)} of a ${playingHandicap} playing handicap`
                 : undefined
             }
+            {...(netWhy
+              ? { onExplain: () => toggle({ kind: "net" }), explained: why?.kind === "net", explainId: whyId }
+              : {})}
           />
         )}
       </div>
+      {/* THE WORKING LINE — one sentence, for the figure last pressed or the
+          box being typed in, with the Rule it follows. Polite, so a screen
+          reader hears it after the box it belongs to. Empty until asked. */}
+      {explains && (
+        <p
+          id={whyId}
+          role="status"
+          aria-live="polite"
+          className="why-says"
+          data-working-line
+          style={{ margin: whyText ? "8px 0 0" : 0, color: "var(--color-text)" }}
+        >
+          {whyText}
+        </p>
+      )}
     </div>
   );
 }
 
-function Total({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Total({
+  label,
+  value,
+  hint,
+  onExplain,
+  explained = false,
+  explainId,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  /** Pressing the figure puts its working on the card's working line. */
+  onExplain?: () => void;
+  explained?: boolean;
+  explainId?: string;
+}) {
+  const figure = <strong style={{ fontSize: 15 }}>{value}</strong>;
   return (
     <span title={hint}>
       <span className="text-muted" style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}>
         {label}{" "}
       </span>
-      <strong style={{ fontSize: 15 }}>{value}</strong>
+      {onExplain ? (
+        <button
+          type="button"
+          className="why-figure touch-target"
+          aria-label={`${label} ${value} — how it was worked out`}
+          aria-expanded={explained}
+          aria-controls={explainId}
+          onClick={onExplain}
+          style={{ background: "transparent", border: 0, padding: "0 2px", color: "inherit", font: "inherit", cursor: "pointer" }}
+        >
+          {figure}
+        </button>
+      ) : (
+        figure
+      )}
     </span>
   );
 }

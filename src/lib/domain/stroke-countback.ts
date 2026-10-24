@@ -91,13 +91,56 @@ export function countbackCompare(
    */
   higherWins = false,
 ): number {
+  return countbackBetween(a, b, holeCount, higherWins).order;
+}
+
+/**
+ * WHAT A COUNTBACK FOUND, AND WHERE — the comparison above with its working
+ * kept (2026-10-24, "every figure explains itself").
+ *
+ * `countbackCompare` IS this function's `order`, so a board that ranks two
+ * players by countback and the sentence that says why cannot disagree: they are
+ * one call. `decidedBy` is the step that separated them — how many holes from
+ * the end, and each card's total over them — or null when nothing did, and then
+ * `incomplete` says whether that was because a card is not finished (a countback
+ * reads finished cards) or because the cards are level at every step.
+ */
+export interface CountbackDecision {
+  /** Negative when `a` ranks ahead, positive when `b` does, 0 when level. */
+  order: number;
+  decidedBy: { holes: number; a: number; b: number } | null;
+  /** The steps the two were level on before it was decided (or all of them). */
+  levelOn: number[];
+  /** A card was not complete over a step, so the countback could not be read. */
+  incomplete: boolean;
+}
+
+export function countbackBetween(
+  a: CountbackCard,
+  b: CountbackCard,
+  holeCount: number,
+  higherWins = false,
+): CountbackDecision {
+  const levelOn: number[] = [];
   for (const n of countbackSegments(holeCount)) {
     const ta = tailTotal(a.holes, n);
     const tb = tailTotal(b.holes, n);
-    if (ta === null || tb === null) return 0;
-    if (ta !== tb) return higherWins ? tb - ta : ta - tb;
+    if (ta === null || tb === null) return { order: 0, decidedBy: null, levelOn, incomplete: true };
+    if (ta !== tb) {
+      return { order: higherWins ? tb - ta : ta - tb, decidedBy: { holes: n, a: ta, b: tb }, levelOn, incomplete: false };
+    }
+    levelOn.push(n);
   }
-  return 0;
+  return { order: 0, decidedBy: null, levelOn, incomplete: false };
+}
+
+/** The same decision read from the other card's side: `b` becomes `a`. */
+export function fromTheOtherSide(d: CountbackDecision): CountbackDecision {
+  return {
+    ...d,
+    order: d.order === 0 ? 0 : -d.order,
+    decidedBy: d.decidedBy ? { holes: d.decidedBy.holes, a: d.decidedBy.b, b: d.decidedBy.a } : null,
+  };
 }
 
 /** What a stroke competition may be decided on. */

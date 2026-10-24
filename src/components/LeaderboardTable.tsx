@@ -2,6 +2,8 @@ import { toParCell } from "@/lib/domain/ranked-score";
 import { holdsPosition, placeText, sharedRanks } from "@/lib/domain/shared-position";
 import { FlipTableBody } from "./FlipList";
 import { todaysThru } from "@/lib/domain/scoreboard";
+import { tieWorking, type TieWith } from "@/lib/domain/figure-working";
+import { FigureWhy } from "./FigureWhy";
 
 export interface StandingRow {
   id: string;
@@ -126,6 +128,10 @@ export interface StandingRow {
    * printing what it prints today.
    */
   parKnown?: boolean;
+  /** Par for the holes played — what a net figure's working is measured against. */
+  parThru?: number;
+  /** The neighbours this row is level with, and what the countback found (`tiedWith` on the standing). */
+  tiedWith?: TieWith[];
 }
 
 /**
@@ -302,7 +308,19 @@ export function LeaderboardTable({
                     still see inconsistency"): the position was a grey and the
                     flight the muted tone, beside black names and scores. Only
                     to-par keeps a colour, because it means something. */}
-                <td style={num}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
+                <td style={{ ...num, position: "relative" }}>
+                  {/* A place that shares a score says what the countback found
+                      (2026-10-24) — the rank pass's own decision, on the row. */}
+                  <FigureWhy
+                    figure={holdsPosition(r) ? placeText(r, shared) : "—"}
+                    working={
+                      holdsPosition(r) && r.tiedWith?.length
+                        ? tieWorking(r.tiedWith, isStableford ? String(r.points) : toParCell(r), r.rank, { points: isStableford })
+                        : null
+                    }
+                    name={`${r.name}, place ${holdsPosition(r) ? placeText(r, shared) : "none"}`}
+                  />
+                </td>
                 <td style={{ fontWeight: 500 }}>
                   {r.name}
                   {/* On the page, not in a tooltip. A reader who finds someone

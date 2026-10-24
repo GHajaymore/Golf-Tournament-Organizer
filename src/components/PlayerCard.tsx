@@ -10,7 +10,10 @@ import { CardConflict } from "@/components/CardConflict";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
 import { cardRevision } from "@/lib/domain/pending-card";
-import { cardPoints, stablefordPickUp, type PointsTable } from "@/lib/domain/card-points";
+import { stablefordPickUp, type PointsTable } from "@/lib/domain/card-points";
+import { cardWorking, strokesOnHole, type HandicapParts, type Working } from "@/lib/domain/figure-working";
+import { FigureWhy } from "./FigureWhy";
+import { useFormatting } from "./CurrencyProvider";
 import { certifyPrompt, certifiedNote } from "@/lib/domain/card-approval";
 import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
@@ -62,6 +65,7 @@ export function PlayerCard({
   strokeIndex,
   shotsPerHole = [],
   playingHandicap = 0,
+  handicapParts = null,
   tee = null,
   status,
   brand,
@@ -128,6 +132,12 @@ export function PlayerCard({
   shotsPerHole?: number[];
   /** The Playing Handicap those strokes add up to, for the header. */
   playingHandicap?: number;
+  /**
+   * What that playing handicap was priced from (`state.strokeHandicapPartsFor`),
+   * for the net's working — "95% of your course handicap of 14.73, rounded
+   * once". Null leaves the working at the strokes received.
+   */
+  handicapParts?: HandicapParts | null;
   /**
    * Which set this card was scored from.
    *
@@ -218,28 +228,34 @@ export function PlayerCard({
    * something through six holes as well as through eighteen. The same rule the
    * server totals by, so this screen and the board cannot disagree.
    */
+  const { locale } = useFormatting();
   const summary = useMemo(() => {
-    let gross = 0;
-    let parThru = 0;
-    let received = 0;
-    let played = 0;
-    for (let i = 0; i < holes; i += 1) {
-      const s = strokes[i];
-      if (typeof s !== "number" || s <= 0) continue;
-      gross += s;
-      parThru += pars[i] ?? 0;
-      received += shotsPerHole[i] ?? 0;
-      played += 1;
-    }
+    // The card's own figures and their working (`cardWorking`) — the same call
+    // the full card's totals row prints from, so the strip and the card agree.
+    const cw = cardWorking({ holes, pars, strokeIndex, strokes, shotsPerHole, playingHandicap, handicapParts, pointsTable, locale });
+    const fig = cw.figures;
     return {
-      gross,
-      played,
-      toPar: gross - parThru,
-      net: gross - Math.round(received),
-      received,
-      points: pointsTable ? cardPoints(strokes.slice(0, holes), pars, shotsPerHole, pointsTable) : 0,
+      gross: fig.gross,
+      played: fig.played,
+      toPar: fig.gross - fig.parThru,
+      net: fig.net,
+      received: fig.received,
+      points: cw.points,
+      netWhy: cw.net,
+      pointsWhy: cw.pointsWhy,
     };
-  }, [strokes, pars, shotsPerHole, holes, pointsTable]);
+  }, [strokes, pars, strokeIndex, shotsPerHole, holes, pointsTable, playingHandicap, handicapParts, locale]);
+
+  /**
+   * WHY THIS HOLE HAS THE DOTS IT HAS — the sentence from `strokesOnHole`, the
+   * function the server allocated the dots with, and never one that disagrees
+   * with the dot drawn (2026-10-24).
+   */
+  const shotsWhy = (hole: number) => {
+    if (strokeIndex.length === 0 || shotsPerHole.length === 0) return null;
+    const w = strokesOnHole(playingHandicap, strokeIndex[hole] ?? 18, holes);
+    return w.shots === (shotsPerHole[hole] ?? 0) ? w : null;
+  };
 
   /**
    * Write on every change, not on a button.
@@ -703,6 +719,7 @@ export function PlayerCard({
             strokes={strokes}
             shotsPerHole={shotsPerHole}
             playingHandicap={playingHandicap}
+            handicapParts={handicapParts}
             tee={tee}
             brand={brand}
             courseName={courseName}
@@ -743,6 +760,8 @@ export function PlayerCard({
               gap: 10,
               padding: "8px 14px",
               marginBottom: 10,
+              // The anchor a figure's working opens under, across the strip.
+              position: "relative",
             }}
           >
             <Stat label="Thru" value={summary.played === 0 ? "–" : String(summary.played)} />
@@ -750,7 +769,11 @@ export function PlayerCard({
             {/* On a points round the card shows its points in place of to-par,
                 which a Stableford round is not decided on. */}
             {knownCourse && pointsTable && (
-              <Stat label="Points" value={summary.played === 0 ? "–" : String(summary.points)} />
+              <Stat
+                label="Points"
+                value={summary.played === 0 ? "–" : String(summary.points)}
+                working={summary.pointsWhy}
+              />
             )}
             {knownCourse && !pointsTable && (
               <Stat
@@ -764,6 +787,7 @@ export function PlayerCard({
                 label="Net"
                 value={summary.played === 0 ? "–" : String(summary.net)}
                 hint={`Playing handicap ${playingHandicap}`}
+                working={summary.netWhy}
               />
             )}
           </section>
@@ -842,6 +866,7 @@ export function PlayerCard({
                   id: playerId,
                   name: playerName,
                   shotsOn: (hole: number) => shotsPerHole[hole] ?? 0,
+                  shotsWhy,
                 },
               ]}
               cards={{ [playerId]: strokes }}
@@ -932,6 +957,7 @@ export function PlayerCard({
               strokes={strokes}
               shotsPerHole={shotsPerHole}
               playingHandicap={playingHandicap}
+              handicapParts={handicapParts}
               tee={tee}
               brand={brand}
               courseName={courseName}
@@ -1140,11 +1166,14 @@ function Stat({
   value,
   hint,
   tone,
+  working = null,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone?: "good";
+  /** How the figure was worked out — the figure opens it (`FigureWhy`). */
+  working?: Working | null;
 }) {
   return (
     <div style={{ minWidth: 0, textAlign: "center" }}>
@@ -1161,7 +1190,7 @@ function Stat({
           color: tone === "good" ? "var(--color-accent-2-200)" : "var(--color-text)",
         }}
       >
-        {value}
+        <FigureWhy figure={value} working={working} name={`${label} ${value}`} />
       </div>
     </div>
   );
