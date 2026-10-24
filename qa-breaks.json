@@ -1,0 +1,146 @@
+[
+  {
+    "what": "S1 entries are a job when nobody is waiting",
+    "file": "src/lib/domain/needs-you-now.ts",
+    "from": "if (t.awaitingApproval > 0) {",
+    "to": "if (t.awaitingApproval >= 0) {",
+    "unit": ["src/lib/domain/__tests__/whats-next.test.ts"]
+  },
+  {
+    "what": "S2 a tee sheet a year off is this week's job",
+    "file": "src/lib/domain/needs-you-now.ts",
+    "from": "sheet.day <= addDays(today, TEE_SHEET_AHEAD_DAYS)",
+    "to": "sheet.day <= addDays(today, TEE_SHEET_AHEAD_DAYS * 30)",
+    "unit": ["src/lib/domain/__tests__/whats-next.test.ts"]
+  },
+  {
+    "what": "S3 cards are chased before the round is played",
+    "file": "src/lib/domain/needs-you-now.ts",
+    "from": "(b.started > 0 || (!!b.day && b.day <= today))",
+    "to": "(b.started > 0 || !!b.day)",
+    "unit": ["src/lib/domain/__tests__/whats-next.test.ts"]
+  },
+  {
+    "what": "S4 results are 'not released' while a round is still open",
+    "file": "src/lib/services/whats-next.ts",
+    "from": "resultsWaiting: isLaunched(e.status) && playOverOf(e.stages),",
+    "to": "resultsWaiting: isLaunched(e.status) && e.stages.length > 0,",
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"]
+  },
+  {
+    "what": "S5 anybody on the console may act on the jobs",
+    "file": "src/lib/services/whats-next.ts",
+    "from": "const mayAct = !!club?.canEdit;",
+    "to": "const mayAct = !!club;",
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"],
+    "spec": "e2e/secretary-copy-last-event.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "S6 another club's tournaments on this club's home",
+    "file": "src/lib/services/whats-next.ts",
+    "from": "organizationId: open.organizationId,",
+    "to": "organizationId: { not: open.organizationId + \"x\" },",
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"]
+  },
+  {
+    "what": "S7 a Guest of the club may copy its tournaments",
+    "file": "src/app/actions/tournament.ts",
+    "from": "if (!club.canEdit) {",
+    "to": "if (!club.canEdit && club.reason === \"ownerless\") {",
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"]
+  },
+  {
+    "what": "S8 a copy's day is judged on the server's clock",
+    "file": "src/app/actions/tournament.ts",
+    "from": "today: clubToday(source.organization?.timeZone),",
+    "to": "today: clubToday(source.organization?.timeZone && \"\"),",
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"]
+  },
+  {
+    "what": "S9 the copy's days move the wrong way",
+    "file": "src/lib/domain/copy-dates.ts",
+    "from": "const shift = was ? daysBetween(was, start) : null;",
+    "to": "const shift = was ? daysBetween(start, was) : null;",
+    "unit": ["src/lib/domain/__tests__/copy-dates.test.ts"],
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"],
+    "spec": "e2e/secretary-copy-last-event.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "S10 a copied side game stays on last year's round",
+    "file": "src/app/actions/tournament.ts",
+    "from": "const stageId = c.stageId ? newStageId.get(c.stageId) : \"\";",
+    "to": "const stageId = c.stageId;",
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"],
+    "spec": "e2e/secretary-copy-last-event.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "S11 a job's button opens the tournament but not the job's screen",
+    "file": "src/app/actions/auth.ts",
+    "from": "if (isJobScreen(stay) && (access.role === \"admin\" || access.role === \"assistant\")) redirect(stay);",
+    "to": "if (isJobScreen(stay) && access.role === \"player\") redirect(stay);",
+    "spec": "e2e/secretary-copy-last-event.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "S12 the job buttons are drawn for somebody who may not act",
+    "file": "src/components/NeedsYouNow.tsx",
+    "from": "{mayAct &&",
+    "to": "{(mayAct || jobs.length > 0) &&",
+    "unit": ["src/lib/__tests__/secretary-home.test.tsx"],
+    "spec": "e2e/secretary-copy-last-event.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "S13 publishing the link mints no address",
+    "file": "src/app/actions/tournament.ts",
+    "from": "if (open && !event.registrationToken) data.registrationToken = generateShareToken();",
+    "to": "if (open && event.registrationToken) data.registrationToken = generateShareToken();",
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"],
+    "spec": "e2e/secretary-first-event.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "S14 a new club's members list offers no way on",
+    "file": "src/app/(app)/roster/page.tsx",
+    "from": "const facts = event ? null : await orgSetupFactsFor(session.email, session.name);",
+    "to": "const facts = event || session.email ? null : await orgSetupFactsFor(session.email, session.name);",
+    "spec": "e2e/secretary-first-event.spec.ts",
+    "project": "phone"
+  },
+  {
+    "what": "S15 the home counts the waiting list as entries awaiting approval",
+    "file": "src/lib/registration.ts",
+    "from": "return players.filter((p) => p.status === AWAITING_APPROVAL);",
+    "to": "return players.filter((p) => p.status === AWAITING_APPROVAL || p.status === \"confirmed\");",
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"],
+    "spec": "e2e/secretary-copy-last-event.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "S16 the copy keeps last year's sign-up deadline",
+    "file": "src/app/actions/tournament.ts",
+    "from": "regDeadline: calendar.regDeadline,",
+    "to": "regDeadline: source.regDeadline,",
+    "unit": ["src/lib/__tests__/clone.test.ts"],
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"]
+  },
+  {
+    "what": "S18 the first-tournament step stays shut when only the club's name is owed",
+    "file": "src/components/OrgSetupChecklist.tsx",
+    "from": "const nameOnTheWay = state.outstanding.every((s) => s.key === \"profile\");",
+    "to": "const nameOnTheWay = state.outstanding.length === 0;",
+    "spec": "e2e/secretary-first-event.spec.ts",
+    "project": "phone"
+  },
+  {
+    "what": "S17 the tees policy is not carried",
+    "file": "src/lib/services/clone.ts",
+    "from": "  \"teePolicy\",",
+    "to": "  // \"teePolicy\",",
+    "unit": ["src/lib/__tests__/clone.test.ts"],
+    "audit": ["src/lib/__tests__/copy-last-event.audit.test.ts"]
+  }
+]
