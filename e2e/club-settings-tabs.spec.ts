@@ -198,6 +198,13 @@ test("the arrow keys, Home and End move along the tabs", async ({ page, context,
   });
 });
 
+test.describe("a refusal answered late", () => {
+  // THE ANSWER MUST REALLY BE HELD. With the app's service worker in the page, Safari's engine
+  // sends the save past `page.route` (the worker lets a POST through untouched, and the request
+  // then leaves from the worker, which Playwright does not route on WebKit): on the iPhone project
+  // the refusal came back in under half a second, in the instant the tab changed, and the spec
+  // failed on a hold that never happened (round G315-1). Blocked here, the hold is the network's.
+  test.use({ serviceWorkers: "block" });
 test("a refusal that comes back after you moved to another tab marks the tab, and is in view when you open it", async ({ page, context, baseURL }, testInfo) => {
   const errors: string[] = [];
   watchPageErrors(page, errors, "secretary");
@@ -219,10 +226,12 @@ test("a refusal that comes back after you moved to another tab marks the tab, an
       await route.continue();
     });
     await save.click();
+    // CONTROL, before the tab is changed: the save is on its way and being held, so the
+    // person really is somewhere else when the answer arrives.
+    await expect.poll(() => held, { message: "CONTROL: the save was not held, so the refusal may have come back before the tab changed" }).toBeGreaterThan(0);
     await openSettingsTab(page, "Colour");
     const left = tab(page, "Name & branding");
     await expect(left, "the refusal arrived in a hidden section and its tab says nothing").toHaveAttribute("data-refused", "", { timeout: 20_000 });
-    expect(held, "CONTROL: the save was never sent, so nothing was refused").toBeGreaterThan(0);
     await expect(left, "the mark is not said in words").toContainText("has a message for you");
 
     await left.click();
@@ -233,4 +242,5 @@ test("a refusal that comes back after you moved to another tab marks the tab, an
     expect((await prisma.organization.findUniqueOrThrow({ where: { id: club.orgId } })).name, "a refused save changed the name").toBe(`${club.mark} Golf Society`);
   });
   expect(errors, errors.join("\n")).toEqual([]);
+});
 });
