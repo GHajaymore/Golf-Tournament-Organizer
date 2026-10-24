@@ -64,7 +64,7 @@ const ZONE = ["Pacific/Kiritimati", "Pacific/Pago_Pago"].find((z) => clubToday(z
 const CLUB_TODAY = clubToday(ZONE);
 
 const ids = { org: "", other: "", source: "", running: "", elsewhere: "", r1: "", r2: "", copy: "" };
-const users = { owner: "", guest: "", member: "", stranger: "" };
+const users = { owner: "", guest: "", member: "", stranger: "", both: "" };
 const email = (who: string) => `${MARK}-${who}@example.invalid`;
 
 async function cleanup() {
@@ -116,6 +116,9 @@ beforeAll(async () => {
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: users.guest, role: "guest" } });
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: users.member, role: "member" } });
   await prisma.organizationMember.create({ data: { organizationId: other.id, userId: users.stranger, role: "owner" } });
+  // Somebody who runs BOTH clubs: each club's home is that club's alone.
+  await prisma.organizationMember.create({ data: { organizationId: org.id, userId: users.both, role: "admin" } });
+  await prisma.organizationMember.create({ data: { organizationId: other.id, userId: users.both, role: "admin" } });
 
   // Last summer's medal, every named setting off its default.
   const source = await prisma.event.create({
@@ -390,6 +393,15 @@ describe("what's next, for the same people", () => {
     expect(home.jobs.some((j) => j.eventId === ids.source)).toBe(false);
     // Last event first among what a copy may start from.
     expect(home.copyable.map((c) => c.id)).toContain(ids.source);
+  });
+
+  it("somebody who runs both clubs sees, on each club's home, that club's jobs and never the other's", async () => {
+    const here = await secretaryHomeFor(await signInAs(users.both, ids.running));
+    expect(here.jobs.some((j) => j.eventId === ids.running)).toBe(true);
+    expect(here.jobs.some((j) => j.eventId === ids.elsewhere), "the other club's job is on this club's home").toBe(false);
+    expect(here.copyable.some((c) => c.id === ids.elsewhere), "the other club's tournament is offered to copy here").toBe(false);
+    const there = await secretaryHomeFor(await signInAs(users.both, ids.elsewhere));
+    expect(there.jobs.map((j) => j.eventId)).toEqual([ids.elsewhere]);
   });
 
   it("CONTROL: the other club's own Commissioner does see next door's waiting entry", async () => {
