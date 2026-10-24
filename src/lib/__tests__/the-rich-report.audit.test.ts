@@ -76,7 +76,7 @@ describe("each format leads with its result in its own words", () => {
     const r = await event(seeded.events.stableford.eventId);
     expect(r.kind).toBe("stableford");
     const lines = r.lead[0].lines;
-    expect(lines.map((l) => l.figure)).toEqual(lines.map((l) => expect.stringMatching(/^\d+ points$/)));
+    for (const l of lines) expect(l.figure).toMatch(/^\d+ points$/);
     // The board's own order, and its own figures.
     const board = (await liveBoard(seeded.events.stableford.eventId))!;
     const top = board.rows.filter((x) => x.ranked).slice(0, 3);

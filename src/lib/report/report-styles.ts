@@ -205,10 +205,12 @@ export const REPORT_CSS = `
 .fr-fig { margin: 0; }
 .fr-caption { margin: 6px 0 12px; font-size: 17px; line-height: 1.5; color: var(--fr-ink); }
 .fr-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+/* A table grows to its content whatever its width says; as a block it keeps the 1px. */
+table.fr-sr { display: block; }
 .fr-gtable { margin-top: 12px; }
 .fr-ladder { width: 100%; max-width: 480px; height: auto; display: block; margin: 4px auto 0; overflow: visible; }
 .fr-svg-col { font: 600 17px var(--font-body), sans-serif; fill: var(--fr-muted); letter-spacing: .04em; }
-.fr-svg-name { font: 600 20px var(--font-body), sans-serif; fill: var(--fr-ink); }
+.fr-svg-name { font: 600 19px var(--font-body), sans-serif; fill: var(--fr-ink); }
 .fr-svg-place { font: 700 19px var(--font-scoreboard), "Arial Narrow", sans-serif; fill: var(--fr-ink); }
 .fr-svg-dot { fill: var(--fr-paper); stroke: var(--fr-muted); stroke-width: 1.5; }
 .fr-svg-line { fill: none; stroke: var(--fr-muted); stroke-width: 2; stroke-opacity: .6; }
@@ -281,6 +283,7 @@ export const REPORT_CSS = `
 .fr-clinch { margin: 12px 0 0; font-size: 17px; }
 @media print {
   .fr-sr { position: static !important; width: auto; height: auto; overflow: visible; clip: auto; clip-path: none; white-space: normal; }
+  table.fr-sr { display: table; width: 100%; }
 }
 
 .fr-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--fr-muted); padding: 2px 4px 0; }

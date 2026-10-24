@@ -528,12 +528,13 @@ if (process.argv[1] && process.argv[1].endsWith("report-rich-fixture.mjs")) {
     console.error("Refusing: DATABASE_URL is not the local development database.");
     process.exit(1);
   }
+  // No top-level await: Playwright loads this file for the spec as well.
   if (cmd === "seed") {
-    const out = await seedRich(mark);
-    for (const [k, e] of Object.entries(out.events)) console.log(`${k}: /live/${e.shareToken}/report`);
+    seedRich(mark).then((out) => {
+      for (const [k, e] of Object.entries(out.events)) console.log(`${k}: /live/${e.shareToken}/report`);
+    });
   } else if (cmd === "teardown") {
-    await teardownRich(mark);
-    console.log("removed");
+    teardownRich(mark).then(() => console.log("removed"));
   } else {
     console.log("usage: node e2e/report-rich-fixture.mjs seed|teardown [mark]");
   }

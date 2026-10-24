@@ -123,7 +123,9 @@ the report is "The results so far", and that state said things that were not so:
   no table; no card, no "In numbers" (it read "0 birdies");
 - a Nassau's round result was "3 bets" — now "3 games", and the side-game sweep
   catches the word as a whole string; a tie won on extra holes reads "at the 19th"
-  (`tieResultWords`, the player's own line's wording).
+  (`marginWords` in `my-tie.ts`, the one reader of a tie's margin — the player's
+  own line's wording; a second copy, `tieResultWords`, was folded into it when the
+  knockout branch merged).
 
 Tests: `the-report-while-it-is-played.audit.test.ts`, and cases in
 `final-report.test.ts`, `report-highlights.test.ts` and `my-tie.test.ts`.
@@ -137,6 +139,108 @@ hand); `final-report-reads-the-readers.audit.test.ts` (every section against
 its reader, and the public copy, rendered, holds no money);
 `e2e/final-report.spec.ts` (the organizer opens it from Reports; the public
 link shows winners without amounts).
+
+## The rich report — the panel's decision, 2026-10-23
+
+Ajay: "make all the reports rich and add some graphics … I see reports for all
+formats look same and I dont see a money part. include money only if the
+tournament has it. so as other things", and "we need state of the art reports".
+The panel: a golf professional, a tournament director, a data-visualisation
+designer, the marketing manager and the QA manager. Their first finding: none of
+the eleven `zz-five` test tournaments has a side game, a skins pot, a shared cost
+or a contest — "no money part" was the DATA, not a defect.
+`e2e/report-rich-fixture.mjs` now builds tournaments that have them (seeded and
+kept under `zz-report` for the owner to look at: `node e2e/report-rich-fixture.mjs
+seed zz-report`, and `teardown zz-report` to remove them).
+
+**Decided.**
+
+1. **Lead with the result in the format's own words, the prize list first**
+   (`event-report-rich.ts`, `leadFor`): overall and each flight (a podium each up
+   to four flights, the winner only past that); gross and net side by side for
+   stroke play ("71 gross / 66 net"); points for a Stableford, never a to-par; a
+   knockout's final in golf's words ("beat Bram in the final at the 19th"); a side
+   with its members. A tie the BOARD placed on countback says where — "won on
+   countback, back 9", "ahead of Edda on countback, last 3 points", on the net
+   card for a net event — read off the board's own cards and basis
+   (`state.countbackBetween`, over `countbackStep` in `stroke-countback.ts`, the
+   one ladder). A tie the countback could NOT part stays shared ("Joint winners")
+   until the committee confirms a champion on the honours board, when it reads as
+   a play-off: the champion with the committee's note, the other "lost the
+   play-off". The story moves below the prizes.
+2. **One hero graphic per format** (`domain/report-graphics.ts`,
+   `components/report/ReportGraphics.tsx`), chosen where the Rules make it mean
+   something: the place after each round, top eight (two rounds or more, the cut
+   marked; never one round, never match play); the hole-difficulty strip (one
+   round, eight cards or more, average GROSS against par, picked-up Stableford
+   holes left out — `pickedUpHoles` reads a pick-up back as the card does); the
+   points as bars (Stableford); the winning side's card with whose ball counted,
+   "both" where the partners were level (four-ball; foursomes and scramble show
+   the side's card); the champion's path, an upset flagged only where a qualifying
+   round seeded the draw (knockout); the table with a dot a week, Played, Points
+   and the last week's ▲▼ (league: three rounds or more on a points or match
+   board); the cup session by session as a tug of war with the points needed
+   marked, and the match that clinched it (cup); the settle-up (casual round). At
+   most the hole strip besides. No pie, no axes, no gridlines, never hue alone
+   (under par solid, par blank, over par outlined and hatched; a birdie ringed and
+   a bogey boxed, as a card marks them); figures 16px or more. Each is a
+   `<figure>` whose caption says the finding, and whose figures sit in a table
+   drawn from the SAME list (`fr-sr`: out of sight on screen, printed on paper).
+3. **On the course**, next after the prizes, each only if it ran: the twos ("4
+   twos, $5.00 each" — the share only once final, and only where it divides
+   exactly), nearest the pin and longest drive with the hole.
+4. **Money only once final, at the sink.** The side games are read from the
+   money screen's own readers (`skinsPotFor`'s `provisional`, `sidePotResults`,
+   `nassauBoard`'s completed segments — a finished front nine is reported while
+   the back is played). While any of them can still change, the settle-up waits
+   and one line says "Side games settle when the last card is in."; once nothing
+   can, **Settle up** shows the fewest payments (`moneyFor(...).transfers`) and
+   where everybody ends up (`moneyFor(...).standing`), with "Recorded by
+   TourneyHQ. Settle between yourselves." under it. Never "bet", "pay me" or "won
+   a pot". WHO SEES AN AMOUNT is unchanged (`showsAmounts`).
+5. **A section only when the event has it** — swept format by section, each
+   "not shown" with a control (`the-rich-report.audit.test.ts`).
+6. **Handicaps**: each round's allowance in Format and field ("95% of
+   handicap"), from `individualAllowanceFor` / `effectiveAllowance`; no index.
+7. **The report's own share card** (`live/[token]/report/opengraph-image.tsx`,
+   `domain/report-card.ts`): the club large, the event, CHAMPION — "Leads" while
+   it is played — the figure, one highlight, TourneyHQ small. Its description is a
+   news line ("Ailsa Thorne wins the Spring Medal after a play-off at Larchfield
+   Links"); "Final report" in the title only once final. A board that is not
+   public gets a card naming nobody; the card has no field an amount could ride in.
+8. **The club first** on the masthead (name and logo, `brandForEvent`);
+   "Results by TourneyHQ" once, small, at the foot — pointing at the early list
+   while sign-ins are held and at the front door once the owner opens them
+   (`report-foot.ts`, reading `signInsHeld`; nothing written for either state).
+9. **What's next** last. A played four-ball round was "Coming up" on its own
+   report: `state.roundsWithResults` does not read `TeamScorecard`, so the
+   report's readers use `playedStageIds` (the state's other readers were not
+   walked and are left alone).
+
+A casual round has a report now: one short screen — the match's one line, the
+settle-up as its picture, the side games, what's next.
+
+**The reasons.** The professional: a results sheet is read top-down for the
+prize list, and countback is the question at every prize-giving. The director:
+margins, the play-off, the flight winners and the twos are what the committee
+reads out. The designer: one graphic chosen for the format says something; a
+page of charts says nothing. Marketing: the share card is the first thing
+anybody outside the club sees, so it carries the club and the champion. QA: a
+graphic is a second reader unless it is drawn from the table's own rows.
+
+**Dissent.** The designer wanted a score-mix bar on every stroke report;
+refused (the same at every club, and on a net event it reads as the net). The
+marketing manager wanted the TourneyHQ mark on the masthead; refused (the
+club's document). The director wanted prize money on the public link; that is
+the owner's ruling (the report-settings slice offers it). Ajay rejected a
+chart-heavy mock on 2026-10-21 as "very complex and hard to understand": read as
+a ruling against MANY charts and axes, not against one labelled picture — each
+graphic is one component to take out if he disagrees.
+
+**Not built, said:** a play-off has no model of its own (the honours note is
+the record); a position sparkline in a league with even attendance; a four-ball
+"both" on a NET card (needs each partner's net per hole; the counted ball is
+named); the cup report carries no money section.
 
 ## Tests owed
 

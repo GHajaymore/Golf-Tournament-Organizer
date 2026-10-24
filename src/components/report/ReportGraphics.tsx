@@ -68,11 +68,13 @@ function shortName(name: string): string {
 /* ------------------------------------------------------------------------ */
 
 function Ladder({ g }: { g: LadderGraphic }) {
-  // Drawn on a 420-wide canvas, so on a 343px phone column every word stays at 16px or more.
+  // Drawn on a 360-wide canvas: on a phone the card is about 310px across, so the
+  // canvas is scaled to 0.86 and the 19-unit words land at 16px or more
+  // (`report-rich.spec.ts` measures them as drawn).
   const rowH = 44;
   const top = 38;
-  const nameW = 118;
-  const W = 420;
+  const nameW = 104;
+  const W = 360;
   const span = W - nameW * 2;
   const xAt = (c: number) => nameW + (g.columns.length === 1 ? span / 2 : (span * c) / (g.columns.length - 1));
   const orders = g.columns.map((_, c) => ladderOrder(g.rows, c));
@@ -108,10 +110,10 @@ function Ladder({ g }: { g: LadderGraphic }) {
                   </text>
                 </g>
               ))}
-              <text x={nameW - 24} y={yAt(orders[0][i]) + 7} textAnchor="end" className="fr-svg-name">
+              <text x={nameW - 22} y={yAt(orders[0][i]) + 7} textAnchor="end" className="fr-svg-name">
                 {r.places[0] ? shortName(r.name) : ""}
               </text>
-              <text x={W - nameW + 24} y={yAt(orders[g.columns.length - 1][i]) + 7} className="fr-svg-name">
+              <text x={W - nameW + 22} y={yAt(orders[g.columns.length - 1][i]) + 7} className="fr-svg-name">
                 {shortName(r.name)}
               </text>
             </g>
