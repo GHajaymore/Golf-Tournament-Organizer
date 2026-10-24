@@ -17,6 +17,7 @@ import { marginWords } from "@/lib/domain/my-tie";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { Icon } from "./Icon";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { MAX_MARGIN } from "@/lib/domain/score-payload";
 
 /* The drawing's measures, in pixels. A seat is a tap target: 44px, the touch
    minimum (CLAUDE.md; `globals.css` holds `.bracket-seat` to it under a finger
@@ -510,6 +511,8 @@ export function BracketDrawing({
                             <input
                               className="input"
                               defaultValue={results[m.key] ?? ""}
+                              // The server's own limit (`cleanMargin`), so nothing typed is cut where nobody sees.
+                              maxLength={MAX_MARGIN}
                               placeholder="Result e.g. 3&2"
                               // A placeholder is not a name, and there is one of these
                               // per finished match — each says whose match it records.

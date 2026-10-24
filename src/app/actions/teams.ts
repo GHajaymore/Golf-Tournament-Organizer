@@ -13,6 +13,7 @@ import { enteredCardCount } from "@/lib/services/round-cards";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { TEAM_SESSION as CUP_SESSION } from "@/lib/services/cup";
 import { generatesPairings } from "@/lib/stage-types";
+import { SIDE_NAME_MAX } from "@/lib/domain/typed-limits";
 
 const NO_MATCHES_TO_DRAW = "Only a round robin draws matches between sides — this round has none to draw.";
 
@@ -123,8 +124,9 @@ export async function createTeam(name: string, stageId: string | null): Promise<
   const eventId = await requireStaff();
   await assertUnlocked(eventId, "change teams");
   const scoped = await stageInEvent(eventId, stageId);
-  const clean = name.trim();
+  const clean = String(name ?? "").trim();
   if (!clean) return { ok: false, error: "Give the team a name." };
+  if (clean.length > SIDE_NAME_MAX) return { ok: false, error: `Keep the team's name to ${SIDE_NAME_MAX} characters.` };
 
   const maxSeed = await prisma.team.aggregate({ where: { eventId }, _max: { seed: true } });
   await prisma.team.create({
@@ -138,8 +140,11 @@ export async function renameTeam(teamId: string, name: string): Promise<TeamResu
   const eventId = await requireStaff();
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });
   if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
-  const clean = name.trim();
+  const clean = String(name ?? "").trim();
   if (!clean) return { ok: false, error: "Give the team a name." };
+  // A name of a name's length (the text-box crawl, 2026-10-21: 2,000 characters
+  // were stored and drawn on every board the side is on).
+  if (clean.length > SIDE_NAME_MAX) return { ok: false, error: `Keep the team's name to ${SIDE_NAME_MAX} characters.` };
   await prisma.team.update({ where: { id: teamId }, data: { name: clean } });
   await refresh();
   return { ok: true };

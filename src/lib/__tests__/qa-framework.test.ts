@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose: the framework runs on a bare runner, before anything is installed.
-import { ABROAD, CRAWL_PARTS, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, layersFor, partsFor, tierOf } from "../../../scripts/qa/layers.mjs";
+import { ABROAD, CRAWL_PARTS, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, findingsSaid, layersFor, partFile, partsFor, tierOf } from "../../../scripts/qa/layers.mjs";
 import { BASELINE, VERDICTS, applyBreak } from "../../../scripts/qa/breaks.mjs";
 
 /**
@@ -170,6 +170,72 @@ describe("the parts of a round add up to the round", () => {
     for (const s of SCENARIOS as Array<{ key: string }>) {
       expect(parts.filter((p) => p.args === `--only=scenarios --scenario=${s.key}`).length, `scenario ${s.key}`).toBe(1);
     }
+  });
+});
+
+/**
+ * WHAT A PART FOUND CAN BE READ AFTERWARDS (2026-10-21). The three shares of the text-box crawl each
+ * failed on GitHub, and only one share's findings were read: each share's log was
+ * `.qa/rounds/<tag>/text-boxes.log` — one name for three files — and the verdict carried one line per
+ * failed share and none of what it found.
+ */
+describe("what a part found can be read afterwards", () => {
+  it("no two parts of a round name their own files alike", () => {
+    for (const round of [1, 2, 3]) {
+      const parts = partsFor(round) as Array<{ id: string; layer: string }>;
+      const names = parts.map((p) => partFile(p.layer, p.id));
+      expect(new Set(names).size, "two parts write a log of the same name").toBe(parts.length);
+      // CONTROL: the three shares of the text-box crawl are three parts, named three ways.
+      const text = parts.filter((p) => p.layer === "text-boxes").map((p) => partFile(p.layer, p.id));
+      expect(text.length).toBe(3);
+      expect(new Set(text).size).toBe(3);
+    }
+    // A round run on one machine names no part, and its files are the layer's, as they always were.
+    expect(partFile("text-boxes", "")).toBe("text-boxes");
+  });
+
+  it("the round writes its log, what it keeps, and a part's summary under the part's name", () => {
+    const round = readSource("scripts/qa/round.mjs");
+    const merge = readSource("scripts/qa/merge.mjs");
+    // Every log a layer writes goes through `partFile`; none is named by the layer alone.
+    expect(round).not.toMatch(/join\(OUT, `\$\{layer\.key\}\.log`\)/);
+    expect(round.match(/join\(OUT, `\$\{partFile\(layer\.key, PART\)\}\.log`\)/g)?.length, "the command and the browser layers").toBe(2);
+    expect(round).toMatch(/cpSync\(layer\.keeps, join\(OUT, `\$\{partFile\(layer\.key, PART\)\}-kept`\)/);
+    expect(merge).toMatch(/const own = onlyAPart && first\.id \? `-\$\{first\.id\}` : ""/);
+    expect(merge).toMatch(/`summary\$\{own\}\.md`/);
+    // And each machine's folder is handed on as an artifact named for that machine's part.
+    const workflow = readVerbatim(".github/workflows/round.yml");
+    expect(workflow).toMatch(/name: part-\$\{\{ matrix\.part\.id \}\}\r?\n\s+path: \|\r?\n\s+\.qa\/rounds\/\$\{\{ needs\.plan\.outputs\.tag \}\}\//);
+  });
+
+  it("a layer whose spec writes a ledger keeps the folder that spec writes", () => {
+    const text = (layersFor(1) as Array<{ key: string; keeps?: string; specs: string[] }>).find((l) => l.key === "text-boxes");
+    expect(text?.keeps, "the text-box crawl's ledger is not kept with its part").toBe(".e2e/every-text-box");
+    const spec = readSource("e2e/every-text-box.spec.ts");
+    const [dir, sub] = text!.keeps!.split("/");
+    expect(spec).toContain(`join(process.cwd(), "${dir}", "${sub}")`);
+    // A kept folder is one the repository does not track, or a round would commit a ledger.
+    expect(readVerbatim(".gitignore")).toMatch(new RegExp(`^/${dir.replace(".", "\\.")}\\s*$`, "m"));
+  });
+
+  it("every finding a share prints reaches the verdict, and nothing else that it prints does", () => {
+    const log = [
+      "[every-text-box] control: swallowed press → silent; refusal far above → refused out of view; server 500 → error page",
+      "[every-text-box] share 3/3: 27 boxes found (drawn on 67 rows), 21 tried, 159 tries: {}; 2 findings; 17 min",
+      "[every-text-box]   skipped · /stages · Find a course — allowance: it looks things up elsewhere",
+      "[every-text-box]   locked on every tournament, never saved · /stages · Round name",
+      "[every-text-box]   REFUSED OUT OF VIEW · champs /prizes · \"Amount for Best gross\" (figure) ← bad: letters \"-1\" · 223px",
+      "[every-text-box]   LOST · captains /registration · \"Home club\" (words) ← good · a row was added without it",
+      "  1) [desktop] › e2e/every-text-box.spec.ts:980:3 › every text box, share 3 of 3",
+    ].join("\r\n");
+    expect(findingsSaid(log)).toEqual([
+      "REFUSED OUT OF VIEW · champs /prizes · \"Amount for Best gross\" (figure) ← bad: letters \"-1\" · 223px",
+      "LOST · captains /registration · \"Home club\" (words) ← good · a row was added without it",
+    ]);
+    // The spec prints them that way, and the verdict lists each one beside the share that failed.
+    expect(readSource("e2e/every-text-box.spec.ts")).toContain("console.log(tally.findings.map((f) => `[every-text-box]   ${f}`).join(\"\\n\"));");
+    expect(readSource("scripts/qa/round.mjs")).toMatch(/details: findingsSaid\(text\)/);
+    expect(readSource("scripts/qa/merge.mjs")).toMatch(/for \(const d of r\.details\) findings\.push\(`\$\{r\.key\}: \$\{d\}`\)/);
   });
 });
 

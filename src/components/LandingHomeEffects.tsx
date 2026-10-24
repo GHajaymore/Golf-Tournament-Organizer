@@ -210,9 +210,10 @@ export function LandingHomeEffects() {
       beatEls.forEach((b) => middle.observe(b));
     }
 
-    // ── scrolling moves the line at the top, the story, and the very large tagline ──
-    const run = $("#kinetic-run");
-    const runBack = $("#kinetic-back");
+    // ── scrolling moves the line at the top and the story ──
+    // (The very large running tagline is gone: on a wide screen it ran off both edges, cut mid-word,
+    // over a second running line, and said the headline again. Ajay, 2026-10-21: "fix this … the
+    // banner". The week's steps are one still row at every width now.)
     const rail = $("#rail");
     const header = () => document.querySelector<HTMLElement>(".thq .hdr")?.offsetHeight ?? 58;
     let queued = false;
@@ -234,12 +235,6 @@ export function LandingHomeEffects() {
       }
       if (calm) return;
       home.style.setProperty("--m-sy", String(Math.min(y, 900)));
-      for (const [row, name, back] of [[run, "--m-kx", false], [runBack, "--m-kx2", true]] as const) {
-        const first = row?.firstElementChild;
-        if (!row || !first) continue;
-        const one = first.getBoundingClientRect().width + parseFloat(getComputedStyle(row).columnGap || "0");
-        if (one > 0) row.style.setProperty(name, (back ? -one + ((y * 0.3) % one) : -((y * 0.4) % one)).toFixed(1));
-      }
       if (rail && wide()) {
         // The ball: how far the middle of the screen has travelled down the story.
         const box = rail.getBoundingClientRect();
@@ -353,7 +348,9 @@ export function LandingHomeEffects() {
     openTarget();
     window.addEventListener("hashchange", openTarget, on);
 
-    // ── decorative only: the wall turns toward the pointer, and a ball follows it ──
+    // ── decorative only: the wall turns toward the pointer ──
+    // (The ball that followed the pointer is gone, at Ajay's word, 2026-10-21: "remove the special
+    // cursor". The pointer is the visitor's own again.)
     if (!calm && media("(hover: hover) and (pointer: fine)")) {
       const momentEl = $(".m-moment");
       const wallEl = $(".m-wall");
@@ -367,24 +364,6 @@ export function LandingHomeEffects() {
           wallEl.style.setProperty("--m-wx", "0");
           wallEl.style.setProperty("--m-wy", "0");
         }, on);
-      }
-      const putter = $("#putter");
-      if (putter) {
-        let px = 0, py = 0, bx = 0, by = 0, rolling = false;
-        const follow = () => {
-          bx += (px - bx) * 0.2;
-          by += (py - by) * 0.2;
-          putter.style.transform = `translate3d(${bx.toFixed(1)}px, ${by.toFixed(1)}px, 0)`;
-          if (alive && (Math.abs(px - bx) > 0.2 || Math.abs(py - by) > 0.2)) requestAnimationFrame(follow); else rolling = false;
-        };
-        window.addEventListener("pointermove", (e) => {
-          px = e.clientX; py = e.clientY;
-          putter.classList.add("m-on");
-          const target = e.target as Element | null;
-          putter.classList.toggle("m-big", Boolean(target?.closest?.("a, button, input, summary, label")));
-          if (!rolling) { rolling = true; requestAnimationFrame(follow); }
-        }, passive);
-        document.addEventListener("pointerleave", () => putter.classList.remove("m-on"), on);
       }
     }
 

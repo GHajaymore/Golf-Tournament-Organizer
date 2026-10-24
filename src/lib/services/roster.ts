@@ -4,21 +4,20 @@ import { prisma } from "../db";
 import { handicapPolicyOf, refuseHandByHand } from "../domain/handicap-policy";
 import { clubHandicapBody, homeBodyId } from "../domain/handicap-body";
 import { contactGap, type ContactNeeds } from "../domain/registration-intake";
-import { planForEvent } from "./entitlements";
 import { phoneRequiredFor } from "../plans";
 import { cleanSettings, entryNeedsEmail } from "../tournament-settings";
 
 /**
  * Which contact details THIS tournament requires of every entrant.
  *
- * A free club always collects a mobile; a paid club decides per tournament
+ * A mobile where the organizer has asked for one, on any plan
  * (`phoneRequiredFor`). An email is needed unless players sign in with Round
  * Codes (`entryNeedsEmail`). The one place both the add action and the roster
  * picker ask, so they cannot answer differently — see `contactGap`.
  */
 export async function entryContactNeeds(event: Event): Promise<ContactNeeds> {
   return {
-    phone: phoneRequiredFor(await planForEvent(event.id), event.requirePhone, event.playerAccess),
+    phone: phoneRequiredFor(event.requirePhone),
     email: entryNeedsEmail(cleanSettings(event)),
   };
 }

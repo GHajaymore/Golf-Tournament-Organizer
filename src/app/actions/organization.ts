@@ -17,6 +17,14 @@ import {
 import { checkLogoUrl } from "@/lib/services/logo-check";
 import { organizationAccess } from "@/lib/services/org-access";
 import { isBrandDisplay } from "@/lib/brand";
+import {
+  EMAIL_REFUSAL,
+  isEmailAddress,
+  PERSON_NAME_MAX,
+  PLACE_MAX,
+  SHORT_NAME_MAX,
+  TITLE_MAX,
+} from "@/lib/domain/typed-limits";
 
 export interface OrgResult {
   ok: boolean;
@@ -55,7 +63,6 @@ async function currentOrganization() {
  */
 const ORG_ROLES = ["owner", "admin", "member", "guest"] as const;
 const cleanOrgRole = (r: string) => (ORG_ROLES.includes(r as (typeof ORG_ROLES)[number]) ? r : "member");
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** True once the organization has an owner other than this member — the same
  *  guard the per-event access screen uses, applied one level up. Losing the
@@ -90,8 +97,11 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    * at its cap could not add the field it just took entries from.
    */
   const role = cleanOrgRole(roleInput);
-  const cleanEmail = email.trim().toLowerCase();
-  if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+  const cleanEmail = String(email ?? "").trim().toLowerCase();
+  if (!isEmailAddress(cleanEmail)) return { ok: false, error: EMAIL_REFUSAL };
+  if (String(name ?? "").trim().length > PERSON_NAME_MAX) {
+    return { ok: false, error: `Keep the name to ${PERSON_NAME_MAX} characters.` };
+  }
   if (role === "owner" || role === "admin") {
     // By person, so somebody already holding a seat is not refused one.
     const refusal = await seatRefusalFor(org.organizationId, cleanEmail);
@@ -113,7 +123,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    * is being made, or has no name on it yet — somebody entered by email alone
    * — and never to replace one.
    */
-  const typedName = name.trim();
+  const typedName = String(name ?? "").trim();
   const known = await prisma.user.findUnique({ where: { email: cleanEmail }, select: { id: true, name: true } });
   const user = known
     ? await prisma.user.update({
@@ -255,8 +265,18 @@ export async function saveOrganizationBranding(
   if (!org) return { ok: false, error: "No organization found for this tournament." };
   if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change these settings." };
 
-  const cleanName = name.trim();
+  const cleanName = String(name ?? "").trim();
   if (!cleanName) return { ok: false, error: "Enter an organization name." };
+  // HELD TO A NAME'S LENGTH, AND SAID (the text-box crawl, 2026-10-21): 2,000
+  // characters were stored, and every screen that draws the club's name was
+  // pushed sideways; the town, region and country were cut to 80 without a
+  // word. The boxes carry the same limits.
+  if (cleanName.length > TITLE_MAX) return { ok: false, error: `Keep the name to ${TITLE_MAX} characters.` };
+  const cleanShort = String(shortName ?? "").trim();
+  if (cleanShort.length > SHORT_NAME_MAX) return { ok: false, error: `Keep the short name to ${SHORT_NAME_MAX} characters.` };
+  for (const [what, value] of [["town", location.city], ["region", location.region], ["country", location.country]] as const) {
+    if (String(value ?? "").trim().length > PLACE_MAX) return { ok: false, error: `Keep the ${what} to ${PLACE_MAX} characters.` };
+  }
 
   /**
    * THE OTHER PLACE A CLUB GETS ITS NAME, and the one Ajay pointed at: setup
@@ -299,11 +319,11 @@ export async function saveOrganizationBranding(
     where: { id: org.organizationId },
     data: {
       name: cleanName,
-      shortName: shortName.trim(),
+      shortName: cleanShort,
       logoUrl: cleanLogo,
-      city: (location.city ?? "").trim().slice(0, 80),
-      region: (location.region ?? "").trim().slice(0, 80),
-      country: (location.country ?? "").trim().slice(0, 80),
+      city: String(location.city ?? "").trim(),
+      region: String(location.region ?? "").trim(),
+      country: String(location.country ?? "").trim(),
       brandDisplay: isBrandDisplay(brandDisplay) ? brandDisplay : "short",
     },
   });
