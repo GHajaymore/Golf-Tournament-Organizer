@@ -153,10 +153,12 @@ describe("one prize per player, where the award is saved", () => {
     const report = await reportFor(eventId);
     expect(report?.kind).toBe("event");
     const prizes = report?.kind === "event" ? report.report.prizes : [];
+    // `amount` is the report's own column since main's report work (#924 and after): these
+    // fixture prizes carry no money, so it is blank on every line.
     expect(prizes).toEqual([
-      { what: "Best gross", winners: ["Ann Example"] },
-      { what: "Best net", winners: ["Bea Example"] },
-      { what: "Nearest the pin", winners: ["Ann Example"] },
+      { what: "Best gross", winners: ["Ann Example"], amount: "" },
+      { what: "Best net", winners: ["Bea Example"], amount: "" },
+      { what: "Nearest the pin", winners: ["Ann Example"], amount: "" },
     ]);
   });
 
