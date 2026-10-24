@@ -353,7 +353,7 @@ export async function readCourseCardPhoto(
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   // The club's plan, reached through the event the organizer is signed in to —
-  // planForEvent resolves the owning organization, which is whose plan this is.
+  // entitlementForEvent resolves the owning organization, which is whose plan this is.
   const entitled = await entitlementForEvent(session.eventId, "cardScan");
   if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 

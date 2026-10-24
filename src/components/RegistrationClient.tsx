@@ -12,7 +12,6 @@ import { SaveState, useSaveStatus } from "./SaveState";
 import { SetupLockBanner } from "./SetupLockBanner";
 import { RosterPicker } from "./RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
-import { PHONE_REQUIRED_FREE } from "@/lib/plans";
 import { csvSizeRefusal } from "@/lib/csv";
 import { playerTeeCounts } from "@/lib/tournament-settings";
 import { contactGaps } from "@/lib/domain/contact-gaps";
@@ -75,13 +74,8 @@ interface EventInfo {
   registrationOpen: boolean;
   /** auto | approve — whether entries land confirmed or wait for the organizer. */
   registrationApproval: string;
+  /** The organizer's own per-tournament choice, on every plan — `phoneRequiredFor`. */
   requirePhone: boolean;
-  /**
-   * Whether the mobile requirement is fixed by the plan rather than chosen.
-   * True on free, where every entrant gives a number; false on a paid plan,
-   * where `requirePhone` above is the organizer's own per-tournament decision.
-   */
-  phoneLocked: boolean;
   /** Opaque token for the public /register/[token] link. Empty until first opened. */
   registrationToken: string;
   /** How this tournament writes a date — the deadline reads like the event's own date. */
@@ -200,8 +194,6 @@ export function RegistrationClient({
   const [invitePending, startInviteSave] = useTransition();
   const inviteSaveStatus = useSaveStatus(invitePending);
   const savedInvite = useRef(event.inviteMessage);
-  // Fixed by the plan on free, the organizer's own choice on a paid plan.
-  const phoneLocked = event.phoneLocked;
   /**
    * A TAP SHOWS AT ONCE. Both switches were drawn straight from the server's
    * value, so a tick did nothing on screen until the save came back and the page
@@ -214,10 +206,10 @@ export function RegistrationClient({
   /** A refused switch, said beside the switches — see the handlers. */
   const [switchRefused, setSwitchRefused] = useState("");
   const [approvalShown, showApproval] = useOptimistic(event.registrationApproval);
-  // What the import and the public form will actually insist on — the resolved
-  // rule, not the raw setting, so the hint can't promise something the action
-  // then refuses.
-  const phoneRequired = phoneLocked || event.requirePhone;
+  // What the import and the public form will actually insist on — the page
+  // hands down `phoneRequiredFor`'s answer, so the hint can't promise something
+  // the action then refuses.
+  const phoneRequired = event.requirePhone;
   /**
    * A HANDICAP TYPED HERE CHANGES THIS TOURNAMENT'S COPY, AND ASKS ABOUT MEMBERS
    * (2026-10-16). It went through `updateSignup`, which pushed every edit on to
@@ -1170,27 +1162,24 @@ export function RegistrationClient({
               </p>
             </div>
 
-            {/* Per tournament on a paid plan; forced on and not editable on
-                free. The switch is shown either way rather than hidden, so a
-                free club can see what the choice would be — the same reasoning
-                as every other locked feature. A phone number is not needed to
-                run a competition, so being able to stop asking for one is a
-                real thing to buy: every extra required field costs entries,
-                and the members it turns away are the ones least likely to have
-                a mobile at all. */}
+            {/* Per tournament, on every plan (decisions review A7, 2026-10-21).
+                The free plan used to force this on and lock the switch. A phone
+                number is not needed to run a competition: every extra required
+                field costs entries, and the members it turns away are the ones
+                least likely to have a mobile at all, so it is the club's call. */}
             <div className="field" style={{ marginTop: 2 }}>
               <label
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 9,
-                  cursor: phoneLocked ? "default" : "pointer",
+                  cursor: "pointer",
                 }}
               >
                 <input
                   type="checkbox"
-                  checked={phoneLocked ? true : requirePhoneShown}
-                  disabled={pending || locked || phoneLocked}
+                  checked={requirePhoneShown}
+                  disabled={pending || locked}
                   onChange={(e) => {
                     const on = e.target.checked;
                     startTransition(async () => {
@@ -1206,23 +1195,11 @@ export function RegistrationClient({
                   style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
                 />
                 <span>
-                  <span style={{ fontWeight: 500 }}>
-                    Require a mobile number{" "}
-                    {phoneLocked && (
-                      <span
-                        className="text-muted"
-                        style={{ fontSize: 13, letterSpacing: 0.4, textTransform: "uppercase" }}
-                      >
-                        <Icon name="lock-simple" /> Always on — free plan
-                      </span>
-                    )}
-                  </span>
+                  <span style={{ fontWeight: 500 }}>Require a mobile number</span>
                   <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.6 }}>
-                    {phoneLocked
-                      ? PHONE_REQUIRED_FREE
-                      : event.requirePhone
-                        ? "The sign-up form asks for a mobile and won't accept an entry without one. Use this for a shotgun start, where you may need to ring a group that hasn't arrived."
-                        : "The sign-up form asks for a mobile but accepts an entry without one. Most tournaments don't need it — every extra required field costs you entries."}
+                    {event.requirePhone
+                      ? "The sign-up form asks for a mobile and won't accept an entry without one. Use this for a shotgun start, where you may need to ring a group that hasn't arrived."
+                      : "The sign-up form asks for a mobile but accepts an entry without one. Most tournaments don't need it — every extra required field costs you entries."}
                   </span>
                 </span>
               </label>
@@ -1306,9 +1283,9 @@ export function RegistrationClient({
               <label htmlFor={`${fid}-email`}>Email <span style={{ color: "var(--color-accent-200)" }}>{needsEmail ? "· required, grants sign-in" : "· optional — they sign in with the Round Code"}</span></label>
               <input id={`${fid}-email`} className="input" type="email" maxLength={EMAIL_MAX} required={needsEmail} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" style={needsEmail && !email.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
             </div>
-            {/* SAID LIKE EMAIL IS, WHEN IT IS REQUIRED (2026-09-26). A free club
-                collects a mobile from every entrant and the server refuses an
-                add without one — but this label said only "Phone", so a new
+            {/* SAID LIKE EMAIL IS, WHEN IT IS REQUIRED (2026-09-26). Where the
+                tournament asks for a mobile the server refuses an add without
+                one — but this label said only "Phone", so a new
                 organizer typed a name, pressed Add, and was refused. Email
                 beside it already says when it is required; now Phone does too,
                 and Add waits for it the same way. */}
