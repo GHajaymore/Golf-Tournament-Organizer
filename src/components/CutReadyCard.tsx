@@ -156,7 +156,7 @@ function CutTiePanel({ feederId, tie, tieRule }: { feederId: string; tie: CutTie
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {tie.tied.map((id, i) => (
-          <label key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, minHeight: 32, cursor: "pointer" }}>
+          <label key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, minHeight: "var(--tap-min, 32px)", cursor: "pointer" }}>
             <input
               type="checkbox"
               checked={picked.includes(id)}
