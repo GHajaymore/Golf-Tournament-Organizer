@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import { resolveMatch, matchIsOver, matchStandingText, marginRefusal, marginToHoles, storedMatchIsOver } from "../match";
+import { resolveMatch, matchIsOver, matchStandingText, marginRefusal, marginToHoles, storedMatchIsOver, deriveNetHoles } from "../match";
 import { countbackCompare, countbackSegments } from "../stroke-countback";
 import { survivorCount, survivorsWithTies, type CutRule } from "../cut";
 import { buildBracket, bracketSizeFor, seedOrder, type BracketView } from "../bracket";
 import type { Player } from "../types";
-import { playMatch, chooser, type Hole } from "./properties-reference";
+import { playMatch, chooser, strokesByHandingOut, type Hole } from "./properties-reference";
 
 /**
  * PROPERTIES OF A ROUND AND OF ROUNDS: a match, a countback, a cut, a draw —
@@ -97,6 +97,35 @@ describe("a match (Rule 3.2)", () => {
     // and the ones that can, still can
     for (const ok of ["1 UP", "2 UP", "2&1", "3&1", "3&2", "5&3", "5&4", "10&8"]) expect(marginRefusal("A", ok, 18), ok).toBeNull();
     expect(marginRefusal("A", "5&4", 9)).toBeNull();
+  });
+
+  it("net match play: the higher handicap receives the full difference, by stroke index, and a hole is decided only once both have a score", () => {
+    // The first mutation run (2026-10-23) found the direction of those strokes
+    // unchecked: a net score made gross PLUS the strokes survived.
+    fc.assert(
+      fc.property(
+        fc.shuffledSubarray(Array.from({ length: 18 }, (_, i) => i + 1), { minLength: 18, maxLength: 18 }),
+        fc.integer({ min: 0, max: 36 }),
+        fc.integer({ min: 0, max: 36 }),
+        fc.array(fc.option(fc.integer({ min: 2, max: 9 }), { nil: null, freq: 6 }), { minLength: 18, maxLength: 18 }),
+        fc.array(fc.option(fc.integer({ min: 2, max: 9 }), { nil: null, freq: 6 }), { minLength: 18, maxLength: 18 }),
+        (si, hA, hB, a, b) => {
+          const diff = hA - hB;
+          const shots = strokesByHandingOut(Math.abs(diff), si);
+          const holes = deriveNetHoles(a, b, hA, hB, si, 18);
+          for (let i = 0; i < 18; i += 1) {
+            if (a[i] == null || b[i] == null) {
+              expect(holes[i]).toBeNull();
+              continue;
+            }
+            const netA = a[i]! - (diff > 0 ? shots[i] : 0);
+            const netB = b[i]! - (diff < 0 ? shots[i] : 0);
+            expect(holes[i]).toBe(netA < netB ? "A" : netB < netA ? "B" : "H");
+          }
+        },
+      ),
+      RUNS,
+    );
   });
 
   it("a walkover is decided with no hole played; an untouched card is not", () => {

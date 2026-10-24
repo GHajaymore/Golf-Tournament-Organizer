@@ -7,7 +7,14 @@ import {
   roundPlayingHandicap,
   CourseHandicaps,
 } from "../handicap";
-import { holeStrokesReceived, stablefordPointsForHole, computeStrokeCard, rankStrokeIndex, strokesReceivedOnHolesPlayed } from "../stroke";
+import {
+  holeStrokesReceived,
+  stablefordPointsForHole,
+  modifiedStablefordForHole,
+  computeStrokeCard,
+  rankStrokeIndex,
+  strokesReceivedOnHolesPlayed,
+} from "../stroke";
 import { courseHandicapRef, playingHandicapRef, strokesByHandingOut, stablefordByName } from "./properties-reference";
 
 /**
@@ -149,6 +156,59 @@ describe("strokes by stroke index (Rule 6.2, Appendix E)", () => {
   });
 });
 
+/**
+ * WHAT THE FIRST MUTATION RUN FOUND NOTHING CHECKED (2026-10-23): the strokes
+ * for higher-par tees when nobody said who the field is, a par that is no par,
+ * a whole number laid over an exact figure, a 0 that is not a stroke, and a
+ * figure that is not a number at all.
+ */
+describe("the handicap edges the first mutation run found unchecked", () => {
+  it("with no field given, the lowest par is the lowest among the map's own players", () => {
+    const map = new CourseHandicaps();
+    map.setExact("m", 10).setPar("m", 71);
+    map.setExact("l", 18).setPar("l", 72);
+    map.setExact("x", 5).setPar("x", 0); // a par of nought is no par: ignored
+    map.setPar("y", Number.NaN);
+    expect([map.parStrokes("m"), map.parStrokes("l"), map.parStrokes("x"), map.parStrokes("nobody")]).toEqual([0, 1, 0, 0]);
+    // and a field of nothing but unreal pars says nothing
+    map.setFieldPars([0, -1, Number.NaN]);
+    expect(map.parStrokes("l")).toBe(1);
+  });
+
+  it("a whole number set over an exact figure is the answer, and the exact figure is forgotten", () => {
+    const map = new CourseHandicaps();
+    map.setExact("p", 12.4);
+    expect([map.get("p"), map.exact("p")]).toEqual([12, 12.4]);
+    map.set("p", 14);
+    expect(map.exact("p")).toBe(14);
+    expect(map.exact("nobody")).toBeUndefined();
+  });
+
+  it("a figure that is not a number is nought, never NaN", () => {
+    expect(courseHandicapExact(Number.NaN, { courseRating: 72, slopeRating: 113, par: 72 })).toBe(0);
+    expect(courseHandicap(Number.POSITIVE_INFINITY, null)).toBe(0);
+    expect(playingHandicapFrom(Number.NaN, 95)).toBe(0);
+    // a slope with no rating still scales; a rating with no par adds nothing
+    expect(courseHandicapExact(11.3, { slopeRating: 125 })).toBeCloseTo(12.5, 9);
+    expect(courseHandicapExact(10, { courseRating: 74, slopeRating: 113 })).toBe(10);
+  });
+
+  it("a 0 on a card is not a stroke: it receives nothing", () => {
+    const si = Array.from({ length: 18 }, (_, i) => i + 1);
+    expect(strokesReceivedOnHolesPlayed(18, [0, ...Array(17).fill(null)], si, 18)).toBe(0);
+    expect(strokesReceivedOnHolesPlayed(18, [4, 0, 4, ...Array(15).fill(null)], si, 18)).toBe(2);
+  });
+
+  it("Modified Stableford is its own table: albatross or better 8, eagle 5, birdie 2, par 0, bogey −1, worse −3", () => {
+    const TABLE: Record<number, number> = { [-4]: 8, [-3]: 8, [-2]: 5, [-1]: 2, 0: 0, 1: -1, 2: -3, 3: -3 };
+    for (const [toPar, points] of Object.entries(TABLE)) {
+      for (const par of [3, 4, 5]) for (const shots of [0, 1, 2]) {
+        expect(modifiedStablefordForHole(par + Number(toPar) + shots, par, shots), `${toPar} to par`).toBe(points);
+      }
+    }
+  });
+});
+
 describe("a card (Rule 21.1 Stableford; Rule 3.3 stroke play)", () => {
   it("Stableford points are the scorer's table: 0 for net double bogey or worse, 1 bogey, 2 par, 3 birdie, 4 eagle …", () => {
     fc.assert(
@@ -172,6 +232,7 @@ describe("a card (Rule 21.1 Stableford; Rule 3.3 stroke play)", () => {
           const gross = strokes.reduce((a, b) => a + b, 0);
           expect(card.gross).toBe(gross);
           expect(card.played).toBe(18);
+          expect([card.front, card.back]).toEqual([strokes.slice(0, 9).reduce((a, b) => a + b, 0), strokes.slice(9).reduce((a, b) => a + b, 0)]);
           expect(card.toPar).toBe(gross - pars.reduce((a, b) => a + b, 0));
           expect(card.net).toBe(gross - playing);
           expect(card.points).toBe(strokes.reduce((a, s, h) => a + stablefordByName(s - each[h], pars[h]), 0));

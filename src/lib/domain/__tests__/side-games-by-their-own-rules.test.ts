@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { playSkins } from "../skins";
-import { skinsPot } from "../skins-pot";
-import { derivedNets, nassauNets, matchBetNets, DERIVED_KINDS, type PotCard } from "../derived-games";
+import { skinsPot, roundPotKey, skinsGameLabel } from "../skins-pot";
+import { derivedNets, nassauNets, nassauLedger, matchBetNets, matchBetLedger, DERIVED_KINDS, type PotCard } from "../derived-games";
 import { nassauIsDecided } from "../nassau";
 import { potCents, settle, splitExactly } from "../money";
-import { shareOf, balances } from "../expenses";
-import { contestNets } from "../contests";
+import { shareOf, balances, canChangeExpense } from "../expenses";
+import { contestNets, contestLedger } from "../contests";
 import { roundMoneyIsFinal, paysWhen, SIDE_GAME_PAYS, CARD_SIDE_GAMES } from "../money-layout";
 import type { HoleResult } from "../types";
 
@@ -272,6 +272,85 @@ describe("a contest, shared costs and the settle-up", () => {
     expect(potCents(500, 0)).toBe(0);
     expect(splitExactly(1000, [1, 1, 1])).toEqual([334, 333, 333]);
     expect(splitExactly(6000, [3, 2, 2])).toEqual([2572, 1714, 1714]);
+  });
+});
+
+/**
+ * WHAT THE FIRST MUTATION RUN SAID NOTHING CHECKED (2026-10-23), each worked by
+ * hand: a ledger of two bets (its sum could be made a difference and nothing
+ * noticed), the single winner of an uneven Nassau, a bill whose typed amounts
+ * do not add up, a bill paid by two people, a line nobody shares, and which
+ * skins game a round's own settings name.
+ */
+describe("the money the first mutation run found unchecked", () => {
+  it("two Nassaus in one round are added, not netted against each other", () => {
+    const front = (w: "A" | "B"): HoleResult[] => [...Array(9).fill(w), ...Array(9).fill(null)] as HoleResult[];
+    // Match 1: a beats b on the front ($5). Match 2: a beats c on the front ($5).
+    const ledger = nassauLedger([
+      { matchId: "m1", sideA: ["a"], sideB: ["b"], holes: front("A"), stakeCents: 500 },
+      { matchId: "m2", sideA: ["a"], sideB: ["c"], holes: front("A"), stakeCents: 500 },
+    ]);
+    expect(Object.fromEntries(ledger.map((n) => [n.playerId, n.netCents]))).toEqual({ a: 1000, b: -500, c: -500 });
+  });
+
+  it("two contests, one winner of each, are added up per player", () => {
+    const ledger = contestLedger([
+      { id: "c1", kind: "closest-pin", name: "", buyInCents: 100, entrantIds: ["a", "b"], winnerIds: ["a"] },
+      { id: "c2", kind: "long-drive", name: "", buyInCents: 100, entrantIds: ["a", "b"], winnerIds: ["a"] },
+    ]);
+    expect(Object.fromEntries(ledger.map((n) => [n.playerId, n.netCents]))).toEqual({ a: 200, b: -200 });
+  });
+
+  it("the match bets of a round are added the same way", () => {
+    const won = (w: "A" | "B"): HoleResult[] => Array(18).fill(w) as HoleResult[];
+    const ledger = matchBetLedger([
+      { matchId: "m1", sideA: ["a"], sideB: ["b"], holes: won("A"), stakeCents: 1000 },
+      { matchId: "m2", sideA: ["c"], sideB: ["a"], holes: won("B"), stakeCents: 1000 },
+    ]);
+    expect(Object.fromEntries(ledger.map((n) => [n.playerId, n.netCents]))).toEqual({ a: 2000, b: -1000, c: -1000 });
+  });
+
+  it("one against two: the one who wins takes a stake from each loser's half — $5 in all", () => {
+    const front = [...Array(9).fill("B"), ...Array(9).fill(null)] as HoleResult[];
+    const n = nassauNets({ matchId: "m", sideA: ["a1", "a2"], sideB: ["b1"], holes: front, stakeCents: 500 });
+    expect(Object.fromEntries(n.map((x) => [x.playerId, x.netCents]))).toEqual({ b1: 500, a1: -250, a2: -250 });
+  });
+
+  it("typed amounts that miss the bill by a cent: the cent goes to the largest share, so the line still adds up", () => {
+    const s = shareOf({ id: "x", description: "", amountCents: 40001, paidBy: "a", shares: [{ playerId: "a", weight: 1, amountCents: 18137 }, { playerId: "b", weight: 1, amountCents: 21863 }] });
+    expect(Object.fromEntries(s)).toEqual({ a: 18137, b: 21864 });
+  });
+
+  it("a bill paid by two people credits both; a short payment list is made up by the named payer", () => {
+    const shares = ["a", "b"].map((playerId) => ({ playerId, weight: 1 }));
+    const two = balances([{ id: "x", description: "", amountCents: 10000, paidBy: "a", payments: [{ playerId: "a", amountCents: 6000 }, { playerId: "b", amountCents: 4000 }], shares }]);
+    expect(Object.fromEntries(two.map((n) => [n.playerId, n.netCents]))).toEqual({ a: 1000, b: -1000 });
+    const short = balances([{ id: "x", description: "", amountCents: 10000, paidBy: "a", payments: [{ playerId: "b", amountCents: 4000 }], shares }]);
+    // b laid out $40 and a the other $60 — a is owed $10, b owes $10.
+    expect(Object.fromEntries(short.map((n) => [n.playerId, n.netCents]))).toEqual({ a: 1000, b: -1000 });
+  });
+
+  it("a line nobody shares is nobody's debt, and everyone in the outing appears, square or not", () => {
+    const nets = balances([{ id: "x", description: "", amountCents: 5000, paidBy: "a", shares: [{ playerId: "a", weight: 0 }, { playerId: "b", weight: 0 }] }], ["a", "b", "c"]);
+    expect(Object.fromEntries(nets.map((n) => [n.playerId, n.netCents]))).toEqual({ a: 0, b: 0, c: 0 });
+  });
+
+  it("a round's own settings name its skins game: net or gross, front, back or all", () => {
+    expect(roundPotKey({ scoringBasis: "net", nine: "back" })).toEqual({ net: true, scope: "back" });
+    expect(roundPotKey({ scoringBasis: "gross", nine: "front" })).toEqual({ net: false, scope: "front" });
+    expect(roundPotKey({ scoringBasis: "both", nine: "" })).toEqual({ net: false, scope: "full" });
+    expect(skinsGameLabel(true, "full")).toBe("Skins (Net)");
+    expect(skinsGameLabel(false, "back")).toBe("Back 9 Skins (Gross)");
+    expect(skinsGameLabel(false, "back", 9)).toBe("Skins (Gross)");
+  });
+
+  it("who may change a cost: the committee, or whoever entered it — by name or by address", () => {
+    expect(canChangeExpense("Ann", { isStaff: true })).toBe(true);
+    expect(canChangeExpense("Ann", { name: "Ann" })).toBe(true);
+    expect(canChangeExpense("ann@example.invalid", { email: "ANN@example.invalid" })).toBe(true);
+    expect(canChangeExpense("Ann", { name: "Bea", email: "bea@example.invalid" })).toBe(false);
+    expect(canChangeExpense("", { name: "" })).toBe(false);
+    expect(canChangeExpense("  ", { name: "  " })).toBe(false);
   });
 });
 
