@@ -24,6 +24,7 @@ import { qualifyingCutoffText } from "@/lib/domain/cut";
 import { toParText } from "@/lib/domain/stroke";
 import { pts } from "@/lib/format";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
+import { drawsSeeded, qualifyingPlayed as qualifyingWasPlayed } from "@/lib/domain/draw-seeding";
 
 export const metadata = screenMetadata("/bracket");
 
@@ -117,9 +118,7 @@ export default async function BracketPage() {
    * over. Walked on a two-round-robin championship with nothing played.
    */
   const firstKnockout = state.stages.findIndex((s) => isKnockoutRound(s.type));
-  const qualifyingPlayed = state.stages
-    .slice(0, firstKnockout < 0 ? 0 : firstKnockout)
-    .some((s) => state.roundsWithResults.has(s.id));
+  const qualifyingPlayed = qualifyingWasPlayed(state.stages, state.roundsWithResults);
   /**
    * THE PLAY-OFF FOR THIRD, ON THE SCREEN THAT SHOWS THE DRAW (2026-10-16).
    * It is switched on and made on the knockout's own card on Rounds & formats,
@@ -320,6 +319,7 @@ export default async function BracketPage() {
         straight={straight}
         notYetPlayed={!straight && !qualifyingPlayed}
         seeds={mode === "flights" ? undefined : seeds}
+        seeded={drawsSeeded({ stages: state.stages, roundsWithResults: state.roundsWithResults, mode, draws })}
         awaitingFlights={mode === "flights" && !state.flights}
       />
       {third && (

@@ -47,6 +47,7 @@ function rawHtml(mode: BracketMode) {
       consolation={buildBracket("consolation", [], {})}
       mainLabel={mainLabel}
       secondLabel={secondLabel}
+      seeded={[true, true]}
       readOnly
     />,
   );
@@ -65,6 +66,7 @@ function render(mode: BracketMode) {
         consolation={consolation}
         mainLabel={mainLabel}
         secondLabel={secondLabel}
+        seeded={[true, true]}
         readOnly
       />,
     ),

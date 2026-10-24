@@ -39,7 +39,8 @@ describe("a tie is won against somebody", () => {
     expect(played[0].matchIndex).toBe(1);
     // The other 127 are byes, and they go through on their own.
     expect(draw.rounds[0].matches.filter((m) => m.winnerId)).toHaveLength(127);
-    expect([tie(draw, 1, 0).a.seed, tie(draw, 1, 0).b.name]).toEqual([1, "TBD"]);
+    // Nobody is in the place yet; it is named for the tie that fills it (the panel, 2026-10-23).
+    expect([tie(draw, 1, 0).a.seed, tie(draw, 1, 0).b.playerId, tie(draw, 1, 0).b.name]).toEqual([1, null, "Winner of Player 128 v Player 129"]);
   });
 
   it("a stored result for the top seed against TBD does not send him through", () => {

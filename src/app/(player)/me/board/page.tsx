@@ -33,6 +33,7 @@ import { ResultLines } from "@/components/ResultLines";
 import { TheDraw } from "@/components/TheDraw";
 import { isKnockoutRound } from "@/lib/stage-types";
 import { drawnDraws } from "@/lib/domain/my-tie";
+import { seededDraws } from "@/lib/domain/draw-seeding";
 import { bracketResults } from "@/lib/services/bracket-results";
 import { golfTermsForEvent } from "@/lib/services/organization";
 import { cupBoard } from "@/lib/services/cup";
@@ -361,21 +362,22 @@ export default async function PlayBoardPage({
    * round, where the match-points table ranks everybody on nothing — the fault
    * #633 fixed on the console leaderboard.
    */
-  const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
-  const draws = knockoutAt >= 0 ? drawnDraws(state.brackets) : [];
-  const straightKnockout = knockoutAt === 0 && isKnockoutRound(stage.type);
-  const drawSection =
-    draws.length > 0 ? <TheDraw draws={draws} results={await bracketResults(state.event.id)} /> : null;
-
-  const rows = standingRows(state);
-  // The day's own result, round by round — see services/tournament-result.ts.
-  const lines = await resultLinesFor(state);
-
   // Which row is theirs, by the registration email — the same linkage every
   // score guard uses, rather than matching on a name two people can share.
   const me = state.players.find(
     (p) => p.email.trim().toLowerCase() === session.email.trim().toLowerCase(),
   );
+
+  const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
+  const draws = knockoutAt >= 0 ? seededDraws(state, drawnDraws(state.brackets)) : [];
+  const straightKnockout = knockoutAt === 0 && isKnockoutRound(stage.type);
+  // Opened on the section that holds them, with "You" beside their name.
+  const drawSection =
+    draws.length > 0 ? <TheDraw draws={draws} results={await bracketResults(state.event.id)} me={me?.id ?? ""} /> : null;
+
+  const rows = standingRows(state);
+  // The day's own result, round by round — see services/tournament-result.ts.
+  const lines = await resultLinesFor(state);
 
   return (
     <div>
