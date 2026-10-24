@@ -404,7 +404,7 @@ export default async function PlayBoardPage({
     draws.length > 0 ? (
       <>
         {tieCard && <MyKnockoutTie {...tieCard} />}
-        <TheDraw draws={draws} results={knockoutResults} me={me?.id ?? ""} />
+        <TheDraw draws={draws} results={knockoutResults} me={me?.id ?? ""} printTitle={state.event.name} locale={locale} />
       </>
     ) : null;
 
