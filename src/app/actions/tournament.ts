@@ -126,7 +126,7 @@ import { organizationWasNamed } from "@/lib/org-naming";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope } from "@/lib/domain/cut";
 import { importShapesFor, isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
-import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
+import { upsertMember, memberGender, organizationIdForEvent } from "@/lib/services/roster";
 import { placementOnApproval, parseHandicapInput, parseHandicapType } from "@/lib/domain/registration-intake";
 import {
   marginRefusal,
@@ -607,6 +607,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
           ? input.handicapSource!
           : "manual",
       handicapType: input.handicapType === "9" ? "9" : "18",
+      gender: await memberGender(memberId),
     },
   });
   await syncPlayerAccount(eventId, clean, cleanEmail);
@@ -1033,9 +1034,11 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     const phone = cell(table, cols, "phone");
     // Importing a field also builds the roster: a club that uploads its
     // spring CSV has its member list from then on, without a second import.
+    // The file's Gender column fills the roster row's gap; the row's own word
+    // is what the entry carries (`memberGender`).
     const memberId = await upsertMember(
       event.organizationId,
-      { name, email: emailKey, phone, handicap, handicapType, handicapSource },
+      { name, email: emailKey, phone, handicap, handicapType, handicapSource, gender: cell(table, cols, "gender") },
       "staff",
     );
     await prisma.player.create({
@@ -1050,6 +1053,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         phone,
         handicapType,
         handicapSource,
+        gender: (await memberGender(memberId)) || cell(table, cols, "gender"),
       },
     });
     // A no-op for a blank address, which is what makes an email-less entry a
