@@ -101,7 +101,8 @@ test("a new organizer runs a four-person scramble on net", async ({ page, baseUR
     for (const [i, p] of everyone.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
       await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
-      await page.getByRole("textbox", { name: /^Mobile · required/ }).fill(`555060${i}`);
+      // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
+      await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
       await page.getByRole("button", { name: "Add to field" }).click();
       await expect(page.getByText(p.name).first()).toBeVisible({ timeout: 20_000 });

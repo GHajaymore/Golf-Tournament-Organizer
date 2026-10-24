@@ -3,15 +3,18 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
 /**
- * A PAR CLUB IS TOLD AT THE IMPORT THAT ITS MEMBERS NEED A MOBILE (2026-09-30).
+ * THE ROSTER IMPORT NO LONGER WARNS A PAR CLUB ABOUT MOBILES (2026-10-21).
  *
- * Walked as a new society: twelve members imported from a list with no phone
- * column, "12 added", and then on Registration every one of them read "Needs a
- * mobile number" — Par makes every entrant give one. The fix was one re-upload
- * with a phone column, and nothing on the import had said so.
+ * From 2026-09-30 it did: Par made every entrant give a mobile, so twelve
+ * members imported with no phone column were twelve names blocked on
+ * Registration, and the import said so. The decisions review (A7) made the
+ * mobile the organizer's choice per tournament on every plan, so a club roster
+ * — which has no tournament behind it — has nothing to warn of, and the
+ * sentence it printed ("every entrant in a Par tournament gives one") was
+ * false.
  *
- * Through the real action, on both sides of the plan rule: Par counts the gap,
- * a plan that lets the club choose is told nothing.
+ * Through the real action, on Par and on a paid plan: the members come in,
+ * and the result carries no mobile count on either.
  *
  *   npx vitest run --config vitest.audit.config.ts
  */
@@ -70,28 +73,21 @@ afterAll(async () => {
   }
 });
 
-describe("the roster import says when Par members have no mobile", () => {
-  it("counts them on Par", async () => {
+describe("the roster import says nothing about mobiles, on any plan", () => {
+  it("Par: three members with no phone come in, and no mobile count is returned", async () => {
     await setPlan("free");
     const r = await importCsvMembers(NO_PHONES);
     expect(r.imported).toBe(3);
-    expect(r.missingMobile).toBe(3);
+    expect(r.error).toBeUndefined();
+    expect(Object.keys(r)).not.toContain("missingMobile");
+    const stored = await prisma.member.count({ where: { organizationId: orgId, phone: "" } });
+    expect(stored, "the members are on the roster with no phone").toBe(3);
   });
 
-  it("stops counting once a re-upload fills them in — the fix it points at", async () => {
-    await setPlan("free");
-    const r = await importCsvMembers(
-      "name,email,phone\n" +
-        `${TAG} Ann Example,zz-mobiles-ann@example.invalid,+1 202 555 0121\n` +
-        `${TAG} Ben Example,zz-mobiles-ben@example.invalid,+1 202 555 0122\n`,
-    );
-    expect(r.updated).toBe(2);
-    expect(r.missingMobile, "Cy is still missing one").toBe(1);
-  });
-
-  it("CONTROL: a plan that lets the club choose is told nothing", async () => {
+  it("a paid plan: the same", async () => {
     await setPlan("society");
     const r = await importCsvMembers(NO_PHONES);
-    expect(r.missingMobile).toBeUndefined();
+    expect(r.error).toBeUndefined();
+    expect(Object.keys(r)).not.toContain("missingMobile");
   });
 });

@@ -1229,6 +1229,25 @@ A round on GitHub is a push to `round/<name>-1` (`round.yml`: about thirty parts
 Firefox will not start on this Windows machine at all — it is run there or not at all — and
 its first run is where the dates above and `src/lib/leave-on-enter.ts` came from.
 
+**SINCE 2026-10-23 THE PIPELINE IS THE TESTING PANEL'S** (`docs/testing-panel-2026-10-23.md`; the
+manual is `docs/testing.md`). In one paragraph, so nobody acts on the old rules:
+
+- **Rounds by tier**: tests, words and the front door need none; function in one area ONE; core
+  ONE round that visits all six countries, and then it waits for the NIGHTLY before production;
+  money or handicap arithmetic keeps THREE until property-based tests and the mutation ratchet are
+  on main (`ARITHMETIC_KEEPS_THREE_ROUNDS` in `layers.mjs` is the switch). `npm run qa:changed`
+  prints the exact branches; the Round workflow plans a pushed branch with the same function.
+- **The nightly** (02:00 UTC, `nightly.yml`) runs every per-PR layer with all six countries, the
+  console crawl in full, the Android tablet and the libraries' holes, and deploys what it cleared.
+  **The weekly** (`weekly.yml`) runs Chrome, Edge and the front door's motion. A change's round
+  runs the console crawl only when it touches input screens (`crawlNeeded`).
+- **The machine is not the app**: a part the runner, the setup, the build download or the browser
+  install stopped makes the verdict `INCOMPLETE — re-run`, never NOT CLEAN, and `round-waiter.yml`
+  re-runs it. A crashed browser or a timed-out test is still a finding.
+- **Zero retries stays**; `e2e/quarantine.json` (owner, reason, expiry) is the only way a red test
+  does not count, and every entry is reported in every verdict.
+- **`node scripts/qa/retro.mjs --write`** is the evidence for changing any of this.
+
 **TWO SESSIONS ON ONE MACHINE SHARE ONE FIXTURE, AND A PLAYWRIGHT RUN IN EITHER WIPES THE
 OTHER'S.** Every run seeds the e2e fixture at its start and tears it down at its end, under one
 mark, in the one development database — whichever worktree it is started from. On 2026-10-13 a
@@ -1263,6 +1282,19 @@ rebased onto `main` to merge.
 whole gate is green. Vercel's own Git deploy for `main` is off — `vercel.json` sets
 `git.deploymentEnabled.main = false` — so that job is the only route in. Preview deploys
 on other branches are untouched.
+
+**SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A FREEZE** (the testing
+panel's item C). `ci.yml`'s `deploy` job calls it; so do the nightly round (after a clean
+verdict), an hourly schedule and *Run workflow*. `scripts/qa/deploy-gate.mjs` deploys a commit
+only when `verify` is green on it, every core commit since the last deploy is inside a clean
+nightly round, and no club is in its FREEZE — a tournament on today in the club's own time, or a
+weekend morning 05:00–14:00 in any club's zone. The freeze is asked of the APP
+(`/api/deploy-window`, bearer `DEPLOY_WINDOW_TOKEN`, answering only `{frozen, reason}`), because
+this runner must never hold production's database credentials (below); unreachable means not
+frozen, said in the summary. A HOLD IS GREEN — the gate working — and the hourly run ships it
+later. *Override freeze* is for emergencies and overrides only the freeze. What production holds
+is recorded as a GitHub deployment to `tourneyhq-production`. The job's check is now named
+`Deploy to production / Deploy to production`, so read it with `endswith`, as below.
 
 Until that day Vercel shipped `main` on push, BEFORE `verify` finished, and a bad commit
 was REPORTED rather than stopped. On 2026-09-03 twenty-seven merges each deployed
@@ -1390,8 +1422,13 @@ Nothing shipped unverified either way — `deploy` has `needs: verify` — but a
 undeployed until the next merge, so do not read "merged" as "live" without checking the run:
 
 ```bash
-gh run view <run-id> --json jobs -q '.jobs[] | select(.name=="Deploy to production") | .conclusion'
+gh run view <run-id> --json jobs -q '.jobs[] | select(.name|endswith("Deploy to production")) | .conclusion'
 ```
+
+Since 2026-10-23 a green deploy job may also be a HOLD (a core change waiting for the nightly, or
+the freeze): its summary starts "Deploy gate: hold" and says why. "Merged" is "live" only when the
+gate said deploy, or when a GitHub deployment to `tourneyhq-production` names that commit or a
+later one.
 
 **AND A GREEN PR IS NOT A GREEN COMMIT.** `gh pr checks <n>` answers "is this
 PR green". On 2026-09-20 an auto-merge read it seconds after a second commit

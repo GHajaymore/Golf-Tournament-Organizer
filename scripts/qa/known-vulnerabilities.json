@@ -1,29 +1,4 @@
 {
-  "about": "Published vulnerabilities in what a deployment installs that are NOT fixed yet, each with why it cannot reach a user of this app and a date to look again. scripts/qa/dependencies.mjs fails on an entry past its date, and on an entry for something no longer reported. Read 2026-10-13, after next 15.5.25 -> 15.5.27 and `npm audit fix` took nine high findings to these four.",
-  "accepted": [
-    {
-      "package": "postcss",
-      "advisories": ["GHSA-qx2v-qp2m-jg93", "GHSA-6g55-p6wh-862q", "GHSA-fxqj-rqcc-2cmp", "GHSA-r28c-9q8g-f849"],
-      "reason": "The copy Next 15 installs for itself (8.4.31). It runs while the app is BUILT, over this repository's own stylesheets, and never over anything a visitor sends: the club's theme is a string the app writes itself (themeCss), not parsed CSS. The published fix is Next 16.4, a major upgrade that is planned and is three rounds of testing on its own.",
-      "lookAgain": "2026-11-13"
-    },
-    {
-      "package": "deepmerge-ts",
-      "advisories": ["GHSA-ggr8-5vv4-36mx"],
-      "reason": "Inside the Prisma command-line tool (prisma generate, prisma migrate deploy), where it merges Prisma's own configuration. It is not in the running app and is handed nothing from a request. The fix is deepmerge-ts 8, which no Prisma 6 or 7 release carries yet.",
-      "lookAgain": "2026-11-13"
-    },
-    {
-      "package": "@prisma/config",
-      "advisories": ["GHSA-ggr8-5vv4-36mx"],
-      "reason": "Reported only because it carries deepmerge-ts — see that entry.",
-      "lookAgain": "2026-11-13"
-    },
-    {
-      "package": "prisma",
-      "advisories": ["GHSA-ggr8-5vv4-36mx"],
-      "reason": "Reported only because it carries @prisma/config, which carries deepmerge-ts — see that entry. The command-line tool, not the client the app queries with.",
-      "lookAgain": "2026-11-13"
-    }
-  ]
+  "about": "Published vulnerabilities in what a deployment installs that are NOT fixed yet, each with why it cannot reach a user of this app and a date to look again. scripts/qa/dependencies.mjs fails on an entry past its date, and on an entry for something no longer reported. Emptied 2026-10-23: next 15.5.27 -> 15.5.28 fixed a critical advisory (an RCE in image optimisation with SVG, and a server-action DoS), and postcss and deepmerge-ts are pinned to their fixed releases beneath Next and Prisma's config loader (package.json `overrides`), which cleared the four entries accepted on 2026-10-13 (postcss, deepmerge-ts, @prisma/config, prisma).",
+  "accepted": []
 }

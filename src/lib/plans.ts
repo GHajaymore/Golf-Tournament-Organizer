@@ -955,12 +955,6 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
   if (!plan.features.honours) {
     out.push("The honours board — every champion the club has had, kept year after year.");
   }
-  if (plan.key === "free") {
-    out.push(
-      "Decide for yourself whether each tournament asks entrants for a mobile number — free events always require one, and every extra required field costs you entries.",
-    );
-  }
-
   // The metered ones last and flagged as coming: they are the reason the paid
   // tier exists, but promising them as available today would be a lie until
   // the flags above are on.
@@ -980,43 +974,26 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
  * Round Codes, where `createPlaySession` identifies a player by `Player.id`
  * and never reads an address.
  *
- * Phone is a different question, and the answer depends on the plan.
+ * Phone is a different question, and the ORGANIZER answers it, per
+ * tournament, on every plan: the setting `requirePhone`, off unless they turn
+ * it on. The plan plays no part, and neither does how players sign in — a
+ * tournament that asks for a mobile asks for it whether its players use email
+ * or Round Codes.
  *
- * On the free plan it is required, with no way to turn it off. On a paid plan
- * the organizer decides per tournament, which is the setting `requirePhone`
- * has always been. That asymmetry is deliberate and it is a real difference:
- * asking every entrant for a mobile costs entries — the members it turns away
- * are disproportionately the older ones who genuinely do not have one — so
- * being able to stop asking is worth something, and it is the club that knows
- * whether its membership can bear it.
+ * Until 2026-10-21 the free plan forced a mobile on every entrant (except
+ * where players used Round Codes, Ajay 2026-10-17), and only a paid club could
+ * stop asking. Ajay ruled that out in the decisions review (item A7, "go with
+ * your recommendations"): a forced mobile costs entries, and the members it
+ * turns away are disproportionately the older ones who genuinely do not have
+ * one. Turning a club's own members away is not a thing to sell the remedy
+ * for, so the choice is the club's on every plan.
  *
- * Kept here rather than inline at the four places that create an entrant,
- * because those four disagreeing is precisely how a rule like this rots.
- *
- * AND NOT WHERE PLAYERS USE ROUND CODES (Ajay, 2026-10-17: "I dont understand
- * why we need mobile number of other players"). A code-scored tournament
- * reaches its players by the code read out on the first tee; a mobile it
- * insists on is a number collected for nothing, and it refused thirteen
- * guests of a real two-team cup the day before it was played. So the free
- * plan's mandatory mobile does not apply to a tournament whose players sign
- * in with codes (`playerAccess` code or both). A paid club still decides for
- * itself with `requirePhone`, codes or not. `playerAccess` is REQUIRED so the
- * compiler lists every caller the day this rule moves again; a club-level
- * screen with no tournament passes "email", the strict side.
+ * Kept as ONE function rather than a bare read of `requirePhone` at the
+ * places that create an entrant, because those places disagreeing is
+ * precisely how a rule like this rots, and the next rule about phones needs
+ * one place to live. A club-level screen with no tournament passes `false`:
+ * no tournament has asked.
  */
-export function phoneRequiredFor(
-  planKey: string | null | undefined,
-  eventRequirePhone: boolean,
-  playerAccess: string | null | undefined,
-): boolean {
-  const plan = planFor(planKey);
-  const codes = playerAccess === "code" || playerAccess === "both";
-  // Anything that isn't a known paid plan falls back to free, and free is the
-  // stricter side — an unknown plan key asks for more, never less.
-  if (plan.key === "free") return !codes;
-  return eventRequirePhone;
+export function phoneRequiredFor(eventRequirePhone: boolean): boolean {
+  return eventRequirePhone === true;
 }
-
-/** Why the phone field cannot be switched off, for the setting's own screen. */
-export const PHONE_REQUIRED_FREE =
-  "On the free plan every entrant gives a mobile number. Upgrade to decide this per tournament — useful when a good part of your membership has no mobile at all.";
