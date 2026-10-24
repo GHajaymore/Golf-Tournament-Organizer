@@ -826,7 +826,8 @@ model Subscription {
    */
   plan                   String    @default("free")
   /**
-   * active | trialing | past_due | canceled
+   * active | trialing | past_due | unpaid | canceled. `unpaid` and `canceled`
+   * are a lapsed paid plan (see `lapsedAt`); `past_due` keeps the plan.
    */
   status                 String    @default("active")
   /**
@@ -873,6 +874,21 @@ model Subscription {
    * less.
    */
   planTermsApply         Boolean   @default(false)
+  /**
+   * WHEN THIS CLUB'S PAID PLAN ENDED — Stripe's own end date for a cancelled
+   * subscription, or the moment it was first seen `unpaid` (Ajay, 2026-10-21,
+   * decisions A4 and A8). Null while the club pays, and for a club that never
+   * paid. Every tournament the club held at that moment carries the same instant
+   * in `Event.archivedAt`, and is a read-only archive for twelve months from it
+   * (`domain/club-archive.ts`). Set once per lapse and cleared by resubscribing.
+   */
+  lapsedAt               DateTime?
+  /**
+   * When the owners were told the archive is deleted in 30 days, and in 7. Null
+   * until sent; cleared with `lapsedAt`, so a later lapse is told again.
+   */
+  archiveNotice30At      DateTime?
+  archiveNotice7At       DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -1472,6 +1488,16 @@ model Event {
    * extend — it can never shorten a window somebody was promised.
    */
   retainUntil    DateTime?
+  /**
+   * THIS TOURNAMENT IS IN A LAPSED CLUB'S ARCHIVE — the instant the club's paid
+   * plan ended (`Subscription.lapsedAt`), stamped on every tournament the club
+   * held then, in the same transaction that moves the club to Par. Read-only
+   * while set, and deleted twelve months on (`domain/club-archive.ts`).
+   * Cleared, for every tournament of the club, when it resubscribes. A
+   * tournament made after the lapse is an ordinary Par tournament and is never
+   * stamped. The Par sweep never touches a row with this set.
+   */
+  archivedAt     DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

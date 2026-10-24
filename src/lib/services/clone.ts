@@ -178,6 +178,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "a copy has no flights yet — inheriting the sign-off would mark an empty draw as finished, and lock it",
   retainUntil:
     "a hold is granted to one tournament for a reason; a copy inherits neither the reason nor the reprieve",
+  archivedAt:
+    "a copy is a NEW tournament: made after a lapse it is an ordinary Par one, never part of the archive it was copied from (domain/club-archive.ts)",
   closesAt:
     "a Par tournament's own closing day, stamped when ITS golf began; a copy has played nothing, and inheriting the date would have the sweep delete a tournament that never started",
   seriesId:

@@ -49,6 +49,9 @@ const SENDERS: Array<[string, () => Promise<unknown>]> = [
   ["field: waitlisted", () => email.sendFieldStatusEmail(TO, { change: "waitlisted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
   // The device's words come from a header the browser chose (2026-10-21).
   ["new sign-in", () => email.sendNewSignInEmail(TO, HOSTILE, HOSTILE)],
+  // A lapsed club's archive, 30 and 7 days before it goes (2026-10-21). The club's name was typed.
+  ["archive: 30 days", () => email.sendArchiveNoticeEmail({ to: [TO], organizationId: "zz", organizationName: HOSTILE, days: 30, until: "3 Nov 2027", tournaments: 4 })],
+  ["archive: 7 days", () => email.sendArchiveNoticeEmail({ to: [TO], organizationId: "zz", organizationName: HOSTILE, days: 7, until: "3 Nov 2027", tournaments: 1 })],
 ];
 
 describe("an email never carries markup somebody typed", () => {
@@ -102,7 +105,7 @@ describe("an email never carries markup somebody typed", () => {
     // address-proving code (2026-10-21) is the same: six digits the app made.
     const EXEMPT = new Set(["sendPasswordResetEmail", "sendEmailCodeEmail"]);
     const exported = Object.keys(email).filter((k) => /^send[A-Z]/.test(k) && !EXEMPT.has(k));
-    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail", "sendNewSignInEmail"]);
+    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail", "sendNewSignInEmail", "sendArchiveNoticeEmail"]);
     expect(exported.length, "found no senders — the sweep would pass on nothing").toBeGreaterThan(0);
     expect(exported.filter((k) => !covered.has(k))).toEqual([]);
   });

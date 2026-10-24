@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { drawMeeting, leagueWeekMeetings } from "@/lib/domain/league-draw";
@@ -27,6 +28,7 @@ async function requireStaff(): Promise<string> {
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Organizer access required");
   }
+  await assertEventWritable(session.eventId);
   return session.eventId;
 }
 
@@ -262,6 +264,8 @@ export async function setLeagueSettings(input: {
   if (!session) throw new Error("Not authenticated");
   if (session.role !== "admin") throw new Error("Organizer access required");
   const eventId = session.eventId;
+  const archived = await archiveRefusalFor(eventId);
+  if (archived) return { ok: false, error: archived };
 
   const points =
     input.points === "" ? "" : isLeaguePointsSystem(input.points) ? input.points : null;
