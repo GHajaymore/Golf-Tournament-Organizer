@@ -101,9 +101,9 @@ capability, a claim that has changed, a better screen to show. Do not decide sil
 needs nothing.
 
 **The landing page** (`src/app/page.tsx`, `src/lib/landing/home-styles.ts`) is its own stylesheet and its
-chrome also dresses `/faq`, `/privacy`, `/terms`. Pictures are unedited captures with an invented demo club. Two sections are green on a phone as Ajay's TEST — never
-extend, restyle or remove them on anybody's word but his; after go-live nothing changes without his
-preview. **Read `docs/claude/landing-page.md` before touching it.**
+chrome also dresses `/faq`, `/privacy`, `/terms`. Pictures are unedited captures with an invented demo
+club. Two sections are green on a phone as Ajay's TEST — never extend, restyle or remove them on
+anybody's word but his; after go-live nothing changes without his preview. **Read `docs/claude/landing-page.md` before touching it.**
 
 Three ways help goes stale are tested, so they cannot happen quietly: a new player screen with
 no help topic, a button the help names that a screen no longer draws (`player-help.test.ts`,
