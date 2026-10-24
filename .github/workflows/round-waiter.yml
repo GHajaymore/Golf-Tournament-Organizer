@@ -1,0 +1,62 @@
+name: Round waiter
+
+# A ROUND THE MACHINE DID NOT FINISH IS RUN AGAIN, NOT READ AS RED (the panel,
+# 2026-10-23 — docs/testing-panel-2026-10-23.md).
+#
+# When a round, a nightly or a weekly finishes in failure, this reads its
+# verdict. If the verdict is "INCOMPLETE — re-run" — no finding about the app,
+# but parts the machine never ran (scripts/qa/infra.mjs: the browser not
+# installed, the build not downloaded, the runner lost, a registry not reached)
+# — it re-runs that run's failed jobs, which are exactly those parts and the
+# verdict after them. Up to the third attempt; after that a person looks.
+#
+# It re-runs NOTHING else. NOT CLEAN is a finding and stays one: zero retries
+# is still the rule for a test (playwright.config.ts), and a red test is never
+# re-run until it passes. A run with no verdict at all (the build failed) is
+# left for a person too, because a build that fails has been the app before.
+#
+# A workflow_run trigger only works from the default branch, so this waits on
+# rounds once it is on main — for every branch's rounds, from then on.
+
+on:
+  workflow_run:
+    workflows: ["Round", "Nightly round", "Weekly round"]
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  rerun:
+    name: Re-run a round the machine did not finish
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt < 3
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read the verdict, and re-run what did not run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          NAME: ${{ github.event.workflow_run.name }}
+        run: |
+          if ! gh run download "$RUN_ID" -R "$REPO" -n verdict -D verdict; then
+            echo "$NAME run $RUN_ID (attempt $ATTEMPT) left no verdict — the build or the plan failed. Not re-run: a person reads it."
+            exit 0
+          fi
+          FILE=$(find verdict -name verdict.json | head -1)
+          VERDICT=$(node -p "require('./$FILE').verdict")
+          echo "$NAME run $RUN_ID, attempt $ATTEMPT: $VERDICT"
+          case "$VERDICT" in
+            INCOMPLETE*)
+              node -p "require('./$FILE').infrastructure.join('\n')"
+              gh run rerun "$RUN_ID" -R "$REPO" --failed
+              echo "Re-ran the failed jobs of run $RUN_ID (it will be attempt $((ATTEMPT + 1)))."
+              echo "### $NAME run $RUN_ID was INCOMPLETE — re-ran its failed jobs (attempt $((ATTEMPT + 1)))" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "Not re-run: \"$VERDICT\" is a verdict about the app, read by a person."
+              ;;
+          esac

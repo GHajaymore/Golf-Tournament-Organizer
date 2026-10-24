@@ -5,7 +5,6 @@ import { brandForEvent, type EventBrand } from "./organization";
 import { registrationStatus } from "../registration";
 import { clubDay } from "../domain/club-clock";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
-import { planForOrganization } from "./entitlements";
 import { fieldLimitFor } from "./waitlist";
 import { phoneRequiredFor } from "../plans";
 import { isPlayingRound } from "../stage-types";
@@ -185,11 +184,9 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     waitlistOnly: status.waitlisting,
     spotsLeft: unlimited ? null : Math.max(0, capacity - confirmedCount),
     approvalMode: approvalModeOf(event.registrationApproval),
-    // Resolved through the plan, so the public form asks for exactly what the
-    // action will insist on. Reading event.requirePhone straight through would
-    // show a free club's entrants an optional mobile field and then refuse
-    // their entry for leaving it blank.
-    requirePhone: phoneRequiredFor(await planForOrganization(event.organizationId), event.requirePhone, event.playerAccess),
+    // Through the one rule the action asks, so the public form asks for
+    // exactly what the action will insist on.
+    requirePhone: phoneRequiredFor(event.requirePhone),
     brand,
     organizer: golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer,
   };

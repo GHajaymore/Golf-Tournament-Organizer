@@ -34,12 +34,19 @@ if (args[0] === "--record") {
     process.exit(2);
   }
   const v = JSON.parse(readFileSync(path, "utf8"));
+  // A round the machine did not finish is evidence about nothing (merge.mjs, infra.mjs): re-run it, then record that.
+  if (String(v.verdict).startsWith("INCOMPLETE")) {
+    console.error(`${tag} is ${v.verdict}: parts did not run for the machine's reasons, not the app's. Re-run its failed jobs and record the round that finishes.`);
+    process.exit(2);
+  }
   const entry = {
     tag: v.tag,
     at: v.at,
     commit: v.commit,
     app: v.app,
     verdict: v.verdict,
+    // Which kind of round (layers.mjs, SCHEDULES): a change's round and the nightly cover different layers.
+    plan: v.plan ?? { schedule: "all", countries: "trio", crawl: true },
     minutes: v.minutes,
     layers: v.layers.map((l) => (l.ran ? `${l.key}: ${l.passed} passed, ${l.failed} failed` : `${l.key}: NOT RUN — ${l.why}`)),
     reach: v.reach ? `${v.reach.actions.reached} of ${v.reach.actions.total} actions through a screen; ${v.reach.screens.reached} of ${v.reach.screens.total} screens` : "not measured",

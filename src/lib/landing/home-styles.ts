@@ -259,9 +259,29 @@ export const HOME_CSS = `
   .m-home .m-story .m-beat h3 { font-size: clamp(1.8rem, 3vw, 2.6rem); max-width: 16ch; }
   .m-home .m-story .m-beat p { color: var(--m-on-ground-soft); font-size: 1.15rem; max-width: 40ch; }
 }
-.m-home .m-kinetic { overflow: hidden; padding-block: clamp(18px, 3vw, 40px); }
-.m-home .m-kinetic .m-run { display: flex; gap: 0.5em; white-space: nowrap; font-family: var(--m-display); font-weight: 560; font-size: clamp(3.2rem, 12vw, 10rem); line-height: 1.1; letter-spacing: -0.02em; font-variation-settings: "opsz" 144; color: transparent; -webkit-text-stroke: 1px var(--m-bar); translate: calc(var(--m-kx, 0) * 1px) 0; will-change: translate; }
-.m-home .m-kinetic .m-run b { font-weight: inherit; color: var(--m-hl); -webkit-text-stroke: 0; }
+/* THE WHOLE COMPETITION, IN ORDER: one still row of the week's steps, at every width. It was a
+   very large running tagline over a second running line on a wide screen, cut off at both edges
+   and repeating the headline (Ajay, 2026-10-21: "fix this … the banner"); the phone's row was
+   always the readable one, so every width has it now. */
+.m-home .m-kinetic { padding: clamp(18px, 3vw, 40px) 16px clamp(26px, 4vw, 48px); }
+.m-home .m-path { display: grid; gap: 14px; justify-items: center; text-align: center; }
+.m-home .m-path .m-eyebrow { margin: 0; }
+.m-home .m-path ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 6px; max-width: 46rem; }
+.m-home .m-path li { display: inline-flex; align-items: center; gap: 6px; font: 500 0.92rem/1 var(--m-mono); letter-spacing: 0.02em; color: var(--m-on-ground-soft); }
+.m-home .m-path li span { border: 1px solid var(--m-line); border-radius: 999px; padding: 8px 12px; background: var(--m-ground-rise); }
+.m-home .m-path li.m-end span { border-color: var(--m-hl); color: var(--m-hl); font-weight: 600; }
+/* the arrow FOLLOWS its step: a line that wraps then ends on an arrow, which reads as "and then",
+   where an arrow leading each step left three of the four lines starting with one */
+.m-home .m-path li:not(:last-child)::after { content: "→"; color: var(--m-hl); font-family: var(--m-mono); }
+@media (min-width: 900px) {
+  /* one line on a desktop: seven steps fit, and a sequence reads better unbroken */
+  .m-home .m-path ol { max-width: none; flex-wrap: nowrap; }
+  .m-home .m-path li { font-size: 1rem; }
+  .m-home .m-path li span { padding: 10px 16px; }
+}
+@media (min-width: 900px) and (max-width: 1199px) {
+  .m-home .m-path ol { flex-wrap: wrap; max-width: 46rem; }
+}
 .m-home .m-moment { padding-block: clamp(56px, 8vw, 110px); border-block: 1px solid var(--m-line); background: radial-gradient(700px 320px at 12% 50%, color-mix(in srgb, var(--brass-ui) 16%, transparent), transparent 70%), var(--m-ground-deep); }
 .m-home .m-moment .m-big { font-family: var(--m-display); font-weight: 520; font-size: clamp(2.1rem, 5.6vw, 4.8rem); line-height: 1.03; letter-spacing: -0.02em; font-variation-settings: "opsz" 144; max-width: 17ch; text-wrap: balance; }
 .m-home .m-moment .m-big { max-width: none; font-size: clamp(1.9rem, 5.2vw, 4.4rem); }
@@ -497,8 +517,6 @@ export const HOME_CSS = `
   .m-home .m-plan.m-pick::before { animation: m-spin 6s linear infinite; }
 }
 @keyframes m-spin { to { --m-spin: 360deg; } }
-.m-home .m-kinetic .m-run.m-back { font-size: clamp(1.5rem, 4.6vw, 3.6rem); -webkit-text-stroke: 0; color: var(--m-on-ground-soft); opacity: 0.5; translate: calc(var(--m-kx2, 0) * 1px) 0; margin-top: 0.2em; font-family: var(--m-mono); font-weight: 500; letter-spacing: 0.02em; }
-.m-home .m-kinetic .m-run.m-back i { font-style: normal; color: var(--m-hl); }
 .m-home .m-tryline .m-say { min-height: 1.5em; }
 .m-home .m-tryline .m-say:empty { display: block; }
 .m-home .m-tryline input.m-typing::placeholder { letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; opacity: 0.95; color: var(--m-on-ground); }
@@ -537,12 +555,6 @@ export const HOME_CSS = `
 @keyframes m-wave { 0%, 100% { transform: skewY(0deg); } 50% { transform: skewY(-5deg) scaleX(0.94); } }
 @media (max-width: 760px) {
   .m-home .m-close .m-pin { left: 82%; width: 120px; height: 140px; opacity: 0.5; }
-}
-.m-home .m-putter { display: none; }
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .m-home .m-putter { display: block; position: fixed; z-index: 70; left: 0; top: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle at 35% 30%, white, color-mix(in srgb, var(--ink) 88%, black) 60%, color-mix(in srgb, var(--ink) 66%, black)); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 18px color-mix(in srgb, var(--ink) 45%, transparent); opacity: 0; transition: opacity 0.3s ease, width 0.2s ease, height 0.2s ease, margin 0.2s ease, background 0.2s ease, box-shadow 0.2s ease; }
-  .m-home .m-putter.m-on { opacity: 0.9; }
-  .m-home .m-putter.m-big { width: 44px; height: 44px; margin: -22px 0 0 -22px; background: transparent; box-shadow: 0 0 0 2px var(--m-hl); }
 }
 .m-home .m-head .m-runs { margin-top: 8px; }
 .m-home .m-wide .m-screen { position: relative; }
@@ -617,23 +629,10 @@ export const HOME_CSS = `
 @media (max-width: 899px) {
   .m-home #steps .m-step .m-phone { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 -18px 70px -18px color-mix(in srgb, var(--brass-ui) 32%, transparent); }
 }
-@media (min-width: 900px) {
-  .m-home .m-kinetic { -webkit-mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent); mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent); }
-}
 .m-home .m-close .m-rings { width: 660px; height: 660px; top: calc(50% + 80px); }
-.m-home .m-path { display: none; }
 @media (max-width: 899px) {
-  .m-home .m-kinetic .m-run { display: none; }
   .m-home .m-kinetic { padding: 6px 16px 30px; }
-  .m-home .m-path { display: grid; gap: 14px; justify-items: center; text-align: center; }
-  .m-home .m-path .m-eyebrow { margin: 0; }
-  .m-home .m-path ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 6px; max-width: 30rem; }
-  .m-home .m-path li { display: inline-flex; align-items: center; gap: 6px; font: 500 0.92rem/1 var(--m-mono); letter-spacing: 0.02em; color: var(--m-on-ground-soft); }
-  .m-home .m-path li span { border: 1px solid var(--m-line); border-radius: 999px; padding: 8px 12px; background: var(--m-ground-rise); }
-  .m-home .m-path li.m-end span { border-color: var(--m-hl); color: var(--m-hl); font-weight: 600; }
-  /* the arrow FOLLOWS its step: a line that wraps then ends on an arrow, which reads as "and then",
-     where an arrow leading each step left three of the four lines starting with one */
-  .m-home .m-path li:not(:last-child)::after { content: "→"; color: var(--m-hl); font-family: var(--m-mono); }
+  .m-home .m-path ol { max-width: 30rem; }
 }
 @media (max-width: 760px) {
   .m-home .m-close .m-rings { display: none; }

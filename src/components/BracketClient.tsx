@@ -6,6 +6,7 @@ import { tieNotReady } from "@/lib/domain/bracket";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { Icon } from "./Icon";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { MAX_MARGIN } from "@/lib/domain/score-payload";
 
 /** The draw itself, without the console's heading — the player board shows it read-only. */
 export function BracketBoard({
@@ -119,6 +120,8 @@ export function BracketBoard({
                         <input
                           className="input"
                           defaultValue={results[m.key] ?? ""}
+                          // The server's own limit (`cleanMargin`), so nothing typed is cut where nobody sees.
+                          maxLength={MAX_MARGIN}
                           placeholder="Result e.g. 3&2"
                           // A placeholder is not a name, and there is one of these
                           // per finished match — each says whose match it records.
