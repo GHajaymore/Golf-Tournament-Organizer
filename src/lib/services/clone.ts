@@ -360,6 +360,9 @@ export const CLONED_STAGE_FIELDS = [
   "cutMode",
   "cutCount",
   "cutPercent",
+  // How a tie for the last place is settled is part of the cut's terms, which
+  // the club publishes and keeps from year to year.
+  "cutTies",
   "courseId",
   // Carried for the same reason as `courseId` beside it: a round cloned from
   // last year is played at the same course off the same set until somebody
@@ -391,6 +394,8 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
     "when the organizer declared last year's round finished. A copy has not been played, let alone closed — and carrying it would start the new tournament with a round the board treats as settled, unranking every player in it for a card nobody has had the chance to return",
   cutMadeAt:
     "when last year's cut was made into this round. A copy's cut has not been made — carrying it would read the copy's first cut as a re-made one, and keep the card of a player it leaves out",
+  cutTieDecisions:
+    "who won last year's play-off or draw for the last place — about last year's players, never this year's",
   deadline: "same — a copied deadline is always in the past",
   deadlineOverride: "belongs to the deadline that was not copied",
   carryForwardAsked:

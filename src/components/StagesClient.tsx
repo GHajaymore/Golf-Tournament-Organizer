@@ -30,7 +30,7 @@ import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-date
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
-import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
+import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP, cutTieRuleOf } from "@/lib/domain/cut";
 import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
 import {
   chainIssues,
@@ -118,6 +118,8 @@ export interface StageView {
   /** overall | perFlight — whether the cut applies across the field or inside
    *  each flight. */
   cutScope: string;
+  /** ties | playoff | countback — how a tie for the last place is settled. */
+  cutTies: string;
   /** true = closed by hand, false = extended past the date, null = follow it. */
   deadlineOverride: boolean | null;
   /** Last day players may change their weekly in/out. "" = open. */
@@ -1039,8 +1041,13 @@ function StageCard({
   if (nextStage?.cutEnabled) {
     // In the words the rules sheet prints (`cutRuleWords`): "top 8 in each flight
     // and ties" — a cut to "top 8" was the summary of a per-flight cut too.
-    const ties = isIndividualStrokeRound(stage) && isIndividualStrokeRound(nextStage);
-    transitionParts.push(`cuts to ${cutRuleWords(cutRuleOf(nextStage), ties).toLowerCase()}`);
+    const strokeCut = isIndividualStrokeRound(stage) && isIndividualStrokeRound(nextStage);
+    const tieRule = cutTieRuleOf(nextStage.cutTies);
+    transitionParts.push(
+      `cuts to ${cutRuleWords(cutRuleOf(nextStage), strokeCut && tieRule === "ties").toLowerCase()}${
+        strokeCut && tieRule === "playoff" ? ", a tie by play-off" : strokeCut && tieRule === "countback" ? ", a tie by countback" : ""
+      }`,
+    );
   }
   /**
    * WHAT IS CHANGED FROM A CLUB'S USUAL ROUND, and nothing else (2026-10-16).
@@ -1946,8 +1953,8 @@ function StageCard({
             <p className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>
               Who plays {roundLabelOf(allStages, nextStage.id)}, ranked on
               {roundNumberOf(allStages, stage.id) > 1 ? ` the total after ${thisRound}` : ` ${thisRound || "this round"}`}.
-              Anyone level with the last place goes through too. The cut is made when you mark this
-              round finished.
+              A tie for the last place is settled the way you choose below. The cut is made when you
+              mark this round finished.
             </p>
             <CutControl
               key={nextStage.id}
@@ -1963,6 +1970,7 @@ function StageCard({
               flightCount={flightCount}
               locked={locked}
               tiesGoThrough
+              tieRule={nextStage.cutTies}
             />
           </div>
         )}

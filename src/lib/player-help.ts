@@ -147,6 +147,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "It has the highlights, how it was won and what's next.",
       "Signed in, it shows what you won and what you owe.",
       "It reads Final once the committee closes the round.",
+      "Level for the last place at a cut? It says Tied.",
+      "You are not out until the committee records the tie.",
     ],
   },
   {

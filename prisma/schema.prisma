@@ -1877,6 +1877,22 @@ model Stage {
    * while the round before was still open, also satisfies. See `cutHasBeenMade`.
    */
   cutMadeAt  DateTime?
+  /**
+   * HOW A TIE FOR THE LAST PLACE AT THIS STROKE CUT IS SETTLED (2026-10-23):
+   * "ties" (everybody level on the score goes through — the default), "playoff"
+   * (the committee records who won it) or "countback" (last 9, 6, 3, 1 on the
+   * round's basis, then a draw by lot the committee records). `cutTieRuleOf`
+   * reads it; an unknown value reads as the default.
+   */
+  cutTies    String  @default("ties")
+  /**
+   * The committee's decisions of a tie the rule above could not settle by
+   * itself, as JSON: [{ tied: [playerId…], through: [playerId…] }]. Each is
+   * keyed by WHO was tied, so a correction that changes the tie leaves it
+   * unsettled again rather than applying a play-off to a different field.
+   * See `strokeCutOutcome`.
+   */
+  cutTieDecisions String @default("[]")
 
   /**
    * The venue for this round, when the tournament rotates them — a

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { resolveMatch, matchIsOver, matchStandingText, marginRefusal, marginToHoles, storedMatchIsOver, deriveNetHoles } from "../match";
 import { countbackCompare, countbackSegments } from "../stroke-countback";
-import { survivorCount, survivorsWithTies, type CutRule } from "../cut";
+import { survivorCount, strokeCutOutcome, type CutRule } from "../cut";
 import { buildBracket, bracketSizeFor, seedOrder, type BracketView } from "../bracket";
 import type { Player } from "../types";
 import { playMatch, chooser, strokesByHandingOut, type Hole } from "./properties-reference";
@@ -207,9 +207,11 @@ describe("a cut (top N, or a percentage, and ties)", () => {
         (scores, unplaced, n) => {
           // The board's own places: standard competition ranking (1, 2, 2, 4).
           const sorted = [...scores].sort((x, y) => x - y);
-          const rows = sorted.map((s, i) => ({ id: `p${i}`, rank: sorted.indexOf(s) + 1, s }));
-          const all = [...rows, ...Array.from({ length: unplaced }, (_, k) => ({ id: `u${k}`, rank: 0, s: 999 }))];
-          const through = survivorsWithTies(all, rule(n, 0, false));
+          const rows = sorted.map((s, i) => ({ id: `p${i}`, rank: sorted.indexOf(s) + 1, s, score: s }));
+          const all = [...rows, ...Array.from({ length: unplaced }, (_, k) => ({ id: `u${k}`, rank: 0, s: 999, score: 999 }))];
+          // The one answer to who goes through a stroke cut (the cut-tie work, 2026-10-23), asked
+          // with the committee's "and ties" and no decisions: nobody is owed a play-off or a draw.
+          const through = strokeCutOutcome(all, rule(n, 0, false), "ties", []).through;
           const take = Math.max(1, Math.min(n, rows.length));
           const lineScore = sorted[take - 1];
           for (const r of rows) expect(through.has(r.id), `${r.id} on ${r.s}, line ${lineScore}`).toBe(r.s <= lineScore);
