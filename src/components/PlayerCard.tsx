@@ -1183,6 +1183,13 @@ function Stat({
       <div
         title={hint}
         style={{
+          // Every figure in the strip as tall as a tappable one (44px on a
+          // phone, `--tap-min`), so a Net that opens its working does not sit
+          // its label higher than Thru's and Gross's (2026-10-24).
+          minHeight: "var(--tap-min, 0px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           fontFamily: "var(--font-heading)",
           fontSize: 24,
           lineHeight: 1.1,

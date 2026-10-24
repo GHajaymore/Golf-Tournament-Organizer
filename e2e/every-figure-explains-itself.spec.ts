@@ -150,6 +150,13 @@ test("a member taps the figures on their own card, and a visitor taps the board'
       await card.locator("label.seg-opt", { hasText: "Full card" }).click();
       const two = strokesByRule.findIndex((s, i) => s === 2 && i < MEMBER_STROKES.length);
       expect(two, "the fixture has a hole with two strokes on the front nine").toBeGreaterThanOrEqual(0);
+      // Every box's dots, all eighteen, are the Rule's — not only the ones the
+      // steps below happen to press. (A mutation pricing the card a stroke high
+      // moved one dot, on the 15th, and stayed green until this was added.)
+      for (let h = 0; h < HOLES; h += 1) {
+        const cell = card.getByRole("textbox", { name: `Hole ${h + 1}, par ${PAR}`, exact: true }).locator("xpath=..");
+        await expect(cell.locator("[data-shots]"), `hole ${h + 1}`).toHaveText("•".repeat(strokesByRule[h]));
+      }
       const box = card.getByRole("textbox", { name: `Hole ${two + 1}, par ${PAR}`, exact: true });
       // The two dots in that box, as drawn.
       await expect(box.locator("xpath=..").locator("[data-shots]")).toHaveText("••");
@@ -171,8 +178,13 @@ test("a member taps the figures on their own card, and a visitor taps the board'
       expect(lastNine(a)).toBeLessThan(lastNine(b));
       expect(says).toContain(`Level with Brodie Halkett on E; ahead on the countback over the last 9 holes: ${lastNine(a)} to ${lastNine(b)}.`);
       expect(says).toContain("(Committee Procedures, Section 5A)");
-      // And the place on the screen follows it: Brodie is behind, one place down.
-      await expect(board.locator('summary[aria-label^="Brodie Halkett, place "]')).toHaveText("3");
+      // And the place on the screen follows it: Brodie is behind, one place
+      // down, and his own place says the same countback from his side.
+      const brodie = board.locator('summary[aria-label^="Brodie Halkett, place "]');
+      await expect(brodie).toHaveText("3");
+      expect(await openedBy(board, brodie)).toContain(
+        `Level with Ailsa Fernie on E; behind on the countback over the last 9 holes: ${lastNine(b)} to ${lastNine(a)}.`,
+      );
     });
 
     await test.step("a place nothing separates is shared, and says so", async () => {
