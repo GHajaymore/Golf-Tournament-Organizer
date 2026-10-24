@@ -210,8 +210,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "In Tournament details → Players & scoring, set **How players sign in** to an access-code option.",
           "Each round gets one code under **Round Codes**, with [[Copy]] and [[Reissue]].",
-          "Under the codes, [[Show the signs]] draws one sign per round — the round, a QR code and the code in large letters — and **Print** puts each on a page of its own. Put one in every cart and one on the first tee. A player scans it and lands on the round's names; or opens tourneyhq.club/play and types the code. Either way they then tap their own name.",
-          "Before the day, scan a sign with your own phone: it should open that round's names. Stop there — tapping a name starts scoring as that player. A sign carries no names, so it stays right when groups change; reissuing the code stops its signs working, so print them again after a [[Reissue]].",
+          "Under the codes, [[Print the signs]] opens the **Print kit** (Part 5) with the round's signs ticked: a **cart sign** for every group — who is in it, the strokes each receives, what the scorer does, the code in large letters and a QR — and a **spare sign** with no names, for walk-ins and the starter's hut. A player scans either and lands on the round's names; or opens tourneyhq.club/play and types the code. Either way they then tap their own name.",
+          "Before the day, scan a sign with your own phone: it should open that round's names. Stop there — tapping a name starts scoring as that player. Reissuing a code stops its signs working, and the Print kit then lists those signs as out of date so you can print just them again after a [[Reissue]].",
           "In a four-ball or foursomes match, any player on either side can keep the match on their phone: the code lists each foursome as its two pairs under their teams, and once they tap their name they tap, by name, the pair who won each hole — so a scorer who picks the wrong name still records every hole for the right pair. A player signed in to the app keeps their match on the same card: **Score this match** on Today. Ask one player per group to keep it, so two phones are not keeping one match. On Score entry you can open any of the round's matches and keep or correct it on the same card.",
           "Where a round is kept on **Stroke cards** instead, the code opens each player's own card: everyone enters their own strokes — a side playing one ball, its one card — and the app works out who won each hole from the cards.",
         ],
@@ -298,7 +298,21 @@ export const GUIDE_STEPS: GuideSection[] = [
           "[[Save sheet]] keeps a draft. [[Save & publish]], then confirm [[Publish the tee sheet]].",
         ],
       },
-      { kind: "tip", text: "On publish each player gets “Your tee time is set” (or “has changed”) on their phone and sees their group on Today. [[Unpublish]] hides it again without losing the draw. Print scorecards, one per group, from the tee sheet." },
+      { kind: "tip", text: "On publish each player gets “Your tee time is set” (or “has changed”) on their phone and sees their group on Today. [[Unpublish]] hides it again without losing the draw. To print the cards and signs for the round, press [[Print…]] under the sheet." },
+      { kind: "h", text: "Print kit" },
+      { kind: "where", text: "The round in play → Print kit (or [[Print…]] on the Tee sheet and the Team cup)" },
+      {
+        kind: "steps",
+        items: [
+          "Choose the round, and **Paper**: A4 or US Letter (it starts on your club's country). Below the list are the pages themselves, each the size of the sheet it prints on.",
+          "Tick what you want. **Scorecards** — one per player, named, with their course and playing handicap, par, stroke index and yards, a dot on every hole they receive a stroke (two dots for two), and lines for the marker and the player to sign; a Stableford card has a points row for the Committee. A pairs round prints one card per side: each partner's score on their own line in a four-ball, one score for the side in a foursomes, greensomes or scramble. Off a shotgun or a two-tee start the starting hole is printed large.",
+          "A match needs no scorecard: **Match result slips** — one per match, the strokes each receives, and a line each side signs. A **team cup** prints **Cup match cards**: one per match, and where a day plays singles on one nine and four-balls on the other, both on the one card. Print it from the four-ball session.",
+          "**Cart signs** (one per group, from the published sheet), the **Spare sign**, and the **Starting sheet** — times, starting holes, names, playing handicaps and tees, one copy for the noticeboard and one for the starter. **Group cards** is the Tee sheet's card with every name in the group on it.",
+          "Press [[Print the ticked sheets]]. Each comes out on a page of its own, and each says at its foot when it was printed and which version it is. In the print dialog choose actual size (100%) and turn the browser's headers and footers off.",
+          "If the groups, a tee time, the tees, a handicap or the round code change after you printed, the Print kit and the Tee sheet say how many printed sheets are out of date and name them. [[Reprint these]] prints just those, as the next version.",
+        ],
+      },
+      { kind: "tip", text: "Paper never carries an email, a phone number or an amount of money. If one has been typed into a name, the Print kit says so before you print." },
     ],
   },
   {

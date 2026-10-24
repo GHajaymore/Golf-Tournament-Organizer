@@ -49,19 +49,27 @@ export function PrintKitClient({
   const router = useRouter();
   const [paper, setPaper] = useState<PaperSize>(paperDefault);
   const [ticked, setTicked] = useState<Set<DocKind>>(new Set(preticked));
-  const [onlyStale, setOnlyStale] = useState(staleOnly);
+  /**
+   * REPRINTING: just these sheets, by key. Held as the keys rather than as "whatever is
+   * stale", because the press makes them current — and a page that showed "the stale ones"
+   * would go blank the moment the reprint it was showing had been recorded.
+   */
+  const staleAtFirst = docs.flatMap((d) => (d.unavailable ? [] : d.sheets.filter((s) => s.state === "stale").map((s) => s.key)));
+  const [only, setOnly] = useState<string[] | null>(staleOnly && staleAtFirst.length > 0 ? staleAtFirst : null);
+  const onlyStale = only !== null;
   const [stamps, setStamps] = useState<Record<string, { words: string; version: number }>>({});
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
   const offered = docs.filter((d) => !d.unavailable && d.sheets.length > 0);
   const stale = offered.flatMap((d) => d.sheets.filter((s) => s.state === "stale"));
-  const chosen = onlyStale ? stale : offered.filter((d) => ticked.has(d.kind)).flatMap((d) => d.sheets);
+  const everySheet = offered.flatMap((d) => d.sheets);
+  const chosen = only ? everySheet.filter((s) => only.includes(s.key)) : offered.filter((d) => ticked.has(d.kind)).flatMap((d) => d.sheets);
 
   const { w, h } = PAPER_MM[paper];
   const css = useMemo(() => {
-    const hidden = onlyStale
-      ? `#pk-pages .pk-page:not([data-stale]) { display: none; }`
+    const hidden = only
+      ? `#pk-pages .pk-page { display: none; }\n${only.map((k) => `#pk-pages .pk-page[data-key=${JSON.stringify(k)}] { display: flex; }`).join("\n")}`
       : docs
           .filter((d) => !ticked.has(d.kind) || d.unavailable)
           .map((d) => `#pk-pages [data-doc="${d.kind}"] { display: none; }`)
@@ -71,7 +79,7 @@ export function PrintKitClient({
 @page pk-portrait { size: ${w}mm ${h}mm; margin: 0; }
 @page pk-landscape { size: ${h}mm ${w}mm; margin: 0; }
 ${hidden}`;
-  }, [docs, ticked, onlyStale, w, h]);
+  }, [docs, ticked, only, w, h]);
 
   const toggle = (kind: DocKind) =>
     setTicked((prev) => {
@@ -84,7 +92,7 @@ ${hidden}`;
   const go = (keys: Array<{ key: string; fp: string }>, staleMode: boolean) =>
     startTransition(async () => {
       setError("");
-      setOnlyStale(staleMode);
+      setOnly(staleMode ? keys.map((k) => k.key) : null);
       const res = await recordPrinted(stageId, keys);
       if (!res.ok) {
         setError(res.error);
@@ -190,7 +198,7 @@ ${hidden}`;
                   checked={!off && ticked.has(d.kind)}
                   disabled={off}
                   onChange={() => {
-                    setOnlyStale(false);
+                    setOnly(null);
                     toggle(d.kind);
                   }}
                   style={{ marginTop: 3, width: 18, height: 18 }}
@@ -223,10 +231,10 @@ ${hidden}`;
             onClick={() => go(chosen.map((s) => ({ key: s.key, fp: s.fp })), onlyStale)}
             style={{ minHeight: 44 }}
           >
-            <Icon name="printer" /> {onlyStale ? "Print the out-of-date sheets" : "Print the ticked sheets"} ({chosen.length})
+            <Icon name="printer" /> {onlyStale ? "Print these sheets again" : "Print the ticked sheets"} ({chosen.length})
           </button>
           {onlyStale && (
-            <button type="button" className="btn btn-secondary" onClick={() => setOnlyStale(false)} style={{ minHeight: 44 }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setOnly(null)} style={{ minHeight: 44 }}>
               Show everything ticked
             </button>
           )}

@@ -63,7 +63,7 @@ export function PrintPages({ kit }: { kit: PrintKit }) {
 
   return (
     <div id="pk-pages" className="pk-pages">
-      <style>{PAPER_CSS}</style>
+      <style>{paperCss()}</style>
       {scorecards(byDoc("cards") as ScorecardPage[], true)}
       {(byDoc("cup") as CupPage[]).map((p) => (
         <Page key={p.key} page={p} status={status.get(p.key)} footer={foot(p.key)}>
@@ -144,6 +144,9 @@ function Header({ clubName, logoUrl, eventName, sub }: { clubName: string; logoU
 }
 
 const dots = (n: number) => (n > 0 ? "•".repeat(n) : "");
+
+/** A figure is printed large; the words for a figure the Committee has not confirmed are not a figure. */
+const figureClass = (playing: string) => (/^\+?-?\d+$/.test(playing) ? "pk-figure" : "pk-figure pk-tbc");
 
 function CupCard({ p }: { p: CupPage }) {
   const c = p.cup;
@@ -304,7 +307,7 @@ function CartSign({ p }: { p: SignPage }) {
                 <span className="pk-pname">{x.name}</span>
                 {x.tee && <div className="pk-small">{x.tee}</div>}
               </td>
-              <td className="pk-figure">{x.playing}</td>
+              <td className={figureClass(x.playing)}>{x.playing}</td>
               <td>
                 {x.strokes.length === 0
                   ? "—"
@@ -392,7 +395,7 @@ function StartingSheet({ p }: { p: StartPage }) {
               <td>{r.first ? r.start : ""}</td>
               <td>{r.first ? r.group : ""}</td>
               <td className="pk-startname">{r.name}</td>
-              <td className="pk-figure">{r.playing}</td>
+              <td className={figureClass(r.playing)}>{r.playing}</td>
               <td>{r.tee}</td>
               {s.copy === "starter" && <td className="pk-tick" />}
             </tr>
@@ -407,7 +410,14 @@ function StartingSheet({ p }: { p: StartPage }) {
  * Paper, in paper's units. `--pk-w`/`--pk-h` are the sheet upright, set by the
  * hub from the paper it is set to; the two named pages turn it.
  */
-const PAPER_CSS = `
+function paperCss(): string {
+  // Read when a page is drawn, long after the module has finished loading; kept at the
+  // foot so the components read first.
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  return PAPER_RULES;
+}
+
+const PAPER_RULES = `
 .pk-pages { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; overflow-x: auto; max-width: 100%; padding: 4px 4px 12px; }
 .pk-page {
   background: #fff; color: #000; box-sizing: border-box; padding: 9mm 10mm 7mm;
@@ -459,6 +469,7 @@ const PAPER_CSS = `
 .pk-list td { text-align: left; }
 .pk-list .pk-figure { text-align: center; font-size: 14pt; font-weight: 700; width: 22mm; }
 .pk-list th:nth-child(2) { width: 22mm; }
+.pk-list .pk-figure.pk-tbc, .pk-start .pk-list .pk-figure.pk-tbc { font-size: 10pt; font-weight: 400; line-height: 1.15; }
 .pk-start .pk-list th:nth-child(1), .pk-start .pk-list th:nth-child(2) { width: 18mm; }
 .pk-start .pk-list th:nth-child(3) { width: 20mm; }
 .pk-start .pk-list th:nth-child(6) { width: 22mm; }

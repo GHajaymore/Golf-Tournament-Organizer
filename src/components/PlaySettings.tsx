@@ -72,7 +72,10 @@ interface Props {
   rounds?: RoundCode[];
   /** Tournament mode only — the public leaderboard token. */
   shareToken?: string;
-  /** Tournament mode only — the tournament's name, printed at the top of each round's sign. */
+  /**
+   * Tournament mode only — the tournament's name. Was printed on each round's sign; the signs
+   * are the Print kit's now (2026-10-23), which reads it for itself.
+   */
   eventName?: string;
   /**
    * Tournament mode only — the sets this course is rated for.
@@ -209,7 +212,6 @@ export function PlaySettings({
   strandedCount = 0,
   rounds = [],
   shareToken,
-  eventName = "",
   tees = [],
   defaultTeeId = null,
 }: Props) {
