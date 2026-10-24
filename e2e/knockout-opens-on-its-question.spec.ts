@@ -1,3 +1,5 @@
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn, signInWith, memberSession, addDays, dayIn } from "./rounds-fixture";
@@ -46,6 +48,14 @@ async function open(page: Page, path: string) {
   await page.goto(`${path}${path.includes("?") ? "&" : "?"}bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
   await expect(page.locator("h1").first(), `${path} has no heading`).toBeVisible();
+}
+
+/** The pictures for the owner, when asked for (`BRACKET_CAPTURE=<dir>`): what the screen opens on. */
+async function capture(page: Page, name: string) {
+  const dir = process.env.BRACKET_CAPTURE;
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: join(dir, `${name}.png`) });
 }
 
 async function expectNoSidewaysPage(page: Page, where: string) {
@@ -140,6 +150,8 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
       await row2.getByLabel(`How it was settled, ${second.a.name} v ${second.b.name}`).selectOption("walkover");
       await row2.getByRole("button", { name: "Save result" }).click();
       await expect(said).toContainText(`Recorded — Round 1: ${second.a.name} beat ${second.b.name} by walkover.`);
+      await page.getByRole("tab", { name: "To play" }).scrollIntoViewIfNeeded();
+      await capture(page, `to-play-${project}`);
     });
 
     await test.step("The draw is the next tab, its headings carry the dates, and Back returns", async () => {
@@ -170,6 +182,8 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
       const cardTop = (await card.boundingBox())!.y;
       const drawTop = (await phone.getByRole("heading", { name: "The draw" }).boundingBox())!.y;
       expect(cardTop).toBeLessThan(drawTop);
+      await card.scrollIntoViewIfNeeded();
+      await capture(phone, `player-own-tie-${project}`);
       await expectNoSidewaysPage(phone, `${project} /me/board`);
       await ctx.close();
     });
@@ -190,6 +204,8 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
       const newsTop = (await pub.getByRole("heading", { name: "Latest results" }).boundingBox())!.y;
       const drawTop = (await pub.getByRole("heading", { name: "The draw" }).boundingBox())!.y;
       expect(newsTop).toBeLessThan(drawTop);
+      await pub.getByRole("heading", { name: "Latest results" }).scrollIntoViewIfNeeded();
+      await capture(pub, `public-news-${project}`);
       await expectNoSidewaysPage(pub, `${project} /live`);
       await ctx.close();
     });
