@@ -68,6 +68,8 @@ export interface ExportRowStatus {
   ranked: boolean;
   advancing?: boolean;
   tiedAtCut?: boolean;
+  /** "draw" where a cut's countback left the tie to be drawn by lot. */
+  cutTieBy?: "" | "playoff" | "draw";
   missedCut?: string;
   withdrew?: boolean;
   disqualified?: boolean;
@@ -97,7 +99,7 @@ export function exportStatus(r: ExportRowStatus, qualifying = true): string {
    * "Eliminated" against its winner. A ranked row then has nothing to note.
    */
   if (!qualifying) return r.ranked ? "" : "Not ranked";
-  if (r.tiedAtCut) return "Tied — play-off to decide";
+  if (r.tiedAtCut) return r.cutTieBy === "draw" ? "Tied — draw to decide" : "Tied — play-off to decide";
   return r.advancing ? "Advancing" : "Eliminated";
 }
 
