@@ -1,5 +1,6 @@
 "use server";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -45,6 +46,7 @@ async function requireStaffSession() {
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Organizer access required");
   }
+  await assertEventWritable(session.eventId);
   return session;
 }
 
