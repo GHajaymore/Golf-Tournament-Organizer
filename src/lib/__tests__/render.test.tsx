@@ -1846,7 +1846,7 @@ describe("course library", () => {
     const { PrizesClient } = await import("@/components/PrizesClient");
     const html = render(
       <PrizesClient
-        prizes={[{ id: "p1", category: "Club Champion", detail: "The Hollow Salver", amount: 250, winnerId: "a" }]}
+        prizes={[{ id: "p1", category: "Club Champion", detail: "The Hollow Salver", amount: 250, winnerId: "a", counts: true }]}
         players={[{ id: "a", name: "Fumiko Shirakawa", place: 1 }]}
       />,
     );
@@ -1878,8 +1878,8 @@ describe("course library", () => {
     const html = render(
       <PrizesClient
         prizes={[
-          { id: "a", category: "Flight A — Winner", detail: "", amount: 0, winnerId: null },
-          { id: "o", category: "Winner", detail: "", amount: 0, winnerId: null },
+          { id: "a", category: "Flight A — Winner", detail: "", amount: 0, winnerId: null, counts: true },
+          { id: "o", category: "Winner", detail: "", amount: 0, winnerId: null, counts: true },
         ]}
         players={players}
         flights={flights}
@@ -1906,9 +1906,9 @@ describe("course library", () => {
     const html = render(
       <PrizesClient
         prizes={[
-          { id: "g", category: "Best gross", detail: "", amount: 0, winnerId: null },
-          { id: "n", category: "Best net", detail: "", amount: 0, winnerId: null },
-          { id: "w", category: "Winner", detail: "", amount: 0, winnerId: null },
+          { id: "g", category: "Best gross", detail: "", amount: 0, winnerId: null, counts: true },
+          { id: "n", category: "Best net", detail: "", amount: 0, winnerId: null, counts: true },
+          { id: "w", category: "Winner", detail: "", amount: 0, winnerId: null, counts: true },
         ]}
         players={[
           { id: "bea", name: "Bea Both", place: 1 },
@@ -1929,6 +1929,52 @@ describe("course library", () => {
     expect(first("Best net")).toBe("1. Bea Both");
     // The control: a prize named for neither keeps the board's order.
     expect(first("Winner")).toBe("1. Bea Both");
+  });
+
+  it("under one prize per player, puts the gross first and a gross winner out of the way for the net", async () => {
+    /**
+     * 2026-10-21, recommendation C1. Ann has Best gross. On Best net she is
+     * the net winner too, so the picker opens on Bea, marked as next in line,
+     * and lists Ann last saying what she holds — not hidden. Nearest the pin
+     * does not count, so it offers Ann as usual. The lines are drawn gross
+     * first although Best gross was added last. The control is the same list
+     * with the rule off: the net winner first, nothing marked, list order.
+     */
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const prizes = [
+      { id: "n", category: "Best net", detail: "", amount: 0, winnerId: null, counts: true },
+      { id: "k", category: "Nearest the pin", detail: "", amount: 0, winnerId: null, counts: false },
+      { id: "g", category: "Best gross", detail: "", amount: 0, winnerId: "ann", counts: true },
+    ];
+    const players = [
+      { id: "ann", name: "Ann Both", place: 1 },
+      { id: "bea", name: "Bea Both", place: 2 },
+    ];
+    const byScore = { gross: players, net: players };
+    const options = (html: string, label: string) => {
+      const at = html.indexOf(`aria-label="Winner of ${label}"`);
+      const select = html.slice(at, html.indexOf("</select>", at));
+      // `[^>]*`: the awarded winner's option carries `selected=""`.
+      return [...select.matchAll(/<option value="([^"]+)"[^>]*>([^<]*)/g)].map((m) => m[2]);
+    };
+    const on = render(<PrizesClient prizes={prizes} players={players} byScore={byScore} onePrizePerPlayer />);
+    expect(options(on, "Best net")).toEqual(["2. Bea Both · next in line", "1. Ann Both · has Best gross"]);
+    expect(on).toContain('label="Already hold a prize"');
+    expect(options(on, "Nearest the pin")).toEqual(["1. Ann Both", "2. Bea Both"]);
+    // Re-awarding Best gross to its own winner is not a clash: she leads it.
+    expect(options(on, "Best gross")[0]).toBe("1. Ann Both · next in line");
+    const wide = on.slice(on.indexOf("<table"));
+    expect(wide.indexOf("Winner of Best gross")).toBeLessThan(wide.indexOf("Winner of Best net"));
+    expect(wide.indexOf("Winner of Best net")).toBeLessThan(wide.indexOf("Winner of Nearest the pin"));
+    expect(on).toContain("Award the gross prizes first; a player who wins one is skipped for the net.");
+    expect(on).toContain('aria-label="Nearest the pin: counts toward one prize per player"');
+
+    const off = render(<PrizesClient prizes={prizes} players={players} byScore={byScore} />);
+    expect(options(off, "Best net"), "CONTROL: the rule off marks nobody").toEqual(["1. Ann Both", "2. Bea Both"]);
+    expect(off).not.toContain("Already hold a prize");
+    expect(off).not.toContain("counts toward one prize per player");
+    const offWide = off.slice(off.indexOf("<table"));
+    expect(offWide.indexOf("Winner of Best net"), "CONTROL: the rule off keeps the list's order").toBeLessThan(offWide.indexOf("Winner of Best gross"));
   });
 
   it("CONTROL: with no prizes there is no stacked list, only the message", async () => {
