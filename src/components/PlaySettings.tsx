@@ -43,6 +43,7 @@ import {
 } from "@/lib/tournament-settings";
 import { formatAccessCode } from "@/lib/code-format";
 import { lockoutNotice } from "@/lib/domain/access-lockout";
+import { eventLinks } from "@/lib/domain/event-page";
 import { Icon } from "./Icon";
 import { RoundSigns } from "./RoundSigns";
 import { ConfirmButton } from "./ConfirmButton";
@@ -287,6 +288,7 @@ export function PlaySettings({
   };
 
   const shareUrl = shareToken && origin ? `${origin}/live/${shareToken}` : "";
+  const shareLinks = shareToken ? eventLinks(shareToken) : null;
   const codesOn = usesAccessCodes(form);
 
   return (
@@ -383,6 +385,28 @@ export function PlaySettings({
               {rotateError}
             </p>
           )}
+          {/* THE TWO OTHER WAYS IN, ON THE SAME LINK (2026-10-24): the event
+              page to send before and after the day, and the clubhouse screen
+              for the TV in the bar. Both live under this token, so New link
+              replaces all three at once, and both obey this setting. */}
+          {[
+            { key: "event", label: "Event page", href: shareLinks!.event, what: "One link to send before and after the day: entries, the board, the report." },
+            { key: "clubhouse", label: "Clubhouse screen", href: shareLinks!.clubhouse, what: "The board for a TV: large type, a page at a time." },
+          ].map((l) => (
+            <div key={l.key} style={{ flexBasis: "100%", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{l.label}</div>
+                <p className="text-muted" style={{ fontSize: 13, margin: "0 0 2px" }}>{l.what}</p>
+                <code style={{ fontSize: 13, wordBreak: "break-all" }}>{origin + l.href}</code>
+              </div>
+              <a className="btn btn-secondary" href={l.href} target="_blank" rel="noopener">
+                Open {l.label.toLowerCase()} <Icon name="arrow-right" />
+              </a>
+              <button type="button" className="btn btn-secondary" aria-label={`Copy the ${l.label.toLowerCase()} link`} onClick={() => copy(origin + l.href, l.key)}>
+                <Icon name="copy" /> {copied === l.key ? "Copied" : "Copy"}
+              </button>
+            </div>
+          ))}
         </div>
       )}
 

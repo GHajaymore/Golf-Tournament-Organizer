@@ -21,6 +21,8 @@ import { TheDraw } from "@/components/TheDraw";
 import { OrgBrand } from "@/components/OrgBrand";
 import { LOGO_SIZE } from "@/components/Logo";
 import { LiveRefresh } from "@/components/LiveRefresh";
+import { ClubhouseScreen } from "@/components/ClubhouseScreen";
+import { finalReportReady } from "@/lib/domain/event-page";
 import { RoundPicker } from "@/components/RoundPicker";
 import { cupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
@@ -108,10 +110,19 @@ export default async function PublicLeaderboardPage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ round?: string }>;
+  searchParams: Promise<{ round?: string; screen?: string }>;
 }) {
   const { token } = await params;
-  const { round } = await searchParams;
+  const { round, screen } = await searchParams;
+  /**
+   * THE CLUBHOUSE SCREEN (2026-10-24): this same board, framed for a TV in the
+   * bar — large type, nothing to press, a page at a time (`ClubhouseScreen`).
+   * A MODE OF THIS PAGE rather than a page of its own, so it passes the same
+   * credential check above, reads the same board, and draws it with the same
+   * components below: it cannot show anything this board does not. Every
+   * difference is chrome, and each is marked `clubhouse` where it is made.
+   */
+  const clubhouse = screen === "clubhouse";
 
   /**
    * The credential check, on every request, uncached.
@@ -149,24 +160,17 @@ export default async function PublicLeaderboardPage({
   const board = await liveBoard(event.id, picked);
   if (!board) notFound();
   const cup = await cupBoard(event.id);
+  // Whether there is a final report to link: one rule, shared with the event page.
+  const reportReady = finalReportReady({
+    status: event.status,
+    casual: isMatch(event.shape),
+    cupVerdict: cup.ok ? cup.board.verdict.kind : null,
+  });
 
-  return (
-    <div
-      id="player-theme"
-      style={{
-        colorScheme: board.colorScheme,
-        minHeight: "100vh",
-        background: "var(--color-bg)",
-        color: "var(--color-text)",
-        fontFamily: "var(--font-body)",
-        padding: "20px 16px 48px",
-      }}
-    >
-      <style dangerouslySetInnerHTML={{ __html: board.themeStyleSheet }} />
-      {/* THE PAGE'S MAIN LANDMARK (2026-10-08). The console and the player
-          app each have one; the board a club sends every member had none, so
-          a screen reader had no way to jump to the scores. */}
-      <main style={{ maxWidth: 720, margin: "0 auto" }}>
+  // The club's mark, a suspension, and the tournament's name: the top of the
+  // board, and the top of the clubhouse screen.
+  const head = (
+      <>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           {/* lg, the scale's hero size. This board is the club's shopfront
               — the link that goes on the clubhouse screen and to families —
@@ -231,7 +235,8 @@ export default async function PublicLeaderboardPage({
           {/* Every round, not only the latest — the same picker the console
               leaderboard has. Renders nothing where choosing changes nothing,
               which on a cup is everything: its board is every session at once. */}
-          {board.rounds.length > 1 && !cup.ok && (
+          {/* Not on the clubhouse screen: nobody can choose from across a bar. */}
+          {board.rounds.length > 1 && !cup.ok && !clubhouse && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>Showing</span>
               <RoundPicker
@@ -243,12 +248,18 @@ export default async function PublicLeaderboardPage({
             </div>
           )}
         </header>
+      </>
+  );
 
+  // Everything below the name: the same on the board and on the clubhouse
+  // screen, but for the buttons, which a TV has nobody to press.
+  const rest = (
+      <>
         {/* A FINISHED TOURNAMENT'S REPORT (2026-10-19): the whole of it on one
             page, which is what somebody opening this link after the day came
             for. A cup's button sits with the cup board below; a casual round
             has no report. */}
-        {!cup.ok && event.status === "completed" && !isMatch(event.shape) && (
+        {!cup.ok && reportReady && !clubhouse && (
           <p style={{ margin: "0 0 18px" }}>
             <Link
               href={`/live/${token}/report`}
@@ -277,7 +288,7 @@ export default async function PublicLeaderboardPage({
             {/* The cup is decided: the whole of it, on one page to send round.
                 ABOVE the board, as a button, because once the result is in it
                 is what a member opening this link has come for. */}
-            {cup.board.verdict.kind !== "open" && (
+            {reportReady && !clubhouse && (
               <p style={{ margin: "0 0 14px" }}>
                 <Link
                   href={`/live/${token}/report`}
@@ -344,8 +355,11 @@ export default async function PublicLeaderboardPage({
         {/* Closest to the pin, long drive, and who sponsors them — for the round
             on show, or every round on a cup's all-sessions board. */}
         <PublicContests eventId={event.id} stageId={cup.ok ? null : board.shownStageId || null} />
+      </>
+  );
 
-        {/*
+  const refresh = (
+        /*
           Stamped HERE, outside the cache, on every request.
 
           This is the one value that must not be cached with the board. The
@@ -355,14 +369,47 @@ export default async function PublicLeaderboardPage({
           served from a minute-old entry would announce itself as "updated just
           now". That is precisely the lie the label exists to prevent, and it
           would have no visible symptom.
-        */}
+
+          The clubhouse screen polls through this same component, so a TV
+          refreshes on exactly the board's cadence (POLL_MS).
+        */
         <LiveRefresh
           renderedAt={new Date().toISOString()}
           final={board.official}
           allIn={board.allIn}
           knockout={board.knockoutRound}
+          compact={clubhouse}
         />
-      </main>
+  );
+
+  return (
+    <div
+      id="player-theme"
+      style={{
+        colorScheme: board.colorScheme,
+        minHeight: "100vh",
+        background: "var(--color-bg)",
+        color: "var(--color-text)",
+        fontFamily: "var(--font-body)",
+        padding: clubhouse ? 0 : "20px 16px 48px",
+      }}
+    >
+      <style dangerouslySetInnerHTML={{ __html: board.themeStyleSheet }} />
+      {clubhouse ? (
+        // Renders its own <main>, filling the screen.
+        <ClubhouseScreen head={head} foot={refresh}>
+          {rest}
+        </ClubhouseScreen>
+      ) : (
+        /* THE PAGE'S MAIN LANDMARK (2026-10-08). The console and the player
+           app each have one; the board a club sends every member had none, so
+           a screen reader had no way to jump to the scores. */
+        <main style={{ maxWidth: 720, margin: "0 auto" }}>
+          {head}
+          {rest}
+          {refresh}
+        </main>
+      )}
     </div>
   );
 }
