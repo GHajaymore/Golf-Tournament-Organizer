@@ -29,6 +29,11 @@ const PINNED: [label: string, file: string][] = [
   ["Certify my card", "src/components/PlayerCard.tsx"],
   ["Draw sides automatically", "src/components/TeamsClient.tsx"],
   ["Divide the field", "src/components/BracketFlights.tsx"],
+  // The secretary's home (2026-10-24): its copy card, and the buttons its job lines carry.
+  ["Create the copy", "src/components/CopyLastEvent.tsx"],
+  ["Approve entries", "src/lib/domain/needs-you-now.ts"],
+  ["Open score entry", "src/lib/domain/needs-you-now.ts"],
+  ["Complete the tournament", "src/lib/domain/needs-you-now.ts"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */

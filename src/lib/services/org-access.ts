@@ -89,25 +89,35 @@ export async function organizationAccess(session: Session | null): Promise<Organ
         return owned[0] ? { organizationId: owned[0].id } : null;
       })();
   if (!event) return null;
+  return organizationAccessFor(session.email, event.organizationId, session.role);
+}
 
-  const user = await prisma.user.findUnique({ where: { email: session.email } });
+/**
+ * The same answer for a NAMED club — the one a tournament being copied belongs
+ * to, which need not be the one the caller has open (`cloneEvent`). `roleInEvent`
+ * is the caller's role in a tournament of that club, for the ownerless hatch.
+ */
+export async function organizationAccessFor(
+  email: string,
+  organizationId: string,
+  roleInEvent: string,
+): Promise<OrganizationAccess> {
+  const user = await prisma.user.findUnique({ where: { email } });
   const membership = user
     ? await prisma.organizationMember.findUnique({
-        where: { organizationId_userId: { organizationId: event.organizationId, userId: user.id } },
+        where: { organizationId_userId: { organizationId, userId: user.id } },
       })
     : null;
 
   // Counted rather than fetched: the question is whether anybody at all holds
   // this club, not who.
-  const memberCount = await prisma.organizationMember.count({
-    where: { organizationId: event.organizationId },
-  });
+  const memberCount = await prisma.organizationMember.count({ where: { organizationId } });
 
   const reason = canAdministerOrganization({
     membershipRole: membership?.role ?? null,
-    sessionRole: session.role,
+    sessionRole: roleInEvent,
     hasMembers: memberCount > 0,
   });
 
-  return { organizationId: event.organizationId, canEdit: reason !== "denied", reason };
+  return { organizationId, canEdit: reason !== "denied", reason };
 }

@@ -64,6 +64,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
           "An active member who signs in with the email on the roster sees the club's tournaments straight away — no invitation needed. An inactive member does not.",
+          "Before the club's first tournament, the list of what is still to set up sits above the members, so once the first one is added **Create your first tournament** is one press away.",
         ],
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },
@@ -96,6 +97,18 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Choose **How is it played?** — a single round, a series of rounds, or a knockout.",
           "Choose **Start from**: a template, or one of your past tournaments to copy (settings carry over, scores never do).",
           "Press [[Create tournament]], then [[Manage]] to open it.",
+        ],
+      },
+      { kind: "h", text: "Copy last event" },
+      { kind: "where", text: "Dashboard → Copy last event (the club's Commissioner and Admins)" },
+      {
+        kind: "steps",
+        items: [
+          "It starts from your most recent tournament. To start from another, pick it under **Copy from**.",
+          "Check **Name of the copy**, then pick the **First day** (and the **Last day** if it runs over more than one). Press [[Create the copy]] and you are taken into the new tournament.",
+          "Comes across: the format, rounds, handicap allowances, who decides the tees, flight rules, side games (with nobody entered), entry settings and who can see the leaderboard.",
+          "Never comes across: players, cards, results, money, notices, the tee sheet, round codes or the public links. The copy gets a new sign-up link when you publish it, and the old tournament keeps its own.",
+          "The entry window and each round keep the same distance from the first day as last time — entries closed three days before, so they do again. A day that has already gone at your club is left empty, and a first day that has already gone is refused.",
         ],
       },
       {
@@ -328,6 +341,17 @@ export const GUIDE_STEPS: GuideSection[] = [
     part: "Part 7",
     title: "On the day",
     blocks: [
+      { kind: "h", text: "What's next" },
+      { kind: "where", text: "Dashboard → What's next" },
+      {
+        kind: "list",
+        items: [
+          "One line for each job waiting on you in the club's tournaments, the soonest first: entries waiting for approval (with the day entries close), a tee sheet for the next fortnight not yet published, cards not returned in a round being played, and results not released once every round is closed.",
+          "Each line names its tournament and has one button that opens that tournament on the screen that does the job: [[Approve entries]], [[Publish the tee sheet]], [[Open score entry]] or [[Complete the tournament]].",
+          "The buttons are for the club's Commissioner and Admins. Anyone else running a tournament sees the same lines without them.",
+          "Nothing waiting says so. A completed tournament never appears.",
+        ],
+      },
       {
         kind: "list",
         items: [

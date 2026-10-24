@@ -160,7 +160,7 @@ export function EventSwitcher({
    */
   const listFor = organizations.find((o) => o.id === organizationId)?.kind ?? consoleOutfit.kind;
   const blurb = copyFrom
-    ? `Copies the settings, rounds and courses from ${copyFrom.name || "that tournament"} — never its players, scores or access codes. Dates start empty and everything stays editable.`
+    ? `Copies the settings, rounds, courses and side games from ${copyFrom.name || "that tournament"} — never its players, scores, money or access codes. Dates start empty and everything stays editable.`
     : templateFor(source).blurb + " Every setting stays editable afterwards.";
 
   return (

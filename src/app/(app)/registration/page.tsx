@@ -20,6 +20,7 @@ import { setupFlowFor } from "@/lib/services/setup-flow";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
+import { awaitingApproval } from "@/lib/registration";
 
 export const metadata = screenMetadata("/registration");
 
@@ -139,7 +140,7 @@ export default async function RegistrationPage() {
       }}
       confirmed={state.confirmed.map(asRow)}
       waitlist={state.waitlist.map(asRow)}
-      pendingEntries={state.players.filter((p) => p.status === "pending").map(asRow)}
+      pendingEntries={awaitingApproval(state.players).map(asRow)}
       locked={locked}
       isAdmin={session.viewRole === "admin"}
       roster={roster}

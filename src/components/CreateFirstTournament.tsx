@@ -409,7 +409,7 @@ export function CreateFirstTournament({
         </select>
         <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           {copyFrom
-            ? `Copies the settings, rounds and courses from ${copyFrom.name.trim() || "that tournament"} — never its players, scores or access codes. Dates start empty and everything stays editable.`
+            ? `Copies the settings, rounds, courses and side games from ${copyFrom.name.trim() || "that tournament"} — never its players, scores, money or access codes. Dates start empty and everything stays editable.`
             : `${templateFor(template).blurb} A starting point only — every setting, format and round stays editable afterwards.`}
         </p>
       </div>

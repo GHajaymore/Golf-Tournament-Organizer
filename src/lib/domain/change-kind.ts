@@ -44,7 +44,11 @@ const ROUND_ACTIONS = [
   // Round-day set-up: where the holes are cut, and the time allowed.
   "pin-sheet", "pace-set",
 ];
-const SETTINGS_ACTIONS = ["rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on"];
+const SETTINGS_ACTIONS = [
+  "rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on",
+  // The copy's first line: who made it from which tournament, games and all (2026-10-24).
+  "copy-tournament",
+];
 
 export function changeKind(action: string): ChangeKind {
   const a = action.trim();

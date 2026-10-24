@@ -4,7 +4,16 @@ import { clearsConcession, deriveMatchFromItsCards, recomputeTeamMatch } from "@
 import { COURSE_REF, roundCard } from "@/lib/services/course-resolution";
 import { playedOnBy } from "@/lib/services/courses";
 import { parseDeadlineIso } from "@/lib/deadline";
-import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
+import {
+  CLONED_EVENT_FIELDS,
+  CLONED_STAGE_FIELDS,
+  CLONED_CONTEST_FIELDS,
+  CLONED_SIDE_GAME_FIELDS,
+  CLONED_SKINS_POT_FIELDS,
+} from "@/lib/services/clone";
+import { copiedCalendar } from "@/lib/domain/copy-dates";
+import { organizationAccessFor } from "@/lib/services/org-access";
+import { clubToday } from "@/lib/domain/club-clock";
 import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -169,7 +178,7 @@ import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
-import { isSupportedLocale } from "@/lib/domain/locale";
+import { isSupportedLocale, formatDayRange, resolveLocale } from "@/lib/domain/locale";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 
 /**
@@ -3995,8 +4004,20 @@ export async function switchEvent(eventId: string) {
  *     hand this year's tournament last year's public link.
  *   - Round Codes. They are credentials; a new tournament gets new ones, and
  *     only if it turns code access on.
+ *
+ * "COPY LAST EVENT" (the secretary's home, 2026-10-24) adds the DAY: given a
+ * first day (and a last), the copy is dated from it — its entry window and its
+ * rounds keep their distance from the first day, worked out by
+ * `copiedCalendar` against the club's own today — and its side games come with
+ * it as games, with nobody in them. Without a day it starts undated, as it
+ * always has, so the two older doors (Tournaments, the first-tournament form)
+ * are unchanged.
  */
-export async function cloneEvent(sourceEventId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+export async function cloneEvent(
+  sourceEventId: string,
+  name: string,
+  when?: { startOn?: unknown; endOn?: unknown },
+): Promise<{ ok: boolean; error?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
 
@@ -4014,11 +4035,53 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
 
   const source = await prisma.event.findUnique({
     where: { id: sourceEventId },
-    include: { stages: { orderBy: { position: "asc" } }, courses: true },
+    include: {
+      stages: { orderBy: { position: "asc" } },
+      courses: true,
+      // The games, as games — see `CLONED_CONTEST_FIELDS`. A fourball's own
+      // pot or game names a group of a tee sheet the copy does not have.
+      contests: true,
+      sideGames: { where: { groupKey: "" } },
+      skinsPots: { where: { groupKey: "" } },
+      organization: { select: { timeZone: true, locale: true } },
+    },
   });
   if (!source) return { ok: false, error: "Tournament not found." };
 
+  /**
+   * AND THE CLUB'S ROLE, because a copy is made in the CLUB's name
+   * (2026-10-24). Organizer of the source is not enough on its own: a Guest of
+   * the club made organizer of one tournament would otherwise mint new
+   * tournaments for a club that has only lent them one — the S1 leak
+   * `org-access.ts` describes, one door along. `canEdit`: the club's
+   * Commissioner or an Admin, or an ownerless club's organizer.
+   */
+  const club = await organizationAccessFor(session.email, source.organizationId, access.role);
+  if (!club.canEdit) {
+    return { ok: false, error: "Only the club's Commissioner or an Admin can copy its tournaments." };
+  }
+
   const clean = name.trim() || `${source.name} (copy)`;
+  const badName = nameRefusal(clean, TITLE_MAX, "Name the tournament before copying it.");
+  if (badName) return { ok: false, error: badName };
+
+  /**
+   * THE COPY'S DAYS, from the day the secretary picked and the club's own
+   * today — never the server's (`copiedCalendar`). A day already gone at the
+   * club is refused in words before anything is made.
+   */
+  const calendar = copiedCalendar({
+    source: {
+      startOn: source.startOn,
+      regDeadline: source.regDeadline,
+      regOpens: source.regOpens,
+      rounds: source.stages.map((s) => ({ id: s.id, playedOn: s.playedOn })),
+    },
+    startOn: typeof when?.startOn === "string" ? when.startOn : "",
+    endOn: typeof when?.endOn === "string" ? when.endOn : "",
+    today: clubToday(source.organization?.timeZone),
+  });
+  if (!calendar.ok) return { ok: false, error: calendar.error };
 
   // A copy is a new tournament and counts like one.
   const refusal = await refusalFor(source.organizationId, "activeEvents");
@@ -4061,9 +4124,16 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
         fieldCap === null ? carried.manualPlayerCount : Math.min(carried.manualPlayerCount, fieldCap),
       name: clean,
       // Dates and the registration deadline are the two things that are always
-      // wrong on a copy, so they start empty rather than pointing at last year.
-      dates: "",
-      regDeadline: "",
+      // wrong on a copy, so they never point at last year: they are the day the
+      // secretary picked, and the entry window kept at its distance from it —
+      // or empty, when no day was given (`copiedCalendar`).
+      startOn: calendar.startOn,
+      endOn: calendar.endOn,
+      dates: calendar.startOn
+        ? formatDayRange(calendar.startOn, calendar.endOn, resolveLocale(source.organization, source))
+        : "",
+      regDeadline: calendar.regDeadline,
+      regOpens: calendar.regOpens,
       status: "draft",
       // A fresh token: unique index aside, the copy must not inherit the
       // original's public link.
@@ -4094,6 +4164,8 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
         scoringBasis: basisFor(s.format, s.scoringBasis),
         // Always in the past on a copy.
         deadline: "",
+        // The round's day from the copy's first day — see `copiedCalendar`.
+        playedOn: calendar.playedOn[s.id] ?? "",
         /**
          * Written in the second pass below, once every round exists and has an
          * id to point at.
@@ -4119,6 +4191,40 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
     if (!rule) continue;
     await prisma.stage.update({ where: { id: newStageId.get(s.id)! }, data: { singleMatchRule: rule } });
   }
+
+  /**
+   * THE SIDE GAMES, AS GAMES (2026-10-24). Each from its declared policy, on
+   * the copy's own round, with nobody in it: who entered, who paid and who won
+   * belong to last year's day (`clone.ts`). A game whose round is not one the
+   * copy has — a stray id — stays behind rather than pointing anywhere.
+   */
+  const by = session.name || session.email;
+  for (const c of source.contests) {
+    const stageId = c.stageId ? newStageId.get(c.stageId) : "";
+    if (stageId === undefined) continue;
+    const game = Object.fromEntries(CLONED_CONTEST_FIELDS.map((f) => [f, c[f]])) as Pick<typeof c, (typeof CLONED_CONTEST_FIELDS)[number]>;
+    await prisma.contest.create({ data: { ...game, eventId: created.id, stageId, createdBy: by } });
+  }
+  for (const g of source.sideGames) {
+    const stageId = newStageId.get(g.stageId);
+    if (!stageId) continue;
+    const game = Object.fromEntries(CLONED_SIDE_GAME_FIELDS.map((f) => [f, g[f]])) as Pick<typeof g, (typeof CLONED_SIDE_GAME_FIELDS)[number]>;
+    await prisma.sideGame.create({ data: { ...game, eventId: created.id, stageId, groupKey: "", createdBy: by } });
+  }
+  for (const p of source.skinsPots) {
+    const stageId = newStageId.get(p.stageId);
+    if (!stageId) continue;
+    const pot = Object.fromEntries(CLONED_SKINS_POT_FIELDS.map((f) => [f, p[f]])) as Pick<typeof p, (typeof CLONED_SKINS_POT_FIELDS)[number]>;
+    await prisma.skinsPot.create({ data: { ...pot, eventId: created.id, stageId, groupKey: "" } });
+  }
+  // A name against the games' stakes, as every money write has (`money-leaves-a-trail`).
+  const games = source.contests.length + source.sideGames.length + source.skinsPots.length;
+  await logAudit(
+    created.id,
+    "copy-tournament",
+    `${by} copied this tournament from ${source.name.trim() || "another tournament"}` +
+      (games > 0 ? `, with its side games and nobody entered in them` : ""),
+  );
 
   // The creator is the organizer of the copy.
   await prisma.account.create({

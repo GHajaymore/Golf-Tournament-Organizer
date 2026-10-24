@@ -140,6 +140,29 @@ export const CLONED_EVENT_FIELDS = [
   // its terms of competition, year after year. The prize LINES are not copied
   // (see `prizes` below), so the copy carries the rule and no awards.
   "onePrizePerPlayer",
+  /**
+   * WHO DECIDES THE TEES, carried since the secretary's home (the panel's
+   * "copy last event", approved by Ajay, 2026-10-24: "keep its format, rounds,
+   * allowances, tees policy …").
+   *
+   * It was left behind as "a condition of THIS competition" for a new committee
+   * to set again. The panel ruled the other way, and for the reason the rest of
+   * this list is carried: the club runs next year's medal the way it ran this
+   * one, and a copy that quietly reverted to the default policy put a flight's
+   * players on the tournament's tees with nothing on the screen to say so. It
+   * names who decides, never a player's set — the field is not copied, so no
+   * player's own tees can come with it (`the-organizer-decides-the-tees.test.ts`).
+   */
+  "teePolicy",
+  /**
+   * HOW ENTRIES ARE TAKEN — auto-confirmed to capacity, or each one approved —
+   * carried with the other entry settings beside it (`capacity`, `requirePhone`),
+   * since the same ruling. It is a standing decision about the club's form.
+   * What is NOT carried is the link: `registrationOpen` and `registrationToken`
+   * below, so a copy never opens itself to the public and never answers last
+   * year's address.
+   */
+  "registrationApproval",
 ] as const;
 
 /**
@@ -157,18 +180,18 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   accessGated:
     "whether launching gates player access. A copy is a NEW tournament and takes the column default, which gates it. Carrying it would let a club mint ungated tournaments for ever by cloning one that predates the gate — the backfill exempted the tournaments that already existed, not their descendants",
   name: "supplied by the organizer",
-  teePolicy:
-    "a condition of THIS competition, decided for the tees and the field it had — a copy is a new competition and its committee sets it again rather than inheriting a restriction nobody in the room chose",
-  dates: "always wrong on a copy — last year's dates are not this year's",
-  startOn: "the calendar date `dates` is derived from, and wrong on a copy for the same reason. A tournament cloned from last year's Club Championship is next year's, and inheriting 14 June 2026 would file it in the season that has finished",
+  dates:
+    "always wrong on a copy — last year's dates are not this year's. Since 2026-10-24 the copy asks for its first day and this sentence is worded from the day picked (`copiedCalendar`), never from the original's",
+  startOn: "the calendar date `dates` is derived from, and wrong on a copy for the same reason. A tournament cloned from last year's Club Championship is next year's, and inheriting 14 June 2026 would file it in the season that has finished. The copy takes the day the secretary picks instead, refused if it has already gone at the club",
   endOn: "travels with startOn",
   datesTentative:
-    "travels with `dates`, which is not carried. A copy starts with no dates at all, and \"tentative\" describes dates that exist — inheriting last year's flag would have the new tournament asserting something about a date it does not have. The organizer answers it again when they answer the date",
+    "travels with `dates`, which is not carried. \"Tentative\" describes dates that exist — inheriting last year's flag would have the new tournament asserting something about a date it does not have. A copy given a day starts with that day fixed; one given none has nothing to call tentative",
   inviteMessage:
     "the same reason as dates, in prose. It was carried, alone among these fields with no reason written beside it — and the demo club's own message reads \"You're invited to the Demo Cup — May 14–16, 2026 at Ridgeline National, Aspen Falls\", which names the tournament, the dates AND the venue, none of which a copy inherits. So the one field that carried them was the one nobody had thought about, and it is the field that gets SENT to the whole membership. A stale sentence sitting in a textarea is harmless; a stale sentence one WhatsApp button away from four hundred members is not. The screen suggests one built from this tournament's own details instead, as a placeholder — which cannot go stale because it is never stored",
-  regDeadline: "same reason as dates",
+  regDeadline:
+    "same reason as dates. Set instead the same number of days before the copy's first day as the original's was before its own (`copiedCalendar`) — and left empty where that day has already gone at the club, because a passed deadline closes a tournament nobody has opened",
   regOpens:
-    "same reason as dates — and worse carried than left out: last year's opening day has passed, so a copied one would read as open-from-the-start while the organizer believed they had scheduled it",
+    "same reason as dates — and worse carried than left out: last year's opening day has passed, so a copied one would read as open-from-the-start while the organizer believed they had scheduled it. Moved by the same distance as the deadline, and empty where that is today or earlier",
   registrationOverride:
     "a decision about last year's deadline — a copy has a new deadline and starts following it",
   status: "a copy starts as a draft, however far along the original got",
@@ -192,8 +215,6 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "the public sign-up link. Unique (partial index), so copying collides, and it would point last year's shared URL at this year's field — the copy mints its own when its organizer opens registration",
   registrationOpen:
     "a copy starts with sign-ups closed, whatever the original ended at — opening a brand-new draft to the public the moment it's created is never what a copy wants",
-  registrationApproval:
-    "travels with registrationOpen: a closed copy has no entries to auto-confirm or approve, so it starts at the default and the organizer chooses when they open it",
   expiresAt:
     "the self-destruct clock on a casual round, and the one field here where copying it would DELETE something. A copy is made from the Tournaments list, which is a tournament act — so inheriting an expiry would hand a brand-new tournament a deletion date it never asked for, and the sweep would remove it overnight with its field and its cards in it. Written by createMatch and nothing else; a copy is not a casual round however casual the thing it was copied from",
   cupHolderGroupId:
@@ -226,10 +247,18 @@ export const CLONE_IGNORED_RELATIONS = [
   // Weekly in/out answers are the record of who played which week — a copy
   // for next season starts with nobody asked.
   "attendance",
-  // A skins pot is cash: real people who really paid, and a carry someone is
-  // owed. Copying last season's pots forward would enter players who have
-  // handed over nothing and assert debts nobody agreed to. A new season starts
-  // with an empty pot and, deliberately, no carry.
+  /**
+   * A skins pot is cash: real people who really paid, and a carry someone is
+   * owed. Copying last season's pots forward WHOLE would enter players who have
+   * handed over nothing and assert debts nobody agreed to.
+   *
+   * So, since 2026-10-24 (the panel: "keep … contests and side games"), the
+   * field's pot is RECREATED from `CLONED_SKINS_POT_FIELDS` — the stake, net or
+   * gross, which nine — with nobody in it and, deliberately, no carry: a carry
+   * is worked out from cards, and the copy has none. A fourball's own pot is
+   * not: it is addressed by a group of a tee sheet the copy does not have.
+   * Same for `contests` and `sideGames` below.
+   */
   "skinsPots",
   /**
    * WHO WENT THROUGH ON A PLAY-OFF HOLE, and the committee decisions that
@@ -285,13 +314,15 @@ export const CLONE_IGNORED_RELATIONS = [
   // The MODE carries forward (see the allowlist above) so the new tournament
   // runs its money the same way; the money itself does not.
   "fundLines",
-  // Side bets are cash on the table, exactly like a skins pot: copying last
-  // year's closest-to-the-pin forward would enter players who staked nothing
-  // and award a pot that was already paid out.
+  // Side games are cash on the table, exactly like a skins pot: copying last
+  // year's closest-to-the-pin forward WITH its entrants would enter players
+  // who staked nothing and award a pot that was already paid out. Recreated
+  // from `CLONED_CONTEST_FIELDS` instead — the game, its hole, its stake, its
+  // sponsor — with no entrant and no winner.
   "contests",
-  // Same reasoning again: a birdie pot is players' cash on a night that has
-  // been played. A copy starts with the bets switched off, and an organizer
-  // who runs the same ones weekly turns them on for the round in front of them.
+  // Same again for a birdie pot or a low-net game: the game and its stake from
+  // `CLONED_SIDE_GAME_FIELDS`, and nobody in it until somebody enters this
+  // year's. A fourball's own game stays behind with the tee sheet it named.
   "sideGames",
   // Conversations belong to the tournament they were had in. Copying them
   // forward would carry last year's messages into this year's event and show
@@ -389,7 +420,8 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   event: "the relation object for eventId",
   course: "the relation object for courseId, which IS carried",
   teeRef: "the relation object for teeId, which IS carried — a relation is navigated, never written",
-  playedOn: "last year's date is never this year's",
+  playedOn:
+    "last year's date is never this year's. Set instead from the copy's first day, the same number of days after it as the original round was after the original's (`copiedCalendar`), and empty when the copy is given no day",
   closedAt:
     "when the organizer declared last year's round finished. A copy has not been played, let alone closed — and carrying it would start the new tournament with a round the board treats as settled, unranking every player in it for a card nobody has had the chance to return",
   cutMadeAt:
@@ -414,4 +446,57 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   skinsPots: "money — see the Event policy",
   playoffHoles:
     "who came through a level play-off meeting, and the committee decisions behind it — last season’s adjudications, on rounds this copy has not played",
+};
+
+/**
+ * WHAT CARRIES ACROSS ON EACH SIDE GAME (2026-10-24, "copy last event": "keep
+ * … contests and side games").
+ *
+ * The GAME is how the club runs the day — a closest-the-pin on the 7th for £2,
+ * a birdie pot, a low-net game, a skins pot off the full eighteen — and a copy
+ * of last year's day runs the same games. What is never carried is anything a
+ * person did: who entered, who paid, who won. Same allowlist reasoning as the
+ * Event: a new column nobody classifies is dropped, not copied, and
+ * `clone.test.ts` refuses one that is in neither list.
+ *
+ * Every game's round is REMAPPED onto the copy's own round (`stageId`): a game
+ * pointing at last year's round would be a game in last year's tournament.
+ */
+export const CLONED_CONTEST_FIELDS = ["kind", "name", "hole", "buyInCents", "entryMode", "sponsorName", "sponsorUrl"] as const;
+export const NOT_CLONED_CONTEST_FIELDS: Record<string, string> = {
+  id: "the copy is a different game",
+  eventId: "points at the new tournament",
+  event: "the relation object for eventId",
+  stageId: "remapped onto the copy's own round; \"\" (the whole outing) stays \"\"",
+  entrants: "who entered, paid and won last year — a person's acts, never a setting",
+  createdBy: "the secretary who made the copy, not whoever set up last year's",
+  createdAt: "set on insert",
+  updatedAt: "set on insert",
+};
+
+export const CLONED_SIDE_GAME_FIELDS = ["kind", "buyInCents", "stakeNote", "entryMode"] as const;
+export const NOT_CLONED_SIDE_GAME_FIELDS: Record<string, string> = {
+  id: "the copy is a different game",
+  eventId: "points at the new tournament",
+  event: "the relation object for eventId",
+  stageId: "remapped onto the copy's own round",
+  groupKey:
+    "a fourball's own game is addressed by a group of a tee sheet the copy does not have, so only the field's game (\"\") is copied, and it is copied as the field's",
+  entrants: "who entered, paid and won last year — a person's acts, never a setting",
+  createdBy: "the secretary who made the copy, not whoever set up last year's",
+  createdAt: "set on insert",
+  updatedAt: "set on insert",
+};
+
+export const CLONED_SKINS_POT_FIELDS = ["buyInCents", "stakeNote", "net", "scope"] as const;
+export const NOT_CLONED_SKINS_POT_FIELDS: Record<string, string> = {
+  id: "the copy is a different pot",
+  eventId: "points at the new tournament",
+  event: "the relation object for eventId",
+  stageId: "remapped onto the copy's own round",
+  stage: "the relation object for stageId",
+  groupKey: "a fourball's own pot names a group of a tee sheet the copy does not have — only the field's pot is copied",
+  entrants: "who paid in last year, and so who is owed a carry — money, never a setting",
+  createdAt: "set on insert",
+  updatedAt: "set on insert",
 };
