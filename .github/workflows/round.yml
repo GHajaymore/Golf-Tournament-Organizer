@@ -132,6 +132,13 @@ jobs:
     name: The packages the browsers need
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # A shortcut cannot fail a round. On 2026-10-23 this job hit its time limit on a crawling
+    # mirror while all 47 parts passed by fetching for themselves, and the run still read
+    # "failure", so a re-run of its failed jobs re-ran every part that depends on this one: the
+    # whole round again. A job that runs out of time is CANCELLED, which continue-on-error does not
+    # cover, so the slow step carries its own limit and gives up as a failed step: the job ends
+    # green, and the parts — which wait on it — wait twenty minutes at most.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -141,6 +148,8 @@ jobs:
       - name: Install (the Playwright of this branch, nothing else run)
         run: npm ci --ignore-scripts
       - name: Fetch every package the three engines need
+        timeout-minutes: 20
+        continue-on-error: true
         run: |
           # apt-get keeps what it downloads in its cache unless told not to;
           # say so, so the runner's own settings cannot empty it.
