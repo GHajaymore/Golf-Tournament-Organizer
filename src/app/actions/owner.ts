@@ -26,18 +26,19 @@ export interface OwnerActionResult {
 }
 
 /**
- * OPEN ACCOUNTS, OR HOLD THEM AGAIN — the one switch for launch (Ajay, 2026-10-21: "make sure its
- * an easy control which we can flip back to allow signup / signin"). A row, not a deploy: it takes
- * effect on the next page anybody opens. It can only open what production's hold shut; it never
- * shuts dev, CI or a preview (`services/signins-switch.ts`).
+ * GO LIVE, OR HOLD AGAIN — the one switch for launch (Ajay, 2026-10-21: "make sure its an easy
+ * control which we can flip back to allow signup / signin"; 2026-10-23: "one switch to say let's go
+ * live"). A row, not a deploy: every page listed in `go-live.ts` follows it on the next page anybody
+ * opens. It can only open what production's hold shut; it never shuts dev, CI or a preview
+ * (`services/signins-switch.ts`).
  */
 export async function setAccountsOpen(open: boolean): Promise<OwnerActionResult & { now?: "open" | "held" }> {
   const session = await getSession();
   if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
   if (typeof open !== "boolean") return { ok: false, error: "Say open or held." };
   const now = await setSignInsOpen(open);
-  revalidatePath("/owner");
-  revalidatePath("/");
+  // Every public page reads it, not only / and /owner — the whole router cache, as prices do.
+  revalidatePath("/", "layout");
   return { ok: true, now };
 }
 

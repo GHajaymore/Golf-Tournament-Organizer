@@ -44,7 +44,7 @@ const SENDERS: Array<[string, () => Promise<unknown>]> = [
   ["staff invite", () => email.sendStaffInviteEmail(TO, { organizationName: HOSTILE, organizationId: "zz", role: HOSTILE, hasPassword: true })],
   ["join request", () => email.sendJoinRequestEmail(TO, { organizationName: HOSTILE, askerName: HOSTILE, askerEmail: HOSTILE, note: HOSTILE })],
   // Every field of it is typed by a stranger on a public form.
-  ["interest", () => email.sendInterestEmail(TO, { name: HOSTILE, email: HOSTILE, phone: HOSTILE, club: HOSTILE, role: HOSTILE, size: HOSTILE, note: HOSTILE })],
+  ["interest", () => email.sendInterestEmail(TO, HOSTILE, { name: HOSTILE, email: HOSTILE, phone: HOSTILE, club: HOSTILE, role: HOSTILE, size: HOSTILE, note: HOSTILE })],
   ["field: promoted", () => email.sendFieldStatusEmail(TO, { change: "promoted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
   ["field: waitlisted", () => email.sendFieldStatusEmail(TO, { change: "waitlisted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
 ];

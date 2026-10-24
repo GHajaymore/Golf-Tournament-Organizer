@@ -512,6 +512,8 @@ export type FieldChange = "promoted" | "waitlisted";
  */
 export async function sendInterestEmail(
   to: string,
+  /** What the person was promised — the go-live switch's sentence (`interestWords(state).toldInquiries`). */
+  told: string,
   who: { name: string; email: string; phone: string; club: string; role: string; size: string; note: string },
 ): Promise<void> {
   if (!resend) {
@@ -544,7 +546,7 @@ export async function sendInterestEmail(
           line("Who they are", who.role) +
           line("Size", who.size) +
           (who.note ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid ${EMAIL.flag}">${escapeHtml(who.note)}</blockquote>` : "") +
-          `<p>They were told they will be emailed a code for 25% off their first term when TourneyHQ opens. Reply to this email to write to them.</p>`,
+          `<p>${escapeHtml(told)}</p>`,
         "You're getting this because the /interest form on tourneyhq.club sends here.",
         { preview: `${who.club || "A club"} — ${who.role || "interested"}.`, action: { label: "See every note", url: `${base}/owner#interest` } },
       )),

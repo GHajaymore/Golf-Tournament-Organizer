@@ -19,8 +19,8 @@ import { HOME_CSS } from "@/lib/landing/home-styles";
 import { COMPARED_ON, PRICES_READ_ON, RIVALS, TOP_PUBLISHED, compareRows, type Cell } from "@/lib/landing/compare";
 import { SALES_EMAIL } from "@/lib/contact";
 import { LandingAuth } from "@/components/LandingAuth";
-import { signInsHeld } from "@/lib/services/signins-switch";
-import { HELD_FRONT_DOOR } from "@/lib/sign-in-gate";
+import { launchState } from "@/lib/services/signins-switch";
+import { frontDoorWords } from "@/lib/go-live";
 import { LandingEffects } from "@/components/LandingEffects";
 import { LandingHomeEffects } from "@/components/LandingHomeEffects";
 import { FeatureSearch } from "@/components/landing/FeatureSearch";
@@ -216,8 +216,11 @@ export default async function LandingPage() {
   // The owner's price overrides, so the price here is the one the owner set on
   // the console — the same number the schema.org offer below quotes.
   const overrides = await storedPricingOverrides();
-  // Held until launch — the deploy's rule, unless the owner has opened accounts on the console.
-  const held = await signInsHeld();
+  // The go-live switch: held until launch — the deploy's rule, unless the owner has pressed Go live
+  // on the console. Every word below that differs held and live comes from `go-live.ts`.
+  const launch = await launchState();
+  const words = frontDoorWords(launch);
+  const start = words.startHref("");
   const [h, jar] = await Promise.all([headers(), cookies()]);
   const { local, shown, overridden } = landingEdition(
     h.get("x-vercel-ip-country"),
@@ -260,7 +263,7 @@ export default async function LandingPage() {
   );
   const doors = (
     <div className="m-cta-row">
-      <a className="m-btn m-primary" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.cta : "Run an event"} <span className="m-arrow" aria-hidden="true">→</span></a>
+      <a className="m-btn m-primary" href={start}>{words.heroCta} <span className="m-arrow" aria-hidden="true">→</span></a>
       <a className="m-btn m-line" href="/play"><span className="m-long">I have a round code</span><span className="m-short">Enter a code</span></a>
     </div>
   );
@@ -280,7 +283,7 @@ export default async function LandingPage() {
       <LandingEffects />
       <LandingHomeEffects />
       {iconSprite()}
-      {landingNav("home", held)}
+      {landingNav("home", launch)}
 
       <main id="top" className="m-home">
         <div className="m-progress" aria-hidden="true" />
@@ -291,11 +294,10 @@ export default async function LandingPage() {
           <div className="m-wrap">
             <div className="m-hero-grid">
               <div className="m-copy">
-                {held ? (
-                  <a className="m-news m-rise" href="/interest">{HELD_FRONT_DOOR.pill} <span aria-hidden="true">→</span></a>
-                ) : (
-                  <a className="m-news m-rise" href="#does"><b>New</b> Ryder-style cups, on every player&rsquo;s phone <span aria-hidden="true">→</span></a>
-                )}
+                <a className="m-news m-rise" href={words.pill.href}>
+                  {words.pill.badge ? <><b>{words.pill.badge}</b> </> : null}
+                  {words.pill.text} <span aria-hidden="true">→</span>
+                </a>
                 <p className="m-eyebrow m-rise">Golf tournament &amp; league software</p>
                 <h1 id="hero-h">
                   <span className="m-line"><span>From Registration</span></span>
@@ -309,15 +311,7 @@ export default async function LandingPage() {
                 <p className="m-sub m-rise m-d2"><span>Run the whole competition.</span> <span>Your players just type a code.</span></p>
                 <div className="m-rise m-d3">{doors}</div>
                 <ul className="m-facts3 m-rise m-d4">
-                  {held ? (
-                    HELD_FRONT_DOOR.facts.map((f) => <li key={f}>{f}</li>)
-                  ) : (
-                    <>
-                      <li>Free for fields of up to {PLANS.free.limits.playersPerEvent}</li>
-                      <li>No card</li>
-                      <li>No app for players</li>
-                    </>
-                  )}
+                  {words.facts.map((f) => <li key={f}>{f}</li>)}
                 </ul>
               </div>
 
@@ -586,8 +580,8 @@ export default async function LandingPage() {
                 <p className="m-who">{PLANS.free.tagline}</p>
                 <h3>{PLANS.free.name}</h3>
                 <div className="m-price">{prices.zero}</div>
-                <p className="m-year">{held ? HELD_FRONT_DOOR.freeCard : "Free for good"}</p>
-                <a className="m-btn m-line" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.cta : "Start free"}</a>
+                <p className="m-year">{words.freeYear}</p>
+                <a className="m-btn m-line" href={start}>{words.freeButton}</a>
                 <ul>
                   <li>Up to {PLANS.free.limits.playersPerEvent} players</li>
                   <li>One tournament at a time</li>
@@ -600,7 +594,7 @@ export default async function LandingPage() {
                 <h3>{PLANS.society.name}</h3>
                 <div className="m-price">{prices.society.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.society.yearly} a year</p>
-                <a className="m-btn" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.planButton(PLANS.society.name) : `Choose ${PLANS.society.name}`}</a>
+                <a className="m-btn" href={start}>{words.planButton(PLANS.society.name)}</a>
                 <ul>
                   <li>Up to {PLANS.society.limits.playersPerEvent} players in a field</li>
                   <li>As many events as your season runs</li>
@@ -612,7 +606,7 @@ export default async function LandingPage() {
                 <h3>{PLANS.club.name}</h3>
                 <div className="m-price">{prices.club.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.club.yearly} a year</p>
-                <a className="m-btn m-line" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.planButton(PLANS.club.name) : `Choose ${PLANS.club.name}`}</a>
+                <a className="m-btn m-line" href={start}>{words.planButton(PLANS.club.name)}</a>
                 <ul>
                   <li>Any size of field</li>
                   <li>Up to {PLANS.club.limits.staffSeats} organizers and assistants</li>
@@ -620,7 +614,7 @@ export default async function LandingPage() {
                 </ul>
               </div>
             </div>
-            <p className="m-small">{held ? HELD_FRONT_DOOR.pricingNote : "Paid plans are arranged with us directly: create your account and we move it to the plan."} Nothing is charged through the app. {note}</p>
+            <p className="m-small">{words.pricingNote} Nothing is charged through the app. {note}</p>
 
             <div className="m-versus">
               <div className="m-say">
@@ -820,23 +814,11 @@ export default async function LandingPage() {
               <div className="m-close-copy">
               {/* Held until launch, the box below takes no new accounts, so the words above it do not
                   invite one (Ajay, 2026-10-21: "it still allow to sign up"). */}
-              {held ? (
-                <>
-                  <h2 id="start-h">{HELD_FRONT_DOOR.heading}</h2>
-                  <p className="m-lead">{HELD_FRONT_DOOR.lead}</p>
-                </>
-              ) : (
-                <>
-                  <h2 id="start-h">Run your first event.</h2>
-                  <p className="m-lead">
-                    A name is enough to start. No card, and with round codes on your players don&rsquo;t need an account.
-                    Organizers create an event here; players invited to one sign in with the same box.
-                  </p>
-                </>
-              )}
+              <h2 id="start-h">{words.closeHeading}</h2>
+              <p className="m-lead">{words.closeLead}</p>
               </div>
               <div className="authpanel m-auth">
-                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} closed={held} />
+                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} launch={launch} />
               </div>
               <div className="m-close-more">
               <div className="m-stores">
@@ -854,7 +836,7 @@ export default async function LandingPage() {
 
         {/* The two doors, within reach on a phone once the first screen's have scrolled away. */}
         <div className="m-dock" id="dock">
-          <a className="m-btn m-primary" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.cta : "Run an event"}</a>
+          <a className="m-btn m-primary" href={start}>{words.heroCta}</a>
           <a className="m-btn m-line" href="/play">Enter a code</a>
         </div>
       </main>

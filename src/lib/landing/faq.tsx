@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PLANS, retentionNotice } from "@/lib/plans";
 import { HANDICAP_EXAMPLE } from "./example";
 import type { LandingPrices } from "./pricing";
+import { faqWords, type LaunchState } from "@/lib/go-live";
 
 /**
  * EVERY QUESTION THE FRONT DOOR ANSWERS, in one place.
@@ -23,6 +24,8 @@ export interface FaqContext {
   prices: LandingPrices;
   /** The address people write to, or null while it cannot receive mail (see CONTACT_EMAIL_LIVE). */
   email: string | null;
+  /** The go-live switch's answer: the two answers that offer the free plan read it (`go-live.ts`). */
+  launch: LaunchState;
 }
 
 export interface FaqItem {
@@ -65,12 +68,8 @@ export const FAQ: FaqGroup[] = [
       {
         id: "try-free",
         q: "Can I try it for free?",
-        a: () => (
-          <p>
-            Yes. The {PLANS.free.name} plan runs one tournament at a time with up to {free.playersPerEvent} players and one
-            organizer — every format, the live board and the money side included. There&rsquo;s no card to start.
-          </p>
-        ),
+        // Held, the free plan is not offered (the front door says "Opens at launch."), so neither is it here.
+        a: ({ launch }) => <p>{faqWords(launch).tryFree}</p>,
       },
       {
         id: "reuse",
@@ -391,7 +390,7 @@ export const FAQ: FaqGroup[] = [
       {
         id: "card",
         q: "Do I need a credit card?",
-        a: () => <p>No card to start. Nothing is charged through the app — moving to a paid plan is arranged with us directly.</p>,
+        a: ({ launch }) => <p>{faqWords(launch).card}</p>,
       },
       {
         id: "setup-fee",

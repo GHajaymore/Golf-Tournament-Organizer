@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { checkInterest, cleanSource, interestSource, interestSubject, INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES } from "@/lib/domain/interest";
+import { interestWords, SIGNINS_CLOSED_NOTICE } from "@/lib/go-live";
 
 /**
  * THE /interest FORM'S RULES (2026-10-21) — `checkInterest` is the only door,
@@ -111,15 +112,23 @@ describe("where a note came from — read off the address, no cookie", () => {
 
 describe("what it says", () => {
   it("the offer names the first term, and never prints a code", () => {
-    for (const words of [INTEREST_COPY.sub, INTEREST_COPY.noticeOffer]) {
+    for (const words of [interestWords("held").sub, SIGNINS_CLOSED_NOTICE.offer]) {
       expect(words).toMatch(/25%/);
       expect(words).toMatch(/first (term|month)/);
       expect(words).not.toMatch(/\b[A-Z0-9]{6,}\b/);
     }
   });
 
+  it("once live, the early list is over: no 25%, and no promise of a code", () => {
+    const live = interestWords("live");
+    const said = [live.kicker, live.h1, live.sub, live.description, live.reassure, live.share, live.sent("Zz Pat", "zz@example.invalid")].join(" ");
+    expect(said).not.toMatch(/25%|code|opens soon|opening soon/i);
+    // CONTROL: the held words do carry it, so the line above can fail.
+    expect(interestWords("held").sent("Zz Pat", "zz@example.invalid")).toMatch(/25% code/);
+  });
+
   it("never the word the app does not say", () => {
-    const all = JSON.stringify(INTEREST_COPY).toLowerCase();
+    const all = JSON.stringify([INTEREST_COPY, interestWords("held"), interestWords("live")]).toLowerCase();
     expect(all).not.toContain("closed");
   });
 

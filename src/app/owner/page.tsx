@@ -15,8 +15,8 @@ import { OwnerClubPlan } from "@/components/OwnerClubPlan";
 import { peopleOwningSeveralParClubs } from "@/lib/services/close-terms";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
 import { OwnerAccounts } from "@/components/OwnerAccounts";
-import { signInsOpenedOnConsole } from "@/lib/services/signins-switch";
-import { signInsClosed } from "@/lib/sign-in-gate";
+import { launchSwitch } from "@/lib/services/signins-switch";
+import { clubClockInWords } from "@/lib/domain/club-clock";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
@@ -162,6 +162,17 @@ export default async function OwnerConsolePage() {
     expires: c.expiresAt ? shortDate(c.expiresAt) : "",
   }));
 
+  // THE GO-LIVE SWITCH, and when it went live — on the owner's own club's clock (the first club they
+  // belong to that has said where it is), or in UTC, said so, when none has.
+  const sw = await launchSwitch();
+  const ownClub = await prisma.organizationMember.findFirst({
+    where: { userId: session.userId, organization: { timeZone: { not: "" } } },
+    orderBy: { createdAt: "asc" },
+    select: { organization: { select: { timeZone: true } } },
+  });
+  const zone = ownClub?.organization.timeZone ?? "";
+  const liveSince = sw.liveSince ? `${clubClockInWords(zone || "UTC", DEFAULT_LOCALE, sw.liveSince)}${zone ? "" : " UTC"}` : "";
+
   const stat = (label: string, value: string, sub?: string) => (
     <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
       <span className="card-kicker">{label}</span>
@@ -237,8 +248,9 @@ export default async function OwnerConsolePage() {
         {stat("Players", m.totalPlayers.toLocaleString(DEFAULT_LOCALE), "across every event")}
       </div>
 
-      {/* The launch switch first: the one control that decides who can get in at all. */}
-      <OwnerAccounts opened={await signInsOpenedOnConsole()} ruleHolds={signInsClosed()} />
+      {/* The go-live switch first: the one control that decides who can get in, and what every
+          public page says about it. */}
+      <OwnerAccounts switchSays={sw.switchSays} liveSince={liveSince} rule={sw.rule} />
 
       {/* The controls that write: the price every screen quotes, and the caps
           every entry gate reads. */}

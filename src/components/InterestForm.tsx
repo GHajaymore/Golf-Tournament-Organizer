@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { registerInterest } from "@/app/actions/interest";
 import { INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES, INTEREST_SIZES, interestSource } from "@/lib/domain/interest";
+import { interestWords, type LaunchState } from "@/lib/go-live";
 
 type Field = "name" | "email" | "phone" | "club" | "role" | "members" | "note";
 
@@ -12,7 +13,9 @@ type Field = "name" | "email" | "phone" | "club" | "role" | "members" | "note";
  * tap on a phone, where a dropdown is two and a scroll. The hidden "website"
  * box is for scripts; a person never sees it.
  */
-export function InterestForm() {
+export function InterestForm({ launch }: { launch: LaunchState }) {
+  // The words that change at launch (the promise of a code) come from the go-live switch.
+  const words = interestWords(launch);
   const [v, setV] = useState<Record<Field, string>>({ name: "", email: "", phone: "", club: "", role: "", members: "", note: "" });
   const [website, setWebsite] = useState("");
   const [refusal, setRefusal] = useState<{ error: string; field?: string } | null>(null);
@@ -24,18 +27,18 @@ export function InterestForm() {
   if (sent) {
     return (
       <div role="status" className="iv-sent">
-        <p>{INTEREST_COPY.sent(sent.name, sent.email)}</p>
+        <p>{words.sent(sent.name, sent.email)}</p>
         {sent.role === "player" ? (
           <p>{INTEREST_COPY.sentPlayer}</p>
         ) : (
           <p>
-            {INTEREST_COPY.share}{" "}
+            {words.share}{" "}
             <button
               type="button"
               className="iv-copy"
               onClick={() => {
                 navigator.clipboard
-                  ?.writeText("https://tourneyhq.club/interest")
+                  ?.writeText(words.shareUrl)
                   .then(() => setCopied(true))
                   .catch(() => {});
               }}
@@ -172,7 +175,7 @@ export function InterestForm() {
         )}
       </div>
       <p className="iv-small">
-        {INTEREST_COPY.reassure} <a href="/privacy">Privacy notice</a>
+        {words.reassure} <a href="/privacy">Privacy notice</a>
       </p>
     </form>
   );
