@@ -30,15 +30,31 @@ const DOORS = [
   { path: "/zz-no-such-page-smoke", status: 404, says: null },
 ];
 
+/**
+ * AND ONE PUBLIC BOARD, when one is named (2026-10-23, the hourly canary —
+ * `.github/workflows/canary.yml`). `/live/<token>` is the page a club sends its
+ * members and the one most likely to be open on a phone on a Saturday; it reads
+ * the database, which the front door does not. The link is a secret
+ * (`CANARY_BOARD_URL`) because a board's address is the club's to share, not
+ * this public repository's. Still a GET with no cookie: nothing is written.
+ */
+const BOARD = process.env.PROD_BOARD_URL ?? "";
+if (BOARD) DOORS.push({ url: BOARD, path: "the public board", status: 200, says: process.env.PROD_BOARD_SAYS || "TourneyHQ" });
+else console.log("(no PROD_BOARD_URL given: the public board is not checked this time)");
+
 async function ask(door) {
   // A cold function can be slow on the first request after a deploy: three tries.
   let last = "";
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(`${BASE}${door.path}?smoke=${Date.now()}`, { redirect: "manual", headers: { "user-agent": "tourneyhq-prod-smoke" } });
+      const target = door.url ? `${door.url}${door.url.includes("?") ? "&" : "?"}smoke=${Date.now()}` : `${BASE}${door.path}?smoke=${Date.now()}`;
+      const res = await fetch(target, { redirect: "manual", headers: { "user-agent": "tourneyhq-prod-smoke" } });
       const body = res.status === 200 ? await res.text() : "";
       if (res.status !== door.status) {
         last = `answered ${res.status}, expected ${door.status}`;
+      } else if (/Application error/i.test(body)) {
+        // A 200 whose page is the framework's error screen is not the page.
+        last = `answered ${res.status} with the app's error screen`;
       } else if (door.says && !body.toLowerCase().includes(door.says.toLowerCase())) {
         last = `answered ${res.status} without "${door.says}" on it`;
       } else {

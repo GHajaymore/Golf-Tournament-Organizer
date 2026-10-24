@@ -21,6 +21,8 @@ import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
 import { planFor } from "@/lib/plans";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
+import { PLACE_MAX, SHORT_NAME_MAX, TITLE_MAX } from "@/lib/domain/typed-limits";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 /**
  * Load a picked file far enough to draw it.
@@ -323,6 +325,7 @@ export function OrganizationClient(props: Props) {
               id={`${fid}-name`}
               className="input"
               value={name}
+              maxLength={TITLE_MAX}
               disabled={!props.canEdit || pending}
               onChange={(e) => setName(e.target.value)}
               // An example of the kind of outfit this actually is. "e.g.
@@ -340,6 +343,7 @@ export function OrganizationClient(props: Props) {
               id={`${fid}-short`}
               className="input"
               value={shortName}
+              maxLength={SHORT_NAME_MAX}
               disabled={!props.canEdit || pending}
               onChange={(e) => setShortName(e.target.value)}
               placeholder="e.g. Ridgeline"
@@ -514,7 +518,7 @@ export function OrganizationClient(props: Props) {
                   {brandMonogram(name, shortName)}
                 </span>
               )}
-              <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15, minWidth: 0 }}>
+              <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15, minWidth: 0, overflowWrap: "anywhere" }}>
                 <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}>
                   {preview.primary || (
                     <span className="text-muted">Your {outfit.noun}</span>
@@ -553,6 +557,7 @@ export function OrganizationClient(props: Props) {
               <input
                 className="input"
                 value={city}
+                maxLength={PLACE_MAX}
                 disabled={!props.canEdit || pending}
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="City"
@@ -561,6 +566,7 @@ export function OrganizationClient(props: Props) {
               <input
                 className="input"
                 value={region}
+                maxLength={PLACE_MAX}
                 disabled={!props.canEdit || pending}
                 onChange={(e) => setRegion(e.target.value)}
                 placeholder="State or region"
@@ -569,6 +575,7 @@ export function OrganizationClient(props: Props) {
               <input
                 className="input"
                 value={country}
+                maxLength={PLACE_MAX}
                 disabled={!props.canEdit || pending}
                 onChange={(e) => setCountry(e.target.value)}
                 placeholder="Country"
@@ -581,7 +588,7 @@ export function OrganizationClient(props: Props) {
           </div>
 
           {error && (
-            <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+            <p role="alert" ref={bringIntoView} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}

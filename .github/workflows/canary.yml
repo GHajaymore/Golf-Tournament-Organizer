@@ -1,0 +1,62 @@
+name: Production canary
+
+# IS TOURNEYHQ.CLUB ANSWERING, EVERY HOUR (the panel, 2026-10-23 —
+# docs/testing-panel-2026-10-23.md, item F2).
+#
+# The smoke test after a deploy (deploy.yml) asks once, the minute the deploy
+# lands. Nothing asked again afterwards: an expired certificate, a database
+# that went away, a host-side fault at 3pm on a Saturday all reached members
+# with every check green. So this asks every hour, the way a visitor's phone
+# would:
+#
+#   the front door, /faq and /play        200, with their own words on them
+#   a page that does not exist            404 (a control: a dead site is not a pass)
+#   one public board, /live/<token>       200, with its words and not the error
+#                                         screen — when CANARY_BOARD_URL is set
+#
+# READ-ONLY, BY CONSTRUCTION: GETs to pages anyone may open, no cookie, no
+# sign-in, nothing written (scripts/prod-smoke.mjs). Production holds real
+# members (CLAUDE.md, hard rule 1).
+#
+# HOW AJAY HEARS ABOUT IT: a failed run IS the alert. GitHub emails a failed
+# scheduled run to the person who last changed this file's schedule (whoever
+# merges it), provided their GitHub settings send Actions notifications:
+# Settings → Notifications → "Actions" → email, "Only notify for failed
+# workflows". The GitHub mobile app pushes the same. Nothing else is set up and
+# no third party is involved.
+#
+# Also: GitHub turns schedules off in a public repository after 60 days with no
+# commits. A quiet two months ends this, the nightly and the hourly deploy;
+# the Actions tab says so and "Enable workflow" starts them again.
+#
+# SECRET (name only): CANARY_BOARD_URL — the full address of one public board a
+# club is happy to have watched. Without it the board is skipped, and said so.
+
+on:
+  schedule:
+    - cron: "41 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: canary
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: The public doors of tourneyhq.club
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Ask production, as a visitor would
+        env:
+          PROD_BOARD_URL: ${{ secrets.CANARY_BOARD_URL }}
+        run: node scripts/prod-smoke.mjs

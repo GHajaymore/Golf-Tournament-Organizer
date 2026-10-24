@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { privacyContact } from "@/lib/domain/privacy-contact";
 import { PLANS, PAR_LIFESPAN_DAYS } from "@/lib/plans";
+import { KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
 import { RETAIN_AFTER_CANCEL_DAYS } from "@/lib/domain/billing";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
@@ -121,9 +122,13 @@ export default async function TermsPage() {
       <Section title="Plans">
         <p>
           <strong>{par.name}</strong> is free. It runs {par.limits.activeEvents} tournament at a time,
-          for up to {par.limits.playersPerEvent} players, with {par.limits.staffSeats} organizer. A
-          tournament on {par.name} is deleted for good when its organizer marks it Completed, or{" "}
-          {PAR_LIFESPAN_DAYS} days after its first round is played, whichever comes first.
+          for up to {par.limits.playersPerEvent} players, with {par.limits.staffSeats} organizer. When a
+          tournament on {par.name} is completed, its board, results and settle-up stay open to view,
+          read-only, for {KEPT_AFTER_COMPLETE_DAYS} days. After that it is deleted for good. A tournament
+          nobody completes is deleted {PAR_LIFESPAN_DAYS} days after its first round is played. To keep
+          it, move to a paid plan before then.
+          {/* DRAFT FOR THE OWNER'S LAWYER (2026-10-21): the marketing panel's wording of Ajay's
+              "keep it for 15 days"; he reviews the terms right before launch. */}
         </p>
         <p>
           <strong>{paid}</strong> are paid plans, billed monthly or yearly in advance. What each
