@@ -16,6 +16,7 @@ import { usesStandardBoard } from "@/lib/formats";
 import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
+import { potCents } from "@/lib/domain/money";
 import { MoneySetup } from "@/components/MoneySetup";
 import { MoneyModeLine } from "@/components/MoneyModeLine";
 import { FloatClient } from "@/components/FloatClient";
@@ -297,10 +298,12 @@ export default async function PrizesPage({
           detail: p.detail,
           amount: p.amount,
           winnerId: p.winnerId,
+          counts: p.countsForOnePrize,
         }))}
         players={orderedForPrizes}
         flights={prizeFlights}
         byScore={prizeOrders}
+        onePrizePerPlayer={state.event.onePrizePerPlayer}
       />
       {/* ONE BALL PER SIDE, SO NO PER-PLAYER POT — THE CLUB'S OWN SCREEN.
           `/group-games` said this from the day the rule landed (#495) and this
@@ -367,7 +370,7 @@ export default async function PrizesPage({
               entryMode: modeOf(c.entryMode),
               entrantIds: m.entrants,
               winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
-              potCents: c.buyInCents * m.entrants.length,
+              potCents: potCents(c.buyInCents, m.entrants.length),
               pending: m.pending.map((playerId) => ({
                 playerId,
                 name: nameOf(playerId),

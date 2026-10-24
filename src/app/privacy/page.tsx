@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { privacyContact } from "@/lib/domain/privacy-contact";
 import { PLANS, PAR_LIFESPAN_DAYS } from "@/lib/plans";
-import { RETAIN_AFTER_CANCEL_DAYS } from "@/lib/domain/billing";
+import { ARCHIVE_MONTHS } from "@/lib/domain/club-archive";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
 import { pageShareMeta } from "@/lib/landing/share-meta";
@@ -264,9 +264,9 @@ export default async function PrivacyPage() {
         </p>
         <p>
           <strong>On {kept.join(", ").replace(/, ([^,]*)$/, " and $1")}</strong>, tournament data is
-          kept until the club deletes it or asks us to. When a paid plan ends, every tournament is
-          kept for {RETAIN_AFTER_CANCEL_DAYS} more days, and then the free plan&rsquo;s terms apply
-          &mdash; see the <Link href="/terms">terms</Link>.
+          kept until the club deletes it or asks us to. When a paid plan ends, every tournament the
+          club has is kept read-only for {ARCHIVE_MONTHS} more months and then deleted for good, unless
+          the club chooses a plan again first &mdash; see the <Link href="/terms">terms</Link>.
         </p>
         <p>
           A casual round is deleted 24 hours after it is set up unless its organizer keeps it. On{" "}
@@ -329,7 +329,9 @@ export default async function PrivacyPage() {
         </p>
         <p>
           <strong>21 October 2026:</strong> the register-your-interest form is described: what it
-          asks, that we hold it ourselves, and that it is deleted on request.
+          asks, that we hold it ourselves, and that it is deleted on request. And a paid plan that ends
+          keeps its tournaments read-only for {ARCHIVE_MONTHS} months, then deletes them, in place of
+          30 days followed by the free plan&rsquo;s terms.
         </p>
         <p>
           <strong>3 October 2026:</strong> Vercel&rsquo;s cookie-free page counts are described, for
@@ -340,8 +342,7 @@ export default async function PrivacyPage() {
         </p>
         <p>
           <strong>2 October 2026:</strong> Stripe is listed, for clubs that pay for a plan, and
-          Sentry, for error reports; a paid plan that ends keeps its tournaments for{" "}
-          {RETAIN_AFTER_CANCEL_DAYS} days.
+          Sentry, for error reports; a paid plan that ends keeps its tournaments for 30 days.
         </p>
         <p>
           <strong>30 September 2026:</strong> &ldquo;How long it is kept&rdquo; now describes the

@@ -1168,6 +1168,12 @@ unranked this way is captioned "didn't play Round 2", not "card incomplete".
 "top N and ties". Before this a cut on a stroke round was configured and printed but never
 applied, so a cut player could start the next round's card. See `services/stroke-cut.ts`.
 
+**And the week sheet had the same fault in a worse form until 2026-10-21.** Its season table
+did not read the board at all: it summed each player's cards and ranked the totals, so it
+never saw `closedAt`, the cut or `isRanked`, and on strokes it put the FEWEST rounds first —
+the seeded Club Championship's "standings after round 2" were led by the twelve cut after
+round 1. It now asks the board (`standingsThroughRound`), so everything above applies to it.
+
 Two things worth keeping:
 
 - **`chargedHoles` deliberately does NOT read `closedAt`.** It derives settled
@@ -1533,6 +1539,28 @@ which a club's terms of competition expect before changing anything.
 
 **A halved round-robin match is half a point each**, with the all-square tiebreakers applied
 only where the organizer ticks them. Most leagues play it that way; some award no points.
-**One prize per player under Both** (gross and net from one card) is not enforced. **A plate for
+**One prize per player** is a tick-box on Prizes since 2026-10-21 (`domain/one-prize.ts`, kept by
+`setPrizeWinner`; placing lines count, skill lines do not, gross is awarded first). It governs the
+PRIZE LIST only: the card-settled side games (low gross, low net) and the skins pots still pay one
+player twice, which is right for money a player staked. **A plate for
 those who did not qualify** (17th to 32nd), beside the plate for first-round losers, is not
 offered. **Gross Stableford** is still not a choice (see the Stableford entry).
+
+## Left alone beside a tie for the last place at a stroke cut — SEEN, NOT CHANGED (2026-10-23)
+
+A cut between two stroke rounds now asks how a tie for the last place is settled (ties go
+through, the default; a play-off the committee records; or the board's countback, then a draw
+the committee records) — `strokeCutOutcome` in `domain/cut.ts`. Three neighbours were left:
+
+**The knockout's qualification tie** (the first entry of the section above) is still list order
+past the countback. It is the same question on a field of FIXED size, so "ties go through" is
+not one of its answers; `strokeCutOutcome` with only the play-off and countback rules, and the
+dashboard's tie panel, are the pattern to copy. Left because the bracket's draw, its freeze
+(`drawFrozen`) and the qualification panel all read `qualifierIds`, and it wants its own pass.
+
+**A round robin's cut** (`generateCutRound`, `survivors`) still takes the standings' order,
+whose last fallback is the club's tiebreak chain. Same shape, same fix, not asked for.
+
+**Net countback off a full handicap** (above) is unchanged, and the cut's countback is the
+board's: hole-by-hole net. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the
+fractional method agrees, and says so.

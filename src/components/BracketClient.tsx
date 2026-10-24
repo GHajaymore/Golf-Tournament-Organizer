@@ -528,7 +528,7 @@ export function BracketDrawing({
                                   setSavedKey(m.key);
                                 });
                               }}
-                              style={{ marginTop: 4, fontSize: 13, minHeight: 30, padding: "2px 8px", flex: 1, minWidth: 0 }}
+                              style={{ marginTop: 4, fontSize: 13, minHeight: "var(--tap-min, 30px)", padding: "2px 8px", flex: 1, minWidth: 0 }}
                             />
                           )}
                           {m.winnerId && !readOnly && savedKey === m.key && !pending && (

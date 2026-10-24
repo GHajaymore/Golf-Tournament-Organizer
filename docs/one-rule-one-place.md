@@ -34,15 +34,15 @@ Each layer is taken only when the one beneath it is in one place and proven.
 
 | Step | Layer | The question | State |
 |---|---|---|---|
-| 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5 |
-| 2 | The field | who is in the tournament, and in this round | done 2026-10-14: the cut recorded and asked once; a player found by address one way; a round's cut settings read once; leaving the field asked once |
-| 3 | The venue | which course, which card, which tees | done 2026-10-14: tees; a round's card built one way; the handicap record off the round's tees. One item measured unreachable and registered (a match countback's card) |
-| 4 | Handicap | course handicap, playing handicap, strokes per hole | done 2026-10-14: one chain for a round (a singles match from its cards fixed); the tee-name pipeline and the handicap record checked |
-| 5 | A card | gross, net, points, to par | done 2026-10-14: what a stroke can be asked one way; the loops and to-par measured consistent on that footing |
-| 6 | A round | finished or not, ranking, ties, a match result | done 2026-10-14: a match result a card of its length, over when decided; a confirmed result stays confirmed; every board places by countback, decided once; three dead twins deleted |
-| 7 | Across rounds | cut, flights, brackets, season table | done 2026-10-14: the cut and its field (step 2), a round's name (a cut's refusal fixed), a knockout's draw (2026-10-12); a season table shares places on purpose |
-| 8 | Money | pots, splits, who owes whom | checked 2026-10-14: one divider (`splitExactly`), one settle; the low-net pot's net is the board's; the preview label says "about" |
-| 9 | What screens say | two screens never give different answers | begun 2026-10-14: `e2e/the-boards-agree.spec.ts` holds the secretary's board and the public link to the same place for every player, on every public round of the seeded club |
+| 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5. **Re-measured 2026-10-23**: sweeps green; a typed match margin no match can finish on was accepted (found by a property test, see step 6) |
+| 2 | The field | who is in the tournament, and in this round | done 2026-10-14: the cut recorded and asked once; a player found by address one way; a round's cut settings read once; leaving the field asked once. **Re-measured 2026-10-23**: sweeps green; 2 new inline `status: "confirmed"` reads, the one spelling — consistent |
+| 3 | The venue | which course, which card, which tees | done 2026-10-14: tees; a round's card built one way; the handicap record off the round's tees. One item measured unreachable and registered (a match countback's card). **Re-measured 2026-10-23**: sweeps green; no new card chain or tee resolver in the 18,384 lines added since |
+| 4 | Handicap | course handicap, playing handicap, strokes per hole | done 2026-10-14: one chain for a round (a singles match from its cards fixed); the tee-name pipeline and the handicap record checked. **Re-measured 2026-10-23**: sweeps green; no hand-written allowance added; property-tested against the Rule in whole numbers |
+| 5 | A card | gross, net, points, to par | done 2026-10-14: what a stroke can be asked one way; the loops and to-par measured consistent on that footing. **2026-10-23**: the strokes received over the holes played is one function (`strokesReceivedOnHolesPlayed`) — a new copy in the cup's card line and the low-net pot's own, folded |
+| 6 | A round | finished or not, ranking, ties, a match result | done 2026-10-14: a match result a card of its length, over when decided; a confirmed result stays confirmed; every board places by countback, decided once; three dead twins deleted. **2026-10-23**: "is this match over" asked of `matchIsOver` everywhere (5 direct `.complete` reads folded, 2 of them writers; sweep added); a margin no match can finish on refused |
+| 7 | Across rounds | cut, flights, brackets, season table | done 2026-10-14: the cut and its field (step 2), a round's name (a cut's refusal fixed), a knockout's draw (2026-10-12); the week sheet's stroke table is the board's (2026-10-21). **Re-measured 2026-10-23**: no index-derived round name, no second countback; property-tested (cut and ties, a draw of 1 to 256 in any order) |
+| 8 | Money | pots, splits, who owes whom | **done 2026-10-23**: one divider (`splitExactly`), one settle, one pot size (`potCents`, 6 copies folded); one table of when each game pays (`SIDE_GAME_PAYS`); every game worked by hand from its own rules; no pot arithmetic outside the money module, and no payment that moves money (sweeps). The report's side-game line fixed |
+| 9 | What screens say | two screens never give different answers | begun 2026-10-14 (`e2e/the-boards-agree.spec.ts`). **2026-10-23**: a player's place on the secretary's board, the public link, Today and both copies of the report, and their money on three screens (`every-screen-gives-a-player-one-answer.audit.test.ts`); a knockout's draw, finishing order and progress (`a-knockout-is-read-one-way.test.ts`) |
 
 Steps 3 and 4 were opened first only because the fault that prompted this was
 found there. The work goes back to step 1 and climbs.
@@ -170,6 +170,30 @@ handicap readers became one (counted off the diff, not the inventory). The four
 - **Deleted, with no callers**: `courseHandicapForPlayer` (a fourth course-handicap
   pipeline) and the tee matcher with its module.
 
+## The re-measure of 2026-10-23 (`docs/foundation-pass-2026-10-23.md`)
+
+Thirty-six merges had landed since step 9 was begun — the tournament report,
+the cup's stroke-card keeping, a match's own page, side-game work. Every sweep
+above was run again (all green, on 12,640 unit tests), and the 18,384 lines of
+source added since 2026-10-14 were scanned for sixteen shapes of a second copy:
+an allowance by hand, a round figure by hand, a stroke allocation, a ranking
+sort, a place numbering, an inline field, a left-the-field spelling, a round
+named by its index, a platform date, a match's `.complete`, a card chain by
+hand, a money split, a stored card parsed, a to-par by hand, a countback, a
+typed number. What was found, each read by hand before it was counted:
+
+| Shape | Found | Done |
+|---|---|---|
+| `resolveMatch(...).complete` read directly | 5 (2 writers: the team and singles match rebuilt from cards) | folded into `matchIsOver`; `a-match-is-over-is-asked-one-way.test.ts` |
+| strokes received over the holes played, looped by hand | 2 (the cup's card line, the low-net pot) | `strokesReceivedOnHolesPlayed`; the low-net pot leaves the allocation debt list |
+| a pot multiplied out by hand | 6 (one of them wrong: the report) | `potCents`; `money-is-worked-out-in-one-place.test.ts` |
+| a countback worded twice (`tie-words.ts`, the Stages screen) | 2 | left: two questions (a match's tiebreak, a stroke card's countback), each read off its own rule |
+| an inline `status: "confirmed"` | 2 | left: the one spelling (step 2) |
+| birdies counted again (the report's highlights) | 1 | left: a highlight counts birdies exactly; the pot counts one under or better, by its own rule |
+
+And a property test (step 6) found a typed margin accepted that no match can
+finish on. The detail, and the mutation scores, are in the pass's own note.
+
 ## The inventory
 
 A read-only sweep on 2026-10-13. Paths are under `src/`. Counts were confirmed
@@ -217,7 +241,7 @@ day and will drift: search for the expression.
 - "Round official", two spellings: `closedAt != null` (leaderboard/page.tsx:233; me.ts:492, 634; expenses.ts:823, 1963; week-view.ts:484) vs `closedAt || event.status === "completed"` (expenses.ts:543, 1994; tournament-result.ts:263, 279, 355).
   **Checked and consistent** (2026-10-14): completing a tournament closes every open playing round, nothing else writes "completed", and 0 open rounds in 135 completed tournaments (read-only). The two spellings agree on everything stored.
 - Ranking: ~12 orderings, 4 numbering routines, no shared comparator. Individual stroke: tournament.ts:2271-2362 inline comparator + rank pass (twin `rankByCountback` has no callers but its test). Modified Stableford points-standings.ts:254 inline. Team teams.ts:555 (no countback). Prize pickers prizes/page.tsx:99-105 inline sort on raw gross/net, no countback. TWO exported functions both named `compareOnBasis` (stroke-countback.ts:256 relative to par; week-basis.ts:179 raw). Place numbers come from components via `placesByValue` with each caller's own rule.
-  **Done for the stroke board and the prize pickers** (2026-10-14): the board's sort and rank pass take the basis (`orderOn`), and the pickers ask it for gross and for net (`strokeStandingsOn`), so a tie for Best gross in a net medal goes to countback on the gross cards rather than to T1 (`a-gross-prize-tie-goes-to-countback.audit.test.ts`). **And the team boards and Modified Stableford** (2026-10-14): six readers numbered team sides on the figure alone, and the team sort broke a net tie on GROSS; the Modified Stableford board broke a points tie on the lower gross while its three readers shared on points. Both now order level rows by countback on their own card and decide the place where the rows are built (`TeamStanding.place`, `ModStablefordRow.place`); every board, sheet, export and Today screen prints it (`a-side-is-placed-by-countback.audit.test.ts`, `a-points-board-is-placed-by-countback.audit.test.ts`, sweep `a-side-is-placed-once.test.ts`). Still their own, on purpose: skins (a tie in skins is shared), a league's season table, and a pairs' season total, none of which has one card to count back on.
+  **Done for the stroke board and the prize pickers** (2026-10-14): the board's sort and rank pass take the basis (`orderOn`), and the pickers ask it for gross and for net (`strokeStandingsOn`), so a tie for Best gross in a net medal goes to countback on the gross cards rather than to T1 (`a-gross-prize-tie-goes-to-countback.audit.test.ts`). **And the team boards and Modified Stableford** (2026-10-14): six readers numbered team sides on the figure alone, and the team sort broke a net tie on GROSS; the Modified Stableford board broke a points tie on the lower gross while its three readers shared on points. Both now order level rows by countback on their own card and decide the place where the rows are built (`TeamStanding.place`, `ModStablefordRow.place`); every board, sheet, export and Today screen prints it (`a-side-is-placed-by-countback.audit.test.ts`, `a-points-board-is-placed-by-countback.audit.test.ts`, sweep `a-side-is-placed-once.test.ts`). Still their own, on purpose: skins (a tie in skins is shared) and a pairs' season total, neither of which has one card to count back on. **A league's season table was on that list until 2026-10-21, on a false premise**: a stroke or points season DOES have a card to count back on — the board counts back on the last round, as a multi-round competition is decided — and the week sheet was building its own table besides (see layer 7).
 - Match "confirmed or auto-confirmed": actions/tournament.ts:2556, 3628, 3581; match-filter.ts:39; ScoreEntryClient.tsx:2051; beside `effectiveScoreStatus`.
   **Done** (2026-10-14): `disputeMatch` read the stored column, so a player could dispute a result that had auto-confirmed; it reads `effectiveScoreStatus` now, as `clearMatch` does (`an-auto-confirmed-result-is-not-disputed-by-a-player.audit.test.ts`), and `auto-confirmed-is-never-stored.test.ts` refuses the column being compared with that word. The rest are handed the effective status already.
 
@@ -225,9 +249,12 @@ day and will drift: search for the expression.
 - See the cut-field six versions (layer 2) and cut rule four builders.
 - Round label: `roundLabel`; index-derived outside the guard's pattern: week-view.ts:602, 619; availability.ts:289; cup.ts:91, 314 (two copies); regroup.ts:567; EntryModes.tsx:397.
   **Checked** (2026-10-14): the week, availability and voice numbers count the list they are about. Fixed: a cut's refusal numbered the round among round robins only ("Round 1" for the board's Round 2); the cup's session name was written twice.
+- The table after a round, two builders: the board (`loadEventState(eventId, throughStageId)`, what the cut is made on) and the week sheet's stroke season table, which summed each player's cards and ranked the totals.
+  **Done** (2026-10-21): the week sheet asks the board through `standingsThroughRound` (`services/standings-through.ts`) — only the players the board gives a place, the board's place and the board's figure (`strokeRankingBasis`). Before it, the seeded Club Championship's "standings after round 2" were led by the twelve who missed the cut, on one round's gross, and a stroke league member who skipped a week went top for it. Pinned from Rule 3.3a on a cut, a no-show, a missed closed week, a missed open week and a live round (`week-table-holds-only-a-place.audit.test.ts`); the sweep `a-stroke-table-across-rounds-is-the-board.test.ts` lists every caller of `aggregateStroke` with the one round it sums. A match league's table is untouched: it was already the board's chain (`chainRoundStandings`).
 
 ### 8 Money
 - `splitExactly` is the only divider; `settle`, `gameNets` single. Inline: MoneyClient.tsx:142 (preview label). Low-net pot computes its OWN net (expenses.ts:1018-1027 + derived-games.ts:131 `gross - Math.round(c.strokesReceived)`) rather than the board's.
+  **Done 2026-10-23**: `potCents` sizes every pot (six copies folded); `SIDE_GAME_PAYS` (money-layout.ts) is the one table of when each game's amount may be reported, read by `gameNets` and `saveSideGame`; the low-net pot's strokes through `strokesReceivedOnHolesPlayed`. Sweeps: `money-is-worked-out-in-one-place.test.ts` (no pot arithmetic outside the money module — the preview label is its one listed exemption; one split and one settle; only billing imports a payment provider; nothing makes a transfer, payout, charge or payment link). By hand: `side-games-by-their-own-rules.test.ts`. As properties: `properties-money.test.ts`.
 
 ### Dead twins of live rules
 All four deleted: `courseHandicapForPlayer` (2026-10-13), and `rankByCountback`, `seasonPosition`, `isMatchStarted` (2026-10-14).

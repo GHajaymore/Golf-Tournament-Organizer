@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "../db";
 import { getSession } from "../auth";
 import { parseTeeSheet } from "../domain/tee-sheet";
+import { archiveRefusalFor } from "./club-archive";
 
 /**
  * Who may run WHICH game — the one reader for every player-money pot.
@@ -98,6 +99,10 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
   if (!(await stageInEvent(eventId, stageId))) return no("Round not found");
 
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  // Every pot and side game is written through here: none of them in a lapsed
+  // club's read-only archive (2026-10-21), and the refusal said in words.
+  const archived = await archiveRefusalFor(eventId, isStaff ? "organizer" : "player");
+  if (archived) return no(archived);
   if (isStaff) return yes(eventId, null, true);
 
   const key = (groupKey ?? "").trim();

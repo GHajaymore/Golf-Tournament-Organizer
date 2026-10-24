@@ -1,4 +1,4 @@
-import { PLANS, planFor, planCurrency, effectivePrice, effectiveAnnualPrice, upgradeBenefits, retentionNotice, retentionSummary, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
+import { PLANS, planFor, planCurrency, effectivePrice, effectiveAnnualPrice, upgradeBenefits, retentionNotice, retentionSummary, LAPSED_ARCHIVE_TERMS, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
 import { wholeMoney } from "@/lib/domain/money-format";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import type { OrgLimits } from "@/lib/services/limits";
@@ -50,7 +50,18 @@ export function PlanPanel({
   /** The club's locale, which decides how the number is written. */
   locale?: string;
   /** Online billing, when Stripe is configured. Absent or disabled: no buy buttons. */
-  billing?: { enabled: boolean; hasSubscription: boolean; pastDue: boolean; canEdit: boolean; heldUntil?: string; discountCode?: string; discountNote?: { ok: boolean; text: string } };
+  billing?: {
+    enabled: boolean;
+    hasSubscription: boolean;
+    pastDue: boolean;
+    canEdit: boolean;
+    /** A lapsed paid plan's read-only archive (`clubArchiveSummary`), with its days already worded. */
+    archive?: { lapsed: string; until: string; tournaments: number } | null;
+    /** Stripe gave up on the card but the subscription is still there: paying it carries on. */
+    unpaid?: boolean;
+    discountCode?: string;
+    discountNote?: { ok: boolean; text: string };
+  };
 }) {
   const current = planFor(planKey);
   const quoteIn = planCurrency(currency);
@@ -153,6 +164,9 @@ export function PlanPanel({
             <Icon name="clock-countdown" /> Deleted when completed
           </span>
           <p style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}>{retention}</p>
+          {billing?.archive && (
+            <p style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.55 }}>{LAPSED_ARCHIVE_TERMS}</p>
+          )}
         </div>
       )}
 
@@ -220,7 +234,8 @@ export function PlanPanel({
             hasSubscription={billing.hasSubscription}
             pastDue={billing.pastDue}
             canEdit={billing.canEdit}
-            heldUntil={billing.heldUntil}
+            archive={billing.archive ?? undefined}
+            unpaid={billing.unpaid}
             discountCode={billing.discountCode}
             discountNote={billing.discountNote}
           />

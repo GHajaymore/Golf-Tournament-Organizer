@@ -37,7 +37,10 @@ export function LifecycleBar({
   deletesOnComplete = false,
   keepOffer,
   closesOn,
+  archived = false,
 }: {
+  /** In a lapsed club's read-only archive (`archiveRefusalFor`): Unlock is not offered. */
+  archived?: boolean;
   /**
    * The upgrade that would keep it — "Birdie keeps every tournament for good —
    * $49 a month." — asked BEFORE anything is deleted, on the card from the
@@ -244,7 +247,9 @@ export function LifecycleBar({
             <Link href="/organization#plan">Upgrade to keep it</Link>
           </p>
         )}
-        {isAdmin && isLaunched(status) && (
+        {/* Not offered on a lapsed club's read-only archive: there is nothing
+            to unlock it FOR, and the banner above every screen says why. */}
+        {isAdmin && isLaunched(status) && !archived && (
           <button
             type="button"
             className="btn btn-secondary"

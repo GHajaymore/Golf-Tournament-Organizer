@@ -12,7 +12,8 @@
  */
 
 import { formGroups } from "./grouping";
-import { cutRuleOf } from "./cut-ready";
+import { cutRuleOf, type CutTieRule } from "./cut-ready";
+import { scoreOnBasis, type BasisScore, type RankingBasis } from "./stroke-countback";
 import type { Player } from "./types";
 
 export type CutScope = "overall" | "perFlight";
@@ -33,7 +34,7 @@ export const CUT_SCOPE_HELP =
   "Overall takes the top players from the whole field, so one strong flight can fill most of the places. Per flight takes the same number out of each flight, so every flight sends someone through regardless of how the others scored.";
 
 export const ROUND_CUT_HELP =
-  "This trims the field on the way out of this round: whoever survives plays the next one. It is set on each round, so a league can cut differently week to week. In stroke play the cut is made when you mark this round finished — the leaders and everyone tied with the last of them get a card for the next round, and nobody else does.";
+  "This trims the field on the way out of this round: whoever survives plays the next one. It is set on each round, so a league can cut differently week to week. In stroke play the cut is made when you mark this round finished — the leaders get a card for the next round, a tie for the last place is settled the way you chose (everyone tied goes through, a play-off, or a countback), and nobody else does.";
 
 export const QUALIFICATION_CUT_HELP =
   "This decides who reaches the knockout bracket, and it is a property of the tournament rather than of one round. A tournament that runs straight through from round to round does not need it — use the cut line on each round instead.";
@@ -105,42 +106,204 @@ export function survivors(rankedInOrder: CutCandidate[], rule: CutRule): Set<str
 }
 
 /**
- * "TOP N AND TIES" — the survivors of a stroke-play cut.
+ * HOW A TIE FOR THE LAST PLACE AT A STROKE CUT IS SETTLED — chosen per cut by
+ * the organizer (Ajay, 2026-10-23, "as recommended").
  *
- * Ajay's call, 2026-09-26: a player level on the last surviving place goes
- * through, so a cut to 16 can send 17 or 18 into round 2. That is the usual
- * championship wording, and it spares the committee a play-off for the last
- * place. "Level" is the standings' own rank — the countback has already
- * separated whoever it can, so two rows sharing a rank are genuinely tied.
+ *   ties       everybody level on the SCORE of the last place goes through —
+ *              "top 16 and ties". A cut to 16 can send 17 or 18 on.
+ *   playoff    the players level on the score play off for the places left;
+ *              the committee records who won (`CutTieDecision`).
+ *   countback  last 9, last 6, last 3, last hole, on the basis the round is
+ *              ranked by — the board's own countback, so the cut and the board
+ *              cannot rank one card two ways — and where that still cannot
+ *              separate them, a draw by lot the committee records.
  *
- * Only ranked rows can go through (a player with no position did not complete
- * the round being cut from); `rankedInOrder` must be in finishing order, as
- * for `survivors`. Per-flight scope applies the rule inside each flight.
+ * THE DEFAULT IS "ties", and on purpose. A committee must state its method in
+ * the Terms of the Competition (Committee Procedures 5A(6), "Deciding ties"), and
+ * for a cut between two stroke rounds the method championships and clubs print
+ * is "the leading N and ties": the next round is stroke play, so its field may
+ * be any size, nobody is left waiting on a play-off in the dark, and no player
+ * level with the last one through is sent home on the closing holes of a round
+ * nobody told them was a tiebreak. It is also what this app already did by
+ * default (Ajay's call of 2026-09-26) — a club that never opens the setting
+ * plays the cut it always played. A play-off or a countback is what a field of
+ * FIXED size needs, which is why a club with a reason chooses one.
+ *
+ * WHAT "TIES" MEANT BEFORE THIS (worth knowing): "level" was the board's RANK,
+ * which the countback had already split. So "top 2 and ties" over 70, 72, 72
+ * sent the 72 with the better last nine through and the other home — a
+ * countback nobody had chosen, under words ("and ties") that promised both of
+ * them a place. Level now means level on the score.
  */
-export function survivorsWithTies(
-  rankedInOrder: (CutCandidate & { rank: number })[],
+// The type and its reader live beside `cutRuleOf`, which reads the rest of a
+// cut off its Stage row; re-exported here, where the rule is applied.
+export { cutTieRuleOf, CUT_TIE_RULES, DEFAULT_CUT_TIE_RULE, type CutTieRule } from "./cut-ready";
+
+/** The rule as a committee prints it, for the setup screen and the rules sheet. */
+export function cutTieRuleWords(rule: CutTieRule): string {
+  if (rule === "playoff") return "A tie for the last place is decided by a play-off";
+  if (rule === "countback") return "A tie for the last place is decided by countback (last 9, 6, 3, then the last hole), then by lot";
+  return "Everybody tied for the last place goes through";
+}
+
+/**
+ * The committee's decision of one tie: who was level, and who went through.
+ * Keyed by WHO was tied, so a corrected card that changes the tie leaves it
+ * unsettled rather than applying a play-off to a different set of players.
+ */
+export interface CutTieDecision {
+  tied: string[];
+  through: string[];
+}
+
+/** Read the stored decisions, refusing anything that is not one. */
+export function cutTieDecisionsOf(json: string | null | undefined): CutTieDecision[] {
+  try {
+    const v = JSON.parse(json || "[]") as unknown;
+    if (!Array.isArray(v)) return [];
+    return v.filter(
+      (d): d is CutTieDecision =>
+        !!d &&
+        Array.isArray((d as CutTieDecision).tied) &&
+        Array.isArray((d as CutTieDecision).through) &&
+        (d as CutTieDecision).tied.every((x) => typeof x === "string") &&
+        (d as CutTieDecision).through.every((x) => typeof x === "string"),
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** One row of the field a cut is taken out of, in finishing order. */
+export interface CutLineRow extends CutCandidate {
+  /** The board's place, after countback; 0 for a player with no position. */
+  rank: number;
+  /**
+   * The score the round is decided on, as the board compares it
+   * (`scoreOnBasis`) — equal for two players exactly when they are level.
+   */
+  score: number;
+}
+
+/** A tie at the line the rule could not settle by itself. */
+export interface CutTie {
+  /** The flight it is in under a per-flight cut; null for an overall one. */
+  groupId: string | null;
+  /** Everybody level on the last place, in finishing order. */
+  playerIds: string[];
+  /** How many of them go through. */
+  places: number;
+  /** What the committee owes: a play-off, or a draw by lot after countback. */
+  by: "playoff" | "draw";
+}
+
+export interface CutOutcome {
+  /** Who goes through — certain, or by a recorded decision. */
+  through: Set<string>;
+  /**
+   * Ties still waiting on the committee. While any is here the cut CANNOT be
+   * made (`strokeCutRefusal`), and nobody in one may be told they are out —
+   * they are neither in `through` nor out of it.
+   */
+  undecided: CutTie[];
+  /** Ties the committee has settled, with who went through. */
+  decided: (CutTie & { through: string[] })[];
+}
+
+/**
+ * The board's stroke standings as the rows a cut reads: ranked players only, in
+ * the board's order, each with the score it is decided on. The basis is
+ * REQUIRED — "level" is a question about one number, and a net cut asked on
+ * gross is a different cut.
+ */
+export function cutLineRows(
+  standings: ReadonlyArray<BasisScore & { player: { id: string; groupId?: string | null }; rank: number; ranked: boolean }>,
+  basis: RankingBasis,
+): CutLineRow[] {
+  return standings
+    .filter((s) => s.ranked)
+    .map((s) => ({ id: s.player.id, groupId: s.player.groupId ?? null, rank: s.rank, score: scoreOnBasis(s, basis) }));
+}
+
+const sameSet = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && [...a].sort().join("\u0000") === [...b].sort().join("\u0000");
+
+/**
+ * WHO GOES THROUGH A STROKE CUT — THE ONE ANSWER (2026-10-23).
+ *
+ * Every reader asks this: `applyStrokeCut` making the cut, `strokeCutRefusal`
+ * refusing it while a tie is unsettled, the dashboard's preview, and the board
+ * lighting who is through (`advancingIds`, which the player app, the tee sheet
+ * and the export read). The tie rule and the decisions are REQUIRED, so a new
+ * reader cannot quietly take "top N" and pick somebody out of a tie.
+ *
+ * `rankedInOrder` is the field in finishing order (the board's own order), as
+ * for `survivors`. Only ranked rows (rank > 0) can go through. A per-flight
+ * cut applies all of this inside each flight.
+ */
+export function strokeCutOutcome(
+  rankedInOrder: readonly CutLineRow[],
   rule: CutRule,
-): Set<string> {
-  const take = (list: (CutCandidate & { rank: number })[], out: Set<string>) => {
+  tieRule: CutTieRule,
+  decisions: readonly CutTieDecision[],
+): CutOutcome {
+  const out: CutOutcome = { through: new Set(), undecided: [], decided: [] };
+  const take = (list: readonly CutLineRow[], groupId: string | null) => {
     const placed = list.filter((p) => p.rank > 0);
     if (placed.length === 0) return;
     const n = survivorCount(rule, placed.length);
-    const lastRank = placed[n - 1].rank;
-    for (const p of placed) if (p.rank <= lastRank) out.add(p.id);
+    const last = placed[n - 1];
+    // Level with the last place: on the score for "ties" and a play-off (a
+    // play-off is for players level on the score), on the board's place for a
+    // countback — which is the score with the countback already applied.
+    const level =
+      tieRule === "countback" ? (p: CutLineRow) => p.rank === last.rank : (p: CutLineRow) => p.score === last.score;
+    if (tieRule === "ties") {
+      placed.forEach((p, i) => {
+        if (i < n || level(p)) out.through.add(p.id);
+      });
+      return;
+    }
+    // The line falls in a gap — the common case — and nobody is owed anything.
+    const firstOut = placed[n];
+    if (!firstOut || !level(firstOut)) {
+      for (const p of placed.slice(0, n)) out.through.add(p.id);
+      return;
+    }
+    const group = placed.filter(level);
+    const certain = placed.slice(0, n).filter((p) => !level(p));
+    for (const p of certain) out.through.add(p.id);
+    const tie: CutTie = {
+      groupId,
+      playerIds: group.map((p) => p.id),
+      places: n - certain.length,
+      by: tieRule === "playoff" ? "playoff" : "draw",
+    };
+    const decision = decisions.find(
+      (d) =>
+        sameSet(d.tied, tie.playerIds) &&
+        new Set(d.through).size === tie.places &&
+        d.through.every((id) => tie.playerIds.includes(id)),
+    );
+    if (decision) {
+      for (const id of decision.through) out.through.add(id);
+      out.decided.push({ ...tie, through: [...decision.through] });
+    } else {
+      out.undecided.push(tie);
+    }
   };
-  const out = new Set<string>();
   if (rule.scope === "overall") {
-    take(rankedInOrder, out);
+    take(rankedInOrder, null);
     return out;
   }
-  const byFlight = new Map<string, (CutCandidate & { rank: number })[]>();
+  const byFlight = new Map<string, CutLineRow[]>();
   for (const p of rankedInOrder) {
     const key = p.groupId ?? "";
     const list = byFlight.get(key);
     if (list) list.push(p);
     else byFlight.set(key, [p]);
   }
-  for (const list of byFlight.values()) take(list, out);
+  for (const [key, list] of byFlight) take(list, key || null);
   return out;
 }
 

@@ -44,6 +44,9 @@ import {
   survivorCount,
   survivors,
   nextRoundFlights,
+  strokeCutOutcome,
+  CUT_TIE_RULES,
+  type CutLineRow,
   type CutCandidate,
   type CutRule,
   type NextRoundFlight,
@@ -386,7 +389,81 @@ describe("cuts, at every field size", () => {
     const rule: CutRule = { scope: "overall", mode: "count", count: 4, percent: 50 };
     expect(survivorCount(rule, 0)).toBe(0);
     expect(survivors([], rule).size).toBe(0);
+    for (const tie of CUT_TIE_RULES) {
+      const out = strokeCutOutcome([], rule, tie, []);
+      expect(out.through.size + out.undecided.length, `${tie}: an empty field`).toBe(0);
+    }
   });
+});
+
+/**
+ * A TIE ON THE STROKE CUT LINE, at every field size (2026-10-23).
+ *
+ * Every field from one, a block of 2, 3 or the WHOLE field level on one score
+ * placed at every position (inside the places, across the line, below it),
+ * cuts of 0, 1, the whole field and more than the field, both readings of the
+ * board's countback (it split the block, or it could not), and all three tie
+ * rules. Invariants, not features:
+ *
+ *   - nobody is both through and waiting on the committee;
+ *   - everybody strictly ahead of the line is through, and nobody strictly
+ *     behind it is;
+ *   - a play-off or a draw leaves exactly the places: through + owed = N;
+ *     "ties" never owes anything and takes everybody level on the line;
+ *   - once every owed tie is recorded, nothing is owed and exactly N go.
+ */
+describe("a tie on the stroke cut line, at every field size", () => {
+  for (const n of FIELD_SIZES) {
+    it(`a field of ${n}, every tie, every cut, every rule`, () => {
+      const blocks = [...new Set([2, 3, n])].filter((t) => t >= 2 && t <= n);
+      for (const t of blocks) {
+        for (let start = 0; start + t <= n; start += 1) {
+          for (const split of [false, true]) {
+            // Scores rise down the field; the block shares one. Ranks are the
+            // board's: shared where its countback could not split the block.
+            const rows: CutLineRow[] = Array.from({ length: n }, (_, i) => {
+              const inBlock = i >= start && i < start + t;
+              const score = inBlock ? start : i;
+              const rank = inBlock && !split ? start + 1 : i + 1;
+              return { id: `p${i + 1}`, groupId: null, rank, score };
+            });
+            for (const count of [0, 1, n, n + 5]) {
+              const rule: CutRule = { scope: "overall", mode: "count", count, percent: 50 };
+              const k = survivorCount(rule, n);
+              const lineScore = rows[k - 1].score;
+              for (const tie of CUT_TIE_RULES) {
+                const label = `n=${n} block ${t}@${start}${split ? " split" : " shared"} cut ${count} ${tie}`;
+                const out = strokeCutOutcome(rows, rule, tie, []);
+                const owed = out.undecided.flatMap((u) => u.playerIds);
+                expect(owed.filter((id) => out.through.has(id)), `${label}: through AND owed`).toEqual([]);
+                for (const r of rows) {
+                  if (r.score < lineScore) expect(out.through.has(r.id), `${label}: ${r.id} is ahead of the line`).toBe(true);
+                  if (r.score > lineScore) expect(out.through.has(r.id) || owed.includes(r.id), `${label}: ${r.id} is behind the line`).toBe(false);
+                }
+                const places = out.undecided.reduce((a, u) => a + u.places, 0);
+                if (tie === "ties") {
+                  expect(out.undecided, label).toEqual([]);
+                  for (const r of rows) if (r.score === lineScore) expect(out.through.has(r.id), `${label}: ${r.id} is level`).toBe(true);
+                } else {
+                  expect(out.through.size + places, `${label}: through + owed`).toBe(k);
+                  for (const u of out.undecided) expect(u.places, label).toBeLessThan(u.playerIds.length);
+                }
+                // Settle every owed tie with its first players: nothing is owed, N go.
+                const decided = strokeCutOutcome(
+                  rows,
+                  rule,
+                  tie,
+                  out.undecided.map((u) => ({ tied: u.playerIds, through: u.playerIds.slice(0, u.places) })),
+                );
+                expect(decided.undecided, `${label}: settled`).toEqual([]);
+                if (tie !== "ties") expect(decided.through.size, `${label}: settled, N go`).toBe(k);
+              }
+            }
+          }
+        }
+      }
+    });
+  }
 });
 
 describe("flights, at every field size", () => {

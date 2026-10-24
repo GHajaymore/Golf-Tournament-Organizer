@@ -5,7 +5,7 @@ import Link from "next/link";
 import { privacyContact } from "@/lib/domain/privacy-contact";
 import { PLANS, PAR_LIFESPAN_DAYS } from "@/lib/plans";
 import { KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
-import { RETAIN_AFTER_CANCEL_DAYS } from "@/lib/domain/billing";
+import { ARCHIVE_MONTHS, ARCHIVE_NOTICE_DAYS } from "@/lib/domain/club-archive";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
 import { pageShareMeta } from "@/lib/landing/share-meta";
@@ -22,9 +22,11 @@ import { editionNote, iconSprite, landingFooter, landingNav } from "@/components
  * Numbers and plan names come from `plans.ts` and `domain/billing.ts`, so this
  * page cannot drift from the rules it states:
  *
- *   - a failed payment keeps the plan while Stripe retries (`clubStatusFor`);
- *   - an ended plan holds every tournament RETAIN_AFTER_CANCEL_DAYS from
- *     Stripe's end date, then Par's terms apply (`subscriptionWrite`);
+ *   - a failed payment keeps the plan while Stripe retries (`clubStatusFor`),
+ *     and the plan ends when Stripe stops retrying (`unpaid`) or it is cancelled;
+ *   - an ended plan keeps every tournament the club held as a read-only archive
+ *     for ARCHIVE_MONTHS from Stripe's end date, with notices before it goes,
+ *     and choosing a plan again lifts it (`domain/club-archive.ts`);
  *   - a price change does not reach an existing subscription, because each
  *     checkout writes its own `price_data` (`checkoutLineItem`);
  *   - golf money is calculated and recorded, never moved (CLAUDE.md, rule 7).
@@ -154,8 +156,8 @@ export default async function TermsPage() {
           </li>
           <li>
             <strong>If a payment fails, the club keeps its plan</strong> while Stripe tries the card
-            again, and Club settings says so. If the payment still cannot be taken, the plan ends as
-            described below.
+            again, and Club settings asks the club&rsquo;s owners to update it. If Stripe stops trying
+            and the payment still has not been taken, the plan ends as described below.
           </li>
           <li>
             <strong>Cancel at any time</strong> from Club settings &rarr; Your plan &rarr; Manage
@@ -167,13 +169,30 @@ export default async function TermsPage() {
       </Section>
 
       <Section title="When a paid plan ends">
+        {/* DRAFT FOR THE OWNER'S LAWYER (2026-10-21, decisions A4 and A8): Ajay reviews the
+            terms with a lawyer before launch, and this section has not been reviewed. */}
         <p>
-          The club returns to {par.name}. <strong>Every tournament it has is kept for{" "}
-          {RETAIN_AFTER_CANCEL_DAYS} days</strong> from the day the plan ended, and Club settings
-          shows the date. After that, {par.name}&rsquo;s terms apply: a tournament already completed,
-          or more than {PAR_LIFESPAN_DAYS} days past its first round, is deleted for good.
+          <strong>Every tournament the club has on the day its plan ends is kept, read-only, for{" "}
+          {ARCHIVE_MONTHS} months</strong> &mdash; finished and unfinished alike. Its boards,
+          results, reports and money records stay open to view and to download. Nothing in them can
+          be changed or scored: an unfinished tournament is paused where it stands. Club settings
+          shows the date it is kept until.
         </p>
-        <p>Choosing a plan again within those {RETAIN_AFTER_CANCEL_DAYS} days keeps everything.</p>
+        <p>
+          <strong>Choosing a plan again at any time in those {ARCHIVE_MONTHS} months</strong> lifts
+          this, and every tournament carries on exactly where it stopped.
+        </p>
+        <p>
+          Otherwise, at the end of the {ARCHIVE_MONTHS} months those tournaments are deleted for good.
+          The club&rsquo;s owners are emailed {ARCHIVE_NOTICE_DAYS[0]} days before, and again{" "}
+          {ARCHIVE_NOTICE_DAYS[1]} days before; nothing is deleted until {ARCHIVE_NOTICE_DAYS[1]} days
+          after the second notice.
+        </p>
+        <p>
+          Meanwhile the club is on {par.name}, and a tournament it starts after its plan ended is a{" "}
+          {par.name} tournament, on {par.name}&rsquo;s terms above. The kept tournaments do not count
+          against {par.name}&rsquo;s limits.
+        </p>
       </Section>
 
       <Section title="Money in tournaments">
@@ -239,10 +258,15 @@ export default async function TermsPage() {
           made quietly.
         </p>
         <p>
+          <strong>21 October 2026 (draft):</strong> when a paid plan ends, the club&rsquo;s tournaments
+          are kept read-only for {ARCHIVE_MONTHS} months, in place of 30 days followed by the free
+          plan&rsquo;s terms; and a plan ends when Stripe stops retrying a failed payment.
+        </p>
+        <p>
           <strong>3 October 2026:</strong> a club&rsquo;s owner can now delete the club from Club
           settings.
         </p>
-        <p className="lg-date">Last updated 3 October 2026.</p>
+        <p className="lg-date">Last updated 21 October 2026.</p>
       </Section>
 
       {writeTo && (

@@ -24,6 +24,12 @@
 export interface PrizeLine {
   category: string;
   detail?: string;
+  /**
+   * Whether the line is a PLACING prize, counted under "one prize per player"
+   * (domain/one-prize.ts). REQUIRED, so a structure added later says which it
+   * is rather than inheriting "counts" for a skill prize.
+   */
+  counts: boolean;
 }
 
 export interface PrizeStructureContext {
@@ -55,25 +61,26 @@ export const PRIZE_STRUCTURES: PrizeStructure[] = [
     label: "Top 3 overall",
     blurb: "Winner, runner-up and third place across the whole field.",
     lines: () => [
-      { category: "Winner" },
-      { category: "Runner-up" },
-      { category: "Third place" },
+      { category: "Winner", counts: true },
+      { category: "Runner-up", counts: true },
+      { category: "Third place", counts: true },
     ],
   },
   {
     key: "gross-net",
     label: "Best gross & net",
     blurb: "One prize for the lowest gross score, one for the lowest net.",
+    // Gross before net: under one prize per player the gross is decided first.
     lines: () => [
-      { category: "Best gross" },
-      { category: "Best net" },
+      { category: "Best gross", counts: true },
+      { category: "Best net", counts: true },
     ],
   },
   {
     key: "flight-winners",
     label: "Flight winners",
     blurb: "A winner in each flight the field is drawn into.",
-    lines: (ctx) => ctx.flights.map((name) => ({ category: `${name} — Winner` })),
+    lines: (ctx) => ctx.flights.map((name) => ({ category: `${name} — Winner`, counts: true })),
   },
   // No "Twos pot" here (2026-10-08). It added a prize LINE — one winner —
   // under a detail promising "a share for every 2 made", which a single-winner
@@ -83,9 +90,11 @@ export const PRIZE_STRUCTURES: PrizeStructure[] = [
     key: "specials",
     label: "Nearest the pin & longest drive",
     blurb: "The two first-tee specials, ready to name the holes.",
+    // SKILL prizes, not placings: a club lets its winner take nearest the pin
+    // too, so neither counts toward one prize per player.
     lines: () => [
-      { category: "Nearest the pin", detail: "Hole —" },
-      { category: "Longest drive", detail: "Hole —" },
+      { category: "Nearest the pin", detail: "Hole —", counts: false },
+      { category: "Longest drive", detail: "Hole —", counts: false },
     ],
   },
 ];

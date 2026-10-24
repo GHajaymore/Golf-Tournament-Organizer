@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { upsertMember, entryContactNeeds } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
@@ -535,6 +536,8 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   const { organizationId, eventId } = await requireRosterOrg();
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return { ok: false, error: "Event not found.", added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
+  const archived = await archiveRefusalFor(eventId);
+  if (archived) return { ok: false, error: archived, added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
   // One definition of "locked" — see domain/lifecycle-state.
   if (configurationLocked(event)) {
     return {

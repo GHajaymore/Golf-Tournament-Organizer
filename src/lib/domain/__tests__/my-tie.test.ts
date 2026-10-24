@@ -8,6 +8,7 @@ import {
   tieByKey,
   tieReportRefusal,
   tieReportSentence,
+  marginWords,
 } from "../my-tie";
 import { yourCardNote } from "../your-card";
 import type { Player } from "../types";
@@ -48,6 +49,18 @@ describe("myTie", () => {
     expect(myTieLine(myTie(one(view), "p1", { "winners-1-0": "2&1" })!)).toBe(
       "Out in the semi-final · lost to Dot 2&1",
     );
+  });
+
+  it("a tie won on extra holes is won AT the 19th — one wording for the player's line and the report's draw", () => {
+    // The final report's draw read "Dilip beat Séamus 19th" (walked 2026-10-23). Two branches
+    // fixed it at once with two readers (`tieResultWords`, `marginWords`); on merging them the
+    // one reader is `marginWords`, and these are its cases too.
+    expect(marginWords("19th")).toBe(" at the 19th");
+    expect(marginWords(" 20th ")).toBe(" at the 20th");
+    expect(marginWords("3&2")).toBe(" 3&2");
+    expect(marginWords("1 up")).toBe(" 1 up");
+    expect(marginWords("")).toBe("");
+    expect(marginWords(null)).toBe("");
   });
 
   it("the winner of a tie is not out of it", () => {
