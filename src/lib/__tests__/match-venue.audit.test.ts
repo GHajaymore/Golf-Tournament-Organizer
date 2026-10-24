@@ -114,7 +114,7 @@ beforeAll(async () => {
       data: { eventId, name: `${TAG} ${who}`, email: at(who), seed: i + 1, status: "confirmed" },
     });
     player[who] = p.id;
-    const u = await prisma.user.create({ data: { email: at(who), name: who, password: "x" } });
+    const u = await prisma.user.create({ data: { email: at(who), name: who, password: "x", emailVerifiedAt: new Date() } });
     userIds[who] = u.id;
     await prisma.account.create({ data: { eventId, email: at(who), name: who, role: "player" } });
   }
@@ -278,7 +278,7 @@ describe("staff", () => {
     // An organizer sorting out a card is who this action is for, and the
     // player rule must not catch them.
     const user = await prisma.user.create({
-      data: { email: at("organizer"), name: "Organizer", password: "x" },
+      data: { email: at("organizer"), name: "Organizer", password: "x", emailVerifiedAt: new Date() },
     });
     userIds.organizer = user.id;
     await prisma.account.create({

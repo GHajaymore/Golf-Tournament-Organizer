@@ -70,6 +70,11 @@ describe("every server action is guarded", () => {
       "requestPasswordReset",
       "resetPassword",
       "signUp",
+      // The emailed code that proves an address (2026-10-21): reached before
+      // sign-in by definition, and its own authorization — a code only the
+      // inbox holds, checked against the browser that asked for it.
+      "verifyEmailCode",
+      "resendEmailCode",
       "signOutAction",
       // The "Viewing as" toggle. Sets a cookie on the caller and nothing else,
       // and the value is whitelisted to assistant/player — anything else

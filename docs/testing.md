@@ -191,6 +191,14 @@ named `part-<id>`, and inside it every file of the part's own is named by the pa
 (`partFile` in `layers.mjs`; until 2026-10-21 three shares wrote one `text-boxes.log`). Fetch
 them one artifact to a folder with a short path: `gh run download <run> -n part-<id> -D <dir>`.
 
+**Reading what a part found.** The verdict lists every finding a part printed, not only the line
+saying it failed — each of the text-box crawl's, by share. Each machine's own files are an artifact
+named `part-<id>`, and inside it every file of the part's own is named by the part
+(`.qa/rounds/<tag>/text-boxes-2of3.log`, `…-kept/` with the crawl's ledger of every try,
+`summary-text-boxes-2of3.md`), so two parts fetched into one folder do not overwrite each other
+(`partFile` in `layers.mjs`; until 2026-10-21 three shares wrote one `text-boxes.log`). Fetch
+them one artifact to a folder with a short path: `gh run download <run> -n part-<id> -D <dir>`.
+
 **On one machine** — for one layer, or when a part needs looking at:
 
 ```bash

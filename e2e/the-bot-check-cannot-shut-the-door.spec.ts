@@ -2,6 +2,7 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { landingSettled } from "./landing-settled";
+import { codeBox, verifyByCode } from "./verify-by-code";
 
 /**
  * THE BOT CHECK CANNOT SHUT THE FRONT DOOR.
@@ -105,11 +106,18 @@ for (const script of ["blocked", "stalled", "answering"] as const) {
     await page.getByText("A society, league or regular group").click();
     const pressed = Date.now();
     await page.getByRole("button", { name: "Create account" }).click();
+    // The sign-up is answered with the emailed-code step (2026-10-21); what it
+    // sent is read there, before the code's own request joins the list.
+    await expect(codeBox(page), `signing up went nowhere with the script ${script}`).toBeVisible({ timeout: 30_000 });
+    const signUpSent = [...sent];
+    await verifyByCode(page, email);
     await page.waitForURL((u) => u.pathname === "/choose", { timeout: 30_000 }).catch(() => {});
     await noErrorScreen("signing up");
     expect(new URL(page.url()).pathname, `signing up went nowhere with the script ${script}`).toBe("/choose");
     expect(await prisma.user.count({ where: { email } }), "the account was made more or fewer times than once").toBe(1);
-    expect(sent, "the sign-up was sent more or fewer times than once, or with the wrong word on it").toEqual([script === "answering" ? "checked" : "plain"]);
+    expect(signUpSent, "the sign-up was sent more or fewer times than once, or with the wrong word on it").toEqual([script === "answering" ? "checked" : "plain"]);
+    // The code is not what the check is for: it goes plain, and does not wait.
+    expect(sent.slice(signUpSent.length), "the code was held for the bot check, or sent twice").toEqual(["plain"]);
     expect(askedForScript, "CONTROL: the sign-up never asked for the check at all").toBeGreaterThan(0);
     if (script === "stalled") expect(Date.now() - pressed, "CONTROL: a sign-up did not wait for a check that was still coming").toBeGreaterThan(5_000);
 
