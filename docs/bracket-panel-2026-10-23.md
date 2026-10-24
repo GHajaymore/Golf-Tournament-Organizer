@@ -12,7 +12,7 @@ decided, why, and who disagreed. It is built in three pull requests, stacked:
 | part | what | where |
 |---|---|---|
 | (a) | one drawing for every surface, club round names, no bye boxes, "Winner of", seeds only when seeded, section tabs, Find a player | `claude/bracket-sections` |
-| (b) | what each surface opens on: the secretary's "To play" list, the player's own tie, the public's latest results | to follow |
+| (b) | what each surface opens on: the secretary's "To play" list, the player's own tie, the public's latest results; play-by dates per round | `claude/bracket-defaults` |
 | (c) | print: each quarter on an A4 landscape page, plus Finals | to follow |
 
 ## 1. No bye boxes; club round names (all four)
@@ -64,11 +64,16 @@ needs the field as well as the sheet, so the compiler lists every caller), and
 everything reads it through the draw: the drawing, the report ("Round 1: X beat Y
 3&2"), a player's own line, the boards, the guide.
 
-**Play-by dates per round: not built, and why.** The panel asked for each round
-heading to carry its "play by" date. A Bracket Stage has one `deadline` for the
-whole knockout; the rounds inside it have none. Adding them is a schema change,
-and the panel's instruction was not to invent one without asking Ajay. A TODO
-marks the place in `BracketDrawing`.
+**Play-by dates per round** (part b). A Bracket Stage had one `deadline` for the
+whole knockout and nothing per round, so part (b) adds one column,
+`Stage.knockoutPlayBy` (migration `A022`): JSON, rounds counted BACK FROM THE FINAL
+to an ISO day, so one set of dates serves flights of any size — every flight's
+final is due the same day. The secretary sets them on the Bracket screen
+(`setKnockoutPlayBy`, refused when a round would be due after the round it feeds);
+every round heading of the drawing, the "To play" list, a player's own tie and the
+public board show them in the club's words (`shortDate`), with "Overdue" written
+out from the morning after, by the CLUB's day (`state.today`), never the server's.
+`domain/knockout-play-by.ts` is the only reader and writer.
 
 ## 2. "Winner of A v B", not "TBD" (the golf professional)
 
@@ -96,10 +101,14 @@ filled by who lost in the order they lost.
 - **Public** (`/live/<token>`): opens on **Latest results** and **Still to play /
   who is still in**, then the drawing.
 
-Until (b) lands, the drawing itself does the part it can: the player's opens on
-the section that holds them with "You" beside their name; the secretary's and the
-public's open on the whole draw (the owner's ask), or on the tab the viewer last
-chose.
+Built in part (b): the Bracket screen's two tabs are **To play** (`KnockoutToPlay`,
+the default) and **The draw** (`?view=draw`); a result from To play is sent with
+the tie's key and its two players (`recordTieResult`, refused unless the place
+still holds them — `tieStillHolds`) and said back as "Recorded — Round 2: A beat B
+3&2."; the player's Board opens on `MyKnockoutTie` (strokes are the difference of
+the two playing handicaps for the knockout round, in full); the public board opens
+on `KnockoutNews` (the latest round's results, who is still in, what is still to
+play). Today does not show the draw, so its existing tie card was left as it is.
 
 ## 4. The drawing: tabs by section (all four; one dissent)
 
