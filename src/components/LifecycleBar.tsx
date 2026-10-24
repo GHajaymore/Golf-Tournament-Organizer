@@ -11,7 +11,7 @@ import {
   LAUNCH_DOES,
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
-import { WIPE_ON_CLOSE, LIFESPAN_DAYS } from "@/lib/domain/close-terms";
+import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 
@@ -52,7 +52,7 @@ export function LifecycleBar({
    */
   closesOn?: string;
   /**
-   * Completing this tournament deletes it — the Free plan's terms for a club
+   * Completing this tournament starts the fifteen days after which it is deleted — the Free plan's terms for a club
    * created on them (`wipesOnCloseFor`). The button then asks first, with the
    * way to Reports in front of the organizer.
    */
@@ -221,11 +221,26 @@ export function LifecycleBar({
         {deletesOnComplete && status !== "completed" && (
           <p role="note" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             <Icon name="warning-circle" style={{ color: "var(--color-danger)" }} />{" "}
-            <span style={{ fontWeight: 600 }}>Completing this tournament deletes it.</span>{" "}
+            <span style={{ fontWeight: 600 }}>
+              Once completed, this tournament is kept read-only for {KEPT_AFTER_COMPLETE_DAYS} days, then deleted.
+            </span>{" "}
             {closesOn
-              ? `If nobody does, it closes on ${closesOn} and is deleted then.`
-              : `If nobody does, it closes ${LIFESPAN_DAYS} days after its first round is played.`}{" "}
+              ? `If nobody completes it, it closes on ${closesOn} and is deleted then.`
+              : `If nobody completes it, it closes ${LIFESPAN_DAYS} days after its first round is played.`}{" "}
             {keepOffer}{" "}
+            <Link href="/organization#plan">Upgrade to keep it</Link>
+          </p>
+        )}
+        {/* AND AFTER: completed on the free plan, it is read-only until the
+            day it goes (2026-10-21) — said here, where the organizer lands,
+            with the two ways to keep it. */}
+        {deletesOnComplete && status === "completed" && (
+          <p role="note" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
+            <Icon name="warning-circle" style={{ color: "var(--color-danger)" }} />{" "}
+            <span style={{ fontWeight: 600 }}>
+              {closesOn ? `Completed. Kept read-only until ${closesOn}, then deleted.` : "Completed. Kept read-only for now, then deleted."}
+            </span>{" "}
+            Save the <Link href="/reports/final">final report</Link> to keep a copy. {keepOffer}{" "}
             <Link href="/organization#plan">Upgrade to keep it</Link>
           </p>
         )}
@@ -295,7 +310,7 @@ export function LifecycleBar({
             aria-describedby="complete-delete-body"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="dialog-title" id="complete-delete-title">Complete and delete “{summary.name}”?</div>
+            <div className="dialog-title" id="complete-delete-title">Complete “{summary.name}”?</div>
             <div className="dialog-body" id="complete-delete-body">
               {/* The upgrade FIRST, before the terms and the delete button —
                   asked before anything goes, never after. */}
@@ -315,9 +330,9 @@ export function LifecycleBar({
               {WIPE_ON_CLOSE}
             </div>
             <div className="dialog-actions">
-              {/* Completing deletes it, so the report can only be kept by
-                  opening it first — to print, or save as a PDF (Ajay,
-                  2026-10-19: "go with your recommendations"). */}
+              {/* Completing starts the fifteen days after which it is deleted
+                  (Ajay, 2026-10-21), so the report is offered here to keep —
+                  to print, or save as a PDF (2026-10-19). */}
               <Link className="btn btn-secondary" href="/reports/final">
                 <Icon name="trophy" /> Open the final report
               </Link>
@@ -331,15 +346,15 @@ export function LifecycleBar({
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
-                    // On success the action deletes and redirects, so nothing
-                    // after it runs; a refusal (a disputed card) comes back here.
+                    // Completes it and starts its fifteen days, read-only; a
+                    // refusal (a disputed card) comes back here.
                     const res = await setEventStatus("completed", true);
                     setConfirmingDelete(false);
                     if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
                   })
                 }
               >
-                <Icon name="trash" /> Complete and delete
+                <Icon name="check-circle" /> Complete it
               </button>
             </div>
           </div>

@@ -5,6 +5,8 @@ import { ROLE_OPTS, describeRoleChange, type RoleChange } from "@/lib/access-rol
 import { roleName } from "@/lib/roles";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { EMAIL_MAX, PERSON_NAME_MAX } from "@/lib/domain/typed-limits";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 interface AccountRow {
   id: string;
@@ -97,6 +99,8 @@ export function AccessClient({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("player");
   const [error, setError] = useState("");
+  /** "Add account" refused — said beside it, not with the table's refusals. */
+  const [addError, setAddError] = useState("");
   // The role change awaiting a second, deliberate press. Only ever one at a
   // time — picking a role on another row moves the confirmation there.
   const [confirm, setConfirm] = useState<{ accountId: string; next: string } | null>(null);
@@ -219,8 +223,8 @@ export function AccessClient({
       </div>
       <div className="card elev-sm" style={{ gap: 12 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Add account</span>
-        <div className="field"><label htmlFor={`${fid}-name`}>Name</label><input id={`${fid}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div className="field"><label htmlFor={`${fid}-email`}>Email</label><input id={`${fid}-email`} className="input" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+        <div className="field"><label htmlFor={`${fid}-name`}>Name</label><input id={`${fid}-name`} className="input" value={name} maxLength={PERSON_NAME_MAX} onChange={(e) => setName(e.target.value)} /></div>
+        <div className="field"><label htmlFor={`${fid}-email`}>Email</label><input id={`${fid}-email`} className="input" type="email" maxLength={EMAIL_MAX} value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div className="field">
           <label>Role</label>
           <div className="seg">
@@ -238,10 +242,12 @@ export function AccessClient({
           disabled={pending || !name.trim() || !email.trim()}
           onClick={() => {
             setError("");
+            setAddError("");
             startTransition(async () => {
               const result = await addAccount(name, email, role);
               if (!result.ok) {
-                setError(result.error ?? "Something went wrong.");
+                // Beside this button, not at the head of the accounts table.
+                setAddError(result.error ?? "Something went wrong.");
                 return;
               }
               setName("");
@@ -252,6 +258,11 @@ export function AccessClient({
         >
           <Icon name="plus" /> Add account
         </button>
+        {addError && (
+          <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
+            <Icon name="warning-circle" /> {addError}
+          </p>
+        )}
       </div>
     </div>
   );
