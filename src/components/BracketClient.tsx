@@ -137,7 +137,7 @@ export function BracketBoard({
                               setSavedKey(m.key);
                             });
                           }}
-                          style={{ marginTop: 4, fontSize: 13, minHeight: 26, padding: "2px 8px", width: "100%" }}
+                          style={{ marginTop: 4, fontSize: 13, minHeight: "var(--tap-min, 26px)", padding: "2px 8px", width: "100%" }}
                         />
                       )}
                       {m.winnerId && !readOnly && savedKey === m.key && !pending && (

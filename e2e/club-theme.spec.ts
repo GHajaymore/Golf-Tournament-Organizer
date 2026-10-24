@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { openSettingsTab } from "./settings-tabs";
 
 /**
  * THE CLUB PICKS ITS LOOK ONCE, AND THREE SCREENS WEAR IT.
@@ -92,6 +93,7 @@ test("the club's look, changed twice, is worn the same by the console, the publi
     const choose = async (ground: "Light" | "Dark") => {
       await desk.goto(`/organization?bust=${Date.now()}`);
       await desk.waitForLoadState("networkidle").catch(() => {});
+      await openSettingsTab(desk, "Colour");
       const card = desk.locator(".card", { has: desk.locator(".card-title", { hasText: /^Colour & appearance$/ }) }).first();
       await expect(card, "Club settings has no place to choose the club's look").toBeVisible();
       await card.locator("summary", { hasText: "Change colours" }).click();

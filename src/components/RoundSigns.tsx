@@ -50,7 +50,7 @@ export function RoundSigns({ eventName, rounds, shareToken }: { eventName: strin
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ fontSize: 13, minHeight: 36 }}
+          style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)" }}
           aria-expanded={open}
           aria-controls="round-signs"
           onClick={() => setOpen((v) => !v)}
@@ -58,7 +58,7 @@ export function RoundSigns({ eventName, rounds, shareToken }: { eventName: strin
           <Icon name="qr-code" /> {open ? "Hide the signs" : withCodes.length === 1 ? "Show the sign" : "Show the signs"}
         </button>
         {open && encode && (
-          <button type="button" className="btn btn-primary" style={{ fontSize: 13, minHeight: 36 }} onClick={() => window.print()}>
+          <button type="button" className="btn btn-primary" style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)" }} onClick={() => window.print()}>
             <Icon name="printer" /> {withCodes.length === 1 ? "Print the sign" : `Print ${withCodes.length} signs`}
           </button>
         )}

@@ -1349,6 +1349,20 @@ model Event {
   expenseEntry          String  @default("")
 
   /**
+   * ONE PRIZE PER PLAYER (Ajay, 2026-10-21, recommendation C1): nobody takes
+   * home two PLACING prizes from this tournament. Ticked on Prizes; off by
+   * default, so no tournament stored before it changes. Which lines count is
+   * the line's own (`Prize.countsForOnePrize`); a skill prize does not, and a
+   * `Contest` is outside the rule entirely. The rule is `domain/one-prize.ts`,
+   * enforced where an award is saved (`setPrizeWinner`).
+   *
+   * A column of its own rather than a field of `TournamentSettings`: that
+   * bundle is the setup form and the club's house defaults, and this is a
+   * condition of the prize list, asked beside the list it governs.
+   */
+  onePrizePerPlayer     Boolean @default(false)
+
+  /**
    * How an interclub league turns four-ball results into points — see
    * `LEAGUE_POINTS_SYSTEMS` in domain/league-meeting.ts for the four on offer.
    * On the EVENT rather than the round, deliberately: a league scores every
@@ -1863,6 +1877,22 @@ model Stage {
    * while the round before was still open, also satisfies. See `cutHasBeenMade`.
    */
   cutMadeAt  DateTime?
+  /**
+   * HOW A TIE FOR THE LAST PLACE AT THIS STROKE CUT IS SETTLED (2026-10-23):
+   * "ties" (everybody level on the score goes through — the default), "playoff"
+   * (the committee records who won it) or "countback" (last 9, 6, 3, 1 on the
+   * round's basis, then a draw by lot the committee records). `cutTieRuleOf`
+   * reads it; an unknown value reads as the default.
+   */
+  cutTies    String  @default("ties")
+  /**
+   * The committee's decisions of a tie the rule above could not settle by
+   * itself, as JSON: [{ tied: [playerId…], through: [playerId…] }]. Each is
+   * keyed by WHO was tied, so a correction that changes the tie leaves it
+   * unsettled again rather than applying a play-off to a different field.
+   * See `strokeCutOutcome`.
+   */
+  cutTieDecisions String @default("[]")
 
   /**
    * The venue for this round, when the tournament rotates them — a
@@ -2263,6 +2293,16 @@ model Prize {
   detail   String  @default("")
   amount   Float   @default(0)
   winnerId String? // optional Player id once awarded
+  /**
+   * Whether this line is a PLACING prize — winner, runner-up, a flight's
+   * winner, best gross, best net — and so counts under the tournament's "one
+   * prize per player". A SKILL prize (nearest the pin, longest drive, twos)
+   * does not: a club lets a player win a placing prize and nearest the pin.
+   * Defaults to counting; the structures set it false on the skill lines they
+   * add, and a hand-added line takes `looksLikeSkillPrize` of its name, which
+   * the organizer can switch. Read only while `Event.onePrizePerPlayer` is on.
+   */
+  countsForOnePrize Boolean @default(true)
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 

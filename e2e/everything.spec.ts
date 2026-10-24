@@ -183,6 +183,40 @@ async function look(
   }
   const wrong = await labelsForTheWrongThing(page);
   if (wrong.length) findings.push({ where, what: `the label "${wrong[0]}" belongs to a button, not to its box` });
+
+  /**
+   * A SCREEN SHOWN ONE SECTION AT A TIME IS WALKED ONE SECTION AT A TIME.
+   * Club settings is tabs since 2026-10-21, and everything above reads what is
+   * on the screen — `innerText`, the box of each element — so it saw the first
+   * tab and nothing behind the others. Each is tapped open, as a person would,
+   * and read the same way; and the heading has to be on every one of them.
+   */
+  const tabs = await page.locator('main [role="tab"]').evaluateAll((els) => els.map((el) => el.id));
+  for (const id of tabs) {
+    const tabWhere = `${where}#${id.replace(/^tab-/, "")}`;
+    const tab = page.locator(`main [id="${id}"]`);
+    if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click().catch(() => {});
+    if ((await tab.getAttribute("aria-selected")) !== "true") {
+      findings.push({ where: tabWhere, what: "its tab did not open when pressed" });
+      continue;
+    }
+    const shown = await page.evaluate(() => ({
+      text: document.body.innerText,
+      h1: [...document.querySelectorAll("h1")].filter((h) => h.getClientRects().length > 0).length,
+      panels: document.querySelectorAll('main [role="tabpanel"]:not([hidden])').length,
+    }));
+    if (shown.h1 === 0) findings.push({ where: tabWhere, what: "has no heading on the screen" });
+    if (shown.panels !== 1) findings.push({ where: tabWhere, what: `shows ${shown.panels} sections at once` });
+    const odd = PROGRAMMER_VALUE.exec(shown.text);
+    if (odd) {
+      const at = Math.max(0, odd.index - 40);
+      findings.push({ where: tabWhere, what: `prints "${odd[0]}": …${shown.text.slice(at, odd.index + 30).replace(/\s+/g, " ")}…` });
+    }
+    const wideHere = await overflowing(page);
+    if (wideHere.length) findings.push({ where: tabWhere, what: `scrolls sideways: ${wideHere[0].cls || wideHere[0].text} to ${wideHere[0].right}px` });
+    const wrongHere = await labelsForTheWrongThing(page);
+    if (wrongHere.length) findings.push({ where: tabWhere, what: `the label "${wrongHere[0]}" belongs to a button, not to its box` });
+  }
 }
 
 function report(findings: Finding[], looked: number, what: string) {
