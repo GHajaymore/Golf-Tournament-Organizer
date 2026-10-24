@@ -119,7 +119,9 @@ export default async function GuidePage() {
         <P>
           A tournament needs only a name to exist. Everything else is added as it becomes known, and stays editable through
           the event. Multi-round events go back to the draw for each round; a stroke-play cut is applied automatically when
-          the round it depends on is marked finished, keeping the top N and ties.
+          the round it depends on is marked finished, keeping the top N — and a tie for the last place is settled the way
+          you chose: everyone tied goes through, a play-off you record on the Dashboard, or a countback (with a draw by lot,
+          recorded there too, if it cannot separate them).
         </P>
         <Diagram
           src="/guide/lifecycle.png"

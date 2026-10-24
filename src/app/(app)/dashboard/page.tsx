@@ -20,9 +20,9 @@ import { RoundAvailability } from "@/components/RoundAvailability";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
-import { currentRoundCut, survivorsWithTies, qualifyingCutoffText } from "@/lib/domain/cut";
+import { currentRoundCut, qualifyingCutoffText, cutTieRuleOf, cutTieRuleWords } from "@/lib/domain/cut";
 import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
-import { loadEventState } from "@/lib/services/tournament";
+import { strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { CutReadyCard } from "@/components/CutReadyCard";
 import { RoundReadyCard } from "@/components/RoundReadyCard";
 import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
@@ -302,24 +302,37 @@ export default async function DashboardPage() {
   /**
    * THE CUT, READY FOR THE ORGANIZER TO APPROVE (Ajay, 2026-10-05). Previewed
    * with exactly what `applyStrokeCut` will do — the field ranked as of the round
-   * the cut is taken out of, `survivorsWithTies` on the next round's rule — so
+   * the cut is taken out of, `strokeCutOutcome` on the next round's rule — so
    * the card's "3 go through" is the number the button then makes.
    */
   const cutPreview = await (async () => {
     if (!isStaff || !state.cutReady) return null;
-    const next = state.stages.find((s) => s.id === state.cutReady!.nextId);
-    const asOf = await loadEventState(event.id, state.cutReady.feederId);
-    if (!next || !asOf) return null;
-    const ranked = asOf.strokeStandings
-      .filter((s) => s.ranked)
-      .map((s) => ({ id: s.player.id, groupId: s.player.groupId, rank: s.rank }));
-    const rule = cutRuleOf(next);
-    const through = survivorsWithTies(ranked, rule).size;
+    // `strokeCutOutcomeOf` — the very answer the button makes the cut with,
+    // ties and the committee's recorded play-offs included (2026-10-23).
+    const made = await strokeCutOutcomeOf(event.id, state.cutReady.feederId);
+    if (!made) return null;
+    const rule = cutRuleOf(made.next);
+    const tieRule = cutTieRuleOf(made.next.cutTies);
+    const through = made.outcome.through.size;
+    const waiting = made.outcome.undecided.reduce((n, t) => n + t.playerIds.length, 0);
+    const name = (id: string) => made.names.get(id) ?? "A player";
+    const asTie = (t: (typeof made.outcome.undecided)[number], chosen: string[]) => ({
+      tied: t.playerIds,
+      names: t.playerIds.map(name),
+      places: t.places,
+      by: t.by,
+      chosen,
+    });
     return {
       ...state.cutReady,
-      rule: cutRuleWords(rule),
+      rule: cutRuleWords(rule, tieRule === "ties"),
+      tieRule: cutTieRuleWords(tieRule),
       through,
-      missed: Math.max(0, asOf.strokeStandings.length - through),
+      missed: Math.max(0, made.state.strokeStandings.length - through - waiting),
+      ties: [
+        ...made.outcome.undecided.map((t) => asTie(t, [])),
+        ...made.outcome.decided.map((t) => asTie(t, t.through)),
+      ],
     };
   })();
 
@@ -832,6 +845,8 @@ export default async function DashboardPage() {
               through={cutPreview.through}
               missed={cutPreview.missed}
               noCard={cutPreview.noCard}
+              tieRule={cutPreview.tieRule}
+              ties={cutPreview.ties}
             />
           ) : readyToClose ? (
             <RoundReadyCard

@@ -1536,3 +1536,22 @@ only where the organizer ticks them. Most leagues play it that way; some award n
 **One prize per player under Both** (gross and net from one card) is not enforced. **A plate for
 those who did not qualify** (17th to 32nd), beside the plate for first-round losers, is not
 offered. **Gross Stableford** is still not a choice (see the Stableford entry).
+
+## Left alone beside a tie for the last place at a stroke cut — SEEN, NOT CHANGED (2026-10-23)
+
+A cut between two stroke rounds now asks how a tie for the last place is settled (ties go
+through, the default; a play-off the committee records; or the board's countback, then a draw
+the committee records) — `strokeCutOutcome` in `domain/cut.ts`. Three neighbours were left:
+
+**The knockout's qualification tie** (the first entry of the section above) is still list order
+past the countback. It is the same question on a field of FIXED size, so "ties go through" is
+not one of its answers; `strokeCutOutcome` with only the play-off and countback rules, and the
+dashboard's tie panel, are the pattern to copy. Left because the bracket's draw, its freeze
+(`drawFrozen`) and the qualification panel all read `qualifierIds`, and it wants its own pass.
+
+**A round robin's cut** (`generateCutRound`, `survivors`) still takes the standings' order,
+whose last fallback is the club's tiebreak chain. Same shape, same fix, not asked for.
+
+**Net countback off a full handicap** (above) is unchanged, and the cut's countback is the
+board's: hole-by-hole net. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the
+fractional method agrees, and says so.
