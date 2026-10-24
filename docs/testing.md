@@ -60,6 +60,7 @@ really run, and what it cannot see — so a row in the report is never read as m
 | Asked for | Layer | What is really run |
 |---|---|---|
 | Laptop, phone, Android | **The whole suite** | Chromium at 1280 wide, as a Pixel 5, and at 320 wide: every spec, every screen opened as each kind of person, every control operated and read back, every server action called by a stranger |
+| Anybody typing into a box | **Every text box** | `e2e/every-text-box.spec.ts`: every text box on every console and player screen of every seeded tournament given empty, over-long, bad and good input, saved the way its screen saves, reloaded and read back, and put back as it was. Three shares, one machine each (`TEXT_PARTS`) |
 | Nearly every visitor | **With the animation on** | The front door's specs with the page's motion left on. Every other layer asks for reduced motion, which almost nobody has set; a test about how a page looks at rest has to wait for rest |
 | A club in another time zone | **Somewhere else** | Every screen again with the browser and the club on another calendar day from the server |
 | US members and organizers | **An American club** | Every screen with the club in Indiana: dollars, the month first, American golf words |
@@ -92,7 +93,7 @@ Asked twice by Ajay on 2026-10-12, and the answer he is owed each time is the me
 | Every action is tried by the wrong person and refused | Yes |
 | Whole tournaments played from entry to payout | Yes — eleven |
 | **Every action done by the RIGHT person, with the result checked** | **No.** 36 of 263 on 2026-10-10; 127 of 272 in the first clean round (2026-10-13, commit `77d59567`), with 17 more performed by specs written after it. Every round re-measures it and names each action nothing performs |
-| Every text box given good, bad and empty input | Only where a spec was written for it |
+| Every text box given good, bad, empty and over-long input | Yes, since 2026-10-21 — the **Every text box** layer (`e2e/every-text-box.spec.ts`). A box that appears only after a press the crawl does not make (a dialog, a second step), and a box behind a button that sends, deletes or spends an allowance, are not tried; each share lists them by name |
 | Every figure a club can TYPE, in every language it can choose | Amounts, handicaps and course ratings: yes, since 2026-10-13 (`figures-are-read-in-every-language.test.ts`). Any other decimal somebody types: only once it goes through `minorUnitsFrom` or `decimalPoint` |
 
 **What writing a spec per flow has found.** Ten flows were written in the two nights to
@@ -145,6 +146,14 @@ Those are checked by a person with the device.
 and `-3` for the second and third of a count; the number decides which three countries that round
 visits), or use *Run workflow* on the **Round** workflow. The verdict and the table are the run's
 summary. Three rounds can be asked for at once.
+
+**Reading what a part found.** The verdict lists every finding a part printed, not only the line
+saying it failed — each of the text-box crawl's, by share. Each machine's own files are an artifact
+named `part-<id>`, and inside it every file of the part's own is named by the part
+(`.qa/rounds/<tag>/text-boxes-2of3.log`, `…-kept/` with the crawl's ledger of every try,
+`summary-text-boxes-2of3.md`), so two parts fetched into one folder do not overwrite each other
+(`partFile` in `layers.mjs`; until 2026-10-21 three shares wrote one `text-boxes.log`). Fetch
+them one artifact to a folder with a short path: `gh run download <run> -n part-<id> -D <dir>`.
 
 **On one machine** — for one layer, or when a part needs looking at:
 
@@ -216,7 +225,8 @@ So three things, in order of what they save. None of them removes a test.
    crawl is one test and `--shard` cannot cut a test, so it is cut by SCREEN into four parts
    (`E2E_CRAWL_PART`, `CRAWL_PARTS` in `layers.mjs`); the merge adds the four counts and holds the
    total to the crawl's own minimum. When a part grows past about thirty minutes, cut it the same
-   way rather than waiting on it.
+   way rather than waiting on it. The text-box crawl (2026-10-21) was built cut: it is one test per
+   share, so `--shard` splits it exactly, into `TEXT_PARTS` parts of its own layer.
 3. **Nothing is run twice for no reason.** The every-push checks do not run on a `round/**`
    branch: a round is a push of a commit that already has its pull request's checks.
 
@@ -299,6 +309,7 @@ A change is not finished until the tests know about it. What to add, by what was
 | An allowance, a share, any percentage of a handicap | Take it with `playingHandicapFrom(exact, pct)`, of the figure BEFORE rounding (`CourseHandicaps.exact`, `resolveRoundHandicap().exact`, a side member's `handicapExact`). The sweep in `allowance-is-taken-of-the-exact-figure.test.ts` reads every caller and refuses the arithmetic written out by hand. |
 | A block inside an answer or a page that shares the landing chrome | A rule for its class in `lib/landing/styles.ts` (`landing-answers-are-dressed.test.ts` refuses a class with none), and a look at it OPEN in a browser: `e2e/faq-blocks.spec.ts` measures the three the questions page has. |
 | Anything in the seeded club (`scripts/seed-club.mjs`), or a control on a console screen | Before a round, the crawl, locally: `E2E_EVERYTHING=1 npx playwright test e2e/every-control.spec.ts e2e/everything.spec.ts --project=desktop`. The ordinary local run leaves it out because it takes most of an hour, and it is the one layer that reads every control on every seeded tournament. Putting the seeded club on a paid plan unlocked one tick-box, the crawl lost track of it, and a round of thirty-four parts was spent finding that out (2026-10-13). `E2E_ONLY_EVENT=<slug> E2E_ONLY_SCREEN=<name>` narrows it to one screen in a few minutes. |
+| A text box | Nothing new: the text-box crawl finds it. Run its share locally before a round: `E2E_EVERYTHING=1 E2E_TEXT_BOXES=1 npx playwright test e2e/every-text-box.spec.ts --project=desktop` (add `--shard=k/6` for one share, `E2E_TEXT_SHARES=1` for the whole crawl as one test, `E2E_ONLY_SCREEN` / `E2E_ONLY_BOX` to narrow it, `E2E_TEXT_INVENTORY=1` to list the boxes without typing). Give the box a `maxLength` where the server keeps only so many characters, or the crawl reports it **cut silently**; say a refusal beside the press, or it reports **refused out of view**. Where the crawl reports a fault on a screen that is right, prove it from the screen and fix how it READS (`e2e/text-box-reading.ts`, with a case in `text-box-reading.test.ts`): ten of its first eleven findings were its own. |
 | Anything on the front door | `await landingSettled(page)` before measuring or pressing: the page grows by thousands of pixels when its script starts (`e2e/landing-settled.ts`). |
 | A kind of file nothing here names | A line in `TIER_RULES`. Until then it is treated as core, which is the safe mistake. |
 

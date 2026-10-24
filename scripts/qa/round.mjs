@@ -13,7 +13,9 @@
  *
  * It runs the layers in `layers.mjs`, in order, against ONE built server on
  * port 3101, and writes what happened to `.qa/rounds/<tag>/`: a log per layer,
- * `verdict.json`, and `summary.md` — the table to put in front of somebody.
+ * `verdict.json`, and `summary.md` — the table to put in front of somebody. As
+ * one part of a round (`--id`), each of those is named by the part (`partFile`
+ * in layers.mjs), and what a layer `keeps` is copied beside its log.
  * The last line it prints is the verdict.
  *
  * ON ONE MACHINE that is about six hours. `.github/workflows/round.yml` runs
@@ -34,9 +36,9 @@
  * port. No edits to src, e2e or scripts while one runs, and no other build.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { layersFor, partsFor, SCENARIOS } from "./layers.mjs";
+import { findingsSaid, layersFor, partFile, partsFor, SCENARIOS } from "./layers.mjs";
 import { appId } from "./app-id.mjs";
 import { E2E_OWNER_EMAIL } from "../../e2e/owner-email.mjs";
 
@@ -56,6 +58,8 @@ const SHARD = value("shard");
 const CRAWL = value("crawl");
 const CRAWL_ONLY = Boolean(CRAWL) && !CRAWL.startsWith("0/");
 const SCENARIO = value("scenario") ? value("scenario").split(",") : null;
+/** The part of a round this machine is (`--id`, from round.yml), which its own files are named by: see `partFile`. */
+const PART = value("id");
 
 const git = (...a) => spawnSync("git", a, { encoding: "utf8" }).stdout.trim();
 const strip = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
@@ -183,7 +187,10 @@ function read(log) {
     skipped: count("skipped"),
     didNotRun: count("did not run"),
     failures: [...text.matchAll(/^\s+\d+\) (\[.*)$/gm)].map((m) => m[1].trim().slice(0, 220)),
-    said: text.split("\n").filter((l) => /^\[everything\]|^\[every-control\] [a-z]+: |^\[every-action\] [a-z ]+: \d|^\[formats-agree\]/.test(l)).map((l) => l.slice(0, 260)),
+    said: text.split("\n").filter((l) => /^\[everything\]|^\[every-control\] [a-z]+: |^\[every-text-box\] (share|control)|^\[every-action\] [a-z ]+: \d|^\[formats-agree\]/.test(l)).map((l) => l.slice(0, 260)),
+    // EVERY FINDING, not just the line saying a share failed: the text-box crawl prints each of its
+    // findings under its tally, and the verdict is the one place a round's reader is sure to look.
+    details: findingsSaid(text),
     hydration: text.split("[hydration #418]").length - 1,
     stopped: text.includes("[round] stopped after"),
   };
@@ -235,7 +242,7 @@ for (const layer of layers) {
   }
   const t0 = Date.now();
   if (layer.kind === "command") {
-    const log = join(OUT, `${layer.key}.log`);
+    const log = join(OUT, `${partFile(layer.key, PART)}.log`);
     const code = await run(layer.command, { log, minutes: layer.minutes });
     const lines = strip(readFileSync(log, "utf8")).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const failures = lines.filter((l) => l.startsWith("✗")).map((l) => l.slice(1).trim().slice(0, 220));
@@ -294,11 +301,14 @@ for (const layer of layers) {
     continue;
   }
   const projects = PROJECTS ?? layer.projects;
-  const log = join(OUT, `${layer.key}.log`);
+  const log = join(OUT, `${partFile(layer.key, PART)}.log`);
   // A share of the crawl is that one spec; every other part runs the layer's own list.
   const specs = CRAWL_ONLY ? ["e2e/every-control.spec.ts"] : layer.specs;
   const command = ["npx playwright test", ...specs, ...projects.map((p) => `--project=${p}`), SHARD ? `--shard=${SHARD}` : "", "--reporter=line"].filter(Boolean).join(" ");
+  // What the layer's spec writes as it goes, emptied first so only this run's is kept.
+  if (layer.keeps) rmSync(layer.keeps, { recursive: true, force: true });
   const code = await run(command, { env, log, minutes: layer.minutes });
+  if (layer.keeps && existsSync(layer.keeps)) cpSync(layer.keeps, join(OUT, `${partFile(layer.key, PART)}-kept`), { recursive: true });
   const r = read(log);
   const minutes = Math.round((Date.now() - t0) / 60_000);
   // A run that reports nothing passed has not tested anything, whatever its exit code says.

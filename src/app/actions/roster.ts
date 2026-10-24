@@ -19,6 +19,7 @@ import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords 
 import { parseHandicapInput, parseHandicapType, contactGap } from "@/lib/domain/registration-intake";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { organizationsForOrganizer } from "@/lib/services/organization";
+import { EMAIL_RE } from "@/lib/domain/typed-limits";
 
 /**
  * Club roster management.
@@ -33,8 +34,6 @@ export interface RosterResult {
   ok: boolean;
   error?: string;
 }
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** The club whose roster the current tournament draws from, for staff only. */
 async function requireRosterOrg(): Promise<{ organizationId: string; eventId: string }> {

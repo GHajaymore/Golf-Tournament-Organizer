@@ -2078,12 +2078,12 @@ describe("settings screens", () => {
     // Free tournament — see plan-copy.test.ts for the wiring that licenses it.
     // No organization yet means the one about to be created, which is new and
     // so on the published terms.
-    expect(html).toContain("deleted when you mark it Completed");
+    expect(html).toContain("stays open to view, read-only, for 15 days");
   });
 
   it("omits the retention notice on a plan that keeps data", () => {
     const html = render(<CreateFirstTournament first plan="club" />);
-    expect(html).not.toContain("deleted when you mark it Completed");
+    expect(html).not.toContain("stays open to view, read-only, for 15 days");
   });
 
   /**
@@ -2107,7 +2107,7 @@ describe("settings screens", () => {
       // `plan` is deliberately the WRONG answer here: it is the fallback for
       // somebody with no organization at all, and must lose to a real one.
       const html = render(<CreateFirstTournament first plan="free" organizations={[org()]} />);
-      expect(html).not.toContain("deleted when you mark it Completed");
+      expect(html).not.toContain("stays open to view, read-only, for 15 days");
     });
 
     it("and still warns when it does not", () => {
@@ -2116,7 +2116,7 @@ describe("settings screens", () => {
       const html = render(
         <CreateFirstTournament first plan="club" organizations={[org({ plan: "free" })]} />,
       );
-      expect(html).toContain("deleted when you mark it Completed");
+      expect(html).toContain("stays open to view, read-only, for 15 days");
     });
 
     it("says nothing to a Free club that predates the terms, because nothing of its is deleted", () => {
@@ -2125,7 +2125,7 @@ describe("settings screens", () => {
       const html = render(
         <CreateFirstTournament first plan="club" organizations={[org({ plan: "free", termsApply: false })]} />,
       );
-      expect(html).not.toContain("deleted when you mark it Completed");
+      expect(html).not.toContain("stays open to view, read-only, for 15 days");
     });
 
     it("names the plan it is talking about", () => {
@@ -7709,32 +7709,44 @@ describe("a Par tournament is offered the upgrade before it is deleted", () => {
     players: 8, flights: 0, rounds: 1,
   };
   const offer = "Birdie keeps every tournament for good — $49 a month.";
-  const bar = async (deletes: boolean) => {
+  const bar = async (deletes: boolean, status = "live", closesOn?: string) => {
     const { LifecycleBar } = await import("@/components/LifecycleBar");
     return render(
       <LifecycleBar
-        status="live"
+        status={status}
         isAdmin
         configUnlocked={false}
         summary={summary}
         resultsIn={3}
         deletesOnComplete={deletes}
         keepOffer={deletes ? offer : undefined}
+        closesOn={closesOn}
       />,
     );
   };
+  const BEFORE = "Once completed, this tournament is kept read-only for 15 days, then deleted.";
 
-  it("says completing deletes it, and offers the plan that keeps it", async () => {
+  it("says completing keeps it read-only for fifteen days and then deletes it, and offers the plan that keeps it", async () => {
     const html = await bar(true);
-    expect(html).toContain("Completing this tournament deletes it.");
+    expect(html).toContain(BEFORE);
     expect(html).toContain(offer);
     expect(html).toContain('href="/organization#plan"');
   });
 
+  it("once completed, says until when it is kept, and where the report is", async () => {
+    const html = await bar(true, "completed", "Thu 5 November");
+    expect(html).toContain("Completed. Kept read-only until Thu 5 November, then deleted.");
+    expect(html).toContain('href="/reports/final"');
+    expect(html).not.toContain(BEFORE);
+  });
+
   it("CONTROL: says nothing of the sort where completing keeps the tournament", async () => {
-    const html = await bar(false);
-    expect(html).not.toContain("Completing this tournament deletes it.");
-    expect(html).not.toContain("/organization#plan");
+    for (const status of ["live", "completed"]) {
+      const html = await bar(false, status, "Thu 5 November");
+      expect(html).not.toContain(BEFORE);
+      expect(html).not.toContain("Kept read-only until");
+      expect(html).not.toContain("/organization#plan");
+    }
   });
 });
 

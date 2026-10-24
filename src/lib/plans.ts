@@ -719,7 +719,10 @@ export function retentionNotice(planKey: string, termsApply = true): string | nu
   // BOTH ways it goes (2026-09-29): the button, and the close that happens
   // whether or not anybody presses it — a club must not learn of the second
   // from the empty screen it leaves.
-  return `Every tournament on this plan is deleted when you mark it Completed, or ${PAR_LIFESPAN_DAYS} days after its first round is played — entries, cards, results and money. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.`;
+  // 2026-10-21 (Ajay: "keep it for 15 days"): completing no longer deletes on the spot. The 15 is
+  // written here as a figure because plans.ts cannot import close-terms (which imports this file);
+  // plan-copy.test.ts holds the two to one number.
+  return `A completed tournament on this plan stays open to view, read-only, for 15 days, and is then deleted — entries, cards, results and money. One nobody completes is deleted ${PAR_LIFESPAN_DAYS} days after its first round is played. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.`;
 }
 
 /**
