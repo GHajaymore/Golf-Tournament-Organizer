@@ -38,7 +38,7 @@ import type { Player } from "@/lib/domain/types";
  */
 
 const GAP = 1;
-const SIZES = [1, 2, 3, 5, 8, 12, 16, 17, 31, 32, 33, 64, 65, 100, 128, 129, 256];
+const SIZES = [1, 2, 3, 5, 8, 12, 16, 17, 20, 22, 24, 31, 32, 33, 64, 65, 100, 128, 129, 256];
 
 const field = (n: number, tag = "p"): Player[] =>
   Array.from({ length: n }, (_, i) => ({ id: `${tag}${i + 1}`, name: `Seed ${tag}${i + 1}`, handicap: i, seed: i + 1 }));
@@ -164,7 +164,6 @@ function expectLayout(view: BracketView, s: DrawSection, at: string) {
     const byeB = isByeTie(fb) && !prelim;
     if (b.a.bye !== byeA) wrong.push(`${k} place A: bye mark ${b.a.bye}, a bye in a drawn round ${byeA}`);
     if (b.b.bye !== byeB) wrong.push(`${k} place B: bye mark ${b.b.bye}, a bye in a drawn round ${byeB}`);
-    if (b.a.bye && b.b.bye) wrong.push(`${k} shows two bye marks`);
     // "Through the preliminary round" on the place a played-for preliminary tie fills.
     const throughA = prelim && r === 1 && !isByeTie(fa);
     const throughB = prelim && r === 1 && !isByeTie(fb);
@@ -191,18 +190,18 @@ function expectLayout(view: BracketView, s: DrawSection, at: string) {
 }
 
 /**
- * WHETHER THE FIRST ROUND IS A PRELIMINARY ROUND, read off the draw itself rather
- * than asked of the code: it is, when two of its byes would meet in the round after
- * it — then most of the field is merely waiting for a few extra entries to be
- * played off (129: one tie, 127 waiting), and a club calls that a preliminary
- * round and marks nobody's "bye". Otherwise it is a round of the draw, and a seed
- * with nobody to play in it had a bye in a round that is drawn (100 in a draw of
- * 128: 36 ties, 28 byes).
+ * WHETHER THE FIRST ROUND IS A PRELIMINARY ROUND, counted off the draw itself rather
+ * than asked of the code. The panel's ruling (golf professional and tournament
+ * director, 2026-10-23): "Call the first round a Preliminary round when FEWER
+ * players play in it than sit it out; when equal, it is Round 1 with byes." So:
+ * count the players in its real ties and the byes, and compare.
  */
 function preliminaryByTheDraw(view: BracketView): boolean {
   if (view.rounds.length < 2) return false;
   const first = view.rounds[0].matches;
-  return view.rounds[1].matches.some((_, i) => isByeTie(first[i * 2]) && isByeTie(first[i * 2 + 1]));
+  const playing = first.filter((m) => m.a.playerId && m.b.playerId).length * 2;
+  const sittingOut = first.filter(isByeTie).length;
+  return playing < sittingOut;
 }
 
 function expectByesMarkedOnce(view: BracketView, at: string) {
@@ -214,7 +213,14 @@ function expectByesMarkedOnce(view: BracketView, at: string) {
   // and nobody skipping a preliminary round is marked at all.
   const expected = view.rounds.length > 1 && !preliminaryByTheDraw(view) ? byes : 0;
   expect(marks, `${at}: ${byes} byes, ${marks} marked, ${expected} expected`).toBe(expected);
-  expect(boxes.filter((b) => b.a.bye && b.b.bye).map((b) => b.match.key), `${at}: a tie with two bye marks`).toEqual([]);
+  // Two marks in one tie only where both of its players really did sit out a drawn round
+  // (22 of 32: seeds 7 and 10 meet in Round 2, each after a bye in Round 1) — never in a
+  // draw with a preliminary round, where nobody is marked at all.
+  for (const b of boxes.filter((x) => x.a.bye && x.b.bye)) {
+    const first = view.rounds[0].matches;
+    const both = isByeTie(first[b.match.matchIndex * 2]) && isByeTie(first[b.match.matchIndex * 2 + 1]);
+    expect(both && b.match.roundIndex === 1 && !preliminaryByTheDraw(view), `${at}: ${b.match.key} marked bye twice`).toBe(true);
+  }
 }
 
 function expectFound(view: BracketView, sections: DrawSection[], at: string) {
@@ -243,8 +249,17 @@ describe("a draw's round names are a club's", () => {
     expect(roundLabels(128, 100)).toEqual(["Round 1", "Round 2", "Round 3", "Round 4", "Quarter-finals", "Semi-finals", "Final"]);
     // Twelve in sixteen: four ties and four byes — a Round 1 with byes in it.
     expect(roundLabels(16, 12)).toEqual(["Round 1", "Quarter-finals", "Semi-finals", "Final"]);
-    // Twenty in thirty-two: four ties, twelve byes — a preliminary round.
-    expect(roundLabels(32, 20)[0]).toBe("Preliminary round");
+    // The panel's examples: fewer playing than sitting out is a preliminary round; equal is Round 1.
+    expect(roundLabels(32, 20)[0], "20 of 32: 8 play, 12 sit out").toBe("Preliminary round");
+    expect(roundLabels(32, 22)[0], "22 of 32: 12 play, 10 sit out").toBe("Round 1");
+    expect(roundLabels(32, 24)[0], "24 of 32: 16 play, 8 sit out").toBe("Round 1");
+    // Equality — as many playing as sitting out — is 2N − S = S − N, i.e. N = 2S/3, which
+    // is never a whole number on a power-of-two sheet; so the fields either side of it:
+    // 21 of 32 (10 play, 11 out) is preliminary and 22 is Round 1; 85 of 128 (42 play, 43
+    // out) is preliminary and 86 (44 play, 42 out) is Round 1.
+    expect(roundLabels(32, 21)[0]).toBe("Preliminary round");
+    expect(roundLabels(128, 85)[0]).toBe("Preliminary round");
+    expect(roundLabels(128, 86)[0]).toBe("Round 1");
     // The name agrees with the draw: a preliminary round is exactly one whose byes would meet.
     for (let n = 2; n <= 260; n += 1) {
       const isPrelim = roundLabels(bracketSizeFor(n), n)[0] === "Preliminary round";

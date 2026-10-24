@@ -29,21 +29,35 @@ club plays.
 players had no bye in any round that is drawn; they simply did not need the one-tie
 preliminary round, and a club's draw sheet never marks that. So:
 
-- the first round is a **Preliminary round** when the field fills less than three
-  quarters of the sheet — exactly when two of its byes would meet in the next round
-  (`hasPreliminaryRound`). Nobody is marked "bye" for skipping it; its winner's place in
-  Round 1 reads "Winner of A v B" until it is played and then the winner's name with
-  "through the preliminary round" under it;
-- otherwise the first round is a round of the draw, and a seed with nobody to play in it
-  had a **bye in a drawn round**: "bye" under their name on their first real tie (100 in
-  a draw of 128: 36 ties in Round 1, 28 seeds marked in Round 2). No tie ever shows two;
-- the words about a seat ("You", "bye", "through the preliminary round", the margin) are
+- **the panel's rule** (golf professional and tournament director): "Call the first round
+  a Preliminary round when FEWER players play in it than sit it out; when equal, it is
+  Round 1 with byes." With N entrants on a sheet of S, 2N − S play and S − N sit out, so it
+  is a preliminary round when 3N < 2S (`hasPreliminaryRound`): 129 of 256 (one tie), 20 of
+  32 (four ties, 8 play, 12 sit out). 22 of 32 (12 play, 10 out), 24 of 32 and 100 of 128
+  are a Round 1 with byes. Equality never falls on a power-of-two sheet. (A first draft
+  drew the line at three quarters, where the draw stops pairing two byes; the panel
+  ruled two thirds, so 22 of 32 has a Round 2 tie between two seeds who both had byes —
+  both are marked, truly.)
+- Nobody is marked "bye" for skipping a preliminary round; its winner's place in Round 1
+  reads "Winner of A v B" until it is played and then the winner's name with "through the
+  preliminary round" under it.
+- In a Round 1, a player with nobody to play had a **bye in a drawn round**: "bye" under
+  their name on their first real tie (100 in a draw of 128: 36 ties, 28 marked in Round 2).
+- The words about a seat ("You", "bye", "through the preliminary round", the margin) are
   under the name, so they never cut it short.
 
-The three-quarters line is this session's reading of "a field over a power of two plays a
-preliminary round"; it is the point at which the draw itself stops pairing byes, and it
-puts 129 and 20-in-32 in a preliminary round and 100-in-128 and 12-in-16 in a Round 1
-with byes. It is for a ruling if a club counts it differently.
+**Byes in a draw made by lot (the golf professional).** "In an UNSEEDED (drawn by lot)
+knockout, byes must not go to 'top seeds' — they are placed by lot, spread evenly through
+the sheet (both halves, all quarters); only a SEEDED draw gives byes to the top seeds."
+What the app does: one bracket, two flights, and flights by handicap, by the tournament's
+flights or by qualifying are seeded, and the byes go to the top seeds. Flights divided
+"Evenly, at random" are a draw by lot: the order is a shuffle of the tournament's seed
+(reproducible), and the byes fall on the places the numerical draw leaves empty, one per
+quarter before any quarter takes a second — so who has a bye is the lot's and where is
+even. That was already so; what was wrong is that such a draw printed seed numbers in the
+order dealt, so the first dealt read as a top seed. It shows none now
+(`an-unseeded-draw-gives-byes-by-lot.test.ts`). A plate is filled by who lost and has no
+byes at all.
 
 One function names a round (`roundLabels` in `src/lib/domain/bracket.ts`, which
 needs the field as well as the sheet, so the compiler lists every caller), and

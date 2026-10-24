@@ -177,7 +177,7 @@ export default async function LeaderboardPage({
         mainLabel={mainLabel}
         secondLabel={secondLabel}
         results={results}
-        seeded={drawsSeeded({ stages: state.stages, roundsWithResults: state.roundsWithResults, mode, draws: bracketDraws(state.brackets) })}
+        seeded={drawsSeeded({ stages: state.stages, roundsWithResults: state.roundsWithResults, mode, criterion: state.flights?.plan.criterion ?? null, draws: bracketDraws(state.brackets) })}
         readOnly
         straight
         awaitingFlights={mode === "flights" && !state.flights}

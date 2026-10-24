@@ -1623,9 +1623,11 @@ after a knockout of 129 drew as one page 16,341px tall. One drawing (`BracketDra
 the player's Board and the public board: tabs by section over 16 places (Quarters 1–4, or Top and
 Bottom half, then Finals and Whole draw), each tie midway between its feeders, a bye never a box,
 and Find a player in the address (`?section=q2&p=…`). "bye" is written (under the name) only for a
-bye in a round that is DRAWN: a field under three quarters of its sheet plays a Preliminary round
-(`hasPreliminaryRound`) and nobody is marked for not needing it — the first captures marked both
-players of most of a 129 draw's Round 1 ties, which no draw sheet does. Rounds are named once,
+bye in a round that is DRAWN. The panel's rule: the first round is a Preliminary round "when FEWER
+players play in it than sit it out; when equal, it is Round 1 with byes" (3N < 2S,
+`hasPreliminaryRound`), and nobody is marked for not needing it — the first captures marked both
+players of most of a 129 draw's Round 1 ties, which no draw sheet does. A draw made by lot (flights
+"Evenly, at random") places its byes by lot, spread through every quarter, and shows no seeds. Rounds are named once,
 by `roundLabels(size, entrants)` — Preliminary round, Round 1 …, Quarter-finals, Semi-finals, Final —
 and a place waiting on a drawn tie reads "Winner of A v B" (`winnerOfWords`), "TBD" only where that
 tie is itself waiting. `a-draw-is-drawn-in-sections.test.ts` holds every tie to exactly one tab

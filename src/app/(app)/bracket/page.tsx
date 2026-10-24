@@ -319,7 +319,7 @@ export default async function BracketPage() {
         straight={straight}
         notYetPlayed={!straight && !qualifyingPlayed}
         seeds={mode === "flights" ? undefined : seeds}
-        seeded={drawsSeeded({ stages: state.stages, roundsWithResults: state.roundsWithResults, mode, draws })}
+        seeded={drawsSeeded({ stages: state.stages, roundsWithResults: state.roundsWithResults, mode, criterion: state.flights?.plan.criterion ?? null, draws })}
         awaitingFlights={mode === "flights" && !state.flights}
       />
       {third && (

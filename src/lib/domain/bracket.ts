@@ -580,22 +580,30 @@ export function roundLabels(size: number, entrants: number): string[] {
 
 /**
  * WHETHER A DRAW'S FIRST ROUND IS A PRELIMINARY ROUND, or a round of the draw
- * with byes in it (the coordinator's ruling on #935, 2026-10-23).
+ * with byes in it.
  *
- * 129 entrants in a sheet of 256 play ONE tie first, 128 v 129, and everybody
- * else waits for it: that is a preliminary round, and a draw sheet marks nobody
- * as having had a "bye" for not needing it. 100 entrants in a sheet of 128 play
- * 36 ties in Round 1 and the top 28 seeds have nobody to play — a bye, in a
- * round that is drawn, marked beside their name in Round 2.
+ * The panel's ruling (golf professional and tournament director, 2026-10-23):
+ * "Call the first round a Preliminary round when FEWER players play in it than
+ * sit it out; when equal, it is Round 1 with byes." With N entrants on a sheet
+ * of S, 2N − S play in the first round and S − N sit it out, so it is a
+ * preliminary round exactly when 2N − S < S − N, i.e. 3N < 2S — under two
+ * thirds of the sheet.
  *
- * The line between the two is where two byes would meet: below three quarters
- * of the sheet, the standard seeding pairs two byes in the next round (seeds a
- * and S/2+1−a both without an opponent), so the first round is only the extra
- * entries being played off. At three quarters or more no two byes ever meet, and
- * the first round is a round. A sheet of two (one or two players) is a final.
+ *   129 of 256   2 play, 127 sit out    Preliminary round (one tie, 128 v 129)
+ *    20 of 32    8 play,  12 sit out    Preliminary round of 4 ties
+ *    22 of 32   12 play,  10 sit out    Round 1, with 10 byes
+ *    24 of 32   16 play,   8 sit out    Round 1, with 8 byes
+ *   100 of 128  72 play,  28 sit out    Round 1, with 28 byes
+ *
+ * A draw sheet marks nobody as having had a "bye" for not needing a
+ * preliminary round; a bye in a Round 1 is marked, on the seed's first real
+ * tie. (Equality, 3N = 2S, never falls on a power-of-two sheet.) A sheet of two
+ * — one or two players — is a final.
  */
 export function hasPreliminaryRound(size: number, entrants: number): boolean {
-  return size > 2 && entrants < size && 4 * entrants < 3 * size;
+  const playing = 2 * entrants - size;
+  const sittingOut = size - entrants;
+  return size > 2 && entrants < size && playing < sittingOut;
 }
 
 /**
