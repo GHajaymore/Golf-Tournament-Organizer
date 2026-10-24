@@ -15,7 +15,7 @@ import { FLIGHT_CRITERIA, proposeShapes } from "@/lib/domain/bracket-flights";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
-import { plateEntrants } from "@/lib/domain/bracket";
+import { plateEntrants, byeLine } from "@/lib/domain/bracket";
 import { hasKnockoutStage, isStraightKnockout, isKnockoutRound } from "@/lib/stage-types";
 import { BracketReports, type BracketReportRow } from "@/components/BracketReports";
 import { bracketDraws, openTieReport } from "@/lib/domain/my-tie";
@@ -341,7 +341,7 @@ export default async function BracketPage() {
         <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
           No qualifying round comes before this bracket, so everyone in the field is in the draw
           ({state.qualifiers.length} {state.qualifiers.length === 1 ? "player" : "players"}), seeded in order.
-          Where the numbers are not 4, 8, 16 or 32, the top seeds get byes.
+          {" "}{byeLine(state.qualifiers.length)}
         </p>
       )}
       {/* In flights that sentence was wrong twice over: nobody is "in the draw" until the field is
@@ -350,7 +350,8 @@ export default async function BracketPage() {
         <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
           No qualifying round comes before these flights, so everyone in the field belongs in one of them
           ({state.qualifiers.length} {state.qualifiers.length === 1 ? "player" : "players"}). Inside a flight
-          the players are seeded in order, and where a flight is not 4, 8, 16 or 32 its top seeds get byes.
+          the players are seeded in order, and where a flight does not fill a draw of 4, 8, 16, 32, 64 or 128 its
+          top seeds get byes.
         </p>
       )}
       {/* Under the draw. Qualification comes first in time, so reading order

@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { personalOrganizationFor, organizationIdsForPlayer, settingsForNewEvent, currencyForEvent } from "@/lib/services/organization";
 import { money } from "@/lib/domain/money-format";
 import { syncPlayerAccount } from "@/lib/services/player-access";
+import { memberGender } from "@/lib/services/roster";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
 import { expiryFrom } from "@/lib/domain/round-expiry";
@@ -492,6 +493,8 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
         handicapSource: "manual",
         seed: p.seed,
         status: "confirmed",
+        // A member's roster row says whether she plays the ladies' set; a guest has none.
+        gender: await memberGender(memberId),
       },
     });
     playerIds.push(player.id);
