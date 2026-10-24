@@ -83,9 +83,16 @@ describe("a draw made by lot", () => {
     expect(holders("club-a")).toEqual(holders("club-a"));
     // By lot: another seed, other players.
     expect(holders("club-a")).not.toEqual(holders("club-b"));
-    // Not the best players: the 21 byes do not go to the 21 lowest handicaps.
-    const best = field.slice(0, 21).map((e) => e.id).sort();
-    for (const seed of ["club-a", "club-b", "zz-17"]) expect(holders(seed)).not.toEqual(best);
+    // Not the best players: in no flight do the byes go to its lowest handicaps.
+    const hcp = new Map(field.map((e) => [e.id, e.handicapIndex!]));
+    for (const seed of ["club-a", "club-b", "zz-17"]) {
+      for (const view of flightsOf(seed)) {
+        const inFlight = view.rounds[0].matches.flatMap((m) => [m.a.playerId, m.b.playerId]).filter((x): x is string => !!x);
+        const got = byePlaces(view).map((p) => p.holder).sort();
+        const best = [...inFlight].sort((a, b) => hcp.get(a)! - hcp.get(b)!).slice(0, got.length).sort();
+        expect(got, `${seed}: the byes went to the flight's best handicaps`).not.toEqual(best);
+      }
+    }
   });
 
   it("prints no seed numbers, because nobody was seeded", () => {
