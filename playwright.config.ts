@@ -128,7 +128,10 @@ export default defineConfig({
   testDir: "./e2e",
   // The eleven scenario tournaments (e2e/scenarios) are a layer of a round, run a phase at a time
   // by scripts/qa/round.mjs. Each takes minutes and a field of 120; the standing suite leaves them out.
-  testIgnore: process.env.E2E_SCENARIOS === "1" ? [] : ["**/scenarios/**"],
+  // The text-box crawl (e2e/every-text-box.spec.ts) is a layer of its own, `text-boxes`, cut into
+  // shares by `--shard`; the standing suite and every other layer leave it out, so no part of the
+  // suite is made an hour longer by it. `E2E_TEXT_BOXES=1` is that layer's switch.
+  testIgnore: process.env.E2E_SCENARIOS === "1" ? [] : ["**/scenarios/**"].concat(process.env.E2E_TEXT_BOXES === "1" ? [] : ["**/every-text-box.spec.ts"]),
   // A real database and one dev server: parallel workers would race on the
   // shared fixture. Correctness over speed for a suite this small.
   workers: 1,
