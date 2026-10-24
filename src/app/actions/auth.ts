@@ -16,6 +16,7 @@ import { effectiveAccess, hasAccess } from "@/lib/services/access";
 import { createOrganizationWithOwner } from "@/lib/services/organization";
 import { isOrgKind } from "@/lib/domain/org-profile";
 import { homeFor } from "@/lib/roles";
+import { isJobScreen } from "@/lib/domain/needs-you-now";
 import { markStaffSeen } from "@/lib/services/staff-seen";
 import { normalizeDiscountCode } from "@/lib/plans";
 import { discountRefusal } from "@/lib/domain/discount";
@@ -588,7 +589,16 @@ export async function enterTournament(eventId: string, stay?: unknown): Promise<
   if (opened?.organizationId) await markStaffSeen(session.userId, opened.organizationId);
   // "board" is the events list's Leaderboard / Results button, which should
   // land on the board it names rather than on Today.
-  redirect(stay === "board" ? "/me/board" : stay === "player" ? "/me" : homeFor(access.role));
+  if (stay === "board") redirect("/me/board");
+  if (stay === "player") redirect("/me");
+  /**
+   * A JOB ON THE SECRETARY'S HOME, in another of the club's tournaments
+   * (2026-10-24): open that tournament AND go to the screen that does the job.
+   * Only a screen on the jobs' own list (`JOB_SCREENS`), and only for staff of
+   * that tournament — anybody else lands on their home exactly as before.
+   */
+  if (isJobScreen(stay) && (access.role === "admin" || access.role === "assistant")) redirect(stay);
+  redirect(homeFor(access.role));
 }
 
 export async function signOutAction() {

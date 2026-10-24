@@ -26,7 +26,9 @@ import { strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { CutReadyCard } from "@/components/CutReadyCard";
 import { RoundReadyCard } from "@/components/RoundReadyCard";
 import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
-import { NeedsYouNow } from "@/components/NeedsYouNow";
+import { NeedsYouNow, WhatsNext } from "@/components/NeedsYouNow";
+import { CopyLastEvent } from "@/components/CopyLastEvent";
+import { secretaryHomeFor } from "@/lib/services/whats-next";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { needsYouNow } from "@/lib/domain/needs-you-now";
@@ -379,6 +381,8 @@ export default async function DashboardPage() {
    * never reaches here — it is sent to its one screen at the top.)
    */
   const orgFacts = isStaff ? await orgSetupFactsFor(session.email, session.name, session.eventId) : null;
+  // The secretary's home — the club's jobs and the tournaments a copy may start from.
+  const home = isStaff ? await secretaryHomeFor(session) : null;
   const orgSetup = orgFacts ? orgSetupState(orgFacts) : null;
   const isAdmin = session.viewRole === "admin";
 
@@ -859,6 +863,12 @@ export default async function DashboardPage() {
         </NeedsYouNow>
       )}
 
+      {/* WHAT'S NEXT, ACROSS THE CLUB (the secretary's home, 2026-10-24): the
+          next job in every tournament this person runs at the club, in the
+          order they fall due, each with the button that does it — buttons only
+          for somebody who may (`canEdit`). */}
+      {home && <WhatsNext jobs={home.jobs} mayAct={home.mayAct} openEventId={session.eventId} />}
+
       {/* THE ORGANIZER GETS THE SHEET IN ONE LINE (Ajay, 2026-10-05). Every
           group and every name was drawn above the heading — one group on the
           demo, thirty on a club medal of 120, several phone screens before
@@ -1040,6 +1050,11 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* COPY LAST EVENT (the secretary's home, 2026-10-24). Below the shortcuts:
+          what is waiting today outranks the next tournament. Only for somebody
+          who may copy one (`canEdit`); `cloneEvent` asks again. */}
+      {home?.mayAct && home.copyable.length > 0 && <CopyLastEvent copyable={home.copyable} today={home.today} />}
 
       {/* Every number in here is derived from the field, so with no field
           they all read zero. The checklist above says what to do instead.
