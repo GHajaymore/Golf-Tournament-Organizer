@@ -1,6 +1,13 @@
 "use client";
 import { figureOr, readDecimal } from "@/lib/domain/decimal-text";
-import { useId, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
+import { bringIntoView } from "@/lib/bring-into-view";
+import {
+  PRIZE_CATEGORY_BLANK,
+  PRIZE_CATEGORY_MAX,
+  PRIZE_DETAIL_MAX,
+  prizeAmountRefusal,
+} from "@/lib/domain/prize-amount";
 import { addPrize, updatePrize, setPrizeWinner, removePrize, applyPrizeStructure } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { PRIZE_STRUCTURES } from "@/lib/domain/prize-structures";
@@ -71,6 +78,10 @@ export function PrizesClient({
   // tournament's field, so it is refused only when the field or the list
   // moved under a screen that is a moment old — and then it must say so.
   const [awardRefused, setAwardRefused] = useState("");
+  /** A refused Add, said beside it; and a refused amount, said beside that prize's box. */
+  const [addRefused, setAddRefused] = useState("");
+  const [amountRefused, setAmountRefused] = useState<{ id: string; error: string } | null>(null);
+  const amountBoxRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
   const saveStatus = useSaveStatus(pending);
 
@@ -92,17 +103,36 @@ export function PrizesClient({
         style={{ width: asCells ? 100 : 84, textAlign: "right" }}
         onKeyDown={leaveOnEnter}
         onBlur={(e) => {
-          const typed = figureOr(readDecimal(e.target.value), Number.NaN);
-          // What will be KEPT: an amount above nothing, or nothing. The server keeps the same rule
-          // (`updatePrize`), and the box must show that and not what was typed: "-5" was stored as no
-          // prize and went on standing in the box as minus five — the screen saying one thing and the
-          // purse above it another. Found by the first browser test to re-price a prize (2026-10-13).
-          const kept = Number.isFinite(typed) && typed > 0 ? typed : 0;
-          if (kept !== typed) e.target.value = kept ? String(kept) : "";
-          if (kept !== p.amount) startTransition(() => updatePrize(p.id, { amount: kept }));
+          const box = e.target;
+          // A box left empty is no amount. A figure nobody can pay — "-1", "1e9" — is REFUSED, said
+          // beside this box, and the box goes back to what is stored: the screen and the purse above
+          // it never disagree. These were made into no prize without a word (the text-box crawl,
+          // 2026-10-21); the server holds the same rule (`updatePrize`, `prize-amount.ts`).
+          // `validity.badInput`: a number box hands back "" for text it cannot read.
+          const read = box.validity?.badInput ? ({ kind: "unreadable", text: "" } as const) : readDecimal(box.value);
+          const typed = read.kind === "blank" ? 0 : figureOr(read, Number.NaN);
+          const refused = prizeAmountRefusal(typed);
+          if (refused) {
+            setAmountRefused({ id: p.id, error: refused });
+            box.value = p.amount ? String(p.amount) : "";
+            return;
+          }
+          setAmountRefused(null);
+          if (typed !== p.amount) {
+            startTransition(async () => {
+              const result = await updatePrize(p.id, { amount: typed });
+              if (!result.ok) setAmountRefused({ id: p.id, error: result.error ?? "That amount didn't save." });
+            });
+          }
         }}
       />
     );
+    const amountSaid =
+      amountRefused?.id === p.id ? (
+        <p className="form-error" role="alert" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
+          <Icon name="warning-circle" /> {amountRefused.error}
+        </p>
+      ) : null;
     const winnerPick = (
       <select
         className="input"
@@ -140,7 +170,10 @@ export function PrizesClient({
     );
     return asCells ? (
       <>
-        <td style={{ textAlign: "right" }}>{amountBox}</td>
+        <td style={{ textAlign: "right" }}>
+          {amountBox}
+          {amountSaid}
+        </td>
         <td>{winnerPick}</td>
         <td>{remove}</td>
       </>
@@ -149,6 +182,7 @@ export function PrizesClient({
         {amountBox}
         {winnerPick}
         {remove}
+        {amountSaid}
       </>
     );
   };
@@ -156,11 +190,30 @@ export function PrizesClient({
   const purse = prizes.reduce((s, p) => s + p.amount, 0);
   const awarded = prizes.filter((p) => p.winnerId).length;
 
-  const submit = () => {
-    const amt = figureOr(readDecimal(amount), Number.NaN);
-    if (!category.trim()) return;
+  /**
+   * "Add" with an empty Category did nothing and said nothing, and an amount nobody
+   * can pay was added as no prize (the text-box crawl, 2026-10-21). Each is said
+   * beside Add now, and what was typed stays in the boxes to be corrected.
+   */
+  const submit = (box: HTMLInputElement | null) => {
+    setAddRefused("");
+    if (!category.trim()) {
+      setAddRefused(PRIZE_CATEGORY_BLANK);
+      return;
+    }
+    const read = box?.validity?.badInput ? ({ kind: "unreadable", text: "" } as const) : readDecimal(amount);
+    const amt = read.kind === "blank" ? 0 : figureOr(read, Number.NaN);
+    const refused = prizeAmountRefusal(amt);
+    if (refused) {
+      setAddRefused(refused);
+      return;
+    }
     startTransition(async () => {
-      await addPrize(category, Number.isFinite(amt) ? amt : 0, detail);
+      const result = await addPrize(category, amt, detail);
+      if (!result.ok) {
+        setAddRefused(result.error ?? "That prize wasn't added.");
+        return;
+      }
       setCategory("");
       setDetail("");
       setAmount("");
@@ -232,6 +285,7 @@ export function PrizesClient({
               className="input"
               placeholder="e.g. Flight 1 — Winner"
               value={category}
+              maxLength={PRIZE_CATEGORY_MAX}
               onChange={(e) => setCategory(e.target.value)}
             />
           </div>
@@ -242,6 +296,7 @@ export function PrizesClient({
               className="input"
               placeholder="e.g. Pro shop credit"
               value={detail}
+              maxLength={PRIZE_DETAIL_MAX}
               onChange={(e) => setDetail(e.target.value)}
             />
           </div>
@@ -249,17 +304,23 @@ export function PrizesClient({
             <label htmlFor={`${fid}-amount`}>Amount ({symbol})</label>
             <input
               id={`${fid}-amount`}
+              ref={amountBoxRef}
               className="input"
               type="number"
               min={0}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
+              onKeyDown={(e) => e.key === "Enter" && submit(amountBoxRef.current)}
             />
           </div>
-          <button type="button" className="btn btn-primary" disabled={pending} onClick={submit}>
+          <button type="button" className="btn btn-primary" disabled={pending} onClick={() => submit(amountBoxRef.current)}>
             <Icon name="plus" /> Add
           </button>
+          {addRefused && (
+            <p className="form-error" role="alert" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
+              <Icon name="warning-circle" /> {addRefused}
+            </p>
+          )}
         </div>
       </div>
 

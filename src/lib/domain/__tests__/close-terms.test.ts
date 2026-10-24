@@ -1,5 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { wipesOnClose, golfBeganAt, closesAtFrom, roundWindowRefusal, holesEntered, casualKeepRefusal, PLANS_THAT_DELETE } from "../close-terms";
+import { wipesOnClose, golfBeganAt, closesAtFrom, closesAtOnComplete, reopenRefusal, KEPT_AFTER_COMPLETE_DAYS, roundWindowRefusal, holesEntered, casualKeepRefusal, PLANS_THAT_DELETE } from "../close-terms";
+
+describe("a Par tournament completed is kept, read-only, for 15 days (Ajay, 2026-10-21)", () => {
+  const DAY = 24 * 3600 * 1000;
+  const at = (d: number) => new Date(Date.UTC(2026, 9, 1) + d * DAY);
+  it("is fifteen days", () => expect(KEPT_AFTER_COMPLETE_DAYS).toBe(15));
+  it("completed with no clock yet: closes fifteen days on", () => {
+    expect(closesAtOnComplete(null, at(3))).toEqual(at(18));
+  });
+  it("completed the day after the golf (14-day clock running): fifteen days from completing", () => {
+    // golf day 1 → clock day 15; completed day 2 → 17, later than the clock, inside the cap (30)
+    expect(closesAtOnComplete(at(15), at(2))).toEqual(at(17));
+  });
+  it("completed late: still fifteen days from completing", () => {
+    expect(closesAtOnComplete(at(15), at(13))).toEqual(at(28));
+  });
+  it("never earlier than a clock already running", () => {
+    expect(closesAtOnComplete(at(20), at(1))).toEqual(at(20));
+  });
+  it("a completed Par tournament cannot be reopened — so completing cannot be repeated to buy time", () => {
+    const par = { planTermsApply: true, plan: "free", shape: "stroke" };
+    expect(reopenRefusal(par, "Mon 19 Oct")).toMatch(/kept read-only until Mon 19 Oct, then deleted/);
+    // a paid club, a grandfathered club, and a casual round may reopen as before
+    expect(reopenRefusal({ ...par, plan: "society" }, "Mon 19 Oct")).toBeNull();
+    expect(reopenRefusal({ ...par, planTermsApply: false }, "Mon 19 Oct")).toBeNull();
+    expect(reopenRefusal({ ...par, shape: "match" }, "Mon 19 Oct")).toBeNull();
+  });
+});
 
 describe("whether a casual round may be kept", () => {
   it("not on the Par terms", () => {

@@ -48,7 +48,7 @@ async function cleanup() {
 const entrant = (who: string) => ({
   name: `${TAG} ${who}`,
   email: at(who),
-  // A free club needs a mobile from every entrant; Ofcom's drama range.
+  // A mobile, in case the tournament asks for one; Ofcom's drama range.
   phone: "07700 900656",
   handicap: 12,
 });

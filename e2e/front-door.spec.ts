@@ -230,13 +230,19 @@ test("a new organizer comes in by the front door, and the door closes behind the
     await page.getByRole("button", { name: "Forgot?", exact: true }).click();
     expect(await labelsForTheWrongThing(page)).toEqual([]);
     await page.getByPlaceholder("you@email.com").fill(address);
+    // Settled AGAIN before the press: on Firefox (round G300, 2026-10-24) the page
+    // still grew after the switch to the reset form, the press landed where the
+    // button had been, and the failed run's screenshot shows the button never
+    // pressed. `panel` settles once on arrival; the reset form is a second layout.
+    await landingSettled(page);
     await page.getByRole("button", { name: "Send reset link" }).click();
     // THIS SERVER HAS NO WAY TO SEND MAIL, and since 2026-10-11 the screen says
     // so. It used to say "Check your email … a reset link is on its way" here,
     // to somebody who would wait for a message that could not come — and this
     // spec pinned that sentence, which is how it stayed. The sending case is
     // held in `forgot-password-says-what-happened.audit.test.ts`.
-    await expect(page.getByText("We can’t email a reset link")).toBeVisible();
+    // The answer is the server's, so it waits for a round trip, as the weak-password refusal does.
+    await expect(page.getByText("We can’t email a reset link")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Check your email")).toHaveCount(0);
     return (await page.getByText(/no reset link was sent/).innerText()).split(address).join("<address>");
   };
