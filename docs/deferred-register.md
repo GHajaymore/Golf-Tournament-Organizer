@@ -1539,7 +1539,10 @@ which a club's terms of competition expect before changing anything.
 
 **A halved round-robin match is half a point each**, with the all-square tiebreakers applied
 only where the organizer ticks them. Most leagues play it that way; some award no points.
-**One prize per player under Both** (gross and net from one card) is not enforced. **A plate for
+**One prize per player** is a tick-box on Prizes since 2026-10-21 (`domain/one-prize.ts`, kept by
+`setPrizeWinner`; placing lines count, skill lines do not, gross is awarded first). It governs the
+PRIZE LIST only: the card-settled side games (low gross, low net) and the skins pots still pay one
+player twice, which is right for money a player staked. **A plate for
 those who did not qualify** (17th to 32nd), beside the plate for first-round losers, is not
 offered. **Gross Stableford** is still not a choice (see the Stableford entry).
 

@@ -136,6 +136,10 @@ export const CLONED_EVENT_FIELDS = [
   // too. The venue itself is not copied — see the exclusion below — but the
   // decision not to have one is part of what the tournament is.
   "courseMode",
+  // A club's standing rule for its prize list — "one prize per player" is in
+  // its terms of competition, year after year. The prize LINES are not copied
+  // (see `prizes` below), so the copy carries the rule and no awards.
+  "onePrizePerPlayer",
 ] as const;
 
 /**

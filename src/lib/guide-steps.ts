@@ -470,6 +470,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Under [[Add a prize]], start from a structure (such as flight winners) or enter Category, Detail and Amount, then [[Add]].",
           "Once results are in, pick each prize's **Winner** — the list shows finishing places to help. A prize for best gross or best net lists the field on that figure, with ties broken by countback (last nine, six, three, then the last hole) as the leaderboard breaks them.",
+          "If nobody may take home two placing prizes, tick **One prize per player** above the list. The lines are then shown gross first: award the gross prizes first, and a player who wins one is skipped for the net. Each winner list puts anybody who already holds a prize last, saying which, and marks the next in line; choosing them anyway is refused beside the list. Skill prizes such as nearest the pin and longest drive don't count, so the same player can win one — each line has a **Counts** tick to say which kind it is. If somebody already holds two prizes, the tick is refused until you clear one.",
         ],
       },
       { kind: "h", text: "Skins" },
