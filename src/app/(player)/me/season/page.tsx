@@ -44,8 +44,11 @@ export default async function MySeasonPage() {
         </div>
       ) : (
         <>
+          {/* `keep-grid`: three numbers side by side is the point, and the
+              phone rule in globals.css otherwise stacks every inline grid. */}
           <ul
             aria-label="Your season in numbers"
+            className="keep-grid"
             style={{ listStyle: "none", margin: "16px 0 0", padding: 0, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}
           >
             <Tile figure={season.tournaments} word={countWord(season.tournaments, "tournament", "tournaments")} name="tournaments" />
@@ -59,7 +62,8 @@ export default async function MySeasonPage() {
                 Best scores <span className="text-muted" style={{ fontWeight: 400 }}>· {season.bestHoles} holes</span>
               </h2>
               <ul
-                style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 10 }}
+                className="keep-grid"
+                style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(84px, 1fr))", gap: 10 }}
               >
                 {season.bests.map((b) => (
                   <Tile key={b.label} figure={b.value} word={b.label} name={b.label.toLowerCase().replace(" ", "-")} />

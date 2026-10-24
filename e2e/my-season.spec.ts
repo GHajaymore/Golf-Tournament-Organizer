@@ -83,7 +83,8 @@ async function boardPlace(page: Page, token: string, name: string): Promise<{ pl
   const row = page.getByRole("main").locator("li", { hasText: name }).first();
   await expect(row, `${name} is not on the board`).toBeVisible();
   const place = (await row.innerText()).split("\n").map((s) => s.trim()).filter(Boolean)[0];
-  const chip = (await page.locator("header").first().innerText()).split("\n").map((s) => s.trim()).filter(Boolean)[0];
+  // The chip's own words, not as styled: it is drawn upper-case.
+  const chip = ((await page.getByRole("main").locator("header > div").first().textContent()) ?? "").trim();
   return { place, chip };
 }
 
@@ -92,7 +93,8 @@ async function boardSide(page: Page, token: string, side: string): Promise<Recor
   await page.goto(bust(`/live/${token}`));
   await page.waitForLoadState("networkidle");
   const table = page.getByRole("main").locator("table").filter({ hasText: side }).first();
-  const heads = (await table.locator("thead th").allInnerTexts()).map((h) => h.trim());
+  // The headings' own words: a stylesheet may draw them upper-case.
+  const heads = (await table.locator("thead th").allTextContents()).map((h) => h.trim());
   const cells = (await table.locator("tbody tr", { hasText: side }).first().locator("td").allInnerTexts()).map((c) => c.trim());
   return Object.fromEntries(heads.map((h, i) => [h, cells[i] ?? ""]));
 }
@@ -102,7 +104,7 @@ async function reportRow(page: Page, token: string, name: string): Promise<Recor
   await page.goto(bust(`/live/${token}/report`));
   await page.waitForLoadState("networkidle");
   const table = page.locator("table.fr-board").first();
-  const heads = (await table.locator("thead th").allInnerTexts()).map((h) => h.trim());
+  const heads = (await table.locator("thead th").allTextContents()).map((h) => h.trim());
   const row = table.locator("tbody tr").filter({ has: page.locator("td", { hasText: name }) }).first();
   await expect(row, `${name} is not in the report`).toBeVisible();
   const cells = (await row.locator("td").allInnerTexts()).map((c) => c.trim());
@@ -157,6 +159,23 @@ test("a member's season: every place and figure is the one her tournaments' own 
     await page.screenshot({ path: testInfo.outputPath("my-season-phone.png"), fullPage: true });
     await page.screenshot({ path: "test-results/my-season-phone.png", fullPage: true });
   }
+
+  await test.step("a number and a word, side by side, and nothing wider than the phone", async () => {
+    // Where the tiles SIT, not what the CSS says: the first build declared a
+    // three-column grid and a phone rule in globals.css stacked it anyway.
+    const tops: number[] = [];
+    const lefts: number[] = [];
+    for (const name of ["tournaments", "rounds", "prizes"]) {
+      const box = (await page.locator(`[data-tile="${name}"]`).boundingBox())!;
+      tops.push(Math.round(box.y));
+      lefts.push(Math.round(box.x));
+    }
+    expect(new Set(tops).size, `the three numbers stacked: tops ${tops}`).toBe(1);
+    expect(lefts).toEqual([...lefts].sort((a, b) => a - b));
+    expect(new Set(lefts).size).toBe(3);
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(over, `the season scrolls sideways by ${over}px`).toBeLessThanOrEqual(1);
+  });
 
   await test.step("the season and its tournaments: the ones she is in, this season, newest first", async () => {
     const key = Number(seeded.seasonOpened.slice(0, 4));
