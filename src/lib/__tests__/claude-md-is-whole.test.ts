@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-// Plain JavaScript on purpose: the same splitter cuts the files and made the manifest.
-import { hashOf, paragraphs } from "../../../scripts/claude-md-paragraphs.mjs";
+import { hashOf, paragraphs } from "./claude-md-paragraphs";
 
 /**
  * CLAUDE.md IS A SHORT CORE AND AN INDEX; THE LONG LESSONS LIVE IN docs/claude/ (2026-10-24).
