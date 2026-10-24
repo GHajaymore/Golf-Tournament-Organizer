@@ -101,7 +101,7 @@ beforeAll(async () => {
   }
 
   const organizer = await prisma.user.create({
-    data: { email: at("organizer"), name: "organizer", password: "x" },
+    data: { email: at("organizer"), name: "organizer", password: "x", emailVerifiedAt: new Date() },
   });
   organizerUserId = organizer.id;
   await prisma.account.create({

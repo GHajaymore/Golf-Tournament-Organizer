@@ -154,7 +154,7 @@ beforeAll(async () => {
   src.playoff = playoff.id;
 
   const user = await prisma.user.create({
-    data: { email: `${TAG}.boss@example.invalid`.toLowerCase(), name: "boss", password: "x" },
+    data: { email: `${TAG}.boss@example.invalid`.toLowerCase(), name: "boss", password: "x", emailVerifiedAt: new Date() },
   });
   await prisma.account.create({
     data: { eventId: sourceId, email: `${TAG}.boss@example.invalid`.toLowerCase(), name: "boss", role: "admin" },

@@ -81,7 +81,7 @@ async function as(p: Person) {
 /** A club with a live tournament; `who` is its Commissioner, or a player entered in it. */
 async function person(key: keyof typeof people, role: "admin" | "player"): Promise<void> {
   const email = `${TAG}-${key}@example.invalid`;
-  const user = await prisma.user.create({ data: { email, name: `${TAG} ${key}`, password: "x:unusable" }, select: { id: true } });
+  const user = await prisma.user.create({ data: { email, name: `${TAG} ${key}`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } });
   const org = await prisma.organization.create({ data: { name: `${TAG} ${key} club`, kind: "club" }, select: { id: true } });
   const event = await prisma.event.create({
     data: {

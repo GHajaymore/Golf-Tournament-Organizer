@@ -60,6 +60,32 @@ export function holeStrokesReceived(courseHandicap: number, strokeIndex: number,
 }
 
 /**
+ * THE STROKES A BALL HAS RECEIVED ON THE HOLES IT HAS PLAYED, so far.
+ *
+ * Its playing handicap allocated by stroke index (Rule 6.2), counted only on a
+ * hole with a score on it — so a net figure part-way round is the gross so far
+ * less the strokes on those holes, never less the whole handicap. A hole with
+ * no score (not reached, or nothing entered) counts for nothing.
+ *
+ * One function since 2026-10-23: the cup's stroke-card line (`cardLine`) and
+ * the low-net pot each wrote this loop for themselves, the same way.
+ */
+export function strokesReceivedOnHolesPlayed(
+  playing: number,
+  strokes: ReadonlyArray<number | null>,
+  strokeIndex: ReadonlyArray<number>,
+  holeCount: number,
+): number {
+  let received = 0;
+  for (let h = 0; h < holeCount; h += 1) {
+    const s = strokes[h];
+    if (typeof s !== "number" || !Number.isFinite(s) || s <= 0) continue;
+    received += holeStrokesReceived(playing, strokeIndex[h] ?? 18, holeCount);
+  }
+  return received;
+}
+
+/**
  * The wrap base for a round, from its stroke-index array.
  *
  * Snapped to the only cards golf is played on: nine holes or eighteen. Callers

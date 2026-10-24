@@ -9,6 +9,8 @@ import { emailBrandFor } from "@/lib/services/email-brand";
 import { EMAIL } from "@/lib/themes";
 import { SUPPORT_EMAIL } from "@/lib/contact";
 import { interestSubject } from "@/lib/domain/interest";
+import { EMAIL_CODE_WORDS } from "@/lib/domain/email-code";
+import { NEW_SIGN_IN_WORDS } from "@/lib/domain/device-words";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -287,6 +289,105 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
       organizationIds: await organizationsFor(to),
     });
     return { ok: false, error: message };
+  }
+}
+
+/**
+ * THE SIX-DIGIT CODE THAT PROVES AN ADDRESS (2026-10-21) — the marketing
+ * panel's words, `EMAIL_CODE_WORDS.email`. Same sender and reply-to as a reset.
+ *
+ * With no mail provider the code is written to the SERVER's log and nowhere
+ * else — never on the screen, never in the action's answer — so a developer, CI
+ * and the e2e server can still finish a sign-up. Not on Vercel's production,
+ * though: a log there is read by more people than an inbox, and a code in it is
+ * the address. Production without a provider says it could not send.
+ */
+export async function sendEmailCodeEmail(
+  to: string,
+  code: string,
+  purpose: "signup" | "claim" | "device",
+): Promise<{ ok: boolean; error?: string }> {
+  const words = EMAIL_CODE_WORDS.email;
+  if (!resend) {
+    if (process.env.VERCEL_ENV === "production") {
+      console.warn("[email] RESEND_API_KEY not set — email code not sent.");
+      return { ok: false, error: "Email isn't configured on this server." };
+    }
+    console.warn(`[email] RESEND_API_KEY not set — the ${purpose} code for ${maskEmail(to)} is ${code}`);
+    return { ok: true };
+  }
+  const subject = purpose === "claim" ? words.claimSubject : purpose === "device" ? words.deviceSubject : words.subject;
+  const intro = purpose === "claim" ? words.claimIntro : purpose === "device" ? words.deviceIntro : words.intro;
+  const ignore = purpose === "device" ? words.deviceIgnore : words.ignore;
+  // Every word here is the app's own and the code is six digits it made, so
+  // it all goes in raw; nothing anybody typed reaches this body.
+  const body =
+    `<p>${intro}</p>` +
+    `<p style="font-size:30px;font-weight:700;letter-spacing:0.32em;margin:18px 0;font-family:ui-monospace,Menlo,Consolas,monospace">${code}</p>` +
+    `<p>${words.where}</p>` +
+    `<p>${ignore}</p>` +
+    `<p>${words.signoff}</p>`;
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      replyTo: SUPPORT_EMAIL,
+      to,
+      ...(await compose(subject, body, words.why, { preview: words.preheader })),
+    });
+    if (error) {
+      console.error(`[email] Resend rejected the code email for ${maskEmail(to)}: ${error.message}`);
+      await recordFailure({
+        kind: "code",
+        reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
+        detail: error.message,
+        organizationIds: await organizationsFor(to),
+      });
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to send email.";
+    console.error(`[email] Failed sending code email to ${maskEmail(to)}: ${message}`);
+    await recordFailure({ kind: "code", reason: classifySendFailure(message), detail: message, organizationIds: await organizationsFor(to) });
+    return { ok: false, error: message };
+  }
+}
+
+/**
+ * "NEW SIGN-IN TO YOUR ACCOUNT" (2026-10-21): sent when somebody signs in with
+ * a password on a browser this account has not been signed in on before
+ * (`services/known-device.ts`). Best effort: the sign-in has already happened,
+ * and an email that fails to go must not undo it, so a failure is logged and
+ * nothing else. `device` and `when` are the app's own words ("Chrome on
+ * Windows", "Wed 21 Oct at 14:05 UTC"); escaped all the same, because the
+ * device's words are read from a header the browser chose.
+ */
+export async function sendNewSignInEmail(to: string, device: string, when: string): Promise<{ ok: boolean }> {
+  const words = NEW_SIGN_IN_WORDS;
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — new sign-in email for ${maskEmail(to)} not sent.`);
+    return { ok: false };
+  }
+  try {
+    const body =
+      `<p>${words.intro(escapeHtml(device), escapeHtml(when))}</p>` +
+      `<p>${words.ifYou}</p>` +
+      `<p>${words.ifNot}</p>` +
+      `<p>${EMAIL_CODE_WORDS.email.signoff}</p>`;
+    const { error } = await resend.emails.send({
+      from: FROM,
+      replyTo: SUPPORT_EMAIL,
+      to,
+      ...(await compose(words.subject, body, words.why, { preview: words.preheader })),
+    });
+    if (error) {
+      console.error(`[email] Resend rejected the new sign-in email for ${maskEmail(to)}: ${error.message}`);
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error(`[email] Failed sending the new sign-in email to ${maskEmail(to)}: ${e instanceof Error ? e.message : String(e)}`);
+    return { ok: false };
   }
 }
 
