@@ -218,9 +218,20 @@ Visible consequence, walked 2026-09-11: a gross match-play league with eight
 players and no scores shows places 1–8 in ascending handicap order. Before a
 ball is struck, the board names a leader.
 
-### The free plan requires a mobile from every entrant — DECIDED 2026-09-23
+### The free plan requires a mobile from every entrant — DECIDED 2026-09-23, REVERSED 2026-10-21
 
-**Ajay: keep it as a paid feature. Do not re-raise.** Deciding contact
+**SUPERSEDED.** Ajay, decisions review 2026-10-21, item A7 ("go with your
+recommendations"): a player's mobile is optional on every plan. The organizer
+decides per tournament with `Event.requirePhone` (off by default) and the plan
+plays no part; a tournament that asks, asks whatever the sign-in.
+`phoneRequiredFor(eventRequirePhone)` is the rule, `PHONE_REQUIRED_FREE` and the
+locked switch are gone, and the landing table's "Players' mobile numbers" row
+came out because every plan now reads the same. The reason: a forced mobile
+costs entries, and the members it turns away are disproportionately the older
+ones. On 2026-10-17 codes had already been exempted (a code tournament on free
+asked no mobile). Kept below as the history of the decision.
+
+**Was — Ajay: keep it as a paid feature. Do not re-raise.** Deciding contact
 requirements per tournament stays a reason to upgrade, which is what
 `PHONE_REQUIRED_FREE` already says on the screen. The consequence is accepted
 rather than overlooked: a names-only society cannot run a tournament on free,

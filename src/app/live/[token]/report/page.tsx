@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
 import { settingsOf } from "@/lib/services/tournament";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
-import { reportFor } from "@/lib/services/event-report";
+import { reportAudienceFor, reportFor } from "@/lib/services/event-report";
+import { getSession } from "@/lib/auth";
 import { FinalReport } from "@/components/FinalReport";
 import { EventReport } from "@/components/EventReport";
 
@@ -16,7 +17,15 @@ import { EventReport } from "@/components/EventReport";
  * and a public leaderboard, checked on every request, and one 404 for a wrong
  * token, an unpublished board and a casual round. It shows what the public
  * board shows — names, positions, scores, matches and points — and the names
- * of prize winners; never what a prize is worth.
+ * of prize, skins and side-game winners; never what anybody won, never the
+ * costs or the settle-up.
+ *
+ * ONE EXCEPTION, the player in the field (2026-10-21, by recommendation): the
+ * players' Board links HERE, so somebody signed in with a place in this
+ * tournament is shown the amounts and their own settle-up line first, as the
+ * organizer's copy shows them (`reportAudienceFor`). A signed-out visitor, and
+ * anybody signed in who is not in the field — the organizer checking the link
+ * included — gets the public copy.
  */
 export const dynamic = "force-dynamic";
 
@@ -34,7 +43,9 @@ export default async function PublicFinalReportPage({ params }: { params: Promis
   const { token } = await params;
   const event = await prisma.event.findUnique({ where: { shareToken: token } });
   if (!event || !isLeaderboardPublic(settingsOf(event))) notFound();
-  const found = await reportFor(event.id);
+  const session = await getSession();
+  const audience = await reportAudienceFor(event.id, session ? { email: session.email, staff: false } : null);
+  const found = await reportFor(event.id, audience);
   if (!found) notFound();
   const footer = (
     <Link href={`/live/${token}`} className="fr-noprint">
