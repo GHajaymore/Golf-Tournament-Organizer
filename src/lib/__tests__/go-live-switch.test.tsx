@@ -9,7 +9,7 @@ let row: () => Promise<unknown> = async () => null;
 vi.mock("@/lib/db", () => ({ prisma: { platformSetting: { findUnique: () => row() } } }));
 // The two components that press something: rendered, never pressed, here.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }));
-vi.mock("@/app/actions/owner", () => ({ setAccountsOpen: async () => ({ ok: true }) }));
+vi.mock("@/app/actions/owner", () => ({ setAccountsOpen: async () => ({ ok: true }), sendEarlyListCodes: async () => ({ ok: true }) }));
 vi.mock("@/app/actions/interest", () => ({ registerInterest: async () => ({ ok: true }) }));
 
 import {
@@ -30,11 +30,16 @@ import { launchState, signInsHeld } from "@/lib/services/signins-switch";
 import { landingNav } from "@/components/landing/chrome";
 import { LandingAuth } from "@/components/LandingAuth";
 import { InterestForm } from "@/components/InterestForm";
-import { OwnerAccounts } from "@/components/OwnerAccounts";
+import { OwnerAccounts, type EarlyListView } from "@/components/OwnerAccounts";
+import { EARLY_LIST } from "@/lib/go-live";
 import { faqItem } from "@/lib/landing/faq";
 import { landingPrices } from "@/lib/landing/pricing";
 import { editionFor } from "@/lib/landing/edition";
-import { parsePricingOverrides } from "@/lib/plans";
+import { PLANS, parsePricingOverrides } from "@/lib/plans";
+import { siteStructuredData } from "@/lib/domain/structured-data";
+import { planDiff } from "@/lib/landing/plan-diff";
+import { compareRows } from "@/lib/landing/compare";
+import { freePlanWords } from "@/lib/go-live";
 
 /**
  * THE ONE GO-LIVE SWITCH (Ajay, 2026-10-23: "I just need one switch to say let's go live and that
@@ -188,7 +193,7 @@ describe("every surface that renders here follows the switch, both ways", () => 
     ["faq: can I try it for free", faq("try-free"), faqWords("held").tryFree, faqWords("live").tryFree],
     ["faq: do I need a card", faq("card"), faqWords("held").card, faqWords("live").card],
     ["interest-form", (s) => renderToStaticMarkup(<InterestForm launch={s} />), INTEREST_PAGE.held.reassure, INTEREST_PAGE.live.reassure],
-    ["owner-card", (s) => renderToStaticMarkup(<OwnerAccounts switchSays={s} liveSince="" rule="holds" />), OWNER_CARD.willGoLive, OWNER_CARD.willHold],
+    ["owner-card", (s) => renderToStaticMarkup(<OwnerAccounts switchSays={s} liveSince="" rule="holds" earlyList={null} />), OWNER_CARD.willGoLive, OWNER_CARD.willHold],
   ];
 
   for (const [name, render, held, live] of cases) {
@@ -211,8 +216,30 @@ describe("every surface that renders here follows the switch, both ways", () => 
 });
 
 describe("the owner card says what one press will do, from the inventory", () => {
-  const card = (s: LaunchState, rule: Parameters<typeof OwnerAccounts>[0]["rule"] = "holds", since = "") =>
-    text(renderToStaticMarkup(<OwnerAccounts switchSays={s} liveSince={since} rule={rule} />));
+  const card = (s: LaunchState, rule: Parameters<typeof OwnerAccounts>[0]["rule"] = "holds", since = "", earlyList: EarlyListView | null = null) =>
+    text(renderToStaticMarkup(<OwnerAccounts switchSays={s} liveSince={since} rule={rule} earlyList={earlyList} />));
+
+  /**
+   * THE EARLY-LIST CODES (2026-10-23): once live, who is waiting and the email they will get, and a
+   * Send that is the owner's own — and over the mail allowance, the card says what waits and when.
+   */
+  const waiting: EarlyListView = { owed: 140, sent: 0, limit: 100, now: 100, later: 40, nextAt: "Sunday, November 2 at 12:00 PM", previewName: "Zz Ann" };
+  it("once live: who is waiting, the email they will get, and Send — and what waits for tomorrow", () => {
+    const live = card("live", "holds", "", waiting);
+    expect(live).toContain(EARLY_LIST.waiting(140, 0));
+    expect(live).toContain(EARLY_LIST.allowance(100, 100, 40, waiting.nextAt));
+    expect(live).toContain(EARLY_LIST.email.subject);
+    expect(live).toContain(EARLY_LIST.email.paragraphs("Zz Ann", EARLY_LIST.previewCode)[0]);
+    expect(live).toContain(EARLY_LIST.send(100));
+    // A preview never shows a real code: the dots stand in for each person's own.
+    expect(live).toContain(EARLY_LIST.previewCode);
+  });
+  it("held: no codes on the card at all, and nothing to send once everybody has theirs", () => {
+    expect(card("held")).not.toContain(EARLY_LIST.title);
+    const done = card("live", "holds", "", { ...waiting, owed: 0, sent: 140, now: 0, later: 0, nextAt: "" });
+    expect(done).toContain(EARLY_LIST.waiting(0, 140));
+    expect(done, "a Send button with nobody waiting").not.toMatch(/Send \d+ codes?/);
+  });
 
   it("held: Go live, and every place's live line", () => {
     const held = card("held");
@@ -228,11 +255,62 @@ describe("the owner card says what one press will do, from the inventory", () =>
     for (const s of LAUNCH_SURFACES) expect(live, s.id).toContain(s.held);
   });
 
+  /**
+   * THE OWNER READS THIS CARD (the coordinator, 2026-10-23: its first line read "createSession,
+   * getSession, the sign-in actions"). Every line it draws from the inventory is in plain words: no
+   * function name, no environment variable, nothing in brackets.
+   */
+  const looksLikeCode = (t: string) => /\b[a-z]+[A-Z]\w*/.test(t) || /[()]/.test(t) || /\b[A-Z]+_[A-Z_]+\b/.test(t);
+  it("every line it draws from the inventory is in plain words — no code names", () => {
+    const shown = [...LAUNCH_SURFACES.flatMap((s) => [s.where, s.held, s.live]), ...NOT_SWITCHED.flatMap((n) => [n.what, n.why])];
+    const code = shown.filter(looksLikeCode);
+    expect(code, code.join("\n")).toEqual([]);
+  });
+  it("CONTROL: the plain-words check sees a code name, a variable and a bracket", () => {
+    for (const t of ["createSession", "set SIGNIN_ALLOW_EMAILS", "the box (the hero)"]) expect(looksLikeCode(t), t).toBe(true);
+    for (const t of ["Run an event", "TourneyHQ opens soon", "GHIN and WHS", "/interest and inquiries@"]) expect(looksLikeCode(t), t).toBe(false);
+  });
+
   it("says so when the environment overrides it, and lists what never moves", () => {
     expect(card("held", "signins-open")).toContain("SIGNINS=open is set in Vercel");
     expect(card("held", "not-production")).toContain("never holds accounts");
     expect(card("held", "holds")).not.toContain("SIGNINS=open is set");
     for (const n of NOT_SWITCHED) expect(card("held"), n.id).toContain(n.what);
+  });
+});
+
+/**
+ * THE FREE PLAN IS NOT OFFERED UNTIL GO-LIVE, ANYWHERE (Ajay: "I dont want it until go live"). The
+ * front door took "Free for fields of up to 10" and "No card" down while held, and went on telling
+ * search engines of a $0 plan and printing "free for good" in Compare the plans and beside the two
+ * club platforms. Each now follows the same switch, from the same module.
+ */
+describe("the free plan is offered nowhere while held, and everywhere once live", () => {
+  const prices = landingPrices(editionFor("US"), parsePricingOverrides(undefined));
+  const offers = (launch: LaunchState) => {
+    const data = siteStructuredData({ origin: "https://zz.example.invalid", launch }) as { "@graph": Array<{ offers?: Array<{ name: string; price: string }> }> };
+    return data["@graph"].flatMap((n) => n.offers ?? []);
+  };
+
+  it("search engines: no $0 offer while held; the free plan's offer once live", () => {
+    expect(offers("held").map((o) => o.name)).not.toContain(PLANS.free.name);
+    expect(offers("held").filter((o) => o.price === "0")).toEqual([]);
+    expect(offers("held").length, "the paid plans are still offered").toBeGreaterThan(0);
+    expect(offers("live").map((o) => o.name)).toContain(PLANS.free.name);
+  });
+
+  it("Compare the plans: the free plan's price cell", () => {
+    const cell = (s: LaunchState) => renderToStaticMarkup(<>{planDiff(prices, s)[0][1][0]}</>);
+    const wrong = follows(cell, freePlanWords("held").term, freePlanWords("live").term);
+    expect(wrong, wrong.join("\n")).toEqual([]);
+  });
+
+  it("beside the two club platforms: the free plan's row", () => {
+    const ours = (s: LaunchState) => compareRows(prices, s).find((r) => r.label === "A free plan")!.ours;
+    expect(ours("held").note).toBe(freePlanWords("held").versus);
+    expect(ours("held").mark).not.toBe("yes");
+    expect(ours("live").mark).toBe("yes");
+    expect(String(ours("live").note)).toBe(freePlanWords("live").versus);
   });
 });
 
@@ -261,7 +339,7 @@ describe("held and live words are written in one place", () => {
     else if (Array.isArray(v)) v.forEach(collect);
     else if (v && typeof v === "object") Object.values(v).forEach(collect);
   };
-  collect([SIGNINS_CLOSED_MESSAGE, SIGNINS_CLOSED_NOTICE, HELD_FRONT_DOOR, FRONT_DOOR, INTEREST_PAGE, faqWords("held"), faqWords("live"), OWNER_CARD]);
+  collect([SIGNINS_CLOSED_MESSAGE, SIGNINS_CLOSED_NOTICE, HELD_FRONT_DOOR, FRONT_DOOR, INTEREST_PAGE, faqWords("held"), faqWords("live"), OWNER_CARD, EARLY_LIST, freePlanWords("held"), freePlanWords("live")]);
 
   function offences(file: string, src: string): string[] {
     const out: string[] = [];

@@ -168,6 +168,19 @@ export function frontDoorWords(state: LaunchState): FrontDoorWords {
   return FRONT_DOOR[state];
 }
 
+/* ─────────────────────────── the free plan, both ways ─────────────────────────── */
+
+/**
+ * THE FREE PLAN IS NOT OFFERED UNTIL GO-LIVE (Ajay: "I dont want it until go live"), wherever it is
+ * named: the pricing card (above), "Compare the plans", the row beside the two club platforms, and
+ * what search engines are told. `offered` is whether a $0 plan is put before anybody at all.
+ */
+export function freePlanWords(state: LaunchState): { offered: boolean; term: string; versus: string } {
+  return state === "held"
+    ? { offered: false, term: "opens at launch", versus: "opens at launch" }
+    : { offered: true, term: "free for good", versus: `up to ${FREE_FIELD} players` };
+}
+
 /* ─────────────────────────── /faq, both ways ─────────────────────────── */
 
 /**
@@ -279,6 +292,59 @@ export const OWNER_CARD = {
   } satisfies Record<HoldRule, string>,
 } as const;
 
+/* ─────────────────────────── the early-list codes ─────────────────────────── */
+
+/**
+ * SENDING THE EARLY-LIST CODES (the coordinator, 2026-10-23, on the owner's yes): what was promised
+ * while held, kept once live — and only by the owner's own press of Send, never by Go live itself,
+ * because it is his message going out. The card's words, the email's words and the code's label.
+ */
+export const EARLY_LIST = {
+  percentOff: 25,
+  /** What each code is filed under on the console's discount codes. */
+  codeLabel: "Early list · launch",
+  title: "Send the early-list codes",
+  waiting: (owed: number, sent: number) =>
+    owed === 0
+      ? sent === 0
+        ? "Nobody on the early list is waiting for a code."
+        : `Everybody on the early list has been sent their code — ${sent} in all.`
+      : `${owed} on the early list ${owed === 1 ? "is" : "are"} waiting for their code${sent ? `; ${sent} already sent` : ""}. Nothing goes until you press Send.`,
+  allowance: (limit: number, now: number, later: number, nextAt: string) =>
+    later === 0
+      ? `Your mail service sends up to ${limit} emails a day, so all of them can go now.`
+      : now === 0
+        ? `Your mail service sends up to ${limit} emails a day, and today's are used. Press Send again after ${nextAt} for the next ${Math.min(later, limit)}.`
+        : `Your mail service sends up to ${limit} emails a day, so ${now} go now and the other ${later} wait: press Send again after ${nextAt}.`,
+  allowanceShared: "The app's other mail that day counts toward the same allowance.",
+  preview: "What each of them gets — with a code of their own in place of the dots:",
+  previewTo: (name: string) => `To ${name || "them"}, at the address they gave:`,
+  previewCode: "••••••••",
+  send: (n: number) => `Send ${n} ${n === 1 ? "code" : "codes"}`,
+  confirmTitle: "Send the early-list codes",
+  confirmNote: (n: number, later: number) =>
+    `${n} ${n === 1 ? "email goes" : "emails go"} out now from TourneyHQ, each with its own code for 25% off, good once.${later ? ` The other ${later} wait for your next press.` : ""}`,
+  confirm: "Yes, send them",
+  keep: "Not yet",
+  done: (sent: number, later: number, nextAt: string) =>
+    `Sent ${sent}.${later ? ` ${later} still to go — press Send again after ${nextAt}.` : " That is everybody."}`,
+  failed: (sent: number, error: string) => `Sent ${sent}, then the mail service refused: ${error} Nothing was recorded for the one it refused; press Send again later.`,
+  heldRefusal: "Go live first: the codes are for launch.",
+  email: {
+    subject: "TourneyHQ is open — here is your 25% code",
+    preview: "Your early-list code, as promised.",
+    paragraphs: (name: string, code: string) => [
+      `Hi ${name || "there"},`,
+      "TourneyHQ is open. You joined the early list before launch, so here is the code we promised:",
+      code,
+      "It takes 25% off your first term of one paid plan: your first month if you pay monthly, your first year if you pay yearly. Enter it when you create your account (the button below fills it in), or later in the code box on your plan.",
+      "One code per club, good once.",
+    ],
+    action: "Set up your club",
+    why: "You're getting this because you joined TourneyHQ's early list before launch, and we promised to email your code when we opened.",
+  },
+} as const;
+
 /* ─────────────────────────── the inventory ─────────────────────────── */
 
 /** A place that is different while held. */
@@ -295,11 +361,12 @@ export interface LaunchSurface {
    */
   before: "followed" | "wired";
   /**
-   * What the browser sweep looks for: a page, a phrase only the held page carries and a phrase only
+   * What the browser sweep looks for (`held: null` where held is an absence — search data):
+   * a page, a phrase only the held page carries and a phrase only
    * the live one does. `owner` pages are opened signed in as the owner. None where a page cannot
    * show it (a door is a refusal, held to real rows in `the-launch-switch.audit.test.ts`).
    */
-  probe?: { path: string; held: string; live: string; as?: "owner" };
+  probe?: { path: string; held: string | null; live: string; as?: "owner" };
 }
 
 const FAQ_HELD = faqWords("held");
@@ -308,9 +375,10 @@ const FAQ_LIVE = faqWords("live");
 export const LAUNCH_SURFACES: readonly LaunchSurface[] = [
   {
     id: "accounts",
-    where: "Every way in: signing in, setting or resetting a password, signing up, and keeping a session (createSession, getSession, the sign-in actions)",
-    held: "Only the owners (and anybody on SIGNIN_ALLOW_EMAILS) can sign in or keep a session; nobody can sign up; everybody else is told TourneyHQ opens soon",
-    live: "Anybody can sign up, sign in, and set or reset a password",
+    // The owner reads this card: plain words, never the names of functions or variables.
+    where: "Every way in — signing in, signing up, setting or resetting a password, and staying signed in",
+    held: "Only you can; everybody else is told TourneyHQ opens soon, and anybody already signed in is signed out",
+    live: "Anybody can, not just you",
     before: "followed",
   },
   {
@@ -323,7 +391,7 @@ export const LAUNCH_SURFACES: readonly LaunchSurface[] = [
   },
   {
     id: "front-door-buttons",
-    where: "The front door's start buttons (the hero, the phone dock)",
+    where: "The front door's start buttons, at the top and on a phone's bottom bar",
     held: `“${FRONT_DOOR.held.heroCta}”, to /interest`,
     live: `“${FRONT_DOOR.live.heroCta}”, to the sign-up form`,
     before: "followed",
@@ -354,6 +422,23 @@ export const LAUNCH_SURFACES: readonly LaunchSurface[] = [
     probe: { path: "/", held: FRONT_DOOR.held.pricingNote, live: FRONT_DOOR.live.pricingNote },
   },
   {
+    id: "compare-plans",
+    where: "The free plan in “Compare the plans” and beside the two club platforms",
+    held: `“${freePlanWords("held").term}”, and no tick for a free plan`,
+    live: `“${freePlanWords("live").term}”, and a tick: ${freePlanWords("live").versus}`,
+    before: "wired",
+    probe: { path: "/", held: freePlanWords("held").term, live: freePlanWords("live").term },
+  },
+  {
+    id: "search-data",
+    where: "What search engines are told about the plans",
+    held: "The two paid plans only, and no free plan at $0",
+    live: `All three plans, ${PLANS.free.name} at $0 among them`,
+    before: "wired",
+    // Held there is nothing to find, only an absence: the free plan's offer must not be there.
+    probe: { path: "/", held: null, live: `"name":"${PLANS.free.name}","price":"0"` },
+  },
+  {
     id: "front-door-close",
     where: "The front door's closing section, above the box",
     held: `“${FRONT_DOOR.held.closeHeading}”`,
@@ -379,7 +464,7 @@ export const LAUNCH_SURFACES: readonly LaunchSurface[] = [
   },
   {
     id: "faq-cta",
-    where: "/faq's last call to action (drawn only while the contact address is switched off)",
+    where: "/faq's last call to action, shown only while the contact address is switched off",
     held: `“${FRONT_DOOR.held.faqCta.button}”, to /interest`,
     live: `“${FRONT_DOOR.live.faqCta.button}”, to the sign-up form`,
     before: "wired",
@@ -433,11 +518,11 @@ export const NOT_SWITCHED: readonly NotSwitched[] = [
   {
     id: "app-stores",
     what: "“Coming soon to the App Store / on Google Play”, and the App Store and Google Play in the “Coming” strip",
-    why: "True until a store lists the app, which is not launch day. Each button turns into a store link when TOURNEYHQ_IOS_URL or TOURNEYHQ_ANDROID_URL is set.",
+    why: "True until a store lists the app, which is not launch day. Each button becomes a link to the store once the store's address is set in Vercel.",
   },
   {
     id: "handicap-services",
-    what: "“Coming soon” beside handicap services (GHIN, WHS) in the comparison and the “Coming” strip",
+    what: "“Coming soon” beside the GHIN and WHS handicap services, in the comparison and the “Coming” strip",
     why: "A feature not built yet, not a hold.",
   },
   {
@@ -447,25 +532,29 @@ export const NOT_SWITCHED: readonly NotSwitched[] = [
   },
   {
     id: "prices",
-    what: "Every price and plan term: the front door's prices and its “Compare the plans” table, the schema.org offers (the free plan's $0 among them), /faq's prices and the owner's price editor",
-    why: "Prices and plan terms are Ajay's decisions, set on the owner console. Going live never moves a figure.",
-    ask: "While held, the front door hides the free plan, but its search-engine data still lists it at $0 and “Compare the plans” still says “free for good”. Keep them, or hide them until launch?",
+    what: "Every figure: the paid plans' prices, on the front door, in what search engines are told, on /faq and in the price editor below",
+    why: "Prices are yours, set on this console. Going live never moves a figure; it only shows or hides the free plan.",
   },
   {
     id: "plan-limits",
-    what: "Plan limits (the Enforce switch on the owner console's limits)",
-    why: "Refusing a club over its plan is money. It has its own switch and is not tied to launch here.",
+    what: "Plan limits, and the Enforce switch on this console's limits card",
+    why: "Refusing a club over its plan is money. It has its own switch and is not tied to launch.",
     ask: "Should going live also switch on plan-limit enforcement, or stay a separate press?",
   },
   {
     id: "launch-codes",
-    what: "Emailing the 25% code to everybody on the early list",
-    why: "No such action exists yet. The list is on the owner console; the codes are made there (Discount codes) and sent by hand. A note's date against “Live since” says whether it was written before launch.",
-    ask: "Build a “Send the early-list codes” press on the owner console, separate from Go live?",
+    what: "Emailing the 25% codes to the early list",
+    why: "Your message going out, so it never happens by itself: once live, the card shows who is waiting and what they will get, and sends only when you press Send.",
+  },
+  {
+    id: "interest-offer",
+    what: "The 25% offer for somebody who joins after launch",
+    why: "Its terms are for clubs that join before launch, so once live /interest makes no offer.",
+    ask: "Keep offering 25% to late-comers on /interest after launch?",
   },
   {
     id: "round-codes",
-    what: "/play, round codes, and every public board (/live)",
+    what: "/play, round codes, and every public board at /live",
     why: "Never held: a tournament is scored by code with accounts held.",
   },
   {
@@ -476,7 +565,7 @@ export const NOT_SWITCHED: readonly NotSwitched[] = [
   {
     id: "contact-address",
     what: "/faq's “our contact address opens soon”",
-    why: "Drawn only while the contact address cannot receive mail (CONTACT_EMAIL_LIVE), which is about mail, not launch.",
+    why: "Shown only while the contact address cannot receive mail, which is about mail, not launch.",
   },
   {
     id: "sitemap",

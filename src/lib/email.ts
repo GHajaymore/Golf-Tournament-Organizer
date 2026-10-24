@@ -7,8 +7,10 @@ import { orgRoleName } from "@/lib/roles";
 import { emailDocument, emailText, escapeHtml } from "@/lib/domain/email-layout";
 import { emailBrandFor } from "@/lib/services/email-brand";
 import { EMAIL } from "@/lib/themes";
-import { SUPPORT_EMAIL } from "@/lib/contact";
+import { SALES_EMAIL, SUPPORT_EMAIL } from "@/lib/contact";
 import { interestSubject } from "@/lib/domain/interest";
+import { EARLY_LIST } from "@/lib/go-live";
+import { signUpLinkFor } from "@/lib/domain/discount";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -504,6 +506,40 @@ export type FieldChange = "promoted" | "waitlisted";
  * written, so a bounced notification loses nothing: the ask still exists and is
  * still on the screen.
  */
+/**
+ * AN EARLY-LIST CODE, TO THE PERSON WHO JOINED (2026-10-23) — sent only by the owner's press on
+ * /owner (`services/early-list.ts`), never by Go live itself. Its words are the go-live module's
+ * (`EARLY_LIST.email`); the name they typed is escaped like everything else a person typed. Unlike
+ * the other senders this one REPORTS its outcome, because the caller records a send only when it went.
+ */
+export async function sendEarlyListCodeEmail(to: string, name: string, code: string): Promise<{ ok: boolean; error?: string }> {
+  if (!resend) return { ok: false, error: "Email isn't configured on this server." };
+  const words = EARLY_LIST.email;
+  const base = appUrl().base;
+  const body = words
+    .paragraphs(name, code)
+    .map((p) => (p === code ? `<p style="font-size:22px;font-weight:700;letter-spacing:2px;margin:12px 0">${escapeHtml(p)}</p>` : `<p>${escapeHtml(p)}</p>`))
+    .join("");
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      replyTo: SALES_EMAIL,
+      to,
+      // The reason is the app's own fixed sentence, written raw like every other sender's.
+      ...(await compose(words.subject, body, words.why, { preview: words.preview, action: { label: words.action, url: signUpLinkFor(base, code) } })),
+    });
+    if (error) {
+      console.error(`[email] Resend rejected an early-list code for ${maskEmail(to)}: ${error.message}`);
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to send email.";
+    console.error(`[email] Failed sending an early-list code to ${maskEmail(to)}: ${message}`);
+    return { ok: false, error: message };
+  }
+}
+
 /**
  * A NOTE OF INTEREST, TO INQUIRIES@ (2026-10-21) — somebody filled in /interest
  * before launch. Reply-To is THEIR address, so answering it answers them. The

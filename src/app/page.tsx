@@ -4,14 +4,15 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
-import { PLANS, effectiveAnnualPrice, phoneRequiredFor, retentionNotice, retentionSummary, type PlanKey } from "@/lib/plans";
+import { PLANS, effectiveAnnualPrice, retentionNotice, retentionSummary } from "@/lib/plans";
+import { PLAN_KEYS, planDiff } from "@/lib/landing/plan-diff";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { siteOrigin } from "@/lib/site";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
-import { landingPrices, type LandingPrices } from "@/lib/landing/pricing";
+import { landingPrices } from "@/lib/landing/pricing";
 import { FAQ_COUNT, FORMAT_NAMES } from "@/lib/landing/faq";
 import { featureCount, featureGroups } from "@/lib/landing/features";
 import { LANDING_CSS } from "@/lib/landing/styles";
@@ -50,38 +51,6 @@ const STORE_LINKS = {
   android: process.env.TOURNEYHQ_ANDROID_URL ?? "",
 };
 
-/** The plans, in the order the page shows them. */
-const PLAN_KEYS: PlanKey[] = ["free", "society", "club"];
-
-/**
- * "Compare plans": only what DIFFERS between the plans, every cell read from
- * PLANS. TourneyHQv2 read the code (2026-09-29): of the 69 feature lines only
- * the order of merit (seasonStandings) and white-label are plan-gated; the rest
- * is on every plan, which the table's footer says. The limits are the plans'
- * published terms — the page never claims anyone is blocked at them.
- */
-function planDiff(prices: LandingPrices): [string, React.ReactNode[]][] {
-  const each = (f: (k: PlanKey) => React.ReactNode) => PLAN_KEYS.map(f);
-  const count = (n: number | null, one: string) => (n === null ? "No limit" : n === 1 ? one : `Up to ${n}`);
-  const has = (on: boolean, note?: string) =>
-    on ? <><span className="cp-m cp-y" aria-hidden="true">✓</span><span className="sr">Included</span>{note ? <small>{note}</small> : null}</>
-       : <><span className="cp-m cp-x" aria-hidden="true">✕</span><span className="sr">Not included</span></>;
-  return [
-    ["Price", [
-      <><b>{prices.zero}</b><small>free for good</small></>,
-      <><b>{prices.society.yearly} a year</b><small>or {prices.society.monthly} a month</small></>,
-      <><b>{prices.club.yearly} a year</b><small>or {prices.club.monthly} a month</small></>,
-    ]],
-    ["Players in one tournament", each((k) => count(PLANS[k].limits.playersPerEvent, "One"))],
-    ["Tournaments at once", each((k) => count(PLANS[k].limits.activeEvents, "One"))],
-    ["Organizers and assistants", each((k) => count(PLANS[k].limits.staffSeats, "One"))],
-    ["Results kept", each((k) => capitalise(retentionSummary(PLANS[k]).replace(/^results /, "")))],
-    ["Players' mobile numbers", each((k) => (phoneRequiredFor(k, false, "email") ? <>Asked<small>not with round codes</small></> : <>Your choice<small>per tournament</small></>))],
-    ["Order of merit across events", each((k) => has(PLANS[k].features.seasonStandings))],
-    ["The honors board", each((k) => has(PLANS[k].features.honours))],
-    ["Your club's branding in place of ours", each((k) => has(PLANS[k].features.whiteLabel, "with your logo"))],
-  ];
-}
 
 /**
  * How wide each picture is SHOWN, per place it sits — the `sizes` its <img>
@@ -236,7 +205,7 @@ export default async function LandingPage() {
   // The two CLUB platforms, and only those (Ajay, 2026-10-11: name the rivals a
   // buyer already knows; nobody smaller is advertised from our own front door).
   const named = RIVALS.map((r, i) => ({ ...r, i })).filter((r) => r.kind === "Club platform");
-  const rows = compareRows(prices);
+  const rows = compareRows(prices, launch);
 
   // What a year costs at each one's highest published plan, with its one-time
   // setup fee — the two figures each company prints, added. Ours beside them,
@@ -277,7 +246,7 @@ export default async function LandingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, currency: shown.currency })),
+          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, currency: shown.currency, launch })),
         }}
       />
       <LandingEffects />
@@ -665,7 +634,7 @@ export default async function LandingPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {planDiff(prices).map(([label, cells]) => (
+                        {planDiff(prices, launch).map(([label, cells]) => (
                           <tr key={label}>
                             <th scope="row">{label}</th>
                             {cells.map((c, i) => <td key={PLAN_KEYS[i]} className={PLAN_KEYS[i] === "society" ? "hot" : undefined}>{c}</td>)}
@@ -870,8 +839,4 @@ function storeButton(store: "ios" | "android", url: string) {
   ) : (
     <Link className="store soon" href="/faq#q-stores" aria-label={`${lead} ${name}. How to install it from your browser today`}>{inner}</Link>
   );
-}
-
-function capitalise(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

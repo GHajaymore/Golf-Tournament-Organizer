@@ -46,7 +46,7 @@ const CAPTURE = process.env.GO_LIVE_CAPTURE ?? "";
 let ownerCookie = "";
 let saved: { value: string } | null = null;
 
-/** Everything a page SAYS — its text (closed menus and folded answers included), its title and description. */
+/** Everything a page SAYS — its text (closed menus and folded answers included), its title and description, its search data. */
 async function said(page: Page, path: string): Promise<string> {
   const res = await page.goto(`${path}${path.includes("?") ? "&" : "?"}bust=${Date.now()}`);
   expect(res?.status(), `${path} answered ${res?.status()}`).toBe(200);
@@ -60,6 +60,8 @@ async function said(page: Page, path: string): Promise<string> {
       acceptNode: (n) => (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(n.parentElement?.tagName ?? "") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
     });
     while (walk.nextNode()) parts.push(walk.currentNode.nodeValue ?? "");
+    // And what search engines are told: the schema.org data, which is a script and so not text.
+    for (const s of Array.from(document.querySelectorAll("script[type='application/ld+json']"))) parts.push(s.textContent ?? "");
     return parts.join(" ").replace(/\s+/g, " ");
   });
 }
@@ -68,10 +70,11 @@ async function said(page: Page, path: string): Promise<string> {
 function verdict(s: LaunchSurface, held: string, live: string): string[] {
   const p = s.probe!;
   const wrong: string[] = [];
-  if (!held.includes(p.held)) wrong.push(`${s.id}: held, ${p.path} does not say “${p.held}”`);
+  // `held: null` — held is an absence (the free plan in search data): only the live phrase is asked about.
+  if (p.held !== null && !held.includes(p.held)) wrong.push(`${s.id}: held, ${p.path} does not say “${p.held}”`);
   if (held.includes(p.live)) wrong.push(`${s.id}: held, ${p.path} still says the live “${p.live}”`);
   if (!live.includes(p.live)) wrong.push(`${s.id}: live, ${p.path} does not say “${p.live}”`);
-  if (live.includes(p.held)) wrong.push(`${s.id}: live, ${p.path} still says the held “${p.held}”`);
+  if (p.held !== null && live.includes(p.held)) wrong.push(`${s.id}: live, ${p.path} still says the held “${p.held}”`);
   return wrong;
 }
 

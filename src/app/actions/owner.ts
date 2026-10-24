@@ -9,6 +9,8 @@ import { drainWaitlist } from "@/lib/services/waitlist";
 import { saveLimitOverride } from "@/lib/services/platform-limits";
 import { createDiscount, setDiscountActive } from "@/lib/services/platform-discounts";
 import { setSignInsOpen } from "@/lib/services/signins-switch";
+import { sendEarlyListCodes as sendCodes } from "@/lib/services/early-list";
+import { ownerClockInWords } from "@/lib/services/owner-clock";
 
 /**
  * Owner-only writes — the platform's own controls, not a club's.
@@ -40,6 +42,22 @@ export async function setAccountsOpen(open: boolean): Promise<OwnerActionResult 
   // Every public page reads it, not only / and /owner — the whole router cache, as prices do.
   revalidatePath("/", "layout");
   return { ok: true, now };
+}
+
+/**
+ * SEND THE EARLY-LIST CODES — the owner's own press, once live (2026-10-23). Never part of Go live
+ * and never automatic: the card shows who is waiting and the email they will get, and this runs only
+ * when the owner presses Send and confirms. Today's mail allowance is kept; the rest wait for his
+ * next press (`services/early-list.ts`).
+ */
+export async function sendEarlyListCodes(): Promise<OwnerActionResult & { sent?: number; later?: number; nextAt?: string | null }> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  const res = await sendCodes();
+  revalidatePath("/owner");
+  // When the rest can go, in words on the owner's own clock — said beside the press.
+  const nextAt = res.nextAt ? await ownerClockInWords(session.userId, res.nextAt) : null;
+  return { ok: res.ok, error: res.error, sent: res.sent, later: res.later, nextAt };
 }
 
 /**

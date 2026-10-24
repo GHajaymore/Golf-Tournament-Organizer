@@ -16,7 +16,8 @@ import { peopleOwningSeveralParClubs } from "@/lib/services/close-terms";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
 import { OwnerAccounts } from "@/components/OwnerAccounts";
 import { launchSwitch } from "@/lib/services/signins-switch";
-import { clubClockInWords } from "@/lib/domain/club-clock";
+import { ownerClockInWords } from "@/lib/services/owner-clock";
+import { earlyListStatus } from "@/lib/services/early-list";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
@@ -165,13 +166,20 @@ export default async function OwnerConsolePage() {
   // THE GO-LIVE SWITCH, and when it went live — on the owner's own club's clock (the first club they
   // belong to that has said where it is), or in UTC, said so, when none has.
   const sw = await launchSwitch();
-  const ownClub = await prisma.organizationMember.findFirst({
-    where: { userId: session.userId, organization: { timeZone: { not: "" } } },
-    orderBy: { createdAt: "asc" },
-    select: { organization: { select: { timeZone: true } } },
-  });
-  const zone = ownClub?.organization.timeZone ?? "";
-  const liveSince = sw.liveSince ? `${clubClockInWords(zone || "UTC", DEFAULT_LOCALE, sw.liveSince)}${zone ? "" : " UTC"}` : "";
+  const liveSince = sw.liveSince ? await ownerClockInWords(session.userId, sw.liveSince) : "";
+  // Once live, the early-list codes: who is waiting, and what a press of Send would do today.
+  const early = await earlyListStatus();
+  const earlyList = early
+    ? {
+        owed: early.owed.length,
+        sent: early.sent,
+        limit: early.limit,
+        now: early.now,
+        later: early.later,
+        nextAt: early.nextAt ? await ownerClockInWords(session.userId, early.nextAt) : "",
+        previewName: early.owed[0]?.name ?? "",
+      }
+    : null;
 
   const stat = (label: string, value: string, sub?: string) => (
     <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
@@ -250,7 +258,7 @@ export default async function OwnerConsolePage() {
 
       {/* The go-live switch first: the one control that decides who can get in, and what every
           public page says about it. */}
-      <OwnerAccounts switchSays={sw.switchSays} liveSince={liveSince} rule={sw.rule} />
+      <OwnerAccounts switchSays={sw.switchSays} liveSince={liveSince} rule={sw.rule} earlyList={earlyList} />
 
       {/* The controls that write: the price every screen quotes, and the caps
           every entry gate reads. */}

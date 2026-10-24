@@ -69,8 +69,12 @@ the hold standing). `SIGNINS=open` in Vercel still opens it too, and the card sa
 overriding the switch. **What it covers is `src/lib/go-live.ts`, and `docs/go-live-switch.md` is
 the same table**: the sign-in doors, every front-door word, the nav on every public page, two /faq
 answers and its last button, the whole of /interest (live: "Now open", no 25%) and the copy to
-inquiries@, and the owner card — 14 places — plus what deliberately does NOT move (app-store
-badges, prices and plan limits, the launch-code email, which does not exist yet). Every held/live
+inquiries@, the free plan in "Compare the plans" and in the search data (no $0 offer while held),
+and the owner card — 16 places — plus what deliberately does NOT move (app-store badges, prices,
+plan limits). Once live the card also SENDS THE EARLY-LIST CODES, only on the owner's own press of
+Send (`services/early-list.ts`, recorded in `EarlyListSend`, never more than `RESEND_DAILY_LIMIT`
+in 24 hours — the rest wait for his next press). The card's lines from the inventory are plain
+words: no function or variable names. Every held/live
 word is in that one module and each screen takes `LaunchState` as a REQUIRED argument;
 `go-live-switch.test.tsx` refuses a held phrase anywhere else, and `e2e/go-live-switch.spec.ts`
 flips it both ways on a server that holds (its header says how to start one). Every door asks
