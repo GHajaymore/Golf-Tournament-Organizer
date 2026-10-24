@@ -12,7 +12,12 @@ export function TheDraw({
   draws,
   results,
   me = "",
+  printTitle = "",
+  locale,
 }: {
+  /** The tournament's name and the club's locale, for the printed sheets. */
+  printTitle?: string;
+  locale?: string;
   /** Each draw, whether it was seeded, and its rounds' play-by dates (`roundPlayBy`). */
   draws: { label: string; view: BracketView; seeded: boolean; playBy?: Record<number, PlayBy> }[];
   results: Record<string, string>;
@@ -52,6 +57,8 @@ export function TheDraw({
             param={i === 0 ? "section" : `section-${d.view.kind}`}
             name={draws.length > 1 ? d.label : ""}
             playBy={d.playBy}
+            printTitle={printTitle}
+            locale={locale}
           />
         </div>
       ))}

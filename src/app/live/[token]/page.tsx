@@ -343,7 +343,7 @@ export default async function PublicLeaderboardPage({
         {/* A knockout opens on its news — the latest results, who is still in and
             what is still to play — and then the drawing (the panel, 2026-10-23). */}
         {!cup.ok && board.knockoutNews && <KnockoutNews news={board.knockoutNews} />}
-        {!cup.ok && board.draws.length > 0 && <TheDraw draws={board.draws} results={board.bracketResults} />}
+        {!cup.ok && board.draws.length > 0 && <TheDraw draws={board.draws} results={board.bracketResults} printTitle={board.name} />}
 
         {/* Closest to the pin, long drive, and who sponsors them — for the round
             on show, or every round on a cup's all-sessions board. */}

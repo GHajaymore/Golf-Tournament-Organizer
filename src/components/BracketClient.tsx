@@ -15,6 +15,9 @@ import {
 } from "@/lib/domain/bracket-layout";
 import { marginWords } from "@/lib/domain/my-tie";
 import type { PlayBy } from "@/lib/domain/knockout-play-by";
+import { createPortal } from "react-dom";
+import { BracketPrint } from "./BracketPrint";
+import { formatDayAt } from "@/lib/domain/locale";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { Icon } from "./Icon";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
@@ -63,8 +66,14 @@ export function BracketDrawing({
   param = "section",
   name = "",
   playBy,
+  printTitle = "",
+  locale,
 }: {
   view: BracketView;
+  /** The tournament's name, for the printed sheets' heading. */
+  printTitle?: string;
+  /** The club's locale, for "Printed on …". */
+  locale?: string;
   /** Each round's play-by date, by round index (`roundPlayBy`); a round with none is absent. */
   playBy?: Record<number, PlayBy>;
   /** Each player's place in the qualifying order, shown in place of the draw's own numbering. */
@@ -172,6 +181,29 @@ export function BracketDrawing({
    * whose visible part held nobody lit at all.
    */
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  /*
+   * PRINT THE DRAW (part c): the sheets are mounted under <body> only while
+   * printing, the body is marked so the print stylesheet prints them and nothing
+   * else, and both are taken down when the print dialog closes.
+   */
+  const [printing, setPrinting] = useState(false);
+  const [printedOn, setPrintedOn] = useState("");
+  useEffect(() => {
+    if (!printing) return;
+    document.body.classList.add("printing-draw");
+    const done = () => {
+      document.body.classList.remove("printing-draw");
+      setPrinting(false);
+    };
+    window.addEventListener("afterprint", done);
+    const frame = window.requestAnimationFrame(() => window.print());
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("afterprint", done);
+      document.body.classList.remove("printing-draw");
+    };
+  }, [printing]);
   const sectionShown = sectionKey;
   useEffect(() => {
     const box = scrollRef.current;
@@ -319,6 +351,17 @@ export function BracketDrawing({
 
   return (
     <div className="card elev-sm bracket-drawing" style={{ padding: 0, overflow: "hidden" }}>
+      {printing &&
+        createPortal(
+          <BracketPrint
+            view={view}
+            results={results}
+            seeded={seeded}
+            title={[printTitle, name].filter(Boolean).join(" · ") || "The draw"}
+            printedOn={printedOn}
+          />,
+          document.body,
+        )}
       {refused && (
         <p className="form-error" role="alert" style={{ margin: "12px 14px 0" }}>
           {refused} Reload the draw and record it again.
@@ -326,6 +369,20 @@ export function BracketDrawing({
       )}
       {people.length > 0 && (
         <div style={{ padding: "12px 14px 0", display: "grid", gap: 8 }}>
+          <div className="no-print" style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              style={{ minHeight: 44 }}
+              onClick={() => {
+                // The day it is printed, stamped by the press — never read during render.
+                setPrintedOn(`Printed on ${formatDayAt(new Date(), locale)}`);
+                setPrinting(true);
+              }}
+            >
+              <Icon name="printer" /> Print the draw
+            </button>
+          </div>
           <label style={{ display: "grid", gap: 4, fontSize: 13, maxWidth: 360 }}>
             <span className="text-muted">Find a player</span>
             <span style={{ position: "relative", display: "block" }}>
@@ -601,7 +658,12 @@ export function BracketClient({
   seeded,
   playBy,
   toPlay,
+  printTitle,
+  locale,
 }: {
+  /** The tournament's name and the club's locale, for the printed sheets. */
+  printTitle?: string;
+  locale?: string;
   /** Each draw's play-by dates by round index, keyed by the draw's kind (`roundPlayBy`). */
   playBy?: Record<string, Record<number, PlayBy>>;
   /**
@@ -808,6 +870,8 @@ export function BracketClient({
               param={at === 0 ? "section" : `section-${shown.view.kind}`}
               name={list.length > 1 ? shown.label : ""}
               playBy={playBy?.[shown.view.kind]}
+              printTitle={printTitle}
+              locale={locale}
             />
           )}
         </div>
