@@ -64,6 +64,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
           "An active member who signs in with the email on the roster sees the club's tournaments straight away — no invitation needed. An inactive member does not.",
+          "Each member also has **My season** in the player app, reached from Events: their own tournaments, rounds, places, best scores and prizes this season. Every place is the one that tournament's board gives. A tournament whose standings you have not published shows them no place, and nobody sees another member's season.",
         ],
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },

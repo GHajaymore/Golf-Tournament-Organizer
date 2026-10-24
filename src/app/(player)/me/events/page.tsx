@@ -122,6 +122,30 @@ export default async function ClubEventsPage() {
         <Icon name="arrow-right" className="text-muted" />
       </Link>
 
+      {/* MY SEASON — the member's own tournaments, places and prizes this
+          season (2026-10-24). The same slim row: a screen to look back on. */}
+      <Link
+        href="/me/season"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 12px",
+          textDecoration: "none",
+          color: "var(--color-text)",
+          fontSize: 14,
+        }}
+      >
+        <Icon name="trophy" style={{ color: "var(--color-accent-200)", fontSize: 18 }} />
+        <span style={{ flex: 1, minWidth: 0 }}>
+          My season
+          <span className="text-muted" style={{ display: "block", fontSize: 13 }}>
+            Your places, best scores and prizes this season
+          </span>
+        </span>
+        <Icon name="arrow-right" className="text-muted" />
+      </Link>
+
       {/* HELP — how to enter, keep and sign a card (2026-10-10). The same slim
           row as the calendar; a player opens it once, when stuck. */}
       <Link
