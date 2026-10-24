@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { getSession } from "@/lib/auth";
 import { isDerivedKind, DERIVED_LABEL } from "@/lib/domain/derived-games";
+import { CARD_SIDE_GAMES, paysWhen } from "@/lib/domain/money-layout";
 import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { requirePotAccess } from "@/lib/services/game-access";
@@ -112,10 +113,13 @@ async function requireGameAccess(sideGameId: string): Promise<GameAccess> {
  * neither is in DERIVED_KINDS — but both are stored as side games and both
  * have to be settable here.
  */
-const KINDS = ["low-gross", "low-net", "birdies", "eagles", "twos", "nassau", "match"];
+// The side games a round's cards or matches settle — from the one table that
+// also says when each pays (`SIDE_GAME_PAYS`), so a kind offered here is a kind
+// the settle-up knows how to wait for.
+const KINDS: readonly string[] = CARD_SIDE_GAMES;
 
-/** The two that are settled by the match rather than out of a pot. */
-const MATCH_BETS = new Set(["nassau", "match"]);
+/** The ones settled by the match rather than out of a pot: they pay as each bet is decided. */
+const MATCH_BETS = new Set(KINDS.filter((k) => paysWhen(k) === "as-each-bet-is-decided"));
 
 /**
  * Start (or re-price) one derived bet on a round.

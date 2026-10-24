@@ -60,7 +60,12 @@ const dayIn = (zone: string, at = new Date()) => new Intl.DateTimeFormat("en-CA"
 function sevenAmZone(): string {
   const asked = process.env.E2E_TZ;
   if (asked && hourIn(asked) === 7) return asked;
-  const zone = SEVEN_AM_ZONES.find((z) => hourIn(z) === 7);
+  // Real places first; then the fixed-offset zones, which have no summer time and so cover every
+  // hour. The list of places alone does not: on 24 Oct 2026, with Europe and America both still on
+  // summer time, no place in it was at UTC-9, UTC-1 or UTC+12, and the spec failed on main at that
+  // hour (it had passed when written, at another). "Etc/GMT-5" is UTC+5 — the sign is inverted.
+  const fixed = Array.from({ length: 27 }, (_, i) => i - 12).map((off) => (off === 0 ? "Etc/UTC" : `Etc/GMT${off > 0 ? "-" : "+"}${Math.abs(off)}`));
+  const zone = [...SEVEN_AM_ZONES, ...fixed].find((z) => hourIn(z) === 7);
   if (!zone) throw new Error("no zone in the list is at seven o'clock — the list has lost an offset");
   return zone;
 }
