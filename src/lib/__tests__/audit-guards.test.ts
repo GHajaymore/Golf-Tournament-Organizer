@@ -3011,7 +3011,8 @@ describe("one engine decides how many strokes a hole gives", () => {
   /** Outside the domain and still calling the primitive, each a known debt. */
   const ALLOWED: Record<string, string> = {
     "src/app/actions/tournament.ts": "score import converts a gross card to net at the boundary",
-    "src/app/(player)/me/card/page.tsx": "the player's own card, already narrowed upstream",
+    // The player's own card left the list 2026-10-24: its dots are allocated by
+    // `strokesOnHole` in the domain, the function that also says why.
     "src/app/play/page.tsx": "a casual round has no tournament to resolve against",
     "src/app/(app)/entry/page.tsx": "the individual entry path; the TEAM path goes through matchStrokesPerHole",
     // expenses.ts left the list 2026-10-23: the low-net pot asks

@@ -278,9 +278,11 @@ describe("individual standings play off the Playing Handicap", () => {
     // off 100% and nobody could see why the numbers differed from the sheet.
     const src = read("src/lib/services/tournament.ts");
     // And the round's type with it: the allowance is the ROUND's (`round-allowance.ts`),
-    // taken there by `playingHandicapInRound`, which this resolver hands the stage.
+    // taken there by `playingHandicapInRound` — or its parts, which is the same
+    // call with the working kept (`playingHandicapPartsInRound`, 2026-10-24) —
+    // which this resolver hands the stage.
     expect(read("src/lib/round-allowance.ts")).toMatch(/effectiveAllowance\(round\.format, round\.handicapAllowance, round\.type\)/);
-    expect(src).toMatch(/playingHandicapInRound\(stage, ctx\.roundHandicapFor/);
+    expect(src).toMatch(/playingHandicap(Parts)?InRound\(stage, ctx\.roundHandicapFor/);
     // The per-round Course Handicap still reaches playingHandicapFrom with the
     // round's allowance. Asserted on the two facts rather than on one exact
     // expression: the round-handicap override put `resolveRoundHandicap`

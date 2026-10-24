@@ -167,6 +167,17 @@ handicap readers became one (counted off the diff, not the inventory). The four
   required argument; every reader of a round selects `FIELD_PLAYER`.
   `the-organizer-decides-the-tees.test.ts` allows one write of a player's tees in
   the whole app.
+- **What a figure says about itself** (step 9, 2026-10-24): `lib/domain/figure-working.ts`
+  words every "why" a screen opens — a stroke dot (`strokesOnHole`, which the
+  player's card now allocates its dots WITH, so it left the `holeStrokesReceived`
+  debt list), a card's totals and net (`cardFigures`, `cardWorking`, one call for
+  the scorecard and the strip above the hole), a playing handicap from the
+  round's parts (`strokeHandicapPartsFor`, of which `strokeHandicapFor` is the
+  `.playing`), Stableford points through the per-hole tables `cardPoints` adds,
+  and a board's tie from `countbackBetween` — the decision the rank pass places
+  by, of which `countbackCompare` is the `.order`. `every-figure-explains-itself.test.tsx`
+  reads each sentence back and holds it to the figure on the rendered screen and
+  to the Rule, and refuses a Rule's citation written anywhere else.
 - **Deleted, with no callers**: `courseHandicapForPlayer` (a fourth course-handicap
   pipeline) and the tee matcher with its module.
 
