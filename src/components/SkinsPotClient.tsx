@@ -9,6 +9,8 @@ import { renameBet } from "@/app/actions/bet-name";
 import FieldInfo from "@/components/FieldInfo";
 import { SCOPE_LABEL, type SkinsScope } from "@/lib/domain/skins-pot";
 import { useMoney } from "@/components/CurrencyProvider";
+import { moneyBoxRefusal } from "@/lib/domain/money-format";
+import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 
@@ -122,15 +124,28 @@ export function SkinsPotClient({
     view.entrantIds.length > 0 ? view.entrantIds : view.field.filter((f) => f.playing).map((f) => f.id),
   );
 
-  const saveSetup = () =>
-    run(() =>
-      saveSkinsPot(activeStageId, {
-        buyInCents: parseBuyIn(buyIn),
-        net: view.net,
-        scope,
-        groupKey,
-      }),
+  /* The buy-in's refusal, said beside its Save — the card's own line is at its foot, below the
+     table and the settle-up (the text-box crawl, 2026-10-21: "abc" saved as nothing, unsaid). */
+  const [setupPressed, setSetupPressed] = useState(false);
+  const [setupError, setSetupError] = useState("");
+  const saveSetup = () => {
+    setSetupPressed(true);
+    const cents = parseBuyIn(buyIn);
+    const refused = moneyBoxRefusal(buyIn, cents, MAX_EXPENSE_CENTS);
+    setSetupError(refused ?? "");
+    if (refused) return;
+    run(
+      () =>
+        saveSkinsPot(activeStageId, {
+          buyInCents: cents,
+          net: view.net,
+          scope,
+          groupKey,
+        }),
+      () => setSetupPressed(false),
     );
+  };
+  const setupRefusal = setupPressed ? setupError || error : "";
 
   const name = (id: string) => view.nameById[id] ?? "—";
   const r = view.result;
@@ -291,6 +306,11 @@ export function SkinsPotClient({
         <button type="button" className="btn btn-primary" disabled={pending} onClick={saveSetup}>
           Save
         </button>
+        {setupRefusal && (
+          <p className="form-error" role="alert" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
+            <Icon name="warning-circle" /> {setupRefusal}
+          </p>
+        )}
       </div>
 
       {/* ── Who paid in ───────────────────────────────────────────────── */}
@@ -349,11 +369,12 @@ export function SkinsPotClient({
                   className="btn btn-secondary touch-target"
                   disabled={pending}
                   style={{ fontSize: 13, padding: "6px 12px" }}
-                  onClick={() =>
+                  onClick={() => {
+                    setSetupPressed(false);
                     run(() =>
                       confirmSkinsEntry(activeStageId, view.net, view.scope, groupKey, id, true),
-                    )
-                  }
+                    );
+                  }}
                 >
                   {/* A sentence, so the amount carries its currency — this card's own rule (see `withSymbol`
                       above). It read "take 5.00": five of what, on the one button here that is about
@@ -394,6 +415,7 @@ export function SkinsPotClient({
                 onClick={() => {
                   // view.scope, not a default: these entrants belong to THIS
                   // game, and a league night has four on the same round.
+                  setSetupPressed(false);
                   run(() => setSkinsEntrants(activeStageId, view.net, view.scope, chosen, groupKey));
                   setPicking(false);
                 }}
@@ -563,7 +585,7 @@ export function SkinsPotClient({
         </div>
       )}
 
-      {error && !(renaming && renamePressed) && (
+      {error && !(renaming && renamePressed) && !setupPressed && (
         <p className="form-error" role="alert">
           <Icon name="warning-circle" /> {error}
         </p>
@@ -582,7 +604,10 @@ export function SkinsPotClient({
           confirmLabel="Remove the pot"
           note={`${view.entrantIds.length} ${view.entrantIds.length === 1 ? "person has" : "people have"} paid in.`}
           disabled={pending}
-          onConfirm={() => run(() => removeSkinsPot(activeStageId, view.net, view.scope, groupKey))}
+          onConfirm={() => {
+            setSetupPressed(false);
+            run(() => removeSkinsPot(activeStageId, view.net, view.scope, groupKey));
+          }}
         />
       )}
     </div>

@@ -62,6 +62,7 @@ const rows = layersFor(round).map((layer) => {
     minutes: sum("minutes"),
     failures: ran.flatMap((l) => l.failures ?? []),
     said: ran.flatMap((l) => l.said ?? []),
+    details: ran.flatMap((l) => l.details ?? []),
     badExits: ran.filter((l) => l.exit && !l.failed).map((l) => `exited ${l.exit} with nothing reported failed${l.stopped ? " (stopped on time)" : ""}${l.partial ? ` — ${l.partial}` : ""}`),
     empties: ran.filter((l) => l.empty).map((l) => `nothing passed${l.partial ? ` — ${l.partial}` : ""}`),
     pieces: ran.map((l) => l.partial).filter(Boolean),
@@ -118,6 +119,9 @@ if (reach && !missing.length && existsSync(baselinePath)) {
 const findings = [];
 for (const r of rows.filter((x) => x.ran)) {
   for (const f of r.failures) findings.push(`${r.key}: ${f}`);
+  // …and each thing that failure found, so a share's findings are in the verdict and not only in
+  // the log of the machine that ran it (see `partFile` in layers.mjs).
+  for (const d of r.details) findings.push(`${r.key}: ${d}`);
   if (r.failed > r.failures.length) findings.push(`${r.key}: ${r.failed - r.failures.length} more failed`);
   for (const b of r.badExits) findings.push(`${r.key}: ${b}`);
   for (const e of r.empties) findings.push(`${r.key}: ${e} — it tested nothing`);
@@ -136,6 +140,18 @@ const crawled = shares.reduce((a, b) => a + b, 0);
 if (shares.length > 1 && crawled <= CRAWL_AT_LEAST) {
   findings.push(`suite: the console crawl's ${shares.length} shares operated ${crawled} controls between them — the crawl finds more than ${CRAWL_AT_LEAST}`);
 }
+// The text-box crawl runs as TEXT_PARTS shares, one test each (`e2e/every-text-box.spec.ts`). Each says
+// how many boxes it tried; a share cannot know the total, so the crawl's own minimum is held to the sum
+// here — once every share has reported, which is the only time the sum means anything.
+const TEXT_BOXES_AT_LEAST = 40;
+const textShares = (rows.find((r) => r.key === "text-boxes" && r.ran)?.said ?? [])
+  .map((line) => /^\[every-text-box\] share (\d+)\/(\d+): \d+ boxes found .*?, (\d+) tried/.exec(line))
+  .filter(Boolean);
+const textOf = textShares[0] ? Number(textShares[0][2]) : 0;
+const textTried = textShares.reduce((n, m) => n + Number(m[3]), 0);
+if (textOf > 1 && new Set(textShares.map((m) => m[1])).size === textOf && textTried <= TEXT_BOXES_AT_LEAST) {
+  findings.push(`text-boxes: the text-box crawl's ${textOf} shares tried ${textTried} boxes between them — the crawl tries more than ${TEXT_BOXES_AT_LEAST}`);
+}
 for (const n of newlyUnreached) findings.push(`reach: no screen test calls ${n} (not in reach-baseline.json: new, or its test was lost)`);
 if (baselineMissing) findings.push("reach: scripts/qa/reach-baseline.json is missing, so nothing checked for an action no screen test performs");
 
@@ -144,7 +160,10 @@ const verdict = findings.length ? "NOT CLEAN" : missing.length ? "CLEAN, BUT NOT
 const minutes = Math.max(...parts.map((p) => p.minutes ?? 0));
 const OUT = join(".qa", "rounds", TAG);
 mkdirSync(OUT, { recursive: true });
-writeFileSync(join(OUT, "verdict.json"), JSON.stringify({ tag: TAG, round, at: new Date().toISOString(), commit: first.commit, app: apps[0], build: builds[0], verdict, minutes, parts: parts.length, findings, notRun: missing, layers: rows, reach }, null, 1));
+// A part's own verdict and summary are named by the part, like its log: every part writes into a
+// folder of the round's name, and fetched together two of them would otherwise be one file.
+const own = onlyAPart && first.id ? `-${first.id}` : "";
+writeFileSync(join(OUT, `verdict${own}.json`), JSON.stringify({ tag: TAG, round, at: new Date().toISOString(), commit: first.commit, app: apps[0], build: builds[0], verdict, minutes, parts: parts.length, findings, notRun: missing, layers: rows, reach }, null, 1));
 
 const cell = (s) => String(s ?? "").replace(/\|/g, "/").replace(/\n/g, " ");
 const result = (r) => (r.ran ? `${r.passed} ${r.unit === "tournaments" ? "played through" : "passed"}, ${r.failed} ${r.unit === "tournaments" ? "stopped" : "failed"}${r.hydration ? `, ${r.hydration} hydration` : ""}` : `NOT RUN — ${cell(r.why)}`);
@@ -171,7 +190,7 @@ const summary = [
   "**Not covered by any layer:** a real phone or tablet in a hand, the App Store and Google Play builds, Firefox and Safari on Windows or a Mac. See `docs/testing.md`.",
   "",
 ].join("\n");
-writeFileSync(join(OUT, "summary.md"), summary);
+writeFileSync(join(OUT, `summary${own}.md`), summary);
 
 for (const r of rows) console.log(`${r.key.padEnd(22)} ${result(r)}`);
 if (reach) console.log(`reach                  ${reach.actions.reached} of ${reach.actions.total} actions through a screen, ${reach.screens.reached} of ${reach.screens.total} screens`);

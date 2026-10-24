@@ -276,11 +276,13 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Complete tournament" }).click();
     const confirm = page.getByRole("alertdialog");
-    // A free club's tournament is deleted on completion, so the warning offers
-    // the report first — the only way to keep it (2026-10-19).
+    // A free club's completed tournament is kept read-only for fifteen days and
+    // then deleted (2026-10-21), so the warning offers the report first.
     await expect(confirm.getByRole("link", { name: "Open the final report" })).toHaveAttribute("href", "/reports/final");
     await confirm.getByRole("button", { name: /^Complete/ }).click();
-    await page.waitForURL((u) => !u.pathname.startsWith("/dashboard"), { timeout: 30_000 });
+    // It stays, completed, and the dashboard says until when.
+    await expect(page.getByRole("note").filter({ hasText: "Kept read-only until" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("alertdialog")).toBeHidden();
   });
 
   expect(errors, "a screen threw").toEqual([]);

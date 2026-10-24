@@ -89,6 +89,7 @@ export default async function RegistrationPage() {
     seed: p.seed,
     email: p.email,
     phone: p.phone,
+    homeClub: p.homeClub,
     flight: flightByPlayer.get(p.id),
     teeId: p.teeId,
     inheritedTee: inheritedTee(p),
