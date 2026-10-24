@@ -156,7 +156,9 @@ test("a new organizer comes in by the front door, and the door closes behind the
   await page.getByPlaceholder("Choose a password").fill("1234567890");
   await page.getByText("A society, league or regular group").click();
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(refusal(page)).toContainText(/keyboard|guess|characters|repeated/i);
+  // This waits for the SERVER's answer (a round trip), not a redraw: on a busy round machine on
+  // 2026-10-23 the button still read "Creating account…" at 5s, so the refusal had not arrived yet.
+  await expect(refusal(page)).toContainText(/keyboard|guess|characters|repeated/i, { timeout: 20_000 });
   expect(await account(), "an account was made with a password the form refused").toBeNull();
 
   // ── a real one: the address proved first, then a person, a club, an owner ─

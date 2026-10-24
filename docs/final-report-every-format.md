@@ -103,6 +103,31 @@ And a long list of names ("12 players each climbed 16 places") is said as a coun
 past three names. The audit test now takes a closed round's card away and asserts
 that player tops nothing.
 
+**Walked again on every seeded tournament, 2026-10-23, and the walk before
+shipping had been of FINISHED ones.** Opened while a tournament is being played,
+the report is "The results so far", and that state said things that were not so:
+
+- the leader's figure was the part-played TOTAL ("Marnie leads on net 30 … Nkechi
+  is next, on net 67" — six under through eight against four under through
+  eighteen). A part-played card's figure is now what the board ranks it on, with
+  how far round ("net −6 through 9", "10 points through 4", `placeFigure`); a
+  shared place carries a figure only when everybody in it holds it on that figure
+  (`sharedFigure`); the leaderboard gets a **Thru** column; somebody yet to tee off
+  is "Not started", not "No return"; flights show their leaders;
+- the movement and "played every round" counted rounds still on the calendar
+  ("stayed top after Round 5 … 6 … 7"; "0 played every round"). A round nobody
+  has played is in no table (`roundsWithResults`), and the last column is "Now"
+  until the tournament is complete;
+- a tournament nobody has played printed its field as "No return", and a knockout
+  drawn in flights printed "The qualifying round" as 36 rows of dashes. No result,
+  no table; no card, no "In numbers" (it read "0 birdies");
+- a Nassau's round result was "3 bets" — now "3 games", and the side-game sweep
+  catches the word as a whole string; a tie won on extra holes reads "at the 19th"
+  (`tieResultWords`, the player's own line's wording).
+
+Tests: `the-report-while-it-is-played.audit.test.ts`, and cases in
+`final-report.test.ts`, `report-highlights.test.ts` and `my-tie.test.ts`.
+
 **Next: sending it.** The report is one `EventReport` value of strings, drawn by
 one component with one stylesheet, so an email can render the same value. Not
 built yet.
