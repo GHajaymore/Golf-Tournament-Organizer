@@ -62,6 +62,7 @@ import {
   parseBracketDraw,
   roundRobinMatchCount,
   resolveMatch,
+  matchIsOver,
   storedMatchIsOver,
   courseHandicapMap,
   type Player,
@@ -2607,7 +2608,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         return { complete: false, status: "disputed", unreadable: true };
       }
       return {
-        complete: resolveMatch(holes).complete,
+        // `matchIsOver`: a stored "[]" is complete to `resolveMatch` and is
+        // no result anybody can sign off.
+        complete: matchIsOver(holes),
         status: effectiveScoreStatus(m, autoConfirm),
       };
     }),

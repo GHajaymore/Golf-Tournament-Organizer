@@ -156,6 +156,59 @@ describe("the final report reads the app's own readers", () => {
     expect(pot.winners.map((w) => w.name)).toEqual([seeded.players.Bob.name, seeded.players.Cat.name]);
   });
 
+  it("the birdie pot's line counts who was IN it, not whose money moved", async () => {
+    // $2 a head, all four in: an $8 pot — whatever the birdies did to it.
+    const pot = staff.sideGames.find((g) => g.title.startsWith("Birdie pot"))!;
+    expect(pot.line).toBe(`${money(200)} each, 4 in: a ${money(800)} pot.`);
+  });
+
+  it("a player who takes back exactly their stake is still in the pot (2026-10-23)", async () => {
+    // Give Ann a birdie on the 4th in round 2. Shares are then Bob 2 (eagle and
+    // birdie), Cat 1, Ann 1, Dan 0: $8 over four shares is $4, $2, $2, $0 — so
+    // Cat and Ann each take back exactly their $2 and their nets are nought.
+    // The report read the pot's size off the players with a net, and printed
+    // "2 in: a $4.00 pot" for this.
+    const prisma = new PrismaClient();
+    const ann = await prisma.scorecard.findFirstOrThrow({ where: { stageId: seeded.stageIds[1], playerId: seeded.players.Ann.id } });
+    try {
+      const card = (JSON.parse(ann.strokes) as (number | null)[]).map((s, i) => (i === 3 ? 3 : s));
+      await prisma.scorecard.update({ where: { id: ann.id }, data: { strokes: JSON.stringify(card) } });
+      const nets = (await sidePotResults(seeded.eventId, seeded.stageIds[1])).values().next().value!;
+      // CONTROL: the fixture really did leave two players at nought.
+      expect(nets.length, "the fixture did not leave anybody at their stake").toBe(2);
+      const r = (await eventReport(seeded.eventId, { kind: "staff", email: seeded.organizerEmail }))!;
+      const pot = r.sideGames.find((g) => g.title.startsWith("Birdie pot"))!;
+      expect(pot.line).toBe(`${money(200)} each, 4 in: a ${money(800)} pot.`);
+      expect(pot.winners.map((w) => [w.name, w.amount])).toEqual([[seeded.players.Bob.name, `up ${money(200)}`]]);
+    } finally {
+      await prisma.scorecard.update({ where: { id: ann.id }, data: { strokes: ann.strokes } });
+      await prisma.$disconnect();
+    }
+  });
+
+  it("a pot nobody won is reported, stakes back — not left out (2026-10-23)", async () => {
+    // Take the three round-2 birdies off (Bob's eagle and birdie, Cat's birdie).
+    const prisma = new PrismaClient();
+    const rows = await prisma.scorecard.findMany({
+      where: { stageId: seeded.stageIds[1], playerId: { in: [seeded.players.Bob.id, seeded.players.Cat.id] } },
+    });
+    try {
+      for (const row of rows) {
+        await prisma.scorecard.update({ where: { id: row.id }, data: { strokes: JSON.stringify(Array(18).fill(4)) } });
+      }
+      const nets = (await sidePotResults(seeded.eventId, seeded.stageIds[1])).values().next().value;
+      // CONTROL: the pot is final and nobody's money moved — an empty result, not an absent one.
+      expect(nets, "the pot did not settle").toEqual([]);
+      const r = (await eventReport(seeded.eventId, { kind: "staff", email: seeded.organizerEmail }))!;
+      const pot = r.sideGames.find((g) => g.title.startsWith("Birdie pot"));
+      expect(pot?.line).toBe(`${money(200)} each, 4 in: a ${money(800)} pot. Nobody won it; the stakes went back.`);
+      expect(pot?.winners).toEqual([]);
+    } finally {
+      for (const row of rows) await prisma.scorecard.update({ where: { id: row.id }, data: { strokes: row.strokes } });
+      await prisma.$disconnect();
+    }
+  });
+
   it("the settle-up is the money screen's own list, payment for payment", async () => {
     const view = await moneyFor(seeded.eventId, "");
     expect(staff.settleUp?.lines).toEqual(view.transfers.map((t) => ({ from: t.fromName, to: t.toName, amount: money(t.cents) })));
