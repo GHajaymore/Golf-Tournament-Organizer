@@ -242,6 +242,45 @@ the record); a position sparkline in a league with even attendance; a four-ball
 "both" on a NET card (needs each partner's net per hole; the counted ball is
 named); the cup report carries no money section.
 
+## The report's settings, and a name withheld (2026-10-24)
+
+The owner approved what the panel agreed, with its amendments.
+
+- **One line on the report screen** says the settings in words ("Anyone with the
+  board link can see this report · Side-game amounts: players only"); **Change**
+  opens the choices; **See it as the public does** draws the visitor's copy in
+  the console (`?as=public`).
+- **Who can see the report**: "Anyone with the board link" (default) or "Players
+  in this tournament" (`Event.reportVisibility`). Never more public than the
+  board (`reportOpenToPublic`). A visitor it is not for reads "This report is
+  shared with the players in this tournament" and a link to /play — no padlock,
+  never "closed" or "private", no name. Players-only also takes the share card
+  and the news line away.
+- **Side-game amounts** (`Event.reportAmounts`): "Only players see amounts; the
+  public sees the winners" (default, the rule before), "Nobody sees amounts —
+  winners only" (the organizer's copy keeps them: it is the record), "Everyone
+  sees amounts" (with "visible to anyone with the link" beside it). Read at the
+  sink: `showsAmounts(audience, setting)` → `amountsShownTo`, the setting a
+  required argument. The public copy never says that anything is left off it.
+  The share card has no field for an amount, whatever the setting.
+- **No handicap switch** (the panel dropped it).
+- **"Don't show my name on public pages"**, on the player's entry (Registration;
+  `Player.publicNameWithheld`; there is no player-side entry screen to put it on).
+  Signed out — the public board, the public report, both share cards, the link's
+  title and news line — they are "Player (name withheld)"; the field and the
+  staff see the name. `publicName` reads the flag; `publicCopy`
+  (`services/public-names.ts`) hands every signed-out page its data through
+  `withholdNames`, whole names and the ladder's "Ailsa T." alike, as whole words.
+- Migration `A020_a_report_says_who_may_see_it`. Both settings travel with a
+  copied tournament (`clone.ts`).
+
+Tests: `report-settings.test.ts`, `the-report-settings.audit.test.ts` (each
+setting mutated and watched red; the default untouched; Save persists and refuses
+a value off the lists; the withheld sweep with a flag-off control) and
+`e2e/report-settings.spec.ts` (every signed-out page read for the name; the
+players-only visitor; the organizer changing the settings and reloading). The
+browser sweep went red with the public board not withholding.
+
 ## Tests owed
 
 - Unit: the champion line for a win, a tie and an unfinished event; gross and
