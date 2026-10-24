@@ -1,4 +1,4 @@
-import type { BracketMatch, BracketView } from "./bracket";
+import { tieNotReady, type BracketMatch, type BracketView } from "./bracket";
 
 /**
  * WHERE I AM IN THE DRAW — the knockout player's version of "who am I playing".
@@ -158,8 +158,10 @@ export function tieReportRefusal(input: {
 }): string | null {
   const m = input.tie?.match;
   if (!m) return "That tie isn't in the draw.";
-  if (!m.a.playerId || !m.b.playerId) return "Both players in that tie aren't known yet.";
-  if (!input.reporterIds.has(m.a.playerId) && !input.reporterIds.has(m.b.playerId)) {
+  const notReady = tieNotReady(m);
+  if (notReady) return notReady;
+  // Both are known: `tieNotReady` said so.
+  if (!input.reporterIds.has(m.a.playerId!) && !input.reporterIds.has(m.b.playerId!)) {
     return "You can only report a tie you are playing in.";
   }
   if (input.winnerId !== m.a.playerId && input.winnerId !== m.b.playerId) {
@@ -198,9 +200,44 @@ export function openTieReport(
  */
 export function tieReportSentence(r: { winnerName: string; result: string; reportedBy: string; byMe: boolean }): string {
   const winner = r.winnerName || "Your opponent";
-  const margin = r.result ? ` ${r.result}` : "";
+  const margin = marginWords(r.result);
   const by = r.byMe ? "you reported it" : `${r.reportedBy || "your opponent"} reported it`;
   return `${winner} won${margin} — ${by}.`;
+}
+
+/**
+ * HOW A KNOCKOUT RESULT READS AFTER "beat Ann", "lost to Ann" or "won" — with
+ * its leading space, or "" for none. The committee types the margin its own
+ * way into the tie's box; this is the one reader of it.
+ *
+ *   "3&2", "3 and 2", "3 & 2"          " 3&2"
+ *   "1 up", "1UP", "2 Up"              " 1 up", " 2 up"
+ *   "19th", "19", "at the 20th"        " at the 19th", " at the 20th"
+ *   "W/O", "wo", "walkover"            " by walkover"
+ *   "conceded", "concession"           " by concession"
+ *   anything else                      as typed
+ *
+ * Found 2026-10-23 on a knockout of 129: the player's line knew that "19th" is
+ * a HOLE ("lost to Ann at the 19th") and the tournament report did not ("Ann
+ * beat Bob 19th", "beat Cat W/O", "beat Dee Conceded") — one result, two
+ * readers, two rules.
+ */
+export function marginWords(raw: string | null | undefined): string {
+  const s = (raw ?? "").trim().replace(/\s+/g, " ");
+  if (!s) return "";
+  const extra = /^(?:won )?(?:at (?:the )?)?(\d{2})(?:st|nd|rd|th)?(?: hole)?$/i.exec(s);
+  if (extra && Number(extra[1]) >= 19) {
+    const n = Number(extra[1]);
+    const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th";
+    return ` at the ${n}${suffix}`;
+  }
+  const closed = /^(\d{1,2}) ?(?:&|and) ?(\d{1,2})$/i.exec(s);
+  if (closed) return ` ${closed[1]}&${closed[2]}`;
+  const up = /^(\d{1,2}) ?up$/i.exec(s);
+  if (up) return ` ${up[1]} up`;
+  if (/^(?:w\/o|w\.o\.?|wo|walk ?-?over)$/i.test(s)) return " by walkover";
+  if (/^(?:conceded|concession|conc\.?)$/i.test(s)) return " by concession";
+  return ` ${s}`;
 }
 
 /**
@@ -217,9 +254,7 @@ export function myTieLine(t: MyTie): string {
   const draw = t.draw ? ` (${t.draw})` : "";
   if (t.state === "champion") return `Champion${draw}`;
   if (t.state === "out") {
-    // "19th" is a hole, not a margin: a tie settled on extra holes was lost
-    // AT the 19th, where "3&2" and "1 up" are margins and read as they stand.
-    const score = !t.result ? "" : /^\d+(st|nd|rd|th)$/i.test(t.result.trim()) ? ` at the ${t.result.trim()}` : ` ${t.result}`;
+    const score = marginWords(t.result);
     if (round === "Final") return `Runner-up${draw} · lost the final to ${t.opponent}${score}`;
     return `Out in the ${round.toLowerCase()}${draw} · lost to ${t.opponent}${score}`;
   }

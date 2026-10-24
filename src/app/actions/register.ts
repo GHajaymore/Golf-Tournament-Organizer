@@ -4,7 +4,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entryLimitKey } from "@/lib/domain/rate-limit";
-import { upsertMember } from "@/lib/services/roster";
+import { upsertMember, memberGender } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { sendRegistrationEmail } from "@/lib/email";
 import { fieldLimitFor } from "@/lib/services/waitlist";
@@ -169,7 +169,10 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // NO TEES ARE SET HERE. This turned what an entrant typed in "Preferred tee"
   // into the set they play from, where it beat their flight's: a stranger on a
   // public form deciding a condition of the competition. The organizer decides
-  // the tees (`TEE_POLICY`), so an entrant starts on the tournament's.
+  // the tees (`TEE_POLICY`), so an entrant starts on the tournament's — or, for
+  // a woman the roster knows, the course's ladies' set, which is what her
+  // roster row's gender is carried for. Read here, outside the lock below.
+  const gender = await memberGender(memberId);
 
   /**
    * COUNT, DECIDE THE STATUS, AND CREATE UNDER THE EVENT'S INTAKE LOCK. Two
@@ -224,6 +227,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
         preferredTee: person.preferredTee,
         handicapSource: person.handicapSource,
         handicapType: person.handicapType,
+        gender,
       },
     });
     return d;
