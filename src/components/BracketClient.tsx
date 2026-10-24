@@ -22,7 +22,7 @@ import { leaveOnEnter } from "@/lib/leave-on-enter";
    minimum (CLAUDE.md; `globals.css` holds `.bracket-seat` to it under a finger
    as well). A tie is two seats. */
 const SEAT = 44;
-const TIE_W = 200;
+const TIE_W = 236;
 const COL_GAP = 40;
 const HEAD = 40;
 const CHAMP_W = 150;
@@ -160,6 +160,26 @@ export function BracketDrawing({
 
   const highlightId = found || me;
   const path = useMemo(() => new Set(highlightId ? playerPath(view, highlightId) : []), [view, highlightId]);
+
+  /*
+   * THE PLAYER FOUND IS BROUGHT INTO VIEW — inside the drawing's own box, never by
+   * scrolling the page: their latest tie is centred in the box as the section
+   * opens. Without it a player in the bottom of a quarter was "found" on a tab
+   * whose visible part held nobody lit at all.
+   */
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const sectionShown = sectionKey;
+  useEffect(() => {
+    const box = scrollRef.current;
+    if (!box || !highlightId) return;
+    const lit = box.querySelectorAll<HTMLElement>('[data-on-path="true"]');
+    const el = lit[lit.length - 1];
+    if (!el) return;
+    const b = box.getBoundingClientRect();
+    const e = el.getBoundingClientRect();
+    box.scrollTop += e.top - b.top - box.clientHeight / 2 + e.height / 2;
+    box.scrollLeft += e.left - b.left - box.clientWidth / 2 + e.width / 2;
+  }, [highlightId, sectionShown]);
   const gap = readOnly ? 0.5 : 1;
   const layout = useMemo(() => layoutSection(view, current.keys, gap), [view, current.keys, gap]);
   const finalKey = view.rounds[view.rounds.length - 1]?.matches[0]?.key ?? "";
@@ -379,6 +399,7 @@ export function BracketDrawing({
       )}
       <div
         id={`${idBase}-panel`}
+        ref={scrollRef}
         role={tabbed ? "tabpanel" : "region"}
         aria-labelledby={tabbed ? `${idBase}-tab-${current.key}` : undefined}
         className="bracket-scroll"

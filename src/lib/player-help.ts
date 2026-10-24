@@ -157,6 +157,10 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Played it? Tap [[Report the result]].",
       "The organizer confirms it, and the winner moves on.",
       "The whole draw is on Board.",
+      "A big draw opens on your part, marked You.",
+      "Other tabs show the rest; Whole draw shows everything.",
+      "Find a player shows anybody's path through the draw.",
+      "A bye is marked beside a name. Nobody plays it.",
     ],
   },
   {
