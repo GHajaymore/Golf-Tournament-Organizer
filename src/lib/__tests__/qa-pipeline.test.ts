@@ -229,7 +229,8 @@ describe("the deploy gate (item C)", () => {
     expect(job).toContain("needs: verify");
     expect(job).toContain("uses: ./.github/workflows/deploy.yml");
     expect(job).not.toContain("vercel deploy");
-    const deploy = readVerbatim(".github/workflows/deploy.yml");
+    // A Windows checkout has CRLF; the step names below are matched up to "\n".
+    const deploy = readVerbatim(".github/workflows/deploy.yml").replace(/\r\n/g, "\n");
     expect(deploy).toContain("node scripts/qa/deploy-gate.mjs");
     const steps = deploy.split("      - name: ").slice(1);
     for (const name of ["Install the Vercel CLI", "Link the project", "Deploy", "Record what production holds", "Smoke-test production"]) {

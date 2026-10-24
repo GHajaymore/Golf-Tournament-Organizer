@@ -1,0 +1,5 @@
+# The testing pipeline's scripts are checked out with LF on every machine. On a Windows checkout
+# (core.autocrlf) scripts/qa/quarantine.mjs arrived with CRLF, and vitest then refused to load it
+# ("SyntaxError: Invalid or unexpected token"), so qa-pipeline.test.ts failed on Windows only while
+# CI on Linux passed. Measured 2026-10-24: the same file with LF loads; with CRLF it does not.
+scripts/qa/*.mjs text eol=lf
