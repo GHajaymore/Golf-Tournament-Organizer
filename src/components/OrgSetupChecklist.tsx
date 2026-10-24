@@ -149,7 +149,16 @@ export function OrgSetupChecklist({
            * that marking to the actual route guards would have read the merge
            * as a bug in `/choose`.
            */
-          const notYet = step.blocked || (step.key === "tournament" ? state.blockedByClubSetup : "");
+          /**
+           * EXCEPT WHEN THE ONLY ANSWER OWED IS THE NAME (2026-10-24). The
+           * first-tournament form on /choose asks "Who's running this?" and
+           * names the club on the way through, so the row can go there: holding
+           * it shut sent a secretary who had just added their members to the
+           * Menu to find a door the form would have opened. Found by measuring
+           * the time to a first event (`e2e/secretary-first-event.spec.ts`).
+           */
+          const nameOnTheWay = state.outstanding.every((s) => s.key === "profile");
+          const notYet = step.blocked || (step.key === "tournament" && !nameOnTheWay ? state.blockedByClubSetup : "");
           const inert = here || !!notYet;
           const Row = inert
             ? ({ children }: { children: React.ReactNode }) => (
