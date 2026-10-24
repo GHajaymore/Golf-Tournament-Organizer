@@ -425,6 +425,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Add the season's rounds at once with **How many?** and **Then** (weekly).",
           "**This week** shows the week's results, standings and skins.",
+          "The standings under a week of strokes or points are the leaderboard's own table after that week: the total over every round played so far, in the leaderboard's places. A player who missed a cut holds no place in it, and nor, on strokes, does one with no card for a week you have closed; a total over fewer holes than the rest says “thru” beside it.",
           "Close each week once it is played. With members away a week is never “all in”, so the Dashboard asks to close it as soon as next week's draw is out and every card that was started is back — it says how many did not play. Closing moves everybody on to the new week.",
           "A **Round robin** round is a whole everyone-plays-everyone. Add several and each is its own contest unless you choose **Carry all** or **Carry part** under **Points into Round N**.",
           "**Season standings** adds tournaments up across a season; the **Honours board** keeps your champions (Birdie plan and above).",
