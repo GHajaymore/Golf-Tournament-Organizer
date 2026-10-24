@@ -301,11 +301,12 @@ export function ReportsClient({
        * organizer prints the wrong thing on a Sunday morning. So the fix is
        * the anchor and the sentence, not a second printer.
        */
+      // AND SINCE 2026-10-23 THE PRINTER IS THE PRINT KIT, with the cards ticked.
       desc: hasTeeSheet
-        ? "One card per group, on the tee sheet."
-        : "Draw and save a tee sheet first — cards print one per group.",
+        ? "Named scorecards and group cards, in the Print kit."
+        : "Draw and save a tee sheet first — cards are printed from its groups.",
       icon: "ph ph-cards",
-      action: () => router.push(hasTeeSheet ? "/foursomes#print-scorecards" : "/foursomes"),
+      action: () => router.push(hasTeeSheet ? "/print?docs=cards,group-cards" : "/foursomes"),
       kind: "open" as const,
     }]),
   ];

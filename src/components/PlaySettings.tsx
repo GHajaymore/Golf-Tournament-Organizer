@@ -44,7 +44,7 @@ import {
 import { formatAccessCode } from "@/lib/code-format";
 import { lockoutNotice } from "@/lib/domain/access-lockout";
 import { Icon } from "./Icon";
-import { RoundSigns } from "./RoundSigns";
+import Link from "next/link";
 import { ConfirmButton } from "./ConfirmButton";
 import { StickySave } from "./StickySave";
 import FieldInfo from "./FieldInfo";
@@ -774,7 +774,21 @@ export function PlaySettings({
               </table>
             </div>
           )}
-          {rounds.length > 0 && <RoundSigns eventName={eventName} rounds={rounds} shareToken={shareToken} />}
+          {/* THE ROUND'S SIGN, printed through the Print kit (2026-10-23): the one way to the
+              printer, so the sign here and the cart signs there cannot drift apart. The sign
+              itself is unchanged — the round, a QR to `/play#CODE`, the code in large letters. */}
+          {rounds.some((r) => r.code) && (
+            <p style={{ margin: "10px 0 0", fontSize: 13 }}>
+              <Link
+                href={`/print?round=${rounds.find((r) => r.code)!.stageId}&docs=spare,signs`}
+                className="btn btn-secondary"
+                style={{ fontSize: 13, minHeight: 36, display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <Icon name="qr-code" /> Print the signs
+              </Link>{" "}
+              <span className="text-muted">One sign per round for walk-ins and the first tee, and a named one for every cart, in the {screenName("/print")}.</span>
+            </p>
+          )}
         </div>
       )}
     </div>

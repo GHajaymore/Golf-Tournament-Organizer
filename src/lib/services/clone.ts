@@ -395,6 +395,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   teeSheetPublished: "belongs to the tee sheet that was not copied",
   lineupPublished: "belongs to a cup lineup, and lineups are pairings — never copied, so a copy's sessions start as drafts",
   pinSheet: "where the holes were cut on last year's day — a committee moves them every round",
+  printLog: "what the Print kit printed for last year's round — a copy has printed nothing yet",
   matches: "results and pairings are never copied",
   carriers:
     "the Group rows holding this round's matches — and the matches are not copied, so there is nothing for one to carry. A carrier is created on demand by matchCarrierGroup the first time the copy generates that round",
