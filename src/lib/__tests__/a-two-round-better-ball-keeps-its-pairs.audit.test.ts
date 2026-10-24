@@ -100,7 +100,7 @@ beforeAll(async () => {
   await prisma.team.create({
     data: { eventId, stageId: round.r3, name: "Hand-made", members: { create: [{ playerId: p[0] }, { playerId: p[1] }] } },
   });
-  const admin = await prisma.user.create({ data: { email: at("org"), name: "org", password: "x:unusable" }, select: { id: true } });
+  const admin = await prisma.user.create({ data: { email: at("org"), name: "org", password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } });
   await prisma.account.create({ data: { eventId, email: at("org"), name: "org", role: "admin" } });
   jar.clear();
   await createSession(admin.id);

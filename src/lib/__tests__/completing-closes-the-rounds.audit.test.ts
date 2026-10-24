@@ -123,7 +123,7 @@ beforeAll(async () => {
   });
 
   const user = await prisma.user.create({
-    data: { email: `${TAG.toLowerCase()}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable" },
+    data: { email: `${TAG.toLowerCase()}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable", emailVerifiedAt: new Date() },
     select: { id: true },
   });
   await prisma.account.create({

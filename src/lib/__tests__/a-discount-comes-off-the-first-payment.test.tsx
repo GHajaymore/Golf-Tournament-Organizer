@@ -192,7 +192,11 @@ describe("the doors ask the rule before they act", () => {
     const refused = signUp.search(/const refusal = discountRefusal\([\s\S]*?\);\s*if \(refusal\) return \{ ok: false, error: refusal \};/);
     expect(refused).toBeGreaterThan(-1);
     expect(refused).toBeLessThan(signUp.indexOf("prisma.user.upsert("));
-    expect(signUp).toMatch(/data: \{ discountCode \}/);
+    // Kept on the club. Since 2026-10-21 the club is made when the emailed code
+    // comes back, so the code waits with the sign-up and is written there.
+    expect(signUp).toMatch(/pending: \{ passwordHash: hashPassword\(password\), name: cleanName, kind, discountCode \}/);
+    const verified = body(auth, "export async function verifyEmailCode(", "export async function resendEmailCode(");
+    expect(verified).toMatch(/data: \{ discountCode: pending\.discountCode \}/);
   });
 
   it("checking a code is staff-only and counted", () => {

@@ -181,7 +181,7 @@ describe("what the guard counts", () => {
 /** A staff session on this event, so the real action runs its real guards. */
 async function asOrganizer(eventId: string) {
   const email = `${TAG.toLowerCase()}-org-${Date.now()}-${Math.random()}@example.invalid`;
-  const user = await prisma.user.create({ data: { email, name: `${TAG} Org`, password: "x" } });
+  const user = await prisma.user.create({ data: { email, name: `${TAG} Org`, password: "x", emailVerifiedAt: new Date() } });
   await prisma.account.create({ data: { eventId, email, name: `${TAG} Org`, role: "admin" } });
   jar.clear();
   await createSession(user.id);

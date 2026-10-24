@@ -135,22 +135,35 @@ export interface Session {
   viewRole: Role;
 }
 
-/** Start a session for a person. Takes a User id — sessions are not tied to
- *  any one tournament, so signing up before creating one is possible. */
-export async function createSession(userId: string): Promise<void> {
-  // Sign-ins closed until launch (sign-in-gate.ts). Checked HERE, where every
-  // session is made, so a door added later is shut without knowing the rule;
-  // the actions check first only to say why.
-  if (await signInsHeld()) {
-    const who = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-    if (!(await maySignInNow(who?.email))) return;
-  }
+/**
+ * Start a session for a person. Takes a User id — sessions are not tied to
+ * any one tournament, so signing up before creating one is possible.
+ *
+ * Answers whether it made one. Two rules are checked HERE, where every session
+ * is made, so a door added later is shut without knowing either; the actions
+ * check first only to say why.
+ */
+export async function createSession(userId: string): Promise<boolean> {
+  const who = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerifiedAt: true } });
+  /**
+   * NO SESSION FOR AN ADDRESS NOBODY HAS PROVED (2026-10-21). Access follows
+   * the address — a roster row, a staff seat, an entry — so a session for an
+   * address is that person's tournaments. Until this line anybody who typed an
+   * invited address first became its owner. `emailVerifiedAt` is set by a code
+   * typed back from the inbox or a reset finished from its emailed link
+   * (`services/email-code.ts`); `the-session-asks-for-a-proved-address.test.ts`
+   * holds every door to this function.
+   */
+  if (!who?.emailVerifiedAt) return false;
+  // Sign-ins held until launch (sign-in-gate.ts).
+  if ((await signInsHeld()) && !(await maySignInNow(who.email))) return false;
   const jar = await cookies();
   // Who, and WHEN — see session-token.ts. The bare user id this used to sign
   // was one value per person for ever, with no end and no way to end it.
   jar.set(COOKIE, sign(sessionValue(userId)), COOKIE_OPTS);
   jar.delete(PREVIEW_COOKIE);
   jar.delete(ACTIVE_COOKIE);
+  return true;
 }
 
 export async function destroySession(): Promise<void> {

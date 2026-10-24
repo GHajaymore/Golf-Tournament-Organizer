@@ -232,6 +232,20 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     ],
   },
   {
+    id: "email-code",
+    question: "Why was I asked for a 6-digit code?",
+    href: "/me",
+    steps: [
+      "Setting up your account? We email a 6-digit code first.",
+      "Type it on the same screen. It works for 15 minutes.",
+      "Nothing came? Check your spam folder, or press Send a new code.",
+      "It proves the address is yours. Nobody else can use it.",
+      "Playing with a round code? You need no account and no code.",
+      "Password refused as leaked? It was found in a leak elsewhere. Pick another.",
+      "Signed in on a new phone? We email you to say so. Not you? Reset your password.",
+    ],
+  },
+  {
     id: "other-devices",
     question: "I'm signed in on a phone I don't have.",
     href: "/me",
