@@ -255,12 +255,15 @@ export function pointsGraphic(rows: ReadonlyArray<PointsBar>, completed: boolean
 /*  A side's holes                                                           */
 /* ------------------------------------------------------------------------ */
 
+/** A four-ball hole where both balls were the side's score. */
+export const BOTH = "both";
+
 export interface SideHole {
   hole: number;
   par: number;
   /** The side's score on the hole, as counted, or null where nobody holed out. */
   score: number | null;
-  /** Whose ball counted — a name, or "" on a shared ball. */
+  /** Whose ball counted — a name, `BOTH` where the partners were level, or "" on a shared ball. */
   by: string;
   /** The score against par, on the hole: −1 a birdie. Null with no score. */
   toPar: number | null;
@@ -297,6 +300,13 @@ export function sideGraphic(input: {
     playerId: string;
   }>;
   names: ReadonlyMap<string, string>;
+  /**
+   * Holes where the partners' balls were LEVEL on the counted score — on a
+   * gross four-ball, off the members' own cards. Either ball counted there,
+   * and naming one would credit a hole to a partner who merely went first.
+   * Omitted where the caller cannot say (a net four-ball).
+   */
+  level?: ReadonlyArray<boolean>;
 }): SideGraphic | null {
   const net = input.basis !== "gross";
   const holes: SideHole[] = input.holes.map((h, i) => {
@@ -306,21 +316,20 @@ export function sideGraphic(input: {
       hole: input.firstHole + i,
       par,
       score,
-      by: input.shared ? "" : (input.names.get(h.playerId) ?? ""),
+      by: input.shared ? "" : input.level?.[i] && score !== null ? BOTH : (input.names.get(h.playerId) ?? ""),
       toPar: score === null || !(par > 0) ? null : score - par,
     };
   });
   if (holes.filter((h) => h.score !== null).length < 2) return null;
-  const counted = input.shared
-    ? []
-    : [...new Set(input.holes.map((h) => h.playerId).filter(Boolean))].map((id) => ({
-        name: input.names.get(id) ?? "",
-        holes: input.holes.filter((h) => h.playerId === id).length,
-      }));
+  const partners = [...new Set(input.holes.map((h) => h.playerId).filter(Boolean))].map((id) => input.names.get(id) ?? "");
+  const counted = input.shared ? [] : partners.map((name) => ({ name, holes: holes.filter((h) => h.by === name).length }));
+  const both = holes.filter((h) => h.by === BOTH).length;
   const under = holes.filter((h) => h.toPar !== null && h.toPar < 0).length;
   const caption = input.shared
     ? `${input.side}: ${under === 0 ? "no hole" : under === 1 ? "one hole" : `${under} holes`} under par${net ? " net" : ""}.`
-    : `${input.side}: ${listWords(counted.map((c) => `${c.name}'s ball counted on ${c.holes}`))}.`;
+    : `${input.side}: ${[listWords(counted.filter((c) => c.holes > 0).map((c) => `${c.name}'s ball alone counted on ${c.holes}`)), both ? `level on ${both}` : ""]
+        .filter(Boolean)
+        .join("; ")}.`;
   return {
     kind: "side",
     caption,

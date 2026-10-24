@@ -203,7 +203,7 @@ export const REPORT_CSS = `
   .fr-lh { grid-column: 1 / -1; }
 }
 .fr-fig { margin: 0; }
-.fr-caption { margin: 6px 0 12px; font-size: 17px; line-height: 1.5; }
+.fr-caption { margin: 6px 0 12px; font-size: 17px; line-height: 1.5; color: var(--fr-ink); }
 .fr-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .fr-gtable { margin-top: 12px; }
 .fr-ladder { width: 100%; max-width: 480px; height: auto; display: block; margin: 4px auto 0; overflow: visible; }
@@ -218,8 +218,10 @@ export const REPORT_CSS = `
 .fr-svg-lead .fr-svg-name { font-weight: 800; }
 .fr-svg-cut line { stroke: var(--fr-ink); stroke-width: 1.5; stroke-dasharray: 5 5; }
 .fr-svg-cut text { font: 600 16px var(--font-body), sans-serif; fill: var(--fr-muted); }
-.fr-holes { display: grid; gap: 6px; margin-top: 6px; }
-.fr-holes-row { display: grid; grid-template-columns: repeat(9, minmax(0,1fr)); gap: 4px; }
+/* Nine to a row where there is room (the front nine over the back); six to a row on a phone,
+   where nine cells would be 34px and a figure would not fit in one. */
+.fr-holes { display: grid; grid-template-columns: repeat(9, minmax(0,1fr)); gap: 5px; margin-top: 6px; }
+@media (max-width: 560px) { .fr-holes { grid-template-columns: repeat(6, minmax(0,1fr)); } }
 .fr-hole { display: grid; justify-items: center; align-content: start; gap: 2px; padding: 6px 0 5px; border-radius: 6px; border: 1px solid var(--fr-rule); min-width: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .fr-hole b { font: 700 16px/1.3 var(--font-scoreboard), "Arial Narrow", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fr-hole-n, .fr-hole-p { font: 600 13px/1.2 var(--font-body), sans-serif; color: var(--fr-muted); white-space: nowrap; }
@@ -258,7 +260,13 @@ export const REPORT_CSS = `
 .fr-path-w .fr-chip { justify-self: auto; }
 .fr-upset { font-size: 14px; font-weight: 600; border: 1px dashed var(--fr-ink); border-radius: 999px; padding: 1px 9px; }
 .fr-dots { white-space: nowrap; text-align: left !important; }
-.fr-dot-on, .fr-dot-off { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 2px solid var(--fr-ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/* The league table fits a phone: the name may wrap, and nothing scrolls sideways. */
+.fr-weeks th, .fr-weeks td { padding-left: 8px; }
+.fr-weeks th { white-space: normal; }
+.fr-weeks td:nth-child(2) { min-width: 5.5em; }
+.fr-move { font-size: 16px; color: var(--fr-muted); white-space: nowrap; }
+@media (max-width: 560px) { .fr-weeks th:nth-child(1), .fr-weeks td:nth-child(1) { width: 2.4em; } }
+.fr-dot-on, .fr-dot-off { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 3px; vertical-align: -1px; border: 2px solid var(--fr-ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .fr-dot-on { background: var(--fr-ink); }
 .fr-course .fr-lines > div > span:last-child { color: var(--fr-muted); }
 .fr-net-pos { font-weight: 700; }

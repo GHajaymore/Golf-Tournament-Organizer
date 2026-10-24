@@ -131,7 +131,7 @@ export async function seedRich(mark) {
     const organizer = await prisma.user.create({
       data: { email: `${mark}-organizer@example.invalid`, name: "Organizer Example", password: "x:unusable" },
     });
-    const out = { organizerEmail: organizer.email, events: {} };
+    const out = { organizerEmail: organizer.email, events: /** @type {Record<string, any>} */ ({}) };
     const staff = async (eventId) => {
       await prisma.account.create({ data: { eventId, name: organizer.name, email: organizer.email, role: "admin" } });
       return { session: sign(signedInNow(organizer.id)), event: sign(eventId) };

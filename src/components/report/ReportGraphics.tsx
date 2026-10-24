@@ -1,4 +1,5 @@
 import {
+  BOTH,
   holeTone,
   ladderOrder,
   moveWords,
@@ -147,26 +148,28 @@ function Ladder({ g }: { g: LadderGraphic }) {
 /* ------------------------------------------------------------------------ */
 
 function Holes({ g }: { g: HoleStripGraphic }) {
-  const nines = g.cells.length > 9 ? [g.cells.slice(0, 9), g.cells.slice(9)] : [g.cells];
   return (
     <>
-      <div className="fr-holes" aria-hidden="true">
-        {nines.map((nine, n) => (
-          <div key={n} className="fr-holes-row keep-grid">
-            {nine.map((c) => (
-              <div key={c.hole} className={`fr-hole fr-t-${holeTone(c.overPar)}`}>
-                <span className="fr-hole-n">{c.hole}</span>
-                <b>{c.figure || "–"}</b>
-                <span className="fr-hole-p">par {c.par}</span>
-              </div>
-            ))}
+      <div className="fr-holes keep-grid" aria-hidden="true">
+        {g.cells.map((c) => (
+          <div key={c.hole} className={`fr-hole fr-t-${holeTone(c.overPar)}`}>
+            <span className="fr-hole-n">{c.hole}</span>
+            <b>{c.figure || "–"}</b>
+            <span className="fr-hole-p">par {c.par}</span>
           </div>
         ))}
       </div>
       <p className="fr-key" aria-hidden="true">
-        <span className="fr-hole fr-t-under fr-key-i" /> under par on average
-        <span className="fr-hole fr-t-level fr-key-i" /> par
-        <span className="fr-hole fr-t-over fr-key-i" /> over par · {g.cards} cards, gross
+        <span className="fr-key-w">
+          <span className="fr-hole fr-t-under fr-key-i" /> under par on average
+        </span>
+        <span className="fr-key-w">
+          <span className="fr-hole fr-t-level fr-key-i" /> level
+        </span>
+        <span className="fr-key-w">
+          <span className="fr-hole fr-t-over fr-key-i" /> over par
+        </span>
+        <span className="fr-key-w">{g.cards} cards, gross</span>
       </p>
       <table className="fr-mini fr-sr fr-gtable">
         <caption>Average gross against par, each hole</caption>
@@ -257,20 +260,15 @@ function initials(names: string[]): Map<string, string> {
 }
 
 function Side({ g }: { g: SideGraphic }) {
-  const nines = g.holes.length > 9 ? [g.holes.slice(0, 9), g.holes.slice(9)] : [g.holes];
   const keys = initials(g.counted.map((c) => c.name));
   return (
     <>
-      <div className="fr-holes" aria-hidden="true">
-        {nines.map((nine, n) => (
-          <div key={n} className="fr-holes-row keep-grid">
-            {nine.map((h) => (
-              <div key={h.hole} className="fr-hole fr-t-level">
-                <span className="fr-hole-n">{h.hole}</span>
-                <b className={`fr-s ${scoreShape(h.toPar)}`}>{h.score ?? "–"}</b>
-                <span className="fr-hole-p">{h.by ? keys.get(h.by) : `par ${h.par}`}</span>
-              </div>
-            ))}
+      <div className="fr-holes keep-grid" aria-hidden="true">
+        {g.holes.map((h) => (
+          <div key={h.hole} className="fr-hole fr-t-level">
+            <span className="fr-hole-n">{h.hole}</span>
+            <b className={`fr-s ${scoreShape(h.toPar)}`}>{h.score ?? "–"}</b>
+            <span className="fr-hole-p">{h.by === BOTH ? "both" : h.by ? keys.get(h.by) : `par ${h.par}`}</span>
           </div>
         ))}
       </div>
@@ -350,7 +348,6 @@ function Weeks({ g }: { g: WeeksGraphic }) {
             <th scope="col">Weeks</th>
             <th scope="col">Played</th>
             <th scope="col">{g.unit}</th>
-            <th scope="col">Move</th>
           </tr>
         </thead>
         <tbody>
@@ -367,16 +364,28 @@ function Weeks({ g }: { g: WeeksGraphic }) {
                 ))}
               </td>
               <td className="fr-figs">{r.played}</td>
-              <td className="fr-figs">{r.points}</td>
-              <td className="fr-figs" aria-label={moveWords(r.move)}>
-                <span aria-hidden="true">{r.move > 0 ? `▲${r.move}` : r.move < 0 ? `▼${-r.move}` : "–"}</span>
+              {/* The figure, and the last week's move beside it — ▲ up, ▼ down: a shape, not a colour. */}
+              <td className="fr-figs">
+                {r.points}
+                {r.move !== 0 && (
+                  <span className="fr-move" aria-label={moveWords(r.move)}>
+                    {" "}
+                    <span aria-hidden="true">{r.move > 0 ? `▲${r.move}` : `▼${-r.move}`}</span>
+                  </span>
+                )}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="fr-key" aria-hidden="true">
-        <i className="fr-dot-on" /> played that week <i className="fr-dot-off" /> missed it · {g.columns.join(", ")}
+        <span className="fr-key-w">
+          <i className="fr-dot-on" /> played that week
+        </span>
+        <span className="fr-key-w">
+          <i className="fr-dot-off" /> missed it
+        </span>
+        <span className="fr-key-w">▲▼ places moved in the last week</span>
       </p>
     </div>
   );

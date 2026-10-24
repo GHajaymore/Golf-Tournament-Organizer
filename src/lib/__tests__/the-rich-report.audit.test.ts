@@ -226,7 +226,7 @@ describe("money is reported only once the amount cannot change — at the sink",
         prisma.sideGame.create({ data: { eventId, stageId, kind, buyInCents: 100, entryMode: "opt-in", groupKey: "" } }),
       ),
     );
-    const players = seeded.events.stableford.players.map((p) => p.id);
+    const players: string[] = seeded.events.stableford.players.map((p: { id: string }) => p.id);
     for (const g of extra) await prisma.sideGameEntry.createMany({ data: players.map((playerId) => ({ sideGameId: g.id, playerId, confirmed: true })) });
     const card = await prisma.scorecard.findFirstOrThrow({ where: { stageId, playerId: players[0] } });
     try {
@@ -305,7 +305,7 @@ describe("money is reported only once the amount cannot change — at the sink",
  * where the data is, so each row names the fixture that has it.
  */
 const SECTIONS: Array<{ h2: RegExp; has: Array<keyof Seeded["events"]>; lacks: Array<keyof Seeded["events"]> }> = [
-  { h2: /^(The prize list|Where it stands)$/, has: ["stableford", "medal", "casual"], lacks: [] },
+  { h2: /^(The prize list|Where it stands|The round)$/, has: ["stableford", "medal", "casual"], lacks: [] },
   { h2: /^The points$/, has: ["stableford"], lacks: ["medal", "casual"] },
   { h2: /^How the holes played$/, has: ["stableford", "medal"], lacks: ["casual"] },
   { h2: /^Twos and contests$/, has: ["stableford"], lacks: ["medal", "casual"] },

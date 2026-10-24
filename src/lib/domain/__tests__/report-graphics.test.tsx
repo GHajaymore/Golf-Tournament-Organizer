@@ -175,7 +175,30 @@ describe("a side's card", () => {
       [3, "Bob", 0],
       [5, "Ann", 0],
     ]);
-    expect(g.caption).toBe("Ann & Bob: Ann's ball counted on 2 and Bob's ball counted on 1.");
+    expect(g.caption).toBe("Ann & Bob: Ann's ball alone counted on 2 and Bob's ball alone counted on 1.");
+  });
+
+  it("credits a hole where the partners were level to both, not to whoever went first", () => {
+    const g = sideGraphic({
+      side: "Ann & Bob",
+      round: "",
+      basis: "gross",
+      shared: false,
+      firstHole: 1,
+      pars: [4, 3, 5],
+      holes: [
+        { gross: 4, net: 4, playerId: "a" },
+        { gross: 2, net: 2, playerId: "b" },
+        { gross: 5, net: 5, playerId: "a" },
+      ],
+      names: new Map([
+        ["a", "Ann"],
+        ["b", "Bob"],
+      ]),
+      level: [true, false, true],
+    })!;
+    expect(g.holes.map((h) => h.by)).toEqual(["both", "Bob", "both"]);
+    expect(g.caption).toBe("Ann & Bob: Bob's ball alone counted on 1; level on 2.");
   });
 
   it("names nobody's ball on a shared ball", () => {

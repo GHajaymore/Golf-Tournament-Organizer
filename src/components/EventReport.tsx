@@ -128,8 +128,8 @@ export function EventReport({
 
           {report.lead.length > 0 && (
             <section className="fr-card fr-lead" aria-labelledby="fr-lead-h">
-              <p className="fr-eyebrow">{report.rankedBy || "The result"}</p>
-              <h2 id="fr-lead-h">{open ? "Where it stands" : "The prize list"}</h2>
+              <p className="fr-eyebrow">{casual ? "The result" : report.rankedBy || "The result"}</p>
+              <h2 id="fr-lead-h">{open ? "Where it stands" : casual ? "The round" : "The prize list"}</h2>
               {report.lead.map((g) => (
                 <div key={g.label} className="fr-lead-group">
                   {report.lead.length > 1 && <p className="fr-eyebrow fr-sub-eyebrow">{g.label}</p>}

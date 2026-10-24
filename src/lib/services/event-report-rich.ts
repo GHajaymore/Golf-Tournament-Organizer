@@ -405,6 +405,12 @@ async function sideHero(input: Parameters<typeof picturesFor>[0]): Promise<HeroG
   if (!side) return null;
   const holes = holesPlayed(stage.holes);
   const names = new Map(state.players.map((p) => [p.id, p.name.split(/\s+/)[0] || p.name]));
+  // On a gross four-ball, a hole where two partners made the counted score is both of theirs.
+  const own = input.cardRounds.find((r) => r.stageId === stage.id)?.cards.filter((c) => side.memberIds.includes(c.playerId)) ?? [];
+  const level =
+    input.teamBasis === "gross" && own.length > 1
+      ? side.holes.slice(0, holes).map((h, i) => h.gross !== null && own.filter((c) => c.strokes[i] === h.gross).length > 1)
+      : undefined;
   return sideGraphic({
     side: side.members.length ? side.members.join(" & ") : side.name,
     round: teamRounds.length > 1 ? roundLabel(state.stages, stage.id) || "" : "",
@@ -414,5 +420,6 @@ async function sideHero(input: Parameters<typeof picturesFor>[0]): Promise<HeroG
     pars: card.pars,
     holes: side.holes.slice(0, holes),
     names,
+    level,
   });
 }
