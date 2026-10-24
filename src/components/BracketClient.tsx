@@ -188,6 +188,7 @@ export function BracketDrawing({
    * else, and both are taken down when the print dialog closes.
    */
   const [printing, setPrinting] = useState(false);
+  const [printedOn, setPrintedOn] = useState("");
   useEffect(() => {
     if (!printing) return;
     document.body.classList.add("printing-draw");
@@ -357,7 +358,7 @@ export function BracketDrawing({
             results={results}
             seeded={seeded}
             title={[printTitle, name].filter(Boolean).join(" · ") || "The draw"}
-            printedOn={`Printed on ${formatDayAt(new Date(), locale)}`}
+            printedOn={printedOn}
           />,
           document.body,
         )}
@@ -369,7 +370,16 @@ export function BracketDrawing({
       {people.length > 0 && (
         <div style={{ padding: "12px 14px 0", display: "grid", gap: 8 }}>
           <div className="no-print" style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button type="button" className="btn btn-sm" style={{ minHeight: 44 }} onClick={() => setPrinting(true)}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              style={{ minHeight: 44 }}
+              onClick={() => {
+                // The day it is printed, stamped by the press — never read during render.
+                setPrintedOn(`Printed on ${formatDayAt(new Date(), locale)}`);
+                setPrinting(true);
+              }}
+            >
               <Icon name="printer" /> Print the draw
             </button>
           </div>

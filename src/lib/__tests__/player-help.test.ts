@@ -30,6 +30,7 @@ const LABEL_SOURCE: Record<string, string> = {
   "Play a casual round": "src/app/(player)/me/events/page.tsx",
   "Sign out everywhere": "src/app/account/page.tsx",
   "Report the result": "src/components/ReportTie.tsx",
+  "Print the draw": "src/components/BracketClient.tsx",
   "Score this match": "src/app/(player)/me/page.tsx",
   "Halved": "src/components/HoleResultCard.tsx",
 };
