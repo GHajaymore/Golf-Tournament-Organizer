@@ -259,11 +259,15 @@ describe("who may copy last event", () => {
     if (CLUB_TODAY > SERVER_TODAY) {
       // The club is a day ahead: the server's today has gone at the club.
       expect((await cloneEvent(ids.source, `${MARK} server day`, { startOn: SERVER_TODAY })).ok).toBe(false);
+      expect(await eventsInClub()).toBe(n);
     } else {
-      // The club is a day behind: its today is the server's yesterday, and is still a day to play.
+      // The club is a day behind: its today is the server's yesterday — gone on the server's clock,
+      // and still a day to play at the club. Copied.
       expect(CLUB_TODAY < SERVER_TODAY, "CONTROL: the zone chosen is on another day").toBe(true);
+      const res = await cloneEvent(ids.source, `${MARK} club day`, { startOn: CLUB_TODAY });
+      expect(res.ok, res.error).toBe(true);
+      expect(await eventsInClub()).toBe(n + 1);
     }
-    expect(await eventsInClub()).toBe(n);
   });
 });
 
