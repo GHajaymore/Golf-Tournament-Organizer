@@ -8,6 +8,7 @@ import {
   tieByKey,
   tieReportRefusal,
   tieReportSentence,
+  tieResultWords,
 } from "../my-tie";
 import { yourCardNote } from "../your-card";
 import type { Player } from "../types";
@@ -48,6 +49,16 @@ describe("myTie", () => {
     expect(myTieLine(myTie(one(view), "p1", { "winners-1-0": "2&1" })!)).toBe(
       "Out in the semifinal · lost to Dot 2&1",
     );
+  });
+
+  it("a tie won on extra holes is won AT the 19th — one wording for the player's line and the report's draw", () => {
+    // The final report's draw read "Dilip beat Séamus 19th" (walked 2026-10-23).
+    expect(tieResultWords("19th")).toBe(" at the 19th");
+    expect(tieResultWords(" 20th ")).toBe(" at the 20th");
+    expect(tieResultWords("3&2")).toBe(" 3&2");
+    expect(tieResultWords("1 up")).toBe(" 1 up");
+    expect(tieResultWords("")).toBe("");
+    expect(tieResultWords(null)).toBe("");
   });
 
   it("the winner of a tie is not out of it", () => {
