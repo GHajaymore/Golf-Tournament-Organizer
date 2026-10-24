@@ -4,6 +4,7 @@
  *
  *     npm run qa:changed                  # this branch against main
  *     npm run qa:changed -- <commit>      # against a commit — the last one certified, say
+ *     npm run qa:changed -- origin/main --json   # the plan, for a machine (the Round workflow reads it)
  *
  * Reads the files that differ and says, from `TIER_RULES` in `layers.mjs`,
  * which tier each belongs to and what the HIGHEST one asks for. It is the
@@ -11,14 +12,23 @@
  * request: the depth of testing is decided by what was touched, not by how the
  * author feels about it.
  *
+ * Since 2026-10-23 it also says the EXACT rounds (`roundPlan`): how many
+ * `round/<name>-N` branches to push, whether they visit all six countries,
+ * whether they run the console crawl and which file asked for it, and whether
+ * the change then waits for the nightly round before production. The Round
+ * workflow plans a pushed branch with the same function, so what this prints
+ * is what runs.
+ *
  * It also says whether the app itself changed (`app-id.mjs`): a change that
  * leaves the fingerprint alone leaves the count of clean rounds alone too.
  */
 import { spawnSync } from "node:child_process";
-import { TIERS } from "./layers.mjs";
+import { TIERS, ARITHMETIC_KEEPS_THREE_ROUNDS, roundPlan, tierOf } from "./layers.mjs";
 import { appId, changedBetween } from "./app-id.mjs";
 
-const base = process.argv[2] ?? "origin/main";
+const args = process.argv.slice(2);
+const json = args.includes("--json");
+const base = args.find((a) => !a.startsWith("--")) ?? "origin/main";
 const exists = spawnSync("git", ["rev-parse", "--verify", "--quiet", base]).status === 0;
 if (!exists) {
   console.error(`there is no commit called ${base}`);
@@ -30,9 +40,14 @@ const from = spawnSync("git", ["merge-base", base, "HEAD"], { encoding: "utf8" }
 const status = spawnSync("git", ["status", "--short"], { encoding: "utf8" }).stdout.split("\n").filter(Boolean);
 const untracked = status.filter((l) => l.startsWith("??")).map((l) => l.slice(3).replace(/^"|"$/g, ""));
 const uncommitted = status.filter((l) => !l.startsWith("??")).map((l) => l.slice(3).replace(/^"|"$/g, ""));
-const { tierOf } = await import("./layers.mjs");
 const seen = new Map(changedBetween(from).map((c) => [c.path, c.tier]));
 for (const path of uncommitted) if (!seen.has(path)) seen.set(path, tierOf(path));
+const plan = roundPlan([...seen.keys()]);
+
+if (json) {
+  console.log(JSON.stringify({ base, from: from.slice(0, 12), files: seen.size, ...plan }));
+  process.exit(0);
+}
 
 if (!seen.size) {
   console.log(`nothing differs from ${base}`);
@@ -56,6 +71,32 @@ const before = appId(from);
 const after = appId("HEAD");
 console.log(`THIS CHANGE IS: ${TIERS[highest].name}`);
 console.log(`IT NEEDS: ${TIERS[highest].needs}`);
+console.log("");
+
+// ── The exact rounds ────────────────────────────────────────────────────────
+if (plan.rounds === 0) {
+  console.log("ROUNDS BEFORE IT MERGES: none — CI on the pull request is the whole of it.");
+} else {
+  const branch = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).stdout.trim().replace(/^.*\//, "") || "change";
+  console.log(`ROUNDS BEFORE IT MERGES: ${plan.rounds}, each on the commit that will be production:`);
+  for (let n = 1; n <= plan.rounds; n += 1) console.log(`  git push origin HEAD:round/${branch}-${n}`);
+  console.log(`  countries: ${plan.countries === "all" ? "all six in each round (a core change)" : "the three that round's number picks (the nightly visits all six)"}`);
+  console.log(
+    plan.crawl
+      ? `  the console crawl: IN the round — because of ${plan.crawlBecause.slice(0, 4).join(", ")}${plan.crawlBecause.length > 4 ? ` and ${plan.crawlBecause.length - 4} more` : ""}`
+      : "  the console crawl: left out — the change touches no input screen (the nightly runs it every night)",
+  );
+  if (plan.arithmetic.length) {
+    console.log(`  THREE rounds, not one: it changes money or handicap arithmetic (${plan.arithmetic.join(", ")}).`);
+    console.log(`  That is transitional (ARITHMETIC_KEEPS_THREE_ROUNDS = ${ARITHMETIC_KEEPS_THREE_ROUNDS} in layers.mjs) until property-based tests and the nightly mutation ratchet are on main.`);
+  }
+  console.log("  The Round workflow reads the same plan off the pushed branch: push the branch and nothing else.");
+}
+console.log(
+  plan.nightly
+    ? "AND BEFORE PRODUCTION: the nightly round on main (02:00 UTC), on this commit or a later one containing it, must be clean. The deploy job holds the change until then and deploys it after."
+    : "AND BEFORE PRODUCTION: nothing more — the deploy job ships it once `verify` is green, outside a deploy freeze.",
+);
 console.log("");
 console.log(
   before === after && !uncommitted.some((p) => ["function", "core"].includes(tierOf(p)))
