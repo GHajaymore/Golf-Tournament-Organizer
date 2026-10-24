@@ -143,7 +143,7 @@ import { organizationWasNamed } from "@/lib/org-naming";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope, cutTieRuleOf, cutTieDecisionsOf } from "@/lib/domain/cut";
 import { importShapesFor, isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
-import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
+import { upsertMember, memberGender, organizationIdForEvent } from "@/lib/services/roster";
 import { placementOnApproval, parseHandicapInput, parseHandicapType } from "@/lib/domain/registration-intake";
 import {
   marginRefusal,
@@ -154,6 +154,7 @@ import {
   holeStrokesReceived,
   allocationHoles,
   serializeBracketDraw,
+  tieNotReady,
   FORMATION_RULES,
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
@@ -663,6 +664,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
           ? input.handicapSource!
           : "manual",
       handicapType: input.handicapType === "9" ? "9" : "18",
+      gender: await memberGender(memberId),
     },
   });
   await syncPlayerAccount(eventId, clean, cleanEmail);
@@ -1107,9 +1109,11 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     const homeClub = cell(table, cols, "homeClub").trim();
     // Importing a field also builds the roster: a club that uploads its
     // spring CSV has its member list from then on, without a second import.
+    // The file's Gender column fills the roster row's gap; the row's own word
+    // is what the entry carries (`memberGender`).
     const memberId = await upsertMember(
       event.organizationId,
-      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource },
+      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource, gender: cell(table, cols, "gender") },
       "staff",
     );
     await prisma.player.create({
@@ -1126,6 +1130,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         homeClub,
         handicapType,
         handicapSource,
+        gender: (await memberGender(memberId)) || cell(table, cols, "gender"),
       },
     });
     // A no-op for a blank address, which is what makes an email-less entry a
@@ -3674,6 +3679,10 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
     return { ok: false, error: "The winner of a tie is one of the two players in it." };
   }
   const existing = await prisma.bracketWinner.findFirst({ where: { eventId, key } });
+  // Taking a result back is always allowed; recording one needs both players
+  // (`tieNotReady` — the same rule a player's report is held to).
+  const notReady = existing?.winnerId === winnerId ? null : tieNotReady(tie.match);
+  if (notReady) return { ok: false, error: notReady };
 
   if (existing?.winnerId === winnerId) {
     // Toggle off if the same slot is clicked again.
