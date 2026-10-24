@@ -1233,6 +1233,22 @@ model Event {
    */
   reportRecap           String  @default("")
   /**
+   * WHO MAY OPEN THE REPORT'S LINK (2026-10-24, the owner on the panel's
+   * advice): "board" — anyone with the board's link (the default), or
+   * "players" — the players in this tournament, signed in. Never more public
+   * than the board: a board that is not public makes the report players-only
+   * whatever this says (`reportOpenToPublic`).
+   */
+  reportVisibility      String  @default("board")
+  /**
+   * WHO SEES SIDE-GAME AMOUNTS on the report: "players" — the field and the
+   * organizer, the public the winners only (the default, and the rule before
+   * this setting); "none" — winners only, for everybody but the organizer;
+   * "everyone" — amounts on the public link too. Read at the sink
+   * (`showsAmounts`), never filtered after.
+   */
+  reportAmounts         String  @default("players")
+  /**
    * PLAY IS SUSPENDED — set by the organizer, cleared on resume (2026-09-28).
    * Rule 5.7: the committee may stop play, most often for lightning, and every
    * player must stop. Null while play is on. The note says why ("Lightning in
@@ -1511,6 +1527,13 @@ model Player {
    * draw where it can be — see lib/domain/pairing-requests.ts.
    */
   playWith       String[]          @default([])
+  /**
+   * "DON'T SHOW MY NAME ON PUBLIC PAGES" (2026-10-24). Signed out — the public
+   * board, the public report, a share card — this player is "Player (name
+   * withheld)"; the field and the staff see the name. `publicName` is the one
+   * reader.
+   */
+  publicNameWithheld Boolean       @default(false)
 
   event           Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   group           Group?            @relation(fields: [groupId], references: [id], onDelete: SetNull)

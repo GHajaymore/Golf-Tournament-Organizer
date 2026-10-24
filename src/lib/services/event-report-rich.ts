@@ -22,6 +22,7 @@ import {
   type RankBasis,
 } from "../domain/final-report";
 import { namedAfterPlayers } from "../domain/side-name";
+import { NAME_WITHHELD } from "../domain/report-settings";
 import {
   holeStrip,
   ladderGraphic,
@@ -278,6 +279,8 @@ export async function picturesFor(input: {
   shared: ReturnType<typeof sharedRanks>;
   margins: Map<string, string>;
   movedRounds: MovementRound[];
+  /** The signed-out copy: names drawn here (not whole ones) honour "don't show my name". */
+  publicCopy: boolean;
 }): Promise<{ hero: HeroGraphic | null; holeStrip: HoleStripGraphic | null }> {
   const { state, board, rows, basis, kind, stages } = input;
   const played = stages.filter((s) => state.roundsWithResults.has(s.id));
@@ -404,7 +407,11 @@ async function sideHero(input: Parameters<typeof picturesFor>[0]): Promise<HeroG
   const side = rows.find((r) => r.name === winners[0].name);
   if (!side) return null;
   const holes = holesPlayed(stage.holes);
-  const names = new Map(state.players.map((p) => [p.id, p.name.split(/\s+/)[0] || p.name]));
+  // First names on the card; on the public copy a withheld player is withheld here too
+  // (`withholdNames` matches whole names, and a first name alone is not one).
+  const names = new Map(
+    state.players.map((p) => [p.id, input.publicCopy && p.publicNameWithheld ? NAME_WITHHELD : p.name.split(/\s+/)[0] || p.name]),
+  );
   // On a gross four-ball, a hole where two partners made the counted score is both of theirs.
   const own = input.cardRounds.find((r) => r.stageId === stage.id)?.cards.filter((c) => side.memberIds.includes(c.playerId)) ?? [];
   const level =

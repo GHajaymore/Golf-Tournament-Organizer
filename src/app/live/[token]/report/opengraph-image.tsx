@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/db";
 import { reportCardInput, reportFor } from "@/lib/services/event-report";
 import { reportCard } from "@/lib/domain/report-card";
+import { reportOpenToPublic } from "@/lib/domain/report-settings";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { SHARE_CARD } from "@/lib/themes";
 
@@ -40,9 +41,12 @@ export default async function Image({ params }: { params: Promise<{ token: strin
   const { token } = await params;
   const event = await prisma.event.findUnique({
     where: { shareToken: token },
-    select: { id: true, leaderboardVisibility: true },
+    select: { id: true, leaderboardVisibility: true, reportVisibility: true },
   });
-  const visibility = event?.leaderboardVisibility ?? "";
+  // A report for the players only has no share card: the link shows no names
+  // (`reportOpenToPublic`, never more public than the board). Its names are the
+  // public copy's — anybody who asked not to be named is withheld (`reportFor`).
+  const visibility = event && reportOpenToPublic(event.leaderboardVisibility === "public", event.reportVisibility) ? "public" : "";
   const found = event && visibility === "public" ? await reportFor(event.id, { kind: "public" }) : null;
   const card = reportCard(found ? reportCardInput(found) : null, visibility);
 

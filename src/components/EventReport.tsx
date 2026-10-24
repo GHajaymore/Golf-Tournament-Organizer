@@ -232,11 +232,10 @@ export function EventReport({
 
           {!casual && settleCard}
 
-          {money && report.amounts && (
-            <p className="fr-small fr-noprint">
-              Amounts are shown to the organizer and to the players in this tournament. The public link names the
-              winners only.
-            </p>
+          {/* Who else sees the amounts, said to those who see them — never to the
+              public, which is not told that anything is left off its copy. */}
+          {money && report.amounts && report.audience !== "public" && report.amountsNote && (
+            <p className="fr-small fr-noprint">{report.amountsNote}</p>
           )}
 
           {!casual && (

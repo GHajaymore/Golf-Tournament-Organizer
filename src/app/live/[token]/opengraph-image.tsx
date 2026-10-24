@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/db";
 import { liveBoard } from "@/lib/services/live-board";
+import { publicCopy } from "@/lib/services/public-names";
 import { resultsCard, rowsForBoardKind, type BoardForCard } from "@/lib/domain/results-card";
 import { cupBoard } from "@/lib/services/cup";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
@@ -76,13 +77,14 @@ export default async function Image({ params }: { params: Promise<{ token: strin
    * preview at once — costs the database nothing beyond what the page already
    * paid.
    */
-  const board = event?.leaderboardVisibility === "public" ? await liveBoard(event.id) : null;
+  // Its names are the public page's: a withheld player is withheld here too (`publicCopy`).
+  const board = event?.leaderboardVisibility === "public" ? await publicCopy(event.id, await liveBoard(event.id)) : null;
   const club = board?.brand?.name ?? "";
 
   // The card follows the board's kind, as the page does — a team round's
   // sides, a skins night's skins, a cup's matches (`rowsForBoardKind`). The
   // cup is asked the same way the page asks it.
-  const cup = board ? await cupBoard(event!.id) : null;
+  const cup = board ? await publicCopy(event!.id, await cupBoard(event!.id)) : null;
   const kind = board ? rowsForBoardKind(board, !!cup?.ok) : {};
   const card = resultsCard(
     board

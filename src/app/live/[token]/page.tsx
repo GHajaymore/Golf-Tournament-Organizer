@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
 import { settingsOf } from "@/lib/services/tournament";
 import { liveBoard } from "@/lib/services/live-board";
+import { publicCopy } from "@/lib/services/public-names";
 import {
   SkinsStandingsTable,
   NassauMatches,
@@ -146,9 +147,11 @@ export default async function PublicLeaderboardPage({
     round && (await prisma.stage.findFirst({ where: { id: round, eventId: event.id }, select: { id: true } }))
       ? round
       : "";
-  const board = await liveBoard(event.id, picked);
+  // Signed out, so a player whose entry says "Don't show my name on public
+  // pages" is withheld from everything drawn here (`publicCopy`, 2026-10-24).
+  const board = await publicCopy(event.id, await liveBoard(event.id, picked));
   if (!board) notFound();
-  const cup = await cupBoard(event.id);
+  const cup = await publicCopy(event.id, await cupBoard(event.id));
 
   return (
     <div

@@ -1,0 +1,7 @@
+-- The report's settings (2026-10-24): who may open its link, and who sees side-game amounts.
+-- Defaults are the rule before them: anyone with the board's link; amounts for the field only.
+ALTER TABLE "Event" ADD COLUMN "reportVisibility" TEXT NOT NULL DEFAULT 'board',
+ADD COLUMN "reportAmounts" TEXT NOT NULL DEFAULT 'players';
+
+-- "Don't show my name on public pages", on the player's entry.
+ALTER TABLE "Player" ADD COLUMN "publicNameWithheld" BOOLEAN NOT NULL DEFAULT false;

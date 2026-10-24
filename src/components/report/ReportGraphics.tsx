@@ -11,6 +11,7 @@ import {
   type SideGraphic,
   type WeeksGraphic,
 } from "@/lib/domain/report-graphics";
+import { NAME_WITHHELD } from "@/lib/domain/report-settings";
 
 /**
  * THE REPORT'S PICTURES, drawn (2026-10-23) — see `domain/report-graphics.ts`.
@@ -60,6 +61,8 @@ export function graphicTitle(g: HeroGraphic): string {
 
 /** "Ann Example" → "Ann E." — a name that fits at either end of a line. */
 function shortName(name: string): string {
+  // A name withheld from public pages stays withheld, shortened too.
+  if (name === NAME_WITHHELD) return "Withheld";
   const parts = name.trim().split(/\s+/);
   if (parts.length < 2) return name;
   return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;

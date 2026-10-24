@@ -44,6 +44,8 @@ import { individualAllowanceFor, effectiveAllowance } from "../round-allowance";
 import { needsTeams } from "../formats";
 import { reportFoot, type ReportFoot } from "./report-foot";
 import type { ReportCardInput } from "../domain/report-card";
+import { publicCopy } from "./public-names";
+import { amountsNoteFor } from "../domain/report-settings";
 import {
   countWords,
   eventRibbon,
@@ -157,6 +159,8 @@ export interface EventReport {
   /** Who this copy is for — and so whether `amounts` appear anywhere in it. */
   audience: ReportAudience["kind"];
   amounts: boolean;
+  /** Who sees the amounts, in a sentence for a copy that carries them (`amountsNoteFor`). */
+  amountsNote: string;
   /** Each flight's winner, when the field is divided into flights. */
   flights: Array<{ label: string; names: string[]; figure: string }>;
   /** A knockout's ties, round by round, as the draw holds them. */
@@ -189,12 +193,16 @@ export type AnyReport = { kind: "cup"; report: FinalReport } | { kind: "event"; 
  */
 export async function reportFor(eventId: string, audience: ReportAudience = { kind: "public" }): Promise<AnyReport | null> {
   const cupRounds = await prisma.stage.count({ where: { eventId, type: TEAM_SESSION } });
+  let found: AnyReport | null = null;
   if (cupRounds > 0) {
     const cup = await finalReport(eventId);
-    return cup ? { kind: "cup", report: cup } : null;
+    found = cup ? { kind: "cup", report: cup } : null;
+  } else {
+    const event = await eventReport(eventId, audience);
+    found = event ? { kind: "event", report: event } : null;
   }
-  const event = await eventReport(eventId, audience);
-  return event ? { kind: "event", report: event } : null;
+  // The signed-out copy names nobody who asked not to be named (`publicCopy`).
+  return found && audience.kind === "public" ? publicCopy(eventId, found) : found;
 }
 
 /**
@@ -249,7 +257,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   const [event, state, board] = await Promise.all([
     prisma.event.findUnique({
       where: { id: eventId },
-      select: { name: true, dates: true, course: true, status: true, shape: true, reportRecap: true },
+      select: { name: true, dates: true, course: true, status: true, shape: true, reportRecap: true, reportAmounts: true },
     }),
     loadEventState(eventId),
     liveBoard(eventId),
@@ -650,7 +658,24 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   // A casual round's picture is its settle-up, drawn by the page itself.
   const pictures = casual
     ? { hero: null, holeStrip: null }
-    : await picturesFor({ state, board, rows, sides, totals, teamBasis, basis, kind, over, cardRounds, stages, shared, margins, movedRounds, completed });
+    : await picturesFor({
+        state,
+        board,
+        rows,
+        sides,
+        totals,
+        teamBasis,
+        basis,
+        kind,
+        over,
+        cardRounds,
+        stages,
+        shared,
+        margins,
+        movedRounds,
+        completed,
+        publicCopy: audience.kind === "public",
+      });
 
   const facts: Array<{ label: string; value: string }> = [
     { label: "Format", value: stages.length === 1 ? "One round" : `${countWords(stages.length).replace(/^./, (c) => c.toUpperCase())} rounds` },
@@ -740,7 +765,8 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
         : playerRows,
     prizes,
     audience: audience.kind,
-    amounts: showsAmounts(audience),
+    amounts: showsAmounts(audience, event.reportAmounts),
+    amountsNote: amountsNoteFor(event.reportAmounts),
     flights,
     draw,
     rounds,

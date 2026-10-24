@@ -29,6 +29,7 @@ import { isManualFormat, needsTeams } from "../formats";
 import { roundIsStroke } from "../stage-types";
 import { listWords } from "../domain/final-report";
 import { countTwos } from "../domain/derived-games";
+import { amountsShownTo } from "../domain/report-settings";
 import { plural } from "../format";
 import { byAddress } from "../domain/my-entry";
 import type { HighlightRound } from "../domain/report-highlights";
@@ -84,7 +85,12 @@ export async function reportAudienceFor(
   return inField ? { kind: "player", email } : { kind: "public" };
 }
 
-export const showsAmounts = (a: ReportAudience): boolean => a.kind !== "public";
+/**
+ * Whether this copy carries amounts: the audience, under the tournament's own
+ * setting (`Event.reportAmounts`, `amountsShownTo`). The setting is REQUIRED,
+ * so no caller can ask the audience alone and miss what the club chose.
+ */
+export const showsAmounts = (a: ReportAudience, setting: string | null | undefined): boolean => amountsShownTo(a.kind, setting);
 
 /* ------------------------------------------------------------------------ */
 /*  The cards, for the highlights                                            */
@@ -296,7 +302,7 @@ export async function moneySections(
 ): Promise<ReportMoney> {
   const twos: ReportMoney["twos"] = [];
   const eventId = state.event.id;
-  const amounts = showsAmounts(audience);
+  const amounts = showsAmounts(audience, state.event.reportAmounts);
   const f: Formatting = await formattingForEvent(eventId);
   const money = (cents: number) => formatMoney(cents, f);
   const stages = playingStages(state.stages);

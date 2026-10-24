@@ -400,7 +400,12 @@ export async function seedRich(mark) {
           });
         }
       }
-      out.events.championship = { eventId: event.id, shareToken: event.shareToken, organizer: await staff(event.id) };
+      out.events.championship = {
+        eventId: event.id,
+        shareToken: event.shareToken,
+        organizer: await staff(event.id),
+        players: players.map((p) => ({ id: p.id, name: p.name })),
+      };
     }
 
     // ── F. A straight knockout of four: the champion's path ───────────────
@@ -516,6 +521,24 @@ export async function seedRich(mark) {
     });
     out.par3s = PAR3;
     return out;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** A spec's own switches on its own fixture: a player's name withheld, and the report's settings. */
+export async function setWithheld(playerId, on) {
+  const prisma = new PrismaClient();
+  try {
+    await prisma.player.update({ where: { id: playerId }, data: { publicNameWithheld: on } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+export async function setReportSettings(eventId, data) {
+  const prisma = new PrismaClient();
+  try {
+    await prisma.event.update({ where: { id: eventId }, data });
   } finally {
     await prisma.$disconnect();
   }
