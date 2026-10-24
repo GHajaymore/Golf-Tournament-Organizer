@@ -24,6 +24,27 @@ power of two plays a **Preliminary round** for the extra entries (129 is one tie
 Semi-finals, Final** — never "Round of 256", which is a sheet size, not a round a
 club plays.
 
+**Which byes are marked — a correction the same day**, after the first captures marked
+"bye" on nearly every seat of a 129 draw's Round 1, often both players of one tie. Those
+players had no bye in any round that is drawn; they simply did not need the one-tie
+preliminary round, and a club's draw sheet never marks that. So:
+
+- the first round is a **Preliminary round** when the field fills less than three
+  quarters of the sheet — exactly when two of its byes would meet in the next round
+  (`hasPreliminaryRound`). Nobody is marked "bye" for skipping it; its winner's place in
+  Round 1 reads "Winner of A v B" until it is played and then the winner's name with
+  "through the preliminary round" under it;
+- otherwise the first round is a round of the draw, and a seed with nobody to play in it
+  had a **bye in a drawn round**: "bye" under their name on their first real tie (100 in
+  a draw of 128: 36 ties in Round 1, 28 seeds marked in Round 2). No tie ever shows two;
+- the words about a seat ("You", "bye", "through the preliminary round", the margin) are
+  under the name, so they never cut it short.
+
+The three-quarters line is this session's reading of "a field over a power of two plays a
+preliminary round"; it is the point at which the draw itself stops pairing byes, and it
+puts 129 and 20-in-32 in a preliminary round and 100-in-128 and 12-in-16 in a Round 1
+with byes. It is for a ruling if a club counts it differently.
+
 One function names a round (`roundLabels` in `src/lib/domain/bracket.ts`, which
 needs the field as well as the sheet, so the compiler lists every caller), and
 everything reads it through the draw: the drawing, the report ("Round 1: X beat Y

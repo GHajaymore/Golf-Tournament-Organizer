@@ -37,8 +37,10 @@ import type { Player as DomainPlayer } from "../src/lib/domain/types";
  * (part c); those come with their own pull requests. WebKit is not run here.
  */
 
-const FIRST = ["Alder", "Briony", "Caspian", "Delphine", "Ewan", "Fenella", "Gideon", "Honor", "Ivo", "Juniper", "Kester", "Linnea", "Merrick"];
-const LAST = ["Ashgrove", "Bramwell", "Cobbledene", "Dunmore", "Fernsby", "Gorsefield", "Hazelrigg", "Inchbold", "Larkworthy", "Moorcroft"];
+// Invented, and some of them LONG — "Gwendolyn Elphinstone" is 21 letters — because a name
+// cut short at a laptop's width is one of the things this walks (#935's captures).
+const FIRST = ["Alder", "Briony", "Caspian", "Delphine", "Ewan", "Fenella", "Gwendolyn", "Honor", "Ivo", "Juniper", "Kester", "Cressida", "Alasdair"];
+const LAST = ["Ashgrove", "Bramwell", "Cobbledene", "Elphinstone", "Fernsby", "Gorsefield", "Hazelrigg", "Sandilands", "Larkworthy", "Wedderburn"];
 const N = 129;
 const MARGINS = ["3&2", "1 up", "2&1", "W/O", "4&3", "19th"];
 
@@ -133,6 +135,21 @@ async function expectNoByeBoxes(page: Page, where: string) {
   expect(seats.filter((t) => /^\s*Bye\s*$/m.test(t)), `${where}: a bye drawn as a box`).toEqual([]);
 }
 
+/**
+ * NO PLAYER'S NAME IS CUT SHORT at a laptop's width. #935's first captures had
+ * "Cressida Ra…" — a "bye" badge and a margin beside the name took its room. The
+ * words about a seat are under the name now; this measures every name a player
+ * holds (a "Winner of A v B" place may be cut, and says the rest on hover).
+ */
+async function expectNamesWhole(page: Page, where: string) {
+  if ((page.viewportSize()?.width ?? 0) < 1280) return;
+  const names = drawing(page).locator('.bracket-name[data-player="true"]');
+  // The control: a measure of no names is not a measure.
+  expect(await names.count(), `${where}: no names measured`).toBeGreaterThan(10);
+  const cut = await names.evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+  expect(cut, `${where}: names cut short`).toEqual([]);
+}
+
 /** Each tie's names and results as the drawing prints them, by tie key — "You" aside. */
 async function tieTexts(scope: Locator): Promise<Record<string, string>> {
   return scope.locator("[data-tie]").evaluateAll((els) =>
@@ -166,6 +183,7 @@ test("a knockout of 129: sections, a result from inside one, Find a player, on a
       await expectTargets(page, `${project} /bracket`, true);
       await expectNoSidewaysPage(page, `${project} /bracket, whole draw`);
       await expectNoByeBoxes(page, `${project} /bracket, whole draw`);
+      await expectNamesWhole(page, `${project} /bracket, whole draw`);
     });
 
     await test.step("Quarter 1 starts with the preliminary tie; Quarter 2 with Round 1; the arrow keys move along", async () => {
@@ -174,8 +192,13 @@ test("a knockout of 129: sections, a result from inside one, Find a player, on a
       expect(new URL(page.url()).searchParams.get("section")).toBe("q1");
       const heads = await drawing(page).locator(".bracket-round-head").allInnerTexts();
       expect(heads.map((h) => h.trim().toUpperCase())).toEqual(["PRELIMINARY ROUND", "ROUND 1", "ROUND 2", "ROUND 3", "ROUND 4", "QUARTER-FINALS"]);
-      // The seed through a bye is marked so, beside the name.
-      await expect(drawing(page).locator(".bracket-tag", { hasText: "bye" }).first()).toBeVisible();
+      // Nobody is marked "bye" for not needing the preliminary round (#935's captures marked
+      // nearly every seat in Round 1, both players of a tie at once). The one place the
+      // preliminary tie fills says so, under the name of who came through it.
+      await expect(drawing(page).locator(".bracket-tag")).toHaveCount(0);
+      const through = drawing(page).getByText("through the preliminary round", { exact: true });
+      await expect(through).toHaveCount(1);
+      await expect(drawing(page).locator(`[data-tie="winners-1-0"]`)).toContainText(ko.field[128].name);
       await tab(page, "Quarter 1").focus();
       await page.keyboard.press("ArrowRight");
       await expectSelected(page, "Quarter 2");
@@ -313,6 +336,9 @@ test("the pictures: the finished 129 on every tab, at this width", async ({ page
     await open(page, `/live/${process.env.BRACKET_CAPTURE_TOKEN}?section=${key}`);
     await expectSelected(page, label);
     await expectNoSidewaysPage(page, `${project} ${label}`);
+    await expectNamesWhole(page, `${project} zz-ko129 ${label}`);
+    // A finished draw of 129 had a preliminary round and no bye in a drawn round.
+    await expect(drawing(page).locator(".bracket-tag")).toHaveCount(0);
     await capture(page, `ko129-${key}-${project}`);
   }
 });

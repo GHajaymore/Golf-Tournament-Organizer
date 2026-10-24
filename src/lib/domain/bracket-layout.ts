@@ -41,8 +41,14 @@ export interface DrawSection {
 }
 
 export interface SeatMark {
-  /** This player came into the tie off a first-round bye. */
+  /**
+   * This player came into the tie off a bye in a round that is DRAWN as a round
+   * (100 in a draw of 128: the 28 top seeds, in Round 2). Never for skipping a
+   * preliminary round — a draw sheet does not mark that (`hasPreliminaryRound`).
+   */
   bye: boolean;
+  /** This place is filled by the one who comes through the preliminary round. */
+  prelim: boolean;
 }
 
 export interface TieBox {
@@ -171,7 +177,14 @@ export function layoutSection(view: BracketView, keys: readonly string[], gap: n
       }
     }
     const y = (centres[0] + centres[1]) / 2;
-    const mark = (s: 0 | 1): SeatMark => ({ bye: !!feeders[s] && isByeTie(feeders[s]!) });
+    const prelim = view.preliminary === true;
+    const mark = (s: 0 | 1): SeatMark => {
+      const f = feeders[s];
+      return {
+        bye: !!f && isByeTie(f) && !prelim,
+        prelim: !!f && prelim && f.roundIndex === 0 && !isByeTie(f),
+      };
+    };
     boxes.set(m.key, { m, y, a: mark(0), b: mark(1) });
     feeders.forEach((f, s) => {
       if (fed[s]) lines.push({ from: f!.key, to: m.key, toY: y + (s === 0 ? -0.5 : 0.5) });

@@ -228,32 +228,48 @@ export function BracketDrawing({
     const seed = seeded ? ((slot.playerId && seeds?.[slot.playerId]) ?? slot.seed ?? "") : "";
     const margin = isWinner ? marginWords(results[m.key]).trim() : "";
     const lit = !!highlightId && slot.playerId === highlightId;
+    /*
+     * THE WORDS ABOUT A SEAT GO UNDER THE NAME, NOT BESIDE IT (#935's captures,
+     * 2026-10-23): a "bye" badge and a margin beside the name cut it to
+     * "Cressida Ra…". Under it they cost no width: "You", "bye", "through the
+     * preliminary round", and the winner's margin.
+     */
+    const isMe = !!me && slot.playerId === me;
+    const viaPrelim = mark.prelim && slot.playerId !== null;
+    const notes = isMe || mark.bye || viaPrelim || !!margin;
     const body = (
       <>
-        <span style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
-          {isWinner && <Icon name="check" weight="bold" />}
-          <span
-            style={{
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              fontStyle: slot.playerId ? "normal" : "italic",
-              color: slot.playerId ? "inherit" : "var(--color-text-muted)",
-            }}
-          >
-            {slot.name}
+        <span style={{ display: "grid", minWidth: 0, lineHeight: 1.2 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+            {isWinner && <Icon name="check" weight="bold" />}
+            <span
+              className="bracket-name"
+              data-player={slot.playerId ? "true" : undefined}
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                fontStyle: slot.playerId ? "normal" : "italic",
+                color: slot.playerId ? "inherit" : "var(--color-text-muted)",
+              }}
+            >
+              {slot.name}
+            </span>
+            {/* After the name, so a seat is still found by the name it starts with. */}
+            {isWinner && <span className="sr-only">, won</span>}
           </span>
-          {/* After the name, so a seat is still found by the name it starts with. */}
-          {isWinner && <span className="sr-only">, won</span>}
-          {mark.bye && <span className="bracket-tag">bye</span>}
-          {me && slot.playerId === me && <span className="bracket-tag bracket-tag-you">You</span>}
+          {notes && (
+            <span className="bracket-notes">
+              {isMe && <span className="bracket-tag-you">You</span>}
+              {mark.bye && <span className="bracket-tag">bye</span>}
+              {viaPrelim && <span>through the preliminary round</span>}
+              {margin && <span style={{ fontWeight: 700, color: "var(--color-text)" }}>won {margin}</span>}
+            </span>
+          )}
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 6, flex: "none" }}>
-          {margin && <span style={{ fontSize: 13, fontWeight: 700 }}>{margin}</span>}
-          {/* THE SEED A PLAYER BROUGHT (2026-10-16): a plate or a second flight
-              numbered its own players from 1, so seed 16 read as a top seed. */}
-          <span style={{ fontSize: 13, color: "var(--color-text-muted)", fontWeight: 400 }}>{seed}</span>
-        </span>
+        {/* THE SEED A PLAYER BROUGHT (2026-10-16): a plate or a second flight
+            numbered its own players from 1, so seed 16 read as a top seed. */}
+        <span style={{ fontSize: 13, color: "var(--color-text-muted)", fontWeight: 400, flex: "none" }}>{seed}</span>
       </>
     );
     const style = {

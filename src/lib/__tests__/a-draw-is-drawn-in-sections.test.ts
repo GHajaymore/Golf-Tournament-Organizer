@@ -38,7 +38,7 @@ import type { Player } from "@/lib/domain/types";
  */
 
 const GAP = 1;
-const SIZES = [1, 2, 3, 5, 8, 16, 17, 31, 32, 33, 64, 65, 128, 129, 256];
+const SIZES = [1, 2, 3, 5, 8, 12, 16, 17, 31, 32, 33, 64, 65, 100, 128, 129, 256];
 
 const field = (n: number, tag = "p"): Player[] =>
   Array.from({ length: n }, (_, i) => ({ id: `${tag}${i + 1}`, name: `Seed ${tag}${i + 1}`, handicap: i, seed: i + 1 }));
@@ -157,9 +157,19 @@ function expectLayout(view: BracketView, s: DrawSection, at: string) {
     if (drawnA && drawnB && Math.abs(b.y - (y.get(fa.key)! + y.get(fb.key)!) / 2) > 1e-9) {
       wrong.push(`${k} at ${b.y} is not midway between its feeders at ${y.get(fa.key)} and ${y.get(fb.key)}`);
     }
-    // Marked "bye" exactly where the place was filled off a bye.
-    if (b.a.bye !== isByeTie(fa)) wrong.push(`${k} place A: bye mark ${b.a.bye}, came off a bye ${isByeTie(fa)}`);
-    if (b.b.bye !== isByeTie(fb)) wrong.push(`${k} place B: bye mark ${b.b.bye}, came off a bye ${isByeTie(fb)}`);
+    // Marked "bye" exactly where the place was filled off a bye IN A ROUND THAT IS
+    // DRAWN — never for skipping a preliminary round, which a draw sheet does not mark.
+    const prelim = preliminaryByTheDraw(view);
+    const byeA = isByeTie(fa) && !prelim;
+    const byeB = isByeTie(fb) && !prelim;
+    if (b.a.bye !== byeA) wrong.push(`${k} place A: bye mark ${b.a.bye}, a bye in a drawn round ${byeA}`);
+    if (b.b.bye !== byeB) wrong.push(`${k} place B: bye mark ${b.b.bye}, a bye in a drawn round ${byeB}`);
+    if (b.a.bye && b.b.bye) wrong.push(`${k} shows two bye marks`);
+    // "Through the preliminary round" on the place a played-for preliminary tie fills.
+    const throughA = prelim && r === 1 && !isByeTie(fa);
+    const throughB = prelim && r === 1 && !isByeTie(fb);
+    if (b.a.prelim !== throughA) wrong.push(`${k} place A: preliminary note ${b.a.prelim}, fed by a preliminary tie ${throughA}`);
+    if (b.b.prelim !== throughB) wrong.push(`${k} place B: preliminary note ${b.b.prelim}, fed by a preliminary tie ${throughB}`);
   }
   expect(wrong, where).toEqual([]);
   // One line per place a drawn tie fills, from that tie to that place.
@@ -180,13 +190,31 @@ function expectLayout(view: BracketView, s: DrawSection, at: string) {
   }
 }
 
+/**
+ * WHETHER THE FIRST ROUND IS A PRELIMINARY ROUND, read off the draw itself rather
+ * than asked of the code: it is, when two of its byes would meet in the round after
+ * it — then most of the field is merely waiting for a few extra entries to be
+ * played off (129: one tie, 127 waiting), and a club calls that a preliminary
+ * round and marks nobody's "bye". Otherwise it is a round of the draw, and a seed
+ * with nobody to play in it had a bye in a round that is drawn (100 in a draw of
+ * 128: 36 ties, 28 byes).
+ */
+function preliminaryByTheDraw(view: BracketView): boolean {
+  if (view.rounds.length < 2) return false;
+  const first = view.rounds[0].matches;
+  return view.rounds[1].matches.some((_, i) => isByeTie(first[i * 2]) && isByeTie(first[i * 2 + 1]));
+}
+
 function expectByesMarkedOnce(view: BracketView, at: string) {
   const whole = drawSections(view).find((s) => s.key === "whole")!;
   const boxes = layoutSection(view, whole.keys, GAP).columns.flatMap((c) => c.ties);
   const byes = allTies(view).filter(isByeTie).length;
   const marks = boxes.reduce((n, b) => n + Number(b.a.bye) + Number(b.b.bye), 0);
-  // A one-round draw (one or two players) has no bye to mark: its only tie is the final.
-  expect(marks, `${at}: ${byes} byes, ${marks} marked`).toBe(view.rounds.length > 1 ? byes : 0);
+  // A one-round draw (one or two players) has no bye to mark: its only tie is the final;
+  // and nobody skipping a preliminary round is marked at all.
+  const expected = view.rounds.length > 1 && !preliminaryByTheDraw(view) ? byes : 0;
+  expect(marks, `${at}: ${byes} byes, ${marks} marked, ${expected} expected`).toBe(expected);
+  expect(boxes.filter((b) => b.a.bye && b.b.bye).map((b) => b.match.key), `${at}: a tie with two bye marks`).toEqual([]);
 }
 
 function expectFound(view: BracketView, sections: DrawSection[], at: string) {
@@ -209,7 +237,19 @@ describe("a draw's round names are a club's", () => {
     ]);
     expect(roundLabels(8, 5)).toEqual(["Preliminary round", "Semi-finals", "Final"]);
     expect(roundLabels(8, 8)).toEqual(["Quarter-finals", "Semi-finals", "Final"]);
-    expect(roundLabels(4, 3)).toEqual(["Preliminary round", "Final"]);
+    // Three: seed 1 has a bye in a semi-final that is drawn (no two byes meet in the final).
+    expect(roundLabels(4, 3)).toEqual(["Semi-finals", "Final"]);
+    // A hundred in a draw of 128: 36 ties and 28 byes is a Round 1, not a preliminary round.
+    expect(roundLabels(128, 100)).toEqual(["Round 1", "Round 2", "Round 3", "Round 4", "Quarter-finals", "Semi-finals", "Final"]);
+    // Twelve in sixteen: four ties and four byes — a Round 1 with byes in it.
+    expect(roundLabels(16, 12)).toEqual(["Round 1", "Quarter-finals", "Semi-finals", "Final"]);
+    // Twenty in thirty-two: four ties, twelve byes — a preliminary round.
+    expect(roundLabels(32, 20)[0]).toBe("Preliminary round");
+    // The name agrees with the draw: a preliminary round is exactly one whose byes would meet.
+    for (let n = 2; n <= 260; n += 1) {
+      const isPrelim = roundLabels(bracketSizeFor(n), n)[0] === "Preliminary round";
+      expect(isPrelim, `${n}`).toBe(preliminaryByTheDraw(buildBracket("winners", field(n), {})));
+    }
     expect(roundLabels(2, 1)).toEqual(["Final"]);
     expect(roundLabels(2, 2)).toEqual(["Final"]);
     for (const n of SIZES) {
@@ -291,5 +331,23 @@ describe("a draw is drawn in sections, and every tie is in them exactly once", (
     expect(sectionOfPlayer(view, sections, "p129")).toBe("q1");
     // The tab says how many are left to play.
     expect(sections.map((s) => s.toPlay)).toEqual([32, 31, 31, 31, 7, 128]);
+    // Nobody is marked "bye" for not needing the preliminary round; its one place in
+    // Round 1 says where its player comes from.
+    const whole = layoutSection(view, sections.find((s) => s.key === "whole")!.keys, GAP).columns.flatMap((c) => c.ties);
+    expect(whole.reduce((n, b) => n + Number(b.a.bye) + Number(b.b.bye), 0)).toBe(0);
+    expect(whole.filter((b) => b.a.prelim || b.b.prelim).map((b) => b.match.key)).toEqual(["winners-1-0"]);
+  });
+
+  it("100 in a draw of 128: Round 1 has 36 ties, and the 28 seeds with nobody to play are marked bye in Round 2", () => {
+    const view = buildBracket("winners", field(100), {});
+    expect(view.rounds.map((r) => r.label)).toEqual(["Round 1", "Round 2", "Round 3", "Round 4", "Quarter-finals", "Semi-finals", "Final"]);
+    const sections = drawSections(view);
+    const whole = layoutSection(view, sections.find((s) => s.key === "whole")!.keys, GAP).columns.flatMap((c) => c.ties);
+    const marked = whole.flatMap((b) => [b.a.bye ? b.match.a.playerId : null, b.b.bye ? b.match.b.playerId : null]).filter(Boolean);
+    expect(marked.length).toBe(28);
+    expect(whole.filter((b) => b.a.bye || b.b.bye).every((b) => b.match.roundIndex === 1)).toBe(true);
+    // The marked are the top 28 seeds.
+    expect(new Set(marked)).toEqual(new Set(field(100).slice(0, 28).map((p) => p.id)));
+    expect(whole.some((b) => b.a.prelim || b.b.prelim)).toBe(false);
   });
 });

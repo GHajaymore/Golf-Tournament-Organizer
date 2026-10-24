@@ -41,6 +41,12 @@ export interface BracketView {
   kind: BracketKind;
   rounds: BracketRound[];
   champion: BracketSlot | null;
+  /**
+   * The first round is a preliminary round (`hasPreliminaryRound`): its byes are
+   * not marked, and its winners are "through the preliminary round". Set by
+   * `buildBracket`; absent on a hand-built view, which reads as no.
+   */
+  preliminary?: boolean;
 }
 
 /**
@@ -559,9 +565,7 @@ export function bracketSizeFor(n: number): number {
  */
 export function roundLabels(size: number, entrants: number): string[] {
   const total = Math.log2(size);
-  // A field that does not fill its sheet has byes, and the round they skip is
-  // the preliminary round. A sheet of 2 (one or two players) is a final only.
-  const preliminary = total > 1 && entrants < size;
+  const preliminary = hasPreliminaryRound(size, entrants);
   const labels: string[] = [];
   for (let r = 0; r < total; r += 1) {
     const remaining = total - r;
@@ -572,6 +576,26 @@ export function roundLabels(size: number, entrants: number): string[] {
     else labels.push(`Round ${preliminary ? r : r + 1}`);
   }
   return labels;
+}
+
+/**
+ * WHETHER A DRAW'S FIRST ROUND IS A PRELIMINARY ROUND, or a round of the draw
+ * with byes in it (the coordinator's ruling on #935, 2026-10-23).
+ *
+ * 129 entrants in a sheet of 256 play ONE tie first, 128 v 129, and everybody
+ * else waits for it: that is a preliminary round, and a draw sheet marks nobody
+ * as having had a "bye" for not needing it. 100 entrants in a sheet of 128 play
+ * 36 ties in Round 1 and the top 28 seeds have nobody to play — a bye, in a
+ * round that is drawn, marked beside their name in Round 2.
+ *
+ * The line between the two is where two byes would meet: below three quarters
+ * of the sheet, the standard seeding pairs two byes in the next round (seeds a
+ * and S/2+1−a both without an opponent), so the first round is only the extra
+ * entries being played off. At three quarters or more no two byes ever meet, and
+ * the first round is a round. A sheet of two (one or two players) is a final.
+ */
+export function hasPreliminaryRound(size: number, entrants: number): boolean {
+  return size > 2 && entrants < size && 4 * entrants < 3 * size;
 }
 
 /**
@@ -766,7 +790,7 @@ export function buildBracket(
   const finalMatch = rounds[rounds.length - 1]?.matches[0];
   const champion = finalMatch?.winnerId ? slotFor(finalMatch.winnerId) : null;
 
-  return { kind, rounds, champion };
+  return { kind, rounds, champion, preliminary: hasPreliminaryRound(size, seededPlayers.length) };
 }
 
 

@@ -160,7 +160,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "A big draw opens on your part, marked You.",
       "Other tabs show the rest; Whole draw shows everything.",
       "Find a player shows anybody's path through the draw.",
-      "A bye is marked beside a name. Nobody plays it.",
+      "A bye is marked under a name. Nobody plays it.",
     ],
   },
   {
