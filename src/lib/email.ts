@@ -818,3 +818,65 @@ export async function sendFieldStatusEmail(
     });
   }
 }
+
+/**
+ * A LAPSED CLUB'S ARCHIVE IS ABOUT TO BE DELETED — to each of its owners, 30
+ * days before and again 7 days before (Ajay, 2026-10-21, decision A4;
+ * `services/club-archive.ts` decides when). One email per owner, so no owner's
+ * address is shown to another.
+ *
+ * The club's name was typed by a person and is escaped; the day comes worded
+ * at the club's own clock (`clubDayInWords`). The way to keep everything is the
+ * one button: the plan screen, where resubscribing lifts the archive.
+ */
+export async function sendArchiveNoticeEmail(n: {
+  to: string[];
+  organizationId: string;
+  organizationName: string;
+  days: 30 | 7;
+  until: string;
+  tournaments: number;
+}): Promise<void> {
+  const club = n.organizationName || "your club";
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping the ${n.days}-day archive notice to ${n.to.length} owner(s).`);
+    return;
+  }
+  const base = appUrl().base;
+  const what = n.tournaments === 1 ? "1 tournament" : `${n.tournaments} tournaments`;
+  const subject = `${club}: your archived tournaments are deleted on ${n.until}`;
+  const body =
+    `<p>The paid plan for <strong>${escapeHtml(club)}</strong> on TourneyHQ has ended, and its ${escapeHtml(what)} ${n.tournaments === 1 ? "has" : "have"} been kept read-only since.</p>` +
+    `<p><strong>${n.days === 7 ? "In 7 days" : "In 30 days"}, on ${escapeHtml(n.until)}, ${n.tournaments === 1 ? "it is" : "they are"} deleted for good</strong> — entries, cards, results, prizes and money records.</p>` +
+    `<p>To keep everything, choose a plan again before then: every tournament carries on exactly where it stopped. Or download what you want to keep from Reports &amp; export on each tournament.</p>`;
+  for (const to of n.to) {
+    const fail = async (message: string, statusCode?: number) =>
+      recordFailure({
+        kind: "archive",
+        reason: classifySendFailure(message, statusCode),
+        detail: message,
+        organizationIds: [n.organizationId],
+        toEmail: to,
+      });
+    try {
+      const { error } = await resend.emails.send({
+        from: FROM,
+        replyTo: SUPPORT_EMAIL,
+        to,
+        ...(await compose(subject, body, `You're getting this because you own ${escapeHtml(club)} on TourneyHQ.`, {
+          preview: `Choose a plan before ${n.until} to keep every tournament.`,
+          action: { label: "Keep everything", url: `${base}/organization#plan` },
+          organizationId: n.organizationId,
+        })),
+      });
+      if (error) {
+        console.error(`[email] Resend rejected the archive notice for ${maskEmail(to)}: ${error.message}`);
+        await fail(error.message, (error as { statusCode?: number }).statusCode);
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "unknown error";
+      console.error(`[email] Failed sending the archive notice to ${maskEmail(to)}: ${message}`);
+      await fail(message);
+    }
+  }
+}

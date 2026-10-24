@@ -16,13 +16,18 @@ import { keepsDataForever, PLANS, PAR_ROUND_WINDOW_DAYS, PAR_LIFESPAN_DAYS } fro
  *   - it is a tournament, not a casual round. A quick round has its own 24-hour
  *     expiry (`round-expiry.ts`) and is not what this rule is about;
  *   - nobody has put an explicit hold on it (`retainUntil` in the future). A
- *     hold only ever extends, the same rule `retentionDecision` keeps.
+ *     hold only ever extends, the same rule `retentionDecision` keeps;
+ *   - it is not in a lapsed paid club's archive (`archivedAt`, 2026-10-21).
+ *     Those were never Par's tournaments, and follow the archive's own
+ *     twelve months (`domain/club-archive.ts`). REQUIRED, so every caller
+ *     says whether it asked.
  */
 export interface CloseTermsInput {
   planTermsApply: boolean | null | undefined;
   plan: string | null | undefined;
   shape: string;
   retainUntil?: Date | null;
+  archivedAt: Date | null;
 }
 
 /**
@@ -36,6 +41,7 @@ export const PLANS_THAT_DELETE: string[] = Object.values(PLANS)
 
 export function wipesOnClose(input: CloseTermsInput, now: Date = new Date()): boolean {
   if (input.planTermsApply !== true) return false;
+  if (input.archivedAt) return false;
   if (keepsDataForever(input.plan ?? "free")) return false;
   if (input.shape === "match") return false;
   if (input.retainUntil && now.getTime() < new Date(input.retainUntil).getTime()) return false;

@@ -8,6 +8,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { usesAccessCodes, canPlayerSavePartial, canEnterScores } from "@/lib/tournament-settings";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { playRefusalFor } from "@/lib/services/action-shared";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { cleanHoleResults, cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { matchIsOver } from "@/lib/domain/match";
 import { roundCodeName } from "@/lib/domain/round-label";
@@ -264,6 +265,9 @@ export async function savePlayMatchHoles(
 ): Promise<ClaimResult> {
   const session = await getPlaySession();
   if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  // Paused in a lapsed club's read-only archive (2026-10-21), said beside the press.
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const [event, match] = await Promise.all([
     prisma.event.findUnique({ where: { id: session.eventId } }),
@@ -405,6 +409,9 @@ export async function savePlayMatchResult(
 ): Promise<ClaimResult> {
   const session = await getPlaySession();
   if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  // Paused in a lapsed club's read-only archive (2026-10-21), said beside the press.
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const [event, match] = await Promise.all([
     prisma.event.findUnique({ where: { id: session.eventId } }),
@@ -503,6 +510,9 @@ export async function savePlayMatchResult(
 export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimResult> {
   const session = await getPlaySession();
   if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  // Paused in a lapsed club's read-only archive (2026-10-21), said beside the press.
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const [event, stage] = await Promise.all([
     prisma.event.findUnique({ where: { id: session.eventId } }),
@@ -599,6 +609,9 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
 export async function certifyPlayCard(): Promise<ClaimResult> {
   const session = await getPlaySession();
   if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  // Paused in a lapsed club's read-only archive (2026-10-21), said beside the press.
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const [event, stage] = await Promise.all([
     prisma.event.findUnique({ where: { id: session.eventId } }),
@@ -659,6 +672,9 @@ export async function certifyPlayCard(): Promise<ClaimResult> {
 export async function savePlayMatchCard(matchId: string, strokes: (number | null)[]): Promise<ClaimResult> {
   const session = await getPlaySession();
   if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  // Paused in a lapsed club's read-only archive (2026-10-21), said beside the press.
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const [event, match] = await Promise.all([
     prisma.event.findUnique({ where: { id: session.eventId } }),

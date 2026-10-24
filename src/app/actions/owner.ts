@@ -3,7 +3,8 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
-import { PLANS, LIMIT_KEYS, isValidPercentOff, type PlanKey, type LimitKey } from "@/lib/plans";
+import { PLANS, LIMIT_KEYS, isValidPercentOff, keepsDataForever, type PlanKey, type LimitKey } from "@/lib/plans";
+import { liftArchive } from "@/lib/services/club-archive";
 import { savePricingOverride } from "@/lib/services/platform-pricing";
 import { drainWaitlist } from "@/lib/services/waitlist";
 import { saveLimitOverride } from "@/lib/services/platform-limits";
@@ -71,11 +72,16 @@ export async function setClubPlan(clubName: string, plan: string): Promise<Owner
   }
 
   const org = matches[0];
-  await prisma.subscription.upsert({
-    where: { organizationId: org.id },
-    update: { plan },
-    // No row is a club that predates the terms, so a new row keeps it so.
-    create: { organizationId: org.id, plan, planTermsApply: false },
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.upsert({
+      where: { organizationId: org.id },
+      update: { plan },
+      // No row is a club that predates the terms, so a new row keeps it so.
+      create: { organizationId: org.id, plan, planTermsApply: false },
+    });
+    // A paid plan arranged directly is the club paying again: a lapsed club's
+    // archive lifts, exactly as resubscribing through Stripe lifts it.
+    if (keepsDataForever(plan)) await liftArchive(tx, org.id);
   });
   /**
    * A HIGHER CAP OPENS PLACES (2026-10-09). Players put on a waiting list only

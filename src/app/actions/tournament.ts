@@ -162,6 +162,7 @@ import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, lockedRefusal, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
+import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
@@ -170,12 +171,34 @@ import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { isSupportedLocale } from "@/lib/domain/locale";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 
-/** Primary Organizer only (admin) — critical config and access control. */
+/**
+ * Primary Organizer only (admin) — critical config and access control.
+ *
+ * Both staff gates refuse a tournament in a lapsed club's read-only archive
+ * (`assertEventWritable`, 2026-10-21): every staff action in this file passes
+ * through one of them, so none can change an archived tournament by forgetting.
+ */
 async function requireAdminEvent(): Promise<string> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   if (session.role !== "admin") throw new Error("Organizer access required");
+  await assertEventWritable(session.eventId);
   return session.eventId;
+}
+
+/**
+ * The admin gate for a press that says its refusals — the dashboard's Launch
+ * and Complete. An archived tournament's refusal comes back as words to show
+ * beside the button, not as a thrown error a production build blanks.
+ */
+async function adminEventOrRefusal(): Promise<{ eventId: string } | { refused: string }> {
+  try {
+    return { eventId: await requireAdminEvent() };
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { refused };
+    throw e;
+  }
 }
 
 /** Organizer or Assistant Organizer — operational tasks. */
@@ -185,6 +208,7 @@ async function requireStaffEvent(): Promise<string> {
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Organizer access required");
   }
+  await assertEventWritable(session.eventId);
   return session.eventId;
 }
 
@@ -224,6 +248,13 @@ async function requireScoreEntry(
    */
   const notStarted = await playRefusalFor(session.eventId);
   if (notStarted) throw new Error(notStarted);
+  /**
+   * AND NOT IN A LAPSED CLUB'S ARCHIVE: an unfinished tournament there is
+   * paused where it stands (2026-10-21). Here, for the same reason as the
+   * launch check above — every door into scoring passes through this.
+   */
+  const archived = await archiveRefusalFor(session.eventId, session.role === "player" ? "player" : "organizer");
+  if (archived) throw new Error(archived);
   return { eventId: session.eventId, session, settings };
 }
 
@@ -3389,6 +3420,8 @@ export async function confirmMatch(matchId: string): Promise<ConfirmResult> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const eventId = session.eventId;
+  const archived = await archiveRefusalFor(eventId, session.role === "player" ? "player" : "organizer");
+  if (archived) return { ok: false, error: archived };
 
   const [event, match] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
@@ -3519,6 +3552,8 @@ export async function confirmMatches(
     return { ok: false, confirmed: 0, error: "An organizer approves scores." };
   }
   const eventId = session.eventId;
+  const archived = await archiveRefusalFor(eventId);
+  if (archived) return { ok: false, confirmed: 0, error: archived };
 
   const result = await prisma.match.updateMany({
     where: {
@@ -3568,6 +3603,8 @@ export async function disputeMatch(matchId: string): Promise<{ ok: boolean; erro
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const eventId = session.eventId;
+  const archived = await archiveRefusalFor(eventId, session.role === "player" ? "player" : "organizer");
+  if (archived) return { ok: false, error: archived };
   const match = await prisma.match.findFirst({
     where: { id: matchId, eventId },
     select: { playerAId: true, playerBId: true, teamAId: true, teamBId: true, scoreStatus: true, scoredAt: true },
@@ -3759,6 +3796,9 @@ export async function reportBracketResult(
   // A draw nobody has launched is not being played yet — the same rule as a card.
   const notStarted = await playRefusalFor(eventId);
   if (notStarted) return { ok: false, error: notStarted };
+  // Nor one paused in a lapsed club's archive.
+  const archived = await archiveRefusalFor(eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const [state, mine] = await Promise.all([loadEventState(eventId), myPlayerIds(eventId, session.email)]);
   if (!state) return { ok: false, error: "That tournament isn't available." };
@@ -4511,7 +4551,9 @@ export async function setEventStatus(
   /** Must be true to complete a tournament the Free plan deletes on completion. */
   confirmDelete = false,
 ): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean }> {
-  const eventId = await requireAdminEvent();
+  const gate = await adminEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   // A status is moved, not set: see `statusMove` for the three things that
   // followed from writing whatever arrived, an unknown word read as "draft"
   // among them.
@@ -4529,7 +4571,9 @@ export async function setEventStatus(
   if (current.status === "completed" && s !== "completed" && (await wipesOnCloseFor(eventId))) {
     // An instant, worded as the day it is at the club (`dayAtClubForEvent`).
     const words = current.closesAt ? (await dayAtClubForEvent(eventId))(current.closesAt) : null;
-    const refusal = reopenRefusal({ planTermsApply: true, plan: "free", shape: "stroke" }, words);
+    // `wipesOnCloseFor` has already said Par's terms hold here, which an archived tournament never
+    // meets (it follows the lapsed-club archive instead), so this one is not archived.
+    const refusal = reopenRefusal({ planTermsApply: true, plan: "free", shape: "stroke", archivedAt: null }, words);
     if (refusal) return { ok: false, error: refusal };
   }
   /**
@@ -4641,7 +4685,9 @@ export async function setEventStatus(
 }
 
 export async function launchTournament(): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireAdminEvent();
+  const gate = await adminEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   /**
    * NOTHING USED TO STOP THIS, and launching is not a small act: it publishes
    * the tournament to its field and clears `configUnlocked`, so a tournament
