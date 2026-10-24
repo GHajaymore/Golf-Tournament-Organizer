@@ -32,7 +32,9 @@ import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { MoneySetup } from "@/components/MoneySetup";
 import { houseDefaultsOf } from "@/lib/tournament-settings";
 import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
-import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
+import type { SettingsSection } from "@/components/SettingsNav";
+import { SettingsTabs, SettingsTabPanel } from "@/components/SettingsTabs";
+import { OrganizationHeading } from "@/components/OrganizationClient";
 
 export const generateMetadata = () => screenMetadataForEvent("/organization");
 
@@ -133,13 +135,16 @@ export default async function OrganizationPage() {
   const asks = await pendingAsks(org.id);
 
   /**
-   * What this page contains, in the order it contains it.
+   * What this page contains, in the order it contains it — one TAB each now
+   * (Ajay, 2026-10-21: "change the structure as needed"; see SettingsTabs).
    *
-   * Written once and read by the nav; the ids are on the sections themselves.
-   * "Currency" and "Money" are two entries because the page genuinely has two
-   * money sections — the symbol every amount is shown in, and how money works
-   * at the club — and a nav offering the same word twice is worse than the
-   * scroll it replaces.
+   * Written once and read by the tabs; the ids are on the sections themselves,
+   * and they are the hashes every other screen links to (`#plan`, `#access`,
+   * `#money`), so they do not change.
+   *
+   * Staff & access carries a count when somebody is waiting to be let in: the
+   * requests used to be on the one long page for anybody scrolling past, and
+   * behind a tab they would be seen only by somebody who went looking.
    */
   const sections: SettingsSection[] = [
     { id: "identity", label: "Name & branding" },
@@ -148,13 +153,16 @@ export default async function OrganizationPage() {
     { id: "handicaps", label: "Handicaps" },
     { id: "money", label: "Money" },
     { id: "plan", label: "Plan" },
-    { id: "access", label: "Staff & access" },
+    { id: "access", label: "Staff & access", count: asks.length },
   ];
+  const outfit = orgProfile(org.kind, org.country, org.communityNoun);
 
   return (
     <>
-      <SettingsNav sections={sections} />
-      <section id="identity" style={{ scrollMarginTop: 118 }}>
+      {/* The heading above the tabs, so it is on every one of them. */}
+      <OrganizationHeading kind={org.kind} country={org.country} communityNoun={org.communityNoun} />
+      <SettingsTabs sections={sections} label={`${outfit.settingsLabel}: sections`}>
+      <SettingsTabPanel id="identity">
       <OrganizationClient
         name={org.name}
         shortName={org.shortName}
@@ -170,62 +178,17 @@ export default async function OrganizationPage() {
         memberCount={standing.staffSeats.current}
         canEdit={canEdit}
       />
-      </section>
-      <SettingsSectionAnchor id="theme">
-        <ThemePicker
-          theme={{
-            accentKey: org.themeKey,
-            accentHex: org.themeHex,
-            secondaryKey: org.themeSecondaryKey,
-            secondaryHex: org.themeSecondaryHex,
-            // Stored as free text, so it is narrowed here rather than cast —
-            // a bad row shouldn't crash the settings screen.
-            appearance: isAppearance(org.themeAppearance) ? org.themeAppearance : DEFAULT_APPEARANCE,
-          }}
-          readOnly={!canEdit}
-        />
-      </SettingsSectionAnchor>
-      <SettingsSectionAnchor id="defaults">
-        <PlaySettings
-          mode="organization"
-          settings={houseDefaultsOf(org)}
-          canEdit={canEdit}
-        />
-      </SettingsSectionAnchor>
-
-      {/* The club's money default, on the screen the setup checklist has
-          always pointed at. `SETUP_HREF.money` is `/organization`, and until
-          now this page had no money control on it — the club default was a
-          collapsed disclosure inside a card titled "Money in this tournament",
-          over on Prizes & payouts. So the step could not be ticked by
-          following its own link, and `orgSetupState` reads exactly the column
-          that disclosure writes. */}
-      {/* Where handicaps come from, beside the club's other house rules.
-          It belongs here rather than on the roster: it is a decision about
-          the club, not about any one member. */}
-      <SettingsSectionAnchor id="handicaps">
-        <HandicapSetup view={{ ...handicaps, canEdit }} />
-      </SettingsSectionAnchor>
-
-      {/* ONE MONEY SECTION, NOT TWO.
-          The currency sat up beside the theme, three sections away, under a
-          card also titled "Money" — so the page had two things by that name
-          with House defaults and Handicaps between them, and the jump-to nav
-          had to invent "Currency" and "Money" to tell them apart.
-
-          The note that put it there said it belongs beside the theme because
-          it is "the same kind of decision: one setting belonging to the club".
-          True, and true of every setting on this page — it does not separate
-          this one from anything. The SUBJECT is money, and subject is what a
-          reader navigates by.
-
-          Both are still their own card, because they are two decisions: what
-          symbol every amount is shown in, and how money works at the club. */}
-      <SettingsSectionAnchor id="money">
-        {/* ONLY A COMMUNITY, because it is the only kind whose noun travels
-            badly. A club is a club and an outing is an outing wherever they
-            are played; offering either of them a word to change would be
-            asking a question with no right answer behind it.
+        {/* WHO THIS IS, BESIDE WHAT IT IS CALLED. These three cards sat under
+            Money, between the currency and the money default, because that is
+            where the page had room when each was added. Each is about the
+            outfit's identity — what kind it is, the word it goes by, the words
+            its golfers use — which is this section's subject, and the name and
+            country they are read with are in the card just above. */}
+        <div style={{ marginTop: 16 }}>
+        {/* ONLY A COMMUNITY is asked what it is called, because it is the only
+            kind whose noun travels badly. A club is a club and an outing is an
+            outing wherever they are played; offering either of them a word to
+            change would be asking a question with no right answer behind it.
 
             The country on this page already picks a default — a society in
             Britain and Ireland, a league in the United States — and a country
@@ -262,6 +225,86 @@ export default async function OrganizationPage() {
             <GolfTermsPicker terms={org.golfTerms} country={org.country} />
           </section>
         )}
+        </div>
+
+        {/* For the owner alone, at the foot of the club's own section — where
+            the outfit itself is described, and where a settings screen puts the
+            one act that ends it. The rule and its reasons are in
+            domain/club-deletion.ts. */}
+        {isClubOwner && (
+          <div style={{ marginTop: 16 }}>
+            <DeleteClub
+              clubName={org.name}
+              noun={outfit.noun}
+              paidPlanRunning={paidPlanRunning(org.subscription)}
+            />
+          </div>
+        )}
+      </SettingsTabPanel>
+      <SettingsTabPanel id="theme">
+        <ThemePicker
+          theme={{
+            accentKey: org.themeKey,
+            accentHex: org.themeHex,
+            secondaryKey: org.themeSecondaryKey,
+            secondaryHex: org.themeSecondaryHex,
+            // Stored as free text, so it is narrowed here rather than cast —
+            // a bad row shouldn't crash the settings screen.
+            appearance: isAppearance(org.themeAppearance) ? org.themeAppearance : DEFAULT_APPEARANCE,
+          }}
+          readOnly={!canEdit}
+        />
+      </SettingsTabPanel>
+      <SettingsTabPanel id="defaults">
+        <PlaySettings
+          mode="organization"
+          settings={houseDefaultsOf(org)}
+          canEdit={canEdit}
+        />
+      </SettingsTabPanel>
+
+      {/* The club's money default, on the screen the setup checklist has
+          always pointed at. `SETUP_HREF.money` was `/organization`, and until
+          then this page had no money control on it — the club default was a
+          collapsed disclosure inside a card titled "Money in this tournament",
+          over on Prizes & payouts. So the step could not be ticked by
+          following its own link, and `orgSetupState` reads exactly the column
+          that disclosure writes. It is `/organization#money` since the page
+          became tabs: the plain address opens Name & branding, which would be
+          the same fault again one tab along. */}
+      {/* Where handicaps come from, beside the club's other house rules.
+          It belongs here rather than on the roster: it is a decision about
+          the club, not about any one member. */}
+      <SettingsTabPanel id="handicaps">
+        <HandicapSetup view={{ ...handicaps, canEdit }} />
+      </SettingsTabPanel>
+
+      {/* ONE MONEY SECTION, NOT TWO.
+          The currency sat up beside the theme, three sections away, under a
+          card also titled "Money" — so the page had two things by that name
+          with House defaults and Handicaps between them, and the jump-to nav
+          had to invent "Currency" and "Money" to tell them apart.
+
+          The note that put it there said it belongs beside the theme because
+          it is "the same kind of decision: one setting belonging to the club".
+          True, and true of every setting on this page — it does not separate
+          this one from anything. The SUBJECT is money, and subject is what a
+          reader navigates by.
+
+          Both are still their own card, because they are two decisions: what
+          symbol every amount is shown in, and how money works at the club. */}
+      <SettingsTabPanel id="money">
+        {/* THE CURRENCY CARD STAYS WITH MONEY, WHOLE (2026-10-21). It holds
+            the currency, how dates and amounts are written, the time zone and
+            the season, and the last three are not money — so moving them to
+            Name & branding under "Region & calendar" was weighed. Kept here
+            because the card's own notes chain each one to the one before it:
+            the conventions are "two halves of one answer" with the currency (a
+            club set to euros that still wrote "€1,234.00"), the time zone is
+            "where the 12th ENDS, beside how it is written", the season sits
+            beside how a date is written. Split, a club could set one half and
+            not the other, which is the state its first note says looked right
+            and was wrong. The tab is Money because the card's title is. */}
         {canEdit && (
           <section className="card elev-sm" style={{ marginBottom: 16 }}>
             {/* "Currency", which is what it is. It was "Money", which is also
@@ -301,13 +344,13 @@ export default async function OrganizationPage() {
           clubName={org.shortName || org.name}
           canEdit={canEdit}
         />
-      </SettingsSectionAnchor>
+      </SettingsTabPanel>
 
       {/* What the club is on, and what it is losing by being on it.
           Club settings is where an organizer already comes to decide how the
           club runs, so it is where the question of what the club is paying
           for belongs. */}
-      <SettingsSectionAnchor id="plan">
+      <SettingsTabPanel id="plan">
         {/* The SAME `standing` the Staff card above is drawn from, resolved
             once. Two calls would be two truths the moment one of them moved. */}
         <PlanPanel
@@ -330,9 +373,9 @@ export default async function OrganizationPage() {
             discountNote: org.discountCode ? await discountNoteFor(org.discountCode) : undefined,
           }}
         />
-      </SettingsSectionAnchor>
+      </SettingsTabPanel>
 
-      <SettingsSectionAnchor id="access">
+      <SettingsTabPanel id="access">
         {/* The SAME seat number the stat card at the top prints, from the one
             function that defines a seat. See the prop's note: this table and
             that card both said "staff" about two different sets and disagreed
@@ -344,19 +387,8 @@ export default async function OrganizationPage() {
           seats={standing.staffSeats.current}
           organizer={golfTermsFor(golfRegister(org.country, org.golfTerms)).organizer}
         />
-      </SettingsSectionAnchor>
-
-      {/* Last on the page, and for the owner alone — the rule and its reasons
-          are in domain/club-deletion.ts. */}
-      {isClubOwner && (
-        <div style={{ marginTop: 16 }}>
-          <DeleteClub
-            clubName={org.name}
-            noun={orgProfile(org.kind, org.country, org.communityNoun).noun}
-            paidPlanRunning={paidPlanRunning(org.subscription)}
-          />
-        </div>
-      )}
+      </SettingsTabPanel>
+      </SettingsTabs>
     </>
   );
 }

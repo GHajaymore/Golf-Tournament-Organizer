@@ -44,7 +44,7 @@ including currency and golf terminologies." Decided the same day:
   - Everything else, Canada included, is US. Blank or unknown is US.
 - **`Organization.golfTerms`**: `""` follows the country; `"us"` or `"uk"` is the club's
   choice. Migration `84_golf_terms` is additive, and the empty default means no backfill.
-- **Club settings**, "Golf words": the picker (`GolfTermsPicker`) and the action
+- **Club settings**, "Golf words" (on the Name & branding tab since 2026-10-21): the picker (`GolfTermsPicker`) and the action
   (`saveOrganizationGolfTerms`), with the owner/admin guard and validation, the same shape
   as the community noun.
 - **Terms so far:**
