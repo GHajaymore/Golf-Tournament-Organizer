@@ -78,6 +78,8 @@ export const TOURNAMENT_ONLY_SCREENS: ReadonlySet<string> = new Set([
   // The field's apparatus.
   "grouping",
   "foursomes",
+  // Printed from the tee sheet a casual round does not have.
+  "print",
   "announcements",
   "access",
   // The organization's.
@@ -400,6 +402,9 @@ export const NAV: NavSection[] = [
     label: ROUND_SECTION,
     items: [
       { key: "foursomes", label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four", tier: "on-course" },
+      // Under the Tee sheet it prints from (2026-10-23): the morning's paper — cards, cart signs, the
+      // starting sheet. Desk work: it is done at a printer, not on the first tee.
+      { key: "print", label: "Print kit", href: "/print", icon: "ph ph-printer", tier: "at-desk" },
       { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", tier: "on-course" },
       { key: "leaderboard", label: "Leaderboard", href: "/leaderboard", icon: "ph ph-ranking", tier: "on-course" },
       { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", tier: "on-course" },

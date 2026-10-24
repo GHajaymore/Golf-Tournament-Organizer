@@ -437,14 +437,16 @@ describe("the arithmetic is written once and handed the unrounded figure", () =>
         // And `aggregateTeamCard` hands over each member's `courseHandicap`, which
         // the next test pins to the exact figure at both of its callers.
         const insideTheEngine = f === "src/lib/domain/team.ts" && arg === "m.courseHandicap";
-        if (!exactly.test(arg) && !/^matchStrokesCount\(/.test(arg) && arg !== "ch" && !insideTheEngine)
+        // `matchStrokesDifference` is the same difference, not floored at nought (a plus figure on a medal).
+        if (!exactly.test(arg) && !/^matchStrokes(Count|Difference)\(/.test(arg) && arg !== "ch" && !insideTheEngine)
           bad.push(`${f}: allocatedStrokes(${arg}, …)`);
       }
     }
     expect(bad).toEqual([]);
-    const card = codeOf.get("src/app/(app)/foursomes/page.tsx")!;
-    expect(card).toMatch(/const frozenHandicapOf = \(id: string\): number =>\s*roundHandicapExactOf\(/);
-    expect(card).toMatch(/const ch = frozenHandicapOf\(pl\.id\);/);
+    // The printed card, built in the Print kit's service since 2026-10-23.
+    const card = codeOf.get("src/lib/services/print-kit.ts")!;
+    expect(card).toMatch(/const frozenExactOf = \(id: string\): number =>\s*roundHandicapExactOf\(/);
+    expect(card).toMatch(/allocatedStrokes\(frozenExactOf\(id\), allowance, cardStrokeIndex, parStrokesOf\(id\)\)/);
     expect(card).not.toMatch(/\broundHandicapOf\(/);
   });
 

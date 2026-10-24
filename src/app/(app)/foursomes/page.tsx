@@ -1,16 +1,15 @@
+import Link from "next/link";
+import { headers } from "next/headers";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
-import { teeNamesForRound, teesForEvent, teeForPlay, roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
-import { roundHandicapRows, type RoundHandicapRows } from "@/lib/services/round-handicap";
-import { roundHandicapExactOf, roundParStrokesOf } from "@/lib/domain/round-handicap";
-import { parStrokesApply, playingHandicapInRound } from "@/lib/round-allowance";
-import { effectiveAllowance, effectiveCountBest, teamsForStage, teamStandings } from "@/lib/services/teams";
-import { needsTeams, sharesOneCard } from "@/lib/formats";
-import { isHeadToHead } from "@/lib/stage-types";
-import { allocatedStrokes, matchStrokesCount, matchStrokesPerHole } from "@/lib/domain/team";
-import { NO_PAR_STROKES } from "@/lib/domain/handicap";
+import { teamsForStage, teamStandings } from "@/lib/services/teams";
+import { needsTeams } from "@/lib/formats";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
+import { printKit } from "@/lib/services/print-kit";
+import { staleSentence } from "@/lib/domain/print-kit";
+import { requestOrigin } from "@/lib/request-origin";
+import { screenName } from "@/lib/nav";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { FoursomeMaker } from "@/components/FoursomeMaker";
@@ -22,15 +21,14 @@ import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/do
 import { parseTeeSheet, teeSheetDrift, driftSentence } from "@/lib/domain/tee-sheet";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { shortDate } from "@/lib/domain/round-dates";
-import { TeeSheetPrint } from "@/components/TeeSheetPrint";
 import { roundCard } from "@/lib/services/course-resolution";
-import { brandForEvent, formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
+import { formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
 import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { requestClusters, requestPairs, splitRequests } from "@/lib/domain/pairing-requests";
 import { PairingRequests } from "@/components/PairingRequests";
-import { parsePinSheet, pinShort } from "@/lib/domain/pin-sheet";
+import { parsePinSheet } from "@/lib/domain/pin-sheet";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { RoundDaySetup } from "@/components/RoundDaySetup";
 
@@ -235,172 +233,26 @@ export default async function FoursomesPage({
     ? await prisma.course.findUnique({ where: { id: stage.courseId } })
     : null;
   const course = roundCard(stage, state.event, roundCourse);
-  const brand = await brandForEvent(session.eventId);
-  // The club's own date order for the round tabs and the printed cards (`shortDate`).
+  // The club's own date order for the round tabs (`shortDate`).
   const { locale } = await formattingForEvent(session.eventId);
-  const nameOf = new Map(state.confirmed.map((p) => [p.id, p]));
   /**
-   * The tee each player is on, for the card they carry out.
+   * WHAT THIS ROUND'S PRINTED SHEETS SAY NOW, against what was printed.
    *
-   * Resolved through the round's own handicap reader, so the set printed
-   * beside a name is the set the round is scored from — including when the
-   * competition holds the whole field to one. A card that named a different
-   * tee to the one the strokes came from would be worse than a card that
-   * named none.
+   * The cards this screen used to print — and the chain that priced them: the
+   * course handicap off the tee being played, the allowance of the unrounded
+   * figure rounded once, the strokes for tees of a higher par, the frozen
+   * figure, a match off its low — moved whole to `services/print-kit.ts`
+   * (2026-10-23), which every printed document now reads. This screen keeps
+   * the door to it, and says when paper already handed out has gone stale.
    */
-  /**
-   * The round's own set — the CONFIGURED one, not the first by position.
-   *
-   * The comment here used to state the opposite as a fact: "the first tee by
-   * position, which is the same default every scoring path uses". It was not.
-   * `roundTeeId` puts the round's `defaultTeeId` ahead of first-by-position and
-   * the board, the importer, the regrouper, teams and skins all go through it —
-   * so a club whose rows run Blue, White and sets its medal off the Whites had
-   * this print "Blue" beside every name on a card scored off White. The false
-   * invariant is the reason nobody looked: it read as though it had been
-   * checked.
-   */
-  const eventTees = await teesForEvent(session.eventId);
-  const teeNames = await teeNamesForRound(
-    session.eventId,
-    holesPlayed(stage?.holes),
-    // The round’s own set first, and the fallback scoped to the course it is
-    // played on — a tee sheet for day two of a two-venue event named day
-    // one’s tees. See `teeForPlay`.
-    teeForPlay(
-      eventTees,
-      { stageTeeId: stage?.teeId, eventDefaultTeeId: state.event.defaultTeeId },
-      stage?.courseId ?? state.event.courseId ?? null,
-    ),
-  );
-  /**
-   * THE SHOTS EACH PLAYER GETS, AND WHERE — for the card they carry out.
-   *
-   * The printed card had blank boxes and a handicap index beside the name, so
-   * a player in a net competition could not see which holes they receive a
-   * stroke on. The entry screen has shown those dots for a long time; paper
-   * had nothing. Ajay, 2026-09-22: "so you have that build into online score
-   * entry. now we just need to have it on printed paper."
-   *
-   * THROUGH THE SAME CHAIN THE ROUND IS SCORED ON, every step of it:
-   * `roundCourseHandicaps` for the course handicap off the tee actually being
-   * played, `effectiveAllowance` for the round's allowance including the
-   * per-format rules and the zero default, and `allocatedStrokes` to apply the
-   * allowance ONCE and then spread it by stroke index. That last order is not
-   * an implementation detail — `team.ts` records that applying the allowance
-   * per hole rounds each hole separately and drifts by several strokes over a
-   * round.
-   *
-   * A second reading here would eventually print dots the round does not
-   * score, which is worse than printing none: a player marks a net score on
-   * the strength of a dot that was not there.
-   */
-  const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance, stage.type) : 100;
-  const courseHandicaps = roundCourseHandicaps({
-    tees: eventTees,
-    players: state.confirmed,
-    field: state.confirmed,
-    flightTeeOf: await flightTeeByPlayer(session.eventId),
-    stage,
-    event: state.event,
-  });
+  const kit = stage ? await printKit(session.eventId, { stageId: stage.id, origin: requestOrigin(await headers()) }) : null;
+  const staleSheets = kit?.statuses.filter((s) => s.state === "stale") ?? [];
 
-  /**
-   * FROZEN, once the round's handicaps are locked — the number the round is
-   * actually scored on. `courseHandicaps` above is LIVE; the board, the entry
-   * dots and the stored team result all read the frozen figure through
-   * `roundHandicapOf`, so this printed card must too, or after a later index
-   * change it prints dots and a Hcp the round does not honour. A no-op until a
-   * round is frozen: `roundHandicapOf` returns the live figure when there is no
-   * row. This is the four-ball/singles/Hcp gap the sweep found — the single-ball
-   * side already reads `teamsForStage`'s frozen `playingHandicap`.
-   */
-  const roundHcpRows: RoundHandicapRows = stage ? await roundHandicapRows(session.eventId, stage.id) : new Map();
-  /**
-   * AND BEFORE ROUNDING, because every use of it below takes the round's
-   * allowance: 95%, 85% or 90% is taken of the unrounded course handicap and
-   * rounded once (Rule 6.2a), exactly as the board takes it.
-   */
-  const frozenHandicapOf = (id: string): number =>
-    roundHandicapExactOf(roundHcpRows.get(id), courseHandicaps.get(id) ?? 0, courseHandicaps.exact(id) ?? 0);
-  /**
-   * THE STROKES FOR TEES OF A HIGHER PAR (Rule 6.2b), as the board gives them:
-   * what the round froze, or the field's answer today, and nought where the
-   * round's format gives none. A card that left them off would print one dot
-   * fewer than the round scores for everybody on the longer par.
-   */
-  const givesParStrokes = !!stage && parStrokesApply(stage.format, stage.scoringBasis);
-  const parStrokesOf = (id: string): number =>
-    givesParStrokes ? roundParStrokesOf(roundHcpRows.get(id), courseHandicaps.parStrokes(id)) : NO_PAR_STROKES;
-  /** What one player's own ball plays off in this round: allowance, rounded once, then those strokes. */
-  const playsOff = (id: string): number =>
-    playingHandicapInRound(stage, roundHcpRows.get(id), {
-      whole: courseHandicaps.get(id) ?? 0,
-      exact: courseHandicaps.exact(id) ?? 0,
-      parStrokes: courseHandicaps.parStrokes(id),
-    });
-  /**
-   * ALREADY NARROWED. `course` above is `cardForStage(...)`, which selects the
-   * round's nine and RE-RANKS its stroke index — so this was
-   * `course.strokeIndex.slice(0, holes)` and both wrong and unnecessary: an
-   * eighteen-hole index sliced to nine is 1,3,5,…,17, which is the exact fault
-   * `a round's card is narrowed in exactly one place` exists to stop. It
-   * caught it.
-   */
-  const cardStrokeIndex = course.strokeIndex;
-
-  /**
-   * WHO IS PARTNERED WITH WHOM, AND WHOSE BALL IS BEING SCORED.
-   *
-   * The printed card drew one row of boxes per player whatever the round was,
-   * so a team round came out looking exactly like a medal. Two things were
-   * wrong with that and only one of them is cosmetic:
-   *
-   *   - a four-ball card that does not name the sides cannot be used. The
-   *     default side is TWO (`sideSize: 2`), so a group of four is normally
-   *     two sides, and nothing on the paper said which two balls made one;
-   *   - a SHARED-ball round got four rows for one ball. `sharesOneCard` says
-   *     in its own words that "the side shares a single scorecard rather than
-   *     one card each", and the card that prints ignored it — so a foursomes
-   *     or a scramble printed three rows nobody may write in, beside handicaps
-   *     that are not the ones the side plays off.
-   *
-   * Read from `teamsForStage`, which is the same reader the team boards use,
-   * and the side's strokes are allocated with `allocatedStrokes(hcp, 100, …)`
-   * because `TeamView.playingHandicap` already carries the round's allowance
-   * — that is byte-for-byte what `singleBallTeamCard` does when it scores the
-   * round, so the paper cannot disagree with the board.
-   */
-  /**
-   * SINGLES MATCH PLAY IS THE SAME CARD PROBLEM, and it was the gap the sweep
-   * found. `needsTeams` is false for Match Play, so a singles match printed a
-   * MEDAL card: the index in brackets, dots off the full handicap, and no line
-   * for the match — while `matchStrokesGiven` has always scored it off the
-   * lower of the two. The paper disagreed with the engine.
-   *
-   * So the card's terms are not "is this a team round" but "what is this round
-   * doing", and a singles match carries them with `teams: false`.
-   */
-  const roundIsMatch = !!stage && isHeadToHead(stage.type);
-  const teamRound =
-    stage && (needsTeams(stage.format) || roundIsMatch)
-      ? {
-          format: stage.format,
-          allowance,
-          teams: needsTeams(stage.format),
-          sharedBall: needsTeams(stage.format) && sharesOneCard(stage.format),
-          countBest: effectiveCountBest(stage.format, stage.countBest),
-          matchPlay: roundIsMatch,
-        }
-      : null;
+  /** The round's sides, so partners go out together on the sheet (`groupBySides`). */
   const teams =
-    teamRound?.teams && stage
-      ? // With the committee's own split, as the board and the entry screen pass it:
-        // without it a printed card read "Plays off" by the format's usual shares.
-        await teamsForStage(session.eventId, stage.id, stage.format, stage.handicapAllowance, holes, stage.allowanceWeights)
+    stage && needsTeams(stage.format)
+      ? await teamsForStage(session.eventId, stage.id, stage.format, stage.handicapAllowance, holes, stage.allowanceWeights)
       : [];
-  const sideOf = new Map<string, string>();
-  for (const t of teams) for (const m of t.members) sideOf.set(m.playerId, t.name);
   /**
    * A PAIRS ROUND IS DRAWN BY THE SIDES' POSITION (2026-10-10). Round 2 of a
    * two-round better-ball goes out leaders last, like any championship — but
@@ -436,151 +288,11 @@ export default async function FoursomesPage({
       .filter((r) => r.played > 0)
       .flatMap((r, i) => r.memberIds.map((playerId) => ({ playerId, position: i + 1 })));
   })();
-  /**
-   * A MATCH IS PLAYED OFF THE LOWEST HANDICAP IN IT, so the card has to know
-   * which match a side is in before it can print a single dot.
-   *
-   * `matchHolesOffTheLow` scores it that way; a card still printing full
-   * allowances would hand a player dots the round does not honour, which is
-   * worse than printing none — they mark a net score on the strength of one.
-   *
-   * THE PAIRING, NOT THE TEE TIME. The low is taken from the two sides of the
-   * MATCH, read off the `Match` rows, rather than from whoever shares a group.
-   * Those are usually the same four people and occasionally are not, and a
-   * card that guessed would be wrong in exactly the case nobody checks.
-   */
-  const matchPlay = !!stage && !!teamRound?.matchPlay;
-  const matches = matchPlay
-    ? await prisma.match.findMany({
-        where: { stageId: stage!.id },
-        select: { id: true, teamAId: true, teamBId: true, playerAId: true, playerBId: true },
-      })
-    : [];
-  const playingOf = new Map<string, number>();
-  for (const t of teams) {
-    for (const m of t.members) {
-      playingOf.set(m.playerId, playsOff(m.playerId));
-    }
-  }
-  /** The lowest figure in a side's match — its own scale, so a shared ball is
-   *  measured against the other SIDE and a four-ball against every player. */
-  const lowOf = new Map<string, number>();
-  const teamById = new Map(teams.map((t) => [t.id, t]));
-  for (const m of matches) {
-    const a = teamById.get(m.teamAId);
-    const b = teamById.get(m.teamBId);
-    if (!a || !b) continue;
-    const figures = teamRound!.sharedBall
-      ? [a.playingHandicap, b.playingHandicap]
-      : [...a.members, ...b.members].map((x) => playingOf.get(x.playerId) ?? 0);
-    const low = Math.min(...figures.map((n) => Math.round(n)));
-    lowOf.set(a.id, low);
-    lowOf.set(b.id, low);
-  }
-  const lowForPlayer = new Map<string, number>();
-  for (const t of teams) {
-    const low = lowOf.get(t.id);
-    if (low === undefined) continue;
-    for (const m of t.members) lowForPlayer.set(m.playerId, low);
-  }
-
-  /**
-   * SINGLES: the same rule with a field of two. The lower of the pair plays
-   * off scratch and the other receives the difference, which is exactly what
-   * `matchStrokesGiven` allocates when the result is worked out — so the card
-   * reads the Match rows rather than guessing from who shares a tee time.
-   *
-   * `blockOf` also becomes the grouping: a four-ball of singles is TWO
-   * matches, and printing four names in draw order hides which two are
-   * playing each other.
-   */
-  const blockOf = new Map<string, string>();
-  if (matchPlay && teamRound && !teamRound.teams) {
-    for (const m of matches) {
-      if (!m.playerAId || !m.playerBId) continue;
-      const a = playsOff(m.playerAId);
-      const b = playsOff(m.playerBId);
-      const low = Math.min(Math.round(a), Math.round(b));
-      lowForPlayer.set(m.playerAId, low);
-      lowForPlayer.set(m.playerBId, low);
-      blockOf.set(m.playerAId, m.id);
-      blockOf.set(m.playerBId, m.id);
-    }
-  }
-
-  const sides = teams.map((t) => {
-    const low = lowOf.get(t.id);
-    return {
-      name: t.name,
-      playingHandicap: t.playingHandicap,
-      /** Strokes this side receives in its match, where there is one. */
-      matchStrokes: low === undefined ? null : matchStrokesCount(t.playingHandicap, low),
-      // One definition, shared with the engine and the entry screen.
-      shots: matchStrokesPerHole(t.playingHandicap, low ?? 0, cardStrokeIndex),
-    };
-  });
-
   /** The course's number for this card's first hole — 10 on a back nine, so the sheet says "Hole 12", not "Hole 3". */
   const firstHole = firstHoleOf(course);
 
   /** Where the holes are cut for this round — the editor below, and a row on every printed card. */
   const pinSheet = stage ? parsePinSheet(stage.pinSheet, holes) : [];
-
-  const printGroups = (savedSheet?.groups ?? []).map((g) => ({
-    name: g.name,
-    startHole: g.startHole,
-    half: g.half,
-    time: g.time,
-    players: g.playerIds
-      .map((id) => nameOf.get(id))
-      .filter((pl): pl is NonNullable<typeof pl> => !!pl)
-      .map((pl) => {
-        const ch = frozenHandicapOf(pl.id);
-        return {
-          name: pl.name,
-          handicap: pl.handicap,
-          handicapType: pl.handicapType,
-          handicapSource: pl.handicapSource,
-          tee: teeNames.get(pl.id) ?? "",
-          /** Which side they are on, so the card can group them. Empty on an
-           *  individual round, and on a team round for anyone not yet drawn
-           *  into a side — who then prints as themselves rather than being
-           *  quietly filed under somebody else's partnership. */
-          sideName: sideOf.get(pl.id) ?? blockOf.get(pl.id) ?? "",
-          /**
-           * The number that goes in the Hcp box — what they actually play off.
-           * It stays the FULL figure on a match card too, because it is what
-           * the skins and the side bets read; the match's own strokes go in
-           * their own column beside it. Ajay's rule: the low-handicap
-           * differential is "just for golf. Not for any skins or other
-           * bet/money game."
-           */
-          playingHandicap: playsOff(pl.id),
-          /** Strokes received in this match, where the round is one. */
-          matchStrokes: (() => {
-            const low = lowForPlayer.get(pl.id);
-            if (low === undefined) return null;
-            return matchStrokesCount(playsOff(pl.id), low);
-          })(),
-          /**
-           * One entry per hole: how many shots, so two reads as two dots.
-           *
-           * `matchStrokesPerHole` is the one definition the engine and the
-           * entry screen also use, so the paper, the phone and the result
-           * cannot disagree — which is the thing Ajay asked for in as many
-           * words: "both online and paper cards should match and consistent."
-           * On a medal round there is no low, and this stays the allowance
-           * allocation it always was.
-           */
-          shots: (() => {
-            const low = lowForPlayer.get(pl.id);
-            return low === undefined
-              ? allocatedStrokes(ch, allowance, cardStrokeIndex, parStrokesOf(pl.id))
-              : matchStrokesPerHole(playsOff(pl.id), low, cardStrokeIndex);
-          })(),
-        };
-      }),
-  }));
 
   return (
     <>
@@ -672,32 +384,43 @@ export default async function FoursomesPage({
         // round to be in.
         rosterSize={weekRows.length > 0 ? state.confirmed.length : 0}
       />
-      <TeeSheetPrint
-        groups={printGroups}
-        clubName={brand?.name ?? ""}
-        clubLogoUrl={brand?.logoUrl ?? ""}
-        courseName={course.name || state.event.course}
-        /**
-         * THE ROUND'S DAY, not the tournament's.
-         *
-         * This passed `state.event.dates`, so every card in an eleven-round
-         * festival was stamped with the day round one went off — and the round
-         * tabs three inches up this same page print the right date from
-         * `playedOn`, which is the reading that makes it the "event answer to a
-         * round question" shape rather than a missing field. A card is carried
-         * on the day and filed afterwards; the wrong date on it is wrong in the
-         * one place it will be read later.
-         */
-        dates={stage?.playedOn ? shortDate(stage.playedOn, locale) : state.event.dates}
-        roundLabel={roundLabel(rounds, stage?.id ?? "")}
-        pars={course.pars}
-        strokeIndex={course.strokeIndex}
-        holes={holes}
-        teamRound={teamRound}
-        sides={sides}
-        pins={pinSheet.map(pinShort)}
-        firstHole={firstHole}
-      />
+      {/*
+       * PRINT… — THE TEE SHEET'S DOOR TO THE PRINT KIT (decision A).
+       *
+       * This screen printed its own cards, one per group, and `/scorecard` and
+       * Reports both sent people HERE to find the button (`#print-scorecards`,
+       * Ajay 2026-09-22: "it takes me to teesheet and not the actual
+       * scorecards"). The anchor stays, on the door: the Print kit opens with
+       * this sheet's documents ticked, and is the one way to the printer.
+       *
+       * AND IT SAYS WHEN PAPER ALREADY OUT HAS STOPPED BEING TRUE (decision D):
+       * a group moved, a tee time changed, a code reissued after the cards and
+       * signs were printed.
+       */}
+      {stage && savedSheet && (
+        <div id="print-scorecards" className="card elev-sm" style={{ marginTop: 16, gap: 8, scrollMarginTop: 80 }}>
+          {staleSheets.length > 0 && (
+            <p role="status" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+              <Icon name="warning-circle" /> <strong>{staleSentence(staleSheets.length)}:</strong>{" "}
+              {staleSheets.slice(0, 8).map((s) => s.label).join(" · ")}
+              {staleSheets.length > 8 ? ` and ${staleSheets.length - 8} more` : ""}.{" "}
+              <Link href={`/print?round=${stage.id}&stale=1`}>Reprint them in the {screenName("/print")}</Link>
+            </p>
+          )}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Link
+              href={`/print?round=${stage.id}&docs=cards,group-cards,cup,slips,signs,start`}
+              className="btn btn-secondary"
+              style={{ minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <Icon name="printer" /> Print…
+            </Link>
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              Scorecards, cart signs and the starting sheet for {roundLabel(rounds, stage.id) || "this round"}, from the saved sheet.
+            </span>
+          </div>
+        </div>
+      )}
       {stage && (
         <RoundDaySetup
           // Re-mounted per round, so switching rounds never shows the last
