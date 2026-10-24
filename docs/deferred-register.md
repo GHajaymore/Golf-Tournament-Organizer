@@ -1168,6 +1168,12 @@ unranked this way is captioned "didn't play Round 2", not "card incomplete".
 "top N and ties". Before this a cut on a stroke round was configured and printed but never
 applied, so a cut player could start the next round's card. See `services/stroke-cut.ts`.
 
+**And the week sheet had the same fault in a worse form until 2026-10-21.** Its season table
+did not read the board at all: it summed each player's cards and ranked the totals, so it
+never saw `closedAt`, the cut or `isRanked`, and on strokes it put the FEWEST rounds first —
+the seeded Club Championship's "standings after round 2" were led by the twelve cut after
+round 1. It now asks the board (`standingsThroughRound`), so everything above applies to it.
+
 Two things worth keeping:
 
 - **`chargedHoles` deliberately does NOT read `closedAt`.** It derives settled

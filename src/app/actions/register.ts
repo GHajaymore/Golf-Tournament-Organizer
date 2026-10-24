@@ -12,6 +12,7 @@ import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { phoneRequiredFor } from "@/lib/plans";
 import { clubDayForEvent } from "@/lib/services/club-clock";
 import { logAudit } from "@/lib/services/action-shared";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import {
   cleanRegistration,
   looksLikePhone,
@@ -80,6 +81,9 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // Same neutral message whether the token is unknown or registration is off —
   // no existence oracle.
   if (!event || !event.registrationOpen) return { ok: false, error: NOT_OPEN };
+  // A tournament in a lapsed club's read-only archive takes nobody new — and a
+  // stranger is told only what a closed link tells them (2026-10-21).
+  if (await archiveRefusalFor(event.id, "player")) return { ok: false, error: NOT_OPEN };
 
   // Whether a phone number is required is this tournament's own setting, so it
   // cannot be checked with the rest — those run before any lookup on purpose,

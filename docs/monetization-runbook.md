@@ -84,10 +84,29 @@ tournament money code entirely.
    `status`, `providerCustomerId`, `providerSubscriptionId`, `currentPeriodEnd`.
    The schema already has every one of these columns. Setting `provider` is what
    flips `enforcementActive` on for that org.
-4. **On cancellation / past_due**, update `status` (and clear `provider` if you
-   want enforcement to stop). `planFor` falls back to free for an unknown or
-   missing plan, so a lapsed org degrades safely to the free limits rather than
-   locking anyone out of their own data.
+4. **On a failed payment and on a lapse** (built 2026-10-21, decisions A4 and A8;
+   `domain/billing.ts`, `domain/club-archive.ts`):
+   - `past_due` — Stripe is still retrying the card. The paid plan is KEPT, and
+     the club's owners and admins are told to update the card on the console and
+     on Club settings → Your plan.
+   - `unpaid` (Stripe gave up after its retries) or `canceled` — the club LAPSES.
+     It moves to Par for anything it makes from then on, and every tournament it
+     held at that moment becomes a READ-ONLY ARCHIVE for 12 months from the end
+     date (`Event.archivedAt`, `Subscription.lapsedAt`): viewable and
+     exportable, nothing changed or scored, an unfinished one paused. The
+     archive is not counted against Par's limits, and Par's 14/15-day sweep
+     never touches it. The owners are emailed 30 days and 7 days before it is
+     deleted (`sweepArchives`, in the daily cron), and nothing goes until 7 days
+     after the second notice.
+   - Resubscribing (a new checkout, paying the unpaid invoice, or a paid plan the
+     owner sets on `/owner`) lifts the archive at once (`liftArchive`). A late
+     Stripe replay of the OLD cancelled subscription is ignored while a new one
+     is live.
+   - **The Stripe setting** that makes Stripe give up rather than leave a
+     subscription past due for ever is in the Stripe dashboard: Settings →
+     Billing → Subscriptions and emails → "Manage failed payments" → "If all
+     retries for a payment fail" → **Cancel the subscription** (the alternative,
+     "Mark the subscription as unpaid", also lapses the club here). Ajay's to set.
 5. **Add a checkout entry point** — an "Upgrade" button on the plan panel that
    starts the provider's checkout for the chosen tier and billing period.
 

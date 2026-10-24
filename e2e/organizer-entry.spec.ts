@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
+import { verifyByCode } from "./verify-by-code";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 
 /**
@@ -15,7 +16,8 @@ import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE 
  *
  *   organizer   a one-round medal, the sign-up link published
  *   member      enters on the link with NO account → "You're in!"
- *               → "Sign in to see your entry" → sets a password → their page
+ *               → "Sign in to see your entry" → sets a password → types the
+ *               code emailed to that address → their page
  *   organizer   launches
  *   member      scores the round hole by hole — par everywhere, a birdie on
  *               the 5th — and certifies it
@@ -131,6 +133,10 @@ test("a member enters from the link, signs in, and scores their own card", async
       await expect(member.getByText("Set your password")).toBeVisible({ timeout: 20_000 });
       await member.getByPlaceholder("Choose a password").fill(MEMBER_PASSWORD);
       await member.getByRole("button", { name: "Set password & continue" }).click();
+      // The address the club entered them under is proved before the password
+      // takes: a code is emailed to it (2026-10-21).
+      await expect(member.getByText("Confirm it's you")).toBeVisible({ timeout: 20_000 });
+      await verifyByCode(member, MEMBER_EMAIL);
       await member.waitForURL((u) => !u.pathname.startsWith("/choose") && u.pathname !== "/", { timeout: 30_000 });
       await expect(member.locator("body")).toContainText(TOURNAMENT);
     });

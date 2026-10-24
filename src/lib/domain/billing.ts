@@ -69,16 +69,27 @@ export function checkoutLineItem(
 }
 
 /** What a Stripe subscription status means here. */
-export type ClubBillingStatus = "active" | "trialing" | "past_due" | "canceled";
+export type ClubBillingStatus = "active" | "trialing" | "past_due" | "unpaid" | "canceled";
+
+/** The stored statuses that keep a paid plan. */
+export const PAYING_STATUSES: readonly string[] = ["active", "trialing", "past_due"];
 
 /**
- * Stripe's subscription statuses, mapped to the four this app stores.
+ * Stripe's subscription statuses, mapped to the five this app stores.
  *
- * `past_due` and `unpaid` keep the plan: a card that failed once is a reminder,
- * not a lockout, and Stripe retries it. Only an ended subscription drops the
- * club — `canceled`, and `incomplete_expired` (a checkout that never paid).
+ * `past_due` keeps the plan: a card that failed is a reminder, not a lockout,
+ * while Stripe retries it — the owners are shown a notice to update the card.
+ * `unpaid` is Stripe GIVING UP after its retries (Ajay, 2026-10-21, decision
+ * A8): until then it kept the paid plan for ever. Now it LAPSES the club, as
+ * `canceled` does — see `domain/club-archive.ts`. It is stored apart from
+ * `canceled` because the subscription still exists at Stripe: paying its open
+ * invoice from Manage billing brings it back to `active`.
+ *
+ * `incomplete_expired` (a checkout that never paid) reads as `canceled` but is
+ * NOT a lapse: the club never had the plan, so nothing of its is archived.
  * `incomplete` is a checkout still waiting on its first payment: the club has
- * not bought anything yet, so it stays where it was.
+ * not bought anything yet, so it stays where it was. `paused` (a trial that
+ * ended with no card) keeps the plan as `past_due` does.
  */
 export function clubStatusFor(stripeStatus: string): ClubBillingStatus | "pending" {
   switch (stripeStatus) {
@@ -87,33 +98,16 @@ export function clubStatusFor(stripeStatus: string): ClubBillingStatus | "pendin
     case "trialing":
       return "trialing";
     case "past_due":
-    case "unpaid":
     case "paused":
       return "past_due";
+    case "unpaid":
+      return "unpaid";
     case "canceled":
     case "incomplete_expired":
       return "canceled";
     default:
       return "pending";
   }
-}
-
-/**
- * HOW LONG A CLUB'S TOURNAMENTS ARE KEPT AFTER ITS PAID PLAN ENDS (Ajay,
- * 2026-10-02: "keep history for 30 days").
- *
- * A club that stops paying returns to Par, and Par's terms delete a
- * tournament when it is completed or 14 days after golf begins. Without a
- * hold, a lapsed customer's open events would start disappearing on the next
- * sweep. So every tournament the club has is held for this many days from the
- * day the subscription ENDED — the club's window to come back or export —
- * after which the Par terms apply like any other Par club's.
- */
-export const RETAIN_AFTER_CANCEL_DAYS = 30;
-
-/** The end of the hold that starts when a paid plan ends. */
-export function retainUntilAfter(ended: Date): Date {
-  return new Date(ended.getTime() + RETAIN_AFTER_CANCEL_DAYS * 24 * 60 * 60 * 1000);
 }
 
 /** The parts of a Stripe subscription this app reads. */
@@ -139,16 +133,17 @@ export interface SubscriptionWrite {
   providerSubscriptionId: string;
   currentPeriodEnd: Date | null;
   /**
-   * Set when a paid subscription ENDS: the club is on Par's published terms
-   * from now on, like any club that signed up to them.
+   * Set when a paid subscription LAPSES: the club is on Par's published terms
+   * from now on for anything it makes, like any club that signed up to them.
    */
   planTermsApply?: true;
   /**
-   * Set when a paid subscription ENDS: hold every tournament the club has
-   * until at least this time, so the Par terms cannot delete any of it before
-   * `RETAIN_AFTER_CANCEL_DAYS` have passed. Only ever extends a hold.
+   * Set when a paid subscription LAPSES (`canceled` after paying, or `unpaid`):
+   * the instant it ended. Every tournament the club holds becomes a read-only
+   * archive from it (`domain/club-archive.ts`). The service keeps the FIRST one
+   * it saw, so a replayed or later event cannot move the archive's end.
    */
-  retainEventsUntil?: Date;
+  lapsedAt?: Date;
 }
 
 /**
@@ -160,7 +155,7 @@ export interface SubscriptionWrite {
  * guessed at: a webhook that guesses gives somebody a plan they did not pay
  * for, or takes away one they did.
  */
-export function subscriptionWrite(sub: StripeSubscriptionLike): SubscriptionWrite | null {
+export function subscriptionWrite(sub: StripeSubscriptionLike, now: Date = new Date()): SubscriptionWrite | null {
   const organizationId = sub.metadata?.organizationId?.trim();
   const planKey = sub.metadata?.plan?.trim() ?? "";
   if (!organizationId || !isPurchasablePlan(planKey)) return null;
@@ -178,21 +173,32 @@ export function subscriptionWrite(sub: StripeSubscriptionLike): SubscriptionWrit
   };
 
   /**
-   * An ended subscription returns the club to Par, on Par's terms — with every
-   * tournament held for 30 days from the day it ENDED. Stripe's own end date,
-   * not the moment this event was processed, so a retried or replayed event
-   * cannot keep pushing the hold forward.
+   * A checkout that never paid ends nothing: the club returns to where it was,
+   * which is Par, and no tournament of its is archived — it never had a paid
+   * plan to lapse from.
    */
-  if (status === "canceled") {
-    const endedSeconds = sub.ended_at ?? sub.canceled_at ?? null;
-    const ended = endedSeconds ? new Date(endedSeconds * 1000) : null;
+  if (sub.status === "incomplete_expired") {
+    return { ...base, plan: "free", status };
+  }
+
+  /**
+   * A LAPSE returns the club to Par for anything it makes from now on, and
+   * archives everything it holds (`domain/club-archive.ts`). From Stripe's own
+   * end date for a cancelled subscription, not the moment this event was
+   * processed, so a retried event cannot move the archive. An `unpaid` one has
+   * no end date — it still exists at Stripe — so it lapses from when it is
+   * first seen, and the service keeps that first instant.
+   */
+  if (status === "canceled" || status === "unpaid") {
+    const endedSeconds = status === "canceled" ? (sub.ended_at ?? sub.canceled_at ?? null) : null;
+    const lapsedAt = endedSeconds ? new Date(endedSeconds * 1000) : now;
     return {
       ...base,
       plan: "free",
       status,
       planTermsApply: true,
-      currentPeriodEnd: ended ?? base.currentPeriodEnd,
-      retainEventsUntil: retainUntilAfter(ended ?? new Date()),
+      currentPeriodEnd: status === "canceled" ? lapsedAt : base.currentPeriodEnd,
+      lapsedAt,
     };
   }
   return { ...base, plan: planKey, status };

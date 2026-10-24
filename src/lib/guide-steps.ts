@@ -71,6 +71,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "To change a role, pick the new one, then confirm with [[Yes — make ‹name› ‹role›]]. Picking alone changes nothing.",
           "Each organizer or assistant uses a staff seat on your plan. The last organizer on a tournament can't be removed or demoted — promote someone else first.",
           "Club staff are added the same way under Club settings, by email address. There is nothing for them to accept: they are staff at once, and are emailed. Until they next sign in the list shows the address you typed and **Invited — not opened yet**, not their name.",
+          "The first time somebody you added signs in, they choose a password and we email a 6-digit code to the address you typed. The password only takes effect once they type that code back, so only the person who reads that inbox can take the seat. The code works for 15 minutes; **Send a new code** sends another.",
           "A role at the club is changed the same way as one on a tournament: pick it, then confirm. It reaches further — an **Admin** is an organizer on every tournament the club runs, and the confirmation says so before you agree.",
           "Anyone added can leave again themselves, from Your account → Your clubs. A club's only Commissioner can't leave until somebody else is one.",
         ],
@@ -353,7 +354,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Pick the match from **Matches** (filter by Not started, Live, Awaiting approval, Final or Disputed).",
-          "Enter a **Hole-by-hole result**, a **Full scorecard**, or the **Final result only** — winner and margin such as 3&2, then [[Apply result]].",
+          "Enter a **Hole-by-hole result**, a **Full scorecard**, or the **Final result only** — winner and margin such as 3&2, then [[Apply result]]. A margin no match can finish on — 6&3 (that match was over at 5&4), or 3 UP — is refused beside the box, so the board never shows a different result from the one typed.",
           "A finished match can be confirmed ([[Confirm result]]) or disputed ([[Dispute]]); an organizer can [[Reopen]] it. Record a concession or walkover with [[‹Player› concedes]].",
         ],
       },
@@ -425,6 +426,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Add the season's rounds at once with **How many?** and **Then** (weekly).",
           "**This week** shows the week's results, standings and skins.",
+          "The standings under a week of strokes or points are the leaderboard's own table after that week: the total over every round played so far, in the leaderboard's places. A player who missed a cut holds no place in it, and nor, on strokes, does one with no card for a week you have closed; a total over fewer holes than the rest says “thru” beside it.",
           "Close each week once it is played. With members away a week is never “all in”, so the Dashboard asks to close it as soon as next week's draw is out and every card that was started is back — it says how many did not play. Closing moves everybody on to the new week.",
           "A **Round robin** round is a whole everyone-plays-everyone. Add several and each is its own contest unless you choose **Carry all** or **Carry part** under **Points into Round N**.",
           "**Season standings** adds tournaments up across a season; the **Honours board** keeps your champions (Birdie plan and above).",
@@ -518,6 +520,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "warn", text: "**On the free Par plan** a completed tournament stays open to view, read-only, for 15 days, and is then deleted for good. The dialog offers [[Open the final report]] — then [[Print or save as PDF]] to keep it — and [[Go to Reports]] to export first, or an upgrade to keep it. It cannot be reopened in those 15 days without an upgrade. A Par tournament is also removed 14 days after its first round if nobody completes it." },
+      { kind: "warn", text: "**If a payment fails**, the club keeps its plan while Stripe tries the card again, and Club settings → Your plan (and the top of every screen, for the club's owners and admins) asks you to update it with Manage billing. **If the paid plan ends** — cancelled, or Stripe stops trying — every tournament the club had that day is kept **read-only for 12 months**: boards, results, reports, money and exports stay open, but nothing can be changed or scored, and an unfinished tournament is paused where it stands. Every screen of it says so, with the dates. Choose a plan again at any time in those 12 months and everything carries on where it stopped. Otherwise the club's owners are emailed 30 days and 7 days before those tournaments are deleted. A tournament you start after the plan ended is on the free Par plan's terms, and the kept ones don't count against Par's limits." },
     ],
   },
   {
@@ -557,6 +560,9 @@ export const GUIDE_STEPS: GuideSection[] = [
           { q: "Handicaps look wrong", a: "Check the member's index, the round's course and tees, and the round's allowance. Handicaps for this round, on the round's card, shows each player's course handicap, the figure before rounding and what they play off. The allowance is taken before rounding, so 95% of a course handicap of 7 can be 6: that is the Rule, not a mistake. And where the field plays tees of different pars, in stroke play or a match, a player on the higher par is given the difference as extra strokes after the allowance (Rule 6.2b); the list says how many. A Stableford round gives none." },
           { q: "Who decides which tees a player plays?", a: "You do. Tournament details sets the tournament's tees; Flights & groups sets a flight's; Registration moves one player. Registration shows what each player is on and why. An entrant cannot choose, and a woman starts on the course's ladies' tees where it has a set." },
           { q: "A public leaderboard link leaked", a: "Tournament details → Players & scoring → New link. The old link stops working immediately." },
+          { q: "Somebody never got their 6-digit code", a: "Creating an account, or setting a first password on an address you invited, emails a 6-digit code to that address, and nobody is signed in until it is typed back. Ask them to check their spam folder, and to press Send a new code on the same screen: a code works for 15 minutes, and three can be sent in 15 minutes. Nobody else can set the password without it." },
+          { q: "Why was I asked for a code when I signed in?", a: "Club staff signing in on a browser TourneyHQ has not seen before (a new laptop, a new phone, or after clearing the browser) are emailed a 6-digit code, and are signed in once it is typed back. Your password alone opens your members' details and the money records, so a new device has to show it can read your inbox too. After that, that browser is remembered for about a year. Players are not asked; they are sent an email when their account is signed in on a new browser." },
+          { q: "My password was refused as found in a data leak", a: "When a password is chosen, it is checked against the passwords known from leaks at other websites, because those are the first ones anybody tries. Only the first five characters of a scrambled copy leave TourneyHQ, never the password itself. Choose a different password, ideally three or four unrelated words, and keep it to TourneyHQ alone." },
           { q: "I'm still signed in on a device I don't have", a: "Open Your account (your name, at the foot of the sidebar) and press Sign out everywhere. Every device is signed out, this one included. Your password stays the same, so sign straight back in." },
         ],
       },

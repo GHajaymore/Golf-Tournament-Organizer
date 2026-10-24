@@ -3,7 +3,6 @@ import {
   checkoutLineItem,
   clubStatusFor,
   isPurchasablePlan,
-  RETAIN_AFTER_CANCEL_DAYS,
   subscriptionIdOf,
   subscriptionWrite,
   type StripeSubscriptionLike,
@@ -70,32 +69,40 @@ describe("what a Stripe subscription means for a club", () => {
     expect(w.planTermsApply).toBeUndefined();
   });
 
-  it("a failed payment keeps the plan and flags it — a reminder, not a lockout", () => {
-    expect(subscriptionWrite(sub({ status: "past_due" }))).toMatchObject({ plan: "club", status: "past_due" });
-    expect(subscriptionWrite(sub({ status: "unpaid" }))).toMatchObject({ plan: "club", status: "past_due" });
+  it("a payment Stripe is still retrying keeps the plan and flags it — a reminder, not a lockout", () => {
+    const w = subscriptionWrite(sub({ status: "past_due" }))!;
+    expect(w).toMatchObject({ plan: "club", status: "past_due" });
+    expect(w.lapsedAt).toBeUndefined();
   });
 
-  it("an ended subscription returns the club to Par — and holds every tournament 30 days from the END", () => {
+  it("Stripe GIVING UP (unpaid) lapses the club, from the moment it is seen (decision A8)", () => {
+    const seen = new Date("2026-11-03T10:00:00Z");
+    const w = subscriptionWrite(sub({ status: "unpaid" }), seen)!;
+    expect(w).toMatchObject({ plan: "free", status: "unpaid", planTermsApply: true });
+    expect(w.lapsedAt?.getTime()).toBe(seen.getTime());
+  });
+
+  it("a cancelled subscription lapses the club from Stripe's END date, not from when we heard", () => {
     const ended = 1_800_000_000; // Stripe's ended_at, in seconds
-    for (const status of ["canceled", "incomplete_expired"]) {
-      const w = subscriptionWrite(sub({ status, ended_at: ended }))!;
-      expect(w).toMatchObject({ plan: "free", status: "canceled", planTermsApply: true });
-      expect(w.retainEventsUntil?.getTime()).toBe((ended + RETAIN_AFTER_CANCEL_DAYS * 86_400) * 1000);
-      expect(w.currentPeriodEnd?.getTime()).toBe(ended * 1000);
-    }
-    expect(RETAIN_AFTER_CANCEL_DAYS).toBe(30);
+    const heard = new Date(ended * 1000 + 5 * 86_400_000);
+    const w = subscriptionWrite(sub({ status: "canceled", ended_at: ended }), heard)!;
+    expect(w).toMatchObject({ plan: "free", status: "canceled", planTermsApply: true });
+    expect(w.lapsedAt?.getTime()).toBe(ended * 1000);
+    expect(w.currentPeriodEnd?.getTime()).toBe(ended * 1000);
+    // Replayed a week later, the same instant: the archive's end cannot be pushed forward.
+    expect(subscriptionWrite(sub({ status: "canceled", ended_at: ended }), new Date(heard.getTime() + 7 * 86_400_000))!.lapsedAt?.getTime()).toBe(ended * 1000);
   });
 
-  it("the hold counts from Stripe's end date, so a replayed event can't push it forward", () => {
-    const ended = 1_800_000_000;
-    const first = subscriptionWrite(sub({ status: "canceled", ended_at: ended }))!;
-    const replayed = subscriptionWrite(sub({ status: "canceled", ended_at: ended }))!;
-    expect(replayed.retainEventsUntil?.getTime()).toBe(first.retainEventsUntil?.getTime());
+  it("a checkout that expired unpaid lapses nothing — the club never had the plan", () => {
+    const w = subscriptionWrite(sub({ status: "incomplete_expired", ended_at: 1_800_000_000 }))!;
+    expect(w).toMatchObject({ plan: "free", status: "canceled" });
+    expect(w.lapsedAt).toBeUndefined();
+    expect(w.planTermsApply).toBeUndefined();
   });
 
-  it("a paid plan that is still running sets no hold and doesn't touch the terms", () => {
+  it("a paid plan that is still running lapses nothing and doesn't touch the terms", () => {
     const w = subscriptionWrite(sub({ status: "active" }))!;
-    expect(w.retainEventsUntil).toBeUndefined();
+    expect(w.lapsedAt).toBeUndefined();
     expect(w.planTermsApply).toBeUndefined();
   });
 
@@ -117,6 +124,7 @@ describe("what a Stripe subscription means for a club", () => {
   it("maps every Stripe status it knows, and leaves unknown ones pending", () => {
     expect(clubStatusFor("trialing")).toBe("trialing");
     expect(clubStatusFor("paused")).toBe("past_due");
+    expect(clubStatusFor("unpaid")).toBe("unpaid");
     expect(clubStatusFor("something_new")).toBe("pending");
   });
 });
