@@ -370,9 +370,10 @@ function Weeks({ g }: { g: WeeksGraphic }) {
               <td className="fr-figs">
                 {r.points}
                 {r.move !== 0 && (
-                  <span className="fr-move" aria-label={moveWords(r.move)}>
+                  <span className="fr-move">
                     {" "}
                     <span aria-hidden="true">{r.move > 0 ? `▲${r.move}` : `▼${-r.move}`}</span>
+                    <span className="fr-sr">{moveWords(r.move)}</span>
                   </span>
                 )}
               </td>

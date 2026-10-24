@@ -141,7 +141,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "A cup on stroke cards shows gross and net under names.",
       "A cup can have other points, like a team net total.",
       "A finished tournament links its Final report.",
-      "It opens with the prize list and a picture of the day.",
+      "It opens with the prize list and a picture.",
       "Then the highlights, how it was won and what's next.",
       "Signed in, it shows what you won and what you owe.",
       "The settle-up shows once every side game is decided.",
