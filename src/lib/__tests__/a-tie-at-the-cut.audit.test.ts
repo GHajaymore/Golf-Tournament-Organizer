@@ -66,7 +66,7 @@ beforeAll(async () => {
   await cleanup();
   orgId = (await prisma.organization.create({ data: { name: `${TAG} club`, kind: "club" }, select: { id: true } })).id;
   adminUser = (
-    await prisma.user.create({ data: { email: `${TAG}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable" }, select: { id: true } })
+    await prisma.user.create({ data: { email: `${TAG}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } })
   ).id;
 });
 
