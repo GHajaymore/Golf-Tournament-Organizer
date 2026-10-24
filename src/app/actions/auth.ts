@@ -19,8 +19,9 @@ import { normalizeDiscountCode } from "@/lib/plans";
 import { discountRefusal } from "@/lib/domain/discount";
 import { SIGNINS_CLOSED_MESSAGE } from "@/lib/sign-in-gate";
 import { maySignInNow } from "@/lib/services/signins-switch";
+// The app's one shape of an address — see `typed-limits.ts`.
+import { EMAIL_RE } from "@/lib/domain/typed-limits";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
 function hashToken(token: string): string {

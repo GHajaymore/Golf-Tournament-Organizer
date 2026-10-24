@@ -43,8 +43,14 @@ migrated only by a production deploy, which runs only after `verify` is green.
 | Class | Before merge | After merge |
 | --- | --- | --- |
 | Tests, tooling, words only | its own tests, CI | production smoke |
-| Function in one area | a browser test that does it, proven by breaking the code; CI; **one** full round | production smoke |
-| Core and shared | the same, plus **three** full rounds on the commit that will ship | production smoke, and a look at Sentry after 30 minutes |
+| Function in one area | a browser test that does it, proven by breaking the code; CI; **one** round | outside the deploy freeze; production smoke |
+| Core and shared | the same, with that one round visiting **all six** countries (money or handicap arithmetic: **three** rounds, for now) | held until the **nightly** round on main is clean on a commit containing it; outside the freeze; production smoke, and a look at Sentry after 30 minutes |
+
+Since 2026-10-23 (the testing panel, `docs/testing-panel-2026-10-23.md`) the "after merge" column
+is enforced by `deploy.yml`'s gate rather than remembered, and the freeze — a tournament on today
+at any club, in its own time, or a weekend morning 05:00–14:00 in any club's zone — holds every
+class. An hourly production canary (`canary.yml`) watches the public doors and one public board
+between deploys.
 
 And, for every change: **its preview must build.** A failed preview is a
 finding, read the same day — it is the first place a migration meets a
@@ -80,12 +86,13 @@ database that is not empty.
    test planned.* The A003 incident. A migration folder that has existed on
    any pushed branch keeps its name; a new number is a new migration.
 6. **Watching production.** — Sentry (errors) since 2026-10-14; page
-   analytics since 2026-10-19 (`NEXT_PUBLIC_ANALYTICS`). *Planned:* an uptime
-   check of `/` and `/play` every five minutes from outside, and Sentry alerts
-   to Ajay's email.
+   analytics since 2026-10-19 (`NEXT_PUBLIC_ANALYTICS`); an hourly canary of
+   `/`, `/faq`, `/play` and one public board since 2026-10-23 (`canary.yml`, a
+   failed run is GitHub's email). *Planned:* Sentry alerts to Ajay's email.
 7. **After launch: two lanes.** — *planned.*
-   - **Release lane** (features, enhancements): batched, frozen, three rounds
-     on the release commit, merged one at a time, production smoke after each.
+   - **Release lane** (features, enhancements): batched, the rounds its tier
+     asks for (`npm run qa:changed`) on the release commit, the nightly before a
+     core change ships, merged one at a time, production smoke after each.
    - **Fix lane** (a member-facing bug): one branch per fix, a browser test
      that reproduces the bug and goes green with the fix, CI, one round,
      preview checked, merged on its own, production smoke. Target: a

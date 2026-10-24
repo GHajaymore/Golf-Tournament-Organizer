@@ -86,8 +86,8 @@ export async function organizationsForOrganizer(
       createdAt: true,
       organization: {
         // The plan lives on the SUBSCRIPTION row, and an organization need not
-        // have one — no row is the free plan, which is what `planForOrganization`
-        // says and the only place that rule may be stated.
+        // have one — no row is the free plan (`DEFAULT_PLAN`), as
+        // `organizationAllows` reads it too.
         // `country` rides along for the same reason the plan does: it is the
         // club's own answer about itself, and it decides what the outfit is
         // CALLED — a community is a society in Britain and a league in the
