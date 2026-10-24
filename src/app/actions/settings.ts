@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { cleanSettings, usesAccessCodes, houseDefaultsOf, houseDefaultColumns, type TournamentSettings } from "@/lib/tournament-settings";
 import { lockoutRefusal, revokesCodes } from "@/lib/domain/access-lockout";
 import { generateAccessCode } from "@/lib/codes";
@@ -44,6 +45,7 @@ async function requireOrganizer(): Promise<string> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   if (session.role !== "admin") throw new Error("Organizer access required");
+  await assertEventWritable(session.eventId);
   return session.eventId;
 }
 

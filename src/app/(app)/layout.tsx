@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import { NOINDEX } from "@/lib/site";
 import { DeniedNotice } from "@/components/DeniedNotice";
+import { ArchiveBanner } from "@/components/ArchiveBanner";
+import { archiveRefusalFor, paymentDueNoticeFor } from "@/lib/services/club-archive";
+import Link from "next/link";
 import { golfTermsForEvent } from "@/lib/services/organization";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { Sidebar } from "@/components/Sidebar";
@@ -215,6 +218,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * out to the rest of the app — and the round's other pages lead back.
    */
   const casualShell = isMatch(event?.shape);
+  const archived = session.eventId
+    ? await archiveRefusalFor(session.eventId, session.viewRole === "player" ? "player" : "organizer")
+    : null;
+  const paymentDue = event ? await paymentDueNoticeFor(event.organizationId, session.userId) : null;
 
   return (
     <CurrencyProvider currency={fmt.currency} locale={fmt.locale}>
@@ -284,6 +291,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Suspense fallback={null}>
             <DeniedNotice organizer={organizer} />
           </Suspense>
+          {/* A lapsed club's tournament is a read-only archive: said on every
+              screen, before anything is pressed (`domain/club-archive.ts`). */}
+          <ArchiveBanner sentence={archived} resubscribe={session.role === "admin"} />
+          {paymentDue && (
+            <p role="alert" style={{ margin: "0 0 14px", fontSize: 14, lineHeight: 1.5, color: "var(--color-danger)" }}>
+              {paymentDue} <Link href="/organization#plan">Go to Your plan</Link>
+            </p>
+          )}
           {casualShell && <BackToTheRound />}
           {/* A club with no time zone takes this organizer's, once. Only for
               somebody who may change it; the action re-checks that. */}

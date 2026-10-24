@@ -19,12 +19,14 @@ describe("a Par tournament completed is kept, read-only, for 15 days (Ajay, 2026
     expect(closesAtOnComplete(at(20), at(1))).toEqual(at(20));
   });
   it("a completed Par tournament cannot be reopened — so completing cannot be repeated to buy time", () => {
-    const par = { planTermsApply: true, plan: "free", shape: "stroke" };
+    const par = { planTermsApply: true, plan: "free", shape: "stroke", archivedAt: null };
     expect(reopenRefusal(par, "Mon 19 Oct")).toMatch(/kept read-only until Mon 19 Oct, then deleted/);
     // a paid club, a grandfathered club, and a casual round may reopen as before
     expect(reopenRefusal({ ...par, plan: "society" }, "Mon 19 Oct")).toBeNull();
     expect(reopenRefusal({ ...par, planTermsApply: false }, "Mon 19 Oct")).toBeNull();
     expect(reopenRefusal({ ...par, shape: "match" }, "Mon 19 Oct")).toBeNull();
+    // a lapsed club's archived tournament follows the archive, never Par's fifteen days
+    expect(reopenRefusal({ ...par, archivedAt: new Date("2026-10-01T00:00:00Z") }, "Mon 19 Oct")).toBeNull();
   });
 });
 
@@ -66,7 +68,7 @@ describe("what counts as golf having been played", () => {
  * `free-tournament-deleted-on-close.audit.test.ts`.
  */
 const NOW = new Date("2026-09-29T12:00:00Z");
-const deletes = { planTermsApply: true, plan: "free", shape: "series", retainUntil: null };
+const deletes = { planTermsApply: true, plan: "free", shape: "series", retainUntil: null, archivedAt: null };
 
 describe("what completing deletes", () => {
   it("a Free tournament in a club on the published terms", () => {
@@ -91,6 +93,10 @@ describe("what completing deletes", () => {
   it("never while a hold runs — and again once it has lapsed", () => {
     expect(wipesOnClose({ ...deletes, retainUntil: new Date("2026-10-29T00:00:00Z") }, NOW)).toBe(false);
     expect(wipesOnClose({ ...deletes, retainUntil: new Date("2026-09-01T00:00:00Z") }, NOW)).toBe(true);
+  });
+
+  it("never a tournament in a lapsed paid club's archive, which keeps its own twelve months", () => {
+    expect(wipesOnClose({ ...deletes, archivedAt: new Date("2026-09-01T00:00:00Z") }, NOW)).toBe(false);
   });
 
   it("names exactly the plans that do not keep data", () => {

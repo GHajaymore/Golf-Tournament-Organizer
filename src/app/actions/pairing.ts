@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { myPlayerIds } from "@/lib/services/me";
@@ -42,6 +43,8 @@ export async function setPairingRequest(playerId: string, withPlayerId: string, 
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Only an organizer or assistant can do that");
   }
+  const archived = await archiveRefusalFor(session.eventId);
+  if (archived) return { ok: false, error: archived };
   if (playerId === withPlayerId) return { ok: false, error: "Pick two different players." };
   const pair = await prisma.player.findMany({
     where: { id: { in: [playerId, withPlayerId] }, eventId: session.eventId, status: "confirmed" },
@@ -79,6 +82,8 @@ export async function setPairingRequest(playerId: string, withPlayerId: string, 
 export async function setMyPlayWith(withPlayerIds: string[]): Promise<PairingResult> {
   const session = await getSession();
   if (!session?.eventId) throw new Error("Not authenticated");
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
   if (!Array.isArray(withPlayerIds) || withPlayerIds.some((id) => typeof id !== "string")) {
     return { ok: false, error: "Not a list of players." };
   }

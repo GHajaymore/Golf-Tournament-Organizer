@@ -9,7 +9,7 @@ import { ThemePicker } from "@/components/ThemePicker";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
 import { TimeZonePicker } from "@/components/TimeZonePicker";
-import { clubClockInWords, clubToday, timeZoneChoices } from "@/lib/domain/club-clock";
+import { clubClockInWords, timeZoneChoices } from "@/lib/domain/club-clock";
 import { SeasonPicker } from "@/components/SeasonPicker";
 import { OrgNounPicker } from "@/components/OrgNounPicker";
 import { GolfTermsPicker } from "@/components/GolfTermsPicker";
@@ -24,28 +24,10 @@ import { PlaySettings } from "@/components/PlaySettings";
 import { discountNoteFor } from "@/lib/services/platform-discounts";
 import { PlanPanel } from "@/components/PlanPanel";
 import { billingEnabled } from "@/lib/services/billing";
-import { retainUntilAfter } from "@/lib/domain/billing";
+import { clubArchiveSummary } from "@/lib/services/club-archive";
 import { paidPlanRunning } from "@/lib/domain/club-deletion";
 import { DeleteClub } from "@/components/DeleteClub";
 import { orgProfile } from "@/lib/domain/org-profile";
-import { formatDay } from "@/lib/domain/locale";
-
-/**
- * For a club whose paid plan has ENDED and whose 30-day hold is still running,
- * the date the hold ends, written in the club's own way. Undefined otherwise.
- */
-function heldUntilLabel(
-  sub: { status: string; currentPeriodEnd: Date | null } | null | undefined,
-  locale: string | null | undefined,
-  timeZone: string | null | undefined,
-): string | undefined {
-  if (sub?.status !== "canceled" || !sub.currentPeriodEnd) return undefined;
-  const until = retainUntilAfter(new Date(sub.currentPeriodEnd));
-  if (until.getTime() <= Date.now()) return undefined;
-  // The club's day, not the server's: see `dayAtClubForEvent`.
-  const day = clubToday(timeZone, until);
-  return locale ? formatDay(day, locale) : formatDay(day);
-}
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { MoneySetup } from "@/components/MoneySetup";
 import { houseDefaultsOf } from "@/lib/tournament-settings";
@@ -384,7 +366,8 @@ export default async function OrganizationPage() {
             hasSubscription: Boolean(org.subscription?.providerSubscriptionId) && org.subscription?.status !== "canceled",
             pastDue: org.subscription?.status === "past_due",
             canEdit,
-            heldUntil: heldUntilLabel(org.subscription, org.locale, org.timeZone),
+            archive: await clubArchiveSummary(org.id),
+            unpaid: org.subscription?.status === "unpaid",
             // The code the club gave at sign-up, offered at checkout; judged again there.
             discountCode: org.discountCode,
             discountNote: org.discountCode ? await discountNoteFor(org.discountCode) : undefined,
