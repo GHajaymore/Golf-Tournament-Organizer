@@ -174,7 +174,9 @@ describe("the final report reads the app's own readers", () => {
 
   it("prizes and contests carry their amounts on the organizer's copy", () => {
     expect(staff.prizes).toContainEqual({ what: "Winner", winners: [seeded.players.Bob.name], amount: money(5000) });
-    expect(staff.prizes).toContainEqual({ what: "Closest to the pin (hole 3)", winners: [seeded.players.Ann.name], amount: money(400) });
+    // A contest is said "on the course", next after the prizes (2026-10-23), with the pot the money screen holds.
+    expect(staff.onTheCourse).toContainEqual({ what: "Closest to the pin, hole 3", who: seeded.players.Ann.name, detail: money(400) });
+    expect(staff.prizes.some((p) => p.what.startsWith("Closest to the pin"))).toBe(false);
   });
 
   it("coming up: the club's next tournament taking entries, and the pinned notice for the field only", () => {
@@ -192,12 +194,16 @@ describe("the public copy names winners and carries no amount", () => {
     expect(pub.amounts).toBe(false);
     expect(pub.skins[0].winners.map((w) => [w.name, w.detail, w.amount])).toEqual([[seeded.players.Ann.name, "holes 1 and 2", ""]]);
     expect(pub.sideGames.flatMap((g) => g.winners.map((w) => w.amount))).toEqual(["", ""]);
-    expect(pub.prizes.map((p) => p.amount)).toEqual(["", ""]);
+    expect(pub.prizes.map((p) => p.amount)).toEqual([""]);
+    expect(pub.onTheCourse.map((c) => [c.who, c.detail])).toEqual([[seeded.players.Ann.name, ""]]);
     expect(pub.costs).toBeNull();
     expect(pub.settleUp).toBeNull();
+    expect(pub.standing).toBeNull();
     // Every amount the organizer's copy prints, absent from the public one.
     const amounts = [
       ...staff.prizes.map((p) => p.amount),
+      ...staff.onTheCourse.map((c) => c.detail),
+      ...(staff.standing?.map((s) => s.net.replace(/^[+−]/, "")) ?? []),
       ...staff.skins.flatMap((s) => s.winners.map((w) => w.amount)),
       ...staff.sideGames.flatMap((g) => g.winners.map((w) => w.amount)),
       ...(staff.settleUp?.lines.map((l) => l.amount) ?? []),
@@ -210,7 +216,8 @@ describe("the public copy names winners and carries no amount", () => {
   it("and the page drawn from it holds no money at all", () => {
     const html = renderToStaticMarkup(createElement(EventReport, { report: pub }));
     expect(html).toContain(seeded.players.Ann.name);
-    expect(html).not.toContain("Settle-up");
+    expect(html).not.toContain("Settle up");
+    expect(html).not.toContain("Where everybody ends up");
     expect(html).not.toContain("Entry fees and costs");
     // The club's currency sign appears nowhere on the public page.
     const sign = money(100).replace(/[\d.,\s ]/g, "");

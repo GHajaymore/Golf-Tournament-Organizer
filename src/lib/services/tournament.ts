@@ -32,6 +32,8 @@ import {
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
 import {
   countbackCompare,
+  countbackStep,
+  countbackStepWords,
   compareOnBasis,
   levelOnBasis,
   type RankingBasis,
@@ -637,6 +639,14 @@ export interface EventState {
    * board's own sort and countback, for a prize named for one. See `orderOn`.
    */
   strokeStandingsOn: (basis: "gross" | "net") => StrokeStanding[];
+  /**
+   * WHICH STEP OF THE COUNTBACK put `aheadId` above `behindId` on the board —
+   * "back 9", "last 3" — read off the same cards, on the same basis and over
+   * the same round the board's own sort read (`cbCard`), so a report cannot
+   * name a step the board did not use. Null when they are not level on the
+   * score, or the countback did not separate them.
+   */
+  countbackBetween: (aheadId: string, behindId: string) => string | null;
   /**
    * Players withdrawn after they began, as WD rows — NOT part of the field,
    * so not in `strokeStandings`. Only the printed sheet adds them.
@@ -2405,6 +2415,13 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     }
     return rows;
   };
+  const countbackBetween = (aheadId: string, behindId: string): string | null => {
+    const a = strokeStandings.find((s) => s.player.id === aheadId);
+    const b = strokeStandings.find((s) => s.player.id === behindId);
+    if (!a || !b || !a.ranked || !b.ranked || !levelOnBasis(a, b, rankingBasis)) return null;
+    const step = countbackStep(cbCard(aheadId, rankingBasis), cbCard(behindId, rankingBasis), lastRoundHoles, rankingBasis === "stableford");
+    return step && step.compare < 0 ? countbackStepWords(step.holes, lastRoundHoles) : null;
+  };
 
   /**
    * WHICH COMPETITION QUALIFIES THE DRAW — the round before the bracket, in
@@ -2966,6 +2983,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     cutReady,
     strokeStandings,
     strokeStandingsOn,
+    countbackBetween,
     withdrawnStandings,
     strokeUnit,
     // Only "strokes" is ambiguous; points name themselves. Derived once above,

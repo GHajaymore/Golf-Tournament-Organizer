@@ -36,6 +36,14 @@ import { marginWords } from "../domain/my-tie";
 import { isStraightKnockout } from "../stage-types";
 import { knockoutProgress, stillInTheDraw } from "../domain/bracket";
 import { unrankedNote, type StandingRow } from "@/components/LeaderboardTable";
+import { leadFor, picturesFor, type LeadGroup, type ReportKind } from "./event-report-rich";
+import { casualStanding } from "./casual-round";
+import type { HeroGraphic, HoleStripGraphic } from "../domain/report-graphics";
+import type { MovementRound } from "../domain/report-movement";
+import { individualAllowanceFor, effectiveAllowance } from "../round-allowance";
+import { needsTeams } from "../formats";
+import { reportFoot, type ReportFoot } from "./report-foot";
+import type { ReportCardInput } from "../domain/report-card";
 import {
   countWords,
   eventRibbon,
@@ -109,6 +117,28 @@ export interface EventReportRow {
 export interface EventReport {
   name: string;
   where: string;
+  /** The club, first on the masthead: its name and its logo, each "" when it has none. */
+  club: { name: string; logoUrl: string };
+  /** Which kind of result this is — what the report leads with and draws. */
+  kind: ReportKind;
+  /** The prize list: overall, then each flight; empty before anybody has a place. */
+  lead: LeadGroup[];
+  /** The one picture chosen for the format, or null where none means anything. */
+  hero: HeroGraphic | null;
+  /** The hole-difficulty strip, beside a hero that is not itself the strip. */
+  holeStrip: HoleStripGraphic | null;
+  /** Twos, nearest the pin, longest drive — each only where it ran. */
+  onTheCourse: Array<{ what: string; who: string; detail: string }>;
+  /** "by 3", "by 2 points", "on countback" — the winner's margin, for the news line; "" where none. */
+  margin: string;
+  /** Where it was played, for the news line. */
+  venue: string;
+  /** "Side games settle when the last card is in." while a game can still change; else "". */
+  moneyPending: string;
+  /** Each player's net once the side games are final: "+$12.00", "−$4.00", "square". Null on the public copy. */
+  standing: Array<{ name: string; net: string }> | null;
+  /** "Results by TourneyHQ", and where it links — which follows the launch switch. */
+  foot: ReportFoot;
   completed: boolean;
   first: Place | null;
   ribbon: string;
@@ -168,6 +198,42 @@ export async function reportFor(eventId: string, audience: ReportAudience = { ki
 }
 
 /**
+ * What the report's share card and news line say, read off the report itself
+ * (`domain/report-card.ts` decides what a private board may show). No amount
+ * is ever handed over: the card has no field for one.
+ */
+export function reportCardInput(found: AnyReport): ReportCardInput {
+  if (found.kind === "cup") {
+    const r = found.report;
+    return {
+      event: r.name,
+      club: r.club.name,
+      // "dates · course": the course, where there is one.
+      venue: r.where.split(" · ")[1] ?? "",
+      completed: r.verdict.kind !== "open",
+      names: [],
+      figure: "",
+      margin: "",
+      highlight: r.progress.clinch,
+      cup: { score: `${halves(r.score[0])}–${halves(r.score[1])}`, verdict: r.ribbon },
+    };
+  }
+  const r = found.report;
+  const h = r.highlights[0];
+  return {
+    event: r.name,
+    club: r.club.name,
+    venue: r.venue,
+    completed: r.completed,
+    names: r.first?.names ?? [],
+    figure: r.first?.figure || r.lead[0]?.lines[0]?.figure || "",
+    margin: r.margin,
+    highlight: h ? `${h.label} · ${h.who}` : "",
+    cup: null,
+  };
+}
+
+/**
  * Why a row holds no position, in the BOARD's own words (`unrankedNote`, the
  * printed sheet's reader) — "Missed the cut after Round 1", "WD — withdrew".
  * The board leaves a player who returned nothing uncaptioned; a report sent
@@ -188,7 +254,14 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
     loadEventState(eventId),
     liveBoard(eventId),
   ]);
-  if (!event || !state || !board || isMatch(event.shape)) return null;
+  if (!event || !state || !board) return null;
+  /**
+   * A CASUAL ROUND HAS A REPORT NOW (2026-10-23, the panel): one short screen —
+   * who won, the side games and the settle-up — with nothing a four-ball on a
+   * Saturday does not need (no story, no leaderboard of the field, no
+   * numbers). `shape: "match"` is how a casual round is stored.
+   */
+  const casual = isMatch(event.shape);
   const completed = event.status === "completed";
 
   const basis: RankBasis = { isStroke: board.isStroke, isStableford: board.isStableford, isNet: unitIsNet(board.unit) };
@@ -260,14 +333,15 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
    * played read "The results so far … Still in: 1 of 129" and named nobody,
    * over a Final line that said who won it.
    */
-  const over = completed || (knockout && finishingPositions(state).length > 0);
+  // A casual round is over when every card is in: nobody presses Complete on a Saturday four-ball.
+  const over = completed || (knockout && finishingPositions(state).length > 0) || (casual && board.allIn);
   const placesKnown = !knockout || over;
   let first = placesKnown && ranks.length ? placeAt(ranks[0]) : null;
   const second = placesKnown && ranks.length > 1 ? placeAt(ranks[1]) : null;
 
   // A champion the committee CONFIRMED for the honours board is the record.
   const confirmed = completed
-    ? await prisma.honoursEntry.findFirst({ where: { eventId }, select: { championName: true } })
+    ? await prisma.honoursEntry.findFirst({ where: { eventId }, select: { championName: true, note: true } })
     : null;
   if (confirmed) first = { names: [confirmed.championName], figure: first?.names.includes(confirmed.championName) ? first.figure : "" };
 
@@ -321,7 +395,8 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
     };
   });
 
-  const [prizeRows, contests, money] = await Promise.all([
+  const cardRounds = await highlightRoundsFor(state);
+  const [prizeRows, contests, money, foot] = await Promise.all([
     prisma.prize.findMany({
       where: { eventId, winnerId: { not: null } },
       orderBy: { position: "asc" },
@@ -332,27 +407,37 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       orderBy: { createdAt: "asc" },
       select: { id: true, name: true, hole: true, entrants: { where: { won: true }, select: { playerId: true } } },
     }),
-    moneySections(state, audience),
+    moneySections(state, audience, cardRounds),
+    reportFoot(),
   ]);
   const nameOf = new Map(state.players.map((p) => [p.id, p.name]));
-  const prizes = [
-    ...prizeRows.map((p) => ({
+  const prizes = prizeRows
+    .map((p) => ({
       what: p.category,
       winners: [nameOf.get(p.winnerId ?? "") ?? ""].filter(Boolean),
       amount: money.prizeAmount(p.amount),
-    })),
+    }))
+    .filter((p) => p.winners.length > 0);
+  /**
+   * ON THE COURSE, next after the prizes (2026-10-23): the twos, nearest the
+   * pin and the longest drive — each only where it ran and somebody won it.
+   * A contest's amount is the pot the money screen holds for it (`moneyFor`),
+   * shared where it was shared, and only on a copy that shows amounts.
+   */
+  const onTheCourse = [
+    ...money.twos,
     ...contests
       .filter((c) => c.entrants.length > 0)
       .map((c) => {
         const pot = money.contestPots.get(c.id) ?? 0;
         return {
-          what: c.hole > 0 && !c.name.includes(String(c.hole)) ? `${c.name} (hole ${c.hole})` : c.name,
-          winners: c.entrants.map((e) => nameOf.get(e.playerId) ?? "").filter(Boolean),
-          // The pot the money screen holds for it (`moneyFor`), shared where it was shared.
-          amount: pot > 0 ? `${money.money(pot)}${c.entrants.length > 1 ? ", shared" : ""}` : "",
+          what: c.hole > 0 && !c.name.includes(String(c.hole)) ? `${c.name}, hole ${c.hole}` : c.name,
+          who: listWords(c.entrants.map((e) => nameOf.get(e.playerId) ?? "").filter(Boolean)),
+          detail: pot > 0 ? `${money.money(pot)}${c.entrants.length > 1 ? ", shared" : ""}` : "",
         };
-      }),
-  ].filter((p) => p.winners.length > 0);
+      })
+      .filter((c) => c.who),
+  ];
 
   // ── Flights: each flight's winner, from the reader Prizes and Today use ──
   const rowById = new Map(rows.map((r) => [r.id, r]));
@@ -395,6 +480,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   // ── How it was won: the week sheet's table after each round ──────────────
   let movement: EventReport["movement"] = null;
   let climb: ReturnType<typeof movementStory>["climb"] = null;
+  let movedRounds: MovementRound[] = [];
   if (individual && !knockout && stages.length > 1) {
     const moved = await movementRoundsFor(state, basis.isStableford ? "stableford" : basis.isNet ? "net" : "gross");
     if (moved.rounds.length > 1) {
@@ -407,7 +493,9 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
               ? `gross ${v}`
               : `net ${v}`;
       const told = movementStory(moved.rounds, words);
-      climb = told.climb;
+      // A match is won against one opponent, not a field: no "biggest climb".
+      climb = basis.isStroke ? told.climb : null;
+      movedRounds = moved.rounds;
       // The podium, by the BOARD's places — the table under the champion.
       const podium = rows.filter((r) => r.ranked && r.rank <= 3);
       const earlier = moved.rounds.slice(0, -1);
@@ -425,7 +513,6 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   }
 
   // ── Highlights and the numbers, off the cards ────────────────────────────
-  const cardRounds = await highlightRoundsFor(state);
   const found = reportHighlights(cardRounds);
   const venues = await venueNames(
     state,
@@ -517,6 +604,54 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
 
   const comingUp = await comingUpFor(state, audience);
 
+  // ── The rich report (2026-10-23): what it leads with, and its picture ────
+  const playedRounds = stages.filter((s) => state.roundsWithResults.has(s.id)).length;
+  const league = individual && !knockout && playedRounds >= 3 && (basis.isStableford || !basis.isStroke);
+  const baseKind: ReportKind = knockout ? "knockout" : team ? "team" : league ? "league" : !basis.isStroke ? "match" : basis.isStableford ? "stableford" : "stroke";
+  const kind: ReportKind = casual ? "casual" : baseKind;
+  const casualLine = casual ? (await casualStanding(state)).matchLine : "";
+  /**
+   * BY HOW MUCH, for the news line: the strokes (or points) between the
+   * winner and second on the figure the board ranks on — "by 3", "by 2
+   * points", "on countback" where they were level. Only for a finished stroke
+   * or points board with one winner; a match is won by a margin of its own.
+   */
+  const margin = (() => {
+    if (!over || (kind !== "stroke" && kind !== "stableford" && kind !== "league")) return "";
+    if (!basis.isStroke) return "";
+    const winners = rows.filter((r) => r.ranked && r.rank === ranks[0]);
+    const next = rows.find((r) => r.ranked && r.rank === ranks[1]);
+    if (winners.length !== 1 || !next) return "";
+    const v = (r: StandingRow) => (basis.isStableford ? r.points : basis.isNet ? r.net : r.gross);
+    const by = Math.abs(v(winners[0]) - v(next));
+    if (by === 0) return "on countback";
+    return basis.isStableford ? `by ${by} ${by === 1 ? "point" : "points"}` : `by ${by}`;
+  })();
+  // A casual match is summed up in the one line its own screen uses ("Bea Zed won 2&1").
+  const lead = casualLine
+    ? [{ label: "Overall", lines: [{ place: over ? "The match" : "So far", names: [casualLine], figure: "", how: "" }] }]
+    : await leadFor({
+        state,
+        board,
+        rows,
+        sides,
+        teamBasis,
+        basis,
+        kind: baseKind,
+        over,
+        completed,
+        knockout,
+        margins,
+        rowById,
+        nameOf,
+        confirmedNote: confirmed?.note ?? "",
+        confirmedChampion: confirmed?.championName ?? "",
+      });
+  // A casual round's picture is its settle-up, drawn by the page itself.
+  const pictures = casual
+    ? { hero: null, holeStrip: null }
+    : await picturesFor({ state, board, rows, sides, totals, teamBasis, basis, kind, over, cardRounds, stages, shared, margins, movedRounds, completed });
+
   const facts: Array<{ label: string; value: string }> = [
     { label: "Format", value: stages.length === 1 ? "One round" : `${countWords(stages.length).replace(/^./, (c) => c.toUpperCase())} rounds` },
     ...stages.map((s) => {
@@ -529,9 +664,18 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
           ? name
           : `${name}, Stableford`
         : `${s.scoringBasis === "gross" ? "Gross" : "Net"} ${name.toLowerCase()}`;
+      /**
+       * THE ALLOWANCE IT WAS PLAYED OFF ("95% of handicap"), where the round
+       * has one: an individual net round by `individualAllowanceFor`, a team
+       * round off handicap by `effectiveAllowance` — the figures the board
+       * priced it with. A gross round and a match have none to say.
+       */
+      const individualPct = individualAllowanceFor(s)?.allowance ?? null;
+      const teamPct = needsTeams(s.format) && s.scoringBasis.trim().toLowerCase() !== "gross" ? effectiveAllowance(s.format, s.handicapAllowance, s.type) : null;
+      const pct = individualPct ?? teamPct;
       return {
         label: roundLabel(stages, s.id) || s.description || "Round",
-        value: `${what}, ${nineWords(s.holes, s.nine)}`,
+        value: `${what}, ${nineWords(s.holes, s.nine)}${pct ? `, ${pct}% of handicap` : ""}`,
       };
     }),
     { label: "Field", value: `${state.confirmed.length} ${state.confirmed.length === 1 ? "player" : "players"}` },
@@ -557,10 +701,23 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   return {
     name: event.name,
     where: [event.dates.trim(), event.course.trim()].filter(Boolean).join(" · "),
+    club: { name: board.brand?.name ?? "", logoUrl: board.brand?.logoUrl ?? "" },
+    kind,
+    lead,
+    hero: pictures.hero,
+    holeStrip: pictures.holeStrip,
+    onTheCourse,
+    // A tie on the board that the committee's confirmed champion settled was a play-off.
+    margin: lead[0]?.lines[1]?.how === "lost the play-off" ? "after a play-off" : margin,
+    venue: event.course.trim(),
+    moneyPending: money.pending ? "Side games settle when the last card is in." : "",
+    standing: money.standing,
+    foot,
     // What the report calls finished: a knockout with its final played is (`over`).
     completed: over,
-    first,
-    ribbon: eventRibbon({ completed: over, first }),
+    // A casual round names nobody "Champion": its one line says who won the match.
+    first: casual ? null : first,
+    ribbon: casual ? "" : eventRibbon({ completed: over, first }),
     story,
     storyByOrganizer: recap.length > 0,
     facts,

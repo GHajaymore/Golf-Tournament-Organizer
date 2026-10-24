@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
 import { settingsOf } from "@/lib/services/tournament";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
-import { reportAudienceFor, reportFor } from "@/lib/services/event-report";
+import { reportAudienceFor, reportCardInput, reportFor } from "@/lib/services/event-report";
+import { reportNewsLine } from "@/lib/domain/report-card";
 import { getSession } from "@/lib/auth";
 import { FinalReport } from "@/components/FinalReport";
 import { EventReport } from "@/components/EventReport";
@@ -29,14 +30,24 @@ import { EventReport } from "@/components/EventReport";
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * The link's title and description (2026-10-23): "Final report" only once it
+ * is final, and a news line — "Jane Doe wins the Spring Medal by 3 at Braid
+ * Hollow" — read off the PUBLIC copy, under the same rule as the share card
+ * (`reportNewsLine`): a board that is not public names nobody.
+ */
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const event = await prisma.event.findUnique({
     where: { shareToken: token },
-    select: { name: true, leaderboardVisibility: true },
+    select: { id: true, name: true, leaderboardVisibility: true },
   });
-  if (!event || event.leaderboardVisibility !== "public") return { title: "Final report", robots: NOINDEX };
-  return { title: `${event.name} — Final report`, robots: NOINDEX };
+  if (!event || event.leaderboardVisibility !== "public") return { title: "Report", robots: NOINDEX };
+  const found = await reportFor(event.id, { kind: "public" });
+  const input = found ? reportCardInput(found) : null;
+  const title = `${event.name} — ${input?.completed ? "Final report" : "The results so far"}`;
+  const description = reportNewsLine(input, event.leaderboardVisibility);
+  return { title, description, openGraph: { title, description }, twitter: { card: "summary_large_image", title, description }, robots: NOINDEX };
 }
 
 export default async function PublicFinalReportPage({ params }: { params: Promise<{ token: string }> }) {

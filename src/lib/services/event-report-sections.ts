@@ -17,6 +17,9 @@ import { isSkinsScope, skinsGameLabel } from "../domain/skins-pot";
 import { DERIVED_LABEL, isDerivedKind } from "../domain/derived-games";
 import { roundLabel } from "../domain/round-label";
 import { holesPlayed } from "../domain/handicap";
+import { pickedUpHoles } from "../domain/card-points";
+import { isStablefordRound } from "../domain/week-basis";
+import { boardKind } from "../formats";
 import { sharedBallRound } from "../domain/shared-ball";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { parseDeadlineIso } from "../deadline";
@@ -25,6 +28,7 @@ import { clubDay } from "../domain/club-clock";
 import { isManualFormat, needsTeams } from "../formats";
 import { roundIsStroke } from "../stage-types";
 import { listWords } from "../domain/final-report";
+import { countTwos } from "../domain/derived-games";
 import { plural } from "../format";
 import { byAddress } from "../domain/my-entry";
 import type { HighlightRound } from "../domain/report-highlights";
@@ -101,6 +105,14 @@ export async function highlightRoundsFor(state: EventState): Promise<HighlightRo
   return stages.map((stage) => {
     const holes = holesPlayed(stage.holes);
     const card = state.strokeCourseFor(stage.id);
+    /**
+     * A STABLEFORD PICK-UP is stored as a net double bogey (`stablefordPickUp`),
+     * and is read back the way the card itself reads it: a hole AT that figure,
+     * off the player's own strokes on it, is a hole they picked up on.
+     */
+    const stableford = isStablefordRound(stage.scoringBasis, stage.format) && boardKind(stage.format) !== "modified-stableford";
+    const pickedUp = (playerId: string, strokes: (number | null)[]) =>
+      stableford ? pickedUpHoles(strokes, card.pars, card.holeDifficulty, state.strokeHandicapFor(playerId, stage.id), holes) : undefined;
     return {
       stageId: stage.id,
       label: roundLabel(state.stages, stage.id) || stage.description || "Round",
@@ -115,7 +127,9 @@ export async function highlightRoundsFor(state: EventState): Promise<HighlightRo
         .flatMap((r) => {
           try {
             const strokes = JSON.parse(r.strokes) as (number | null)[];
-            return Array.isArray(strokes) ? [{ playerId: r.playerId, name: nameOf.get(r.playerId) ?? "", strokes }] : [];
+            return Array.isArray(strokes)
+              ? [{ playerId: r.playerId, name: nameOf.get(r.playerId) ?? "", strokes, pickedUp: pickedUp(r.playerId, strokes) }]
+              : [];
           } catch {
             return [];
           }
@@ -123,6 +137,23 @@ export async function highlightRoundsFor(state: EventState): Promise<HighlightRo
         .filter((c) => c.name),
     };
   });
+}
+
+/**
+ * THE ROUNDS SOMEBODY HAS PLAYED, from every table a result is filed in.
+ * `state.roundsWithResults` reads the cards, the matches and the draw — and
+ * not `TeamScorecard`, which is where a four-ball, a foursomes and a scramble
+ * file theirs (2026-10-23: a played four-ball was "Coming up" on its own
+ * report, and had no winning card to draw). Added here for the report's
+ * readers rather than on the state, whose other readers were not walked.
+ */
+export async function playedStageIds(state: EventState): Promise<Set<string>> {
+  const team = await prisma.teamScorecard.findMany({
+    where: { eventId: state.event.id, NOT: { strokes: { in: ["", "[]"] } } },
+    select: { stageId: true },
+    distinct: ["stageId"],
+  });
+  return new Set([...state.roundsWithResults, ...team.map((t) => t.stageId).filter(Boolean)]);
 }
 
 /** The names of the courses a hole can be at, for a tournament played at more than one. */
@@ -226,8 +257,14 @@ export interface ReportMoney {
   sideGames: ReportPot[];
   /** Entry fees, the fund and shared costs — absent from the public copy. */
   costs: { lines: MoneyLine[]; total: MoneyLine | null } | null;
-  /** The fewest payments. Absent from the public copy. */
+  /** The fewest payments. Absent from the public copy, and while a side game can still change. */
   settleUp: { yours: string; lines: Array<{ from: string; to: string; amount: string }> } | null;
+  /** Each player's net, from the same balances the payments settle. Absent where `settleUp` is. */
+  standing: Array<{ name: string; net: string }> | null;
+  /** A side game whose amount can still change: its result is not final yet. */
+  pending: boolean;
+  /** The twos, each round that had a twos pot: who made them, and what a two was worth once final. */
+  twos: Array<{ what: string; who: string; detail: string }>;
   /** What each contest's pot held, by contest id — staff and the field only. */
   contestPots: Map<string, number>;
   /** A prize's amount, in the club's words. "" on the public copy, or for a prize with none. */
@@ -251,7 +288,13 @@ function holesWords(holes: number[]): string {
   return `${holes.length === 1 ? "hole" : "holes"} ${listWords(holes.map(String))}`;
 }
 
-export async function moneySections(state: EventState, audience: ReportAudience): Promise<ReportMoney> {
+export async function moneySections(
+  state: EventState,
+  audience: ReportAudience,
+  /** The cards, as `highlightRoundsFor` reads them — for who made the twos. */
+  twosCards?: ReadonlyArray<HighlightRound>,
+): Promise<ReportMoney> {
+  const twos: ReportMoney["twos"] = [];
   const eventId = state.event.id;
   const amounts = showsAmounts(audience);
   const f: Formatting = await formattingForEvent(eventId);
@@ -267,13 +310,17 @@ export async function moneySections(state: EventState, audience: ReportAudience)
     select: { stageId: true, net: true, scope: true },
   });
   const skins: ReportPot[] = [];
+  let pending = false;
   for (const pot of pots) {
     const stage = stages.find((s) => s.id === pot.stageId);
     if (!stage) continue;
     const scope = isSkinsScope(pot.scope) ? pot.scope : "full";
     const view = await skinsPotFor(eventId, pot.stageId, pot.net, scope, "");
     // Final only — the same flag `gameNets` refuses a pot on.
-    if (!view?.result || view.result.provisional) continue;
+    if (!view?.result || view.result.provisional) {
+      pending = true;
+      continue;
+    }
     const r = view.result;
     const won = `${plural(r.claimedSkins, "skin")} won${r.unclaimedSkins > 0 ? `; ${plural(r.unclaimedSkins, "hole")} shared and carried` : ""}.`;
     const stake =
@@ -313,6 +360,8 @@ export async function moneySections(state: EventState, audience: ReportAudience)
       const words = (w: string | null | undefined, a: string, b: string) => (w === "A" ? a : w === "B" ? b : w === "H" ? "halved" : "");
       const lines = rows.flatMap((row) => {
         const decided = row.outcome.segments.filter((s) => s.result?.complete);
+        // A segment still to be decided is an amount that can still change.
+        if (decided.length < row.outcome.segments.length) pending = true;
         if (decided.length === 0) return [];
         const parts = decided.map((s) => {
           const who = words(s.result?.winner, row.aName, row.bName);
@@ -333,8 +382,42 @@ export async function moneySections(state: EventState, audience: ReportAudience)
     if (!results.has(g.stageId)) results.set(g.stageId, await sidePotResults(eventId, g.stageId));
     const nets = results.get(g.stageId)?.get(g.id);
     // Absent until the round is final — `sidePotResults` holds nothing else.
-    if (!nets || nets.length === 0) continue;
+    if (!nets) {
+      pending = true;
+      continue;
+    }
+    if (nets.length === 0) continue;
     const up = nets.filter((n) => n.netCents > 0).sort((a, b) => b.netCents - a.netCents);
+    /**
+     * THE TWOS are said with the course's other feats ("4 twos, $3.75 each"),
+     * not in the list of side games. Who made them is read off the gross cards
+     * by the pot's own count (`countTwos`), and what a two was worth is the
+     * pot over the twos made — said only where it divides exactly; otherwise
+     * each winner's own share, which is the pass's figure.
+     */
+    if (g.kind === "twos") {
+      const card = (twosCards ?? []).find((r) => r.stageId === g.stageId);
+      const made = nets
+        .map((n) => {
+          const c = card?.cards.find((x) => x.playerId === n.playerId);
+          return { name: nameOf.get(n.playerId) ?? "", count: c ? countTwos({ playerId: c.playerId, strokes: [...c.strokes], strokesReceived: 0 }) : 0, net: n.netCents };
+        })
+        .filter((m) => m.count > 0)
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      const total = made.reduce((s, m) => s + m.count, 0);
+      const pot = g.buyInCents * nets.length;
+      twos.push({
+        what: named("Twos", stage.id),
+        who: made.length ? listWords(made.map((m) => (m.count > 1 ? `${m.name} (${m.count})` : m.name))) : "Nobody made a two",
+        detail:
+          total === 0
+            ? amounts
+              ? "The stakes went back."
+              : ""
+            : `${plural(total, "two")}${amounts && pot > 0 && pot % total === 0 ? `, ${money(pot / total)} each` : ""}`,
+      });
+      continue;
+    }
     sideGames.push({
       title: named(DERIVED_LABEL[g.kind], stage.id),
       line: amounts
@@ -351,6 +434,7 @@ export async function moneySections(state: EventState, audience: ReportAudience)
   // ── Fees, costs, the fund, the settle-up: amounts only, so never public ──
   let costs: ReportMoney["costs"] = null;
   let settleUp: ReportMoney["settleUp"] = null;
+  let standing: ReportMoney["standing"] = null;
   const contestPots = new Map<string, number>();
   if (amounts) {
     const email = audience.kind === "public" ? "" : audience.email;
@@ -394,7 +478,20 @@ export async function moneySections(state: EventState, audience: ReportAudience)
       };
     }
 
-    if (view.transfers.length > 0) {
+    /**
+     * THE SETTLE-UP ONLY ONCE NOTHING IN IT CAN CHANGE (2026-10-23). Every
+     * figure `moneyFor` settles is already final at the sink (`gameNets`), but
+     * a list of payments drawn while a side game is still being played is a
+     * list that will be redrawn — so the report waits for the last one and
+     * says so in one line instead.
+     */
+    if (!pending && view.standing.length > 0 && view.transfers.length > 0) {
+      standing = view.standing.map((s) => ({
+        name: s.name,
+        net: s.netCents === 0 ? "square" : `${s.netCents > 0 ? "+" : "−"}${money(Math.abs(s.netCents))}`,
+      }));
+    }
+    if (!pending && view.transfers.length > 0) {
       let yours = "";
       if (audience.kind === "player" && view.playerId) {
         const pays = view.transfers.filter((t) => t.fromPlayerId === view.playerId);
@@ -419,6 +516,9 @@ export async function moneySections(state: EventState, audience: ReportAudience)
     sideGames,
     costs,
     settleUp,
+    standing,
+    pending,
+    twos,
     contestPots,
     prizeAmount: (amount: number) =>
       amounts && amount > 0 ? money(Math.round(amount * 10 ** minorUnitDigits(f.currency))) : "",
@@ -441,10 +541,11 @@ export async function comingUpFor(state: EventState, audience: ReportAudience): 
   const today = state.today;
   const { locale } = await formattingForEvent(state.event.id);
   const dated: Array<{ iso: string; text: string }> = [];
+  const played = await playedStageIds(state);
 
   const next = playingStages(state.stages).find((s) => {
     const iso = cleanIsoDate(s.playedOn);
-    return iso && iso >= today && !state.roundsWithResults.has(s.id) && s.closedAt == null;
+    return iso && iso >= today && !played.has(s.id) && s.closedAt == null;
   });
   if (next) {
     dated.push({ iso: cleanIsoDate(next.playedOn), text: `${roundLabel(state.stages, next.id) || "The next round"} of ${state.event.name}.` });
