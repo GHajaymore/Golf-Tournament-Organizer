@@ -1,4 +1,5 @@
 import { test, expect } from "./coverage";
+import { openSettingsTab } from "./settings-tabs";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -433,6 +434,8 @@ test("a club with no time zone takes its organizer's, and Club settings shows th
     await page.goto(`/organization?bust=${Date.now()}`);
     await expect(zone).toHaveValue(device, { timeout: 2_000 });
   }).toPass({ timeout: 20_000 });
+  // The time zone is in the Currency card, on the Money tab.
+  await openSettingsTab(page, "Money");
 
   // The word belongs to the box, and the time is on the screen.
   await page.locator('label[for="club-time-zone"]').click();

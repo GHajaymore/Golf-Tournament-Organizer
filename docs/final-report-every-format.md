@@ -36,7 +36,7 @@ with them ("one rule, one place").
 | The leaderboard: position, name, gross AND net (or points), to par | `standingRows(state)` — always gross and net where there are strokes |
 | A knockout's champion and the final | `bracketResults` / the draw |
 | A league's table at the end of the season | the season standings |
-| Prize and contest winners (nearest the pin, longest drive, twos) | what the Prizes screen reads |
+| Prize and contest winners (nearest the pin, longest drive, twos) | what the Prizes screen reads, in the committee's list order. Under "one prize per player" no player is named for two PLACING prizes (the award is refused); a skill prize or a contest may name a placing winner again, as clubs allow |
 | Format and field | each round: basis, format, holes, allowance; the field size |
 
 ## Masthead
