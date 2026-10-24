@@ -223,7 +223,6 @@ jobs:
     # whole round again. A job that runs out of time is CANCELLED, which continue-on-error does not
     # cover, so the slow step carries its own limit and gives up as a failed step: the job ends
     # green, and the parts — which wait on it — wait twenty minutes at most.
-    # (The same change as claude/textbox-crawl, #923; whichever merges second keeps one copy.)
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4

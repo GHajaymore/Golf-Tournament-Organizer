@@ -10,6 +10,7 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { TEAM_SESSION, cupBoard, sessionKind } from "@/lib/services/cup";
 import { notifyLineupPublished } from "@/lib/services/cup-notify";
 import { isMatch } from "@/lib/tournament-shape";
+import { TEAM_NAME_MAX } from "@/lib/domain/typed-limits";
 
 /**
  * THE TEAM CUP'S CONTROLS (2026-09-28): the target, the holder, and the
@@ -87,9 +88,14 @@ async function teamsOf(eventId: string) {
  */
 export async function createCupTeams(nameA: string, nameB: string): Promise<Result> {
   const eventId = await requireStaffEvent();
-  const a = String(nameA ?? "").trim().slice(0, 40);
-  const b = String(nameB ?? "").trim().slice(0, 40);
+  const a = String(nameA ?? "").trim();
+  const b = String(nameB ?? "").trim();
   if (!a || !b) return { ok: false, error: "Name both teams." };
+  // Refused, not cut: a name stored shorter than it was typed is a name nobody
+  // chose (the text-box crawl, 2026-10-21). The boxes carry the same limit.
+  if (a.length > TEAM_NAME_MAX || b.length > TEAM_NAME_MAX) {
+    return { ok: false, error: `Keep each team's name to ${TEAM_NAME_MAX} characters.` };
+  }
   if (a.toLowerCase() === b.toLowerCase()) return { ok: false, error: "Give the two teams different names." };
   const cup = await prisma.stage.count({ where: { eventId, type: TEAM_SESSION } });
   if (cup === 0) return { ok: false, error: "This tournament has no team cup sessions." };
@@ -107,8 +113,9 @@ export async function createCupTeams(nameA: string, nameB: string): Promise<Resu
 /** A team's name. One of the cup's two flights, and nothing else. */
 export async function renameCupTeam(groupId: string, name: string): Promise<Result> {
   const eventId = await requireStaffEvent();
-  const clean = String(name ?? "").trim().slice(0, 40);
+  const clean = String(name ?? "").trim();
   if (!clean) return { ok: false, error: "Give the team a name." };
+  if (clean.length > TEAM_NAME_MAX) return { ok: false, error: `Keep the team's name to ${TEAM_NAME_MAX} characters.` };
   // Narrowed to this event's flights in the query itself.
   const team = await prisma.group.findFirst({
     where: { id: String(groupId), eventId, stageId: null, isCarrier: false },

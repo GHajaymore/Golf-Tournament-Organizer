@@ -232,8 +232,8 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Under **Add someone new**: Player name, Email (required or optional depending on how players sign in), Mobile if required — a tournament whose players sign in with Round Codes never asks for one — **Handicap source** (GHIN, Manual or None), the handicap (a plus handicap is typed “+2.4”) and whether it's an 18- or 9-hole index. Press [[Add to field]]. A handicap in the list below can be corrected in its own box, the same way; it saves when you leave the box, changes this tournament only, and works after setup has locked. Where Members still holds the old figure, the row says so and offers [[Make it … on Members]] — press it when the old figure was a mistake.",
-          "Or [[Import CSV]] with a header row: a **name** column (or First Name and Last Name), plus email and phone if this tournament needs them. A plus handicap is written “+2.4”; a blank means no handicap, not scratch.",
+          "Under **Add someone new**: Player name, Email (required or optional depending on how players sign in), Mobile if required — a tournament whose players sign in with Round Codes never asks for one — **Handicap source** (GHIN, Manual or None), the handicap (a plus handicap is typed “+2.4”) and whether it's an 18- or 9-hole index, and optionally their Home club, which the list then shows under their name. Press [[Add to field]]. A handicap in the list below can be corrected in its own box, the same way; it saves when you leave the box, changes this tournament only, and works after setup has locked. Where Members still holds the old figure, the row says so and offers [[Make it … on Members]] — press it when the old figure was a mistake.",
+          "Or [[Import CSV]] with a header row: a **name** column (or First Name and Last Name), plus email and phone if this tournament needs them, and a Home club or GHIN column if you have one. A plus handicap is written “+2.4”; a blank means no handicap, not scratch.",
         ],
       },
       { kind: "tip", text: "If your list has no email addresses at all, the import switches Round Codes on so players can still get in." },
@@ -516,7 +516,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Who sees the amounts: your copy on Reports, and a player in the field who is signed in (their own line comes first: \"You pay … to …\" or \"You are owed …\"). The public link names the winners and never what they won, and has no costs, no settle-up and no notices. TourneyHQ records the payments; players pay each other.",
         ],
       },
-      { kind: "warn", text: "**On the free Par plan** completing a tournament deletes it. The dialog offers [[Open the final report]] — then [[Print or save as PDF]] to keep it — and [[Go to Reports]] to export first, or an upgrade to keep it. A Par tournament is also removed 14 days after its first round." },
+      { kind: "warn", text: "**On the free Par plan** a completed tournament stays open to view, read-only, for 15 days, and is then deleted for good. The dialog offers [[Open the final report]] — then [[Print or save as PDF]] to keep it — and [[Go to Reports]] to export first, or an upgrade to keep it. It cannot be reopened in those 15 days without an upgrade. A Par tournament is also removed 14 days after its first round if nobody completes it." },
     ],
   },
   {

@@ -145,6 +145,27 @@ function everyLayer(abroad) {
       reach: true,
     },
     {
+      // Added 2026-10-21: the dropdowns, choices and tick-boxes were every one operated by the control
+      // crawl, and the text boxes — a third of the console's controls — by nothing in particular. Its own
+      // layer, cut into TEXT_PARTS shares by `--shard`, so that no part of the suite grows by an hour.
+      key: "text-boxes",
+      // In every change's round and the nightly, as it was when it arrived (#923): the panel of
+      // 2026-10-23 made the CONTROL crawl conditional and said nothing of this one, so it is unchanged.
+      when: PR_AND_NIGHTLY,
+      name: "Every text box",
+      standsFor: "an organizer or a member typing into any box: nothing, far too much, the wrong kind of thing, the right thing",
+      reallyIs: "Chromium at 1280×900: every text box on every console and player screen of every seeded tournament given empty, over-long, bad and good input, saved the way its screen saves, reloaded and read back, then put back as it was — with a control in each share proving it can see a silent press and a refusal out of view",
+      cannotSee: "a box that appears only after a press it does not make (a dialog, a second step); whether a value it calls kept is right for the club; boxes behind a button that sends, deletes or spends an allowance, which it never presses",
+      cookies: "secure",
+      env: { E2E_EVERYTHING: "1", E2E_TEXT_BOXES: "1" },
+      specs: ["e2e/every-text-box.spec.ts"],
+      projects: ["desktop"],
+      minutes: 40,
+      // Each share's ledger (every try and its verdict) and its reach, written as it goes. Kept with
+      // the part's own files (`round.mjs`), or a failing share's findings exist only in its log.
+      keeps: ".e2e/every-text-box",
+    },
+    {
       // Added 2026-10-13: every other layer asks the browser for reduced motion, which is what almost
       // nobody has set. The first round on GitHub met the page with its motion on by accident (Safari's
       // engine on Linux ignores the request) and three front-door tests failed on pictures measured before
@@ -346,6 +367,15 @@ function everyLayer(abroad) {
 export const CRAWL_PARTS = 4;
 
 /**
+ * How many machines the text-box crawl (`e2e/every-text-box.spec.ts`) is shared between. The spec is
+ * one test per share, so Playwright's `--shard=k/TEXT_PARTS` runs exactly share k; `SHARDS` below
+ * names the same number for its layer. Measured 2026-10-21 on one machine as one share: 27 minutes,
+ * of which about seven is opening every screen on every tournament (which each share repeats). Three
+ * shares is about fifteen minutes each.
+ */
+export const TEXT_PARTS = 3;
+
+/**
  * HOW MANY MACHINES EACH LONG PART IS SHARED BETWEEN, by Playwright's `--shard`.
  *
  * Keyed `layer:size` for a layer that runs every spec (it is cut by size first),
@@ -380,7 +410,38 @@ export const SHARDS = {
   chrome: 2,
   "tablet-android": 2,
   safari: 2,
+  "text-boxes": TEXT_PARTS,
 };
+
+/**
+ * WHAT A PART'S OWN FILES ARE CALLED, inside `.qa/rounds/<tag>/` — its log, what it kept, its summary.
+ *
+ * Every part of a round writes into a folder of the same name (the round's tag), and each machine's is
+ * handed on as an artifact of its own. They were named by LAYER, so the three shares of the text-box
+ * crawl each held `.qa/rounds/G253-1/text-boxes.log` and `summary.md`: three files of one name, and
+ * fetched into one place the last one won — while the verdict carried one line per failed share and
+ * none of its findings, so those logs were the only place the findings were. Two of three shares'
+ * were read as lost (2026-10-21). Named by the PART, no two machines' files share a name, and the
+ * verdict lists every finding (`details` in `round.mjs` and `merge.mjs`). No part named (a round run
+ * here): the layer's.
+ */
+export function partFile(layerKey, partId) {
+  if (!partId) return layerKey;
+  return partId.startsWith(layerKey) ? partId : `${partId}-${layerKey}`;
+}
+
+/**
+ * EVERY FINDING A PART'S LOG PRINTS, for the verdict. The text-box crawl prints each finding under its
+ * share's tally as `[every-text-box]   <WHAT> · …`; what it skipped and what was locked everywhere are
+ * printed the same way and are not findings. Playwright's own failure line names the share and none of
+ * what it found.
+ */
+export function findingsSaid(log) {
+  return String(log ?? "")
+    .split(/\r?\n/)
+    .filter((l) => /^\[every-text-box\] {3}(?!skipped · |locked on every )\S/.test(l))
+    .map((l) => l.replace(/^\[every-text-box\] {3}/, "").trim().slice(0, 400));
+}
 
 /**
  * The parts of a round under `plan` (see `layersFor`), plus `plan.crawl`: false

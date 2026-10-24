@@ -18,6 +18,7 @@
 
 import { registrationStatus, type RegistrationInput } from "../registration";
 import { readHandicapIndex } from "./handicap-label";
+import { EMAIL_RE } from "./typed-limits";
 
 export type ApprovalMode = "auto" | "approve";
 
@@ -94,10 +95,7 @@ export function placementOnApproval(capacity: number, confirmedCount: number): I
  * a number with a real-world range, not free text.
  */
 
-/** Same shape the rest of the app validates emails with (see EMAIL_RE in
- *  actions/tournament.ts). Deliberately loose — the job is to reject obvious
- *  nonsense, not to adjudicate RFC 5322. */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// The app's one shape of an address — `typed-limits.ts` says what it refuses.
 
 export type HandicapParse =
   | { ok: true; value: number; source: "manual" }

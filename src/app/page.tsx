@@ -284,7 +284,6 @@ export default async function LandingPage() {
 
       <main id="top" className="m-home">
         <div className="m-progress" aria-hidden="true" />
-        <div className="m-putter" id="putter" aria-hidden="true" />
 
         {/* ═══════════ THE FIRST SCREEN ═══════════ */}
         <section className="m-hero" aria-labelledby="hero-h">
@@ -791,12 +790,6 @@ export default async function LandingPage() {
             <ol>
               {WEEK.map((m, i) => <li className={i === 0 || i === WEEK.length - 1 ? "m-end" : undefined} key={m.tab}><span>{m.tab}</span></li>)}
             </ol>
-          </div>
-          <div className="m-run" id="kinetic-run" aria-hidden="true">
-            {[0, 1, 2, 3].map((n) => <span key={n}>From Registration to <b>Recognition.</b></span>)}
-          </div>
-          <div className="m-run m-back" id="kinetic-back" aria-hidden="true">
-            {[0, 1, 2].map((n) => <span key={n}>{WEEK.map((m) => <Fragment key={m.tab}>{m.tab} <i>·</i> </Fragment>)}</span>)}
           </div>
         </div>
 
