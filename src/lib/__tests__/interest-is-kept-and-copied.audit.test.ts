@@ -17,14 +17,16 @@ const prisma = new PrismaClient();
 const RUN = Date.now().toString(36);
 const EMAIL = `zz-interest-${RUN}@example.invalid`;
 
-const sent: Array<{ to: string; who: { name: string; club: string; role: string } }> = [];
+const sent: Array<{ to: string; told: string; who: { name: string; club: string; role: string } }> = [];
 vi.mock("@/lib/email", () => ({
-  sendInterestEmail: async (to: string, who: { name: string; club: string; role: string }) => {
-    sent.push({ to, who });
+  sendInterestEmail: async (to: string, told: string, who: { name: string; club: string; role: string }) => {
+    sent.push({ to, told, who });
   },
 }));
 
 const { registerInterest } = await import("@/app/actions/interest");
+const { interestWords } = await import("@/lib/go-live");
+const { launchState } = await import("@/lib/services/signins-switch");
 
 const good = { name: "Zz Pat", email: EMAIL, club: "Zz Oakmere GC", role: "secretary", members: "50-150", note: "Thursday draw" };
 
@@ -50,6 +52,8 @@ describe("registerInterest", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toBe("inquiries@tourneyhq.club");
     expect(sent[0].who.role).toBe("Club secretary or manager");
+    // What they were promised is the go-live switch's, asked on the server: this deployment's.
+    expect(sent[0].told).toBe(interestWords(await launchState()).toldInquiries);
   });
 
   it("refuses a bad address beside its box, and keeps nothing", async () => {

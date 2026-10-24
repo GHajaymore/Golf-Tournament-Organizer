@@ -58,15 +58,29 @@ development"), the 25% early-list offer with its terms beside it (the first mont
 monthly, the first year if yearly — Ajay's ruling, and what billing does), "Join the early list"
 in place of "Start free" and every button pointed at `/interest`, and the free plan's
 "Free for fields of up to 10" and "No card" taken down until launch (Ajay: "I dont want it until
-go live"). The CODE is never printed; it is emailed at launch. The form's own words are in
+go live"). The CODE is never printed; it is emailed at launch. The form's labels are in
 `src/lib/domain/interest.ts`; the notes are listed on `/owner` and copied to inquiries@. Round
 codes and public boards are not touched. Previews, dev, CI and e2e are not production and stay
 open (a list on `SIGNIN_ALLOW_EMAILS` closes any of them, to try the closed state). **TO LAUNCH:
-the Accounts card on `/owner` — one press opens accounts to everybody at once, one press holds
-them again** (`services/signins-switch.ts`, a `PlatformSetting` row; a database fault leaves the
-hold standing). `SIGNINS=open` in Vercel still opens it too. Every door asks `maySignInNow` /
-`signInsHeld` — `createSession`, `getSession`, the sign-in actions, the front door — so a new
-door is shut without knowing the rule. Never the word "closed" on screen.
+Go live, on the Accounts card of `/owner` — one press takes EVERYTHING held for launch live at
+once, one press (Hold again) holds it all again** (Ajay, 2026-10-23: "I just need one switch to
+say let's go live"; `services/signins-switch.ts`, a `PlatformSetting` row; a database fault leaves
+the hold standing). `SIGNINS=open` in Vercel still opens it too, and the card says when it is
+overriding the switch. **What it covers is `src/lib/go-live.ts`, and `docs/go-live-switch.md` is
+the same table**: the sign-in doors, every front-door word, the nav on every public page, two /faq
+answers and its last button, the whole of /interest (live: "Now open", no 25%) and the copy to
+inquiries@, the free plan in "Compare the plans" and in the search data (no $0 offer while held),
+and the owner card — 16 places — plus what deliberately does NOT move (app-store badges, prices,
+plan limits). Once live the card also SENDS THE EARLY-LIST CODES, only on the owner's own press of
+Send (`services/early-list.ts`, recorded in `EarlyListSend`, never more than `RESEND_DAILY_LIMIT`
+in 24 hours — the rest wait for his next press). The card's lines from the inventory are plain
+words: no function or variable names. Every held/live
+word is in that one module and each screen takes `LaunchState` as a REQUIRED argument;
+`go-live-switch.test.tsx` refuses a held phrase anywhere else, and `e2e/go-live-switch.spec.ts`
+flips it both ways on a server that holds (its header says how to start one). Every door asks
+`maySignInNow` / `signInsHeld` / `launchState` — `createSession`, `getSession`, the sign-in
+actions, the public pages — so a new door is shut without knowing the rule. A new held place goes
+in `LAUNCH_SURFACES` with a probe. Never the word "closed" on screen.
 
 It is held only while `OWNER_EMAILS` names somebody, so it can never lock everyone out. The
 first draft held production with the owners let through on 2026-10-17 and was withdrawn: `/owner`

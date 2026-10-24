@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { LoginPanel } from "@/components/LoginPanel";
-import { HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
+import { HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE, type LaunchState } from "@/lib/go-live";
 
 /**
  * The real sign-in form, embedded in the landing page so every "Sign in" and
@@ -20,8 +20,14 @@ import { HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
 export function LandingAuth({
   defaultMode = "login",
   organizers = "organizers",
-  closed = false,
-}: { defaultMode?: "login" | "signup"; organizers?: string; closed?: boolean } = {}) {
+  launch,
+}: {
+  defaultMode?: "login" | "signup";
+  organizers?: string;
+  /** The go-live switch's answer (`launchState()`). Required: the box cannot be drawn without asking. */
+  launch: LaunchState;
+}) {
+  const closed = launch === "held";
   // Where no link said otherwise: the closing section asks the visitor to set
   // up their first event, so it opens on sign-up (Ajay, 2026-09-28).
   const [mode, setMode] = useState<"login" | "signup">(defaultMode);

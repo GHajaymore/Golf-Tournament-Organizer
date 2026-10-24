@@ -15,14 +15,14 @@ import { EMAIL_RE } from "./typed-limits";
  */
 
 /**
- * EVERY WORD THE FLOW SAYS, in one place: the front door's notice, the page,
- * the form, the answer. Worded with the panel's marketing manager (2026-10-21).
+ * EVERY WORD THE FORM SAYS that is the same held and live: its labels, hints and
+ * buttons. Worded with the panel's marketing manager (2026-10-21). The words that
+ * change when TourneyHQ goes live — the heading, the offer, the thanks, the line
+ * under the form — are in `go-live.ts` (`interestWords`), both ways, so the page
+ * cannot say "opening soon" after launch.
  */
 export const INTEREST_COPY = {
   title: "Register your interest",
-  kicker: "Opening soon",
-  h1: "Be first on the tee when TourneyHQ opens",
-  sub: "Register now and we'll email you a code for 25% off the paid plan you choose at launch. It covers your first term: your first month, or your first year if you pay yearly.",
   bullets: [
     "Entries, tee sheets and live scoring on players' own phones — players need only a round code, no account.",
     "Match play, team cups, skins and side games with who owes what worked out, and a final report — in one place.",
@@ -48,19 +48,8 @@ export const INTEREST_COPY = {
   },
   optional: "optional",
   submit: "Register my interest",
-  reassure: "We'll use these details only to tell you when TourneyHQ opens, to send your code, and — if you leave a number — to call you about your events. We never sell them, and we'll delete them whenever you ask.",
-  sent: (name: string, email: string) =>
-    `Thanks, ${name}, you're on the list. We'll email ${email} when TourneyHQ opens, with your 25% code inside. Nothing else until then.`,
   sentPlayer: "Tournaments are set up by your club or society. Tell your secretary or organizer, and they can register here too.",
-  share: "Know another club or society that runs competitions? Send them tourneyhq.club/interest and they'll get the same offer.",
-  // The front door's notice, while sign-ins are held.
-  noticeOffer: "Register your interest and we'll send you 25% off your first term when accounts open.",
-  noticeLink: "Register your interest →",
-  noticeOr: "Or write to",
 } as const;
-
-/** The offer in one sentence. */
-export const INTEREST_OFFER = INTEREST_COPY.sub;
 
 /** The subject of the copy sent to inquiries@: sortable at a glance. */
 export function interestSubject(who: { name: string; club: string; role: string; size: string }): string {

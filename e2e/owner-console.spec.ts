@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { E2E_OWNER_EMAIL } from "./owner-email.mjs";
+import { OWNER_CARD } from "../src/lib/go-live";
 
 /**
  * THE OWNER CONSOLE, AS THE OWNER USES IT (2026-10-21).
@@ -96,22 +97,24 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
    * so — but the press is the same press, and the row it writes is the one production reads (what the
    * row DOES is held to real rows in `the-launch-switch.audit.test.ts`).
    */
-  await test.step("the launch switch: accounts opened, then held again — each asked first, each said", async () => {
+  // What each held page then SAYS, both ways, is walked by `go-live-switch.spec.ts` on a server that holds.
+  await test.step("the go-live switch: live, then held again — each asked first in a dialog, each said", async () => {
     await prisma.platformSetting.deleteMany({ where: { key: "signins" } });
     await open();
     const card = page.locator("#accounts");
-    await expect(card).toContainText("Held until launch");
+    await expect(card).toContainText(OWNER_CARD.held);
     await expect(card, "the card does not say this server never holds accounts").toContainText("never holds accounts");
-    await card.getByRole("button", { name: "Open accounts" }).click();
-    expect(await prisma.platformSetting.findUnique({ where: { key: "signins" } }), "one press opened accounts without asking").toBeNull();
-    await card.getByRole("button", { name: "Yes, open to everybody" }).click();
-    await expect(card.getByRole("status")).toContainText("Accounts are open");
+    await expect(card).toContainText(OWNER_CARD.willGoLive);
+    await card.getByRole("button", { name: OWNER_CARD.goLive }).click();
+    expect(await prisma.platformSetting.findUnique({ where: { key: "signins" } }), "one press went live without asking").toBeNull();
+    await page.getByRole("dialog", { name: OWNER_CARD.goLiveTitle }).getByRole("button", { name: OWNER_CARD.goLiveConfirm }).click();
+    await expect(card.getByRole("status")).toContainText(OWNER_CARD.wentLive);
     await expect.poll(async () => (await prisma.platformSetting.findUnique({ where: { key: "signins" } }))?.value).toBe("open");
     await open();
-    await expect(page.locator("#accounts")).toContainText("Open. Anybody can sign up");
-    await page.locator("#accounts").getByRole("button", { name: "Hold accounts again" }).click();
-    await page.locator("#accounts").getByRole("button", { name: "Yes, hold them" }).click();
-    await expect(page.locator("#accounts").getByRole("status")).toContainText("held again");
+    await expect(page.locator("#accounts")).toContainText("Live since ");
+    await page.locator("#accounts").getByRole("button", { name: OWNER_CARD.holdAgain }).click();
+    await page.getByRole("dialog", { name: OWNER_CARD.holdTitle }).getByRole("button", { name: OWNER_CARD.holdConfirm }).click();
+    await expect(page.locator("#accounts").getByRole("status")).toContainText(OWNER_CARD.heldAgain);
     await expect.poll(async () => (await prisma.platformSetting.findUnique({ where: { key: "signins" } }))?.value).toBe("held");
   });
 
