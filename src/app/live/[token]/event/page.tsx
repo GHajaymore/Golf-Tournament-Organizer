@@ -223,7 +223,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ to
           <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.5, color: "var(--color-neutral-400)" }}>{format}</p>
         </header>
 
-        <div style={{ display: "grid", gap: 14 }}>{sections.map(block)}</div>
+        <div data-event-sections style={{ display: "grid", gap: 14 }}>{sections.map(block)}</div>
 
         {/* The contests and who sponsors them, across the whole tournament —
             the board's own reader, so this page and the board cannot disagree. */}

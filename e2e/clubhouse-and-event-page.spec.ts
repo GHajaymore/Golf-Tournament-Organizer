@@ -63,7 +63,8 @@ async function visitor(browser: Browser, baseURL: string, opts: { width?: number
 /** Every row of the board on screen is either wholly inside the clubhouse view or wholly outside it. */
 async function cutRows(page: Page): Promise<string[]> {
   return page.evaluate(() => {
-    const view = document.querySelector(".ch-view")!.getBoundingClientRect();
+    // The window the page is shown through: down to where the next page starts.
+    const view = document.querySelector(".ch-window")!.getBoundingClientRect();
     const out: string[] = [];
     for (const li of document.querySelectorAll(".ch-board li")) {
       const r = li.getBoundingClientRect();
@@ -124,8 +125,8 @@ test("a TV in the clubhouse shows the board large, a page at a time, and refresh
   expect(boardNames, "the board does not list the field it is compared with").toEqual(seeded.live.players);
 
   for (const size of [
-    { width: 1280, height: 720, larger: 1.1 },
-    { width: 1920, height: 1080, larger: 1.4 },
+    { width: 1280, height: 720, larger: 1.08 },
+    { width: 1920, height: 1080, larger: 1.35 },
   ]) {
     const tv = await visitor(browser, baseURL!, size);
     const page = tv.page;
@@ -138,9 +139,9 @@ test("a TV in the clubhouse shows the board large, a page at a time, and refresh
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(seeded.live.name);
 
       // No chrome: nothing to choose, nothing to press.
-      await expect(page.getByLabel("Which round the leaderboard shows")).toHaveCount(0);
-      await expect(page.getByRole("button")).toHaveCount(0);
-      await expect(page.getByRole("link", { name: "Read the final report" })).toHaveCount(0);
+      await expect(screen.getByLabel("Which round the leaderboard shows")).toHaveCount(0);
+      await expect(screen.getByRole("button")).toHaveCount(0);
+      await expect(screen.getByRole("link", { name: "Read the final report" })).toHaveCount(0);
 
       // Nothing the board does not show: the same field, and nobody else.
       expect(await namesOn(page, ".ch-board"), "the clubhouse screen lists a different field from the board").toEqual(boardNames);
@@ -166,7 +167,7 @@ test("a TV in the clubhouse shows the board large, a page at a time, and refresh
         await expect(page.getByText(`Page ${p} of ${pages}`)).toBeVisible();
         expect(await cutRows(page), `${size.width}x${size.height}, page ${p}: a row is cut in half`).toEqual([]);
         for (const n of await page.evaluate((field) => {
-          const view = document.querySelector(".ch-view")!.getBoundingClientRect();
+          const view = document.querySelector(".ch-window")!.getBoundingClientRect();
           return [...document.querySelectorAll(".ch-board li")]
             .filter((li) => { const r = li.getBoundingClientRect(); return r.top >= view.top - 1 && r.bottom <= view.bottom + 1; })
             .flatMap((li) => field.filter((name: string) => (li.textContent ?? "").includes(name)));
@@ -186,6 +187,21 @@ test("a TV in the clubhouse shows the board large, a page at a time, and refresh
     } finally {
       await tv.context.close();
     }
+  }
+
+  // The board's buttons are the board's: a finished tournament's board offers
+  // its report; the TV, which nobody can press, does not (and the board's does,
+  // or this proves nothing).
+  const done = await visitor(browser, baseURL!, { width: 1280, height: 720 });
+  try {
+    await done.page.goto(bust(`/live/${seeded.finished.shareToken}`));
+    await expect(done.page.getByRole("link", { name: "Read the final report" })).toHaveCount(1);
+    await done.page.goto(bust(`/live/${seeded.finished.shareToken}?screen=clubhouse`));
+    const screen = done.page.getByRole("main", { name: "Clubhouse screen" });
+    await expect(screen.getByText(seeded.finished.players[0]).first()).toBeVisible({ timeout: 30_000 });
+    await expect(screen.getByRole("link", { name: "Read the final report" })).toHaveCount(0);
+  } finally {
+    await done.context.close();
   }
 
   // Without reduced motion the page slides to the next one.
@@ -223,7 +239,7 @@ test("the event page leads with entries before the day, the board on it, and the
     await expect(page.getByRole("region", { name: "Leaderboard" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Clubhouse screen" }), "a clubhouse screen offered before the day").toHaveCount(0);
     // Entries come first.
-    const order = await page.locator("main section[aria-label]").evaluateAll((s) => s.map((e) => e.getAttribute("aria-label")));
+    const order = await page.locator("[data-event-sections] > section").evaluateAll((s) => s.map((e) => e.getAttribute("aria-label")));
     expect(order.slice(0, 2)).toEqual(["Entries", "Leaderboard"]);
     // And the entry link opens the entry form.
     await enter.click();
@@ -253,13 +269,13 @@ test("the event page leads with entries before the day, the board on it, and the
     await expect(result).toContainText("The result");
     await expect(result, "the report summary names no winner").toContainText(/Ann Example/);
     await expect(result, "an amount on the public summary").not.toContainText(/[$£€]\s?\d/);
-    const order2 = await page.locator("main section[aria-label]").evaluateAll((s) => s.map((e) => e.getAttribute("aria-label")));
+    const order2 = await page.locator("[data-event-sections] > section").evaluateAll((s) => s.map((e) => e.getAttribute("aria-label")));
     expect(order2[0]).toBe("Final report");
     await expect(page.getByRole("region", { name: "Clubhouse screen" })).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath("event-page-after.png"), fullPage: true });
     await result.getByRole("link", { name: "Read the final report" }).click();
     await expect(page).toHaveURL(new RegExp(`/live/${seeded.finished.shareToken}/report$`));
     await expect(page.getByText(seeded.finished.name).first()).toBeVisible();
-    await page.screenshot({ path: test.info().outputPath("event-page-after.png"), fullPage: true });
   } finally {
     await context.close();
   }

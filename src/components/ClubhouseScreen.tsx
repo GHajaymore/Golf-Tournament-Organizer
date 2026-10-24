@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CLUBHOUSE_PAGE_MS, nextPage, pageStarts, pageWords, type Atom } from "@/lib/domain/clubhouse-pages";
+import { CLUBHOUSE_PAGE_MS, nextPage, pageHeight, pageStarts, pageWords, type Atom } from "@/lib/domain/clubhouse-pages";
 
 /**
  * THE PUBLIC BOARD ON A TV IN THE CLUBHOUSE (2026-10-24).
@@ -44,17 +44,21 @@ const CLUBHOUSE_CSS = `
   background: var(--color-bg); color: var(--color-text); padding: 0 24px; }
 .clubhouse .ch-z { zoom: 1; }
 .clubhouse .ch-head, .clubhouse .ch-board, .clubhouse .ch-foot { width: 100%; max-width: 960px; margin: 0 auto; }
-.clubhouse .ch-head { padding-top: 18px; flex: none; }
+.clubhouse .ch-head { padding-top: 14px; flex: none; display: flex; flex-wrap: wrap; align-items: center; column-gap: 32px; }
+.clubhouse .ch-head > header { order: -1; flex: 1 1 420px; min-width: 0; margin-bottom: 12px !important; }
+.clubhouse .ch-head > div:first-child { margin-bottom: 12px !important; }
+.clubhouse .ch-head > :not(header):not(:first-child) { flex-basis: 100%; }
 .clubhouse .ch-view { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.clubhouse .ch-window { overflow: hidden; height: 100%; }
 .clubhouse .ch-slide { transition: transform 600ms ease; will-change: transform; }
 .clubhouse .ch-board { padding-bottom: 8px; }
 .clubhouse .ch-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 8px 0 12px; border-top: 1px solid var(--color-divider); flex-wrap: wrap; }
 .clubhouse .ch-page { font-size: 14px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-neutral-400); }
-@media (min-width: 1200px) and (min-height: 650px) { .clubhouse .ch-z { zoom: 1.15; } }
-@media (min-width: 1600px) and (min-height: 850px) { .clubhouse .ch-z { zoom: 1.4; } }
-@media (min-width: 1880px) and (min-height: 1000px) { .clubhouse .ch-z { zoom: 1.6; } }
-@media (min-width: 2500px) and (min-height: 1400px) { .clubhouse .ch-z { zoom: 2.1; } }
+@media (min-width: 1200px) and (min-height: 650px) { .clubhouse .ch-z { zoom: 1.12; } }
+@media (min-width: 1600px) and (min-height: 850px) { .clubhouse .ch-z { zoom: 1.3; } }
+@media (min-width: 1880px) and (min-height: 1000px) { .clubhouse .ch-z { zoom: 1.45; } }
+@media (min-width: 2500px) and (min-height: 1400px) { .clubhouse .ch-z { zoom: 1.9; } }
 @media (prefers-reduced-motion: reduce) { .clubhouse .ch-slide { transition: none; } }
 `;
 
@@ -63,6 +67,7 @@ export function ClubhouseScreen({ head, foot, children }: { head: ReactNode; foo
   const boardRef = useRef<HTMLDivElement>(null);
   const [starts, setStarts] = useState<number[]>([0]);
   const [index, setIndex] = useState(0);
+  const [viewHeight, setViewHeight] = useState(0);
 
   // Where the pages break: measured after the board is drawn, and again
   // whenever it changes size or its rows change (a refresh brings new scores).
@@ -85,6 +90,7 @@ export function ClubhouseScreen({ head, foot, children }: { head: ReactNode; foo
       });
       const next = pageStarts(atoms, view.clientHeight, total);
       setStarts((prev) => (prev.length === next.length && prev.every((v, i) => Math.abs(v - next[i]) < 1) ? prev : next));
+      setViewHeight(view.clientHeight);
     };
     measure();
     const resize = new ResizeObserver(measure);
@@ -115,14 +121,18 @@ export function ClubhouseScreen({ head, foot, children }: { head: ReactNode; foo
       <style>{CLUBHOUSE_CSS}</style>
       <div className="ch-z ch-head">{head}</div>
       <div ref={viewRef} className="ch-view">
-        {/* The slider moves (unzoomed, so a pixel is a screen pixel); the
-            board inside it is drawn large. */}
-        <div
-          ref={boardRef}
-          className="ch-slide"
-          style={{ transform: shown > 0 ? `translateY(${-starts[shown]}px)` : undefined }}
-        >
-          <div className="ch-z ch-board">{children}</div>
+        {/* The window ends where the next page begins, so the row a page
+            breaks before is not half-shown at its foot. */}
+        <div className="ch-window" style={count > 1 && viewHeight > 0 ? { height: pageHeight(starts, shown, viewHeight) } : undefined}>
+          {/* The slider moves (unzoomed, so a pixel is a screen pixel); the
+              board inside it is drawn large. */}
+          <div
+            ref={boardRef}
+            className="ch-slide"
+            style={{ transform: shown > 0 ? `translateY(${-starts[shown]}px)` : undefined }}
+          >
+            <div className="ch-z ch-board">{children}</div>
+          </div>
         </div>
       </div>
       <div className="ch-z ch-foot">

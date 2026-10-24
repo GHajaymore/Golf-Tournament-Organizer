@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nextPage, pageStarts, pageWords, type Atom } from "../clubhouse-pages";
+import { nextPage, pageHeight, pageStarts, pageWords, type Atom } from "../clubhouse-pages";
 
 /**
  * Where the clubhouse screen breaks a long board into pages (2026-10-24). The
@@ -70,6 +70,18 @@ describe("a long board", () => {
     const starts = pageStarts(atoms, 600, total);
     expect(starts[starts.length - 1] + 600).toBeGreaterThanOrEqual(total);
     everyRowWhole(atoms, starts, 600);
+  });
+});
+
+describe("how much of the screen a page shows", () => {
+  it("ends where the next page starts, so its last row is not half-shown; the last page shows it all", () => {
+    const starts = pageStarts(rows(20, 70), 500, 1400); // [0, 490, 980]
+    expect(pageHeight(starts, 0, 500)).toBe(490);
+    expect(pageHeight(starts, 1, 500)).toBe(490);
+    expect(pageHeight(starts, 2, 500)).toBe(500);
+    // Past the end, the last page.
+    expect(pageHeight(starts, 9, 500)).toBe(500);
+    expect(pageHeight([0], 0, 500)).toBe(500);
   });
 });
 

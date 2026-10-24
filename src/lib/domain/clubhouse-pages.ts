@@ -52,6 +52,16 @@ export function pageStarts(atoms: readonly Atom[], view: number, total: number):
   return starts;
 }
 
+/**
+ * How much of the screen a page shows: down to where the next page starts, so
+ * the row that page breaks before is not half-shown at the foot of this one.
+ * The last page shows the whole screen.
+ */
+export function pageHeight(starts: readonly number[], index: number, view: number): number {
+  const i = Math.max(0, Math.min(index, starts.length - 1));
+  return i < starts.length - 1 ? Math.min(view, starts[i + 1] - starts[i]) : view;
+}
+
 /** The page after this one, back to the first after the last. */
 export function nextPage(index: number, count: number): number {
   if (count <= 1) return 0;
