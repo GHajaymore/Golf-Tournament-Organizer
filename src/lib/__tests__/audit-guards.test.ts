@@ -3001,7 +3001,8 @@ describe("one engine decides how many strokes a hole gives", () => {
     "src/app/(player)/me/card/page.tsx": "the player's own card, already narrowed upstream",
     "src/app/play/page.tsx": "a casual round has no tournament to resolve against",
     "src/app/(app)/entry/page.tsx": "the individual entry path; the TEAM path goes through matchStrokesPerHole",
-    "src/lib/services/expenses.ts": "money reads the full allowance deliberately, never a match differential",
+    // expenses.ts left the list 2026-10-23: the low-net pot asks
+    // `strokesReceivedOnHolesPlayed` in the domain, as the cup's card line does.
     "src/lib/services/points-standings.ts": "league points, off the round's own resolver",
     "src/lib/services/skins-pot.ts": "skins read the full allowance deliberately",
   };
