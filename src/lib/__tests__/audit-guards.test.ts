@@ -89,7 +89,9 @@ describe("every server action is guarded", () => {
       // is a guard nobody re-checks.
       "setPreviewAction",
     ],
-    "play.ts": ["redeemRoundCode", "claimPlayerSlot", "leavePlay"],
+    // The two `…Form` actions are the same two as plain forms (a press made
+    // before the page's script arrived), and do nothing but call them.
+    "play.ts": ["redeemRoundCode", "claimPlayerSlot", "redeemRoundCodeForm", "claimPlayerSlotForm", "leavePlay"],
     // Open (self-service) registration is public by design: a stranger on a
     // shared link, no account. Its own defences replace a session guard, and
     // they are asserted separately below — token-shape check, a rate limit on
@@ -878,7 +880,7 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // The gate belongs on the write. Refusing the code itself would break
     // every staff-scored tournament that uses codes for sign-in, which is
     // precisely the tournament this whole guard exists to protect.
-    for (const fn of ["redeemRoundCode", "claimPlayerSlot", "leavePlay"]) {
+    for (const fn of ["redeemRoundCode", "claimPlayerSlot", "redeemRoundCodeForm", "claimPlayerSlotForm", "leavePlay"]) {
       const body = actions("play.ts").find((a) => a.name === fn)!.body;
       expect(body, fn).not.toMatch(/canEnterScores\(/);
     }

@@ -69,6 +69,8 @@ const WHO: Record<string, string> = {
   signInWithPassword: "anyone", claimPassword: "anyone", requestPasswordReset: "anyone", resetPassword: "anyone",
   signUp: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", getVapidPublicKey: "anyone",
   redeemRoundCode: "anyone", claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
+  // The same two as plain forms, for a press made before the page's script arrived: they call them.
+  redeemRoundCodeForm: "anyone", claimPlayerSlotForm: "anyone",
   // Sets a cookie and nothing else, and the cookie can only ever show an
   // organizer LESS (the player's view of their own tournament): `getSession`
   // ignores it for anybody who is not an admin.

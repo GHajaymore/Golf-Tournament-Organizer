@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { normalizeAccessCode, looksLikeAccessCode } from "@/lib/code-format";
@@ -263,6 +264,41 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
   await createPlaySession(stage.id, player.id, stage.accessCode);
   revalidatePath("/play");
   return { ok: true };
+}
+
+/**
+ * THE ROUND CODE WORKS BEFORE THE PAGE'S SCRIPT HAS ARRIVED (2026-10-25).
+ *
+ * Measured on slow 3G (`e2e/round-code-on-3g.spec.ts`): the code box was drawn
+ * at 1.8 s and Continue could not be pressed until 7.8 s, because it waited for
+ * the page's whole script, 193 KB of it, sharing one bar of signal with 105 KB
+ * of fonts. So the box and the names are real forms now, posted to these two
+ * the plain way when the script is not there yet, and the server draws the
+ * next step. Once the script is running the page calls `redeemRoundCode` and
+ * `claimPlayerSlot` itself, as it always did; these call the same two, so the
+ * answer — the names, the refusal in words, the session — is one answer
+ * whichever way the press went.
+ *
+ * Shaped for `useActionState` (the state before, then the form), because that
+ * is how the server hands the result of a plain post to the page it draws.
+ */
+export interface RedeemFormState extends RedeemResult {
+  /** The code as it goes on to the name step, or as it was typed when refused. */
+  code: string;
+}
+
+export async function redeemRoundCodeForm(_before: RedeemFormState | null, form: FormData): Promise<RedeemFormState> {
+  const typed = String(form.get("code") ?? "").slice(0, 64);
+  const res = await redeemRoundCode(typed);
+  return { ...res, code: res.ok ? normalizeAccessCode(typed) : typed };
+}
+
+/** A name tapped before the script arrived: the session starts and the card is drawn, or the refusal is. */
+export async function claimPlayerSlotForm(_before: ClaimResult | null, form: FormData): Promise<ClaimResult> {
+  const res = await claimPlayerSlot(String(form.get("code") ?? "").slice(0, 64), String(form.get("playerId") ?? "").slice(0, 64));
+  // Outside any try: `redirect` works by throwing.
+  if (res.ok) redirect("/play");
+  return res;
 }
 
 export async function leavePlay(): Promise<void> {

@@ -78,7 +78,7 @@ const NOT_A_DOOR: Record<string, string> = {
   deleteEvent: "own data",
   // reads
   enterTournament: "reads", switchEvent: "reads", setPreviewAction: "reads", redeemRoundCode: "reads",
-  claimPlayerSlot: "reads", leavePlay: "reads", currentPlayStatus: "reads", readThread: "reads",
+  claimPlayerSlot: "reads", redeemRoundCodeForm: "reads", claimPlayerSlotForm: "reads", leavePlay: "reads", currentPlayStatus: "reads", readThread: "reads",
   markThreadRead: "reads", previewSmsBroadcast: "reads", draftMessage: "reads",
 };
 

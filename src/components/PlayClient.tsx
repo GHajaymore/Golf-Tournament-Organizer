@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { bringIntoView } from "@/lib/bring-into-view";
-import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard, savePlayMatchCard } from "@/app/actions/play";
+import { usePageIsLive } from "./usePageIsLive";
+import { redeemRoundCode, claimPlayerSlot, redeemRoundCodeForm, claimPlayerSlotForm, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard, savePlayMatchCard } from "@/app/actions/play";
 import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
@@ -345,12 +346,30 @@ export function PlayClient(props: Props) {
 }
 
 function PlayScreens(props: Props) {
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
+  /**
+   * THE CODE AND THE NAMES ARE FORMS THAT WORK BEFORE THE SCRIPT (2026-10-25).
+   *
+   * On slow 3G the box was on the screen at 1.8 s and Continue woke at 7.8 s:
+   * it waited for the page's whole script. So each step is a real form, posted
+   * the plain way while the script is still on its way (`redeemRoundCodeForm`,
+   * `claimPlayerSlotForm`), and the server draws the next step — these two
+   * hooks are how it hands this page what a plain post answered. Once the page
+   * is live, a press is taken in the page and goes the way it always went
+   * (`openCode`, `claimName`): same actions underneath, same answer.
+   */
+  const [posted, postCode] = useActionState(redeemRoundCodeForm, null);
+  const [claimPosted, postName] = useActionState(claimPlayerSlotForm, null);
+  const live = usePageIsLive();
+  const [code, setCode] = useState(() => posted?.code ?? "");
+  const [error, setError] = useState(() => (posted && !posted.ok ? posted.error ?? "" : claimPosted?.error ?? ""));
   const [nameFilter, setNameFilter] = useState("");
-  const [players, setPlayers] = useState<Array<{ id: string; name: string; side?: string }> | null>(null);
-  const [groups, setGroups] = useState<Array<{ label: string; ids: string[] }>>([]);
-  const [context, setContext] = useState<{ eventName: string; roundLabel: string } | null>(null);
+  const [players, setPlayers] = useState<Array<{ id: string; name: string; side?: string }> | null>(() =>
+    posted?.ok ? posted.players ?? [] : null,
+  );
+  const [groups, setGroups] = useState<Array<{ label: string; ids: string[] }>>(() => (posted?.ok ? posted.groups ?? [] : []));
+  const [context, setContext] = useState<{ eventName: string; roundLabel: string } | null>(() =>
+    posted?.ok ? { eventName: posted.eventName ?? "", roundLabel: posted.roundLabel ?? "" } : null,
+  );
   const [pending, startTransition] = useTransition();
 
   // Set as the card saves; nothing reads it.
@@ -546,6 +565,12 @@ function PlayScreens(props: Props) {
               a player looks for their group, as on a tee sheet, not their
               name in the whole field. Typing in the box goes back to the
               plain filtered list. */}
+          {/* A FORM, so a name tapped before the page's script has arrived still
+              opens the card: the tapped button carries the player, the hidden
+              box the code (`claimPlayerSlotForm`). Once the page is live, the
+              tap is taken in the page instead (`claimName`). */}
+          <form action={postName}>
+          <input type="hidden" name="code" value={code} />
           {groups.length > 0 && nameFilter.trim() === "" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
@@ -586,11 +611,16 @@ function PlayScreens(props: Props) {
                       return (
                         <button
                           key={id}
-                          type="button"
+                          type="submit"
+                          name="playerId"
+                          value={p.id}
                           className="btn btn-secondary"
                           disabled={pending}
                           style={{ minHeight: 48, fontSize: 15, justifyContent: "center", overflowWrap: "anywhere" }}
-                          onClick={() => claimName(p.id)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            claimName(p.id);
+                          }}
                         >
                           {p.name}
                         </button>
@@ -614,9 +644,14 @@ function PlayScreens(props: Props) {
             {shownPlayers.map((p) => (
               <button
                 key={p.id}
-                type="button"
+                type="submit"
+                name="playerId"
+                value={p.id}
                 disabled={pending}
-                onClick={() => claimName(p.id)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  claimName(p.id);
+                }}
                 style={{
                   display: "block",
                   width: "100%",
@@ -635,12 +670,17 @@ function PlayScreens(props: Props) {
             ))}
           </div>
           )}
+          </form>
 
+          {/* Its own plain form too: before the script, the way back to an empty
+              box is to open the code page afresh. */}
+          <form action="/play" method="get">
           <button
-            type="button"
+            type="submit"
             className="btn"
             style={{ marginTop: 12 }}
-            onClick={() => {
+            onClick={(e) => {
+              e.preventDefault();
               setPlayers(null);
               setContext(null);
               // An EMPTY box (2026-10-17, the night before the first real cup):
@@ -653,6 +693,7 @@ function PlayScreens(props: Props) {
           >
             Use a different code
           </button>
+          </form>
         </Shell>
       );
     }
@@ -678,11 +719,26 @@ function PlayScreens(props: Props) {
           </MoreInfo>
         </div>
 
-        <div className="card elev-sm" style={{ gap: 12 }}>
+        {/* A FORM THAT WORKS THE MOMENT IT IS DRAWN. Before the page's script
+            has arrived it posts the plain way (`redeemRoundCodeForm`) and the
+            server draws the names, or says what is wrong with the code beside
+            the button; once the page is live the press is taken here
+            (`openCode`). So Continue is pressable from the first paint, and
+            greyed only by a live page, over an empty box or while it checks. */}
+        <form
+          action={postCode}
+          className="card elev-sm"
+          style={{ gap: 12 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
           <div className="field">
             <label htmlFor="play-round-code">Round code</label>
             <input
               id="play-round-code"
+              name="code"
               className="input"
               value={code}
               autoCapitalize="characters"
@@ -691,9 +747,6 @@ function PlayScreens(props: Props) {
               placeholder="ABCD-EFGH"
               style={{ fontSize: 20, letterSpacing: "0.12em", textAlign: "center" }}
               onChange={(e) => setCode(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submit();
-              }}
             />
           </div>
 
@@ -704,14 +757,13 @@ function PlayScreens(props: Props) {
           )}
 
           <button
-            type="button"
+            type="submit"
             className="btn btn-primary btn-block"
-            disabled={pending || code.trim().length === 0}
-            onClick={submit}
+            disabled={live && (pending || code.trim().length === 0)}
           >
             {pending ? "Checking…" : "Continue"}
           </button>
-        </div>
+        </form>
       </Shell>
     );
   }
