@@ -23,7 +23,10 @@ import { MAX_MARGIN } from "@/lib/domain/score-payload";
    minimum (CLAUDE.md; `globals.css` holds `.bracket-seat` to it under a finger
    as well). A tie is two seats. */
 const SEAT = 44;
-const TIE_W = 236;
+// 256, not 236: Firefox sets the same names a little wider than Chrome, and at 236 a
+// twenty-letter name beside a winner's tick and a seed was cut ("Cressida Wedderburn",
+// "Gwendolyn Cobbledene" in the whole draw — round G332-1, Firefox desktop).
+const TIE_W = 256;
 const COL_GAP = 40;
 const HEAD = 40;
 const CHAMP_W = 150;
