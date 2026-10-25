@@ -13,6 +13,8 @@ import {
 import type { PlanKey, PricingOverrides } from "@/lib/plans";
 import { stripeCouponFor, stripeCouponId, type DiscountRow } from "@/lib/domain/discount";
 import { liftArchive } from "@/lib/services/club-archive";
+import { golfRegisterForOrganization } from "@/lib/services/organization";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 
 /**
  * Subscription billing through Stripe — the I/O half. The rules are in
@@ -136,7 +138,9 @@ export async function checkoutUrl(req: CheckoutRequest): Promise<{ url: string }
       mode: "subscription",
       customer,
       client_reference_id: req.organizationId,
-      line_items: [checkoutLineItem(req.plan, req.interval, req.currency, req.overrides)],
+      line_items: [
+        checkoutLineItem(req.plan, req.interval, req.currency, req.overrides, golfTermsFor(await golfRegisterForOrganization(req.organizationId))),
+      ],
       subscription_data: { metadata },
       metadata,
       ...discount,

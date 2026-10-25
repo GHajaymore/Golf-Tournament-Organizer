@@ -85,7 +85,9 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
 
     await test.step("name the society and say what it is", async () => {
       await open(page, "/organization");
-      await page.locator("label", { hasText: "Society or league" }).first().click();
+      // The community kind, labelled in the club's country's words: "League or association"
+      // with no country (the app's US default since 2026-10-24), "Society or league" in Britain.
+      await page.locator("label", { hasText: /Society or league|League or association/ }).first().click();
       await page.waitForTimeout(1500);
       await page.getByLabel("Organization name").fill(`${MARK} Fairway Friends Golf Society`);
       const save = page.getByRole("button", { name: "Save changes" }).first();

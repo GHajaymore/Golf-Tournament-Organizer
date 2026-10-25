@@ -366,8 +366,9 @@ describe("a checklist row calls a screen what the sidebar calls it", () => {
      * `noun` rather than `label`, because `label` does not survive being
      * dropped into running text: "Add your Society or league's logo".
      */
+    // A British outfit: with no country a community is a US league.
     const forKind = (orgKind: string) =>
-      setupChecklist({ ...state, orgKind }).find((r) => r.href === "/organization")!;
+      setupChecklist({ ...state, orgKind, orgCountry: "GB" }).find((r) => r.href === "/organization")!;
 
     expect(forKind("community").label).toBe("Add your society's logo & colours");
     expect(forKind("community").detail).toContain("your society's badge");

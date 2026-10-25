@@ -94,7 +94,7 @@ export default async function PrivacyPage() {
 
       <Section title="Who holds your data">
         <p>
-          TourneyHQ is used by golf clubs, societies and event organizers to run competitions. When a
+          TourneyHQ is used by golf clubs, leagues, golf groups and event organizers to run competitions. When a
           club enters you into a tournament, <strong>the club decides</strong> what to collect and
           why. We store and process it on their behalf and act on their instructions.
         </p>
@@ -142,7 +142,7 @@ export default async function PrivacyPage() {
       <Section title="If you register your interest">
         <p>
           Before TourneyHQ opens, the <Link href="/interest">register your interest</Link> form asks for
-          your name, email address, club or society, which best describes you, and, if you choose, a
+          your name, email address, club or golf group, which best describes you, and, if you choose, a
           phone number, how many members it has and a note. <strong>We hold this ourselves</strong>, not on any club&rsquo;s
           behalf: it is copied to our inquiries mailbox and kept in our records so we can tell you when
           TourneyHQ opens, send the discount code you were promised, answer any question you asked, and

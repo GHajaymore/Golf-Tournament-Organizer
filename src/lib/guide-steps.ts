@@ -10,7 +10,17 @@
  *
  * Markup kept deliberately tiny so the page renders it without a markdown
  * library: [[label]] is an on-screen control, **text** is emphasis.
+ *
+ * IN THE CLUB'S GOLF (2026-10-24). A golf word that differs between countries
+ * is a token — `{golfGroups}`, `{organizer}`, `{Outing}` — filled in by
+ * `guideInClubWords` with the reading club's words (`golf-terms.ts`), so a US
+ * league reads "leagues and golf groups" where a British club reads
+ * "leagues and societies". `country-words.test.ts` refuses the word itself
+ * here. A word inside a [[control]] or a **label** stays as the SCREEN spells
+ * it: the guide names what is drawn.
  */
+
+import { tableInClubWords, type GolfWords } from "./domain/golf-terms";
 
 export type GuideBlock =
   | { kind: "p"; text: string }
@@ -38,7 +48,7 @@ export const GUIDE_STEPS: GuideSection[] = [
     title: "Before your first tournament",
     blocks: [
       { kind: "h", text: "Club settings" },
-      { kind: "where", text: "Club → Club settings (or Society settings)" },
+      { kind: "where", text: "Club → Club settings (or {Community} settings)" },
       {
         kind: "p",
         text: "Club settings shows one section at a time. The row at the top picks it: **Name & branding**, **Colour**, **House defaults**, **Handicaps**, **Money**, **Plan** and **Staff & access**. Anything typed and not yet saved stays as it is while you look at another section.",
@@ -48,6 +58,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "On **Name & branding**, set **Organization name**, an optional **Short name**, and a **Logo** ([[Upload an image]] or paste a link). Choose **Name beside the logo** and fill in **Where you play**. Press [[Save changes]].",
           "On **Colour**, pick **Appearance** (Light, Dark or Auto) and a **Colour scheme**. The pairs marked easiest to read in direct sun are the safest choice for the course. Press [[Save theme]].",
+          "Also on **Name & branding**, **Which golf words the app uses** follows the club's country: US golf in the US and Canada, UK golf in Britain, Ireland and Europe, and the golf of Australia, New Zealand and South Africa there. Your club reads {cart}, {group}, {community} and {outing} today. Pick another if your members say it differently. Format names such as Foursomes and Four-Ball never change.",
           "On **Money**, pick your **Currency**. It saves as soon as you choose and shows an example amount.",
           "Beside it, check the **Time zone**. It is taken from your own device the first time you open the console, and the screen shows the time at the club so you can see it is right. Every closing date and sign-up deadline ends at midnight on that clock.",
         ],
@@ -68,16 +79,16 @@ export const GUIDE_STEPS: GuideSection[] = [
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },
       { kind: "h", text: "Staff" },
-      { kind: "where", text: "Set up → Staff & helpers (organizers only)" },
+      { kind: "where", text: "Set up → Staff & helpers ({organizers} only)" },
       {
         kind: "steps",
         items: [
-          "[[Add account]] with Name, Email and a role: **Organizer** (full control), **Assistant** (runs the day) or **Player**.",
+          "[[Add account]] with Name, Email and a role: **{Organizer}** (full control), **Assistant** (runs the day) or **Player**.",
           "To change a role, pick the new one, then confirm with [[Yes — make ‹name› ‹role›]]. Picking alone changes nothing.",
-          "Each organizer or assistant uses a staff seat on your plan. The last organizer on a tournament can't be removed or demoted — promote someone else first.",
+          "Each {organizer} or assistant uses a staff seat on your plan. The last {organizer} on a tournament can't be removed or demoted — promote someone else first.",
           "Club staff are added the same way under Club settings → **Staff & access**, by email address. When somebody has asked to join, that section's name shows how many are waiting. There is nothing for them to accept: they are staff at once, and are emailed. Until they next sign in the list shows the address you typed and **Invited — not opened yet**, not their name.",
           "The first time somebody you added signs in, they choose a password and we email a 6-digit code to the address you typed. The password only takes effect once they type that code back, so only the person who reads that inbox can take the seat. The code works for 15 minutes; **Send a new code** sends another.",
-          "A role at the club is changed the same way as one on a tournament: pick it, then confirm. It reaches further — an **Admin** is an organizer on every tournament the club runs, and the confirmation says so before you agree.",
+          "A role at the club is changed the same way as one on a tournament: pick it, then confirm. It reaches further — an **Admin** is an {organizer} on every tournament the club runs, and the confirmation says so before you agree.",
           "Anyone added can leave again themselves, from Your account → Your clubs. A club's only Commissioner can't leave until somebody else is one.",
         ],
       },
@@ -116,7 +127,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "h", text: "Tournament details" },
-      { kind: "where", text: "Set up → Tournament details (organizers only)" },
+      { kind: "where", text: "Set up → Tournament details ({organizers} only)" },
       {
         kind: "steps",
         items: [
@@ -165,16 +176,16 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Open the round's card. Set **Played on** — if it's rained off, change the date here and only this round moves.",
           "For 9 holes, choose **Which nine**: Front nine or Back nine. Strokes fall differently on each nine, so a round scored from cards uses the front nine until you say otherwise. A match-play round can be left **Not fixed** — each match then says which nine it played when its score goes in.",
           "If the event uses more than one course, pick the round's **Course** — handicaps and par come from it.",
-          "**Handicap** is on the face of the round: **Net** (off handicap — how a new round starts, as most club, society and league competitions are played), **Gross** (scratch, as a championship) or **Both** (a gross and a net order of merit from the same cards). Stableford is always off handicap. The handicap allowance sits right under it.",
+          "**Handicap** is on the face of the round: **Net** (off handicap — how a new round starts, as most club, league and {golfGroup} competitions are played), **Gross** (scratch, as a championship) or **Both** (a gross and a net order of merit from the same cards). Stableford is always off handicap. The handicap allowance sits right under it.",
           "A round players arrange among themselves — a knockout, a round robin, a league week — shows **Play by** on its face, with the sign-up deadline where there is one; a round robin also shows **Before the next round** there, where **Points into Round N** is one choice: **Start fresh**, **Carry all** or **Carry part** (then the share).",
-          "Under [[Customize this round]] is what clubs, societies and leagues vary — above all for a field of mixed abilities: **Ties** first, how scores are recorded, **Handicaps for this round**, and the **Play by** date of a round the field plays on one day. It shows only what this kind of round raises — a medal has no match lines, a knockout no table — and its closed bar names the ties and anything you have changed.",
+          "Under [[Customize this round]] is what clubs, leagues and {golfGroups} vary — above all for a field of mixed abilities: **Ties** first, how scores are recorded, **Handicaps for this round**, and the **Play by** date of a round the field plays on one day. It shows only what this kind of round raises — a medal has no match lines, a knockout no table — and its closed bar names the ties and anything you have changed.",
           "**Ties** is first under [[Customize this round]], and its closed bar says so. Each tie question the round raises is one line, with the rule in use — the standard rules of golf until you change it. A knockout all square after 18 plays extra holes from the 1st, hole by hole, and you record the winner on Bracket. A medal or Stableford places players level by countback on the card — the last nine, six, three, then the last hole — and anybody still level shares the place. A match-play round robin raises two questions: **A match all square after 18** (it stays halved unless you choose a countback or a play-off) and **Level in the table** (head-to-head, then hole difference, and so on). Press [[Change]] beside either to choose; they apply to every round robin in the tournament. A round robin's **Points for a match** — win, halve, loss — are under Customize too, as their own line.",
           "A round with matches also asks **How players keep their matches**, under [[Customize this round]]: **Tap who won each hole** — one tap a hole on any phone, the card players praised at the first cup — or **Stroke cards**, where each player enters their own strokes and the app works out who won each hole, shots included, with gross and net published: on the cup board each ball's gross and net sit under the names. A cup session starts on tapping; any other team match on stroke cards. Match Play and Nassau ask the same question as **How scores are recorded**. Choose before anyone scores: a round is kept one way, so once a match has a score the choice stays as it is.",
           "**On the day** appears once the tournament is live or the round has a card: **Is this round over?** and the **Scoring window**. Before then there is nothing to finish.",
           "Each format comes with the usual handicap allowance (Stroke Play 95%, Foursomes 50%, a Four-Ball 85% at stroke play and 90% in a match…). On a team round you can change it: the round's card has a section named for its format, **Handicaps for Four-Ball**, with [[Change]] beside the allowance. If cards are already in you are asked first, because every one of them is re-scored. An individual net round — a medal, a Stableford — has the same line on its card under **Handicap allowance**: the Rules of Handicapping recommend 95% for a field of thirty or more, and a committee may play a smaller field at 100%. A gross round and a match have no such line, because neither takes a share of a handicap.",
           "The allowance is taken of a player's course handicap before that is rounded, and the result rounded once, as the Rules of Handicapping say. So a course handicap of 7 that was 6.6 plays off 6 at 95%, not 7. **Handicaps for this round** shows all three figures for every player — the course handicap, what it was before rounding, and what they play off — so you can check any card by hand.",
           "To change one player's handicap, press [[Change a player's handicap]] there, then **Change** beside their name, and say what you are changing. **Their strokes in this round only** is whole strokes — 12, not 12.4 — and a plus handicap is typed “+2”; nothing else moves, and **Use in later rounds too** copies it to later rounds on the same course, tees and holes. **Their handicap index** is to one decimal — 14.2, or 14,2 — and moves every round of this tournament not yet played; a round with cards in keeps what it was scored off, and a round with its own strokes keeps those. The sentence above **Save** says exactly which rounds move.",
-          "Tick **Also make it their handicap on Members** to make the new index the member's own, for every tournament they enter from now on. Only the organizer of the club, society or league can, a reason is asked for and kept in the history, and it is not offered for a guest, for a member whose index comes from an association such as GHIN, or for a nine-hole index. Their entries in other tournaments keep the figure they entered with.",
+          "Tick **Also make it their handicap on Members** to make the new index the member's own, for every tournament they enter from now on. Only the {organizer} of the club, league or {golfGroup} can, a reason is asked for and kept in the history, and it is not offered for a guest, for a member whose index comes from an association such as GHIN, or for a nine-hole index. Their entries in other tournaments keep the figure they entered with.",
           "A two-ball round scored on gross (Four-Ball, Best Ball, Shamble) can be written down as **One card for the side** instead of a card each, under **Scores are entered as**. On net or Stableford each player's own card is needed, so the choice is not offered.",
         ],
       },
@@ -217,15 +228,15 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "In Tournament details → Players & scoring, set **How players sign in** to an access-code option.",
           "Each round gets one code under **Round Codes**, with [[Copy]] and [[Reissue]].",
-          "Under the codes, [[Show the signs]] draws one sign per round — the round, a QR code and the code in large letters — and **Print** puts each on a page of its own. Put one in every cart and one on the first tee. A player scans it and lands on the round's names; or opens tourneyhq.club/play and types the code. Either way they then tap their own name.",
+          "Under the codes, [[Show the signs]] draws one sign per round — the round, a QR code and the code in large letters — and **Print** puts each on a page of its own. Put one in every {cart} and one on the first tee. A player scans it and lands on the round's names; or opens tourneyhq.club/play and types the code. Either way they then tap their own name.",
           "Before the day, scan a sign with your own phone: it should open that round's names. Stop there — tapping a name starts scoring as that player. A sign carries no names, so it stays right when groups change; reissuing the code stops its signs working, so print them again after a [[Reissue]].",
-          "In a four-ball or foursomes match, any player on either side can keep the match on their phone: the code lists each foursome as its two pairs under their teams, and once they tap their name they tap, by name, the pair who won each hole — so a scorer who picks the wrong name still records every hole for the right pair. A player signed in to the app keeps their match on the same card: **Score this match** on Today. Ask one player per group to keep it, so two phones are not keeping one match. On Score entry you can open any of the round's matches and keep or correct it on the same card.",
+          "In a four-ball or foursomes match, any player on either side can keep the match on their phone: the code lists each {group} as its two pairs under their teams, and once they tap their name they tap, by name, the pair who won each hole — so a scorer who picks the wrong name still records every hole for the right pair. A player signed in to the app keeps their match on the same card: **Score this match** on Today. Ask one player per group to keep it, so two phones are not keeping one match. On Score entry you can open any of the round's matches and keep or correct it on the same card.",
           "Where a round is kept on **Stroke cards** instead, the code opens each player's own card: everyone enters their own strokes — a side playing one ball, its one card — and the app works out who won each hole from the cards.",
         ],
       },
       { kind: "warn", text: "Anyone with the code can report a score for that round. If it spreads beyond the field, [[Reissue]] it." },
       { kind: "h", text: "What locks after launch" },
-      { kind: "p", text: "Structure locks: format, holes, course, scoring basis, cuts, tiebreakers, deleting rounds and editing the field. An organizer can [[Unlock setup]] to correct something. Running the event stays open: changing a round's date, marking a round over, handicap adjustments, adding a round, drawing the next round and deadlines." },
+      { kind: "p", text: "Structure locks: format, holes, course, scoring basis, cuts, tiebreakers, deleting rounds and editing the field. An {organizer} can [[Unlock setup]] to correct something. Running the event stays open: changing a round's date, marking a round over, handicap adjustments, adding a round, drawing the next round and deadlines." },
     ],
   },
   {
@@ -360,7 +371,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Pick the match from **Matches** (filter by Not started, Live, Awaiting approval, Final or Disputed).",
           "Enter a **Hole-by-hole result**, a **Full scorecard**, or the **Final result only** — winner and margin such as 3&2, then [[Apply result]]. A margin no match can finish on — 6&3 (that match was over at 5&4), or 3 UP — is refused beside the box, so the board never shows a different result from the one typed.",
-          "A finished match can be confirmed ([[Confirm result]]) or disputed ([[Dispute]]); an organizer can [[Reopen]] it. Record a concession or walkover with [[‹Player› concedes]].",
+          "A finished match can be confirmed ([[Confirm result]]) or disputed ([[Dispute]]); an {organizer} can [[Reopen]] it. Record a concession or walkover with [[‹Player› concedes]].",
         ],
       },
       { kind: "h", text: "Approve" },
@@ -368,7 +379,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Press [[Approve N clean cards]]. Only approved cards are results.",
-          "Work through **Needs attention** (for example “Incomplete — 14 of 18”) with [[Approve anyway]] where right. An organizer can [[Reopen]] an approved card.",
+          "Work through **Needs attention** (for example “Incomplete — 14 of 18”) with [[Approve anyway]] where right. An {organizer} can [[Reopen]] an approved card.",
           "For match play, filter to Awaiting approval and press [[Approve N shown results]].",
           "A team match round or a cup session kept by tapping who won each hole — the singles too — lists its matches with **Awaiting approval** beside any finished result still to be signed off; open it and press [[Confirm result]] above the card.",
         ],
@@ -382,7 +393,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "**Commentary**: under the Leaderboard, write a line — a run of birdies, a delay, where the cut is falling — and press [[Post]]. The latest shows above the scores on the public board and on every player's Board, with how long ago and without your name; the two before it are one tap away. Take one down with the ✕ beside it.",
           "**Weather**: [[Suspend play]], add a reason, [[Suspend play now]] — every player and the public board are told. [[Resume play]] when ready.",
           "**Pace of play** on the Dashboard shows each group's Thru and Due in, and names groups running behind.",
-          "**Wrong scores**: correct the card on Score entry, or [[Clear scores]] (organizers) for chosen players or the whole round. Entries, flights and tee times are untouched. A card or result the committee has approved is reopened first.",
+          "**Wrong scores**: correct the card on Score entry, or [[Clear scores]] ({organizers}) for chosen players or the whole round. Entries, flights and tee times are untouched. A card or result the committee has approved is reopened first.",
         ],
       },
     ],
@@ -437,7 +448,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "The standings under a week of strokes or points are the leaderboard's own table after that week: the total over every round played so far, in the leaderboard's places. A player who missed a cut holds no place in it, and nor, on strokes, does one with no card for a week you have closed; a total over fewer holes than the rest says “thru” beside it.",
           "Close each week once it is played. With members away a week is never “all in”, so the Dashboard asks to close it as soon as next week's draw is out and every card that was started is back — it says how many did not play. Closing moves everybody on to the new week.",
           "A **Round robin** round is a whole everyone-plays-everyone. Add several and each is its own contest unless you choose **Carry all** or **Carry part** under **Points into Round N**.",
-          "**Season standings** adds tournaments up across a season; the **Honours board** keeps your champions (Birdie plan and above).",
+          "**Season standings** adds tournaments up across a season; the **{HonoursBoard}** keeps your champions (Birdie plan and above).",
           "To set one up: on **Season standings**, name it and press **Start a season**. Then, with each tournament that counts open, press **Add this tournament to the season** — a tournament counts once it is completed, and towards one season only.",
           "**Scoring & rules** holds the season's name, the points for each finishing place, how many of a member's rounds count (**Best of**) and how many they must play to be ranked (**Rounds to qualify**). **Save rules** keeps them.",
           "When a season is over, **Mark season finished** and **Start another season**. The finished one stays in the list beside the new one.",
@@ -548,7 +559,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           { title: "Club match play in flights", for: "A big field, each flight its own knockout.", steps: ["How is it played: a knockout; one Bracket round.", "Bracket → Arrangement: Several flights.", "By handicap, the Suggested shape, Divide the field.", "Enter winners flight by flight."] },
           { title: "Team cup", for: "Two teams, sessions, running score.", steps: ["Template … team cup.", "Flights: Manual, exactly two, named for the teams.", "Team session rounds.", "Lineups on Team cup."] },
           { title: "Charity scramble", for: "Teams of four, public board, specials.", steps: ["Template Scramble; shotgun start.", "Draw sides automatically.", "Leaderboard: Anyone with the link.", "Round codes so guests need no account.", "Prizes plus closest-to-pin and long-drive games."] },
-          { title: "Society trip", for: "A few rounds away, costs split fairly.", steps: ["Money: Split shared costs.", "Players add expenses as they go.", "Skins and side games each round.", "The ledger lists the fewest payments; Mark settled."] },
+          { title: "Golf trip", for: "A few rounds away, costs split fairly.", steps: ["Money: Split shared costs.", "Players add expenses as they go.", "Skins and side games each round.", "The ledger lists the fewest payments; Mark settled."] },
           { title: "Casual round", for: "2–8 players, one round, maybe a side game.", steps: ["Choose screen: Just playing a round?", "Game, players, holes, shots given or not.", "Playing for anything? — money or “a pint”.", "Pick the course; Start the round. Deleted about a day later unless kept."] },
         ],
       },
@@ -563,7 +574,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "faq",
         items: [
           { q: "A button is greyed out", a: "The reason is written next to it — an empty field, locked setup, a missing course. Fix that and the button wakes up." },
-          { q: "“Configuration is locked”", a: "The tournament has launched. An organizer can Unlock setup on the banner to change structure; running the day doesn't need it." },
+          { q: "“Configuration is locked”", a: "The tournament has launched. An {organizer} can Unlock setup on the banner to change structure; running the day doesn't need it." },
           { q: "“This round cannot be scored as set”", a: "The format and round type don't match: match play needs a head-to-head round, stroke formats need a stroke play round." },
           { q: "A player can't find their card", a: "Check they're Confirmed (not Pending or Waitlist), the round is published, and — with a round code — that it hasn't been reissued." },
           { q: "No money is showing", a: "Result money appears only once the round is final. Approve the remaining cards or mark the round over." },
@@ -579,3 +590,8 @@ export const GUIDE_STEPS: GuideSection[] = [
     ],
   },
 ];
+
+/** The guide in one club's golf — what the page, its search and the PDF draw. */
+export function guideInClubWords(words: GolfWords): GuideSection[] {
+  return tableInClubWords(GUIDE_STEPS, words);
+}

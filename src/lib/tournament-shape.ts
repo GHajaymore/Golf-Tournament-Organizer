@@ -72,7 +72,7 @@ export const TOURNAMENT_SHAPES: ShapeOption[] = [
     key: "single",
     label: "A single round",
     blurb:
-      "One day, one round, one result. A club medal, a charity day, a society outing — everyone plays, and the scores decide it.",
+      "One day, one round, one result. A club medal, a charity event, a day away — everyone plays, and the scores decide it.",
   },
   {
     key: "series",

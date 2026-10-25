@@ -641,7 +641,7 @@ export async function sendInterestEmail(
         line("Name", who.name) +
           line("Email", who.email) +
           line("Phone", who.phone) +
-          line("Club or society", who.club) +
+          line("Club or group", who.club) +
           line("Who they are", who.role) +
           line("Size", who.size) +
           (who.note ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid ${EMAIL.flag}">${escapeHtml(who.note)}</blockquote>` : "") +

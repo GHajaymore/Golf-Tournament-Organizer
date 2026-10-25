@@ -1,4 +1,5 @@
 import { EMAIL_RE } from "./typed-limits";
+import { golfTermsFor, inClubWords, type GolfWords } from "./golf-terms";
 
 /**
  * SOMEBODY INTERESTED BEFORE WE OPEN (2026-10-21) — the rules of the public
@@ -32,7 +33,9 @@ export const INTEREST_COPY = {
     name: "Your name",
     email: "Email",
     phone: "Phone",
-    club: "Club or society",
+    // In the visitor's golf (2026-10-24): "Club or golf group" from the US,
+    // "Club or society" from Britain. `{golfGroup}` is filled by `interestWords`.
+    club: "Club or {golfGroup}",
     role: "Which best describes you?",
     members: "Roughly how many members?",
     note: "Anything you'd like us to know?",
@@ -51,8 +54,8 @@ export const INTEREST_COPY = {
   reassure: "We'll use these details only to tell you when TourneyHQ opens, to send your code, and — if you leave a number — to call you about your events. We never sell them, and we'll delete them whenever you ask.",
   sent: (name: string, email: string) =>
     `Thanks, ${name}, you're on the list. We'll email ${email} when TourneyHQ opens, with your 25% code inside. Nothing else until then.`,
-  sentPlayer: "Tournaments are set up by your club or society. Tell your secretary or organizer, and they can register here too.",
-  share: "Know another club or society that runs competitions? Send them tourneyhq.club/interest and they'll get the same offer.",
+  sentPlayer: "Tournaments are set up by your club or {golfGroup}. Tell your secretary or {organizer}, and they can register here too.",
+  share: "Know another club or {golfGroup} that runs competitions? Send them tourneyhq.club/interest and they'll get the same offer.",
   // The front door's notice, while sign-ins are held.
   noticeOffer: "Register your interest and we'll send you 25% off your first term when accounts open.",
   noticeLink: "Register your interest →",
@@ -71,7 +74,7 @@ export function interestSubject(who: { name: string; club: string; role: string;
 export const INTEREST_ROLES = [
   { key: "secretary", label: "Club secretary or manager" },
   { key: "committee", label: "Captain or committee member" },
-  { key: "society", label: "Society or league organizer" },
+  { key: "society", label: "League or {golfGroup} {organizer}" },
   { key: "player", label: "Player" },
   { key: "other", label: "Something else" },
 ] as const;
@@ -168,12 +171,23 @@ export function checkInterest(raw: unknown): InterestCheck {
   if (phone && (!PHONE.test(phone) || phone.replace(/\D/g, "").length < 7)) {
     return { ok: false, error: "That phone number doesn't look right — or leave it empty.", field: "phone" };
   }
-  if (!club) return { ok: false, error: "Tell us your club or society — or write \"none\".", field: "club" };
+  if (!club) return { ok: false, error: "Tell us your club or {golfGroup} — or write \"none\".", field: "club" };
   if (!INTEREST_ROLES.some((x) => x.key === role)) return { ok: false, error: "Choose who you are.", field: "role" };
   // Size is optional: "Not sure" is an answer, and so is leaving it.
   const size = INTEREST_SIZES.some((x) => x.key === members) ? members : "";
   return { ok: true, clean: { name, email, phone, club, role, members: size, note, source: cleanSource(r.source) } };
 }
 
-export const roleLabel = (key: string) => INTEREST_ROLES.find((x) => x.key === key)?.label ?? key;
+/**
+ * A role as the owner reads it — on `/owner` and in the copy to inquiries@ —
+ * in the app's default golf, the US register. The visitor's own form names it
+ * in THEIR golf through `interestWords`.
+ */
+export const roleLabel = (key: string) =>
+  interestWords(INTEREST_ROLES.find((x) => x.key === key)?.label ?? key, golfTermsFor("us"));
+
+/** A line of this flow in one register's golf: the form passes the visitor's. */
+export function interestWords(text: string, words: GolfWords): string {
+  return inClubWords(text, words);
+}
 export const sizeLabel = (key: string) => INTEREST_SIZES.find((x) => x.key === key)?.label ?? "";

@@ -206,7 +206,8 @@ describe("the names themselves", () => {
     const named = ORG_KINDS.map((kind) => screenName("/organization", false, orgProfile(kind)));
     expect(new Set(named).size).toBe(ORG_KINDS.length);
     expect(screenName("/organization", false, orgProfile("club"))).toBe("Club settings");
-    expect(screenName("/organization", false, orgProfile("community"))).toBe("Society settings");
+    expect(screenName("/organization", false, orgProfile("community", "GB"))).toBe("Society settings");
+    expect(screenName("/organization", false, orgProfile("community"))).toBe("League settings");
     // Unasked stays the club wording, which is what every caller saw before.
     expect(screenName("/organization")).toBe("Club settings");
   });
