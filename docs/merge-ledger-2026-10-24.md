@@ -31,8 +31,17 @@ cannot see.
 | #927 one prize per player (A015) | `08a60134` | one-prize-1 G316-1 CLEAN (core, all six) | `3c14fc67` | verify green; gate HOLD for the nightly (core) |
 | #928 club settings tabs | `3464cb76` | club-settings-tabs-1: on `3116a27b` G315-1 NOT CLEAN, the iPhone part, deterministic on a re-run (fixed, below); on `3464cb76` G317-1 CLEAN. The jobs API answered 502 for that run, so the verdict was read from the Verdict job's log and the merge made by hand, pinned to the head, with verify green | `6144d46b` | verify green; gate HOLD for the nightly (core) |
 | #932 a tie at the cut (A018) | `3a4b6952` | cut-tie-1 G318-1 CLEAN (core, all six) | `92dd1134` | **verify RED on main** (the tap-size sweep, above); nothing deployed |
-| #947 fix for the above | `07f77dbc` | fix-cut-card-tap-1 pushed, running | not merged | — |
-| #931 report while played | `dd808995` | report-walk-1 pushed and running when the queue stopped; not merged | — | — |
+| #947 fix for the above | `07f77dbc` | fix-cut-card-tap-1 CLEAN | `0b3e78bb` (merged by the coordinator) | main green again |
+
+### After the restart (the coordinator's rule: a head must contain current main; one merge at a time)
+
+| PR | Head tested | Rounds (verdicts) | Merged as | Deploy |
+|---|---|---|---|---|
+| #931 report while played | `032b5aad` | report-walk-1 CLEAN (the round on `dd808995` cancelled: old base) | `05b07713` | verify green |
+| #933 knockout of 129 | `e80a6159` | ko129-1 on `7151ef4a` G322-1 NOT CLEAN (iPhone: main's round-code spec deleted and re-made a card while a late save landed; now an upsert); G327-1 CLEAN. Merge: `tieResultWords` (#931) folded into `marginWords`, one reader | `5fe7bea4` | verify green |
+| #952 US landing words (taken early) | `b9bd0a6d` | us-words-landing-1 CLEAN | `6e908425` | verify green |
+| #935 the draw in sections | `e8b23d99` | bracket-sections-1 on `e3f1bfad` G332-1 NOT CLEAN (Firefox desktop cut two 20-letter names; ties 236→256px); then CLEAN. Its CLAUDE.md paragraph moved to `docs/claude/knockouts-and-leagues.md` with a manifest hash | `de466f69` | verify green; the nightly on `de466f69` succeeded |
+| #955 country words | `e574d2a1` | country-words-1: on `e13e9729` the database suite was red — `createEvent` built the setup refusal without the outfit's country or noun, so a British society was told "your league" (fixed, audit fixture made British); CI on `59055f25` red — three sign-up specs pressed the old kind labels (fixed); G346-1 CLEAN | `8741a2ac` | main run started |
 
 Not reached: #933, #938 (A019), #940, #943 (A020), #936 (A021), #935, #939 (A022), #941. Each was
 brought up to date with main at some point today and gated locally (tsc, unit, lint, and the
