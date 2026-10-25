@@ -334,7 +334,12 @@ export function PlayClient(props: Props) {
       {props.stage !== "code" && props.sessionCode ? (
         <ScannedSign sessionCode={props.sessionCode} roundLabel={props.roundLabel} />
       ) : null}
-      <PlayScreens {...props} />
+      {/* KEYED BY WHAT IS OPEN (2026-10-25). Tapping a name now draws the card
+          from the claim's own answer instead of reloading the page — a second
+          trip down one bar of signal (see `claimName`). Everything below keeps
+          state seeded from its first props (the card, the queue's key, whether
+          it is signed), so a different screen must be a fresh one. */}
+      <PlayScreens key={`${props.stage}:${props.stageId ?? ""}:${props.playerId ?? ""}`} {...props} />
     </>
   );
 }
@@ -378,10 +383,16 @@ function PlayScreens(props: Props) {
    * device copy.
    */
   const holeCount0 = props.holes || props.pars?.length || 18;
+  const fitted = (strokes: readonly (number | null)[] | undefined) =>
+    Array.from({ length: holeCount0 }, (_, i) => strokes?.[i] ?? null);
+  // The card as the server held it when this page was drawn: every hole on it is "Sent".
+  const [drawnCard] = useState(() => (props.stage === "card" ? fitted(props.card) : null));
   const cardQueue = usePendingCard<(number | null)[]>({
     stageId: props.stageId ?? "play",
     playerId: props.playerId ?? "code",
     enabled: props.stage === "card",
+    drawnFrom: drawnCard,
+    cells: (v) => v,
     // A tournament that takes whole cards: kept on the phone until the last
     // hole is in, then sent on its own.
     holding: !!props.submitWhole && card.filter((h) => typeof h === "number" && h > 0).length < holeCount0,
@@ -389,7 +400,8 @@ function PlayScreens(props: Props) {
       const res = await savePlayCard(value);
       if (!res.ok) throw new Error(res.error ?? "Couldn't save that card.");
       setSaved(true);
-      return "sent";
+      // READ BACK: the card as the row now holds it, so "Sent" is the record's word.
+      return { serverHolds: fitted(res.card) };
     },
   });
   /**
@@ -412,6 +424,23 @@ function PlayScreens(props: Props) {
   }, [props.stage, cardRecovered, clearCardRecovered, pushCard, holeCount0]);
 
   /* ── Step 1: enter the code ───────────────────────────────────────── */
+
+  /**
+   * THE NAME TAPPED OPENS THE CARD IN ONE TRIP, NOT TWO (2026-10-25).
+   *
+   * The claim's answer already carries the card: `claimPlayerSlot` revalidates
+   * `/play`, so the server draws the page for the new session into the same
+   * response and the router puts it on screen. The page then reloaded on top of
+   * that, and the player waited for the whole page to come down again. Measured
+   * on slow 3G (`e2e/round-code-on-3g.spec.ts`): 2.8 s from the tap to a pad
+   * that takes a score, of which the reload was the larger part. `PlayScreens`
+   * is keyed by what is open, so the card starts from its own props.
+   */
+  const claimName = (playerId: string) =>
+    startTransition(async () => {
+      const res = await claimPlayerSlot(code, playerId);
+      if (!res.ok) setError(res.error ?? "Couldn't start your session.");
+    });
 
   const openCode = (typed: string) => {
     setError("");
@@ -561,13 +590,7 @@ function PlayScreens(props: Props) {
                           className="btn btn-secondary"
                           disabled={pending}
                           style={{ minHeight: 48, fontSize: 15, justifyContent: "center", overflowWrap: "anywhere" }}
-                          onClick={() =>
-                            startTransition(async () => {
-                              const res = await claimPlayerSlot(code, p.id);
-                              if (!res.ok) setError(res.error ?? "Couldn't start your session.");
-                              else window.location.reload();
-                            })
-                          }
+                          onClick={() => claimName(p.id)}
                         >
                           {p.name}
                         </button>
@@ -593,13 +616,7 @@ function PlayScreens(props: Props) {
                 key={p.id}
                 type="button"
                 disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    const res = await claimPlayerSlot(code, p.id);
-                    if (!res.ok) setError(res.error ?? "Couldn't start your session.");
-                    else window.location.reload();
-                  })
-                }
+                onClick={() => claimName(p.id)}
                 style={{
                   display: "block",
                   width: "100%",
@@ -747,14 +764,20 @@ function PlayScreens(props: Props) {
     const certifyCard = () => {
       setError("");
       startTransition(async () => {
+        // A hole still on its way goes first, as on the signed-in card: the
+        // last hole is tapped and the card signed in one breath.
+        await cardQueue.landed();
         // Save first: signing a card the server has not seen would certify
         // numbers nobody stored. Same order as the console's own card.
-        const wrote = await savePlayCard(card);
+        const sent = card;
+        const wrote = await savePlayCard(sent);
         if (!wrote.ok) {
           setError(wrote.error ?? "Couldn't save that card.");
           return;
         }
         setSaved(true);
+        // Saved beside the queue: tell it what the row now holds, so the marks stay true.
+        cardQueue.heard(fitted(wrote.card));
         const res = await certifyPlayCard();
         if (!res.ok) {
           setError(res.error ?? "Couldn't certify that card.");
@@ -764,16 +787,15 @@ function PlayScreens(props: Props) {
       });
     };
 
+    /**
+     * TRY AGAIN THROUGH THE QUEUE, not beside it (2026-10-25). It saved by hand
+     * and left the queue holding the refusal, so the marks and the card line
+     * could disagree with the save that had just worked. Back into the queue,
+     * the card is kept on the phone, sent, read back and marked like any tap.
+     */
     const saveCard = () => {
       setError("");
-      startTransition(async () => {
-        const res = await savePlayCard(card);
-        if (!res.ok) {
-          setError(res.error ?? "Couldn't save that card.");
-          return;
-        }
-        setSaved(true);
-      });
+      cardQueue.push(card);
     };
 
     return (
@@ -835,6 +857,9 @@ function PlayScreens(props: Props) {
             }}
             meId="me"
             showVoice={props.voiceEntry ?? true}
+            // Where each hole is — on this phone, sent, or not sent — from the queue itself.
+            sync={cardQueue.holes}
+            refusal={cardQueue.refusal}
             // STABLEFORD PICK-UP (Rule 21.1b, 2026-10-08) — the round code is
             // how the charity day's Stableford is scored, so a player here may
             // pick up exactly as on their own card: net double bogey, zero
@@ -856,9 +881,14 @@ function PlayScreens(props: Props) {
               : {})}
           />
 
-          {/* Where the card is — the same words the signed-in card uses. */}
+          {/* Where the card is — the same words the signed-in card uses, and the
+              same words as the marks on each hole above. */}
           <p role="status" style={{ fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-            {cardQueue.status.label}
+            {cardQueue.status.tone === "idle"
+              ? filledHoles > 0
+                ? `${cardQueue.status.label} — ${filledHoles} of ${holeCount} holes in`
+                : ""
+              : cardQueue.status.label}
           </p>
           {/* Only when the server said no: a way to try again by hand. */}
           {cardQueue.status.tone === "warn" && (
