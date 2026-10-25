@@ -2,6 +2,7 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { usePageIsLive } from "./usePageIsLive";
+import { HeldBeforeLoad, takeHeldPress, dropHeldPress } from "./HeldBeforeLoad";
 import { redeemRoundCode, claimPlayerSlot, redeemRoundCodeForm, claimPlayerSlotForm, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard, savePlayMatchCard } from "@/app/actions/play";
 import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
@@ -228,6 +229,9 @@ function Shell({
         padding: "22px 16px 40px",
       }}
     >
+      {/* Listening before the forms below are drawn, so a press made before
+          the page is live is held for it (`HeldBeforeLoad`). */}
+      <HeldBeforeLoad />
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
           <OrgBrand brand={brand} />
@@ -347,15 +351,18 @@ export function PlayClient(props: Props) {
 
 function PlayScreens(props: Props) {
   /**
-   * THE CODE AND THE NAMES ARE FORMS THAT WORK BEFORE THE SCRIPT (2026-10-25).
+   * THE CODE AND THE NAMES ARE FORMS THAT TAKE A PRESS BEFORE THE SCRIPT (2026-10-25).
    *
    * On slow 3G the box was on the screen at 1.8 s and Continue woke at 7.8 s:
-   * it waited for the page's whole script. So each step is a real form, posted
-   * the plain way while the script is still on its way (`redeemRoundCodeForm`,
-   * `claimPlayerSlotForm`), and the server draws the next step — these two
-   * hooks are how it hands this page what a plain post answered. Once the page
-   * is live, a press is taken in the page and goes the way it always went
-   * (`openCode`, `claimName`): same actions underneath, same answer.
+   * it waited for the page's whole script. Continue can be pressed from the
+   * first paint now. A press made before the page is live is HELD
+   * (`HeldBeforeLoad`) and taken up the moment it is (`takeHeldPress`, below),
+   * because a plain post would be a new page and start the scripts again.
+   * With no script at all — or none ten seconds after the press — each form
+   * posts the plain way (`redeemRoundCodeForm`, `claimPlayerSlotForm`) and the
+   * server draws the next step; these two hooks are how it hands this page
+   * what a plain post answered. Every way round, the same actions underneath
+   * (`openCode`, `claimName`), so the same answer.
    */
   const [posted, postCode] = useActionState(redeemRoundCodeForm, null);
   const [claimPosted, postName] = useActionState(claimPlayerSlotForm, null);
@@ -455,9 +462,9 @@ function PlayScreens(props: Props) {
    * that takes a score, of which the reload was the larger part. `PlayScreens`
    * is keyed by what is open, so the card starts from its own props.
    */
-  const claimName = (playerId: string) =>
+  const claimName = (playerId: string, withCode = code) =>
     startTransition(async () => {
-      const res = await claimPlayerSlot(code, playerId);
+      const res = await claimPlayerSlot(withCode, playerId);
       if (!res.ok) setError(res.error ?? "Couldn't start your session.");
     });
 
@@ -494,6 +501,25 @@ function PlayScreens(props: Props) {
     if (box && box.value.trim()) return;
     setCode(formatAccessCode(fromSign));
     openCode(fromSign);
+    // Once, on arrival.
+  }, [props.stage]);
+
+  /**
+   * A PRESS MADE BEFORE THE PAGE WAS LIVE, TAKEN UP NOW IT IS (2026-10-25).
+   * `HeldBeforeLoad` kept it, and the button has been marked busy since. Once,
+   * on arrival: Continue with what is in the box, or the name that was tapped.
+   */
+  useEffect(() => {
+    if (props.stage !== "code") return;
+    const held = takeHeldPress();
+    if (!held) return;
+    if (held.kind === "code") {
+      const typed = String(held.data.get("code") ?? "");
+      setCode(typed);
+      openCode(typed);
+    } else if (held.kind === "name" && held.value) {
+      claimName(held.value, String(held.data.get("code") ?? ""));
+    }
     // Once, on arrival.
   }, [props.stage]);
 
@@ -566,10 +592,11 @@ function PlayScreens(props: Props) {
               name in the whole field. Typing in the box goes back to the
               plain filtered list. */}
           {/* A FORM, so a name tapped before the page's script has arrived still
-              opens the card: the tapped button carries the player, the hidden
-              box the code (`claimPlayerSlotForm`). Once the page is live, the
-              tap is taken in the page instead (`claimName`). */}
-          <form action={postName}>
+              opens the card: held until the page is live (`HeldBeforeLoad`), or
+              with no script a plain post — the tapped button carries the player,
+              the hidden box the code (`claimPlayerSlotForm`). Once the page is
+              live, the tap is taken in the page (`claimName`). */}
+          <form action={postName} data-held-until-live="name">
           <input type="hidden" name="code" value={code} />
           {groups.length > 0 && nameFilter.trim() === "" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -619,6 +646,7 @@ function PlayScreens(props: Props) {
                           style={{ minHeight: 48, fontSize: 15, justifyContent: "center", overflowWrap: "anywhere" }}
                           onClick={(e) => {
                             e.preventDefault();
+                            dropHeldPress(e.currentTarget.form);
                             claimName(p.id);
                           }}
                         >
@@ -650,6 +678,7 @@ function PlayScreens(props: Props) {
                 disabled={pending}
                 onClick={(e) => {
                   e.preventDefault();
+                  dropHeldPress(e.currentTarget.form);
                   claimName(p.id);
                 }}
                 style={{
@@ -719,18 +748,22 @@ function PlayScreens(props: Props) {
           </MoreInfo>
         </div>
 
-        {/* A FORM THAT WORKS THE MOMENT IT IS DRAWN. Before the page's script
-            has arrived it posts the plain way (`redeemRoundCodeForm`) and the
-            server draws the names, or says what is wrong with the code beside
-            the button; once the page is live the press is taken here
-            (`openCode`). So Continue is pressable from the first paint, and
-            greyed only by a live page, over an empty box or while it checks. */}
+        {/* A FORM THAT TAKES A PRESS THE MOMENT IT IS DRAWN. Before the page's
+            script has arrived the press is held and taken up when it has
+            (`HeldBeforeLoad`); with no script, it posts the plain way
+            (`redeemRoundCodeForm`) and the server draws the names, or says what
+            is wrong with the code beside the button; once the page is live the
+            press is taken here (`openCode`). So Continue is pressable from the
+            first paint, and greyed only by a live page, over an empty box or
+            while it checks. */}
         <form
           action={postCode}
+          data-held-until-live="code"
           className="card elev-sm"
           style={{ gap: 12 }}
           onSubmit={(e) => {
             e.preventDefault();
+            dropHeldPress(e.currentTarget);
             submit();
           }}
         >

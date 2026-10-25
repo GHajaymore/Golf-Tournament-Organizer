@@ -272,12 +272,13 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
  * Measured on slow 3G (`e2e/round-code-on-3g.spec.ts`): the code box was drawn
  * at 1.8 s and Continue could not be pressed until 7.8 s, because it waited for
  * the page's whole script, 193 KB of it, sharing one bar of signal with 105 KB
- * of fonts. So the box and the names are real forms now, posted to these two
- * the plain way when the script is not there yet, and the server draws the
- * next step. Once the script is running the page calls `redeemRoundCode` and
- * `claimPlayerSlot` itself, as it always did; these call the same two, so the
- * answer — the names, the refusal in words, the session — is one answer
- * whichever way the press went.
+ * of fonts. So the box and the names are real forms now. A press made before
+ * the script is held until it arrives (`HeldBeforeLoad`), and the page calls
+ * `redeemRoundCode` and `claimPlayerSlot` itself, as it always did. With no
+ * script — or none ten seconds after the press — the forms are posted to
+ * these two the plain way and the server draws the next step. These call the
+ * same two, so the answer — the names, the refusal in words, the session — is
+ * one answer whichever way the press went.
  *
  * Shaped for `useActionState` (the state before, then the form), because that
  * is how the server hands the result of a plain post to the page it draws.

@@ -6,14 +6,19 @@ import { PrismaClient } from "@prisma/client";
  *
  * On slow 3G the code box was drawn at 1.8 s and Continue could not be pressed until 7.8 s: it
  * waited for the whole of the page's script (`round-code-on-3g.spec.ts` times it). So the code
- * box and the list of names are real forms, posted the plain way while the script is still on its
- * way, and the server draws the next step. This walks that path as the player on one bar would:
+ * box and the list of names are real forms that take a press from the first paint: held on the
+ * page until its script is live (`HeldBeforeLoad`), or — with no script, or none ten seconds
+ * after the press — posted the plain way, and the server draws the next step. This walks each
+ * path as the player on one bar would:
  *
  *   - WITH JAVASCRIPT OFF: the code, the refusals in words beside Continue (a code that is not
  *     a round's, and an empty box), the names, and the card drawn for the name tapped;
- *   - WITH THE SCRIPT HELD BACK: Continue and the name pressed before the page is live, then the
- *     script let through — and the card that the plain posts opened takes a score, says Sent, and
- *     the server holds it (the honest card's read-back, on this path);
+ *   - WITH THE SCRIPT HELD BACK, then let through: Continue pressed before the page is live is
+ *     held on the SAME page (no plain post, which would start the scripts again) and taken up
+ *     when it is live — through to a score that says Sent and that the server holds (the honest
+ *     card's read-back, on this path);
+ *   - WITH THE SCRIPT NEVER COMING: the held press goes as the plain post after ten seconds, the
+ *     code and then the name, to a card drawn by the server;
  *   - THE SPRITE IS IN THE PAGE ONCE: the icons are drawn into the document and are not sent a
  *     second time in the page's data for React (37 KB of this page's 44 KB, before).
  *
@@ -163,7 +168,7 @@ test.describe("a round code before the page's script", () => {
     }
   });
 
-  test("pressed before the script arrives: the plain posts open the card, and once the script lands it takes a score that is Sent", async ({ browser, baseURL }, testInfo) => {
+  test("pressed before the script arrives: the press is held on the same page and taken up when the script lands, through to a score that is Sent", async ({ browser, baseURL }, testInfo) => {
     const context = await phone(browser, baseURL, testInfo.project.use);
     try {
       const page = await context.newPage();
@@ -172,29 +177,58 @@ test.describe("a round code before the page's script", () => {
       const box = page.getByLabel("Round code");
       await box.waitFor({ timeout: 15_000 });
       await box.pressSequentially(CODE, { delay: 20 });
-      await page.getByRole("button", { name: "Continue" }).click();
+      // A mark on this page: a plain post would be a new page, without it.
+      await page.evaluate(() => ((window as unknown as { __zzSamePage: boolean }).__zzSamePage = true));
+      const go = page.getByRole("button", { name: "Continue" });
+      await go.click();
+      // The press was taken — the button says it is busy — and the page is still not live.
+      await expect(go).toHaveAttribute("aria-busy", "true");
+      expect(await isLive(page), "the page was live, so this did not test the press before the script").toBe(false);
+      await page.waitForTimeout(1_500);
+      await expect(page.getByRole("button", { name: NAMES[1], exact: true }), "a held press went on without the script").toHaveCount(0);
 
+      // The script lands: the press is taken up on the same page.
+      script.let();
+      // CONTROL for the check above: the same question answers yes once the script is in.
+      await expect.poll(() => isLive(page), { timeout: 30_000, message: "the page never went live, so `isLive` cannot tell" }).toBe(true);
       const me = page.getByRole("button", { name: NAMES[1], exact: true });
       await expect(me).toBeVisible({ timeout: 15_000 });
-      // CONTROL: the names came from a plain post — the page is still not live.
-      expect(await isLive(page), "the page was live, so this did not test the path before the script").toBe(false);
+      expect(await page.evaluate(() => (window as unknown as { __zzSamePage?: boolean }).__zzSamePage), "the held press became a new page").toBe(true);
       await me.click();
-      await expect(page.getByLabel("Strokes on hole 1")).toBeVisible({ timeout: 15_000 });
-      expect(await isLive(page), "the card was drawn by a live page, not by the plain post").toBe(false);
-      // A pad drawn before its script is a picture of one, and says so by being disabled.
       const pad = page.getByRole("button", { name: /Par$/ }).first();
-      await expect(pad).toBeDisabled();
-
-      // The script lands: the same card now takes a score, and the server holds it.
-      script.let();
-      // CONTROL for the two above: the same question answers yes once the script is in.
-      await expect.poll(() => isLive(page), { timeout: 30_000, message: "the page never went live, so `isLive` cannot tell" }).toBe(true);
       await expect(pad).toBeEnabled({ timeout: 30_000 });
       await pad.click();
       await expect
         .poll(() => page.locator(".hole-nav-btn").first().getAttribute("data-sync"), { timeout: 20_000, message: "hole 1 never turned Sent" })
         .toBe("sent");
       expect((await onServer(NAMES[1]))[0], "the phone says Sent and the server does not hold hole 1").toBe(PARS[0]);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("if the script never comes, a held press goes as the plain post ten seconds later — the code, then the name", async ({ browser, baseURL }, testInfo) => {
+    const context = await phone(browser, baseURL, testInfo.project.use);
+    try {
+      const page = await context.newPage();
+      // Held for the whole test: this page's script never arrives.
+      await holdTheScript(page);
+      await page.goto("/play", { waitUntil: "commit" });
+      const box = page.getByLabel("Round code");
+      await box.waitFor({ timeout: 15_000 });
+      await box.pressSequentially(CODE, { delay: 20 });
+      const pressed = Date.now();
+      await page.getByRole("button", { name: "Continue" }).click();
+      const me = page.getByRole("button", { name: NAMES[2], exact: true });
+      await expect(me).toBeVisible({ timeout: 25_000 });
+      const waited = Date.now() - pressed;
+      expect(waited, "the held press went before its ten seconds were up").toBeGreaterThan(9_000);
+      expect(await isLive(page)).toBe(false);
+      await me.click();
+      await expect(page.getByLabel("Strokes on hole 1")).toBeVisible({ timeout: 25_000 });
+      await expect(page.getByText(NAMES[2]).first()).toBeVisible();
+      // A pad drawn before its script is a picture of one, and says so by being disabled.
+      await expect(page.getByRole("button", { name: /Par$/ }).first()).toBeDisabled();
     } finally {
       await context.close();
     }

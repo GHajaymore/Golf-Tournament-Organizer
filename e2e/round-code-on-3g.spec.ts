@@ -21,12 +21,16 @@ import { PrismaClient } from "@prisma/client";
  * TWO PLAYERS, because the two are different requests:
  *
  *   - THE QUICK THUMB types the code the instant the box is drawn. On this connection the page's
- *     script is seconds behind its picture, so Continue is pressed before it, and the code and the
- *     name go as plain form posts (`redeemRoundCodeForm`, `claimPlayerSlotForm`). Until
- *     2026-10-25 Continue could not be pressed until the whole script was in — 7.8 s on this
- *     throttle, measured — so this is the case that was slow. Asserted: Continue is pressable the
- *     moment the box is drawn, and within two seconds of opening the link; the whole flow is
+ *     script is seconds behind its picture, so Continue is pressed before it. Until 2026-10-25
+ *     Continue could not be pressed until the whole script was in — 7.8 s on this throttle,
+ *     measured — so this is the case that was slow. Asserted: Continue is pressable the moment the
+ *     box is drawn, within two seconds of opening the link, and the press is TAKEN (the button
+ *     says it is busy) and held until the page is live (`HeldBeforeLoad`); the whole flow is
  *     printed, with what it could not get under, and held to a ceiling so it cannot creep back.
+ *   - A THUMB AT A HUMAN PACE — a key every 300 ms, a second and a half to find their name. This
+ *     is the measurement that chose holding the press over a plain post: posting the plain way got
+ *     the names on screen sooner and the pad that takes a score 2 s LATER, because each new page
+ *     starts the half-fetched scripts and fonts again.
  *   - THE PLAYER WHO READ THE CODE OFF THE SHEET first, by which time the page is live. Asserted,
  *     as before: under two seconds from the tap on their name to a pad that takes a score.
  *
@@ -60,13 +64,13 @@ const TARGET_MS = 2_000;
  * THE QUICK THUMB'S WHOLE FLOW, held as a ceiling rather than the target, because the target is not
  * reachable on this throttle by any page that needs a script to take a score: the framework alone
  * is about 104 KB compressed, two seconds of this line before a byte of the app, and the fonts are
- * another 105 KB beside it. Measured on 2026-10-25 (Windows build), before → after the forms worked
- * without the script: Continue 8.3 → 1.9 s, the names 9.2 → 3.3 s, the card drawn 10.6 → 5.8 s,
- * and the pad taking a score 10.6 → 10.3 s — the plain posts move the player on, and each one
- * leaves a page whose half-fetched scripts and fonts start again on the next. Lower this when the
- * run says it can come down.
+ * another 105 KB beside it. Measured on 2026-10-25 (Windows build) for a quick thumb, from opening
+ * the link: before, Continue pressable 8.3 s and the pad 10.6 s; with plain posts for a press made
+ * before the script, the names at 3.3 s but the pad at 10.3 s (each post a new page, starting the
+ * half-fetched scripts and fonts again); with the press HELD, Continue 1.9 s and the pad 8.3 s.
+ * Lower this when the run says it can come down.
  */
-const QUICK_CEILING_MS = 12_000;
+const QUICK_CEILING_MS = 10_000;
 
 test.beforeAll(async () => {
   const org = await prisma.organization.create({ data: { name: `${MARK} society`, kind: "society" } });
@@ -187,6 +191,8 @@ test.describe("a round code on slow 3G", () => {
       const liveAtPress = await isLive(page);
 
       await go.click();
+      // The press was TAKEN, not dropped: the button says it is busy until the page can act on it.
+      const taken = liveAtPress || (await go.getAttribute("aria-busy")) === "true";
       const me = page.getByRole("button", { name: NAMES[0], exact: true });
       await expect(me).toBeVisible({ timeout: 60_000 });
       const names = Date.now() - opened;
@@ -207,11 +213,50 @@ test.describe("a round code on slow 3G", () => {
       );
       // CONTROL: the throttle was on. A page over 400 ms of latency cannot be drawn in less.
       expect(drawn, "the code page was drawn faster than one slow-3G round trip, so the throttle was not on").toBeGreaterThan(SLOW_3G.latency);
-      expect(liveAtPress, "the page's script was already running when Continue could be pressed, so the plain-form path was not timed").toBe(false);
+      expect(liveAtPress, "the page's script was already running when Continue could be pressed, so the press before it was not timed").toBe(false);
+      expect(taken, "Continue pressed before the page was live said nothing: the press looked dropped").toBe(true);
       // THE CODE PAGE'S OWN PROMISE: pressable when it is drawn, not when its script arrives.
       expect(pressable - drawn, `Continue woke ${pressable - drawn} ms after the box was drawn`).toBeLessThan(500);
       expect(pressable, `Continue could be pressed only ${pressable} ms after the link was opened`).toBeLessThan(TARGET_MS + 500);
       expect(ready, `a quick thumb waited ${ready} ms from opening /play for a pad that takes a score`).toBeLessThan(QUICK_CEILING_MS);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("a thumb at a human pace: a key every 300 ms, a second and a half to find their name", async ({ browser, baseURL }, testInfo) => {
+    const context = await phone(browser, baseURL, testInfo);
+    try {
+      const page = await context.newPage();
+      await onSlow3G(context, page);
+      const opened = Date.now();
+      await page.goto("/play", { waitUntil: "commit" });
+      const box = page.getByLabel("Round code");
+      await expect(box).toBeVisible({ timeout: 60_000 });
+      const drawn = Date.now() - opened;
+      await box.pressSequentially(CODE, { delay: 300 });
+      const go = page.getByRole("button", { name: "Continue" });
+      await expect(go).toBeEnabled({ timeout: 60_000 });
+      const pressed = Date.now() - opened;
+      const liveAtPress = await isLive(page);
+      await go.click();
+      const me = page.getByRole("button", { name: NAMES[0], exact: true });
+      await expect(me).toBeVisible({ timeout: 60_000 });
+      const names = Date.now() - opened;
+      await page.waitForTimeout(1_500);
+      const tapped = Date.now() - opened;
+      await me.click();
+      await expect(page.getByLabel("Strokes on hole 1")).toBeVisible({ timeout: 60_000 });
+      const card = Date.now() - opened;
+      await expect(page.getByRole("button", { name: /Par$/ }).first()).toBeEnabled({ timeout: 60_000 });
+      const ready = Date.now() - opened;
+      console.log(
+        `[3g human pace] from opening /play: box drawn ${drawn} ms, Continue pressed ${pressed} ms (page live then: ${liveAtPress ? "yes" : "no"}) · ` +
+          `names ${names} ms · name tapped ${tapped} ms · card drawn ${card} ms · pad takes a score ${ready} ms — ` +
+          `the player waited ${ready - tapped} ms after their name and ${names - pressed} ms after Continue`,
+      );
+      expect(drawn, "the throttle was not on").toBeGreaterThan(SLOW_3G.latency);
+      expect(ready, `a player at a human pace waited until ${ready} ms for a pad that takes a score`).toBeLessThan(QUICK_CEILING_MS + 3_000);
     } finally {
       await context.close();
     }
