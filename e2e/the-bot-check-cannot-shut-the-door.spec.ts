@@ -103,7 +103,8 @@ for (const script of ["blocked", "stalled", "answering"] as const) {
     await page.getByPlaceholder("Full name").fill("Zz Bot Door");
     await page.getByPlaceholder("you@email.com").fill(email);
     await page.getByPlaceholder("Choose a password").fill(PASSWORD);
-    await page.getByText("A society, league or regular group").click();
+    // The US edition's words (`communityKindLabel`): the front door with no country is the US one.
+    await page.getByText("A league, golf group or regular group").click();
     const pressed = Date.now();
     await page.getByRole("button", { name: "Create account" }).click();
     // The sign-up is answered with the emailed-code step (2026-10-21); what it

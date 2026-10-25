@@ -72,7 +72,15 @@ export function LoginPanel({
   autoFocusFields = true,
   organizers = "organizers",
   signupClosed = false,
+  communityLabel = SIGNUP_KINDS[1].label,
 }: {
+  /**
+   * The words for the second kind of outfit, in the visitor's edition: a US
+   * visitor reads leagues and golf groups, a British one societies
+   * (`landing/edition.ts` `communityKindLabel`). Handed in for the same reason
+   * as `organizers`. Elsewhere it reads as it always has.
+   */
+  communityLabel?: string;
   initialMode?: Mode;
   autoFocusFields?: boolean;
   /**
@@ -711,7 +719,7 @@ export function LoginPanel({
                     style={{ marginTop: 2, flex: "none", accentColor: "var(--color-accent)" }}
                   />
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: 13, fontWeight: 500 }}>{k.label}</span>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 500 }}>{k.value === "community" ? communityLabel : k.label}</span>
                     <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.5 }}>
                       {k.help}
                     </span>

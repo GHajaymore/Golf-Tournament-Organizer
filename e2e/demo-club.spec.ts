@@ -87,7 +87,7 @@ test("the owner creates the demo club, then refreshes it: one club, the same two
   const card = page.locator("#demo-club");
   await expect(card).toContainText("Not built yet");
 
-  await card.getByRole("button", { name: "Build the demo club" }).click();
+  await card.getByRole("button", { name: "Create the demo club" }).click();
   expect(await demoClubs(), "one press built it without asking").toHaveLength(0);
   await card.getByRole("button", { name: "Yes, build it" }).click();
   await expect(card.getByRole("status")).toContainText("The demo club is built", { timeout: 60_000 });
@@ -98,7 +98,7 @@ test("the owner creates the demo club, then refreshes it: one club, the same two
 
   await page.goto(`/owner?bust=${Date.now()}`);
   await expect(page.locator("#demo-club")).toContainText("Built");
-  await page.locator("#demo-club").getByRole("button", { name: "Build the demo club again from nothing" }).click();
+  await page.locator("#demo-club").getByRole("button", { name: "Refresh the demo club" }).click();
   await page.locator("#demo-club").getByRole("button", { name: "Yes, rebuild it" }).click();
   await expect(page.locator("#demo-club").getByRole("status")).toContainText("The demo club is built", { timeout: 60_000 });
   const again = await demoClubs();

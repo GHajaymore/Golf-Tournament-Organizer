@@ -156,6 +156,16 @@ export function editionSwaps(edition: Edition): WordSwap[] {
   return swaps;
 }
 
+/**
+ * The sign-up form's words for a league or golf group, in the edition's golf
+ * (2026-10-24). The form is a client component the page's swaps cannot reach,
+ * so the page hands these in: a US visitor never reads "society", and a
+ * British one still does.
+ */
+export function communityKindLabel(edition: Edition): string {
+  return edition.register === "uk" ? "A society, league or regular group" : "A league, golf group or regular group";
+}
+
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

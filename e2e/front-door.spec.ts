@@ -154,7 +154,8 @@ test("a new organizer comes in by the front door, and the door closes behind the
   await page.getByPlaceholder("Full name").fill("Zz Door Walker");
   await page.getByPlaceholder("you@email.com").fill(email);
   await page.getByPlaceholder("Choose a password").fill("1234567890");
-  await page.getByText("A society, league or regular group").click();
+  // The US edition's words (`communityKindLabel`): the front door with no country is the US one.
+  await page.getByText("A league, golf group or regular group").click();
   await page.getByRole("button", { name: "Create account" }).click();
   // This waits for the SERVER's answer (a round trip), not a redraw: on a busy round machine on
   // 2026-10-23 the button still read "Creating account…" at 5s, so the refusal had not arrived yet.
@@ -220,7 +221,8 @@ test("a new organizer comes in by the front door, and the door closes behind the
   await page.getByPlaceholder("Full name").fill("Zz Door Walker");
   await page.getByPlaceholder("you@email.com").fill(email);
   await page.getByPlaceholder("Choose a password").fill(PASSWORD);
-  await page.getByText("A society, league or regular group").click();
+  // The US edition's words (`communityKindLabel`): the front door with no country is the US one.
+  await page.getByText("A league, golf group or regular group").click();
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(refusal(page)).toContainText("log in instead", ANSWER);
   expect(await prisma.user.count({ where: { email } })).toBe(1);

@@ -10,7 +10,7 @@ import { demoCardQr } from "@/lib/landing/demo-qr";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { siteOrigin } from "@/lib/site";
-import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
+import { communityKindLabel, editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { landingPrices, type LandingPrices } from "@/lib/landing/pricing";
@@ -957,7 +957,7 @@ export default async function LandingPage() {
               )}
               </div>
               <div className="authpanel m-auth">
-                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} closed={held} />
+                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} closed={held} communityLabel={communityKindLabel(shown)} />
               </div>
               <div className="m-close-more">
               <div className="m-stores">
