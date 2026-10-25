@@ -13,8 +13,10 @@ import { NOINDEX } from "@/lib/site";
 import { tournamentClashFor } from "@/lib/services/tournament-clash";
 import { organizationIdsForPlayer } from "@/lib/services/organization";
 import { TournamentClashNotice } from "@/components/TournamentClashNotice";
-import { golfTermsForEvent } from "@/lib/services/organization";
+import { golfRegisterForOrganization, golfTermsForEvent } from "@/lib/services/organization";
 import { clubDayInWords } from "@/lib/domain/club-clock";
+import { casualRoundKinds, countryRegister, golfTermsFor } from "@/lib/domain/golf-terms";
+import { GolfTermsProvider } from "@/components/GolfTermsProvider";
 
 export const metadata = { title: "Set up a round", robots: NOINDEX };
 
@@ -35,6 +37,8 @@ export default async function NewMatchPage() {
    */
   const h = await headers();
   const localCur = localCurrency(requestCountry(h.get("x-vercel-ip-country"), h.get("accept-language")));
+  // The same country, for the golf words of a golfer with no club yet.
+  const here = requestCountry(h.get("x-vercel-ip-country"), h.get("accept-language"));
 
   // Whether they are due to play a real tournament round today. Read before
   // the roster query so the warning is decided on the same request that
@@ -65,6 +69,13 @@ export default async function NewMatchPage() {
    * makes the handicap the club's own is lost on every round.
    */
   const clubIds = await organizationIdsForPlayer(session.email);
+  /**
+   * The golf words: this person's club's, else the country they are standing
+   * in — the same fallback the currency takes. "A match, stroke play or a
+   * foursome" in the US, "a medal or a fourball" in Britain.
+   */
+  const register = clubIds[0] ? await golfRegisterForOrganization(clubIds[0]) : countryRegister(here);
+  const words = golfTermsFor(register);
   const courses = await prisma.course.findMany({
     where: { organizationId: { in: clubIds } },
     orderBy: { name: "asc" },
@@ -154,11 +165,12 @@ export default async function NewMatchPage() {
         {/* In the clashing tournament's club's golf words: it is that club's round. */}
         {clash && <TournamentClashNotice clash={clash} group={(await golfTermsForEvent(clash.eventId)).group} />}
         <p className="text-muted" style={{ fontSize: 14, margin: "0 0 24px", lineHeight: 1.6 }}>
-          A match, a medal or a fourball — scored properly, with nothing to configure.
+          {casualRoundKinds(words)} — scored properly, with nothing to configure.
           Pick what you&rsquo;re playing and who&rsquo;s in it; everything else has an answer
           already, and every one of them can be changed afterwards.
         </p>
 
+        <GolfTermsProvider register={register}>
         <NewMatchForm
           courses={courses.map((c) => ({
             id: c.id,
@@ -196,6 +208,7 @@ export default async function NewMatchPage() {
           }
           members={roster}
         />
+        </GolfTermsProvider>
 
         {/* The way back out. Somebody who wanted a field, flights and a
             sequence of rounds is one click from the screen that builds one —

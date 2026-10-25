@@ -427,7 +427,7 @@ export function RoundTeamScoring({
               <p>
                 Counting more than one keeps everybody involved: with only the best ball counting,
                 three of a four have nothing to play for once a partner makes par. &ldquo;Best 2 of
-                4&rdquo; is the usual society choice.
+                4&rdquo; is the usual choice for a day out.
               </p>
             </FieldInfo>
           </p>

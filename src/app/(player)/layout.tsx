@@ -11,7 +11,8 @@ import { playerAppShut } from "@/lib/domain/lifecycle-state";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { themeCss, playerColorScheme, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
-import { formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
+import { formattingForEvent, golfRegisterForEvent } from "@/lib/services/organization";
+import { GolfTermsProvider } from "@/components/GolfTermsProvider";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { roleName } from "@/lib/roles";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
@@ -64,7 +65,8 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   const session = await requireSession();
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
   // The club's word for who runs it — organizer or organiser (`golf-terms.ts`).
-  const organizer = (session.eventId ? await golfTermsForEvent(session.eventId) : golfTermsFor("us")).organizer;
+  const register = session.eventId ? await golfRegisterForEvent(session.eventId) : "us";
+  const organizer = golfTermsFor(register).organizer;
   // The event's club theme — the same resolution the console and the public
   // board use, so all three surfaces recolour together from one club setting.
   const theme = session.eventId ? await themeForEvent(session.eventId) : DEFAULT_CLUB_THEME;
@@ -152,6 +154,8 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
 
   return (
     <CurrencyProvider currency={fmt.currency} locale={fmt.locale}>
+    {/* The club's golf words for the player half too — see GolfTermsProvider. */}
+    <GolfTermsProvider register={register}>
     <div
       id="player-theme"
       style={{
@@ -305,6 +309,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
         showMoney={moneyOn && (!switcher.current?.watching || leftWithMoney) && !switcher.current?.waiting}
       />
     </div>
+    </GolfTermsProvider>
     </CurrencyProvider>
   );
 }

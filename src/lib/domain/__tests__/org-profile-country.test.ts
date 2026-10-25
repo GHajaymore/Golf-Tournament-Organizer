@@ -19,13 +19,23 @@ import {
  */
 
 describe("the community noun follows the club's own country", () => {
-  it("says society by default, exactly as it always did", () => {
+  it("says league where the country is unknown — the app's US default", () => {
     // The fallback is load-bearing: `Organization.country` is free text
     // defaulting to "", so "no answer" is the COMMON case, not an edge one.
+    // It said "society" here until 2026-10-24, while the same club's golf
+    // words (cart, foursome) were already US; since then both come from the
+    // golf register (`golf-terms.ts`), and US is Ajay's default (2026-09-27).
     for (const c of ["", null, undefined, "Unknown", "Narnia"]) {
       const p = orgProfile("community", c);
-      expect(p.noun, `country=${JSON.stringify(c)}`).toBe("society");
-      expect(p.settingsLabel).toBe("Society settings");
+      expect(p.noun, `country=${JSON.stringify(c)}`).toBe("league");
+      expect(p.settingsLabel).toBe("League settings");
+    }
+  });
+
+  it("says what each golf country says, from the register", () => {
+    for (const c of ["US", "Canada"]) expect(orgProfile("community", c).noun, c).toBe("league");
+    for (const c of ["GB", "Ireland", "Australia", "New Zealand", "South Africa", "DE"]) {
+      expect(orgProfile("community", c).noun, c).toBe("society");
     }
   });
 
@@ -152,7 +162,8 @@ describe("the organizer overrules the country", () => {
      * — the next person to reword one would find a second to disagree with.
      * They share a constant; this is what says so out loud.
      */
-    const plain = orgProfile("community");
+    // The society words as a British club reads them by default.
+    const plain = orgProfile("community", "GB");
     const chosen = orgProfile("community", "", "society");
     for (const k of ["label", "noun", "settingsLabel", "groupLabel", "blurb"] as const) {
       expect(chosen[k], `${k} drifted from the default`).toBe(plain[k]);

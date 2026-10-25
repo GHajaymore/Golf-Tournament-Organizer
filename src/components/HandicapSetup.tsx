@@ -4,6 +4,7 @@ import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
+import { useGolfTerms } from "./GolfTermsProvider";
 import { aNumber, bodyInProse, bodyShortLabel, handicapBody } from "@/lib/domain/handicap-body";
 
 /**
@@ -46,6 +47,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function HandicapSetup({ view }: { view: HandicapSetupView }) {
   const { pending, error, run } = useAction({ refresh: true });
+  // The club's golf words: "a golf group has visitors", "a society has visitors".
+  const words = useGolfTerms();
   // The club's body, from its country (`clubHandicapBody`) — not picked here.
   const body = handicapBody(view.body.id) ?? handicapBody("national")!;
   const from = bodyInProse(body);
@@ -117,8 +120,8 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
           {view.policy === "ghin"
             ? `Every member plays off a Handicap Index from ${from}. Nobody at the club enters a handicap by hand, and a member without ${aNumber(body)} can't be entered until they have one.`
             : view.policy === "hybrid"
-              ? `Members with ${aNumber(body)} play off their index from ${from}; everyone else plays off the club's own figure. Most clubs are this — a society has visitors, and a club has members who have never held an index.`
-              : "Handicaps are entered here: by an organizer, or suggested from your members' cards."}
+              ? `Members with ${aNumber(body)} play off their index from ${from}; everyone else plays off the club's own figure. Most clubs are this — a ${words.golfGroup} has visitors, and a club has members who have never held an index.`
+              : `Handicaps are entered here: by an ${words.organizer}, or suggested from your members' cards.`}
         </p>
       </div>
 

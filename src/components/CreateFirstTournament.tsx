@@ -8,6 +8,7 @@ import { retentionNotice, planFor } from "@/lib/plans";
 import { askToJoinNamesake } from "@/app/actions/join";
 import { Icon } from "./Icon";
 import { ORG_KINDS, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
+import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
 
 /**
@@ -123,6 +124,10 @@ export function CreateFirstTournament({
 }) {
   /** Every word on this screen that names the outfit comes from here. */
   const outfit = orgProfile(orgKind, orgCountry, orgNoun);
+  // The golf words from the same country, before the club has chosen any: this
+  // form is often the first screen a new organizer sees, on /choose, outside
+  // the console's GolfTermsProvider.
+  const words = golfTermsFor(golfRegister(orgCountry));
   /**
    * Naming the club is answerable on this form; everything else is not.
    *
@@ -441,7 +446,7 @@ export function CreateFirstTournament({
           <label htmlFor={`${fid}-org-name`}>
             Who&rsquo;s running this?{" "}
             <span className="text-muted" style={{ fontWeight: 400 }}>
-              {clubNameRequired ? "— your club or society, set once for every tournament" : "— club, society or company (optional)"}
+              {clubNameRequired ? `— your club or ${words.golfGroup}, set once for every tournament` : `— club, ${words.golfGroup} or company (optional)`}
             </span>
           </label>
           <input

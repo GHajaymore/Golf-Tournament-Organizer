@@ -13,7 +13,7 @@ import { orgNamesLookLikeOne, inTheSameArea, type Whereabouts } from "../domain/
 import { isOrgKind, orgProfile, type OrgKind } from "../domain/org-profile";
 import type { OrgSetupFacts } from "../domain/org-setup";
 import { logoSrc } from "../domain/logo-upload";
-import { golfRegister, golfTermsFor, type GolfTerm } from "../domain/golf-terms";
+import { golfRegister, golfTermsFor, type GolfRegister, type GolfTerm } from "../domain/golf-terms";
 
 /**
  * Resolve the organization a new tournament should belong to for this person,
@@ -961,11 +961,25 @@ export async function currencyForEvent(eventId: string): Promise<string> {
  * answers the same kind of question: how does THIS club say it.
  */
 export async function golfTermsForEvent(eventId: string): Promise<Record<GolfTerm, string>> {
+  return golfTermsFor(await golfRegisterForEvent(eventId));
+}
+
+/** The register itself, for a layout that hands it to `GolfTermsProvider`. */
+export async function golfRegisterForEvent(eventId: string): Promise<GolfRegister> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { organization: { select: { country: true, golfTerms: true } } },
   });
-  return golfTermsFor(golfRegister(event?.organization?.country, event?.organization?.golfTerms));
+  return golfRegister(event?.organization?.country, event?.organization?.golfTerms);
+}
+
+/** The same answer for a club with no tournament open yet. */
+export async function golfRegisterForOrganization(organizationId: string): Promise<GolfRegister> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { country: true, golfTerms: true },
+  });
+  return golfRegister(org?.country, org?.golfTerms);
 }
 
 export async function themeForEvent(eventId: string): Promise<ClubTheme> {

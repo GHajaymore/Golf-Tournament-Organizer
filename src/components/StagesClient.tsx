@@ -1,6 +1,7 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import React, { useEffect, useState, useTransition } from "react";
+import { useGolfTerms } from "./GolfTermsProvider";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
 import { roundLabel as roundLabelOf, roundNumber as roundNumberOf } from "@/lib/domain/round-label";
@@ -760,6 +761,8 @@ function StageCard({
 }) {
   // The club's own date order — see `shortDate`.
   const { locale } = useFormatting();
+  // And its golf words — "club, league and golf group competitions".
+  const golfWords = useGolfTerms();
   // Gates only the controls whose action refuses a locked tournament — see
   // `SetupLocked` for the ones that deliberately stay open.
   const locked = React.useContext(SetupLocked);
@@ -1803,7 +1806,7 @@ function StageCard({
           <FieldInfo label="playing off handicap or scratch">
             <p>
               <b>Net</b> takes each player&rsquo;s handicap strokes off first, so a 20-handicap can
-              win — how most club, society and league competitions are played. <b>Gross</b> ranks the strokes actually
+              win — how most club, league and {golfWords.golfGroup} competitions are played. <b>Gross</b> ranks the strokes actually
               taken, as a scratch championship does. <b>Both</b> keeps the two orders of merit from
               one card, for a competition that gives a gross and a net prize.
             </p>

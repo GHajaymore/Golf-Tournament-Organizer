@@ -31,6 +31,7 @@
  * `society` is Birdie and `enterprise` is Albatross.
  */
 import { ARCHIVE_MONTHS } from "./domain/club-archive";
+import { inClubWords, type GolfWords } from "./domain/golf-terms";
 
 export type PlanKey = "free" | "society" | "club" | "enterprise";
 
@@ -200,11 +201,12 @@ export const PLANS: Record<PlanKey, Plan> = {
   society: {
     key: "society",
     name: "Birdie",
-    tagline: "Leagues and golf groups",
-    // Written in US words: the landing is authored in US English and its UK
-    // editions swap "golf groups" for "societies" (landing/edition.ts). Until
-    // 2026-10-24 this said "societies", which US visitors read unswapped.
-    blurb: "For a league, society or golf group running a full season — unlimited events, up to fifty a field.",
+    // IN THE READER'S GOLF (2026-10-24): "Leagues and golf groups" to a US
+    // club, "Leagues and societies" to a British one. The token is filled by
+    // `planTagline` / `planBlurb` with the club's words, or the landing
+    // edition's. Until that day this said "societies" to every US club.
+    tagline: "Leagues and {golfGroups}",
+    blurb: "For a league or {golfGroup} running a full season — unlimited events, up to fifty a field.",
     // The growth-engine rung between Free and Club — see the monetization
     // proposal. Priced here as the default; the number is configurable through
     // `effectivePrice` without a code edit, which is why $12 is a starting
@@ -282,6 +284,18 @@ export const PLANS: Record<PlanKey, Plan> = {
     features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
   },
 };
+
+/**
+ * A plan's line and blurb in the reader's golf — the only way they are read.
+ * `tagline` and `blurb` hold `{golfGroups}`-style tokens (`golf-terms.ts`).
+ */
+export function planTagline(plan: Pick<Plan, "tagline">, words: GolfWords): string {
+  return inClubWords(plan.tagline, words);
+}
+
+export function planBlurb(plan: Pick<Plan, "blurb">, words: GolfWords): string {
+  return inClubWords(plan.blurb, words);
+}
 
 /**
  * The Par terms' two numbers, here rather than in `domain/close-terms.ts`
@@ -777,7 +791,7 @@ export const SEASON_LOCKED =
  * tier is named from PLANS so a renamed tier cannot leave this saying the old one.
  */
 export const HONOURS_LOCKED =
-  `The honours board comes with ${PLANS.society.name} and above. On ${PLANS.free.name} a ` +
+  `The {honoursBoard} comes with ${PLANS.society.name} and above. On ${PLANS.free.name} a ` +
   "tournament is deleted when it is completed, so there would be no champions to keep on it.";
 
 /** Whether this plan keeps data indefinitely. */
@@ -951,7 +965,7 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     out.push("Run as many tournaments at once as your season needs.");
   }
   if (plan.limits.staffSeats !== null && plan.limits.staffSeats < 10) {
-    out.push("Bring your committee in — up to ten organizers and assistants.");
+    out.push("Bring your committee in — up to ten {organizers} and assistants.");
   }
   if (!plan.features.whiteLabel) {
     out.push("Your own branding on every screen, with ours removed.");
@@ -966,7 +980,7 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     );
   }
   if (!plan.features.honours) {
-    out.push("The honours board — every champion the club has had, kept year after year.");
+    out.push("The {honoursBoard} — every champion the club has had, kept year after year.");
   }
   // The metered ones last and flagged as coming: they are the reason the paid
   // tier exists, but promising them as available today would be a lie until

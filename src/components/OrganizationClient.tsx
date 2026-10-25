@@ -18,6 +18,7 @@ import {
   BRAND_DISPLAY_HELP,
 } from "@/lib/brand";
 import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
+import { leadingNoun } from "./OrgProfileProvider";
 import { planFor } from "@/lib/plans";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
@@ -94,10 +95,12 @@ function shrink(img: HTMLImageElement): string | null {
  * Keyed off `OrgKind` so the compiler asks for one when a kind is added —
  * the same reason the profile table itself is a `Record<OrgKind, ...>`.
  */
-const NAME_EXAMPLE: Record<OrgKind, string> = {
-  club: "Ridgeline National Golf Club",
-  community: "Thursday Society",
-  personal: "Sunday Golf",
+const NAME_EXAMPLE: Record<OrgKind, (noun: string) => string> = {
+  club: () => "Ridgeline National Golf Club",
+  // In the outfit's own word — "Thursday League" in the US, "Thursday Society"
+  // in Britain. It said "Thursday Society" to every US league until 2026-10-24.
+  community: (noun) => `Thursday ${leadingNoun(noun)}`,
+  personal: () => "Sunday Golf",
 };
 
 interface Props {
@@ -331,7 +334,7 @@ export function OrganizationClient(props: Props) {
               // An example of the kind of outfit this actually is. "e.g.
               // Ridgeline National Golf Club" is the one thing on the field a
               // solo organizer knows they are not.
-              placeholder={`e.g. ${NAME_EXAMPLE[outfit.kind]}`}
+              placeholder={`e.g. ${NAME_EXAMPLE[outfit.kind](outfit.noun)}`}
             />
           </div>
 

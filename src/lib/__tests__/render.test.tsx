@@ -6325,9 +6325,10 @@ describe("the honours board", () => {
      */
     const { OrgProfileProvider } = await import("@/components/OrgProfileProvider");
     const { HonoursBoard } = await import("@/components/HonoursBoard");
+    // A British outfit: with no country a community is a US league.
     const inside = (kind: string) =>
       render(
-        <OrgProfileProvider kind={kind}>
+        <OrgProfileProvider kind={kind} country="GB">
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <HonoursBoard board={[{ year: 2026, entries: [entry()] }] as any} pending={[]} canEdit />
         </OrgProfileProvider>,
@@ -6549,7 +6550,8 @@ describe("club settings", () => {
      */
     for (const [kind, heading] of [
       ["club", "Club settings"],
-      ["community", "Society settings"],
+      // No country: a US league, the app's default (2026-10-24).
+      ["community", "League settings"],
       ["personal", "Outing settings"],
     ] as const) {
       const html = await club({ kind });
@@ -6656,8 +6658,9 @@ describe("how money works", () => {
      * society correctly two words earlier and then sends them to "Club
      * settings".
      */
+    // No country, so a US league (the app's default since 2026-10-24).
     const html = await money({ orgKind: "community", clubName: "zz-Society" });
-    expect(html).toContain("Society settings");
+    expect(html).toContain("League settings");
     expect(html, "the screen it points at is not a club's").not.toContain("Club settings");
 
     // THE CONTROL: a club still gets a club's words, or this is just a
@@ -6672,8 +6675,9 @@ describe("how money works", () => {
      * and is right whenever there is one; where there is not, "this club" is a
      * guess about what kind of outfit this is, and the profile has the answer.
      */
+    // A community with no country is a US league.
     const society = await money({ orgKind: "community", clubName: "" });
-    expect(society).toContain("this society");
+    expect(society).toContain("this league");
     expect(society).not.toContain("this club");
 
     // A personal organizer runs an OUTING — neither a club nor a society.

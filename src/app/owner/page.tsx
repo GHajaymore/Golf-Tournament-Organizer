@@ -4,7 +4,8 @@ import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { prisma } from "@/lib/db";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
-import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, planTagline, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { wholeMoney } from "@/lib/domain/money-format";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
@@ -200,7 +201,7 @@ export default async function OwnerConsolePage() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
-                  <th>Club or society</th>
+                  <th>Club or group</th>
                   <th>Who</th>
                   <th>Size</th>
                   <th>Note</th>
@@ -260,7 +261,9 @@ export default async function OwnerConsolePage() {
         ))}
       </div>
       <OwnerLimits tiers={limitTiers} enforce={enforcementEnabled(limitOverrides)} />
-      <OwnerClubPlan tiers={Object.values(PLANS).map((p) => ({ key: p.key, name: p.name, tagline: p.tagline }))} />
+      {/* The owner's own screen belongs to no club, so the plans are named in
+          the app's default golf — the US register. */}
+      <OwnerClubPlan tiers={Object.values(PLANS).map((p) => ({ key: p.key, name: p.name, tagline: planTagline(p, golfTermsFor("us")) }))} />
       <OwnerDiscounts codes={discounts} />
 
       {/* Tier mix */}
