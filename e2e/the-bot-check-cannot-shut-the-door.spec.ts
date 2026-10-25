@@ -103,7 +103,8 @@ for (const script of ["blocked", "stalled", "answering"] as const) {
     await page.getByPlaceholder("Full name").fill("Zz Bot Door");
     await page.getByPlaceholder("you@email.com").fill(email);
     await page.getByPlaceholder("Choose a password").fill(PASSWORD);
-    await page.getByText("A society, league or regular group").click();
+    // In the visitor's golf since the country words (2026-10-24): "golf group" in the US, "society" in Britain.
+    await page.getByText(/^A league or (golf group|society)$/).click();
     const pressed = Date.now();
     await page.getByRole("button", { name: "Create account" }).click();
     // The sign-up is answered with the emailed-code step (2026-10-21); what it
