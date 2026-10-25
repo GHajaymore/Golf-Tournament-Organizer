@@ -189,7 +189,8 @@ describe("the same code once the organizer lets players score", () => {
     // not an action that stopped working: same session, same match, one
     // setting changed.
     await setScoreEntryBy("players");
-    expect(await savePlayMatchHoles(matchId, FULL_CARD)).toEqual({ ok: true });
+    // And answers with the holes as the row now holds them — the honest card's read-back.
+    expect(await savePlayMatchHoles(matchId, FULL_CARD)).toEqual({ ok: true, holes: FULL_CARD });
 
     const stored = await storedMatch();
     expect(JSON.parse(stored.holes)).toEqual(FULL_CARD);
@@ -215,7 +216,7 @@ describe("the same code once the organizer lets players score", () => {
     await prisma.event.update({ where: { id: eventId }, data: { scoreEntryWindow: "after" } });
     try {
       const closed = [...new Array(5).fill("A"), ...new Array(9).fill("H"), null, null, null, null] as Array<"A" | "B" | "H" | null>;
-      expect(await savePlayMatchHoles(matchId, closed)).toEqual({ ok: true });
+      expect(await savePlayMatchHoles(matchId, closed)).toEqual({ ok: true, holes: closed });
       const m = await prisma.match.findUniqueOrThrow({ where: { id: matchId }, select: { scoredAt: true } });
       expect(m.scoredAt, "a decided match is a scored one").not.toBeNull();
       // CONTROL: five up with five to play is not over, and is still half a round.

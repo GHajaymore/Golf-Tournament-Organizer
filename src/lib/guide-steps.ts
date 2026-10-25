@@ -339,7 +339,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
-          "**Players on their phones** — hole by hole or a full card, by tap or by voice. No Save button; holes are kept on the phone with no signal. One phone can hold the group's cards (**Me / Group**). Players press [[Certify my card]] when done, or [[Something on this card is wrong]] to flag it.",
+          "**Players on their phones** — hole by hole or a full card, by tap or by voice. No Save button; holes are kept on the phone with no signal. Each hole says where its score is: **On your phone** (kept, not yet with you), **Sent** (the server read it back), or **Not sent** (refused, with the reason) — so a player who reaches the scorer's table with holes still on their phone knows it, and shows you the card. One phone can hold the group's cards (**Me / Group**). Players press [[Certify my card]] when done, or [[Something on this card is wrong]] to flag it.",
           "**Staff** on The round in play → Score entry, below.",
         ],
       },

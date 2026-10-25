@@ -45,6 +45,16 @@ somebody's edit. `e2e/slow-signal-scoring.spec.ts` holds every save back and sco
 them; to test anything about what happens BETWEEN a tap and its answer, delay the answer
 (`page.route` on the action's POST) rather than waiting for a quiet network.
 
+**AND EVERY HOLE SAYS WHERE ITS SCORE IS (the honest card, 2026-10-25).** "On your phone", "Sent"
+or "Not sent", a mark on the strip and the words at the hole, from `usePendingCard().holes` —
+worked out from the card the queue holds to send against what the last answered save READ BACK
+from the row it wrote (`writeScorecard`'s `stored`, the play and match actions' `card` / `holes`).
+A save that resolves with a read-back that disagrees is not a landing. A spec that waits for the
+card's line reads "Sent" (it was "Saved"); `e2e/honest-card.spec.ts` holds the saves back, cuts the
+signal, and compares the screen with the database hole by hole. Tapping a name on a round code no
+longer reloads the page — the claim's own answer draws the card — and `e2e/round-code-on-3g.spec.ts`
+times it on slow 3G.
+
 **AND A BUILD MADE ON WINDOWS HINTS NO FONT, SO THIS MACHINE CANNOT SEE WHAT A PHONE
 DOWNLOADS.** Until 2026-10-13 every screen fetched five font files before it knew which it would
 draw — 248 KB — and no local run or screenshot showed it, because next/font's manifest comes out

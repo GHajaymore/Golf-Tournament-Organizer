@@ -4545,10 +4545,13 @@ describe("the player's own card opens on what is already there", () => {
         status="entered" initialStrokes={nine()}
       />,
     );
-    // The hole strip marks a hole as scored, so nine of them must read back.
-    const scored = html.match(/aria-label="Hole \d+, complete"/g) ?? [];
-    expect(scored.length, "nine returned holes should show as scored").toBe(9);
-    expect(html).toContain("9 of 18 holes in");
+    // The hole strip marks a hole as scored, so nine of them must read back —
+    // and as SENT (the honest card, 2026-10-25): the server drew them, so the
+    // server has them. The nine empty holes say nothing about where a score is.
+    const scored = html.match(/aria-label="Hole \d+, complete, sent"/g) ?? [];
+    expect(scored.length, "nine returned holes should show as scored, and sent").toBe(9);
+    expect(html.match(/aria-label="Hole \d+, not scored"/g) ?? [], "an empty hole claims a place").toHaveLength(9);
+    expect(html).toContain("Sent — 9 of 18 holes in");
   });
 
   it("does not offer to certify a round that is not finished", async () => {
@@ -4626,7 +4629,7 @@ describe("the player's own card opens on what is already there", () => {
     // Nine holes in the strip and no tenth. (The "x of y holes in" line is
     // absent here because a full card shows the certify wording instead —
     // which is itself correct: an 18-slot card trimmed to 9 IS complete.)
-    const strip = html.match(/aria-label="Hole \d+, (complete|partly scored|not scored)"/g) ?? [];
+    const strip = html.match(/aria-label="Hole \d+, (complete|partly scored|not scored)(, sent|, on your phone|, not sent)?"/g) ?? [];
     expect(strip.length, "a 9-hole round renders nine holes").toBe(9);
     expect(html, "a 9-hole round must not show a 10th").not.toContain('aria-label="Hole 10');
   });
@@ -10149,6 +10152,7 @@ describe("the group's cards offer a pick-up for every row on a Stableford round 
         me={{ id: "p1", name: "zz-Ann Marker", shotsOn: () => 0 }}
         myStrokes={new Array(18).fill(null)}
         onSetMine={() => {}}
+        mySync={new Array(18).fill("none")}
         partners={[{ id: "p2", name: "zz-Bea Partner", strokes: new Array(18).fill(null), revision: "" }]}
         holding={() => false}
         dense
