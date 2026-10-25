@@ -88,11 +88,19 @@ async function cleanup() {
   await prisma.pushSubscription.deleteMany({ where: { email: { startsWith: MARK } } });
 }
 
-beforeAll(cleanup);
+const markWas = process.env.DEMO_CLUB_MARK;
+beforeAll(async () => {
+  // The owner's action builds THIS file's demo if anything ever lets a stranger press it —
+  // so a broken gate shows up as a demo this file removes, never as the bare one.
+  process.env.DEMO_CLUB_MARK = MARK;
+  await cleanup();
+});
 afterAll(async () => {
   try {
     await cleanup();
   } finally {
+    if (markWas === undefined) delete process.env.DEMO_CLUB_MARK;
+    else process.env.DEMO_CLUB_MARK = markWas;
     await prisma.$disconnect();
   }
 });
@@ -169,8 +177,11 @@ describe("the demo club is built, and built again", () => {
 
   it("refuses the owner's action to anybody who is not the owner, and builds nothing", async () => {
     const before = await prisma.organization.count({ where: { isDemo: true } });
+    const updatedBefore = (await prisma.organization.findFirst({ where: { name: demoClubName(MARK) }, select: { updatedAt: true } }))?.updatedAt;
     expect(await refreshDemoClub()).toEqual({ ok: false, error: "Not found." });
     expect(await prisma.organization.count({ where: { isDemo: true } })).toBe(before);
+    const updatedAfter = (await prisma.organization.findFirst({ where: { name: demoClubName(MARK) }, select: { updatedAt: true } }))?.updatedAt;
+    expect(updatedAfter, "a stranger's press rebuilt the demo").toEqual(updatedBefore);
   });
 });
 

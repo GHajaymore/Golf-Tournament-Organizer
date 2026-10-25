@@ -28,8 +28,9 @@ describe("on every plan", () => {
 
   it("takes a line off the moment one tier goes without it", () => {
     const without = structuredClone(PLANS) as Record<PlanKey, Plan>;
-    without.free.includes.voiceScoring = false;
-    without.club.features.publicBoard = false;
+    // Not the first tier in either case: a list read off one plan would keep both.
+    without.club.includes.voiceScoring = false;
+    without.enterprise.features.publicBoard = false;
     const keys = onEveryPlan(without).map((i) => i.key);
     expect(keys).not.toContain("voiceScoring");
     expect(keys).not.toContain("publicBoard");
