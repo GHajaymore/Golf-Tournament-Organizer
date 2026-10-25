@@ -19,7 +19,7 @@ import { OwnerDiscounts } from "@/components/OwnerDiscounts";
 import { OwnerAccounts } from "@/components/OwnerAccounts";
 import { signInsOpenedOnConsole } from "@/lib/services/signins-switch";
 import { signInsClosed } from "@/lib/sign-in-gate";
-import { DEFAULT_LOCALE } from "@/lib/domain/locale";
+import { DEFAULT_LOCALE, formatDay } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
 
@@ -214,7 +214,7 @@ export default async function OwnerConsolePage() {
       <OwnerDemoClub
         built={demo.built}
         when={demo.builtAt ? shortDate(demo.builtAt) : ""}
-        day={demo.day}
+        day={demo.day ? formatDay(demo.day, DEFAULT_LOCALE) : ""}
         holesIn={demo.holesIn}
         links={demo.links}
       />

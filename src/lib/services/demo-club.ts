@@ -219,9 +219,12 @@ function eventBase(orgId: string, courseId: string, teeId: string, shareToken: s
     customYards: JSON.stringify(DEMO_COURSE.yards),
     customStrokeIndex: JSON.stringify(DEMO_COURSE.strokeIndex),
     leaderboardVisibility: "public",
-    // The committee keeps the cards: a visitor who opens a player's card from
-    // the landing's QR sees it fill in, and cannot write into the demo.
-    scoreEntryBy: "staff",
+    // Players keep their own cards, as at a club day, so a visitor who opens a
+    // card from the landing's QR can tap a score and see it save. What they
+    // type lasts until the replay reaches that hole: the replay writes the
+    // script over every hole a group has played (`demoStrokesDue`), so the
+    // board a visitor watches is the club's day, not a stranger's taps.
+    scoreEntryBy: "players",
     scoreApproval: "staff",
     playerAccess: "code",
     moneyMode: "none",
@@ -391,11 +394,15 @@ export async function advanceDemoReplay(input: { mark: string; at?: Date }): Pro
       const before = stored.get(player.id) ?? [];
       const script = demoCard(`${tokens.today}:${today}`, i, player.handicap);
       const next = demoStrokesDue(script, due, before);
-      const had = before.filter((s) => typeof s === "number").length;
-      const has = next.filter((s) => typeof s === "number").length;
-      if (has <= had) continue;
-      await writeScorecard({ eventId: event.id, stageId: stage.id, playerId: player.id, strokes: next, settings, role: "admin" });
-      holesWritten += has - had;
+      // Nothing to write when every played hole already reads the script.
+      if (next.every((s, h) => s === (before[h] ?? null))) continue;
+      try {
+        await writeScorecard({ eventId: event.id, stageId: stage.id, playerId: player.id, strokes: next, settings, role: "admin" });
+      } catch {
+        // One card that will not take a write (say, locked) does not stop the rest of the field.
+        continue;
+      }
+      holesWritten += next.filter((s, h) => s !== (before[h] ?? null)).length;
       cards += 1;
     }
   }

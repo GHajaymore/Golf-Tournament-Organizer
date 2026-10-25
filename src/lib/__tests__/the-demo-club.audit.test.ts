@@ -203,6 +203,15 @@ describe("the replay plays the club's day by the club's clock", () => {
     // A board that moved, not merely a count: some line reads differently at 11:30 than at 9:00.
     expect([...atHalfEleven.entries()].some(([id, t]) => (atNine.get(id) ?? 0) !== t)).toBe(true);
 
+    // A visitor taps a hole-in-one on a hole the group has played: the next tick puts the club's day back.
+    const card = await prisma.scorecard.findFirstOrThrow({ where: { eventId: event.id, playerId: players[0].id } });
+    const scripted = JSON.parse(card.strokes) as number[];
+    await prisma.scorecard.update({ where: { id: card.id }, data: { strokes: JSON.stringify([1, ...scripted.slice(1)]) } });
+    const putBack = await advanceDemoReplay({ mark: MARK, at: atClub("11:31") });
+    expect(putBack).toMatchObject({ ok: true, cards: 1, holesWritten: 1 });
+    const after = await prisma.scorecard.findFirstOrThrow({ where: { id: card.id } });
+    expect(JSON.parse(after.strokes)).toEqual(scripted);
+
     // The next morning at the club: the medal starts again, dated that day, and the
     // championship moves with it so it is always earlier in the week.
     const next = await advanceDemoReplay({ mark: MARK, at: atClub("06:00", "2031-03-13") });

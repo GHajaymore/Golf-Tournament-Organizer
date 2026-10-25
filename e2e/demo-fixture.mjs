@@ -9,6 +9,9 @@
  */
 import { runMark } from "../scripts/run-mark.mjs";
 
+/** The replay's token on the test server only — production's is a secret in Vercel and GitHub. */
+export const E2E_DEMO_REPLAY_TOKEN = "e2e-demo-replay-token-not-for-deployment";
+
 /** This worktree's demo mark: the same in the server Playwright starts (`DEMO_CLUB_MARK`) and in the spec. */
 export function demoTestMark(cwd = process.cwd()) {
   return runMark("zz-demo", cwd);

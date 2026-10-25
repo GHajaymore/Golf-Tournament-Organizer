@@ -91,7 +91,8 @@ describe("the encoder is in no screen's first download", () => {
       expect(src, file).not.toMatch(/from\s+["']qrcode-generator["']/);
       if (/import\(\s*["']qrcode-generator["']\s*\)/.test(src)) lazy.push(file.replace(/\\/g, "/"));
     }
-    // CONTROL: the sweep sees the two that load it lazily.
-    expect(lazy.sort()).toEqual(["src/components/RoundSigns.tsx", "src/components/SignUpPoster.tsx"]);
+    // CONTROL: the sweep sees the ones that load it lazily — the front door's demo QR on the
+    // server, so in no page's download at all.
+    expect(lazy.sort()).toEqual(["src/components/RoundSigns.tsx", "src/components/SignUpPoster.tsx", "src/lib/landing/demo-qr.ts"]);
   });
 });

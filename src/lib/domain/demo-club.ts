@@ -213,8 +213,7 @@ function hashOf(text: string): number {
  *
  * Built to a total — about the player's handicap plus two over, a few shots
  * either way — the way `scripts/seed-club.mjs` builds its club's cards, so the
- * net board is led at a believable four or five under and nobody shoots a
- * fantasy. Seeded by the round's key and the player, so each day's medal is a
+ * net board is led a stroke or two under and nobody shoots a fantasy. Seeded by the round's key and the player, so each day's medal is a
  * new story and the same day's is always the same one.
  */
 export function demoCard(roundKey: string, playerIndex: number, handicapIndex: number, pars: readonly number[] = DEMO_COURSE.pars): number[] {
@@ -244,9 +243,10 @@ export function demoCard(roundKey: string, playerIndex: number, handicapIndex: n
 }
 
 /**
- * The card as the replay has it at a moment: the first `due` holes of the
- * scripted card and nothing after — never fewer holes than the card already
- * holds, so a tick can only move a board forward.
+ * The card as the replay has it at a moment: the scripted score on every hole
+ * the group has played (`due`), and whatever the card already holds after
+ * that. So a visitor's tap on a hole not yet reached stands until the group
+ * gets there, and a tap on a played hole is put back to the club's day.
  */
 export function demoStrokesDue(script: readonly number[], due: number, stored: ReadonlyArray<number | null>): (number | null)[] {
   return script.map((s, h) => (h < due ? s : (stored[h] ?? null)));
