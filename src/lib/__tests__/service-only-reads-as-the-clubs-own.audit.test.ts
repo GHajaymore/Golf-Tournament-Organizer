@@ -3,24 +3,28 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vites
 import { PrismaClient } from "@prisma/client";
 
 /**
- * A CLUB ALREADY ON "SERVICE ONLY" HAS ITS INDEXES TYPED BY THE CLUB, UNTIL A
- * FEDERATION LINK IS LIVE (the team's ruling, 2026-10-24).
+ * A CLUB ALREADY ON A BODY'S CHOICE HAS ITS INDEXES TYPED BY THE CLUB, UNTIL A
+ * FEDERATION LINK IS LIVE (the team's rulings, 2026-10-24).
  *
- * "GHIN only" told a club that nobody may type an index — while no adapter
- * fetches one (`integrations/ghin.ts` reports `unconfigured`, and so does every
- * body in `bodies.ts`). The choice is hidden, and a club that STORED it before
- * reads as the club's own record. Nothing is rewritten in the database: the
- * stored value waits for the day `federationLinkLive()` says yes.
+ * "GHIN only" told a club that nobody may type an index, and "GHIN where a
+ * member has one" told it the same of every member with a number — while no
+ * adapter fetches one (`integrations/ghin.ts` reports `unconfigured`, and so
+ * does every body in `bodies.ts`). Both choices are hidden, and a club that
+ * STORED either before reads as the club's own record. Nothing is rewritten in
+ * the database: the stored value waits for the day `federationLinkLive()` says
+ * yes.
  *
- * Real rows, because the readers are database reads: a US club with
- * `handicapPolicy: "ghin"` stored directly (as an older save would have left
- * it), its owner signed in, and
+ * Real rows, because the readers are database reads. For each stored value —
+ * "ghin" and "hybrid", written directly as an older save would have left it —
+ * a US club with its owner signed in, and
  *   - Club settings' view of it (`integrationSetup`) reads "club";
- *   - the roster takes a TYPED index for a member who has a GHIN number;
- *   - `saveHandicapPolicy("ghin")` is refused and stores nothing;
- * and the CONTROL, with the predicate forced true: the same row reads "ghin",
- * the same typed index is refused, and the choice may be stored — so the three
- * checks above cannot pass on a reader that ignores the setting altogether.
+ *   - the roster takes a TYPED index for a member who has a GHIN number, on
+ *     an add and on correcting one already on file;
+ *   - `saveHandicapPolicy` of that value is refused and stores nothing;
+ * and the CONTROL, with the predicate forced true: the same row reads as
+ * stored, the same typed index is refused, and the choice may be stored — so
+ * the checks above cannot pass on a reader that ignores the setting
+ * altogether.
  *
  *   npx vitest run --config vitest.audit.config.ts
  */
@@ -39,7 +43,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 const { saveHandicapPolicy } = await import("@/app/actions/handicap-policy");
-const { addMember } = await import("@/app/actions/roster");
+const { addMember, updateMember } = await import("@/app/actions/roster");
 const { integrationSetup } = await import("@/lib/services/integrations");
 
 const owner = { email: `${TAG}-owner@example.invalid`, name: `${TAG} Owner` };
@@ -91,9 +95,27 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   link.live = false;
-  await prisma.organization.update({ where: { id: orgId }, data: { handicapPolicy: "ghin" } });
   await prisma.member.deleteMany({ where: { organizationId: orgId } });
 });
+
+/** A member on the roster with a GHIN number and an index received from GHIN. */
+const withNumber = (name: string) =>
+  prisma.member.create({
+    data: { organizationId: orgId, name, email: `${name.split(" ").pop()!.toLowerCase()}-${TAG}@example.invalid`, ghin: "7654321", handicap: 10.2, handicapSource: "ghin" },
+  });
+
+/** Exactly what the roster's form sends on an edit, with a new figure typed. */
+const editForm = (m: { name: string; email: string }, handicap: number) => ({
+  name: m.name, email: m.email, phone: "", ghin: "7654321", homeClub: "", memberNumber: "", handicapType: "18", notes: "", handicap,
+});
+
+const storeDirectly = (handicapPolicy: string) => prisma.organization.update({ where: { id: orgId }, data: { handicapPolicy } });
+
+/** Each body choice, and the words the roster refuses a typed index with once it is live. */
+const BODY_CHOICES = [
+  { policy: "ghin", name: "service-only", refusal: /aren't entered by hand/ },
+  { policy: "hybrid", name: "where a member has one", refusal: /Clear their GHIN number/ },
+] as const;
 
 afterAll(async () => {
   try {
@@ -103,52 +125,68 @@ afterAll(async () => {
   }
 });
 
-describe("while no federation link is live", () => {
-  it("Club settings reads a stored service-only value as the club's own record", async () => {
-    expect(await storedPolicy(), "the fixture is not on service-only").toBe("ghin");
-    expect((await integrationSetup(orgId)).policy).toBe("club");
+describe.each(BODY_CHOICES)("a club stored on $name ($policy)", ({ policy, refusal }) => {
+  describe("while no federation link is live", () => {
+    it("Club settings reads it as the club's own record", async () => {
+      await storeDirectly(policy);
+      expect(await storedPolicy(), "the fixture is not on the choice").toBe(policy);
+      expect((await integrationSetup(orgId)).policy).toBe("club");
+    });
+
+    it("the club may type an index, even for a member with a GHIN number", async () => {
+      await storeDirectly(policy);
+      const res = await addMember({ name: `${TAG} Della Ormsby`, ghin: "1234567", handicap: 14.2, handicapSource: "manual" });
+      expect(res, res.error).toMatchObject({ ok: true });
+      expect(await memberNamed(`${TAG} Della Ormsby`)).toMatchObject({ handicap: 14.2, handicapSource: "manual", ghin: "1234567" });
+    });
+
+    it("and may correct one already on file for a member with a GHIN number", async () => {
+      await storeDirectly(policy);
+      const m = await withNumber(`${TAG} Hollis Brand`);
+      const res = await updateMember(m.id, editForm(m, 4.0));
+      expect(res, res.error).toMatchObject({ ok: true });
+      expect(await memberNamed(m.name)).toMatchObject({ handicap: 4, handicapSource: "manual" });
+    });
+
+    it("the server refuses to store it, and nothing changes", async () => {
+      await storeDirectly("club");
+      const res = await saveHandicapPolicy(policy);
+      expect(res.ok).toBe(false);
+      expect(res.error).toMatch(/the link that fetches them is coming/);
+      expect(await storedPolicy()).toBe("club");
+    });
   });
 
-  it("the club may type an index, even for a member with a GHIN number", async () => {
-    const res = await addMember({ name: `${TAG} Della Ormsby`, ghin: "1234567", handicap: 14.2, handicapSource: "manual" });
-    expect(res, res.error).toMatchObject({ ok: true });
-    expect(await memberNamed(`${TAG} Della Ormsby`)).toMatchObject({ handicap: 14.2, handicapSource: "manual", ghin: "1234567" });
-  });
+  describe("CONTROL: with the link forced live, the same row means what it says again", () => {
+    it("Club settings reads it as stored", async () => {
+      await storeDirectly(policy);
+      link.live = true;
+      expect((await integrationSetup(orgId)).policy).toBe(policy);
+    });
 
-  it("the server refuses to store service-only, and nothing changes", async () => {
-    await prisma.organization.update({ where: { id: orgId }, data: { handicapPolicy: "club" } });
-    const res = await saveHandicapPolicy("ghin");
-    expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/the link that fetches them is coming/);
-    expect(await storedPolicy()).toBe("club");
-  });
+    it("a typed index for a member with a GHIN number is refused, so the test above could see a refusal", async () => {
+      await storeDirectly(policy);
+      link.live = true;
+      const m = await withNumber(`${TAG} Ferris Quayle`);
+      const res = await updateMember(m.id, editForm(m, 4.0));
+      expect(res.ok).toBe(false);
+      expect(res.error).toMatch(refusal);
+      expect(await memberNamed(m.name)).toMatchObject({ handicap: 10.2, handicapSource: "ghin" });
+    });
 
-  it("the other two choices are still stored", async () => {
-    expect(await saveHandicapPolicy("hybrid")).toMatchObject({ ok: true });
-    expect(await storedPolicy()).toBe("hybrid");
-    expect(await saveHandicapPolicy("club")).toMatchObject({ ok: true });
-    expect(await storedPolicy()).toBe("club");
+    it("the choice may be stored", async () => {
+      await storeDirectly("club");
+      link.live = true;
+      expect(await saveHandicapPolicy(policy)).toMatchObject({ ok: true });
+      expect(await storedPolicy()).toBe(policy);
+    });
   });
 });
 
-describe("CONTROL: with the link forced live, the same rows mean service-only again", () => {
-  it("Club settings reads it as service-only", async () => {
-    link.live = true;
-    expect((await integrationSetup(orgId)).policy).toBe("ghin");
-  });
-
-  it("a typed index is refused, so the test above could see a refusal", async () => {
-    link.live = true;
-    const res = await addMember({ name: `${TAG} Ferris Quayle`, ghin: "7654321", handicap: 9.8, handicapSource: "manual" });
-    expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/aren't entered by hand/);
-    expect(await memberNamed(`${TAG} Ferris Quayle`)).toBeNull();
-  });
-
-  it("the choice may be stored", async () => {
-    link.live = true;
-    await prisma.organization.update({ where: { id: orgId }, data: { handicapPolicy: "club" } });
-    expect(await saveHandicapPolicy("ghin")).toMatchObject({ ok: true });
-    expect(await storedPolicy()).toBe("ghin");
+describe("the club's own record", () => {
+  it("is still stored while no link is live", async () => {
+    await storeDirectly("ghin");
+    expect(await saveHandicapPolicy("club")).toMatchObject({ ok: true });
+    expect(await storedPolicy()).toBe("club");
   });
 });

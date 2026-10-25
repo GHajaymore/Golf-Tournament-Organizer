@@ -9,7 +9,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: 
 import { federationLinkLive } from "@/lib/integrations/federation-link";
 import {
   HANDICAP_POLICIES,
+  NEEDS_FEDERATION_LINK,
   SERVICE_ONLY,
+  WHERE_A_MEMBER_HAS_ONE,
   handicapPolicyOf,
   mayChooseHandicapPolicy,
   offeredHandicapPolicies,
@@ -18,11 +20,12 @@ import { HandicapSetup, type HandicapSetupView } from "@/components/HandicapSetu
 import { readSource } from "./source";
 
 /**
- * THE "SERVICE ONLY" CHOICE IS HIDDEN UNTIL A FEDERATION LINK IS LIVE (the
- * team's ruling, 2026-10-24).
+ * THE CHOICES THAT READ FROM A HANDICAP BODY ARE HIDDEN UNTIL A FEDERATION
+ * LINK IS LIVE (the team's rulings, 2026-10-24).
  *
  * "GHIN only" (or "England Golf only", …) said nobody at the club may type an
- * index, while every adapter reports `unconfigured` and nothing fetches one.
+ * index, and "GHIN where a member has one" said it of every member with a
+ * number — while every adapter reports `unconfigured` and nothing fetches one.
  * `federationLinkLive()` is the one switch: the screen's list, the server's
  * refusal and every reader of the stored value ask it. The control — the same
  * screen and readers with the switch forced on — is
@@ -44,29 +47,35 @@ describe("today, with no federation link live", () => {
     expect(federationLinkLive()).toBe(false);
   });
 
-  it("Club settings does not offer the service-only choice, and says the link is coming", () => {
+  it("Club settings offers neither body choice — no choice at all — and says the link is coming", () => {
     const html = renderToStaticMarkup(<HandicapSetup view={US} />);
-    expect(html).toContain("Entered here only");
-    expect(html).toContain("GHIN where a member has one");
     expect(html, "the service-only choice is drawn").not.toContain("GHIN only");
+    expect(html, "the where-a-member-has-one choice is drawn").not.toContain("where a member has one");
+    // One choice left is no choice: no pressed button standing alone.
+    expect(html, "a choice button is drawn").not.toContain("aria-pressed");
+    expect(html).toContain("Where indexes come from");
+    expect(html).toContain("Handicaps are entered here: by an organizer, or suggested from your members&#x27; cards.");
     expect(html).toContain("A live link that fetches indexes from GHIN is coming.");
     // And the help behind the ⓘ no longer promises the hidden choice.
     expect(readSource("src/components/HandicapSetup.tsx")).toMatch(/serviceOnlyOffered \? \(/);
   });
 
-  it("the server's list is the screen's list, without service-only", () => {
-    expect(offeredHandicapPolicies()).toEqual(HANDICAP_POLICIES.filter((p) => p !== SERVICE_ONLY));
+  it("the server's list is the screen's list: the club's own record only", () => {
+    expect(NEEDS_FEDERATION_LINK).toEqual(["hybrid", "ghin"]);
+    expect(offeredHandicapPolicies()).toEqual(["club"]);
     expect(mayChooseHandicapPolicy(SERVICE_ONLY)).toBe(false);
+    expect(mayChooseHandicapPolicy(WHERE_A_MEMBER_HAS_ONE)).toBe(false);
     expect(mayChooseHandicapPolicy("club")).toBe(true);
-    expect(mayChooseHandicapPolicy("hybrid")).toBe(true);
     expect(readSource("src/app/actions/handicap-policy.ts")).toMatch(/if \(!mayChooseHandicapPolicy\(policy\)\) \{/);
   });
 
-  it("a stored service-only value reads as the club's own record, however it was stored", () => {
+  it("a stored body choice reads as the club's own record, however it was stored", () => {
     expect(SERVICE_ONLY).toBe("ghin");
-    for (const raw of ["ghin", " GHIN ", "Ghin"]) expect(handicapPolicyOf(raw), raw).toBe("club");
-    expect(handicapPolicyOf("hybrid")).toBe("hybrid");
+    expect(WHERE_A_MEMBER_HAS_ONE).toBe("hybrid");
+    for (const raw of ["ghin", " GHIN ", "Ghin", "hybrid", " HYBRID ", "Hybrid"]) expect(handicapPolicyOf(raw), raw).toBe("club");
     expect(handicapPolicyOf("club")).toBe("club");
+    // Every policy the app knows is covered by this sentence or by the club's own.
+    for (const p of HANDICAP_POLICIES) expect(handicapPolicyOf(p), p).toBe("club");
   });
 });
 

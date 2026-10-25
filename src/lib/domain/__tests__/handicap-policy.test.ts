@@ -45,11 +45,12 @@ describe("which policy a club is on", () => {
     expect(handicapPolicyOf("nonsense")).toBe("club");
   });
 
-  it("reads the setting when a club has actually made one", () => {
-    expect(handicapPolicyOf("hybrid")).toBe("hybrid");
-    expect(handicapPolicyOf("  HYBRID  ")).toBe("hybrid");
-    // Service-only reads as the club's own record while no federation link is
-    // live — `service-only-is-hidden.test.tsx` holds that, and its control.
+  it("reads a body's choice as the club's own record while no federation link is live", () => {
+    // Both body choices wait for a live link (the team's rulings, 2026-10-24) —
+    // `service-only-is-hidden.test.tsx` holds that, and
+    // `service-only-returns-when-the-link-is-live.test.tsx` the setting read
+    // as stored once the link is live.
+    expect(handicapPolicyOf("  HYBRID  ")).toBe("club");
     expect(handicapPolicyOf("  GHIN  ")).toBe("club");
   });
 

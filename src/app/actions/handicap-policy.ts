@@ -45,14 +45,15 @@ export async function saveHandicapPolicy(policy: string): Promise<PolicyResult> 
   if (!isHandicapPolicy(policy)) {
     return { ok: false, error: "Choose either the club's own record or an association." };
   }
-  // NOT THE SERVICE-ONLY CHOICE while nothing fetches indexes (the team's
-  // ruling, 2026-10-24): Club settings no longer offers it, and a public
-  // endpoint called with it anyway stores nothing. `federationLinkLive` is
+  // NEITHER CHOICE THAT READS FROM A HANDICAP BODY while nothing fetches
+  // indexes (the team's rulings, 2026-10-24): service-only, and "where a
+  // member has one". Club settings no longer offers them, and a public
+  // endpoint called with one anyway stores nothing. `federationLinkLive` is
   // the one switch — see `offeredHandicapPolicies`.
   if (!mayChooseHandicapPolicy(policy)) {
     return {
       ok: false,
-      error: "Indexes can't come only from your handicap body yet: the link that fetches them is coming. Until then they are entered here.",
+      error: "Indexes can't come from your handicap body yet: the link that fetches them is coming. Until then they are entered here.",
     };
   }
 

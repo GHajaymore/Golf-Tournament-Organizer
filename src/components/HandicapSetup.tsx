@@ -57,6 +57,10 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
   const connected = view.handicap.status === "ready";
   const offered: readonly string[] = offeredHandicapPolicies();
   const serviceOnlyOffered = offered.includes(SERVICE_ONLY);
+  // With no federation link live the club's own record is the only choice, and
+  // one button that is already pressed is a control that does nothing — so
+  // none is drawn, and the line below says where indexes come from.
+  const aChoice = offered.length > 1;
 
   return (
     <section className="card elev-sm" style={{ gap: 14 }}>
@@ -68,9 +72,9 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
             from your own members&rsquo; cards is a club handicap — the same published method over
             a smaller record — and it never overwrites an association figure.
           </p>
-          {/* The service-only choice is hidden while nothing fetches indexes
-              (`federationLinkLive`, the team's ruling of 2026-10-24), and so is
-              the sentence that promised it. */}
+          {/* The choices that read from a handicap body are hidden while
+              nothing fetches indexes (`federationLinkLive`, the team's rulings
+              of 2026-10-24), and so is the sentence that promised them. */}
           {serviceOnlyOffered ? (
             <p>
               A club that plays entirely off association indexes can say so here, and nobody at the
@@ -102,6 +106,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
 
       <div>
         <span className="card-kicker">Where indexes come from</span>
+        {aChoice && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
           {(
             [
@@ -130,13 +135,14 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
             </button>
           ))}
         </div>
+        )}
         <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           {view.policy === "ghin"
             ? `Every member plays off a Handicap Index from ${from}. Nobody at the club enters a handicap by hand, and a member without ${aNumber(body)} can't be entered until they have one.`
             : view.policy === "hybrid"
               ? `Members with ${aNumber(body)} play off their index from ${from}; everyone else plays off the club's own figure. Most clubs are this — a society has visitors, and a club has members who have never held an index.`
               : "Handicaps are entered here: by an organizer, or suggested from your members' cards."}
-          {!serviceOnlyOffered && ` A live link that fetches indexes from ${from} is coming.`}
+          {!aChoice && ` A live link that fetches indexes from ${from} is coming.`}
         </p>
       </div>
 

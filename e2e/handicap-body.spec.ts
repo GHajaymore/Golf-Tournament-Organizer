@@ -16,11 +16,13 @@ import { openSettingsTab } from "./settings-tabs";
  *
  * For three places — England, nowhere said yet, the United States — the club's
  * country is set (in the database: the Branding form is not what is under
- * test), the secretary presses "<body> where a member has one" on Club
- * settings, and three screens are read:
+ * test), and three screens are read:
  *
- *   Club settings   "Handicap body: <body>", the choice named for it, no picker
- *   the server      the body stored is the country's, whatever the page sent
+ *   Club settings   "Handicap body: <body>", no picker, and — while no
+ *                   federation link is live (the team's rulings, 2026-10-24) —
+ *                   no body choice at all, but "a live link … from <body> is
+ *                   coming". Which body a choice STORES is held by
+ *                   `a-club-names-its-own-handicap-body.test.tsx` until then.
  *   Members         the number box is the body's ("England Golf membership number (CDH)")
  *   Entries         the handicap-source choice is the body's, the number box too
  *
@@ -58,9 +60,9 @@ const VISITOR = "zz-hbody Visiting Golfer";
 const VISITOR_EMAIL = "zz-hbody-visitor@example.invalid";
 
 const PLACES = [
-  { country: "England", id: "england-golf", name: "England Golf", short: "England Golf", number: "England Golf membership number (CDH)" },
-  { country: "", id: "national", name: "Your national association", short: "Association", number: "National association number" },
-  { country: "United States", id: "ghin", name: "GHIN (USGA)", short: "GHIN", number: "GHIN number" },
+  { country: "England", id: "england-golf", name: "England Golf", short: "England Golf", prose: "England Golf", number: "England Golf membership number (CDH)" },
+  { country: "", id: "national", name: "Your national association", short: "Association", prose: "your national association", number: "National association number" },
+  { country: "United States", id: "ghin", name: "GHIN (USGA)", short: "GHIN", prose: "GHIN", number: "GHIN number" },
 ] as const;
 
 test("a club's handicap body follows its country on Club settings, Members and Entries — never assumed American", async ({ browser, baseURL }, testInfo) => {
@@ -84,19 +86,15 @@ test("a club's handicap body follows its country on Club settings, Members and E
         // Geographical, not picked.
         await expect(panel.locator("select")).toHaveCount(0);
         if (!place.country) await expect(panel).toContainText("add your club's country under Branding");
-        // "<body> only" is hidden until a federation link fetches indexes (the
-        // team's ruling, 2026-10-24 — `federationLinkLive`), and the panel says
-        // the link is coming instead.
+        // Neither body choice — "<body> only" nor "<body> where a member has
+        // one" — is offered until a federation link fetches indexes (the team's
+        // rulings, 2026-10-24 — `federationLinkLive`). With the club's own
+        // record the only choice there is no button at all, and the panel
+        // says the link is coming, naming the body.
         await expect(panel.getByRole("button", { name: `${place.short} only` }), "the service-only choice is offered").toHaveCount(0);
-        await expect(panel.getByRole("button", { name: "Entered here only" })).toBeVisible();
-
-        await panel.getByRole("button", { name: `${place.short} where a member has one` }).click();
-        await expect
-          .poll(async () => prisma.organization.findUniqueOrThrow({ where: { id: clubId }, select: FIELDS }), {
-            timeout: 20_000,
-            message: "the choice was not stored, or stored another country's body",
-          })
-          .toMatchObject({ handicapPolicy: "hybrid", handicapAuthorityId: place.id });
+        await expect(panel.getByRole("button", { name: `${place.short} where a member has one` }), "the where-a-member-has-one choice is offered").toHaveCount(0);
+        await expect(panel.locator("button[aria-pressed]"), "a lone choice button is drawn").toHaveCount(0);
+        await expect(panel).toContainText(`A live link that fetches indexes from ${place.prose} is coming.`);
         if (place.id !== "ghin") await expect(panel).not.toContainText("GHIN");
 
         await open(page, "/roster");

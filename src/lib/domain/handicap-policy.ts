@@ -47,6 +47,19 @@ export const HANDICAP_POLICIES: HandicapPolicy[] = ["club", "hybrid", "ghin"];
 
 /** The choice that makes the handicap service the ONLY source of indexes. */
 export const SERVICE_ONLY: HandicapPolicy = "ghin";
+/** The body's index where a member has a number with it, the club's otherwise. */
+export const WHERE_A_MEMBER_HAS_ONE: HandicapPolicy = "hybrid";
+
+/**
+ * THE CHOICES THAT NEED A LIVE FEDERATION LINK — both of the ones that read
+ * indexes from a handicap body (the team's rulings of 2026-10-24).
+ *
+ * Each refuses a typed index for a member who has a number with the body
+ * (`mayEditHandicapByHand`), and while nothing fetches one that member's index
+ * can be neither typed nor received. Service-only was ruled first; "where a
+ * member has one" followed the same day, for the same reason.
+ */
+export const NEEDS_FEDERATION_LINK: readonly HandicapPolicy[] = [WHERE_A_MEMBER_HAS_ONE, SERVICE_ONLY];
 
 export function isHandicapPolicy(v: string): v is HandicapPolicy {
   return (HANDICAP_POLICIES as string[]).includes(v);
@@ -55,12 +68,13 @@ export function isHandicapPolicy(v: string): v is HandicapPolicy {
 /**
  * The choices a club may make TODAY — the screen's list and the server's.
  *
- * Service-only is left out while no federation link fetches indexes
- * (`federationLinkLive`, the team's ruling of 2026-10-24): a club on it is told
- * nobody may type an index while nothing can supply one.
+ * Every choice that reads from a handicap body is left out while no federation
+ * link fetches indexes (`federationLinkLive`), which leaves the club's own
+ * record: a club on either was told an index may not be typed while nothing
+ * can supply one.
  */
 export function offeredHandicapPolicies(): HandicapPolicy[] {
-  return federationLinkLive() ? [...HANDICAP_POLICIES] : HANDICAP_POLICIES.filter((p) => p !== SERVICE_ONLY);
+  return federationLinkLive() ? [...HANDICAP_POLICIES] : HANDICAP_POLICIES.filter((p) => !NEEDS_FEDERATION_LINK.includes(p));
 }
 
 /** May a club store this choice now? The one question `saveHandicapPolicy` asks. */
@@ -72,15 +86,16 @@ export function mayChooseHandicapPolicy(v: string): v is HandicapPolicy {
  * What a club's stored setting MEANS — the only way any screen or action reads
  * `Organization.handicapPolicy`.
  *
- * A stored service-only value reads as the club's own record while no
- * federation link is live, so a club already on it has its indexes typed by
- * the club until an adapter can fetch them. Nothing is rewritten in the
- * database: the day the link is live the club is back on what it chose.
+ * A stored value that reads from a handicap body — service-only, or "where a
+ * member has one" — reads as the club's own record while no federation link
+ * is live, so a club already on either has its indexes typed by the club until
+ * an adapter can fetch them. Nothing is rewritten in the database: the day the
+ * link is live the club is back on what it chose.
  */
 export function handicapPolicyOf(raw: string | null | undefined): HandicapPolicy {
   const v = (raw ?? "").trim().toLowerCase();
   if (!isHandicapPolicy(v)) return "club";
-  if (v === SERVICE_ONLY && !federationLinkLive()) return "club";
+  if (NEEDS_FEDERATION_LINK.includes(v) && !federationLinkLive()) return "club";
   return v;
 }
 
