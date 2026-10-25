@@ -159,9 +159,16 @@ test.describe("a round code before the page's script", () => {
       for (const name of NAMES) await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 
       // A name: the session starts and the card is drawn, for that player.
+      const documents: string[] = [];
+      page.on("response", (r) => {
+        if (r.request().resourceType() === "document" && r.frame() === page.mainFrame()) documents.push(`${r.request().method()} ${r.status()}`);
+      });
       await page.getByRole("button", { name: NAMES[0], exact: true }).click();
       await expect(page.getByLabel("Strokes on hole 1")).toBeVisible();
       await expect(page.getByText(NAMES[0]).first()).toBeVisible();
+      // …and it is a page of its own: the post answered with a redirect, so the card is a GET and a
+      // reload of it reopens the card rather than posting the name again.
+      expect(documents, "the card is the answer to the post itself, so a reload would post the name again").toEqual(["POST 303", "GET 200"]);
       expect((await context.cookies()).some((c) => c.name.toLowerCase().includes("play")), "no play session cookie was set").toBe(true);
     } finally {
       await context.close();

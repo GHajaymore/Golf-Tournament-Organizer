@@ -192,7 +192,7 @@ test.describe("a round code on slow 3G", () => {
 
       await go.click();
       // The press was TAKEN, not dropped: the button says it is busy until the page can act on it.
-      const taken = liveAtPress || (await go.getAttribute("aria-busy")) === "true";
+      const taken = liveAtPress || (await go.getAttribute("aria-busy", { timeout: 2_000 }).catch(() => null)) === "true";
       const me = page.getByRole("button", { name: NAMES[0], exact: true });
       await expect(me).toBeVisible({ timeout: 60_000 });
       const names = Date.now() - opened;
