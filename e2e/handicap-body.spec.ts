@@ -84,6 +84,11 @@ test("a club's handicap body follows its country on Club settings, Members and E
         // Geographical, not picked.
         await expect(panel.locator("select")).toHaveCount(0);
         if (!place.country) await expect(panel).toContainText("add your club's country under Branding");
+        // "<body> only" is hidden until a federation link fetches indexes (the
+        // team's ruling, 2026-10-24 — `federationLinkLive`), and the panel says
+        // the link is coming instead.
+        await expect(panel.getByRole("button", { name: `${place.short} only` }), "the service-only choice is offered").toHaveCount(0);
+        await expect(panel.getByRole("button", { name: "Entered here only" })).toBeVisible();
 
         await panel.getByRole("button", { name: `${place.short} where a member has one` }).click();
         await expect
@@ -110,6 +115,11 @@ test("a club's handicap body follows its country on Club settings, Members and E
      * country visit to play an outing"). A US club on GHIN ONLY enters an
      * England Golf member: under WHS their index is valid here, so it is kept
      * — on their entry and on the club's list, with their own body.
+     *
+     * While no federation link is live a STORED "ghin" reads as the club's own
+     * record (`handicapPolicyOf`), so this step now walks a club whose typing
+     * is open anyway; the visitor rule under a live service-only policy is held
+     * by `a-club-names-its-own-handicap-body.test.tsx`.
      */
     await test.step("a US club on GHIN only keeps an England Golf visitor's own index", async () => {
       await prisma.organization.update({ where: { id: clubId }, data: { country: "United States", handicapPolicy: "ghin", handicapAuthorityId: "ghin" } });

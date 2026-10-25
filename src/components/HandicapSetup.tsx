@@ -5,6 +5,7 @@ import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
 import { aNumber, bodyInProse, bodyShortLabel, handicapBody } from "@/lib/domain/handicap-body";
+import { offeredHandicapPolicies, SERVICE_ONLY } from "@/lib/domain/handicap-policy";
 
 /**
  * Where this club's handicaps come from, and whether rounds go back.
@@ -54,6 +55,8 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
   // the half of its roster that has numbers.
   const usesGhin = view.policy !== "club";
   const connected = view.handicap.status === "ready";
+  const offered: readonly string[] = offeredHandicapPolicies();
+  const serviceOnlyOffered = offered.includes(SERVICE_ONLY);
 
   return (
     <section className="card elev-sm" style={{ gap: 14 }}>
@@ -65,10 +68,20 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
             from your own members&rsquo; cards is a club handicap — the same published method over
             a smaller record — and it never overwrites an association figure.
           </p>
-          <p>
-            A club that plays entirely off association indexes can say so here, and nobody at the
-            club types a handicap again.
-          </p>
+          {/* The service-only choice is hidden while nothing fetches indexes
+              (`federationLinkLive`, the team's ruling of 2026-10-24), and so is
+              the sentence that promised it. */}
+          {serviceOnlyOffered ? (
+            <p>
+              A club that plays entirely off association indexes can say so here, and nobody at the
+              club types a handicap again.
+            </p>
+          ) : (
+            <p>
+              Until the link that fetches indexes from {from} arrives, nothing is fetched: the indexes
+              here are the ones entered, or suggested from your members&rsquo; cards.
+            </p>
+          )}
         </FieldInfo>
       </div>
 
@@ -99,7 +112,11 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
               { id: "hybrid", label: `${bodyShortLabel(body)} where a member has one` },
               { id: "ghin", label: `${bodyShortLabel(body)} only` },
             ] as const
-          ).map((opt) => (
+          )
+            // Only what the server will store today — `offeredHandicapPolicies`
+            // is the list `saveHandicapPolicy` asks too.
+            .filter((opt) => offered.includes(opt.id))
+            .map((opt) => (
             <button
               key={opt.id}
               type="button"
@@ -119,6 +136,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
             : view.policy === "hybrid"
               ? `Members with ${aNumber(body)} play off their index from ${from}; everyone else plays off the club's own figure. Most clubs are this — a society has visitors, and a club has members who have never held an index.`
               : "Handicaps are entered here: by an organizer, or suggested from your members' cards."}
+          {!serviceOnlyOffered && ` A live link that fetches indexes from ${from} is coming.`}
         </p>
       </div>
 

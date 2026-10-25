@@ -46,8 +46,11 @@ describe("which policy a club is on", () => {
   });
 
   it("reads the setting when a club has actually made one", () => {
-    expect(handicapPolicyOf("ghin")).toBe("ghin");
-    expect(handicapPolicyOf("  GHIN  ")).toBe("ghin");
+    expect(handicapPolicyOf("hybrid")).toBe("hybrid");
+    expect(handicapPolicyOf("  HYBRID  ")).toBe("hybrid");
+    // Service-only reads as the club's own record while no federation link is
+    // live — `service-only-is-hidden.test.tsx` holds that, and its control.
+    expect(handicapPolicyOf("  GHIN  ")).toBe("club");
   });
 
   it("stops an organizer typing an index when the club plays off GHIN", () => {

@@ -124,7 +124,9 @@ describe("the words a club in England reads", () => {
         }}
       />,
     );
-    expect(html).toContain("England Golf only");
+    // "England Golf only" is hidden while no federation link is live (the
+    // team's ruling, 2026-10-24) — `service-only-is-hidden.test.tsx`.
+    expect(html).not.toContain("England Golf only");
     // Not "Both" (Ajay: "what is both means?") — the choice says what it does.
     expect(html).toContain("England Golf where a member has one");
     expect(html).not.toMatch(/>Both</);

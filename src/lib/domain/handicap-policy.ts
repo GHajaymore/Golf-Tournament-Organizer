@@ -1,4 +1,5 @@
 import { bodyInProse, handicapBody, type HandicapBody } from "./handicap-body";
+import { federationLinkLive } from "../integrations/federation-link";
 
 /**
  * Where a club's handicaps come from, and what happens when they cannot.
@@ -44,13 +45,43 @@ export type HandicapPolicy =
 
 export const HANDICAP_POLICIES: HandicapPolicy[] = ["club", "hybrid", "ghin"];
 
+/** The choice that makes the handicap service the ONLY source of indexes. */
+export const SERVICE_ONLY: HandicapPolicy = "ghin";
+
 export function isHandicapPolicy(v: string): v is HandicapPolicy {
   return (HANDICAP_POLICIES as string[]).includes(v);
 }
 
+/**
+ * The choices a club may make TODAY — the screen's list and the server's.
+ *
+ * Service-only is left out while no federation link fetches indexes
+ * (`federationLinkLive`, the team's ruling of 2026-10-24): a club on it is told
+ * nobody may type an index while nothing can supply one.
+ */
+export function offeredHandicapPolicies(): HandicapPolicy[] {
+  return federationLinkLive() ? [...HANDICAP_POLICIES] : HANDICAP_POLICIES.filter((p) => p !== SERVICE_ONLY);
+}
+
+/** May a club store this choice now? The one question `saveHandicapPolicy` asks. */
+export function mayChooseHandicapPolicy(v: string): v is HandicapPolicy {
+  return (offeredHandicapPolicies() as string[]).includes(v);
+}
+
+/**
+ * What a club's stored setting MEANS — the only way any screen or action reads
+ * `Organization.handicapPolicy`.
+ *
+ * A stored service-only value reads as the club's own record while no
+ * federation link is live, so a club already on it has its indexes typed by
+ * the club until an adapter can fetch them. Nothing is rewritten in the
+ * database: the day the link is live the club is back on what it chose.
+ */
 export function handicapPolicyOf(raw: string | null | undefined): HandicapPolicy {
   const v = (raw ?? "").trim().toLowerCase();
-  return isHandicapPolicy(v) ? v : "club";
+  if (!isHandicapPolicy(v)) return "club";
+  if (v === SERVICE_ONLY && !federationLinkLive()) return "club";
+  return v;
 }
 
 /**

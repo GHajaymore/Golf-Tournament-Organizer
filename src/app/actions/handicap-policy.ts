@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { organizationAccess } from "@/lib/services/org-access";
-import { isHandicapPolicy } from "@/lib/domain/handicap-policy";
+import { isHandicapPolicy, mayChooseHandicapPolicy } from "@/lib/domain/handicap-policy";
 import { handicapAuthority, scoreReporter } from "@/lib/integrations/registry";
 import { clubHandicapBody } from "@/lib/domain/handicap-body";
 
@@ -44,6 +44,16 @@ export async function saveHandicapPolicy(policy: string): Promise<PolicyResult> 
 
   if (!isHandicapPolicy(policy)) {
     return { ok: false, error: "Choose either the club's own record or an association." };
+  }
+  // NOT THE SERVICE-ONLY CHOICE while nothing fetches indexes (the team's
+  // ruling, 2026-10-24): Club settings no longer offers it, and a public
+  // endpoint called with it anyway stores nothing. `federationLinkLive` is
+  // the one switch — see `offeredHandicapPolicies`.
+  if (!mayChooseHandicapPolicy(policy)) {
+    return {
+      ok: false,
+      error: "Indexes can't come only from your handicap body yet: the link that fetches them is coming. Until then they are entered here.",
+    };
   }
 
   /**

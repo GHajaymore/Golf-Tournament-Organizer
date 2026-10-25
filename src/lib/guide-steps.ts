@@ -48,6 +48,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "On **Name & branding**, set **Organization name**, an optional **Short name**, and a **Logo** ([[Upload an image]] or paste a link). Choose **Name beside the logo** and fill in **Where you play**. Press [[Save changes]].",
           "On **Colour**, pick **Appearance** (Light, Dark or Auto) and a **Colour scheme**. The pairs marked easiest to read in direct sun are the safest choice for the course. Press [[Save theme]].",
+          "On **Handicaps**, the **Handicap body** follows your club's country. **Where indexes come from** is **Entered here only**, or your body **where a member has one**. A live link that fetches indexes from your body is coming; until it arrives nothing is fetched, and indexes are the ones entered here or suggested from your members' cards.",
           "On **Money**, pick your **Currency**. It saves as soon as you choose and shows an example amount.",
           "Beside it, check the **Time zone**. It is taken from your own device the first time you open the console, and the screen shows the time at the club so you can see it is right. Every closing date and sign-up deadline ends at midnight on that clock.",
         ],
