@@ -72,7 +72,10 @@ test("the demo club's day, three doors, every plan's list and three answers are 
   await expect(answers.nth(1)).toContainText("Does it take entry fees?");
   await expect(answers.nth(1)).toContainText("that is a choice");
   await expect(answers.nth(2)).toContainText("What does a player pay?");
-  expect(await answers.locator("a").evaluateAll((a) => a.map((x) => x.getAttribute("href")))).toEqual(["/faq#q-app", "/faq#q-money", "/faq#q-cost"]);
+  expect(await answers.locator("a").evaluateAll((a) => a.map((x) => x.getAttribute("href")))).toEqual(["/faq#q-app", "/faq#q-entry-fees", "/faq#q-cost"]);
+  // Each one lands on its question: the anchor is there on /faq.
+  const faq = await (await page.request.get("/faq")).text();
+  for (const id of ["q-app", "q-entry-fees", "q-cost"]) expect(faq, `/faq has no #${id}`).toContain(`id="${id}"`);
 
   // Nothing new offers a sign-up: the held front door's rule holds for these sections whether held or not.
   for (const id of ["#demo", "#for", "#every-plan"]) {

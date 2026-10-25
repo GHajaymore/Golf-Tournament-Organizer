@@ -313,6 +313,13 @@ export const FAQ: FaqGroup[] = [
         a: () => <p>It works every amount out and keeps the record — skins, pots, entry fees, shared costs — and never holds, moves or takes a cut of any of it. There&rsquo;s no pay button; it reduces everything to the fewest handovers, and you mark each one settled when it&rsquo;s done.</p>,
       },
       {
+        // The marketing manager's draft (2026-10-24), said as a choice. Its "you mark who has paid"
+        // sentence is left out until every money mode is checked to have that column.
+        id: "entry-fees",
+        q: "Can players pay their entry fee through TourneyHQ?",
+        a: () => <p>No, and that is deliberate. Entry fees go to your club the way they do today — at the pro shop, by bank transfer, on your own payment page or in cash — and TourneyHQ keeps the record. That means no payment fees on your players&rsquo; money, no card details for entry fees held here, and no refunds to sort out through us: if a player withdraws, your club refunds them as it already would. What TourneyHQ does is work out everything that depends on the entries — skins and side-game pots, prizes, shared costs, and who pays whom — and keep it in one record your club can show its members.</p>,
+      },
+      {
         id: "trip",
         q: "Can it split the costs of a trip?",
         a: () => <p>Yes — evenly, by shares, by exact amounts or by percentage, and each cost carries its own people: everyone shares the rooms, only the three at the bar share the bar. Somebody who paid a bill they weren&rsquo;t part of is credited what they laid out and owes none of it. Golf winnings and trip costs net into one balance.</p>,

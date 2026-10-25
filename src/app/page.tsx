@@ -201,7 +201,7 @@ const ANSWERS: Array<{ q: string; a: string; href: string }> = [
     href: "/faq#q-app" },
   { q: "Does it take entry fees?",
     a: "No, and that is a choice. Your club takes its entry fees the way it does today, and TourneyHQ keeps the record: every amount worked out, nothing held or moved.",
-    href: "/faq#q-money" },
+    href: "/faq#q-entry-fees" },
   { q: "What does a player pay?",
     a: "Nothing. A plan is the organizer's. A player never pays to enter scores, follow the board or see what they are owed.",
     href: "/faq#q-cost" },
