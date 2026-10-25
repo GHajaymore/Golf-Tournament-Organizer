@@ -25,6 +25,10 @@ import { toParText } from "@/lib/domain/stroke";
 import { pts } from "@/lib/format";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { drawsSeeded, qualifyingPlayed as qualifyingWasPlayed } from "@/lib/domain/draw-seeding";
+import { parsePlayBy, roundPlayBy, toPlay, fromFinal } from "@/lib/domain/knockout-play-by";
+import { formattingForEvent } from "@/lib/services/organization";
+import { KnockoutToPlay } from "@/components/KnockoutToPlay";
+import { KnockoutPlayByForm } from "@/components/KnockoutPlayByForm";
 
 export const metadata = screenMetadata("/bracket");
 
@@ -132,6 +136,35 @@ export default async function BracketPage() {
           made: (await prisma.match.count({ where: { eventId: session.eventId, stageId: koStage.id, round: 0 } })) > 0,
         }
       : null;
+  /**
+   * THE PLAY-BY DATES, AND "TO PLAY" (the panel, 2026-10-23): each round's date
+   * from the knockout's own round, worded the club's way and judged "Overdue"
+   * against the club's day; and the list the secretary opens on.
+   */
+  const { locale } = await formattingForEvent(session.eventId);
+  const playByDates = parsePlayBy(koStage?.knockoutPlayBy);
+  const playBy = Object.fromEntries(draws.map((d) => [d.view.kind, roundPlayBy(d.view, playByDates, state.today, locale)]));
+  const ready = toPlay(draws, playByDates, state.today, locale);
+  const longest = draws.reduce((a, d) => (d.view.rounds.length > a.rounds.length ? d.view : a), draws[0]?.view ?? state.brackets.winners);
+  const toPlayPanel =
+    isStaff && koStage ? (
+      <>
+        <KnockoutToPlay
+          waiting={ready.waiting}
+          groups={ready.rounds.map((g) => ({
+            draw: draws.length > 1 ? g.draw : "",
+            round: g.round,
+            playBy: g.playBy,
+            ties: g.ties.map((m) => ({ key: m.key, a: { id: m.a.playerId!, name: m.a.name }, b: { id: m.b.playerId!, name: m.b.name } })),
+          }))}
+        />
+        <KnockoutPlayByForm
+          stageId={koStage.id}
+          rounds={longest.rounds.map((r, i) => ({ fromFinal: fromFinal(longest, i), label: r.label }))}
+          dates={playByDates}
+        />
+      </>
+    ) : undefined;
   /** Every qualifier's place in the qualifying order — the seed a player keeps in any draw. */
   const seeds = Object.fromEntries(state.qualifiers.map((q, i) => [q.id, i + 1]));
 
@@ -319,6 +352,8 @@ export default async function BracketPage() {
         straight={straight}
         notYetPlayed={!straight && !qualifyingPlayed}
         seeds={mode === "flights" ? undefined : seeds}
+        playBy={playBy}
+        toPlay={toPlayPanel}
         seeded={drawsSeeded({ stages: state.stages, roundsWithResults: state.roundsWithResults, mode, criterion: state.flights?.plan.criterion ?? null, draws })}
         awaitingFlights={mode === "flights" && !state.flights}
       />

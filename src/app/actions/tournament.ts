@@ -120,7 +120,8 @@ import { launchRefusal, finishRefusal, statusMove } from "@/lib/domain/phase-gat
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
-import { bracketDraws, tieByKey, tieReportRefusal } from "@/lib/domain/my-tie";
+import { bracketDraws, tieByKey, tieReportRefusal, marginWords } from "@/lib/domain/my-tie";
+import { cleanPlayBy, resultLine, tieStillHolds } from "@/lib/domain/knockout-play-by";
 import {
   planWithPlayerAdded,
   isFlightCriterion,
@@ -3770,6 +3771,76 @@ export async function setBracketResult(key: string, result: string) {
     data: { result: cleanMargin(result) },
   });
   await refresh();
+}
+
+/** How a knockout tie was settled, as the "To play" list offers it. */
+const TIE_SETTLED = { played: "", conceded: "conceded", walkover: "W/O", withdrawn: "withdrew" } as const;
+
+/**
+ * A KNOCKOUT RESULT FROM THE "TO PLAY" LIST — saved by the TIE, never by its
+ * place (the panel, 2026-10-23).
+ *
+ * The list names a tie by its key AND its two players. A key is a place in the
+ * draw, and a place can hold somebody else by the time the press lands — a
+ * result taken back above it, a second secretary — so the two players must
+ * still be the ones in it, or nothing is written and the screen is told why.
+ * The winner, how it was settled (played, with its margin; conceded; a
+ * walkover; withdrawn) and the margin go in one write, and the answer names
+ * the round and both players, so the secretary reads back what was recorded.
+ */
+export async function recordTieResult(input: {
+  key: string;
+  players: string[];
+  winnerId: string;
+  how: string;
+  margin?: string;
+}): Promise<{ ok: boolean; error?: string; said?: string }> {
+  const eventId = await requireStaffEvent();
+  const { key, players, winnerId, how } = input ?? ({} as typeof input);
+  if (typeof key !== "string" || typeof winnerId !== "string" || !Array.isArray(players) || players.length !== 2) {
+    return { ok: false, error: "Choose who won the tie." };
+  }
+  if (!Object.prototype.hasOwnProperty.call(TIE_SETTLED, how)) return { ok: false, error: "Say how the tie was settled." };
+  const state = await loadEventState(eventId);
+  const tie = state ? tieByKey(bracketDraws(state.brackets), key) : null;
+  const m = tie?.match;
+  if (!tie || !m) return { ok: false, error: "That tie isn't in the draw any more. Reload and record it again." };
+  const notReady = tieNotReady(m);
+  if (notReady) return { ok: false, error: notReady };
+  if (!tieStillHolds(m, players)) {
+    return { ok: false, error: "The draw has changed: that place now holds a different tie. Reload and record it again." };
+  }
+  if (winnerId !== m.a.playerId && winnerId !== m.b.playerId) return { ok: false, error: "The winner of a tie is one of the two players in it." };
+  if (m.winnerId) return { ok: false, error: "That tie already has a result. Change it on the draw." };
+
+  const settled = TIE_SETTLED[how as keyof typeof TIE_SETTLED];
+  const result = how === "played" ? cleanMargin(input.margin) : settled;
+  await recordBracketWinner(eventId, key, winnerId, result);
+  // A player's report of the same tie has been answered.
+  await prisma.bracketReport.deleteMany({ where: { eventId, key } });
+  const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
+  const said = `${resultLine(round, { a: m.a, b: m.b, winnerId })}${marginWords(result)}`;
+  await logAudit(eventId, "knockout.result", `${said}, recorded from To play`);
+  await refresh();
+  return { ok: true, said };
+}
+
+/**
+ * THE PLAY-BY DATE OF EACH ROUND OF A KNOCKOUT, set on the Bracket screen (the
+ * panel, 2026-10-23). Running the event, not setup: open after launch, like
+ * any round's dates. Staff, for the knockout round of this tournament only.
+ */
+export async function setKnockoutPlayBy(stageId: string, dates: Record<string, string>): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  if (typeof stageId !== "string") return { ok: false, error: "That round isn't a knockout in this tournament." };
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, type: true } });
+  if (!stage || !isKnockoutRound(stage.type)) return { ok: false, error: "That round isn't a knockout in this tournament." };
+  const clean = cleanPlayBy(dates);
+  if (!clean.ok) return { ok: false, error: clean.error };
+  await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { knockoutPlayBy: clean.json } });
+  await logAudit(eventId, "knockout.play-by", `Play-by dates for the knockout ${clean.json ? `set: ${clean.json}` : "cleared"}`);
+  await refresh();
+  return { ok: true };
 }
 
 /**

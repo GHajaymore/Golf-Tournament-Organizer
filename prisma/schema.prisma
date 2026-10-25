@@ -1795,6 +1795,16 @@ model Stage {
   playedOn            String   @default("")
   deadline            String   @default("")
   /**
+   * A KNOCKOUT'S ROUNDS EACH HAVE A "PLAY BY" DATE (the panel, 2026-10-23), as
+   * JSON: rounds counted back from the final ("0" the final, "1" the
+   * semi-finals, "2" the quarter-finals …) to an ISO day. Counted from the
+   * final so one set of dates serves flights of different sizes — every
+   * flight's final is played by the same day. Empty for no dates; read and
+   * written only through `domain/knockout-play-by.ts`. `deadline` above stays
+   * the whole round's date.
+   */
+  knockoutPlayBy      String   @default("")
+  /**
    * The organizer closing this round early or extending it past its date.
    * null follows the deadline. Same rule as registration — see
    * src/lib/deadline.ts — because they are the same question asked twice.

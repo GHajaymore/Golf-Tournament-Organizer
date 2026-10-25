@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { setBracketWinner, setBracketResult } from "@/app/actions/tournament";
 import type { BracketMatch, BracketView } from "@/lib/domain";
@@ -14,6 +14,7 @@ import {
   type SeatMark,
 } from "@/lib/domain/bracket-layout";
 import { marginWords } from "@/lib/domain/my-tie";
+import type { PlayBy } from "@/lib/domain/knockout-play-by";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { Icon } from "./Icon";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
@@ -62,8 +63,11 @@ export function BracketDrawing({
   me = "",
   param = "section",
   name = "",
+  playBy,
 }: {
   view: BracketView;
+  /** Each round's play-by date, by round index (`roundPlayBy`); a round with none is absent. */
+  playBy?: Record<number, PlayBy>;
   /** Each player's place in the qualifying order, shown in place of the draw's own numbering. */
   seeds?: Record<string, number>;
   /**
@@ -187,7 +191,9 @@ export function BracketDrawing({
   const finalBox = layout.columns.flatMap((c) => c.ties).find((t) => t.match.key === finalKey);
 
   const left = (col: number) => col * (TIE_W + COL_GAP);
-  const top = (y: number) => HEAD + y * SEAT;
+  // A heading with a play-by date under its name is two lines tall.
+  const head = playBy && Object.keys(playBy).length > 0 ? HEAD + 18 : HEAD;
+  const top = (y: number) => head + y * SEAT;
   const width = left(layout.columns.length) - COL_GAP + (finalBox ? COL_GAP + CHAMP_W : 0);
   const height = top(layout.height) + 12;
   const idBase = `draw-${param}`;
@@ -195,8 +201,9 @@ export function BracketDrawing({
     position: "sticky" as const,
     top: 0,
     zIndex: 2,
-    height: HEAD,
+    height: head,
     display: "flex",
+    flexDirection: "column" as const,
     alignItems: "center",
     justifyContent: "center",
     background: "var(--color-surface)",
@@ -472,11 +479,15 @@ export function BracketDrawing({
                   style={{ position: "absolute", left: left(c), top: 0, width: TIE_W, height }}
                 >
                   <div className="bracket-round-head" style={headStyle}>
-                    {/* TODO(play-by): each round of a knockout carries its "play by" date once
-                        one exists. Today a Bracket Stage has ONE deadline for the whole knockout
-                        (`Stage.deadline`); the rounds within it have none, and adding them is a
-                        schema change the panel asked to be put to Ajay first. */}
-                    {col.label}
+                    <span className="bracket-round-name">{col.label}</span>
+                    {/* The round's play-by date, in the club's words — and "overdue" written
+                        out once the club's day is past it (the panel, 2026-10-23). */}
+                    {playBy?.[col.roundIndex] && (
+                      <span className="bracket-round-by" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
+                        Play by {playBy[col.roundIndex].words}
+                        {playBy[col.roundIndex].overdue && <strong style={{ color: "var(--color-danger)" }}> · Overdue</strong>}
+                      </span>
+                    )}
                   </div>
                   {col.ties.map((t) => {
                     const m = t.match;
@@ -591,7 +602,17 @@ export function BracketClient({
   notYetPlayed = false,
   seeds,
   seeded,
+  playBy,
+  toPlay,
 }: {
+  /** Each draw's play-by dates by round index, keyed by the draw's kind (`roundPlayBy`). */
+  playBy?: Record<string, Record<number, PlayBy>>;
+  /**
+   * The secretary's "To play" list (`KnockoutToPlay`). Handed in, the screen opens
+   * on it with the drawing as the next tab; left out (a read-only board), the
+   * drawing is all there is.
+   */
+  toPlay?: ReactNode;
   /** Nothing in the rounds before the draw has been played: it is the entry order for now. */
   notYetPlayed?: boolean;
   seeds?: Record<string, number>;
@@ -679,6 +700,38 @@ export function BracketClient({
       : [{ label: mainLabel, view: winners }];
   const at = list[tab] ? tab : 0;
   const shown = list[at];
+  /*
+   * THE SECRETARY OPENS ON "TO PLAY" (the panel, 2026-10-23): the ties that can
+   * be played now, with their dates and their result entry. The drawing is the
+   * next tab. The choice is in the address (`?view=draw`), so Back returns.
+   */
+  const search = useSearchParams();
+  const [drawView, setDrawView] = useState<boolean | null>(null);
+  const onDraw = !toPlay || (drawView ?? search?.get("view") === "draw");
+  const showView = (draw: boolean) => {
+    setDrawView(draw);
+    const params = new URLSearchParams(window.location.search);
+    if (draw) params.set("view", "draw");
+    else params.delete("view");
+    const q = params.toString();
+    window.history.pushState(null, "", `${window.location.pathname}${q ? `?${q}` : ""}`);
+  };
+  useEffect(() => {
+    const back = () => setDrawView(null);
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, []);
+  const viewTabs = [
+    { key: "to-play", label: "To play", draw: false },
+    { key: "draw", label: "The draw", draw: true },
+  ];
+  const onViewKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
+    e.preventDefault();
+    const to = e.key === "Home" ? 0 : e.key === "End" ? 1 : 1 - i;
+    showView(viewTabs[to].draw);
+    document.getElementById(`bracket-view-${viewTabs[to].key}`)?.focus();
+  };
   return (
     <>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
@@ -695,7 +748,7 @@ export function BracketClient({
                 : `${seededFrom} Click a name to advance the winner (results auto-advance the next round).`}
           </p>
         </div>
-        {!awaitingFlights && list.length > 1 && (
+        {onDraw && !awaitingFlights && list.length > 1 && (
           // Wraps: a knockout in flights may have a dozen of these.
           <div className="seg" style={{ flexWrap: "wrap" }}>
             {list.map((d, i) => (
@@ -707,17 +760,60 @@ export function BracketClient({
           </div>
         )}
       </div>
+      {toPlay && !awaitingFlights && (
+        <div role="tablist" aria-label="The knockout" style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          {viewTabs.map((v, i) => {
+            const selected = v.draw === onDraw;
+            return (
+              <button
+                key={v.key}
+                id={`bracket-view-${v.key}`}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                aria-controls="bracket-view-panel"
+                tabIndex={selected ? 0 : -1}
+                onClick={() => showView(v.draw)}
+                onKeyDown={(e) => onViewKey(e, i)}
+                style={{
+                  minHeight: 44,
+                  padding: "6px 16px",
+                  borderRadius: 8,
+                  border: selected ? "2px solid var(--color-accent-400)" : "1px solid var(--color-divider)",
+                  background: selected ? "var(--color-surface-2)" : "transparent",
+                  color: "var(--color-text)",
+                  fontWeight: selected ? 700 : 500,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {!awaitingFlights && (
-        <BracketDrawing
-          key={shown.view.kind}
-          view={shown.view}
-          results={results}
-          readOnly={readOnly}
-          seeds={seeds}
-          seeded={seeded[at] ?? false}
-          param={at === 0 ? "section" : `section-${shown.view.kind}`}
-          name={list.length > 1 ? shown.label : ""}
-        />
+        <div
+          id="bracket-view-panel"
+          role={toPlay ? "tabpanel" : undefined}
+          aria-labelledby={toPlay ? `bracket-view-${onDraw ? "draw" : "to-play"}` : undefined}
+        >
+          {!onDraw && toPlay}
+          {onDraw && (
+            <BracketDrawing
+              key={shown.view.kind}
+              view={shown.view}
+              results={results}
+              readOnly={readOnly}
+              seeds={seeds}
+              seeded={seeded[at] ?? false}
+              param={at === 0 ? "section" : `section-${shown.view.kind}`}
+              name={list.length > 1 ? shown.label : ""}
+              playBy={playBy?.[shown.view.kind]}
+            />
+          )}
+        </div>
       )}
     </>
   );

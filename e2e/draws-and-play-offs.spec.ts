@@ -291,7 +291,7 @@ test("a result a player reported is turned down: nothing goes on the draw, and t
     await expect(refused, "turning down a report already dealt with was not said").toBeVisible();
     await saidBeside(refused, turnDown, "turning down a report already dealt with");
 
-    await page.goto(`/bracket?bust=${Date.now()}`);
+    await page.goto(`/bracket?view=draw&bust=${Date.now()}`);
     await expect(page.getByRole("heading", { name: "A result to approve" }), "the turned-down report is still waiting").toHaveCount(0);
     // The tie is open: no result on the draw, and the player may report it again.
     await expect(page.getByRole("textbox", { name: new RegExp(`^Result of .*${top.name}`) }), "a result went on the draw").toHaveCount(0);

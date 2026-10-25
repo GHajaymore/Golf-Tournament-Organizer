@@ -123,7 +123,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
     });
 
     await test.step("the organizer sees it, the draw not yet moved, and approves", async () => {
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       await expect(page.getByText("A result to approve")).toBeVisible();
       await expect(page.getByText(/Alder Quayle v Dune Quayle: Dune Quayle won 2&1/)).toBeVisible();
       await expect(page.getByText("Reported by Dune Quayle")).toBeVisible();
@@ -133,7 +133,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
       await page.getByRole("button", { name: /^Approve: Dune Quayle won Alder Quayle v Dune Quayle/ }).click();
       await expect(page.getByText("A result to approve")).toHaveCount(0, { timeout: 20_000 });
       await expect(async () => {
-        await open(page, "/bracket");
+        await open(page, "/bracket?view=draw");
         await expect(page.getByRole("textbox", { name: /^Result of Alder Quayle v Dune Quayle, Semi-finals$/ })).toHaveValue("2&1");
       }).toPass({ timeout: 20_000 });
     });
