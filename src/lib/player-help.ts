@@ -68,6 +68,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "It saves as you go, even with no signal.",
       "Buttons grey? The page is still loading. Wait a moment.",
       "[[Full card]] shows every hole at once.",
+      "No buttons at all? Your club is keeping the cards.",
+      "Then follow the round on the board.",
     ],
   },
   {

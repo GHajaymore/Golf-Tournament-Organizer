@@ -132,7 +132,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "list",
         items: [
           "**Who can see the leaderboard**: Organizers only, Organizers and players, or **Anyone with the link** — which shows the **Public leaderboard link** with [[Copy]] and [[New link]] (the old link stops working at once).",
-          "**Who enters scores**: Organizers and assistants only, or Players may enter their own scores.",
+          "**Who enters scores**: Organizers and assistants only, or Players may enter their own scores. With Organizers and assistants only, a player's card and a round code offer no score buttons at all: the screen says the club is keeping the cards and points them to the board.",
           "**When players may submit**: during the round, hole by hole; or after the round, as a completed card. A match is complete once it is decided, so a match won 5&4 goes in without the four holes nobody played.",
           "**How players sign in**: Email and password, Access code on their scorecard, or Either email or access code (see Round codes in Part 3).",
           "**Tees**: pick the tournament's tees, then **Who may play other tees**. You decide the tees at three levels, each beating the one before: the tournament's here; a flight's, on Flights & groups; one player's, on Registration. **Everyone plays the tournament's tees** stops at the first (a seniors' championship off one set), **A flight may play its own tees** at the second (a club championship off three), and **A flight or a player may play their own tees** allows all three and is what a new tournament starts on. A player never chooses their own, and the entry form does not ask.",
