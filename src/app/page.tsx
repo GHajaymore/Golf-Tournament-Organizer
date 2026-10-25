@@ -457,8 +457,11 @@ export default async function LandingPage() {
             <div className="m-head">
               <p className="m-eyebrow">What it does</p>
               <h2 id="does-h">The whole day, in one place.</h2>
-              <ul className="m-runs" aria-label="What it runs" data-no-dialect="">
-                {["Weekly leagues", "Society days", "Club championships", "Knockouts", "Ryder-style cups", "Member-guests", "Charity scrambles", "Golf trips", "A Saturday fourball"].map((x) => <li key={x}><b>{x}</b></li>)}
+              {/* Written in US words like the rest of the page and swapped per edition: a UK visitor reads
+                  "Society days" and "A Saturday fourball". Until 2026-10-24 this list was marked
+                  data-no-dialect and written in UK words, so US visitors read "Society days". */}
+              <ul className="m-runs" aria-label="What it runs">
+                {["Weekly leagues", "Golf outings", "Club championships", "Knockouts", "Ryder-style cups", "Member-guests", "Charity scrambles", "Golf trips", "A Saturday foursome"].map((x) => <li key={x}><b>{x}</b></li>)}
               </ul>
             </div>
 

@@ -200,9 +200,10 @@ export const PLANS: Record<PlanKey, Plan> = {
   society: {
     key: "society",
     name: "Birdie",
-    tagline: "Leagues and societies",
-    // "Society" is British; "league" and "golf group" are how the same people
-    // say it elsewhere. The landing reads this in every country's edition.
+    tagline: "Leagues and golf groups",
+    // Written in US words: the landing is authored in US English and its UK
+    // editions swap "golf groups" for "societies" (landing/edition.ts). Until
+    // 2026-10-24 this said "societies", which US visitors read unswapped.
     blurb: "For a league, society or golf group running a full season — unlimited events, up to fifty a field.",
     // The growth-engine rung between Free and Club — see the monetization
     // proposal. Priced here as the default; the number is configurable through

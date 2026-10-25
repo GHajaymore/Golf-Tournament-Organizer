@@ -132,6 +132,8 @@ export function editionSwaps(edition: Edition): WordSwap[] {
       [/\bLeagues & golf groups\b/g, "Leagues & societies"],
       [/\bgolf groups\b/g, "societies"],
       [/\bgolf group\b/g, "society"],
+      // A society's away day is what a US group calls an outing.
+      [/\bGolf outings\b/g, "Society days"],
     );
   }
   if (edition.spelling !== "us") {
