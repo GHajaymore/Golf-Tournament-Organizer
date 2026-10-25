@@ -9,6 +9,7 @@ import { cupBoard } from "@/lib/services/cup";
 import { openRegistrationView, roundsLabelOf } from "@/lib/services/registration";
 import { reportFor } from "@/lib/services/event-report";
 import { OrgBrand } from "@/components/OrgBrand";
+import { DemoClubLabel } from "@/components/DemoClubLabel";
 import { LOGO_SIZE } from "@/components/Logo";
 import { PublicContests } from "@/components/PublicContests";
 import { EventEntryPoster } from "@/components/EventEntryPoster";
@@ -199,6 +200,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ to
     >
       <style dangerouslySetInnerHTML={{ __html: board.themeStyleSheet }} />
       <main style={{ maxWidth: 640, margin: "0 auto" }}>
+        <DemoClubLabel organizationId={event.organizationId} />
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <OrgBrand brand={board.brand} size={LOGO_SIZE.lg} tagline />
         </div>

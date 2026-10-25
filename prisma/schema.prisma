@@ -417,6 +417,21 @@ model Organization {
    */
   timeZone       String @default("")
 
+  /**
+   * THE DEMO CLUB (2026-10-24): an invented club with invented players, built
+   * and rebuilt by the owner's "Demo club: create / refresh" on /owner and
+   * played through the day by `/api/cron/demo-replay`. True on that one club
+   * and nowhere else; nothing a club can do sets it.
+   *
+   * It is how code tells the demo from a real club, so the demo can be left
+   * OUT of what is about real clubs — the deploy freeze, the owner's counts,
+   * plan limits and billing, the namesake check, every message the app sends —
+   * while every board, report and scoring reader treats it exactly as it
+   * treats any club. `services/demo-club.ts` is the one writer, and it refuses
+   * to touch a club without this mark. `docs/claude/demo-club.md`.
+   */
+  isDemo         Boolean @default(false)
+
   members      OrganizationMember[]
   joinRequests JoinRequest[]
   roster       Member[]

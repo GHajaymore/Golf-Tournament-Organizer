@@ -8,6 +8,7 @@ import { reportAudienceFor, reportFor } from "@/lib/services/event-report";
 import { getSession } from "@/lib/auth";
 import { FinalReport } from "@/components/FinalReport";
 import { EventReport } from "@/components/EventReport";
+import { DemoClubLabel } from "@/components/DemoClubLabel";
 
 /**
  * A tournament's final report, for anybody holding the board's link — a
@@ -55,6 +56,7 @@ export default async function PublicFinalReportPage({ params }: { params: Promis
   return found.kind === "cup" ? (
     <FinalReport report={found.report} footer={footer} />
   ) : (
-    <EventReport report={found.report} footer={footer} />
+    // The demo club's report says it is the demo's (it plays no cup, so only this one needs to).
+    <EventReport report={found.report} footer={footer} notice={<DemoClubLabel organizationId={event.organizationId} />} />
   );
 }

@@ -375,6 +375,8 @@ export async function otherOrganizationNamed(
   const others = await prisma.organization.findMany({
     where: {
       kind: { not: "personal" },
+      // A real club's name only: nobody is asked to join the demo club (docs/claude/demo-club.md).
+      isDemo: false,
       ...(exceptOrganizationId ? { id: { not: exceptOrganizationId } } : {}),
     },
     select: {

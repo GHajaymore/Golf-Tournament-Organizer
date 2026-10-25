@@ -11,10 +11,34 @@ import { SUPPORT_EMAIL } from "@/lib/contact";
 import { interestSubject } from "@/lib/domain/interest";
 import { EMAIL_CODE_WORDS } from "@/lib/domain/email-code";
 import { NEW_SIGN_IN_WORDS } from "@/lib/domain/device-words";
+import { demoRefusesMessage } from "@/lib/services/demo-guard";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const client = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+type Outgoing = Parameters<Resend["emails"]["send"]>[0];
+type Sent = Awaited<ReturnType<Resend["emails"]["send"]>>;
+
+/**
+ * EVERY EMAIL LEAVES THROUGH HERE — and the demo club's never do (2026-10-24).
+ *
+ * Each sender below calls `resend.emails.send`, so the one place to refuse a
+ * send is the client they all hold. An address on the demo's domain, or a
+ * message sent on the demo club's behalf (`scope`), is refused here and
+ * reported as sent: the demo must never message anyone (docs/claude/demo-club.md),
+ * and a sender written later is held to it without knowing the rule exists.
+ */
+async function deliver(message: Outgoing, scope: { organizationId?: string | null; eventId?: string | null } = {}): Promise<Sent> {
+  const to = [message.to, message.cc, message.bcc].flat().filter((a): a is string => typeof a === "string");
+  if (await demoRefusesMessage({ to, organizationId: scope.organizationId, eventId: scope.eventId })) {
+    console.warn("[email] not sent: the demo club sends nothing.");
+    return { data: null, error: null } as unknown as Sent;
+  }
+  return client!.emails.send(message);
+}
+
+const resend = client ? { emails: { send: deliver } } : null;
 
 /**
  * Resend's shared sandbox sender.
@@ -433,7 +457,7 @@ export async function sendRegistrationEmail(
         `You're getting this because this address was used to enter ${escapeHtml(opts.eventName)} on TourneyHQ.`,
         { preview: line, organizationId: opts.organizationId },
       )),
-    });
+    }, { organizationId: opts.organizationId, eventId: opts.eventId });
     if (error) {
       console.error(`[email] Resend rejected the registration email for ${maskEmail(to)}: ${error.message}`);
       await recordFailure({
@@ -527,7 +551,7 @@ export async function sendStaffInviteEmail(
           organizationId: opts.organizationId,
         },
       )),
-    });
+    }, { organizationId: opts.organizationId });
     if (error) {
       console.error(`[email] Resend rejected the staff invite for ${maskEmail(to)}: ${error.message}`);
       await recordFailure({
@@ -787,7 +811,7 @@ export async function sendFieldStatusEmail(
             : "You're on the waitlist — please don't travel expecting to play.",
         organizationId: opts.organizationId,
       })),
-    });
+    }, { organizationId: opts.organizationId, eventId: opts.eventId });
     if (error) {
       console.error(`[email] Resend rejected the field-status email for ${maskEmail(to)}: ${error.message}`);
       await recordFailure({
@@ -868,7 +892,7 @@ export async function sendArchiveNoticeEmail(n: {
           action: { label: "Keep everything", url: `${base}/organization#plan` },
           organizationId: n.organizationId,
         })),
-      });
+      }, { organizationId: n.organizationId });
       if (error) {
         console.error(`[email] Resend rejected the archive notice for ${maskEmail(to)}: ${error.message}`);
         await fail(error.message, (error as { statusCode?: number }).statusCode);

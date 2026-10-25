@@ -15,10 +15,13 @@ export async function currentDeployWindow(at: Date = new Date()): Promise<Deploy
   // The UTC day either side: every club's own day falls inside it (no zone is more than 14 hours from UTC).
   const day = (offset: number) => clubToday("UTC", new Date(at.getTime() + offset * 24 * 60 * 60 * 1000));
   const days = [day(-1), day(0), day(1)];
+  // REAL CLUBS ONLY (2026-10-24). The demo club has a tournament "on today" every day of the year,
+  // and a freeze that counted it would never lift: it is in neither query (docs/claude/demo-club.md).
   const [clubs, events] = await Promise.all([
-    prisma.organization.findMany({ select: { timeZone: true }, distinct: ["timeZone"] }),
+    prisma.organization.findMany({ where: { isDemo: false }, select: { timeZone: true }, distinct: ["timeZone"] }),
     prisma.event.findMany({
       where: {
+        organization: { isDemo: false },
         status: { notIn: ["draft", "completed"] },
         OR: [
           { stages: { some: { playedOn: { in: days } } } },

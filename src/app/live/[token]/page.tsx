@@ -22,6 +22,7 @@ import { OrgBrand } from "@/components/OrgBrand";
 import { LOGO_SIZE } from "@/components/Logo";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { ClubhouseScreen } from "@/components/ClubhouseScreen";
+import { DemoClubLabel } from "@/components/DemoClubLabel";
 import { finalReportReady } from "@/lib/domain/event-page";
 import { RoundPicker } from "@/components/RoundPicker";
 import { cupBoard } from "@/lib/services/cup";
@@ -171,6 +172,8 @@ export default async function PublicLeaderboardPage({
   // board, and the top of the clubhouse screen.
   const head = (
       <>
+        {/* The demo club says so, on the board and on the clubhouse screen alike. */}
+        <DemoClubLabel organizationId={event.organizationId} large={clubhouse} />
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           {/* lg, the scale's hero size. This board is the club's shopfront
               — the link that goes on the clubhouse screen and to families —

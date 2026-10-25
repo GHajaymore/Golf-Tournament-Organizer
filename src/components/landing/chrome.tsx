@@ -94,7 +94,7 @@ export function icon(id: string, className = "i") {
  * back to them. Sign-in and sign-up live on `/`, where the form is.
  */
 /** `held`: accounts held until launch, so the button does not promise "Start free" (the ad director). */
-export function landingNav(at: "home" | "faq" | "privacy" | "terms" | "interest", held = false) {
+export function landingNav(at: "home" | "faq" | "privacy" | "terms" | "interest" | "demo", held = false) {
   const cta = held ? HELD_FRONT_DOOR.cta : "Start free";
   const home = at === "home" ? "" : "/";
   // The product menu: every part of the page, with what it shows.
@@ -180,7 +180,7 @@ export function editionNote(local: Edition, overridden: boolean): ReactNode {
   );
 }
 
-export function landingFooter(at: "home" | "faq" | "privacy" | "terms" | "interest", editionNoteNode: ReactNode) {
+export function landingFooter(at: "home" | "faq" | "privacy" | "terms" | "interest" | "demo", editionNoteNode: ReactNode) {
   const home = at === "home" ? "" : "/";
   const links: Array<[string, string]> = [
     [`${home}#pricing`, "Pricing"],
