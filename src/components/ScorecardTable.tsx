@@ -5,6 +5,8 @@ import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 import { cardPoints, type PointsTable } from "@/lib/domain/card-points";
 import { useDistanceWords } from "./DistanceUnitProvider";
 import { holeNumber } from "@/lib/domain/hole-number";
+import type { HoleSync } from "@/lib/domain/pending-card";
+import { HoleSyncMark, holeSyncSaid } from "./HoleSync";
 
 /**
  * A scorecard, the way a scorecard looks.
@@ -278,7 +280,14 @@ export function ScorecardTable({
   venueIsHome = false,
   pointsTable = null,
   firstHole = 1,
+  sync,
 }: {
+  /**
+   * Where each hole's score is, from the card's queue — the same marks the hole
+   * strip carries, in the corner of each hole's number. Absent for a card that
+   * keeps no queue (the console's, an approved one).
+   */
+  sync?: HoleSync[];
   /** The Stableford table this round is decided on, or null — see `cardPoints`. */
   pointsTable?: PointsTable | null;
   /** The course's number for the first hole on this card — 10 on a back nine (`firstHoleOf`). */
@@ -379,6 +388,17 @@ export function ScorecardTable({
    * shows it on every played hole so the column reads straight down.
    */
   const showNet = hasShots && !onSet;
+  /** A hole's number, with where its score is in the corner when the card keeps a queue. */
+  const holeHead = (i: number) =>
+    sync ? (
+      <th key={i} data-sync={sync[i] ?? "none"} style={{ position: "relative" }}>
+        {holeNumber(i, firstHole)}
+        <HoleSyncMark sync={sync[i] ?? "none"} />
+        {sync[i] && sync[i] !== "none" && <span className="sr-only">{holeSyncSaid(sync[i])}</span>}
+      </th>
+    ) : (
+      <th key={i}>{holeNumber(i, firstHole)}</th>
+    );
   const cell = (i: number) => {
     const g = strokes[i];
     const netHole = showNet && typeof g === "number" && g > 0 ? g - (shotsPerHole[i] ?? 0) : null;
@@ -496,9 +516,9 @@ export function ScorecardTable({
           <thead>
             <tr>
               <th>Hole</th>
-              {front.map((i) => (<th key={i}>{holeNumber(i, firstHole)}</th>))}
+              {front.map((i) => holeHead(i))}
               {isEighteen && <th className="sc-tot">Out</th>}
-              {back.map((i) => (<th key={i}>{holeNumber(i, firstHole)}</th>))}
+              {back.map((i) => holeHead(i))}
               {isEighteen && <th className="sc-tot">In</th>}
               <th className="sc-tot">Tot</th>
             </tr>

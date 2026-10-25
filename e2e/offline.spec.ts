@@ -171,7 +171,9 @@ test("and sends it by itself when the signal comes back", async ({ page, context
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
 
-  await expect(page.locator('[role="status"]')).toContainText(/saved/i, { timeout: 20_000 });
+  // "Sent", the word for the server having it (2026-10-25). This read /saved/i, which "No signal — your
+  // holes are saved on this phone" satisfies before anything has gone anywhere.
+  await expect(page.locator('[role="status"]')).toContainText(/Sent — \d+ of \d+ holes in/, { timeout: 20_000 });
 
   // And the device copy is released only once the server has it — until then
   // there would be a moment where neither side holds the scorer's holes.
