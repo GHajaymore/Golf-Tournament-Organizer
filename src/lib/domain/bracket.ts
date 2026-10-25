@@ -12,6 +12,13 @@ export interface BracketSlot {
   /** Seed within this bracket (1-based) when known from round 1. */
   seed: number | null;
   name: string;
+  /**
+   * A place nobody can ever stand in: the empty half of a first-round tie in a
+   * field that does not fill its sheet. Set by `buildBracket` and nowhere
+   * else, so the drawing leaves a bye out (the panel, 2026-10-23: "a bye is a
+   * word beside a name, never a box") without reading the word "Bye".
+   */
+  bye?: true;
 }
 
 export interface BracketMatch {
@@ -34,6 +41,12 @@ export interface BracketView {
   kind: BracketKind;
   rounds: BracketRound[];
   champion: BracketSlot | null;
+  /**
+   * The first round is a preliminary round (`hasPreliminaryRound`): its byes are
+   * not marked, and its winners are "through the preliminary round". Set by
+   * `buildBracket`; absent on a hand-built view, which reads as no.
+   */
+  preliminary?: boolean;
 }
 
 /**
@@ -83,9 +96,6 @@ export function knockoutProgress(...views: BracketView[]): { decided: number; to
   }
   return { decided, total };
 }
-
-/** Kept as reference for a future label pass; not read today. */
-const _ROUND_LABELS = ["Round of 8", "Semifinals", "Final"];
 
 /**
  * Select qualifiers: top `qualifyPerGroup` from each group's ranking, then
@@ -534,22 +544,79 @@ export function bracketSizeFor(n: number): number {
 }
 
 /**
- * What to call each round, counting back from the final.
+ * WHAT A CLUB CALLS EACH ROUND OF ITS KNOCKOUT — the one place a round is named.
  *
- * Derived rather than listed, so a bracket of any depth names its rounds
- * correctly instead of running off the end of a three-entry array.
+ * The panel's ruling of 2026-10-23 (golf professional, tournament director,
+ * designer, QA; `docs/bracket-panel-2026-10-23.md`): a club's draw sheet reads
+ * "Round 1, Round 2, … Quarter-finals, Semi-finals, Final", never "Round of
+ * 256". And a field that is not a power of two plays a PRELIMINARY ROUND for
+ * its extra entries first — 129 entrants is one tie, 128 v 129, and then a
+ * Round 1 of 128 — so the round numbers count from the first round the whole
+ * field is in.
+ *
+ * Every reader takes its words from here, through the view `buildBracket`
+ * makes: the drawing, the report ("Round 1: X beat Y 3&2"), a player's line,
+ * the boards. It needs the FIELD as well as the sheet, because 129 and 256 are
+ * both a sheet of 256 and only one of them has a preliminary round; so the
+ * entrants are a required argument, and the compiler lists every caller.
+ *
+ * It used to be derived from the sheet alone ("Round of 128", "Quarterfinals")
+ * and called a 129-player draw's lone preliminary tie "Round of 256".
  */
-export function roundLabels(size: number): string[] {
+export function roundLabels(size: number, entrants: number): string[] {
   const total = Math.log2(size);
+  const preliminary = hasPreliminaryRound(size, entrants);
   const labels: string[] = [];
   for (let r = 0; r < total; r += 1) {
     const remaining = total - r;
-    if (remaining === 1) labels.push("Final");
-    else if (remaining === 2) labels.push("Semifinals");
-    else if (remaining === 3) labels.push("Quarterfinals");
-    else labels.push(`Round of ${2 ** remaining}`);
+    if (r === 0 && preliminary) labels.push("Preliminary round");
+    else if (remaining === 1) labels.push("Final");
+    else if (remaining === 2) labels.push("Semi-finals");
+    else if (remaining === 3) labels.push("Quarter-finals");
+    else labels.push(`Round ${preliminary ? r : r + 1}`);
   }
   return labels;
+}
+
+/**
+ * WHETHER A DRAW'S FIRST ROUND IS A PRELIMINARY ROUND, or a round of the draw
+ * with byes in it.
+ *
+ * The panel's ruling (golf professional and tournament director, 2026-10-23):
+ * "Call the first round a Preliminary round when FEWER players play in it than
+ * sit it out; when equal, it is Round 1 with byes." With N entrants on a sheet
+ * of S, 2N − S play in the first round and S − N sit it out, so it is a
+ * preliminary round exactly when 2N − S < S − N, i.e. 3N < 2S — under two
+ * thirds of the sheet.
+ *
+ *   129 of 256   2 play, 127 sit out    Preliminary round (one tie, 128 v 129)
+ *    20 of 32    8 play,  12 sit out    Preliminary round of 4 ties
+ *    22 of 32   12 play,  10 sit out    Round 1, with 10 byes
+ *    24 of 32   16 play,   8 sit out    Round 1, with 8 byes
+ *   100 of 128  72 play,  28 sit out    Round 1, with 28 byes
+ *
+ * A draw sheet marks nobody as having had a "bye" for not needing a
+ * preliminary round; a bye in a Round 1 is marked, on the seed's first real
+ * tie. (Equality, 3N = 2S, never falls on a power-of-two sheet.) A sheet of two
+ * — one or two players — is a final.
+ */
+export function hasPreliminaryRound(size: number, entrants: number): boolean {
+  const playing = 2 * entrants - size;
+  const sittingOut = size - entrants;
+  return size > 2 && entrants < size && playing < sittingOut;
+}
+
+/**
+ * "Winner of A v B" — what a place in the draw is called while the tie that
+ * fills it is drawn and not yet played (the panel, 2026-10-23: "TBD" says
+ * nothing a golfer can act on; the two names say who to look out for). The
+ * one wording: the slot's name and a player's own line ("v the winner of A v
+ * B") both read it. "" when the feeding tie is not itself between two known
+ * players.
+ */
+export function winnerOfWords(feeder: Pick<BracketMatch, "a" | "b"> | undefined): string {
+  if (!feeder || !feeder.a.playerId || !feeder.b.playerId) return "";
+  return `Winner of ${feeder.a.name} v ${feeder.b.name}`;
 }
 
 /**
@@ -626,8 +693,8 @@ export function buildBracket(
    * is none and never will be. Walked as the tournament grid's knockout of five:
    * three of the four first-round lines said TBD and only one was a match.
    */
-  const slotFor = (playerId: string | null, bye = false): BracketSlot => {
-    if (!playerId) return { playerId: null, seed: null, name: bye ? "Bye" : "TBD" };
+  const slotFor = (playerId: string | null, bye = false, waiting = ""): BracketSlot => {
+    if (!playerId) return bye ? { playerId: null, seed: null, name: "Bye", bye: true } : { playerId: null, seed: null, name: waiting || "TBD" };
     const p = byId.get(playerId);
     return {
       playerId,
@@ -638,7 +705,7 @@ export function buildBracket(
 
   const size = bracketSizeFor(seededPlayers.length);
   const order = seedOrder(size);
-  const labels = roundLabels(size);
+  const labels = roundLabels(size, seededPlayers.length);
   const seedSlot = (seedNum: number): string | null => seededPlayers[seedNum - 1]?.id ?? null;
 
   const rounds: BracketRound[] = [];
@@ -718,8 +785,8 @@ export function buildBracket(
         key,
         roundIndex: round,
         matchIndex: i,
-        a: slotFor(aId),
-        b: slotFor(bId),
+        a: slotFor(aId, false, winnerOfWords(prev[i * 2])),
+        b: slotFor(bId, false, winnerOfWords(prev[i * 2 + 1])),
         // Only between two players (`tieNotReady`): a stored winner whose
         // opponent is not known — the tie before it taken back — is not a win.
         winnerId: aId && bId ? claimedWinner(winners[key], aId, bId) : null,
@@ -731,7 +798,7 @@ export function buildBracket(
   const finalMatch = rounds[rounds.length - 1]?.matches[0];
   const champion = finalMatch?.winnerId ? slotFor(finalMatch.winnerId) : null;
 
-  return { kind, rounds, champion };
+  return { kind, rounds, champion, preliminary: hasPreliminaryRound(size, seededPlayers.length) };
 }
 
 

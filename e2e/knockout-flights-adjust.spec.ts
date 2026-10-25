@@ -153,11 +153,13 @@ test("a flight reseeded by hand is stored in that order, and the bye goes with t
   await after.locator("summary").click();
   await expect(after.locator("ol > li"), "after a reload the seeding is not kept").toHaveText([/Briar Marsh/, /Alder Marsh/, /Cedar Marsh/]);
   // A flight of three is a bracket of four: its top seed has the bye — Briar now, not Alder.
+  // A bye is not drawn as a tie (the panel, 2026-10-23): the seed starts in the final with
+  // "bye" under the name, and seed 1 beside it.
   await page.locator(".seg").getByText("Championship flight", { exact: true }).click();
   const text = await page.locator("main").innerText();
   const drawn = text.slice(text.indexOf("Bracket manager"));
-  expect(drawn, `the bye did not go with the new top seed:\n${drawn}`).toMatch(/Briar Marsh\s+1\s+Bye/);
-  expect(drawn, `the old top seed kept the bye:\n${drawn}`).not.toMatch(/Alder Marsh\s+1\s+Bye/);
+  expect(drawn, `the bye did not go with the new top seed:\n${drawn}`).toMatch(/Briar Marsh\s+bye\s+1/);
+  expect(drawn, `the old top seed kept the bye:\n${drawn}`).not.toMatch(/Alder Marsh\s+bye/);
   expect(errors, errors.join("\n")).toEqual([]);
 });
 
