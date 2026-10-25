@@ -24,7 +24,14 @@ import { codeFromLink, formatAccessCode } from "@/lib/code-format";
 type PlayMatch = KeptMatch;
 
 interface Props {
-  stage: "code" | "score" | "no-match" | "card";
+  /**
+   * `staff-kept`: the tournament's cards are kept by its organizers
+   * (`canEnterScores(settings, "player")` is false), so nothing here may be
+   * saved and nothing is offered — see the page.
+   */
+  stage: "code" | "score" | "no-match" | "card" | "staff-kept";
+  /** The club's word for its organizer ("organizer" / "organiser"), for `staff-kept`. */
+  organizer?: string;
   /**
    * THE LEADERBOARD, ONE TAP AWAY (2026-10-18). At the first real cup every
    * player scored by the code, and this page was score entry and nothing
@@ -934,6 +941,46 @@ function PlayScreens(props: Props) {
         >
           Sign out
         </button>
+      </Shell>
+    );
+  }
+
+  /* ── Signed in with a code, on a tournament whose cards the club keeps ── */
+
+  if (props.stage === "staff-kept") {
+    const organizer = props.organizer ?? "organizer";
+    return (
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+        <div className="card elev-sm">
+          <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>{props.playerName}</h1>
+          <span className="text-muted" style={{ fontSize: 13 }}>
+            {props.eventName}
+            {props.roundLabel ? ` · ${props.roundLabel}` : ""}
+          </span>
+          <span className="card-title" style={{ marginTop: 12 }}>Your club is keeping the cards</span>
+          <p className="text-muted" style={{ fontSize: 14, lineHeight: 1.55, margin: "8px 0 0" }}>
+            Scores for this tournament are entered by the {organizer}, so there is nothing to enter on this phone.{" "}
+            {props.boardHref
+              ? "Follow the round on the board: the scores appear there as they go in."
+              : `The scores go on the board as they are entered. Ask your ${organizer} for its link.`}
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            {props.boardHref && (
+              <a href={props.boardHref} className="btn btn-primary" style={{ minHeight: 44 }}>
+                <Icon name="ranking" /> See the board
+              </a>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ minHeight: 44 }}
+              disabled={pending}
+              onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+            >
+              Enter a different code
+            </button>
+          </div>
+        </div>
       </Shell>
     );
   }
