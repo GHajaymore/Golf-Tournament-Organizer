@@ -212,7 +212,8 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
       await page.getByRole("button", { name: /Par$/ }).click();
     }
     await expect(page.getByText("13/18 holes")).toBeVisible();
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 20_000 });
+    // The card's own line: "Sent", the hole marks' word for the server having it.
+    await expect(page.getByRole("status").filter({ hasText: /^Sent$/ })).toBeVisible({ timeout: 20_000 });
     // And the side's cards are on Score entry too: only the card she may save.
     await open(page, `/entry?round=${(f.sessions as Record<string, string>).fourball}`);
     await expect(page.getByText(/Saturday four-balls · Four-Ball/).first()).toBeVisible();

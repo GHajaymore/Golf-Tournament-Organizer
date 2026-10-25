@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Lockup } from "@/components/Lockup";
 import { LOGO_SIZE } from "@/components/Logo";
 import { NOINDEX } from "@/lib/site";
@@ -46,13 +45,20 @@ export default function NotFound() {
           tournament&rsquo;s leaderboard or entry form, ask the club for a fresh one — they can be
           switched off or replaced.
         </p>
+        {/* PLAIN LINKS, NOT `next/link` (2026-10-25). This page is part of the
+            root layout's tree, so it is in every page's data, and `Link` there
+            was a client component the browser had to fetch for every page —
+            on /play, with four chunks of the player app's layout beside it,
+            16 KB, measured, for a page the player never sees. Either button
+            leaves this page for a different one, which a plain link does. */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-          <Link href="/choose" className="btn btn-primary">
+          <a href="/choose" className="btn btn-primary">
             Your tournaments
-          </Link>
-          <Link href="/" className="btn btn-secondary">
+          </a>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a plain link on purpose: see above */}
+          <a href="/" className="btn btn-secondary">
             TourneyHQ home
-          </Link>
+          </a>
         </div>
       </div>
     </main>

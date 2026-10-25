@@ -229,7 +229,8 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
       await expect(p.getByLabel("Strokes on hole 2")).toBeVisible();
       await p.getByRole("button", { name: /Par$/ }).click();
       await expect(p.getByText("2/9 holes")).toBeVisible();
-      await expect(p.getByText("Saved", { exact: true })).toBeVisible({ timeout: 20_000 });
+      // The card's own line says "Sent", the hole marks' word for the server having it.
+      await expect(p.getByRole("status").filter({ hasText: /^Sent$/ })).toBeVisible({ timeout: 20_000 });
     } finally {
       await ctx.close();
     }
@@ -247,7 +248,7 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
         await expect(p.getByLabel(`Strokes on hole ${hole}`)).toBeVisible();
         await p.getByRole("button", { name: /Par$/ }).click();
       }
-      await expect(p.getByText("Saved", { exact: true })).toBeVisible({ timeout: 20_000 });
+      await expect(p.getByRole("status").filter({ hasText: /^Sent$/ })).toBeVisible({ timeout: 20_000 });
       // Edda's 3 beats Ailsa's 4 on the 1st — the Whites, side B — and 4 v 4 halves the 2nd.
       await expect.poll(() => stored(ids.cardsMatch), { timeout: 15_000, message: "the match was not worked out from the two cards" }).toBe("B,H");
       // And the card says where the match stands, in golf's words.

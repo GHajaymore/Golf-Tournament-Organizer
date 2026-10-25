@@ -1,12 +1,17 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  holeSyncs,
   mayStartSend,
   pendingKey,
+  refusalWords,
   RETRY_EVERY_MS,
+  serverHoldsAfter,
   shouldPoll,
   shouldRetry,
   syncStatus,
+  unsentHoles,
+  type HoleSync,
   type SyncStatus,
   type SendOutcome,
 } from "@/lib/domain/pending-card";
@@ -33,6 +38,16 @@ import {
 export interface PendingCard<T> {
   /** What to show, from domain/pending-card. */
   status: SyncStatus;
+  /**
+   * WHERE EACH HOLE IS — "On your phone", "Sent", "Not sent" (`holeSyncs`).
+   *
+   * From the same two values the sender works from and nothing else: the card
+   * it holds to send, and what the last answered send read back from the
+   * server. So a hole cannot read "Sent" while the queue still holds it.
+   */
+  holes: HoleSync[];
+  /** The server's own words for the last refusal, or "" (`refusalWords`). */
+  refusal: string;
   /** Record a change: kept on the device immediately, sent shortly after. */
   push: (value: T) => void;
   /** Anything recovered from a previous visit, or null. */
@@ -47,7 +62,13 @@ export interface PendingCard<T> {
    * status line goes on warning about a card that was settled minutes ago, and
    * a warning that is always there is one nobody reads.
    */
-  settle: () => void;
+  settle: (serverHolds: T) => void;
+  /**
+   * What the server holds, heard from somewhere other than the queue's own
+   * send — the card a conflict came back with, or one a caller saved itself
+   * (signing). Required knowledge for "Sent" to stay true.
+   */
+  heard: (serverHolds: T) => void;
   /**
    * Resolves when no card is on its way — at once, when none is.
    *
@@ -58,18 +79,39 @@ export interface PendingCard<T> {
   landed: () => Promise<void>;
 }
 
+/** Two cards say the same on every hole either of them has. */
+function sameCells(a: readonly unknown[], b: readonly unknown[]): boolean {
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i += 1) if ((a[i] ?? null) !== (b[i] ?? null)) return false;
+  return true;
+}
+
 export function usePendingCard<T>({
   stageId,
   playerId,
   send,
+  drawnFrom,
+  cells,
   debounceMs = 600,
   enabled = true,
   holding = false,
 }: {
   stageId: string;
   playerId: string;
-  /** Attempt the write. Throw to signal failure. */
-  send: (value: T) => Promise<SendOutcome>;
+  /**
+   * Attempt the write. Throw to signal failure. Answer `{ serverHolds }` with
+   * the card as the server read it back after writing, wherever the save can:
+   * that, not the send resolving, is what makes a hole "Sent".
+   */
+  send: (value: T) => Promise<SendOutcome<T>>;
+  /**
+   * The card as the server held it when this screen was drawn — every hole of
+   * it is "Sent" until the phone changes one. Null for no card yet. REQUIRED,
+   * so no caller can forget to say what the server already has.
+   */
+  drawnFrom: T | null;
+  /** The card's holes, one value each, in order — what is compared hole by hole. */
+  cells: (value: T) => readonly unknown[];
   debounceMs?: number;
   enabled?: boolean;
   /**
@@ -96,6 +138,13 @@ export function usePendingCard<T>({
   const [held, setHeld] = useState(false);
   const [online, setOnline] = useState(true);
   const [recovered, setRecovered] = useState<T | null>(null);
+  /** The card the queue holds to send — `value` below, as something a render can read. Null: nothing waiting. */
+  const [onPhone, setOnPhone] = useState<T | null>(null);
+  /** What the server last said it holds: as drawn, then as each answered send read it back. */
+  const [onServer, setOnServer] = useState<T | null>(drawnFrom);
+  const [refusal, setRefusal] = useState("");
+  /** The device would not take the last write — private browsing, or a full store. */
+  const [unkept, setUnkept] = useState(false);
   const [, tick] = useState(0);
 
   const value = useRef<T | null>(null);
@@ -105,6 +154,9 @@ export function usePendingCard<T>({
   /** The send that is out, as something to wait on — and null when none is. See `attempt`. */
   const inFlight = useRef<Promise<void> | null>(null);
   const latestAttempt = useRef<() => Promise<void>>(async () => {});
+  // Through a ref: a caller's `cells` is a fresh arrow every render, and the send must not be rebuilt for it.
+  const cellsOf = useRef(cells);
+  cellsOf.current = cells;
 
   /** Anything left from a previous visit means the last one did not finish. */
   useEffect(() => {
@@ -169,6 +221,23 @@ export function usePendingCard<T>({
         setHeld(true);
         return;
       }
+      // What the server says it holds now — read back from the row it wrote,
+      // where the save can. Every "Sent" on the screen is measured against it.
+      const holds = serverHoldsAfter(outcome, sent);
+      if (holds !== null) setOnServer(holds);
+      /**
+       * THE SEND RESOLVED AND THE ROW DOES NOT SAY WHAT WAS SENT. Not landed,
+       * whatever the answer called itself: the device copy stays, the queue
+       * stays, and the holes that differ read "Not sent" with a reason — never
+       * a quiet "Sent" over a record that says something else.
+       */
+      const theirsWins = typeof outcome === "object" && outcome.theirsWins === true;
+      if (holds !== null && !theirsWins && !sameCells(cellsOf.current(holds), cellsOf.current(sent))) {
+        setRefused(true);
+        setRefusal("The club’s copy of this card does not say what this phone says");
+        return;
+      }
+      setRefusal("");
       // A newer card was entered while this one was out. The device copy and
       // the queue are the NEWER card's — clearing them here would leave its
       // holes on neither the phone nor the server — and it goes next.
@@ -186,6 +255,8 @@ export function usePendingCard<T>({
       setQueued(false);
       setRefused(false);
       setHeld(false);
+      // Nothing is waiting: what the phone shows is what the server holds.
+      setOnPhone(null);
       queuedAt.current = 0;
     } catch (e) {
       /**
@@ -200,6 +271,8 @@ export function usePendingCard<T>({
         e instanceof TypeError ||
         (typeof navigator !== "undefined" && navigator.onLine === false);
       setRefused(!networkish);
+      // The server's own sentence, said at the hole — when it gave one a golfer can act on.
+      setRefusal(networkish ? "" : refusalWords(e instanceof Error ? e.message : ""));
     } finally {
       // Only its own mark: a send given up on may come back after a newer one
       // has gone out, and must not report the newer one as landed.
@@ -225,9 +298,13 @@ export function usePendingCard<T>({
       // never returns cannot leave this hole existing only in memory.
       try {
         window.localStorage.setItem(key, JSON.stringify(next));
+        setUnkept(false);
       } catch {
-        /* private mode or a full store: carry on, the network may still work */
+        // Private mode or a full store: carry on, the network may still work —
+        // but "On your phone" would now be untrue past this tab, so it is said.
+        setUnkept(true);
       }
+      setOnPhone(next);
       if (!queued) queuedAt.current = Date.now();
       setQueued(true);
       setRefused(false);
@@ -326,6 +403,16 @@ export function usePendingCard<T>({
     [],
   );
 
+  // The card the queue holds, or — with nothing waiting — the server's, which is then what the phone shows.
+  const phoneCells = onPhone !== null ? cells(onPhone) : onServer !== null ? cells(onServer) : [];
+  const serverCells = onServer !== null ? cells(onServer) : null;
+  const holes = holeSyncs({
+    onPhone: phoneCells,
+    onServer: serverCells,
+    refused,
+    holes: Math.max(phoneCells.length, serverCells?.length ?? 0),
+  });
+
   return {
     status: syncStatus({
       queued,
@@ -335,9 +422,15 @@ export function usePendingCard<T>({
       refused,
       held,
       holding,
+      unsent: unsentHoles(holes),
+      refusal,
+      unkept: unkept && queued,
     }),
+    holes,
+    refusal,
     push,
     recovered,
+    heard: (serverHolds: T) => setOnServer(serverHolds),
     landed: () => inFlight.current ?? Promise.resolve(),
     clearRecovered: () => {
       setRecovered(null);
@@ -347,12 +440,15 @@ export function usePendingCard<T>({
         /* nothing to do */
       }
     },
-    settle: () => {
+    settle: (serverHolds: T) => {
       value.current = null;
+      setOnPhone(null);
+      setOnServer(serverHolds);
       queuedAt.current = 0;
       setQueued(false);
       setHeld(false);
       setRefused(false);
+      setRefusal("");
       setRecovered(null);
       try {
         window.localStorage.removeItem(key);

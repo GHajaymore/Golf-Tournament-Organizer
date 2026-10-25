@@ -89,7 +89,9 @@ describe("every server action is guarded", () => {
       // is a guard nobody re-checks.
       "setPreviewAction",
     ],
-    "play.ts": ["redeemRoundCode", "claimPlayerSlot", "leavePlay"],
+    // The two `…Form` actions are the same two as plain forms (a press made
+    // before the page's script arrived), and do nothing but call them.
+    "play.ts": ["redeemRoundCode", "claimPlayerSlot", "redeemRoundCodeForm", "claimPlayerSlotForm", "leavePlay"],
     // Open (self-service) registration is public by design: a stranger on a
     // shared link, no account. Its own defences replace a session guard, and
     // they are asserted separately below — token-shape check, a rate limit on
@@ -878,7 +880,7 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // The gate belongs on the write. Refusing the code itself would break
     // every staff-scored tournament that uses codes for sign-in, which is
     // precisely the tournament this whole guard exists to protect.
-    for (const fn of ["redeemRoundCode", "claimPlayerSlot", "leavePlay"]) {
+    for (const fn of ["redeemRoundCode", "claimPlayerSlot", "redeemRoundCodeForm", "claimPlayerSlotForm", "leavePlay"]) {
       const body = actions("play.ts").find((a) => a.name === fn)!.body;
       expect(body, fn).not.toMatch(/canEnterScores\(/);
     }
@@ -1678,7 +1680,8 @@ describe("the pending-card queue never clears a card it did not send", () => {
     const writer = cardWriter().body;
     // Off the row the upsert returned. Re-applying `statusAfterEdit` here
     // would be a third copy of the rule whose second copy is the bug.
-    expect(writer).toMatch(/return \{ ok: true, revision: cardRevision\(clean\), status: saved\.status \}/);
+    // And the card as that same row holds it (`stored`, the honest card's read-back), never `clean`.
+    expect(writer).toMatch(/return \{ ok: true, revision: cardRevision\(clean\), status: saved\.status, stored: storedCard\(saved\.strokes, roundHoles\) \}/);
     expect(writer).toMatch(/const saved = await prisma\.scorecard\.upsert\(/);
     // And the action still hands that answer straight back, rather than
     // rebuilding one of its own on the way out.
@@ -1708,10 +1711,12 @@ describe("the pending-card queue never clears a card it did not send", () => {
     );
     const certify = card.slice(card.indexOf("const certify ="));
     expect(certify).toMatch(/const sent = latest\.current;/);
-    expect(certify).toMatch(/if \(latest\.current === sent\) card\.settle\(\);/);
+    // Settled with the card the save READ BACK (the honest card, 2026-10-25), so
+    // every hole it settles reads "Sent" because the row says so.
+    expect(certify).toMatch(/if \(latest\.current === sent\) card\.settle\(Array\.from\(\{ length: holes \}, \(_, i\) => res\.stored\[i\] \?\? null\)\);/);
     // After the certify, never before it: settling first would drop the device
     // copy while the card was still only on this phone.
-    expect(certify.indexOf("card.settle()")).toBeGreaterThan(
+    expect(certify.indexOf("card.settle(")).toBeGreaterThan(
       certify.indexOf("await certifyScorecard("),
     );
   });

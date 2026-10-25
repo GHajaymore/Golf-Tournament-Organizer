@@ -67,7 +67,7 @@ import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
-import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
+import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, storedCard, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
 import {
   freezeRoundHandicaps,
@@ -2703,12 +2703,26 @@ export async function applyMatchResult(
  * two questions themselves: the tournament lets players score, and the match
  * is the caller's own, on either side of it, in an announced lineup.
  */
-export async function keepMyMatchHoles(matchId: string, holes: HoleResult[]): Promise<{ ok: boolean; error?: string }> {
+export async function keepMyMatchHoles(
+  matchId: string,
+  holes: HoleResult[],
+): Promise<{ ok: boolean; error?: string; holes?: HoleResult[] }> {
   const { eventId, session } = await requireScoreEntry();
   await assertOwnMatch(session, eventId, String(matchId));
   try {
     await saveMatchHoles(String(matchId), holes);
-    return { ok: true };
+    // READ BACK, for the honest card: the phone's "Sent" is what the row now holds.
+    const row = await prisma.match.findFirst({ where: { id: String(matchId), eventId }, select: { holes: true } });
+    let stored: unknown = [];
+    try {
+      stored = JSON.parse(row?.holes ?? "[]");
+    } catch {
+      stored = [];
+    }
+    return {
+      ok: true,
+      holes: (Array.isArray(stored) ? stored : []).map((h) => (h === "A" || h === "B" || h === "H" ? h : null)),
+    };
   } catch (err) {
     unstable_rethrow(err);
     return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
@@ -2738,31 +2752,44 @@ export async function keepMyMatchResult(matchId: string, winner: "A" | "B" | "H"
  * tapping and store the match through `services/match-from-cards.ts`. Answered
  * in words, like the two above.
  */
-export async function keepMyMatchCard(matchId: string, strokes: (number | null)[]): Promise<{ ok: boolean; error?: string }> {
+export async function keepMyMatchCard(
+  matchId: string,
+  strokes: (number | null)[],
+): Promise<{ ok: boolean; error?: string; card?: (number | null)[] }> {
   const { eventId, session } = await requireScoreEntry();
   await assertOwnMatch(session, eventId, String(matchId));
   const match = await prisma.match.findFirst({ where: { id: String(matchId), eventId } });
   if (!match) return { ok: false, error: "Match not found." };
   const mine = await myPlayerIds(eventId, session.email);
+  const stage = await prisma.stage.findUnique({
+    where: { id: match.stageId },
+    select: { format: true, scoreInput: true, scoringBasis: true, holes: true },
+  });
+  const holeCount = holesPlayed(stage?.holes);
   try {
     const sideMatch = match.teamAId !== "" && match.teamBId !== "" && match.playerAId === "" && match.playerBId === "";
     if (!sideMatch) {
       const slot = mine.has(match.playerAId) ? "A" : mine.has(match.playerBId) ? "B" : null;
       if (!slot) return { ok: false, error: "You can only enter your own card." };
       await saveMatchScorecard(match.id, slot, strokes);
-      return { ok: true };
+      // READ BACK, for the honest card: the phone's "Sent" is what the row now holds.
+      const row = await prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId: match.id, slot } }, select: { strokes: true } });
+      return { ok: true, card: storedCard(row?.strokes ?? "[]", holeCount) };
     }
     const member = await prisma.teamMember.findFirst({
       where: { playerId: { in: [...mine] }, teamId: { in: [match.teamAId, match.teamBId] } },
       select: { teamId: true, playerId: true },
     });
     if (!member) return { ok: false, error: "You can only enter your own card." };
-    const stage = await prisma.stage.findUnique({
-      where: { id: match.stageId },
-      select: { format: true, scoreInput: true, scoringBasis: true },
-    });
     const oneBall = !!stage && oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis);
-    return await saveTeamScorecard(member.teamId, oneBall ? "" : member.playerId, match.id, strokes);
+    const ballId = oneBall ? "" : member.playerId;
+    const res = await saveTeamScorecard(member.teamId, ballId, match.id, strokes);
+    if (!res.ok) return res;
+    const row = await prisma.teamScorecard.findFirst({
+      where: { stageId: match.stageId, matchId: match.id, teamId: member.teamId, playerId: ballId },
+      select: { strokes: true },
+    });
+    return { ...res, card: storedCard(row?.strokes ?? "[]", holeCount) };
   } catch (err) {
     unstable_rethrow(err);
     return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
