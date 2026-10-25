@@ -11,17 +11,23 @@ import { isDemoAddress } from "@/lib/domain/demo-club";
 /** Whether a club is the demo. A database fault answers "no": the caller then treats it as a real club. */
 export async function isDemoOrganization(organizationId: string | null | undefined): Promise<boolean> {
   if (!organizationId) return false;
-  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { isDemo: true } }).catch(() => null);
-  return org?.isDemo === true;
+  try {
+    const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { isDemo: true } });
+    return org?.isDemo === true;
+  } catch {
+    return false;
+  }
 }
 
-/** Whether a tournament is the demo club's. */
+/** Whether a tournament is the demo club's. A fault answers "no", as above. */
 export async function isDemoEvent(eventId: string | null | undefined): Promise<boolean> {
   if (!eventId) return false;
-  const event = await prisma.event
-    .findUnique({ where: { id: eventId }, select: { organization: { select: { isDemo: true } } } })
-    .catch(() => null);
-  return event?.organization.isDemo === true;
+  try {
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { organization: { select: { isDemo: true } } } });
+    return event?.organization.isDemo === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

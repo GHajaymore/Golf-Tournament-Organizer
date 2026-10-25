@@ -8,7 +8,7 @@ import { LANDING_CSS } from "@/lib/landing/styles";
 import { LandingEffects } from "@/components/LandingEffects";
 import { editionNote, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
 import { NOINDEX } from "@/lib/site";
-import { DEMO_CLUB, DEMO_EVENTS, DEMO_LABEL, DEMO_LABEL_NOTE, DEMO_WATCH_LINE } from "@/lib/domain/demo-club";
+import { DEMO_CLUB, DEMO_EVENTS, DEMO_LABEL, DEMO_LABEL_NOTE, DEMO_WATCH_LINE, demoDoorHref } from "@/lib/domain/demo-club";
 import { demoMark, demoStatus } from "@/lib/services/demo-club";
 
 export const metadata: Metadata = { title: "A demo club's day", robots: NOINDEX };
@@ -70,10 +70,10 @@ export default async function DemoPage() {
                   by the club&rsquo;s own clock. It starts again each morning.
                 </p>
                 <div className="dm-links">
-                  <a href="/demo/board">The board</a>
-                  <a href="/demo/event">The event page</a>
-                  <a href="/demo/clubhouse">The clubhouse screen</a>
-                  <a href="/demo/card">A player&rsquo;s card</a>
+                  <a href={demoDoorHref("board")}>The board</a>
+                  <a href={demoDoorHref("event")}>The event page</a>
+                  <a href={demoDoorHref("clubhouse")}>The clubhouse screen</a>
+                  <a href={demoDoorHref("card")}>A player&rsquo;s card</a>
                 </div>
               </section>
               <section className="dm-card" aria-labelledby="dm-finished">
@@ -81,8 +81,8 @@ export default async function DemoPage() {
                 <h2 id="dm-finished">{DEMO_EVENTS.finished}</h2>
                 <p>Two rounds, played earlier in the week. What the club sends round afterwards: the result first, then the whole report.</p>
                 <div className="dm-links">
-                  <a href="/demo/finished">The event page</a>
-                  <a href="/demo/report">The final report</a>
+                  <a href={demoDoorHref("finished")}>The event page</a>
+                  <a href={demoDoorHref("report")}>The final report</a>
                 </div>
               </section>
             </div>

@@ -21,6 +21,7 @@ import { writeScorecard } from "@/lib/services/scorecard-write";
 import { settingsOf } from "@/lib/services/tournament";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { boardChanged } from "@/lib/services/board-refresh";
+import { addCourseToLibrary } from "@/lib/services/course-library";
 
 /**
  * THE DEMO CLUB'S ONE WRITER (2026-10-24). `domain/demo-club.ts` says what the
@@ -174,9 +175,11 @@ export async function buildDemoClub(input: { mark: string; at?: Date }): Promise
   await prisma.tee.deleteMany({ where: { courseId: { in: courses.map((c) => c.id) } } });
   await prisma.course.deleteMany({ where: { organizationId: orgId } });
 
-  const course = await prisma.course.create({
+  // Through the course library's one door, like any club's course.
+  const added = await addCourseToLibrary({
+    organizationId: orgId,
+    origin: "entered",
     data: {
-      organizationId: orgId,
       name: DEMO_COURSE.name,
       city: DEMO_CLUB.city,
       address: "",
@@ -185,15 +188,19 @@ export async function buildDemoClub(input: { mark: string; at?: Date }): Promise
       strokeIndex: JSON.stringify(DEMO_COURSE.strokeIndex),
     },
   });
-  const tees = [];
+  if (!added.ok || !added.courseId) return { ok: false, error: "The demo club's course could not be added." };
+  const courseId = added.courseId;
+  // The men's set is the tournaments' tees; a woman plays the ladies' set by the app's own rule.
+  let white = "";
   for (const [position, t] of DEMO_COURSE.tees.entries()) {
-    tees.push(await prisma.tee.create({ data: { courseId: course.id, position, ...t } }));
+    const tee = await prisma.tee.create({ data: { courseId, position, ...t } });
+    if (t.name === "White") white = tee.id;
   }
-  await prisma.organization.update({ where: { id: orgId }, data: { defaultCourseId: course.id } });
+  await prisma.organization.update({ where: { id: orgId }, data: { defaultCourseId: courseId } });
 
   const today = clubToday(DEMO_CLUB.timeZone, at);
-  await buildFinished(orgId, course.id, tees[0].id, tokens.finished, today, at);
-  await buildToday(orgId, course.id, tees[0].id, tokens.today, today);
+  await buildFinished(orgId, courseId, white, tokens.finished, today, at);
+  await buildToday(orgId, courseId, white, tokens.today, today);
   await advanceDemoReplay({ mark: input.mark, at });
   return { ok: true, organizationId: orgId, links: demoLinks(input.mark) };
 }
@@ -267,12 +274,16 @@ async function buildFinished(orgId: string, courseId: string, teeId: string, tok
   });
   const players = await enterField(event.id);
   const settings = settingsOf(event);
-  for (const [position, day] of [day1, day2].entries()) {
+  const rounds = [
+    { position: 0, day: day1, description: "Round 1" },
+    { position: 1, day: day2, description: "Round 2" },
+  ];
+  for (const { position, day, description } of rounds) {
     const stage = await prisma.stage.create({
       data: {
         eventId: event.id,
         position,
-        description: `Round ${position + 1}`,
+        description,
         type: "Stroke Play Round",
         format: "Stroke Play",
         holes: 18,

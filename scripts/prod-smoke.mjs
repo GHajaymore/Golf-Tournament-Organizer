@@ -85,8 +85,11 @@ for (const door of DOORS) {
   console.log(`${fault ? "FAIL" : "ok  "}  ${door.path}${fault ? ` — ${fault}` : ""}`);
   if (fault) failures.push(door.path);
 }
+// The status, not `process.exit`: exiting with sockets still open crashes Node on Windows (0xC0000409),
+// which reads as a failure whatever the doors said.
 if (failures.length) {
   console.log(`\nPRODUCTION SMOKE: ${failures.length} of ${DOORS.length} doors failed on ${BASE}: ${failures.join(", ")}`);
-  process.exit(1);
+  process.exitCode = 1;
+} else {
+  console.log(`\nPRODUCTION SMOKE: all ${DOORS.length} doors answered as they should on ${BASE}.`);
 }
-console.log(`\nPRODUCTION SMOKE: all ${DOORS.length} doors answered as they should on ${BASE}.`);

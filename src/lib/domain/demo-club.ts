@@ -20,6 +20,7 @@
  */
 
 import { fieldsAt } from "./date-words";
+import { DEFAULT_LOCALE } from "./locale";
 
 /** The words on every demo page (board, event page, clubhouse screen, report). */
 export const DEMO_LABEL = "Demo club, invented players";
@@ -37,6 +38,17 @@ export const DEMO_WATCH_LINE = "Everyone can watch: the event page on any phone,
 export const DEMO_DOORS = ["board", "event", "clubhouse", "finished", "report", "card"] as const;
 export type DemoDoor = (typeof DEMO_DOORS)[number];
 
+/** The demo's own page, where the landing's button goes. */
+export const DEMO_HUB = "/demo";
+
+/**
+ * A demo door's address. A full page load on purpose (a plain `<a>`): each is a
+ * redirect answered by a route handler, not a page the client router renders.
+ */
+export function demoDoorHref(door: DemoDoor): string {
+  return `${DEMO_HUB}/${door}`;
+}
+
 /**
  * The domain every demo address is on. Reserved, so nothing sent there can
  * arrive — and a send to it is refused before it is tried (`isDemoAddress`).
@@ -51,7 +63,8 @@ export const DEMO_CLUB = {
   country: "US",
   // An east-coast club's clock: the replay plays its day by this zone.
   timeZone: "America/New_York",
-  locale: "en-US",
+  // A US club, written the way the app writes for one.
+  locale: DEFAULT_LOCALE,
   currency: "USD",
   currencySymbol: "$",
 } as const;
@@ -63,11 +76,6 @@ export const DEMO_CLUB = {
  */
 export function demoClubName(mark: string): string {
   return mark ? `${mark} ${DEMO_CLUB.name}` : DEMO_CLUB.name;
-}
-
-/** An address for a demo row, on the demo's domain. */
-export function demoAddress(mark: string, local: string): string {
-  return `${mark ? `${mark}-` : ""}${local}@${DEMO_EMAIL_DOMAIN}`;
 }
 
 /** Whether an address belongs to the demo — and so may never be sent anything. */

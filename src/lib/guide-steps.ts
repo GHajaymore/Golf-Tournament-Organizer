@@ -578,4 +578,32 @@ export const GUIDE_STEPS: GuideSection[] = [
       },
     ],
   },
+  {
+    id: "owners",
+    part: "Part 13",
+    title: "For TourneyHQ's owners: the demo club",
+    blocks: [
+      {
+        kind: "p",
+        text: "This part is for the people who run TourneyHQ itself, not for a club. The **demo club** is an invented club with invented players that anybody can watch from the front door's **See a demo club's day**: a medal **playing now**, whose holes appear through the day by the club's own clock, and a finished championship with its event page and final report. Every page of it says **Demo club, invented players**.",
+      },
+      { kind: "where", text: "The owner console, /owner → Demo club" },
+      {
+        kind: "steps",
+        items: [
+          "Press [[Create the demo club]] and confirm. It takes a few seconds and builds the club, its course and both tournaments.",
+          "To start it again from nothing at any time, press [[Refresh the demo club]] and confirm. The club, its two boards and their addresses stay the same; every card is written again.",
+          "The card links to the demo's board, event page, clubhouse screen and finished report, and says how many holes are in today.",
+        ],
+      },
+      {
+        kind: "tip",
+        text: "The medal plays itself: groups go off from eight o'clock at the club, a hole every fourteen minutes, and it starts again early each morning. A visitor who opens a player's card can tap a score; the next replay puts the club's day back.",
+      },
+      {
+        kind: "warn",
+        text: "The demo club is left out of everything about real clubs: the console's counts, the deploy freeze, plan limits and billing, the check for a club of the same name, and every email, text and notification. It never messages anybody. Only a club marked as the demo is ever rebuilt; a real club with the same name is refused and left untouched.",
+      },
+    ],
+  },
 ];

@@ -9,6 +9,10 @@ import { DEMO_LABEL, DEMO_LABEL_NOTE } from "@/lib/domain/demo-club";
  * A label, not a branch: the page around it is drawn exactly as it is for any
  * club. `data-demo-club` is how the hourly canary recognises a demo board and
  * refuses to watch it in place of a real one (`scripts/prod-smoke.mjs`).
+ *
+ * Drawn in the page's own text colour (`currentColor`), because the report
+ * draws in its own sheet rather than the club's tokens and the label sits on
+ * both.
  */
 export async function DemoClubLabel({ organizationId, large = false }: { organizationId: string; large?: boolean }) {
   if (!(await isDemoOrganization(organizationId))) return null;
@@ -17,8 +21,7 @@ export async function DemoClubLabel({ organizationId, large = false }: { organiz
       data-demo-club=""
       aria-label={DEMO_LABEL}
       style={{
-        // Fallbacks for the report page, which draws in its own sheet rather than the club's tokens.
-        border: "1px dashed var(--color-divider, currentColor)",
+        border: "1px dashed currentColor",
         borderRadius: 10,
         padding: large ? "12px 18px" : "8px 12px",
         margin: "0 0 16px",
@@ -30,7 +33,7 @@ export async function DemoClubLabel({ organizationId, large = false }: { organiz
       }}
     >
       <strong style={{ fontSize: large ? 24 : 14, letterSpacing: "0.02em" }}>{DEMO_LABEL}</strong>
-      <span style={{ fontSize: large ? 18 : 13, color: "var(--color-neutral-400, inherit)" }}>{DEMO_LABEL_NOTE}</span>
+      <span style={{ fontSize: large ? 18 : 13 }}>{DEMO_LABEL_NOTE}</span>
     </aside>
   );
 }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
 import { PLANS, effectiveAnnualPrice, onEveryPlan, retentionNotice, retentionSummary, type PlanKey } from "@/lib/plans";
-import { DEMO_CLUB, DEMO_LABEL, DEMO_WATCH_LINE } from "@/lib/domain/demo-club";
+import { DEMO_CLUB, DEMO_HUB, DEMO_LABEL, DEMO_WATCH_LINE, demoDoorHref } from "@/lib/domain/demo-club";
 import { demoCardQr } from "@/lib/landing/demo-qr";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
@@ -184,7 +184,7 @@ const AUDIENCES: Array<{ id: string; who: string; h: string; p: string; href: st
     href: "/faq#q-league", go: "How a league runs" },
   { id: "pros", who: "Golf pros", h: "Your event, from your phone.",
     p: "A clinic day, a member-guest or a company golf day, with the field scoring from a round code and no account to make.",
-    href: "/demo", go: "See a day run" },
+    href: DEMO_HUB, go: "See a day run" },
   { id: "clubs", who: "Clubs", h: "Every competition, in your colors.",
     p: "The medal, the championship and the knockout, any size of field, with the board on the clubhouse TV and in every member's hand.",
     href: "#pricing", go: "See the club plans" },
@@ -499,7 +499,7 @@ export default async function LandingPage() {
             (2026-10-24) A real club's day, played by the app itself on an invented club
             (`docs/claude/demo-club.md`). Every address is `/demo/<door>`, which goes to the
             demo's page or, before it is built, to /demo saying it is on its way. */}
-        <section className="m-chapter m-watch" id="demo" aria-labelledby="demo-h">
+        <section className="m-chapter" id="demo" aria-labelledby="demo-h">
           <div className="m-wrap">
             <div className="m-watch-grid">
               <div className="m-watch-copy">
@@ -507,13 +507,13 @@ export default async function LandingPage() {
                 <h2 id="demo-h">See a demo club&rsquo;s day.</h2>
                 <p className="m-lead">{DEMO_WATCH_LINE}</p>
                 <div className="m-cta-row">
-                  <a className="m-btn m-primary" href="/demo">See a demo club&rsquo;s day <span className="m-arrow" aria-hidden="true">→</span></a>
+                  <a className="m-btn m-primary" href={DEMO_HUB}>See a demo club&rsquo;s day <span className="m-arrow" aria-hidden="true">→</span></a>
                 </div>
                 <ul className="m-watch-links" aria-label="Straight to one of the demo club's pages">
-                  <li><a href="/demo/board">The board</a></li>
-                  <li><a href="/demo/event">The event page</a></li>
-                  <li><a href="/demo/clubhouse">The clubhouse screen</a></li>
-                  <li className="m-watch-card"><a href="/demo/card">A player&rsquo;s card</a></li>
+                  <li><a href={demoDoorHref("board")}>The board</a></li>
+                  <li><a href={demoDoorHref("event")}>The event page</a></li>
+                  <li><a href={demoDoorHref("clubhouse")}>The clubhouse screen</a></li>
+                  <li className="m-watch-card"><a href={demoDoorHref("card")}>A player&rsquo;s card</a></li>
                 </ul>
                 <p className="m-watch-note">{DEMO_LABEL}. {DEMO_CLUB.name} is made up, and so is everybody on its board.</p>
               </div>
@@ -628,7 +628,7 @@ export default async function LandingPage() {
         </section>
 
         {/* ═══════════ WHO IT'S FOR: THREE DOORS ═══════════ */}
-        <section className="m-chapter m-for" id="for" aria-labelledby="for-h">
+        <section className="m-chapter" id="for" aria-labelledby="for-h">
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">Who it&rsquo;s for</p>
@@ -673,7 +673,7 @@ export default async function LandingPage() {
         {/* ═══════════ ON EVERY PLAN, AND THREE QUESTIONS ═══════════
             The list is `onEveryPlan()` — read from PLANS, never typed here. The answers are
             short, each with its long form on /faq. */}
-        <section className="m-chapter m-every" id="every-plan" aria-labelledby="every-h">
+        <section className="m-chapter" id="every-plan" aria-labelledby="every-h">
           <div className="m-wrap">
             <div className="m-every-grid">
               <div>
