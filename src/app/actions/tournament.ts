@@ -4281,6 +4281,11 @@ export async function createEvent(
     select: {
       name: true,
       kind: true,
+      // The outfit's own word for itself, and its country's: without them every outfit was
+      // called by the default country's word ("Finish setting up your league" to a British
+      // society) once the country words made the default a US one (2026-10-24).
+      country: true,
+      communityNoun: true,
       moneyMode: true,
       _count: { select: { roster: true, events: true, courses: true } },
     },
@@ -4288,6 +4293,8 @@ export async function createEvent(
   if (owner) {
     const setup = orgSetupState({
       kind: owner.kind,
+      country: owner.country,
+      communityNoun: owner.communityNoun,
       named: organizationWasNamed(owner.name, session.name, session.email),
       hasCourse: owner._count.courses > 0,
       memberCount: owner._count.roster,
