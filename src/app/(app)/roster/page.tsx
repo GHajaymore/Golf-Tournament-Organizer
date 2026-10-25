@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { loadRoster } from "@/lib/services/roster";
 import { handicapReadable } from "@/lib/services/integrations";
 import { clubHandicapBody } from "@/lib/domain/handicap-body";
+import { handicapPolicyOf } from "@/lib/domain/handicap-policy";
 import { RosterClient } from "@/components/RosterClient";
 import { unlinkedPlayers, memberEntryFor, fieldSizeOf } from "@/lib/domain/roster-link";
 
@@ -99,6 +100,7 @@ export default async function RosterPage() {
    * server refuses is a bug report filed against the wrong thing.
    */
   const fieldLocked = !!event && configurationLocked(event);
+  const policy = handicapPolicyOf(org.handicapPolicy);
 
   return (
     <RosterClient
@@ -116,8 +118,11 @@ export default async function RosterPage() {
        * keeping its own handicaps has nothing to fetch and must not be shown a
        * warning about a service it does not use.
        */
-      handicapPolicy={org.handicapPolicy}
-      indexesReadable={org.handicapPolicy === "club" ? true : await handicapReadable(organizationId)}
+      // Read through `handicapPolicyOf`, as every reader is: a stored
+      // service-only value is the club's own record while no federation link
+      // is live (`federationLinkLive`).
+      handicapPolicy={policy}
+      indexesReadable={policy === "club" ? true : await handicapReadable(organizationId)}
       eventName={event?.name ?? ""}
       fieldLocked={fieldLocked}
       fieldSize={fieldSizeOf(entered)}

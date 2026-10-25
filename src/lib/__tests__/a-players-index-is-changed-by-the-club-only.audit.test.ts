@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi, onTestFinished } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
 /** One browser's cookie jar, so a console session round-trips for real. */
@@ -16,6 +16,13 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 vi.mock("@/lib/services/board-refresh", () => ({ boardChanged: () => {} }));
+// The "hybrid" case below holds the rule for a club whose members' indexes
+// come from a body where they have a number. That choice waits for a live
+// federation link (the team's rulings, 2026-10-24) and reads as the club's own
+// record until then; it is the rule the day a link is live, so that case
+// forces the switch on.
+const link = vi.hoisted(() => ({ live: false }));
+vi.mock("@/lib/integrations/federation-link", () => ({ federationLinkLive: () => link.live }));
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
@@ -226,6 +233,10 @@ describe("Members", () => {
   });
 
   it("refuses an assistant, a guest, an association's index, a nine-hole figure, and another club's member", async () => {
+    link.live = true;
+    onTestFinished(() => {
+      link.live = false;
+    });
     await tournament("hybrid");
     const withGhin = await entrant("Gail", 12, { ghin: "1234567" });
     const nine = await entrant("Nina", 20, { handicapType: "9" });
