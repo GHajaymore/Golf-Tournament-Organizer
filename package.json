@@ -102,7 +102,7 @@
     "@types/react-dom": "^19.0.3",
     "@types/web-push": "^3.6.4",
     "axe-core": "^4.13.0",
-    "electron": "^43.2.0",
+    "electron": "^43.8.1",
     "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.28",
@@ -110,7 +110,7 @@
     "prisma": "^6.3.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "vitest": "^2.1.8"
+    "vitest": "^5.0.5"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",
