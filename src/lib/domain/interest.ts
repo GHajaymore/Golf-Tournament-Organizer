@@ -55,6 +55,7 @@ export const INTEREST_COPY = {
   sent: (name: string, email: string) =>
     `Thanks, ${name}, you're on the list. We'll email ${email} when TourneyHQ opens, with your 25% code inside. Nothing else until then.`,
   sentPlayer: "Tournaments are set up by your club or {golfGroup}. Tell your secretary or {organizer}, and they can register here too.",
+  follow: "Follow along until then:",
   share: "Know another club or {golfGroup} that runs competitions? Send them tourneyhq.club/interest and they'll get the same offer.",
   // The front door's notice, while sign-ins are held.
   noticeOffer: "Register your interest and we'll send you 25% off your first term when accounts open.",
