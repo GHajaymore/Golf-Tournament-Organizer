@@ -3687,7 +3687,14 @@ model InterestRequest {
   /// at (utm_*, ref) and the site that sent them — read from the URL, no
   /// cookie. So the panel can tell which post or advertisement works.
   source    String   @default("")
+  /// The copy to inquiries@: the provider's message id, and where it got to
+  /// (`domain/email-delivery.ts`). "" on notes from before 2026-10-30.
+  notifyId     String    @default("")
+  notifyStatus String    @default("")
+  notifyDetail String    @default("")
+  notifyAt     DateTime?
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+  @@index([notifyId])
 }

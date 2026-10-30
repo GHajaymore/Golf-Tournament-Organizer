@@ -21,6 +21,7 @@ import { signInsClosed } from "@/lib/sign-in-gate";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
+import { deliveryWords } from "@/lib/domain/email-delivery";
 
 /** How many registrations the console lists; the rest are a query away. */
 const INTEREST_SHOWN = 200;
@@ -206,6 +207,7 @@ export default async function OwnerConsolePage() {
                   <th>Size</th>
                   <th>Note</th>
                   <th>From</th>
+                  <th>Copy to inquiries@</th>
                 </tr>
               </thead>
               <tbody>
@@ -222,6 +224,15 @@ export default async function OwnerConsolePage() {
                     <td>{sizeLabel(r.members)}</td>
                     <td style={{ minWidth: 160 }}>{r.note}</td>
                     <td className="text-muted" style={{ fontSize: 12, minWidth: 140 }}>{r.source || "direct"}</td>
+                    {(() => {
+                      const d = deliveryWords(r.notifyStatus);
+                      return (
+                        <td style={{ fontSize: 12, minWidth: 150, color: d.trouble ? "var(--color-danger)" : undefined }} title={r.notifyDetail || undefined}>
+                          {d.words}
+                          {d.trouble && r.notifyDetail ? <span className="text-muted" style={{ display: "block" }}>{r.notifyDetail}</span> : null}
+                        </td>
+                      );
+                    })()}
                   </tr>
                 ))}
               </tbody>
