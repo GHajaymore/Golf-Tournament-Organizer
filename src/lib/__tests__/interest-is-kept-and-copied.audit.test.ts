@@ -21,6 +21,7 @@ const sent: Array<{ to: string; who: { name: string; club: string; role: string 
 vi.mock("@/lib/email", () => ({
   sendInterestEmail: async (to: string, who: { name: string; club: string; role: string }) => {
     sent.push({ to, who });
+    return { id: `zz-msg-${sent.length}`, status: "sent", detail: "" };
   },
 }));
 
@@ -50,6 +51,9 @@ describe("registerInterest", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toBe("inquiries@tourneyhq.club");
     expect(sent[0].who.role).toBe("Club secretary or manager");
+    // Where the copy went is kept on the note, so /owner can say it.
+    expect(rows[0]).toMatchObject({ notifyId: "zz-msg-1", notifyStatus: "sent" });
+    expect(rows[0].notifyAt).not.toBeNull();
   });
 
   it("refuses a bad address beside its box, and keeps nothing", async () => {

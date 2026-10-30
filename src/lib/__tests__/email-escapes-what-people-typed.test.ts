@@ -103,7 +103,9 @@ describe("an email never carries markup somebody typed", () => {
     // The reset email interpolates only a URL the app built, so it has no
     // person-typed field to attack; it is the one deliberate exemption. The
     // address-proving code (2026-10-21) is the same: six digits the app made.
-    const EXEMPT = new Set(["sendPasswordResetEmail", "sendEmailCodeEmail"]);
+    // The canary's message (2026-10-30) is fixed text to the provider's test
+    // mailbox and takes no argument at all.
+    const EXEMPT = new Set(["sendPasswordResetEmail", "sendEmailCodeEmail", "sendCanaryEmail"]);
     const exported = Object.keys(email).filter((k) => /^send[A-Z]/.test(k) && !EXEMPT.has(k));
     const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail", "sendNewSignInEmail", "sendArchiveNoticeEmail"]);
     expect(exported.length, "found no senders — the sweep would pass on nothing").toBeGreaterThan(0);
