@@ -246,7 +246,10 @@ rebased onto `main` to merge.
 `needs: verify` and runs only on a push to `main`. Nothing reaches production until the
 whole gate is green. Vercel's own Git deploy for `main` is off — `vercel.json` sets
 `git.deploymentEnabled.main = false` — so that job is the only route in. Preview deploys
-on other branches are untouched.
+on `claude/*` branches are untouched, since a PR's reviewer needs one. **`round/*`, `breaks/*`
+and `dependabot/*` build no preview** (2026-10-30): a round builds its own server on the runner
+and never opened the preview, and 170 round branches had filled Function Storage past the free
+plan's 10 GB, the point at which Vercel may refuse a production deploy.
 
 **SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A FREEZE** (the testing
 panel's item C). `ci.yml`'s `deploy` job calls it; so do the nightly round (after a clean
