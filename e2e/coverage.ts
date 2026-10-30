@@ -184,6 +184,7 @@ function waitsItsTurn(page: Page): void {
  * provokes. It measures, like the rest of this file. It does not prove.
  */
 const OUT_OF_SIGHT = "[refusal out of sight] ";
+const WATCH_STOPPED = "[refusal watch] stopped on ";
 async function watchRefusals(context: BrowserContext): Promise<void> {
   await context.addInitScript(() => {
     const w = window as unknown as { __thqRefusalWatch?: boolean };
@@ -299,6 +300,9 @@ export function recordCoverage(context: BrowserContext): void {
     page.on("console", (message) => {
       const text = message.text();
       if (text.startsWith(OUT_OF_SIGHT)) void who(context).then((role) => note(`R ${role} ${text.slice(OUT_OF_SIGHT.length)}`));
+      // A watcher that stopped is said, not swallowed (the QA & Test Lead, 30 Oct): a watcher dead
+      // on every page would otherwise read as "no refusals out of sight", which looks like clean.
+      if (text.startsWith(WATCH_STOPPED)) note(`W ${text.slice(WATCH_STOPPED.length)}`);
     });
   // Every page of every context explains a hydration mismatch if one lands on
   // it — see `explainHydration`. Here, because this is the one place every
