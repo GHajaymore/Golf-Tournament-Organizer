@@ -74,9 +74,10 @@ export function OrgNounPicker({
         What to call this outfit
         <FieldInfo label="what this outfit is called">
           <p>
-            The same outfit is a <b>society</b> in Britain and Ireland and a <b>golf league</b> or{" "}
-            <b>association</b> in the United States. The app picks one from the country on this
-            page, and this is where you overrule it.
+            The same outfit is a <b>society</b> in Britain and Ireland, a <b>golf league</b> or{" "}
+            <b>association</b> in the United States, and a <b>golf group</b> or{" "}
+            <b>social club</b> in Australia, New Zealand and South Africa. The app picks one from
+            the country on this page, and this is where you overrule it.
           </p>
           <p>
             It changes the words, never the behaviour. Whatever you choose, the shared roster, the

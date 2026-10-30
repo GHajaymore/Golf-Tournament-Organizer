@@ -67,10 +67,17 @@ wrong in three words:
 | the day out | society day | golf day |
 | charity event | charity day | charity golf day |
 | a stroke-play day | medal | stroke |
+| the outfit that runs regular golf | society | golf group |
 
-Everything else is shared: fourball, organiser, society, honours. So `au` is a small register that
-follows the same pattern. It is three words away from `uk`, and `golf-terms.test.ts` holds it to
-eight differences at most. Canada stays on `us` (see the note above).
+Everything else is shared: fourball, organiser, honours. So `au` is a small register that follows
+the same pattern, and `golf-terms.test.ts` holds it to eleven differences from `uk` at most. Canada
+stays on `us` (see the note above).
+
+**The outfit's word down under (the panel, 2026-10-26).** `au` said "society" until that day. It
+is "golf group" now: Australia and New Zealand say "social club" and South Africa "golf group"
+(the table above), and the one word all three read the same is "golf group". An outfit that calls
+itself a social club picks "social club" on Club settings. Plain "club" is never a community's
+word anywhere, because it would read the same as the Golf club kind.
 
 | Register | Countries | Picked as |
 |---|---|---|

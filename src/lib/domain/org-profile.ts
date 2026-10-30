@@ -223,11 +223,10 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
  * ONLY WHAT WAS ASKED FOR IS MAPPED, and everything else falls through to the
  * wording the app already used. Two reasons that matters here. `country` is
  * free text defaulting to `""`, so "no answer" is the common case and must not
- * become a wrong answer. And the register's third example — that an Australian
- * outfit is "often just a club" — is deliberately NOT implemented: calling a
- * `community` a "club" collides head-on with the `club` kind, so an AU society
- * and an AU golf club would read identically on every screen. That wants a
- * decision from somebody, not a guess from here.
+ * become a wrong answer. And an Australian outfit is never called plain "club":
+ * that collides head-on with the `club` kind, so an AU social club and an AU
+ * golf club would read identically on every screen. The panel decided it on
+ * 2026-10-26: "golf group" by default down under, "social club" by choice.
  *
  * The country changes WORDS ONLY. Every behavioural flag below is a fact about
  * how the outfit runs its golf, and a society in Boston still fronts the
@@ -264,6 +263,24 @@ export const COMMUNITY_VOICES = {
     groupLabel: "Association",
     blurb: "An association or group that plays together and shares the costs.",
   },
+  // Australia, New Zealand and South Africa (the panel, 2026-10-26): never
+  // "society" there. "Golf group" is the register's default because it reads
+  // the same in all three; "social club" is what most Australian and New
+  // Zealand outfits call themselves, so it is offered by name.
+  golfGroup: {
+    label: "Golf group",
+    noun: "golf group",
+    settingsLabel: "Golf group settings",
+    groupLabel: "Golf group",
+    blurb: "A golf group that plays together regularly and shares the costs.",
+  },
+  socialClub: {
+    label: "Social club",
+    noun: "social club",
+    settingsLabel: "Social club settings",
+    groupLabel: "Social club",
+    blurb: "A social golf club with no course of its own, that plays together and shares the costs.",
+  },
 } as const satisfies Record<string, Words>;
 
 export type CommunityVoice = keyof typeof COMMUNITY_VOICES;
@@ -278,13 +295,9 @@ export function isCommunityVoice(v: string): v is CommunityVoice {
  * Which voice a country gets when the outfit has not said.
  *
  * ONLY WHAT WAS ASKED FOR IS MAPPED. `country` is free text defaulting to `""`,
- * so "no answer" is the common case and must not become a wrong answer — and
- * the register's third example, that an Australian outfit is "often just a
- * club", is deliberately absent: calling a `community` a "club" collides with
- * the `club` KIND, so an AU society and an AU golf club would read identically
- * on every screen. That wants a decision, not a guess — and now that an
- * organizer can override, an Australian outfit that wants a different word has
- * a way to say so without the app assuming on its behalf.
+ * so "no answer" is the common case and must not become a wrong answer. Plain
+ * "club" is never a community's word, in any country: it collides with the
+ * `club` KIND, so the two would read identically on every screen.
  */
 /**
  * SINCE 2026-10-24 THE COUNTRY'S WORD IS THE GOLF REGISTER'S (`golf-terms.ts`,

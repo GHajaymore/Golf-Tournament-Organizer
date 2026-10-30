@@ -106,10 +106,16 @@ export const GOLF_TERMS = {
    * regular golf without owning a course. Its value is also the key of
    * `COMMUNITY_VOICES` in `org-profile.ts`, which reads it from here.
    */
-  community: { us: "league", uk: "society", au: "society" },
-  /** The same outfit in running text, beside "league": "a league or golf group". */
-  golfGroup: { us: "golf group", uk: "society", au: "society" },
-  golfGroups: { us: "golf groups", uk: "societies", au: "societies" },
+  community: { us: "league", uk: "society", au: "golfGroup" },
+  /**
+   * The same outfit in running text, beside "league": "a league or golf group".
+   * Not "society" down under (the panel, 2026-10-26): Australia and New Zealand
+   * say "social club" and South Africa "golf group", and the one word all three
+   * read the same is "golf group". An outfit that calls itself a social club
+   * says so on Club settings (`COMMUNITY_VOICES.socialClub`).
+   */
+  golfGroup: { us: "golf group", uk: "society", au: "golf group" },
+  golfGroups: { us: "golf groups", uk: "societies", au: "golf groups" },
   /** The organized day out a group plays at somebody else's course. */
   outing: { us: "outing", uk: "society day", au: "golf day" },
   outings: { us: "outings", uk: "society days", au: "golf days" },
