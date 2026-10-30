@@ -144,6 +144,13 @@ const MAY_CHANGE_OWN: { what: RegExp; why: string }[] = [
   { what: /^ThreadRead \(new\)$/, why: "What they have read, in a conversation they can see." },
   { what: /^Thread \(new\)$/, why: "A conversation they started with somebody in the field." },
   {
+    what: /^Player \(new\)$/,
+    why:
+      "Their own entry, through the one-tap Enter on a tournament of their club that is taking entries (`enterThisTournament`). " +
+      "It takes the event id and nothing else, so the handicap and paid columns on the new row are the server's. The sweep " +
+      "offers whichever club event comes first, in no fixed order, so this showed up only on the runs where that event was open.",
+  },
+  {
     what: /^Player\.playWith$/,
     why: "Who they would like to be drawn with: a request on their own entry, which the organizer's draw may or may not honour.",
   },
