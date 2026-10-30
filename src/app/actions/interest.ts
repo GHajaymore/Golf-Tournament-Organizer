@@ -5,6 +5,21 @@ import { checkInterest, roleLabel, sizeLabel } from "@/lib/domain/interest";
 import { sendInterestEmail } from "@/lib/email";
 import { SALES_EMAIL } from "@/lib/contact";
 
+/**
+ * WHERE THE OWNER'S COPY GOES (2026-10-30). inquiries@ is behind ImprovMX, and
+ * on 27 Oct ImprovMX refused the copy outright because the provider's SHARED
+ * sending address was on the SpamCop list ("551 5.7.1 Your IP is black listed
+ * by SpamCop") — nothing we send can avoid that, and it comes and goes. So
+ * production names a mailbox that is not behind the forwarder in
+ * `INTEREST_NOTIFY_TO` (Ajay's ruling: his own business inbox), which also
+ * keeps these copies off the forwarder's allowance. Unset, or not an address,
+ * it is inquiries@ as before. Kept out of the source: the repository is public.
+ */
+function interestCopyTo(): string {
+  const named = (process.env.INTEREST_NOTIFY_TO ?? "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(named) ? named : SALES_EMAIL;
+}
+
 export interface InterestResult {
   ok: boolean;
   error?: string;
@@ -33,7 +48,7 @@ export async function registerInterest(raw: unknown): Promise<InterestResult> {
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   const row = await prisma.interestRequest.create({ data: who, select: { id: true } });
-  const copy = await sendInterestEmail(SALES_EMAIL, {
+  const copy = await sendInterestEmail(interestCopyTo(), {
     name: who.name,
     email: who.email,
     phone: who.phone,
