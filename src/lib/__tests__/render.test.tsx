@@ -6335,7 +6335,7 @@ describe("the honours board", () => {
       );
 
     expect(inside("community")).toContain("Every champion this society has confirmed");
-    expect(inside("personal")).toContain("Every champion this outing has confirmed");
+    expect(inside("personal")).toContain("Every champion this group has confirmed");
     // THE ASSERTION THAT KEEPS THIS FROM BEING A REWRITE FOR EVERYBODY.
     expect(inside("club")).toContain("Every champion this club has confirmed");
     // And with no provider at all — a surface nobody has wired — the club
@@ -6552,7 +6552,7 @@ describe("club settings", () => {
       ["club", "Club settings"],
       // No country: a US league, the app's default (2026-10-24).
       ["community", "League settings"],
-      ["personal", "Outing settings"],
+      ["personal", "Settings"],
     ] as const) {
       const html = await club({ kind });
       expect(html, kind).toContain(heading);
@@ -6680,10 +6680,12 @@ describe("how money works", () => {
     expect(society).toContain("this league");
     expect(society).not.toContain("this club");
 
-    // A personal organizer runs an OUTING — neither a club nor a society.
+    // A personal organizer is neither a club nor a society, and never an
+    // "outing": an outing is one day (the panel, 2026-10-26).
     const solo = await money({ orgKind: "personal", clubName: "" });
-    expect(solo).toContain("this outing");
-    expect(solo).toContain("Outing settings");
+    expect(solo).toContain("this group");
+    expect(solo).not.toMatch(/outing/i);
+    expect(solo).toContain("Settings");
   });
 
   it("puts the club default on club settings, where the checklist sends people", async () => {
