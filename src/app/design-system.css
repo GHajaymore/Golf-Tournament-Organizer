@@ -705,6 +705,36 @@ textarea.input { min-height: 90px; resize: vertical; }
    matters. Caught by dialog.spec's controls-inside-the-dialog check. */
 .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
 
+/* ── The redesign's side panel (2026-10-30) ────────────────────────────────
+   One thing open at a time (Ajay, 26 Oct): a panel at the right, the whole screen
+   on a phone. Rounds & formats is its first user, behind `?view=timeline`. The
+   other shared pieces (a four-slot row, the "⋯" menu, a button that says why it is
+   disabled, an empty state) arrive with their first screen: a piece no screen
+   uses is refused by `domain-is-reachable`. */
+.side-panel-backdrop {
+  position: fixed; inset: 0; z-index: 40;
+  background: color-mix(in srgb, var(--color-neutral-900) 40%, transparent);
+  display: flex; justify-content: flex-end;
+}
+/* A kept-mounted panel that is closed: `display: flex` above would otherwise win over `hidden`. */
+.side-panel-backdrop[hidden] { display: none; }
+.side-panel {
+  width: min(560px, 100%); height: 100dvh; display: flex; flex-direction: column;
+  background: var(--color-surface); box-shadow: var(--shadow-lg); outline: none;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: side-panel-in 160ms ease-out;
+}
+.side-panel-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-4); border-bottom: 1px solid var(--color-divider);
+}
+.side-panel-kicker { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); }
+.side-panel-title { margin: 0; font-size: 19px; overflow-wrap: anywhere; }
+.side-panel-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-4); display: grid; gap: var(--space-4); align-content: start; }
+.side-panel-foot { padding: var(--space-3) var(--space-4); border-top: 1px solid var(--color-divider); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+@keyframes side-panel-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .side-panel { animation: none; } }
+
 
 /* ── Score entry ───────────────────────────────────────────────────────────
    Built for the place it is actually used: outdoors, one-handed, on a phone,
