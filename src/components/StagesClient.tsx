@@ -27,7 +27,7 @@ import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
-import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
+import { INTERVAL_OPTIONS, dueBeforePlayed, roundDates, shortDate } from "@/lib/domain/round-dates";
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
@@ -1060,7 +1060,11 @@ function StageCard({
   /** Whether this round raises a tie question at all — every kind but a round scored by hand. */
   const roundRaisesTies = (isKnockoutRound(stage.type) || stage.type === "Single Match Stage" || stage.type === "Round Robin" || (isIndividualStrokeRound(stage) && !isManualFormat(format)) || (stage.type === "Stroke Play Round" && entryModeFor(format) === "team" && !isManualFormat(format)));
   const customizeParts: string[] = [];
-  if (deadline) customizeParts.push(`Due ${isIsoDate(deadline) ? shortDate(deadline, locale) : deadline}`);
+  if (deadline) {
+    customizeParts.push(
+      `Due ${isIsoDate(deadline) ? shortDate(deadline, locale) : deadline}${dueBeforePlayed(deadline, playedOn) ? ", before the round is played" : ""}`,
+    );
+  }
   if (scoreInput && scoreInput !== declaredInput(format)) {
     customizeParts.push(MATCH_ENTRY_MODES.find((m) => m.key === scoreInput)?.label ?? "Scores recorded differently");
   }
@@ -1209,13 +1213,25 @@ function StageCard({
                   disabled={pending}
                   onChange={(e) => {
                     const date = e.target.value;
+                    const before = deadline;
                     setDeadline(date);
                     startTransition(async () => {
                       const res = await setStageDeadline(stage.id, date);
                       setDueError(res.ok ? "" : res.error ?? "Couldn't save that.");
+                      // A refused date is not left in the box as if it were kept.
+                      if (!res.ok) setDeadline(before);
                     });
                   }}
                 />
+                {/* A deadline saved before the round was moved later stays
+                    behind it, and cannot be met. Said here, beside the box that
+                    changes it (2026-10-30, Ajay's "Due Fri, Oct 23" on a round
+                    played on 6 Nov). */}
+                {!dueError && dueBeforePlayed(deadline, playedOn) && (
+                  <p className="form-error" role="alert" style={{ margin: "4px 0 0" }}>
+                    This is before the round is played ({shortDate(playedOn, locale)}). Pick that day or later.
+                  </p>
+                )}
                 {dueError && (
                   <p className="form-error" role="alert" style={{ margin: "4px 0 0" }}>
                     {dueError}
