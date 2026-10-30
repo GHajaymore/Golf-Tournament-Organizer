@@ -270,7 +270,7 @@ test("the list lines up, says why a tournament cannot be deleted, and reads true
     const why = row("Away Fixture").getByRole("button", { name: "Why can't I delete Away Fixture?", exact: true });
     await centre(why);
     await why.click();
-    await expect(row("Away Fixture").getByRole("alert")).toHaveText("Only an organizer of this tournament can delete it.");
+    await expect(row("Away Fixture").getByRole("status")).toHaveText("Only an organizer of this tournament can delete it.");
     expect(await prisma.event.count({ where: { id: fixture.event.id } }), "asking why deleted it").toBe(1);
 
     // ── asking before deleting says what goes with it, and Keep keeps it ──

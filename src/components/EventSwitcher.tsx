@@ -207,7 +207,8 @@ export function EventSwitcher({
                       {e.createdOn && ` · created ${e.createdOn}`}
                     </div>
                     {whyId === e.id && (
-                      <div className="form-error" role="alert" style={{ fontSize: 13, fontWeight: 400, marginTop: 4 }}>
+                      // Information, not an error (the panel, 30 Oct): said politely, in the muted style.
+                      <div className="text-muted" role="status" style={{ fontSize: 13, fontWeight: 400, marginTop: 4 }}>
                         {ONLY_THE_ORGANIZER}
                       </div>
                     )}
@@ -234,7 +235,7 @@ export function EventSwitcher({
                               "Delete tournament" buttons to anyone reading by
                               name, and a "Confirm delete" that destroys a
                               tournament without saying which. */}
-                          <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"} for good`} aria-label={`Delete ${e.name || "this tournament"} for good`} disabled={pending} style={{ color: "var(--color-accent-200)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
+                          <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"} for good`} aria-label={`Delete ${e.name || "this tournament"} for good`} disabled={pending} style={{ color: "var(--color-danger)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
                             <Icon name="check" />
                           </button>
                           <button type="button" className="btn btn-icon" title={`Keep ${e.name || "this tournament"}`} aria-label={`Keep ${e.name || "this tournament"}`} onClick={() => setConfirmingId("")}>
@@ -257,7 +258,7 @@ export function EventSwitcher({
                               <Icon name="trash" />
                             </button>
                           ) : (
-                            <button type="button" className="btn btn-icon" title={ONLY_THE_ORGANIZER} aria-label={`Why can't I delete ${e.name || "this tournament"}?`} aria-expanded={whyId === e.id} style={{ opacity: 0.45 }} onClick={() => setWhyId(whyId === e.id ? "" : e.id)}>
+                            <button type="button" className="btn btn-icon" title={ONLY_THE_ORGANIZER} aria-label={`Why can't I delete ${e.name || "this tournament"}?`} aria-expanded={whyId === e.id} style={{ opacity: 0.6, border: "1px dashed var(--color-divider)" }} onClick={() => setWhyId(whyId === e.id ? "" : e.id)}>
                               <Icon name="trash" />
                             </button>
                           )}
