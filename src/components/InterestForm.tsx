@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { registerInterest } from "@/app/actions/interest";
 import { INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES, INTEREST_SIZES, interestSource, interestWords } from "@/lib/domain/interest";
 import { golfTermsFor, type GolfRegister } from "@/lib/domain/golf-terms";
+import { SOCIAL_LINKS } from "@/lib/contact";
 
 type Field = "name" | "email" | "phone" | "club" | "role" | "members" | "note";
 
@@ -49,6 +50,17 @@ export function InterestForm({ register }: { register: GolfRegister }) {
             </button>
           </p>
         )}
+        <p className="iv-small">
+          {INTEREST_COPY.follow}{" "}
+          {SOCIAL_LINKS.map((s, i) => (
+            <span key={s.name}>
+              {i > 0 ? " · " : null}
+              <a href={s.url} target="_blank" rel="noopener noreferrer">
+                {s.name}
+              </a>
+            </span>
+          ))}
+        </p>
       </div>
     );
   }

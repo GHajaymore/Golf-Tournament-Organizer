@@ -32,8 +32,8 @@ export async function registerInterest(raw: unknown): Promise<InterestResult> {
   const limit = await checkRateLimit("interest", who.email);
   if (!limit.allowed) return { ok: false, error: limit.message };
 
-  await prisma.interestRequest.create({ data: who });
-  await sendInterestEmail(SALES_EMAIL, {
+  const row = await prisma.interestRequest.create({ data: who, select: { id: true } });
+  const copy = await sendInterestEmail(SALES_EMAIL, {
     name: who.name,
     email: who.email,
     phone: who.phone,
@@ -41,6 +41,13 @@ export async function registerInterest(raw: unknown): Promise<InterestResult> {
     role: roleLabel(who.role),
     size: sizeLabel(who.members),
     note: who.note,
+  });
+  // Where the copy got to, on the note itself: /owner reads it, and the
+  // provider's delivery events (/api/email-events) move it on from "sent".
+  // The person is told they are on the list either way — the row is the record.
+  await prisma.interestRequest.update({
+    where: { id: row.id },
+    data: { notifyId: copy.id, notifyStatus: copy.status, notifyDetail: copy.detail, notifyAt: new Date() },
   });
   return { ok: true };
 }
