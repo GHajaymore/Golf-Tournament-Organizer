@@ -201,3 +201,88 @@ test("a practice tournament is deleted only when asked twice, with every row of 
   }
   expect(errors, errors.join("\n")).toEqual([]);
 });
+
+/**
+ * THE LIST READS TRUE AND LINES UP (Ajay, 2026-10-26, on his own list):
+ *
+ *   alignment     the bin was drawn only on rows its reader could delete, so
+ *                 Manage sat further right on every other row
+ *   not deletable a row with no bin said nothing about why; now the bin is
+ *                 there and, pressed, says only an organizer may delete it
+ *   dates passed  a draft a month after its last day read "Draft"
+ *   same name     two tournaments called the same could not be told apart
+ *   what goes     the question before deleting says the players and scores go too
+ */
+test("the list lines up, says why a tournament cannot be deleted, and reads true about dates and names", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+  const errors: string[] = [];
+  watchPageErrors(page, errors, "secretary");
+  const mark = markFor("rows", testInfo.project.name);
+  const away = `${mark}-away`;
+  const club = await makeClub(mark);
+  const other = await makeClub(away);
+  try {
+    const live = await makeEvent(club, "Club Championship", { status: "live", stages: [{}], players: 2 });
+    const passed = await makeEvent(club, "Summer Matchplay", {
+      stages: [{}],
+      players: 3,
+      event: { startOn: "2025-07-30", endOn: "2025-09-26", dates: "30 Jul – 26 Sep 2025" },
+    });
+    const twinA = await makeEvent(club, "Spring Medal", { stages: [{}] });
+    const twinB = await makeEvent(club, "Spring Medal", { stages: [{}] });
+    await prisma.event.update({ where: { id: twinA.event.id }, data: { createdAt: new Date("2026-03-02T12:00:00Z") } });
+    await prisma.event.update({ where: { id: twinB.event.id }, data: { createdAt: new Date("2026-04-06T12:00:00Z") } });
+    // Another club's tournament the secretary helps with, and may not delete.
+    const fixture = await makeEvent(other, "Away Fixture", { stages: [{}] });
+    await prisma.account.create({
+      data: { eventId: fixture.event.id, name: "Rowan Secretary", email: `${mark}-secretary@example.invalid`, role: "assistant" },
+    });
+    await signIn(context, baseURL!, club, live.event.id);
+    await openTournaments(page);
+    const row = (name: string) => page.locator("tbody tr").filter({ hasText: name });
+
+    // ── the status says what is true ──
+    await expect(row("Summer Matchplay").locator(".tag")).toHaveText("Dates passed, not launched");
+    await expect(row("Club Championship").locator(".tag").first()).toHaveText("Live");
+    await expect(row("Away Fixture").locator(".tag")).toHaveText("Draft");
+
+    // ── two of one name are told apart, and a name used once is not dated ──
+    const twins = row("Spring Medal");
+    await expect(twins).toHaveCount(2);
+    const said = await twins.locator("td").first().allInnerTexts();
+    for (const s of said) expect(s, "a twin without the day it was created").toMatch(/· created /);
+    expect(new Set(said).size, "two twins read the same").toBe(2);
+    await expect(row("Summer Matchplay").locator("td").first()).not.toContainText("created");
+
+    // ── every bin and every Manage stand in one column ──
+    const edges = await page.locator("tbody [data-row-actions]").evaluateAll((boxes) =>
+      boxes.map((b) => {
+        const kids = [...b.children].map((c) => c.getBoundingClientRect());
+        return { primary: Math.round(kids[0].right), bin: Math.round(kids[1].left) };
+      }),
+    );
+    expect(edges.length, "rows with actions").toBe(5);
+    expect(new Set(edges.map((e) => e.bin)).size, `the bins are not in one column: ${JSON.stringify(edges)}`).toBe(1);
+    expect(new Set(edges.map((e) => e.primary)).size, `Manage is not in one column: ${JSON.stringify(edges)}`).toBe(1);
+
+    // ── a tournament the reader may not delete says so, where the bin was pressed ──
+    await expect(row("Away Fixture").getByRole("button", { name: "Delete Away Fixture", exact: true })).toHaveCount(0);
+    const why = row("Away Fixture").getByRole("button", { name: "Why can't I delete Away Fixture?", exact: true });
+    await centre(why);
+    await why.click();
+    await expect(row("Away Fixture").getByRole("alert")).toHaveText("Only an organizer of this tournament can delete it.");
+    expect(await prisma.event.count({ where: { id: fixture.event.id } }), "asking why deleted it").toBe(1);
+
+    // ── asking before deleting says what goes with it, and Keep keeps it ──
+    const bin = row("Summer Matchplay").getByRole("button", { name: "Delete Summer Matchplay", exact: true });
+    await centre(bin);
+    await bin.click();
+    await expect(row("Summer Matchplay")).toContainText("Delete with its 3 players and every score?");
+    await page.getByRole("button", { name: "Keep Summer Matchplay", exact: true }).click();
+    expect(await prisma.event.count({ where: { id: passed.event.id } }), "Keep deleted it").toBe(1);
+  } finally {
+    await dropClub(away);
+    await dropClub(mark);
+  }
+  expect(errors, errors.join("\n")).toEqual([]);
+});

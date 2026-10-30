@@ -36,7 +36,14 @@ export interface EventRow {
    * used to be.
    */
   isCasual?: boolean;
+  /** Not launched, and its last day has gone by at the club (`datesPassedUnlaunched`). */
+  datesPassed?: boolean;
+  /** The day it was created, written the club's way — only when another tournament shares its name. */
+  createdOn?: string;
 }
+
+/** Said where the bin is pressed by somebody who may not delete (`deleteEvent`'s one refusal). */
+const ONLY_THE_ORGANIZER = "Only an organizer of this tournament can delete it.";
 
 const STATUS: Record<string, { label: string; tag: string }> = {
   draft: { label: "Draft", tag: "tag-neutral" },
@@ -45,6 +52,7 @@ const STATUS: Record<string, { label: string; tag: string }> = {
   live: { label: "Live", tag: "tag-accent-2" },
   completed: { label: "Completed", tag: "tag-neutral" },
 };
+const DATES_PASSED = { label: "Dates passed, not launched", tag: "tag-outline" };
 
 export function EventSwitcher({
   events,
@@ -86,6 +94,8 @@ export function EventSwitcher({
    * overrule it. Defined below, once `startTransition` exists.
    */
   const [confirmingId, setConfirmingId] = useState("");
+  /** The row whose bin was pressed by somebody who may not delete it. */
+  const [whyId, setWhyId] = useState("");
   // Deliberately defaults to a blank tournament even though copying is listed
   // first: anyone who clicks Create without reading gets exactly what that
   // button has always done, and copying stays a decision they made on purpose.
@@ -186,21 +196,39 @@ export function EventSwitcher({
           </thead>
           <tbody>
             {tournaments.map((e) => {
-              const s = STATUS[e.status] ?? STATUS.draft;
+              // "Draft" a month after the last day is what the column holds, not what is true.
+              const s = e.datesPassed ? DATES_PASSED : (STATUS[e.status] ?? STATUS.draft);
               return (
                 <tr key={e.id} style={e.isActive ? { background: "var(--color-accent-900)" } : undefined}>
                   <td style={{ fontWeight: 500 }}>
                     {e.name || "Untitled"}
-                    <div className="text-muted" style={{ fontSize: 13 }}>{e.dates || "No dates set"}</div>
+                    <div className="text-muted" style={{ fontSize: 13 }}>
+                      {e.dates || "No dates set"}
+                      {e.createdOn && ` · created ${e.createdOn}`}
+                    </div>
+                    {whyId === e.id && (
+                      <div className="form-error" role="alert" style={{ fontSize: 13, fontWeight: 400, marginTop: 4 }}>
+                        {ONLY_THE_ORGANIZER}
+                      </div>
+                    )}
                   </td>
                   <td><span className={`tag ${s.tag}`}>{s.label}</span></td>
                   <td className="text-muted">{e.course || "—"}</td>
                   <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{e.players}</td>
                   <td style={{ textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
+                    {/* ONE SLOT FOR THE BIN ON EVERY ROW (Ajay, 2026-10-26: the
+                        buttons did not line up). The bin was drawn only for an
+                        organizer, so Manage sat 40px further right on every row
+                        without one. Now every row keeps the slot, and a row its
+                        reader may not delete says why when the bin is pressed. */}
+                    <div data-row-actions style={{ display: "grid", gridTemplateColumns: "auto 34px", gap: 6, justifyContent: "end", alignItems: "center" }}>
                       {confirmingId === e.id ? (
-                        <>
-                          <span className="text-muted" style={{ fontSize: 13 }}>Delete?</span>
+                        <div style={{ gridColumn: "1 / -1", display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
+                          {/* Says what goes with it: the bin deletes the field
+                              and every card too (`deleteEvent` cascades). */}
+                          <span className="text-muted" style={{ fontSize: 13, textAlign: "right", maxWidth: 220 }}>
+                            {e.players > 0 ? `Delete with its ${e.players} ${e.players === 1 ? "player" : "players"} and every score?` : "Delete?"}
+                          </span>
                           {/* NAMED. Every control in this table acted on a
                               row and said only what it did — twelve identical
                               "Delete tournament" buttons to anyone reading by
@@ -212,7 +240,7 @@ export function EventSwitcher({
                           <button type="button" className="btn btn-icon" title={`Keep ${e.name || "this tournament"}`} aria-label={`Keep ${e.name || "this tournament"}`} onClick={() => setConfirmingId("")}>
                             <Icon name="x" />
                           </button>
-                        </>
+                        </div>
                       ) : (
                         <>
                           {e.isActive ? (
@@ -224,8 +252,12 @@ export function EventSwitcher({
                           ) : (
                             <span className="text-muted" style={{ fontSize: 13 }}>No access</span>
                           )}
-                          {e.isOrganizer && (
-                            <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"}`} aria-label={`Delete ${e.name || "this tournament"}`} disabled={pending} onClick={() => setConfirmingId(e.id)}>
+                          {e.isOrganizer ? (
+                            <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"}`} aria-label={`Delete ${e.name || "this tournament"}`} disabled={pending} onClick={() => { setWhyId(""); setConfirmingId(e.id); }}>
+                              <Icon name="trash" />
+                            </button>
+                          ) : (
+                            <button type="button" className="btn btn-icon" title={ONLY_THE_ORGANIZER} aria-label={`Why can't I delete ${e.name || "this tournament"}?`} aria-expanded={whyId === e.id} style={{ opacity: 0.45 }} onClick={() => setWhyId(whyId === e.id ? "" : e.id)}>
                               <Icon name="trash" />
                             </button>
                           )}
