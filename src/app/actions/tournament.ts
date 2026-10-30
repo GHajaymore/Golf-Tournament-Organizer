@@ -64,7 +64,7 @@ import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { formatFitsRound, naturalFormatFor, newRoundBasis, unscorableRoundLabels } from "@/lib/domain/round-choices";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
-import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
+import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
@@ -1724,9 +1724,21 @@ export async function setStageDeadline(stageId: string, deadline: string): Promi
   const eventId = await requireStaffEvent();
   // Not behind the lock: moving the day scores are due is a decision made
   // during an event (rain, a late group) — Ajay, 2026-09-27.
-  const updated = await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
+  //
+  // A date or nothing (2026-10-30): this is a public endpoint and stored
+  // whatever text it was handed. And never before the round's own day — Ajay's
+  // round played on 6 Nov read "Due Fri, Oct 23" (`dueBeforePlayed`).
+  const typed = typeof deadline === "string" ? deadline : "";
+  const due = cleanIsoDate(typed);
+  if (typed.trim() && !due) return { ok: false, error: "Pick a date from the calendar." };
+  const round = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } });
   // A round removed in another tab matched nothing, and the box went on showing a date nobody
   // held, with nothing said (2026-10-21). The same words the sign-up deadline uses.
+  if (!round) return { ok: false, error: "That round isn't in this tournament." };
+  if (dueBeforePlayed(due, round.playedOn)) {
+    return { ok: false, error: "That's before the round is played. Pick the round's day or later." };
+  }
+  const updated = await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline: due } });
   if (updated.count === 0) return { ok: false, error: "That round isn't in this tournament." };
   await refresh();
   return { ok: true };
