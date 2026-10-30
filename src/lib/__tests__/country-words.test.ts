@@ -307,8 +307,8 @@ describe("what each register reads, where Ajay looked", () => {
       casual: "A match, a medal or a fourball",
     },
     au: {
-      tagline: "Leagues and societies",
-      club: "Club or society",
+      tagline: "Leagues and golf groups",
+      club: "Club or golf group",
       help: /Ask your organiser\./,
       casual: "A match, a stroke round or a fourball",
     },
