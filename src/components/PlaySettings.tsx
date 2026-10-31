@@ -49,6 +49,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { StickySave } from "./StickySave";
 import FieldInfo from "./FieldInfo";
 import { MoreInfo } from "./MoreInfo";
+import { useGolfTerms } from "./GolfTermsProvider";
 
 export interface RoundCode {
   stageId: string;
@@ -221,6 +222,7 @@ export function PlaySettings({
   defaultTeeId = null,
 }: Props) {
   const [form, setForm] = useState<TournamentSettings>(settings);
+  const golf = useGolfTerms();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState("");
@@ -789,11 +791,11 @@ export function PlaySettings({
               <Link
                 href={`/print?round=${rounds.find((r) => r.code)!.stageId}&docs=spare,signs`}
                 className="btn btn-secondary"
-                style={{ fontSize: 13, minHeight: 36, display: "inline-flex", alignItems: "center", gap: 6 }}
+                style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)", display: "inline-flex", alignItems: "center", gap: 6 }}
               >
                 <Icon name="qr-code" /> Print the signs
               </Link>{" "}
-              <span className="text-muted">One sign per round for walk-ins and the first tee, and a named one for every cart, in the {screenName("/print")}.</span>
+              <span className="text-muted">One sign per round for walk-ins and the first tee, and a named one for every {golf.cart}, in the {screenName("/print")}.</span>
             </p>
           )}
         </div>

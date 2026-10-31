@@ -27,5 +27,5 @@ import { redirect } from "next/navigation";
  * somebody with no draw yet needs to be.
  */
 export default function ScorecardPage() {
-  redirect("/print?docs=cards,group-cards");
+  redirect("/print?docs=cards");
 }

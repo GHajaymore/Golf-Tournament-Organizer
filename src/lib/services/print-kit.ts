@@ -23,9 +23,14 @@ import { indexFigure } from "@/lib/domain/handicap-label";
 import { isLeaderboardPublic, usesAccessCodes } from "@/lib/tournament-settings";
 import { TEAM_SESSION } from "@/lib/services/cup";
 import type { PrintGroup, PrintSide, PrintTeamRound } from "@/components/TeeSheetPrint";
+import { GOLF_TERMS, golfRegister, golfTermsFor, type GolfWords } from "@/lib/domain/golf-terms";
 import {
   DOC_ORDER,
+  cardFormat,
   defaultPaper,
+  type CardFormat,
+  type CardsBy,
+  type SignsBy,
   fingerprintOf,
   goneSheets,
   paperRefusals,
@@ -82,17 +87,30 @@ export interface KitCode {
   qr: { d: string; size: number };
 }
 
-export interface ScorecardPage {
-  doc: "cards" | "group-cards";
+/**
+ * WHAT A CARD IS ON PAPER (ruling of 30 Oct): the normal scorecard, or — only
+ * where it genuinely cannot hold the content (`cardFormat`) — a fold-out that
+ * folds to it. A starting sheet is a page of its own.
+ */
+interface Paper {
+  format: CardFormat | "page";
+  /** Why a fold-out, in the hub's words; empty otherwise. */
+  formatWhy: string;
+}
+
+export interface ScorecardPage extends Paper {
+  doc: "cards";
   key: string;
   label: string;
   fp: string;
   group: PrintGroup;
+  /** One card per player or side, or the group's card with every name on it. */
+  unit: "player" | "side" | "group";
   /** Signature words under the grid, which differ by format (Rule 3.3b, 23.6, 22.1). */
   signNote: string;
 }
 
-export interface SlipPage {
+export interface SlipPage extends Paper {
   doc: "slips";
   key: string;
   label: string;
@@ -121,7 +139,7 @@ export interface CupSection {
   matches: Array<{ label: string; rows: CupRow[] }>;
 }
 
-export interface CupPage {
+export interface CupPage extends Paper {
   doc: "cup";
   key: string;
   label: string;
@@ -139,13 +157,17 @@ export interface CupPage {
   };
 }
 
-export interface SignPage {
+export interface SignPage extends Paper {
   doc: "signs";
   key: string;
   label: string;
   fp: string;
   sign: {
     groupName: string;
+    /** "Cart 7A" in the club's words; empty on a walking group's sign. */
+    cartName: string;
+    /** This cart's riders, in bold among the group; empty when the sign is the whole group's. */
+    riders: string[];
     time: string;
     start: string;
     startLarge: boolean;
@@ -157,7 +179,7 @@ export interface SignPage {
   };
 }
 
-export interface SparePage {
+export interface SparePage extends Paper {
   doc: "spare";
   key: string;
   label: string;
@@ -165,13 +187,12 @@ export interface SparePage {
   spare: { roundName: string; code: KitCode; liveLine: string; host: string };
 }
 
-export interface StartPage {
+export interface StartPage extends Paper {
   doc: "start";
   key: string;
   label: string;
   fp: string;
   start: {
-    copy: "noticeboard" | "starter";
     part: number;
     parts: number;
     rows: Array<{ time: string; start: string; group: string; name: string; playing: string; tee: string; first: boolean }>;
@@ -229,6 +250,10 @@ export interface PrintKit {
   nowWords: string;
   /** Anything on these pages that paper must never carry (`paperRefusals`), quoted. */
   refusals: string[];
+  /** The club's golf words the hub and the pages say: a {cart} is a buggy in Britain. */
+  words: { cart: string; carts: string };
+  cardsBy: CardsBy;
+  signsBy: SignsBy;
 }
 
 /**
@@ -265,6 +290,9 @@ const NO_KIT = (eventId: string): PrintKit => ({
   gone: [],
   nowWords: "",
   refusals: [],
+  words: { cart: GOLF_TERMS.cart.us, carts: GOLF_TERMS.carts.us },
+  cardsBy: "player",
+  signsBy: "cart",
 });
 
 /** Pages are sealed with a fingerprint of everything drawn on them, the round's header included. */
@@ -278,7 +306,7 @@ export const START_ROWS_PER_PAGE = 30;
 
 export async function printKit(
   eventId: string,
-  opts: { stageId?: string; origin: string; now?: Date },
+  opts: { stageId?: string; origin: string; now?: Date; cardsBy?: CardsBy; signsBy?: SignsBy },
 ): Promise<PrintKit> {
   const state = await loadEventState(eventId);
   if (!state) return NO_KIT(eventId);
@@ -288,8 +316,11 @@ export async function printKit(
   const brand = await brandForEvent(eventId);
   const { locale } = await formattingForEvent(eventId);
   const org = state.event.organizationId
-    ? await prisma.organization.findUnique({ where: { id: state.event.organizationId }, select: { country: true } })
+    ? await prisma.organization.findUnique({ where: { id: state.event.organizationId }, select: { country: true, golfTerms: true } })
     : null;
+  const golf = golfTermsFor(golfRegister(org?.country, org?.golfTerms));
+  const cardsBy: CardsBy = opts.cardsBy ?? "player";
+  const signsBy: SignsBy = opts.signsBy ?? "cart";
   const zone = state.timeZone;
   const words = (at: Date) => stampWords(at, locale, zone);
 
@@ -307,10 +338,24 @@ export async function printKit(
     host,
     rounds: rounds.map((r) => ({ id: r.id, label: roundName(r) })),
     nowWords: words(now),
+    words: { cart: golf.cart, carts: golf.carts },
+    cardsBy,
+    signsBy,
   };
   if (!stage) return kit;
 
-  const built = await roundKit(state, stage, { locale, words, host, origin: opts.origin, roundName, codesOn: usesAccessCodes(settings), publicBoard: isLeaderboardPublic(settings) });
+  const built = await roundKit(state, stage, {
+    locale,
+    words,
+    host,
+    origin: opts.origin,
+    roundName,
+    codesOn: usesAccessCodes(settings),
+    publicBoard: isLeaderboardPublic(settings),
+    golf,
+    cardsBy,
+    signsBy,
+  });
   kit.round = { id: stage.id, label: roundName(stage), format: stage.format };
   kit.sheet = built.sheet;
   kit.groupsAsOf = built.groupsAsOf;
@@ -366,8 +411,13 @@ async function roundKit(
     roundName: (s: Stage) => string;
     codesOn: boolean;
     publicBoard: boolean;
+    golf: GolfWords;
+    cardsBy: CardsBy;
+    signsBy: SignsBy;
   },
 ) {
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const Cart = cap(ctx.golf.cart);
   const eventId = state.event.id;
   const holes = holesPlayed(stage.holes);
   const savedSheet = parseTeeSheet(stage.teeSheet);
@@ -432,7 +482,7 @@ async function roundKit(
   const noSheet = "Save the round's groups on the Tee sheet first — these are printed from it.";
   const notPublished = "Publish the Tee sheet first — these go to the players, so they are printed from the published groups.";
 
-  /* ── Named scorecards ─────────────────────────────────────────────── */
+  /* ── Scorecards: one per player or side, or one per group ─────────── */
   {
     const pages: KitPage[] = [];
     let unavailable = "";
@@ -445,9 +495,36 @@ async function roundKit(
         : teams
           ? "One partner's signature is enough for the side (Rule 23.6)."
           : "The marker certifies the hole scores; the player signs the card (Rule 3.3b).";
+      /** The tees in play on one card, and — for a shared ball — how long its line of names is. */
+      const formatOf = (ids: string[], rows: number) => {
+        const tees = new Set(ids.map((id) => kitPlayers.get(id)?.tee ?? "").filter(Boolean)).size;
+        const names = teamRound?.sharedBall ? ids.map((id) => kitPlayers.get(id)?.name ?? "").join(" & ").length : 0;
+        return cardFormat({ kind: "scorecard", rows, tees, sharedBallNames: names });
+      };
+      // ONE PER GROUP is an outing's group card, and only an individual format has one:
+      // a team round's card is the side's (Rule 23.2b), however the groups are drawn.
+      const byGroup = ctx.cardsBy === "group" && !teams;
       for (const { g } of fieldGroups) {
+        if (byGroup) {
+          const ids = g.playerIds.filter((id) => kitPlayers.has(id));
+          if (ids.length === 0) continue;
+          const f = formatOf(ids, ids.length);
+          pages.push(
+            seal(common, {
+              doc: "cards" as const,
+              key: `cards:group:${g.name}`,
+              label: `${g.name} — group card`,
+              group: groupFrom(g, ids),
+              unit: "group" as const,
+              signNote: "",
+              format: f.format,
+              formatWhy: f.reason,
+            }),
+          );
+          continue;
+        }
         // One card per player; on a team round one per SIDE, its partners on the one card.
-        const units: Array<{ key: string; label: string; ids: string[] }> = [];
+        const units: Array<{ key: string; label: string; ids: string[]; unit: "player" | "side" }> = [];
         const seen = new Set<string>();
         for (const id of g.playerIds) {
           const p = kitPlayers.get(id);
@@ -455,39 +532,35 @@ async function roundKit(
           if (teams && p.sideName) {
             const mates = g.playerIds.filter((x) => kitPlayers.get(x)?.sideName === p.sideName);
             mates.forEach((x) => seen.add(x));
-            units.push({ key: `cards:side:${p.sideName}`, label: `${p.sideName} — scorecard`, ids: mates });
+            units.push({ key: `cards:side:${p.sideName}`, label: `${p.sideName} — scorecard`, ids: mates, unit: "side" });
           } else {
             seen.add(id);
-            units.push({ key: `cards:${id}`, label: `${p.name} — scorecard`, ids: [id] });
+            units.push({ key: `cards:${id}`, label: `${p.name} — scorecard`, ids: [id], unit: "player" });
           }
         }
         for (const u of units) {
-          pages.push(seal(common, { doc: "cards" as const, key: u.key, label: u.label, group: groupFrom(g, u.ids), signNote: signOf }));
+          // A shared ball is one row; a four-ball side is each partner's row (Rule 23.2b) and the side's.
+          const rows = u.unit === "side" ? (teamRound?.sharedBall ? 1 : u.ids.length + 1) : 1;
+          const f = formatOf(u.ids, rows);
+          pages.push(
+            seal(common, {
+              doc: "cards" as const,
+              key: u.key,
+              label: u.label,
+              group: groupFrom(g, u.ids),
+              unit: u.unit,
+              signNote: signOf,
+              format: f.format,
+              formatWhy: f.reason,
+            }),
+          );
         }
       }
       if (teams) what = "one per side";
+      else if (byGroup) what = "one per group, every name on it";
     }
     docs.push({ kind: "cards", unavailable, what, pages });
   }
-
-  /* ── Group cards: the Tee sheet's card, one per group ─────────────── */
-  docs.push({
-    kind: "group-cards",
-    unavailable: !savedSheet ? noSheet : isCup ? "A cup prints its own match cards." : "",
-    what: "one per group, every name on it",
-    pages:
-      !savedSheet || isCup
-        ? []
-        : fieldGroups.map(({ g }) =>
-            seal(common, {
-              doc: "group-cards" as const,
-              key: `group-cards:${g.name}`,
-              label: `${g.name} — group card`,
-              group: groupFrom(g, g.playerIds),
-              signNote: "",
-            }),
-          ),
-  });
 
   /* ── Match result slips ───────────────────────────────────────────── */
   const stageMatches = state.matches.filter((m) => m.stageId === stage.id);
@@ -534,6 +607,8 @@ async function roundKit(
         pages.push(
           seal(common, {
             doc: "slips" as const,
+            format: "card" as const,
+            formatWhy: "",
             key: `slips:${m.id}`,
             label: `${label} — result slip`,
             slip: {
@@ -571,7 +646,7 @@ async function roundKit(
   const liveLine = ctx.publicBoard && shareToken ? `${ctx.host}/live/${shareToken}` : "";
   const thisCode = codeOf(stage, ctx.roundName(stage));
 
-  /* ── Named cart signs ─────────────────────────────────────────────── */
+  /* ── {Cart} signs: one per {cart}, or one per group for a walking field ── */
   {
     const pages: KitPage[] = [];
     let unavailable = "";
@@ -579,53 +654,68 @@ async function roundKit(
     const scorerJob = matchRound
       ? "Keeping the match: one of you opens the round with the code and taps who won each hole. The board has the result as soon as the last hole is in."
       : "Keeping the score: one of you opens the round with the code, taps your own name and enters everybody's score in this group after each hole. At the end each player checks their own card.";
+    /**
+     * ONE SIGN PER {CART} (the ruling's B; Ajay's original ask): the group split in
+     * pairs in tee-sheet order — a three gives a two and a one — each sign naming
+     * every player in the group with its own riders in bold. A walking field takes
+     * one per group instead.
+     */
+    const carts = (n: number, players: SignPage["sign"]["players"]) => {
+      if (ctx.signsBy === "group") return [{ suffix: "", cartName: "", riders: [] as string[] }];
+      const pairs: string[][] = [];
+      for (let i = 0; i < players.length; i += 2) pairs.push(players.slice(i, i + 2).map((p) => p.name));
+      return pairs.map((riders, i) => ({
+        suffix: pairs.length > 1 ? String.fromCharCode(65 + i) : "",
+        cartName: `${Cart} ${n}${pairs.length > 1 ? String.fromCharCode(65 + i) : ""}`,
+        riders,
+      }));
+    };
+    const push = (n: number, keyBase: string, labelBase: string, sign: Omit<SignPage["sign"], "cartName" | "riders">) => {
+      for (const c of carts(n, sign.players)) {
+        pages.push(
+          seal(common, {
+            doc: "signs" as const,
+            key: `signs:${keyBase}${c.suffix ? `:${c.suffix}` : ""}`,
+            label: c.cartName ? `${labelBase} — ${c.cartName} sign` : `${labelBase} — ${ctx.golf.cart} sign`,
+            sign: { ...sign, cartName: c.cartName, riders: c.riders },
+            format: "card" as const,
+            formatWhy: "",
+          }),
+        );
+      }
+    };
     // A cup session that shares its card with another prints its signs with that one too.
     if (cupDoc?.unavailable.startsWith("Printed with")) unavailable = cupDoc.unavailable;
     else if (cupGroups && cupGroups.length > 0) {
-      for (const cg of cupGroups) {
-        pages.push(
-          seal(common, {
-            doc: "signs" as const,
-            key: `signs:${cg.key}`,
-            label: `${cg.name} — cart sign`,
-            sign: { ...cg.sign, scorerJob, liveLine, host: ctx.host },
-          }),
-        );
-      }
+      cupGroups.forEach((cg, i) => push(i + 1, cg.key, cg.name, { ...cg.sign, scorerJob, liveLine, host: ctx.host }));
     } else if (!savedSheet) unavailable = noSheet;
     else if (!published) unavailable = notPublished;
     else {
+      let n = 0;
       for (const { g, players } of publishedGroups) {
         if (players.length === 0) continue;
-        const start = startOf(g);
-        pages.push(
-          seal(common, {
-            doc: "signs" as const,
-            key: `signs:${g.name}`,
-            label: `${g.name} — cart sign`,
-            sign: {
-              groupName: g.name,
-              time: g.time,
-              start,
-              startLarge: startStyle !== "tee",
-              players: players.map((p) => ({
-                name: p.name,
-                playing: p.confirmed ? indexFigure(p.playingHandicap) : "to be confirmed",
-                tee: p.tee,
-                strokes: p.confirmed ? strokesByNine(p.shots, firstHole) : [],
-                count: p.confirmed ? strokeCount(p.shots) : 0,
-                note: matchRound && p.matchStrokes !== null ? "in the match" : "",
-              })),
-              scorerJob,
-              codes: thisCode ? [thisCode] : [],
-              liveLine,
-              host: ctx.host,
-            },
-          }),
-        );
+        n += 1;
+        push(n, g.name, g.name, {
+          groupName: g.name,
+          time: g.time,
+          start: startOf(g),
+          startLarge: startStyle !== "tee",
+          players: players.map((p) => ({
+            name: p.name,
+            playing: p.confirmed ? indexFigure(p.playingHandicap) : "to be confirmed",
+            tee: p.tee,
+            strokes: p.confirmed ? strokesByNine(p.shots, firstHole) : [],
+            count: p.confirmed ? strokeCount(p.shots) : 0,
+            note: matchRound && p.matchStrokes !== null ? "in the match" : "",
+          })),
+          scorerJob,
+          codes: thisCode ? [thisCode] : [],
+          liveLine,
+          host: ctx.host,
+        });
       }
     }
-    docs.push({ kind: "signs", unavailable, what: "one per group", pages });
+    docs.push({ kind: "signs", unavailable, what: ctx.signsBy === "group" ? "one per group" : `one per ${ctx.golf.cart}`, pages });
   }
 
   /* ── The spare sign: no names, one per round ──────────────────────── */
@@ -636,20 +726,22 @@ async function roundKit(
       : !thisCode
         ? "This round has no code yet."
         : "",
-    what: "one for the round, no names",
+    what: "one for the first tee, one for the clubhouse, no names",
     pages: thisCode
-      ? [
+      ? (["tee", "clubhouse"] as const).map((where) =>
           seal(common, {
             doc: "spare" as const,
-            key: "spare:round",
-            label: `${ctx.roundName(stage)} — spare sign`,
+            key: `spare:${where}`,
+            label: `${ctx.roundName(stage)} — spare sign (${where === "tee" ? "first tee" : "clubhouse"})`,
             spare: { roundName: ctx.roundName(stage), code: thisCode, liveLine, host: ctx.host },
+            format: "card" as const,
+            formatWhy: "",
           }),
-        ]
+        )
       : [],
   });
 
-  /* ── The starting sheet ───────────────────────────────────────────── */
+  /* ── The starting sheet: one copy, with an "On the tee" tick column ─ */
   {
     const pages: KitPage[] = [];
     let unavailable = "";
@@ -678,20 +770,20 @@ async function roundKit(
         );
       }
       if (cur.length) chunks.push(cur);
-      for (const copy of ["noticeboard", "starter"] as const) {
-        chunks.forEach((rows, i) =>
-          pages.push(
-            seal(common, {
-              doc: "start" as const,
-              key: `start:${copy}:${i + 1}`,
-              label: `Starting sheet — ${copy === "noticeboard" ? "noticeboard" : "starter"}${chunks.length > 1 ? `, page ${i + 1} of ${chunks.length}` : ""}`,
-              start: { copy, part: i + 1, parts: chunks.length, rows },
-            }),
-          ),
-        );
-      }
+      chunks.forEach((rows, i) =>
+        pages.push(
+          seal(common, {
+            doc: "start" as const,
+            key: `start:${i + 1}`,
+            label: `Starting sheet${chunks.length > 1 ? `, page ${i + 1} of ${chunks.length}` : ""}`,
+            start: { part: i + 1, parts: chunks.length, rows },
+            format: "page" as const,
+            formatWhy: "",
+          }),
+        ),
+      );
     }
-    docs.push({ kind: "start", unavailable, what: "one for the noticeboard, one for the starter", pages });
+    docs.push({ kind: "start", unavailable, what: "for the starter and the noticeboard — print as many as you need", pages });
   }
 
   docs.sort((a, b) => DOC_ORDER.indexOf(a.kind) - DOC_ORDER.indexOf(b.kind));
@@ -903,7 +995,7 @@ async function cupCards(
   common: string,
   groupOfPlayer: Map<string, TeeSheetGroup>,
   startOf: (g: TeeSheetGroup) => string,
-): Promise<(KitDoc & { signGroups: Array<{ key: string; name: string; sign: Omit<SignPage["sign"], "scorerJob" | "liveLine" | "host"> }> }) | null> {
+): Promise<(KitDoc & { signGroups: Array<{ key: string; name: string; sign: Omit<SignPage["sign"], "scorerJob" | "liveLine" | "host" | "cartName" | "riders"> }> }) | null> {
   const sessions = playingStages(state.stages).filter((s) => s.type === TEAM_SESSION);
   const companion =
     holesPlayed(stage.holes) === 9
@@ -1014,7 +1106,7 @@ async function cupCards(
     .filter((c): c is KitCode => !!c);
 
   const pages: KitPage[] = [];
-  const signGroups: Array<{ key: string; name: string; sign: Omit<SignPage["sign"], "scorerJob" | "liveLine" | "host"> }> = [];
+  const signGroups: Array<{ key: string; name: string; sign: Omit<SignPage["sign"], "scorerJob" | "liveLine" | "host" | "cartName" | "riders"> }> = [];
   for (const [i, m] of mine.entries()) {
     const inMatch = new Set(m.ids);
     const companions = theirs.filter((t) => t.ids.every((id) => inMatch.has(id)));
@@ -1027,9 +1119,14 @@ async function cupCards(
     /** Where the group goes off: on a two-nine card, the first of the holes it plays that day. */
     const cupStart = (grp: TeeSheetGroup) =>
       columns.length > priced.holes ? `${ordinal(columns[0] + grp.startHole - 1)} tee` : startOf(grp);
+    // A four-ball's match row is written in its Result column, so it is not a row of its own.
+    const rowsOn = Math.max(...sections.map((s) => s.matches.reduce((n, x) => n + x.rows.filter((r) => r.kind !== "match").length, 0)));
+    const f = cardFormat({ kind: "cup", sections: sections.length, rows: rowsOn });
     pages.push(
       seal(common, {
         doc: "cup" as const,
+        format: f.format,
+        formatWhy: f.reason,
         key: `cup:${m.id}`,
         label: `${m.label} — cup card`,
         cup: {

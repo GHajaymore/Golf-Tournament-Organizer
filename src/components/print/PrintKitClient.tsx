@@ -3,54 +3,54 @@ import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { StampContext } from "./PrintStamp";
+import { PrintPages } from "./PrintPages";
 import { recordPrinted } from "@/app/actions/print-kit";
-import { PAPER_MM, PAPER_NAME, staleSentence, type DocKind, type PaperSize } from "@/lib/domain/print-kit";
+import { PAPER_MM, PAPER_NAME, sheetsFor, staleSentence, type CardsBy, type DocKind, type PaperSize, type SignsBy } from "@/lib/domain/print-kit";
+import type { PrintKit } from "@/lib/services/print-kit";
 
 export interface HubDoc {
   kind: DocKind;
   title: string;
   what: string;
   unavailable: string;
-  /** Each sheet of it, in page order, with the fingerprint it was drawn with. */
+  /** Each card or page of it, in order, with the fingerprint it was drawn with. */
   sheets: Array<{ key: string; fp: string; label: string; state: "unprinted" | "current" | "stale"; printedVersion: number }>;
 }
 
 /**
- * THE SECRETARY'S MORNING CHECKLIST (decision A): every document the app can
- * make for this round, ticked or not, the paper it goes on, and one button.
+ * THE SECRETARY'S MORNING CHECKLIST: every document the app can make for this
+ * round, ticked or not, the paper it goes on, how many SHEETS that is, and one
+ * button. Cards are two to a sheet (the ruling of 30 Oct), so the count is of
+ * paper, not of cards — said on the button before anyone presses it.
  *
- * The pages below are the server's; this owns only what is ticked, the paper,
- * and the press — which records what went to the printer and stamps each
- * sheet before the printer is asked (`recordPrinted`).
+ * The pages are laid out here, from what is ticked, so "reprint only the
+ * out-of-date ones" is the fewer sheets it should be; the press records what went
+ * to the printer and stamps each card before the printer is asked (`recordPrinted`).
  */
 export function PrintKitClient({
-  stageId,
-  rounds,
-  roundId,
+  kit,
   paper: paperDefault,
   docs,
   preticked,
   staleOnly,
-  gone,
-  nowWords,
+  canGroupCards,
   children,
 }: {
-  stageId: string;
-  rounds: Array<{ id: string; label: string }>;
-  roundId: string;
+  kit: PrintKit;
   paper: PaperSize;
   docs: HubDoc[];
   preticked: DocKind[];
   staleOnly: boolean;
-  gone: string[];
-  nowWords: string;
+  /** Scorecards may print one per group — an individual format only. */
+  canGroupCards: boolean;
   children: ReactNode;
 }) {
   const router = useRouter();
+  const stageId = kit.round!.id;
   const [paper, setPaper] = useState<PaperSize>(paperDefault);
   const [ticked, setTicked] = useState<Set<DocKind>>(new Set(preticked));
   /**
-   * REPRINTING: just these sheets, by key. Held as the keys rather than as "whatever is
+   * REPRINTING: just these cards, by key. Held as the keys rather than as "whatever is
    * stale", because the press makes them current — and a page that showed "the stale ones"
    * would go blank the moment the reprint it was showing had been recorded.
    */
@@ -65,21 +65,18 @@ export function PrintKitClient({
   const stale = offered.flatMap((d) => d.sheets.filter((s) => s.state === "stale"));
   const everySheet = offered.flatMap((d) => d.sheets);
   const chosen = only ? everySheet.filter((s) => only.includes(s.key)) : offered.filter((d) => ticked.has(d.kind)).flatMap((d) => d.sheets);
+  const chosenKeys = useMemo(() => new Set(chosen.map((s) => s.key)), [chosen]);
+
+  /** Every card and page the kit can print, with its shape — for the sheet count and the fold-outs. */
+  const units = useMemo(() => kit.docs.flatMap((d) => d.pages.map((p) => ({ key: p.key, doc: d.kind, format: p.format, label: p.label, why: p.formatWhy }))), [kit.docs]);
+  const chosenUnits = units.filter((u) => chosenKeys.has(u.key));
+  const sheets = sheetsFor(chosenUnits);
+  const folded = chosenUnits.filter((u) => u.format === "fold-out");
 
   const { w, h } = PAPER_MM[paper];
-  const css = useMemo(() => {
-    const hidden = only
-      ? `#pk-pages .pk-page { display: none; }\n${only.map((k) => `#pk-pages .pk-page[data-key=${JSON.stringify(k)}] { display: flex; }`).join("\n")}`
-      : docs
-          .filter((d) => !ticked.has(d.kind) || d.unavailable)
-          .map((d) => `#pk-pages [data-doc="${d.kind}"] { display: none; }`)
-          .join("\n");
-    return `
-:root { --pk-w: ${w}mm; --pk-h: ${h}mm; }
+  const css = `
 @page pk-portrait { size: ${w}mm ${h}mm; margin: 0; }
-@page pk-landscape { size: ${h}mm ${w}mm; margin: 0; }
-${hidden}`;
-  }, [docs, ticked, only, w, h]);
+@page pk-landscape { size: ${h}mm ${w}mm; margin: 0; }`;
 
   const toggle = (kind: DocKind) =>
     setTicked((prev) => {
@@ -93,7 +90,7 @@ ${hidden}`;
     startTransition(async () => {
       setError("");
       setOnly(staleMode ? keys.map((k) => k.key) : null);
-      const res = await recordPrinted(stageId, keys);
+      const res = await recordPrinted(stageId, keys, { cards: kit.cardsBy, signs: kit.signsBy });
       if (!res.ok) {
         setError(res.error);
         return;
@@ -105,9 +102,44 @@ ${hidden}`;
       router.refresh();
     });
 
-  const roundHref = (id: string) => {
-    const q = new URLSearchParams({ round: id, docs: [...ticked].join(","), paper });
+  const hrefWith = (over: { round?: string; cards?: CardsBy; signs?: SignsBy }) => {
+    const q = new URLSearchParams({
+      round: over.round ?? stageId,
+      docs: [...ticked].join(","),
+      paper,
+      cards: over.cards ?? kit.cardsBy,
+      signs: over.signs ?? kit.signsBy,
+    });
     return `/print?${q.toString()}`;
+  };
+  const sheetWord = (n: number) => `${n} ${n === 1 ? "sheet" : "sheets"}`;
+
+  const choice = (kind: DocKind) => {
+    if (kind === "cards" && canGroupCards)
+      return (
+        <ChoiceRow
+          name="cards-by"
+          value={kit.cardsBy}
+          options={[
+            ["player", "One card per player"],
+            ["group", "One per group"],
+          ]}
+          onPick={(v) => router.push(hrefWith({ cards: v as CardsBy }))}
+        />
+      );
+    if (kind === "signs")
+      return (
+        <ChoiceRow
+          name="signs-by"
+          value={kit.signsBy}
+          options={[
+            ["cart", `One per ${kit.words.cart}`],
+            ["group", "One per group (walking)"],
+          ]}
+          onPick={(v) => router.push(hrefWith({ signs: v as SignsBy }))}
+        />
+      );
+    return null;
   };
 
   return (
@@ -115,11 +147,11 @@ ${hidden}`;
       <style>{css}</style>
       <div className="no-print pk-controls" style={{ display: "grid", gap: 14, marginBottom: 18, maxWidth: 760 }}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "end" }}>
-          {rounds.length > 1 && (
+          {kit.rounds.length > 1 && (
             <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
               Round
-              <select className="input" value={roundId} onChange={(e) => router.push(roundHref(e.target.value))} style={{ minHeight: 40 }}>
-                {rounds.map((r) => (
+              <select className="input" value={stageId} onChange={(e) => router.push(hrefWith({ round: e.target.value }))} style={{ minHeight: "var(--tap-min, 40px)" }}>
+                {kit.rounds.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.label}
                   </option>
@@ -154,7 +186,7 @@ ${hidden}`;
                 className="btn btn-primary"
                 disabled={pending}
                 onClick={() => go(stale.map((s) => ({ key: s.key, fp: s.fp })), true)}
-                style={{ minHeight: 40 }}
+                style={{ minHeight: "var(--tap-min, 40px)" }}
               >
                 <Icon name="printer" /> Reprint these
               </button>
@@ -166,10 +198,10 @@ ${hidden}`;
             )}
           </div>
         )}
-        {gone.length > 0 && (
+        {kit.gone.length > 0 && (
           <div className="card elev-sm" style={{ gap: 6 }}>
             <strong style={{ fontSize: 14 }}>Printed sheets that are no longer on the Tee sheet — collect them</strong>
-            <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>{gone.slice(0, 12).join(" · ")}</p>
+            <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>{kit.gone.slice(0, 12).map((g) => g.label).join(" · ")}</p>
           </div>
         )}
 
@@ -179,6 +211,7 @@ ${hidden}`;
             const off = !!d.unavailable || d.sheets.length === 0;
             const outOfDate = d.sheets.filter((s) => s.state === "stale").length;
             const printed = d.sheets.filter((s) => s.state !== "unprinted").length;
+            const paperOf = sheetsFor(units.filter((u) => u.doc === d.kind));
             const status = off
               ? d.unavailable
               : outOfDate > 0
@@ -189,39 +222,48 @@ ${hidden}`;
                     ? `${printed} of ${d.sheets.length} printed`
                     : "Not printed yet";
             return (
-              <label
-                key={d.kind}
-                style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderTop: "1px solid var(--color-divider)", opacity: off ? 0.6 : 1 }}
-              >
-                <input
-                  type="checkbox"
-                  checked={!off && ticked.has(d.kind)}
-                  disabled={off}
-                  onChange={() => {
-                    setOnly(null);
-                    toggle(d.kind);
-                  }}
-                  style={{ marginTop: 3, width: 18, height: 18 }}
-                  aria-describedby={`pk-${d.kind}-status`}
-                />
-                <span style={{ display: "grid", gap: 2 }}>
-                  <span style={{ fontWeight: 600 }}>
-                    {d.title}
-                    {!off && (
-                      <span className="text-muted" style={{ fontWeight: 400 }}>
-                        {" "}
-                        — {d.what} · {d.sheets.length} {d.sheets.length === 1 ? "sheet" : "sheets"}
-                      </span>
-                    )}
+              <div key={d.kind} style={{ padding: "8px 0", borderTop: "1px solid var(--color-divider)", opacity: off ? 0.6 : 1 }}>
+                <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <input
+                    type="checkbox"
+                    checked={!off && ticked.has(d.kind)}
+                    disabled={off}
+                    onChange={() => {
+                      setOnly(null);
+                      toggle(d.kind);
+                    }}
+                    style={{ marginTop: 3, width: 18, height: 18 }}
+                    aria-describedby={`pk-${d.kind}-status`}
+                  />
+                  <span style={{ display: "grid", gap: 2 }}>
+                    <span style={{ fontWeight: 600 }}>
+                      {d.title}
+                      {!off && (
+                        <span className="text-muted" style={{ fontWeight: 400 }}>
+                          {" "}
+                          — {d.what} · {d.sheets.length} {d.kind === "start" ? (d.sheets.length === 1 ? "page" : "pages") : d.sheets.length === 1 ? "card" : "cards"}
+                          {d.kind === "start" ? "" : ` on ${sheetWord(paperOf)}`}
+                        </span>
+                      )}
+                    </span>
+                    <span id={`pk-${d.kind}-status`} className="text-muted" style={{ fontSize: 13 }}>
+                      {status}
+                    </span>
                   </span>
-                  <span id={`pk-${d.kind}-status`} className="text-muted" style={{ fontSize: 13 }}>
-                    {status}
-                  </span>
-                </span>
-              </label>
+                </label>
+                {!off && choice(d.kind)}
+              </div>
             );
           })}
         </fieldset>
+
+        {folded.length > 0 && (
+          <p className="text-muted" role="note" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
+            {folded.length === 1 ? "1 card prints as a fold-out" : `${folded.length} cards print as fold-outs`}, twice the height, to fold once to
+            the normal card: {folded.slice(0, 8).map((u) => u.label.split(" — ")[0]).join(", ")}
+            {folded.length > 8 ? ` and ${folded.length - 8} more` : ""}, because {[...new Set(folded.map((u) => u.why))].join("; ")}.
+          </p>
+        )}
 
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <button
@@ -231,7 +273,7 @@ ${hidden}`;
             onClick={() => go(chosen.map((s) => ({ key: s.key, fp: s.fp })), onlyStale)}
             style={{ minHeight: 44 }}
           >
-            <Icon name="printer" /> {onlyStale ? "Print these sheets again" : "Print the ticked sheets"} ({chosen.length})
+            <Icon name="printer" /> {onlyStale ? `Print ${sheetWord(sheets)} again` : `Print ${sheetWord(sheets)}`}
           </button>
           {onlyStale && (
             <button type="button" className="btn btn-secondary" onClick={() => setOnly(null)} style={{ minHeight: 44 }}>
@@ -239,7 +281,8 @@ ${hidden}`;
             </button>
           )}
           <span className="text-muted" style={{ fontSize: 13 }}>
-            {PAPER_NAME[paper]}, one sheet per page. In the print dialog choose &ldquo;Actual size&rdquo; (or 100%) and turn headers and footers off.
+            {PAPER_NAME[paper]}, two cards to a sheet. Print at Actual size (100%) · headers and footers off. Cut on the lines, and
+            measure the 50 mm line on the first sheet.
           </span>
         </div>
         {error && !(onlyStale && stale.length > 0) && (
@@ -248,7 +291,23 @@ ${hidden}`;
           </p>
         )}
       </div>
-      <StampContext.Provider value={{ nowWords, printed: stamps }}>{children}</StampContext.Provider>
+      {children}
+      <StampContext.Provider value={{ nowWords: kit.nowWords, printed: stamps }}>
+        <PrintPages kit={kit} chosen={chosenKeys} paper={paper} />
+      </StampContext.Provider>
     </>
+  );
+}
+
+function ChoiceRow({ name, value, options, onPick }: { name: string; value: string; options: Array<[string, string]>; onPick: (v: string) => void }) {
+  return (
+    <div role="radiogroup" aria-label={name === "cards-by" ? "Scorecards" : "Signs"} style={{ display: "flex", gap: 14, flexWrap: "wrap", margin: "6px 0 0 28px", fontSize: 13.5 }}>
+      {options.map(([v, label]) => (
+        <label key={v} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input type="radio" name={name} value={v} checked={value === v} onChange={() => onPick(v)} />
+          {label}
+        </label>
+      ))}
+    </div>
   );
 }

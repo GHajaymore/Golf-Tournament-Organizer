@@ -443,14 +443,14 @@ export default async function FoursomesPage({
           )}
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <Link
-              href={`/print?round=${stage.id}&docs=cards,group-cards,cup,slips,signs,start`}
+              href={`/print?round=${stage.id}&docs=cards,cup,slips,signs,spare,start`}
               className="btn btn-secondary"
               style={{ minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6 }}
             >
               <Icon name="printer" /> Print…
             </Link>
             <span className="text-muted" style={{ fontSize: 13 }}>
-              Scorecards, cart signs and the starting sheet for {roundLabel(rounds, stage.id) || "this round"}, from the saved sheet.
+              Scorecards, {(await golfTermsForEvent(session.eventId)).cart} signs and the starting sheet for {roundLabel(rounds, stage.id) || "this round"}, from the saved sheet.
             </span>
           </div>
         </div>

@@ -27,7 +27,7 @@ export function PrintStamp({ sheetKey, nextVersion, groupsAsOf }: { sheetKey: st
   const version = done?.version ?? nextVersion;
   return (
     <span className="pk-stamp">
-      Printed {words} · version {version}
+      Printed {words} · v{version}
       {groupsAsOf ? ` · groups as of ${groupsAsOf}` : ""}
     </span>
   );

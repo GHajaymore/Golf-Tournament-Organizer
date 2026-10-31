@@ -4,9 +4,10 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { printKit, savePrintLog, stampWords } from "@/lib/services/print-kit";
-import { parsePrintLog, withPrinted } from "@/lib/domain/print-kit";
+import { cardsByFrom, parsePrintLog, signsByFrom, withPrinted } from "@/lib/domain/print-kit";
 import { formattingForEvent } from "@/lib/services/organization";
 import { requestOrigin } from "@/lib/request-origin";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 
 export type RecordPrintedResult =
   | { ok: true; stamps: Record<string, { words: string; version: number }> }
@@ -35,8 +36,16 @@ const MAX_SHEETS = 1500;
  * records what the round says now — and a page opened before somebody moved a
  * group is told to reload rather than stamped as current.
  */
-export async function recordPrinted(stageId: string, sheets: Array<{ key: string; fp: string }>): Promise<RecordPrintedResult> {
+export async function recordPrinted(
+  stageId: string,
+  sheets: Array<{ key: string; fp: string }>,
+  /** How the hub laid the cards and signs out, so the kit rebuilt here has the same sheets. Untrusted: read through the same parsers as the address. */
+  by?: { cards?: unknown; signs?: unknown },
+): Promise<RecordPrintedResult> {
   const session = await requireStaffSession();
+  // A lapsed club's tournament is a read-only archive: nothing is written to it, not even what was printed.
+  const archived = await archiveRefusalFor(session.eventId, "organizer");
+  if (archived) return { ok: false, error: archived };
   if (typeof stageId !== "string" || !Array.isArray(sheets) || sheets.length === 0 || sheets.length > MAX_SHEETS) {
     return { ok: false, error: "Nothing to print." };
   }
@@ -46,7 +55,12 @@ export async function recordPrinted(stageId: string, sheets: Array<{ key: string
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
 
-  const kit = await printKit(session.eventId, { stageId, origin: requestOrigin(await headers()) });
+  const kit = await printKit(session.eventId, {
+    stageId,
+    origin: requestOrigin(await headers()),
+    cardsBy: cardsByFrom(typeof by?.cards === "string" ? by.cards : ""),
+    signsBy: signsByFrom(typeof by?.signs === "string" ? by.signs : ""),
+  });
   if (kit.round?.id !== stageId) return { ok: false, error: "That round isn't in this tournament." };
   const current = new Map(kit.sheets.map((s) => [s.key, s]));
   const asked = sheets.filter((s) => s && typeof s.key === "string" && typeof s.fp === "string");

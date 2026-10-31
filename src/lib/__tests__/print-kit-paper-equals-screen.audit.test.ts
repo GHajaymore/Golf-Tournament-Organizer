@@ -10,7 +10,7 @@ import { holesPlayed } from "../domain/handicap";
 import { needsTeams, sharesOneCard } from "../formats";
 import { isHeadToHead } from "../stage-types";
 import { printKit, savePrintLog, stampWords, START_ROWS_PER_PAGE, type KitPage, type ScorecardPage } from "../services/print-kit";
-import { parsePrintLog, withPrinted } from "../domain/print-kit";
+import { parsePrintLog, strokesByNine, withPrinted } from "../domain/print-kit";
 
 /**
  * PAPER EQUALS SCREEN (decision C1, the QA manager's first test): for every
@@ -151,15 +151,19 @@ afterAll(async () => {
 });
 
 /** Every player's printed strokes per hole, by player id, read off the group cards (every name in its group). */
-async function paperShots(stageId: string): Promise<{ byName: Map<string, number[]>; sides: Map<string, number[]>; pages: KitPage[] }> {
-  const kit = await printKit(eventId, { stageId, origin: ORIGIN });
+async function paperShots(stageId: string): Promise<{ byName: Map<string, number[]>; sides: Map<string, number[]>; pages: KitPage[]; signs: Map<string, string>; firstHole: number }> {
+  // One card per group (an individual format) or per side (a team one): every name in its group, as before.
+  const kit = await printKit(eventId, { stageId, origin: ORIGIN, cardsBy: "group" });
   const pages = kit.docs.flatMap((d) => d.pages);
-  const groupCards = pages.filter((p): p is ScorecardPage => p.doc === "group-cards");
-  expect(groupCards.length, "CONTROL: the kit printed no group cards for this round").toBeGreaterThan(0);
+  const groupCards = pages.filter((p): p is ScorecardPage => p.doc === "cards");
+  // A match prints no scorecard (the ruling of 30 Oct: a result slip): its strokes are on the {cart} signs.
+  const signs = new Map<string, string>();
+  for (const p of pages) if (p.doc === "signs") for (const x of p.sign.players) signs.set(x.name, JSON.stringify(x.strokes));
+  expect(groupCards.length + signs.size, "CONTROL: the kit printed no cards and no signs for this round").toBeGreaterThan(0);
   const byName = new Map<string, number[]>();
   for (const p of groupCards) for (const pl of p.group.players) byName.set(pl.name, pl.shots ?? []);
   const sides = new Map((kit.card?.sides ?? []).map((s) => [s.name, s.shots]));
-  return { byName, sides, pages };
+  return { byName, sides, pages, signs, firstHole: kit.card?.firstHole ?? 1 };
 }
 
 /** The dots the score-entry screen draws for each player (or side), built as that screen builds them. */
@@ -220,7 +224,10 @@ describe("the strokes printed on every hole are the dots the score-entry screen 
       if (screen.sides.size) {
         for (const [name, dots] of screen.sides) expect(paper.sides.get(name), `${key}: ${name}`).toEqual(dots);
       } else {
-        for (const [name, dots] of screen.byName) expect(paper.byName.get(name), `${key}: ${name}`).toEqual(dots);
+        for (const [name, dots] of screen.byName) {
+          if (paper.byName.has(name)) expect(paper.byName.get(name), `${key}: ${name}`).toEqual(dots);
+          else expect(paper.signs.get(name), `${key}: ${name}, on the sign`).toBe(JSON.stringify(strokesByNine(dots, paper.firstHole)));
+        }
       }
       // A fixture that gives nobody a stroke cannot tell a right answer from a wrong one.
       const anyStroke = [...screen.byName.values(), ...screen.sides.values()].some((d) => d.some((n) => n !== 0));
@@ -298,10 +305,11 @@ describe("stamped, and reprinted only where it changed (decision D)", () => {
     const stale = after.statuses.filter((s) => s.state === "stale").map((s) => s.key).sort();
     const group2 = FIELD.slice(4).map((p) => `cards:${player[p.key]}`);
     expect(stale).toEqual(
-      [...group2, "group-cards:Group 2", "signs:Group 2", "start:noticeboard:1", "start:starter:1"].sort(),
+      // Its four cards, its two carts' signs, and the one starting sheet (the ruling of 30 Oct: one copy).
+      [...group2, "signs:Group 2:A", "signs:Group 2:B", "start:1"].sort(),
     );
     expect(after.statuses.find((s) => s.key === `cards:${player.ann}`)?.state, "a card in the untouched group went stale").toBe("current");
-    expect(after.statuses.find((s) => s.key === "group-cards:Group 2")?.nextVersion).toBe(2);
+    expect(after.statuses.find((s) => s.key === "signs:Group 2:A")?.nextVersion).toBe(2);
   });
 
   it("a reissued round code makes the printed signs out of date", async () => {
@@ -354,14 +362,17 @@ describe("one sheet per player, group or match, at the sizes the decision names"
       const kit = await printKit(ev.id, { stageId: stage.id, origin: ORIGIN });
       const count = (doc: string) => kit.docs.find((d) => d.kind === doc)!.pages.length;
       expect(count("cards")).toBe(n);
-      expect(count("group-cards")).toBe(groups.length);
-      expect(count("signs")).toBe(groups.length);
-      // Whole groups to a page — never one split across a break — and two copies.
-      expect(count("start")).toBe(2 * Math.ceil(groups.length / Math.floor(START_ROWS_PER_PAGE / size)));
+      // One sign per cart: a group split in pairs, a three giving a two and a one.
+      expect(count("signs")).toBe(groups.reduce((s, g) => s + Math.ceil(g.length / 2), 0));
+      // Whole groups to a page — never one split across a break — and one copy (print as many as needed).
+      expect(count("start")).toBe(Math.ceil(groups.length / Math.floor(START_ROWS_PER_PAGE / size)));
       expect(new Set(kit.sheets.map((s) => s.key)).size, "two sheets share a key").toBe(kit.sheets.length);
+      // Every card of a medal of threes and fours is the normal card: no fold-out here.
+      expect(kit.docs.flatMap((d) => d.pages).filter((p) => p.format === "fold-out")).toEqual([]);
       if (n === 120) {
         expect(groups.length).toBe(30);
-        expect(count("spare")).toBe(1);
+        // Two spare signs: the first tee and the clubhouse.
+        expect(count("spare")).toBe(2);
         // Every group of the shotgun says the hole it starts on.
         const starts = kit.docs.find((d) => d.kind === "signs")!.pages.map((p) => (p as Extract<KitPage, { doc: "signs" }>).sign.start);
         expect(new Set(starts).size).toBe(18);

@@ -48,32 +48,165 @@ export const PAPER_NAME: Record<PaperSize, string> = { a4: "A4", letter: "US Let
 
 /* ── The documents ─────────────────────────────────────────────────────── */
 
-export type DocKind = "cards" | "group-cards" | "slips" | "cup" | "signs" | "spare" | "start";
-export type Orientation = "portrait" | "landscape";
+/**
+ * THE DOCUMENTS (panel ruling of 30 Oct 2026, `docs/print-kit-panel-2026-10-30.md`).
+ * The separate "Group cards" document is gone: Scorecards print one per player
+ * or one per group, by choice (`CardsBy`), for an individual format.
+ */
+export type DocKind = "cards" | "slips" | "cup" | "signs" | "spare" | "start";
 
 /** In the order the hub lists them, which is the order a secretary prints them on the morning. */
-export const DOC_ORDER: readonly DocKind[] = ["cards", "cup", "slips", "group-cards", "signs", "spare", "start"];
+export const DOC_ORDER: readonly DocKind[] = ["cards", "cup", "slips", "signs", "spare", "start"];
 
-export const DOC_TITLE: Record<DocKind, string> = {
-  cards: "Scorecards",
-  "group-cards": "Group cards",
-  slips: "Match result slips",
-  cup: "Cup match cards",
-  signs: "Cart signs",
-  spare: "Spare sign",
-  start: "Starting sheet",
+/**
+ * A document's name, in the club's own golf words: a {cart} is a buggy in
+ * Britain. `words` is REQUIRED, so the compiler lists every caller the day a
+ * name grows a word of its own.
+ */
+export function docTitle(kind: DocKind, words: { cart: string }): string {
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  switch (kind) {
+    case "cards":
+      return "Scorecards";
+    case "slips":
+      return "Match result slips";
+    case "cup":
+      return "Cup match cards";
+    case "signs":
+      return `${cap(words.cart)} signs`;
+    case "spare":
+      return "Spare sign";
+    case "start":
+      return "Starting sheet";
+  }
+}
+
+/** Scorecards: one per player (Rule 3.3b), or one per group — an outing's group card. */
+export type CardsBy = "player" | "group";
+/** Signs: one per {cart}, its two riders in tee-sheet order — or one per group, for a walking field. */
+export type SignsBy = "cart" | "group";
+
+export function cardsByFrom(asked: string | null | undefined): CardsBy {
+  return asked === "group" ? "group" : "player";
+}
+export function signsByFrom(asked: string | null | undefined): SignsBy {
+  return asked === "group" ? "group" : "cart";
+}
+
+/**
+ * EVERY CARD IS THE NORMAL SCORECARD (Ajay, 30 Oct: "any card is the card size").
+ * 9.5 × 3.75 in, landscape, two to a sheet on Letter and on A4 alike, so a club's
+ * card is the same in every country. Nothing is drawn within `safe` of the trim.
+ */
+export const CARD_MM = { w: 241.3, h: 95.25, safe: 4 } as const;
+/** The only exception's shape: a card twice as tall that folds once to the normal card. Never smaller type. */
+export const FOLDOUT_MM = { w: 241.3, h: 190.5 } as const;
+
+/** A sheet of paper laid on its side, and where its card slots sit (from the top-left, in mm). */
+export interface SheetSlots {
+  w: number;
+  h: number;
+  x: number;
+  /** The two normal cards' tops. */
+  cards: [number, number];
+  /** A fold-out's top: one to a sheet. */
+  foldout: number;
+}
+
+export const SHEET_SLOTS: Record<PaperSize, SheetSlots> = {
+  letter: { w: 279.4, h: 215.9, x: 19.05, cards: [9.5, 111.1], foldout: 12.7 },
+  a4: { w: 297, h: 210, x: 27.85, cards: [6.5, 108.25], foldout: 9.75 },
 };
 
-/** Scorecards lie on their side; everything read standing up stands up. */
-export const DOC_ORIENTATION: Record<DocKind, Orientation> = {
-  cards: "landscape",
-  "group-cards": "landscape",
-  cup: "landscape",
-  slips: "portrait",
-  signs: "portrait",
-  spare: "portrait",
-  start: "portrait",
-};
+export type CardFormat = "card" | "fold-out";
+
+/** What a card has to hold, for `cardFormat`. */
+export type CardContent =
+  /** A scorecard: player rows (a side's own row counts as one), the tees in play, and its longest name line. */
+  | { kind: "scorecard"; rows: number; tees: number; sharedBallNames?: number }
+  /** A cup match card: how many formats (sections) are on the one card. */
+  | { kind: "cup"; sections: number; rows: number }
+  /** A sign, a spare sign, a result slip: always a normal card. */
+  | { kind: "fixed" };
+
+/** Player rows a normal scorecard holds: 4 at 8.5 mm (the ruling's budget, 80.5 of 87.25 mm). */
+export const CARD_PLAYER_ROWS = 4;
+/** A cup card's rows at 7 mm with one format on it: 4 players and 2 better-ball rows. */
+export const CUP_ROWS = 6;
+/** Characters a shared-ball side's member line holds on two lines at 7.5 pt in the 40 mm name column. */
+export const SIDE_NAMES_CHARS = 74;
+
+/**
+ * WHERE THE NORMAL CARD GENUINELY CANNOT BE MET — and only there (the ruling's
+ * X1–X3). Everything else is a normal card, held to it by the browser test; a
+ * fold-out anywhere else would be a quiet shrink-around. The reason is said on
+ * the hub, in these words.
+ */
+export function cardFormat(c: CardContent): { format: CardFormat; reason: string } {
+  if (c.kind === "cup" && c.sections > 1) {
+    return { format: "fold-out", reason: "both formats of the day are on one card" };
+  }
+  if (c.kind === "cup" && c.rows > CUP_ROWS) {
+    return { format: "fold-out", reason: `${c.rows} rows are more than one card holds` };
+  }
+  if (c.kind === "scorecard" && c.rows > CARD_PLAYER_ROWS) {
+    return { format: "fold-out", reason: `${c.rows} players are more than one card holds` };
+  }
+  if (c.kind === "scorecard" && c.tees >= 3 && (c.sharedBallNames ?? 0) > SIDE_NAMES_CHARS) {
+    return { format: "fold-out", reason: "four names and three sets of tees are more than one card holds" };
+  }
+  return { format: "card", reason: "" };
+}
+
+/**
+ * A NAME AS A CARD CAN HOLD IT, never cut off silently. The whole name when it
+ * fits; otherwise the first name's initial and the rest ("W. Fotheringay-…"), and
+ * if THAT is still too long, the initial and the surname — the last word, or a
+ * hyphenated one. The full name stays on the starting sheet.
+ */
+export function cardName(name: string, maxChars: number): string {
+  const clean = name.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxChars) return clean;
+  const words = clean.split(" ");
+  if (words.length < 2) return clean;
+  const initial = `${words[0].charAt(0)}.`;
+  const rest = `${initial} ${words.slice(1).join(" ")}`;
+  if (rest.length <= maxChars) return rest;
+  const hyphened = words.slice(1).find((w) => w.includes("-"));
+  const surname = hyphened ?? words[words.length - 1];
+  return `${initial} ${surname}`;
+}
+
+/** One card or page the kit will put on paper, for the count on the Print button. */
+export interface PaperUnit {
+  doc: DocKind;
+  format: CardFormat | "page";
+}
+
+/**
+ * HOW MANY SHEETS OF PAPER, said on the Print button before anyone presses it
+ * (the Budget Keeper). Normal cards two to a sheet, within each document; a
+ * fold-out one to a sheet; a starting-sheet page one.
+ */
+export function sheetsFor(units: readonly PaperUnit[]): number {
+  let n = 0;
+  for (const doc of DOC_ORDER) {
+    const mine = units.filter((u) => u.doc === doc);
+    n += Math.ceil(mine.filter((u) => u.format === "card").length / 2);
+    n += mine.filter((u) => u.format !== "card").length;
+  }
+  return n;
+}
+
+/**
+ * THE CUT-AND-STACK ORDER: which cards share a sheet so that, cut and the
+ * bottom pile put under the top, the cards come out in group order. Sheet i
+ * holds card i on top and card i + ceil(n/2) beneath.
+ */
+export function twoUp<T>(cards: readonly T[]): Array<[T, T | null]> {
+  const half = Math.ceil(cards.length / 2);
+  return Array.from({ length: half }, (_, i) => [cards[i], cards[i + half] ?? null] as [T, T | null]);
+}
 
 /** What the address may name: `?docs=cards,signs`. Anything else is dropped. */
 export function docsFrom(asked: string | null | undefined): DocKind[] {
