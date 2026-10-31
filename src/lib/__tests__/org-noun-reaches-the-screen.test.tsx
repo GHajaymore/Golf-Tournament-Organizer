@@ -131,10 +131,10 @@ describe("the Members screen is headed with the sidebar's own section word", () 
       </OrgProfileProvider>,
     ).match(/class="page-kicker">([^<]*)</)?.[1];
 
-  it("says Society for a society, Club for a club, Outing for an outing", () => {
+  it("says Society for a society, Club for a club, and Your golf for one person's own (never Outing)", () => {
     expect(kicker("community")).toBe("Society");
     expect(kicker("club")).toBe("Club");
-    expect(kicker("personal")).toBe("Outing");
+    expect(kicker("personal")).toBe("Your golf");
   });
 });
 

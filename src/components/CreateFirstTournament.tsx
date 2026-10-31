@@ -467,8 +467,8 @@ export function CreateFirstTournament({
                 The screen is NAMED from the kind rather than hard-coded. It
                 used to say "the organization's own settings" because on a
                 first tournament the organization may not exist yet and is
-                created as `personal`, whose screen is "Outing settings" and
-                not a club's — `settingsLabel` was written for exactly that
+                created as `personal`, whose screen is plain "Settings" (it
+                was "Outing settings" until 2026-10-30) and not a club's — `settingsLabel` was written for exactly that
                 case. `orgProfile("")` still answers `personal`, so the
                 fallback is the old wording's meaning, said in the app's own
                 words. */}
