@@ -244,8 +244,9 @@ test("the list lines up, says why a tournament cannot be deleted, and reads true
     // ── the status says what is true ──
     await expect(row("Summer Matchplay").locator(".tag")).toHaveText("Dates passed, not launched");
     await expect(row("Club Championship").locator(".tag").first()).toHaveText("Live");
-    // Undated, so nothing has passed: it reads its ordinary status (the fixture makes it Registration).
-    await expect(row("Away Fixture").locator(".tag")).toHaveText("Registration");
+    // Undated, so nothing has passed: it reads its ordinary status. The fixture stores
+    // "registration", which is one Setting up step before launch (G1).
+    await expect(row("Away Fixture").locator(".tag")).toHaveText("Setting up");
 
     // ── two of one name are told apart, and a name used once is not dated ──
     const twins = row("Spring Medal");

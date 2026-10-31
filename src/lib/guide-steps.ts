@@ -331,11 +331,13 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
+          "Until it is launched, a tournament's status is **Setting up** — one step, however far you are. Entries are not a status: players can sign up once you publish the sign-up link on **Entries**.",
           "Finish the setup steps the **How a tournament runs** panel on Tournament details shows — including name and dates. Until you launch, the Dashboard keeps the same list under **Still to set up**, even once your players are in.",
-          "Press the launch button on the status bar. **Launch “‹name›”?** summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
+          "Press the launch button on the status bar. **Launch “‹name›”?** first lists what setup still has open — no flights, no tee sheet, no answer on how money works — each with a link to the screen that fixes it and whether you can still do it after launch. Then it summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
           "Press [[Launch tournament]]. Setup locks; Part 3 lists what you can still change.",
         ],
       },
+      { kind: "warn", text: "Launch is refused, with the reason under the button, when a round could not be scored: a round played in sides with no sides made (make them on Teams & pairs), a team cup without its two teams (Team cup), or a round robin with no pairings (generate them on Rounds & formats). Anything else still open is only listed — you can launch without it." },
     ],
   },
   {

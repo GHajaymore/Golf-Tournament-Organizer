@@ -7,6 +7,7 @@ import { startFromGroups, copiedEventId } from "@/lib/domain/start-from";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { Icon } from "./Icon";
 import { useOrgProfile } from "./OrgProfileProvider";
+import { STATUS_META } from "@/lib/format";
 
 export interface EventRow {
   id: string;
@@ -45,13 +46,9 @@ export interface EventRow {
 /** Said where the bin is pressed by somebody who may not delete (`deleteEvent`'s one refusal). */
 const ONLY_THE_ORGANIZER = "Only an organizer of this tournament can delete it.";
 
-const STATUS: Record<string, { label: string; tag: string }> = {
-  draft: { label: "Draft", tag: "tag-neutral" },
-  registration: { label: "Registration", tag: "tag-accent" },
-  ready: { label: "Ready", tag: "tag-accent" },
-  live: { label: "Live", tag: "tag-accent-2" },
-  completed: { label: "Completed", tag: "tag-neutral" },
-};
+// The status words are the chip's own (`STATUS_META`) — this list had a second
+// copy that said "Registration" and "Ready" where the chip said something else.
+const STATUS = STATUS_META;
 const DATES_PASSED = { label: "Dates passed, not launched", tag: "tag-outline" };
 
 export function EventSwitcher({

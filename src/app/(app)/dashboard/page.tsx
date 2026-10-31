@@ -34,15 +34,13 @@ import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isStraightKnockout, isWeeklyRound } from "@/lib/stage-types";
 import { playOverOf } from "@/lib/domain/tournament-switcher";
-import { launchRefusal, finishRefusal, completingCheckFor } from "@/lib/domain/phase-gate";
-import { unscorableRoundLabels } from "@/lib/domain/round-choices";
-import { roundsMissingCards } from "@/lib/services/round-card-lines";
+import { finishRefusal, completingCheckFor } from "@/lib/domain/phase-gate";
 import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { overallResultLabel } from "@/lib/domain/overall-result";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupFlowFor, launchCheckFor } from "@/lib/services/setup-flow";
 import { isMatch, reviewsScores } from "@/lib/tournament-shape";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
@@ -511,18 +509,13 @@ export default async function DashboardPage() {
    * a reason the screen had already worked out and thrown away.
    */
   const lifecycleAction = nextLifecycleAction({ status: event.status, resultsIn: state.resultsIn });
-  // Read only when Launch is on offer — the same facts the action refuses on,
-  // so the button and the server cannot disagree about a round's card.
-  const missingCards = lifecycleAction?.kind === "launch" ? await roundsMissingCards(session.eventId) : [];
+  // Read only when Launch is on offer — the very function the action refuses on
+  // (`launchCheckFor`, the setup flow's own facts), so the button and the server
+  // cannot disagree. Its warnings go in the launch dialog.
+  const launch = lifecycleAction?.kind === "launch" ? await launchCheckFor(session.eventId) : null;
   const phaseBlock =
-    lifecycleAction?.kind === "launch"
-      ? launchRefusal({
-          playingRounds: state.stages.filter((s) => isPlayingRound(s.type)).length,
-          confirmed: state.confirmed.length,
-          dated: !!state.event.dates.trim(),
-          missingCards,
-          unscorable: unscorableRoundLabels(state.stages),
-        })
+    launch
+      ? launch.refusal
       : lifecycleAction?.to === "completed"
         ? finishRefusal({
             pendingConfirmations: state.pendingConfirmations,
@@ -949,6 +942,7 @@ export default async function DashboardPage() {
           resultsIn={state.resultsIn}
           blockedReason={phaseBlock ?? (completing && "refuse" in completing ? completing.refuse : undefined)}
           unplayedAsk={completing && "ask" in completing ? completing.ask : undefined}
+          launchOpen={launch ?? undefined}
           {...(isAdmin && (await wipesOnCloseFor(event.id))
             ? {
                 deletesOnComplete: true,
@@ -979,11 +973,13 @@ export default async function DashboardPage() {
       <AnnouncementList items={announcements} />
 
       {/* A SOCIETY TAKING ENTRIES FIRST (2026-10-16; the tournament director on the
-          review panel). Two things it was not told: "Start taking entries" changes
-          the status and does not publish the sign-up link; and once the first
-          entry lands, the getting-started list goes, so nothing said the format
-          was still to choose. One line each, only while true. */}
-      {isStaff && event.status === "registration" && !event.registrationOpen && (
+          review panel). Two things it was not told: that players cannot sign up
+          until the sign-up link is published; and once the first entry lands, the
+          getting-started list goes, so nothing said the format was still to choose.
+          One line each, only while true. Since G1 (2026-10-31) there is no "Start
+          taking entries" status to key the first on: it is any tournament still
+          being set up that takes entries and has not published its link. */}
+      {isStaff && !isLaunched(event.status) && event.playerCountMode !== "manual" && !event.registrationOpen && (
         <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
           Players can&rsquo;t sign up themselves until the link is published —{" "}
           <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>publish it on Entries</Link>.
