@@ -116,7 +116,7 @@ import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
-import { launchRefusal, finishRefusal, statusMove } from "@/lib/domain/phase-gate";
+import { launchRefusal, finishRefusal, statusMove, completingCheckFor } from "@/lib/domain/phase-gate";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
@@ -4570,7 +4570,9 @@ export async function setEventStatus(
   status: string,
   /** Must be true to complete a tournament the Free plan deletes on completion. */
   confirmDelete = false,
-): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean }> {
+  /** Must be true to complete with rounds nobody has played (`completingCheckFor`). */
+  confirmUnplayed = false,
+): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean; needsUnplayedConfirm?: boolean }> {
   const gate = await adminEventOrRefusal();
   if ("refused" in gate) return { ok: false, error: gate.refused };
   const { eventId } = gate;
@@ -4616,6 +4618,20 @@ export async function setEventStatus(
         })
       : null;
     if (refusal) return { ok: false, error: refusal };
+
+    /**
+     * ROUNDS NOBODY HAS PLAYED ARE ASKED ABOUT FIRST (2026-10-31, the panel). Completing closes
+     * every open round below, so a round with no scores would close as not played on one confirm.
+     * Asked rather than refused — a committee may abandon a round — and refused only when nothing
+     * at all was scored. Before the free plan's question, one topic at a time: this one is about
+     * the golf, that one about keeping the tournament. A public endpoint, so a caller that did not
+     * ask is answered with the question, as `confirmDelete` is.
+     */
+    if (state) {
+      const check = completingCheckFor(state.stages, state.roundsWithResults);
+      if (check && "refuse" in check) return { ok: false, error: check.refuse };
+      if (check && "ask" in check && !confirmUnplayed) return { ok: false, needsUnplayedConfirm: true, error: check.ask };
+    }
 
     /**
      * ON THE FREE PLAN, COMPLETING IS DELETING (Ajay, 2026-09-29) — for a club
