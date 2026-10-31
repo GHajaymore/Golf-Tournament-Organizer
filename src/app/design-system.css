@@ -756,8 +756,17 @@ textarea.input { min-height: 90px; resize: vertical; }
    each group of the body set apart as a quiet block with its heading. */
 .round-panel-face { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: var(--space-3) var(--space-4); align-items: start; }
 .round-panel-face > .field { width: auto !important; min-width: 0; }
-/* The round's delete sits at the end of the face, on its own line — not in a cell beside the date. */
-.round-panel-face > .btn-icon { grid-column: 1 / -1; justify-self: end; order: 99; }
+/* The panel's golf headings ("Date & course", "Format & scoring"), and the round's delete at
+   the very end, apart from everything that only changes it. */
+.round-panel-heading {
+  margin: 0; font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 15px; color: var(--color-text); padding-top: var(--space-2);
+  border-top: 1px solid var(--color-divider);
+}
+.round-panel-heading:first-child { border-top: 0; padding-top: 0; }
+.round-panel-delete { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--color-divider); }
+/* The empty "saved" line at the panel's foot takes no room until it has something to say. */
+.side-panel-foot:has(> span:empty:only-child) { padding: 0; border-top: 0; min-height: 0; }
 .round-link { padding-left: 74px; }
 .side-panel-body section {
   background: var(--color-surface-2); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);

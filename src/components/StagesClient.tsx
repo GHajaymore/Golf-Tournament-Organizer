@@ -1320,7 +1320,10 @@ function StageCard({
   // The round's face, its format note and its body, named so they can be drawn in one of two
   // places: unfolded inline (today's screen), or in the side panel (the timeline, behind its
   // switch). One rendered copy either way — never the same controls twice.
-  const face = (
+  // The face in three parts, so the timeline's panel can put them under the golf panel's
+  // headings ("Date & course" first, then "Format & scoring"); today's screen draws them
+  // back to back exactly as before.
+  const faceFormat = (
     <>
         <div className="field" style={{ width: 200 }}>
           <span className="field-caption" style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -1529,7 +1532,10 @@ function StageCard({
             </label>
           </div>
         </div>
-
+    </>
+  );
+  const faceWhere = (
+    <>
         {/* Not on a knockout (2026-10-16): its ties are played over weeks, and Play by
             is the date that matters — two dates for one question was a redundancy. */}
         {!isKnockoutRound(stage.type) && (
@@ -1635,6 +1641,10 @@ function StageCard({
             The organizer sets where this round is played.
           </span>
         )}
+    </>
+  );
+  const faceDelete = (
+    <>
         <button
           type="button"
           className="btn btn-icon"
@@ -1654,6 +1664,13 @@ function StageCard({
         >
           <Icon name="trash" />
         </button>
+    </>
+  );
+  const face = (
+    <>
+      {faceFormat}
+      {faceWhere}
+      {faceDelete}
     </>
   );
   const formatInfo = (
@@ -2413,9 +2430,15 @@ function StageCard({
           onClose={onToggle}
           footer={<SaveState status={saveStatus} />}
         >
-          <div className="round-panel-face">{face}</div>
+          {/* The golf panel's order (30 Oct): when and where first, then how it is played,
+              then what the round decides and the rest, each under its own heading. */}
+          <h3 className="round-panel-heading">Date &amp; course</h3>
+          <div className="round-panel-face">{faceWhere}</div>
+          <h3 className="round-panel-heading">Format &amp; scoring</h3>
+          <div className="round-panel-face">{faceFormat}</div>
           {formatInfo}
           {body}
+          <div className="round-panel-delete">{faceDelete}</div>
         </SidePanel>
       )}
     </div>
