@@ -6,6 +6,7 @@ import {
   tournamentPhase,
   isLaunched,
   isFinished,
+  datesPassedUnlaunched,
   configurationLocked,
   PRE_LAUNCH_STATUSES,
   LAUNCH_DOES,
@@ -426,5 +427,41 @@ describe("what locked means, asked once", () => {
     for (const status of PRE_LAUNCH_STATUSES) {
       expect(configurationLocked({ status, configUnlocked: false }), status).toBe(false);
     }
+  });
+});
+
+describe("datesPassedUnlaunched — a draft whose days have gone by", () => {
+  // Ajay's list read "Draft" beside a matchplay of 30 Jul to 26 Sep, in October.
+  const ev = (status: string, startOn: string, endOn: string) => ({ status, startOn, endOn });
+
+  it("is said of every status before launch, once the last day is behind the club", () => {
+    for (const status of PRE_LAUNCH_STATUSES) {
+      expect(datesPassedUnlaunched(ev(status, "2026-07-30", "2026-09-26"), "2026-10-26"), status).toBe(true);
+    }
+  });
+
+  it("is never said of a tournament that was launched", () => {
+    for (const status of ["live", "completed"]) {
+      expect(datesPassedUnlaunched(ev(status, "2026-07-30", "2026-09-26"), "2026-10-26"), status).toBe(false);
+    }
+  });
+
+  it("counts from the LAST day, and the last day itself has not passed", () => {
+    expect(datesPassedUnlaunched(ev("draft", "2026-10-01", "2026-10-26"), "2026-10-26")).toBe(false);
+    expect(datesPassedUnlaunched(ev("draft", "2026-10-01", "2026-10-26"), "2026-10-27")).toBe(true);
+    // The first day long gone, the last still ahead: not passed.
+    expect(datesPassedUnlaunched(ev("draft", "2026-01-01", "2026-12-31"), "2026-10-26")).toBe(false);
+  });
+
+  it("reads a one-day tournament off its start, and says nothing of an undated one", () => {
+    expect(datesPassedUnlaunched(ev("draft", "2026-10-25", ""), "2026-10-26")).toBe(true);
+    expect(datesPassedUnlaunched(ev("draft", "2026-10-26", ""), "2026-10-26")).toBe(false);
+    expect(datesPassedUnlaunched(ev("draft", "", ""), "2099-01-01")).toBe(false);
+    expect(datesPassedUnlaunched(ev("draft", "next spring", "TBC"), "2099-01-01")).toBe(false);
+  });
+
+  it("crosses a month and a year the way the calendar does", () => {
+    expect(datesPassedUnlaunched(ev("draft", "2026-12-31", ""), "2027-01-01")).toBe(true);
+    expect(datesPassedUnlaunched(ev("draft", "2026-09-30", ""), "2026-10-01")).toBe(true);
   });
 });
