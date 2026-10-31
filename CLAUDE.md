@@ -55,9 +55,12 @@ Ajay, 2026-10-17 and 2026-10-21: block sign-up and sign-in until he says launch.
 **Production holds itself:** only the owners on `OWNER_EMAILS` (and anybody on `SIGNIN_ALLOW_EMAILS`) may
 sign in, set or reset a password, sign up, or keep a session; everybody else sees the "opens soon" front
 door (sign-in only, `/play` for a player, every button to `/interest`). Previews, dev, CI and e2e are not
-production and stay open. **To launch:** the Accounts card on `/owner` (`services/signins-switch.ts`), or
-`SIGNINS=open` in Vercel. **Every door asks `maySignInNow` / `signInsHeld`** (`createSession`, `getSession`,
-the sign-in actions, the front door), so a new door must too. The held page's words are
+production and stay open. **To launch:** Go live on the Accounts card of `/owner` (`services/signins-switch.ts`),
+or `SIGNINS=open` in Vercel — ONE press takes every held place live, Hold again holds them all; the places are
+`LAUNCH_SURFACES` in `src/lib/go-live.ts` (= `docs/go-live-switch.md`), each screen takes `LaunchState` as a
+REQUIRED argument, and once live the card sends the early-list codes on the owner's press (`services/early-list.ts`).
+**Every door asks `maySignInNow` / `signInsHeld` / `launchState`** (`createSession`, `getSession`,
+the sign-in actions, the public pages), so a new door must too. The held page's words are
 `HELD_FRONT_DOOR` / `SIGNINS_CLOSED_NOTICE`: sign-ups "paused" (never "under development"), never the word
 "closed" on screen, and the free plan's "Free for fields of up to 10" and "No card" stay down until launch.
 It is held only while `OWNER_EMAILS` names somebody, so it can never lock everyone out.

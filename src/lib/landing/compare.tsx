@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { PLANS } from "@/lib/plans";
 import type { LandingPrices } from "./pricing";
+import { freePlanWords, type LaunchState } from "@/lib/go-live";
 
 /**
  * HOW TOURNEYHQ COMPARES — the named comparison, as data.
@@ -103,8 +104,10 @@ export const TOP_PUBLISHED = {
   BlueGolf: { low: 495, year: 2495, setupLow: 99, setup: 499 },
 } as const;
 
-export function compareRows(prices: LandingPrices): CompareRow[] {
+/** `launch` is the go-live switch's answer, required: held, our free plan is not offered. */
+export function compareRows(prices: LandingPrices, launch: LaunchState): CompareRow[] {
   const usd = prices.usd;
+  const free = freePlanWords(launch);
   return [
     {
       label: "Price per year",
@@ -121,7 +124,7 @@ export function compareRows(prices: LandingPrices): CompareRow[] {
     {
       label: "A free plan",
       detail: "Free for good, not a trial.",
-      ours: y(`up to ${PLANS.free.limits.playersPerEvent} players`),
+      ours: free.offered ? y(free.versus) : p(free.versus),
       theirs: [x("none listed"), x("none listed"), y("unlimited players"), p("a free account to explore"), p("21-day trial")],
     },
     {

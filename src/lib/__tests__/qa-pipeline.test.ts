@@ -6,7 +6,7 @@ import { readVerbatim } from "./source";
 import { ABROAD, ARITHMETIC, ARITHMETIC_KEEPS_THREE_ROUNDS, CRAWL_PARTS, SCHEDULES, crawlNeeded, layersFor, partsFor, roundPlan, tierOf } from "../../../scripts/qa/layers.mjs";
 import { activeEntries, quarantineProblems, quarantinedBy, readQuarantine } from "../../../scripts/qa/quarantine.mjs";
 import { infraReason } from "../../../scripts/qa/infra.mjs";
-import { decideDeploy } from "../../../scripts/qa/deploy-rules.mjs";
+import { cleanNightlyShas, decideDeploy } from "../../../scripts/qa/deploy-rules.mjs";
 
 /**
  * THE TESTING PIPELINE THE PANEL DECIDED ON 2026-10-23 (docs/testing-panel-2026-10-23.md),
@@ -223,6 +223,24 @@ describe("the deploy gate (item C)", () => {
     expect(decideDeploy({ ...base, alreadyThere: true }).decision).toBe("done");
     expect(decideDeploy({ ...base, deployed: null }).decision).toBe("hold");
     expect(decideDeploy({ ...base, deployed: null, nightlyCoversSha: true }).decision).toBe("deploy");
+  });
+
+  it("a nightly run still in progress covers its commit once its Verdict job has succeeded, and not before", () => {
+    const job = (name: string, conclusion: string | null) => ({ name, conclusion });
+    const running = [
+      { headSha: "a".repeat(40), jobs: [job("Round", "success"), job("Verdict", "success"), job("Deploy what the round cleared / Deploy to production", null)] },
+      { headSha: "b".repeat(40), jobs: [job("Round", "success"), job("Verdict", null)] },
+      { headSha: "c".repeat(40), jobs: [job("Verdict", "failure")] },
+      { headSha: "d".repeat(40), jobs: [] },
+    ];
+    expect(cleanNightlyShas(running)).toEqual(["a".repeat(40)]);
+  });
+
+  it("deploy-gate.mjs does not filter nightly runs to completed ones", () => {
+    const gate = readVerbatim("scripts/qa/deploy-gate.mjs");
+    const fn = gate.slice(gate.indexOf("function cleanNightlies"), gate.indexOf("async function freeze"));
+    expect(fn).toContain("cleanNightlyShas");
+    expect(fn).not.toContain('"completed"');
   });
 
   it("ci.yml deploys only through deploy.yml, and deploy.yml asks the gate before every deploying step", () => {

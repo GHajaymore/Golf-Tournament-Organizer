@@ -3723,3 +3723,20 @@ model InterestRequest {
   @@index([createdAt])
   @@index([notifyId])
 }
+
+/// An early-list code, sent (2026-10-23): who was sent which code, and when. One row per address
+/// (lower-cased) — the early list was promised one code per club — written BEFORE the email goes,
+/// so two presses cannot send one person two codes, and removed again if the send fails. Sent only
+/// by the owner's own press on /owner (`services/early-list.ts`), never by Go live itself.
+model EarlyListSend {
+  email  String   @id
+  name   String   @default("")
+  /// The `DiscountCode.code` made for them: single-use, 25% off the first term.
+  code   String   @default("")
+  /// sending | sent
+  status String   @default("sending")
+  /// When it went (or began going): the mail service's daily allowance is counted from these.
+  sentAt DateTime @default(now())
+
+  @@index([sentAt])
+}

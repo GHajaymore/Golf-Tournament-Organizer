@@ -127,7 +127,7 @@ describe("the owner can override a local price", () => {
 
 describe("a crawler reads the price the page shows", () => {
   const offers = (currency?: string) => {
-    const graph = siteStructuredData({ origin: "https://example.invalid", overrides: NONE, currency })[
+    const graph = siteStructuredData({ origin: "https://example.invalid", overrides: NONE, currency, launch: "live" })[
       "@graph"
     ] as Array<Record<string, unknown>>;
     return graph.find((n) => n["@type"] === "SoftwareApplication")!.offers as Array<Record<string, unknown>>;

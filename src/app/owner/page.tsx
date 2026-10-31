@@ -18,8 +18,9 @@ import { OwnerClubPlan } from "@/components/OwnerClubPlan";
 import { peopleOwningSeveralParClubs } from "@/lib/services/close-terms";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
 import { OwnerAccounts } from "@/components/OwnerAccounts";
-import { signInsOpenedOnConsole } from "@/lib/services/signins-switch";
-import { signInsClosed } from "@/lib/sign-in-gate";
+import { launchSwitch } from "@/lib/services/signins-switch";
+import { ownerClockInWords } from "@/lib/services/owner-clock";
+import { earlyListStatus } from "@/lib/services/early-list";
 import { DEFAULT_LOCALE, formatDay } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
@@ -134,6 +135,24 @@ export default async function OwnerConsolePage() {
     expires: c.expiresAt ? shortDate(c.expiresAt) : "",
   }));
 
+  // THE GO-LIVE SWITCH, and when it went live — on the owner's own club's clock (the first club they
+  // belong to that has said where it is), or in UTC, said so, when none has.
+  const sw = await launchSwitch();
+  const liveSince = sw.liveSince ? await ownerClockInWords(session.userId, sw.liveSince) : "";
+  // Once live, the early-list codes: who is waiting, and what a press of Send would do today.
+  const early = await earlyListStatus();
+  const earlyList = early
+    ? {
+        owed: early.owed.length,
+        sent: early.sent,
+        limit: early.limit,
+        now: early.now,
+        later: early.later,
+        nextAt: early.nextAt ? await ownerClockInWords(session.userId, early.nextAt) : "",
+        previewName: early.owed[0]?.name ?? "",
+      }
+    : null;
+
   const stat = (label: string, value: string, sub?: string) => (
     <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
       <span className="card-kicker">{label}</span>
@@ -219,8 +238,9 @@ export default async function OwnerConsolePage() {
         {stat("Players", m.totalPlayers.toLocaleString(DEFAULT_LOCALE), "across every event")}
       </div>
 
-      {/* The launch switch first: the one control that decides who can get in at all. */}
-      <OwnerAccounts opened={await signInsOpenedOnConsole()} ruleHolds={signInsClosed()} />
+      {/* The go-live switch first: the one control that decides who can get in, and what every
+          public page says about it. */}
+      <OwnerAccounts switchSays={sw.switchSays} liveSince={liveSince} rule={sw.rule} earlyList={earlyList} />
 
       {/* The demo club a visitor can watch (2026-10-24): built and rebuilt from here, and nowhere else. */}
       <OwnerDemoClub

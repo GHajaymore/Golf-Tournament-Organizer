@@ -296,6 +296,9 @@ export default defineConfig({
       DEMO_CLUB_MARK: demoTestMark(),
       // And the replay's door, opened to the spec with a test-only token.
       DEMO_REPLAY_TOKEN: E2E_DEMO_REPLAY_TOKEN,
+      // NO MAIL LEAVES FROM A TEST SERVER: an empty key beats any in .env, so the sender answers "not configured"
+      // (the owner-console spec presses Send on the early list and expects exactly that).
+      RESEND_API_KEY: "",
     },
   },
 });

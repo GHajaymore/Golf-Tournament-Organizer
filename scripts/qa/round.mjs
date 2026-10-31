@@ -162,6 +162,8 @@ async function serve(mode) {
     // The demo club it builds is the test's own, as playwright.config.ts gives it — see e2e/demo-fixture.mjs.
     DEMO_CLUB_MARK: demoTestMark(),
     DEMO_REPLAY_TOKEN: E2E_DEMO_REPLAY_TOKEN,
+    // No mail leaves a test server (the owner-console spec presses Send on the early list).
+    RESEND_API_KEY: "",
     ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),
   };
   delete env.E2E_TZ;

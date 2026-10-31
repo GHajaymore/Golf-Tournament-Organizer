@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
-import { signInsHeld } from "@/lib/services/signins-switch";
+import { launchState } from "@/lib/services/signins-switch";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
 import { LANDING_CSS } from "@/lib/landing/styles";
@@ -45,7 +45,7 @@ export default async function DemoPage() {
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS + CSS }} />
       <LandingEffects />
       {iconSprite()}
-      {landingNav("demo", await signInsHeld())}
+      {landingNav("demo", await launchState())}
 
       <main className="legal">
         <section className="fq-hero">
