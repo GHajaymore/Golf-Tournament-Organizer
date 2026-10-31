@@ -62,7 +62,7 @@ import { dayAtClubForEvent } from "@/lib/services/club-clock";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
-import { formatFitsRound, naturalFormatFor, newRoundBasis, unscorableRoundLabels } from "@/lib/domain/round-choices";
+import { formatFitsRound, naturalFormatFor, newRoundBasis } from "@/lib/domain/round-choices";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
@@ -116,10 +116,10 @@ import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
-import { launchRefusal, finishRefusal, statusMove, completingCheckFor } from "@/lib/domain/phase-gate";
+import { finishRefusal, statusMove, completingCheckFor } from "@/lib/domain/phase-gate";
+import { launchCheckFor } from "@/lib/services/setup-flow";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
-import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { bracketDraws, tieByKey, tieReportRefusal } from "@/lib/domain/my-tie";
 import {
   planWithPlayerAdded,
@@ -4731,22 +4731,15 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
    * move was to unlock the thing they had just locked, in order to build the
    * tournament they had just published.
    *
-   * The two conditions are in `launchRefusal` with the reasoning. Guided
+   * The conditions are in `launchRefusal` with the reasoning. Guided
    * inside setting up, gated between phases — see phase-gate.ts.
+   *
+   * The facts are the setup flow's own (`launchCheckFor`, gap G3 2026-10-31):
+   * the dashboard's button asks the same function, so this refuses exactly what
+   * the button refuses, in the same words. Behind the staff gate above; the
+   * refusal names this tournament's own rounds and screens, nothing else.
    */
-  const [stages, confirmed, event] = await Promise.all([
-    prisma.stage.findMany({ where: { eventId }, select: { id: true, type: true, format: true, position: true } }),
-    prisma.player.count({ where: { eventId, status: "confirmed" } }),
-    prisma.event.findUnique({ where: { id: eventId }, select: { dates: true } }),
-  ]);
-  const playingRounds = stages.filter((s) => isPlayingRound(s.type)).length;
-  const refusal = launchRefusal({
-    playingRounds,
-    confirmed,
-    dated: !!event?.dates.trim(),
-    missingCards: await roundsMissingCards(eventId),
-    unscorable: unscorableRoundLabels(stages),
-  });
+  const { refusal } = await launchCheckFor(eventId);
   if (refusal) return { ok: false, error: refusal };
 
   // On launch, every non-staff account receives the Player role. Once registration
