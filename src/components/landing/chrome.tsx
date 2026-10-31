@@ -5,6 +5,7 @@ import { Lockup } from "@/components/Lockup";
 import type { Edition } from "@/lib/landing/edition";
 import { EditionSwitch } from "./EditionSwitch";
 import { CONTACT_EMAIL as FRONT_DOOR_EMAIL } from "@/lib/contact";
+import { SOCIAL_LINKS } from "@/lib/social-links";
 
 /**
  * The front door's frame — its icons, its nav and its footer — shared by `/`
@@ -75,6 +76,8 @@ export function iconSprite() {
         <symbol id="i-menu" viewBox="0 0 24 24">{p("M4 7h16M4 12h16M4 17h16")}</symbol>
         <symbol id="i-scale" viewBox="0 0 24 24">{p("M12 3v18M5 7h14M3 13l2-6 2 6a2.5 2.5 0 0 1-4 0zM17 13l2-6 2 6a2.5 2.5 0 0 1-4 0zM8 21h8")}</symbol>
         <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" />{p("M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z")}</symbol>
+        {/* The social profiles' marks (`lib/social-links.ts`), in the same line weight as the rest. */}
+        <symbol id="i-facebook" viewBox="0 0 24 24">{p("M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z")}</symbol>
       </defs>
     </svg>
   );
@@ -209,6 +212,18 @@ export function landingFooter(at: "home" | "faq" | "privacy" | "terms" | "intere
             <span className="ftr-copy">&copy; {new Date().getFullYear()} TourneyHQ &middot; Made by AjAi Labs</span>
             <a href="/privacy" aria-current={at === "privacy" ? "page" : undefined}>Privacy</a>
             <a href="/terms" aria-current={at === "terms" ? "page" : undefined}>Terms</a>
+            {/* TourneyHQ's own profiles (Ajay, 2026-10-23), every one from
+                `lib/social-links.ts`. Here with the legal links rather than in
+                the nav above, which keeps its rows of two on a phone. */}
+            <span className="ftr-follow">
+              <span>Follow us</span>
+              {SOCIAL_LINKS.map((s) => (
+                <a key={s.id} href={s.href} target="_blank" rel="noopener">
+                  {icon(s.icon)}
+                  {s.label}
+                </a>
+              ))}
+            </span>
           </span>
           <span>Every screen on this site is an unedited capture of the app, on invented demo data.</span>
           <span className="ed-note">{editionNoteNode}</span>
