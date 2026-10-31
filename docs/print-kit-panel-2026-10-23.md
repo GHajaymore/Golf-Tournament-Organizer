@@ -1,3 +1,5 @@
+> **Superseded 30 Oct 2026** by [print-kit-panel-2026-10-30.md](print-kit-panel-2026-10-30.md): every card is now the normal scorecard (9.5 × 3.75 in, two to a sheet), with fold-outs only where it cannot hold the content.
+
 # The Print kit — the panel's decision (2026-10-23)
 
 ## What was asked
