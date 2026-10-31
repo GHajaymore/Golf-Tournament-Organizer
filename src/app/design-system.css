@@ -768,6 +768,12 @@ textarea.input { min-height: 90px; resize: vertical; }
 /* The empty "saved" line at the panel's foot takes no room until it has something to say. */
 .side-panel-foot:has(> span:empty:only-child) { padding: 0; border-top: 0; min-height: 0; }
 .round-link { padding-left: 74px; }
+@media (max-width: 520px) {
+  /* A phone has no room for the indent: the link starts under the round, and a long one wraps
+     as a soft block rather than a tall pill. */
+  .round-link { padding-left: 14px; }
+  .round-link-chip { border-radius: 12px; align-items: flex-start; }
+}
 .side-panel-body section {
   background: var(--color-surface-2); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);
 }
