@@ -38,6 +38,8 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { snapshotStanding, cardsIn } from "@/lib/domain/lifecycle-state";
 import { attendanceReport, attendanceCsvRows } from "@/lib/services/attendance-report";
 import { AttendanceReport } from "@/components/AttendanceReport";
+import { cupResult, TEAM_SESSION } from "@/lib/services/cup";
+import { cupPoints, cupResultNote } from "@/lib/domain/cup";
 import { Icon } from "@/components/Icon";
 
 /**
@@ -158,7 +160,54 @@ export default async function ReportsPage({
    */
   const attendance = await attendanceReport(state);
 
-  if (kind === "team-match" && activeStage) {
+  /**
+   * A TEAM CUP IS DECIDED BY ITS OWN RESULT (2026-10-30) — `cupResult`, the
+   * one reader the honours board and the season table ask too. Its matches are
+   * on cup sessions, which `standingRows` does not read, so this sheet printed
+   * a completed cup's whole field at P0 W0 ½0 L0 under "Final standings".
+   */
+  const cup = state.stages.some((s) => s.type === TEAM_SESSION) ? await cupResult(session.eventId) : null;
+
+  if (cup) {
+    const final = event.status === "completed" && cup.outcome !== "open";
+    snapshotTitle = final ? "Final result" : "The cup so far";
+    board = (
+      <EmbeddedBoard note={cupResultNote(cup)}>
+        <div style={{ overflowX: "auto" }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th style={{ textAlign: "right" }}>Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cup.teams.map((t, i) => (
+                <tr key={t.id}>
+                  <td>
+                    {t.name}
+                    {cup.champion === (i === 0 ? "A" : "B") && <b> · won the cup</b>}
+                  </td>
+                  <td style={{ textAlign: "right" }}>{cupPoints(t.points)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </EmbeddedBoard>
+    );
+    extraCsv = [
+      {
+        label: "Cup result",
+        desc: "Both teams and their points.",
+        filename: `${event.name}-cup-result.csv`,
+        rows: [
+          ["Team", "Points", "Result"],
+          ...cup.teams.map((t) => [t.name, cupPoints(t.points), cup.scoreLine]),
+        ],
+      },
+    ];
+  } else if (kind === "team-match" && activeStage) {
     const sides = await teamMatchBoard(
       session.eventId,
       activeStage.id,

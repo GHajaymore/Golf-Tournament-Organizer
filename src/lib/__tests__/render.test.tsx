@@ -6359,6 +6359,21 @@ describe("the honours board", () => {
     expect(html).toContain("Standings say");
   });
 
+  it("offers a team cup's winning TEAM with the score, and says a halved cup names nobody", async () => {
+    // A cup's champion is a team (`suggestCupChampion`, read off `cupResult`).
+    // Until 2026-10-30 a completed cup read "No ranked results yet" here.
+    const html = await board([], [
+      { eventId: "c1", eventName: "zz Club Cup", dates: "2026", year: 2026,
+        suggestion: { ok: true, playerId: "team-oak", name: "zz Oakmere", runnersUp: [], team: { score: "zz Oakmere 6½–3½" } } },
+      { eventId: "c2", eventName: "zz Halved Cup", dates: "2026", year: 2026,
+        suggestion: { ok: false, reason: "cup-halved", tied: [] } },
+    ]);
+    expect(html).toContain("Won by <b>zz Oakmere 6½–3½</b>");
+    expect(html).not.toContain("Standings say");
+    expect(html).toContain("The cup was halved");
+    expect(html).not.toContain("No ranked results yet");
+  });
+
   it("asks the committee to decide a tie instead of naming somebody", async () => {
     // The app refuses to break a tie, so the screen has to offer the choice —
     // otherwise the refusal is a dead end and the tournament never goes up.

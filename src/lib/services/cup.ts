@@ -6,7 +6,9 @@ import {
   cupTally,
   cupPointsInPlay,
   cupVerdict,
+  cupResultOf,
   pointsToWin,
+  type CupResult,
   type CupMatchInput,
   type CupMatchState,
   type CupSide,
@@ -401,6 +403,44 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
       verdict: cupVerdict(tally, event.cupPointsToWin, holder, totalKnown),
     },
   };
+}
+
+/**
+ * A TEAM CUP'S RESULT — the one reader of who won a cup, its score and who
+ * played for whom (see `CupResult`). /reports, the honours board and the season
+ * table all ask this; none of them may ask the round-robin standings about a
+ * cup, which hold nothing for one.
+ *
+ * Read off the ANNOUNCED board — `cupBoard` without `staff` — so a draft lineup
+ * is in no result. Null when the tournament is not a cup (no cup sessions, or
+ * not two teams), so a caller can fall through to its ordinary board.
+ */
+export async function cupResult(eventId: string): Promise<CupResult | null> {
+  const r = await cupBoard(eventId);
+  if (!r.ok) return null;
+  const { board } = r;
+  const players: [Map<string, string>, Map<string, string>] = [new Map(), new Map()];
+  for (const s of board.sessions) {
+    for (const m of s.matches) {
+      m.aIds.forEach((id, i) => players[0].set(id, m.a[i] ?? ""));
+      m.bIds.forEach((id, i) => players[1].set(id, m.b[i] ?? ""));
+    }
+  }
+  const list = (m: Map<string, string>) => [...m].map(([id, name]) => ({ id, name }));
+  const holderId = (
+    await prisma.event.findUnique({ where: { id: eventId }, select: { cupHolderGroupId: true } })
+  )?.cupHolderGroupId;
+  const holder: CupSide | null =
+    holderId === board.teams[0].id ? "A" : holderId === board.teams[1].id ? "B" : null;
+  return cupResultOf({
+    teams: [
+      { id: board.teams[0].id, name: board.teams[0].name, players: list(players[0]) },
+      { id: board.teams[1].id, name: board.teams[1].name, players: list(players[1]) },
+    ],
+    tally: board.tally,
+    verdict: board.verdict,
+    holder,
+  });
 }
 
 /**
