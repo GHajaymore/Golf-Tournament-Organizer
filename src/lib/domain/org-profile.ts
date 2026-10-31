@@ -185,11 +185,18 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     ledger: true,
     ownsCourse: false,
   },
+  // AN OUTING IS A DAY, NEVER THE OUTFIT (the panel's ruling, 2026-10-26: "a
+  // club or league/society should not be called as outing. outing is a
+  // tournament"). Until that day a personal organizer's console was headed
+  // "OUTING", its settings "Outing settings", and a tournament's staff line
+  // read "Organizer · outing". One person running their own golf has no group
+  // noun: the section is "Your golf", the page plain "Settings", and in a
+  // sentence it is their "group". `an-outing-is-a-day.test.ts` holds it.
   personal: {
     label: "Personal",
-    noun: "outing",
-    settingsLabel: "Outing settings",
-    groupLabel: "Outing",
+    noun: "group",
+    settingsLabel: "Settings",
+    groupLabel: "Your golf",
     blurb: "One organizer running an outing, with their own list of players.",
     sharedRoster: false,
     ledger: true,

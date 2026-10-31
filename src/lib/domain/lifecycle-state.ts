@@ -23,6 +23,8 @@
  * choose rather than have chosen for them because a score got typed in early.
  */
 
+import { isIsoDate } from "./round-dates";
+
 export interface LifecycleFacts {
   /** draft | registration | ready | live | completed. */
   status: string;
@@ -121,6 +123,26 @@ export function isLaunched(status: string): boolean {
  */
 export function isFinished(status: string): boolean {
   return status === "completed";
+}
+
+/**
+ * ITS DAYS HAVE GONE BY AND IT WAS NEVER LAUNCHED (2026-10-30).
+ *
+ * Ajay's Tournaments list read "Draft" beside a matchplay dated 30 Jul to 26
+ * Sep, a month after its last day. "Draft" is what the status column holds and
+ * not what is true: nobody is building it any more, and nobody was ever shown it.
+ *
+ * Told the club's day (`clubToday`), never the server's, as every day helper
+ * is. The last day is `endOn`, or `startOn` for a one-day tournament; an
+ * undated tournament has not passed anything. The last day itself has not
+ * passed: a draft played today is still today's.
+ */
+export function datesPassedUnlaunched(
+  event: { status: string; startOn: string; endOn: string },
+  today: string,
+): boolean {
+  const last = event.endOn || event.startOn;
+  return !isLaunched(event.status) && isIsoDate(last) && last < today;
 }
 
 /**

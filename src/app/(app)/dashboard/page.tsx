@@ -557,10 +557,19 @@ export default async function DashboardPage() {
   // true but useless. Someone who just created a tournament lands here, so
   // this is the one place the next step has to be spelled out.
   const unstarted = isUnstarted(state) && isStaff;
-  // The club's branding, loaded only for the first-run checklist, so it can
+  /**
+   * THE CHECKLIST OUTLIVES THE FIRST ENTRANT (2026-10-31, gap G2 of the workflow review).
+   *
+   * It used to show only while the field was empty, so importing 28 players took the setup
+   * guidance off the dashboard while the rounds, flights and tee sheet were still to do — exactly
+   * when a new organizer needs it. It now shows to staff until the tournament is launched; the
+   * rest of the dashboard renders beside it as soon as there is a field to report on.
+   */
+  const settingUp = isStaff && !isLaunched(event.status);
+  // The club's branding, loaded only for the setup checklist, so it can
   // nudge (never gate) an organizer to add a logo and colours before they've
   // set either.
-  const brandingOrg = unstarted
+  const brandingOrg = settingUp
     ? await prisma.organization.findUnique({
         where: { id: event.organizationId },
         // `kind` so the nudge below calls the outfit by its own name — a
@@ -578,16 +587,16 @@ export default async function DashboardPage() {
    * venue — the rail on the Set-up screens said it first, and this list did
    * not carry the step at all.
    *
-   * Loaded only while the tournament is UNSTARTED, which is the only time the
-   * checklist renders, so a running tournament pays nothing for it. Returns
-   * null for a match, which is correct: two people on the first tee have no
-   * tournament to set up.
+   * Loaded only while the tournament is being SET UP (not yet launched), which
+   * is the only time the checklist renders, so a running tournament pays
+   * nothing for it. Returns null for a match, which is correct: two people on
+   * the first tee have no tournament to set up.
    */
-  const flow = unstarted ? await setupFlowFor(session.eventId) : null;
+  const flow = settingUp ? await setupFlowFor(session.eventId) : null;
   // EVERY step's own answer, not two of them. The flow decides what is
   // finished and a second copy of any of those tests here is how the rail and
   // the dashboard come to disagree — which two of the five rows already did.
-  const checklist = unstarted
+  const checklist = settingUp
     ? setupChecklist({
         ...state,
         branding: clubBrandingState(brandingOrg),
@@ -984,13 +993,14 @@ export default async function DashboardPage() {
       )}
 
       {/* Ahead of the shortcuts, because "what next" outranks "where to". */}
-      {unstarted && (
+      {settingUp && checklist.some((i) => !i.done && !i.optional) && (
         <div className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
           <div>
-            <span className="card-kicker">Getting started</span>
+            <span className="card-kicker">{unstarted ? "Getting started" : "Still to set up"}</span>
             <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
-              This tournament doesn&rsquo;t have a field yet, so there&rsquo;s nothing to score or
-              rank. Work down the list and the dashboard fills in as you go.
+              {unstarted
+                ? "This tournament doesn’t have a field yet, so there’s nothing to score or rank. Work down the list and the dashboard fills in as you go."
+                : "The field is in. Finish the steps still open before you launch."}
             </p>
           </div>
           <SetupChecklist items={checklist} />
