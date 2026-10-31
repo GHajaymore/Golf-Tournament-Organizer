@@ -109,27 +109,52 @@ async function printedTexts(page: Page): Promise<string[]> {
   });
 }
 
-/** Each QR drawn on a sheet, rasterised and read back by a decoder. */
-async function decodeQrs(page: Page): Promise<Array<{ drawn: string; read: string | null }>> {
-  const images = await page.evaluate(async () => {
-    const out: Array<{ drawn: string; w: number; h: number; data: number[] }> = [];
-    for (const svg of document.querySelectorAll<SVGSVGElement>("#pk-pages svg.pk-qr")) {
-      const size = 400;
-      const img = new Image();
-      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
-      await img.decode();
-      const canvas = document.createElement("canvas");
-      canvas.width = canvas.height = size;
-      const ctx = canvas.getContext("2d")!;
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, size, size);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(img, 0, 0, size, size);
-      out.push({ drawn: svg.dataset.link ?? "", w: size, h: size, data: [...ctx.getImageData(0, 0, size, size).data] });
-    }
-    return out;
-  });
-  return images.map((i) => ({ drawn: i.drawn, read: jsQR(Uint8ClampedArray.from(i.data), i.w, i.h)?.data ?? null }));
+/** The side of the square each QR is rasterised at: ~12 px a module, well above what a decoder needs. */
+const QR_PX = 400;
+
+/**
+ * Each QR drawn on a sheet, rasterised in the page and read back by a decoder here — ONE AT A TIME.
+ *
+ * Memory is the point of the shape (CI, 2026-10-31: the worker died "JavaScript heap out of memory"
+ * on the team cup). It used to return every code's pixels at once as a plain array of numbers: 22
+ * codes x 400 x 400 x 4 = 14 million numbers, each one an object in Playwright's wire format, then
+ * copied again into a Uint8ClampedArray. Now one code's bytes cross as a base64 string (~850 KB),
+ * are viewed — not copied — as the decoder's input, and are dropped before the next is drawn.
+ *
+ * `damage` paints over the top-left finder pattern first: the CONTROL that a broken code does not read.
+ */
+async function decodeQrs(page: Page, opts: { only?: number; damage?: boolean } = {}): Promise<Array<{ drawn: string; read: string | null }>> {
+  const count = await page.locator("#pk-pages svg.pk-qr").count();
+  const which = opts.only === undefined ? [...Array(count).keys()] : [opts.only];
+  const out: Array<{ drawn: string; read: string | null }> = [];
+  for (const i of which) {
+    const { drawn, b64 } = await page.evaluate(
+      async ({ i, size, damage }) => {
+        const svg = document.querySelectorAll<SVGSVGElement>("#pk-pages svg.pk-qr")[i];
+        const img = new Image();
+        img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
+        await img.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, size, size);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0, size, size);
+        if (damage) ctx.fillRect(0, 0, size * 0.35, size * 0.35);
+        const bytes = ctx.getImageData(0, 0, size, size).data;
+        let bin = "";
+        for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode(...bytes.subarray(k, k + 0x8000));
+        return { drawn: svg.dataset.link ?? "", b64: btoa(bin) };
+      },
+      { i, size: QR_PX, damage: opts.damage ?? false },
+    );
+    const bytes = Buffer.from(b64, "base64");
+    expect(bytes.length, "CONTROL: a whole raster crossed").toBe(QR_PX * QR_PX * 4);
+    const pixels = new Uint8ClampedArray(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    out.push({ drawn, read: jsQR(pixels, QR_PX, QR_PX)?.data ?? null });
+  }
+  return out;
 }
 
 /** The PDF Chromium would print, as its page sizes in points. */
@@ -329,6 +354,9 @@ test("the team cup: one fold-out card per match with both nines on it, and a sig
     expect(want.has(q.read ?? ""), `${q.read} is not one of the cup's rounds`).toBe(true);
     expect(q.drawn).toBe(q.read);
   }
+  // CONTROL: the same decoder, handed a code with a finder pattern painted out, reads nothing it should.
+  const [broken] = await decodeQrs(page, { only: 0, damage: true });
+  expect(want.has(broken.read ?? ""), "a damaged QR still decoded: the decoder is not reading the drawing").toBe(false);
   expect(paperRefusals(await printedTexts(page))).toEqual([]);
   expect((await pdfPages(page)).length).toBe((await visible(page)).sheets);
 
