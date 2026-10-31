@@ -56,11 +56,11 @@ import { freePlanWords } from "@/lib/go-live";
  * `e2e/go-live-switch.spec.ts`, on a server that holds.
  */
 
-/** What a person reads in rendered markup: tags out, entities decoded, spaces tidied. */
+/** What a person reads in rendered markup: tags out, entities decoded (`&amp;` last, so `&amp;lt;` stays `&lt;`), spaces tidied. */
 function text(html: string): string {
   return html
     .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, "&")
     .replace(/\s+/g, " ");
 }
 
