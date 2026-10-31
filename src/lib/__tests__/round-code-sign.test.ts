@@ -91,7 +91,8 @@ describe("the encoder is in no screen's first download", () => {
       expect(src, file).not.toMatch(/from\s+["']qrcode-generator["']/);
       if (/import\(\s*["']qrcode-generator["']\s*\)/.test(src)) lazy.push(file.replace(/\\/g, "/"));
     }
-    // CONTROL: the sweep sees the two that load it lazily.
-    expect(lazy.sort()).toEqual(["src/components/RoundSigns.tsx", "src/components/SignUpPoster.tsx"]);
+    // CONTROL: the sweep sees the two that load it lazily. The Print kit's (2026-10-23) is on the
+    // SERVER — `server-only`, in no browser's download at all — and draws every printed QR.
+    expect(lazy.sort()).toEqual(["src/components/SignUpPoster.tsx", "src/lib/services/print-kit.ts"]);
   });
 });
