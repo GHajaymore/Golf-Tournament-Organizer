@@ -443,6 +443,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Name a session — “Saturday four-balls” — with [[Rename]] beside its title; that name is what the board, the players and the final report call it. Leave it empty and it is “Session 1”, “Session 2”.",
           "A point that isn't a match — the lower team net total, say — goes under **Other points**: name it and give it a value with [[Add point]], and it counts in the cup's total straight away, so the target is right before it is decided. Give it to a team when it is; until then the board says **To be decided**.",
           "**Final report**, under the cup's score, is the whole cup on one page to send round: the score, every session's matches, who won every match they played and each player's points. Write **The story** in your own words and [[Save the story]], or leave it empty and the report tells it from the results. Once the cup is decided, the public leaderboard and the players' Board link to it.",
+          "A cup's champion is a team. Once it is completed, **Reports** prints both teams and their points; the **{HonoursBoard}** offers the winning team with the score — “Oakmere 6½–3½” — and a halved cup names nobody, whoever holds it. In a season, the winning team's players share first place and the other team's share the place below them; a halved cup puts everybody who played level first.",
         ],
       },
       { kind: "h", text: "League or season" },
