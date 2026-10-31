@@ -270,6 +270,9 @@ describe("colour comes from the theme, not from the component", () => {
     // render badly or not at all. Tokens here would follow the theme, which is
     // exactly what must not happen.
     "src/components/TeeSheetPrint.tsx",
+    // The Print kit's pages (2026-10-23), for the same reason: black ink on white
+    // paper, and the club's theme colour kept off paper on purpose (decision E).
+    "src/components/print/PrintPages.tsx",
   ];
 
   it("has no hard-coded hex colours outside the places that own one", () => {
