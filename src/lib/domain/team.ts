@@ -309,12 +309,29 @@ export function matchStrokesCount(playingHandicap: number, low: number): number 
   return Math.max(0, Math.round(playingHandicap) - Math.round(low));
 }
 
+/**
+ * THE DIFFERENCE THE STROKES ARE SPREAD FROM — not floored at nought.
+ *
+ * `matchStrokesCount` is the number a player is told they RECEIVE, and nobody
+ * receives fewer than none. But "pass 0 on a medal and this is the identity"
+ * was not true of a plus handicap: floored at nought, a +2 in a four-ball medal
+ * was drawn no dots on the score-entry screen while the board
+ * (`aggregateTeamCard`, through `allocatedStrokes`) took two strokes back off
+ * his card — found 2026-10-23 by `print-kit-paper-equals-screen.audit.test.ts`,
+ * which holds the printed card to that screen hole by hole. In a match nobody
+ * plays off less than the low, so this is never below nought there and nothing
+ * a match scores changes.
+ */
+export function matchStrokesDifference(playingHandicap: number, low: number): number {
+  return Math.round(playingHandicap) - Math.round(low);
+}
+
 export function matchStrokesPerHole(
   playingHandicap: number,
   low: number,
   strokeIndex: number[],
 ): number[] {
-  return allocatedStrokes(matchStrokesCount(playingHandicap, low), 100, strokeIndex);
+  return allocatedStrokes(matchStrokesDifference(playingHandicap, low), 100, strokeIndex);
 }
 
 /** One ball in a match: what it returned, and what it plays off. */

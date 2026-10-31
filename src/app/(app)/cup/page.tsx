@@ -75,6 +75,17 @@ export default async function CupPage() {
             <Link href="/cup/report" className="btn" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
               {result.board.verdict.kind === "open" ? "The report so far" : "Final report"}
             </Link>
+            {/* The Print kit with the cup's own sheets ticked: a card per match, both nines on it,
+                and the cart signs. From the session with sides, which carries the singles on its card. */}
+            {isStaff && result.board.sessions.length > 0 && (
+              <Link
+                href={`/print?round=${(result.board.sessions.find((s) => s.sideSize > 1) ?? result.board.sessions[0]).id}&docs=cup,slips,signs,spare`}
+                className="btn btn-secondary"
+                style={{ minHeight: 44, display: "inline-flex", alignItems: "center", marginLeft: 10 }}
+              >
+                Print…
+              </Link>
+            )}
           </p>
           {isStaff && <StaffLineup eventId={session.eventId} board={result.board} />}
         </>
