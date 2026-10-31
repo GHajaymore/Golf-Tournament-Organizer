@@ -2046,6 +2046,16 @@ model Stage {
    * lib/domain/pace.ts.
    */
   paceMinutes       Int     @default(0)
+  /**
+   * What the Print kit has sent to the printer for this round (2026-10-23), as
+   * JSON — see lib/domain/print-kit.ts. One entry per printed SHEET (a player's
+   * card, a group's cart sign, the starting sheet): a fingerprint of what was
+   * on it, its version and when. When the groups, the times, the tees or the
+   * round code change afterwards, the sheet's fingerprint no longer matches and
+   * the hub says which sheets to reprint. Empty means nothing printed yet,
+   * which is every round that existed before this field.
+   */
+  printLog          String  @default("")
 
   event      Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   course     Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
