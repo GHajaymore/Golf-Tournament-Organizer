@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { setupFlow, type SetupFacts, type SetupRound } from "../setup-flow";
 import { screenName } from "@/lib/nav";
-import { warningText } from "../launch-check";
+import { warningText, launchRows } from "../launch-check";
 
 /**
  * LAUNCH READS SETUP (gap G3, 2026-10-31) — worked from the panel's ruling, not
@@ -131,5 +131,28 @@ describe("what launch only warns about", () => {
       expect(w, `no warning links ${href}`).toBeDefined();
       expect(w!.fix).toContain(screenName(href));
     }
+  });
+});
+
+describe("the dialog's three rows", () => {
+  const four = () =>
+    setupFlow({ ...READY, moneyAnswered: false, groups: 0, named: false, rounds: [medal({ teeSheetSaved: false })] }, screenName).launch.warnings;
+
+  it("keeps three warnings as three rows, nothing folded", () => {
+    const three = four().slice(1);
+    expect(launchRows(three)).toEqual({ rows: three, alsoOpen: [] });
+  });
+
+  it("past three, the third row names the rest inline, each linked to its own screen", () => {
+    const all = four();
+    expect(all.length).toBe(4);
+    const { rows, alsoOpen } = launchRows(all);
+    expect(rows).toEqual(all.slice(0, 2));
+    // Folded, not dropped: every remaining warning keeps its own screen and link.
+    expect(alsoOpen.map((w) => [w.screen, w.href])).toEqual([
+      [screenName("/prizes"), "/prizes"],
+      [screenName("/foursomes"), "/foursomes"],
+    ]);
+    expect([...rows, ...alsoOpen]).toEqual(all);
   });
 });

@@ -72,6 +72,8 @@ export interface LaunchWarning {
   /** The link's words — "Answer it on Prizes & payouts". */
   fix: string;
   href: string;
+  /** The screen's name in the sidebar — the link's words when the row is folded. */
+  screen: string;
   /**
    * Whether the fix can still be made once the tournament is live ("open"), or
    * needs Unlock first because launching locks configuration ("unlock") — flights,
@@ -84,6 +86,18 @@ export interface LaunchWarning {
 /** The warning as one line of text — what a screen reader and a test both read. */
 export function warningText(w: LaunchWarning): string {
   return `${w.says} ${w.fix}${w.afterLaunch === "unlock" ? " — after launch, this needs Unlock first." : " — you can still do this after launch."}`;
+}
+
+/**
+ * AT MOST THREE ROWS in the launch dialog. Up to three warnings are each a row;
+ * past that, the first two are rows and the third row names the rest INLINE —
+ * "Also open: Tee sheet · Prizes & payouts" — each its own link to its own
+ * screen. Never a catch-all link: a screen that does not show the fix is a
+ * closed door (QA, 2026-10-31).
+ */
+export function launchRows(warnings: readonly LaunchWarning[]): { rows: LaunchWarning[]; alsoOpen: LaunchWarning[] } {
+  if (warnings.length <= 3) return { rows: [...warnings], alsoOpen: [] };
+  return { rows: warnings.slice(0, 2), alsoOpen: warnings.slice(2) };
 }
 
 export interface LaunchCheck {
@@ -103,7 +117,7 @@ export interface LaunchCheck {
  * dialog — the button is disabled first.
  */
 function warningFor(step: SetupStep, f: LaunchSource): LaunchWarning | null {
-  const at = (fix: string, afterLaunch: LaunchWarning["afterLaunch"]) => ({ fix: `${fix} on ${step.label}`, href: step.href, afterLaunch });
+  const at = (fix: string, afterLaunch: LaunchWarning["afterLaunch"]) => ({ fix: `${fix} on ${step.label}`, href: step.href, screen: step.label, afterLaunch });
   switch (step.key) {
     case "event":
       return f.named ? null : { says: "It still has no name of its own.", ...at("Give it one", "unlock") };
@@ -142,6 +156,7 @@ function teeSheetWarning(f: LaunchSource, teeSheetLabel: string): LaunchWarning 
     says: `${names} ${bare.length === 1 ? "has" : "have"} no tee sheet saved, so nobody has a time to turn up for.`,
     fix: `Draw one on ${teeSheetLabel}`,
     href: "/foursomes",
+    screen: teeSheetLabel,
     afterLaunch: "open",
   };
 }

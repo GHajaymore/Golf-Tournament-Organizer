@@ -12,7 +12,7 @@ import {
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
 import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
-import { warningText, type LaunchCheck } from "@/lib/domain/launch-check";
+import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-check";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 
@@ -509,15 +509,21 @@ export function LifecycleBar({
                     : "Setup is done — one thing you may still want."}
                 </b>
                 <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
-                  {(launchOpen.warnings.length > 3 ? launchOpen.warnings.slice(0, 2) : launchOpen.warnings).map((w) => (
+                  {launchRows(launchOpen.warnings).rows.map((w) => (
                     <li key={w.says} title={warningText(w)}>
                       {w.says} <Link href={w.href}>{w.fix}</Link>
                       {w.afterLaunch === "unlock" ? " — after launch, this needs Unlock first." : " — you can still do this after launch."}
                     </li>
                   ))}
-                  {launchOpen.warnings.length > 3 && (
-                    <li>
-                      And {launchOpen.warnings.length - 2} more — <Link href="/event">see them on Tournament details</Link>.
+                  {launchRows(launchOpen.warnings).alsoOpen.length > 0 && (
+                    <li className="launch-also-open">
+                      Also open:{" "}
+                      {launchRows(launchOpen.warnings).alsoOpen.map((w, i) => (
+                        <span key={w.href}>
+                          {i > 0 && " · "}
+                          <Link href={w.href} title={warningText(w)}>{w.screen}</Link>
+                        </span>
+                      ))}
                     </li>
                   )}
                 </ul>

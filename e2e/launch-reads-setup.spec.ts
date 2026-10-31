@@ -13,8 +13,9 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
  *   - Launch tournament is disabled, and the reason is said in place, naming Teams & pairs;
  *   - nothing changes in the database;
  *   - once the sides are made, Launch opens its dialog, which lists FIRST what is still
- *     open (no flights, no tee sheet, no money answer) with the rail's own count and a
- *     link for each, and the same press launches.
+ *     open (no name, no flights, no money answer, no tee sheet) with the rail's own count;
+ *     two as rows with a link each, and the other two named inline on the third row, each
+ *     its own link to its own screen — never a catch-all — and the same press launches.
  *
  * Marked zz-, one club per screen size, deleted afterwards. WHAT IT CANNOT SEE: the cup
  * and round-robin refusals (held by `launch-check.test.ts`), and a page left open while
@@ -50,7 +51,9 @@ test("launch is refused in place for a scramble with no sides, and warns about t
     ids.org = org.id;
     const event = await prisma.event.create({
       data: {
-        organizationId: org.id, name: `zz-launchsetup scramble ${size}`, dates: "Nov 14–15", course: "Home", city: "", address: "", regDeadline: "",
+        // "New Tournament" is the placeholder a blank name falls back to: not named yet,
+        // which makes the fourth warning, so the dialog folds its third row.
+        organizationId: org.id, name: "New Tournament", dates: "Nov 14–15", course: "Home", city: "", address: "", regDeadline: "",
         status: "ready", shareToken: `zz-launchsetup-${size}-${Date.now()}`, configUnlocked: true,
         customPars: JSON.stringify(PARS), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
         customYards: JSON.stringify(new Array(18).fill(400)),
@@ -96,8 +99,15 @@ test("launch is refused in place for a scramble with no sides, and warns about t
     await expect(open).toContainText("There are no flights, so the whole field plays as one division.");
     await expect(open.getByRole("link", { name: "Make flights on Flights" })).toHaveAttribute("href", "/grouping");
     await expect(open).toContainText("after launch, this needs Unlock first.");
-    // At most three rows.
-    expect(await open.locator("li").count()).toBeLessThanOrEqual(3);
+    await expect(open.getByRole("link", { name: "Give it one on Tournament details" })).toHaveAttribute("href", "/event");
+    // Four warnings, three rows: the third names the other two inline, each its own link.
+    await expect(open.locator("li")).toHaveCount(3);
+    const also = open.locator("li").nth(2);
+    await expect(also).toContainText("Also open:");
+    await expect(also.getByRole("link", { name: "Prizes & payouts" })).toHaveAttribute("href", "/prizes");
+    await expect(also.getByRole("link", { name: "Tee sheet" })).toHaveAttribute("href", "/foursomes");
+    await expect(also.getByRole("link"), "the folded row carries a link that is not its own screen").toHaveCount(2);
+    await expect(open, "a catch-all row came back").not.toContainText("more");
     // First in the dialog: above the summary.
     const [openTop, summaryTop] = await Promise.all([
       open.evaluate((el) => el.getBoundingClientRect().top),
