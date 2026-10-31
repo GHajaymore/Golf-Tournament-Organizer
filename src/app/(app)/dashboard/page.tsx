@@ -34,7 +34,7 @@ import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isStraightKnockout, isWeeklyRound } from "@/lib/stage-types";
 import { playOverOf } from "@/lib/domain/tournament-switcher";
-import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { launchRefusal, finishRefusal, completingCheckFor } from "@/lib/domain/phase-gate";
 import { unscorableRoundLabels } from "@/lib/domain/round-choices";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
@@ -529,6 +529,9 @@ export default async function DashboardPage() {
             disputed: state.reviewing.disputed,
           })
         : null;
+  // Completing with rounds nobody has played: the action's own check, read here so the button
+  // asks before it is pressed — and is refused in place when nothing at all has been scored.
+  const completing = lifecycleAction?.to === "completed" ? completingCheckFor(state.stages, state.roundsWithResults) : null;
   const navHrefs = new Set(
     navForRole(session.viewRole, settings, {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),
@@ -944,7 +947,8 @@ export default async function DashboardPage() {
           configUnlocked={event.configUnlocked}
           archived={!!event.archivedAt}
           resultsIn={state.resultsIn}
-          blockedReason={phaseBlock ?? undefined}
+          blockedReason={phaseBlock ?? (completing && "refuse" in completing ? completing.refuse : undefined)}
+          unplayedAsk={completing && "ask" in completing ? completing.ask : undefined}
           {...(isAdmin && (await wipesOnCloseFor(event.id))
             ? {
                 deletesOnComplete: true,

@@ -2972,7 +2972,14 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
      * been out on the course" — one hole is enough.
      */
     roundsWithResults: new Set<string>([
-      ...scorecards.filter((c) => c.stageId).map((c) => c.stageId as string),
+      /**
+       * `playedCards`, not `scorecards` (2026-10-31): a side playing one ball — a scramble, a
+       * best ball — files a `TeamScorecard`, and this set was built from the individual cards
+       * alone. A played scramble read "Upcoming" on Rounds & formats, was left out of the final
+       * report's round-by-round tables, and would have been called "not played" by completing.
+       * `playedCards` is the one spelling of "a card was returned", written above for exactly this.
+       */
+      ...playedCards.filter((c) => c.stageId).map((c) => c.stageId as string),
       ...matchStrokeCards(matchCards, matches).map((c) => c.stageId),
       ...matches.filter((m) => /[1-9AaBbHh]/.test(m.holes) || m.forfeitedBy).map((m) => m.stageId),
       /**
