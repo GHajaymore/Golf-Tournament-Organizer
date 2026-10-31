@@ -1689,6 +1689,52 @@ describe("rounds and format", () => {
     }
   });
 
+  // THE TIMELINE (behind `?view=timeline`, 2026-10-30) KEEPS EVERY ONE OF THEM, EACH ONCE. The
+  // panel's rule for the redesign: no control lost, renamed or drawn twice. The same rounds as
+  // above, through the side panel.
+  it("the timeline keeps every control on the round card, each exactly once, the open round in a named panel", () => {
+    const html = render(
+      <StagesClient {...base} timeline chainsRounds launched activeStageId="r1"
+        flightCount={2}
+        stages={[
+          stage({ id: "r1", position: 0, attendance: { in: 18, out: 2, inByDefault: 5, playersAnswer: true } }),
+          stage({ id: "r2", position: 1, carryAsked: false }),
+        ]}
+        venues={[{ id: "c1", name: "Bushwood" }, { id: "c2", name: "Augusta" }]} />,
+    );
+    for (const control of [
+      "Format", "Holes", "Played on", "Course", "Delete Round 1", "Handicap",
+      "On the day", "Scoring window",
+      "Play by", "Sign-up deadline",
+      "Before the next round", "Points into Round 2", "Carry part", "Cut the field for Round 2",
+      "Draw Round 2&#x27;s matches",
+      "Ties", "A match all square after 18", "Level in the table",
+      "Points for a match",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+    // Each round's controls drawn ONCE: the panel holds the card's own copy, never a second.
+    for (const named of ['aria-label="Format for Round 1"', 'aria-label="Format for Round 2"', 'aria-label="Delete Round 1"', 'aria-label="Holes for Round 1"']) {
+      expect(html.split(named).length - 1, `${named} is in the page more or less than once`).toBe(1);
+    }
+    // The open round is a named modal panel; the closed one is in the page, hidden.
+    expect(html.split('role="dialog"').length - 1, "one panel per round").toBe(2);
+    expect(html.split('class="side-panel-backdrop" hidden=""').length - 1, "the closed round's panel is not hidden").toBe(1);
+    expect(html).toContain('aria-label="Close Round 1"');
+    // Every round still opens from its own row, as today: the specs press it by `aria-expanded`.
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain('aria-expanded="false"');
+  });
+
+  it("a link straight to one round opens it, and an id that is not one of its rounds opens nothing", () => {
+    const three = [stage({ id: "r1", position: 0 }), stage({ id: "r2", position: 1 }), stage({ id: "r3", position: 2 })];
+    const opened = (html: string) => [...html.matchAll(/id="round-(r\d)"[\s\S]*?aria-expanded="(true|false)"/g)].filter((m) => m[2] === "true").map((m) => m[1]);
+    // Three rounds: none opens on arrival — unless the address names one.
+    expect(opened(render(<StagesClient {...base} timeline stages={three} />))).toEqual([]);
+    expect(opened(render(<StagesClient {...base} timeline stages={three} linkedRound="r2" />))).toEqual(["r2"]);
+    expect(opened(render(<StagesClient {...base} timeline stages={three} linkedRound="somebody-elses-round" />))).toEqual([]);
+  });
+
   it("keeps the play-day controls off a round nobody has played", () => {
     // Walked 2026-10-16 on a draft: "This round is finished" with its paragraph,
     // and "Open — scores can be entered", three weeks before the round.

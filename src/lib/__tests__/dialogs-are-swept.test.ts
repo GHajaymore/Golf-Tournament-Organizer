@@ -43,7 +43,8 @@ function dialogs(): Found[] {
   for (const entry of readdirSync(COMPONENTS)) {
     if (!entry.endsWith(".tsx")) continue;
     const src = readSource(join(COMPONENTS, entry));
-    const modal = src.includes("dialog-backdrop");
+    // `side-panel-backdrop` too (2026-10-30): the redesign's panel is modal, at the side.
+    const modal = src.includes("dialog-backdrop") || src.includes("side-panel-backdrop");
     const announced = /role="(?:alert)?dialog"/.test(src);
     if (modal || announced) out.push({ file: entry, modal, announced });
   }
@@ -71,6 +72,9 @@ describe("every dialog is accounted for", () => {
       { file: "CardConflict.tsx", modal: false, announced: true },
       { file: "LifecycleBar.tsx", modal: true, announced: true },
       { file: "PlayerSignOut.tsx", modal: true, announced: true },
+      // The redesign's one-thing-open panel (2026-10-30). Its geometry joins
+      // `e2e/dialog.spec.ts` with the first screen that opens it.
+      { file: "SidePanel.tsx", modal: true, announced: true },
     ]);
   });
 
