@@ -244,12 +244,15 @@ test("the list lines up, says why a tournament cannot be deleted, and reads true
     // ── the status says what is true ──
     await expect(row("Summer Matchplay").locator(".tag")).toHaveText("Dates passed, not launched");
     await expect(row("Club Championship").locator(".tag").first()).toHaveText("Live");
-    await expect(row("Away Fixture").locator(".tag")).toHaveText("Draft");
+    // Undated, so nothing has passed: it reads its ordinary status (the fixture makes it Registration).
+    await expect(row("Away Fixture").locator(".tag")).toHaveText("Registration");
 
     // ── two of one name are told apart, and a name used once is not dated ──
     const twins = row("Spring Medal");
     await expect(twins).toHaveCount(2);
-    const said = await twins.locator("td").first().allInnerTexts();
+    // The first cell of EACH twin row (a bare `.first()` took one cell of the first row only).
+    const said = await twins.locator("td:first-child").allInnerTexts();
+    expect(said.length, "both twins' name cells").toBe(2);
     for (const s of said) expect(s, "a twin without the day it was created").toMatch(/· created /);
     expect(new Set(said).size, "two twins read the same").toBe(2);
     await expect(row("Summer Matchplay").locator("td").first()).not.toContainText("created");
@@ -266,19 +269,23 @@ test("the list lines up, says why a tournament cannot be deleted, and reads true
     expect(new Set(edges.map((e) => e.primary)).size, `Manage is not in one column: ${JSON.stringify(edges)}`).toBe(1);
 
     // ── a tournament the reader may not delete says so, where the bin was pressed ──
-    await expect(row("Away Fixture").getByRole("button", { name: "Delete Away Fixture", exact: true })).toHaveCount(0);
-    const why = row("Away Fixture").getByRole("button", { name: "Why can't I delete Away Fixture?", exact: true });
+    // By the FULL names the fixture gives (each carries its mark): a short name here made the
+    // "no bin" check pass by matching nothing at all.
+    const away = fixture.event.name;
+    await expect(row("Away Fixture").getByRole("button", { name: `Why can't I delete ${away}?`, exact: true }), "the control: the reason button is there").toHaveCount(1);
+    await expect(row("Away Fixture").getByRole("button", { name: `Delete ${away}`, exact: true })).toHaveCount(0);
+    const why = row("Away Fixture").getByRole("button", { name: `Why can't I delete ${away}?`, exact: true });
     await centre(why);
     await why.click();
     await expect(row("Away Fixture").getByRole("status")).toHaveText("Only an organizer of this tournament can delete it.");
     expect(await prisma.event.count({ where: { id: fixture.event.id } }), "asking why deleted it").toBe(1);
 
     // ── asking before deleting says what goes with it, and Keep keeps it ──
-    const bin = row("Summer Matchplay").getByRole("button", { name: "Delete Summer Matchplay", exact: true });
+    const bin = row("Summer Matchplay").getByRole("button", { name: `Delete ${passed.event.name}`, exact: true });
     await centre(bin);
     await bin.click();
     await expect(row("Summer Matchplay")).toContainText("Delete with its 3 players and every score?");
-    await page.getByRole("button", { name: "Keep Summer Matchplay", exact: true }).click();
+    await page.getByRole("button", { name: `Keep ${passed.event.name}`, exact: true }).click();
     expect(await prisma.event.count({ where: { id: passed.event.id } }), "Keep deleted it").toBe(1);
   } finally {
     await dropClub(away);
