@@ -69,17 +69,19 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
   await expect(panel.getByRole("link", { name: /Print the signs/ }), "the codes panel has no way to the signs").toHaveAttribute("href", /^\/print\?/);
   await page.goto(`/print?round=${stageId}&docs=spare&bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
-  const sign = page.locator("#pk-pages section.round-sign").filter({ hasText: shown });
-  await expect(sign, "no sign carries the round's code").toHaveCount(1, { timeout: 20_000 });
+  // Two spare signs since 30 Oct, the first tee's and the clubhouse's: the same sign twice.
+  const signs = page.locator("#pk-pages .pk-sparecard").filter({ hasText: shown });
+  await expect(signs, "no sign carries the round's code").toHaveCount(2, { timeout: 20_000 });
+  const sign = signs.first();
   await expect(sign.locator("svg path"), "the sign has no QR drawn").toHaveCount(1);
   await expect(sign).toContainText("Scan to enter your score");
-  await expect(page.getByRole("button", { name: /^Print the ticked sheets/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Print 1 sheet$/ })).toBeVisible();
   const link = await sign.getAttribute("data-link");
   expect(link, "the sign's QR is not the round's /play link").toBe(`${new URL(baseURL!).origin}/play#${shown}`);
   // Nobody's name on a sign left in a cart.
   // Kept with the run, so the sign can be looked at without a printer.
   await sign.screenshot({ path: test.info().outputPath("sign.png") });
-  const signText = await sign.locator("xpath=ancestor::section[contains(@class,'pk-page')]").innerText();
+  const signText = await sign.locator("xpath=ancestor::article[@data-card]").innerText();
   for (const p of field) expect(signText, `a player's name is printed on the sign: ${p.name}`).not.toContain(p.name);
 
   // ── a fresh phone scans it ──────────────────────────────────────────────

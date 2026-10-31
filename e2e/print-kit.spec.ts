@@ -7,29 +7,32 @@ import { paperRefusals, staleSentence } from "../src/lib/domain/print-kit";
 import { formatDayAt } from "../src/lib/domain/locale";
 
 /**
- * THE PRINT KIT, AS THE SECRETARY USES IT ON THE MORNING (2026-10-23).
+ * THE PRINT KIT, AS THE SECRETARY USES IT ON THE MORNING (2026-10-23; the normal
+ * card of the ruling of 30 Oct 2026).
  *
  * Walked as the person who prints: open the kit for a Stableford off a shotgun
- * and for a team cup, look at the pages, switch the paper, print, change a
+ * and for a team cup, look at the sheets, switch the paper, print, change a
  * group, reprint only what changed, reissue a round code. And the printer's
  * answers checked off the PDF the browser would hand it, not off the screen:
  *
- *   one page per sheet         the PDF's page count is the number of sheets
- *                              ticked, at A4 and at US Letter, each the right
- *                              way up — and nothing on a page runs off it
- *   a 59-character name        fits its cell on the card, the sign and the sheet
+ *   sheets                     every card the normal scorecard two to a sheet;
+ *                              the PDF's page count is the sheets on the Print
+ *                              button, at A4 and at US Letter
+ *   a 59-character name        on its card (as its initial and surname), its
+ *                              sign and the starting sheet, inside every box
  *   every QR                   read back by a decoder, to exactly /play#CODE
  *   never on paper             no email, phone number, amount or sale word in
- *                              any text on any page (with a control)
- *   the stamp                  the press records the sheets, each footer says
- *                              when on the CLUB's clock — run with E2E_TZ to put
- *                              the club and the browser somewhere the server is not
- *   reprint what changed       a moved group names its sheets, "Reprint these"
- *                              prints just those; a reissued code flags the signs
+ *                              any text on any card (with a control)
+ *   the stamp                  the press records the cards, each foot says when
+ *                              on the CLUB's clock — run with E2E_TZ to put the
+ *                              club and the browser somewhere the server is not
+ *   reprint what changed       a moved group names its cards and its buggies'
+ *                              signs; "Reprint these" prints just those
  *
+ * The strict measure of every card at print size is `print-kit-fits.spec.ts`.
  * Its own fixture (`print-kit-fixture.mjs`, mark `zz-print`), so it neither
- * needs nor touches the shared one. Desktop only: printing is desk work, and
- * the pages are paper-sized whatever the screen.
+ * needs nor touches the shared one. The club is British, so its golf cars are
+ * buggies — the country words on paper. Desktop only: printing is desk work.
  *
  * WHAT IT CANNOT SEE: a real printer's margins, and a phone camera reading the
  * QR off paper in sunlight — the decoder reads the drawing, not the print.
@@ -66,37 +69,32 @@ async function as(page: Page, baseURL: string, which: "cup" | "sf") {
 }
 
 async function open(page: Page, path: string) {
+  await page.emulateMedia({ media: "screen" });
   await page.goto(`${path}${path.includes("?") ? "&" : "?"}bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
   await expect(page.getByRole("heading", { level: 1, name: "Print kit" })).toBeVisible();
 }
 
-/** The sheets on screen that would be printed: keys and which way up. */
-async function visiblePages(page: Page) {
-  return page.evaluate(() =>
-    [...document.querySelectorAll<HTMLElement>("#pk-pages .pk-page")]
-      .filter((p) => getComputedStyle(p).display !== "none")
-      .map((p) => ({ key: p.dataset.key ?? "", doc: p.dataset.doc ?? "", landscape: p.classList.contains("pk-landscape") })),
-  );
+/** The cards and pages that would be printed: keys, which document, and the sheets they make. */
+async function visible(page: Page) {
+  return page.evaluate(() => ({
+    cards: [...document.querySelectorAll<HTMLElement>("#pk-pages [data-card], #pk-pages .pk-startpage")].map((p) => ({ key: p.dataset.key ?? "", doc: p.dataset.doc ?? "", format: p.dataset.card ?? "page" })),
+    sheets: document.querySelectorAll("#pk-pages .pk-sheet").length,
+  }));
 }
 
-/** Every page's body, and every name cell, measured for anything running off it. */
+/** Every card's safe box and the starting sheet's page, measured for anything running off it. */
 async function overflows(page: Page) {
   return page.evaluate(() => {
     const out: string[] = [];
-    for (const p of document.querySelectorAll<HTMLElement>("#pk-pages .pk-page")) {
-      if (getComputedStyle(p).display === "none") continue;
-      const b = p.querySelector<HTMLElement>(".pk-body")!;
-      if (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1) out.push(`${p.dataset.key}: page ${b.scrollWidth}x${b.scrollHeight} in ${b.clientWidth}x${b.clientHeight}`);
-      for (const cell of p.querySelectorAll<HTMLElement>("td, .pk-pname, .pk-big")) {
-        if (cell.scrollWidth > cell.clientWidth + 1) out.push(`${p.dataset.key}: "${(cell.textContent ?? "").slice(0, 40)}" ${cell.scrollWidth}>${cell.clientWidth}`);
-      }
+    for (const b of document.querySelectorAll<HTMLElement>("#pk-pages .pk-safe, #pk-pages .pk-startpage")) {
+      if (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1) out.push(`${b.closest<HTMLElement>("[data-key]")?.dataset.key}: ${b.scrollWidth}x${b.scrollHeight} in ${b.clientWidth}x${b.clientHeight}`);
     }
     return out;
   });
 }
 
-/** Every piece of text on the printed pages, one string per text node, round codes left out. */
+/** Every piece of text on the printed sheets, one string per text node, round codes left out. */
 async function printedTexts(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const out: string[] = [];
@@ -104,21 +102,18 @@ async function printedTexts(page: Page): Promise<string[]> {
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const el = n.parentElement!;
       if (el.closest("style, [data-code]")) continue;
-      const page = el.closest<HTMLElement>(".pk-page");
-      if (!page || getComputedStyle(page).display === "none") continue;
+      if (!el.closest(".pk-sheet")) continue;
       if (n.textContent?.trim()) out.push(n.textContent);
     }
     return out;
   });
 }
 
-/** Each QR drawn on a visible page, rasterised and read back by a decoder. */
+/** Each QR drawn on a sheet, rasterised and read back by a decoder. */
 async function decodeQrs(page: Page): Promise<Array<{ drawn: string; read: string | null }>> {
   const images = await page.evaluate(async () => {
     const out: Array<{ drawn: string; w: number; h: number; data: number[] }> = [];
     for (const svg of document.querySelectorAll<SVGSVGElement>("#pk-pages svg.pk-qr")) {
-      const p = svg.closest<HTMLElement>(".pk-page");
-      if (!p || getComputedStyle(p).display === "none") continue;
       const size = 400;
       const img = new Image();
       img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
@@ -145,103 +140,112 @@ async function pdfPages(page: Page): Promise<Array<{ w: number; h: number }>> {
   return [...pdf.matchAll(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/g)].map((m) => ({ w: Math.round(Number(m[1])), h: Math.round(Number(m[2])) }));
 }
 
-test("the Stableford's paper: one sheet each, readable, nothing it must not carry, every QR to /play", async ({ page, baseURL }) => {
+/** The Stableford is in threes: one buggy of two and one of one per group. */
+const buggiesPerGroup = 2;
+
+test("the Stableford's paper: the normal card two to a sheet, readable, nothing it must not carry, every QR to /play", async ({ page, baseURL }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
   watchPageErrors(page, errors);
   await as(page, baseURL!, "sf");
   await open(page, `/print?round=${f.sf.stageId}`);
 
-  // The checklist: a card per player, a sign per group, the spare, two starting sheets.
+  // The checklist: a card per player, a sign per buggy, two spares, one starting sheet.
   const n = f.sf.players.length;
-  await expect(page.getByText(`one per player · ${n} sheets`)).toBeVisible();
-  await expect(page.getByText(`one per group · ${f.sf.groups} sheets`)).toBeVisible();
-  const pages = await visiblePages(page);
-  expect(pages.filter((p) => p.doc === "cards")).toHaveLength(n);
-  expect(pages.filter((p) => p.doc === "signs")).toHaveLength(f.sf.groups);
-  expect(pages.filter((p) => p.doc === "spare")).toHaveLength(1);
-  expect(pages.filter((p) => p.doc === "start")).toHaveLength(2);
-  expect(pages.filter((p) => p.doc === "group-cards"), "the old group card is not ticked unless asked for").toHaveLength(0);
+  const signs = f.sf.groups * buggiesPerGroup;
+  await expect(page.getByText(`one per player · ${n} cards on ${Math.ceil(n / 2)} sheets`)).toBeVisible();
+  await expect(page.getByText(`one per buggy · ${signs} cards on ${Math.ceil(signs / 2)} sheets`)).toBeVisible();
+  // The document is named in the club's words: a British club's golf cars are buggies.
+  await expect(page.locator("fieldset.card")).toContainText("Buggy signs — one per buggy");
+  const { cards, sheets } = await visible(page);
+  expect(cards.filter((p) => p.doc === "cards")).toHaveLength(n);
+  expect(cards.filter((p) => p.doc === "signs")).toHaveLength(signs);
+  expect(cards.filter((p) => p.doc === "spare")).toHaveLength(2);
+  expect(cards.filter((p) => p.doc === "start")).toHaveLength(1);
+  expect(cards.filter((p) => p.format === "fold-out"), "a group of three is never a fold-out").toEqual([]);
+  // The Print button says the sheets.
+  await expect(page.getByRole("button", { name: new RegExp(`^Print ${sheets} sheets$`) })).toBeVisible();
 
-  // The long name is on its card, its sign and the starting sheet, inside every box.
-  const longCard = page.locator(`#pk-pages .pk-page[data-doc="cards"]`).filter({ hasText: LONG_NAME });
+  // The long name: its initial and surname on its card, in full on its sign and the starting sheet.
+  const longCard = page.locator(`#pk-pages [data-card][data-doc="cards"]`).filter({ hasText: "W. Fotheringay-Pemberton-Ashcombe" });
   await expect(longCard).toHaveCount(1);
-  await expect(page.locator(`#pk-pages .pk-page[data-doc="signs"]`).filter({ hasText: LONG_NAME })).toHaveCount(1);
+  await expect(page.locator(`#pk-pages [data-card][data-doc="signs"]`).filter({ hasText: "W. Fotheringay-Pemberton-Ashcombe" })).toHaveCount(buggiesPerGroup);
+  await expect(page.locator(`#pk-pages .pk-startpage`)).toContainText(LONG_NAME);
   expect(await overflows(page)).toEqual([]);
 
-  // A shotgun: every card and sign says the hole it starts on, large.
-  await expect(longCard.locator(".startBig")).toContainText(/Start: hole \d+/);
-  // A Stableford card has its points row, for the Committee.
-  await expect(longCard).toContainText("Points — for Committee use");
+  // A shotgun: every card says the hole it starts on, large.
+  await expect(longCard.locator(".pk-start")).toContainText(/Starts: Hole \d+/);
+  // A Stableford card has its points column, for the Committee.
+  await expect(longCard.locator("th", { hasText: /^Pts$/ })).toHaveCount(1);
   // The member whose index nobody has claimed is "to be confirmed", never a nought.
-  await expect(page.locator(`#pk-pages .pk-page[data-doc="cards"]`).filter({ hasText: "Unity Unclaimed" })).toContainText("Handicap to be confirmed by the Committee");
+  await expect(page.locator(`#pk-pages [data-card][data-doc="cards"]`).filter({ hasText: "Unity Unclaimed" })).toContainText("To be confirmed");
 
-  // Never on paper, read off every text on every page.
+  // Never on paper, read off every text on every sheet.
   const texts = await printedTexts(page);
   expect(texts.length, "CONTROL: the sweep read no text").toBeGreaterThan(200);
   expect(paperRefusals(texts)).toEqual([]);
-  // CONTROL: the same collection sees an address put on a page.
+  // CONTROL: the same collection sees an address put on a card.
   await page.evaluate(() => {
     const s = document.createElement("span");
     s.textContent = "ann@example.invalid";
-    document.querySelector("#pk-pages .pk-page .pk-body")!.appendChild(s);
+    document.querySelector("#pk-pages [data-card] .pk-safe")!.appendChild(s);
   });
   expect(paperRefusals(await printedTexts(page)).length).toBe(1);
-  await page.evaluate(() => document.querySelector("#pk-pages .pk-page .pk-body span:last-child")?.remove());
+  await page.evaluate(() => document.querySelector("#pk-pages [data-card] .pk-safe span:last-child")?.remove());
 
-  // The TourneyHQ line goes to /play, never the front door, and only in the footer.
-  const brand = page.locator("#pk-pages .pk-page .pk-brand");
-  expect(await brand.count()).toBe(await page.locator("#pk-pages .pk-page").count());
+  // The TourneyHQ line goes to /play, never the front door, and only in the foot.
+  const brand = page.locator("#pk-pages .pk-brand");
+  expect(await brand.count()).toBe(cards.length);
   await expect(brand.first()).toHaveText(/Scored live with TourneyHQ · .+\/play$/);
 
   // Every QR reads back to exactly the round's /play#CODE.
   const origin = new URL(baseURL!).origin;
   const code = `${f.sf.code.slice(0, 4)}-${f.sf.code.slice(4)}`;
   const qrs = await decodeQrs(page);
-  expect(qrs.length, "one per cart sign and the spare").toBe(f.sf.groups + 1);
+  expect(qrs.length, "one per buggy sign and the two spares").toBe(signs + 2);
   for (const q of qrs) {
     expect(q.read, "a QR did not decode").toBe(`${origin}/play#${code}`);
     expect(q.drawn).toBe(q.read);
   }
 
-  // The PDF: one page per sheet, cards on their side, the rest upright — at A4…
+  // The PDF: the sheets on the button, cards on their side and the starting sheet upright — at A4…
   const a4 = await pdfPages(page);
-  expect(a4).toHaveLength(pages.length);
-  expect(a4.filter((p) => p.w === 842 && p.h === 595)).toHaveLength(n);
-  expect(a4.filter((p) => p.w === 595 && p.h === 842)).toHaveLength(pages.length - n);
+  expect(a4).toHaveLength(sheets);
+  expect(a4.filter((p) => p.w === 842 && p.h === 595)).toHaveLength(sheets - 1);
+  expect(a4.filter((p) => p.w === 595 && p.h === 842)).toHaveLength(1);
   // …and at US Letter.
   await page.getByRole("radio", { name: "US Letter" }).check();
-  expect(await overflows(page), "something runs off a Letter page").toEqual([]);
+  expect(await overflows(page), "something runs off a Letter card").toEqual([]);
   const letter = await pdfPages(page);
-  expect(letter).toHaveLength(pages.length);
-  expect(letter.filter((p) => p.w === 792 && p.h === 612)).toHaveLength(n);
-  expect(letter.filter((p) => p.w === 612 && p.h === 792)).toHaveLength(pages.length - n);
+  expect(letter).toHaveLength(sheets);
+  expect(letter.filter((p) => p.w === 792 && p.h === 612)).toHaveLength(sheets - 1);
+  expect(letter.filter((p) => p.w === 612 && p.h === 792)).toHaveLength(1);
   await page.getByRole("radio", { name: "A4" }).check();
 
   expect(errors, "a screen threw").toEqual([]);
 });
 
-test("printing stamps the sheets; a moved group and a reissued code ask for just those sheets again", async ({ page, baseURL }) => {
+test("printing stamps the cards; a moved group and a reissued code ask for just those again", async ({ page, baseURL }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
   watchPageErrors(page, errors);
   await as(page, baseURL!, "sf");
   await open(page, `/print?round=${f.sf.stageId}`);
-  const ticked = (await visiblePages(page)).length;
+  const ticked = (await visible(page)).cards.length;
 
-  // The press records what went to the printer, and each footer says when — on the club's clock.
+  // The press records what went to the printer, and each foot says when — on the club's clock.
   const before = new Date();
-  await page.getByRole("button", { name: /^Print the ticked sheets/ }).click();
+  await page.getByRole("button", { name: /^Print \d+ sheets$/ }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __printed: number }).__printed)).toBe(1);
   const after = new Date();
   const zone = f.zone;
   const days = new Set([formatDayAt(before, "en-US", zone), formatDayAt(after, "en-US", zone)]);
-  const stamp = (await page.locator("#pk-pages .pk-page .pk-stamp").first().innerText()).trim();
-  expect(stamp).toMatch(/^Printed \d{1,2}:\d{2}( [AP]M)?, .+ · version 1 · groups as of /);
+  const stamp = (await page.locator("#pk-pages .pk-stamp").first().innerText()).trim();
+  expect(stamp).toMatch(/^Printed \d{1,2}:\d{2}( [AP]M)?, .+ · v1 · groups as of /);
   expect([...days].some((d) => stamp.includes(`, ${d} ·`)), `"${stamp}" is not today at the club (${[...days].join(" or ")}, ${zone})`).toBe(true);
 
   await open(page, `/print?round=${f.sf.stageId}`);
-  await expect(page.getByText("Not printed yet")).toHaveCount(1); // only the unticked group cards
+  await expect(page.getByText("Not printed yet")).toHaveCount(0);
   // The warning, not the screen's own explanation of it (which uses the same words).
   await expect(page.getByRole("status").filter({ hasText: "out of date" })).toHaveCount(0);
 
@@ -254,34 +258,35 @@ test("printing stamps the sheets; a moved group and a reissued code ask for just
   await prisma.stage.update({ where: { id: f.sf.stageId }, data: { teeSheet: JSON.stringify(sheet) } });
 
   await open(page, `/print?round=${f.sf.stageId}`);
-  // Their two cards, the two groups' cart signs, and both copies of the starting sheet.
+  // Their two cards, both groups' buggy signs (every sign names its whole group), and the starting sheet.
   const banner = page.getByRole("status").filter({ hasText: "out of date" });
-  await expect(banner).toContainText(staleSentence(6));
-  await expect(banner).toContainText("Group 1 — cart sign");
-  await expect(banner).toContainText("Group 2 — cart sign");
+  await expect(banner).toContainText(staleSentence(2 + 2 * buggiesPerGroup + 1));
+  await expect(banner).toContainText("Group 1 — Buggy 1A sign");
+  await expect(banner).toContainText("Group 2 — Buggy 2B sign");
   // The Tee sheet says so too.
   await page.goto(`/foursomes?round=${f.sf.stageId}&bust=${Date.now()}`);
-  await expect(page.getByRole("status").filter({ hasText: staleSentence(6) })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: staleSentence(2 + 2 * buggiesPerGroup + 1) })).toBeVisible();
   await page.getByRole("link", { name: /Reprint them in the Print kit/ }).click();
   await page.waitForLoadState("networkidle").catch(() => {});
 
-  // "Reprint these" prints those six and nothing else.
+  // "Reprint these" lays out those and nothing else: 2 cards on 1 sheet, 4 signs on 2, the starting sheet.
   await page.getByRole("button", { name: "Reprint these" }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __printed: number }).__printed)).toBe(1);
-  const reprinted = await visiblePages(page);
-  expect(reprinted).toHaveLength(6);
-  expect((await pdfPages(page)).length).toBe(6);
-  await expect(page.locator(`#pk-pages .pk-page[data-key="signs:Group 1"] .pk-stamp`)).toContainText("version 2");
+  const reprinted = await visible(page);
+  expect(reprinted.cards).toHaveLength(2 + 2 * buggiesPerGroup + 1);
+  expect(reprinted.sheets).toBe(1 + 2 + 1);
+  expect((await pdfPages(page)).length).toBe(reprinted.sheets);
+  await expect(page.locator(`#pk-pages [data-card][data-key="signs:Group 1:A"] .pk-stamp`)).toContainText("v2");
 
   await open(page, `/print?round=${f.sf.stageId}`);
   await expect(page.getByRole("status").filter({ hasText: "out of date" })).toHaveCount(0);
-  expect((await visiblePages(page)).length).toBe(ticked);
+  expect((await visible(page)).cards.length).toBe(ticked);
 
-  // A reissued code: the old sign's code is refused by the app, and every sheet carrying it is flagged.
+  // A reissued code: every sheet carrying it is flagged — each buggy's sign and both spares.
   await prisma.stage.update({ where: { id: f.sf.stageId }, data: { accessCode: "ZZPW2346" } });
   try {
     await open(page, `/print?round=${f.sf.stageId}`);
-    await expect(page.getByRole("status").filter({ hasText: "out of date" })).toContainText(staleSentence(f.sf.groups + 1));
+    await expect(page.getByRole("status").filter({ hasText: "out of date" })).toContainText(staleSentence(f.sf.groups * buggiesPerGroup + 2));
     await expect(page.getByRole("status").filter({ hasText: "out of date" })).toContainText("spare sign");
   } finally {
     await prisma.stage.update({ where: { id: f.sf.stageId }, data: { accessCode: f.sf.code } });
@@ -289,7 +294,7 @@ test("printing stamps the sheets; a moved group and a reissued code ask for just
   expect(errors, "a screen threw").toEqual([]);
 });
 
-test("the team cup: one card per match with both nines on it, and a sign per match carrying both codes", async ({ page, baseURL }) => {
+test("the team cup: one fold-out card per match with both nines on it, and a sign per buggy carrying both codes", async ({ page, baseURL }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
   watchPageErrors(page, errors);
@@ -302,12 +307,14 @@ test("the team cup: one card per match with both nines on it, and a sign per mat
   await expect(page.getByRole("heading", { level: 1, name: "Print kit" })).toBeVisible();
   expect(new URL(page.url()).searchParams.get("round")).toBe(f.cup.fourball);
 
-  const pages = await visiblePages(page);
-  const cards = pages.filter((p) => p.doc === "cup");
-  expect(cards).toHaveLength(5);
-  expect(cards.every((p) => p.landscape)).toBe(true);
-  expect(pages.filter((p) => p.doc === "signs")).toHaveLength(5);
-  const first = page.locator(`#pk-pages .pk-page[data-doc="cup"]`).first();
+  const { cards } = await visible(page);
+  const cupCards = cards.filter((p) => p.doc === "cup");
+  expect(cupCards).toHaveLength(5);
+  // X1: both formats on one card is the one cup card that folds out — and says why.
+  expect(cupCards.every((p) => p.format === "fold-out")).toBe(true);
+  await expect(page.getByRole("note")).toContainText("because both formats of the day are on one card");
+  expect(cards.filter((p) => p.doc === "signs")).toHaveLength(10);
+  const first = page.locator(`#pk-pages [data-card][data-doc="cup"]`).first();
   await expect(first).toContainText("holes 10–18");
   await expect(first).toContainText("holes 1–9");
   await expect(first).toContainText("better ball");
@@ -317,13 +324,13 @@ test("the team cup: one card per match with both nines on it, and a sign per mat
   const origin = new URL(baseURL!).origin;
   const want = new Set(f.cup.codes.map((c) => `${origin}/play#${c.slice(0, 4)}-${c.slice(4)}`));
   const qrs = await decodeQrs(page);
-  expect(qrs.length).toBe(10 + 1);
+  expect(qrs.length).toBe(10 * 2 + 2);
   for (const q of qrs) {
     expect(want.has(q.read ?? ""), `${q.read} is not one of the cup's rounds`).toBe(true);
     expect(q.drawn).toBe(q.read);
   }
   expect(paperRefusals(await printedTexts(page))).toEqual([]);
-  expect((await pdfPages(page)).length).toBe(pages.length);
+  expect((await pdfPages(page)).length).toBe((await visible(page)).sheets);
 
   // The singles session says its card is printed with the four-balls.
   await open(page, `/print?round=${f.cup.singles}`);
