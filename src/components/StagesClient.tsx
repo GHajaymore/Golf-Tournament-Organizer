@@ -1138,6 +1138,9 @@ function StageCard({
    * cut before Round 3 showed on no closed row at all.
    */
   const nextIsDraw = !!nextStage && seededFromQualifiers(nextStage.type);
+  // What flows into the next round, worked out once: the closed row says it, or — on the
+  // timeline — the link under the round does, and never both (2026-10-30).
+  let intoNext = "";
   if (nextStage && chainsRounds && (showTransition || nextIsDraw || transitionParts.length > 0)) {
     const into = nextIsDraw
       ? qual.mode === "overall"
@@ -1146,7 +1149,8 @@ function StageCard({
       : transitionParts.length
         ? transitionParts.join(" · ")
         : "everyone, points start fresh";
-    rowParts.push(`Into ${roundLabelOf(allStages, nextStage.id)}: ${into}`);
+    intoNext = `Into ${roundLabelOf(allStages, nextStage.id)}: ${into}`;
+    if (!asPanel) rowParts.push(intoNext);
   } else if (showTransition && !nextStage) {
     rowParts.push("No round after this yet");
   }
@@ -2229,16 +2233,24 @@ function StageCard({
   return (
     <div
       id={`round-${stage.id}`}
-      className="card elev-sm"
+      // On the timeline a round is a stop on the spine, not a boxed card (`.round-node`), and its
+      // state is drawn from `data-standing` — by shape, never by colour alone.
+      className={asPanel ? "round-node" : "card elev-sm"}
+      data-standing={asPanel ? (underWay ? standing : "setup") : undefined}
+      data-open={asPanel && expanded ? "" : undefined}
       // Clear of the sticky header when a new round is scrolled to. A CLOSED
       // round is a row, so it is padded as one (2026-10-16): ten closed rounds
       // were 76px each, the card's padding outweighing the line it held.
-      style={{
-        gap: 14,
-        borderLeft: `3px solid ${roundColor}`,
-        scrollMarginTop: 88,
-        ...(expanded ? {} : { paddingTop: 8, paddingBottom: 8 }),
-      }}
+      style={
+        asPanel
+          ? { scrollMarginTop: 88 }
+          : {
+              gap: 14,
+              borderLeft: `3px solid ${roundColor}`,
+              scrollMarginTop: 88,
+              ...(expanded ? {} : { paddingTop: 8, paddingBottom: 8 }),
+            }
+      }
     >
       {chainWarnings.length > 0 && (
         // Shown on the later round of the pair, because that is where the
@@ -2370,6 +2382,15 @@ function StageCard({
             wrapper vanish from the box tree; none takes the lot away. */}
         {!asPanel && <div style={{ display: expanded ? "contents" : "none" }}>{face}</div>}
       </div>
+      {/* On the timeline, what flows into the next round sits under the round, on the spine. The
+          same words the closed row says on today's screen (`intoNext`), never a second reading. */}
+      {asPanel && intoNext && (
+        <div className="round-link">
+          <span className="round-link-chip">
+            <Icon name="arrow-down" aria-hidden="true" /> {intoNext}
+          </span>
+        </div>
+      )}
 
       {!asPanel && formatInfo}
 
@@ -2828,7 +2849,7 @@ export function StagesClient({
         // carry-forward controls appear and it stops saying "No round after
         // this yet". Keyed off the play order, not the round-robin chain.
         const nextStage = nextPlayingStage(stages, s.position);
-        return (
+        const card = (
           <StageCard
             key={s.id}
             stage={s}
@@ -2864,6 +2885,14 @@ export function StagesClient({
             chainWarnings={issuesForRound(chain, s.position).map((w) => w.message)}
             chainsRounds={chainsRounds}
           />
+        );
+        if (!timeline) return card;
+        // THE SPINE (the timeline's one bold idea, 2026-10-30): each round a stop on one line, like
+        // the routing on a course map; what flows into the next round is said under each stop.
+        return (
+          <div key={s.id} className="round-spine-item" data-last={i === stages.length - 1 ? "" : undefined}>
+            {card}
+          </div>
         );
       })}
       {stages.length === 0 && (
