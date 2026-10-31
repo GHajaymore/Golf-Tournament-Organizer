@@ -27,6 +27,7 @@ import { GOLF_TERMS, golfRegister, golfTermsFor, type GolfWords } from "@/lib/do
 import {
   DOC_ORDER,
   cardFormat,
+  sideMembersLine,
   defaultPaper,
   type CardFormat,
   type CardsBy,
@@ -498,7 +499,11 @@ async function roundKit(
       /** The tees in play on one card, and — for a shared ball — how long its line of names is. */
       const formatOf = (ids: string[], rows: number) => {
         const tees = new Set(ids.map((id) => kitPlayers.get(id)?.tee ?? "").filter(Boolean)).size;
-        const names = teamRound?.sharedBall ? ids.map((id) => kitPlayers.get(id)?.name ?? "").join(" & ").length : 0;
+        // The line the card prints under the side, as the renderer prints it (`sideMembersLine`), and its tees.
+        const teeNames = [...new Set(ids.map((id) => kitPlayers.get(id)?.tee ?? "").filter(Boolean))];
+        const names = teamRound?.sharedBall
+          ? `${sideMembersLine(ids.map((id) => kitPlayers.get(id)?.name ?? ""))} · PH 99${teeNames.length >= 3 ? ` · ${teeNames.join(", ")}` : ""}`.length
+          : 0;
         return cardFormat({ kind: "scorecard", rows, tees, sharedBallNames: names });
       };
       // ONE PER GROUP is an outing's group card, and only an individual format has one:

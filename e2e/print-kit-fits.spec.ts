@@ -89,6 +89,8 @@ async function measure(page: Page): Promise<{ problems: string[]; cards: Array<{
 }
 
 async function open(page: Page, round: string, extra = "") {
+  // On paper the page is only its sheets: the heading is looked for on screen.
+  await page.emulateMedia({ media: "screen" });
   await page.goto(`/print?round=${round}&docs=cards,cup,slips,signs,spare,start${extra}&bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
   await expect(page.getByRole("heading", { level: 1, name: "Print kit" })).toBeVisible();
@@ -126,7 +128,8 @@ const CASES: Array<{ event: string; round: string; extra?: string; foldouts: (ke
   { event: "individual", round: "stableford", foldouts: () => [] },
   { event: "individual", round: "stableford", extra: "&cards=group", foldouts: (k) => k.filter((x) => x === "cards:group:Group 4") },
   { event: "fourball", round: "fourball", foldouts: () => [] },
-  { event: "scramble", round: "scramble", foldouts: () => [] },
+  // X3: the side of four long names cannot hold them on two lines; the side of short ones can.
+  { event: "scramble", round: "scramble", foldouts: (k) => k.filter((x) => x.startsWith("cards:side:Wilhelmina")) },
   { event: "foursomes", round: "foursomes", foldouts: () => [] },
   { event: "singles", round: "singles", foldouts: () => [] },
   { event: "cup18", round: "fourball18", foldouts: () => [] },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CARD_MM, FOLDOUT_MM, SHEET_SLOTS, cardFormat, cardName, docTitle, sheetsFor, twoUp, type PaperUnit } from "../print-kit";
+import { CARD_MM, FOLDOUT_MM, SHEET_SLOTS, cardFormat, cardName, docTitle, sheetsFor, sideMembersLine, twoUp, type PaperUnit } from "../print-kit";
 import { golfTermsFor } from "../golf-terms";
 
 /**
@@ -59,11 +59,13 @@ describe("where a card folds out — X1–X3 and nowhere else", () => {
     expect(cardFormat({ kind: "cup", sections: 1, rows: 3 }).format).toBe("card");
   });
 
-  it("a shared-ball card folds out only with three sets of tees AND names too long for two lines (X3)", () => {
-    const long = "Wilhelmina Fotheringay-Pemberton & Bartholomew Featherstonehaugh-Worthington & Al & Bo".length;
-    expect(cardFormat({ kind: "scorecard", rows: 1, tees: 3, sharedBallNames: long }).format).toBe("fold-out");
-    expect(cardFormat({ kind: "scorecard", rows: 1, tees: 2, sharedBallNames: long }).format).toBe("card");
-    expect(cardFormat({ kind: "scorecard", rows: 1, tees: 3, sharedBallNames: 40 }).format).toBe("card");
+  it("a shared-ball card folds out only when its players, initials and surnames, cannot fit two lines (X3)", () => {
+    const long = sideMembersLine(["Wilhelmina Fotheringay-Pemberton-Ashcombe", "Bartholomew Featherstonehaugh-Worthington", "Al Ash", "Bo Birch"]);
+    expect(long).toBe("W. Fotheringay-Pemberton-Ashcombe & B. Featherstonehaugh-Worthington & Al Ash & Bo Birch");
+    expect(cardFormat({ kind: "scorecard", rows: 1, tees: 1, sharedBallNames: long.length }).format).toBe("fold-out");
+    expect(cardFormat({ kind: "scorecard", rows: 1, tees: 3, sharedBallNames: long.length }).reason).toContain("three sets of tees");
+    // CONTROL: four ordinary names fit.
+    expect(cardFormat({ kind: "scorecard", rows: 1, tees: 3, sharedBallNames: sideMembersLine(["Ann Avon", "Bo Bure", "Cy Cam", "Di Dee"]).length }).format).toBe("card");
   });
 
   it("a sign, a spare sign and a result slip are always normal cards", () => {

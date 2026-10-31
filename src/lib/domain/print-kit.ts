@@ -133,8 +133,16 @@ export type CardContent =
 export const CARD_PLAYER_ROWS = 4;
 /** A cup card's rows at 7 mm with one format on it: 4 players and 2 better-ball rows. */
 export const CUP_ROWS = 6;
-/** Characters a shared-ball side's member line holds on two lines at 7.5 pt in the 40 mm name column. */
-export const SIDE_NAMES_CHARS = 74;
+/**
+ * Characters a shared-ball side's member line holds on two lines at 7.5 pt in the
+ * 40 mm name column, measured in the face that prints (about 30 to a line).
+ */
+export const SIDE_NAMES_CHARS = 56;
+
+/** A shared ball's players as its card names them under the side: initials and surnames, " & " between. */
+export function sideMembersLine(names: readonly string[]): string {
+  return names.map((n) => cardName(n, 20)).join(" & ");
+}
 
 /**
  * WHERE THE NORMAL CARD GENUINELY CANNOT BE MET — and only there (the ruling's
@@ -152,8 +160,11 @@ export function cardFormat(c: CardContent): { format: CardFormat; reason: string
   if (c.kind === "scorecard" && c.rows > CARD_PLAYER_ROWS) {
     return { format: "fold-out", reason: `${c.rows} players are more than one card holds` };
   }
-  if (c.kind === "scorecard" && c.tees >= 3 && (c.sharedBallNames ?? 0) > SIDE_NAMES_CHARS) {
-    return { format: "fold-out", reason: "four names and three sets of tees are more than one card holds" };
+  // X3: a shared ball's players are on two lines at 7.5 pt under the side's name;
+  // where even their initials and surnames (`sideMembersLine`) cannot fit two, they
+  // go on the lower panel. Three sets of tees add the tees to the line.
+  if (c.kind === "scorecard" && (c.sharedBallNames ?? 0) > SIDE_NAMES_CHARS) {
+    return { format: "fold-out", reason: c.tees >= 3 ? "four names and three sets of tees are more than one card holds" : "four long names are more than one card holds" };
   }
   return { format: "card", reason: "" };
 }
