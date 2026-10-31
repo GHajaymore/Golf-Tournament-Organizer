@@ -11,7 +11,8 @@ import { playerAppShut } from "@/lib/domain/lifecycle-state";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { themeCss, playerColorScheme, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
-import { formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
+import { formattingForEvent, golfRegisterForEvent } from "@/lib/services/organization";
+import { GolfTermsProvider } from "@/components/GolfTermsProvider";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { roleName } from "@/lib/roles";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
@@ -64,7 +65,8 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   const session = await requireSession();
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
   // The club's word for who runs it — organizer or organiser (`golf-terms.ts`).
-  const organizer = (session.eventId ? await golfTermsForEvent(session.eventId) : golfTermsFor("us")).organizer;
+  const register = session.eventId ? await golfRegisterForEvent(session.eventId) : "us";
+  const organizer = golfTermsFor(register).organizer;
   // The event's club theme — the same resolution the console and the public
   // board use, so all three surfaces recolour together from one club setting.
   const theme = session.eventId ? await themeForEvent(session.eventId) : DEFAULT_CLUB_THEME;
@@ -94,15 +96,17 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
    * here because this shell wraps every player screen — the reasoning the
    * metadata above is declared on, "so a screen added later inherits it".
    *
-   * DRAFT ONLY. From `registration` onward there is something true to tell a
-   * player — you are in, you are on the waiting list, you are not entered —
-   * and shutting the app deletes those sentences. `playerAppShut` carries the
-   * rule and the reasoning; staff are never shut out.
+   * UNTIL ENTRIES ARE TAKEN. Once the sign-up link is published there is
+   * something true to tell a player — you are in, you are on the waiting list,
+   * you are not entered — and shutting the app deletes those sentences. It was
+   * "draft only", keyed on a status nobody moves since the three setting-up
+   * statuses became one (G1, 2026-10-31). `playerAppShut` carries the rule and
+   * the reasoning; staff are never shut out.
    */
   const gateEvent = session.eventId
     ? await prisma.event.findUnique({
         where: { id: session.eventId },
-        select: { name: true, status: true, accessGated: true, playSuspendedAt: true, playSuspendedNote: true },
+        select: { name: true, status: true, accessGated: true, registrationOpen: true, playSuspendedAt: true, playSuspendedNote: true },
       })
     : null;
   const shut = gateEvent ? playerAppShut(gateEvent, isStaff) : false;
@@ -152,6 +156,8 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
 
   return (
     <CurrencyProvider currency={fmt.currency} locale={fmt.locale}>
+    {/* The club's golf words for the player half too — see GolfTermsProvider. */}
+    <GolfTermsProvider register={register}>
     <div
       id="player-theme"
       style={{
@@ -305,6 +311,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
         showMoney={moneyOn && (!switcher.current?.watching || leftWithMoney) && !switcher.current?.waiting}
       />
     </div>
+    </GolfTermsProvider>
     </CurrencyProvider>
   );
 }

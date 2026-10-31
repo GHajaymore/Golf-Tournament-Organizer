@@ -14,6 +14,7 @@ import { askForBotCheck } from "@/lib/bot-check-fetch";
 import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import { signupMissing } from "@/lib/domain/signup-missing";
 import type { OrgKind } from "@/lib/domain/org-profile";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { SUPPORT_EMAIL } from "@/lib/contact";
 import { HELD_FRONT_DOOR } from "@/lib/sign-in-gate";
 import { Icon } from "./Icon";
@@ -57,12 +58,15 @@ const SIGNUP_KINDS: Array<{ value: OrgKind; label: string; help: string }> = [
   },
   {
     value: "community",
-    label: "A society, league or regular group",
+    // In the visitor's golf (2026-10-24): "A league or golf group" from the
+    // US, "A league or society" from Britain — the `{golfGroup}` token is
+    // filled with the `golfGroup` prop. It said "society" to every US visitor.
+    label: "A league or {golfGroup}",
     help: "You play together through the season and sort the money out between yourselves.",
   },
   {
     value: "personal",
-    label: "A one-off outing with friends",
+    label: "A one-off game with friends",
     help: "Just this once, with your own list of players.",
   },
 ];
@@ -71,16 +75,11 @@ export function LoginPanel({
   initialMode = "login",
   autoFocusFields = true,
   organizers = "organizers",
+  golfGroup = golfTermsFor("us").golfGroup,
   signupClosed = false,
-  communityLabel = SIGNUP_KINDS[1].label,
 }: {
-  /**
-   * The words for the second kind of outfit, in the visitor's edition: a US
-   * visitor reads leagues and golf groups, a British one societies
-   * (`landing/edition.ts` `communityKindLabel`). Handed in for the same reason
-   * as `organizers`. Elsewhere it reads as it always has.
-   */
-  communityLabel?: string;
+  /** The visitor's word for a golf group — "society" on the UK edition. Handed in like `organizers`. */
+  golfGroup?: string;
   initialMode?: Mode;
   autoFocusFields?: boolean;
   /**
@@ -719,7 +718,7 @@ export function LoginPanel({
                     style={{ marginTop: 2, flex: "none", accentColor: "var(--color-accent)" }}
                   />
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: 13, fontWeight: 500 }}>{k.value === "community" ? communityLabel : k.label}</span>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 500 }}>{k.label.replace("{golfGroup}", golfGroup)}</span>
                     <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.5 }}>
                       {k.help}
                     </span>

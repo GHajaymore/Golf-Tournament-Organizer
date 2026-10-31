@@ -93,7 +93,9 @@ beforeAll(async () => {
   id.full = await makeEvent(org.id, "full", { capacity: 1 });
   id.finished = await makeEvent(org.id, "finished", { status: "completed" });
   id.draftPlayed = await makeEvent(org.id, "draft-played", { status: "draft" });
-  id.draftEmpty = await makeEvent(org.id, "draft-empty", { status: "draft" });
+  // Unpublished: since G1 (2026-10-31) "published" is the sign-up link, not the
+  // status — the three setting-up statuses read as one.
+  id.draftEmpty = await makeEvent(org.id, "draft-empty", { status: "draft", registrationOpen: false });
 
   // The member is in one of them.
   const me = await prisma.player.create({
@@ -337,5 +339,25 @@ describe("a tournament being played in DRAFT", () => {
      * written as "no drafts".
      */
     expect((await rows()).has(id.draftEmpty), "an unpublished, unplayed draft").toBe(false);
+  });
+});
+
+describe("one setting-up step (G1, 2026-10-31)", () => {
+  it("lists one being set up once its link is published; with no link, a legacy registration or ready row stays and a draft does not", async () => {
+    const org = await prisma.organization.findFirstOrThrow({ where: { events: { some: { id: id.draftEmpty } } }, select: { id: true } });
+    const made: string[] = [];
+    try {
+      for (const status of ["draft", "registration", "ready"]) {
+        made.push(await makeEvent(org.id, `g1-open-${status}`, { status, registrationOpen: true }));
+        made.push(await makeEvent(org.id, `g1-shut-${status}`, { status, registrationOpen: false }));
+      }
+      const byId = await rows();
+      const listed = made.map((m) => byId.has(m));
+      // Nothing members could see before G1 disappears: a stored registration or
+      // ready row keeps its place with no link (QA, 2026-10-31); a draft does not.
+      expect(listed, "open, shut — for draft, registration, ready").toEqual([true, false, true, true, true, true]);
+    } finally {
+      await prisma.event.deleteMany({ where: { id: { in: made } } });
+    }
   });
 });

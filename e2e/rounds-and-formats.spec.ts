@@ -307,8 +307,10 @@ test("cards are due on the club's day, and a live round's scoring is kept open, 
   testInfo.annotations.push({ type: "club clock", description: `${zone}: ${today} at the club, ${serverDay} at the server` });
   const club = await makeClub(mark, { timeZone: zone });
   try {
-    // Live, and played today at the club: setup is locked, and the round is on the day.
-    const { event, stages } = await makeEvent(club, "Monthly Medal", { status: "live", stages: [{ playedOn: today, deadline: yesterday }] });
+    // Live, and played YESTERDAY at the club: setup is locked, and both days the walk moves the
+    // deadline between are on or after the round's own day, which is all a deadline may be
+    // (`dueBeforePlayed`, 2026-10-30).
+    const { event, stages } = await makeEvent(club, "Monthly Medal", { status: "live", stages: [{ playedOn: yesterday, deadline: yesterday }] });
     await signIn(context, baseURL!, club, event.id);
     const row = async () => prisma.stage.findUniqueOrThrow({ where: { id: stages[0].id } });
     const tag = (card: ReturnType<typeof page.locator>) => card.locator(".tag", { hasText: /Open —|Closed|Extended/ }).first();
@@ -334,6 +336,12 @@ test("cards are due on the club's day, and a live round's scoring is kept open, 
     await card.getByLabel("Cards in by").fill(yesterday);
     await expect.poll(async () => (await row()).deadline).toBe(yesterday);
     await expect(tag(card)).toHaveText(/Closed — the deadline has passed/);
+
+    // ── a day before the round is refused beside the box, and the box goes back ──
+    await card.getByLabel("Cards in by").fill(addDays(yesterday, -1));
+    await expect(card.getByText("That's before the round is played. Pick the round's day or later.")).toBeVisible();
+    await expect(card.getByLabel("Cards in by"), "a refused date is left in the box as if it were kept").toHaveValue(yesterday);
+    expect((await row()).deadline, "a deadline before the round's day was stored").toBe(yesterday);
 
     // ── the window: Keep it open, Close now, Follow the date ──
     await card.getByRole("button", { name: "Keep it open", exact: true }).click();

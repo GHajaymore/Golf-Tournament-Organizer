@@ -260,7 +260,8 @@ jobs:
     # from the mirror as it always did.
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    # The mutation ratchet's cold night is the longest part there is (scripts/qa/layers.mjs, `mutation`).
+    timeout-minutes: ${{ matrix.part.id == 'mutation' && 130 || 100 }}
     # A part that fails says so on its own line and stops nothing: the point of
     # a round is everything it found, not the first thing.
     strategy:
@@ -334,9 +335,37 @@ jobs:
           done
           echo "::error::The browser this part drives could not be installed in three attempts."
           exit 1
+      - name: Take the last night's mutation results
+        # The mutation ratchet's part only (the `mutation` layer, nightly). Stryker's incremental file
+        # lets a night re-test only the mutants whose code or covering tests changed since the last one;
+        # without it the run is a full one, which is slower and no less right.
+        if: matrix.part.id == 'mutation'
+        continue-on-error: true
+        uses: actions/cache/restore@v4
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-incremental-${{ github.run_id }}
+          restore-keys: stryker-incremental-
       - name: ${{ matrix.part.id }}
         id: run
         run: node scripts/qa/round.mjs ${{ needs.plan.outputs.tag }} --round=${{ needs.plan.outputs.round }} --id=${{ matrix.part.id }} ${{ needs.plan.outputs.planargs }} ${{ matrix.part.args }}
+      - name: Keep this night's mutation results
+        if: always() && matrix.part.id == 'mutation' && hashFiles('reports/stryker-incremental.json') != ''
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-incremental-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Keep the mutation report
+        # Which mutants survived, line by line (reports/mutation/mutation.html), and Stryker's own log.
+        if: always() && matrix.part.id == 'mutation'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          retention-days: 14
+          overwrite: true
       - name: Say what ran
         # Written whatever happened, so the verdict can tell a part the machine stopped from one the
         # app failed. A part with neither this nor a result was lost with its runner.

@@ -638,10 +638,10 @@ export type FieldChange = "promoted" | "waitlisted";
 export async function sendInterestEmail(
   to: string,
   who: { name: string; email: string; phone: string; club: string; role: string; size: string; note: string },
-): Promise<void> {
+): Promise<InterestCopy> {
   if (!resend) {
     console.warn(`[email] RESEND_API_KEY not set — skipping a note of interest to ${maskEmail(to)}.`);
-    return;
+    return { id: "", status: "unsent", detail: "RESEND_API_KEY is not set on the server." };
   }
   const base = appUrl().base;
   const line = (label: string, value: string) =>
@@ -656,7 +656,7 @@ export async function sendInterestEmail(
       toName: "",
     });
   try {
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM,
       replyTo: who.email,
       to,
@@ -665,7 +665,7 @@ export async function sendInterestEmail(
         line("Name", who.name) +
           line("Email", who.email) +
           line("Phone", who.phone) +
-          line("Club or society", who.club) +
+          line("Club or group", who.club) +
           line("Who they are", who.role) +
           line("Size", who.size) +
           (who.note ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid ${EMAIL.flag}">${escapeHtml(who.note)}</blockquote>` : "") +
@@ -677,11 +677,61 @@ export async function sendInterestEmail(
     if (error) {
       console.error(`[email] Resend rejected a note of interest: ${error.message}`);
       await fail(error.message, (error as { statusCode?: number }).statusCode);
+      return { id: "", status: "failed", detail: error.message.slice(0, 500) };
     }
+    return { id: data?.id ?? "", status: "sent", detail: "" };
   } catch (e) {
     const message = e instanceof Error ? e.message : "unknown error";
     console.error(`[email] Failed sending a note of interest: ${message}`);
     await fail(message);
+    return { id: "", status: "failed", detail: message.slice(0, 500) };
+  }
+}
+
+/**
+ * What became of a copy to inquiries@, kept on the note's own row. `fail`
+ * above records nothing for it — `recordFailure` files a failure under a club
+ * and a note of interest has none — so until 2026-10-30 a refused copy left no
+ * trace at all. The row is the trace now (`domain/email-delivery.ts`).
+ */
+export interface InterestCopy {
+  id: string;
+  status: "unsent" | "failed" | "sent";
+  detail: string;
+}
+
+/**
+ * THE EARLY-LIST CANARY'S SEND (2026-10-30). One message from production's own
+ * sender to the provider's test mailbox `delivered@resend.dev` — never to
+ * tourneyhq.club, whose forwarder has an allowance (Ajay, 28 Oct). It proves
+ * the key, the sending domain and the account; the canary then asks the
+ * provider whether it was delivered (`emailLastEvent`).
+ */
+export async function sendCanaryEmail(): Promise<{ id: string; error: string }> {
+  if (!resend) return { id: "", error: "RESEND_API_KEY is not set on the server." };
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: "delivered@resend.dev",
+      subject: "TourneyHQ canary",
+      text: "The hourly check that production can send email. Nobody reads this.",
+    });
+    if (error) return { id: "", error: error.message };
+    return { id: data?.id ?? "", error: data?.id ? "" : "No message id came back." };
+  } catch (e) {
+    return { id: "", error: e instanceof Error ? e.message : "unknown error" };
+  }
+}
+
+/** The provider's last word on a message it accepted: "delivered", "bounced", "suppressed" … "" when it cannot say. */
+export async function emailLastEvent(id: string): Promise<string> {
+  // A READ of the provider's record, not a send: it goes to the raw client, past `deliver`.
+  if (!client || !id) return "";
+  try {
+    const { data } = await client.emails.get(id);
+    return data?.last_event ?? "";
+  } catch {
+    return "";
   }
 }
 

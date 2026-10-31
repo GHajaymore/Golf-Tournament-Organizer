@@ -91,7 +91,7 @@ export default async function TermsPage() {
       <Section title="Who these terms are between">
         <p>
           TourneyHQ is made by AjAi Labs (&ldquo;we&rdquo;). These terms are between us and the club,
-          society or organizer that uses it (&ldquo;the club&rdquo;). Whoever creates a club on
+          league, golf group or organizer that uses it (&ldquo;the club&rdquo;). Whoever creates a club on
           TourneyHQ accepts them on the club&rsquo;s behalf, and confirms they are allowed to.
         </p>
         <p>

@@ -85,7 +85,9 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
 
     await test.step("name the society and say what it is", async () => {
       await open(page, "/organization");
-      await page.locator("label", { hasText: "Society or league" }).first().click();
+      // The community kind, labelled in the club's country's words: "League or association"
+      // with no country (the app's US default since 2026-10-24), "Society or league" in Britain.
+      await page.locator("label", { hasText: /Society or league|League or association/ }).first().click();
       await page.waitForTimeout(1500);
       await page.getByLabel("Organization name").fill(`${MARK} Fairway Friends Golf Society`);
       const save = page.getByRole("button", { name: "Save changes" }).first();
@@ -141,15 +143,8 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
   }
 
   if (PHASE === "A2") {
-    await test.step("the secretary starts taking entries", async () => {
+    await test.step("the secretary opens Entries", async () => {
       await open(page, "/dashboard");
-      for (const step of ["Start taking entries"]) {
-        const b = page.getByRole("button", { name: step });
-        if (await b.count()) {
-          await b.click();
-          await expect(b).toHaveCount(0, { timeout: 20_000 });
-        }
-      }
       await read(page, "/registration", "registration-open", 2500);
     });
 
@@ -287,11 +282,6 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
     });
     await test.step("launch, and the board public", async () => {
       await open(page, "/dashboard");
-      const ready = page.getByRole("button", { name: "Mark ready" });
-      if (await ready.count()) {
-        await ready.click();
-        await expect(ready).toHaveCount(0, { timeout: 20_000 });
-      }
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
       await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });

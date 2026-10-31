@@ -71,7 +71,10 @@ export function editionFor(country: string | null | undefined): Edition {
       : golfRegister(code) === "uk"
         ? "EU"
         : "US";
-  return { key, ...EDITIONS[key], locale: localeFor(key), register: key === "US" || key === "CA" ? "us" : "uk" };
+  // The register is the APP's answer for the visitor's country (`golf-terms.ts`),
+  // so an Australian reads "carts" here as their club will in the app. The EU
+  // edition asks with the visitor's own eurozone country.
+  return { key, ...EDITIONS[key], locale: localeFor(key), register: golfRegister(key === "EU" ? code : key) };
 }
 
 /**
@@ -114,29 +117,32 @@ export type WordSwap = readonly [RegExp, string];
  */
 export function editionSwaps(edition: Edition): WordSwap[] {
   const swaps: WordSwap[] = [];
-  if (edition.register === "uk") {
+  if (edition.register !== "us") {
     const us = golfTermsFor("us");
     const uk = golfTermsFor(edition.register);
     const both = (from: string, to: string, capitalise: boolean) => {
       swaps.push([new RegExp(`\\b${from}\\b`, "g"), to]);
       if (capitalise) swaps.push([new RegExp(`\\b${cap(from)}\\b`, "g"), cap(to)]);
     };
-    // Longest first, so "carts" is not read as "cart" + "s".
+    // Longest first, so "carts" is not read as "cart" + "s". A word the two
+    // registers share (an Australian's "cart") swaps to itself.
     both(us.carts, uk.carts, true);
     both(us.cart, uk.cart, true);
     both(us.organizers, uk.organizers, true);
     both(us.organizer, uk.organizer, true);
     both(us.groups, uk.groups, false);
     both(us.group, uk.group, false);
-    swaps.push(
-      [/\bLeagues & golf groups\b/g, "Leagues & societies"],
-      [/\bgolf groups\b/g, "societies"],
-      [/\bgolf group\b/g, "society"],
-      // A society's away day is what a US group calls an outing.
-      [/\bGolf outings\b/g, "Society days"],
-      [/\boutings\b/g, "society days"],
-      [/\bouting\b/g, "society day"],
-    );
+    // The audience words, from the same table since 2026-10-24: "golf groups"
+    // to "societies", and a US group's outing to a society day or a golf day.
+    both(us.golfGroups, uk.golfGroups, false);
+    both(us.golfGroup, uk.golfGroup, false);
+    swaps.push([/\bGolf outings\b/g, cap(uk.outings)]);
+    // And in a sentence ("leagues, golf groups and outings"), after the capital
+    // form above so "Golf outings" is read whole first.
+    // "charity outing" is its own phrase, never "charity society day".
+    both(us.charityDay, uk.charityDay, false);
+    both(us.outings, uk.outings, false);
+    both(us.outing, uk.outing, false);
   }
   if (edition.spelling !== "us") {
     swaps.push(
@@ -154,16 +160,6 @@ export function editionSwaps(edition: Edition): WordSwap[] {
     );
   }
   return swaps;
-}
-
-/**
- * The sign-up form's words for a league or golf group, in the edition's golf
- * (2026-10-24). The form is a client component the page's swaps cannot reach,
- * so the page hands these in: a US visitor never reads "society", and a
- * British one still does.
- */
-export function communityKindLabel(edition: Edition): string {
-  return edition.register === "uk" ? "A society, league or regular group" : "A league, golf group or regular group";
 }
 
 function cap(s: string): string {

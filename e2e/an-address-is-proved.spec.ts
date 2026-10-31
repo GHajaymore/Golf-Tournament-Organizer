@@ -134,7 +134,7 @@ test("the code step says every refusal under the box, and lets them start again"
   await page.getByPlaceholder("Full name").fill("Zz Code Walker");
   await page.getByPlaceholder("you@email.com").fill(email);
   await page.getByPlaceholder("Choose a password").fill("four-Putts-then-87-home");
-  await page.getByText("A one-off outing with friends").click();
+  await page.getByText("A one-off game with friends").click();
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByRole("heading", { name: "Enter your code" })).toBeVisible({ timeout: 20_000 });
   const user = await prisma.user.findUniqueOrThrow({ where: { email } });

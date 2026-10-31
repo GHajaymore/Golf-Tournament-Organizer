@@ -251,7 +251,9 @@ describe("the demo club is left out of what is about real clubs — each with a 
   });
 
   it("the deploy freeze: a demo tournament today does not freeze, a real club's tournament today does", async () => {
-    await prisma.event.update({ where: { id: real.eventId }, data: { status: "draft" } });
+    // The real club's tournament taken out of the freeze the only way there is since G1
+    // (2026-10-31): completed. A draft dated today now holds a deploy too.
+    await prisma.event.update({ where: { id: real.eventId }, data: { status: "completed" } });
     const demoOnly = await currentDeployWindow(atClub("13:00"));
     expect(demoOnly.frozen, `frozen by the demo: ${demoOnly.reason}`).toBe(false);
     await prisma.event.update({ where: { id: real.eventId }, data: { status: "live" } });

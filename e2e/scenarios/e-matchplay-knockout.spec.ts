@@ -109,13 +109,6 @@ test("five E", async ({ page, context, baseURL }, testInfo) => {
     });
     await test.step("launch, the board public, the qualifier's tee sheet", async () => {
       await open(page, "/dashboard");
-      for (const step of ["Start taking entries", "Mark ready"]) {
-        const b = page.getByRole("button", { name: step });
-        if (await b.count()) {
-          await b.click();
-          await expect(b).toHaveCount(0, { timeout: 20_000 });
-        }
-      }
       const launch = page.getByRole("button", { name: "Launch tournament" });
       if (await launch.count()) {
         await launch.click();
@@ -180,13 +173,15 @@ test("five E", async ({ page, context, baseURL }, testInfo) => {
   }
 
   if (PHASE === "E3") {
-    const ROUNDS = ["Round of 64", "Round of 32", "Round of 16", "Quarterfinals", "Semifinals", "Final"];
+    // A full draw of 64, named as a club names it (the panel, 2026-10-23).
+    const ROUNDS = ["Round 1", "Round 2", "Round 3", "Quarter-finals", "Semi-finals", "Final"];
     const MARGINS = ["3&2", "2&1", "1 UP", "4&3", "19th", "5&4"];
     await test.step("the committee records the knockout, round by round", async () => {
       await open(page, "/bracket");
       // The first column, in draw order: "Name seed Name seed …".
       const text = (await page.locator("main").innerText()).replace(/\s+/g, " ");
-      const first = text.slice(text.indexOf("ROUND OF 64") + "ROUND OF 64".length);
+      // The Whole draw tab, which the secretary's screen opens on; the first column follows its heading.
+      const first = text.slice(text.indexOf("ROUND 1 ") + "ROUND 1 ".length);
       const facts = await eventFacts(E_NAME);
       const names = facts!.players.map((p) => p.name).sort((a, b) => b.length - a.length);
       const seeded: Array<{ name: string; seed: number }> = [];

@@ -330,7 +330,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     title: "Decide how money works",
     blurb: profile.ledger
       ? "Entry fees and shared costs, or nothing at all. Changeable per tournament later."
-      : "Skins and pots are always worked out. Entry fees and shared costs sit outside the app unless you say otherwise — a society day can differ.",
+      : "Skins and pots are always worked out. Entry fees and shared costs sit outside the app unless you say otherwise — any one tournament can differ.",
     done: facts.moneyAnswered || !profile.ledger,
     consequence: "",
     href: SETUP_HREF.money,

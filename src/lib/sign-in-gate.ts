@@ -50,7 +50,10 @@ export const SIGNINS_CLOSED_MESSAGE =
 export const SIGNINS_CLOSED_NOTICE = {
   lead: "TourneyHQ opens soon.",
   body: "Sign-ups are paused until launch while we add the finishing touches.",
-  offer: "Get 25% off your first term. Join the early list and we'll email your code at launch, good on the paid plan you choose.",
+  // "Free to join, no card needed" is about JOINING THE EARLY LIST, which takes a few details and
+  // an email and nothing else (Ajay, 2026-10-31: "its not showing no credit card or just need an
+  // email … correct everywhere"). It is not the free plan's "No card", which stays down until launch.
+  offer: "Get 25% off your first term. Joining the early list is free and needs no card: we'll email your code at launch, good on the paid plan you choose.",
   // The way in is the /interest form; the address stays for anybody who would rather write.
   joinLink: "Join the early list",
   emailLead: "Rather email? Write to",
@@ -67,14 +70,14 @@ export const SIGNINS_CLOSED_NOTICE = {
 /** The front door's own words while held (the marketing manager's). */
 export const HELD_FRONT_DOOR = {
   heading: "Opening soon. Get in early.",
-  lead: "New accounts open at launch. Register your interest now and we'll email you 25% off your first paid term. Got a round code? You can play today.",
+  lead: "New accounts open at launch. Register your interest now (free, no card needed) and we'll email you 25% off your first paid term. Got a round code? You can play today.",
   // The one quiet way in for the owners, folded under the notice: no login boxes for a visitor.
   // The UI/UX designer and the ad director: not "Team" (a golf team presses it), not "Staff" alone
   // (a club's secretaries are staff too, and are held out) — "TourneyHQ" says who it is for.
   staffLink: "TourneyHQ staff sign-in",
   signInTitle: "TourneyHQ staff",
   signInSub: "Sign in with your TourneyHQ account. Club accounts open at launch.",
-  pricingNote: "Paid plans start at launch. Join the early list now and we'll email you 25% off your first term.",
+  pricingNote: "Paid plans start at launch. Join the early list now (free, no card needed) and we'll email you 25% off your first term.",
   // The ad director: a button that promises "Start free" and lands on a paused door reads as bait.
   // And not "Get early access" (second round): joining gets a code, not use of the app before launch.
   cta: "Join the early list",

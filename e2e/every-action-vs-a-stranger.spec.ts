@@ -477,6 +477,30 @@ interface Finding {
 const hasOne = (row: Record<string, unknown> | undefined, ids: Set<string>) =>
   !!row && Object.values(row).some((v) => typeof v === "string" && ids.has(v));
 
+/**
+ * A MEMBER'S OWN NEW ENTRY PASSES ONLY AS THE ONE-TAP ENTER MAKES IT (2026-10-30).
+ *
+ * The sweep offers whichever club tournament comes first, in no fixed order, and when that one is
+ * taking entries the member enters it (`enterThisTournament`): the app working. The first fix let
+ * every "Player (new)" that named the member through, and the Security & Privacy Lead refused it:
+ * that would also pass an entry into a tournament NOT taking entries, or one carrying a handicap
+ * the member chose. So the row is held to what Enter writes: a tournament taking entries, the
+ * member's own record copied (member, handicap, gender, handicap number), and a status intake
+ * gives. Anything else is said, with what differed. Returns "" when it is the one-tap Enter.
+ */
+function notTheOneTapEntry(row: Record<string, unknown>, actor: Actor): string {
+  const event = clubWas.get(`Event/${String(row.eventId)}`);
+  if (!event) return "in a tournament the club did not have";
+  if (event.registrationOpen !== true && event.registrationOverride !== true) return "in a tournament not taking entries";
+  const member = [...clubWas].find(([k, r]) => k.startsWith("Member/") && r.organizationId === event.organizationId && hasOne(r, actor.own))?.[1];
+  if (!member) return "with no membership record of theirs behind it";
+  const differs: string[] = ["handicap", "gender", "ghin"].filter((c) => row[c] !== member[c]);
+  if (row.memberId !== String(member.id ?? "")) differs.unshift("memberId");
+  if (differs.length) return `its ${differs.join(", ")} not copied from their membership record`;
+  if (!["confirmed", "waitlisted", "pending"].includes(String(row.status))) return `with the status "${String(row.status)}"`;
+  return "";
+}
+
 /** Everything a call did to the club, read off the rows: what is wrong, and what was the caller's own to do. */
 async function whatHappenedToTheClub(changes: RowChange[], actor: Actor): Promise<{ problems: string[]; own: string[] }> {
   const problems: string[] = [];
@@ -511,6 +535,12 @@ async function whatHappenedToTheClub(changes: RowChange[], actor: Actor): Promis
       for (const row of rows.values()) {
         const pointsAt = Object.entries(row).filter(([, v]) => typeof v === "string" && clubIds.has(v));
         if (!pointsAt.length) continue;
+        if (table === "Player" && hasOne(row, actor.own)) {
+          const why = notTheOneTapEntry(row, actor);
+          if (why) problems.push(`made their own entry, but not the one the one-tap Enter makes: ${why}`);
+          else own.push("Player (new), the one-tap Enter");
+          continue;
+        }
         say(hasOne(row, actor.own), `made a ${table} row pointing at the club (${pointsAt.map(([k]) => k).join(", ")})`, `${table} (new)`);
       }
     }

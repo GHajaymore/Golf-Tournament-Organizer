@@ -795,7 +795,9 @@ export async function confirmChampion(
       eventId,
       event: found.event,
       playerId: suggestion.playerId,
-      championName: suggestion.name,
+      // A team cup's champion is a TEAM, named with its score — "Oakmere
+      // 6½–3½" — and keyed by the team's id, so it is one line per cup.
+      championName: suggestion.team ? suggestion.team.score : suggestion.name,
       note,
     });
     return { ok: true, championName: entry.championName };

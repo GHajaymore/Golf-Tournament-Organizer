@@ -1,5 +1,10 @@
 # Country-based wording and prices
 
+> **Since 2026-10-24 the word table is `docs/country-words.md`.** It has three registers (`us`,
+> `uk`, `au`), the audience words (league or society, outing or society day or golf day), and the
+> guard that refuses them typed into a screen. What follows is the history up to that day: where
+> it says "two registers" or "UK: … AU, NZ, ZA", read that document instead.
+
 Ajay, 2026-09-27: "local by default and overridden option for USD and US terminologies,
 including currency and golf terminologies." Decided the same day:
 - real local plan prices;

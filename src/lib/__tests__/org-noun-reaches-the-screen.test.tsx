@@ -46,10 +46,18 @@ const money = () => <CurrencyPicker currency="GBP" />;
 const dates = () => <LocalePicker locale="en-GB" />;
 
 describe("a community sees its own country's word for itself", () => {
-  it("says society with no country, exactly as before", () => {
+  it("says league with no country — the app's US default since 2026-10-24", () => {
     // The default is the common case: `Organization.country` is free text and
-    // defaults to "". A change here would reword the app for everybody.
+    // defaults to "". It said "society" until the golf register became the
+    // one source (`golf-terms.ts`), whose default is US — as the same club's
+    // cart and foursome already were.
     const html = markup(undefined, money());
+    expect(html).toContain("the league&#x27;s currency");
+    expect(html).not.toContain("society");
+  });
+
+  it("says society in Britain", () => {
+    const html = markup("GB", money());
     expect(html).toContain("the society&#x27;s currency");
     expect(html).not.toContain("league");
   });
@@ -69,7 +77,7 @@ describe("a community sees its own country's word for itself", () => {
      * eleven readers are the whole reason the context exists instead of a prop
      * on each of them.
      */
-    expect(markup(undefined, dates())).toContain("how the society writes a date");
+    expect(markup("GB", dates())).toContain("how the society writes a date");
     expect(markup("US", dates())).toContain("how the league writes a date");
   });
 
@@ -115,17 +123,18 @@ describe("the Members screen is headed with the sidebar's own section word", () 
    * under it read CLUB, hard-coded. Rendered through the real provider for
    * each kind, so a hard-coded word cannot pass for any but one of them.
    */
+  // A British outfit: with no country a community is a US league.
   const kicker = (kind: string) =>
     renderToStaticMarkup(
-      <OrgProfileProvider kind={kind}>
+      <OrgProfileProvider kind={kind} country="GB">
         <RosterClient clubName="zz Heath" eventName="" fieldLocked={false} members={[]} fieldSize={0} unlinkedCount={0} />
       </OrgProfileProvider>,
     ).match(/class="page-kicker">([^<]*)</)?.[1];
 
-  it("says Society for a society, Club for a club, Outing for an outing", () => {
+  it("says Society for a society, Club for a club, and Your golf for one person's own (never Outing)", () => {
     expect(kicker("community")).toBe("Society");
     expect(kicker("club")).toBe("Club");
-    expect(kicker("personal")).toBe("Outing");
+    expect(kicker("personal")).toBe("Your golf");
   });
 });
 

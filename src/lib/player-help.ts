@@ -25,6 +25,8 @@
  * works differently, and that part is the author's to keep true.
  */
 
+import { tableInClubWords, type GolfWords } from "./domain/golf-terms";
+
 export interface PlayerHelpTopic {
   /** Stable, for the page's own anchors. */
   id: string;
@@ -77,7 +79,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     steps: [
       "On Today, tap [[Score this match]].",
       "After each hole, tap who won it, or [[Halved]].",
-      "If your organizer chose stroke cards, enter your own strokes instead. The app works out who won each hole.",
+      "If your {organizer} chose stroke cards, enter your own strokes instead. The app works out who won each hole.",
       "It saves as you go.",
       "The board shows your match as you play.",
     ],
@@ -92,7 +94,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "That is your course handicap with the round's allowance.",
       "The allowance is taken before rounding, as the Rules say.",
       "So 95% of 7 can be 6.",
-      "Your organizer can show you the figures.",
+      "Your {organizer} can show you the figures.",
     ],
   },
   {
@@ -100,10 +102,10 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     question: "Which tees do I play?",
     href: "/me/card",
     steps: [
-      "Your organizer decides the tees.",
+      "Your {organizer} decides the tees.",
       "For the tournament, for your flight, or for you.",
       "Your card names the tees you are on.",
-      "You cannot change them here. Ask your organizer.",
+      "You cannot change them here. Ask your {organizer}.",
       "On a higher par than others? You get the difference as strokes.",
       "Not in Stableford, where par already counts.",
     ],
@@ -125,7 +127,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     href: "/me/card",
     steps: [
       "Before signing, tap the hole and fix it.",
-      "Signed already? Ask your organizer to reopen it.",
+      "Signed already? Ask your {organizer} to reopen it.",
       "Someone else kept your card? Tap [[Something on this card is wrong]].",
       "The committee settles it before it counts.",
       "Says Read-only at the top? The club's plan has ended.",
@@ -163,8 +165,12 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Your tie names the round and your opponent.",
       "In a big field it names your flight too.",
       "Played it? Tap [[Report the result]].",
-      "The organizer confirms it, and the winner moves on.",
+      "The {organizer} confirms it, and the winner moves on.",
       "The whole draw is on Board.",
+      "A big draw opens on your part, marked You.",
+      "Other tabs show the rest; Whole draw shows everything.",
+      "Find a player shows anybody's path through the draw.",
+      "A bye is marked under a name. Nobody plays it.",
     ],
   },
   {
@@ -184,7 +190,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     steps: [
       "Open Events and find the tournament.",
       "Tap [[Can’t make it? Withdraw]].",
-      "After entries close, tell your organizer instead.",
+      "After entries close, tell your {organizer} instead.",
     ],
   },
   {
@@ -236,7 +242,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Tap [[Play a casual round]].",
       "Pick the game, the players and the course.",
       "Type a handicap as 12.4, or +2.4 for a plus. An empty box is not scratch: type 0.",
-      "It needs no tournament and no organizer.",
+      "It needs no tournament and no {organizer}.",
     ],
   },
   {
@@ -270,6 +276,16 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
 /** A topic's line with its [[labels]] as plain words — what the page prints. */
 export function helpLineText(line: string): string {
   return line.replace(/\[\[(.+?)\]\]/g, "$1");
+}
+
+/**
+ * The topics in one club's golf (2026-10-24): a golf word that differs between
+ * countries is a token — `{organizer}` — and this fills it in, so a British
+ * member reads "Ask your organiser". `country-words.test.ts` refuses the word
+ * itself in this file.
+ */
+export function helpInClubWords(words: GolfWords): readonly PlayerHelpTopic[] {
+  return tableInClubWords(PLAYER_HELP_TOPICS, words);
 }
 
 /** The control labels a line names. */

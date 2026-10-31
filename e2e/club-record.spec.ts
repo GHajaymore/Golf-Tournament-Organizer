@@ -53,7 +53,8 @@ test.afterAll(async ({}, testInfo) => {
 async function open(page: Page) {
   await page.goto(`/series?bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
-  const board = page.locator(".card", { has: page.locator(".card-title", { hasText: /^Honours board$/ }) }).last();
+  // "Honors board" to a US club (or one with no country), "Honours board" in Britain — golf-terms.ts.
+  const board = page.locator(".card", { has: page.locator(".card-title", { hasText: /^Honou?rs board$/ }) }).last();
   await expect(board, "the season screen has no honours board").toBeVisible();
   return board;
 }
@@ -119,13 +120,13 @@ test("a champion is put on the honours board from the standings and taken off ag
   try {
     await onPlan("free", true);
     board = await open(page);
-    await expect(board, "a new club on the free plan is not told the board is locked").toContainText("The honours board comes with");
+    await expect(board, "a new club on the free plan is not told the board is locked").toContainText(/The hono(u)?rs board comes with/);
     await expect(board.getByRole("button", { name: "Put on the board" }), "a locked board still offers to put a name on it").toHaveCount(0);
 
     // ── and a club that predates the terms keeps its board ──────────────────
     await onPlan("free", false);
     board = await open(page);
-    await expect(board, "CONTROL: a club from before the plan terms lost its honours board").not.toContainText("The honours board comes with");
+    await expect(board, "CONTROL: a club from before the plan terms lost its honours board").not.toContainText(/The hono(u)?rs board comes with/);
     await expect(waiting(), "a club from before the plan terms is not offered its champion").toBeVisible();
   } finally {
     await onPlan(paid.plan, paid.planTermsApply);
