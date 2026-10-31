@@ -58,3 +58,13 @@ export function decideDeploy(f) {
   }
   return { decision: "deploy", reason: `${short(f.sha)} may go: verify is green${f.coreCommits.length ? ", its core changes are in a clean nightly round" : ", no core change waits for the nightly"}${f.overrideFreeze ? ", and the freeze was overridden" : ", and no club is in its freeze"}`, notes };
 }
+
+/**
+ * The commits Nightly rounds were clean on. A round counts when its Verdict JOB succeeded, whether or not the
+ * run has finished: the deploy job of the very round that cleared a commit runs inside that still-running
+ * run, so reading only completed runs made a round blind to its own result (production held 8741a2ac from
+ * 26 Oct to 31 Oct that way). `runs` is [{ headSha, jobs: [{ name, conclusion }] }].
+ */
+export function cleanNightlyShas(runs) {
+  return runs.filter((r) => (r.jobs ?? []).some((j) => j.name.endsWith("Verdict") && j.conclusion === "success")).map((r) => r.headSha);
+}

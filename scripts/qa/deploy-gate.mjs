@@ -21,7 +21,8 @@
  *   core         every commit in deployed..sha whose files include one that
  *                `tierOf` (layers.mjs) calls core — commit by commit, not the
  *                range's net diff, so a change made and undone still counts
- *   nightly      the Nightly round's runs on main whose Verdict job succeeded;
+ *   nightly      the Nightly round's runs on main whose Verdict job succeeded (finished or
+                still running: the round asking is its own deploy's run);
  *                a core commit is covered when it is one of them or an ancestor
  *   the freeze   GET $DEPLOY_WINDOW_URL with $DEPLOY_WINDOW_TOKEN. The app reads
  *                the clubs' zones and today's tournaments from its own database
@@ -36,7 +37,7 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { tierOf } from "./layers.mjs";
-import { decideDeploy } from "./deploy-rules.mjs";
+import { decideDeploy, cleanNightlyShas } from "./deploy-rules.mjs";
 
 export const PRODUCTION_ENVIRONMENT = "tourneyhq-production";
 const args = process.argv.slice(2);
@@ -102,16 +103,17 @@ function coreCommitsSince(deployed, sha) {
 function cleanNightlies() {
   let runs = [];
   try {
-    runs = gh("run", "list", "-R", REPO, "--workflow", "nightly.yml", "--branch", "main", "--limit", "20", "--json", "databaseId,headSha,status") ?? [];
+    runs = gh("run", "list", "-R", REPO, "--workflow", "nightly.yml", "--branch", "main", "--limit", "20", "--json", "databaseId,headSha") ?? [];
   } catch {
     return [];
   }
-  const clean = [];
-  for (const r of runs.filter((x) => x.status === "completed")) {
+  const withJobs = [];
+  for (const r of runs) {
+    // Not filtered to completed runs: the round asking is still running (its deploy job is this very step).
     const view = gh("run", "view", String(r.databaseId), "-R", REPO, "--json", "jobs");
-    if ((view?.jobs ?? []).some((j) => j.name.endsWith("Verdict") && j.conclusion === "success")) clean.push(r.headSha);
+    withJobs.push({ headSha: r.headSha, jobs: view?.jobs ?? [] });
   }
-  return clean;
+  return cleanNightlyShas(withJobs);
 }
 
 async function freeze() {
