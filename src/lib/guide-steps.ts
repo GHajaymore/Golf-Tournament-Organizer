@@ -331,7 +331,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Finish the setup steps the **How a tournament runs** panel on Tournament details shows — including name and dates.",
+          "Finish the setup steps the **How a tournament runs** panel on Tournament details shows — including name and dates. Until you launch, the Dashboard keeps the same list under **Still to set up**, even once your players are in.",
           "Press the launch button on the status bar. **Launch “‹name›”?** summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
           "Press [[Launch tournament]]. Setup locks; Part 3 lists what you can still change.",
         ],
