@@ -20,9 +20,9 @@ import { RoundAvailability } from "@/components/RoundAvailability";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
-import { currentRoundCut, survivorsWithTies, qualifyingCutoffText } from "@/lib/domain/cut";
+import { currentRoundCut, qualifyingCutoffText, cutTieRuleOf, cutTieRuleWords } from "@/lib/domain/cut";
 import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
-import { loadEventState } from "@/lib/services/tournament";
+import { strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { CutReadyCard } from "@/components/CutReadyCard";
 import { RoundReadyCard } from "@/components/RoundReadyCard";
 import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
@@ -34,15 +34,13 @@ import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isStraightKnockout, isWeeklyRound } from "@/lib/stage-types";
 import { playOverOf } from "@/lib/domain/tournament-switcher";
-import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
-import { unscorableRoundLabels } from "@/lib/domain/round-choices";
-import { roundsMissingCards } from "@/lib/services/round-card-lines";
+import { finishRefusal, completingCheckFor } from "@/lib/domain/phase-gate";
 import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { overallResultLabel } from "@/lib/domain/overall-result";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupFlowFor, launchCheckFor } from "@/lib/services/setup-flow";
 import { isMatch, reviewsScores } from "@/lib/tournament-shape";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
@@ -302,24 +300,37 @@ export default async function DashboardPage() {
   /**
    * THE CUT, READY FOR THE ORGANIZER TO APPROVE (Ajay, 2026-10-05). Previewed
    * with exactly what `applyStrokeCut` will do — the field ranked as of the round
-   * the cut is taken out of, `survivorsWithTies` on the next round's rule — so
+   * the cut is taken out of, `strokeCutOutcome` on the next round's rule — so
    * the card's "3 go through" is the number the button then makes.
    */
   const cutPreview = await (async () => {
     if (!isStaff || !state.cutReady) return null;
-    const next = state.stages.find((s) => s.id === state.cutReady!.nextId);
-    const asOf = await loadEventState(event.id, state.cutReady.feederId);
-    if (!next || !asOf) return null;
-    const ranked = asOf.strokeStandings
-      .filter((s) => s.ranked)
-      .map((s) => ({ id: s.player.id, groupId: s.player.groupId, rank: s.rank }));
-    const rule = cutRuleOf(next);
-    const through = survivorsWithTies(ranked, rule).size;
+    // `strokeCutOutcomeOf` — the very answer the button makes the cut with,
+    // ties and the committee's recorded play-offs included (2026-10-23).
+    const made = await strokeCutOutcomeOf(event.id, state.cutReady.feederId);
+    if (!made) return null;
+    const rule = cutRuleOf(made.next);
+    const tieRule = cutTieRuleOf(made.next.cutTies);
+    const through = made.outcome.through.size;
+    const waiting = made.outcome.undecided.reduce((n, t) => n + t.playerIds.length, 0);
+    const name = (id: string) => made.names.get(id) ?? "A player";
+    const asTie = (t: (typeof made.outcome.undecided)[number], chosen: string[]) => ({
+      tied: t.playerIds,
+      names: t.playerIds.map(name),
+      places: t.places,
+      by: t.by,
+      chosen,
+    });
     return {
       ...state.cutReady,
-      rule: cutRuleWords(rule),
+      rule: cutRuleWords(rule, tieRule === "ties"),
+      tieRule: cutTieRuleWords(tieRule),
       through,
-      missed: Math.max(0, asOf.strokeStandings.length - through),
+      missed: Math.max(0, made.state.strokeStandings.length - through - waiting),
+      ties: [
+        ...made.outcome.undecided.map((t) => asTie(t, [])),
+        ...made.outcome.decided.map((t) => asTie(t, t.through)),
+      ],
     };
   })();
 
@@ -498,24 +509,22 @@ export default async function DashboardPage() {
    * a reason the screen had already worked out and thrown away.
    */
   const lifecycleAction = nextLifecycleAction({ status: event.status, resultsIn: state.resultsIn });
-  // Read only when Launch is on offer — the same facts the action refuses on,
-  // so the button and the server cannot disagree about a round's card.
-  const missingCards = lifecycleAction?.kind === "launch" ? await roundsMissingCards(session.eventId) : [];
+  // Read only when Launch is on offer — the very function the action refuses on
+  // (`launchCheckFor`, the setup flow's own facts), so the button and the server
+  // cannot disagree. Its warnings go in the launch dialog.
+  const launch = lifecycleAction?.kind === "launch" ? await launchCheckFor(session.eventId) : null;
   const phaseBlock =
-    lifecycleAction?.kind === "launch"
-      ? launchRefusal({
-          playingRounds: state.stages.filter((s) => isPlayingRound(s.type)).length,
-          confirmed: state.confirmed.length,
-          dated: !!state.event.dates.trim(),
-          missingCards,
-          unscorable: unscorableRoundLabels(state.stages),
-        })
+    launch
+      ? launch.refusal
       : lifecycleAction?.to === "completed"
         ? finishRefusal({
             pendingConfirmations: state.pendingConfirmations,
             disputed: state.reviewing.disputed,
           })
         : null;
+  // Completing with rounds nobody has played: the action's own check, read here so the button
+  // asks before it is pressed — and is refused in place when nothing at all has been scored.
+  const completing = lifecycleAction?.to === "completed" ? completingCheckFor(state.stages, state.roundsWithResults) : null;
   const navHrefs = new Set(
     navForRole(session.viewRole, settings, {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),
@@ -548,10 +557,19 @@ export default async function DashboardPage() {
   // true but useless. Someone who just created a tournament lands here, so
   // this is the one place the next step has to be spelled out.
   const unstarted = isUnstarted(state) && isStaff;
-  // The club's branding, loaded only for the first-run checklist, so it can
+  /**
+   * THE CHECKLIST OUTLIVES THE FIRST ENTRANT (2026-10-31, gap G2 of the workflow review).
+   *
+   * It used to show only while the field was empty, so importing 28 players took the setup
+   * guidance off the dashboard while the rounds, flights and tee sheet were still to do — exactly
+   * when a new organizer needs it. It now shows to staff until the tournament is launched; the
+   * rest of the dashboard renders beside it as soon as there is a field to report on.
+   */
+  const settingUp = isStaff && !isLaunched(event.status);
+  // The club's branding, loaded only for the setup checklist, so it can
   // nudge (never gate) an organizer to add a logo and colours before they've
   // set either.
-  const brandingOrg = unstarted
+  const brandingOrg = settingUp
     ? await prisma.organization.findUnique({
         where: { id: event.organizationId },
         // `kind` so the nudge below calls the outfit by its own name — a
@@ -569,16 +587,16 @@ export default async function DashboardPage() {
    * venue — the rail on the Set-up screens said it first, and this list did
    * not carry the step at all.
    *
-   * Loaded only while the tournament is UNSTARTED, which is the only time the
-   * checklist renders, so a running tournament pays nothing for it. Returns
-   * null for a match, which is correct: two people on the first tee have no
-   * tournament to set up.
+   * Loaded only while the tournament is being SET UP (not yet launched), which
+   * is the only time the checklist renders, so a running tournament pays
+   * nothing for it. Returns null for a match, which is correct: two people on
+   * the first tee have no tournament to set up.
    */
-  const flow = unstarted ? await setupFlowFor(session.eventId) : null;
+  const flow = settingUp ? await setupFlowFor(session.eventId) : null;
   // EVERY step's own answer, not two of them. The flow decides what is
   // finished and a second copy of any of those tests here is how the rail and
   // the dashboard come to disagree — which two of the five rows already did.
-  const checklist = unstarted
+  const checklist = settingUp
     ? setupChecklist({
         ...state,
         branding: clubBrandingState(brandingOrg),
@@ -832,6 +850,8 @@ export default async function DashboardPage() {
               through={cutPreview.through}
               missed={cutPreview.missed}
               noCard={cutPreview.noCard}
+              tieRule={cutPreview.tieRule}
+              ties={cutPreview.ties}
             />
           ) : readyToClose ? (
             <RoundReadyCard
@@ -918,8 +938,11 @@ export default async function DashboardPage() {
           status={event.status}
           isAdmin={isAdmin}
           configUnlocked={event.configUnlocked}
+          archived={!!event.archivedAt}
           resultsIn={state.resultsIn}
-          blockedReason={phaseBlock ?? undefined}
+          blockedReason={phaseBlock ?? (completing && "refuse" in completing ? completing.refuse : undefined)}
+          unplayedAsk={completing && "ask" in completing ? completing.ask : undefined}
+          launchOpen={launch ?? undefined}
           {...(isAdmin && (await wipesOnCloseFor(event.id))
             ? {
                 deletesOnComplete: true,
@@ -950,11 +973,13 @@ export default async function DashboardPage() {
       <AnnouncementList items={announcements} />
 
       {/* A SOCIETY TAKING ENTRIES FIRST (2026-10-16; the tournament director on the
-          review panel). Two things it was not told: "Start taking entries" changes
-          the status and does not publish the sign-up link; and once the first
-          entry lands, the getting-started list goes, so nothing said the format
-          was still to choose. One line each, only while true. */}
-      {isStaff && event.status === "registration" && !event.registrationOpen && (
+          review panel). Two things it was not told: that players cannot sign up
+          until the sign-up link is published; and once the first entry lands, the
+          getting-started list goes, so nothing said the format was still to choose.
+          One line each, only while true. Since G1 (2026-10-31) there is no "Start
+          taking entries" status to key the first on: it is any tournament still
+          being set up that takes entries and has not published its link. */}
+      {isStaff && !isLaunched(event.status) && event.playerCountMode !== "manual" && !event.registrationOpen && (
         <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
           Players can&rsquo;t sign up themselves until the link is published —{" "}
           <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>publish it on Entries</Link>.
@@ -968,13 +993,14 @@ export default async function DashboardPage() {
       )}
 
       {/* Ahead of the shortcuts, because "what next" outranks "where to". */}
-      {unstarted && (
+      {settingUp && checklist.some((i) => !i.done && !i.optional) && (
         <div className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
           <div>
-            <span className="card-kicker">Getting started</span>
+            <span className="card-kicker">{unstarted ? "Getting started" : "Still to set up"}</span>
             <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
-              This tournament doesn&rsquo;t have a field yet, so there&rsquo;s nothing to score or
-              rank. Work down the list and the dashboard fills in as you go.
+              {unstarted
+                ? "This tournament doesn’t have a field yet, so there’s nothing to score or rank. Work down the list and the dashboard fills in as you go."
+                : "The field is in. Finish the steps still open before you launch."}
             </p>
           </div>
           <SetupChecklist items={checklist} />

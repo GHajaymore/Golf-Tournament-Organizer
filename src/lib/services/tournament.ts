@@ -11,7 +11,17 @@ import {
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, roundCard } from "./course-resolution";
-import { survivors, survivorsWithTies, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
+import {
+  survivors,
+  strokeCutOutcome,
+  cutLineRows,
+  cutTieRuleOf,
+  cutTieDecisionsOf,
+  currentRoundCutRule,
+  fieldEnteringRound,
+  type CutCandidate,
+  type CutTie,
+} from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
 import { roundReadyForCut, cutProgress, cutHasBeenMade } from "../domain/cut-ready";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
@@ -64,6 +74,7 @@ import {
   parseBracketDraw,
   roundRobinMatchCount,
   resolveMatch,
+  matchIsOver,
   storedMatchIsOver,
   courseHandicapMap,
   type Player,
@@ -640,6 +651,14 @@ export interface EventState {
    */
   strokeStandingsOn: (basis: "gross" | "net") => StrokeStanding[];
   /**
+   * The one figure `strokeStandings` is ordered on — the board's own
+   * `rankingBasis`. A reader that PRINTS a total beside the board's places
+   * prints it on this, or the column it prints cannot be read down
+   * (`standingsThroughRound`). It is also the basis every "level" is asked
+   * on, a tie at the cut included (`cutTiesUndecided`).
+   */
+  strokeRankingBasis: RankingBasis;
+  /**
    * WHICH STEP OF THE COUNTBACK put `aheadId` above `behindId` on the board —
    * "back 9", "last 3" — read off the same cards, on the same basis and over
    * the same round the board's own sort read (`cbCard`), so a report cannot
@@ -762,6 +781,15 @@ export interface EventState {
    * saying Advancing or Eliminated.
    */
   qualifying: boolean;
+  /**
+   * TIES FOR THE LAST PLACE AT THE BOARD'S STROKE CUT THAT THE COMMITTEE HAS
+   * STILL TO SETTLE — a play-off, or a draw after countback (2026-10-23). Empty
+   * under "ties go through", and wherever the line falls in a gap. Nobody in
+   * one is in `advancingIds`, and nobody in one may be told they are out: the
+   * board marks them `tiedAtCut`, and the cut cannot be made until they are
+   * settled (`strokeCutOutcome`, `strokeCutRefusal`).
+   */
+  cutTiesUndecided: CutTie[];
   /**
    * How many results are waiting for a sign-off, across the whole tournament.
    *
@@ -2536,6 +2564,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // With neither a knockout nor a round cut, nobody is advancing yet.
   const hasKnockout = hasKnockoutStage(stages);
   let advancingIds: Set<string>;
+  // See `EventState.cutTiesUndecided`; set only by a stroke cut below.
+  let cutTiesUndecided: CutTie[] = [];
   // Whether anybody CAN advance — see `EventState.qualifying`.
   let qualifying = hasKnockout;
   if (hasKnockout) {
@@ -2581,21 +2611,32 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
        * rule of 2026-09-26 — but this lit exactly N, so the board drew its line
        * THROUGH the tie and then flagged it: "Tied for the last place — play-off
        * to decide" beside two players the cut was about to send through
-       * together. Same ranking as the cut (the standings' own rank, after
-       * countback), same function. A cut into anything else — a round robin's
-       * pairings, a bracket's slots — keeps exactly N and its play-off note.
+       * together. Same ranking as the cut, same function. A cut into anything
+       * else — a round robin's pairings, a bracket's slots — keeps exactly N
+       * and its play-off note.
+       *
+       * AND THE TIE IS SETTLED THE WAY THIS CUT SAYS (2026-10-23): everybody
+       * level goes through, or nobody in the tie is lit until the committee
+       * records the play-off or the draw — `strokeCutOutcome`, the one answer
+       * `applyStrokeCut` makes the cut with. Never a provisional pick.
        */
       const activeRound = playRounds[activePlayIdx];
       const nextRound = playRounds[activePlayIdx + 1];
       const strokeCut =
         isStroke && !!activeRound && !!nextRound &&
         isIndividualStrokeRound(activeRound) && isIndividualStrokeRound(nextRound);
-      advancingIds = strokeCut
-        ? survivorsWithTies(
-            strokeStandings.filter((s) => s.ranked).map((s) => ({ id: s.player.id, groupId: s.player.groupId, rank: s.rank })),
-            cutRule,
-          )
-        : survivors(ranked, cutRule);
+      if (strokeCut) {
+        const outcome = strokeCutOutcome(
+          cutLineRows(strokeStandings, rankingBasis),
+          cutRule,
+          cutTieRuleOf(nextRound.cutTies),
+          cutTieDecisionsOf(nextRound.cutTieDecisions),
+        );
+        advancingIds = outcome.through;
+        cutTiesUndecided = outcome.undecided;
+      } else {
+        advancingIds = survivors(ranked, cutRule);
+      }
     }
   }
   const advancingCount = advancingIds.size;
@@ -2624,7 +2665,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         return { complete: false, status: "disputed", unreadable: true };
       }
       return {
-        complete: resolveMatch(holes).complete,
+        // `matchIsOver`: a stored "[]" is complete to `resolveMatch` and is
+        // no result anybody can sign off.
+        complete: matchIsOver(holes),
         status: effectiveScoreStatus(m, autoConfirm),
       };
     }),
@@ -2946,7 +2989,14 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
      * been out on the course" — one hole is enough.
      */
     roundsWithResults: new Set<string>([
-      ...scorecards.filter((c) => c.stageId).map((c) => c.stageId as string),
+      /**
+       * `playedCards`, not `scorecards` (2026-10-31): a side playing one ball — a scramble, a
+       * best ball — files a `TeamScorecard`, and this set was built from the individual cards
+       * alone. A played scramble read "Upcoming" on Rounds & formats, was left out of the final
+       * report's round-by-round tables, and would have been called "not played" by completing.
+       * `playedCards` is the one spelling of "a card was returned", written above for exactly this.
+       */
+      ...playedCards.filter((c) => c.stageId).map((c) => c.stageId as string),
       ...matchStrokeCards(matchCards, matches).map((c) => c.stageId),
       ...matches.filter((m) => /[1-9AaBbHh]/.test(m.holes) || m.forfeitedBy).map((m) => m.stageId),
       /**
@@ -2983,6 +3033,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     cutReady,
     strokeStandings,
     strokeStandingsOn,
+    strokeRankingBasis: rankingBasis,
     countbackBetween,
     withdrawnStandings,
     strokeUnit,
@@ -3029,6 +3080,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     advancingCount,
     advancingIds,
     qualifying,
+    cutTiesUndecided,
     pendingConfirmations,
     reviewing,
     resultsIn: played,
@@ -3223,6 +3275,17 @@ export function standingRows(state: EventState): StandingRow[] {
       state.event.qualifyMode === "overall" ? "overall" : "perFlight",
     ).flatMap((t) => t.playerIds),
   );
+  // AND A STROKE CUT'S TIE THE COMMITTEE HAS STILL TO SETTLE (2026-10-23).
+  // Nobody in it is lit, so the shared-place reading above cannot see it: the
+  // play-off is for players level on the SCORE, whom the board's countback may
+  // have given different places.
+  const tieBy = new Map<string, "playoff" | "draw">();
+  for (const t of state.boardIsStroke ? state.cutTiesUndecided : []) {
+    for (const id of t.playerIds) {
+      tied.add(id);
+      tieBy.set(id, t.by);
+    }
+  }
 
   // Out of the league week on the board — "not playing this week" rather than
   // "not started". Set only where somebody is out, so a tournament without
@@ -3244,6 +3307,7 @@ export function standingRows(state: EventState): StandingRow[] {
       flight: flight(s.player.id),
       advancing: state.advancingIds.has(s.player.id),
       tiedAtCut: tied.has(s.player.id),
+      cutTieBy: tieBy.get(s.player.id) ?? ("" as const),
       record: "",
       diff: "",
       pts: "",
@@ -3304,6 +3368,8 @@ export function standingRows(state: EventState): StandingRow[] {
       // Same flag the stroke rows carry, now that it is computed from the
       // ranking a match-play event is decided on.
       tiedAtCut: tied.has(r.player.id),
+      // A match board's ties are the knockout's line, never a stroke cut's.
+      cutTieBy: "" as const,
       record: fmtRecord(r.stats),
       diff: fmtDiff(r.stats),
       pts: fmtPts(r.stats.totalPoints),
@@ -3447,6 +3513,29 @@ function highlightsOf(state: EventState): Highlight[] {
     // into a 120-player field cut to 40 named the 2nd as holding "the final
     // qualifying spot". Somebody has to be outside it for there to be one.
     const lineDrawn = scored.length > advancing.length;
+    /**
+     * A STROKE CUT'S TIE THE COMMITTEE HAS STILL TO SETTLE (2026-10-23) is the
+     * whole story at the line: nobody "holds the final spot", and nobody level
+     * on the score is "outside" by any number of shots — they are in a play-off
+     * or a draw. Read by players and the public board too (`cutLineNote`), so it
+     * is said to everybody: what decides it, and that nobody in it is out.
+     */
+    const undecided = state.cutTiesUndecided;
+    if (undecided.length > 0) {
+      const nameOf = (id: string) => scored.find((s) => s.player.id === id)?.player.name ?? "—";
+      const t = undecided[0];
+      const names = t.playerIds.map(nameOf);
+      const list = names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+      out.push({
+        icon: "⚖️",
+        title: "Tied for the last place",
+        kind: "cut" as const,
+        text: `${list} are level for ${t.places === 1 ? "the last place" : `the last ${t.places} places`}${
+          undecided.length > 1 ? `, and ${undecided.length - 1} more flight(s) are tied too` : ""
+        }. ${t.by === "playoff" ? "A play-off decides who goes through" : "They are level on countback too, so the committee draws lots"}, and it has not been recorded yet — nobody in the tie has missed the cut.`,
+      });
+      return out;
+    }
     const lastIn = state.qualifyingSettled || !lineDrawn ? undefined : advancing[advancing.length - 1];
     /**
      * ON THE BOARD'S OWN BASIS, like the Leader line above (2026-09-28). This

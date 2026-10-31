@@ -44,7 +44,7 @@ async function cleanup() {
 beforeAll(async () => {
   await cleanup();
   const org = await prisma.organization.create({ data: { name: `${TAG} club`, kind: "club" }, select: { id: true } });
-  userId = (await prisma.user.create({ data: { email: at, name: "Secretary", password: "x:unusable" }, select: { id: true } })).id;
+  userId = (await prisma.user.create({ data: { email: at, name: "Secretary", password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } })).id;
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId, role: "owner" } });
   for (const key of ["older", "newer"]) {
     ids[key] = (

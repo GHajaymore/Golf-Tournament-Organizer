@@ -16,7 +16,7 @@
  * Pure. Integer cents throughout.
  */
 
-import { splitExactly } from "./money";
+import { potCents, splitExactly } from "./money";
 
 export const CONTEST_KINDS = ["closest-pin", "long-drive", "off-course", "other"] as const;
 export type ContestKind = (typeof CONTEST_KINDS)[number];
@@ -114,7 +114,7 @@ export function contestNets(contest: Contest): Net[] {
   const totals = new Map<string, number>();
   for (const id of entrants) totals.set(id, (totals.get(id) ?? 0) - stake);
 
-  const pot = stake * entrants.length;
+  const pot = potCents(stake, entrants.length);
   const shares = splitExactly(pot, winners.map(() => 1));
   winners.forEach((id, i) => totals.set(id, (totals.get(id) ?? 0) + shares[i]));
 
@@ -144,8 +144,7 @@ export function contestLedger(contests: Contest[]): Net[] {
 
 /** The pot on the table, for the screen. */
 export function potOf(contest: Contest): number {
-  const stake = Math.max(0, Math.round(contest.buyInCents));
-  return stake * new Set(contest.entrantIds.filter(Boolean)).size;
+  return potCents(contest.buyInCents, new Set(contest.entrantIds.filter(Boolean)).size);
 }
 
 /** Whether this contest has been decided. */

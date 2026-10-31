@@ -595,8 +595,8 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   ];
   const n = found.numbers;
   // Counted off hole scores, so where nobody wrote one there is nothing to
-  // count: a knockout with no cards, and one kept by "tap who won", each said
-  // "0 birdies" — the second over 128 ties.
+  // count: a knockout kept by "tap who won" said "0 birdies" over 128 ties,
+  // and one with no cards at all said the same.
   const anyHoleScored = cardRounds.some((r) => r.cards.some((c) => c.strokes.some((s) => s !== null)));
   const numbers: Array<{ figure: string; label: string }> =
     !anyHoleScored
@@ -756,11 +756,14 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
     // "The qualifying round" over 129 rows of dashes): its draw is the result.
     boardTitle: knockout ? "The qualifying round" : team ? "The sides" : "The leaderboard",
     columns,
+    // No empty tables (the report while it is played): sides only once one has
+    // played, players only once there is a result — and never for a straight
+    // knockout, whose draw is its result.
     rows: team
       ? sides.some((s) => s.played > 0)
         ? sideRows
         : []
-      : !anyResult || (knockout && isStraightKnockout(stages))
+      : (knockout && isStraightKnockout(stages)) || !anyResult
         ? []
         : playerRows,
     prizes,

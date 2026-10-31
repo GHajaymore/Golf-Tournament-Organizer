@@ -16,6 +16,8 @@ import { useAction } from "./useAction";
 import { roleName, orgRoleName } from "@/lib/roles";
 import { describeOrgRoleChange } from "@/lib/access-roles";
 import { RoleChangeConfirm } from "./AccessClient";
+import { bringIntoView } from "@/lib/bring-into-view";
+import { EMAIL_MAX, PERSON_NAME_MAX } from "@/lib/domain/typed-limits";
 
 /**
  * "Commissioner", not "Owner". Ajay's call, 2026-08-21 — a considered choice,
@@ -117,7 +119,10 @@ export function OrganizationAccess({
   };
   const refusedAt = (where: string) =>
     error && pressed === where ? (
-      <p role="alert" className="form-error" style={{ margin: "6px 0 0" }}>
+      // Brought into view once: said under the row's button, which can be the
+      // last thing on the screen — Staff & access opens near the top since
+      // Club settings became tabs, so nothing scrolls the row up first.
+      <p role="alert" className="form-error" style={{ margin: "6px 0 0" }} ref={bringIntoView}>
         <Icon name="warning-circle" /> {error}
       </p>
     ) : null;
@@ -367,7 +372,7 @@ export function OrganizationAccess({
           </MoreInfo>
           <div className="field">
             <label htmlFor={`${fid}-name`}>Name</label>
-            <input id={`${fid}-name`} className="input" value={name} disabled={!canEdit || pending} onChange={(e) => setName(e.target.value)} />
+            <input id={`${fid}-name`} className="input" value={name} maxLength={PERSON_NAME_MAX} disabled={!canEdit || pending} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor={`${fid}-email`}>Email</label>
@@ -375,6 +380,7 @@ export function OrganizationAccess({
               id={`${fid}-email`}
               className="input"
               type="email"
+              maxLength={EMAIL_MAX}
               value={email}
               disabled={!canEdit || pending}
               onChange={(e) => setEmail(e.target.value)}

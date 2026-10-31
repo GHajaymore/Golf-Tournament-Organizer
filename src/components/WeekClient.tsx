@@ -210,6 +210,8 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
    * does this: one rule, three screens.
    */
   const sideBasis = view.basis;
+  /** The holes the table's longest total is over — the season so far. */
+  const mostHoles = Math.max(0, ...view.standings.map((r) => r.holes ?? 0));
 
   const th: React.CSSProperties = {
     textAlign: "left",
@@ -572,7 +574,18 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                         <Movement change={r.change} isNew={r.isNew} />
                       </td>
                       <td style={td}>{r.name}</td>
-                      <td style={{ ...num, fontWeight: 600 }}>{r.value}</td>
+                      <td style={{ ...num, fontWeight: 600 }}>
+                        {r.value}
+                        {/* A stroke table is ranked against par for the holes
+                            played, so while a round is out a total over fewer
+                            holes can lead one over more. Said beside it, or the
+                            column reads as out of order. */}
+                        {r.holes !== undefined && r.holes < mostHoles && (
+                          <span className="text-muted" style={{ fontSize: 13, fontWeight: 400 }}>
+                            {" "}thru {r.holes}
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

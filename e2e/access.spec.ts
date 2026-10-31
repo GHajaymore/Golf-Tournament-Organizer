@@ -1,5 +1,6 @@
 import { test, expect } from "./coverage";
 import { overflowing } from "./overflow";
+import { openSettingsTab } from "./settings-tabs";
 
 /**
  * THE ACCESS SCREEN, WITH SOMEBODY WAITING ON IT.
@@ -27,6 +28,9 @@ test("a request to join is on the access screen, and fits", async ({ page }) => 
   await page.waitForLoadState("networkidle");
   expect(new URL(page.url()).pathname, "/organization redirected away — not signed in?").toBe("/organization");
   await expect(page.locator("#__next_error__")).toHaveCount(0);
+  // The requests are on the Staff & access tab, which says how many wait before it is opened.
+  await expect(page.getByRole("tab", { name: /^Staff & access \(\d+ waiting\)/ }), "the tab does not say anybody is waiting").toBeVisible();
+  await openSettingsTab(page, "Staff & access");
 
   // THE PANEL IS THERE. Everything below measures it; this is what stops the
   // measurements being taken of nothing.

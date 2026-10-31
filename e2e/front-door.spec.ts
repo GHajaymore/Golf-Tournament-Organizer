@@ -5,6 +5,7 @@ import { watchPageErrors } from "./page-errors";
 import { labelsForTheWrongThing } from "./labels";
 import { landingSettled } from "./landing-settled";
 import { RATE_LIMITS } from "../src/lib/domain/rate-limit";
+import { verifyByCode } from "./verify-by-code";
 
 /**
  * THE FRONT DOOR, WALKED BY SOMEBODY WHO HAS NEVER BEEN IN (2026-10-11).
@@ -22,7 +23,8 @@ import { RATE_LIMITS } from "../src/lib/domain/rate-limit";
  *   tapping the word "Password" puts them in the password box — it used to
  *     open "Reset your password", which is how this spec earned its keep
  *   an empty sign-up says what is missing; a weak password says why
- *   a new account is a person, a club of the kind they chose, and its owner
+ *   a new account is nobody until the code emailed to it is typed back —
+ *     then a person, a club of the kind they chose, and its owner
  *   the cookie they are given carries WHEN they signed in, and is not
  *     readable by a script in the page
  *   signed out, they are turned away again
@@ -152,16 +154,27 @@ test("a new organizer comes in by the front door, and the door closes behind the
   await page.getByPlaceholder("Full name").fill("Zz Door Walker");
   await page.getByPlaceholder("you@email.com").fill(email);
   await page.getByPlaceholder("Choose a password").fill("1234567890");
-  await page.getByText("A society, league or regular group").click();
+  // In the visitor's golf since the country words (2026-10-24): "golf group" in the US, "society" in Britain.
+  await page.getByText(/^A league or (golf group|society)$/).click();
   await page.getByRole("button", { name: "Create account" }).click();
   // This waits for the SERVER's answer (a round trip), not a redraw: on a busy round machine on
   // 2026-10-23 the button still read "Creating account…" at 5s, so the refusal had not arrived yet.
   await expect(refusal(page)).toContainText(/keyboard|guess|characters|repeated/i, { timeout: 20_000 });
   expect(await account(), "an account was made with a password the form refused").toBeNull();
 
-  // ── a real one: a person, their club, and its owner ────────────────────
+  // ── a real one: the address proved first, then a person, a club, an owner ─
   await page.getByPlaceholder("Choose a password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
+  // Nobody is anybody until the emailed code is typed back (2026-10-21): no
+  // session, no password, no club — only a row for the code to belong to.
+  await expect(page.getByRole("heading", { name: "Enter your code" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/We sent a 6-digit code to z\*\*\*@example\.invalid\. It works for 15 minutes\./)).toBeVisible();
+  expect((await context.cookies()).some((c) => c.name === "ng_session"), "signing up signed somebody in before the code").toBe(false);
+  const unproved = await account();
+  expect(unproved?.emailVerifiedAt ?? null, "the address was marked proved before the code").toBeNull();
+  expect(unproved?.password, "the password took effect before the code").toBe("");
+  expect(await prisma.organizationMember.count({ where: { userId: unproved!.id } }), "a club was made for an unproved address").toBe(0);
+  await verifyByCode(page, email);
   await page.waitForURL((u) => u.pathname !== "/", { timeout: 20_000 });
   expect(path(), "a new organizer did not land on the chooser").toBe("/choose");
   await expect(page.locator("h1")).toHaveCount(1);
@@ -208,7 +221,8 @@ test("a new organizer comes in by the front door, and the door closes behind the
   await page.getByPlaceholder("Full name").fill("Zz Door Walker");
   await page.getByPlaceholder("you@email.com").fill(email);
   await page.getByPlaceholder("Choose a password").fill(PASSWORD);
-  await page.getByText("A society, league or regular group").click();
+  // In the visitor's golf since the country words (2026-10-24): "golf group" in the US, "society" in Britain.
+  await page.getByText(/^A league or (golf group|society)$/).click();
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(refusal(page)).toContainText("log in instead", ANSWER);
   expect(await prisma.user.count({ where: { email } })).toBe(1);
@@ -230,13 +244,19 @@ test("a new organizer comes in by the front door, and the door closes behind the
     await page.getByRole("button", { name: "Forgot?", exact: true }).click();
     expect(await labelsForTheWrongThing(page)).toEqual([]);
     await page.getByPlaceholder("you@email.com").fill(address);
+    // Settled AGAIN before the press: on Firefox (round G300, 2026-10-24) the page
+    // still grew after the switch to the reset form, the press landed where the
+    // button had been, and the failed run's screenshot shows the button never
+    // pressed. `panel` settles once on arrival; the reset form is a second layout.
+    await landingSettled(page);
     await page.getByRole("button", { name: "Send reset link" }).click();
     // THIS SERVER HAS NO WAY TO SEND MAIL, and since 2026-10-11 the screen says
     // so. It used to say "Check your email … a reset link is on its way" here,
     // to somebody who would wait for a message that could not come — and this
     // spec pinned that sentence, which is how it stayed. The sending case is
     // held in `forgot-password-says-what-happened.audit.test.ts`.
-    await expect(page.getByText("We can’t email a reset link")).toBeVisible();
+    // The answer is the server's, so it waits for a round trip, as the weak-password refusal does.
+    await expect(page.getByText("We can’t email a reset link")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Check your email")).toHaveCount(0);
     return (await page.getByText(/no reset link was sent/).innerText()).split(address).join("<address>");
   };

@@ -39,6 +39,8 @@ const SCORE_ACTIONS = [
 ];
 const ROUND_ACTIONS = [
   "round-closed", "cut-applied", "regenerate-flights", "play-suspended", "play-resumed",
+  // Who won the play-off or the draw for the last place at a cut.
+  "cut-tie-settled",
   // Round-day set-up: where the holes are cut, and the time allowed.
   "pin-sheet", "pace-set",
 ];

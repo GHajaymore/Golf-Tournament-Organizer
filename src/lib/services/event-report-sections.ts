@@ -7,7 +7,7 @@ import { directionOnBasis, valueOnBasis } from "../domain/week-basis";
 import { roundStrokes } from "./round-cards";
 import { weekViewFor } from "./week-view";
 import { skinsPotFor } from "./skins-pot";
-import { moneyFor, sidePotResults } from "./expenses";
+import { moneyFor, sidePotOutcomes, type SidePotOutcome } from "./expenses";
 import { nassauBoard } from "./points-standings";
 import { formattingForEvent } from "./organization";
 import { formatDay, formatMoney, type Formatting } from "../domain/locale";
@@ -48,7 +48,7 @@ import type { WeekBasis } from "../domain/week-basis";
  *                       `state.strokeCourseFor(stageId)`, each round's own card
  *   the movement        `weekViewFor`, the week sheet's standings after each round
  *   skins               `skinsPotFor`, the pot's own service
- *   side games          `sidePotResults` (the pass that pays the players) and
+ *   side games          `sidePotOutcomes` (the pass that pays the players) and
  *                       `nassauBoard`
  *   costs and the fund  `moneyFor`'s expenses, `floatSummary` over the fund
  *   settle-up           `moneyFor(...).transfers`, the money screen's own list
@@ -56,7 +56,7 @@ import type { WeekBasis } from "../domain/week-basis";
  *
  * MONEY IS FINAL ONLY, and that is enforced where it already is — at the sink.
  * `skinsPotFor` marks a half-played pot `provisional` and it is left out here
- * exactly as `gameNets` leaves it out of the settle-up; `sidePotResults` holds
+ * exactly as `gameNets` leaves it out of the settle-up; `sidePotOutcomes` holds
  * no pot that is not final. So nothing in this file can report a pot the money
  * screen would not.
  */
@@ -357,7 +357,7 @@ export async function moneySections(
   });
   const nameOf = new Map(state.players.map((p) => [p.id, p.name]));
   const sideGames: ReportPot[] = [];
-  const results = new Map<string, Map<string, Array<{ playerId: string; netCents: number }>>>();
+  const results = new Map<string, Map<string, SidePotOutcome>>();
   for (const g of games) {
     const stage = stages.find((s) => s.id === g.stageId);
     if (!stage) continue;
@@ -385,33 +385,39 @@ export async function moneySections(
       continue;
     }
     if (!isDerivedKind(g.kind)) continue;
-    if (!results.has(g.stageId)) results.set(g.stageId, await sidePotResults(eventId, g.stageId));
-    const nets = results.get(g.stageId)?.get(g.id);
-    // Absent until the round is final — `sidePotResults` holds nothing else.
-    if (!nets) {
+    if (!results.has(g.stageId)) results.set(g.stageId, await sidePotOutcomes(eventId, g.stageId));
+    const outcome = results.get(g.stageId)?.get(g.id);
+    // Absent until the round is final — `sidePotOutcomes` holds nothing else —
+    // and an amount that can still change holds back the settle-up.
+    if (!outcome) {
       pending = true;
       continue;
     }
-    if (nets.length === 0) continue;
-    const up = nets.filter((n) => n.netCents > 0).sort((a, b) => b.netCents - a.netCents);
+    // PRESENT WITH NO NETS when nobody won and every stake went back, which is
+    // a result and is reported; and the count in it is the pot's ENTRANTS, not
+    // the players its money moved (2026-10-23 — see `SidePotOutcome`).
+    if (outcome.entrants === 0) continue;
+    const up = outcome.nets.filter((n) => n.netCents > 0).sort((a, b) => b.netCents - a.netCents);
     /**
      * THE TWOS are said with the course's other feats ("4 twos, $3.75 each"),
      * not in the list of side games. Who made them is read off the gross cards
-     * by the pot's own count (`countTwos`), and what a two was worth is the
-     * pot over the twos made — said only where it divides exactly; otherwise
-     * each winner's own share, which is the pass's figure.
+     * by the pot's own count (`countTwos`) — over the pot's ENTRANTS, never its
+     * nets, which leave out anybody whose share came to exactly their stake —
+     * and what a two was worth is the pot over the twos made, said only where
+     * it divides exactly; otherwise each winner's own share, which is the
+     * pass's figure.
      */
     if (g.kind === "twos") {
       const card = (twosCards ?? []).find((r) => r.stageId === g.stageId);
-      const made = nets
-        .map((n) => {
-          const c = card?.cards.find((x) => x.playerId === n.playerId);
-          return { name: nameOf.get(n.playerId) ?? "", count: c ? countTwos({ playerId: c.playerId, strokes: [...c.strokes], strokesReceived: 0 }) : 0, net: n.netCents };
+      const made = outcome.entrantIds
+        .map((playerId) => {
+          const c = card?.cards.find((x) => x.playerId === playerId);
+          return { name: nameOf.get(playerId) ?? "", count: c ? countTwos({ playerId: c.playerId, strokes: [...c.strokes], strokesReceived: 0 }) : 0 };
         })
         .filter((m) => m.count > 0)
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
       const total = made.reduce((s, m) => s + m.count, 0);
-      const pot = g.buyInCents * nets.length;
+      const pot = outcome.potCents;
       twos.push({
         what: named("Twos", stage.id),
         who: made.length ? listWords(made.map((m) => (m.count > 1 ? `${m.name} (${m.count})` : m.name))) : "Nobody made a two",
@@ -427,8 +433,8 @@ export async function moneySections(
     sideGames.push({
       title: named(DERIVED_LABEL[g.kind], stage.id),
       line: amounts
-        ? `${money(g.buyInCents)} each, ${nets.length} in: a ${money(g.buyInCents * nets.length)} pot.${up.length === 0 ? " Nobody won it; the stakes went back." : ""}`
-        : `${nets.length} in.${up.length === 0 ? " Nobody won it." : ""}`,
+        ? `${money(g.buyInCents)} each, ${outcome.entrants} in: a ${money(outcome.potCents)} pot.${up.length === 0 ? " Nobody won it; the stakes went back." : ""}`
+        : `${outcome.entrants} in.${up.length === 0 ? " Nobody won it." : ""}`,
       winners: up.map((n) => ({
         name: nameOf.get(n.playerId) ?? "",
         detail: "",
@@ -568,7 +574,9 @@ export async function comingUpFor(state: EventState, audience: ReportAudience): 
       where: {
         organizationId: state.event.organizationId,
         id: { not: state.event.id },
-        status: { in: ["registration", "ready", "live"] },
+        // Not finished: the three setting-up statuses read as one (G1); the
+        // published link below is what says entries are taken.
+        status: { notIn: ["completed"] },
         registrationOpen: true,
       },
       select: {

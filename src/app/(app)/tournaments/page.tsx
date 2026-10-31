@@ -6,6 +6,9 @@ import { organizationsForOrganizer } from "@/lib/services/organization";
 import { EventSwitcher } from "@/components/EventSwitcher";
 import { isMatch } from "@/lib/tournament-shape";
 import { orgProfile } from "@/lib/domain/org-profile";
+import { datesPassedUnlaunched } from "@/lib/domain/lifecycle-state";
+import { clubToday } from "@/lib/domain/club-clock";
+import { formatDay, resolveLocale } from "@/lib/domain/locale";
 
 export const metadata = screenMetadata("/tournaments");
 
@@ -72,9 +75,22 @@ export default async function TournamentsPage() {
       // The venues, for a tournament that names its course only as one — the
       // dashboard header's fallback, so the list and the header agree.
       courses: { select: { course: { select: { name: true } } } },
+      // The club's clock and words: "dates passed" is the CLUB's day, and the
+      // day a tournament was created is written the club's way.
+      organization: { select: { timeZone: true, locale: true } },
     },
   });
   const accessible = new Map(accessList.map((a) => [a.eventId, a.role]));
+  /**
+   * TWO TOURNAMENTS WITH ONE NAME (Ajay, 2026-10-26): two rows reading the same
+   * could not be told apart, and one of them was about to be deleted. Only a
+   * name used more than once gets the day it was created beside it.
+   */
+  const nameCount = new Map<string, number>();
+  for (const ev of allEvents) {
+    const key = ev.name.trim().toLowerCase();
+    nameCount.set(key, (nameCount.get(key) ?? 0) + 1);
+  }
 
   const events = allEvents.map((ev) => ({
     id: ev.id,
@@ -99,6 +115,11 @@ export default async function TournamentsPage() {
      * championship out of.
      */
     isCasual: isMatch(ev.shape),
+    datesPassed: datesPassedUnlaunched(ev, clubToday(ev.organization?.timeZone)),
+    createdOn:
+      (nameCount.get(ev.name.trim().toLowerCase()) ?? 0) > 1
+        ? formatDay(clubToday(ev.organization?.timeZone, ev.createdAt), resolveLocale(ev.organization))
+        : "",
   }));
 
   // The sidebar's section word for the organization it is describing — the

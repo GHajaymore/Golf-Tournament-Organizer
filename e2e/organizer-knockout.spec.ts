@@ -63,7 +63,7 @@ async function open(page: Page, path: string) {
  * again UNDOES the result. So the name is pressed in the round being decided:
  * the first of it for a semi-final, the last for the final.
  */
-async function decide(page: Page, winner: string, loser: string, round: "Semifinals" | "Final", margin: string) {
+async function decide(page: Page, winner: string, loser: string, round: "Semi-finals" | "Final", margin: string) {
   const seats = page.getByRole("button", { name: new RegExp(`^${winner}`) });
   await (round === "Final" ? seats.last() : seats.first()).click();
   const pair = [winner, loser];
@@ -109,7 +109,8 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
     for (const [i, p] of FIELD.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
       await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
-      await page.getByRole("textbox", { name: /^Mobile · required/ }).fill(`555020${i}`);
+      // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
+      await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
       await page.getByRole("button", { name: "Add to field" }).click();
       await expect(page.getByText(p.name).first()).toBeVisible({ timeout: 20_000 });
@@ -129,10 +130,6 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
 
   await test.step("launch", async () => {
     await open(page, "/dashboard");
-    for (const step of ["Start taking entries", "Mark ready"]) {
-      await page.getByRole("button", { name: step }).click();
-      await expect(page.getByRole("button", { name: step })).toHaveCount(0, { timeout: 20_000 });
-    }
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
     await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
@@ -150,8 +147,8 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
   });
 
   await test.step("the semi-finals, with an upset", async () => {
-    await decide(page, "Dune Quayle", "Alder Quayle", "Semifinals", "2&1");
-    await decide(page, "Briar Quayle", "Cedar Quayle", "Semifinals", "4&3");
+    await decide(page, "Dune Quayle", "Alder Quayle", "Semi-finals", "2&1");
+    await decide(page, "Briar Quayle", "Cedar Quayle", "Semi-finals", "4&3");
   });
 
   await test.step("the final", async () => {

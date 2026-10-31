@@ -126,8 +126,8 @@ beforeAll(async () => {
       handicapType: "18",
       handicapSource: "ghin",
       preferredTee: "White",
-      // A mobile the club can reach them on: a free club needs one from every
-      // entrant, and one-tap entry keeps that rule since 2026-09-26 (see
+      // A mobile the club can reach them on: a tournament that asks needs one
+      // from every entrant, and one-tap entry keeps that rule since 2026-09-26 (see
       // `a-member-without-a-mobile.audit.test.ts`). Ofcom's drama range —
       // never issued to anybody.
       phone: "07700 900123",

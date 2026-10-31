@@ -47,6 +47,11 @@ const SENDERS: Array<[string, () => Promise<unknown>]> = [
   ["interest", () => email.sendInterestEmail(TO, { name: HOSTILE, email: HOSTILE, phone: HOSTILE, club: HOSTILE, role: HOSTILE, size: HOSTILE, note: HOSTILE })],
   ["field: promoted", () => email.sendFieldStatusEmail(TO, { change: "promoted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
   ["field: waitlisted", () => email.sendFieldStatusEmail(TO, { change: "waitlisted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
+  // The device's words come from a header the browser chose (2026-10-21).
+  ["new sign-in", () => email.sendNewSignInEmail(TO, HOSTILE, HOSTILE)],
+  // A lapsed club's archive, 30 and 7 days before it goes (2026-10-21). The club's name was typed.
+  ["archive: 30 days", () => email.sendArchiveNoticeEmail({ to: [TO], organizationId: "zz", organizationName: HOSTILE, days: 30, until: "3 Nov 2027", tournaments: 4 })],
+  ["archive: 7 days", () => email.sendArchiveNoticeEmail({ to: [TO], organizationId: "zz", organizationName: HOSTILE, days: 7, until: "3 Nov 2027", tournaments: 1 })],
 ];
 
 describe("an email never carries markup somebody typed", () => {
@@ -75,6 +80,9 @@ describe("an email never carries markup somebody typed", () => {
   const ALL: Array<[string, () => Promise<unknown>]> = [
     ...SENDERS,
     ["password reset", () => email.sendPasswordResetEmail(TO, "https://tourneyhq.club/reset-password?token=zz")],
+    ["email code", () => email.sendEmailCodeEmail(TO, "042917", "signup")],
+    ["email code, invited", () => email.sendEmailCodeEmail(TO, "042917", "claim")],
+    ["email code, new device", () => email.sendEmailCodeEmail(TO, "042917", "device")],
   ];
   for (const [name, send] of ALL) {
     it(`${name}: arrives in the shared layout, with a text part and a reason`, async () => {
@@ -93,10 +101,13 @@ describe("an email never carries markup somebody typed", () => {
 
   it("covers every sender the module exports — a new one fails here until it is listed", () => {
     // The reset email interpolates only a URL the app built, so it has no
-    // person-typed field to attack; it is the one deliberate exemption.
-    const EXEMPT = new Set(["sendPasswordResetEmail"]);
+    // person-typed field to attack; it is the one deliberate exemption. The
+    // address-proving code (2026-10-21) is the same: six digits the app made.
+    // The canary's message (2026-10-30) is fixed text to the provider's test
+    // mailbox and takes no argument at all.
+    const EXEMPT = new Set(["sendPasswordResetEmail", "sendEmailCodeEmail", "sendCanaryEmail"]);
     const exported = Object.keys(email).filter((k) => /^send[A-Z]/.test(k) && !EXEMPT.has(k));
-    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail"]);
+    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail", "sendNewSignInEmail", "sendArchiveNoticeEmail"]);
     expect(exported.length, "found no senders — the sweep would pass on nothing").toBeGreaterThan(0);
     expect(exported.filter((k) => !covered.has(k))).toEqual([]);
   });

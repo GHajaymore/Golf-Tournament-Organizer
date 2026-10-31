@@ -87,7 +87,7 @@ async function club(name: string, stageType: string) {
     players.push(p.id);
   }
   const email = `${TAG}-${name}-admin@example.invalid`;
-  const user = await prisma.user.create({ data: { email, name: `${TAG} ${name} Admin`, password: "x:unusable" }, select: { id: true } });
+  const user = await prisma.user.create({ data: { email, name: `${TAG} ${name} Admin`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } });
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: user.id, role: "owner" } });
   await prisma.account.create({ data: { eventId: event.id, name: `${TAG} ${name} Admin`, email, role: "admin" } });
   return { org: org.id, event: event.id, stage: stage.id, admin: user.id, players };
@@ -104,7 +104,7 @@ beforeAll(async () => {
     select: { id: true },
   });
   away.match = match.id;
-  const ann = await prisma.user.create({ data: { email: ANN, name: "Ann Fairweather", password: "x:unusable" }, select: { id: true } });
+  const ann = await prisma.user.create({ data: { email: ANN, name: "Ann Fairweather", password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } });
   annId = ann.id;
 });
 
@@ -297,7 +297,7 @@ describe("who may dispute a match", () => {
     const emails = { inIt: `${TAG}-away-p1@example.invalid`, outsider: `${TAG}-away-p3@example.invalid` };
     const made = { inIt: "", outsider: "" };
     for (const [who, email] of Object.entries(emails) as ["inIt" | "outsider", string][]) {
-      made[who] = (await prisma.user.create({ data: { email, name: `${TAG} ${who}`, password: "x:unusable" }, select: { id: true } })).id;
+      made[who] = (await prisma.user.create({ data: { email, name: `${TAG} ${who}`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } })).id;
       await prisma.account.create({ data: { eventId: away.event, name: `${TAG} ${who}`, email, role: "player" } });
     }
     users = made;
@@ -389,14 +389,22 @@ describe("the record says only what happened", () => {
    * `"use server"` export is called with whatever the caller likes; the box
    * being careful is not the endpoint being careful.
    */
+  /*
+   * SINCE 2026-10-21 AN IMPOSSIBLE AMOUNT IS REFUSED, NOT STORED AS NOTHING. The
+   * guarantee is the same — never less than nothing — and it is kept by leaving
+   * the prize as it was and saying so: the text-box crawl found "-1" and "1e9"
+   * turned into no prize, and the purse shrinking, without a word on the screen.
+   */
   it("a prize is never less than nothing, whatever is sent", async () => {
     await as(home.admin, home.event);
     const own = (await prisma.prize.create({ data: { eventId: home.event, category: `${TAG} longest putt`, amount: 20 }, select: { id: true } })).id;
     const amount = async () => (await prisma.prize.findUniqueOrThrow({ where: { id: own }, select: { amount: true } })).amount;
-    for (const sent of [-5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    for (const sent of [-5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1e9, "12" as unknown as number]) {
       await prisma.prize.update({ where: { id: own }, data: { amount: 20 } });
-      await updatePrize(own, { amount: sent });
-      expect(await amount(), `sent ${sent}`).toBe(0);
+      const said = await updatePrize(own, { amount: sent });
+      expect(said.ok, `sent ${sent}`).toBe(false);
+      expect(said.error, `sent ${sent}`).toBeTruthy();
+      expect(await amount(), `sent ${sent}`).toBe(20);
     }
     // CONTROL: a real amount is kept as sent.
     await updatePrize(own, { amount: 12.5 });

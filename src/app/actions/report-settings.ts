@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { REPORT_AMOUNTS, REPORT_VISIBILITY, reportAmountsOf, reportVisibilityOf } from "@/lib/domain/report-settings";
 
 /**
@@ -40,6 +41,9 @@ export async function setReportSettings(visibility: string, amounts: string): Pr
   if (!(REPORT_VISIBILITY as readonly string[]).includes(visibility) || !(REPORT_AMOUNTS as readonly string[]).includes(amounts)) {
     return { ok: false, error: "Choose who can see the report and who sees the amounts." };
   }
+  // An archived tournament is read-only (`club-archive.ts`), its report settings included.
+  const archived = await archiveRefusalFor(eventId);
+  if (archived) return { ok: false, error: archived };
   const v = reportVisibilityOf(visibility);
   const a = reportAmountsOf(amounts);
   await prisma.event.update({ where: { id: eventId }, data: { reportVisibility: v, reportAmounts: a } });
@@ -53,6 +57,13 @@ export async function setNameWithheld(playerId: string, withheld: boolean): Prom
   const eventId = await requireStaffEvent();
   const player = await prisma.player.findFirst({ where: { id: String(playerId), eventId }, select: { id: true, name: true } });
   if (!player) return { ok: false, error: "That player isn't in this tournament." };
+  // An archived tournament is read-only — except that a name may always be TAKEN
+  // OFF its public pages: privacy only narrows what is shown, and a person who
+  // asks not to be named is not refused because the club stopped paying.
+  if (withheld !== true) {
+    const archived = await archiveRefusalFor(eventId);
+    if (archived) return { ok: false, error: archived };
+  }
   await prisma.player.update({ where: { id: player.id }, data: { publicNameWithheld: withheld === true } });
   await logAudit(eventId, "player.public-name", `${player.name}: ${withheld === true ? "name withheld on public pages" : "name shown on public pages"}`);
   refresh(eventId);

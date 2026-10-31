@@ -59,6 +59,9 @@ function cardState(r: StandingRow, holes: number): string {
   // Today's round on a multi-round board — see `todaysThru` (grid cell T67).
   const today = todaysThru(r, holes);
   const played = today.thru <= 0 ? "not started" : today.thru >= today.owed ? "F" : `thru ${today.thru}`;
+  // In a cut's tie the committee has still to settle: neither through nor out,
+  // and said on the row, not only in the note under the line (2026-10-23).
+  if (r.ranked && r.cutTieBy) return `${played} · tied for the last place`;
   if (r.ranked) return played;
   // The same reason the console gives — see `unrankedNote`. "F · not ranked"
   // on a player cut after round 1 read as a finished card that lost its place
@@ -137,7 +140,13 @@ export function PlayerLeaderboard({
   // not. See `cutLineIndex`, which measured that case on the demo: four
   // players through, the rule drawn under row seventeen. Where the line cannot
   // be drawn honestly the rows say it one at a time instead.
-  const lastAdvancing = cutLineIndex(rows);
+  //
+  // A CUT'S TIE THE COMMITTEE HAS STILL TO SETTLE sits ABOVE the line
+  // (2026-10-23): drawn under the last player who is certain, it put the tie
+  // below it — out, as a line reads — while the note under it said nobody in
+  // the tie had missed the cut. They are on the line, and the line goes under
+  // them; each row says "tied for the last place".
+  const lastAdvancing = cutLineIndex(rows.map((r) => ({ advancing: r.advancing || !!r.cutTieBy })));
   const showCut = lastAdvancing !== null;
   const markEachRow = !showCut && rows.some((r) => r.advancing) && rows.some((r) => !r.advancing);
 
