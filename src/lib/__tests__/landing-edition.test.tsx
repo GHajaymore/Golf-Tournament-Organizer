@@ -139,7 +139,7 @@ describe("the questions", () => {
 
   it("answers the price question in the visitor's currency", () => {
     const prices = landingPrices(editionFor("GB"), parsePricingOverrides(undefined));
-    const html = renderToStaticMarkup(<>{faqItem("cost").a({ prices, email: "x@example.invalid" })}</>);
+    const html = renderToStaticMarkup(<>{faqItem("cost").a({ prices, email: "x@example.invalid", launch: "live" })}</>);
     expect(html).toContain("£39/mo");
     expect(html).toContain("£1,390 a year");
     expect(html).not.toContain("$");
@@ -153,7 +153,7 @@ describe("the contact address", () => {
     expect(CONTACT_EMAIL_LIVE ? contactEmail : null).toBe(contactEmail);
     if (!CONTACT_EMAIL_LIVE) expect(contactEmail).toBeNull();
     const prices = landingPrices(editionFor("US"), parsePricingOverrides(undefined));
-    const html = renderToStaticMarkup(<>{faqItem("several-clubs").a({ prices, email: contactEmail })}</>);
+    const html = renderToStaticMarkup(<>{faqItem("several-clubs").a({ prices, email: contactEmail, launch: "live" })}</>);
     if (!CONTACT_EMAIL_LIVE) expect(html).not.toContain("mailto:");
   });
 });

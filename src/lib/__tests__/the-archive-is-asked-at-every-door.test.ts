@@ -71,7 +71,7 @@ const NOT_A_DOOR: Record<string, string> = {
   readCourseCardPhoto: "club",
   // business
   setAccountsOpen: "business", setClubPlan: "business", saveTierPrices: "business", saveTierLimits: "business",
-  createDiscountCode: "business", setDiscountCodeActive: "business",
+  createDiscountCode: "business", setDiscountCodeActive: "business", sendEarlyListCodes: "business",
   // new
   createEvent: "new", cloneEvent: "new", createMatch: "new",
   // own data
