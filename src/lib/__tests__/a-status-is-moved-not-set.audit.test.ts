@@ -126,13 +126,17 @@ describe("a launched tournament does not go back to setting up", () => {
     }
   }
 
-  it("CONTROL: the moves the bar offers before launch still work, in both directions", async () => {
+  it("CONTROL: before launch there is one Setting up step, so moves between its stored values are refused (G1)", async () => {
+    // Ajay, 2026-10-31: draft, registration and ready read as one, and the bar
+    // offers Launch only. A move between them gates nothing, so it is refused
+    // and the stored value stays — the refusal is NOT the launched one.
     const id = await tournament("setting-up", "draft");
-    expect(await setEventStatus("registration")).toEqual({ ok: true });
-    expect(await setEventStatus("ready")).toEqual({ ok: true });
-    expect((await read(id))?.status).toBe("ready");
-    // Not offered as a button, and harmless: nothing has been published yet.
-    expect(await setEventStatus("draft")).toEqual({ ok: true });
+    for (const to of ["registration", "ready", "draft"]) {
+      const res = await setEventStatus(to);
+      expect(res.ok, `${to} was written`).toBe(false);
+      expect(res.error ?? "").toMatch(/one Setting up step/);
+      expect(res.error ?? "").not.toMatch(/Unlock setup/);
+    }
     expect((await read(id))?.status).toBe("draft");
   });
 });

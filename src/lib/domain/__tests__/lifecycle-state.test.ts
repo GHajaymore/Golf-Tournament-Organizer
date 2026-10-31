@@ -212,12 +212,17 @@ describe("what to do next", () => {
     });
   });
 
-  it("still walks an unplayed tournament through its phases", () => {
-    // The regression half — the branch above must not swallow the ordinary
-    // path, which is what the lifecycle is for.
-    expect(nextLifecycleAction({ status: "draft", resultsIn: 0 })?.label).toBe("Start taking entries");
-    expect(nextLifecycleAction({ status: "registration", resultsIn: 0 })?.label).toBe("Mark ready");
-    expect(nextLifecycleAction({ status: "ready", resultsIn: 0 })?.kind).toBe("launch");
+  it("offers Launch from every setting-up status, played or not — one step before launch (G1)", () => {
+    // Ajay, 2026-10-31: draft, registration and ready are one "Setting up" step.
+    // "Start taking entries" and "Mark ready" gated nothing and are gone.
+    for (const status of ["draft", "registration", "ready"]) {
+      for (const resultsIn of [0, 3]) {
+        expect(nextLifecycleAction({ status, resultsIn }), `${status} with ${resultsIn} results`).toEqual({
+          label: "Launch tournament",
+          kind: "launch",
+        });
+      }
+    }
     expect(nextLifecycleAction({ status: "live", resultsIn: 99 })?.label).toBe("Complete tournament");
   });
 

@@ -21,6 +21,7 @@ import { venueOf } from "./registration";
 import { seasonWindow, type SeasonWindow } from "../domain/club-season";
 import { openCardOf, playOverOf, type OpenCard } from "../domain/tournament-switcher";
 import { isPlayingRound } from "../stage-types";
+import { isLaunched } from "../domain/lifecycle-state";
 import { golfRegister, golfTermsFor } from "../domain/golf-terms";
 import { fieldCapFor } from "./limits";
 import { fieldLimitUnder } from "./waitlist";
@@ -369,7 +370,11 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   const caps = new Map(await Promise.all(orgIds.map(async (id) => [id, await fieldCapFor(id)] as const)));
 
   return events
-    .filter((event) => event.status !== "draft" || hasResults.has(event.id))
+    // A tournament still being set up is on the list once its sign-up link is
+    // published — the one signal that the club has opened it to its members.
+    // It was `status !== "draft"`, a button ("Start taking entries") that no
+    // longer exists: the three pre-launch statuses read as one (G1, 2026-10-31).
+    .filter((event) => isLaunched(event.status) || event.registrationOpen || hasResults.has(event.id))
     .map((event) => {
     // The tournament's own way of writing a date, then the club's — the same
     // resolution every other date on these cards goes through.
@@ -492,7 +497,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
        * Worth opening if there is something on it, or if the club has said it
        * is under way. Counted, not assumed — see the note above `hasResults`.
        */
-      canView: hasResults.has(event.id) || ["ready", "live", "completed"].includes(event.status),
+      canView: hasResults.has(event.id) || isLaunched(event.status),
       viewLabel: event.status === "completed" ? "Results" : "Leaderboard",
     };
   });

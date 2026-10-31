@@ -335,6 +335,19 @@ export function statusMove(from: string, to: string): StatusMove {
       error: "This tournament has been launched, so it can’t go back to setting up. Use Unlock setup to correct it — its players keep seeing it while you do.",
     };
   }
+  /**
+   * ONE SETTING-UP STEP (Ajay, 2026-10-31, gap G1). Draft, registration and
+   * ready read as one, and no screen offers a move between them any more. The
+   * action is a public endpoint, so a request for one is REFUSED rather than
+   * written: a stored value nothing reads differently is still a change nobody
+   * asked for, and refusing keeps every stored value where it is.
+   */
+  if (PRE_LAUNCH_STATUSES.includes(to)) {
+    return {
+      kind: "refuse",
+      error: "There is one Setting up step before launch, so there is nothing to move it to. Launch it from the dashboard when setup is done.",
+    };
+  }
   if (to === "live" && !launched) return { kind: "launch" };
   return { kind: "write" };
 }

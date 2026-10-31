@@ -92,16 +92,6 @@ export const PRE_LAUNCH_STATUSES = ["draft", "registration", "ready"];
 const PRE_LAUNCH = PRE_LAUNCH_STATUSES;
 
 /**
- * The one status that means the club has not opened this to anybody yet.
- *
- * Named rather than written as a literal inside `playerAppShut`, because the
- * whole point of that function is that it is NOT the inverse of launched —
- * two of the three statuses above are open to players. A bare "draft" in the
- * comparison reads like an oversight; this does not.
- */
-const STILL_BUILDING = "draft";
-
-/**
  * HAS THIS TOURNAMENT BEEN LAUNCHED — asked once, here.
  *
  * The comment above says a second copy is how two readers come to disagree
@@ -195,11 +185,19 @@ export function configurationLocked(event: { status: string; configUnlocked: boo
  * share a word.
  */
 export function playerAppShut(
-  event: { status: string; accessGated: boolean },
+  event: { status: string; accessGated: boolean; registrationOpen: boolean },
   isStaff: boolean,
 ): boolean {
   if (isStaff) return false;
-  return event.accessGated && event.status === STILL_BUILDING;
+  /**
+   * ONE SETTING-UP STEP (Ajay, 2026-10-31, gap G1). Draft, registration and
+   * ready now read as one, and nobody presses "Start taking entries" any more,
+   * so the status can no longer say "the club has opened this to players".
+   * The published sign-up link says it instead: from the moment entries are
+   * taken there is something true to tell a player — the reason above — and
+   * before it, nobody should be in here. Required, so every caller says.
+   */
+  return event.accessGated && !isLaunched(event.status) && !event.registrationOpen;
 }
 
 /**
@@ -281,7 +279,7 @@ export function lifecycleMismatch(facts: LifecycleFacts): LifecycleWarning | nul
       detail:
         `Scoring works either way, so nothing is stuck — but ` +
         `${playersEntered > 0 ? `the ${playersEntered} in the field can` : "anyone in the field can"} ` +
-        `already open the board and their card, on a tournament that still calls itself a draft.`,
+        `already open the board and their card, on a tournament that still says it is setting up.`,
     };
   }
 
@@ -411,23 +409,17 @@ export function nextLifecycleAction(facts: {
   status: string;
   resultsIn: number;
 }): LifecycleAction | null {
-  // Play has overtaken the lifecycle. Reconcile it, rather than walking a
-  // tournament that is already being played through the entries it never took.
-  if (PRE_LAUNCH.includes(facts.status) && facts.resultsIn > 0) {
-    return { label: "Launch tournament", kind: "launch" };
-  }
   /**
-   * "Start taking entries", not "Open registration".
-   *
-   * This moves the tournament to the `registration` PHASE. It publishes no
-   * sign-up link and does not change what `registrationStatus` decides — so
-   * the old label promised the one thing it did not do, while two other
-   * controls a few inches away used the same word for the public link and for
-   * accepting entries. Three things, one word. Ajay's call, 2026-08-21.
+   * ONE "SETTING UP" STEP BEFORE LAUNCH (Ajay, 2026-10-31 — gap G1 of the
+   * workflow review). The ladder draft → "Start taking entries" → "Mark ready"
+   * → Launch asked an organizer to press two buttons that gated nothing: taking
+   * entries is the published sign-up link and its dates (`registrationStatus`),
+   * and readiness is what `launchRefusal` and the setup flow already answer.
+   * So every pre-launch status is offered Launch, refused in place while setup
+   * cannot be scored, and `resultsIn` no longer changes the answer.
    */
-  if (facts.status === "draft") return { label: "Start taking entries", kind: "status", to: "registration" };
-  if (facts.status === "registration") return { label: "Mark ready", kind: "status", to: "ready" };
-  if (facts.status === "ready") return { label: "Launch tournament", kind: "launch" };
+  void facts.resultsIn;
+  if (PRE_LAUNCH.includes(facts.status)) return { label: "Launch tournament", kind: "launch" };
   if (facts.status === "live") return { label: "Complete tournament", kind: "status", to: "completed" };
   // A finished tournament can be reopened to correct a card — the committee's
   // remedy everywhere, and `setEventStatus` already allows it (2026-10-10).

@@ -464,7 +464,9 @@ export async function comingUpFor(state: EventState, audience: ReportAudience): 
       where: {
         organizationId: state.event.organizationId,
         id: { not: state.event.id },
-        status: { in: ["registration", "ready", "live"] },
+        // Not finished: the three setting-up statuses read as one (G1); the
+        // published link below is what says entries are taken.
+        status: { notIn: ["completed"] },
         registrationOpen: true,
       },
       select: {

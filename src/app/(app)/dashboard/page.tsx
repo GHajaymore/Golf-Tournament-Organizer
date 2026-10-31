@@ -964,11 +964,13 @@ export default async function DashboardPage() {
       <AnnouncementList items={announcements} />
 
       {/* A SOCIETY TAKING ENTRIES FIRST (2026-10-16; the tournament director on the
-          review panel). Two things it was not told: "Start taking entries" changes
-          the status and does not publish the sign-up link; and once the first
-          entry lands, the getting-started list goes, so nothing said the format
-          was still to choose. One line each, only while true. */}
-      {isStaff && event.status === "registration" && !event.registrationOpen && (
+          review panel). Two things it was not told: that players cannot sign up
+          until the sign-up link is published; and once the first entry lands, the
+          getting-started list goes, so nothing said the format was still to choose.
+          One line each, only while true. Since G1 (2026-10-31) there is no "Start
+          taking entries" status to key the first on: it is any tournament still
+          being set up that takes entries and has not published its link. */}
+      {isStaff && !isLaunched(event.status) && event.playerCountMode !== "manual" && !event.registrationOpen && (
         <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
           Players can&rsquo;t sign up themselves until the link is published —{" "}
           <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>publish it on Entries</Link>.
