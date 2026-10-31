@@ -1726,6 +1726,15 @@ describe("rounds and format", () => {
     expect(html).toContain('aria-expanded="false"');
   });
 
+  it("a link straight to one round opens it, and an id that is not one of its rounds opens nothing", () => {
+    const three = [stage({ id: "r1", position: 0 }), stage({ id: "r2", position: 1 }), stage({ id: "r3", position: 2 })];
+    const opened = (html: string) => [...html.matchAll(/id="round-(r\d)"[\s\S]*?aria-expanded="(true|false)"/g)].filter((m) => m[2] === "true").map((m) => m[1]);
+    // Three rounds: none opens on arrival — unless the address names one.
+    expect(opened(render(<StagesClient {...base} timeline stages={three} />))).toEqual([]);
+    expect(opened(render(<StagesClient {...base} timeline stages={three} linkedRound="r2" />))).toEqual(["r2"]);
+    expect(opened(render(<StagesClient {...base} timeline stages={three} linkedRound="somebody-elses-round" />))).toEqual([]);
+  });
+
   it("keeps the play-day controls off a round nobody has played", () => {
     // Walked 2026-10-16 on a draft: "This round is finished" with its paragraph,
     // and "Open — scores can be entered", three weeks before the round.

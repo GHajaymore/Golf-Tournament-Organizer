@@ -2672,7 +2672,10 @@ export function StagesClient({
   arrangement = null,
   today,
   timeline = false,
+  linkedRound = null,
 }: {
+  /** A round named in the address (`?round=<id>`): opened on arrival, if it is one of these. */
+  linkedRound?: string | null;
   /**
    * THE REDESIGN, BEHIND ITS SWITCH (2026-10-30): rounds as a timeline, the open one in a side
    * panel. Off by default; `?view=timeline` turns it on for a preview. Agreed by the panel: no
@@ -2740,7 +2743,11 @@ export function StagesClient({
    * this replaced.
    */
   const [openRound, setOpenRound] = useState<string | null>(
-    stages.length > 0 && stages.length <= 2 ? stages[0].id : null,
+    // A link straight to one round (`?round=<id>`, 2026-10-30) opens it; an id that is not
+    // one of this tournament's rounds is ignored, never trusted.
+    linkedRound && stages.some((s) => s.id === linkedRound)
+      ? linkedRound
+      : stages.length > 0 && stages.length <= 2 ? stages[0].id : null,
   );
   /**
    * Whether the round builder is open.
