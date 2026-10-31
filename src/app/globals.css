@@ -915,6 +915,22 @@ body {
   }
 }
 
+/* THE TAP SIZE A COMPONENT WRITES INLINE: `--tap-min`.
+   An inline `minHeight` beats every rule in this file — no stylesheet
+   `min-height` outranks a style attribute — so a control that sets its own
+   (`minHeight: 36` on a `.btn`, a radio's label, a flight's move select) kept
+   that size under a finger and every coarse-pointer rule above was dead on it.
+   Nine places did, found 2026-10-23 when the touch sweep first opened Club
+   settings' tabs. Such a control writes `minHeight: "var(--tap-min, 36px)"`:
+   its own size under a mouse, this one under a finger. One token, set here
+   and only here; `a-tap-size-is-not-beaten-inline.test.ts` refuses an inline
+   size under 44px on a pressable that does not read it. */
+@media (pointer: coarse) {
+  :root {
+    --tap-min: 44px;
+  }
+}
+
 /* Two fields side by side, until there isn't room for two.
    `1fr 1fr` is a promise the container cannot keep: at 320px each column is
    about 145px, and a pair of native date inputs will not shrink below their

@@ -1134,7 +1134,7 @@ describe("rounds and format", () => {
     // Open, which is every stored round until an organizer says otherwise.
     closed: false,
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
-    carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
+    carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", cutTies: "ties", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });
   const base = {
@@ -1846,7 +1846,7 @@ describe("course library", () => {
     const { PrizesClient } = await import("@/components/PrizesClient");
     const html = render(
       <PrizesClient
-        prizes={[{ id: "p1", category: "Club Champion", detail: "The Hollow Salver", amount: 250, winnerId: "a" }]}
+        prizes={[{ id: "p1", category: "Club Champion", detail: "The Hollow Salver", amount: 250, winnerId: "a", counts: true }]}
         players={[{ id: "a", name: "Fumiko Shirakawa", place: 1 }]}
       />,
     );
@@ -1878,8 +1878,8 @@ describe("course library", () => {
     const html = render(
       <PrizesClient
         prizes={[
-          { id: "a", category: "Flight A — Winner", detail: "", amount: 0, winnerId: null },
-          { id: "o", category: "Winner", detail: "", amount: 0, winnerId: null },
+          { id: "a", category: "Flight A — Winner", detail: "", amount: 0, winnerId: null, counts: true },
+          { id: "o", category: "Winner", detail: "", amount: 0, winnerId: null, counts: true },
         ]}
         players={players}
         flights={flights}
@@ -1906,9 +1906,9 @@ describe("course library", () => {
     const html = render(
       <PrizesClient
         prizes={[
-          { id: "g", category: "Best gross", detail: "", amount: 0, winnerId: null },
-          { id: "n", category: "Best net", detail: "", amount: 0, winnerId: null },
-          { id: "w", category: "Winner", detail: "", amount: 0, winnerId: null },
+          { id: "g", category: "Best gross", detail: "", amount: 0, winnerId: null, counts: true },
+          { id: "n", category: "Best net", detail: "", amount: 0, winnerId: null, counts: true },
+          { id: "w", category: "Winner", detail: "", amount: 0, winnerId: null, counts: true },
         ]}
         players={[
           { id: "bea", name: "Bea Both", place: 1 },
@@ -1929,6 +1929,52 @@ describe("course library", () => {
     expect(first("Best net")).toBe("1. Bea Both");
     // The control: a prize named for neither keeps the board's order.
     expect(first("Winner")).toBe("1. Bea Both");
+  });
+
+  it("under one prize per player, puts the gross first and a gross winner out of the way for the net", async () => {
+    /**
+     * 2026-10-21, recommendation C1. Ann has Best gross. On Best net she is
+     * the net winner too, so the picker opens on Bea, marked as next in line,
+     * and lists Ann last saying what she holds — not hidden. Nearest the pin
+     * does not count, so it offers Ann as usual. The lines are drawn gross
+     * first although Best gross was added last. The control is the same list
+     * with the rule off: the net winner first, nothing marked, list order.
+     */
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const prizes = [
+      { id: "n", category: "Best net", detail: "", amount: 0, winnerId: null, counts: true },
+      { id: "k", category: "Nearest the pin", detail: "", amount: 0, winnerId: null, counts: false },
+      { id: "g", category: "Best gross", detail: "", amount: 0, winnerId: "ann", counts: true },
+    ];
+    const players = [
+      { id: "ann", name: "Ann Both", place: 1 },
+      { id: "bea", name: "Bea Both", place: 2 },
+    ];
+    const byScore = { gross: players, net: players };
+    const options = (html: string, label: string) => {
+      const at = html.indexOf(`aria-label="Winner of ${label}"`);
+      const select = html.slice(at, html.indexOf("</select>", at));
+      // `[^>]*`: the awarded winner's option carries `selected=""`.
+      return [...select.matchAll(/<option value="([^"]+)"[^>]*>([^<]*)/g)].map((m) => m[2]);
+    };
+    const on = render(<PrizesClient prizes={prizes} players={players} byScore={byScore} onePrizePerPlayer />);
+    expect(options(on, "Best net")).toEqual(["2. Bea Both · next in line", "1. Ann Both · has Best gross"]);
+    expect(on).toContain('label="Already hold a prize"');
+    expect(options(on, "Nearest the pin")).toEqual(["1. Ann Both", "2. Bea Both"]);
+    // Re-awarding Best gross to its own winner is not a clash: she leads it.
+    expect(options(on, "Best gross")[0]).toBe("1. Ann Both · next in line");
+    const wide = on.slice(on.indexOf("<table"));
+    expect(wide.indexOf("Winner of Best gross")).toBeLessThan(wide.indexOf("Winner of Best net"));
+    expect(wide.indexOf("Winner of Best net")).toBeLessThan(wide.indexOf("Winner of Nearest the pin"));
+    expect(on).toContain("Award the gross prizes first; a player who wins one is skipped for the net.");
+    expect(on).toContain('aria-label="Nearest the pin: counts toward one prize per player"');
+
+    const off = render(<PrizesClient prizes={prizes} players={players} byScore={byScore} />);
+    expect(options(off, "Best net"), "CONTROL: the rule off marks nobody").toEqual(["1. Ann Both", "2. Bea Both"]);
+    expect(off).not.toContain("Already hold a prize");
+    expect(off).not.toContain("counts toward one prize per player");
+    const offWide = off.slice(off.indexOf("<table"));
+    expect(offWide.indexOf("Winner of Best net"), "CONTROL: the rule off keeps the list's order").toBeLessThan(offWide.indexOf("Winner of Best gross"));
   });
 
   it("CONTROL: with no prizes there is no stacked list, only the message", async () => {
@@ -2078,12 +2124,12 @@ describe("settings screens", () => {
     // Free tournament — see plan-copy.test.ts for the wiring that licenses it.
     // No organization yet means the one about to be created, which is new and
     // so on the published terms.
-    expect(html).toContain("deleted when you mark it Completed");
+    expect(html).toContain("stays open to view, read-only, for 15 days");
   });
 
   it("omits the retention notice on a plan that keeps data", () => {
     const html = render(<CreateFirstTournament first plan="club" />);
-    expect(html).not.toContain("deleted when you mark it Completed");
+    expect(html).not.toContain("stays open to view, read-only, for 15 days");
   });
 
   /**
@@ -2107,7 +2153,7 @@ describe("settings screens", () => {
       // `plan` is deliberately the WRONG answer here: it is the fallback for
       // somebody with no organization at all, and must lose to a real one.
       const html = render(<CreateFirstTournament first plan="free" organizations={[org()]} />);
-      expect(html).not.toContain("deleted when you mark it Completed");
+      expect(html).not.toContain("stays open to view, read-only, for 15 days");
     });
 
     it("and still warns when it does not", () => {
@@ -2116,7 +2162,7 @@ describe("settings screens", () => {
       const html = render(
         <CreateFirstTournament first plan="club" organizations={[org({ plan: "free" })]} />,
       );
-      expect(html).toContain("deleted when you mark it Completed");
+      expect(html).toContain("stays open to view, read-only, for 15 days");
     });
 
     it("says nothing to a Free club that predates the terms, because nothing of its is deleted", () => {
@@ -2125,7 +2171,7 @@ describe("settings screens", () => {
       const html = render(
         <CreateFirstTournament first plan="club" organizations={[org({ plan: "free", termsApply: false })]} />,
       );
-      expect(html).not.toContain("deleted when you mark it Completed");
+      expect(html).not.toContain("stays open to view, read-only, for 15 days");
     });
 
     it("names the plan it is talking about", () => {
@@ -2247,15 +2293,12 @@ describe("roster CSV import", () => {
     expect(html).toContain("130 updated");
   });
 
-  it("says at the import when members have no mobile, and how to fill them in", () => {
-    // Walked 2026-09-30: twelve imported on Par, and the first word about
-    // mobiles came on Registration with every one of them blocked.
-    const html = render(<ImportSummary result={result({ imported: 12, missingMobile: 12 })} onDismiss={() => {}} />);
-    expect(html).toContain("12 members have no mobile number yet");
-    expect(html).toContain("every entrant in a Par tournament gives one");
-    expect(html).toContain("upload the file again");
-    // CONTROL: a plan that lets the club choose is told nothing about it.
-    expect(render(<ImportSummary result={result({ imported: 12 })} onDismiss={() => {}} />)).not.toContain("mobile");
+  it("says nothing about mobiles: no plan makes an entrant give one (A7, 2026-10-21)", () => {
+    // It used to tell a Par club its members had no mobile, because Par made
+    // every entrant give one. A tournament asks only when its organizer does.
+    const html = render(<ImportSummary result={result({ imported: 12 })} onDismiss={() => {}} />);
+    expect(html).toContain("12 added");
+    expect(html).not.toContain("mobile");
   });
 
   it("says plainly when a file changed nothing", () => {
@@ -2417,7 +2460,7 @@ describe("round card — which nine and the deadline", () => {
     // Open, which is every stored round until an organizer says otherwise.
     closed: false,
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
-    carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
+    carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", cutTies: "ties", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });
   const base = {
@@ -6282,16 +6325,17 @@ describe("the honours board", () => {
      */
     const { OrgProfileProvider } = await import("@/components/OrgProfileProvider");
     const { HonoursBoard } = await import("@/components/HonoursBoard");
+    // A British outfit: with no country a community is a US league.
     const inside = (kind: string) =>
       render(
-        <OrgProfileProvider kind={kind}>
+        <OrgProfileProvider kind={kind} country="GB">
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <HonoursBoard board={[{ year: 2026, entries: [entry()] }] as any} pending={[]} canEdit />
         </OrgProfileProvider>,
       );
 
     expect(inside("community")).toContain("Every champion this society has confirmed");
-    expect(inside("personal")).toContain("Every champion this outing has confirmed");
+    expect(inside("personal")).toContain("Every champion this group has confirmed");
     // THE ASSERTION THAT KEEPS THIS FROM BEING A REWRITE FOR EVERYBODY.
     expect(inside("club")).toContain("Every champion this club has confirmed");
     // And with no provider at all — a surface nobody has wired — the club
@@ -6312,6 +6356,21 @@ describe("the honours board", () => {
     );
     expect(html).toContain("Finished, not yet on the board");
     expect(html).toContain("Standings say");
+  });
+
+  it("offers a team cup's winning TEAM with the score, and says a halved cup names nobody", async () => {
+    // A cup's champion is a team (`suggestCupChampion`, read off `cupResult`).
+    // Until 2026-10-30 a completed cup read "No ranked results yet" here.
+    const html = await board([], [
+      { eventId: "c1", eventName: "zz Club Cup", dates: "2026", year: 2026,
+        suggestion: { ok: true, playerId: "team-oak", name: "zz Oakmere", runnersUp: [], team: { score: "zz Oakmere 6½–3½" } } },
+      { eventId: "c2", eventName: "zz Halved Cup", dates: "2026", year: 2026,
+        suggestion: { ok: false, reason: "cup-halved", tied: [] } },
+    ]);
+    expect(html).toContain("Won by <b>zz Oakmere 6½–3½</b>");
+    expect(html).not.toContain("Standings say");
+    expect(html).toContain("The cup was halved");
+    expect(html).not.toContain("No ranked results yet");
   });
 
   it("asks the committee to decide a tie instead of naming somebody", async () => {
@@ -6459,13 +6518,21 @@ describe("members", () => {
 });
 
 describe("club settings", () => {
+  // The heading and the branding card, as the page draws them: the heading
+  // sits above the tabs since Club settings became one section at a time, and
+  // the branding card is the first section.
   const club = async (over: Record<string, unknown> = {}) => {
-    const { OrganizationClient } = await import("@/components/OrganizationClient");
+    const { OrganizationClient, OrganizationHeading } = await import("@/components/OrganizationClient");
+    const props = {
+      name: "Ridgeline National", shortName: "", logoUrl: "", city: "", region: "", country: "",
+      brandDisplay: "short", kind: "club", communityNoun: "", plan: "free", eventCount: 2, memberCount: 9, canEdit: true,
+      ...over,
+    } as Parameters<typeof OrganizationClient>[0];
     return render(
-      <OrganizationClient
-        name="Ridgeline National" shortName="" logoUrl="" city="" region="" country=""
-        brandDisplay="short" kind="club" communityNoun="" plan="free" eventCount={2} memberCount={9} canEdit
-        {...over} />,
+      <>
+        <OrganizationHeading kind={props.kind} country={props.country} communityNoun={props.communityNoun} />
+        <OrganizationClient {...props} />
+      </>,
     );
   };
 
@@ -6498,8 +6565,9 @@ describe("club settings", () => {
      */
     for (const [kind, heading] of [
       ["club", "Club settings"],
-      ["community", "Society settings"],
-      ["personal", "Outing settings"],
+      // No country: a US league, the app's default (2026-10-24).
+      ["community", "League settings"],
+      ["personal", "Settings"],
     ] as const) {
       const html = await club({ kind });
       expect(html, kind).toContain(heading);
@@ -6605,8 +6673,9 @@ describe("how money works", () => {
      * society correctly two words earlier and then sends them to "Club
      * settings".
      */
+    // No country, so a US league (the app's default since 2026-10-24).
     const html = await money({ orgKind: "community", clubName: "zz-Society" });
-    expect(html).toContain("Society settings");
+    expect(html).toContain("League settings");
     expect(html, "the screen it points at is not a club's").not.toContain("Club settings");
 
     // THE CONTROL: a club still gets a club's words, or this is just a
@@ -6621,14 +6690,17 @@ describe("how money works", () => {
      * and is right whenever there is one; where there is not, "this club" is a
      * guess about what kind of outfit this is, and the profile has the answer.
      */
+    // A community with no country is a US league.
     const society = await money({ orgKind: "community", clubName: "" });
-    expect(society).toContain("this society");
+    expect(society).toContain("this league");
     expect(society).not.toContain("this club");
 
-    // A personal organizer runs an OUTING — neither a club nor a society.
+    // A personal organizer is neither a club nor a society, and never an
+    // "outing": an outing is one day (the panel, 2026-10-26).
     const solo = await money({ orgKind: "personal", clubName: "" });
-    expect(solo).toContain("this outing");
-    expect(solo).toContain("Outing settings");
+    expect(solo).toContain("this group");
+    expect(solo).not.toMatch(/outing/i);
+    expect(solo).toContain("Settings");
   });
 
   it("puts the club default on club settings, where the checklist sends people", async () => {
@@ -6637,7 +6709,9 @@ describe("how money works", () => {
     // disclosure inside a card titled "Money in this tournament", on Prizes &
     // payouts — so the step could not be ticked by following its own link.
     const { SETUP_HREF } = await import("@/lib/domain/org-setup");
-    expect(SETUP_HREF.money).toBe("/organization");
+    // On its Money tab: Club settings shows one section at a time, and the
+    // bare address opens Name & branding, which has no money question.
+    expect(SETUP_HREF.money).toBe("/organization#money");
     const html = await money({ mode: "organization", orgMode: "", canEdit: true });
     for (const label of ["Costs handled outside the app", "Tournament kitty", "Split shared costs", "Follow what we are"]) {
       expect(html, `missing club money option: ${label}`).toContain(label);
@@ -6651,7 +6725,8 @@ describe("how money works", () => {
     for (const label of ["Costs handled outside the app", "Tournament kitty", "Split shared costs"]) {
       expect(html, `missing tournament money option: ${label}`).toContain(label);
     }
-    expect(html).toContain('href="/organization"');
+    // To the Money tab: Club settings shows one section at a time.
+    expect(html).toContain('href="/organization#money"');
   });
 
   it("does not let a read-only viewer change the club default", async () => {
@@ -6672,7 +6747,7 @@ describe("registration and field", () => {
           name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
-          requirePhone: false, phoneLocked: false, registrationToken: "",
+          requirePhone: false, registrationToken: "",
           ...over,
         }} />,
     );
@@ -7643,22 +7718,18 @@ describe("the lifecycle button names the phase, not the link", () => {
     );
   };
 
-  it("says what it does — move a phase — rather than promising a link", async () => {
-    // It calls setEventStatus("registration"). It publishes no sign-up link
-    // and does not change what registrationStatus decides, so "Open
-    // registration" promised the one thing it did not do — while the public
-    // link and the accepting-entries switch used the same word a few inches
-    // away. Ajay's call 2026-08-21: the phase takes a different word.
-    const html = await bar("draft");
-    expect(html).toContain("Start taking entries");
-    expect(html).not.toContain("Open registration");
-  });
-
-  it("leaves the later steps alone", async () => {
-    // Only the draft step was ambiguous; renaming the rest would churn
-    // vocabulary an organizer has already learned.
-    expect(await bar("registration")).toContain("Mark ready");
-    expect(await bar("ready")).toContain("Launch tournament");
+  it("offers Launch and says Setting up, whichever setting-up status is stored (G1, 2026-10-31)", async () => {
+    // The ladder's two buttons gated nothing — taking entries is the sign-up
+    // link, readiness is the launch gate — so they are gone, and the three
+    // stored values read as one step.
+    for (const status of ["draft", "registration", "ready"]) {
+      const html = await bar(status);
+      expect(html, status).toContain("Launch tournament");
+      expect(html, status).toContain("Setting up");
+      expect(html, status).not.toContain("Start taking entries");
+      expect(html, status).not.toContain("Mark ready");
+      expect(html, status).not.toContain("Open registration");
+    }
   });
 });
 
@@ -7712,32 +7783,44 @@ describe("a Par tournament is offered the upgrade before it is deleted", () => {
     players: 8, flights: 0, rounds: 1,
   };
   const offer = "Birdie keeps every tournament for good — $49 a month.";
-  const bar = async (deletes: boolean) => {
+  const bar = async (deletes: boolean, status = "live", closesOn?: string) => {
     const { LifecycleBar } = await import("@/components/LifecycleBar");
     return render(
       <LifecycleBar
-        status="live"
+        status={status}
         isAdmin
         configUnlocked={false}
         summary={summary}
         resultsIn={3}
         deletesOnComplete={deletes}
         keepOffer={deletes ? offer : undefined}
+        closesOn={closesOn}
       />,
     );
   };
+  const BEFORE = "Once completed, this tournament is kept read-only for 15 days, then deleted.";
 
-  it("says completing deletes it, and offers the plan that keeps it", async () => {
+  it("says completing keeps it read-only for fifteen days and then deletes it, and offers the plan that keeps it", async () => {
     const html = await bar(true);
-    expect(html).toContain("Completing this tournament deletes it.");
+    expect(html).toContain(BEFORE);
     expect(html).toContain(offer);
     expect(html).toContain('href="/organization#plan"');
   });
 
+  it("once completed, says until when it is kept, and where the report is", async () => {
+    const html = await bar(true, "completed", "Thu 5 November");
+    expect(html).toContain("Completed. Kept read-only until Thu 5 November, then deleted.");
+    expect(html).toContain('href="/reports/final"');
+    expect(html).not.toContain(BEFORE);
+  });
+
   it("CONTROL: says nothing of the sort where completing keeps the tournament", async () => {
-    const html = await bar(false);
-    expect(html).not.toContain("Completing this tournament deletes it.");
-    expect(html).not.toContain("/organization#plan");
+    for (const status of ["live", "completed"]) {
+      const html = await bar(false, status, "Thu 5 November");
+      expect(html).not.toContain(BEFORE);
+      expect(html).not.toContain("Kept read-only until");
+      expect(html).not.toContain("/organization#plan");
+    }
   });
 });
 
@@ -7759,12 +7842,12 @@ describe("a draft that is already being played", () => {
     );
   };
 
-  it("does not leave “Draft” standing on its own", async () => {
-    // The chip that started the complaint. The stored status is still shown —
-    // it is the organizer's and this app reports rather than corrects — but it
+  it("does not leave “Setting up” standing on its own", async () => {
+    // The chip that started the complaint ("Draft", until G1 made the three
+    // setting-up statuses one). It is still shown — the organizer's — but it
     // no longer has the card to itself.
     const html = await bar("draft", 47);
-    expect(html).toContain("Draft");
+    expect(html).toContain("Setting up");
     expect(html, "the observed state is not beside the stored one").toContain("Being played");
   });
 
@@ -7780,11 +7863,12 @@ describe("a draft that is already being played", () => {
     expect(html, "still offering to take entries mid-play").not.toContain("Start taking entries");
   });
 
-  it("still offers entries on a draft nobody has played", async () => {
-    // The regression half. The branch above must not swallow the ordinary
-    // case, which is what a draft actually is.
+  it("offers Launch on a draft nobody has played, and does not call it played", async () => {
+    // The regression half: since G1 the ordinary case is Launch too, and the
+    // "being played" chip stays for a draft with results only.
     const html = await bar("draft", 0);
-    expect(html).toContain("Start taking entries");
+    expect(html).toContain("Launch tournament");
+    expect(html).not.toContain("Start taking entries");
     expect(html).not.toContain("Being played");
   });
 

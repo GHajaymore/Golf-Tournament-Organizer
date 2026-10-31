@@ -264,22 +264,30 @@ export function reportHighlights(rounds: ReadonlyArray<HighlightRound>): ReportH
     mostOnACard.length && mostOnACard[0].count >= 2
       ? { count: mostOnACard[0].count, holders: mostOnACard.map(({ name, round }) => ({ name, round })) }
       : null;
+  /**
+   * ROUNDS THAT HAVE BEEN PLAYED, which is not the rounds that exist
+   * (walked 2026-10-23). A league of seven weeks with four played reported
+   * "0 played every round": every member was charged the three weeks nobody
+   * has reached. A round with no card on it has not happened yet.
+   */
+  const played = rounds.filter((r) => r.cards.some((c) => c.strokes.some(isStroke)));
   const across = best([...birdiesBy.values()], (a, b) => b.count - a.count);
   const mostBirdies =
-    rounds.length > 1 && across.length && across[0].count >= 2
+    played.length > 1 && across.length && across[0].count >= 2
       ? { count: across[0].count, names: across.map((a) => a.name) }
       : null;
 
   // ── Played every round ────────────────────────────────────────────────────
   let everyRound: number | null = null;
-  if (stroke.length > 1) {
+  const strokePlayed = stroke.filter((r) => played.includes(r));
+  if (strokePlayed.length > 1) {
     const seen = new Map<string, number>();
-    for (const r of stroke) {
+    for (const r of strokePlayed) {
       for (const id of new Set(r.cards.filter((c) => complete(c, r.holes)).map((c) => c.playerId))) {
         seen.set(id, (seen.get(id) ?? 0) + 1);
       }
     }
-    everyRound = [...seen.values()].filter((n) => n === stroke.length).length;
+    everyRound = [...seen.values()].filter((n) => n === strokePlayed.length).length;
   }
 
   // ── The hardest and easiest holes, by strokes over par on average ─────────

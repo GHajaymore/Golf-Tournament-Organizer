@@ -7,12 +7,12 @@ import { entryLimitKey } from "@/lib/domain/rate-limit";
 import { upsertMember, memberGender } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { sendRegistrationEmail } from "@/lib/email";
-import { planForEvent } from "@/lib/services/entitlements";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { phoneRequiredFor } from "@/lib/plans";
 import { clubDayForEvent } from "@/lib/services/club-clock";
 import { logAudit } from "@/lib/services/action-shared";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import {
   cleanRegistration,
   looksLikePhone,
@@ -81,6 +81,9 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // Same neutral message whether the token is unknown or registration is off —
   // no existence oracle.
   if (!event || !event.registrationOpen) return { ok: false, error: NOT_OPEN };
+  // A tournament in a lapsed club's read-only archive takes nobody new — and a
+  // stranger is told only what a closed link tells them (2026-10-21).
+  if (await archiveRefusalFor(event.id, "player")) return { ok: false, error: NOT_OPEN };
 
   // Whether a phone number is required is this tournament's own setting, so it
   // cannot be checked with the rest — those run before any lookup on purpose,
@@ -90,11 +93,8 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // A named error rather than the neutral NOT_OPEN: this is the person's own
   // form being incomplete, not anything about whether the event exists, so
   // telling them what to fix leaks nothing.
-  // Free clubs always collect a mobile; paid clubs decide per tournament.
-  // Resolved here rather than read off the event, so the plan and the setting
-  // can never be consulted separately — see phoneRequiredFor.
-  const plan = await planForEvent(event.id);
-  if (phoneRequiredFor(plan, event.requirePhone, event.playerAccess) && !looksLikePhone(person.phone)) {
+  // The organizer decides per tournament, on every plan — see phoneRequiredFor.
+  if (phoneRequiredFor(event.requirePhone) && !looksLikePhone(person.phone)) {
     return {
       ok: false,
       error: person.phone

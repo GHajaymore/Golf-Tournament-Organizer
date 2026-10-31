@@ -1,0 +1,1646 @@
+[
+ {
+  "h": "faa7703286fb540f",
+  "t": "# TourneyHQ"
+ },
+ {
+  "h": "a2789aaa822a3283",
+  "t": "Golf tournament management. Next.js 15 (App Router) · React 19 · TypeS"
+ },
+ {
+  "h": "5ee51d21b7b2a811",
+  "t": "## Hard rules"
+ },
+ {
+  "h": "c034c23cc4d83030",
+  "t": "These are not preferences. Breaking one has consequences that cannot b"
+ },
+ {
+  "h": "4e71c6fdb3232a8f",
+  "t": "1. **Never modify, seed into, or test against an event holding real pe"
+ },
+ {
+  "h": "fa0b7675ab5239f7",
+  "t": "## Test fixtures"
+ },
+ {
+  "h": "095fbae0c04fee2a",
+  "t": "Use a throwaway organization and event, prefix every row with a mark ("
+ },
+ {
+  "h": "62e343a4ce35c894",
+  "t": "**A fixture that signs itself in signs `signedInNow(user.id)`**, from "
+ },
+ {
+  "h": "20d9cdc40569c3de",
+  "t": "## Sign-ins until launch: production is held"
+ },
+ {
+  "h": "85b91c1e53dd07c8",
+  "t": "Ajay, 2026-10-17: \"block the signins until I say so or when we launch "
+ },
+ {
+  "h": "561f2b1a41989007",
+  "t": "It is held only while `OWNER_EMAILS` names somebody, so it can never l"
+ },
+ {
+  "h": "6df943d3af564fbc",
+  "t": "## Signing in: a proved address, a password nobody leaked, a device th"
+ },
+ {
+  "h": "5eaba89ddd8b7904",
+  "t": "Ajay, 2026-10-21: \"go with your recommendations\". Three rules, each he"
+ },
+ {
+  "h": "8d89113d40c30526",
+  "t": "- **No session for an address nobody has proved.** `createSession` ref"
+ },
+ {
+  "h": "212bf7c2178fe146",
+  "t": "## The club's clock: \"today\" is asked of the club, never of the server"
+ },
+ {
+  "h": "ac9f21448bd622a3",
+  "t": "A deadline is a DAY, and a day belongs to a place. Until 2026-10-11 th"
+ },
+ {
+  "h": "5a64b7658f646d51",
+  "t": "- `Organization.timeZone` is an IANA name, or `\"\"` for a club that has"
+ },
+ {
+  "h": "118db49feb95eef8",
+  "t": "**`E2E_TZ` is how a test reaches the state production is always in.** "
+ },
+ {
+  "h": "2a541dfcf43d3466",
+  "t": "## Help and docs travel with the change"
+ },
+ {
+  "h": "79c99c1787a349e9",
+  "t": "Ajay, 2026-10-10: \"keep a step when there is any change in the app to "
+ },
+ {
+  "h": "ce8a5108f85fad88",
+  "t": "- **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown "
+ },
+ {
+  "h": "073644a124ea2b09",
+  "t": "Say which in the PR description: \"Help/docs: updated …\" or \"Help/docs:"
+ },
+ {
+  "h": "a89448d28b5f98f5",
+  "t": "**The landing page** (`src/app/page.tsx`, rebuilt 2026-10-11 on midnig"
+ },
+ {
+  "h": "9f28ca3349be04b6",
+  "t": "- **Every picture is an unedited capture of the app**, placed by `scri"
+ },
+ {
+  "h": "0db218f4290dbd64",
+  "t": "Three ways help goes stale are tested, so they cannot happen quietly: "
+ },
+ {
+  "h": "8f0f164a543f67ac",
+  "t": "## End-to-end means across the board"
+ },
+ {
+  "h": "7ed26e66717587c6",
+  "t": "Ajay, 2026-10-10: \"When you test, you test across the board — that's t"
+ },
+ {
+  "h": "c26b743e5e48312a",
+  "t": "What prompted it. Eleven scripted tournaments, each a careful path at "
+ },
+ {
+  "h": "3282e2c94aea6eec",
+  "t": "**So a browser-test result is never reported without its reach.** Two "
+ },
+ {
+  "h": "7e9923e4380c9d7f",
+  "t": "- `e2e/coverage.ts` — every spec imports `test` from it, and every bro"
+ },
+ {
+  "h": "1809db16a99cc49d",
+  "t": "**The layers of the suite**, each of which says in its own header what"
+ },
+ {
+  "h": "99efb2e59d23b317",
+  "t": "- `e2e/everything.spec.ts` opens every console screen on every one of "
+ },
+ {
+  "h": "4dc36345120e85c7",
+  "t": "\"A round\" is the whole suite, and it is \"clean\" only with its reach st"
+ },
+ {
+  "h": "c7e21e8ce925b71e",
+  "t": "**A SCREEN EVERY WALK OPENS AND NOBODY USES IS NOT A TESTED SCREEN.** "
+ },
+ {
+  "h": "461fc8e2e7473b40",
+  "t": "Season standings a club could only ever have one season; a second show"
+ },
+ {
+  "h": "60d6c073a6e0b86e",
+  "t": "Three things to carry forward from them:"
+ },
+ {
+  "h": "d2629ee0a98ab459",
+  "t": "- **A REFUSAL IS SAID WHERE THE PRESS WAS.** Two of those were one fau"
+ },
+ {
+  "h": "6268b9020b7195cb",
+  "t": "**Two habits this cost to learn, both the same night:**"
+ },
+ {
+  "h": "642cc62c79accd19",
+  "t": "- **Commit before any mutation check.** \"Break it, watch the test go r"
+ },
+ {
+  "h": "b9b77ae7407d0bd1",
+  "t": "## Verification"
+ },
+ {
+  "h": "c2f1dfffda24b6ba",
+  "t": "Run before committing anything non-trivial:"
+ },
+ {
+  "h": "65d1afc34eb6ec08",
+  "t": "```bash npx tsc --noEmit && npx vitest run && npx next lint && NEXT_DI"
+ },
+ {
+  "h": "0c23210e87bf51ab",
+  "t": "`npm run smoke` GETs every route against a running dev server and fail"
+ },
+ {
+  "h": "d6821dd131383b1a",
+  "t": "It defaults to `http://localhost:3000`; point it elsewhere with `SMOKE"
+ },
+ {
+  "h": "688a11a98b2e98e9",
+  "t": "**A SPEC MOVES BY ADDRESS. A PLAYER MOVES BY THUMB, AND THE TWO ARE DI"
+ },
+ {
+  "h": "846684130d0a16f0",
+  "t": "Two things to carry forward. **When a check is about what one PERSON s"
+ },
+ {
+  "h": "c1a6df601e936b25",
+  "t": "**AND A SPEC TYPES INTO A PAGE THAT LOADED LONG AGO.** The server is n"
+ },
+ {
+  "h": "4dc217918d8e3de5",
+  "t": "**AND A SPEC'S SAVE LANDS BEFORE THE NEXT TAP. ON A COURSE THE NEXT TA"
+ },
+ {
+  "h": "44d1fedeac4dc1b2",
+  "t": "Two things hold it now. **One save is out at a time** (`usePendingCard"
+ },
+ {
+  "h": "467c2a6f0f7c8ff2",
+  "t": "**AND A BUILD MADE ON WINDOWS HINTS NO FONT, SO THIS MACHINE CANNOT SE"
+ },
+ {
+  "h": "3ac73ca9eacd8b1b",
+  "t": "**AND THE FRONT DOOR IS NOT ITS FULL HEIGHT WHEN IT HAS LOADED.** The "
+ },
+ {
+  "h": "97cb07f2cb77cdd8",
+  "t": "**AND THE SUITE IS CHROMIUM UNLESS YOU ASK.** Most players hold an iPh"
+ },
+ {
+  "h": "09e7438951e6f3ca",
+  "t": "- **Start the server for it with `E2E_PLAIN_HTTP=1`.** The e2e server "
+ },
+ {
+  "h": "1bd220aa103f76e3",
+  "t": "**A RUN KILLED INSIDE AN ORGANIZER-FROM-NOTHING SPEC POISONS THE NEXT "
+ },
+ {
+  "h": "9b3f1f8eba3ec7cf",
+  "t": "**Reading a change in the browser: bust the URL, or you will read the "
+ },
+ {
+  "h": "5af948db9d95678c",
+  "t": "The tell is that a `fetch(url, { cache: \"no-store\" })` of the same pag"
+ },
+ {
+  "h": "a6eda71c726e1290",
+  "t": "So: append a throwaway query (`?bust=1`) when navigating to check a ch"
+ },
+ {
+  "h": "ab395b593a281e39",
+  "t": "**CAPTURE THE COUNTS, NOT THE TAIL — a gate script can report a red ru"
+ },
+ {
+  "h": "70bc87ccf2b56a1c",
+  "t": "Grep for `Tests ` and record the status of the command rather than the"
+ },
+ {
+  "h": "366d5a80405ea9da",
+  "t": "```bash npx vitest run 2>&1 | grep -E \"Test Files|Tests \" >> \"$O\"; ech"
+ },
+ {
+  "h": "99a9f627393bee23",
+  "t": "The same trap as `| tail` swallowing an exit code two paragraphs down,"
+ },
+ {
+  "h": "26cbfe5e0287e69b",
+  "t": "**`npm run smoke` is NOT the whole of CI's \"Smoke-test every route\" st"
+ },
+ {
+  "h": "0d4346a3dc011c94",
+  "t": "``` node scripts/smoke-routes.mjs # what `npm run smoke` runs, and all"
+ },
+ {
+  "h": "b0238326cbd99fd0",
+  "t": "**`npm run smoke:all` is that whole step, locally, against a BUILT ser"
+ },
+ {
+  "h": "90ede5384577982d",
+  "t": "Use it INSTEAD OF pointing the scripts at the dev server, because on a"
+ },
+ {
+  "h": "01f3daf0eee12c10",
+  "t": "``` ⚠ Server is approaching the used memory threshold, restarting... `"
+ },
+ {
+  "h": "8029c5f0cbcad11f",
+  "t": "`next dev` compiles each route on demand and holds the graph, so a 41-"
+ },
+ {
+  "h": "cc0e140db428d26a",
+  "t": "Two more ways to lose an hour here, both worth knowing before blaming "
+ },
+ {
+  "h": "4ee8639063259970",
+  "t": "- **the scripts default to port 3000**, and the dev server in this rep"
+ },
+ {
+  "h": "beb50bc84c5935e4",
+  "t": "Five of the other six assert CONTENT — that a control is on the screen"
+ },
+ {
+  "h": "3c30c63ede75b777",
+  "t": "**`verify-lifecycle.mjs` asserts a different thing, and it is the gap "
+ },
+ {
+  "h": "03cf3244711ee627",
+  "t": "It was written because `/entry` returned **500** on a tournament with "
+ },
+ {
+  "h": "ecfd39cc369de01e",
+  "t": "It also requires an `<h1>` on every screen at every stage, which `e2e/"
+ },
+ {
+  "h": "b10c576df2410824",
+  "t": "**`verify-player-states.mjs` IS THAT SWEEP POINTED AT THE PLAYER, and "
+ },
+ {
+  "h": "f538d31ed3bbe548",
+  "t": "confirmed, round live correct — the state everybody walks on the waiti"
+ },
+ {
+  "h": "d3a0f49da3c56699",
+  "t": "Both were one collapse. `entered` means CONFIRMED — the rule every car"
+ },
+ {
+  "h": "a2cacbb1f892a628",
+  "t": "It asserts a RULE rather than four sentences: **nobody with a Player r"
+ },
+ {
+  "h": "b9e20975589c8852",
+  "t": "**The fixture is the other half, and it is the reason this went unseen"
+ },
+ {
+  "h": "b72d3bbc6a7613da",
+  "t": "**`verify-public-boards.mjs` IS THE ONLY ONE THAT NEEDS NO COOKIE, and"
+ },
+ {
+  "h": "f961076e1afd6404",
+  "t": "Added 2026-09-22, after the seeded club's April Medal board was found "
+ },
+ {
+  "h": "6cc0162e48fc1443",
+  "t": "``` 1 Marnie gross 81 net 53 shown +10 3 Nkechi 70 63 shown -1 4 Priya"
+ },
+ {
+  "h": "9b49a36eeed47656",
+  "t": "Every figure correct, the column unreadable. 8,359 unit tests, the rou"
+ },
+ {
+  "h": "213df3f8bfea5b3c",
+  "t": "So that is what it asserts — **the scores printed on a board run in th"
+ },
+ {
+  "h": "5d4d7b838b668d07",
+  "t": "It pins no net FIGURE, deliberately. The first draft did — `gross - ha"
+ },
+ {
+  "h": "cab556d6ab0c8761",
+  "t": "**AND EVERY FIXTURE IT HAD WAS ONE ROUND, WHICH IS A WHOLE CLASS IT CO"
+ },
+ {
+  "h": "cf0e3a1fc345c5e7",
+  "t": "Over ONE round a points board physically cannot show this. `scoreOnBas"
+ },
+ {
+  "h": "b85ed7a25c3cd528",
+  "t": "The lesson generalises past this script: **a fixture that cannot reach"
+ },
+ {
+  "h": "182a20787e158dce",
+  "t": "**And the blast radius of that fix was MEASURED rather than argued**, "
+ },
+ {
+  "h": "20017290336269be",
+  "t": "Same shape one layer up: **a check built from a fixture pins whatever "
+ },
+ {
+  "h": "3810aedd4e462a16",
+  "t": "One trap in reading a points board from a script: its scores are bare "
+ },
+ {
+  "h": "fa025a2faa546c8d",
+  "t": "So a green `npm run smoke` says every route renders for the demo, and "
+ },
+ {
+  "h": "f1248dae346dac4d",
+  "t": "The command above runs the DEFAULT config, which excludes `*.audit.tes"
+ },
+ {
+  "h": "ee2364154bb3c611",
+  "t": "```bash npx vitest run --config vitest.audit.config.ts ```"
+ },
+ {
+  "h": "659a4c23c9856c95",
+  "t": "Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running;"
+ },
+ {
+  "h": "aa0dee2346e10679",
+  "t": "**And PLAYWRIGHT STARTS A BUILD YOU DID NOT TYPE.** `playwright.config"
+ },
+ {
+  "h": "af8421ef34ee303b",
+  "t": "**It does NOT collide with the dev server.** That build goes to `.next"
+ },
+ {
+  "h": "35db9239de0eca6c",
+  "t": "**The trap that IS real is `reuseExistingServer`.** It is `!process.en"
+ },
+ {
+  "h": "0c6372abf7828dae",
+  "t": "So the shape to recognise is: kill a run, edit code, run again, and th"
+ },
+ {
+  "h": "8d125d0be7a26cd7",
+  "t": "Two checks settle it in seconds, and are worth making before believing"
+ },
+ {
+  "h": "ea7cb949197baaf2",
+  "t": "```bash ls -la --time-style=full-iso .next-e2e/BUILD_ID # older than y"
+ },
+ {
+  "h": "59febecf846a6d28",
+  "t": "The cleanup is to kill the listener and delete the directory, then run"
+ },
+ {
+  "h": "67296ec6f2e733a7",
+  "t": "```bash powershell -c \"Get-NetTCPConnection -LocalPort 3101 -State Lis"
+ },
+ {
+  "h": "018abb118fcd2dce",
+  "t": "An earlier entry here blamed a red run — five `offline.spec` tests fai"
+ },
+ {
+  "h": "a8ade5f8a7273abf",
+  "t": "- every failure takes the SAME time (2.6s there), which is a timeout r"
+ },
+ {
+  "h": "6abae3a267b409b0",
+  "t": "An assertion failure has an expected and a received value, and it does"
+ },
+ {
+  "h": "7403d52ae211adb9",
+  "t": "**A build can still take the dev server down with it, and the smoke sc"
+ },
+ {
+  "h": "fbe22279e528c56e",
+  "t": "Read those two symptoms as \"no server\", not \"broken route\". A real 5xx"
+ },
+ {
+  "h": "3a578bf64e705321",
+  "t": "So run the smoke pass against a server you have just confirmed is up, "
+ },
+ {
+  "h": "96cf6fb918e05306",
+  "t": "**And now the MECHANISM, read off `preview_logs` on 2026-09-09 rather "
+ },
+ {
+  "h": "86608c8b2dc022dd",
+  "t": "``` ✓ Compiled /prizes in 1918ms (1197 modules) ⚠ Server is approachin"
+ },
+ {
+  "h": "a28061ea8df5b778",
+  "t": "That is the dev server deciding, on its own, that it is near its heap "
+ },
+ {
+  "h": "a0f8852a841308b2",
+  "t": "Two things follow. `curl` before the run proves nothing about the midd"
+ },
+ {
+  "h": "f0ca0327761a2f4a",
+  "t": "**The command at the top is FIVE SIXTHS of the gate. Playwright is the"
+ },
+ {
+  "h": "d0f6eeab44b96011",
+  "t": "```bash AUTH_SECRET=local-e2e-secret npx playwright test ```"
+ },
+ {
+  "h": "a317a868defb0c33",
+  "t": "Skipping it on an ordinary change is reasonable; CI runs it on every p"
+ },
+ {
+  "h": "7f7fa0b12056ae1a",
+  "t": "It seeds a real fixture through `e2e/fixture.mjs` and tears it down af"
+ },
+ {
+  "h": "b09e70c71130f58c",
+  "t": "**One recurring CI failure is a Chromium crash, not a test.** Somewher"
+ },
+ {
+  "h": "a688f73aec20a406",
+  "t": "``` [pid=####][err] Received signal 11 SEGV_MAPERR 0000000001b0 Error:"
+ },
+ {
+  "h": "9a3fdefd2e3335f6",
+  "t": "Three times on 2026-09-08 alone, across unrelated branches, and twice "
+ },
+ {
+  "h": "17ae3b62cc531273",
+  "t": "**IT IS NOT ONE TEST.** This entry named `organizer.spec.ts:54`, \"the "
+ },
+ {
+  "h": "086135fe18fd29d4",
+  "t": "So do not read a crash on a DIFFERENT line of that spec as a different"
+ },
+ {
+  "h": "6f953133fcbd9b5e",
+  "t": "**What is known about it, measured rather than assumed** (2026-09-08):"
+ },
+ {
+  "h": "c3c4fa1115ae472d",
+  "t": "- It is ONE test, and the browser RECOVERS. Read straight off attempt "
+ },
+ {
+  "h": "c0d198de91dee2b5",
+  "t": "So it wants a reproduction or a Chromium report, NOT a speculative cha"
+ },
+ {
+  "h": "a41a153001ad697f",
+  "t": "**There is a SECOND intermittent e2e failure, and it is not that one.*"
+ },
+ {
+  "h": "50bbe7ac7f6f2c36",
+  "t": "``` [WebServer] ⨯ Error: Could not find the module \".../GroupingContro"
+ },
+ {
+  "h": "c74b80efb397c24e",
+  "t": "The dev server failed to serve one client component, so the page rende"
+ },
+ {
+  "h": "64aeaf3f422c5924",
+  "t": "This one is the more dangerous of the two, because the SEGV announces "
+ },
+ {
+  "h": "1c66346cc0403313",
+  "t": "**IT ALSO COMES FROM A BAD BUILD, and then re-running the commit does "
+ },
+ {
+  "h": "eec85d000f56aa1a",
+  "t": "``` ⨯ Error: Could not find the module \".../ContestsClient.tsx#Contest"
+ },
+ {
+  "h": "e08d2851505e52f9",
+  "t": "Same class, different component — and this was `next start` on a produ"
+ },
+ {
+  "h": "aea3ad3801375e91",
+  "t": "**Delete `.next-e2e` and run again.** That took fifteen failures to ze"
+ },
+ {
+  "h": "1827228b55a924dc",
+  "t": "Two tells separate this from a real regression: every failure names ON"
+ },
+ {
+  "h": "957f1f19c51c87ce",
+  "t": "**FOUR COMPONENTS NOW, WHICH IS THE POINT.** `GroupingControls`, `Cont"
+ },
+ {
+  "h": "7070fd986afbbbd3",
+  "t": "**The fourth settles it: it went red on a COMMENT-ONLY pull request.**"
+ },
+ {
+  "h": "373cf22db65dfad9",
+  "t": "So read the component name in the error as noise rather than as a lead"
+ },
+ {
+  "h": "11a038aa535a710b",
+  "t": "It also does not always take the run down in the same place. That one "
+ },
+ {
+  "h": "9afb6e94061a4f58",
+  "t": "**SINCE 2026-09-19 EVERY BUILD CHECKS ITSELF FOR THIS, and rebuilds on"
+ },
+ {
+  "h": "0c9edb505f56df00",
+  "t": "`npm run build`, `vercel-build` and `smoke:all` now go through `script"
+ },
+ {
+  "h": "31047fef28baef1b",
+  "t": "**IT STILL GETS THROUGH, so do not read a green build as this being cl"
+ },
+ {
+  "h": "40e7943124ce5922",
+  "t": "**TWO WAYS OF STRENGTHENING THAT CHECK WERE MEASURED ON 2026-09-22 AND"
+ },
+ {
+  "h": "44d23d8d5e21ae43",
+  "t": "*\"The union check must be blind to a component only ONE page uses — it"
+ },
+ {
+  "h": "30d251eb17617272",
+  "t": "*\"Then check the manifests against the SOURCE — every `use client` fil"
+ },
+ {
+  "h": "258a106c62968674",
+  "t": "So `build-checked` is doing the right thing with the right instrument."
+ },
+ {
+  "h": "bee0515a49b4ec6f",
+  "t": "So the check narrows this class; it does not close it. Read the failur"
+ },
+ {
+  "h": "886e81212f9a691d",
+  "t": "**AND ON 2026-09-21 IT WENT RED ON A COMMIT THAT ADDS ONE TEST FILE AN"
+ },
+ {
+  "h": "5035ed63ea771122",
+  "t": "That is a stronger control than the comment-only PR above, and it is w"
+ },
+ {
+  "h": "fcec8e17167d10cd",
+  "t": "So the count of named components is now NINE and still climbing, which"
+ },
+ {
+  "h": "bc53a69380ca5501",
+  "t": "The ninth arrived an hour later, on the pull request ADDING THE PARAGR"
+ },
+ {
+  "h": "e08c03675add5db9",
+  "t": "**AND THE FREQUENCY IS NOW THE FINDING.** This section has always desc"
+ },
+ {
+  "h": "07df0da7b5b24d8c",
+  "t": "``` next/font #550 End-to-end (desktop) #551 Build and smoke #554 End-"
+ },
+ {
+  "h": "f39423b6b5492ff2",
+  "t": "Three of those four commits could not have caused anything — one added"
+ },
+ {
+  "h": "eb7ec82da3c9c91d",
+  "t": "**#554 IS THE ONE TO REMEMBER: it collected all THREE faults, across t"
+ },
+ {
+  "h": "c4a1cb7495b7ff31",
+  "t": "That crosses the threshold this file sets for itself two paragraphs up"
+ },
+ {
+  "h": "73fdafeb4acff021",
+  "t": "Until then the operational answer is unchanged and is cheap: read whic"
+ },
+ {
+  "h": "5267f3ee4883bb55",
+  "t": "**And that pair is worth knowing about on its own: `ci.yml` runs on BO"
+ },
+ {
+  "h": "f3ed8d7c719c72af",
+  "t": "**And a THIRD, which is a click that never lands.** `offline.spec.ts:2"
+ },
+ {
+  "h": "863bfed85ed485d5",
+  "t": "``` Error: locator.click: Test timeout of 30000ms exceeded. - locator "
+ },
+ {
+  "h": "b642df324b57cef6",
+  "t": "Note what it is NOT: the dialog is found and visible, so this is not a"
+ },
+ {
+  "h": "1a44dd30d271d897",
+  "t": "**NOT desktop only**, which this entry claimed for a day. It was writt"
+ },
+ {
+  "h": "bdef52292eba0868",
+  "t": "**It is on `main`**, measured 2026-09-11 rather than assumed: five run"
+ },
+ {
+  "h": "58a6810b6fe7ea25",
+  "t": "That last bit is why it is written down. The first sample said branch-"
+ },
+ {
+  "h": "f2c714eb3441da8f",
+  "t": "Unlike the SEGV, this one may still be worth fixing rather than tolera"
+ },
+ {
+  "h": "01cfdfb2bf529fe8",
+  "t": "What every log DOES share is the sequence `element is not stable` → `o"
+ },
+ {
+  "h": "7dff4c8f94b3fd31",
+  "t": "**Somebody has now looked, and there WAS something re-rendering it** ("
+ },
+ {
+  "h": "2a973756884df63f",
+  "t": "That is removed — the timer now runs only when `shouldPoll` says a sen"
+ },
+ {
+  "h": "c965285bcfd99b88",
+  "t": "**AND THE CHOOSER IS NOT A DIALOG, which everything above this line as"
+ },
+ {
+  "h": "9cad06481b7aa4d2",
+  "t": "That matters for one symptom in particular. A centred overlay cannot B"
+ },
+ {
+  "h": "99d9ce3bebec91a4",
+  "t": "Its GEOMETRY is now measured, inside `offline.spec` where it is alread"
+ },
+ {
+  "h": "a8ea860d8f6bc919",
+  "t": "**And that is measured DURING a failure, not merely alongside one.** T"
+ },
+ {
+  "h": "0ba26f59fa22dae6",
+  "t": "**TWO SUSPECTS ARE NOW ELIMINATED, both of them named above.** Neither"
+ },
+ {
+  "h": "029a94c3c55eddc8",
+  "t": "- **The two call sites.** They were collapsed into ONE `<CardConflict>"
+ },
+ {
+  "h": "5dd33ffddd96b664",
+  "t": "**AND THEN IT WAS FOUND, and it is in neither the app nor the test.** "
+ },
+ {
+  "h": "20ca06fc58eb0e76",
+  "t": "`globals.css` sets `html { scroll-behavior: smooth }`, overridden to `"
+ },
+ {
+  "h": "98b7f5b5e3b7c8f5",
+  "t": "``` t=0 y=783 t=93 y=669 t=143 y=369 t=27 y=781 t=110 y=574 t=160 y=30"
+ },
+ {
+  "h": "0e42d9cce5f27fe7",
+  "t": "114 pixels between two consecutive frames, for about 300ms. With `cont"
+ },
+ {
+  "h": "f79644cc156293ea",
+  "t": "That accounts for every part of it: intermittent because it is a race "
+ },
+ {
+  "h": "716af9c95b03f7e3",
+  "t": "**The lesson is the method, not the CSS.** Three hypotheses were argue"
+ },
+ {
+  "h": "c50b7f9bf97c6bf5",
+  "t": "In Playwright 1.62 `reducedMotion` lives on `contextOptions`, NOT amon"
+ },
+ {
+  "h": "591201e9436d64cf",
+  "t": "**AND IT HAS A SECOND SIGNATURE, WHICH IS NOT THE ONE ABOVE.** Everyth"
+ },
+ {
+  "h": "28b6d637a99c216c",
+  "t": "``` Error: expect(locator).toBeVisible() failed Locator: getByRole('al"
+ },
+ {
+  "h": "fee344691cb94a55",
+  "t": "Read the difference rather than filing it as the same thing: `not stab"
+ },
+ {
+  "h": "4929c9d6eb0ef368",
+  "t": "What it is NOT: a broken chooser. `offline.spec.ts:218` — \"a card chan"
+ },
+ {
+  "h": "6520975676658c27",
+  "t": "Confirmed intermittent the usual way: green on a re-run of the same co"
+ },
+ {
+  "h": "0673cb75dd540c00",
+  "t": "Still not worth `retries`. The reasoning above about hiding a real reg"
+ },
+ {
+  "h": "a8642bfaa61c0a36",
+  "t": "**AND A FOURTH, WHICH WAS NEVER INTERMITTENT: React #418, a hydration "
+ },
+ {
+  "h": "dcf8c9169fc84e72",
+  "t": "**It is a page that arrived slowly, and a bug in the React that Next 1"
+ },
+ {
+  "h": "64e4aa199a6cad8f",
+  "t": "Found 2026-10-12, by MEASURING after a day of theories (dates, locale "
+ },
+ {
+  "h": "e4cf51c588428d4b",
+  "t": "``` the same seven screens, opened 12 times each threw #418 directly 0"
+ },
+ {
+  "h": "1b17c03eb3b9190e",
+  "t": "Next door to the server a page arrives whole, so the suite saw it once"
+ },
+ {
+  "h": "ef214c324ac3fb46",
+  "t": "React fixed it in facebook/react#35494 (released in 19.3.0, not taken "
+ },
+ {
+  "h": "648bfe052ed83b07",
+  "t": "- it stops the build if either place it touches is not found exactly o"
+ },
+ {
+  "h": "6cb3b430038baf72",
+  "t": "Three things to carry forward. **\"Intermittent\" is a description of th"
+ },
+ {
+  "h": "c26e5bbfacaaa5e0",
+  "t": "`e2e/page-errors.ts` still records every #418 with where the server's "
+ },
+ {
+  "h": "c5af7ad6fcb02a0a",
+  "t": "One cause found by reading rather than by that line, 2026-10-11: a rel"
+ },
+ {
+  "h": "3931c9d5922e5749",
+  "t": "**And one cause found by CI and by nothing local, 2026-10-12: the serv"
+ },
+ {
+  "h": "c29d9ef21963e9c6",
+  "t": "**AND THE CLASS IS CLOSED, NOT THE INSTANCE: SINCE 2026-10-13 THE APP "
+ },
+ {
+  "h": "e02a03a7ee946ac0",
+  "t": "So the conventions are read ONCE, by `scripts/build-date-words.mjs` (w"
+ },
+ {
+  "h": "6466812329f2c4d0",
+  "t": "- `date-words.test.ts` pins what each country's club reads, typed by h"
+ },
+ {
+  "h": "0dd04c901212d367",
+  "t": "A tag the table does not hold is still the platform's, and can still d"
+ },
+ {
+  "h": "391f91c07e78a920",
+  "t": "**AND WHAT THE APP WRITES IN A CLUB'S LANGUAGE, IT MUST READ BACK IN T"
+ },
+ {
+  "h": "7567287f209f5a51",
+  "t": "- `minorUnitsFrom(text, currency, locale)` reads which mark is the dec"
+ },
+ {
+  "h": "32d82bf39621830c",
+  "t": "**What the recorder said, the two times it was attached when the slow-"
+ },
+ {
+  "h": "b81af4adcba59fb5",
+  "t": "## The testing framework: `docs/testing.md`"
+ },
+ {
+  "h": "5658b0ebbfaeee06",
+  "t": "Ajay, 2026-10-13: \"you should be building these permanent test script "
+ },
+ {
+  "h": "20d758313caf415f",
+  "t": "- **`npm run qa:changed` first, on every finished change.** It reads t"
+ },
+ {
+  "h": "e34c2a1a78ffd69c",
+  "t": "A round on GitHub is a push to `round/<name>-1` (`round.yml`: about th"
+ },
+ {
+  "h": "b14e9cfcdaa4be8e",
+  "t": "**SINCE 2026-10-23 THE PIPELINE IS THE TESTING PANEL'S** (`docs/testin"
+ },
+ {
+  "h": "c23091c587d85727",
+  "t": "- **Rounds by tier**: tests, words and the front door need none; funct"
+ },
+ {
+  "h": "e40f61c36d2b9fc9",
+  "t": "**TWO SESSIONS ON ONE MACHINE SHARE ONE FIXTURE, AND A PLAYWRIGHT RUN "
+ },
+ {
+  "h": "76e6c015ff6b15f4",
+  "t": "**A background round stopped with TaskStop is NOT stopped.** The shell"
+ },
+ {
+  "h": "d5fc2fbe6dd503e3",
+  "t": "## What gates a merge, and what gates a deploy"
+ },
+ {
+  "h": "c2feef2a625e4d98",
+  "t": "`ci.yml` is the only workflow that runs on its own — every push and ev"
+ },
+ {
+  "h": "c17c36cea00083dc",
+  "t": "**What stops a bad merge** is a RULESET named \"main must be green\", no"
+ },
+ {
+  "h": "62cdd200a4cadac8",
+  "t": "**SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A "
+ },
+ {
+  "h": "b30bb5b1ccc8199e",
+  "t": "Until that day Vercel shipped `main` on push, BEFORE `verify` finished"
+ },
+ {
+  "h": "957af8fd040dd52c",
+  "t": "**The deploy job does not build.** It uploads the source and Vercel bu"
+ },
+ {
+  "h": "bea984aa55b4981f",
+  "t": "`VERCEL_TOKEN` is the only secret; `VERCEL_ORG_ID` and `VERCEL_PROJECT"
+ },
+ {
+  "h": "c6d14104fe121a2a",
+  "t": "**The other way `deploy` fails is the production DATABASE, and it is n"
+ },
+ {
+  "h": "9d59f4c5007014fe",
+  "t": "``` Invalid `prisma.$queryRawUnsafe()` invocation: Can't reach databas"
+ },
+ {
+  "h": "618c59800b3524cf",
+  "t": "That happened on 2026-09-08 to `8c1d75b`, a documentation-only commit "
+ },
+ {
+  "h": "409f9545423e118c",
+  "t": "**And the third way `deploy` fails is the DEPLOYMENT ALLOWANCE, which "
+ },
+ {
+  "h": "3bc703f864015280",
+  "t": "``` Error: Resource is limited - try again in 24 hours (more than 100,"
+ },
+ {
+  "h": "451896f5781ee249",
+  "t": "A hundred deployments a day on the free plan, and **every push counts*"
+ },
+ {
+  "h": "dc47447926ed07b5",
+  "t": "It is SELF-CLEARING and it is intermittent, so do not read one red dep"
+ },
+ {
+  "h": "a2b4bf2833f6ee1d",
+  "t": "What it should change is BEHAVIOUR, not configuration. Batch the work "
+ },
+ {
+  "h": "d1cb87c244ce03a1",
+  "t": "**And the fourth reads CANCELLED, and production may be fine.** On 202"
+ },
+ {
+  "h": "83f725f8bf2a8c32",
+  "t": "``` Building… Completing… ##[error]The operation was canceled. ```"
+ },
+ {
+  "h": "7d0e7f3db40150d7",
+  "t": "Vercel's dashboard showed that same deployment **Ready, Production, bu"
+ },
+ {
+  "h": "59834193200db9d2",
+  "t": "So a CANCELLED deploy after a long `Completing…` is NOT evidence produ"
+ },
+ {
+  "h": "f64a7c86cc502aed",
+  "t": "**AND A FIFTH KILLS `verify` ITSELF, FROM OUTSIDE THE REPOSITORY — `ne"
+ },
+ {
+  "h": "7d87fb3196b58620",
+  "t": "``` src/app/layout.tsx An error occurred in `next/font`. TypeError: Ca"
+ },
+ {
+  "h": "6ef83bbb682bad58",
+  "t": "`next/font/google` FETCHES the font CSS at build time, and the loader "
+ },
+ {
+  "h": "36b19e7d853bc79c",
+  "t": "It struck TWICE within an hour, on two different commits and two DIFFE"
+ },
+ {
+  "h": "5c4c1f882ee1ee44",
+  "t": "Read it as environmental, not as your change, when any of these hold —"
+ },
+ {
+  "h": "d335c59fedf37e46",
+  "t": "- a SIBLING job in the SAME run compiled the same SHA successfully. `B"
+ },
+ {
+  "h": "c04b36a96eed02e9",
+  "t": "`gh run rerun <id> --failed` on the same commit. Do NOT start editing "
+ },
+ {
+  "h": "42362d0846d6e0b9",
+  "t": "**DONE ON 2026-10-08, AND THE FETCH IS GONE.** It struck four times on"
+ },
+ {
+  "h": "63675e37a3703180",
+  "t": "Same family as the `Client Manifest` fault two sections up and read th"
+ },
+ {
+  "h": "11f8adfd95b90846",
+  "t": "So read WHICH JOB failed before reading anything else. `verify` red is"
+ },
+ {
+  "h": "0ea07f610e82ec82",
+  "t": "```bash gh run view <run-id> --json jobs -q '.jobs[] | select(.name|en"
+ },
+ {
+  "h": "b65968b947940e4e",
+  "t": "Since 2026-10-23 a green deploy job may also be a HOLD (a core change "
+ },
+ {
+  "h": "a6a0ca25357297ba",
+  "t": "**AND A GREEN PR IS NOT A GREEN COMMIT.** `gh pr checks <n>` answers \""
+ },
+ {
+  "h": "f85bcf679056b15a",
+  "t": "Tie the verdict to a SHA at both ends:"
+ },
+ {
+  "h": "1820480c4ddd8a00",
+  "t": "```bash head=$(gh pr view \"$PR\" --json headRefOid -q .headRefOid) gh a"
+ },
+ {
+  "h": "b9775208c7d69b65",
+  "t": "Two more things that cost time here. `--delete-branch` from a worktree"
+ },
+ {
+  "h": "b8a959fed9f3a3d8",
+  "t": "```bash git show origin/main:src/path/file.ts | grep -c theSymbolYouAd"
+ },
+ {
+  "h": "253da97bbe96ef61",
+  "t": "Related: `main` is exempt from `cancel-in-progress`. Two merges a minu"
+ },
+ {
+  "h": "1a073a0296f08069",
+  "t": "**That exemption protects a run that has STARTED, not one still queued"
+ },
+ {
+  "h": "d00d7544ea7091df",
+  "t": "Nothing shipped unverified, and the reason is worth knowing rather tha"
+ },
+ {
+  "h": "bc9fc33c0c1044e9",
+  "t": "What it costs is the AUDIT TRAIL. `gh run list --branch main` now show"
+ },
+ {
+  "h": "46963ffeb02dbfa5",
+  "t": "So: **merge one at a time and let each `verify` finish** when the hist"
+ },
+ {
+  "h": "f2e3b0526ef83eff",
+  "t": "To check whether a specific commit was verified, ask for its run rathe"
+ },
+ {
+  "h": "d19117449674b20f",
+  "t": "The two mobile workflows are scaffolding, not pipelines. `android-rele"
+ },
+ {
+  "h": "b5bf098967a75560",
+  "t": "## What the tests enforce"
+ },
+ {
+  "h": "178dbaeec52f09f8",
+  "t": "The suite is not only about behaviour — several files exist to make a "
+ },
+ {
+  "h": "ae59b1d8f230749a",
+  "t": "- `audit-idor.test.ts` — a row id an action is handed belongs to the c"
+ },
+ {
+  "h": "a770dd3be89e499a",
+  "t": "**WHEN A CORRECT CHANGE MAKES AN EXISTING GUARD FAIL, READ THE GUARD B"
+ },
+ {
+  "h": "8e17f03218760122",
+  "t": "``` audit-guards required roundTeeId(tees, event?.defaultTeeId) in the"
+ },
+ {
+  "h": "b6e1b5eb31533b83",
+  "t": "The third is the general case: **a source assertion freezes an interfa"
+ },
+ {
+  "h": "50f79c311c01c65b",
+  "t": "**AND ENUMERATE A STRING COLUMN'S REAL VALUES BEFORE NARROWING A TEST "
+ },
+ {
+  "h": "c73cb55266f82bba",
+  "t": "**Prove a new test can fail: revert the fix, watch it go red, put it b"
+ },
+ {
+  "h": "9e0f652187296c6d",
+  "t": "**AND A MUTATION CAN STAY GREEN BECAUSE THE THEORY OF THE DEFECT WAS W"
+ },
+ {
+  "h": "4d7f3b5f28137342",
+  "t": "So write the mutation before believing the assertion, and **when it st"
+ },
+ {
+  "h": "d0d51a64a734cd24",
+  "t": "Mutate the WHOLE before-state, not half of it. Reverting one of two ch"
+ },
+ {
+  "h": "f3e5c51c564de45c",
+  "t": "**And when the test reads SOURCE, the revert can stay green off your c"
+ },
+ {
+  "h": "e2efa4b7f04eb1b6",
+  "t": "It happened twice on 2026-09-05, the second time in a test written by "
+ },
+ {
+  "h": "9256c8a709a74124",
+  "t": "The scale of it was measured rather than guessed, and the measurement "
+ },
+ {
+  "h": "66b7370d197895fb",
+  "t": "One trap in doing it: **blank the comments block-aware, and commit fir"
+ },
+ {
+  "h": "d12d49fc9448099f",
+  "t": "## Money: what may be reported while a round is live"
+ },
+ {
+  "h": "649a623dec96fe84",
+  "t": "`money-layout.ts` opens with the rule — final only, never live. The pa"
+ },
+ {
+  "h": "4e88cb8a7a548556",
+  "t": "A birdie already made does not un-happen, which reads like a licence t"
+ },
+ {
+  "h": "87980123ffb1c215",
+  "t": "A Nassau passes both tests and is correctly paid LIVE. `nassauNets` pa"
+ },
+ {
+  "h": "b750e0938887a5c4",
+  "t": "**The app says \"side game\", never \"bet\"** (Ajay, 2026-10-21: \"side gam"
+ },
+ {
+  "h": "5cc01b2151501b26",
+  "t": "Enforce it at the SINK, as `gameNets` now does for both the skins pots"
+ },
+ {
+  "h": "e0ddb3a9dac33482",
+  "t": "One trap when reusing the round card's finality: `matchSettled` is sat"
+ },
+ {
+  "h": "bb01deb705bdfd8a",
+  "t": "What a player may still see mid-round is their EXPOSURE — `stakeFor`, "
+ },
+ {
+  "h": "489f926cfcd8d75a",
+  "t": "## A knockout's draw"
+ },
+ {
+  "h": "8bcef275b44147dd",
+  "t": "**PAST THE FIRST ROUND THERE IS NO SUCH THING AS A BYE.** Until 2026-1"
+ },
+ {
+  "h": "edca375f11277903",
+  "t": "Every bracket test before that day played its results ROUND BY ROUND, "
+ },
+ {
+  "h": "df05367993a8919d",
+  "t": "**A big field is divided into FLIGHTS, each its own knockout** (`Event"
+ },
+ {
+  "h": "865e11b96fb8ebb2",
+  "t": "- **The division is kept whole**, in `Event.bracketDraw`, as `{ v: 2, "
+ },
+ {
+  "h": "1c6386823d1547fd",
+  "t": "The seeded club carries \"Club Match Play — Three Flights\" (three fligh"
+ },
+ {
+  "h": "ec76b2c38b36f153",
+  "t": "## A club league: what has been ARRANGED has not HAPPENED"
+ },
+ {
+  "h": "7aacc2ec3adeab59",
+  "t": "A league of clubs (flights as clubs, pairs nominated each week, `Leagu"
+ },
+ {
+  "h": "15a8a092b0bd61fb",
+  "t": "the table \"Played 1\" for every club the moment a week was DRAWN — a me"
+ },
+ {
+  "h": "3fbfc0d85c79ea04",
+  "t": "Three things to carry forward:"
+ },
+ {
+  "h": "26ec0991e97b790c",
+  "t": "- **`matchIsOver(holes)` is the question; `resolveMatch(holes).complet"
+ },
+ {
+  "h": "0afb8aefa8507de9",
+  "t": "`e2e/interclub-league.spec.ts` runs the season from switching the leag"
+ },
+ {
+  "h": "3688b91464e8e1d5",
+  "t": "**AND A LOOKUP BY `id: { in: [...] }` HAS NO ORDER.** `nominatePair` l"
+ },
+ {
+  "h": "f0ac6ef4633d9626",
+  "t": "## Handicaps: an allowance is taken BEFORE rounding"
+ },
+ {
+  "h": "8a5bc00cf23c7a59",
+  "t": "Rules of Handicapping, 6.2a and Appendix C: a handicap allowance is \"a"
+ },
+ {
+  "h": "98d94272a35470fc",
+  "t": "Until 2026-10-13 the app rounded the course handicap, took the allowan"
+ },
+ {
+  "h": "34478ca7cae07047",
+  "t": "``` 95% 90% 85% a stroke out for 22-25% 22-23% 20-22% of a field ```"
+ },
+ {
+  "h": "c27aba5c106c07dd",
+  "t": "in every net round with an allowance below 100, which is every individ"
+ },
+ {
+  "h": "cbde567a90ebac7f",
+  "t": "**What to carry forward:**"
+ },
+ {
+  "h": "a6f9d89242b1e141",
+  "t": "- **The figures live in two forms and only one may meet an allowance.*"
+ },
+ {
+  "h": "3c7852bb97c839c2",
+  "t": "**Why eleven thousand green tests could not see it, three ways:**"
+ },
+ {
+  "h": "780d6ec71a85ce63",
+  "t": "- **Nearly every fixture hands the engine a WHOLE-number handicap**, w"
+ },
+ {
+  "h": "849e7e15fb9153c8",
+  "t": "And the guard that was already there: the score-entry screen had this "
+ },
+ {
+  "h": "9c3074e6b0f7ff30",
+  "t": "A round frozen before that date keeps the strokes it was played off. S"
+ },
+ {
+  "h": "6bfafc95f65c127c",
+  "t": "**An individual net round has its allowance on its card, as a team rou"
+ },
+ {
+  "h": "9f077aaf16ec23b0",
+  "t": "**AND THE FIGURE ITSELF DEPENDS ON THE ROUND, NOT ONLY ON THE FORMAT.*"
+ },
+ {
+  "h": "c7be4c4adb2abe4e",
+  "t": "**And the table is read against the SOURCE each time, not against the "
+ },
+ {
+  "h": "68b3e1bfc7f74711",
+  "t": "## Tees of a higher par, and who chooses the tees"
+ },
+ {
+  "h": "b7a79a4ae5d16b19",
+  "t": "**A PLAYER ON TEES OF A HIGHER PAR IS GIVEN THE DIFFERENCE.** Rules of"
+ },
+ {
+  "h": "8e573832dbe27566",
+  "t": "The app gave none until 2026-10-13. Its own seeded medal is men off pa"
+ },
+ {
+  "h": "34126db3aeb2c505",
+  "t": "- `roundPlayingHandicap(exact, allowance, parStrokes)` is what a round"
+ },
+ {
+  "h": "00749965bf7a13f3",
+  "t": "**THE ORGANIZER DECIDES THE TEES, AT THREE LEVELS** (Ajay, 2026-10-13)"
+ },
+ {
+  "h": "7f0186735d9f6b51",
+  "t": "What prompted it: an ENTRANT could set their own tees through three do"
+ },
+ {
+  "h": "bffce66d24b31eee",
+  "t": "- Nothing creates a player with a `teeId`. `setPlayerTee` is staff-onl"
+ },
+ {
+  "h": "88b5e7dd93727d31",
+  "t": "## One rule, one place"
+ },
+ {
+  "h": "c72d01de3b6e41ba",
+  "t": "Ajay, 2026-10-13, after the two above: \"make sure the underlying piece"
+ },
+ {
+  "h": "e6aa90694bbac47f",
+  "t": "The browser tests found neither fault above, because every screen was "
+ },
+ {
+  "h": "5f224d1fc684f4f1",
+  "t": "`docs/one-rule-one-place.md` is the inventory (measured, with file and"
+ },
+ {
+  "h": "b145d49f022937b6",
+  "t": "1. **One function holds it, and takes what it needs as REQUIRED argume"
+ },
+ {
+  "h": "f9ee0f595a638290",
+  "t": "And two cautions this file already carries, which apply to every step "
+ },
+ {
+  "h": "77dd2f646b0b1ca7",
+  "t": "## Course cards: measure a guard before you ship it"
+ },
+ {
+  "h": "e7be5ce5470291b9",
+  "t": "A wrong card is invisible — a bad stroke index allocates shots to the "
+ },
+ {
+  "h": "9aef5bdea4f0c254",
+  "t": "- a par range that assumed a regulation course, which made **par-3 cou"
+ },
+ {
+  "h": "7bf772ff3501b4a9",
+  "t": "The yardage version of this actually landed: a re-validation pass clea"
+ },
+ {
+  "h": "86e53edb53c8cf57",
+  "t": "So before adding or tightening a card rule:"
+ },
+ {
+  "h": "d9757eb9b3d0943c",
+  "t": "1. **Judge the real catalogue first, READ-ONLY.** `--revalidate` is no"
+ },
+ {
+  "h": "dc2577e4dcd56ccc",
+  "t": "So write a throwaway script that reads `courseCatalog`, calls `cardRef"
+ },
+ {
+  "h": "ab171cac91436b2e",
+  "t": "## Migrations"
+ },
+ {
+  "h": "29efcc928faca54e",
+  "t": "`schema.prisma` splits the datasource: `url` is the pooled connection,"
+ },
+ {
+  "h": "2b747bff4399d3d2",
+  "t": "Before creating a migration, read the SQL it generated. Prisma emits e"
+ },
+ {
+  "h": "1ef0d320b7832dad",
+  "t": "**NAME A NEW MIGRATION `A001_…`, `A002_…` — never `100_` and never Pri"
+ },
+ {
+  "h": "b31e337f37295a18",
+  "t": "**A new model means restarting the dev server, not just recompiling.**"
+ },
+ {
+  "h": "c4ec173f30f9f8e4",
+  "t": "So after `prisma migrate deploy`: `npx prisma generate`, then stop and"
+ },
+ {
+  "h": "5bc99cced92ed334",
+  "t": "## Design"
+ },
+ {
+  "h": "9482d491a4410138",
+  "t": "- Two grounds, one set of tokens: `DARK_GROUND` and `LIGHT_GROUND` in "
+ },
+ {
+  "h": "42058e4932d6fc90",
+  "t": "## Shell"
+ },
+ {
+  "h": "802b82049a2835e3",
+  "t": "Windows. Both PowerShell and Git Bash are available and take different"
+ },
+ {
+  "h": "53ea14ea8baa249c",
+  "t": "**Never rewrite a source file with PowerShell.** `Set-Content -Encodin"
+ },
+ {
+  "h": "f51aeaea0b3cbf05",
+  "t": "**The READ is what corrupts, so no output encoding saves you.** `Get-C"
+ },
+ {
+  "h": "304bd8108ea4df93",
+  "t": "The trap is that it looks like the careful way to do it. `$o = Get-Con"
+ },
+ {
+  "h": "c07f92be1f7627e3",
+  "t": "So: **PowerShell may READ a source file for inspection and never write"
+ },
+ {
+  "h": "3c867884b7ca8292",
+  "t": "Detecting it: `git diff --stat` shows the whole file changed, and `([r"
+ },
+ {
+  "h": "7b229d599bfae4c7",
+  "t": "**A `node -e` string replace on a checked-out file usually does nothin"
+ },
+ {
+  "h": "ac70e03615bcda91",
+  "t": "That is a nuisance when editing and a LIE when mutating. The mutation-"
+ },
+ {
+  "h": "20721c731e63506a",
+  "t": "So when a script edits a file:"
+ },
+ {
+  "h": "fa6968667dc555c2",
+  "t": "- **print whether it changed** — `console.log(before !== after)` — and"
+ },
+ {
+  "h": "24ac34c71cbbe808",
+  "t": "A mutation you did not confirm applied is not evidence about anything."
+ },
+ {
+  "h": "1a7a38e96c08b38d",
+  "t": "**AND THE SAME TRAP EATS REGEX ESCAPES, which is worse, because the re"
+ },
+ {
+  "h": "b2b82843c99261fb",
+  "t": "- `\\\\b` inside a heredoc reached node as `\\b`, which in a JS string is"
+ },
+ {
+  "h": "40f78f3eec14d8ec",
+  "t": "Detect the middle one with a control-byte scan; it is invisible in a d"
+ },
+ {
+  "h": "d8c0ab950d126c30",
+  "t": "```bash node -e 'const s=require(\"fs\").readFileSync(process.argv[1],\"u"
+ },
+ {
+  "h": "b118e82a08b90758",
+  "t": "The rule that actually works: **anything containing a backslash goes t"
+ },
+ {
+  "h": "63efd6c26120d891",
+  "t": "**A REBASE CAN REFUSE OVER A FILE THAT HAS NOT CHANGED, and `git diff`"
+ },
+ {
+  "h": "054b66b59f1a5c75",
+  "t": "``` error: cannot rebase: You have unstaged changes. ```"
+ },
+ {
+  "h": "6733aec0a3d86c49",
+  "t": "naming `prisma/migrations/migration_lock.toml` — a file whose content "
+ },
+ {
+  "h": "6494e644cd3dd147",
+  "t": "That last part is the whole reason it costs an hour rather than a minu"
+ },
+ {
+  "h": "4f23376321a54add",
+  "t": "**Both of the obvious escapes are closed here**, which is worth knowin"
+ },
+ {
+  "h": "b6bec9e726af1e1b",
+  "t": "- `git stash` is hard rule 5 — the stash stack is shared with the main"
+ },
+ {
+  "h": "9ebd50512e7ad188",
+  "t": "The fix is:"
+ },
+ {
+  "h": "6ccf471d2da5f8f1",
+  "t": "```bash git add --renormalize prisma/migrations/migration_lock.toml ``"
+ },
+ {
+  "h": "3b4de1961543aff7",
+  "t": "It re-stages the file through the repository's EOL rules; when the nor"
+ },
+ {
+  "h": "204a6cda47f15dd3",
+  "t": "Read the shape rather than the filename: **any tool that rewrites a fi"
+ },
+ {
+  "h": "608c9426c658a732",
+  "t": "**A SWEEP THAT FINDS NOTHING MAY BE BROKEN, so give every one a contro"
+ },
+ {
+  "h": "a198e7cef0972c97",
+  "t": "A control also catches the quieter failure, which is a sweep that is m"
+ },
+ {
+  "h": "bba0354e2f2ee16d",
+  "t": "**THE SAME FAILURE WEARS A SECOND COSTUME: A CHECK THAT CAN PASS WITHO"
+ },
+ {
+  "h": "61913092d00b83ad",
+  "t": "The shape to recognise is a UNIFORM, PLAUSIBLE, NON-ERROR STATUS acros"
+ },
+ {
+  "h": "c7c9ceb98ec44967",
+  "t": "So when a script fetches an authenticated screen: sign with `node --en"
+ },
+ {
+  "h": "597e201a55f9e7e6",
+  "t": "**And the mirror: a detector too LOOSE reports a defect that is not th"
+ },
+ {
+  "h": "78aecf414258b3f4",
+  "t": "THIS FILE IS THE EXCEPTION AND KNOWS IT: the PowerShell detection comm"
+ },
+ {
+  "h": "b692761ced9b76ee",
+  "t": "**SWEEP THE CLASS, NOT THE INSTANCE.** Walking screens and fixing what"
+ },
+ {
+  "h": "5b9fbcabcb4979b0",
+  "t": "**AND STILL — WALK THE SCREENS, because there is one class no sweep se"
+ },
+ {
+  "h": "e74ec078661beb64",
+  "t": "- club settings showed **Staff 0** while the plan allowance on the SAM"
+ },
+ {
+  "h": "8d580b545dbd314c",
+  "t": "Both are the same shape, and it is the shape a test suite is blind to "
+ },
+ {
+  "h": "c2d4e374a21462b9",
+  "t": "```bash node --env-file=.env scripts/look-at-screens.mjs # seed + cook"
+ },
+ {
+  "h": "213c003dd2326668",
+  "t": "It seeds the e2e fixture into the development database and prints the "
+ },
+ {
+  "h": "bb9b87346e834f0b",
+  "t": "**KNOW WHICH SESSION THE BROWSER IS HOLDING BEFORE YOU BELIEVE A SCREE"
+ },
+ {
+  "h": "6eeb3aeb2a57545c",
+  "t": "The tab was holding the ORGANIZER's `ng_session`, not the player's. Th"
+ },
+ {
+  "h": "c376fc83558fa37f",
+  "t": "Three things make this easy to walk into, and all three are worth know"
+ },
+ {
+  "h": "5c580fd7a287e37f",
+  "t": "- a cookie set an hour ago is still in the jar, through navigation and"
+ },
+ {
+  "h": "4354314d163d2b96",
+  "t": "So read `document.cookie` and confirm the user before concluding anyth"
+ },
+ {
+  "h": "2d71e144ac283f32",
+  "t": "Two things make it worth the four minutes: read the numbers on a scree"
+ },
+ {
+  "h": "1a227ad741b82c78",
+  "t": "## Testing: the combination sweep"
+ },
+ {
+  "h": "68ce4dfd3c9ee23a",
+  "t": "The 2026-08-12 audit found ~80 defects against a suite of 1400 passing"
+ },
+ {
+  "h": "07b7f9a63c2fec41",
+  "t": "So, for any change to scoring, draw, cut, bracket or handicap code:"
+ },
+ {
+  "h": "c2e5646c0337a676",
+  "t": "1. **Add the cell to `src/lib/__tests__/matrix.test.ts`, not a bespoke"
+ },
+ {
+  "h": "7221355a301fae5d",
+  "t": "2. **Field sizes start at ONE.** A one-player tournament, a two-player"
+ },
+ {
+  "h": "ab1812830ce0b99e",
+  "t": "3. **Assert against the Rules of Golf, not against current behaviour**"
+ },
+ {
+  "h": "997eab3f044f4061",
+  "t": "4. **Layout is swept from the filesystem** (`e2e/layout.spec.ts`), not"
+ },
+ {
+  "h": "69c6583d71bae927",
+  "t": "5. **A guard you must remember to call is a guard that will be forgott"
+ },
+ {
+  "h": "e1ee9b43c2989790",
+  "t": "FIXED, and the shape of the fix is the point. It is checked at the SIN"
+ },
+ {
+  "h": "52852a1896f786ae",
+  "t": "Prefer that shape. A rule enforced where the data is built cannot be f"
+ },
+ {
+  "h": "27faa799a5a7f455",
+  "t": "6. **A green cell is not a checked cell — this file is UNEVEN.** Half "
+ },
+ {
+  "h": "740a9b6eecd8a7c2",
+  "t": "The other half asserted only SHAPE, and on 2026-09-04 four blocks were"
+ },
+ {
+  "h": "020d5b788dfeb01c",
+  "t": "season ranked on a raw sum — a side won the league by missing weeks, a"
+ },
+ {
+  "h": "1c61fb7eb866a7d0",
+  "t": "All four passed a 598-cell suite. Size, count, contiguity and membersh"
+ },
+ {
+  "h": "6a0af3b3babd8fe4",
+  "t": "So before trusting a cell: **mutate the thing it covers and watch it g"
+ },
+ {
+  "h": "8ae3bcfd17b6fa4b",
+  "t": "7. **AN ERROR THAT SHIFTS EVERY ROW BY THE SAME AMOUNT IS INVISIBLE TO"
+ },
+ {
+  "h": "ee43ca2516b5631a",
+  "t": "Measured 2026-09-20, on the seeded club's first round played away from"
+ },
+ {
+  "h": "0eca0cbc1ccd7469",
+  "t": "Nothing in eight thousand tests could see it: they assert shape, count"
+ },
+ {
+  "h": "ac87543bb16d7178",
+  "t": "Two consequences worth acting on. **Net totals cannot see a stroke-ind"
+ },
+ {
+  "h": "ba43c293f0d0fa0d",
+  "t": "**A STABLEFORD POINT IS NOT A STABLEFORD TOTAL, and the sentence above"
+ },
+ {
+  "h": "153f52a42027ef9e",
+  "t": "**HOW MUCH OF THE SUITE CAN SEE IT, measured 2026-09-20** by flipping "
+ },
+ {
+  "h": "706f1c8bccee87d4",
+  "t": "**AND CONSOLIDATION TAKES THE COMPARISON AWAY, which is the price of t"
+ },
+ {
+  "h": "070badd54c7e3b5b",
+  "t": "**THAT NUMBER IS FIXED, AND THE CAUSE WAS ONE ARGUMENT.** `cardForStag"
+ },
+ {
+  "h": "c571f7e20a270176",
+  "t": "Three of the five had the right answer in scope the whole time. `state"
+ },
+ {
+  "h": "a09e0f4289c17372",
+  "t": "`regroup.ts` stays event-level on purpose and is the one exemption: it"
+ },
+ {
+  "h": "e5bed4e415bd4da4",
+  "t": "8. **ASK WHICH TABLE THIS ROUND FILES ITS RESULT IN, BEFORE BELIEVING "
+ },
+ {
+  "h": "1813afc642137a81",
+  "t": "Scorecard a stroke round, one row per player TeamScorecard anything `n"
+ },
+ {
+  "h": "3ff310da46ea4041",
+  "t": "The symptom is always an absence reported as a fact — \"Nothing returne"
+ },
+ {
+  "h": "7c1c1a8c2baa42e0",
+  "t": "**And the denominator is the same question one level along.** `total` "
+ },
+ {
+  "h": "c043cd386788ca18",
+  "t": "Two things follow. Fix it where the data is built — `boardProgress` ca"
+ },
+ {
+  "h": "06966aff0cca8f36",
+  "t": "And when a screen shows nothing, check the table before the code: `gre"
+ },
+ {
+  "h": "397d0e9ac09adeef",
+  "t": "The multi-agent exploratory audit that produced all this is a RELEASE "
+ },
+ {
+  "h": "f446e2634f466937",
+  "t": "**HOW A DRAW IS SHOWN is the panel's ruling of 2026-10-23** (`docs/bra"
+ }
+]

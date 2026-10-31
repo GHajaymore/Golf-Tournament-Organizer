@@ -1,7 +1,11 @@
 import { Suspense } from "react";
 import { NOINDEX } from "@/lib/site";
 import { DeniedNotice } from "@/components/DeniedNotice";
-import { golfTermsForEvent } from "@/lib/services/organization";
+import { ArchiveBanner } from "@/components/ArchiveBanner";
+import { archiveRefusalFor, paymentDueNoticeFor } from "@/lib/services/club-archive";
+import Link from "next/link";
+import { golfRegisterForEvent, golfRegisterForOrganization } from "@/lib/services/organization";
+import { GolfTermsProvider } from "@/components/GolfTermsProvider";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileTopBar } from "@/components/MobileTopBar";
@@ -192,7 +196,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
   // The club's word for who runs it — organizer or organiser — for the role
   // name in the sidebar, the phone tab bar and the refused-screen notice.
-  const organizer = (session.eventId ? await golfTermsForEvent(session.eventId) : golfTermsFor("us")).organizer;
+  // From the same club as the kind and the noun above: the tournament's, or the
+  // one this organizer runs when no tournament is open.
+  const register = session.eventId
+    ? await golfRegisterForEvent(session.eventId)
+    : ownedOrgs[0]
+      ? await golfRegisterForOrganization(ownedOrgs[0].id)
+      : "us";
+  const organizer = golfTermsFor(register).organizer;
   // Applied inline on the wrapper so the club's colours arrive with the
   // server-rendered HTML. Injected later, the first paint would flash the
   // default orange before settling — a visible flicker of the wrong brand.
@@ -215,6 +226,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * out to the rest of the app — and the round's other pages lead back.
    */
   const casualShell = isMatch(event?.shape);
+  const archived = session.eventId
+    ? await archiveRefusalFor(session.eventId, session.viewRole === "player" ? "player" : "organizer")
+    : null;
+  const paymentDue = event ? await paymentDueNoticeFor(event.organizationId, session.userId) : null;
 
   return (
     <CurrencyProvider currency={fmt.currency} locale={fmt.locale}>
@@ -226,6 +241,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       country={orgCountryNow || undefined}
       noun={orgNounNow || undefined}
     >
+    {/* The club's golf words — cart or buggy, league or society — for every
+        client component in the console. See GolfTermsProvider. */}
+    <GolfTermsProvider register={register}>
     {/* The CLUB's distance unit, from the same country — what a form for a
         new course says. A screen showing one course's card overrides it with
         that course's own unit. See DistanceUnitProvider. */}
@@ -284,6 +302,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Suspense fallback={null}>
             <DeniedNotice organizer={organizer} />
           </Suspense>
+          {/* A lapsed club's tournament is a read-only archive: said on every
+              screen, before anything is pressed (`domain/club-archive.ts`). */}
+          <ArchiveBanner sentence={archived} resubscribe={session.role === "admin"} />
+          {paymentDue && (
+            <p role="alert" style={{ margin: "0 0 14px", fontSize: 14, lineHeight: 1.5, color: "var(--color-danger)" }}>
+              {paymentDue} <Link href="/organization#plan">Go to Your plan</Link>
+            </p>
+          )}
           {casualShell && <BackToTheRound />}
           {/* A club with no time zone takes this organizer's, once. Only for
               somebody who may change it; the action re-checks that. */}
@@ -304,6 +330,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       )}
     </div>
     </DistanceUnitProvider>
+    </GolfTermsProvider>
     </OrgProfileProvider>
     </CurrencyProvider>
   );

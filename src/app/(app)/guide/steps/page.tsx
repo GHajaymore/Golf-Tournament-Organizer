@@ -3,7 +3,8 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { PageHeader } from "@/components/PageHeader";
 import { Icon } from "@/components/Icon";
-import { GUIDE_STEPS, type GuideBlock } from "@/lib/guide-steps";
+import { guideInClubWords, type GuideBlock } from "@/lib/guide-steps";
+import { golfTermsForEvent } from "@/lib/services/organization";
 import { guideIndex, headingAnchor } from "@/lib/guide-search";
 import { GuideSearch } from "@/components/GuideSearch";
 
@@ -12,8 +13,10 @@ import { GuideSearch } from "@/components/GuideSearch";
  * Help section"). The content lives in `lib/guide-steps.ts`; this page only
  * draws it, in the club's own theme, and offers the same guide as a PDF.
  *
- * Static: it reads nothing from the database, so it renders the same for every
- * club at every stage of a tournament.
+ * It reads one thing from the database, the club's golf words (2026-10-24), so
+ * a US league and a British society each read the guide in their own golf.
+ * Otherwise it renders the same for every club at every stage of a tournament.
+ * The PDF is printed from a club with no country, so it is the US edition.
  */
 
 export const metadata = screenMetadata("/guide/steps");
@@ -128,14 +131,17 @@ function Block({ b, anchor }: { b: GuideBlock; anchor: string }) {
 }
 
 export default async function GuideStepsPage() {
-  await requireScreen("guide-steps");
+  const session = await requireScreen("guide-steps");
+  // In this club's golf: "golf groups" or "societies", "organizer" or "organiser".
+  const words = await golfTermsForEvent(session.eventId);
+  const steps = guideInClubWords(words);
 
   return (
     <div style={{ maxWidth: 980 }}>
       <PageHeader
         kicker="Help"
         title="Step-by-step guide"
-        subtitle="Everything an organizer or assistant does here, in the order you do it — set up the club, build the tournament, take entries, draw the field, score the day, settle the money and close it out. Controls appear as they do on screen."
+        subtitle={`Everything an ${words.organizer} or assistant does here, in the order you do it — set up the club, build the tournament, take entries, draw the field, score the day, settle the money and close it out. Controls appear as they do on screen.`}
         actions={
           <a className="btn btn-primary" href={PDF} download>
             <Icon name="ph ph-file-pdf" /> Download PDF
@@ -144,18 +150,18 @@ export default async function GuideStepsPage() {
       />
 
       {/* One question on the morning of the event: search, then jump. */}
-      <GuideSearch index={guideIndex(GUIDE_STEPS)} />
+      <GuideSearch index={guideIndex(steps)} />
 
       <nav aria-label="Parts of the guide" className="card elev-sm" style={{ padding: "12px 14px", gap: 6 }}>
         <div className="card-kicker" style={{ margin: 0 }}>Contents</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: 13.5 }}>
-          {GUIDE_STEPS.map((s) => (
+          {steps.map((s) => (
             <a key={s.id} href={`#${s.id}`}>{s.part} · {s.title}</a>
           ))}
         </div>
       </nav>
 
-      {GUIDE_STEPS.map((s) => (
+      {steps.map((s) => (
         <section
           key={s.id}
           id={s.id}

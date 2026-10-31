@@ -1,6 +1,7 @@
 "use server";
 import { byAddress } from "@/lib/domain/my-entry";
 import { getSession, type Session } from "@/lib/auth";
+import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -52,6 +53,7 @@ async function requireStaffSession(): Promise<Session> {
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Organizer access required");
   }
+  await assertEventWritable(session.eventId);
   return session;
 }
 
@@ -79,6 +81,8 @@ export async function setAttendance(
   const session = await getSession();
   if (!session) return { ok: false, error: "Not signed in." };
   const isStaff = session.role === "admin" || session.role === "assistant";
+  const archived = await archiveRefusalFor(session.eventId, isStaff ? "organizer" : "player");
+  if (archived) return { ok: false, error: archived };
 
   if (status !== "in" && status !== "out") return { ok: false, error: "In or out — nothing else." };
 
@@ -176,6 +180,8 @@ export async function setOwnAttendance(stageId: string, status: string): Promise
     select: { id: true, eventId: true },
   });
   if (!player) return { ok: false, error: "You aren't in this tournament." };
+  const archived = await archiveRefusalFor(player.eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const stage = await prisma.stage.findUnique({
     where: { id: stageId },

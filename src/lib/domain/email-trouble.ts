@@ -29,7 +29,7 @@ export type EmailFailureReason =
   | "unconfigured";
 
 /** What the email was for. Drives the wording, and who is affected. */
-export type EmailKind = "registration" | "reset" | "invite" | "field" | "join" | "interest";
+export type EmailKind = "registration" | "reset" | "code" | "invite" | "field" | "join" | "interest" | "archive";
 
 /**
  * Classify a provider error.
@@ -131,6 +131,12 @@ const KIND_WORDING: Record<EmailKind, (n: number) => string> = {
     n === 1
       ? "One password reset link did not arrive, so that person cannot sign back in."
       : `${n} password reset links did not arrive, so those people cannot sign back in.`,
+  // The six-digit code that proves an address (2026-10-21). Recorded only for
+  // somebody a club invited — a stranger signing up belongs to no club yet.
+  code: (n) =>
+    n === 1
+      ? "One email code did not arrive, so somebody you invited could not set their password."
+      : `${n} email codes did not arrive, so people you invited could not set their passwords.`,
   invite: (n) =>
     n === 1
       ? "One staff invitation did not arrive, so that person does not know they have access yet."
@@ -160,6 +166,11 @@ const KIND_WORDING: Record<EmailKind, (n: number) => string> = {
     n === 1
       ? "One note of interest did not reach inquiries@ by email — it is still listed on the owner console."
       : `${n} notes of interest did not reach inquiries@ by email — they are still listed on the owner console.`,
+  /** A lapsed club's owner, not told the archive is about to go. Club settings shows the date either way. */
+  archive: (n) =>
+    n === 1
+      ? "One notice that this club's archived tournaments are about to be deleted did not arrive — the date is on Club settings, under Your plan."
+      : `${n} notices that this club's archived tournaments are about to be deleted did not arrive — the date is on Club settings, under Your plan.`,
 };
 
 /** Who was affected, derived from the rows rather than from counts passed in. */

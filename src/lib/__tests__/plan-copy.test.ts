@@ -3,6 +3,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { stripComments, readSource } from "./source";
 import { PLANS, upgradeBenefits, retentionNotice, METERED_FEATURES, PAR_LIFESPAN_DAYS, type FeatureKey } from "@/lib/plans";
+import { KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
+import { golfTermsFor, inClubWords } from "@/lib/domain/golf-terms";
 
 /**
  * What a club gets for its money has to be SAID somewhere.
@@ -44,7 +46,9 @@ describe("what a club gets for its money is actually said", () => {
   it("every paid-tier feature is named in the upgrade pitch", () => {
     const free = PLANS.free.features;
     const paid = PLANS.club.features;
-    const pitch = upgradeBenefits("free").join(" ").toLowerCase();
+    // As a British club reads it: the pitch holds `{honoursBoard}`-style tokens
+    // that the plan panel fills with the club's words (`golf-terms.ts`).
+    const pitch = upgradeBenefits("free").map((b) => inClubWords(b, golfTermsFor("uk"))).join(" ").toLowerCase();
 
     // A feature the paid tier has and free does not IS the reason to pay.
     // Adding one and not saying so leaves a club paying for something it was
@@ -105,7 +109,9 @@ describe("what a club gets for its money is actually said", () => {
      */
     const notice = retentionNotice("free");
     expect(notice, "free must state its retention term").toBeTruthy();
-    expect(notice!).toMatch(/deleted when you mark it Completed/i);
+    // 2026-10-21: a completed Par tournament is kept read-only for KEPT_AFTER_COMPLETE_DAYS, then
+    // deleted — the notice says the same number the rule uses.
+    expect(notice!).toContain(`read-only, for ${KEPT_AFTER_COMPLETE_DAYS} days, and is then deleted`);
     // AND the close nobody has to press (2026-09-29): the sweep deletes a Par
     // tournament this many days after its golf began, so the notice says so.
     expect(notice!).toContain(`${PAR_LIFESPAN_DAYS} days after its first round is played`);
@@ -115,7 +121,11 @@ describe("what a club gets for its money is actually said", () => {
     const body = actions.slice(actions.indexOf("export async function setEventStatus("));
     const status = body.slice(0, body.indexOf("\nexport ", 10));
     expect(status, "completing no longer asks whether it deletes").toMatch(/await wipesOnCloseFor\(eventId\)/);
-    expect(status, "completing no longer deletes").toMatch(/prisma\.event\.delete\(/);
+    // Since 2026-10-21 completing starts the fifteen days (it stamps the close), and the daily
+    // sweep is what deletes — so the notice's "and is then deleted" is held to BOTH halves.
+    expect(status, "completing no longer starts the fifteen days").toMatch(/closesAt:\s*closesAtOnComplete\(/);
+    const sweep = readSource("src/lib/services/par-sweep.ts");
+    expect(sweep, "nothing deletes a Par tournament once its close is due").toMatch(/prisma\.event\.deleteMany\(/);
 
     // A grandfathered club is not told a deletion that will not happen to it.
     expect(retentionNotice("free", false)).toBeNull();

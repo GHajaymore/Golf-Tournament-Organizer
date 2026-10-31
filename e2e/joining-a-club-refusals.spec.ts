@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { createHmac } from "node:crypto";
 import { watchPageErrors } from "./page-errors";
+import { openSettingsTab } from "./settings-tabs";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { prisma, makeClub, dropClub, makeEvent, signIn, saidBeside, centre, type Club } from "./rounds-fixture";
 
@@ -137,6 +138,7 @@ test("an ask twice, an Admin the plan has no seat for, an answer from a stale ta
       for (const p of [page, stale]) {
         await p.goto(`/organization?bust=${Date.now()}`);
         await p.waitForLoadState("networkidle").catch(() => {});
+        await openSettingsTab(p, "Staff & access");
         await expect(p.getByLabel("Role for Zz Pat Asker"), "the ask is not on Club settings").toBeVisible({ timeout: 20_000 });
       }
       await expect(page.getByLabel("Role for Zz Pat Asker"), "the role offered first is not Admin").toHaveValue("admin");
@@ -162,6 +164,7 @@ test("an ask twice, an Admin the plan has no seat for, an answer from a stale ta
       expect(row?.status).toBe("approved");
       expect(row?.decidedRole).toBe("member");
       await page.goto(`/organization?bust=${Date.now()}`);
+      await openSettingsTab(page, "Staff & access");
       await expect(page.getByLabel("Role for Zz Pat Asker"), "an answered ask is still offered after a reload").toHaveCount(0);
       await expect(page.locator("td", { hasText: pat.email }).first(), "the new member is not on the roster").toBeVisible();
     });
@@ -181,6 +184,7 @@ test("an ask twice, an Admin the plan has no seat for, an answer from a stale ta
 
     await test.step("the second asker is declined", async () => {
       await page.goto(`/organization?bust=${Date.now()}`);
+      await openSettingsTab(page, "Staff & access");
       const leeRow = page.locator("div", { has: page.getByLabel("Role for Zz Lee Asker") }).last();
       await leeRow.getByRole("button", { name: "Decline" }).click();
       await expect(page.getByLabel("Role for Zz Lee Asker")).toHaveCount(0, { timeout: 20_000 });

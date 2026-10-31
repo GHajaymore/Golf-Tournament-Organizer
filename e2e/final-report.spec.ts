@@ -62,10 +62,10 @@ test("the organizer opens the conclusion from Reports; the public link names win
   ]);
   const name = (who: string) => `${who} Example`;
 
-  await test.step("Reports → Final report", async () => {
+  await test.step("Reports → Open the final report", async () => {
     await open(page, "/reports");
     await expect(page.getByText("The tournament on one page")).toBeVisible();
-    await page.getByRole("link", { name: "Final report", exact: true }).click();
+    await page.getByRole("link", { name: "Open the final report", exact: true }).click();
     await page.waitForURL(/\/reports\/final$/);
   });
 

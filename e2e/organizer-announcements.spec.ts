@@ -82,7 +82,8 @@ test("the secretary posts; a member sees the pinned one always and the rest once
     for (const [i, p] of FIELD.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
       await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
-      await page.getByRole("textbox", { name: /^Mobile · required/ }).fill(`555080${i}`);
+      // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
+      await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
       await page.getByRole("button", { name: "Add to field" }).click();
       await expect(page.getByText(p.name).first()).toBeVisible({ timeout: 20_000 });
@@ -95,10 +96,6 @@ test("the secretary posts; a member sees the pinned one always and the rest once
     await expect(page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ })).toBeVisible({ timeout: 20_000 });
 
     await open(page, "/dashboard");
-    for (const step of ["Start taking entries", "Mark ready"]) {
-      await page.getByRole("button", { name: step }).click();
-      await expect(page.getByRole("button", { name: step })).toHaveCount(0, { timeout: 20_000 });
-    }
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
     await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });

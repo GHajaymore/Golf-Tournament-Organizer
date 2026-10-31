@@ -40,7 +40,7 @@
  * whole point of declaring them here.
  */
 
-import { countryCode } from "./country";
+import { GOLF_TERMS, countryRegister } from "./golf-terms";
 
 export type OrgKind = "club" | "community" | "personal";
 
@@ -185,11 +185,18 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     ledger: true,
     ownsCourse: false,
   },
+  // AN OUTING IS A DAY, NEVER THE OUTFIT (the panel's ruling, 2026-10-26: "a
+  // club or league/society should not be called as outing. outing is a
+  // tournament"). Until that day a personal organizer's console was headed
+  // "OUTING", its settings "Outing settings", and a tournament's staff line
+  // read "Organizer · outing". One person running their own golf has no group
+  // noun: the section is "Your golf", the page plain "Settings", and in a
+  // sentence it is their "group". `an-outing-is-a-day.test.ts` holds it.
   personal: {
     label: "Personal",
-    noun: "outing",
-    settingsLabel: "Outing settings",
-    groupLabel: "Outing",
+    noun: "group",
+    settingsLabel: "Settings",
+    groupLabel: "Your golf",
     blurb: "One organizer running an outing, with their own list of players.",
     sharedRoster: false,
     ledger: true,
@@ -279,9 +286,17 @@ export function isCommunityVoice(v: string): v is CommunityVoice {
  * organizer can override, an Australian outfit that wants a different word has
  * a way to say so without the app assuming on its behalf.
  */
-const VOICE_BY_COUNTRY: Record<string, CommunityVoice> = {
-  US: "league",
-};
+/**
+ * SINCE 2026-10-24 THE COUNTRY'S WORD IS THE GOLF REGISTER'S (`golf-terms.ts`,
+ * `community`), so the outfit's noun and every other golf word on a screen
+ * come from one table: a US league no longer reads "society" in the plan copy
+ * beside "League settings" in the sidebar. That table also makes Canada a
+ * league and a club with no country a US one — Ajay's default.
+ */
+function voiceForCountry(country: string | null | undefined): CommunityVoice {
+  const word = GOLF_TERMS.community[countryRegister(country)];
+  return isCommunityVoice(word) ? word : "society";
+}
 
 export function isOrgKind(v: string): v is OrgKind {
   return (ORG_KINDS as string[]).includes(v);
@@ -332,6 +347,5 @@ export function orgProfile(
    * Both extra arguments are OPTIONAL, so every caller written before they
    * existed is unchanged and correct: nothing said means today's wording.
    */
-  const byCountry = VOICE_BY_COUNTRY[countryCode(country ?? "")];
-  return byCountry ? { ...base, ...COMMUNITY_VOICES[byCountry] } : base;
+  return { ...base, ...COMMUNITY_VOICES[voiceForCountry(country)] };
 }

@@ -437,7 +437,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
      * ability team compete — which is the same reason the format is chosen.
      */
     blurb:
-      "Four a side, everyone plays the best ball. The kindest format for mixed ability, so it is what most charity and company days run. Net off a team allowance, public leaderboard.",
+      "Four a side, everyone plays the best ball. The kindest format for mixed ability, so it is what most charity and company events run. Net off a team allowance, public leaderboard.",
     settings: {
       leaderboardVisibility: "public",
       scoreEntryBy: "players",

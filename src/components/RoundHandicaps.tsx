@@ -7,6 +7,7 @@ import type { RoundHandicapView } from "@/lib/services/round-handicap";
 import { indexFigure, parseStrokesInput, readHandicapIndex } from "@/lib/domain/handicap-label";
 import { indexChangePreview, indexDecimalRefusal } from "@/lib/domain/index-change";
 import { useAction } from "./useAction";
+import { useGolfTerms } from "./GolfTermsProvider";
 import { laterRoundsSaid } from "@/lib/domain/later-rounds-said";
 
 /**
@@ -53,6 +54,7 @@ export function RoundHandicaps({
   roundName?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const golfWords = useGolfTerms();
   const [find, setFind] = useState("");
   const [editing, setEditing] = useState("");
   const [kind, setKind] = useState<Kind>("strokes");
@@ -208,7 +210,7 @@ export function RoundHandicaps({
             for its course and tees. <b>Change</b> offers two things. <b>Their strokes in this round
             only</b> is a whole number for this round, and nothing else moves. <b>Their handicap
             index</b> moves every round of this tournament not yet played and, if you tick it and
-            your club, society or league keeps its own handicaps, the member&rsquo;s index on Members for every
+            your club, league or {golfWords.golfGroup} keeps its own handicaps, the member&rsquo;s index on Members for every
             tournament after.
           </p>
           <p>

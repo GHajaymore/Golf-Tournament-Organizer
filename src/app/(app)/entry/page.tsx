@@ -55,7 +55,7 @@ import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { matchCardFor } from "@/lib/services/match-card";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
-import { resolveMatch } from "@/lib/domain/match";
+import { resolveMatch, matchIsOver } from "@/lib/domain/match";
 import { ConfirmMatchResult } from "@/components/ConfirmMatchResult";
 
 export const metadata = screenMetadata("/entry");
@@ -264,7 +264,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         }
         const resolved = resolveMatch(holes);
         const status = effectiveScoreStatus(r, autoConfirm);
-        return [r.id, { waiting: resolved.complete && status === "pending", disputed: status === "disputed", result: resolved.resultText }] as const;
+        return [r.id, { waiting: matchIsOver(holes) && status === "pending", disputed: status === "disputed", result: resolved.resultText }] as const;
       }),
     );
     const rowSignOff = row ? signOff.get(row.id) : undefined;

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
+import { useGolfTerms } from "./GolfTermsProvider";
 import { formatAccessCode, roundCodeLink } from "@/lib/code-format";
 import { qrModules, qrPath, type QrEncoder } from "@/lib/qr";
 
@@ -31,6 +32,8 @@ export function RoundSigns({ eventName, rounds, shareToken }: { eventName: strin
   const [encode, setEncode] = useState<QrEncoder | null>(null);
   const [origin, setOrigin] = useState("");
   const [failed, setFailed] = useState(false);
+  // "In every cart", "in every buggy" — the club's word.
+  const words = useGolfTerms();
 
   useEffect(() => {
     if (!open || encode) return;
@@ -50,7 +53,7 @@ export function RoundSigns({ eventName, rounds, shareToken }: { eventName: strin
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ fontSize: 13, minHeight: 36 }}
+          style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)" }}
           aria-expanded={open}
           aria-controls="round-signs"
           onClick={() => setOpen((v) => !v)}
@@ -58,7 +61,7 @@ export function RoundSigns({ eventName, rounds, shareToken }: { eventName: strin
           <Icon name="qr-code" /> {open ? "Hide the signs" : withCodes.length === 1 ? "Show the sign" : "Show the signs"}
         </button>
         {open && encode && (
-          <button type="button" className="btn btn-primary" style={{ fontSize: 13, minHeight: 36 }} onClick={() => window.print()}>
+          <button type="button" className="btn btn-primary" style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)" }} onClick={() => window.print()}>
             <Icon name="printer" /> {withCodes.length === 1 ? "Print the sign" : `Print ${withCodes.length} signs`}
           </button>
         )}
@@ -67,7 +70,7 @@ export function RoundSigns({ eventName, rounds, shareToken }: { eventName: strin
       {open && (
         <>
           <p className="text-muted" style={{ fontSize: 13, margin: "8px 0" }}>
-            One sign per round, a page each: one in every cart and one on the first tee. Scan it with your own phone
+            One sign per round, a page each: one in every {words.cart} and one on the first tee. Scan it with your own phone
             first — it should open this round&apos;s names. Stop there; tapping a name starts scoring as that player.
           </p>
           {failed && (

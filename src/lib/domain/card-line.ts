@@ -15,7 +15,7 @@
  * Pure: the caller resolves the playing handicap and the card the round is
  * played on.
  */
-import { holeStrokesReceived } from "@/lib/domain/stroke";
+import { strokesReceivedOnHolesPlayed } from "@/lib/domain/stroke";
 
 export interface CardLine {
   name: string;
@@ -35,16 +35,15 @@ export function cardLine(input: {
   holeCount: number;
 }): CardLine | null {
   let gross = 0;
-  let received = 0;
   let thru = 0;
   for (let h = 0; h < input.holeCount; h++) {
     const s = input.strokes[h];
     if (typeof s !== "number" || !Number.isFinite(s) || s <= 0) continue;
     gross += s;
-    received += holeStrokesReceived(input.playing, input.strokeIndex[h] ?? 18, input.holeCount);
     thru += 1;
   }
   if (thru === 0) return null;
+  const received = strokesReceivedOnHolesPlayed(input.playing, input.strokes, input.strokeIndex, input.holeCount);
   return { name: input.name, gross, net: gross - received, thru };
 }
 
