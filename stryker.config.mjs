@@ -16,6 +16,8 @@ export const MUTATED_MODULES = [
   "src/lib/domain/handicap.ts",
   "src/lib/domain/round-handicap.ts",
   "src/lib/round-allowance.ts",
+  // a side's strokes and a match's strokes off the low (allocatedStrokes, 2026-10-31)
+  "src/lib/domain/team.ts",
   // a card: strokes per hole, points, to par
   "src/lib/domain/stroke.ts",
   "src/lib/domain/stroke-agg.ts",

@@ -288,11 +288,20 @@ const retro = {
   },
   defects: Object.fromEntries(ranRows.filter((r) => r.failures.length).map((r) => [r.key, Math.min(r.failures.length, r.assertions)])),
   layersRan: ranRows.map((r) => r.key),
+  // The mutation ratchet's score line, on a night it ran (the trend the retro keeps).
+  mutation: ranRows.find((r) => r.key === "mutation")?.said?.[0] ?? null,
 };
 writeFileSync(join(OUT, `verdict${own}.json`), JSON.stringify({ tag: TAG, round, plan, at: new Date().toISOString(), commit: first.commit, app: apps[0], build: builds[0], verdict, minutes, parts: parts.length, findings, infrastructure, quarantined, notRun: missing, layers: rows, reach, retro }, null, 1));
 writeFileSync(join(OUT, `retro${own}.json`), JSON.stringify(retro, null, 1));
 
 const cell = (s) => String(s ?? "").replace(/\|/g, "/").replace(/\n/g, " ");
+// The mutation ratchet's score (the `mutation` layer, nightly): the first line its command prints.
+const mutationRow = rows.find((r) => r.key === "mutation");
+const mutationLine = !mutationRow
+  ? ""
+  : mutationRow.ran && mutationRow.said?.[0]
+    ? `**Mutation score:** ${cell(mutationRow.said[0])}. Held to \`mutation-baseline.json\`: ${mutationRow.failed ? `${mutationRow.failed} module(s) fell — see Findings` : "no module fell"}.`
+    : `**Mutation score:** not measured — ${cell(mutationRow.why ?? "it did not report")}.`;
 const result = (r) => (r.ran ? `${r.passed} ${r.unit === "tournaments" ? "played through" : "passed"}, ${r.failed} ${r.unit === "tournaments" ? "stopped" : "failed"}${r.quarantined.length ? ` (${r.quarantined.length} quarantined)` : ""}${r.hydration ? `, ${r.hydration} hydration` : ""}` : `NOT RUN — ${cell(r.why)}`);
 /** What this kind of round leaves to another, said so that "not in this round" is never read as "not tested". */
 const elsewhere = plan.schedule === "all" ? [] : layersFor(round, { schedule: "all", countries: plan.countries }).filter((l) => !l.when.includes(plan.schedule));
@@ -311,6 +320,7 @@ const summary = [
     ? `**Reach:** ${reach.actions.reached} of ${reach.actions.total} server actions called through a real screen; ${reach.screens.reached} of ${reach.screens.total} screens opened.${reachHeld ? "" : " Not held to `reach-baseline.json`: the list was measured with the console crawl, and this round did not run it."}`
     : "**Reach:** not measured for this run.",
   "",
+  ...(mutationLine ? [mutationLine, ""] : []),
   findings.length ? `## Findings\n\n${findings.map((f) => `- ${f}`).join("\n")}` : "No findings.",
   "",
   infrastructure.length ? `## Did not run — the machine, not the app (${infrastructure.length}). Re-run these parts.\n\n${infrastructure.map((f) => `- ${f}`).join("\n")}\n` : "",

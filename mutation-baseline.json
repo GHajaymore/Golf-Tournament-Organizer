@@ -1,11 +1,11 @@
 {
-  "measured": "2026-10-23",
+  "measured": "2026-10-31",
   "rule": "a module's score may rise and never fall",
   "modules": {
     "src/lib/domain/handicap.ts": 83.94,
-    "src/lib/domain/round-handicap.ts": 69.41,
+    "src/lib/domain/round-handicap.ts": 71.76,
     "src/lib/round-allowance.ts": 87.59,
-    "src/lib/domain/stroke.ts": 76.75,
+    "src/lib/domain/stroke.ts": 77.12,
     "src/lib/domain/stroke-agg.ts": 91.04,
     "src/lib/domain/card-points.ts": 83.33,
     "src/lib/domain/card-totals.ts": 94.29,
@@ -19,15 +19,16 @@
     "src/lib/domain/bracket.ts": 84.28,
     "src/lib/domain/bracket-flights.ts": 82.4,
     "src/lib/domain/draw.ts": 78.71,
-    "src/lib/domain/money.ts": 78.22,
+    "src/lib/domain/money.ts": 80.2,
     "src/lib/domain/money-layout.ts": 100,
     "src/lib/domain/derived-games.ts": 73.58,
     "src/lib/domain/nassau.ts": 89.83,
-    "src/lib/domain/skins.ts": 91.94,
-    "src/lib/domain/skins-pot.ts": 98.75,
+    "src/lib/domain/skins.ts": 96.77,
+    "src/lib/domain/skins-pot.ts": 100,
     "src/lib/domain/carry.ts": 84.62,
     "src/lib/domain/expenses.ts": 78.23,
     "src/lib/domain/contests.ts": 67.61,
-    "src/lib/domain/date-words.ts": 78.53
+    "src/lib/domain/date-words.ts": 78.53,
+    "src/lib/domain/team.ts": 83.33
   }
 }

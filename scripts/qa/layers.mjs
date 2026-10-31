@@ -331,6 +331,28 @@ function everyLayer(abroad) {
       minutes: 10,
     },
     {
+      key: "mutation",
+      // The MUTATION RATCHET (backlog A7, 2026-10-31): nightly, never in a change's round, so it costs
+      // a pull request nothing. Half of what retires ARITHMETIC_KEEPS_THREE_ROUNDS (below); the other
+      // half is the property tests. Its score is the first line of its log, and the verdict prints it.
+      when: ["nightly"],
+      kind: "command",
+      name: "Would the tests notice the arithmetic broken",
+      standsFor: "money and handicap arithmetic: a wrong stroke or a wrong cent that every fixture would still pass",
+      reallyIs:
+        "Stryker breaks the arithmetic core one small change at a time (ARITHMETIC_CORE in scripts/qa/mutation-ratchet.mjs: handicap, a round's allowance and figure, strokes by stroke index, a side's strokes, the split to the cent, skins and the skins split) and runs the unit suite against each change; a module whose score falls below mutation-baseline.json is a finding",
+      cannotSee:
+        "a rule no unit test states at all; gameNets, the sink that reads the database (the audit suite holds it); the rest of the foundation in stryker.config.mjs (run `npm run mutation` by hand); an equivalent mutant, which counts against the score",
+      // --concurrency 4: a GitHub runner has four cores. Incremental (reports/stryker-incremental.json,
+      // kept between nights by round.yml): a night re-tests only the mutants whose code or tests changed.
+      // Measured 2026-10-31: a FULL run (no incremental file) of 1,371 mutants is 29 min at concurrency
+      // 8 on the build machine, the dry run of the whole unit suite 5 of them; at four cores, about an
+      // hour. A night with the incremental file re-tests only what changed. Held under the part
+      // job's own 100 minutes (round.yml), with the setup inside it.
+      command: "node scripts/mutation.mjs --scope=arithmetic --ratchet --quiet --concurrency 4",
+      minutes: 85,
+    },
+    {
       key: "firefox",
       when: PR_AND_NIGHTLY,
       name: "Firefox",
@@ -652,9 +674,12 @@ export const TIERS = {
  * pound is invisible on most fixtures (CLAUDE.md, "an error that shifts every
  * row by the same amount"), and the instruments that look along those axes —
  * property-based tests over every handicap and stake, and a nightly mutation
- * ratchet that fails when a mutant of this arithmetic survives — are still
- * being built (branch `claude/foundation-pass`). Until they are on main, a
- * change to one of these files keeps the old three rounds.
+ * ratchet that fails when a mutant of this arithmetic survives — arrived in
+ * two halves: the property tests with #942, the ratchet in the nightly round
+ * (the `mutation` layer above) on 2026-10-31. The switch is NOT flipped with
+ * them: it waits for the ratchet to have held on real nights (see
+ * `docs/testing-panel-2026-10-23.md`, item A, for what would justify it).
+ * Until then, a change to one of these files keeps the old three rounds.
  *
  * TO RETIRE IT: set `ARITHMETIC_KEEPS_THREE_ROUNDS` to false in the pull
  * request that puts the property-based tests and the mutation ratchet on main,

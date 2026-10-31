@@ -3,10 +3,16 @@
  * HOW STRONG ARE THE FOUNDATION'S TESTS — measured, per module (2026-10-23).
  *
  *   npm run mutation                       mutate the foundation, print the scores
- *   npm run mutation -- --ratchet          the same, and FAIL if any module's score
+ *   npm run mutation -- --scope=arithmetic only the arithmetic core (ARITHMETIC_CORE in
+ *                                          scripts/qa/mutation-ratchet.mjs) — what the
+ *                                          nightly round runs
+ *   npm run mutation -- --ratchet          the same, and FAIL if any module in scope
  *                                          is below mutation-baseline.json
  *   npm run mutation -- --report-only      summarise the last run's report, run nothing
- *   npm run mutation -- --write-baseline   record this run's scores as the baseline
+ *   npm run mutation -- --write-baseline   RAISE the baseline to this run's scores, for
+ *                                          the modules in scope; a floor never falls
+ *   npm run mutation -- --quiet            Stryker's own output to reports/mutation/stryker.log,
+ *                                          and the score line FIRST (the round reads it)
  *   npm run mutation -- --mutate src/lib/domain/money.ts
  *                                          one module (anything after the flags
  *                                          is handed to Stryker as it is)
@@ -19,119 +25,122 @@
  *
  *   (killed + timed out) / (killed + timed out + survived + no coverage)
  *
- * A run takes hours on one machine, so it is not in `ci.yml`. It is a NIGHTLY
- * RATCHET: the score of each module may rise and may never fall. The baseline
- * starts at the first measured score per module; raising it is a commit of
- * `--write-baseline` after the tests that earned it, and lowering it is not a
- * thing this script will do for you.
+ * The whole set takes hours on one machine, so it is not in `ci.yml`. The
+ * NIGHTLY ROUND runs the arithmetic core (`--scope=arithmetic --ratchet
+ * --quiet`, the `mutation` layer in scripts/qa/layers.mjs): the score of each
+ * module may rise and may never fall. Raising a floor is a commit of
+ * `--write-baseline` after the tests that earned it; lowering one is a hand
+ * edit of mutation-baseline.json in a commit that says why — this script will
+ * not do it for you (`raisedBaseline`).
  *
  * Incremental: Stryker keeps `reports/stryker-incremental.json` and re-tests
  * only the mutants whose code or covering tests changed since the last run.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname, join, relative, sep } from "node:path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MUTATED_MODULES } from "../stryker.config.mjs";
+import { headline, modulesOfScope, raisedBaseline, ratchetFalls, scoresOf } from "./qa/mutation-ratchet.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPORT = join(root, "reports", "mutation", "mutation.json");
+const LOG = join(root, "reports", "mutation", "stryker.log");
 const BASELINE = join(root, "mutation-baseline.json");
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
-const passThrough = args.filter((a) => !["--ratchet", "--report-only", "--write-baseline"].includes(a));
+const scopeArg = args.find((a) => a.startsWith("--scope="));
+const scope = scopeArg ? scopeArg.slice("--scope=".length) : "all";
+const ours = ["--ratchet", "--report-only", "--write-baseline", "--quiet"];
+const passThrough = args.filter((a) => !ours.includes(a) && !a.startsWith("--scope="));
+const quiet = flag("--quiet");
 
-const DETECTED = new Set(["Killed", "Timeout"]);
-const UNDETECTED = new Set(["Survived", "NoCoverage"]);
-
-/** Score per module, from a Stryker JSON report (mutation-testing-report-schema). */
-export function scoresOf(report) {
-  const out = {};
-  for (const [file, data] of Object.entries(report.files ?? {})) {
-    const rel = (relative(root, join(root, file)) || file).split(sep).join("/");
-    let detected = 0;
-    let undetected = 0;
-    const survivors = [];
-    for (const m of data.mutants ?? []) {
-      if (DETECTED.has(m.status)) detected += 1;
-      else if (UNDETECTED.has(m.status)) {
-        undetected += 1;
-        survivors.push(m);
-      }
-    }
-    const total = detected + undetected;
-    out[rel] = {
-      score: total === 0 ? 100 : Math.round((detected / total) * 10000) / 100,
-      detected,
-      undetected,
-      survivors,
-    };
-  }
-  return out;
+let inScope;
+try {
+  inScope = modulesOfScope(scope, MUTATED_MODULES);
+} catch (e) {
+  console.error(`✗ ${e.message}`);
+  process.exit(1);
 }
+for (const file of inScope) {
+  if (!MUTATED_MODULES.includes(file)) {
+    console.error(`✗ ${file} is in the ${scope} scope and not in stryker.config.mjs's MUTATED_MODULES`);
+    process.exit(1);
+  }
+}
+// A `--mutate` given by hand wins; otherwise a scope narrower than the config names its files.
+const mutateArgs = passThrough.some((a) => a === "--mutate" || a.startsWith("--mutate=")) || scope === "all" ? [] : ["--mutate", inScope.join(",")];
 
 function run() {
-  const res = spawnSync("npx", ["stryker", "run", ...passThrough], { cwd: root, stdio: "inherit", shell: true });
-  return res.status ?? 1;
+  const t0 = Date.now();
+  let res;
+  if (quiet) {
+    mkdirSync(dirname(LOG), { recursive: true });
+    const fd = openSync(LOG, "w");
+    res = spawnSync("npx", ["stryker", "run", ...mutateArgs, ...passThrough], { cwd: root, stdio: ["ignore", fd, fd], shell: true });
+    closeSync(fd);
+  } else {
+    res = spawnSync("npx", ["stryker", "run", ...mutateArgs, ...passThrough], { cwd: root, stdio: "inherit", shell: true });
+  }
+  return { status: res.status ?? 1, minutes: Math.round((Date.now() - t0) / 6000) / 10 };
 }
 
+let minutes = null;
 if (!flag("--report-only")) {
-  const status = run();
-  if (status !== 0) {
-    console.error(`[mutation] Stryker exited ${status}; no scores to read.`);
-    process.exit(status);
+  const r = run();
+  minutes = r.minutes;
+  if (r.status !== 0) {
+    console.error(`✗ Stryker exited ${r.status} after ${minutes} min; no scores to read.${quiet ? ` Its log: ${relative(root, LOG)}` : ""}`);
+    if (quiet && existsSync(LOG)) {
+      const tail = readFileSync(LOG, "utf8").split(/\r?\n/).filter(Boolean).slice(-25);
+      for (const l of tail) console.error(`  ${l}`);
+    }
+    process.exit(r.status);
   }
 }
 if (!existsSync(REPORT)) {
-  console.error(`[mutation] no report at ${relative(root, REPORT)} — run without --report-only first.`);
+  console.error(`✗ no report at ${relative(root, REPORT)} — run without --report-only first.`);
   process.exit(1);
 }
 
-const scores = scoresOf(JSON.parse(readFileSync(REPORT, "utf8")));
-const width = Math.max(...Object.keys(scores).map((k) => k.length), 10);
+const scores = scoresOf(JSON.parse(readFileSync(REPORT, "utf8")), root);
+// The first line is the one the round's verdict keeps (round.mjs, a command layer's `said`).
+console.log(`${headline(scores, inScope, scope)}${minutes !== null ? ` (${minutes} min)` : ""}`);
+const shown = Object.entries(scores).filter(([f]) => inScope.includes(f));
+const width = Math.max(...shown.map(([k]) => k.length), 10);
 console.log("\nMutation score per module (killed or timed out, of all that could be):\n");
-for (const [file, s] of Object.entries(scores).sort((a, b) => a[1].score - b[1].score)) {
+for (const [file, s] of shown.sort((a, b) => a[1].score - b[1].score)) {
   console.log(`  ${file.padEnd(width)}  ${s.score.toFixed(2).padStart(6)}%   ${s.detected} caught, ${s.undetected} not`);
 }
-const all = Object.values(scores).reduce((a, s) => ({ d: a.d + s.detected, u: a.u + s.undetected }), { d: 0, u: 0 });
-console.log(`\n  ${"ALL".padEnd(width)}  ${((all.d / Math.max(1, all.d + all.u)) * 100).toFixed(2).padStart(6)}%   ${all.d} caught, ${all.u} not\n`);
+console.log("");
+
+let baselineFile = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : null;
 
 if (flag("--write-baseline")) {
-  const modules = {};
-  for (const file of MUTATED_MODULES) {
-    if (!scores[file]) {
-      console.error(`[mutation] ${file} is in stryker.config.mjs and not in the report — run the whole set before writing a baseline.`);
-      process.exit(1);
-    }
-    modules[file] = scores[file].score;
+  const { modules, kept, missing } = raisedBaseline(baselineFile?.modules ?? {}, scores, inScope);
+  if (missing.length) {
+    console.error(`✗ not in the report, so no baseline written: ${missing.join(", ")} — run the whole ${scope} scope first.`);
+    process.exit(1);
   }
+  for (const k of kept) console.log(`  kept ${k.file} at ${k.floor}%: this run scored ${k.score}%, and a floor is never lowered here`);
   mkdirSync(dirname(BASELINE), { recursive: true });
-  writeFileSync(
-    BASELINE,
-    `${JSON.stringify({ measured: new Date().toISOString().slice(0, 10), rule: "a module's score may rise and never fall", modules }, null, 2)}\n`,
-  );
-  console.log(`[mutation] baseline written: ${relative(root, BASELINE)}`);
+  baselineFile = { measured: new Date().toISOString().slice(0, 10), rule: "a module's score may rise and never fall", modules };
+  writeFileSync(BASELINE, `${JSON.stringify(baselineFile, null, 2)}\n`);
+  console.log(`[mutation] baseline written: ${relative(root, BASELINE)} (${scope})`);
 }
 
 if (flag("--ratchet")) {
-  if (!existsSync(BASELINE)) {
-    console.error("[mutation] --ratchet needs mutation-baseline.json; write one with --write-baseline.");
+  if (!baselineFile) {
+    console.error("✗ --ratchet needs mutation-baseline.json; write one with --write-baseline.");
     process.exit(1);
   }
-  const baseline = JSON.parse(readFileSync(BASELINE, "utf8")).modules ?? {};
-  const fell = [];
-  for (const [file, floor] of Object.entries(baseline)) {
-    const now = scores[file];
-    if (!now) fell.push(`${file}: in the baseline at ${floor}% and not measured in this run`);
-    else if (now.score < floor) fell.push(`${file}: ${now.score}% is below its baseline of ${floor}%`);
-  }
-  for (const file of MUTATED_MODULES) {
-    if (!(file in baseline)) fell.push(`${file}: mutated and has no baseline — add it with --write-baseline`);
-  }
-  if (fell.length > 0) {
-    console.error(`[mutation] RATCHET FAILED — ${fell.length} module(s):\n  ${fell.join("\n  ")}`);
+  const falls = ratchetFalls(scores, baselineFile.modules ?? {}, inScope);
+  if (falls.length > 0) {
+    // One line per module, each starting ✗: the round counts them as findings.
+    for (const f of falls) console.error(`✗ ${f.file}: ${f.why}`);
+    console.error(`[mutation] RATCHET FAILED — ${falls.length} module(s) of ${inScope.length} in the ${scope} scope.`);
     process.exit(1);
   }
-  console.log(`[mutation] ratchet held: every module at or above its baseline (${Object.keys(baseline).length} modules).`);
+  console.log(`[mutation] ratchet held: every module in the ${scope} scope at or above its baseline (${inScope.length} modules).`);
 }

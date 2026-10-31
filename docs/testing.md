@@ -27,7 +27,7 @@ whether it can be read and used.
 | The **Round** workflow on GitHub | The same round, its parts side by side, in under an hour | The normal way to run a whole round. |
 | `node scripts/qa/burn-in.mjs` | Do the tests this change adds or touches pass every time, not most times? | Before a round is spent on them. See "What a round costs" below. |
 | The **Breaks** workflow on GitHub | Does each new test go red when the app is broken the way it is meant to catch? | With every change that adds a test. See "Proving a test by breaking the app". |
-| `npm run mutation` | Would the unit tests notice the foundation being broken, module by module? | Nightly (`--ratchet`), and after adding tests to a core module. See "How strong are the tests". |
+| `npm run mutation` | Would the unit tests notice the foundation being broken, module by module? | The nightly round runs the arithmetic core with the ratchet on (the `mutation` layer); by hand after adding tests to a core module. See "How strong are the tests". |
 | `node scripts/qa/retro.mjs --write` | What did the last rounds cost, whose failures were they, and which layers found anything? | When deciding to change the testing. See "The retro". |
 | `node scripts/qa/quarantine.mjs` | Is every quarantined test sound and in date? | Before adding to `e2e/quarantine.json`; the nightly runs it. |
 
@@ -408,14 +408,32 @@ that were noticed.
 | `npm run mutation` | the whole set; hours on one machine (incremental: a second run re-tests only what changed) |
 | `npm run mutation -- --mutate src/lib/domain/money.ts` | one module, minutes |
 | `npm run mutation -- --report-only` | the scores of the last run, from `reports/mutation/mutation.json` |
-| `npm run mutation -- --ratchet` | the same, and FAILS if any module is below `mutation-baseline.json` |
-| `npm run mutation -- --write-baseline` | record this run's scores as the floor — after the tests that earned them |
+| `npm run mutation -- --scope=arithmetic` | the arithmetic core only (`ARITHMETIC_CORE` in `scripts/qa/mutation-ratchet.mjs`) — what the nightly runs |
+| `npm run mutation -- --ratchet` | the same, and FAILS if any module in scope is below `mutation-baseline.json` |
+| `npm run mutation -- --write-baseline` | RAISE the floors of the modules in scope to this run's scores — after the tests that earned them. A floor is never lowered by the script: a lower score is said and the old floor kept |
 
-It is **not in `ci.yml`**: a run is too long for every push. It is a NIGHTLY RATCHET — the score of
-a module may rise and may never fall below its baseline, which started at the first measured
-score per module (2026-10-23, `docs/foundation-pass-2026-10-23.md`). The unit suite runs whole
-under it except three files that cannot run in Stryker's sandbox, listed with their reasons in
-`vitest.mutation.config.ts`.
+It is **not in `ci.yml`**: a run is too long for every push. It is a NIGHTLY RATCHET (since
+2026-10-31, backlog A7): the nightly round's `mutation` layer runs
+`node scripts/mutation.mjs --scope=arithmetic --ratchet --quiet --concurrency 4` — handicap, a
+round's allowance and figure, strokes by stroke index, a side's strokes, the split to the cent,
+skins and the skins split — and the score of each module may rise and may never fall below its
+floor. A fall is one finding per module in the verdict; the score line is printed under the reach
+(`**Mutation score:**`) and kept in the round's `retro.json`. Stryker's incremental file is kept
+between nights (`round.yml`'s cache), so a night re-tests only the mutants whose code or covering
+tests changed. `gameNets`, the sink every side game's money passes through, reads the database and
+is out of the unit suite's reach: the audit suite holds it. The rest of the foundation is still run
+by hand (`npm run mutation`). The floors started at the first measured score per module
+(2026-10-23, `docs/foundation-pass-2026-10-23.md`). The unit suite runs whole under it except three
+files that cannot run in Stryker's sandbox, listed with their reasons in `vitest.mutation.config.ts`.
+
+**Lowering a floor** is a hand edit of `mutation-baseline.json`, in a commit that says which
+survivors were read and why they are not golf (an equivalent mutant, a word in an explanation).
+`mutation-ratchet.test.ts` holds the ratchet itself: a drop fails, an unmeasured module fails, a
+module with no floor fails, and writing a baseline never lowers one.
+
+**In a worktree whose `node_modules` is a junction** Stryker finds no `node_modules` to link into
+its sandbox (it skips links), and `font-hosts.test.ts` fails the dry run. Make `node_modules` a real
+folder of junctions, one per package, instead of one junction for the whole folder.
 
 Read a survivor before writing a test for it. Some are EQUIVALENT — the change does nothing a
 golfer could see (a `>=` that can only ever meet a strict case) — and a test written to kill one

@@ -100,11 +100,13 @@ describe("what runs when (item B)", () => {
     expect([...scheduled].sort()).toEqual([...every].sort());
   });
 
-  it("the nightly is every pr layer plus the tablet and the libraries; the weekly is Chrome, Edge and the motion", () => {
+  it("the nightly is every pr layer plus the tablet, the libraries and the mutation ratchet; the weekly is Chrome, Edge and the motion", () => {
     expect(keys("nightly")).toEqual(expect.arrayContaining(keys("pr")));
-    expect(keys("nightly").filter((k) => !keys("pr").includes(k)).sort()).toEqual(["dependencies", "tablet-android"]);
+    expect(keys("nightly").filter((k) => !keys("pr").includes(k)).sort()).toEqual(["dependencies", "mutation", "tablet-android"]);
     expect(keys("weekly").sort()).toEqual(["chrome", "edge", "motion"]);
     expect(keys("pr")).not.toContain("dependencies");
+    // The ratchet costs a pull request nothing: it is never in a change's round.
+    expect(keys("pr")).not.toContain("mutation");
   });
 
   it("a schedule or a country mode nobody defined is refused, not read as everything", () => {
