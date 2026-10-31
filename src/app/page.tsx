@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
-import { PLANS, effectiveAnnualPrice, retentionNotice, retentionSummary } from "@/lib/plans";
+import { PLANS, effectiveAnnualPrice, planTagline, retentionNotice, retentionSummary } from "@/lib/plans";
 import { PLAN_KEYS, planDiff } from "@/lib/landing/plan-diff";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
@@ -199,7 +199,9 @@ export default async function LandingPage() {
   const note = editionNote(local, overridden);
   // UK-English editions only: the app follows the club's own conventions there
   // — the course's unit, the club's clock, and a Monday week.
-  const groups = featureGroups({ localGolf: shown.register === "uk" });
+  const groups = featureGroups({ localGolf: shown.register !== "us" });
+  // The plan lines in this edition's golf — "golf groups" or "societies".
+  const golf = golfTermsFor(shown.register);
   const total = featureCount(groups);
 
   // The two CLUB platforms, and only those (Ajay, 2026-10-11: name the rivals a
@@ -256,7 +258,6 @@ export default async function LandingPage() {
 
       <main id="top" className="m-home">
         <div className="m-progress" aria-hidden="true" />
-        <div className="m-putter" id="putter" aria-hidden="true" />
 
         {/* ═══════════ THE FIRST SCREEN ═══════════ */}
         <section className="m-hero" aria-labelledby="hero-h">
@@ -422,8 +423,11 @@ export default async function LandingPage() {
             <div className="m-head">
               <p className="m-eyebrow">What it does</p>
               <h2 id="does-h">The whole day, in one place.</h2>
-              <ul className="m-runs" aria-label="What it runs" data-no-dialect="">
-                {["Weekly leagues", "Society days", "Club championships", "Knockouts", "Ryder-style cups", "Member-guests", "Charity scrambles", "Golf trips", "A Saturday fourball"].map((x) => <li key={x}><b>{x}</b></li>)}
+              {/* Written in US words like the rest of the page and swapped per edition: a UK visitor reads
+                  "Society days" and "A Saturday fourball". Until 2026-10-24 this list was marked
+                  data-no-dialect and written in UK words, so US visitors read "Society days". */}
+              <ul className="m-runs" aria-label="What it runs">
+                {["Weekly leagues", "Golf outings", "Club championships", "Knockouts", "Ryder-style cups", "Member-guests", "Charity scrambles", "Golf trips", "A Saturday foursome"].map((x) => <li key={x}><b>{x}</b></li>)}
               </ul>
             </div>
 
@@ -546,7 +550,7 @@ export default async function LandingPage() {
             </div>
             <div className="m-plans">
               <div className="m-plan">
-                <p className="m-who">{PLANS.free.tagline}</p>
+                <p className="m-who">{planTagline(PLANS.free, golf)}</p>
                 <h3>{PLANS.free.name}</h3>
                 <div className="m-price">{prices.zero}</div>
                 <p className="m-year">{words.freeYear}</p>
@@ -559,7 +563,7 @@ export default async function LandingPage() {
                 <p className="m-term">{retentionNotice("free")}</p>
               </div>
               <div className="m-plan m-pick lightband">
-                <p className="m-who">{PLANS.society.tagline}</p>
+                <p className="m-who">{planTagline(PLANS.society, golf)}</p>
                 <h3>{PLANS.society.name}</h3>
                 <div className="m-price">{prices.society.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.society.yearly} a year</p>
@@ -571,7 +575,7 @@ export default async function LandingPage() {
                 </ul>
               </div>
               <div className="m-plan">
-                <p className="m-who">{PLANS.club.tagline}</p>
+                <p className="m-who">{planTagline(PLANS.club, golf)}</p>
                 <h3>{PLANS.club.name}</h3>
                 <div className="m-price">{prices.club.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.club.yearly} a year</p>
@@ -755,12 +759,6 @@ export default async function LandingPage() {
               {WEEK.map((m, i) => <li className={i === 0 || i === WEEK.length - 1 ? "m-end" : undefined} key={m.tab}><span>{m.tab}</span></li>)}
             </ol>
           </div>
-          <div className="m-run" id="kinetic-run" aria-hidden="true">
-            {[0, 1, 2, 3].map((n) => <span key={n}>From Registration to <b>Recognition.</b></span>)}
-          </div>
-          <div className="m-run m-back" id="kinetic-back" aria-hidden="true">
-            {[0, 1, 2].map((n) => <span key={n}>{WEEK.map((m) => <Fragment key={m.tab}>{m.tab} <i>·</i> </Fragment>)}</span>)}
-          </div>
         </div>
 
         {/* ═══════════ SIGN UP / SIGN IN ═══════════ */}
@@ -787,7 +785,7 @@ export default async function LandingPage() {
               <p className="m-lead">{words.closeLead}</p>
               </div>
               <div className="authpanel m-auth">
-                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} launch={launch} />
+                <LandingAuth defaultMode="signup" organizers={golf.organizers} golfGroup={golf.golfGroup} launch={launch} />
               </div>
               <div className="m-close-more">
               <div className="m-stores">

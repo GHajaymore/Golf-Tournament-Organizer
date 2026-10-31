@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PLANS, phoneRequiredFor, retentionSummary, type PlanKey } from "@/lib/plans";
+import { PLANS, retentionSummary, type PlanKey } from "@/lib/plans";
 import type { LandingPrices } from "./pricing";
 import { freePlanWords, type LaunchState } from "@/lib/go-live";
 
@@ -37,7 +37,6 @@ export function planDiff(prices: LandingPrices, launch: LaunchState): [string, R
     ["Tournaments at once", each((k) => count(PLANS[k].limits.activeEvents, "One"))],
     ["Organizers and assistants", each((k) => count(PLANS[k].limits.staffSeats, "One"))],
     ["Results kept", each((k) => capitalise(retentionSummary(PLANS[k]).replace(/^results /, "")))],
-    ["Players' mobile numbers", each((k) => (phoneRequiredFor(k, false, "email") ? <>Asked<small>not with round codes</small></> : <>Your choice<small>per tournament</small></>))],
     ["Order of merit across events", each((k) => has(PLANS[k].features.seasonStandings))],
     ["The honors board", each((k) => has(PLANS[k].features.honours))],
     ["Your club's branding in place of ours", each((k) => has(PLANS[k].features.whiteLabel, "with your logo"))],

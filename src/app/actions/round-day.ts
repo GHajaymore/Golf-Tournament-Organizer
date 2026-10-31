@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { roundLabel } from "@/lib/domain/round-label";
@@ -41,6 +42,7 @@ async function requireStaffEvent(): Promise<string> {
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Only an organizer or assistant can do that");
   }
+  await assertEventWritable(session.eventId);
   return session.eventId;
 }
 

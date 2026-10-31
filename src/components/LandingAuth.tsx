@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { LoginPanel } from "@/components/LoginPanel";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE, type LaunchState } from "@/lib/go-live";
 
 /**
@@ -20,10 +21,12 @@ import { HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE, type LaunchState } from "@/lib/
 export function LandingAuth({
   defaultMode = "login",
   organizers = "organizers",
+  golfGroup = golfTermsFor("us").golfGroup,
   launch,
 }: {
   defaultMode?: "login" | "signup";
   organizers?: string;
+  golfGroup?: string;
   /** The go-live switch's answer (`launchState()`). Required: the box cannot be drawn without asking. */
   launch: LaunchState;
 }) {
@@ -53,7 +56,7 @@ export function LandingAuth({
   // instead of the top of the hero.
   // The edition's word (UK "organisers"): the page's server-side dialect swap
   // cannot reach inside this client component, so the word is passed in.
-  const panel = <LoginPanel key={closed ? "held" : mode} initialMode={mode} autoFocusFields={false} organizers={organizers} signupClosed={closed} />;
+  const panel = <LoginPanel key={closed ? "held" : mode} initialMode={mode} autoFocusFields={false} organizers={organizers} golfGroup={golfGroup} signupClosed={closed} />;
   if (!closed) return panel;
   // Sign-ins held until launch (sign-in-gate.ts): said before the form, and the form below is
   // signing in only — no Sign up tab, so nobody is offered an account the server would refuse.

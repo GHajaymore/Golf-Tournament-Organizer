@@ -167,7 +167,7 @@ export function OwnerAccounts({
       )}
 
       <details style={{ marginTop: 10, fontSize: 13 }}>
-        <summary style={{ cursor: "pointer", minHeight: 32 }}>{OWNER_CARD.notSwitched}</summary>
+        <summary style={{ cursor: "pointer", minHeight: "var(--tap-min, 32px)" }}>{OWNER_CARD.notSwitched}</summary>
         <ul style={{ margin: "4px 0 0", paddingLeft: 18, lineHeight: 1.55 }}>
           {NOT_SWITCHED.map((n) => (
             <li key={n.id}>

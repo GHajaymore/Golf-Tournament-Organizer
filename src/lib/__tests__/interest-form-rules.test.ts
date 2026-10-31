@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { checkInterest, cleanSource, interestSource, interestSubject, INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES } from "@/lib/domain/interest";
-import { interestWords, SIGNINS_CLOSED_NOTICE } from "@/lib/go-live";
+import { interestWords, HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE } from "@/lib/go-live";
 
 /**
  * THE /interest FORM'S RULES (2026-10-21) — `checkInterest` is the only door,
@@ -117,6 +117,16 @@ describe("what it says", () => {
       expect(words).toMatch(/first (term|month)/);
       expect(words).not.toMatch(/\b[A-Z0-9]{6,}\b/);
     }
+  });
+
+  it("every held place that offers the early list says joining is free and needs no card (Ajay, 31 Oct, #975)", () => {
+    expect(interestWords("held").sub.startsWith("Free to join, no card needed.")).toBe(true);
+    for (const said of [interestWords("held").sub, HELD_FRONT_DOOR.lead, HELD_FRONT_DOOR.pricingNote, SIGNINS_CLOSED_NOTICE.offer]) {
+      expect(said, said).toMatch(/free/i);
+      expect(said, said).toMatch(/no card/i);
+    }
+    // CONTROL: the live page offers no list, and so no such line — the check can fail.
+    expect(interestWords("live").sub).not.toMatch(/no card/i);
   });
 
   it("once live, the early list is over: no 25%, and no promise of a code", () => {

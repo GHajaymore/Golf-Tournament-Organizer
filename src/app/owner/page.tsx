@@ -4,7 +4,8 @@ import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { prisma } from "@/lib/db";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
-import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, planTagline, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { wholeMoney } from "@/lib/domain/money-format";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
@@ -21,6 +22,7 @@ import { earlyListStatus } from "@/lib/services/early-list";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
+import { deliveryWords } from "@/lib/domain/email-delivery";
 
 /** How many registrations the console lists; the rest are a query away. */
 const INTEREST_SHOWN = 200;
@@ -219,11 +221,12 @@ export default async function OwnerConsolePage() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
-                  <th>Club or society</th>
+                  <th>Club or group</th>
                   <th>Who</th>
                   <th>Size</th>
                   <th>Note</th>
                   <th>From</th>
+                  <th>Copy to inquiries@</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,6 +243,15 @@ export default async function OwnerConsolePage() {
                     <td>{sizeLabel(r.members)}</td>
                     <td style={{ minWidth: 160 }}>{r.note}</td>
                     <td className="text-muted" style={{ fontSize: 12, minWidth: 140 }}>{r.source || "direct"}</td>
+                    {(() => {
+                      const d = deliveryWords(r.notifyStatus);
+                      return (
+                        <td style={{ fontSize: 12, minWidth: 150, color: d.trouble ? "var(--color-danger)" : undefined }} title={r.notifyDetail || undefined}>
+                          {d.words}
+                          {d.trouble && r.notifyDetail ? <span className="text-muted" style={{ display: "block" }}>{r.notifyDetail}</span> : null}
+                        </td>
+                      );
+                    })()}
                   </tr>
                 ))}
               </tbody>
@@ -280,7 +292,9 @@ export default async function OwnerConsolePage() {
         ))}
       </div>
       <OwnerLimits tiers={limitTiers} enforce={enforcementEnabled(limitOverrides)} />
-      <OwnerClubPlan tiers={Object.values(PLANS).map((p) => ({ key: p.key, name: p.name, tagline: p.tagline }))} />
+      {/* The owner's own screen belongs to no club, so the plans are named in
+          the app's default golf — the US register. */}
+      <OwnerClubPlan tiers={Object.values(PLANS).map((p) => ({ key: p.key, name: p.name, tagline: planTagline(p, golfTermsFor("us")) }))} />
       <OwnerDiscounts codes={discounts} />
 
       {/* Tier mix */}

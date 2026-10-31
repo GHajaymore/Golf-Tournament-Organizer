@@ -106,8 +106,8 @@ beforeAll(async () => {
   await scrub();
   orgId = (await prisma.organization.create({ data: { name: `${TAG} club`, kind: "club", country: "GB" } })).id;
   otherOrgId = (await prisma.organization.create({ data: { name: `${TAG} other club`, kind: "club", country: "GB" } })).id;
-  ownerId = (await prisma.user.create({ data: { email: mail("owner"), name: `${TAG} Owner`, password: "x" } })).id;
-  assistantId = (await prisma.user.create({ data: { email: mail("assistant"), name: `${TAG} Assistant`, password: "x" } })).id;
+  ownerId = (await prisma.user.create({ data: { email: mail("owner"), name: `${TAG} Owner`, password: "x", emailVerifiedAt: new Date() } })).id;
+  assistantId = (await prisma.user.create({ data: { email: mail("assistant"), name: `${TAG} Assistant`, password: "x", emailVerifiedAt: new Date() } })).id;
   await prisma.organizationMember.create({ data: { organizationId: orgId, userId: ownerId, role: "owner" } });
 });
 beforeEach(() => jar.clear());
@@ -163,7 +163,7 @@ describe("the tournament's copy", () => {
   it("CONTROL: a player is refused outright", async () => {
     await tournament();
     const pat = await entrant("Pat", 20);
-    const playerUser = await prisma.user.create({ data: { email: mail(`player-${Math.random()}`), name: `${TAG} Player`, password: "x" } });
+    const playerUser = await prisma.user.create({ data: { email: mail(`player-${Math.random()}`), name: `${TAG} Player`, password: "x", emailVerifiedAt: new Date() } });
     await prisma.account.create({ data: { eventId, email: playerUser.email, name: `${TAG} Player`, role: "player" } });
     await signIn(playerUser.id);
     await expect(setPlayerIndex(pat.playerId, { index: 2, expectedFrom: 20, alsoMember: false, reason: "" })).rejects.toThrow();

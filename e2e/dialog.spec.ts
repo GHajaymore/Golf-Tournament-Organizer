@@ -176,7 +176,7 @@ test.describe("the complete-and-delete dialog", () => {
    * fixture: a Par club and an empty live tournament, the fixture's organizer
    * made its admin, named off the fixture's club so the fixture's teardown
    * sweeps it if this dies half way. The dialog is opened, measured, and
-   * CANCELLED — "Complete and delete" is never pressed — and everything is
+   * CANCELLED — "Complete it" is never pressed — and everything is
    * removed in a `finally`.
    */
   test(`complete and delete ${FITS}`, async ({ page, baseURL }) => {
@@ -219,8 +219,10 @@ test.describe("the complete-and-delete dialog", () => {
 
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toBeVisible();
-      await expect(dialog).toContainText(/complete and delete/i);
-      await expect(dialog).toContainText(/deletes it for good/i);
+      // Since 2026-10-21 completing keeps it read-only for 15 days, then deletes it.
+      await expect(dialog).toContainText(/^Complete “/);
+      await expect(dialog).toContainText(/read-only, for 15 days/i);
+      await expect(dialog).toContainText(/deleted for good/i);
       await fitsTheViewport(page, dialog, "the complete-and-delete dialog");
 
       // Out the safe way, and the tournament is still there.

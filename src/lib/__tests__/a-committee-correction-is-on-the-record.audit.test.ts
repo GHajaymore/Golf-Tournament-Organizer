@@ -91,7 +91,7 @@ beforeAll(async () => {
       approvedAt: new Date(),
     },
   });
-  organizerUser = (await prisma.user.create({ data: { email: at("organizer"), name: "Oona", password: "x" } })).id;
+  organizerUser = (await prisma.user.create({ data: { email: at("organizer"), name: "Oona", password: "x", emailVerifiedAt: new Date() } })).id;
   await prisma.account.create({ data: { eventId, email: at("organizer"), name: "Oona", role: "admin" } });
   jar.clear();
   await createSession(organizerUser);

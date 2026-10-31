@@ -101,7 +101,7 @@ export default async function InterestPage() {
                 Playing today? <Link href="/play">Enter your round code</Link> — that needs no account.
               </p>
             </div>
-            <InterestForm launch={launch} />
+            <InterestForm launch={launch} register={shown.register} />
           </div>
           <p className="lg-back">
             <Link href="/">Back to TourneyHQ</Link>

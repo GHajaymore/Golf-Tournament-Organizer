@@ -33,6 +33,8 @@ describe.each(EMBEDDERS)("%s", (file) => {
     for (const table of ["TeamStandingsTable", "SkinsStandingsTable", "NassauMatches", "ModifiedStablefordTable"]) {
       expect(src, table).toContain(`<${table} `);
     }
-    expect(src.match(/<EmbeddedBoard note=/g)?.length).toBe(4);
+    // Reports has a fifth: a team cup's result (`cupResult`), which /live
+    // does not need — its cup board is the scoreboard itself.
+    expect(src.match(/<EmbeddedBoard note=/g)?.length).toBe(file.includes("reports") ? 5 : 4);
   });
 });

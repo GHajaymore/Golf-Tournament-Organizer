@@ -10,6 +10,7 @@ import { leaderboardRounds } from "../domain/leaderboard-rounds";
 import { teamMatchBoard } from "./teams";
 import { boardKindForRound, isKnockoutRound } from "../stage-types";
 import { drawnDraws } from "../domain/my-tie";
+import { seededDraws } from "../domain/draw-seeding";
 import { bracketResults } from "./bracket-results";
 import type { BracketView } from "../domain/bracket";
 import { isLeaguePointsSystem, type LeaguePointsSystem } from "../domain/league-meeting";
@@ -102,7 +103,7 @@ export interface LiveBoardView {
    * share link is the page a knockout's members and families actually follow,
    * and it printed the qualifying table and nothing about who was still in.
    */
-  draws: { label: string; view: BracketView }[];
+  draws: { label: string; view: BracketView; seeded: boolean }[];
   bracketResults: Record<string, string>;
   /** The knockout IS the first round: the draw replaces the table. */
   straightKnockout: boolean;
@@ -469,7 +470,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
           expectedStarted.every((r) => thruHere(r) >= holeCount));
 
   const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
-  const draws = knockoutAt >= 0 ? drawnDraws(state.brackets) : [];
+  const draws = knockoutAt >= 0 ? seededDraws(state, drawnDraws(state.brackets)) : [];
 
   return {
     name: event.name,
@@ -561,7 +562,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
  * entries — the shape number is the backstop for a local server, which has
  * no deployment id and keeps its cache across restarts.
  */
-export const LIVE_BOARD_SHAPE = 7; // 7: `teamRows[].place` and `modStableford[].place`, placed by countback (2026-10-14)
+export const LIVE_BOARD_SHAPE = 8; // 8: `draws[].seeded`, seed numbers only where seeded (2026-10-23)
 const deployment = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
 
 /**

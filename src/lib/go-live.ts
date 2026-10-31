@@ -62,7 +62,10 @@ export const SIGNINS_CLOSED_MESSAGE =
 export const SIGNINS_CLOSED_NOTICE = {
   lead: "TourneyHQ opens soon.",
   body: "Sign-ups are paused until launch while we add the finishing touches.",
-  offer: "Get 25% off your first term. Join the early list and we'll email your code at launch, good on the paid plan you choose.",
+  // "Free to join, no card needed" is about JOINING THE EARLY LIST, which takes a few details and
+  // an email and nothing else (Ajay, 2026-10-31: "its not showing no credit card or just need an
+  // email … correct everywhere"). It is not the free plan's "No card", which stays down until launch.
+  offer: "Get 25% off your first term. Joining the early list is free and needs no card: we'll email your code at launch, good on the paid plan you choose.",
   // The way in is the /interest form; the address stays for anybody who would rather write.
   joinLink: "Join the early list",
   emailLead: "Rather email? Write to",
@@ -79,14 +82,14 @@ export const SIGNINS_CLOSED_NOTICE = {
 /** The front door's own words while held (the marketing manager's). */
 export const HELD_FRONT_DOOR = {
   heading: "Opening soon. Get in early.",
-  lead: "New accounts open at launch. Register your interest now and we'll email you 25% off your first paid term. Got a round code? You can play today.",
+  lead: "New accounts open at launch. Register your interest now (free, no card needed) and we'll email you 25% off your first paid term. Got a round code? You can play today.",
   // The one quiet way in for the owners, folded under the notice: no login boxes for a visitor.
   // The UI/UX designer and the ad director: not "Team" (a golf team presses it), not "Staff" alone
   // (a club's secretaries are staff too, and are held out) — "TourneyHQ" says who it is for.
   staffLink: "TourneyHQ staff sign-in",
   signInTitle: "TourneyHQ staff",
   signInSub: "Sign in with your TourneyHQ account. Club accounts open at launch.",
-  pricingNote: "Paid plans start at launch. Join the early list now and we'll email you 25% off your first term.",
+  pricingNote: "Paid plans start at launch. Join the early list now (free, no card needed) and we'll email you 25% off your first term.",
   // The ad director: a button that promises "Start free" and lands on a paused door reads as bait.
   // And not "Get early access" (second round): joining gets a code, not use of the app before launch.
   cta: "Join the early list",
@@ -217,8 +220,10 @@ export interface InterestWords {
   reassure: string;
   /** Said after a note is sent. */
   sent: (name: string, email: string) => string;
-  /** Said to an organizer after a note is sent, with the link the button copies. */
+  /** Said to an organizer after a note is sent, with the link the button copies. `{golfGroup}` is the visitor's golf. */
   share: string;
+  /** Said over the social links after a note is sent. */
+  follow: string;
   shareUrl: string;
   /** The line in the copy sent to inquiries@: what this person was promised. */
   toldInquiries: string;
@@ -229,12 +234,13 @@ export const INTEREST_PAGE: Record<LaunchState, InterestWords> = {
   held: {
     kicker: "Opening soon",
     h1: "Be first on the tee when TourneyHQ opens",
-    sub: "Register now and we'll email you a code for 25% off the paid plan you choose at launch. It covers your first term: your first month, or your first year if you pay yearly.",
+    sub: "Free to join, no card needed. Register now and we'll email you a code for 25% off the paid plan you choose at launch. It covers your first term: your first month, or your first year if you pay yearly.",
     description: "Register your interest in TourneyHQ and get a code for 25% off your first term when it opens.",
     createLink: null,
     reassure: "We'll use these details only to tell you when TourneyHQ opens, to send your code, and — if you leave a number — to call you about your events. We never sell them, and we'll delete them whenever you ask.",
     sent: (name, email) => `Thanks, ${name}, you're on the list. We'll email ${email} when TourneyHQ opens, with your 25% code inside. Nothing else until then.`,
-    share: "Know another club or society that runs competitions? Send them tourneyhq.club/interest and they'll get the same offer.",
+    share: "Know another club or {golfGroup} that runs competitions? Send them tourneyhq.club/interest and they'll get the same offer.",
+    follow: "Follow along until then:",
     shareUrl: "https://tourneyhq.club/interest",
     toldInquiries: "They were told they will be emailed a code for 25% off their first term when TourneyHQ opens. Reply to this email to write to them.",
   },
@@ -249,7 +255,8 @@ export const INTEREST_PAGE: Record<LaunchState, InterestWords> = {
     createLink: { text: "Set up your club", href: "/#signup" },
     reassure: "We'll use these details only to answer you and — if you leave a number — to call you about your events. We never sell them, and we'll delete them whenever you ask.",
     sent: (name, email) => `Thanks, ${name}. We'll be in touch at ${email} about your club's events.`,
-    share: "Know another club or society that runs competitions? Send them tourneyhq.club.",
+    share: "Know another club or {golfGroup} that runs competitions? Send them tourneyhq.club.",
+    follow: "Follow along:",
     shareUrl: "https://tourneyhq.club",
     toldInquiries: "They wrote after launch, so no early-list code was promised. Reply to this email to write to them.",
   },
@@ -416,7 +423,9 @@ export const LAUNCH_SURFACES: readonly LaunchSurface[] = [
   {
     id: "pricing",
     where: "The front door's pricing",
-    held: `The free plan “${FRONT_DOOR.held.freeYear}”; each button “${FRONT_DOOR.held.planButton("…")}”; “${FRONT_DOOR.held.pricingNote}”`,
+    // The note is described, not quoted: since #975 it carries "(free, no card needed)", and the owner
+    // card's lines are plain words without brackets. The probe below still reads the note exactly.
+    held: `The free plan “${FRONT_DOOR.held.freeYear}”; each button “${FRONT_DOOR.held.planButton("…")}”; the note that paid plans start at launch and joining the early list is free, for 25% off`,
     live: `The free plan “${FRONT_DOOR.live.freeYear}” with “${FRONT_DOOR.live.freeButton}”; each button “${FRONT_DOOR.live.planButton("…")}”; the note on arranging a paid plan`,
     before: "followed",
     probe: { path: "/", held: FRONT_DOOR.held.pricingNote, live: FRONT_DOOR.live.pricingNote },

@@ -112,6 +112,10 @@ test.beforeAll(async () => {
       regOpens: day(-7),
       regDeadline: day(21),
       capacity: 2,
+      // A tournament whose organizer asks for a mobile. Until 2026-10-21 the
+      // fixture's club, on Par, asked on every tournament; since the decisions
+      // review (A7) a tournament asks only when it is told to.
+      requirePhone: true,
     },
   });
   eventId = event.id;

@@ -192,7 +192,7 @@ describe("every surface that renders here follows the switch, both ways", () => 
     ),
     ["faq: can I try it for free", faq("try-free"), faqWords("held").tryFree, faqWords("live").tryFree],
     ["faq: do I need a card", faq("card"), faqWords("held").card, faqWords("live").card],
-    ["interest-form", (s) => renderToStaticMarkup(<InterestForm launch={s} />), INTEREST_PAGE.held.reassure, INTEREST_PAGE.live.reassure],
+    ["interest-form", (s) => renderToStaticMarkup(<InterestForm launch={s} register="us" />), INTEREST_PAGE.held.reassure, INTEREST_PAGE.live.reassure],
     ["owner-card", (s) => renderToStaticMarkup(<OwnerAccounts switchSays={s} liveSince="" rule="holds" earlyList={null} />), OWNER_CARD.willGoLive, OWNER_CARD.willHold],
   ];
 

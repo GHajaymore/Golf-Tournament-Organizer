@@ -32,6 +32,9 @@ import { pairTotalPlaces } from "../domain/pair-totals";
 import { isStablefordRound } from "../domain/week-basis";
 import { namedAfterPlayers } from "../domain/side-name";
 import { lookupFormat } from "../formats";
+import { marginWords } from "../domain/my-tie";
+import { isStraightKnockout } from "../stage-types";
+import { knockoutProgress, stillInTheDraw } from "../domain/bracket";
 import { unrankedNote, type StandingRow } from "@/components/LeaderboardTable";
 import {
   countWords,
@@ -41,6 +44,7 @@ import {
   listWords,
   nineWords,
   placeFigure,
+  sharedFigure,
   sideFigure,
   type Place,
   type RankBasis,
@@ -169,8 +173,10 @@ export async function reportFor(eventId: string, audience: ReportAudience = { ki
  * The board leaves a player who returned nothing uncaptioned; a report sent
  * after the event says so.
  */
-function unrankedWords(r: StandingRow): string {
-  return unrankedNote(r) || "No return";
+function unrankedWords(r: StandingRow, completed: boolean): string {
+  // While the tournament is still being played, somebody with nothing on a
+  // card has not FAILED to return one — they have not teed off yet.
+  return unrankedNote(r) || (completed ? "No return" : "Not started");
 }
 
 export async function eventReport(eventId: string, audience: ReportAudience = { kind: "public" }): Promise<EventReport | null> {
@@ -198,6 +204,21 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   const team = board.teamRound && (board.teamRows.length > 0 || (totals?.rows.length ?? 0) > 0);
   const individual = !board.teamRound && !board.manualFormat;
   const rows = individual ? board.rows : [];
+  /**
+   * A TABLE ONLY ONCE SOMEBODY HAS A RESULT (walked 2026-10-23). A tournament
+   * taking entries printed its whole field as "No return", and a knockout
+   * drawn in flights — which has no qualifying round — printed "The qualifying
+   * round" as thirty-six rows of dashes. Nothing has been played, so there is
+   * no table to send.
+   */
+  const anyResult = rows.some((r) => r.started);
+  /**
+   * HOW FAR ROUND, while any card is still open: the board prints "Thru 8"
+   * beside a part-played card, and without it a gross 44 above a gross 75
+   * reads as a 31-shot lead.
+   */
+  const thruColumn =
+    !completed && board.isStroke && rows.some((r) => r.started && r.holesOwed > 0 && r.thru < r.holesOwed);
   const totalPlaces = totals ? pairTotalPlaces(totals.rows, teamBasis) : [];
   const sides: Array<{ name: string; members: string[]; gross: number; net: number; points: number; played: number; place: number | null }> = !team
     ? []
@@ -219,10 +240,10 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
     }
     if (team) {
       const at = sides.filter((s) => s.place === rank);
-      return at.length ? { names: at.map((s) => s.name), figure: sideFigure(at[0], teamBasis) } : null;
+      return at.length ? { names: at.map((s) => s.name), figure: sharedFigure(at.map((s) => sideFigure(s, teamBasis))) } : null;
     }
     const at = rows.filter((r) => r.ranked && r.rank === rank);
-    return at.length ? { names: at.map((r) => r.name), figure: placeFigure(at[0], basis) } : null;
+    return at.length ? { names: at.map((r) => r.name), figure: sharedFigure(at.map((r) => placeFigure(r, basis))) } : null;
   };
   const ranks = (
     knockout
@@ -233,7 +254,14 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   )
     .filter((v, i, all) => all.indexOf(v) === i)
     .sort((a, b) => a - b);
-  const placesKnown = !knockout || completed;
+  /**
+   * A KNOCKOUT IS OVER WHEN ITS FINAL IS PLAYED (2026-10-23), whether or not
+   * the secretary has pressed Complete yet. A draw of 129 with all 128 ties
+   * played read "The results so far … Still in: 1 of 129" and named nobody,
+   * over a Final line that said who won it.
+   */
+  const over = completed || (knockout && finishingPositions(state).length > 0);
+  const placesKnown = !knockout || over;
   let first = placesKnown && ranks.length ? placeAt(ranks[0]) : null;
   const second = placesKnown && ranks.length > 1 ? placeAt(ranks[1]) : null;
 
@@ -249,7 +277,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   const recap = recapParagraphs(event.reportRecap);
   // Each round's result has its own table now (`rounds` below), so the story
   // told from the results says who won and leaves the rounds to the table.
-  const story = recap.length ? recap : eventStory({ completed, first, second, rounds: [] });
+  const story = recap.length ? recap : eventStory({ completed: over, first, second, rounds: [] });
 
   // The leaderboard, the whole field: a club sends this to everybody, and
   // everybody looks for themselves. Gross AND net wherever there are strokes.
@@ -259,9 +287,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       : ["Gross", "Net"]
     : !basis.isStroke
       ? ["Played", "Points"]
-      : basis.isStableford
-        ? ["Points", "Gross"]
-        : ["Gross", "Net", "To par"];
+      : [...(basis.isStableford ? ["Points", "Gross"] : ["Gross", "Net", "To par"]), ...(thruColumn ? ["Thru"] : [])];
   // A side's place is the one `teamStandings` decided, countback and all,
   // written the way the team board writes it (`placeTexts`).
   const sidePlaces = placeTexts(sides.map((s) => s.place));
@@ -278,18 +304,19 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
   // to-par is net to par, as it is on the board.
   const shared = sharedRanks(rows);
   const playerRows: EventReportRow[] = rows.map((r) => {
+    const thru = thruColumn ? [r.holesOwed > 0 && r.thru >= r.holesOwed ? "F" : String(r.thru)] : [];
     const cells = !r.started
       ? columns.map(() => "")
       : !basis.isStroke
         ? [String(r.played), r.pts]
         : basis.isStableford
-          ? [String(r.points), String(r.gross)]
-          : [String(r.gross), String(r.net), rankedScore(r, basis).text];
+          ? [String(r.points), String(r.gross), ...thru]
+          : [String(r.gross), String(r.net), rankedScore(r, basis).text, ...thru];
     return {
       place: holdsPosition(r) ? placeText(r, shared) : "",
       name: r.name,
       cells,
-      note: r.ranked ? "" : unrankedWords(r),
+      note: r.ranked ? "" : unrankedWords(r, completed),
       first: !!first && r.ranked && first.names.includes(r.name) && r.rank === ranks[0],
     };
   });
@@ -348,8 +375,7 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       round.matches.flatMap((m) => {
         if (!m.winnerId || !m.a.playerId || !m.b.playerId) return [];
         const [w, l] = m.winnerId === m.a.playerId ? [m.a, m.b] : [m.b, m.a];
-        const margin = margins.get(m.key) ?? "";
-        return [`${round.label}: ${w.name} beat ${l.name}${margin ? ` ${margin}` : ""}`];
+        return [`${round.label}: ${w.name} beat ${l.name}${marginWords(margins.get(m.key))}`];
       }),
     );
     return ties.length ? [{ label: board.draws.length > 1 ? d.label : "The draw", ties }] : [];
@@ -387,7 +413,8 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       const earlier = moved.rounds.slice(0, -1);
       movement = {
         story: told.story,
-        columns: [...earlier.map((r) => shortRound(r.label)), "Final"],
+        // The board's own places — the final ones only once it is over.
+        columns: [...earlier.map((r) => shortRound(r.label)), completed ? "Final" : "Now"],
         rows: podium.map((r) => {
           const places = [...earlier.map((round) => placeIn(round.rows, r.id)), placeText(r, shared)];
           const nums = places.map((p) => Number(p.replace(/^T/, "")) || 0);
@@ -472,14 +499,18 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       : []),
   ];
   const n = found.numbers;
+  // Counted off hole scores, so where nobody wrote one there is nothing to
+  // count: a knockout kept by "tap who won" said "0 birdies" over 128 ties,
+  // and one with no cards at all said the same.
+  const anyHoleScored = cardRounds.some((r) => r.cards.some((c) => c.strokes.some((s) => s !== null)));
   const numbers: Array<{ figure: string; label: string }> =
-    cardRounds.length === 0
+    !anyHoleScored
       ? []
       : [
           ...(n.cards > 0 ? [{ figure: String(n.cards), label: n.cards === 1 ? "card returned" : "cards returned" }] : []),
           { figure: String(n.birdies), label: n.birdies === 1 ? "birdie" : "birdies" },
           ...(n.eagles > 0 ? [{ figure: String(n.eagles), label: n.eagles === 1 ? "eagle or better" : "eagles or better" }] : []),
-          ...(n.everyRound !== null ? [{ figure: String(n.everyRound), label: "played every round" }] : []),
+          ...(n.everyRound ? [{ figure: String(n.everyRound), label: "played every round" }] : []),
           ...n.hardest.slice(0, 1).map((h) => ({ figure: holeWords(h), label: `hardest: par ${h.par}, average ${averageWords(h.average)}` })),
           ...n.easiest.slice(0, 1).map((h) => ({ figure: holeWords(h), label: `easiest: par ${h.par}, average ${averageWords(h.average)}` })),
         ];
@@ -504,26 +535,55 @@ export async function eventReport(eventId: string, audience: ReportAudience = { 
       };
     }),
     { label: "Field", value: `${state.confirmed.length} ${state.confirmed.length === 1 ? "player" : "players"}` },
+    /**
+     * A KNOCKOUT STILL BEING PLAYED SAYS HOW FAR IT HAS GOT (2026-10-23). It
+     * names no leader, rightly, and said nothing else either: sixty-five
+     * results of a draw of 129 and no word of how many were left. One draw
+     * only — a plate's field is the main draw's losers, counted twice.
+     */
+    ...(knockout && !over && board.draws.length === 1
+      ? (() => {
+          const views = board.draws.map((d) => d.view);
+          const ties = knockoutProgress(...views);
+          const left = stillInTheDraw(...views);
+          return [
+            { label: "Ties played", value: `${ties.decided} of ${ties.total}` },
+            { label: "Still in", value: `${left.stillIn} of ${left.drawn}` },
+          ];
+        })()
+      : []),
   ];
 
   return {
     name: event.name,
     where: [event.dates.trim(), event.course.trim()].filter(Boolean).join(" · "),
-    completed,
+    // What the report calls finished: a knockout with its final played is (`over`).
+    completed: over,
     first,
-    ribbon: eventRibbon({ completed, first }),
+    ribbon: eventRibbon({ completed: over, first }),
     story,
     storyByOrganizer: recap.length > 0,
     facts,
     rankedBy: team
       ? `Ranked by ${teamBasis === "stableford" ? "Stableford points" : `${teamBasis} strokes`}${totals ? ", every round added together" : ""}`
-      : rows.length
+      : anyResult
         ? `Ranked by ${board.unit}`
         : "",
-    // A knockout's table is the round that seeded the draw, and says so.
+    // A knockout's table is the round that seeded the draw, and says so. A
+    // STRAIGHT knockout has no such round (2026-10-23: a draw of 129 printed
+    // "The qualifying round" over 129 rows of dashes): its draw is the result.
     boardTitle: knockout ? "The qualifying round" : team ? "The sides" : "The leaderboard",
     columns,
-    rows: team ? sideRows : playerRows,
+    // No empty tables (the report while it is played): sides only once one has
+    // played, players only once there is a result — and never for a straight
+    // knockout, whose draw is its result.
+    rows: team
+      ? sides.some((s) => s.played > 0)
+        ? sideRows
+        : []
+      : (knockout && isStraightKnockout(stages)) || !anyResult
+        ? []
+        : playerRows,
     prizes,
     audience: audience.kind,
     amounts: showsAmounts(audience),

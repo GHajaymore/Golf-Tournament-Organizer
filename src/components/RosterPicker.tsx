@@ -51,7 +51,8 @@ export function RosterPicker({
    *
    * Walking the app as a new organizer: eight members ticked, "Add 8 members"
    * pressed, and the answer was "Added 0 · no mobile for …". The rule is right
-   * — a free club collects a mobile from every entrant — but learning it after
+   * — that tournament collected a mobile from every entrant (in 2026-09 every
+   * free club's did; since 2026-10-21 only one whose organizer asks) — but learning it after
    * the click, eight times over, is the fault. `missing` is the same answer the
    * add action refuses on (`contactGap`), so the row can say it first.
    */

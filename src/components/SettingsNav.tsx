@@ -21,6 +21,13 @@
  *
  * Anchors have neither problem, need no client JavaScript, and leave every
  * section exactly as it was.
+ *
+ * CLUB SETTINGS HAS MOVED ON TO TABS (2026-10-21) — `SettingsTabs`, the same
+ * row of chips, one section shown at a time, every section still mounted so
+ * the second reason above still holds. Tournament details keeps these
+ * anchors: three sections, not seven; one of the four Set-up screens, whose
+ * rail and "Next:" footer read as a page you go DOWN; and the course editor
+ * opens inside it from a link (`?course=`), which a hidden tab would hide.
  */
 
 export interface SettingsSection {
@@ -28,6 +35,12 @@ export interface SettingsSection {
   id: string;
   /** What the section calls itself. Written once, here and on the section. */
   label: string;
+  /**
+   * Something waiting in the section, counted on its tab — for a section the
+   * reader cannot see until they open it (`SettingsTabs`). Club settings counts
+   * the requests to join that wait in Staff & access. Zero or absent: nothing.
+   */
+  count?: number;
 }
 
 export function SettingsNav({ sections }: { sections: readonly SettingsSection[] }) {

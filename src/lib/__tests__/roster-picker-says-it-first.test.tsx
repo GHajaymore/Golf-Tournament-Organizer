@@ -11,8 +11,9 @@ import { PLAYER_ACCESS_LABEL } from "@/lib/tournament-settings";
  * THE ROSTER PICKER SAYS WHO CAN'T BE ENTERED BEFORE THE TICK.
  *
  * Walking the app as a new organizer (2026-09-26): eight members ticked, "Add
- * 8 members" pressed, and the answer was "Added 0 · no mobile for …" — a free
- * club collects a mobile from every entrant and none of them had one on file.
+ * 8 members" pressed, and the answer was "Added 0 · no mobile for …" — the
+ * tournament collected a mobile from every entrant (then every free club's
+ * did; since 2026-10-21 only one that asks) and none of them had one on file.
  * The rule is right; learning it after the click is the fault. `missing` comes
  * from the same `contactGap` the add action refuses on (pinned in
  * entry-needs-email.test.ts), so here it is enough to pin that the picker SAYS

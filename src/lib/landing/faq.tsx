@@ -237,7 +237,7 @@ export const FAQ: FaqGroup[] = [
       {
         id: "cut",
         q: "Can we run a multi-round event with a cut?",
-        a: () => <p>Yes. A stroke-play cut — &ldquo;top 16 and ties&rdquo;, say — is made as its round is marked finished, and scores can carry forward into the next round. Everyone tied at the cut line goes through, and players who miss it keep their scores, listed beneath the field. Try to carry a round into one scored differently, strokes into points, and it warns you and won&rsquo;t combine them.</p>,
+        a: () => <p>Yes. A stroke-play cut — &ldquo;top 16 and ties&rdquo;, say — is made as its round is marked finished, and scores can carry forward into the next round. A tie at the cut line goes the way the committee chose — everyone tied through, a play-off, or a countback — and players who miss it keep their scores, listed beneath the field. Try to carry a round into one scored differently, strokes into points, and it warns you and won&rsquo;t combine them.</p>,
       },
       {
         id: "brackets",

@@ -2,12 +2,12 @@
 import { byAddress } from "@/lib/domain/my-entry";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entryLimitKey } from "@/lib/domain/rate-limit";
 import { accessibleEvents } from "@/lib/services/access";
 import { decideIntake, approvalModeOf, looksLikePhone } from "@/lib/domain/registration-intake";
-import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -79,6 +79,8 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
     // exists to somebody who cannot see it.
     return { ok: false, error: NOT_OPEN };
   }
+  const archived = await archiveRefusalFor(eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -94,9 +96,8 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       playerCountMode: true,
       manualPlayerCount: true,
       status: true,
+      // Whether a mobile is asked is this setting alone (`phoneRequiredFor`).
       requirePhone: true,
-      // How its players sign in decides whether a mobile is asked (`phoneRequiredFor`).
-      playerAccess: true,
     },
   });
   if (!event) return { ok: false, error: NOT_OPEN };
@@ -203,7 +204,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    *
    * The public form, the organizer adding a player and the roster import all
    * refuse an entrant without a mobile when `phoneRequiredFor` says one is
-   * needed (a free club always; a paid club when it asks). This door took the
+   * needed (whenever the organizer has asked, on any plan). This door took the
    * roster's phone as it found it — often none — so a member entered in one tap
    * and Registration then said "19 players have no mobile on file … entered
    * before that applied", which was false for the entry just made. Walked
@@ -213,7 +214,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    * entry form", which asks for the number, so the member is one step from in.
    */
   const phone = member?.phone ?? "";
-  if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone, event.playerAccess) && !looksLikePhone(phone)) {
+  if (phoneRequiredFor(event.requirePhone) && !looksLikePhone(phone)) {
     return {
       ok: false,
       error: "This tournament needs a mobile number, and the club doesn't have one for you yet — add it on the entry form.",
@@ -268,6 +269,11 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
         handicapType: member?.handicapType ?? "18",
         handicapSource: member?.handicapSource ?? "manual",
         gender: member?.gender ?? "",
+        // What the club's record holds, as the roster's "Add to field" copies it: this door
+        // dropped the home club and the handicap number, so a member who entered themselves
+        // was a thinner row than the one the organizer would have made (2026-10-21).
+        ghin: member?.ghin ?? "",
+        homeClub: member?.homeClub ?? "",
         preferredTee,
         seed: (maxSeed._max.seed ?? 0) + 1,
         status: d.status,
@@ -331,6 +337,8 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
 
   const reachable = await accessibleEvents(session.email);
   if (!reachable.some((r) => r.eventId === eventId)) return { ok: false, error: NOT_ENTERED };
+  const archived = await archiveRefusalFor(eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },

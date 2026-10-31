@@ -28,7 +28,7 @@ function screensWithANav(): string[] {
       const p = join(dir, entry.name);
       if (entry.isDirectory()) {
         if (entry.name !== "node_modules" && entry.name !== "__tests__") walk(p);
-      } else if (/[\\/]page\.tsx$/.test(p) && /<SettingsNav\b/.test(readSource(p))) {
+      } else if (/[\\/]page\.tsx$/.test(p) && /<Settings(Nav|Tabs)\b/.test(readSource(p))) {
         out.push(p);
       }
     }
@@ -72,7 +72,7 @@ describe("a jump-to nav lands on a real section", () => {
      * own before the helper was written.
      */
     const anchored = new Set([
-      ...[...src.matchAll(/<SettingsSectionAnchor id="([^"]+)"/g)].map((m) => m[1]),
+      ...[...src.matchAll(/<Settings(?:SectionAnchor|TabPanel) id="([^"]+)"/g)].map((m) => m[1]),
       ...[...src.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]),
     ]);
 
@@ -127,7 +127,7 @@ describe("a jump-to nav lands on a real section", () => {
      */
     const src = readSource(screen);
     const listed = new Set([...src.matchAll(/\{\s*id:\s*"([^"]+)",\s*label:/g)].map((m) => m[1]));
-    const anchored = [...src.matchAll(/<SettingsSectionAnchor id="([^"]+)"/g)].map((m) => m[1]);
+    const anchored = [...src.matchAll(/<Settings(?:SectionAnchor|TabPanel) id="([^"]+)"/g)].map((m) => m[1]);
     const unlisted = anchored.filter((id) => !listed.has(id));
     expect(unlisted, "these sections exist but the nav does not offer them").toEqual([]);
   });
@@ -238,7 +238,7 @@ describe("a link to another screen's section lands on it", () => {
         readSource(join("src", "lib", "landing", "faq.tsx")).includes(`id: "${id.slice(2)}"`);
       const anchored =
         faqQuestion ||
-        new RegExp(`<SettingsSectionAnchor id="${id}"`).test(src) ||
+        new RegExp(`<Settings(?:SectionAnchor|TabPanel) id="${id}"`).test(src) ||
         new RegExp(`<section id="${id}"`).test(src) ||
         new RegExp(`id="${id}"`).test(src);
       expect(anchored, `/${route} has no element with id="${id}"`).toBe(true);

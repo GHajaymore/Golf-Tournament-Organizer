@@ -8,6 +8,7 @@ import { retentionNotice, planFor } from "@/lib/plans";
 import { askToJoinNamesake } from "@/app/actions/join";
 import { Icon } from "./Icon";
 import { ORG_KINDS, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
+import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
 
 /**
@@ -123,6 +124,10 @@ export function CreateFirstTournament({
 }) {
   /** Every word on this screen that names the outfit comes from here. */
   const outfit = orgProfile(orgKind, orgCountry, orgNoun);
+  // The golf words from the same country, before the club has chosen any: this
+  // form is often the first screen a new organizer sees, on /choose, outside
+  // the console's GolfTermsProvider.
+  const words = golfTermsFor(golfRegister(orgCountry));
   /**
    * Naming the club is answerable on this form; everything else is not.
    *
@@ -441,7 +446,7 @@ export function CreateFirstTournament({
           <label htmlFor={`${fid}-org-name`}>
             Who&rsquo;s running this?{" "}
             <span className="text-muted" style={{ fontWeight: 400 }}>
-              {clubNameRequired ? "— your club or society, set once for every tournament" : "— club, society or company (optional)"}
+              {clubNameRequired ? `— your club or ${words.golfGroup}, set once for every tournament` : `— club, ${words.golfGroup} or company (optional)`}
             </span>
           </label>
           <input
@@ -462,8 +467,8 @@ export function CreateFirstTournament({
                 The screen is NAMED from the kind rather than hard-coded. It
                 used to say "the organization's own settings" because on a
                 first tournament the organization may not exist yet and is
-                created as `personal`, whose screen is "Outing settings" and
-                not a club's — `settingsLabel` was written for exactly that
+                created as `personal`, whose screen is plain "Settings" (it
+                was "Outing settings" until 2026-10-30) and not a club's — `settingsLabel` was written for exactly that
                 case. `orgProfile("")` still answers `personal`, so the
                 fallback is the old wording's meaning, said in the app's own
                 words. */}

@@ -21,6 +21,7 @@ const sent: Array<{ to: string; told: string; who: { name: string; club: string;
 vi.mock("@/lib/email", () => ({
   sendInterestEmail: async (to: string, told: string, who: { name: string; club: string; role: string }) => {
     sent.push({ to, told, who });
+    return { id: `zz-msg-${sent.length}`, status: "sent", detail: "" };
   },
 }));
 
@@ -54,6 +55,9 @@ describe("registerInterest", () => {
     expect(sent[0].who.role).toBe("Club secretary or manager");
     // What they were promised is the go-live switch's, asked on the server: this deployment's.
     expect(sent[0].told).toBe(interestWords(await launchState()).toldInquiries);
+    // Where the copy went is kept on the note, so /owner can say it.
+    expect(rows[0]).toMatchObject({ notifyId: "zz-msg-1", notifyStatus: "sent" });
+    expect(rows[0].notifyAt).not.toBeNull();
   });
 
   it("refuses a bad address beside its box, and keeps nothing", async () => {

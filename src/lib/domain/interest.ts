@@ -1,3 +1,6 @@
+import { EMAIL_RE } from "./typed-limits";
+import { golfTermsFor, inClubWords, type GolfWords } from "./golf-terms";
+
 /**
  * SOMEBODY INTERESTED BEFORE WE OPEN (2026-10-21) — the rules of the public
  * /interest form, in one place: what it asks, what it offers, and what it
@@ -30,7 +33,9 @@ export const INTEREST_COPY = {
     name: "Your name",
     email: "Email",
     phone: "Phone",
-    club: "Club or society",
+    // In the visitor's golf (2026-10-24): "Club or golf group" from the US,
+    // "Club or society" from Britain. `{golfGroup}` is filled by `interestWords`.
+    club: "Club or {golfGroup}",
     role: "Which best describes you?",
     members: "Roughly how many members?",
     note: "Anything you'd like us to know?",
@@ -46,7 +51,7 @@ export const INTEREST_COPY = {
   },
   optional: "optional",
   submit: "Register my interest",
-  sentPlayer: "Tournaments are set up by your club or society. Tell your secretary or organizer, and they can register here too.",
+  sentPlayer: "Tournaments are set up by your club or {golfGroup}. Tell your secretary or {organizer}, and they can register here too.",
 } as const;
 
 /** The subject of the copy sent to inquiries@: sortable at a glance. */
@@ -58,7 +63,7 @@ export function interestSubject(who: { name: string; club: string; role: string;
 export const INTEREST_ROLES = [
   { key: "secretary", label: "Club secretary or manager" },
   { key: "committee", label: "Captain or committee member" },
-  { key: "society", label: "Society or league organizer" },
+  { key: "society", label: "League or {golfGroup} {organizer}" },
   { key: "player", label: "Player" },
   { key: "other", label: "Something else" },
 ] as const;
@@ -127,8 +132,8 @@ export type InterestCheck =
   | { ok: false; spam: true };
 
 const text = (v: unknown) => (typeof v === "string" ? v : "").trim();
-/** One address, plainly shaped — the reply goes to it, so it has to be one. */
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** One address, plainly shaped — the reply goes to it, so it has to be one. The app's one shape. */
+const EMAIL = EMAIL_RE;
 const PHONE = /^[+()\-.\s\d]+$/;
 
 /**
@@ -155,12 +160,23 @@ export function checkInterest(raw: unknown): InterestCheck {
   if (phone && (!PHONE.test(phone) || phone.replace(/\D/g, "").length < 7)) {
     return { ok: false, error: "That phone number doesn't look right — or leave it empty.", field: "phone" };
   }
-  if (!club) return { ok: false, error: "Tell us your club or society — or write \"none\".", field: "club" };
+  if (!club) return { ok: false, error: "Tell us your club or {golfGroup} — or write \"none\".", field: "club" };
   if (!INTEREST_ROLES.some((x) => x.key === role)) return { ok: false, error: "Choose who you are.", field: "role" };
   // Size is optional: "Not sure" is an answer, and so is leaving it.
   const size = INTEREST_SIZES.some((x) => x.key === members) ? members : "";
   return { ok: true, clean: { name, email, phone, club, role, members: size, note, source: cleanSource(r.source) } };
 }
 
-export const roleLabel = (key: string) => INTEREST_ROLES.find((x) => x.key === key)?.label ?? key;
+/**
+ * A role as the owner reads it — on `/owner` and in the copy to inquiries@ —
+ * in the app's default golf, the US register. The visitor's own form names it
+ * in THEIR golf through `interestWords`.
+ */
+export const roleLabel = (key: string) =>
+  interestWords(INTEREST_ROLES.find((x) => x.key === key)?.label ?? key, golfTermsFor("us"));
+
+/** A line of this flow in one register's golf: the form passes the visitor's. */
+export function interestWords(text: string, words: GolfWords): string {
+  return inClubWords(text, words);
+}
 export const sizeLabel = (key: string) => INTEREST_SIZES.find((x) => x.key === key)?.label ?? "";

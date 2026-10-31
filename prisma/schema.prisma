@@ -45,9 +45,20 @@ model User {
    * somebody who has never reset: nothing of theirs has been ended.
    */
   sessionsValidFrom DateTime?
+  /**
+   * When this person proved they read this address's mail (2026-10-21): a
+   * six-digit code typed back (`EmailCode`), or a password reset finished from
+   * its emailed link. NULL is nobody's proof, and `createSession` makes no
+   * session for it — so whoever types an invited address first is not, by
+   * typing it, that person. Users who had a password before this column were
+   * marked verified by the migration that added it.
+   */
+  emailVerifiedAt DateTime?
 
-  resetTokens PasswordResetToken[]
-  memberships OrganizationMember[]
+  resetTokens  PasswordResetToken[]
+  emailCodes   EmailCode[]
+  knownDevices KnownDevice[]
+  memberships  OrganizationMember[]
   joinRequests JoinRequest[]
 }
 
@@ -815,7 +826,8 @@ model Subscription {
    */
   plan                   String    @default("free")
   /**
-   * active | trialing | past_due | canceled
+   * active | trialing | past_due | unpaid | canceled. `unpaid` and `canceled`
+   * are a lapsed paid plan (see `lapsedAt`); `past_due` keeps the plan.
    */
   status                 String    @default("active")
   /**
@@ -862,6 +874,21 @@ model Subscription {
    * less.
    */
   planTermsApply         Boolean   @default(false)
+  /**
+   * WHEN THIS CLUB'S PAID PLAN ENDED — Stripe's own end date for a cancelled
+   * subscription, or the moment it was first seen `unpaid` (Ajay, 2026-10-21,
+   * decisions A4 and A8). Null while the club pays, and for a club that never
+   * paid. Every tournament the club held at that moment carries the same instant
+   * in `Event.archivedAt`, and is a read-only archive for twelve months from it
+   * (`domain/club-archive.ts`). Set once per lapse and cleared by resubscribing.
+   */
+  lapsedAt               DateTime?
+  /**
+   * When the owners were told the archive is deleted in 30 days, and in 7. Null
+   * until sent; cleared with `lapsedAt`, so a later lapse is told again.
+   */
+  archiveNotice30At      DateTime?
+  archiveNotice7At       DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -884,6 +911,61 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/**
+ * A six-digit code emailed to prove somebody reads an address (2026-10-21) —
+ * see `services/email-code.ts`. Only a sha256 of the code (bound to the user)
+ * is stored, as a reset token's is. Good for 15 minutes, five wrong tries, and
+ * one use.
+ *
+ * `purpose` is "signup" (a new account) or "claim" (a first password for an
+ * address a club invited). `pending` is what takes effect only once the code is
+ * right: the HASHED password chosen, and for a sign-up the name, club kind and
+ * discount code — so a password chosen by somebody who cannot read the mail
+ * never becomes anybody's password.
+ *
+ * `browserHash` ties the code to the browser that asked for it (a sha256 of an
+ * HttpOnly cookie's random value). Without it, a stranger signing up with your
+ * address a minute after you would send you a second code carrying THEIR
+ * password, and the code you typed from the newest email would set it.
+ */
+model EmailCode {
+  id          String    @id @default(cuid())
+  userId      String
+  codeHash    String
+  browserHash String
+  purpose     String
+  pending     Json?
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, browserHash])
+}
+
+/**
+ * A browser this person has signed in on before (2026-10-21). The browser
+ * carries a random value in a year-long HttpOnly cookie; only its hash is here.
+ * Club staff on a browser not listed are asked for an emailed code first, and
+ * anybody signing in on one is sent a "new sign-in" email
+ * (`services/known-device.ts`). `label` is the browser in words ("Chrome on
+ * Windows"), for that email.
+ */
+model KnownDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  deviceHash String
+  label      String   @default("")
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceHash])
 }
 
 /**
@@ -1267,6 +1349,20 @@ model Event {
   expenseEntry          String  @default("")
 
   /**
+   * ONE PRIZE PER PLAYER (Ajay, 2026-10-21, recommendation C1): nobody takes
+   * home two PLACING prizes from this tournament. Ticked on Prizes; off by
+   * default, so no tournament stored before it changes. Which lines count is
+   * the line's own (`Prize.countsForOnePrize`); a skill prize does not, and a
+   * `Contest` is outside the rule entirely. The rule is `domain/one-prize.ts`,
+   * enforced where an award is saved (`setPrizeWinner`).
+   *
+   * A column of its own rather than a field of `TournamentSettings`: that
+   * bundle is the setup form and the club's house defaults, and this is a
+   * condition of the prize list, asked beside the list it governs.
+   */
+  onePrizePerPlayer     Boolean @default(false)
+
+  /**
    * How an interclub league turns four-ball results into points — see
    * `LEAGUE_POINTS_SYSTEMS` in domain/league-meeting.ts for the four on offer.
    * On the EVENT rather than the round, deliberately: a league scores every
@@ -1392,6 +1488,16 @@ model Event {
    * extend — it can never shorten a window somebody was promised.
    */
   retainUntil    DateTime?
+  /**
+   * THIS TOURNAMENT IS IN A LAPSED CLUB'S ARCHIVE — the instant the club's paid
+   * plan ended (`Subscription.lapsedAt`), stamped on every tournament the club
+   * held then, in the same transaction that moves the club to Par. Read-only
+   * while set, and deleted twelve months on (`domain/club-archive.ts`).
+   * Cleared, for every tournament of the club, when it resubscribes. A
+   * tournament made after the lapse is an ordinary Par tournament and is never
+   * stamped. The Par sweep never touches a row with this set.
+   */
+  archivedAt     DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1771,6 +1877,22 @@ model Stage {
    * while the round before was still open, also satisfies. See `cutHasBeenMade`.
    */
   cutMadeAt  DateTime?
+  /**
+   * HOW A TIE FOR THE LAST PLACE AT THIS STROKE CUT IS SETTLED (2026-10-23):
+   * "ties" (everybody level on the score goes through — the default), "playoff"
+   * (the committee records who won it) or "countback" (last 9, 6, 3, 1 on the
+   * round's basis, then a draw by lot the committee records). `cutTieRuleOf`
+   * reads it; an unknown value reads as the default.
+   */
+  cutTies    String  @default("ties")
+  /**
+   * The committee's decisions of a tie the rule above could not settle by
+   * itself, as JSON: [{ tied: [playerId…], through: [playerId…] }]. Each is
+   * keyed by WHO was tied, so a correction that changes the tie leaves it
+   * unsettled again rather than applying a play-off to a different field.
+   * See `strokeCutOutcome`.
+   */
+  cutTieDecisions String @default("[]")
 
   /**
    * The venue for this round, when the tournament rotates them — a
@@ -2171,6 +2293,16 @@ model Prize {
   detail   String  @default("")
   amount   Float   @default(0)
   winnerId String? // optional Player id once awarded
+  /**
+   * Whether this line is a PLACING prize — winner, runner-up, a flight's
+   * winner, best gross, best net — and so counts under the tournament's "one
+   * prize per player". A SKILL prize (nearest the pin, longest drive, twos)
+   * does not: a club lets a player win a placing prize and nearest the pin.
+   * Defaults to counting; the structures set it false on the skill lines they
+   * add, and a hand-added line takes `looksLikeSkillPrize` of its name, which
+   * the organizer can switch. Read only while `Event.onePrizePerPlayer` is on.
+   */
+  countsForOnePrize Boolean @default(true)
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
@@ -3555,9 +3687,16 @@ model InterestRequest {
   /// at (utm_*, ref) and the site that sent them — read from the URL, no
   /// cookie. So the panel can tell which post or advertisement works.
   source    String   @default("")
+  /// The copy to inquiries@: the provider's message id, and where it got to
+  /// (`domain/email-delivery.ts`). "" on notes from before 2026-10-30.
+  notifyId     String    @default("")
+  notifyStatus String    @default("")
+  notifyDetail String    @default("")
+  notifyAt     DateTime?
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+  @@index([notifyId])
 }
 
 /// An early-list code, sent (2026-10-23): who was sent which code, and when. One row per address

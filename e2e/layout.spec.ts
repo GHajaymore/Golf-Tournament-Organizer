@@ -174,6 +174,20 @@ for (const path of SCREENS) {
     expect(scrollWidth, `${path}: body is ${scrollWidth}px in a ${width}px viewport`).toBeLessThanOrEqual(
       width + 1,
     );
+
+    // A screen shown one section at a time (Club settings' tabs, 2026-10-21):
+    // the measurement above saw the first section only, so every other one is
+    // tapped open and measured the same way.
+    const tabs = await page.locator('main [role="tab"]').evaluateAll((els) => els.map((el) => el.id));
+    for (const id of tabs) {
+      const tab = page.locator(`main [id="${id}"]`);
+      await tab.click();
+      await expect(tab).toHaveAttribute("aria-selected", "true");
+      const here = await overflowing(page);
+      expect(here, `${path}#${id.replace(/^tab-/, "")}: ${here.length} element(s) past the right edge — ${JSON.stringify(here.slice(0, 3))}`).toEqual([]);
+      const wide = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(wide, `${path}#${id.replace(/^tab-/, "")}: body is ${wide}px in a ${width}px viewport`).toBeLessThanOrEqual(width + 1);
+    }
   });
 }
 
