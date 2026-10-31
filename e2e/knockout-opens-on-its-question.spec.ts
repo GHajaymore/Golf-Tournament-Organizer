@@ -129,15 +129,40 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
 
     const [first, second] = r1;
     await test.step("a refusal is said in its own row; a result lands on its tie and is said back", async () => {
+      /*
+       * EVERY ROW'S CONTROLS BELONG TO THAT ROW (round bracket-defaults-2): the rows once
+       * shared the list's one card, so the button nearest a later row's winner — "the
+       * card's" — was the FIRST row's, and a winner chosen in the second row was refused
+       * "Choose who won." up in the first. Asked as the control crawl asks it: from each
+       * radio and each box, the enclosing form/section/card holds one button, its row's.
+       */
+      const owners = await page.locator("[data-tie-row]").evaluateAll((rows) =>
+        rows.flatMap((row) =>
+          [...row.querySelectorAll("input, select")].map((c) => {
+            const home = c.closest("form, section, .card");
+            const buttons = home ? [...home.querySelectorAll("button")] : [];
+            return buttons.length === 1 && buttons[0].closest("[data-tie-row]") === row ? "own" : `${row.getAttribute("data-tie-row")}: ${buttons.length} buttons`;
+          }),
+        ),
+      );
+      expect(owners.filter((o) => o !== "own"), "a tie row's control whose nearest button is not its own row's").toEqual([]);
+      // A later row, entered by Enter in its margin box with nobody chosen: refused in THAT row, in view.
+      const later = page.locator(`[data-tie-row="${second.key}"]`);
+      await later.getByLabel(`Margin, ${second.a.name} v ${second.b.name}`).fill("2&1");
+      await later.getByLabel(`Margin, ${second.a.name} v ${second.b.name}`).press("Enter");
+      await expect(later.getByRole("alert")).toHaveText("Choose who won.");
+      await expect(later.getByRole("alert"), "the refusal is not beside the press").toBeInViewport();
+      await page.reload();
+      await page.locator("[data-tie-row]").first().waitFor();
       const row = page.locator(`[data-tie-row="${first.key}"]`);
-      await row.getByRole("button", { name: "Save result" }).click();
+      await row.getByRole("button", { name: "Record result" }).click();
       await expect(row.getByRole("alert")).toHaveText("Choose who won.");
       await expect(page.locator("[data-tie-row] [role=alert]")).toHaveCount(1);
       // The lower seed wins, 3&2.
       const winner = first.b;
       await row.getByRole("radio", { name: `${winner.name} won` }).check();
       await row.getByLabel(`Margin, ${first.a.name} v ${first.b.name}`).fill("3&2");
-      await row.getByRole("button", { name: "Save result" }).click();
+      await row.getByRole("button", { name: "Record result" }).click();
       const said = page.getByRole("list", { name: "Just recorded" });
       await expect(said).toContainText(`Recorded — Round 1: ${winner.name} beat ${first.a.name} 3&2.`);
       await expect
@@ -148,7 +173,7 @@ test("a knockout opens on To play for the secretary, a player's own tie, and the
       const row2 = page.locator(`[data-tie-row="${second.key}"]`);
       await row2.getByRole("radio", { name: `${second.a.name} won` }).check();
       await row2.getByLabel(`How it was settled, ${second.a.name} v ${second.b.name}`).selectOption("walkover");
-      await row2.getByRole("button", { name: "Save result" }).click();
+      await row2.getByRole("button", { name: "Record result" }).click();
       await expect(said).toContainText(`Recorded — Round 1: ${second.a.name} beat ${second.b.name} by walkover.`);
       await page.getByRole("tab", { name: "To play", exact: true }).scrollIntoViewIfNeeded();
       await capture(page, `to-play-${project}`);
