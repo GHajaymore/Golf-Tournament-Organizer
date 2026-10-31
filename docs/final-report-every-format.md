@@ -271,7 +271,7 @@ The owner approved what the panel agreed, with its amendments.
   staff see the name. `publicName` reads the flag; `publicCopy`
   (`services/public-names.ts`) hands every signed-out page its data through
   `withholdNames`, whole names and the ladder's "Ailsa T." alike, as whole words.
-- Migration `A020_a_report_says_who_may_see_it`. Both settings travel with a
+- Migration `A033_a_report_says_who_may_see_it`. Both settings travel with a
   copied tournament (`clone.ts`).
 
 Tests: `report-settings.test.ts`, `the-report-settings.audit.test.ts` (each
