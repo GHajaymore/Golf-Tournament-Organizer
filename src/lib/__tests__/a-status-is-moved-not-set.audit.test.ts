@@ -53,8 +53,9 @@ async function tournament(name: string, status: string, ready = false) {
   await prisma.account.create({ data: { eventId: event.id, email: EMAIL, name: `${TAG} secretary`, role: "admin" } });
   if (ready) {
     // Match play needs no course card, so the launch gate asks only for a
-    // round, somebody in the field and a date.
-    await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Round Robin", format: "Match Play", holes: 18 } });
+    // round, somebody in the field and a date. A knockout, since an undrawn
+    // round robin has no matches to score and launch refuses it (gap G3).
+    await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Bracket Stage", format: "Match Play", holes: 18 } });
     await prisma.player.create({ data: { eventId: event.id, name: `${TAG} player`, email: `${TAG}.p@example.invalid`.toLowerCase(), handicap: 10, seed: 1, status: "confirmed" } });
   }
   session.eventId = event.id;

@@ -34,15 +34,13 @@ import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isStraightKnockout, isWeeklyRound } from "@/lib/stage-types";
 import { playOverOf } from "@/lib/domain/tournament-switcher";
-import { launchRefusal, finishRefusal, completingCheckFor } from "@/lib/domain/phase-gate";
-import { unscorableRoundLabels } from "@/lib/domain/round-choices";
-import { roundsMissingCards } from "@/lib/services/round-card-lines";
+import { finishRefusal, completingCheckFor } from "@/lib/domain/phase-gate";
 import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { overallResultLabel } from "@/lib/domain/overall-result";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupFlowFor, launchCheckFor } from "@/lib/services/setup-flow";
 import { isMatch, reviewsScores } from "@/lib/tournament-shape";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
@@ -511,18 +509,13 @@ export default async function DashboardPage() {
    * a reason the screen had already worked out and thrown away.
    */
   const lifecycleAction = nextLifecycleAction({ status: event.status, resultsIn: state.resultsIn });
-  // Read only when Launch is on offer — the same facts the action refuses on,
-  // so the button and the server cannot disagree about a round's card.
-  const missingCards = lifecycleAction?.kind === "launch" ? await roundsMissingCards(session.eventId) : [];
+  // Read only when Launch is on offer — the very function the action refuses on
+  // (`launchCheckFor`, the setup flow's own facts), so the button and the server
+  // cannot disagree. Its warnings go in the launch dialog.
+  const launch = lifecycleAction?.kind === "launch" ? await launchCheckFor(session.eventId) : null;
   const phaseBlock =
-    lifecycleAction?.kind === "launch"
-      ? launchRefusal({
-          playingRounds: state.stages.filter((s) => isPlayingRound(s.type)).length,
-          confirmed: state.confirmed.length,
-          dated: !!state.event.dates.trim(),
-          missingCards,
-          unscorable: unscorableRoundLabels(state.stages),
-        })
+    launch
+      ? launch.refusal
       : lifecycleAction?.to === "completed"
         ? finishRefusal({
             pendingConfirmations: state.pendingConfirmations,
@@ -940,6 +933,7 @@ export default async function DashboardPage() {
           resultsIn={state.resultsIn}
           blockedReason={phaseBlock ?? (completing && "refuse" in completing ? completing.refuse : undefined)}
           unplayedAsk={completing && "ask" in completing ? completing.ask : undefined}
+          launchOpen={launch ?? undefined}
           {...(isAdmin && (await wipesOnCloseFor(event.id))
             ? {
                 deletesOnComplete: true,

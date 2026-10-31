@@ -12,6 +12,7 @@ import {
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
 import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
+import { warningText, type LaunchCheck } from "@/lib/domain/launch-check";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 
@@ -35,6 +36,7 @@ export function LifecycleBar({
   resultsIn = 0,
   blockedReason,
   unplayedAsk,
+  launchOpen,
   deletesOnComplete = false,
   keepOffer,
   closesOn,
@@ -89,6 +91,13 @@ export function LifecycleBar({
    * server asks it too, for a page that has sat open while a round's cards went in or came out.
    */
   unplayedAsk?: string;
+  /**
+   * What setup still has open that does not stop a launch — no tee sheet, no
+   * money answer, no flights (`launchCheck`, the setup flow's own steps). Said
+   * in the launch dialog, plain text, before the organizer presses (gap G3,
+   * 2026-10-31). Refusals disable the button instead; these never do.
+   */
+  launchOpen?: Pick<LaunchCheck, "warnings" | "stepsOpen" | "steps">;
 }) {
   const [confirming, setConfirming] = useState(false);
   /** What the server said when it refused a launch — shown in the dialog. */
@@ -484,6 +493,36 @@ export function LifecycleBar({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="dialog-title" id="launch-dialog-title">Launch “{summary.name}”?</div>
+            {/* WHAT SETUP STILL HAS OPEN (gap G3, 2026-10-31), first, and in a block
+                of its own rather than inside `.dialog-body`: that one is dimmed, and
+                these have to read in sunlight. At most three rows; a fourth and on
+                is counted on the third. */}
+            {launchOpen && launchOpen.warnings.length > 0 && (
+              <section
+                className="launch-warnings"
+                aria-label="Still open"
+                style={{ margin: "0 0 12px", padding: "10px 12px", fontSize: 13, lineHeight: 1.55, color: "var(--color-text)", background: "var(--color-surface-2)", border: "1px solid var(--color-divider)", borderRadius: 8 }}
+              >
+                <b>
+                  {launchOpen.stepsOpen > 0
+                    ? `${launchOpen.stepsOpen} of ${launchOpen.steps} setup steps still open — you can launch without ${launchOpen.stepsOpen === 1 ? "it" : "them"}.`
+                    : "Setup is done — one thing you may still want."}
+                </b>
+                <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                  {(launchOpen.warnings.length > 3 ? launchOpen.warnings.slice(0, 2) : launchOpen.warnings).map((w) => (
+                    <li key={w.says} title={warningText(w)}>
+                      {w.says} <Link href={w.href}>{w.fix}</Link>
+                      {w.afterLaunch === "unlock" ? " — after launch, this needs Unlock first." : " — you can still do this after launch."}
+                    </li>
+                  ))}
+                  {launchOpen.warnings.length > 3 && (
+                    <li>
+                      And {launchOpen.warnings.length - 2} more — <Link href="/event">see them on Tournament details</Link>.
+                    </li>
+                  )}
+                </ul>
+              </section>
+            )}
             <div className="dialog-body">
               {/**
                * THE THIRD COPY OF A CLAIM THAT WAS MEASURED FALSE, and the one
