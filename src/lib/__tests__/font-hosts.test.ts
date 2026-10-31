@@ -48,8 +48,10 @@ function stylesheets(dir: string, found: string[] = []): string[] {
 const FONTS = readSource("src/app/fonts.ts");
 /** The scoreboard's latin face, since 2026-10-13 — see "a screen is hinted only the faces it draws". */
 const SCOREBOARD_FACE = readSource("src/components/scoreboard-face.ts");
-/** Every call to next/font in the app, whichever of the two files it is in. */
-const CALLS = [...FONTS.split("localFont({").slice(1), ...SCOREBOARD_FACE.split("localFont({").slice(1)];
+/** The same face for the Print kit, unhinted, since 2026-10-31 — see "the print kit draws its cards in Oswald". */
+const PRINT_FACE = readSource("src/components/print-face.ts");
+/** Every call to next/font in the app, whichever of the three files it is in. */
+const CALLS = [FONTS, SCOREBOARD_FACE, PRINT_FACE].flatMap((f) => f.split("localFont({").slice(1));
 
 const SHEETS = stylesheets(join(process.cwd(), "src")).map((f) =>
   f.slice(process.cwd().length + 1).split("\\").join("/"),
@@ -254,9 +256,9 @@ describe("no build fetches a font", () => {
   });
 
   it("names font files that exist", () => {
-    // Both files sit two directories below the repository, so one base resolves either's paths.
-    const paths = [...(FONTS + SCOREBOARD_FACE).matchAll(/path:\s*"([^"]+)"/g)].map((m) => m[1]);
-    expect(paths.length).toBe(13);
+    // All three files sit two directories below the repository, so one base resolves any's paths.
+    const paths = [...(FONTS + SCOREBOARD_FACE + PRINT_FACE).matchAll(/path:\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(paths.length).toBe(14);
     const missing = paths.filter((p) => !existsSync(join(process.cwd(), "src/app", p)));
     expect(missing, "a package update moved these").toEqual([]);
   });
@@ -277,11 +279,12 @@ describe("no build fetches a font", () => {
     const display = CALLS.filter((f) => /@fontsource-variable\//.test(f));
     // Fraunces in three ranges — its latin range as two calls since 2026-10-13,
     // upright and italic — and its display cut (2026-10-11: the optical-size
-    // axis, latin only, for the front door's headlines); Oswald in five.
-    expect(display.length, "Fraunces: latin upright, latin italic, display cut, latin-ext, vietnamese; Oswald in 5").toBe(10);
+    // axis, latin only, for the front door's headlines); Oswald in five, its
+    // latin called twice since 2026-10-31 (the scoreboard's hinted, the print kit's not).
+    expect(display.length, "Fraunces: latin upright, latin italic, display cut, latin-ext, vietnamese; Oswald in 5, latin twice").toBe(11);
     for (const face of display) expect(face).toMatch(/prop: "unicode-range"/);
     // Geist Mono is one file for every character it has, as its package ships it.
-    expect(CALLS.length, "the ten display faces and Geist Mono").toBe(11);
+    expect(CALLS.length, "the eleven display calls and Geist Mono").toBe(12);
   });
 
   it("keeps the fallbacks Google's build shipped, and puts each last", () => {
@@ -378,5 +381,33 @@ describe("a screen is hinted only the faces it draws", () => {
     expect(screens).toContain("src/app/(player)/me/page.tsx");
     const without = screens.filter((f) => !/["']@\/components\/scoreboard-face["']/.test(readSource(f)));
     expect(without, "these render a scoreboard without its face").toEqual([]);
+  });
+
+  it("has the print kit draw its cards in Oswald without being hinted it", () => {
+    /**
+     * The kit's cards are measured and printed in the scoreboard's face, but a
+     * visit that shows no sheet draws no letter of it. A hinted call there
+     * downloads 28 KB for nothing (`e2e/fonts.spec.ts`, 31 Oct). So the kit
+     * brings the same file under the same family, never preloaded, and waits
+     * for it before it calls the printer.
+     */
+    const calls = PRINT_FACE.split("localFont({").slice(1);
+    expect(calls.length).toBe(1);
+    const board = SCOREBOARD_FACE.split("localFont({").slice(1)[0];
+    const file = (c: string) => c.match(/path:\s*"([^"]+)"/)?.[1];
+    expect(file(calls[0]), "the kit measures in a different file from the one the board hangs in").toBe(file(board));
+    expect(calls[0]).toMatch(/\{ prop: "font-family", value: "oswaldLatin" \}/);
+    expect(preloads(calls), "the print kit's face is hinted, so a visit with no sheet downloads it").toEqual([]);
+
+    const screens = importing(/from "@\/components\/print\/PrintKitClient"/);
+    // The control: the kit's own screen is found.
+    expect(screens).toContain("src/app/(app)/print/page.tsx");
+    for (const s of screens) {
+      const src = readSource(s);
+      expect(src, `${s} renders the kit without its face — the cards would measure and print in the fallback`).toMatch(/["']@\/components\/print-face["']/);
+      expect(src, `${s} brings the scoreboard's HINTED face: every visit downloads it, sheets or not`).not.toMatch(/["']@\/components\/scoreboard-face["']/);
+    }
+    // And the kit asks for the face before the printer reads the page.
+    expect(readSource("src/components/print/PrintKitClient.tsx")).toMatch(/document\.fonts\.load\([^)]*oswaldLatin[\s\S]*window\.print\(\)/);
   });
 });

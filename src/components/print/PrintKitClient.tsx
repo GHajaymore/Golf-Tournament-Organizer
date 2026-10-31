@@ -98,6 +98,10 @@ export function PrintKitClient({
       setStamps((prev) => ({ ...prev, ...res.stamps }));
       // Two frames: the stamps and the selection are on the page before the printer reads it.
       await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      // The cards' face is not hinted (src/components/print-face.ts): ask for it, and
+      // wait, so no card goes to paper in the fallback.
+      await Promise.all([document.fonts.load("400 9pt oswaldLatin"), document.fonts.load("700 9pt oswaldLatin")]).catch(() => []);
+      await document.fonts.ready;
       window.print();
       router.refresh();
     });

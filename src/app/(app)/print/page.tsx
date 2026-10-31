@@ -9,8 +9,9 @@ import { MoreInfo } from "@/components/MoreInfo";
 import { cardsByFrom, docTitle, docsFrom, paperFrom, signsByFrom, type DocKind } from "@/lib/domain/print-kit";
 import { screenName } from "@/lib/nav";
 // The cards are set in the scoreboard's condensed face, from disk, so what the
-// browser measures is what prints. Imported for its effect: next/font hints it here.
-import "@/components/scoreboard-face";
+// browser measures is what prints. Imported for its effect, and NOT hinted: a visit
+// that shows no sheet downloads no Oswald (src/components/print-face.ts).
+import "@/components/print-face";
 
 export const metadata = screenMetadata("/print");
 
