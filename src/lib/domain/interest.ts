@@ -23,7 +23,7 @@ export const INTEREST_COPY = {
   title: "Register your interest",
   kicker: "Opening soon",
   h1: "Be first on the tee when TourneyHQ opens",
-  sub: "Register now and we'll email you a code for 25% off the paid plan you choose at launch. It covers your first term: your first month, or your first year if you pay yearly.",
+  sub: "Free to join, no card needed. Register now and we'll email you a code for 25% off the paid plan you choose at launch. It covers your first term: your first month, or your first year if you pay yearly.",
   bullets: [
     "Entries, tee sheets and live scoring on players' own phones — players need only a round code, no account.",
     "Match play, team cups, skins and side games with who owes what worked out, and a final report — in one place.",
