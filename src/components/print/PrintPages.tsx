@@ -735,10 +735,21 @@ function StartingSheet({ p, kit, status }: { p: StartPage; kit: PrintKit; status
  * paper the hub is set to; the named pages turn it. Every size here is a floor
  * the fits test holds: nothing under 7 pt, a code at 40 pt, a QR at 30 mm.
  */
+/**
+ * A LINE OF THE CARDS' FACE IS 1.5 em, BECAUSE OSWALD'S IS 1.482 (2026-10-31).
+ * Oswald's ascent and descent (1193 + 289 per 1000) make a content area of
+ * 1.482 em. At the 1.3 the cards were set in, a line box was shorter than its
+ * own letters: every line that clips (`overflow: hidden`, there to show a name
+ * too long rather than spill it) cut into the descenders on paper, and Firefox,
+ * which counts the content area as the line's overflow, reported every name on
+ * the card as clipped. A line of 1.5 holds the whole face, so a line clips only
+ * when it is too long — which is what the clip is for.
+ */
+const LINE = 1.5;
 const PAPER_RULES = `
 .pk-pages { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; overflow-x: auto; max-width: 100%; padding: 4px 4px 12px; }
 .pk-sheet { position: relative; background: #fff; color: #000; flex: none; box-shadow: 0 1px 6px rgba(0,0,0,.35); overflow: hidden;
-  font-family: var(--font-board, "Oswald Fallback"), sans-serif; font-size: 9pt; line-height: 1.3; font-weight: 400; }
+  font-family: var(--font-board, "Oswald Fallback"), sans-serif; font-size: 9pt; line-height: ${LINE}; font-weight: 400; }
 /* Half a millimetre short of the sheet, so rounding never spills a sheet onto a second. */
 .pk-landscape { width: calc(var(--pk-h, 297mm) - 0.5mm); height: calc(var(--pk-w, 210mm) - 0.5mm); }
 .pk-portrait { width: calc(var(--pk-w, 210mm) - 0.5mm); height: calc(var(--pk-h, 297mm) - 0.5mm); }
@@ -748,7 +759,7 @@ const PAPER_RULES = `
 /* The lower panel starts just under the fold: 3.5 mm, so the pair of panels fits the safe box exactly. */
 .pk-foldout .pk-fold + .pk-panel { margin-top: 3.5mm; }
 .pk-fold { flex: none; height: 0; border-top: 0.25pt dotted #000; position: relative; margin-top: ${CARD_MM.safe}mm; }
-.pk-fold span { position: absolute; right: 0; top: -3.2mm; font-size: 7pt; }
+.pk-fold span { position: absolute; right: 0; top: -3.8mm; font-size: 7pt; }
 .pk-cont { font-size: 7.5pt; margin-bottom: 1mm; }
 .pk-marks i, .pk-marks span { position: absolute; }
 .pk-crop { width: 5mm; height: 0; border-top: 0.25pt solid #000; }
@@ -764,13 +775,13 @@ const PAPER_RULES = `
 .pk-head { flex: none; height: 13mm; display: grid; grid-template-columns: 52mm minmax(0, 1fr) auto; gap: 3mm; align-items: center; overflow: hidden; }
 .pk-club, .pk-title { min-width: 0; overflow: hidden; }
 .pk-logo { display: block; height: 9mm; width: auto; max-width: 40mm; object-fit: contain; }
-.pk-clubname { font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
-.pk-event { font-weight: 700; text-align: center; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pk-clubname { font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: ${LINE}; }
+.pk-event { font-weight: 700; text-align: center; line-height: ${LINE}; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pk-sub { font-size: 7.5pt; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: clip; }
-.pk-start { font-size: 16pt; font-weight: 700; border: 1pt solid #000; padding: 0.3mm 2mm; white-space: nowrap; line-height: 1.45; }
+.pk-start { font-size: 16pt; font-weight: 700; border: 1pt solid #000; padding: 0.3mm 2mm; white-space: nowrap; line-height: ${LINE}; }
 /* The grid. Columns in mm; rows at the ruling's heights. */
 .pk-grid { flex: none; border-collapse: collapse; table-layout: fixed; width: max-content; margin-top: 0.8mm; }
-.pk-grid th, .pk-grid td { border: 0.5pt solid #000; padding: 0; text-align: center; vertical-align: middle; overflow: hidden; white-space: nowrap; font-size: 9pt; line-height: 1.3; }
+.pk-grid th, .pk-grid td { border: 0.5pt solid #000; padding: 0; text-align: center; vertical-align: middle; overflow: hidden; white-space: nowrap; font-size: 9pt; line-height: ${LINE}; }
 .pk-grid .pk-namecol { text-align: left; padding: 0 0.8mm; }
 .pk-grid th { font-weight: 700; }
 .pk-r-hole th { height: 5mm; }
@@ -783,17 +794,17 @@ const PAPER_RULES = `
 .pk-r-side td.pk-namecol { background: #fff; }
 .pk-tot { border-left-width: 1pt !important; }
 .pk-box { position: relative; }
-.pk-dot { position: absolute; top: 0.3mm; right: 0.5mm; font-size: 7pt; line-height: 1.3; letter-spacing: -0.3pt; }
-.pk-name { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; line-height: 1.3; }
-.pk-fig { display: block; font-size: 7pt; white-space: nowrap; overflow: hidden; line-height: 1.3; margin-top: 0.4mm; }
-.pk-members { display: block; font-size: 7.5pt; white-space: normal; line-height: 1.3; overflow: hidden; max-height: 6mm; }
+.pk-dot { position: absolute; top: 0.3mm; right: 0.5mm; font-size: 7pt; line-height: ${LINE}; letter-spacing: -0.3pt; }
+.pk-name { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; line-height: ${LINE}; }
+.pk-fig { display: block; font-size: 7pt; white-space: nowrap; overflow: hidden; line-height: ${LINE}; margin-top: -0.6mm; }
+.pk-members { display: block; font-size: 7.5pt; white-space: normal; line-height: ${LINE}; overflow: hidden; max-height: 6mm; }
 .pk-memberlist { list-style: none; margin: 1mm 0 0; padding: 0; flex: none; columns: 2; column-gap: 6mm; }
 .pk-memberlist li { font-size: 9pt; font-weight: 700; white-space: nowrap; overflow: hidden; }
 .pk-section { flex: none; font-size: 8pt; font-weight: 700; margin-top: 0.6mm; white-space: nowrap; overflow: hidden; }
 .pk-sigs { flex: none; display: flex; gap: 10mm; margin-top: 1mm; height: 7mm; }
 .pk-sigs span { flex: 1 1 0; min-width: 0; border-bottom: 0.5pt solid #000; font-size: 7.5pt; display: flex; align-items: flex-end; padding-bottom: 0.4mm; white-space: nowrap; overflow: hidden; }
 .pk-note { flex: none; font-size: 7pt; margin-top: 0.4mm; white-space: nowrap; overflow: hidden; }
-.pk-foot { flex: none; margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; gap: 4mm; font-size: 7pt; line-height: 1.3; height: 3.4mm; overflow: hidden; }
+.pk-foot { flex: none; margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; gap: 4mm; font-size: 7pt; line-height: ${LINE}; height: 3.8mm; overflow: hidden; }
 .pk-foot > * { white-space: nowrap; overflow: hidden; min-width: 0; }
 .pk-stamp { font-size: 7pt; }
 .pk-brand { color: #555; font-size: 7pt; flex: none; }
@@ -801,7 +812,7 @@ const PAPER_RULES = `
 .pk-matchlabel { flex: none; font-size: 12pt; font-weight: 700; margin-top: 1mm; white-space: nowrap; overflow: hidden; }
 .pk-meta { flex: none; font-size: 7.5pt; white-space: nowrap; overflow: hidden; }
 .pk-sides { flex: none; display: grid; grid-template-columns: 110mm 110mm; gap: 3mm; margin-top: 1.5mm; }
-.pk-side { border: 0.5pt solid #000; padding: 1mm 1.5mm; min-width: 0; overflow: hidden; height: 16mm; box-sizing: border-box; }
+.pk-side { border: 0.5pt solid #000; padding: 1mm 1.5mm; min-width: 0; overflow: hidden; height: 17.5mm; box-sizing: border-box; }
 .pk-sidename { font-size: 11pt; font-weight: 700; white-space: nowrap; overflow: hidden; }
 .pk-sideplayers { font-size: 9pt; white-space: nowrap; overflow: hidden; }
 .pk-sidestrokes { font-size: 8pt; white-space: nowrap; overflow: hidden; }
@@ -810,21 +821,22 @@ const PAPER_RULES = `
 /* B. The sign: names and strokes left, the code right. */
 .pk-signcard { display: grid; grid-template-columns: 140mm 90mm; grid-template-rows: minmax(0, 1fr) auto; column-gap: 3mm; }
 .pk-signleft { min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
-.pk-signleft .pk-sub { text-align: left; white-space: normal; max-height: 7.2mm; }
+.pk-signleft .pk-sub { text-align: left; white-space: normal; max-height: 8.2mm; flex: none; }
 .pk-signtop { display: flex; gap: 4mm; align-items: center; margin-top: 0.8mm; flex: none; }
-.pk-cart { font-size: 18pt; font-weight: 700; white-space: nowrap; overflow: hidden; min-width: 0; line-height: 1.45; }
-.pk-startbox { font-size: 18pt; font-weight: 700; border: 1pt solid #000; padding: 0 2mm; white-space: nowrap; line-height: 1.45; flex: none; }
+.pk-cart { font-size: 18pt; font-weight: 700; white-space: nowrap; overflow: hidden; min-width: 0; line-height: ${LINE}; }
+.pk-startbox { font-size: 18pt; font-weight: 700; border: 1pt solid #000; padding: 0 2mm; white-space: nowrap; line-height: ${LINE}; flex: none; }
 .pk-riders { list-style: none; margin: 1.2mm 0 0; padding: 0; flex: none; }
-.pk-riders li { margin-bottom: 0.8mm; }
-.pk-rider { display: block; font-size: 11pt; white-space: nowrap; overflow: hidden; line-height: 1.3; }
+/* The pitch of the 1.3 em lines and their 0.8 mm gap, now that a line is 1.5 em. */
+.pk-riders li { margin-bottom: 0; }
+.pk-rider { display: block; font-size: 11pt; white-space: nowrap; overflow: hidden; line-height: ${LINE}; }
 .pk-rider.pk-on { font-weight: 700; }
-.pk-strokes { display: block; font-size: 7.5pt; line-height: 1.3; overflow: hidden; max-height: 5.6mm; }
-.pk-job { font-size: 8pt; margin: 0.8mm 0 0; line-height: 1.3; overflow: hidden; max-height: 7.5mm; flex: none; }
+.pk-strokes { display: block; font-size: 7.5pt; line-height: ${LINE}; overflow: hidden; max-height: 5.6mm; }
+.pk-job { font-size: 8pt; margin: 0.8mm 0 0; line-height: ${LINE}; overflow: hidden; max-height: 8.6mm; flex: none; }
 .pk-signright { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-width: 0; overflow: hidden; }
 .pk-signright.pk-two { flex-direction: row; justify-content: space-between; align-items: flex-start; }
 .pk-codeblock { display: flex; flex-direction: column; align-items: center; min-width: 0; }
 .pk-qr { display: block; flex: none; }
-.pk-code { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 40pt; font-weight: 700; line-height: 1.3; letter-spacing: 0.02em; white-space: nowrap; margin-top: 0.5mm; }
+.pk-code { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 40pt; font-weight: 700; line-height: 1.35; letter-spacing: 0.02em; white-space: nowrap; margin-top: 0.5mm; }
 .pk-code-split { text-align: center; }
 .pk-code-big { font-size: 48pt; }
 .pk-url { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 8pt; white-space: nowrap; margin-top: 0.6mm; }
@@ -832,14 +844,14 @@ const PAPER_RULES = `
 /* C. The spare sign. */
 .pk-sparecard { display: grid; grid-template-columns: 60mm minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; column-gap: 6mm; align-items: start; }
 .pk-spareright { min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: 1mm; }
-.pk-spareright .pk-sub { text-align: left; white-space: normal; max-height: 7.2mm; }
-.pk-round { font-size: 18pt; font-weight: 700; white-space: nowrap; overflow: hidden; line-height: 1.45; }
-.pk-scan { font-size: 14pt; font-weight: 700; line-height: 1.45; }
+.pk-spareright .pk-sub { text-align: left; white-space: normal; max-height: 8.2mm; flex: none; }
+.pk-round { font-size: 18pt; font-weight: 700; white-space: nowrap; overflow: hidden; line-height: ${LINE}; }
+.pk-scan { font-size: 14pt; font-weight: 700; line-height: ${LINE}; }
 .pk-nocam { font-size: 9pt; }
 /* X4. The starting sheet, a full page (its type rule is the old one: names 12 pt, nothing under 10). */
-.pk-startpage { position: absolute; inset: 10mm 12mm 12mm; display: flex; flex-direction: column; overflow: hidden; font-size: 10pt; line-height: 1.25; }
+.pk-startpage { position: absolute; inset: 10mm 12mm 12mm; display: flex; flex-direction: column; overflow: hidden; font-size: 10pt; line-height: ${LINE}; }
 .pk-starthead { flex: none; margin-bottom: 3mm; }
-.pk-startevent { font-family: inherit; font-size: 18pt; font-weight: 700; margin: 1mm 0 0; color: #000; overflow-wrap: anywhere; line-height: 1.3; }
+.pk-startevent { font-family: inherit; font-size: 18pt; font-weight: 700; margin: 1mm 0 0; color: #000; overflow-wrap: anywhere; line-height: ${LINE}; }
 .pk-startsub { font-size: 10pt; }
 .pk-startrow { flex: none; display: flex; justify-content: space-between; align-items: baseline; margin: 1mm 0 2mm; }
 .pk-startbig { font-size: 14pt; font-weight: 700; }

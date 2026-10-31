@@ -11,7 +11,9 @@ import { seedFits, teardownFits } from "./print-kit-fits-fixture.mjs";
  *
  *   1. its trim is 241.3 × 95.25 mm (a fold-out 241.3 × 190.5), within 0.5 px;
  *   2. every element in it sits inside the safe box (the trim less 4 mm), and none
- *      is clipped (scroll size beyond client size);
+ *      is clipped (scroll size beyond client size), and no line is shorter than
+ *      its face's letters (ascent + descent: at 1.3 em Oswald's descenders were cut,
+ *      and only Firefox, which counts them as overflow, said so — 31 Oct);
  *   3. no text under 7 pt; a sign's code at 40 pt or more; every QR 30 mm or more;
  *   4. two cards to a sheet (a fold-out one), none crossing its sheet's edge;
  *   5. a fold-out ONLY where the ruling allows one (X1 the cup mixed day, X2 a group
@@ -54,6 +56,8 @@ async function measure(page: Page): Promise<{ problems: string[]; cards: Array<{
     const problems: string[] = [];
     const cards: Array<{ key: string; format: string }> = [];
     const PT = 96 / 72;
+    // The face's content area (ascent + descent), as the browser measures it: what Firefox counts as a line's overflow.
+    const ctx = document.createElement("canvas").getContext("2d")!;
     const sheets = [...document.querySelectorAll<HTMLElement>("#pk-pages .pk-sheet")];
     for (const sheet of sheets) {
       const sr = sheet.getBoundingClientRect();
@@ -78,6 +82,12 @@ async function measure(page: Page): Promise<{ problems: string[]; cards: Array<{
           if (h.clientWidth > 0 && (h.scrollWidth > h.clientWidth + 1 || h.scrollHeight > h.clientHeight + 1)) problems.push(`${what} clipped ${h.scrollWidth}×${h.scrollHeight} in ${h.clientWidth}×${h.clientHeight}`);
           const style = getComputedStyle(el);
           const ownText = [...el.childNodes].some((n) => n.nodeType === 3 && (n.textContent ?? "").trim());
+          if (ownText && Number.isFinite(parseFloat(style.lineHeight))) {
+            ctx.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+            const m = ctx.measureText("Hg");
+            const area = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+            if (parseFloat(style.lineHeight) + 0.5 < area) problems.push(`${what}: a line of ${parseFloat(style.lineHeight).toFixed(1)} px cuts its letters (${area.toFixed(1)} px)`);
+          }
           if (ownText && parseFloat(style.fontSize) < 7 * PT - 0.01) problems.push(`${what} at ${(parseFloat(style.fontSize) / PT).toFixed(1)} pt`);
           if (el.classList.contains("pk-code") && parseFloat(style.fontSize) < 40 * PT - 0.01) problems.push(`${what}: a code under 40 pt`);
           if (el.classList.contains("pk-qr") && Math.min(er.width, er.height) < 30 * MM - 0.5) problems.push(`${key}: a QR of ${(er.width / MM).toFixed(1)} mm`);
@@ -117,6 +127,12 @@ test("CONTROL: the measure reports a name that overflows and type under 7 pt", a
   });
   const small = (await measure(page)).problems;
   expect(small.some((p) => / at 6\.0 pt$/.test(p)), `6 pt was not reported: ${small.join(" | ")}`).toBe(true);
+  // A name set at the 1.3 em that cut Oswald's descenders, in every browser.
+  await page.evaluate(() => {
+    document.querySelector<HTMLElement>("#pk-pages [data-card] .pk-name")!.style.lineHeight = "1.3";
+  });
+  const short = (await measure(page)).problems;
+  expect(short.some((p) => /cuts its letters/.test(p)), `a line shorter than its letters was not reported: ${short.join(" | ")}`).toBe(true);
 });
 
 /** Which rounds, which layouts, and where the ruling allows a fold-out (X1–X3). */
