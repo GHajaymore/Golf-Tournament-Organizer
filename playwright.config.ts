@@ -289,6 +289,9 @@ export default defineConfig({
       // to everybody and its five actions were never pressed (2026-10-21).
       // Production's own list is set in Vercel and is not this.
       OWNER_EMAILS: E2E_OWNER_EMAIL,
+      // NO MAIL LEAVES FROM A TEST SERVER: an empty key beats any in .env, so the sender answers "not configured"
+      // (the owner-console spec presses Send on the early list and expects exactly that).
+      RESEND_API_KEY: "",
     },
   },
 });

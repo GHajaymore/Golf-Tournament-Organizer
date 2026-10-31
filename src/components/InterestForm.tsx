@@ -1,9 +1,10 @@
 "use client";
 import { useState, useTransition } from "react";
 import { registerInterest } from "@/app/actions/interest";
-import { INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES, INTEREST_SIZES, interestSource, interestWords } from "@/lib/domain/interest";
+import { INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES, INTEREST_SIZES, interestSource, interestWords as inVisitorGolf } from "@/lib/domain/interest";
 import { golfTermsFor, type GolfRegister } from "@/lib/domain/golf-terms";
 import { SOCIAL_LINKS } from "@/lib/contact";
+import { interestWords, type LaunchState } from "@/lib/go-live";
 
 type Field = "name" | "email" | "phone" | "club" | "role" | "members" | "note";
 
@@ -14,11 +15,13 @@ type Field = "name" | "email" | "phone" | "club" | "role" | "members" | "note";
  * tap on a phone, where a dropdown is two and a scroll. The hidden "website"
  * box is for scripts; a person never sees it.
  */
-export function InterestForm({ register }: { register: GolfRegister }) {
+export function InterestForm({ launch, register }: { launch: LaunchState; register: GolfRegister }) {
+  // The words that change at launch (the promise of a code) come from the go-live switch.
+  const words = interestWords(launch);
   // The visitor's golf, from the page's edition: "Club or golf group" from the
   // US, "Club or society" from Britain. A client component is not reached by
   // the page's word swaps (`inDialect`), so it fills its own tokens.
-  const w = (text: string) => interestWords(text, golfTermsFor(register));
+  const w = (text: string) => inVisitorGolf(text, golfTermsFor(register));
   const [v, setV] = useState<Record<Field, string>>({ name: "", email: "", phone: "", club: "", role: "", members: "", note: "" });
   const [website, setWebsite] = useState("");
   const [refusal, setRefusal] = useState<{ error: string; field?: string } | null>(null);
@@ -30,18 +33,18 @@ export function InterestForm({ register }: { register: GolfRegister }) {
   if (sent) {
     return (
       <div role="status" className="iv-sent">
-        <p>{INTEREST_COPY.sent(sent.name, sent.email)}</p>
+        <p>{words.sent(sent.name, sent.email)}</p>
         {sent.role === "player" ? (
           <p>{w(INTEREST_COPY.sentPlayer)}</p>
         ) : (
           <p>
-            {w(INTEREST_COPY.share)}{" "}
+            {w(words.share)}{" "}
             <button
               type="button"
               className="iv-copy"
               onClick={() => {
                 navigator.clipboard
-                  ?.writeText("https://tourneyhq.club/interest")
+                  ?.writeText(words.shareUrl)
                   .then(() => setCopied(true))
                   .catch(() => {});
               }}
@@ -51,7 +54,7 @@ export function InterestForm({ register }: { register: GolfRegister }) {
           </p>
         )}
         <p className="iv-small">
-          {INTEREST_COPY.follow}{" "}
+          {words.follow}{" "}
           {SOCIAL_LINKS.map((s, i) => (
             <span key={s.name}>
               {i > 0 ? " · " : null}
@@ -189,7 +192,7 @@ export function InterestForm({ register }: { register: GolfRegister }) {
         )}
       </div>
       <p className="iv-small">
-        {INTEREST_COPY.reassure} <a href="/privacy">Privacy notice</a>
+        {words.reassure} <a href="/privacy">Privacy notice</a>
       </p>
     </form>
   );
