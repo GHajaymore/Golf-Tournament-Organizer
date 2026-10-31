@@ -16,6 +16,7 @@ import { GUIDE_STEPS, guideInClubWords } from "@/lib/guide-steps";
 import { PLAYER_HELP_TOPICS, helpInClubWords } from "@/lib/player-help";
 import { HONOURS_LOCKED, PLANS, planBlurb, planTagline, upgradeBenefits } from "@/lib/plans";
 import { INTEREST_COPY, INTEREST_ROLES, checkInterest, interestWords, roleLabel } from "@/lib/domain/interest";
+import { interestWords as interestPage } from "@/lib/go-live";
 
 /**
  * EVERY COUNTRY'S GOLF, FROM ONE TABLE (Ajay, 2026-10-24: "we are using
@@ -257,7 +258,8 @@ function tokenTables(): string[] {
   walk(PLAYER_HELP_TOPICS);
   walk(Object.values(PLANS).map((p) => [p.tagline, p.blurb]));
   walk(INTEREST_COPY.labels);
-  walk([INTEREST_COPY.sentPlayer, INTEREST_COPY.share]);
+  // The share line moved to the go-live switch (both ways); it is filled with the visitor's golf all the same.
+  walk([INTEREST_COPY.sentPlayer, interestPage("held").share, interestPage("live").share]);
   walk(INTEREST_ROLES);
   walk([HONOURS_LOCKED, ...upgradeBenefits("free")]);
   return strings;

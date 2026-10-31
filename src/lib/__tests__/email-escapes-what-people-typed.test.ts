@@ -44,7 +44,9 @@ const SENDERS: Array<[string, () => Promise<unknown>]> = [
   ["staff invite", () => email.sendStaffInviteEmail(TO, { organizationName: HOSTILE, organizationId: "zz", role: HOSTILE, hasPassword: true })],
   ["join request", () => email.sendJoinRequestEmail(TO, { organizationName: HOSTILE, askerName: HOSTILE, askerEmail: HOSTILE, note: HOSTILE })],
   // Every field of it is typed by a stranger on a public form.
-  ["interest", () => email.sendInterestEmail(TO, { name: HOSTILE, email: HOSTILE, phone: HOSTILE, club: HOSTILE, role: HOSTILE, size: HOSTILE, note: HOSTILE })],
+  ["interest", () => email.sendInterestEmail(TO, HOSTILE, { name: HOSTILE, email: HOSTILE, phone: HOSTILE, club: HOSTILE, role: HOSTILE, size: HOSTILE, note: HOSTILE })],
+  // The name is what they typed on /interest; the code is the app's own.
+  ["early-list code", () => email.sendEarlyListCodeEmail(TO, HOSTILE, "ZZCODE23")],
   ["field: promoted", () => email.sendFieldStatusEmail(TO, { change: "promoted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
   ["field: waitlisted", () => email.sendFieldStatusEmail(TO, { change: "waitlisted", eventName: HOSTILE, eventDates: HOSTILE, eventCourse: HOSTILE, organizationId: "zz", eventId: "zz" })],
   // The device's words come from a header the browser chose (2026-10-21).
@@ -107,7 +109,7 @@ describe("an email never carries markup somebody typed", () => {
     // mailbox and takes no argument at all.
     const EXEMPT = new Set(["sendPasswordResetEmail", "sendEmailCodeEmail", "sendCanaryEmail"]);
     const exported = Object.keys(email).filter((k) => /^send[A-Z]/.test(k) && !EXEMPT.has(k));
-    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail", "sendNewSignInEmail", "sendArchiveNoticeEmail"]);
+    const covered = new Set(["sendRegistrationEmail", "sendStaffInviteEmail", "sendJoinRequestEmail", "sendFieldStatusEmail", "sendInterestEmail", "sendEarlyListCodeEmail", "sendNewSignInEmail", "sendArchiveNoticeEmail"]);
     expect(exported.length, "found no senders — the sweep would pass on nothing").toBeGreaterThan(0);
     expect(exported.filter((k) => !covered.has(k))).toEqual([]);
   });

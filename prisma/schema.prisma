@@ -2069,6 +2069,16 @@ model Stage {
    * lib/domain/pace.ts.
    */
   paceMinutes       Int     @default(0)
+  /**
+   * What the Print kit has sent to the printer for this round (2026-10-23), as
+   * JSON — see lib/domain/print-kit.ts. One entry per printed SHEET (a player's
+   * card, a group's cart sign, the starting sheet): a fingerprint of what was
+   * on it, its version and when. When the groups, the times, the tees or the
+   * round code change afterwards, the sheet's fingerprint no longer matches and
+   * the hub says which sheets to reprint. Empty means nothing printed yet,
+   * which is every round that existed before this field.
+   */
+  printLog          String  @default("")
 
   event      Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   course     Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
@@ -3720,4 +3730,21 @@ model InterestRequest {
 
   @@index([createdAt])
   @@index([notifyId])
+}
+
+/// An early-list code, sent (2026-10-23): who was sent which code, and when. One row per address
+/// (lower-cased) — the early list was promised one code per club — written BEFORE the email goes,
+/// so two presses cannot send one person two codes, and removed again if the send fails. Sent only
+/// by the owner's own press on /owner (`services/early-list.ts`), never by Go live itself.
+model EarlyListSend {
+  email  String   @id
+  name   String   @default("")
+  /// The `DiscountCode.code` made for them: single-use, 25% off the first term.
+  code   String   @default("")
+  /// sending | sent
+  status String   @default("sending")
+  /// When it went (or began going): the mail service's daily allowance is counted from these.
+  sentAt DateTime @default(now())
+
+  @@index([sentAt])
 }
