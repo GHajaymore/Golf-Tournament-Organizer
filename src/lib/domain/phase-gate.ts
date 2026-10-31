@@ -64,11 +64,32 @@ export interface LaunchFacts {
   missingCards: readonly { label: string; course: string }[];
   /**
    * Playing rounds whose type and format cannot produce a result together
-   * (`unscorableRoundLabels`), by name. Required for the same reason as the
+   * (`roundShapeMismatch`, the stages step's own fact), by name. Required for the same reason as the
    * cards above: launch went live over a stroke round set to Match Play
    * (2026-10-16).
    */
   unscorable: readonly string[];
+  /**
+   * A round is played in sides (a scramble, a four-ball) and no side has been
+   * made (2026-10-31, gap G3). A team round with no sides has nothing to put a
+   * score against — the golf professional's refusal. Built only by
+   * `launchFactsFrom`, from the sides step's own fact.
+   */
+  noSides: boolean;
+  /** A team cup's number of teams, or null when it is not a cup. A cup is two teams. */
+  cupTeams: number | null;
+  /**
+   * Rounds whose matches the scheduler draws (a round robin) with none drawn,
+   * by name. No fixtures is no result to record.
+   */
+  undrawn: readonly string[];
+  /** Whether any flight exists — says which screen comes first for `undrawn`. */
+  flightsMade: boolean;
+}
+
+/** Two or more names, said the way a person says them: "Round 1, Round 2 and Round 3". */
+function andList(names: readonly string[]): string {
+  return names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /**
@@ -94,6 +115,29 @@ export function launchRefusal(facts: LaunchFacts): string | null {
   if (facts.unscorable.length > 0) {
     const names = facts.unscorable.join(" and ");
     return `${names} cannot be scored in the format ${facts.unscorable.length === 1 ? "it is" : "they are"} set to. Choose another format on ${facts.unscorable.length === 1 ? "its card" : "their cards"} on Rounds & formats, then launch.`;
+  }
+  /**
+   * SETUP THAT MAKES A ROUND UNSCORABLE (2026-10-31, gap G3 — the panel: tournament
+   * director, golf professional, UX Writer). Refused because there is nothing to
+   * score against, and because each remedy is locked once launched (sides and
+   * draws are structural changes). Everything else the setup flow says is open —
+   * no flights on a medal, no tee sheet, the money question — is a WARNING in the
+   * launch dialog (`launchCheck`), never a refusal: a club may run those its way.
+   */
+  if (facts.noSides) {
+    return "This tournament is played in sides and none are made yet, so its team rounds cannot be scored. Make the sides on Teams & pairs, then launch.";
+  }
+  if (facts.cupTeams !== null && facts.cupTeams !== 2) {
+    return facts.cupTeams === 0
+      ? "A team cup needs its two teams, and none are named yet, so no session can be scored. Name them on Team cup, then launch."
+      : `A team cup is two teams, and this one has ${facts.cupTeams}, so no session can be scored. Make it two on Team cup, then launch.`;
+  }
+  if (facts.undrawn.length > 0) {
+    const one = facts.undrawn.length === 1;
+    const subject = `${andList(facts.undrawn)} ${one ? "has" : "have"} no pairings, so there are no matches to score.`;
+    return facts.flightsMade
+      ? `${subject} Generate them on Rounds & formats, then launch.`
+      : `${subject} Make flights on Flights and generate the pairings on Rounds & formats, then launch.`;
   }
   /**
    * A round the format cannot score. Score entry already refused it — on the
@@ -289,6 +333,19 @@ export function statusMove(from: string, to: string): StatusMove {
     return {
       kind: "refuse",
       error: "This tournament has been launched, so it can’t go back to setting up. Use Unlock setup to correct it — its players keep seeing it while you do.",
+    };
+  }
+  /**
+   * ONE SETTING-UP STEP (Ajay, 2026-10-31, gap G1). Draft, registration and
+   * ready read as one, and no screen offers a move between them any more. The
+   * action is a public endpoint, so a request for one is REFUSED rather than
+   * written: a stored value nothing reads differently is still a change nobody
+   * asked for, and refusing keeps every stored value where it is.
+   */
+  if (PRE_LAUNCH_STATUSES.includes(to)) {
+    return {
+      kind: "refuse",
+      error: "There is one Setting up step before launch, so there is nothing to move it to. Launch it from the dashboard when setup is done.",
     };
   }
   if (to === "live" && !launched) return { kind: "launch" };

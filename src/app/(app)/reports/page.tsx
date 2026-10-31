@@ -38,6 +38,7 @@ import { attendanceReport, attendanceCsvRows } from "@/lib/services/attendance-r
 import { AttendanceReport } from "@/components/AttendanceReport";
 import { cupResult, TEAM_SESSION } from "@/lib/services/cup";
 import { cupPoints, cupResultNote } from "@/lib/domain/cup";
+import { Icon } from "@/components/Icon";
 
 /**
  * D8 of the 2026-08-12 audit. This page called `standingRows` unconditionally
@@ -401,8 +402,12 @@ export default async function ReportsPage({
         {/* The whole tournament on one page to send round — the same report
             the public board links to once the tournament is finished. */}
         <div style={{ margin: "12px 0 0", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <Link href="/reports/final" className="btn" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
-            {state.event.status === "completed" ? "Final report" : "The results so far"}
+          {/* A BUTTON THAT SAYS WHAT IT DOES (Ajay, 2026-10-26: "Final report"
+              in plain text was easy to miss). The primary act on this screen
+              once the tournament is over, worded as the lifecycle bar words it. */}
+          <Link href="/reports/final" className="btn btn-primary" style={{ minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Icon name="trophy" />
+            {state.event.status === "completed" ? "Open the final report" : "The results so far"}
           </Link>
           {/* What it holds, in one line, so the report is found here rather
               than mistaken for the snapshot below (2026-10-21). */}

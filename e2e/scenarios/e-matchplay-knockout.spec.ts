@@ -109,13 +109,6 @@ test("five E", async ({ page, context, baseURL }, testInfo) => {
     });
     await test.step("launch, the board public, the qualifier's tee sheet", async () => {
       await open(page, "/dashboard");
-      for (const step of ["Start taking entries", "Mark ready"]) {
-        const b = page.getByRole("button", { name: step });
-        if (await b.count()) {
-          await b.click();
-          await expect(b).toHaveCount(0, { timeout: 20_000 });
-        }
-      }
       const launch = page.getByRole("button", { name: "Launch tournament" });
       if (await launch.count()) {
         await launch.click();

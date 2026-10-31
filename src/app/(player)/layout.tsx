@@ -96,15 +96,17 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
    * here because this shell wraps every player screen — the reasoning the
    * metadata above is declared on, "so a screen added later inherits it".
    *
-   * DRAFT ONLY. From `registration` onward there is something true to tell a
-   * player — you are in, you are on the waiting list, you are not entered —
-   * and shutting the app deletes those sentences. `playerAppShut` carries the
-   * rule and the reasoning; staff are never shut out.
+   * UNTIL ENTRIES ARE TAKEN. Once the sign-up link is published there is
+   * something true to tell a player — you are in, you are on the waiting list,
+   * you are not entered — and shutting the app deletes those sentences. It was
+   * "draft only", keyed on a status nobody moves since the three setting-up
+   * statuses became one (G1, 2026-10-31). `playerAppShut` carries the rule and
+   * the reasoning; staff are never shut out.
    */
   const gateEvent = session.eventId
     ? await prisma.event.findUnique({
         where: { id: session.eventId },
-        select: { name: true, status: true, accessGated: true, playSuspendedAt: true, playSuspendedNote: true },
+        select: { name: true, status: true, accessGated: true, registrationOpen: true, playSuspendedAt: true, playSuspendedNote: true },
       })
     : null;
   const shut = gateEvent ? playerAppShut(gateEvent, isStaff) : false;
