@@ -3,6 +3,7 @@ import { byAddress } from "@/lib/domain/my-entry";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
 import { isContestKind, CONTEST_LABEL } from "@/lib/domain/contests";
 import { SPONSOR_NAME_MAX, sponsorUrl } from "@/lib/domain/contest-board";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
@@ -37,6 +38,7 @@ async function requireStaff(): Promise<{ eventId: string; name: string }> {
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Only an organizer or assistant can do that");
   }
+  await assertEventWritable(session.eventId);
   return { eventId: session.eventId, name: session.name || session.email };
 }
 
@@ -247,6 +249,8 @@ export async function setContestWinners(contestId: string, winnerIds: string[]):
 export async function requestContestEntry(contestId: string, join: boolean): Promise<ContestResult> {
   const session = await getSession();
   if (!session?.eventId) throw new Error("Not signed in");
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const contest = await prisma.contest.findFirst({
     where: { id: contestId, eventId: session.eventId },

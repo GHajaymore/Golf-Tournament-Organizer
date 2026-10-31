@@ -16,6 +16,7 @@ import { TournamentJourney } from "./TournamentJourney";
 import { overallResultLabel } from "@/lib/domain/overall-result";
 import { TITLE_MAX } from "@/lib/domain/typed-limits";
 import { bringIntoView } from "@/lib/bring-into-view";
+import { useGolfTerms } from "./GolfTermsProvider";
 
 interface EventForm {
   name: string;
@@ -160,6 +161,8 @@ export function EventSetupClient({
   scored?: boolean;
 }) {
   const [f, setF] = useState<EventForm>(initial);
+  // The club's golf words — "a league or golf group", "a league or society".
+  const golfWords = useGolfTerms();
   // Captions below are real <label>s for their controls (a screen reader said
   // an unnamed "edit text" for the name, dates, course and deadline).
   const fid = useId();
@@ -675,7 +678,7 @@ export function EventSetupClient({
           />
           {courseSelect === "__open" && (
             <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
-              For a league or society where each pairing arranges its own venue.
+              For a league or {golfWords.golfGroup} where each pairing arranges its own venue.
               Nothing is set here; whoever enters a card names the course they
               played, and it is saved to the club&rsquo;s list for next time.
             </p>

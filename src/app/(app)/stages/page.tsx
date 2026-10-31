@@ -209,6 +209,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
     cutCount: s.cutCount,
     cutPercent: s.cutPercent,
     cutScope: s.cutScope,
+    cutTies: s.cutTies,
     deadlineOverride: s.deadlineOverride,
     optDeadline: s.optDeadline,
     // What a team round costs its sides in strokes. Computed here, on the

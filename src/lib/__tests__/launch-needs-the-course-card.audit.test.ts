@@ -88,7 +88,7 @@ const statusNow = async () => (await prisma.event.findUniqueOrThrow({ where: { i
 beforeAll(async () => {
   await scrub();
   orgId = (await prisma.organization.create({ data: { name: `${TAG} club`, kind: "club", country: "GB" } })).id;
-  userId = (await prisma.user.create({ data: { email: `${TAG.toLowerCase()}-sec@example.invalid`, name: `${TAG} Sec`, password: "x" } })).id;
+  userId = (await prisma.user.create({ data: { email: `${TAG.toLowerCase()}-sec@example.invalid`, name: `${TAG} Sec`, password: "x", emailVerifiedAt: new Date() } })).id;
   await prisma.organizationMember.create({ data: { organizationId: orgId, userId, role: "owner" } });
 });
 beforeEach(() => jar.clear());

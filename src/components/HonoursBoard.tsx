@@ -1,5 +1,7 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
+import { useGolfTerms } from "@/components/GolfTermsProvider";
+import { inClubWords } from "@/lib/domain/golf-terms";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { confirmChampion, removeFromHonours } from "@/app/actions/roster";
@@ -33,6 +35,9 @@ export function HonoursBoard({
 }) {
   // A society is not a club, and this screen says so. See OrgProfileProvider.
   const org = useOrgProfile();
+  // "Honors board" or "Honours board", as the club spells it.
+  const words = useGolfTerms();
+  const title = inClubWords("{HonoursBoard}", words);
   const router = useRouter();
   const [error, setError] = useState("");
   const [pickFor, setPickFor] = useState<string | null>(null);
@@ -65,9 +70,9 @@ export function HonoursBoard({
   if (locked) {
     return (
       <div className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
-        <span className="card-title">Honours board</span>
+        <span className="card-title">{title}</span>
         <p className="text-muted" style={{ fontSize: 14, lineHeight: 1.6, margin: 0 }}>
-          {locked}
+          {inClubWords(locked, words)}
         </p>
       </div>
     );
@@ -75,7 +80,7 @@ export function HonoursBoard({
 
   return (
     <div className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
-      <span className="card-title">Honours board</span>
+      <span className="card-title">{title}</span>
       <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
         Every champion this {org.noun} has confirmed. Once a name is here it stays as it was recorded —
         it doesn&rsquo;t move when a member leaves the roster, a tournament is renamed, or the way a
@@ -239,7 +244,7 @@ export function HonoursBoard({
 
       {error && (
         <p className="form-error">
-          <Icon name="warning-circle" /> {error}
+          <Icon name="warning-circle" /> {inClubWords(error, words)}
         </p>
       )}
     </div>

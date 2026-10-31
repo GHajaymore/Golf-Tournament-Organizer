@@ -154,7 +154,8 @@ describe("naming the organization", () => {
     // "Name your personal" was what the label produced.
     for (const kind of ["club", "community", "personal"]) {
       const title = orgSetupState(facts({ kind })).steps.find((x) => x.key === "profile")?.title;
-      expect(title, kind).toMatch(/^Name your (club|society|outing)$/);
+      // A community with no country is a league — the app's US default.
+      expect(title, kind).toMatch(/^Name your (club|league|outing)$/);
     }
   });
 });
@@ -173,8 +174,24 @@ describe("the checklist links somewhere that exists", () => {
    */
   it("points every step at a route that exists", () => {
     for (const [key, href] of Object.entries(SETUP_HREF)) {
-      const path = href.split("?")[0];
+      const path = href.split(/[?#]/)[0];
       expect(ROUTES.has(path), `${key} -> ${href} (routes: ${[...ROUTES].sort().join(", ")})`).toBe(true);
+    }
+  });
+
+  it("points a step at a section only where the screen has that section", () => {
+    /**
+     * `money` is `/organization#money` since Club settings became one section
+     * at a time (2026-10-21): the hash is which tab opens. A hash the screen
+     * does not have opens its first tab, which is the dead link above wearing
+     * a working address — so the id must be on the screen's own source.
+     */
+    const hashed = Object.entries(SETUP_HREF).filter(([, href]) => href.includes("#"));
+    expect(hashed.map(([k]) => k), "CONTROL: the money step names its section").toContain("money");
+    for (const [key, href] of hashed) {
+      const [path, id] = href.split("#");
+      const file = join("src", "app", "(app)", ...path.split("/").filter(Boolean), "page.tsx");
+      expect(readFileSync(file, "utf8"), `${key} -> ${href}: no id="${id}" on ${file}`).toContain(`id="${id}"`);
     }
   });
 
@@ -368,8 +385,9 @@ describe("the blocked note speaks each organization's own language", () => {
      * The prose that varies by outfit is the setup gate, which every kind
      * with required steps gets, so that is what has to speak the language.
      */
+    // A British society: a community with no country is a US league.
     const noteFor = (kind: string) =>
-      orgSetupState(facts({ kind, eventCount: 0, named: false, memberCount: 0 })).blockedByClubSetup;
+      orgSetupState(facts({ kind, country: "GB", eventCount: 0, named: false, memberCount: 0 })).blockedByClubSetup;
     expect(noteFor("community")).toContain("society");
     expect(noteFor("community")).not.toContain("club");
     expect(noteFor("club")).toContain("club");
@@ -403,7 +421,7 @@ describe("the blocked note speaks each organization's own language", () => {
   it("names the steps it is waiting for, rather than saying 'finish setup'", () => {
     // Three club answers could be outstanding at once. "Complete your setup
     // first" over three of them leaves somebody hunting for which.
-    const s = orgSetupState(facts({ kind: "community", eventCount: 0, named: false, memberCount: 0 }));
+    const s = orgSetupState(facts({ kind: "community", country: "GB", eventCount: 0, named: false, memberCount: 0 }));
     expect(s.blockedByClubSetup).toContain("name your society");
     expect(s.blockedByClubSetup).toContain("add your members");
     expect(s.outstanding.map((x) => x.key)).toEqual(["profile", "roster"]);

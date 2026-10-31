@@ -75,6 +75,9 @@ describe("where a result jumps to", () => {
     const page = readSource("src/app/(app)/guide/steps/page.tsx");
     expect(page).toMatch(/<Block key=\{i\} b=\{b\} anchor=\{headingAnchor\(s\.id, i\)\} \/>/);
     expect(page).toMatch(/<h3 id=\{anchor\}/);
-    expect(page).toMatch(/<GuideSearch index=\{guideIndex\(GUIDE_STEPS\)\} \/>/);
+    // The same steps the page draws — in the club's golf since 2026-10-24, so a
+    // search for "societies" finds what a British club reads.
+    expect(page).toMatch(/const steps = guideInClubWords\(words\);/);
+    expect(page).toMatch(/<GuideSearch index=\{guideIndex\(steps\)\} \/>/);
   });
 });

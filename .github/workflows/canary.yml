@@ -60,3 +60,32 @@ jobs:
         env:
           PROD_BOARD_URL: ${{ secrets.CANARY_BOARD_URL }}
         run: node scripts/prod-smoke.mjs
+      # CAN PRODUCTION SEND EMAIL (2026-10-30)? The early list sent nothing for
+      # days and this canary was green throughout, because every check above is
+      # a page. /api/canary/email sends one message to the provider's own test
+      # mailbox (never tourneyhq.club — its forwarder has an allowance) and
+      # answers 200 only when the provider says it was delivered.
+      #
+      # SECRET (name only): CANARY_CRON_SECRET, the same value as CRON_SECRET in
+      # Vercel production. Without it the step says so and passes, like the board.
+      - name: Production can send email
+        env:
+          CRON_SECRET: ${{ secrets.CANARY_CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "SKIPPED: CANARY_CRON_SECRET is not set, so the email check did not run."
+            exit 0
+          fi
+          # Every third hour, not every hour: each check spends one message of
+          # the provider's 100 a day, which sign-up codes share. Eight a day.
+          if [ "${{ github.event_name }}" = "schedule" ] && [ $((10#$(date -u +%H) % 3)) -ne 0 ]; then
+            echo "Not this hour: the email check runs every third hour."
+            exit 0
+          fi
+          code=$(curl -s -o answer.json -w "%{http_code}" --max-time 90 \
+            -H "Authorization: Bearer $CRON_SECRET" https://tourneyhq.club/api/canary/email)
+          cat answer.json; echo
+          if [ "$code" != "200" ]; then
+            echo "::error::Production could not deliver a test email (HTTP $code)."
+            exit 1
+          fi

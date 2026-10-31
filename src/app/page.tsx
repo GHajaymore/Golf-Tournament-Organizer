@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
-import { PLANS, effectiveAnnualPrice, retentionNotice, retentionSummary, type PlanKey } from "@/lib/plans";
+import { PLANS, effectiveAnnualPrice, planTagline, retentionNotice, retentionSummary, type PlanKey } from "@/lib/plans";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { siteOrigin } from "@/lib/site";
@@ -226,7 +226,9 @@ export default async function LandingPage() {
   const note = editionNote(local, overridden);
   // UK-English editions only: the app follows the club's own conventions there
   // — the course's unit, the club's clock, and a Monday week.
-  const groups = featureGroups({ localGolf: shown.register === "uk" });
+  const groups = featureGroups({ localGolf: shown.register !== "us" });
+  // The plan lines in this edition's golf — "golf groups" or "societies".
+  const words = golfTermsFor(shown.register);
   const total = featureCount(groups);
 
   // The two CLUB platforms, and only those (Ajay, 2026-10-11: name the rivals a
@@ -457,8 +459,11 @@ export default async function LandingPage() {
             <div className="m-head">
               <p className="m-eyebrow">What it does</p>
               <h2 id="does-h">The whole day, in one place.</h2>
-              <ul className="m-runs" aria-label="What it runs" data-no-dialect="">
-                {["Weekly leagues", "Society days", "Club championships", "Knockouts", "Ryder-style cups", "Member-guests", "Charity scrambles", "Golf trips", "A Saturday fourball"].map((x) => <li key={x}><b>{x}</b></li>)}
+              {/* Written in US words like the rest of the page and swapped per edition: a UK visitor reads
+                  "Society days" and "A Saturday fourball". Until 2026-10-24 this list was marked
+                  data-no-dialect and written in UK words, so US visitors read "Society days". */}
+              <ul className="m-runs" aria-label="What it runs">
+                {["Weekly leagues", "Golf outings", "Club championships", "Knockouts", "Ryder-style cups", "Member-guests", "Charity scrambles", "Golf trips", "A Saturday foursome"].map((x) => <li key={x}><b>{x}</b></li>)}
               </ul>
             </div>
 
@@ -581,7 +586,7 @@ export default async function LandingPage() {
             </div>
             <div className="m-plans">
               <div className="m-plan">
-                <p className="m-who">{PLANS.free.tagline}</p>
+                <p className="m-who">{planTagline(PLANS.free, words)}</p>
                 <h3>{PLANS.free.name}</h3>
                 <div className="m-price">{prices.zero}</div>
                 <p className="m-year">{held ? HELD_FRONT_DOOR.freeCard : "Free for good"}</p>
@@ -594,7 +599,7 @@ export default async function LandingPage() {
                 <p className="m-term">{retentionNotice("free")}</p>
               </div>
               <div className="m-plan m-pick lightband">
-                <p className="m-who">{PLANS.society.tagline}</p>
+                <p className="m-who">{planTagline(PLANS.society, words)}</p>
                 <h3>{PLANS.society.name}</h3>
                 <div className="m-price">{prices.society.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.society.yearly} a year</p>
@@ -606,7 +611,7 @@ export default async function LandingPage() {
                 </ul>
               </div>
               <div className="m-plan">
-                <p className="m-who">{PLANS.club.tagline}</p>
+                <p className="m-who">{planTagline(PLANS.club, words)}</p>
                 <h3>{PLANS.club.name}</h3>
                 <div className="m-price">{prices.club.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.club.yearly} a year</p>
@@ -828,7 +833,7 @@ export default async function LandingPage() {
               )}
               </div>
               <div className="authpanel m-auth">
-                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} closed={held} />
+                <LandingAuth defaultMode="signup" organizers={words.organizers} golfGroup={words.golfGroup} closed={held} />
               </div>
               <div className="m-close-more">
               <div className="m-stores">

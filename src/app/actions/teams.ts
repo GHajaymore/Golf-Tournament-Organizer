@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { sideSizeRange, needsTeams, findFormat } from "@/lib/formats";
 import { effectiveAllowance, effectiveCountBest, snakeDraw } from "@/lib/services/teams";
 import { roundTakesAllowance } from "@/lib/round-allowance";
@@ -69,6 +70,7 @@ async function requireStaff(): Promise<string> {
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Organizer access required");
   }
+  await assertEventWritable(session.eventId);
   return session.eventId;
 }
 

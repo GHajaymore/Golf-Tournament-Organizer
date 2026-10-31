@@ -74,7 +74,7 @@ async function showFlight(page: Page, name: string) {
 }
 
 /** Decide a tie on the bracket on screen: the winner's name, then the margin. See `organizer-knockout.spec.ts`. */
-async function decide(page: Page, winner: string, loser: string, round: "Semifinals" | "Final", margin: string) {
+async function decide(page: Page, winner: string, loser: string, round: "Semi-finals" | "Final", margin: string) {
   const seats = page.getByRole("button", { name: new RegExp(`^${winner}`) });
   await (round === "Final" ? seats.last() : seats.first()).click();
   const pair = [winner, loser];
@@ -229,17 +229,17 @@ test("a new organizer divides a field of ten into three flights and plays them t
   try {
     await test.step("a player in the third flight is told who they play, and in which flight", async () => {
       await open(juniper, "/me");
-      await expect(juniper.getByText("Semifinal (Second flight) v Iris Marsh")).toBeVisible({ timeout: 20_000 });
+      await expect(juniper.getByText("Semi-final (Second flight) v Iris Marsh")).toBeVisible({ timeout: 20_000 });
     });
 
     await test.step("the Championship flight, with an upset, to its champion", async () => {
       await open(page, "/bracket");
       await showFlight(page, "Championship flight");
-      await decide(page, "Dune Marsh", "Alder Marsh", "Semifinals", "2&1");
+      await decide(page, "Dune Marsh", "Alder Marsh", "Semi-finals", "2&1");
       // The first result fixes the flights, in every flight.
       await expect(page.getByText("Results are in, so the flights are fixed.")).toBeVisible({ timeout: 20_000 });
       await expect(page.getByRole("button", { name: "Start again" })).toHaveCount(0);
-      await decide(page, "Briar Marsh", "Cedar Marsh", "Semifinals", "4&3");
+      await decide(page, "Briar Marsh", "Cedar Marsh", "Semi-finals", "4&3");
       await open(page, "/bracket");
       await showFlight(page, "Championship flight");
       await decide(page, "Dune Marsh", "Briar Marsh", "Final", "1 UP");
@@ -251,10 +251,11 @@ test("a new organizer divides a field of ten into three flights and plays them t
       // Nobody from another flight is in this one, and nothing played above has landed here.
       const before = await page.locator("main").innerText();
       expect(before.slice(before.indexOf("Bracket manager")), "a result from another flight is on this one").not.toMatch(/2&1|4&3|1 UP/);
-      // A flight of three: the top seed has the bye and is already in the final, waiting.
+      // A flight of three: the top seed has the bye and is already in the final, waiting —
+      // not drawn as a tie, but "bye" under the name (the panel, 2026-10-23).
       const drawn = before.slice(before.indexOf("Bracket manager"));
-      expect(drawn, `the third flight's bye is not its top seed's:\n${drawn}`).toMatch(/Hazel Marsh\s+1\s+Bye/);
-      await decide(page, "Juniper Marsh", "Iris Marsh", "Semifinals", "19th");
+      expect(drawn, `the third flight's bye is not its top seed's:\n${drawn}`).toMatch(/Hazel Marsh\s+bye\s+1/);
+      await decide(page, "Juniper Marsh", "Iris Marsh", "Semi-finals", "19th");
       await open(page, "/bracket");
       await showFlight(page, "Second flight");
       await decide(page, "Juniper Marsh", "Hazel Marsh", "Final", "2 UP");
@@ -262,7 +263,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
       await open(page, "/bracket");
       await showFlight(page, "Seniors");
       // Elm, moved by hand, is the last seed: no bye for him, and drawn against the second.
-      await decide(page, "Elm Marsh", "Gorse Marsh", "Semifinals", "5&4");
+      await decide(page, "Elm Marsh", "Gorse Marsh", "Semi-finals", "5&4");
     });
 
     await test.step("each flight keeps its own champion and its own results", async () => {

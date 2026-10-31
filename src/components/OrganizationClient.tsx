@@ -18,6 +18,7 @@ import {
   BRAND_DISPLAY_HELP,
 } from "@/lib/brand";
 import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
+import { leadingNoun } from "./OrgProfileProvider";
 import { planFor } from "@/lib/plans";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
@@ -94,10 +95,12 @@ function shrink(img: HTMLImageElement): string | null {
  * Keyed off `OrgKind` so the compiler asks for one when a kind is added —
  * the same reason the profile table itself is a `Record<OrgKind, ...>`.
  */
-const NAME_EXAMPLE: Record<OrgKind, string> = {
-  club: "Ridgeline National Golf Club",
-  community: "Thursday Society",
-  personal: "Sunday Golf",
+const NAME_EXAMPLE: Record<OrgKind, (noun: string) => string> = {
+  club: () => "Ridgeline National Golf Club",
+  // In the outfit's own word — "Thursday League" in the US, "Thursday Society"
+  // in Britain. It said "Thursday Society" to every US league until 2026-10-24.
+  community: (noun) => `Thursday ${leadingNoun(noun)}`,
+  personal: () => "Sunday Golf",
 };
 
 interface Props {
@@ -115,6 +118,43 @@ interface Props {
   eventCount: number;
   memberCount: number;
   canEdit: boolean;
+}
+
+/**
+ * THE SCREEN'S HEADING, ABOVE ITS TABS.
+ *
+ * It was the top of the branding card's component, which was the top of the
+ * page. Club settings shows one section at a time now (`SettingsTabs`), and a
+ * heading inside the first section would be hidden with it the moment
+ * somebody opened Money — a screen with no title, and `layout.spec` and the
+ * every-screen walk both ask for a visible one. So it is drawn above the tabs,
+ * once, and reads the same profile the card below it does.
+ */
+export function OrganizationHeading(props: { kind: string; country: string; communityNoun: string }) {
+  const outfit = orgProfile(props.kind, props.country, props.communityNoun);
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div className="page-kicker">Set up</div>
+      {/* Named for what this outfit ACTUALLY IS. The Type card in Name &
+          branding reads "Personal · a single organizer" off the same profile,
+          so a heading hard-coded to "Club settings" made the page disagree
+          with itself in one eyeful. */}
+      <h1 className="page-title">{outfit.settingsLabel}</h1>
+      {/* Described the branding card and nothing else, on a page that also
+          holds the theme, the house play settings, the money default and
+          staff access. An intro naming one of five cards reads as a
+          description of the page. */}
+      {/* `outfit.noun`, not "organization". The heading two lines up has
+          said "Club settings" since the profile landed, and this sentence
+          went on calling the same thing an organization directly beneath
+          it — on a page whose own Type card says "Golf club". Spotted by
+          Ajay, 2026-09-21. */}
+      <MoreInfo short={`Applies to every tournament this ${outfit.noun} runs.`} style={{ marginTop: 6 }}>
+        The branding on the console header and printed scorecards, the look, how money works by
+        default, and who has access.
+      </MoreInfo>
+    </div>
+  );
 }
 
 export function OrganizationClient(props: Props) {
@@ -234,28 +274,6 @@ export function OrganizationClient(props: Props) {
 
   return (
     <>
-      <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Set up</div>
-        {/* Named for what this outfit ACTUALLY IS. The card immediately below
-            already reads "Personal · a single organizer" off the same profile,
-            so a heading hard-coded to "Club settings" made the page disagree
-            with itself in one eyeful. */}
-        <h1 className="page-title">{outfit.settingsLabel}</h1>
-        {/* Described the branding card and nothing else, on a page that also
-            holds the theme, the house play settings, the money default and
-            staff access. An intro naming one of five cards reads as a
-            description of the page. */}
-        {/* `outfit.noun`, not "organization". The heading two lines up has
-            said "Club settings" since the profile landed, and this sentence
-            went on calling the same thing an organization directly beneath
-            it — on a page whose own Type card says "Golf club". Spotted by
-            Ajay, 2026-09-21. */}
-        <MoreInfo short={`Applies to every tournament this ${outfit.noun} runs.`} style={{ marginTop: 6 }}>
-          The branding on the console header and printed scorecards, the look, how money works by
-          default, and who has access.
-        </MoreInfo>
-      </div>
-
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Type</span>
@@ -316,7 +334,7 @@ export function OrganizationClient(props: Props) {
               // An example of the kind of outfit this actually is. "e.g.
               // Ridgeline National Golf Club" is the one thing on the field a
               // solo organizer knows they are not.
-              placeholder={`e.g. ${NAME_EXAMPLE[outfit.kind]}`}
+              placeholder={`e.g. ${NAME_EXAMPLE[outfit.kind](outfit.noun)}`}
             />
           </div>
 

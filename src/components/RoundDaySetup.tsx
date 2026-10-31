@@ -4,6 +4,7 @@ import { setPaceMinutes, setPinSheet } from "@/app/actions/round-day";
 import { MAX_PACES_OFF, MAX_PACES_ON, pinRowsPayload, type PinRow, type PinSheet, type PinSide } from "@/lib/domain/pin-sheet";
 import { DEFAULT_PACE_MINUTES, hoursAndMinutes, minutesPerHole } from "@/lib/domain/pace";
 import { useAction } from "./useAction";
+import { useGolfTerms } from "./GolfTermsProvider";
 import { MoreInfo } from "./MoreInfo";
 import { holeNumber } from "@/lib/domain/hole-number";
 
@@ -49,6 +50,7 @@ export function RoundDaySetup({
   // Refreshed, so the printed cards below pick up the new pins.
   const pins = useAction({ refresh: true });
   const paceAction = useAction();
+  const words = useGolfTerms();
 
   const setRow = (i: number, patch: Partial<Row>) => {
     setSaved("");
@@ -96,7 +98,9 @@ export function RoundDaySetup({
             ))}
           </select>
           <span className="text-muted" style={{ fontSize: 13 }}>
-            for 18 holes as a four-ball · three-ball {hoursAndMinutes(minutesPerHole(target, 3) * 18)} · two-ball{" "}
+            {/* The group sizes in the club's words: "a foursome · threesome ·
+                twosome" in the US. "Four-ball" here was the GROUP, not the format. */}
+            for 18 holes as a {words.group} · {words.groupOfThree} {hoursAndMinutes(minutesPerHole(target, 3) * 18)} · {words.groupOfTwo}{" "}
             {hoursAndMinutes(minutesPerHole(target, 2) * 18)}
           </span>
         </div>

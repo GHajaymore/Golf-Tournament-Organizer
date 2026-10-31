@@ -59,7 +59,9 @@ describe("what kind of outfit runs it", () => {
     // The club-first rule: a society adds its members before its first
     // tournament, and says which answer it is waiting for.
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/Finish setting up your society first/);
+    // In its own country's word: a newcomer's outfit has no country yet, and since the country
+    // words (2026-10-24) that is a US one, whose word for a community outfit is "league".
+    expect(r.error).toMatch(/Finish setting up your league first/);
   });
 
   it("CONTROL: a company or one-off day goes straight through", async () => {

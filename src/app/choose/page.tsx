@@ -14,7 +14,7 @@ import { NOINDEX } from "@/lib/site";
 // Behind a session, and it lists the tournaments this person can reach.
 export const metadata = { title: "Choose a tournament", robots: NOINDEX };
 import { roleName } from "@/lib/roles";
-import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
+import { casualRoundKinds, golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { LOGO_SIZE } from "@/components/Logo";
 import { Lockup } from "@/components/Lockup";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
@@ -311,7 +311,9 @@ export default async function ChooseTournamentPage({
                 three places to drift, and all three said "two players" the day
                 that stopped being true. */}
             <div className="text-muted" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>
-              A match, a medal or a fourball. Up to eight players, one round, no tournament
+              {/* In the golf of this person's club, from its country: the
+                  British line was said to everybody until 2026-10-24. */}
+              {casualRoundKinds(golfTermsFor(golfRegister(facts?.country)))}. Up to eight players, one round, no tournament
               needed.
             </div>
           </div>

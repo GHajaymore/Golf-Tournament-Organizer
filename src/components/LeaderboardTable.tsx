@@ -45,6 +45,14 @@ export interface StandingRow {
    */
   tiedAtCut?: boolean;
   /**
+   * Where this row is in a STROKE CUT's tie the committee has still to settle
+   * (2026-10-23), how it is to be settled: "playoff", or "draw" when the cut's
+   * countback could not separate them. "" otherwise — including a knockout's
+   * tie at its qualifying line, which keeps its provisional pick
+   * (`strokeCutOutcome`). A row with one is neither through nor out.
+   */
+  cutTieBy?: "" | "playoff" | "draw";
+  /**
    * Marked out of THIS round by a weekly league.
    *
    * A row with no card is either somebody still on the 4th or somebody who is
@@ -156,7 +164,10 @@ export function unrankedNote(r: StandingRow): string {
  * cannot tell whether the app broke the tie or made a mistake.
  */
 function tieNote(r: StandingRow): string {
-  return r.tiedAtCut ? "Tied for the last place — play-off to decide" : "";
+  if (!r.tiedAtCut) return "";
+  return r.cutTieBy === "draw"
+    ? "Tied for the last place — level on countback, to be drawn by lot"
+    : "Tied for the last place — play-off to decide";
 }
 
 /** Renders the standings for either format. `compact` = the dashboard preview. */

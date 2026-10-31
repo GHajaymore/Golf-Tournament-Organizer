@@ -64,15 +64,16 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
     await page.getByLabel("Email").fill(email);
     await page.getByRole("radio", { name: "Club secretary or manager" }).check();
     await page.getByRole("button", { name: "Register my interest" }).click();
-    const refused = page.getByText(/Tell us your club or society/);
+    // In US words: a request with no country header is the US edition (golf-terms.ts).
+    const refused = page.getByText(/Tell us your club or golf group/);
     await expect(refused).toBeVisible({ timeout: 20_000 });
-    const [box, said] = [await page.getByLabel("Club or society").boundingBox(), await refused.boundingBox()];
+    const [box, said] = [await page.getByLabel("Club or golf group").boundingBox(), await refused.boundingBox()];
     expect(Math.abs((said?.y ?? 1e6) - (box?.y ?? 0)), "the refusal is not beside the club box").toBeLessThan(120);
     expect(await prisma.interestRequest.count({ where: { email } })).toBe(0);
   });
 
   await test.step("a whole answer: thanked by name and address, and kept", async () => {
-    await page.getByLabel("Club or society").fill("Zz Oakmere Golf Club");
+    await page.getByLabel("Club or golf group").fill("Zz Oakmere Golf Club");
     // Phone is optional; a number that is not one is refused beside its box.
     await page.getByLabel(/^Phone/).fill("call me");
     await page.getByRole("button", { name: "Register my interest" }).click();
@@ -94,7 +95,7 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
       await p.goto(`/interest?bust=${Date.now()}`);
       await p.getByLabel("Your name").fill("Zz Lee");
       await p.getByLabel("Email").fill(`${MARK}-player-${testInfo.project.name}-${RUN}@example.invalid`);
-      await p.getByLabel("Club or society").fill("Zz Oakmere Golf Club");
+      await p.getByLabel("Club or golf group").fill("Zz Oakmere Golf Club");
       await p.getByRole("radio", { name: "Player" }).check();
       await p.getByRole("button", { name: "Register my interest" }).click();
       await expect(p.getByText(/Tell your secretary or organizer, and they can register here too/)).toBeVisible({ timeout: 20_000 });

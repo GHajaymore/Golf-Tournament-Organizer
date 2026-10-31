@@ -33,6 +33,8 @@
 // NOT on this list, and two copies of that is two answers.
 import { PRE_LAUNCH_STATUSES } from "./lifecycle-state";
 import { missingCardsRefusal } from "./round-card-status";
+import { isPlayingRound } from "@/lib/stage-types";
+import { roundNumber, type NumberedStage } from "./round-label";
 
 export interface LaunchFacts {
   /** Rounds the field actually plays. */
@@ -190,6 +192,63 @@ export function finishRefusal(facts: FinishFacts): string | null {
     return `${n} result${n === 1 ? " is" : "s are"} still waiting to be signed off, so the result is not settled yet. Approve or correct ${n === 1 ? "it" : "them"} on Score entry, then finish.`;
   }
   return null;
+}
+
+/**
+ * COMPLETING WITH ROUNDS NOBODY HAS PLAYED (2026-10-31, the panel: tournament director, golf
+ * professional, UX Writer).
+ *
+ * Completing closes every round still open — so a two-day outing could close Round 2 as not
+ * played with one confirm, by mistake. A committee may mean it (a round abandoned to the weather;
+ * the result stands on the rounds played — the Committee's call under the Rules), so it is ASKED,
+ * never refused. Only when NOTHING has been scored at all is it refused: there is no result.
+ *
+ * A round with any score is not "unplayed" (its partial scores stand, as before), and a round the
+ * committee has already closed has had its question answered.
+ */
+export interface CompletingRound {
+  number: number;
+  hasResult: boolean;
+  closed: boolean;
+}
+
+export const NOTHING_SCORED = "Nothing has been scored yet, so there is no result to complete.";
+
+/** "Round 2", "Rounds 2 and 3", "Rounds 2, 3 and 4". */
+export function roundsInWords(numbers: number[]): string {
+  if (numbers.length === 1) return `Round ${numbers[0]}`;
+  return `Rounds ${numbers.slice(0, -1).join(", ")} and ${numbers[numbers.length - 1]}`;
+}
+
+/**
+ * What completing has to say about the rounds first: a refusal (nothing scored), a question
+ * (some rounds unplayed), or nothing. The words are the panel's, agreed 31 Oct.
+ */
+/**
+ * The same check over a tournament's stages, so the action that refuses and the screen that asks
+ * first read one list: its playing rounds, numbered as everywhere else, against the rounds that
+ * have a result in any of the tables a result is filed in.
+ */
+export function completingCheckFor(
+  stages: readonly (NumberedStage & { id: string; closedAt?: Date | string | null })[],
+  roundsWithResults: ReadonlySet<string>,
+): { refuse: string } | { ask: string } | null {
+  return completingRoundsCheck(
+    stages
+      .filter((s) => isPlayingRound(s.type))
+      .map((s) => ({ number: roundNumber(stages, s.id), hasResult: roundsWithResults.has(s.id), closed: s.closedAt != null })),
+  );
+}
+
+export function completingRoundsCheck(rounds: CompletingRound[]): { refuse: string } | { ask: string } | null {
+  if (rounds.length === 0) return null;
+  if (rounds.every((r) => !r.hasResult)) return { refuse: NOTHING_SCORED };
+  const unplayed = rounds.filter((r) => !r.hasResult && !r.closed).map((r) => r.number);
+  if (unplayed.length === 0) return null;
+  const one = unplayed.length === 1;
+  return {
+    ask: `${roundsInWords(unplayed)} ${one ? "has" : "have"} no scores. Completing will close ${one ? "it" : "them"} as not played, and results will be decided on the rounds played.`,
+  };
 }
 
 /** Every status a tournament can hold, in the order it passes through them. */

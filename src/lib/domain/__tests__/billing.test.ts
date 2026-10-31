@@ -3,40 +3,46 @@ import {
   checkoutLineItem,
   clubStatusFor,
   isPurchasablePlan,
-  RETAIN_AFTER_CANCEL_DAYS,
   subscriptionIdOf,
   subscriptionWrite,
   type StripeSubscriptionLike,
 } from "../billing";
 import { PLANS, PLAN_CURRENCIES, effectivePrice, parsePricingOverrides } from "../../plans";
 import { handleStripeEvent } from "../../services/billing";
+import { golfTermsFor } from "../golf-terms";
 
 const none = parsePricingOverrides(undefined);
+const us = golfTermsFor("us");
 
 describe("what Checkout charges", () => {
+  it("names the plan in the club's golf", () => {
+    expect(checkoutLineItem("society", "month", "USD", none, us).price_data.product_data.description).toBe("Leagues and golf groups");
+    expect(checkoutLineItem("society", "month", "GBP", none, golfTermsFor("uk")).price_data.product_data.description).toBe("Leagues and societies");
+  });
+
   it("is the app's own price, in the minor unit, monthly and yearly", () => {
-    const month = checkoutLineItem("society", "month", "USD", none);
+    const month = checkoutLineItem("society", "month", "USD", none, us);
     expect(month.price_data.unit_amount).toBe(Math.round(effectivePrice(PLANS.society, none, "USD") * 100));
     expect(month.price_data.currency).toBe("usd");
     expect(month.price_data.recurring.interval).toBe("month");
-    const year = checkoutLineItem("society", "year", "USD", none);
+    const year = checkoutLineItem("society", "year", "USD", none, us);
     expect(year.price_data.unit_amount).toBe(month.price_data.unit_amount * 10);
     expect(year.price_data.product_data.name).toBe(`TourneyHQ ${PLANS.society.name}`);
   });
 
   it("follows an owner's price override, so the panel and the charge agree", () => {
     const over = parsePricingOverrides(JSON.stringify({ plans: { club: { monthly: 150 } } }));
-    expect(checkoutLineItem("club", "month", "USD", over).price_data.unit_amount).toBe(15000);
+    expect(checkoutLineItem("club", "month", "USD", over, us).price_data.unit_amount).toBe(15000);
   });
 
   it("charges a set local price in the club's currency, never a converted one", () => {
-    const gbp = checkoutLineItem("society", "month", "GBP", none);
+    const gbp = checkoutLineItem("society", "month", "GBP", none, us);
     expect(gbp.price_data.currency).toBe("gbp");
     expect(gbp.price_data.unit_amount).toBe(Math.round(PLANS.society.localMonthly.GBP * 100));
   });
 
   it("quotes an unpriced currency in dollars", () => {
-    expect(checkoutLineItem("society", "month", "JPY", none).price_data.currency).toBe("usd");
+    expect(checkoutLineItem("society", "month", "JPY", none, us).price_data.currency).toBe("usd");
   });
 
   it("CONTROL: every plan currency has two decimal places, which ×100 assumes", () => {
@@ -70,32 +76,40 @@ describe("what a Stripe subscription means for a club", () => {
     expect(w.planTermsApply).toBeUndefined();
   });
 
-  it("a failed payment keeps the plan and flags it — a reminder, not a lockout", () => {
-    expect(subscriptionWrite(sub({ status: "past_due" }))).toMatchObject({ plan: "club", status: "past_due" });
-    expect(subscriptionWrite(sub({ status: "unpaid" }))).toMatchObject({ plan: "club", status: "past_due" });
+  it("a payment Stripe is still retrying keeps the plan and flags it — a reminder, not a lockout", () => {
+    const w = subscriptionWrite(sub({ status: "past_due" }))!;
+    expect(w).toMatchObject({ plan: "club", status: "past_due" });
+    expect(w.lapsedAt).toBeUndefined();
   });
 
-  it("an ended subscription returns the club to Par — and holds every tournament 30 days from the END", () => {
+  it("Stripe GIVING UP (unpaid) lapses the club, from the moment it is seen (decision A8)", () => {
+    const seen = new Date("2026-11-03T10:00:00Z");
+    const w = subscriptionWrite(sub({ status: "unpaid" }), seen)!;
+    expect(w).toMatchObject({ plan: "free", status: "unpaid", planTermsApply: true });
+    expect(w.lapsedAt?.getTime()).toBe(seen.getTime());
+  });
+
+  it("a cancelled subscription lapses the club from Stripe's END date, not from when we heard", () => {
     const ended = 1_800_000_000; // Stripe's ended_at, in seconds
-    for (const status of ["canceled", "incomplete_expired"]) {
-      const w = subscriptionWrite(sub({ status, ended_at: ended }))!;
-      expect(w).toMatchObject({ plan: "free", status: "canceled", planTermsApply: true });
-      expect(w.retainEventsUntil?.getTime()).toBe((ended + RETAIN_AFTER_CANCEL_DAYS * 86_400) * 1000);
-      expect(w.currentPeriodEnd?.getTime()).toBe(ended * 1000);
-    }
-    expect(RETAIN_AFTER_CANCEL_DAYS).toBe(30);
+    const heard = new Date(ended * 1000 + 5 * 86_400_000);
+    const w = subscriptionWrite(sub({ status: "canceled", ended_at: ended }), heard)!;
+    expect(w).toMatchObject({ plan: "free", status: "canceled", planTermsApply: true });
+    expect(w.lapsedAt?.getTime()).toBe(ended * 1000);
+    expect(w.currentPeriodEnd?.getTime()).toBe(ended * 1000);
+    // Replayed a week later, the same instant: the archive's end cannot be pushed forward.
+    expect(subscriptionWrite(sub({ status: "canceled", ended_at: ended }), new Date(heard.getTime() + 7 * 86_400_000))!.lapsedAt?.getTime()).toBe(ended * 1000);
   });
 
-  it("the hold counts from Stripe's end date, so a replayed event can't push it forward", () => {
-    const ended = 1_800_000_000;
-    const first = subscriptionWrite(sub({ status: "canceled", ended_at: ended }))!;
-    const replayed = subscriptionWrite(sub({ status: "canceled", ended_at: ended }))!;
-    expect(replayed.retainEventsUntil?.getTime()).toBe(first.retainEventsUntil?.getTime());
+  it("a checkout that expired unpaid lapses nothing — the club never had the plan", () => {
+    const w = subscriptionWrite(sub({ status: "incomplete_expired", ended_at: 1_800_000_000 }))!;
+    expect(w).toMatchObject({ plan: "free", status: "canceled" });
+    expect(w.lapsedAt).toBeUndefined();
+    expect(w.planTermsApply).toBeUndefined();
   });
 
-  it("a paid plan that is still running sets no hold and doesn't touch the terms", () => {
+  it("a paid plan that is still running lapses nothing and doesn't touch the terms", () => {
     const w = subscriptionWrite(sub({ status: "active" }))!;
-    expect(w.retainEventsUntil).toBeUndefined();
+    expect(w.lapsedAt).toBeUndefined();
     expect(w.planTermsApply).toBeUndefined();
   });
 
@@ -117,6 +131,7 @@ describe("what a Stripe subscription means for a club", () => {
   it("maps every Stripe status it knows, and leaves unknown ones pending", () => {
     expect(clubStatusFor("trialing")).toBe("trialing");
     expect(clubStatusFor("paused")).toBe("past_due");
+    expect(clubStatusFor("unpaid")).toBe("unpaid");
     expect(clubStatusFor("something_new")).toBe("pending");
   });
 });

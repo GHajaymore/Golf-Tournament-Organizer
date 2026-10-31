@@ -189,7 +189,12 @@ function Choice<T extends string>({
                 alignItems: "center",
                 gap: 8,
                 fontSize: 14,
-                minHeight: 36,
+                // 36px under a mouse, 44 under a finger (`--tap-min`,
+                // globals.css). A bare `minHeight: 36` beat the touch rule for
+                // a label round a radio, and each option was a 36px target on a
+                // phone — found the first time the touch sweep opened Club
+                // settings' Defaults tab (2026-10-23).
+                minHeight: "var(--tap-min, 36px)",
                 cursor: disabled ? "default" : "pointer",
                 opacity: disabled ? 0.6 : 1,
               }}
@@ -739,7 +744,7 @@ export function PlaySettings({
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            style={{ fontSize: 13, minHeight: 36 }}
+                            style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)" }}
                             onClick={() => copy(formatAccessCode(r.code), r.stageId)}
                           >
                             <Icon name="copy" /> {copied === r.stageId ? "Copied" : "Copy"}
@@ -758,7 +763,7 @@ export function PlaySettings({
                               confirmLabel={r.code ? `Stop ${formatAccessCode(r.code)}` : "Make a code"}
                               note={r.code ? `Players holding ${formatAccessCode(r.code)} will be refused, and its printed signs stop working.` : undefined}
                               className="btn btn-secondary"
-                              style={{ fontSize: 13, minHeight: 36 }}
+                              style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)" }}
                               disabled={pending}
                               onConfirm={() =>
                                 startTransition(async () => {

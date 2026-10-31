@@ -139,7 +139,10 @@ describe("what to call the settings screen", () => {
    */
   it("names it for each kind", () => {
     expect(orgProfile("club").settingsLabel).toBe("Club settings");
-    expect(orgProfile("community").settingsLabel).toBe("Society settings");
+    // A community with no country is a US league (the app's default); a
+    // British one is a society. See org-profile-country.test.ts.
+    expect(orgProfile("community").settingsLabel).toBe("League settings");
+    expect(orgProfile("community", "GB").settingsLabel).toBe("Society settings");
     expect(orgProfile("personal").settingsLabel).toBe("Outing settings");
   });
 

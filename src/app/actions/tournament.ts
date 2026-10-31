@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { prizeStructure, prizeStructureLines } from "@/lib/domain/prize-structures";
+import { looksLikeSkillPrize, onePrizeRefusal, onePrizeTickRefusal, type PrizeHolding } from "@/lib/domain/one-prize";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { oneCardPerSide, teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { prisma } from "@/lib/db";
@@ -19,7 +20,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
-import { applyStrokeCut, strokeCutField, strokeCutRefusal } from "@/lib/services/stroke-cut";
+import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
@@ -63,7 +64,7 @@ import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { formatFitsRound, naturalFormatFor, newRoundBasis, unscorableRoundLabels } from "@/lib/domain/round-choices";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
-import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
+import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
@@ -115,7 +116,7 @@ import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
-import { launchRefusal, finishRefusal, statusMove } from "@/lib/domain/phase-gate";
+import { launchRefusal, finishRefusal, statusMove, completingCheckFor } from "@/lib/domain/phase-gate";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
@@ -140,9 +141,9 @@ import { isPlayKind } from "@/lib/domain/play-kind";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { organizationWasNamed } from "@/lib/org-naming";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
-import { isCutScope } from "@/lib/domain/cut";
+import { isCutScope, cutTieRuleOf, cutTieDecisionsOf } from "@/lib/domain/cut";
 import { importShapesFor, isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
-import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
+import { upsertMember, memberGender, organizationIdForEvent } from "@/lib/services/roster";
 import { placementOnApproval, parseHandicapInput, parseHandicapType } from "@/lib/domain/registration-intake";
 import {
   marginRefusal,
@@ -153,6 +154,7 @@ import {
   holeStrokesReceived,
   allocationHoles,
   serializeBracketDraw,
+  tieNotReady,
   FORMATION_RULES,
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
@@ -161,6 +163,7 @@ import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, lockedRefusal, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
+import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
@@ -169,12 +172,34 @@ import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { isSupportedLocale } from "@/lib/domain/locale";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 
-/** Primary Organizer only (admin) — critical config and access control. */
+/**
+ * Primary Organizer only (admin) — critical config and access control.
+ *
+ * Both staff gates refuse a tournament in a lapsed club's read-only archive
+ * (`assertEventWritable`, 2026-10-21): every staff action in this file passes
+ * through one of them, so none can change an archived tournament by forgetting.
+ */
 async function requireAdminEvent(): Promise<string> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   if (session.role !== "admin") throw new Error("Organizer access required");
+  await assertEventWritable(session.eventId);
   return session.eventId;
+}
+
+/**
+ * The admin gate for a press that says its refusals — the dashboard's Launch
+ * and Complete. An archived tournament's refusal comes back as words to show
+ * beside the button, not as a thrown error a production build blanks.
+ */
+async function adminEventOrRefusal(): Promise<{ eventId: string } | { refused: string }> {
+  try {
+    return { eventId: await requireAdminEvent() };
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { refused };
+    throw e;
+  }
 }
 
 /** Organizer or Assistant Organizer — operational tasks. */
@@ -184,6 +209,7 @@ async function requireStaffEvent(): Promise<string> {
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Organizer access required");
   }
+  await assertEventWritable(session.eventId);
   return session.eventId;
 }
 
@@ -223,6 +249,13 @@ async function requireScoreEntry(
    */
   const notStarted = await playRefusalFor(session.eventId);
   if (notStarted) throw new Error(notStarted);
+  /**
+   * AND NOT IN A LAPSED CLUB'S ARCHIVE: an unfinished tournament there is
+   * paused where it stands (2026-10-21). Here, for the same reason as the
+   * launch check above — every door into scoring passes through this.
+   */
+  const archived = await archiveRefusalFor(session.eventId, session.role === "player" ? "player" : "organizer");
+  if (archived) throw new Error(archived);
   return { eventId: session.eventId, session, settings };
 }
 
@@ -631,6 +664,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
           ? input.handicapSource!
           : "manual",
       handicapType: input.handicapType === "9" ? "9" : "18",
+      gender: await memberGender(memberId),
     },
   });
   await syncPlayerAccount(eventId, clean, cleanEmail);
@@ -1075,9 +1109,11 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     const homeClub = cell(table, cols, "homeClub").trim();
     // Importing a field also builds the roster: a club that uploads its
     // spring CSV has its member list from then on, without a second import.
+    // The file's Gender column fills the roster row's gap; the row's own word
+    // is what the entry carries (`memberGender`).
     const memberId = await upsertMember(
       event.organizationId,
-      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource },
+      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource, gender: cell(table, cols, "gender") },
       "staff",
     );
     await prisma.player.create({
@@ -1094,6 +1130,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         homeClub,
         handicapType,
         handicapSource,
+        gender: (await memberGender(memberId)) || cell(table, cols, "gender"),
       },
     });
     // A no-op for a blank address, which is what makes an email-less entry a
@@ -1687,9 +1724,21 @@ export async function setStageDeadline(stageId: string, deadline: string): Promi
   const eventId = await requireStaffEvent();
   // Not behind the lock: moving the day scores are due is a decision made
   // during an event (rain, a late group) — Ajay, 2026-09-27.
-  const updated = await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
+  //
+  // A date or nothing (2026-10-30): this is a public endpoint and stored
+  // whatever text it was handed. And never before the round's own day — Ajay's
+  // round played on 6 Nov read "Due Fri, Oct 23" (`dueBeforePlayed`).
+  const typed = typeof deadline === "string" ? deadline : "";
+  const due = cleanIsoDate(typed);
+  if (typed.trim() && !due) return { ok: false, error: "Pick a date from the calendar." };
+  const round = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } });
   // A round removed in another tab matched nothing, and the box went on showing a date nobody
   // held, with nothing said (2026-10-21). The same words the sign-up deadline uses.
+  if (!round) return { ok: false, error: "That round isn't in this tournament." };
+  if (dueBeforePlayed(due, round.playedOn)) {
+    return { ok: false, error: "That's before the round is played. Pick the round's day or later." };
+  }
+  const updated = await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline: due } });
   if (updated.count === 0) return { ok: false, error: "That round isn't in this tournament." };
   await refresh();
   return { ok: true };
@@ -3384,6 +3433,8 @@ export async function confirmMatch(matchId: string): Promise<ConfirmResult> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const eventId = session.eventId;
+  const archived = await archiveRefusalFor(eventId, session.role === "player" ? "player" : "organizer");
+  if (archived) return { ok: false, error: archived };
 
   const [event, match] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
@@ -3514,6 +3565,8 @@ export async function confirmMatches(
     return { ok: false, confirmed: 0, error: "An organizer approves scores." };
   }
   const eventId = session.eventId;
+  const archived = await archiveRefusalFor(eventId);
+  if (archived) return { ok: false, confirmed: 0, error: archived };
 
   const result = await prisma.match.updateMany({
     where: {
@@ -3563,6 +3616,8 @@ export async function disputeMatch(matchId: string): Promise<{ ok: boolean; erro
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const eventId = session.eventId;
+  const archived = await archiveRefusalFor(eventId, session.role === "player" ? "player" : "organizer");
+  if (archived) return { ok: false, error: archived };
   const match = await prisma.match.findFirst({
     where: { id: matchId, eventId },
     select: { playerAId: true, playerBId: true, teamAId: true, teamBId: true, scoreStatus: true, scoredAt: true },
@@ -3636,6 +3691,10 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
     return { ok: false, error: "The winner of a tie is one of the two players in it." };
   }
   const existing = await prisma.bracketWinner.findFirst({ where: { eventId, key } });
+  // Taking a result back is always allowed; recording one needs both players
+  // (`tieNotReady` — the same rule a player's report is held to).
+  const notReady = existing?.winnerId === winnerId ? null : tieNotReady(tie.match);
+  if (notReady) return { ok: false, error: notReady };
 
   if (existing?.winnerId === winnerId) {
     // Toggle off if the same slot is clicked again.
@@ -3750,6 +3809,9 @@ export async function reportBracketResult(
   // A draw nobody has launched is not being played yet — the same rule as a card.
   const notStarted = await playRefusalFor(eventId);
   if (notStarted) return { ok: false, error: notStarted };
+  // Nor one paused in a lapsed club's archive.
+  const archived = await archiveRefusalFor(eventId, "player");
+  if (archived) return { ok: false, error: archived };
 
   const [state, mine] = await Promise.all([loadEventState(eventId), myPlayerIds(eventId, session.email)]);
   if (!state) return { ok: false, error: "That tournament isn't available." };
@@ -4231,6 +4293,11 @@ export async function createEvent(
     select: {
       name: true,
       kind: true,
+      // The outfit's own word for itself, and its country's: without them every outfit was
+      // called by the default country's word ("Finish setting up your league" to a British
+      // society) once the country words made the default a US one (2026-10-24).
+      country: true,
+      communityNoun: true,
       moneyMode: true,
       _count: { select: { roster: true, events: true, courses: true } },
     },
@@ -4238,6 +4305,8 @@ export async function createEvent(
   if (owner) {
     const setup = orgSetupState({
       kind: owner.kind,
+      country: owner.country,
+      communityNoun: owner.communityNoun,
       named: organizationWasNamed(owner.name, session.name, session.email),
       hasCourse: owner._count.courses > 0,
       memberCount: owner._count.roster,
@@ -4501,8 +4570,12 @@ export async function setEventStatus(
   status: string,
   /** Must be true to complete a tournament the Free plan deletes on completion. */
   confirmDelete = false,
-): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean }> {
-  const eventId = await requireAdminEvent();
+  /** Must be true to complete with rounds nobody has played (`completingCheckFor`). */
+  confirmUnplayed = false,
+): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean; needsUnplayedConfirm?: boolean }> {
+  const gate = await adminEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   // A status is moved, not set: see `statusMove` for the three things that
   // followed from writing whatever arrived, an unknown word read as "draft"
   // among them.
@@ -4520,7 +4593,9 @@ export async function setEventStatus(
   if (current.status === "completed" && s !== "completed" && (await wipesOnCloseFor(eventId))) {
     // An instant, worded as the day it is at the club (`dayAtClubForEvent`).
     const words = current.closesAt ? (await dayAtClubForEvent(eventId))(current.closesAt) : null;
-    const refusal = reopenRefusal({ planTermsApply: true, plan: "free", shape: "stroke" }, words);
+    // `wipesOnCloseFor` has already said Par's terms hold here, which an archived tournament never
+    // meets (it follows the lapsed-club archive instead), so this one is not archived.
+    const refusal = reopenRefusal({ planTermsApply: true, plan: "free", shape: "stroke", archivedAt: null }, words);
     if (refusal) return { ok: false, error: refusal };
   }
   /**
@@ -4543,6 +4618,20 @@ export async function setEventStatus(
         })
       : null;
     if (refusal) return { ok: false, error: refusal };
+
+    /**
+     * ROUNDS NOBODY HAS PLAYED ARE ASKED ABOUT FIRST (2026-10-31, the panel). Completing closes
+     * every open round below, so a round with no scores would close as not played on one confirm.
+     * Asked rather than refused — a committee may abandon a round — and refused only when nothing
+     * at all was scored. Before the free plan's question, one topic at a time: this one is about
+     * the golf, that one about keeping the tournament. A public endpoint, so a caller that did not
+     * ask is answered with the question, as `confirmDelete` is.
+     */
+    if (state) {
+      const check = completingCheckFor(state.stages, state.roundsWithResults);
+      if (check && "refuse" in check) return { ok: false, error: check.refuse };
+      if (check && "ask" in check && !confirmUnplayed) return { ok: false, needsUnplayedConfirm: true, error: check.ask };
+    }
 
     /**
      * ON THE FREE PLAN, COMPLETING IS DELETING (Ajay, 2026-09-29) — for a club
@@ -4632,7 +4721,9 @@ export async function setEventStatus(
 }
 
 export async function launchTournament(): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireAdminEvent();
+  const gate = await adminEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   /**
    * NOTHING USED TO STOP THIS, and launching is not a small act: it publishes
    * the tournament to its field and clears `configUnlocked`, so a tournament
@@ -4712,6 +4803,9 @@ export async function addPrize(category: string, amount: number, detail = ""): P
       detail: cleanDetail,
       amount: sum,
       position: (agg._max.position ?? 0) + 1,
+      // A line typed by hand counts toward one prize per player unless its
+      // name says it is a skill prize — switchable on the row.
+      countsForOnePrize: !looksLikeSkillPrize(clean),
     },
   });
   await logAudit(eventId, "prize.add", `${clean}${sum > 0 ? ` — ${sum}` : ""}`);
@@ -4760,7 +4854,10 @@ export async function updatePrize(
   return { ok: true };
 }
 
-export async function setPrizeWinner(prizeId: string, winnerId: string): Promise<{ ok: boolean; error?: string }> {
+export async function setPrizeWinner(
+  prizeId: string,
+  winnerId: string,
+): Promise<{ ok: boolean; error?: string; choose?: boolean }> {
   const eventId = await requireStaffEvent();
   /**
    * A PRIZE GOES TO SOMEBODY IN THE FIELD, AND THE RECORD NAMES THEM
@@ -4776,12 +4873,127 @@ export async function setPrizeWinner(prizeId: string, winnerId: string): Promise
     ? await prisma.player.findFirst({ where: { id, eventId }, select: { name: true } })
     : null;
   if (id && !awardedTo) return { ok: false, error: "A prize goes to somebody in this tournament's field." };
-  const moved = await prisma.prize.updateMany({
-    where: { id: prizeId, eventId },
-    data: { winnerId: id || null },
+  /**
+   * ONE PRIZE PER PLAYER IS KEPT HERE, where the award is saved — not only in
+   * the picker, which is a guard a later screen could forget to draw
+   * (2026-10-21). Read and written under a lock on the tournament's row, so two
+   * awards pressed at once on two phones cannot both see the player holding
+   * nothing. `choose` tells the screen the remedy is another name, not a reload.
+   */
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockEventForPrizes(tx, eventId);
+    const event = await tx.event.findUnique({ where: { id: eventId }, select: { onePrizePerPlayer: true } });
+    const holdings = await prizeHoldings(tx, eventId);
+    if (!holdings.some((p) => p.id === prizeId)) return { ok: false, error: "That prize isn't in this tournament." };
+    const refusal = onePrizeRefusal({
+      on: !!event?.onePrizePerPlayer,
+      prizes: holdings,
+      prizeId,
+      playerId: id,
+      playerName: awardedTo?.name ?? "",
+    });
+    if (refusal) return { ok: false, error: refusal, choose: true };
+    await tx.prize.updateMany({ where: { id: prizeId, eventId }, data: { winnerId: id || null } });
+    return { ok: true };
   });
-  if (moved.count === 0) return { ok: false, error: "That prize isn't in this tournament." };
+  if (!outcome.ok) return outcome;
   await logAudit(eventId, "prize.winner", awardedTo ? `Awarded to ${awardedTo.name}` : "Winner cleared");
+  await refresh();
+  return { ok: true };
+}
+
+type PrizeTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/** Every award on the tournament's prize list, as the rule reads it. */
+async function prizeHoldings(tx: PrizeTx, eventId: string): Promise<PrizeHolding[]> {
+  const rows = await tx.prize.findMany({
+    where: { eventId },
+    orderBy: { position: "asc" },
+    select: { id: true, category: true, winnerId: true, countsForOnePrize: true },
+  });
+  return rows.map((r) => ({ id: r.id, category: r.category, winnerId: r.winnerId, counts: r.countsForOnePrize }));
+}
+
+/** One writer at a time on a tournament's awards and its one-prize rule. */
+async function lockEventForPrizes(tx: PrizeTx, eventId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
+}
+
+/** Players' names for a refusal that names them. */
+async function prizeWinnerNames(eventId: string, ids: string[]): Promise<Map<string, string>> {
+  const rows = await prisma.player.findMany({ where: { eventId, id: { in: ids } }, select: { id: true, name: true } });
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+/**
+ * The tick-box "One prize per player", on Prizes.
+ *
+ * TICKING IT WHILE SOMEBODY HOLDS TWO COUNTING PRIZES IS REFUSED, naming who and
+ * what. Ticking it anyway and listing the clash would leave the tournament in a
+ * state its own rule says cannot exist — the report would name one player for
+ * two placings under a line saying one prize per player — and nothing would say
+ * which of the two awards the rule meant to undo. That is the committee's
+ * choice, so the tick waits for them to clear one; nothing changes silently.
+ * Unticking is never refused.
+ */
+export async function setOnePrizePerPlayer(on: boolean): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const want = on === true;
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockEventForPrizes(tx, eventId);
+    if (want) {
+      const holdings = await prizeHoldings(tx, eventId);
+      const names = await prizeWinnerNames(eventId, holdings.flatMap((p) => (p.winnerId ? [p.winnerId] : [])));
+      const refusal = onePrizeTickRefusal(holdings, (pid) => names.get(pid) ?? "");
+      if (refusal) return { ok: false, error: refusal };
+    }
+    await tx.event.update({ where: { id: eventId }, data: { onePrizePerPlayer: want } });
+    return { ok: true };
+  });
+  if (!outcome.ok) return outcome;
+  await logAudit(eventId, "prize.rule", want ? "One prize per player: on" : "One prize per player: off");
+  await refresh();
+  return { ok: true };
+}
+
+/**
+ * Whether one line counts toward one prize per player — the switch on its row.
+ *
+ * Switching a line ON is refused where it would give its winner a second
+ * counting prize, for the reason the tick above is: the rule must never be
+ * found already broken.
+ */
+export async function setPrizeCounts(prizeId: string, counts: boolean): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const want = counts === true;
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockEventForPrizes(tx, eventId);
+    const event = await tx.event.findUnique({ where: { id: eventId }, select: { onePrizePerPlayer: true } });
+    const holdings = await prizeHoldings(tx, eventId);
+    const prize = holdings.find((p) => p.id === prizeId);
+    if (!prize) return { ok: false, error: "That prize isn't in this tournament." };
+    if (want && event?.onePrizePerPlayer && prize.winnerId) {
+      const names = await prizeWinnerNames(eventId, [prize.winnerId]);
+      const refusal = onePrizeRefusal({
+        on: true,
+        prizes: holdings.map((p) => (p.id === prizeId ? { ...p, counts: true } : p)),
+        prizeId,
+        playerId: prize.winnerId,
+        playerName: names.get(prize.winnerId) ?? "",
+      });
+      if (refusal) {
+        const held = holdings.find((p) => p.id !== prizeId && p.counts && p.winnerId === prize.winnerId);
+        return {
+          ok: false,
+          error: `${names.get(prize.winnerId) ?? "Its winner"} already has ${held?.category ?? "a prize that counts"}, so ${prize.category} can't count as well. Clear one of the two awards first.`,
+        };
+      }
+    }
+    await tx.prize.updateMany({ where: { id: prizeId, eventId }, data: { countsForOnePrize: want } });
+    return { ok: true, category: prize.category };
+  });
+  if (!outcome.ok) return { ok: false, error: outcome.error };
+  await logAudit(eventId, "prize.counts", `${"category" in outcome ? outcome.category : "A prize"}: ${want ? "counts" : "does not count"} toward one prize per player`);
   await refresh();
   return { ok: true };
 }
@@ -4847,6 +5059,7 @@ export async function applyPrizeStructure(key: string): Promise<{ ok: boolean; e
       detail: (line.detail ?? "").trim(),
       amount: 0,
       position: (position += 1),
+      countsForOnePrize: line.counts,
     })),
   });
   await logAudit(eventId, "prize.structure", `${key} — added ${lines.length} line${lines.length === 1 ? "" : "s"}`);
@@ -5269,6 +5482,75 @@ export async function setStageCutScope(stageId: string, scope: string): Promise<
     data: { cutScope: isCutScope(scope) ? scope : "overall" },
   });
   await refresh();
+}
+
+/**
+ * HOW A TIE FOR THE LAST PLACE AT THIS CUT IS SETTLED (2026-10-23) — everybody
+ * level goes through, a play-off, or a countback then a draw. Part of the cut's
+ * terms, which a committee publishes before play (Committee Procedures 5A(6)),
+ * so it locks with the rest of setup. See `strokeCutOutcome`.
+ */
+export async function setStageCutTies(stageId: string, rule: string): Promise<void> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { cutTies: cutTieRuleOf(rule) },
+  });
+  await refresh();
+}
+
+/**
+ * THE COMMITTEE RECORDS WHO WON THE PLAY-OFF, OR THE DRAW, FOR THE LAST PLACE
+ * at the cut out of `feederId` (2026-10-23). `tied` is who was level — it must
+ * be exactly a tie the cut is waiting on, so a decision cannot be recorded for
+ * players who are not level — and `through` is who goes on: as many as there
+ * are places, all of them out of the tie. An empty `through` takes a recorded
+ * decision back. It does not make the cut; marking the round finished does.
+ *
+ * Not behind the lock: a play-off is played on the day, after launch by
+ * definition. Refused once the round is closed — the cut has been made, and
+ * re-opening the round is how it is changed.
+ */
+export async function settleCutTie(
+  feederId: string,
+  tied: string[],
+  through: string[],
+): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const feeder = await prisma.stage.findFirst({
+    where: { id: feederId, eventId },
+    select: { id: true, closedAt: true },
+  });
+  if (!feeder) return { ok: false, error: "That round isn't in this tournament." };
+  if (feeder.closedAt) return { ok: false, error: "This round is closed, so its cut has been made. Re-open it on Rounds & formats to change who went through." };
+  const made = await strokeCutOutcomeOf(eventId, feeder.id);
+  if (!made) return { ok: false, error: "There is no cut out of this round." };
+  const wanted = Array.isArray(tied) ? tied.filter((x) => typeof x === "string") : [];
+  const same = (a: readonly string[]) => a.length === wanted.length && a.every((id) => wanted.includes(id));
+  const tie = [...made.outcome.undecided, ...made.outcome.decided].find((t) => same(t.playerIds));
+  if (!tie) return { ok: false, error: "Those players are not tied for the last place any more — the board has changed. Reload to see the tie as it stands." };
+  const picked = [...new Set(Array.isArray(through) ? through.filter((x) => typeof x === "string") : [])];
+  if (picked.some((id) => !tie.playerIds.includes(id))) return { ok: false, error: "Only a player in the tie can go through on it." };
+  if (picked.length > 0 && picked.length !== tie.places) {
+    return { ok: false, error: `Pick ${tie.places === 1 ? "the one player" : `the ${tie.places} players`} who went through — ${picked.length} ${picked.length === 1 ? "is" : "are"} ticked.` };
+  }
+  const rest = cutTieDecisionsOf(made.next.cutTieDecisions).filter((d) => !same(d.tied));
+  const decisions = picked.length > 0 ? [...rest, { tied: [...tie.playerIds], through: picked }] : rest;
+  await prisma.stage.updateMany({
+    where: { id: made.next.id, eventId },
+    data: { cutTieDecisions: JSON.stringify(decisions) },
+  });
+  const name = (id: string) => made.names.get(id) ?? "A player";
+  await logAudit(
+    eventId,
+    "cut-tie-settled",
+    picked.length > 0
+      ? `${picked.map(name).join(" and ")} won the ${tie.by === "playoff" ? "play-off" : "draw"} for ${tie.places === 1 ? "the last place" : `the last ${tie.places} places`} in the cut, of ${tie.playerIds.map(name).join(", ")}.`
+      : `The ${tie.by === "playoff" ? "play-off" : "draw"} for the last place in the cut was taken back — ${tie.playerIds.map(name).join(", ")} are level again.`,
+  );
+  await refresh();
+  return { ok: true };
 }
 
 /**

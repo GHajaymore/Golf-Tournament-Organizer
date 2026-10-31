@@ -16,6 +16,20 @@ export function cutRuleOf(next: { cutScope: string; cutMode: string; cutCount: n
 }
 
 /**
+ * How a tie for the last place at a stroke cut is settled — see
+ * `strokeCutOutcome` in `cut.ts`, which applies it, for the three and the
+ * default. Read off `Stage.cutTies` here, beside `cutRuleOf`.
+ */
+export type CutTieRule = "ties" | "playoff" | "countback";
+export const CUT_TIE_RULES: readonly CutTieRule[] = ["ties", "playoff", "countback"];
+export const DEFAULT_CUT_TIE_RULE: CutTieRule = "ties";
+
+/** A stored value read as a rule; anything unknown is the default. */
+export function cutTieRuleOf(v: string | null | undefined): CutTieRule {
+  return v === "playoff" || v === "countback" ? v : DEFAULT_CUT_TIE_RULE;
+}
+
+/**
  * WHETHER THE CUT INTO THIS ROUND HAS BEEN MADE — the one answer.
  *
  * A round after a stroke cut belongs to the players who made it, and the app
@@ -60,19 +74,22 @@ export function cutRuleWords(rule: CutRule, ties = true): string {
  * setting: it printed no cut at all while round 1 was played, and once round 2
  * began it said "Top 16 advance to the next round" about a cut already made.
  *
- * Ties go through on a cut between two individual stroke rounds
- * (`applyStrokeCut`, "top N and ties"); a round robin's cut takes the standings'
- * order. A round seeded from qualifiers (a bracket) has no cut to print — its
- * field is its qualifiers. Null for a round with no cut after it.
+ * A cut between two individual stroke rounds settles a tie for the last place
+ * the way the organizer chose (`cutTies`): "and ties" only where the ties go
+ * through; a round robin's cut takes the standings' order. A round seeded from
+ * qualifiers (a bracket) has no cut to print — its field is its qualifiers.
+ * Null for a round with no cut after it.
  */
-export function cutAfterRound<R extends { id: string; type: string; format: string; cutEnabled: boolean; cutScope: string; cutMode: string; cutCount: number; cutPercent: number }>(
+export function cutAfterRound<R extends { id: string; type: string; format: string; cutEnabled: boolean; cutScope: string; cutMode: string; cutCount: number; cutPercent: number; cutTies: string }>(
   rounds: readonly R[],
   roundId: string,
-): { rule: CutRule; ties: boolean } | null {
+): { rule: CutRule; ties: boolean; tieRule: CutTieRule | null } | null {
   const i = rounds.findIndex((r) => r.id === roundId);
   const next = i >= 0 ? rounds[i + 1] : undefined;
   if (!next || !next.cutEnabled || seededFromQualifiers(next.type)) return null;
-  return { rule: cutRuleOf(next), ties: isIndividualStrokeRound(rounds[i]) && isIndividualStrokeRound(next) };
+  const stroke = isIndividualStrokeRound(rounds[i]) && isIndividualStrokeRound(next);
+  const tieRule = stroke ? cutTieRuleOf(next.cutTies) : null;
+  return { rule: cutRuleOf(next), ties: tieRule === "ties", tieRule };
 }
 
 /**

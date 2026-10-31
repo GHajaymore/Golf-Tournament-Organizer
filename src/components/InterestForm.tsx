@@ -1,7 +1,9 @@
 "use client";
 import { useState, useTransition } from "react";
 import { registerInterest } from "@/app/actions/interest";
-import { INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES, INTEREST_SIZES, interestSource } from "@/lib/domain/interest";
+import { INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES, INTEREST_SIZES, interestSource, interestWords } from "@/lib/domain/interest";
+import { golfTermsFor, type GolfRegister } from "@/lib/domain/golf-terms";
+import { SOCIAL_LINKS } from "@/lib/contact";
 
 type Field = "name" | "email" | "phone" | "club" | "role" | "members" | "note";
 
@@ -12,7 +14,11 @@ type Field = "name" | "email" | "phone" | "club" | "role" | "members" | "note";
  * tap on a phone, where a dropdown is two and a scroll. The hidden "website"
  * box is for scripts; a person never sees it.
  */
-export function InterestForm() {
+export function InterestForm({ register }: { register: GolfRegister }) {
+  // The visitor's golf, from the page's edition: "Club or golf group" from the
+  // US, "Club or society" from Britain. A client component is not reached by
+  // the page's word swaps (`inDialect`), so it fills its own tokens.
+  const w = (text: string) => interestWords(text, golfTermsFor(register));
   const [v, setV] = useState<Record<Field, string>>({ name: "", email: "", phone: "", club: "", role: "", members: "", note: "" });
   const [website, setWebsite] = useState("");
   const [refusal, setRefusal] = useState<{ error: string; field?: string } | null>(null);
@@ -26,10 +32,10 @@ export function InterestForm() {
       <div role="status" className="iv-sent">
         <p>{INTEREST_COPY.sent(sent.name, sent.email)}</p>
         {sent.role === "player" ? (
-          <p>{INTEREST_COPY.sentPlayer}</p>
+          <p>{w(INTEREST_COPY.sentPlayer)}</p>
         ) : (
           <p>
-            {INTEREST_COPY.share}{" "}
+            {w(INTEREST_COPY.share)}{" "}
             <button
               type="button"
               className="iv-copy"
@@ -44,6 +50,17 @@ export function InterestForm() {
             </button>
           </p>
         )}
+        <p className="iv-small">
+          {INTEREST_COPY.follow}{" "}
+          {SOCIAL_LINKS.map((s, i) => (
+            <span key={s.name}>
+              {i > 0 ? " · " : null}
+              <a href={s.url} target="_blank" rel="noopener noreferrer">
+                {s.name}
+              </a>
+            </span>
+          ))}
+        </p>
       </div>
     );
   }
@@ -51,7 +68,7 @@ export function InterestForm() {
   const said = (k: Field) =>
     refusal?.field === k ? (
       <span role="alert" className="iv-err">
-        {refusal.error}
+        {w(refusal.error)}
       </span>
     ) : null;
   const optional = <span className="iv-opt"> ({INTEREST_COPY.optional})</span>;
@@ -110,7 +127,7 @@ export function InterestForm() {
         {said("phone")}
       </div>
       <div className="iv-field">
-        <label htmlFor="iv-club">{INTEREST_COPY.labels.club}</label>
+        <label htmlFor="iv-club">{w(INTEREST_COPY.labels.club)}</label>
         <input
           id="iv-club"
           autoComplete="organization"
@@ -126,7 +143,7 @@ export function InterestForm() {
         <legend>{INTEREST_COPY.labels.role}</legend>
         {INTEREST_ROLES.map((r) => (
           <label key={r.key} className="iv-choice">
-            <input type="radio" name="iv-role" value={r.key} checked={v.role === r.key} onChange={set("role")} /> {r.label}
+            <input type="radio" name="iv-role" value={r.key} checked={v.role === r.key} onChange={set("role")} /> {w(r.label)}
           </label>
         ))}
         {said("role")}
@@ -167,7 +184,7 @@ export function InterestForm() {
         </button>
         {refusal && !refusal.field && (
           <span role="alert" className="iv-err">
-            {refusal.error}
+            {w(refusal.error)}
           </span>
         )}
       </div>

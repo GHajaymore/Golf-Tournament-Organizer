@@ -19,7 +19,7 @@ import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { parseTeeSheet, teeSheetDrift, driftSentence } from "@/lib/domain/tee-sheet";
-import { strokeCutField } from "@/lib/services/stroke-cut";
+import { strokeCutField, strokeCutOutcomeOf, cutTieRefusal } from "@/lib/services/stroke-cut";
 import { shortDate } from "@/lib/domain/round-dates";
 import { roundCard } from "@/lib/services/course-resolution";
 import { formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
@@ -188,6 +188,25 @@ export default async function FoursomesPage({
    */
   const cutField = stage ? await strokeCutField(session.eventId, stage.id) : null;
   if (cutField) field = field.filter((p) => cutField.has(p.id));
+  /**
+   * AND A CUT WAITING ON A TIE SAYS SO, HERE (2026-10-23). Until the committee
+   * records the play-off or the draw for the last place, the cut into this
+   * round cannot be made, so the sheet below is still the whole field — and a
+   * secretary drawing it should know why, and that nobody has been picked.
+   */
+  const cutWaiting = await (async () => {
+    if (!stage || cutField || !stage.cutEnabled) return "";
+    const at = state.playRounds.findIndex((s) => s.id === stage.id);
+    const feeder = at > 0 ? state.playRounds[at - 1] : undefined;
+    if (!feeder) return "";
+    const made = await strokeCutOutcomeOf(session.eventId, feeder.id);
+    if (!made || made.outcome.undecided.length === 0) return "";
+    return `The cut into ${roundLabel(state.stages, stage.id)} is not made yet. ${cutTieRefusal(
+      made.outcome.undecided,
+      made.names,
+      roundLabel(state.stages, feeder.id) || "the round before",
+    )} Until then this sheet is drawn from the whole field.`;
+  })();
 
   /**
    * PAIRING REQUESTS for this round's field — each request once, whichever of
@@ -316,6 +335,21 @@ export default async function FoursomesPage({
           rows={weekRows}
           canEdit={session.role === "admin" || session.role === "assistant"}
         />
+      )}
+
+      {cutWaiting && (
+        <div
+          role="status"
+          className="card elev-sm"
+          style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 6 }}
+        >
+          <span className="card-title" style={{ fontSize: 14 }}>
+            <Icon name="warning-circle" /> The cut is waiting on a tie
+          </span>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
+            {cutWaiting} <Link href="/dashboard">Go to the cut card</Link>
+          </p>
+        </div>
       )}
 
       {/* A published sheet is a snapshot of a field that keeps moving.
