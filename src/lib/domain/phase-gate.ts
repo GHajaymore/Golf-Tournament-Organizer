@@ -33,6 +33,8 @@
 // NOT on this list, and two copies of that is two answers.
 import { PRE_LAUNCH_STATUSES } from "./lifecycle-state";
 import { missingCardsRefusal } from "./round-card-status";
+import { isPlayingRound } from "@/lib/stage-types";
+import { roundNumber, type NumberedStage } from "./round-label";
 
 export interface LaunchFacts {
   /** Rounds the field actually plays. */
@@ -222,6 +224,22 @@ export function roundsInWords(numbers: number[]): string {
  * What completing has to say about the rounds first: a refusal (nothing scored), a question
  * (some rounds unplayed), or nothing. The words are the panel's, agreed 31 Oct.
  */
+/**
+ * The same check over a tournament's stages, so the action that refuses and the screen that asks
+ * first read one list: its playing rounds, numbered as everywhere else, against the rounds that
+ * have a result in any of the tables a result is filed in.
+ */
+export function completingCheckFor(
+  stages: readonly (NumberedStage & { id: string; closedAt?: Date | string | null })[],
+  roundsWithResults: ReadonlySet<string>,
+): { refuse: string } | { ask: string } | null {
+  return completingRoundsCheck(
+    stages
+      .filter((s) => isPlayingRound(s.type))
+      .map((s) => ({ number: roundNumber(stages, s.id), hasResult: roundsWithResults.has(s.id), closed: s.closedAt != null })),
+  );
+}
+
 export function completingRoundsCheck(rounds: CompletingRound[]): { refuse: string } | { ask: string } | null {
   if (rounds.length === 0) return null;
   if (rounds.every((r) => !r.hasResult)) return { refuse: NOTHING_SCORED };
