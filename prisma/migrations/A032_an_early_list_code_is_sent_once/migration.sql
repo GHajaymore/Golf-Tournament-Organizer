@@ -1,0 +1,16 @@
+-- Renumbered from A021 (2026-10-31, backlog A8): it replays after main's A030 and the Print kit's A031.
+-- IF NOT EXISTS: a database that ran it under the old name keeps what it made.
+-- An early-list code, sent (2026-10-23): who was sent which code, and when — one row per address.
+-- CreateTable
+CREATE TABLE IF NOT EXISTS "EarlyListSend" (
+    "email" TEXT NOT NULL,
+    "name" TEXT NOT NULL DEFAULT '',
+    "code" TEXT NOT NULL DEFAULT '',
+    "status" TEXT NOT NULL DEFAULT 'sending',
+    "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "EarlyListSend_pkey" PRIMARY KEY ("email")
+);
+
+-- CreateIndex
+CREATE INDEX IF NOT EXISTS "EarlyListSend_sentAt_idx" ON "EarlyListSend"("sentAt");

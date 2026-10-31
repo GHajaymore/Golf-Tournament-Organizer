@@ -4,6 +4,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { checkInterest, roleLabel, sizeLabel } from "@/lib/domain/interest";
 import { sendInterestEmail } from "@/lib/email";
 import { SALES_EMAIL } from "@/lib/contact";
+import { launchState } from "@/lib/services/signins-switch";
+import { interestWords } from "@/lib/go-live";
 
 export interface InterestResult {
   ok: boolean;
@@ -33,7 +35,10 @@ export async function registerInterest(raw: unknown): Promise<InterestResult> {
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   const row = await prisma.interestRequest.create({ data: who, select: { id: true } });
-  const copy = await sendInterestEmail(SALES_EMAIL, {
+  // What they were promised depends on the go-live switch — the early-list code only while held —
+  // asked here on the server, never taken from the form.
+  const { toldInquiries } = interestWords(await launchState());
+  const copy = await sendInterestEmail(SALES_EMAIL, toldInquiries, {
     name: who.name,
     email: who.email,
     phone: who.phone,

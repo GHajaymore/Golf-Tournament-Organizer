@@ -36,10 +36,6 @@
   "t": "## Sign-ins until launch: production is held"
  },
  {
-  "h": "85b91c1e53dd07c8",
-  "t": "Ajay, 2026-10-17: \"block the signins until I say so or when we launch "
- },
- {
   "h": "561f2b1a41989007",
   "t": "It is held only while `OWNER_EMAILS` names somebody, so it can never l"
  },

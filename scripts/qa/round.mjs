@@ -158,6 +158,8 @@ async function serve(mode) {
     STRIPE_SECRET_KEY: "sk_test_e2e_charges_nothing",
     // The test server's owner, as playwright.config.ts gives it — see e2e/owner-email.mjs.
     OWNER_EMAILS: E2E_OWNER_EMAIL,
+    // No mail leaves a test server (the owner-console spec presses Send on the early list).
+    RESEND_API_KEY: "",
     ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),
   };
   delete env.E2E_TZ;
