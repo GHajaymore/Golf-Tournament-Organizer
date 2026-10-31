@@ -21,7 +21,7 @@ import { venueOf } from "./registration";
 import { seasonWindow, type SeasonWindow } from "../domain/club-season";
 import { openCardOf, playOverOf, type OpenCard } from "../domain/tournament-switcher";
 import { isPlayingRound } from "../stage-types";
-import { isLaunched } from "../domain/lifecycle-state";
+import { isLaunched, openToMembers } from "../domain/lifecycle-state";
 import { golfRegister, golfTermsFor } from "../domain/golf-terms";
 import { fieldCapFor } from "./limits";
 import { fieldLimitUnder } from "./waitlist";
@@ -370,11 +370,11 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   const caps = new Map(await Promise.all(orgIds.map(async (id) => [id, await fieldCapFor(id)] as const)));
 
   return events
-    // A tournament still being set up is on the list once its sign-up link is
-    // published — the one signal that the club has opened it to its members.
+    // A tournament still being set up is on the list when members may see it —
+    // `openToMembers`, the one rule (the link, or a legacy registration/ready row).
     // It was `status !== "draft"`, a button ("Start taking entries") that no
     // longer exists: the three pre-launch statuses read as one (G1, 2026-10-31).
-    .filter((event) => isLaunched(event.status) || event.registrationOpen || hasResults.has(event.id))
+    .filter((event) => openToMembers(event) || hasResults.has(event.id))
     .map((event) => {
     // The tournament's own way of writing a date, then the club's — the same
     // resolution every other date on these cards goes through.

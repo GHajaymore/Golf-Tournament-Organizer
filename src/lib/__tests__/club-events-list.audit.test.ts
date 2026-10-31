@@ -343,7 +343,7 @@ describe("a tournament being played in DRAFT", () => {
 });
 
 describe("one setting-up step (G1, 2026-10-31)", () => {
-  it("lists an empty tournament still being set up once its sign-up link is published, whichever stored status", async () => {
+  it("lists one being set up once its link is published; with no link, a legacy registration or ready row stays and a draft does not", async () => {
     const org = await prisma.organization.findFirstOrThrow({ where: { events: { some: { id: id.draftEmpty } } }, select: { id: true } });
     const made: string[] = [];
     try {
@@ -353,7 +353,9 @@ describe("one setting-up step (G1, 2026-10-31)", () => {
       }
       const byId = await rows();
       const listed = made.map((m) => byId.has(m));
-      expect(listed, "open, shut — for draft, registration, ready").toEqual([true, false, true, false, true, false]);
+      // Nothing members could see before G1 disappears: a stored registration or
+      // ready row keeps its place with no link (QA, 2026-10-31); a draft does not.
+      expect(listed, "open, shut — for draft, registration, ready").toEqual([true, false, true, true, true, true]);
     } finally {
       await prisma.event.deleteMany({ where: { id: { in: made } } });
     }

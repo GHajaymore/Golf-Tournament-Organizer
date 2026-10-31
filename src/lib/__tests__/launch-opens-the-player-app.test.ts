@@ -29,19 +29,18 @@ const gated = (status: string, registrationOpen = false) => ({ status, accessGat
 const legacy = (status: string) => ({ status, accessGated: false, registrationOpen: false });
 
 describe("launching opens the player app", () => {
-  it("shuts a new tournament while it is being set up and nobody can sign up — whichever stored status", () => {
-    for (const s of PRE) expect(playerAppShut(gated(s), false), s).toBe(true);
+  it("shuts a new tournament while it is being set up and nobody can sign up", () => {
+    expect(playerAppShut(gated("draft"), false)).toBe(true);
   });
 
   it("OPENS once entries are taken, which is when a player most wants it — whichever stored status", () => {
     for (const s of PRE) expect(playerAppShut(gated(s, true), false), s).toBe(false);
   });
 
-  it("reads the three setting-up statuses as one", () => {
-    for (const open of [false, true]) {
-      const answers = PRE.map((s) => playerAppShut(gated(s, open), false));
-      expect(new Set(answers).size, `the three statuses disagree with the link ${open ? "published" : "unpublished"}`).toBe(1);
-    }
+  it("keeps a legacy registration or ready row open with no link: nothing members saw disappears (QA, 2026-10-31)", () => {
+    // New tournaments never reach these values (`statusMove` refuses them).
+    expect(playerAppShut(gated("registration"), false)).toBe(false);
+    expect(playerAppShut(gated("ready"), false)).toBe(false);
   });
 
   it("stays open once launched, and after it is over", () => {

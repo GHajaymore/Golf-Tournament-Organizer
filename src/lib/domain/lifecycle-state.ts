@@ -197,7 +197,26 @@ export function playerAppShut(
    * taken there is something true to tell a player — the reason above — and
    * before it, nobody should be in here. Required, so every caller says.
    */
-  return event.accessGated && !isLaunched(event.status) && !event.registrationOpen;
+  return event.accessGated && !openToMembers(event);
+}
+
+/**
+ * MAY MEMBERS SEE THIS TOURNAMENT — the one answer, for the club's list of
+ * tournaments (`club-events.ts`) and the player app's closed door
+ * (`playerAppShut`). Two readers, one rule.
+ *
+ * Launched: yes. Before launch (G1, 2026-10-31 — one "Setting up" step) the
+ * switch is the PUBLISHED SIGN-UP LINK: from then on there is something true to
+ * tell a member. And, so that nothing members could see before G1 disappears
+ * (QA with the tournament director, customer success and security, 2026-10-31),
+ * a row still STORED as `registration` or `ready` keeps the visibility it had —
+ * those two were open to members under the old ladder. New tournaments never
+ * reach either value (`statusMove` refuses the move), so going forward the
+ * link is the switch. `draft` with no link stays closed, as it always was.
+ */
+const LEGACY_OPEN_STATUSES = ["registration", "ready"];
+export function openToMembers(event: { status: string; registrationOpen: boolean }): boolean {
+  return isLaunched(event.status) || event.registrationOpen || LEGACY_OPEN_STATUSES.includes(event.status);
 }
 
 /**
