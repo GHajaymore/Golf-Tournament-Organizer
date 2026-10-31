@@ -260,7 +260,8 @@ jobs:
     # from the mirror as it always did.
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    # The mutation ratchet's cold night is the longest part there is (scripts/qa/layers.mjs, `mutation`).
+    timeout-minutes: ${{ matrix.part.id == 'mutation' && 130 || 100 }}
     # A part that fails says so on its own line and stops nothing: the point of
     # a round is everything it found, not the first thing.
     strategy:

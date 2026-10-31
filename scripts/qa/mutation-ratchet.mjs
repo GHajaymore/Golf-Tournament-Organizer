@@ -53,8 +53,27 @@ export function modulesOfScope(scope, all) {
   throw new Error(`unknown mutation scope "${scope}" — arithmetic or all`);
 }
 
-const DETECTED = new Set(["Killed", "Timeout"]);
-const UNDETECTED = new Set(["Survived", "NoCoverage"]);
+/**
+ * WHAT COUNTS AS CAUGHT — and why a plain timeout does not (measured 2026-10-31).
+ *
+ * Stryker reports a mutant TIMEOUT for two different things. One is a loop the
+ * mutant made endless: Stryker counts the hits and stops it ("Hit limit
+ * reached"), the same on every machine. That is caught. The other is the
+ * covering tests simply taking longer than the timeout — and that depends on
+ * the machine and its load. Three equivalent mutants in `skins.ts` (a
+ * condition no card with a number on every hole can tell apart) were TIMEOUT
+ * in a full run at concurrency 8 and SURVIVED in the incremental run after it:
+ * 96.77% one night, 91.94% the next, with nothing changed. A ratchet that
+ * moves on the machine's load fails for no reason, and is soon ignored.
+ *
+ * So a timeout is caught only when Stryker stopped a loop; any other timeout
+ * counts as not caught, the same as a survivor. That can only make the score
+ * LOWER than the truth, never higher, and it is the same on every machine.
+ * `timeoutMS` in stryker.config.mjs is long enough that a mutant whose tests
+ * merely run slowly finishes and is judged on its assertions.
+ */
+const caught = (m) => m.status === "Killed" || (m.status === "Timeout" && /hit limit/i.test(m.statusReason ?? ""));
+const notCaught = (m) => m.status === "Survived" || m.status === "NoCoverage" || (m.status === "Timeout" && !caught(m));
 
 /**
  * Score per module, from a Stryker JSON report (mutation-testing-report-schema). Paths as the repo spells them.
@@ -69,8 +88,8 @@ export function scoresOf(report, root = process.cwd()) {
     let undetected = 0;
     const survivors = [];
     for (const m of data.mutants ?? []) {
-      if (DETECTED.has(m.status)) detected += 1;
-      else if (UNDETECTED.has(m.status)) {
+      if (caught(m)) detected += 1;
+      else if (notCaught(m)) {
         undetected += 1;
         survivors.push(m);
       }

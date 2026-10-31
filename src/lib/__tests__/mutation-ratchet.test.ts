@@ -17,13 +17,28 @@ import { layersFor } from "../../../scripts/qa/layers.mjs";
  * a change's round does not, and every module it names has a floor.
  */
 const report = (files: Record<string, string[]>) => ({
-  files: Object.fromEntries(Object.entries(files).map(([f, statuses]) => [f, { mutants: statuses.map((status) => ({ status })) }])),
+  files: Object.fromEntries(
+    Object.entries(files).map(([f, statuses]) => [
+      f,
+      // "Loop" is a Timeout Stryker stopped by its hit limit; "Timeout" is one that only ran slowly.
+      { mutants: statuses.map((status) => (status === "Loop" ? { status: "Timeout", statusReason: "Hit limit reached (11531701/11531700)" } : { status })) },
+    ]),
+  ),
 });
 
 describe("the score of a module", () => {
-  it("is caught (killed or timed out) of all that could be caught; ignored and compile errors do not count", () => {
-    const s = scoresOf(report({ "src/a.ts": ["Killed", "Killed", "Timeout", "Survived", "NoCoverage", "Ignored", "CompileError"] }));
+  it("is caught (killed, or an endless loop stopped) of all that could be; ignored and compile errors do not count", () => {
+    const s = scoresOf(report({ "src/a.ts": ["Killed", "Killed", "Loop", "Survived", "NoCoverage", "Ignored", "CompileError"] }));
     expect(s["src/a.ts"]).toMatchObject({ score: 60, detected: 3, undetected: 2 });
+  });
+
+  it("a timeout that was only slow counts as NOT caught — it depends on the machine's load, and a ratchet must not", () => {
+    // Measured 2026-10-31: three equivalent mutants in skins.ts were Timeout at concurrency 8 and
+    // Survived in the run after it. Counted as caught, the floor moved with the load.
+    const slow = scoresOf(report({ "src/a.ts": ["Killed", "Timeout"] }));
+    const survived = scoresOf(report({ "src/a.ts": ["Killed", "Survived"] }));
+    expect(slow["src/a.ts"].score).toBe(survived["src/a.ts"].score);
+    expect(slow["src/a.ts"].score).toBe(50);
   });
 });
 

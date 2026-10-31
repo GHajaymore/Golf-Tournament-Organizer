@@ -345,12 +345,13 @@ function everyLayer(abroad) {
         "a rule no unit test states at all; gameNets, the sink that reads the database (the audit suite holds it); the rest of the foundation in stryker.config.mjs (run `npm run mutation` by hand); an equivalent mutant, which counts against the score",
       // --concurrency 4: a GitHub runner has four cores. Incremental (reports/stryker-incremental.json,
       // kept between nights by round.yml): a night re-tests only the mutants whose code or tests changed.
-      // Measured 2026-10-31: a FULL run (no incremental file) of 1,371 mutants is 29 min at concurrency
-      // 8 on the build machine, the dry run of the whole unit suite 5 of them; at four cores, about an
-      // hour. A night with the incremental file re-tests only what changed. Held under the part
-      // job's own 100 minutes (round.yml), with the setup inside it.
+      // Measured 2026-10-31 on the build machine: a COLD run (no incremental file) of 1,371 mutants is
+      // 51 min at concurrency 4, the dry run of the whole unit suite 5 of them; a night with the
+      // incremental file and a test or two changed, 10 to 17 min. A cold night is the first one, and
+      // any night after the cache has gone unused for a week. round.yml gives this part 130 minutes
+      // rather than every other part's 100, so a slower runner's cold night still finishes.
       command: "node scripts/mutation.mjs --scope=arithmetic --ratchet --quiet --concurrency 4",
-      minutes: 85,
+      minutes: 115,
     },
     {
       key: "firefox",

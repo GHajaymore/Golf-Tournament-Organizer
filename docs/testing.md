@@ -426,6 +426,14 @@ by hand (`npm run mutation`). The floors started at the first measured score per
 (2026-10-23, `docs/foundation-pass-2026-10-23.md`). The unit suite runs whole under it except three
 files that cannot run in Stryker's sandbox, listed with their reasons in `vitest.mutation.config.ts`.
 
+**A timeout counts as caught only when Stryker stopped an endless loop** (its "hit limit"). A
+timeout because the tests merely ran slowly depends on the machine's load, and counts as not
+caught: on 2026-10-31 three equivalent mutants in `skins.ts` were timeouts in one run and survivors
+in the next, and `skins.ts` read 96.77% one night and 91.94% the next with nothing changed. The
+arithmetic core's floors were re-measured under this rule that day; the other modules' floors are
+still the 2026-10-23 figures, counted the old way (every timeout caught), so re-measure them before
+relying on `npm run mutation -- --ratchet` over the whole set.
+
 **Lowering a floor** is a hand edit of `mutation-baseline.json`, in a commit that says which
 survivors were read and why they are not golf (an equivalent mutant, a word in an explanation).
 `mutation-ratchet.test.ts` holds the ratchet itself: a drop fails, an unmeasured module fails, a

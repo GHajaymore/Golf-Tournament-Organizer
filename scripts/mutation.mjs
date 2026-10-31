@@ -23,7 +23,11 @@
  * notices SURVIVED: that rule could be broken that way and the suite would stay
  * green. The score is the share that were noticed:
  *
- *   (killed + timed out) / (killed + timed out + survived + no coverage)
+ *   (killed + stopped loops) / (killed + stopped loops + survived + no coverage + other timeouts)
+ *
+ * A timeout counts as caught only when Stryker stopped an endless loop ("hit
+ * limit"); a timeout because the tests ran slowly depends on the machine, and
+ * counts as not caught (scripts/qa/mutation-ratchet.mjs, "what counts as caught").
  *
  * The whole set takes hours on one machine, so it is not in `ci.yml`. The
  * NIGHTLY ROUND runs the arithmetic core (`--scope=arithmetic --ratchet
@@ -75,13 +79,16 @@ const mutateArgs = passThrough.some((a) => a === "--mutate" || a.startsWith("--m
 function run() {
   const t0 = Date.now();
   let res;
+  // One command string, not an argument list with `shell: true`: that prints a deprecation warning
+  // (DEP0190) which could land ahead of the score line the round reads. Nothing here has a space.
+  const command = ["npx stryker run", ...mutateArgs, ...passThrough].join(" ");
   if (quiet) {
     mkdirSync(dirname(LOG), { recursive: true });
     const fd = openSync(LOG, "w");
-    res = spawnSync("npx", ["stryker", "run", ...mutateArgs, ...passThrough], { cwd: root, stdio: ["ignore", fd, fd], shell: true });
+    res = spawnSync(command, { cwd: root, stdio: ["ignore", fd, fd], shell: true });
     closeSync(fd);
   } else {
-    res = spawnSync("npx", ["stryker", "run", ...mutateArgs, ...passThrough], { cwd: root, stdio: "inherit", shell: true });
+    res = spawnSync(command, { cwd: root, stdio: "inherit", shell: true });
   }
   return { status: res.status ?? 1, minutes: Math.round((Date.now() - t0) / 6000) / 10 };
 }
@@ -109,7 +116,7 @@ const scores = scoresOf(JSON.parse(readFileSync(REPORT, "utf8")), root);
 console.log(`${headline(scores, inScope, scope)}${minutes !== null ? ` (${minutes} min)` : ""}`);
 const shown = Object.entries(scores).filter(([f]) => inScope.includes(f));
 const width = Math.max(...shown.map(([k]) => k.length), 10);
-console.log("\nMutation score per module (killed or timed out, of all that could be):\n");
+console.log("\nMutation score per module (killed, or an endless loop stopped, of all that could be):\n");
 for (const [file, s] of shown.sort((a, b) => a[1].score - b[1].score)) {
   console.log(`  ${file.padEnd(width)}  ${s.score.toFixed(2).padStart(6)}%   ${s.detected} caught, ${s.undetected} not`);
 }

@@ -67,7 +67,11 @@ const config = {
   incremental: true,
   incrementalFile: "reports/stryker-incremental.json",
   concurrency: 8,
-  timeoutMS: 20000,
+  // Long enough that a mutant whose covering tests merely run slowly (the property tests, on a
+  // loaded machine) finishes and is judged on its assertions: a plain timeout no longer counts as
+  // caught (scripts/qa/mutation-ratchet.mjs, "what counts as caught"). An endless loop is stopped
+  // by Stryker's hit limit long before this.
+  timeoutMS: 60000,
   tempDirName: ".stryker-tmp",
   cleanTempDir: "always",
   ignorePatterns: [
