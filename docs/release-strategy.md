@@ -107,8 +107,8 @@ database that is not empty.
    merge that carries it.* On 2026-10-19 two full rounds (~30 parts each)
    held every GitHub runner the free plan gives (about twenty jobs at once),
    and `main`'s verify-and-deploy sat queued for an hour behind them. Each
-   round then ran eight parts at a time. The account is taken to be on GitHub
-   Pro (about forty jobs at once; not confirmable from the API), so since
+   round then ran eight parts at a time. The account is on GitHub Pro (its
+   profile shows the PRO badge, 31 Oct; about forty jobs at once), so since
    2026-10-31 a round runs twelve (`round.yml`, `max-parallel: 12`), and **no
    more than two rounds run at once** — the nightly counts as one; push the
    third when one has finished. Two at twelve, with their setup jobs, still

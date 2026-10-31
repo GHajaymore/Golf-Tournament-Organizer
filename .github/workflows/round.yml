@@ -269,8 +269,8 @@ jobs:
       # TWELVE PARTS AT A TIME, so a round never starves a production deploy
       # (docs/release-strategy.md, step 9). On 2026-10-19 two rounds of ~30
       # parts each held every runner and main's deploy sat queued for an hour
-      # behind them. The account is taken to be on GitHub Pro (about forty jobs
-      # at once; eight was set for the free plan's twenty, and on 2026-10-31 a
+      # behind them. The account is on GitHub Pro (the profile's PRO badge, seen
+      # 31 Oct; about forty jobs at once; eight was set for the free plan's twenty, and on 2026-10-31 a
       # lone round left most runners idle). Two rounds at twelve — a PR round
       # beside the nightly — plus their setup jobs, a CI run and the deploy job
       # fit under forty; at sixteen one CI push queued the deploy (the panel,
