@@ -64,7 +64,7 @@ import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { formatFitsRound, naturalFormatFor, newRoundBasis, unscorableRoundLabels } from "@/lib/domain/round-choices";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
-import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
+import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
@@ -116,7 +116,7 @@ import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
-import { launchRefusal, finishRefusal, statusMove } from "@/lib/domain/phase-gate";
+import { launchRefusal, finishRefusal, statusMove, completingCheckFor } from "@/lib/domain/phase-gate";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
@@ -1724,9 +1724,21 @@ export async function setStageDeadline(stageId: string, deadline: string): Promi
   const eventId = await requireStaffEvent();
   // Not behind the lock: moving the day scores are due is a decision made
   // during an event (rain, a late group) — Ajay, 2026-09-27.
-  const updated = await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
+  //
+  // A date or nothing (2026-10-30): this is a public endpoint and stored
+  // whatever text it was handed. And never before the round's own day — Ajay's
+  // round played on 6 Nov read "Due Fri, Oct 23" (`dueBeforePlayed`).
+  const typed = typeof deadline === "string" ? deadline : "";
+  const due = cleanIsoDate(typed);
+  if (typed.trim() && !due) return { ok: false, error: "Pick a date from the calendar." };
+  const round = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } });
   // A round removed in another tab matched nothing, and the box went on showing a date nobody
   // held, with nothing said (2026-10-21). The same words the sign-up deadline uses.
+  if (!round) return { ok: false, error: "That round isn't in this tournament." };
+  if (dueBeforePlayed(due, round.playedOn)) {
+    return { ok: false, error: "That's before the round is played. Pick the round's day or later." };
+  }
+  const updated = await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline: due } });
   if (updated.count === 0) return { ok: false, error: "That round isn't in this tournament." };
   await refresh();
   return { ok: true };
@@ -4558,7 +4570,9 @@ export async function setEventStatus(
   status: string,
   /** Must be true to complete a tournament the Free plan deletes on completion. */
   confirmDelete = false,
-): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean }> {
+  /** Must be true to complete with rounds nobody has played (`completingCheckFor`). */
+  confirmUnplayed = false,
+): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean; needsUnplayedConfirm?: boolean }> {
   const gate = await adminEventOrRefusal();
   if ("refused" in gate) return { ok: false, error: gate.refused };
   const { eventId } = gate;
@@ -4604,6 +4618,20 @@ export async function setEventStatus(
         })
       : null;
     if (refusal) return { ok: false, error: refusal };
+
+    /**
+     * ROUNDS NOBODY HAS PLAYED ARE ASKED ABOUT FIRST (2026-10-31, the panel). Completing closes
+     * every open round below, so a round with no scores would close as not played on one confirm.
+     * Asked rather than refused — a committee may abandon a round — and refused only when nothing
+     * at all was scored. Before the free plan's question, one topic at a time: this one is about
+     * the golf, that one about keeping the tournament. A public endpoint, so a caller that did not
+     * ask is answered with the question, as `confirmDelete` is.
+     */
+    if (state) {
+      const check = completingCheckFor(state.stages, state.roundsWithResults);
+      if (check && "refuse" in check) return { ok: false, error: check.refuse };
+      if (check && "ask" in check && !confirmUnplayed) return { ok: false, needsUnplayedConfirm: true, error: check.ask };
+    }
 
     /**
      * ON THE FREE PLAN, COMPLETING IS DELETING (Ajay, 2026-09-29) — for a club
