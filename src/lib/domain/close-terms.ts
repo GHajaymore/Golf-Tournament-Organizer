@@ -16,13 +16,18 @@ import { keepsDataForever, PLANS, PAR_ROUND_WINDOW_DAYS, PAR_LIFESPAN_DAYS } fro
  *   - it is a tournament, not a casual round. A quick round has its own 24-hour
  *     expiry (`round-expiry.ts`) and is not what this rule is about;
  *   - nobody has put an explicit hold on it (`retainUntil` in the future). A
- *     hold only ever extends, the same rule `retentionDecision` keeps.
+ *     hold only ever extends, the same rule `retentionDecision` keeps;
+ *   - it is not in a lapsed paid club's archive (`archivedAt`, 2026-10-21).
+ *     Those were never Par's tournaments, and follow the archive's own
+ *     twelve months (`domain/club-archive.ts`). REQUIRED, so every caller
+ *     says whether it asked.
  */
 export interface CloseTermsInput {
   planTermsApply: boolean | null | undefined;
   plan: string | null | undefined;
   shape: string;
   retainUntil?: Date | null;
+  archivedAt: Date | null;
 }
 
 /**
@@ -36,6 +41,7 @@ export const PLANS_THAT_DELETE: string[] = Object.values(PLANS)
 
 export function wipesOnClose(input: CloseTermsInput, now: Date = new Date()): boolean {
   if (input.planTermsApply !== true) return false;
+  if (input.archivedAt) return false;
   if (keepsDataForever(input.plan ?? "free")) return false;
   if (input.shape === "match") return false;
   if (input.retainUntil && now.getTime() < new Date(input.retainUntil).getTime()) return false;
@@ -99,6 +105,41 @@ export function closesAtFrom(began: Date): Date {
 }
 
 /**
+ * COMPLETING A PAR TOURNAMENT KEEPS IT, READ-ONLY, FOR 15 DAYS (Ajay, 2026-10-21: "keep it for
+ * 15 days"). It used to be deleted the moment it was completed — at prize-giving, with the link
+ * the members had just been sent and the settle-up of who owes whom going with it.
+ *
+ * Completing stamps `closesAt` this many days on, and the daily sweep deletes on that date, as it
+ * already does for the 14-day lifespan. Read-only meanwhile: a completed tournament is closed.
+ */
+export const KEPT_AFTER_COMPLETE_DAYS = 15;
+
+/**
+ * When a Par tournament completed `now` closes: fifteen days on, and never earlier than a clock
+ * already running (`existing`, the 14-day lifespan).
+ *
+ * It needs no cap because it happens once: a completed Par tournament is READ-ONLY and cannot be
+ * reopened (`reopenRefusal`) — a first draft capped it instead, and its own test showed that
+ * reopening and completing again still bought fifteen days each time.
+ */
+export function closesAtOnComplete(existing: Date | null | undefined, now: Date = new Date()): Date {
+  const fifteen = new Date(now.getTime() + KEPT_AFTER_COMPLETE_DAYS * DAY);
+  if (!existing) return fifteen;
+  return fifteen.getTime() > new Date(existing).getTime() ? fifteen : new Date(existing);
+}
+
+/**
+ * Why a completed tournament cannot be reopened, or null when it can. On the Par terms it is kept
+ * read-only until it is deleted; reopening it would be a way round the fifteen days.
+ */
+export function reopenRefusal(input: CloseTermsInput, closesOnInWords: string | null): string | null {
+  if (!wipesOnClose(input)) return null;
+  // The day comes worded already, in the club's own way (`formatDay`): this file has no locale.
+  const when = closesOnInWords ? ` until ${closesOnInWords}` : "";
+  return `This tournament is completed and kept read-only${when}, then deleted. Move to a paid plan to reopen it or keep it.`;
+}
+
+/**
  * Refuses a round date outside the window the other rounds set. Null when it
  * fits. Dates are `yyyy-mm-dd`; an empty or unreadable one is not refused
  * here, because an undated round is not a date outside anything.
@@ -134,7 +175,11 @@ export function casualKeepRefusal(
   return `On the free ${PLANS.free.name} plan a casual round is kept for 24 hours. Upgrade to ${PLANS.society.name} to keep it for good.`;
 }
 
-/** What the organizer is told before they complete a tournament that this deletes. */
+/**
+ * What the organizer is told before they complete a tournament on the Par terms. Completing no
+ * longer deletes it on the spot (Ajay, 2026-10-21): it stays open to view, read-only, for
+ * KEPT_AFTER_COMPLETE_DAYS, and is deleted after that. Worded with the terms draft's own sentence.
+ */
 export const WIPE_ON_CLOSE =
-  `On the free ${PLANS.free.name} plan, completing a tournament deletes it for good — entries, cards, results, prizes and money. ` +
-  "Nobody can open it afterwards, not you and not the players. Download anything you want to keep from Reports first.";
+  `On the free ${PLANS.free.name} plan, a completed tournament's board, results and settle-up stay open to view, read-only, for ${KEPT_AFTER_COMPLETE_DAYS} days. ` +
+  "After that it is deleted for good — entries, cards, results, prizes and money. Download anything you want to keep from Reports before then, or move to a paid plan to keep it.";

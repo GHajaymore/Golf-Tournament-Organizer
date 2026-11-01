@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { recordTieResult } from "@/app/actions/tournament";
 import type { PlayBy } from "@/lib/domain/knockout-play-by";
 import { Icon } from "./Icon";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 export interface ToPlayTie {
   key: string;
@@ -29,7 +30,7 @@ const HOW = [
  * 2026-10-23): every tie that can be played now, round by round in draw order,
  * each with its round's play-by date and "Overdue" written out once the club's
  * day is past it, and its result entered right there: who won, how (played,
- * with the margin; conceded; walkover; withdrawn), Save.
+ * with the margin; conceded; walkover; withdrawn), Record result.
  *
  * A result is sent with the tie's key AND its two players (`recordTieResult`),
  * so it lands on that tie or is refused — never on whatever now stands in its
@@ -93,6 +94,16 @@ function TieRow({ tie, onSaid }: { tie: ToPlayTie; onSaid: (s: string) => void }
   const [margin, setMargin] = useState("");
   const [refused, setRefused] = useState("");
   const pair = `${tie.a.name} v ${tie.b.name}`;
+  /*
+   * EACH TIE IS ITS OWN FORM, AND ITS BUTTON RECORDS (round bracket-defaults-2,
+   * 2026-10-31). The rows once shared the list's one card, so "the card's Save"
+   * was the FIRST row's: a winner chosen in the third row and saved from the
+   * card was refused "Choose who won." in the first row, off the screen. A row
+   * is a form now — its button, its Enter and its refusal are its own — and the
+   * button says what it does: it RECORDS a result that moves the draw on and
+   * takes the tie off this list (it is changed on the draw, not here), which is
+   * not a setting saved and shown again.
+   */
   const save = () =>
     start(async () => {
       if (!winner) {
@@ -106,7 +117,15 @@ function TieRow({ tie, onSaid }: { tie: ToPlayTie; onSaid: (s: string) => void }
       } else setRefused(r.error ?? "That result could not be recorded.");
     });
   return (
-    <li data-tie-row={tie.key} style={{ border: "1px solid var(--color-divider)", borderRadius: 8, padding: "8px 12px", display: "grid", gap: 6 }}>
+    <li data-tie-row={tie.key} style={{ border: "1px solid var(--color-divider)", borderRadius: 8, padding: "8px 12px" }}>
+      <form
+        aria-label={`Result, ${pair}`}
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+        style={{ display: "grid", gap: 6, margin: 0 }}
+      >
       <fieldset style={{ border: 0, margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: "4px 16px", alignItems: "center" }}>
         <legend style={{ fontWeight: 600, fontSize: 14, padding: 0, marginBottom: 2 }}>{pair}</legend>
         {[tie.a, tie.b].map((p) => (
@@ -137,22 +156,22 @@ function TieRow({ tie, onSaid }: { tie: ToPlayTie; onSaid: (s: string) => void }
             placeholder="Margin e.g. 3&2"
             value={margin}
             onChange={(e) => setMargin(e.target.value)}
-            onKeyDown={(e) => {
-              // Enter, as a person finishing a figure presses, saves the result.
-              if (e.key === "Enter") save();
-            }}
+            // Enter, as a person finishing a figure presses, submits the row's form.
             style={{ minHeight: 44, width: 140 }}
           />
         )}
-        <button type="button" className="btn btn-primary" style={{ minHeight: 44 }} disabled={pending} onClick={save}>
-          Save result
+        <button type="submit" className="btn btn-primary" style={{ minHeight: 44 }} disabled={pending}>
+          Record result
         </button>
       </div>
       {refused && (
-        <p className="form-error" role="alert" style={{ margin: 0 }}>
+        // Brought into view as it appears: on a phone the row's buttons wrap and the
+        // refusal lands below the bottom edge, where the press cannot see it.
+        <p key={refused} className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
           {refused}
         </p>
       )}
+      </form>
     </li>
   );
 }

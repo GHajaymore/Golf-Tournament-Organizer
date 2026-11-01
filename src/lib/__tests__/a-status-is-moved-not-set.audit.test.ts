@@ -53,8 +53,9 @@ async function tournament(name: string, status: string, ready = false) {
   await prisma.account.create({ data: { eventId: event.id, email: EMAIL, name: `${TAG} secretary`, role: "admin" } });
   if (ready) {
     // Match play needs no course card, so the launch gate asks only for a
-    // round, somebody in the field and a date.
-    await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Round Robin", format: "Match Play", holes: 18 } });
+    // round, somebody in the field and a date. A knockout, since an undrawn
+    // round robin has no matches to score and launch refuses it (gap G3).
+    await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Bracket Stage", format: "Match Play", holes: 18 } });
     await prisma.player.create({ data: { eventId: event.id, name: `${TAG} player`, email: `${TAG}.p@example.invalid`.toLowerCase(), handicap: 10, seed: 1, status: "confirmed" } });
   }
   session.eventId = event.id;
@@ -125,13 +126,17 @@ describe("a launched tournament does not go back to setting up", () => {
     }
   }
 
-  it("CONTROL: the moves the bar offers before launch still work, in both directions", async () => {
+  it("CONTROL: before launch there is one Setting up step, so moves between its stored values are refused (G1)", async () => {
+    // Ajay, 2026-10-31: draft, registration and ready read as one, and the bar
+    // offers Launch only. A move between them gates nothing, so it is refused
+    // and the stored value stays — the refusal is NOT the launched one.
     const id = await tournament("setting-up", "draft");
-    expect(await setEventStatus("registration")).toEqual({ ok: true });
-    expect(await setEventStatus("ready")).toEqual({ ok: true });
-    expect((await read(id))?.status).toBe("ready");
-    // Not offered as a button, and harmless: nothing has been published yet.
-    expect(await setEventStatus("draft")).toEqual({ ok: true });
+    for (const to of ["registration", "ready", "draft"]) {
+      const res = await setEventStatus(to);
+      expect(res.ok, `${to} was written`).toBe(false);
+      expect(res.error ?? "").toMatch(/one Setting up step/);
+      expect(res.error ?? "").not.toMatch(/Unlock setup/);
+    }
     expect((await read(id))?.status).toBe("draft");
   });
 });

@@ -2,9 +2,12 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
-import { prisma } from "@/lib/db";
+import { ownerCounts, interestShown } from "@/lib/services/owner-counts";
+import { demoMark, demoStatus } from "@/lib/services/demo-club";
+import { OwnerDemoClub } from "@/components/OwnerDemoClub";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
-import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, planTagline, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { wholeMoney } from "@/lib/domain/money-format";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
@@ -15,11 +18,13 @@ import { OwnerClubPlan } from "@/components/OwnerClubPlan";
 import { peopleOwningSeveralParClubs } from "@/lib/services/close-terms";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
 import { OwnerAccounts } from "@/components/OwnerAccounts";
-import { signInsOpenedOnConsole } from "@/lib/services/signins-switch";
-import { signInsClosed } from "@/lib/sign-in-gate";
-import { DEFAULT_LOCALE } from "@/lib/domain/locale";
+import { launchSwitch } from "@/lib/services/signins-switch";
+import { ownerClockInWords } from "@/lib/services/owner-clock";
+import { earlyListStatus } from "@/lib/services/early-list";
+import { DEFAULT_LOCALE, formatDay } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
+import { deliveryWords } from "@/lib/domain/email-delivery";
 
 /** How many registrations the console lists; the rest are a query away. */
 const INTEREST_SHOWN = 200;
@@ -40,7 +45,9 @@ const INTEREST_SHOWN = 200;
  * `effectivePrice` a customer is quoted (see `owner-metrics.ts`), so the number
  * here and the number on the pricing page move together.
  *
- * Read-only. Nothing on it writes.
+ * Its figures are about REAL clubs: the demo club is in none of them
+ * (`services/owner-counts.ts`). The controls that write are the cards, each
+ * through `actions/owner.ts`.
  */
 
 export const metadata: Metadata = { title: "Owner console", robots: NOINDEX };
@@ -65,43 +72,9 @@ export default async function OwnerConsolePage() {
   // allow-list, gets exactly what a non-existent page gives.
   if (!session || !isOwner(session.email)) notFound();
 
-  const [
-    totalOrgs,
-    orgsByPlan,
-    orgsByKind,
-    eventsByStatus,
-    totalPlayers,
-    orgsWithNoEvents,
-    recentOrgs,
-    liveEvents,
-    severalParClubs,
-  ] = await Promise.all([
-    prisma.organization.count(),
-    prisma.subscription.groupBy({ by: ["plan"], _count: { _all: true } }),
-    prisma.organization.groupBy({ by: ["kind"], _count: { _all: true } }),
-    prisma.event.groupBy({ by: ["status"], _count: { _all: true } }),
-    prisma.player.count(),
-    prisma.organization.count({ where: { events: { none: {} } } }),
-    prisma.organization.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 12,
-      select: {
-        id: true,
-        name: true,
-        kind: true,
-        createdAt: true,
-        subscription: { select: { plan: true } },
-        _count: { select: { events: true } },
-      },
-    }),
-    prisma.event.findMany({
-      where: { status: "live" },
-      orderBy: { updatedAt: "desc" },
-      take: 12,
-      select: { id: true, name: true, organization: { select: { name: true } } },
-    }),
-    peopleOwningSeveralParClubs(),
-  ]);
+  // Real clubs only: the demo club is in none of these (`services/owner-counts.ts`).
+  const [{ totalOrgs, orgsByPlan, orgsByKind, eventsByStatus, totalPlayers, orgsWithNoEvents, recentOrgs, liveEvents }, severalParClubs, demo] =
+    await Promise.all([ownerCounts(), peopleOwningSeveralParClubs(), demoStatus(demoMark())]);
 
   // The owner's own price overrides, so the projected MRR here and the price
   // the editor below shows both reflect what customers are actually quoted.
@@ -151,7 +124,7 @@ export default async function OwnerConsolePage() {
 
   // Discount codes the owner has generated, with their usage rendered ready for
   // the client (which stays free of Date objects and locale calls).
-  const interest = await prisma.interestRequest.findMany({ orderBy: { createdAt: "desc" }, take: INTEREST_SHOWN });
+  const interest = await interestShown(INTEREST_SHOWN);
   const discountRows = await listDiscountCodes();
   const discounts = discountRows.map((c) => ({
     code: c.code,
@@ -161,6 +134,24 @@ export default async function OwnerConsolePage() {
     uses: c.maxRedemptions == null ? String(c.timesRedeemed) : `${c.timesRedeemed} / ${c.maxRedemptions}`,
     expires: c.expiresAt ? shortDate(c.expiresAt) : "",
   }));
+
+  // THE GO-LIVE SWITCH, and when it went live — on the owner's own club's clock (the first club they
+  // belong to that has said where it is), or in UTC, said so, when none has.
+  const sw = await launchSwitch();
+  const liveSince = sw.liveSince ? await ownerClockInWords(session.userId, sw.liveSince) : "";
+  // Once live, the early-list codes: who is waiting, and what a press of Send would do today.
+  const early = await earlyListStatus();
+  const earlyList = early
+    ? {
+        owed: early.owed.length,
+        sent: early.sent,
+        limit: early.limit,
+        now: early.now,
+        later: early.later,
+        nextAt: early.nextAt ? await ownerClockInWords(session.userId, early.nextAt) : "",
+        previewName: early.owed[0]?.name ?? "",
+      }
+    : null;
 
   const stat = (label: string, value: string, sub?: string) => (
     <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
@@ -200,11 +191,12 @@ export default async function OwnerConsolePage() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
-                  <th>Club or society</th>
+                  <th>Club or group</th>
                   <th>Who</th>
                   <th>Size</th>
                   <th>Note</th>
                   <th>From</th>
+                  <th>Copy to inquiries@</th>
                 </tr>
               </thead>
               <tbody>
@@ -221,6 +213,15 @@ export default async function OwnerConsolePage() {
                     <td>{sizeLabel(r.members)}</td>
                     <td style={{ minWidth: 160 }}>{r.note}</td>
                     <td className="text-muted" style={{ fontSize: 12, minWidth: 140 }}>{r.source || "direct"}</td>
+                    {(() => {
+                      const d = deliveryWords(r.notifyStatus);
+                      return (
+                        <td style={{ fontSize: 12, minWidth: 150, color: d.trouble ? "var(--color-danger)" : undefined }} title={r.notifyDetail || undefined}>
+                          {d.words}
+                          {d.trouble && r.notifyDetail ? <span className="text-muted" style={{ display: "block" }}>{r.notifyDetail}</span> : null}
+                        </td>
+                      );
+                    })()}
                   </tr>
                 ))}
               </tbody>
@@ -237,8 +238,18 @@ export default async function OwnerConsolePage() {
         {stat("Players", m.totalPlayers.toLocaleString(DEFAULT_LOCALE), "across every event")}
       </div>
 
-      {/* The launch switch first: the one control that decides who can get in at all. */}
-      <OwnerAccounts opened={await signInsOpenedOnConsole()} ruleHolds={signInsClosed()} />
+      {/* The go-live switch first: the one control that decides who can get in, and what every
+          public page says about it. */}
+      <OwnerAccounts switchSays={sw.switchSays} liveSince={liveSince} rule={sw.rule} earlyList={earlyList} />
+
+      {/* The demo club a visitor can watch (2026-10-24): built and rebuilt from here, and nowhere else. */}
+      <OwnerDemoClub
+        built={demo.built}
+        when={demo.builtAt ? shortDate(demo.builtAt) : ""}
+        day={demo.day ? formatDay(demo.day, DEFAULT_LOCALE) : ""}
+        holesIn={demo.holesIn}
+        links={demo.links}
+      />
 
       {/* The controls that write: the price every screen quotes, and the caps
           every entry gate reads. */}
@@ -260,7 +271,9 @@ export default async function OwnerConsolePage() {
         ))}
       </div>
       <OwnerLimits tiers={limitTiers} enforce={enforcementEnabled(limitOverrides)} />
-      <OwnerClubPlan tiers={Object.values(PLANS).map((p) => ({ key: p.key, name: p.name, tagline: p.tagline }))} />
+      {/* The owner's own screen belongs to no club, so the plans are named in
+          the app's default golf — the US register. */}
+      <OwnerClubPlan tiers={Object.values(PLANS).map((p) => ({ key: p.key, name: p.name, tagline: planTagline(p, golfTermsFor("us")) }))} />
       <OwnerDiscounts codes={discounts} />
 
       {/* Tier mix */}

@@ -37,7 +37,11 @@
  *   a new country,      a row in LOCALES / CURRENCIES is swept by
  *   currency or device  `formats-agree`; a new place for the seeded club is a
  *                       line in `scripts/seed-club.mjs` and in ABROAD below.
+ *   a new spec          a line in `specs-by-area.mjs`: in the area it tests, in
+ *                       ALWAYS_ON, or in FULL_ONLY (`qa-framework.test.ts` fails
+ *                       until it is in one). See TARGETED ROUNDS below.
  */
+import { ALWAYS_ON, AREAS } from "./specs-by-area.mjs";
 
 /** Screens, layout and touch: what changes with the size and kind of screen, and with the engine drawing it. */
 export const SCREEN_SPECS = [
@@ -56,7 +60,8 @@ export const WALK = ["e2e/everything.spec.ts"];
 /**
  * Where the seeded club is put, round by round, besides Scotland (the suite)
  * and the United States (every round). Three a round, so three rounds visit
- * all of them: `club` is the country the CLUB is in (its currency, its dates,
+ * all of them — or all six in ONE round, `countries: "all"`, which is what a
+ * core change's round and the nightly do (2026-10-23): `club` is the country the CLUB is in (its currency, its dates,
  * its golf words), `reader` the language and region of the browser reading it,
  * `zone` that reader's clock.
  */
@@ -77,16 +82,112 @@ export const ABROAD = [
 ];
 
 /**
+ * WHEN EACH LAYER RUNS — the panel's decision of 2026-10-23
+ * (`docs/testing-panel-2026-10-23.md`). Every layer carries a `when`, and a
+ * round is asked for under one of these:
+ *
+ *   all      every layer, one after another: a round on one machine, which is
+ *            how a layer is run and debugged (`npm run qa:round` with no
+ *            `--schedule`). It is what a round was until that day.
+ *   pr       the round a change asks for before it merges (`round/<name>-1`).
+ *   nightly  the full round on main, every night: every `pr` layer, all six
+ *            countries, the console crawl in full, the other browsers (iPad,
+ *            Firefox at three sizes, Chrome as installed), the Android tablet and the
+ *            libraries' published holes. A core change waits for it before it
+ *            reaches production (the deploy gate, `scripts/qa/deploy-gate.mjs`).
+ *   weekly   what moves slowly and is the same engine as the suite: Chrome and
+ *            Edge as installed, and the front door with its animation on.
+ *
+ * THE BROWSER SPLIT (2026-11-01): a change's round runs the core browsers only — Chromium at its
+ * three sizes (the suite), the iPhone, and Safari on a Mac and as an iPhone SE. The iPad, Firefox
+ * (three sizes) and Chrome as installed moved to the nightly; Edge stays weekly. Firefox's small
+ * phone and Edge return to a change's round after launch. `qa-pipeline.test.ts` holds the lists.
+ *
+ * Nothing was removed from testing that day; what moved was WHEN. A layer that
+ * left the `pr` list runs every night or every week on main instead.
+ */
+export const SCHEDULES = {
+  all: "every layer, one after another (a round on one machine)",
+  pr: "the round a change asks for before it merges",
+  // Scheduled for 02:00 UTC; GitHub starts a scheduled run when it has room, and the last eight
+  // nights (to 2026-10-31) it started between 07:30 and 08:15 UTC.
+  nightly: "the full round on main, every night (scheduled 02:00 UTC; it has been starting 07:30–08:15 UTC), with all six countries and the console crawl in full",
+  weekly: "Chrome and Edge as installed, and the front door with its animation on, every Sunday",
+};
+
+/** How many countries a round visits: this round's three (`trio`), or all six at once (`all`). */
+export const COUNTRY_MODES = ["trio", "all"];
+
+/**
  * The layers. `cookies` is which way the test server is started: "secure" is
  * production's (every cookie Secure); "plain" drops that flag, because WebKit
  * will not send a Secure cookie over the plain http a local test server speaks.
  * `specs: []` is the whole suite; `projects: []` is all three screen sizes.
+ *
+ * `plan.schedule` keeps only the layers that run under it (see SCHEDULES), and
+ * `plan.countries: "all"` puts all six places abroad into ONE round — a few
+ * more parts, not three repeats of everything else. With no plan this is every
+ * layer, and the round number picks the three countries, exactly as before.
  */
-export function layersFor(round) {
-  const abroad = ABROAD[(Math.max(1, round) - 1) % ABROAD.length];
+export function layersFor(round, plan = {}) {
+  const { schedule = "all", countries = "trio", target = null } = plan;
+  if (!SCHEDULES[schedule]) throw new Error(`no schedule called "${schedule}" — one of ${Object.keys(SCHEDULES).join(", ")}`);
+  if (!COUNTRY_MODES.includes(countries)) throw new Error(`no country mode called "${countries}" — one of ${COUNTRY_MODES.join(", ")}`);
+  if (target && !AREAS[target]) throw new Error(`no area called "${target}" in specs-by-area.mjs — one of ${Object.keys(AREAS).join(", ")}`);
+  if (target && schedule !== "pr") throw new Error(`a targeted round is a change's round (schedule pr), not "${schedule}": the nightly and the weekly are always full`);
+  const abroad = countries === "all" ? ABROAD.flat() : ABROAD[(Math.max(1, round) - 1) % ABROAD.length];
+  const every = everyLayer(abroad);
+  const chosen = schedule === "all" ? every : every.filter((layer) => layer.when.includes(schedule));
+  return target ? targeted(chosen, target) : chosen;
+}
+
+/**
+ * TARGETED ROUNDS (the QA & Test Lead with the testing panel, 2026-11-01; `specs-by-area.mjs`).
+ *
+ * A change of "function in one area" whose every file the manifest places in ONE area (`targetFor`)
+ * gets a round in which every layer that runs THE WHOLE SUITE (the suite, the iPhone, Firefox) runs
+ * instead that area's specs and the always-on set, at the same sizes; the scenarios are the area's
+ * own; and every layer that runs a fixed list (the text-box crawl, the walks, Safari's and the iPad's
+ * screen layers) is kept as it is. The nightly runs everything, and the deploy gate holds the commit
+ * until a clean one contains it (`nightlyWait` in deploy-rules.mjs).
+ */
+export function targetedSpecs(area) {
+  return [...new Set([...AREAS[area].specs, ...ALWAYS_ON])];
+}
+
+/** The words every report of a targeted round carries, so nobody mistakes it for a full one. */
+export function targetLine(area) {
+  const a = AREAS[area];
+  const scenarios = a.scenarios.length ? `, scenario${a.scenarios.length > 1 ? "s" : ""} ${a.scenarios.join(", ")}` : "";
+  return `TARGETED round: ${area} — ${a.specs.length} specs${scenarios} + the always-on set; the full suite runs in the nightly`;
+}
+
+function targeted(layers, area) {
+  const a = AREAS[area];
+  const specs = targetedSpecs(area);
+  const out = [];
+  for (const layer of layers) {
+    if (layer.kind === "scenarios") {
+      // Only the area's own tournaments; an area with none plays none (the nightly plays all eleven).
+      if (a.scenarios.length) out.push({ ...layer, only: a.scenarios, name: `${layer.name} — the area's ${a.scenarios.length} (TARGETED)`, reallyIs: `TARGETED (${a.name}): scenario${a.scenarios.length > 1 ? "s" : ""} ${a.scenarios.join(", ")} only — ${layer.reallyIs}` });
+      continue;
+    }
+    if (!layer.kind && layer.specs.length === 0) {
+      out.push({ ...layer, specs, targeted: area, reallyIs: `TARGETED (${a.name}): the area's ${a.specs.length} specs and the always-on set (${ALWAYS_ON.length}), NOT every spec — in place of: ${layer.reallyIs}` });
+      continue;
+    }
+    out.push(layer);
+  }
+  return out;
+}
+
+const PR_AND_NIGHTLY = ["pr", "nightly"];
+
+function everyLayer(abroad) {
   return [
     {
       key: "suite",
+      when: PR_AND_NIGHTLY,
       name: "The whole suite",
       standsFor: "an organizer on a laptop; a player on an Android phone and on a small phone; a visitor signed out",
       reallyIs: "Chromium at 1280×900, as a Pixel 5 (393 wide, touch) and at 320 wide — every spec, the every-screen walk, the control crawl, the every-action sweep; and with them the security checks from outside (security.spec), what a search engine is given (seo.spec), the accessibility audit of every screen (a11y.spec) and the weight of the screens people open most (weight.spec)",
@@ -99,11 +200,34 @@ export function layersFor(round) {
       reach: true,
     },
     {
+      // Added 2026-10-21: the dropdowns, choices and tick-boxes were every one operated by the control
+      // crawl, and the text boxes — a third of the console's controls — by nothing in particular. Its own
+      // layer, cut into TEXT_PARTS shares by `--shard`, so that no part of the suite grows by an hour.
+      key: "text-boxes",
+      // In every change's round and the nightly, as it was when it arrived (#923): the panel of
+      // 2026-10-23 made the CONTROL crawl conditional and said nothing of this one, so it is unchanged.
+      when: PR_AND_NIGHTLY,
+      name: "Every text box",
+      standsFor: "an organizer or a member typing into any box: nothing, far too much, the wrong kind of thing, the right thing",
+      reallyIs: "Chromium at 1280×900: every text box on every console and player screen of every seeded tournament given empty, over-long, bad and good input, saved the way its screen saves, reloaded and read back, then put back as it was — with a control in each share proving it can see a silent press and a refusal out of view",
+      cannotSee: "a box that appears only after a press it does not make (a dialog, a second step); whether a value it calls kept is right for the club; boxes behind a button that sends, deletes or spends an allowance, which it never presses",
+      cookies: "secure",
+      env: { E2E_EVERYTHING: "1", E2E_TEXT_BOXES: "1" },
+      specs: ["e2e/every-text-box.spec.ts"],
+      projects: ["desktop"],
+      minutes: 40,
+      // Each share's ledger (every try and its verdict) and its reach, written as it goes. Kept with
+      // the part's own files (`round.mjs`), or a failing share's findings exist only in its log.
+      keeps: ".e2e/every-text-box",
+    },
+    {
       // Added 2026-10-13: every other layer asks the browser for reduced motion, which is what almost
       // nobody has set. The first round on GitHub met the page with its motion on by accident (Safari's
       // engine on Linux ignores the request) and three front-door tests failed on pictures measured before
       // they had settled. So the front door is also run the way it is seen.
       key: "motion",
+      // Weekly since 2026-10-23: the front door changes rarely and is a tier of its own with no round.
+      when: ["weekly"],
       name: "With the animation on",
       standsFor: "nearly every visitor: somebody who has not asked their device for less motion",
       reallyIs: "the front door's own specs with the page's motion left on, at three sizes",
@@ -119,6 +243,7 @@ export function layersFor(round) {
     },
     {
       key: "elsewhere",
+      when: PR_AND_NIGHTLY,
       name: "Somewhere else",
       standsFor: "a club and a reader on another calendar day from the server, as every club is in production",
       reallyIs: "the every-screen walk with the browser and the seeded club in a zone that is on a different date from this machine right now",
@@ -131,6 +256,7 @@ export function layersFor(round) {
     },
     {
       key: "us-club",
+      when: PR_AND_NIGHTLY,
       name: "An American club",
       standsFor: "US organizers and members: dollars, the month first, American golf words",
       reallyIs: "the every-screen walk with the seeded club in Indiana (en-US, USD)",
@@ -143,10 +269,11 @@ export function layersFor(round) {
     },
     ...abroad.map((place) => ({
       key: `abroad-${place.club}-${place.reader}`,
+      when: PR_AND_NIGHTLY,
       name: `A club in ${place.club.toUpperCase()}, read in ${place.reader}`,
       standsFor: "international organizers and members",
       reallyIs: `the every-screen walk with the seeded club in ${place.club.toUpperCase()}, the browser set to ${place.reader} and its clock to ${place.zone}`,
-      cannotSee: "a wrong figure (as above); a country that is not in this round's three",
+      cannotSee: "a wrong figure (as above); a country that is not in this round (a round of three visits three; the nightly visits all six)",
       cookies: "secure",
       env: { E2E_EVERYTHING: "1", E2E_CLUB: place.club, E2E_LOCALE: place.reader, E2E_TZ: place.zone },
       specs: WALK,
@@ -155,6 +282,8 @@ export function layersFor(round) {
     })),
     {
       key: "tablet-android",
+      // Nightly since 2026-10-23: Chromium at a tablet's widths, between the suite's phone and laptop sizes.
+      when: ["nightly"],
       name: "An Android tablet",
       standsFor: "an organizer or a player on a Galaxy Tab, upright and on its side",
       reallyIs: "Chromium as a Galaxy Tab S4 upright (712 wide) and on its side (1138 wide), and a Galaxy Tab S9 upright (640 wide), touch — every screen, layout, touch targets, the front door",
@@ -167,6 +296,9 @@ export function layersFor(round) {
     },
     {
       key: "chrome",
+      // Weekly since 2026-10-23: "the same engine, a version apart" is a question of the calendar, not of a change.
+      // Nightly too since 2026-11-01 (the browser split): the installed Chrome is a core browser, so it is seen every night.
+      when: ["nightly", "weekly"],
       name: "Chrome, as installed",
       standsFor: "Google Chrome on a laptop and on a phone-sized window",
       reallyIs: "the Chrome installed on this machine (not Playwright's own build) — every screen, layout, touch targets, the front door",
@@ -179,6 +311,7 @@ export function layersFor(round) {
     },
     {
       key: "edge",
+      when: ["weekly"],
       name: "Edge, as installed",
       standsFor: "Microsoft Edge on a laptop",
       reallyIs: "the Edge installed on this machine — every screen, layout, the front door",
@@ -191,6 +324,7 @@ export function layersFor(round) {
     },
     {
       key: "iphone",
+      when: PR_AND_NIGHTLY,
       name: "An iPhone",
       standsFor: "iOS: a player or an organizer in Safari on an iPhone — and the iOS app, which is this web app in a shell",
       reallyIs: "WebKit (Safari's engine) as an iPhone 13 — the whole suite at that size",
@@ -203,6 +337,7 @@ export function layersFor(round) {
     },
     {
       key: "safari",
+      when: PR_AND_NIGHTLY,
       name: "Safari on a Mac, and a small iPhone",
       standsFor: "an organizer in Safari on a laptop; a player on an iPhone SE",
       reallyIs: "WebKit at 1280×900 and as an iPhone SE (320 wide) — every screen, layout, touch targets, the front door, and the server-against-browser format check",
@@ -215,6 +350,8 @@ export function layersFor(round) {
     },
     {
       key: "ipad",
+      // Nightly only since 2026-11-01 (the browser split, ruled by the testing panel): a change's round keeps the core browsers.
+      when: ["nightly"],
       name: "An iPad",
       standsFor: "iOS on a tablet: an organizer at the registration desk, a player on the sofa",
       reallyIs: "WebKit as an iPad upright (810 wide), an iPad Mini upright (768 wide) and an iPad Pro 11 on its side (1194 wide), touch — every screen, layout, touch targets, the front door",
@@ -227,6 +364,7 @@ export function layersFor(round) {
     },
     {
       key: "scenarios",
+      when: PR_AND_NIGHTLY,
       kind: "scenarios",
       name: "Eleven tournaments, played",
       standsFor: "the app doing its job: a full field entered, drawn, scored, cut, ranked and paid, in every kind of competition",
@@ -237,16 +375,45 @@ export function layersFor(round) {
     },
     {
       key: "dependencies",
+      // Nightly since 2026-10-23, and not in a change's round: a hole published overnight is about the
+      // calendar, not about the change, and a registry that could not be asked stopped rounds that had
+      // tested everything else. It also holds the quarantine list to its dates (scripts/qa/quarantine.mjs).
+      when: ["nightly"],
       kind: "command",
       name: "Known holes in the libraries",
       standsFor: "security: a published vulnerability in something the app ships with",
-      reallyIs: "npm's advisory database, asked about every package a deployment installs; anything rated high or critical is a finding",
+      reallyIs: "npm's advisory database, asked about every package a deployment installs; anything rated high or critical is a finding. And the quarantine list held to its dates: a test quarantined past its expiry is a finding",
       cannotSee: "a hole nobody has published, and whether a published one can be reached from this app",
-      command: "node scripts/qa/dependencies.mjs",
+      command: "node scripts/qa/dependencies.mjs && node scripts/qa/quarantine.mjs",
       minutes: 10,
     },
     {
+      key: "mutation",
+      // The MUTATION RATCHET (backlog A7, 2026-10-31): nightly, never in a change's round, so it costs
+      // a pull request nothing. Half of what retires ARITHMETIC_KEEPS_THREE_ROUNDS (below); the other
+      // half is the property tests. Its score is the first line of its log, and the verdict prints it.
+      when: ["nightly"],
+      kind: "command",
+      name: "Would the tests notice the arithmetic broken",
+      standsFor: "money and handicap arithmetic: a wrong stroke or a wrong cent that every fixture would still pass",
+      reallyIs:
+        "Stryker breaks the arithmetic core one small change at a time (ARITHMETIC_CORE in scripts/qa/mutation-ratchet.mjs: handicap, a round's allowance and figure, strokes by stroke index, a side's strokes, the split to the cent, skins and the skins split) and runs the unit suite against each change; a module whose score falls below mutation-baseline.json is a finding",
+      cannotSee:
+        "a rule no unit test states at all; gameNets, the sink that reads the database (the audit suite holds it); the rest of the foundation in stryker.config.mjs (run `npm run mutation` by hand); an equivalent mutant, which counts against the score",
+      // --concurrency 4: a GitHub runner has four cores. Incremental (reports/stryker-incremental.json,
+      // kept between nights by round.yml): a night re-tests only the mutants whose code or tests changed.
+      // Measured 2026-10-31 on the build machine: a COLD run (no incremental file) of 1,371 mutants is
+      // 51 min at concurrency 4, the dry run of the whole unit suite 5 of them; a night with the
+      // incremental file and a test or two changed, 10 to 17 min. A cold night is the first one, and
+      // any night after the cache has gone unused for a week. round.yml gives this part 130 minutes
+      // rather than every other part's 100, so a slower runner's cold night still finishes.
+      command: "node scripts/mutation.mjs --scope=arithmetic --ratchet --quiet --concurrency 4",
+      minutes: 115,
+    },
+    {
       key: "firefox",
+      // Nightly only since 2026-11-01 (the browser split). After launch, Firefox's small phone returns to a change's round.
+      when: ["nightly"],
       name: "Firefox",
       standsFor: "Firefox on a laptop, and at a phone's and a small phone's width",
       reallyIs: "the whole standing suite on Firefox at three sizes",
@@ -279,6 +446,15 @@ export function layersFor(round) {
  */
 /** How many machines the console crawl is shared between. See `E2E_CRAWL_PART` in e2e/every-control.spec.ts. */
 export const CRAWL_PARTS = 4;
+
+/**
+ * How many machines the text-box crawl (`e2e/every-text-box.spec.ts`) is shared between. The spec is
+ * one test per share, so Playwright's `--shard=k/TEXT_PARTS` runs exactly share k; `SHARDS` below
+ * names the same number for its layer. Measured 2026-10-21 on one machine as one share: 27 minutes,
+ * of which about seven is opening every screen on every tournament (which each share repeats). Three
+ * shares is about fifteen minutes each.
+ */
+export const TEXT_PARTS = 3;
 
 /**
  * HOW MANY MACHINES EACH LONG PART IS SHARED BETWEEN, by Playwright's `--shard`.
@@ -315,14 +491,53 @@ export const SHARDS = {
   chrome: 2,
   "tablet-android": 2,
   safari: 2,
+  "text-boxes": TEXT_PARTS,
 };
 
-export function partsFor(round) {
+/**
+ * WHAT A PART'S OWN FILES ARE CALLED, inside `.qa/rounds/<tag>/` — its log, what it kept, its summary.
+ *
+ * Every part of a round writes into a folder of the same name (the round's tag), and each machine's is
+ * handed on as an artifact of its own. They were named by LAYER, so the three shares of the text-box
+ * crawl each held `.qa/rounds/G253-1/text-boxes.log` and `summary.md`: three files of one name, and
+ * fetched into one place the last one won — while the verdict carried one line per failed share and
+ * none of its findings, so those logs were the only place the findings were. Two of three shares'
+ * were read as lost (2026-10-21). Named by the PART, no two machines' files share a name, and the
+ * verdict lists every finding (`details` in `round.mjs` and `merge.mjs`). No part named (a round run
+ * here): the layer's.
+ */
+export function partFile(layerKey, partId) {
+  if (!partId) return layerKey;
+  return partId.startsWith(layerKey) ? partId : `${partId}-${layerKey}`;
+}
+
+/**
+ * EVERY FINDING A PART'S LOG PRINTS, for the verdict. The text-box crawl prints each finding under its
+ * share's tally as `[every-text-box]   <WHAT> · …`; what it skipped and what was locked everywhere are
+ * printed the same way and are not findings. Playwright's own failure line names the share and none of
+ * what it found.
+ */
+export function findingsSaid(log) {
+  return String(log ?? "")
+    .split(/\r?\n/)
+    .filter((l) => /^\[every-text-box\] {3}(?!skipped · |locked on every )\S/.test(l))
+    .map((l) => l.replace(/^\[every-text-box\] {3}/, "").trim().slice(0, 400));
+}
+
+/**
+ * The parts of a round under `plan` (see `layersFor`), plus `plan.crawl`: false
+ * leaves the console crawl out — its four shares are not made, and the suite's
+ * laptop shards still skip it (`--crawl=0/N`), so nothing runs it at all. A
+ * change's round leaves it out when it touches no input screen
+ * (`crawlNeeded`); the nightly always runs it.
+ */
+export function partsFor(round, plan = {}) {
   const parts = [];
   const all = ["phone", "small-phone", "desktop"];
-  for (const layer of layersFor(round)) {
+  const crawlWanted = plan.crawl !== false;
+  for (const layer of layersFor(round, plan)) {
     if (layer.kind === "scenarios") {
-      for (const s of SCENARIOS) parts.push({ id: `scenario-${s.key}`, layer: layer.key, args: `--only=scenarios --scenario=${s.key}`, browsers: "chromium", minutes: 45 });
+      for (const s of SCENARIOS.filter((x) => !layer.only || layer.only.includes(x.key))) parts.push({ id: `scenario-${s.key}`, layer: layer.key, args: `--only=scenarios --scenario=${s.key}`, browsers: "chromium", minutes: 45 });
       continue;
     }
     if (layer.kind === "command") {
@@ -332,14 +547,17 @@ export function partsFor(round) {
     }
     const browsers = layer.env?.E2E_ENGINE ?? (layer.env?.E2E_CHANNEL ? `chromium ${layer.env.E2E_CHANNEL}` : "chromium");
     const projects = layer.projects.length ? layer.projects : all;
-    // Only the layers that run EVERY spec are worth cutting; a walk is three tests.
-    if (layer.specs.length === 0) {
+    // Only the layers that run EVERY spec are worth cutting; a walk is three tests. A targeted round's
+    // stand-in for every spec is cut by size the same way (each size its own part, the crawl its shares),
+    // but not by --shard: its list is a fraction of the suite, and a shard of it can hold only tests that
+    // skip at that size, which the verdict would rightly call a part that tested nothing.
+    if (layer.specs.length === 0 || layer.targeted) {
       for (const project of projects) {
-        const shards = SHARDS[`${layer.key}:${project}`] ?? 1;
+        const shards = layer.targeted ? 1 : SHARDS[`${layer.key}:${project}`] ?? 1;
         // The console crawl is one test, on the laptop size of the suite, and as long as everything
         // else in that size together. It is taken out of the shards and given parts of its own.
         const crawl = layer.key === "suite" && project === "desktop" ? CRAWL_PARTS : 0;
-        for (let k = 1; k <= crawl; k += 1) {
+        for (let k = 1; k <= (crawlWanted ? crawl : 0); k += 1) {
           parts.push({ id: `${layer.key}-${project}-crawl-${k}of${crawl}`, layer: layer.key, args: `--only=${layer.key} --projects=${project} --crawl=${k}/${crawl}`, browsers, minutes: layer.minutes });
         }
         for (let i = 1; i <= shards; i += 1) {
@@ -499,14 +717,192 @@ export const TIERS = {
   function: {
     rank: 2,
     name: "Function in one area",
-    needs: "a browser test for it, proven by breaking the code; the standing suite; and ONE full round on the commit that will be production, before it merges.",
+    needs: "a browser test for it, proven by breaking the code; the standing suite; and ONE round on the commit that will be production, before it merges. When every file is in ONE area of specs-by-area.mjs that round is TARGETED (the area's specs and scenarios plus the always-on set). Since 2026-11-01 EVERY function commit, targeted or full, waits for a clean nightly before production, as a core one does.",
   },
   core: {
     rank: 3,
     name: "Core and shared",
-    needs: "batch it, freeze, and THREE full rounds on the commit that will be production, before it merges.",
+    needs: "batch it, and ONE round that visits all six countries on the commit that will be production, before it merges. It then reaches production only once the NIGHTLY round on main, on that commit or a later one containing it, is clean: the deploy job holds it until then. Money or handicap arithmetic keeps THREE rounds for now (ARITHMETIC_KEEPS_THREE_ROUNDS).",
   },
 };
+
+/**
+ * MONEY AND HANDICAP ARITHMETIC — core, and for now three rounds rather than one.
+ *
+ * The panel of 2026-10-23 cut a core change from three rounds to one round of
+ * all six countries plus the nightly before production, on the reasoning that
+ * a second and third run of the same paths finds a flaky test and not a
+ * fault. That is not yet true of the arithmetic: a wrong stroke or a wrong
+ * pound is invisible on most fixtures (CLAUDE.md, "an error that shifts every
+ * row by the same amount"), and the instruments that look along those axes —
+ * property-based tests over every handicap and stake, and a nightly mutation
+ * ratchet that fails when a mutant of this arithmetic survives — arrived in
+ * two halves: the property tests with #942, the ratchet in the nightly round
+ * (the `mutation` layer above) on 2026-10-31. The switch is NOT flipped with
+ * them: it waits for the ratchet to have held on real nights (see
+ * `docs/testing-panel-2026-10-23.md`, item A, for what would justify it).
+ * Until then, a change to one of these files keeps the old three rounds.
+ *
+ * TO RETIRE IT: set `ARITHMETIC_KEEPS_THREE_ROUNDS` to false in the pull
+ * request that puts the property-based tests and the mutation ratchet on main,
+ * and say so in `docs/testing-panel-2026-10-23.md`. `qa-pipeline.test.ts`
+ * holds this list to files that exist, as `TIER_RULES` is held.
+ */
+export const ARITHMETIC_KEEPS_THREE_ROUNDS = true;
+export const ARITHMETIC = [
+  "src/lib/domain/handicap.ts",
+  "src/lib/domain/handicap-policy.ts",
+  "src/lib/domain/round-handicap.ts",
+  "src/lib/domain/stroke.ts",
+  "src/lib/domain/card-points.ts",
+  "src/lib/services/handicaps.ts",
+  "src/lib/services/round-handicap.ts",
+  "src/lib/domain/money.ts",
+  "src/lib/domain/money-layout.ts",
+  "src/lib/domain/money-mode.ts",
+  "src/lib/domain/skins.ts",
+  "src/lib/domain/skins-pot.ts",
+  "src/lib/domain/nassau.ts",
+  "src/lib/domain/derived-games.ts",
+  "src/lib/domain/carry.ts",
+  "src/lib/domain/expenses.ts",
+  "src/lib/services/skins-pot.ts",
+];
+
+/**
+ * WHEN A CHANGE'S ROUND RUNS THE CONSOLE CRAWL (`e2e/every-control.spec.ts`).
+ *
+ * The crawl changes every dropdown, choice and tick-box on every console screen,
+ * saves it and reads it back: an hour of machine time in four shares. The panel
+ * kept it in a change's round for anything touching what a secretary TYPES OR
+ * PICKS — entry, handicaps, tees and the other input screens — and the nightly
+ * runs it on everything regardless. Read off the files, never off how the
+ * change is described:
+ *
+ *   a core change                         always (what every screen stands on)
+ *   a console screen, or a console action  `src/app/(app)/`, `src/app/actions/`
+ *   a component or a rule whose NAME is   entry, handicap, tee, score, card,
+ *   about input                           course, roster, member, registration,
+ *                                         setting, flight, format, allowance,
+ *                                         field, draw, group, stage, round,
+ *                                         form, input, picker, select, option
+ */
+export const CRAWL_PATHS = ["src/app/(app)/", "src/app/actions/"];
+export const CRAWL_WORDS = /(entry|handicap|tee|score|card|course|roster|member|registration|setting|flight|format|allowance|field|draw|group|stage|round|form|input|picker|select|option)/i;
+
+/** Whether a change's round needs the console crawl, and the files that say so. */
+export function crawlNeeded(paths) {
+  const because = [];
+  for (const raw of paths) {
+    const path = raw.replace(/\\/g, "/");
+    const tier = tierOf(path);
+    if (tier === "core") because.push(path);
+    else if (tier !== "function") continue;
+    else if (CRAWL_PATHS.some((p) => path.startsWith(p))) because.push(path);
+    else if ((path.startsWith("src/components/") || path.startsWith("src/lib/")) && CRAWL_WORDS.test(path.split("/").pop() ?? "")) because.push(path);
+  }
+  return { needed: because.length > 0, because };
+}
+
+/**
+ * THE ROUNDS A CHANGE NEEDS, read off the files it touches (`npm run qa:changed`
+ * prints this, and the Round workflow plans a pushed `round/**` branch with it).
+ *
+ *   rounds        how many `round/<name>-N` branches before it merges (0: none)
+ *   countries     "trio" — the three the round number picks; "all" — all six in one round
+ *   crawl         whether those rounds run the console crawl
+ *   nightly       true: it does not reach production until a clean nightly round contains it
+ *   arithmetic    the money and handicap files that keep it at three rounds, if any
+ *   target        a function change's round cut to ONE area (`targetFor`), or null: a full round
+ *   fullBecause   for a function change that is not targeted, the file that made it full
+ */
+export function roundPlan(paths) {
+  const clean = paths.map((p) => p.replace(/\\/g, "/"));
+  if (!clean.length) return { tier: "none", rounds: 0, countries: "trio", crawl: false, crawlBecause: [], nightly: false, arithmetic: [], target: null, fullBecause: "" };
+  const tier = clean.map(tierOf).sort((a, b) => TIERS[b].rank - TIERS[a].rank)[0];
+  const arithmetic = tier === "core" ? clean.filter((p) => ARITHMETIC.includes(p)) : [];
+  const rounds = tier === "core" ? (arithmetic.length && ARITHMETIC_KEEPS_THREE_ROUNDS ? 3 : 1) : tier === "function" ? 1 : 0;
+  const aimed = tier === "function" ? targetFor(clean) : null;
+  const target = aimed?.targeted ? aimed : null;
+  // A targeted round always runs the console crawl: it is one of the sweeps that saw what the area's specs did not.
+  const crawl = target ? { needed: true, because: ["a targeted round always runs the console crawl"] } : rounds > 0 ? crawlNeeded(clean) : { needed: false, because: [] };
+  return {
+    tier,
+    rounds,
+    countries: tier === "core" ? "all" : target ? target.countries : "trio",
+    crawl: crawl.needed,
+    crawlBecause: crawl.because,
+    // Every function change waits for the nightly, targeted or not: the gate reads tiers, not the manifest (deploy-rules.mjs).
+    nightly: tier === "core" || tier === "function",
+    arithmetic,
+    target: target ? { area: target.area, name: target.name, specs: target.specs, scenarios: target.scenarios, countries: target.countries, countriesBecause: target.countriesBecause } : null,
+    fullBecause: aimed && !aimed.targeted ? aimed.why : "",
+  };
+}
+
+/** The areas of specs-by-area.mjs a source path belongs to. */
+export function areasOfPath(path) {
+  const clean = path.replace(/\\/g, "/");
+  return Object.entries(AREAS).filter(([, a]) => a.paths.some((p) => matches(p, clean))).map(([k]) => k);
+}
+
+/** The areas that list a spec. */
+export function areasOfSpec(path) {
+  const clean = path.replace(/\\/g, "/");
+  return Object.entries(AREAS).filter(([, a]) => a.specs.includes(clean)).map(([k]) => k);
+}
+
+/**
+ * WHETHER A CHANGE'S ROUND MAY BE TARGETED, and at which area — FAIL-SAFE: any file that is not
+ * plainly inside one area makes it a full round, and the answer says which file.
+ *
+ *   words (docs, the guide's and Help's text)       ride along: they cannot change what a screen does
+ *   a unit test, or a helper of the unit tests      ride along: it ships to nobody
+ *   an e2e spec the area lists                      rides along, and must be in the SAME area
+ *   any other test or tooling (an e2e helper, a fixture, scripts/qa/, .github/, the Playwright config)
+ *                                                   full: it changes how every spec runs
+ *   function in one area, named by an area          targets that area — every such file the same one
+ *   function no area names; core; the front door    full (core is also all six countries and the nightly)
+ */
+export function targetFor(paths) {
+  const clean = paths.map((p) => p.replace(/\\/g, "/"));
+  const full = (why) => ({ targeted: false, why });
+  if (!clean.length) return full("nothing changed");
+  let common = null;
+  let functional = 0;
+  const narrow = (keys) => {
+    common = common ? common.filter((k) => keys.includes(k)) : keys;
+  };
+  for (const path of clean) {
+    const tier = tierOf(path);
+    if (tier === "words") continue;
+    if (tier === "tests") {
+      if (path.startsWith("src/")) continue;
+      const keys = path.startsWith("e2e/") && !path.startsWith("e2e/scenarios/") ? areasOfSpec(path) : [];
+      if (!keys.length) return full(`${path} is test tooling no one area owns (an e2e helper, a scenario, scripts/qa/, .github/ or a config changes how every spec runs)`);
+      narrow(keys);
+      continue;
+    }
+    if (tier !== "function") return full(`${path} is ${TIERS[tier].name}`);
+    const keys = areasOfPath(path);
+    if (!keys.length) return full(`${path} is in no area of scripts/qa/specs-by-area.mjs`);
+    narrow(keys);
+    functional += 1;
+  }
+  if (!functional) return full("it changes no function in an area");
+  if (!common.length) return full("its files are in more than one area");
+  const area = common[0];
+  const a = AREAS[area];
+  return {
+    targeted: true,
+    area,
+    name: a.name,
+    specs: a.specs,
+    scenarios: a.scenarios,
+    countries: a.dateSensitive ? "all" : "trio",
+    countriesBecause: a.dateSensitive ? "the area's specs read days, times or zones, so all six countries" : "the area's specs read no day, time or zone, so the three that round's number picks (as any function round)",
+  };
+}
 
 /** A pattern is a prefix ending in `/`, an exact path, or has one `*` standing for anything inside a path part. */
 export const TIER_RULES = [
@@ -514,6 +910,8 @@ export const TIER_RULES = [
   ["tests", ["e2e/", "scripts/qa/", ".github/", "playwright.config.ts", "vitest.config.ts", "vitest.audit.config.ts", ".claude/", ".gitignore"]],
   ["tests", ["src/lib/__tests__/", "src/lib/domain/__tests__/"]],
   ["tests", ["scripts/smoke-all.mjs", "scripts/smoke-routes.mjs", "scripts/verify-*.mjs", "scripts/seed-club.mjs", "scripts/e2e-coverage.mjs", "scripts/look-at-screens.mjs", "scripts/run-mark.mjs", "scripts/session-cookie.mjs"]],
+  // The load test and the production canary: they ask the app questions and ship nothing.
+  ["tests", ["scripts/load/", "scripts/prod-smoke.mjs"]],
   // Words.
   ["words", ["docs/", "CLAUDE.md", "README.md", "src/lib/guide-steps.ts", "src/lib/guide-search.ts", "src/lib/player-help.ts", "public/guide/", "scripts/build-guide-pdf.mjs"]],
   // The front door and its three sister pages.
@@ -523,6 +921,8 @@ export const TIER_RULES = [
   ["core", ["src/app/layout.tsx", "src/app/globals.css", "src/app/design-system.css", "src/app/fonts.ts", "src/app/(app)/layout.tsx", "src/app/(player)/layout.tsx", "src/lib/themes.ts", "src/lib/nav.ts", "src/lib/player-nav.ts", "src/lib/db.ts"]],
   // Core: who may do what.
   ["core", ["src/lib/auth.ts", "src/lib/play-auth.ts", "src/lib/roles.ts", "src/lib/access-roles.ts", "src/lib/secure-cookies.ts", "src/lib/rate-limit.ts", "src/lib/domain/session-token.ts", "src/lib/domain/password.ts", "src/lib/domain/access-lockout.ts", "src/lib/domain/rate-limit.ts", "src/lib/services/access.ts", "src/lib/services/org-access.ts", "src/lib/services/player-access.ts", "src/lib/services/match-access.ts", "src/lib/services/game-access.ts", "src/lib/services/action-shared.ts", "src/app/actions/auth.ts"]],
+  // Who the owners are: the sign-in gate reads it (`parseOwnerEmails`), so it is who may sign in at all.
+  ["core", ["src/lib/owner.ts", "src/lib/sign-in-gate.ts"]],
   // Core: the arithmetic of golf and of money, and who plays whom.
   ["core", ["src/lib/domain/stroke.ts", "src/lib/domain/stroke-agg.ts", "src/lib/domain/stroke-countback.ts", "src/lib/domain/match.ts", "src/lib/domain/match-tiebreak.ts", "src/lib/domain/handicap.ts", "src/lib/domain/handicap-policy.ts", "src/lib/domain/round-handicap.ts", "src/lib/domain/card-points.ts", "src/lib/domain/card-totals.ts", "src/lib/domain/ranked-score.ts", "src/lib/domain/standings.ts", "src/lib/domain/shared-position.ts", "src/lib/domain/cut.ts", "src/lib/domain/bracket.ts", "src/lib/domain/bracket-flights.ts", "src/lib/domain/draw.ts", "src/lib/domain/league-draw.ts", "src/lib/domain/grouping.ts", "src/lib/domain/team.ts", "src/lib/domain/team-match-standings.ts", "src/lib/domain/cup.ts", "src/lib/domain/pair-totals.ts"]],
   ["core", ["src/lib/domain/money.ts", "src/lib/domain/money-layout.ts", "src/lib/domain/money-mode.ts", "src/lib/domain/skins.ts", "src/lib/domain/skins-pot.ts", "src/lib/domain/nassau.ts", "src/lib/domain/derived-games.ts", "src/lib/domain/carry.ts", "src/lib/domain/expenses.ts", "src/lib/domain/score-payload.ts", "src/lib/services/scorecard-write.ts", "src/lib/services/handicaps.ts", "src/lib/services/round-handicap.ts", "src/lib/services/tournament.ts", "src/lib/services/skins-pot.ts", "src/lib/services/stroke-cut.ts", "src/lib/services/bracket-results.ts", "src/lib/services/finish-order.ts", "src/lib/services/intake-lock.ts", "src/lib/services/limits.ts", "src/lib/services/entitlements.ts", "src/lib/plans.ts"]],

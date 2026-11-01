@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join, posix } from "node:path";
 import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose: the framework runs on a bare runner, before anything is installed.
-import { ABROAD, CRAWL_PARTS, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, layersFor, partsFor, tierOf } from "../../../scripts/qa/layers.mjs";
+import { ABROAD, CRAWL_PARTS, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, findingsSaid, layersFor, partFile, partsFor, targetedSpecs, tierOf } from "../../../scripts/qa/layers.mjs";
+import { ALWAYS_ON, AREAS, FULL_ONLY, manifestProblems, outsideImporters } from "../../../scripts/qa/specs-by-area.mjs";
 import { BASELINE, VERDICTS, applyBreak } from "../../../scripts/qa/breaks.mjs";
 
 /**
@@ -170,6 +171,72 @@ describe("the parts of a round add up to the round", () => {
     for (const s of SCENARIOS as Array<{ key: string }>) {
       expect(parts.filter((p) => p.args === `--only=scenarios --scenario=${s.key}`).length, `scenario ${s.key}`).toBe(1);
     }
+  });
+});
+
+/**
+ * WHAT A PART FOUND CAN BE READ AFTERWARDS (2026-10-21). The three shares of the text-box crawl each
+ * failed on GitHub, and only one share's findings were read: each share's log was
+ * `.qa/rounds/<tag>/text-boxes.log` — one name for three files — and the verdict carried one line per
+ * failed share and none of what it found.
+ */
+describe("what a part found can be read afterwards", () => {
+  it("no two parts of a round name their own files alike", () => {
+    for (const round of [1, 2, 3]) {
+      const parts = partsFor(round) as Array<{ id: string; layer: string }>;
+      const names = parts.map((p) => partFile(p.layer, p.id));
+      expect(new Set(names).size, "two parts write a log of the same name").toBe(parts.length);
+      // CONTROL: the three shares of the text-box crawl are three parts, named three ways.
+      const text = parts.filter((p) => p.layer === "text-boxes").map((p) => partFile(p.layer, p.id));
+      expect(text.length).toBe(3);
+      expect(new Set(text).size).toBe(3);
+    }
+    // A round run on one machine names no part, and its files are the layer's, as they always were.
+    expect(partFile("text-boxes", "")).toBe("text-boxes");
+  });
+
+  it("the round writes its log, what it keeps, and a part's summary under the part's name", () => {
+    const round = readSource("scripts/qa/round.mjs");
+    const merge = readSource("scripts/qa/merge.mjs");
+    // Every log a layer writes goes through `partFile`; none is named by the layer alone.
+    expect(round).not.toMatch(/join\(OUT, `\$\{layer\.key\}\.log`\)/);
+    expect(round.match(/join\(OUT, `\$\{partFile\(layer\.key, PART\)\}\.log`\)/g)?.length, "the command and the browser layers").toBe(2);
+    expect(round).toMatch(/cpSync\(layer\.keeps, join\(OUT, `\$\{partFile\(layer\.key, PART\)\}-kept`\)/);
+    expect(merge).toMatch(/const own = onlyAPart && first\.id \? `-\$\{first\.id\}` : ""/);
+    expect(merge).toMatch(/`summary\$\{own\}\.md`/);
+    // And each machine's folder is handed on as an artifact named for that machine's part.
+    const workflow = readVerbatim(".github/workflows/round.yml");
+    expect(workflow).toMatch(/name: part-\$\{\{ matrix\.part\.id \}\}\r?\n\s+path: \|\r?\n\s+\.qa\/rounds\/\$\{\{ needs\.plan\.outputs\.tag \}\}\//);
+  });
+
+  it("a layer whose spec writes a ledger keeps the folder that spec writes", () => {
+    const text = (layersFor(1) as Array<{ key: string; keeps?: string; specs: string[] }>).find((l) => l.key === "text-boxes");
+    expect(text?.keeps, "the text-box crawl's ledger is not kept with its part").toBe(".e2e/every-text-box");
+    const spec = readSource("e2e/every-text-box.spec.ts");
+    const [dir, sub] = text!.keeps!.split("/");
+    expect(spec).toContain(`join(process.cwd(), "${dir}", "${sub}")`);
+    // A kept folder is one the repository does not track, or a round would commit a ledger.
+    expect(readVerbatim(".gitignore")).toMatch(new RegExp(`^/${dir.replace(".", "\\.")}\\s*$`, "m"));
+  });
+
+  it("every finding a share prints reaches the verdict, and nothing else that it prints does", () => {
+    const log = [
+      "[every-text-box] control: swallowed press → silent; refusal far above → refused out of view; server 500 → error page",
+      "[every-text-box] share 3/3: 27 boxes found (drawn on 67 rows), 21 tried, 159 tries: {}; 2 findings; 17 min",
+      "[every-text-box]   skipped · /stages · Find a course — allowance: it looks things up elsewhere",
+      "[every-text-box]   locked on every tournament, never saved · /stages · Round name",
+      "[every-text-box]   REFUSED OUT OF VIEW · champs /prizes · \"Amount for Best gross\" (figure) ← bad: letters \"-1\" · 223px",
+      "[every-text-box]   LOST · captains /registration · \"Home club\" (words) ← good · a row was added without it",
+      "  1) [desktop] › e2e/every-text-box.spec.ts:980:3 › every text box, share 3 of 3",
+    ].join("\r\n");
+    expect(findingsSaid(log)).toEqual([
+      "REFUSED OUT OF VIEW · champs /prizes · \"Amount for Best gross\" (figure) ← bad: letters \"-1\" · 223px",
+      "LOST · captains /registration · \"Home club\" (words) ← good · a row was added without it",
+    ]);
+    // The spec prints them that way, and the verdict lists each one beside the share that failed.
+    expect(readSource("e2e/every-text-box.spec.ts")).toContain("console.log(tally.findings.map((f) => `[every-text-box]   ${f}`).join(\"\\n\"));");
+    expect(readSource("scripts/qa/round.mjs")).toMatch(/details: findingsSaid\(text\)/);
+    expect(readSource("scripts/qa/merge.mjs")).toMatch(/for \(const d of r\.details\) findings\.push\(`\$\{r\.key\}: \$\{d\}`\)/);
   });
 });
 
@@ -364,5 +431,117 @@ describe("a deliberate break is applied exactly, or is said not to have been", (
     expect(flow).toContain("fail-fast: false");
     const ci = readVerbatim(".github/workflows/ci.yml");
     expect(ci).toContain('branches: ["**", "!round/**", "!breaks/**"]');
+  });
+});
+
+/**
+ * THE TARGETED-ROUND MANIFEST IS HELD TO THE DISK (scripts/qa/specs-by-area.mjs, 2026-11-01).
+ *
+ * A targeted round runs an area's specs instead of every spec, so a spec the manifest forgets is a
+ * spec a targeted round never runs — quietly. Every spec on disk must be in an area, in ALWAYS_ON or
+ * in FULL_ONLY; every path and spec it names must exist; and an area whose specs read days, times or
+ * zones must visit all six countries. `manifestProblems` is pure, so the controls hand it a fault.
+ */
+describe("the targeted-round manifest is held to the files on disk", () => {
+  const manifest = { areas: AREAS, alwaysOn: ALWAYS_ON, fullOnly: FULL_ONLY };
+  const specsOnDisk = () => readdirSync(at("e2e")).filter((f) => f.endsWith(".spec.ts")).map((f) => `e2e/${f}`);
+  const exists = (p: string) => existsSync(at(p));
+  const source = (p: string) => readSource(p);
+
+  it("is sound: every spec placed, every path and spec there, every date-reading area all six countries", () => {
+    expect(Object.keys(AREAS).length).toBeGreaterThanOrEqual(8);
+    expect(specsOnDisk().length).toBeGreaterThan(100);
+    expect(manifestProblems(manifest, specsOnDisk(), exists, source)).toEqual([]);
+  });
+
+  it("CONTROL: it fails when a spec is missing — from the manifest, or from the disk", () => {
+    // A spec on disk that nothing places (taken out of FULL_ONLY)…
+    const forgotten = FULL_ONLY[0];
+    const without = { ...manifest, fullOnly: FULL_ONLY.slice(1) };
+    expect(manifestProblems(without, specsOnDisk(), exists, source).join("\n")).toContain(`${forgotten} is in no area`);
+    // …and a spec an area lists that is not on disk (renamed or deleted).
+    const gone = { ...manifest, areas: { ...AREAS, bracket: { ...AREAS.bracket, specs: [...AREAS.bracket.specs, "e2e/zz-renamed-away.spec.ts"] } } };
+    expect(manifestProblems(gone, specsOnDisk(), exists, source).join("\n")).toContain("e2e/zz-renamed-away.spec.ts, which is not there");
+    // …and an area path that is gone.
+    const moved = { ...manifest, areas: { ...AREAS, guide: { ...AREAS.guide, paths: ["src/components/ZzMovedAway.tsx"] } } };
+    expect(manifestProblems(moved, specsOnDisk(), exists, source).join("\n")).toContain("ZzMovedAway.tsx, which is not there");
+  });
+
+  /** Every source file in src/ (not tests) and who imports it — `from "…"` and `import("…")`, `@/` and relative. */
+  function importGraph() {
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(at(dir))) {
+        const path = `${dir}/${name}`;
+        if (statSync(at(path)).isDirectory()) {
+          if (name !== "__tests__") walk(path);
+        } else if (/\.(ts|tsx|mjs)$/.test(name) && !/\.test\./.test(name)) files.push(path);
+      }
+    };
+    walk("src");
+    const known = new Set(files);
+    const resolve = (from: string, spec: string) => {
+      let base: string;
+      if (spec.startsWith("@/")) base = `src/${spec.slice(2)}`;
+      else if (spec.startsWith(".")) base = posix.normalize(posix.join(posix.dirname(from), spec));
+      else return null;
+      return [base, `${base}.ts`, `${base}.tsx`, `${base}.mjs`, `${base}/index.ts`, `${base}/index.tsx`].find((c) => known.has(c)) ?? null;
+    };
+    const importers = new Map<string, Set<string>>();
+    for (const f of files) {
+      for (const m of readVerbatim(f).matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
+        const target = resolve(f, m[1]);
+        if (!target) continue;
+        if (!importers.has(target)) importers.set(target, new Set());
+        importers.get(target)!.add(f);
+      }
+    }
+    return { files, importers };
+  }
+
+  it("every file an area lists is imported by nothing outside that area — swept over the WHOLE manifest", () => {
+    const { files, importers } = importGraph();
+    // CONTROL that the graph is real: a file known to be shared is seen with its importers.
+    expect([...(importers.get("src/components/BracketClient.tsx") ?? [])]).toContain("src/app/(app)/leaderboard/page.tsx");
+    expect(outsideImporters(AREAS, files, importers)).toEqual([]);
+  });
+
+  it("CONTROL: an import from outside an area is found", () => {
+    const { files, importers } = importGraph();
+    const withShared = { ...AREAS, bracket: { ...AREAS.bracket, paths: [...AREAS.bracket.paths, "src/components/BracketClient.tsx"] } };
+    expect(outsideImporters(withShared, files, importers).join("\n")).toContain("bracket: src/components/BracketClient.tsx ← src/app/(app)/leaderboard/page.tsx");
+    // And on a graph made by hand: one importer outside, one inside.
+    const fake = new Map([["src/x/a.ts", new Set(["src/x/b.ts", "src/y/c.ts"])]]);
+    expect(outsideImporters({ zz: { paths: ["src/x/"] } }, ["src/x/a.ts", "src/x/b.ts", "src/y/c.ts"], fake)).toEqual(["zz: src/x/a.ts ← src/y/c.ts"]);
+  });
+
+  it("CONTROL: an area whose spec reads dates but says it does not is refused", () => {
+    const wrong = { ...manifest, areas: { ...AREAS, rounds: { ...AREAS.rounds, dateSensitive: false } } };
+    expect(manifestProblems(wrong, specsOnDisk(), exists, source).join("\n")).toMatch(/rounds-and-formats\.spec\.ts, which reads days/);
+  });
+
+  it("every area's scenarios are scenarios, and its source paths are function in one area — never core", () => {
+    const keys = SCENARIOS.map((s: { key: string }) => s.key);
+    for (const [key, a] of Object.entries(AREAS) as Array<[string, { paths: string[]; scenarios: string[] }]>) {
+      for (const s of a.scenarios) expect(keys, `${key} plays scenario ${s}`).toContain(s);
+      for (const p of a.paths) expect(tierOf(p.endsWith("/") ? `${p}x.tsx` : p), `${key}: ${p}`).toBe("function");
+    }
+  });
+
+  it("a targeted round's parts run the area's specs and the always-on set, at every size the full round does", () => {
+    const parts = partsFor(1, { schedule: "pr", target: "bracket", crawl: true }) as Array<{ id: string; layer: string; args: string }>;
+    const layers = layersFor(1, { schedule: "pr", target: "bracket" }) as Array<{ key: string; specs: string[]; targeted?: string }>;
+    const suite = layers.find((l) => l.key === "suite")!;
+    expect(suite.specs).toEqual(targetedSpecs("bracket"));
+    for (const s of [...AREAS.bracket.specs, ...ALWAYS_ON]) expect(suite.specs).toContain(s);
+    // Every size of every whole-suite layer is a part; the crawl keeps its shares.
+    for (const size of ["phone", "small-phone", "desktop"]) expect(parts.some((p) => p.layer === "suite" && p.args.includes(`--projects=${size}`))).toBe(true);
+    expect(parts.filter((p) => /--crawl=[1-9]/.test(p.args)).length).toBe(CRAWL_PARTS);
+    expect(parts.filter((p) => p.layer === "text-boxes").length).toBe(3);
+    // The scenarios are the area's own.
+    expect(parts.filter((p) => p.layer === "scenarios").map((p) => p.id)).toEqual(["scenario-e"]);
+    // The layers that run a fixed list are kept as they are in a full pr round.
+    const full = layersFor(1, { schedule: "pr" }) as Array<{ key: string; specs: string[] }>;
+    for (const key of ["elsewhere", "us-club", "safari", "text-boxes"]) expect(layers.find((l) => l.key === key)?.specs, key).toEqual(full.find((l) => l.key === key)?.specs);
   });
 });

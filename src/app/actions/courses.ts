@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isDistanceUnit } from "@/lib/domain/distance-unit";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, playerTeeCounts } from "@/lib/tournament-settings";
@@ -83,6 +84,10 @@ async function requireOrganizerOrg(): Promise<{ organizationId: string; eventId:
     select: { organizationId: true },
   });
   if (!event) throw new Error("Event not found");
+  // The club's courses are reached through the open tournament, and a card
+  // edited here rescores that tournament's played cards: an archived one is
+  // read-only (2026-10-21).
+  await assertEventWritable(session.eventId);
   return { organizationId: event.organizationId, eventId: session.eventId };
 }
 
@@ -102,6 +107,7 @@ async function requireStaffOrg(): Promise<{ organizationId: string; eventId: str
     select: { organizationId: true },
   });
   if (!event) throw new Error("Event not found");
+  await assertEventWritable(session.eventId);
   return { organizationId: event.organizationId, eventId: session.eventId };
 }
 
@@ -649,6 +655,8 @@ export async function setMatchCourse(
   if (!canEnterScores(settingsOf(event), session.role)) {
     return { ok: false, error: "Scores for this tournament are entered by the organizer." };
   }
+  const archived = await archiveRefusalFor(session.eventId, session.role === "player" ? "player" : "organizer");
+  if (archived) return { ok: false, error: archived };
   // S5. This writes the same fields as nameMatchVenue and had none of its
   // checks: any signed-in player could repoint ANYBODY's match at another
   // course, which silently rescores it against a different par and stroke
@@ -853,6 +861,8 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
     return { ok: false, error: "The organizer sets which tees you play from." };
   }
   const eventId = session.eventId;
+  const archived = await archiveRefusalFor(eventId);
+  if (archived) return { ok: false, error: archived };
 
   const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
   if (!player) return { ok: false, error: "Player not found." };
@@ -1441,6 +1451,8 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
   if (!canEnterScores(settingsOf(event), session.role)) {
     return { ok: false, error: "Scores for this tournament are entered by the organizer." };
   }
+  const archived = await archiveRefusalFor(session.eventId, session.role === "player" ? "player" : "organizer");
+  if (archived) return { ok: false, error: archived };
   // A player may only speak for a match they are actually in. Without this,
   // any signed-in player could repoint anyone's match at another course and
   // silently rescore it against a different stroke index.

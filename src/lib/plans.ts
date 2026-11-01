@@ -30,6 +30,9 @@
  * what `Subscription.plan` stores, so they never change with a rename —
  * `society` is Birdie and `enterprise` is Albatross.
  */
+import { ARCHIVE_MONTHS } from "./domain/club-archive";
+import { inClubWords, type GolfWords } from "./domain/golf-terms";
+
 export type PlanKey = "free" | "society" | "club" | "enterprise";
 
 export interface Plan {
@@ -169,7 +172,54 @@ export interface Plan {
      */
     publicBoard: boolean;
   };
+  /**
+   * WHAT THIS PLAN INCLUDES THAT NO PLAN GATES (2026-10-24) — the front door's
+   * "On every plan" list is read from here (`onEveryPlan`), never typed on the
+   * page, so the page cannot promise on every plan what one plan lacks.
+   *
+   * These are TERMS, not gates: nothing reads them to refuse anybody, because
+   * nothing refuses them today. That is the difference from `features`, whose
+   * every key has a sink (`no-dead-feature-keys.test.ts`). The day a tier is to
+   * go without one, its gate is built first and the key moves to `features`;
+   * `on-every-plan.test.ts` refuses a `false` here until then, so this list can
+   * only ever say what is true of every plan.
+   */
+  includes: Record<IncludedKey, boolean>;
 }
+
+/** The terms every plan carries today — see `Plan.includes`. */
+export type IncludedKey = "everyFormat" | "roundCodes" | "offlineCards" | "voiceScoring" | "sideGames" | "playersPayNothing";
+
+const ON_EVERY_PLAN_TODAY: Record<IncludedKey, boolean> = {
+  everyFormat: true,
+  roundCodes: true,
+  offlineCards: true,
+  voiceScoring: true,
+  sideGames: true,
+  // "A player never PAYS" (this file's header): no plan charges a player anything.
+  playersPayNothing: true,
+};
+
+/**
+ * What the front door's "On every plan" list says for each key — a term above,
+ * or a feature every plan has. In US English; the edition swaps the rest.
+ */
+const EVERY_PLAN_WORDS: Record<IncludedKey | FeatureKey, string> = {
+  publicBoard: "A live board anyone can watch by link",
+  everyFormat: "Every format, each scored by its own rules",
+  roundCodes: "Round codes: players need no account and no app",
+  offlineCards: "Cards that keep saving without signal",
+  voiceScoring: "Scores by voice, hole by hole or the whole card",
+  sideGames: "Skins, side games and the settle-up, worked out",
+  playersPayNothing: "Nothing for a player to pay, ever",
+  whiteLabel: "Your club's branding in place of ours",
+  seasonStandings: "A season table across events",
+  sms: "Text alerts",
+  cardScan: "Reading a photographed card",
+  aiAssist: "Drafted commentary",
+  // Not the country's word ("honors board" / "honours board"): this file types none (country-words.test.ts).
+  honours: "A board of every past champion",
+};
 
 export const PLANS: Record<PlanKey, Plan> = {
   free: {
@@ -194,14 +244,17 @@ export const PLANS: Record<PlanKey, Plan> = {
     // completes, so its honours board could only ever be empty. Clubs that
     // predate the terms keep it — see `GRANDFATHERED_FEATURES`.
     features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: false, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
   society: {
     key: "society",
     name: "Birdie",
-    tagline: "Leagues and societies",
-    // "Society" is British; "league" and "golf group" are how the same people
-    // say it elsewhere. The landing reads this in every country's edition.
-    blurb: "For a league, society or golf group running a full season — unlimited events, up to fifty a field.",
+    // IN THE READER'S GOLF (2026-10-24): "Leagues and golf groups" to a US
+    // club, "Leagues and societies" to a British one. The token is filled by
+    // `planTagline` / `planBlurb` with the club's words, or the landing
+    // edition's. Until that day this said "societies" to every US club.
+    tagline: "Leagues and {golfGroups}",
+    blurb: "For a league or {golfGroup} running a full season — unlimited events, up to fifty a field.",
     // The growth-engine rung between Free and Club — see the monetization
     // proposal. Priced here as the default; the number is configurable through
     // `effectivePrice` without a code edit, which is why $12 is a starting
@@ -225,6 +278,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // White-label OFF — that is a Club line. The metered three stay dark here
     // as everywhere, switched off by cost until revenue covers them.
     features: { whiteLabel: false, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
   club: {
     key: "club",
@@ -258,6 +312,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // copy already lists them (see METERED_FEATURES below), so the promise and
     // the switch move together.
     features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
   enterprise: {
     key: "enterprise",
@@ -277,8 +332,34 @@ export const PLANS: Record<PlanKey, Plan> = {
     limits: { activeEvents: null, staffSeats: null, playersPerEvent: null },
     retentionHours: null,
     features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
 };
+
+/**
+ * THE FRONT DOOR'S "ON EVERY PLAN" (2026-10-24): every feature and every term
+ * that EVERY plan has, in the words the page prints — worked out from `PLANS`,
+ * so a line is on the page exactly while it is true of all four tiers.
+ * Features first (they are gates, so a tier can lose one), then the terms.
+ */
+export function onEveryPlan(plans: Record<PlanKey, Plan> = PLANS): { key: IncludedKey | FeatureKey; label: string }[] {
+  const all = Object.values(plans);
+  const features = (Object.keys(all[0].features) as FeatureKey[]).filter((k) => all.every((p) => p.features[k] === true));
+  const terms = (Object.keys(all[0].includes) as IncludedKey[]).filter((k) => all.every((p) => p.includes[k] === true));
+  return [...features, ...terms].map((key) => ({ key, label: EVERY_PLAN_WORDS[key] }));
+}
+
+/**
+ * A plan's line and blurb in the reader's golf — the only way they are read.
+ * `tagline` and `blurb` hold `{golfGroups}`-style tokens (`golf-terms.ts`).
+ */
+export function planTagline(plan: Pick<Plan, "tagline">, words: GolfWords): string {
+  return inClubWords(plan.tagline, words);
+}
+
+export function planBlurb(plan: Pick<Plan, "blurb">, words: GolfWords): string {
+  return inClubWords(plan.blurb, words);
+}
 
 /**
  * The Par terms' two numbers, here rather than in `domain/close-terms.ts`
@@ -719,8 +800,21 @@ export function retentionNotice(planKey: string, termsApply = true): string | nu
   // BOTH ways it goes (2026-09-29): the button, and the close that happens
   // whether or not anybody presses it — a club must not learn of the second
   // from the empty screen it leaves.
-  return `Every tournament on this plan is deleted when you mark it Completed, or ${PAR_LIFESPAN_DAYS} days after its first round is played — entries, cards, results and money. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.`;
+  // 2026-10-21 (Ajay: "keep it for 15 days"): completing no longer deletes on the spot. The 15 is
+  // written here as a figure because plans.ts cannot import close-terms (which imports this file);
+  // plan-copy.test.ts holds the two to one number.
+  return `A completed tournament on this plan stays open to view, read-only, for 15 days, and is then deleted — entries, cards, results and money. One nobody completes is deleted ${PAR_LIFESPAN_DAYS} days after its first round is played. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.`;
 }
+
+/**
+ * WHAT A LAPSED CLUB'S KEPT TOURNAMENTS ARE ON (2026-10-21, decision A4) — said
+ * under the Par terms above on the plan panel of a club whose paid plan ended,
+ * because those terms are not what happens to them: they are a read-only
+ * archive for ARCHIVE_MONTHS (`domain/club-archive.ts`). Not part of
+ * `retentionNotice` itself, which the landing page and FAQ print to everybody.
+ */
+export const LAPSED_ARCHIVE_TERMS =
+  `Tournaments kept from your paid plan are not on these terms: they stay open to view, read-only, for ${ARCHIVE_MONTHS} months from the day the plan ended, and are deleted after that unless you choose a plan again. A tournament you start now is.`;
 
 /**
  * The same term in a few words, for a bullet or a one-line plan summary.
@@ -761,7 +855,7 @@ export const SEASON_LOCKED =
  * tier is named from PLANS so a renamed tier cannot leave this saying the old one.
  */
 export const HONOURS_LOCKED =
-  `The honours board comes with ${PLANS.society.name} and above. On ${PLANS.free.name} a ` +
+  `The {honoursBoard} comes with ${PLANS.society.name} and above. On ${PLANS.free.name} a ` +
   "tournament is deleted when it is completed, so there would be no champions to keep on it.";
 
 /** Whether this plan keeps data indefinitely. */
@@ -935,7 +1029,7 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     out.push("Run as many tournaments at once as your season needs.");
   }
   if (plan.limits.staffSeats !== null && plan.limits.staffSeats < 10) {
-    out.push("Bring your committee in — up to ten organizers and assistants.");
+    out.push("Bring your committee in — up to ten {organizers} and assistants.");
   }
   if (!plan.features.whiteLabel) {
     out.push("Your own branding on every screen, with ours removed.");
@@ -950,14 +1044,8 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     );
   }
   if (!plan.features.honours) {
-    out.push("The honours board — every champion the club has had, kept year after year.");
+    out.push("The {honoursBoard} — every champion the club has had, kept year after year.");
   }
-  if (plan.key === "free") {
-    out.push(
-      "Decide for yourself whether each tournament asks entrants for a mobile number — free events always require one, and every extra required field costs you entries.",
-    );
-  }
-
   // The metered ones last and flagged as coming: they are the reason the paid
   // tier exists, but promising them as available today would be a lie until
   // the flags above are on.
@@ -977,43 +1065,26 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
  * Round Codes, where `createPlaySession` identifies a player by `Player.id`
  * and never reads an address.
  *
- * Phone is a different question, and the answer depends on the plan.
+ * Phone is a different question, and the ORGANIZER answers it, per
+ * tournament, on every plan: the setting `requirePhone`, off unless they turn
+ * it on. The plan plays no part, and neither does how players sign in — a
+ * tournament that asks for a mobile asks for it whether its players use email
+ * or Round Codes.
  *
- * On the free plan it is required, with no way to turn it off. On a paid plan
- * the organizer decides per tournament, which is the setting `requirePhone`
- * has always been. That asymmetry is deliberate and it is a real difference:
- * asking every entrant for a mobile costs entries — the members it turns away
- * are disproportionately the older ones who genuinely do not have one — so
- * being able to stop asking is worth something, and it is the club that knows
- * whether its membership can bear it.
+ * Until 2026-10-21 the free plan forced a mobile on every entrant (except
+ * where players used Round Codes, Ajay 2026-10-17), and only a paid club could
+ * stop asking. Ajay ruled that out in the decisions review (item A7, "go with
+ * your recommendations"): a forced mobile costs entries, and the members it
+ * turns away are disproportionately the older ones who genuinely do not have
+ * one. Turning a club's own members away is not a thing to sell the remedy
+ * for, so the choice is the club's on every plan.
  *
- * Kept here rather than inline at the four places that create an entrant,
- * because those four disagreeing is precisely how a rule like this rots.
- *
- * AND NOT WHERE PLAYERS USE ROUND CODES (Ajay, 2026-10-17: "I dont understand
- * why we need mobile number of other players"). A code-scored tournament
- * reaches its players by the code read out on the first tee; a mobile it
- * insists on is a number collected for nothing, and it refused thirteen
- * guests of a real two-team cup the day before it was played. So the free
- * plan's mandatory mobile does not apply to a tournament whose players sign
- * in with codes (`playerAccess` code or both). A paid club still decides for
- * itself with `requirePhone`, codes or not. `playerAccess` is REQUIRED so the
- * compiler lists every caller the day this rule moves again; a club-level
- * screen with no tournament passes "email", the strict side.
+ * Kept as ONE function rather than a bare read of `requirePhone` at the
+ * places that create an entrant, because those places disagreeing is
+ * precisely how a rule like this rots, and the next rule about phones needs
+ * one place to live. A club-level screen with no tournament passes `false`:
+ * no tournament has asked.
  */
-export function phoneRequiredFor(
-  planKey: string | null | undefined,
-  eventRequirePhone: boolean,
-  playerAccess: string | null | undefined,
-): boolean {
-  const plan = planFor(planKey);
-  const codes = playerAccess === "code" || playerAccess === "both";
-  // Anything that isn't a known paid plan falls back to free, and free is the
-  // stricter side — an unknown plan key asks for more, never less.
-  if (plan.key === "free") return !codes;
-  return eventRequirePhone;
+export function phoneRequiredFor(eventRequirePhone: boolean): boolean {
+  return eventRequirePhone === true;
 }
-
-/** Why the phone field cannot be switched off, for the setting's own screen. */
-export const PHONE_REQUIRED_FREE =
-  "On the free plan every entrant gives a mobile number. Upgrade to decide this per tournament — useful when a good part of your membership has no mobile at all.";

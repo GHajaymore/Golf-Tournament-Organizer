@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { signInsHeld } from "@/lib/services/signins-switch";
+import { launchState } from "@/lib/services/signins-switch";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
@@ -10,15 +10,18 @@ import { LandingEffects } from "@/components/LandingEffects";
 import { editionNote, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
 import { InterestForm } from "@/components/InterestForm";
 import { INTEREST_COPY } from "@/lib/domain/interest";
+import { interestWords } from "@/lib/go-live";
 
-const DESCRIPTION = "Register your interest in TourneyHQ and get a code for 25% off your first term when it opens.";
-
-export const metadata: Metadata = {
-  title: INTEREST_COPY.title,
-  description: DESCRIPTION,
-  alternates: { canonical: "/interest" },
-  ...pageShareMeta({ path: "/interest", title: INTEREST_COPY.title, description: DESCRIPTION }),
-};
+/** The description follows the switch too: a link preview must not promise the early list after launch. */
+export async function generateMetadata(): Promise<Metadata> {
+  const { description } = interestWords(await launchState());
+  return {
+    title: INTEREST_COPY.title,
+    description,
+    alternates: { canonical: "/interest" },
+    ...pageShareMeta({ path: "/interest", title: INTEREST_COPY.title, description }),
+  };
+}
 
 /**
  * REGISTER YOUR INTEREST, BEFORE WE OPEN (2026-10-21).
@@ -62,19 +65,28 @@ export default async function InterestPage() {
     jar.get(US_OVERRIDE_COOKIE)?.value === "1",
   );
 
+  // The go-live switch (`go-live.ts`): held, the early list and its offer; live, "Now open".
+  const launch = await launchState();
+  const words = interestWords(launch);
+
   const page = (
     <div className="thq" lang={shown.locale}>
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS + FORM_CSS }} />
       <LandingEffects />
       {iconSprite()}
-      {landingNav("interest", await signInsHeld())}
+      {landingNav("interest", launch)}
 
-      <main className="legal">
+      <main className="legal" data-launch={launch}>
         <section className="fq-hero">
           <div className="wrap">
-            <span className="label">{INTEREST_COPY.kicker}</span>
-            <h1 className="h1">{INTEREST_COPY.h1}</h1>
-            <p className="lead">{INTEREST_COPY.sub}</p>
+            <span className="label">{words.kicker}</span>
+            <h1 className="h1">{words.h1}</h1>
+            <p className="lead">{words.sub}</p>
+            {words.createLink ? (
+              <p>
+                <Link className="btn" href={words.createLink.href}>{words.createLink.text}</Link>
+              </p>
+            ) : null}
           </div>
         </section>
         <div className="wrap lg-body">
@@ -89,7 +101,7 @@ export default async function InterestPage() {
                 Playing today? <Link href="/play">Enter your round code</Link> — that needs no account.
               </p>
             </div>
-            <InterestForm />
+            <InterestForm launch={launch} register={shown.register} />
           </div>
           <p className="lg-back">
             <Link href="/">Back to TourneyHQ</Link>

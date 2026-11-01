@@ -121,7 +121,7 @@ async function venue(played: boolean) {
 
   // A real console session, so the action runs its real guards.
   const email = `${TAG.toLowerCase()}-org-${Date.now()}-${Math.random()}@example.invalid`;
-  const user = await prisma.user.create({ data: { email, name: `${TAG} Org`, password: "x" } });
+  const user = await prisma.user.create({ data: { email, name: `${TAG} Org`, password: "x", emailVerifiedAt: new Date() } });
   await prisma.account.create({ data: { eventId: event.id, email, name: `${TAG} Org`, role: "admin" } });
   await prisma.organizationMember.create({ data: { organizationId: orgId, userId: user.id, role: "owner" } });
   jar.clear();

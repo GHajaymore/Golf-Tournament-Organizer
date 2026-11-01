@@ -46,7 +46,8 @@ export async function peopleOwningSeveralParClubs(): Promise<number> {
     by: ["userId"],
     where: {
       role: "owner",
-      organization: { subscription: { planTermsApply: true, plan: { in: PLANS_THAT_DELETE } } },
+      // Real clubs: the demo club is nobody's (docs/claude/demo-club.md).
+      organization: { isDemo: false, subscription: { planTermsApply: true, plan: { in: PLANS_THAT_DELETE } } },
     },
     _count: { _all: true },
   });
@@ -64,6 +65,7 @@ export async function wipesOnCloseFor(eventId: string): Promise<boolean> {
     select: {
       shape: true,
       retainUntil: true,
+      archivedAt: true,
       organization: { select: { subscription: { select: { plan: true, planTermsApply: true } } } },
     },
   });
@@ -74,5 +76,6 @@ export async function wipesOnCloseFor(eventId: string): Promise<boolean> {
     plan: sub?.plan,
     shape: event.shape,
     retainUntil: event.retainUntil,
+    archivedAt: event.archivedAt,
   });
 }

@@ -27,9 +27,18 @@ whether it can be read and used.
 | The **Round** workflow on GitHub | The same round, its parts side by side, in under an hour | The normal way to run a whole round. |
 | `node scripts/qa/burn-in.mjs` | Do the tests this change adds or touches pass every time, not most times? | Before a round is spent on them. See "What a round costs" below. |
 | The **Breaks** workflow on GitHub | Does each new test go red when the app is broken the way it is meant to catch? | With every change that adds a test. See "Proving a test by breaking the app". |
+| `npm run mutation` | Would the unit tests notice the foundation being broken, module by module? | The nightly round runs the arithmetic core with the ratchet on (the `mutation` layer); by hand after adding tests to a core module. See "How strong are the tests". |
+| `node scripts/qa/retro.mjs --write` | What did the last rounds cost, whose failures were they, and which layers found anything? | When deciding to change the testing. See "The retro". |
+| `node scripts/qa/quarantine.mjs` | Is every quarantined test sound and in date? | Before adding to `e2e/quarantine.json`; the nightly runs it. |
 
 `ci.yml` is not on this list because nobody runs it: it runs itself on every push, on one browser,
 and answers "did this change break something that was working". A round is a different question.
+Nor are the **Nightly round**, the **Weekly round**, the hourly **Deploy** and the **Production
+canary**: they run themselves on main (see "Rounds, nights and weeks" and "Deploys").
+
+**Since 2026-10-23 the pipeline is the testing panel's** — rounds by tier, a nightly and a weekly,
+the deploy gate and freeze, infrastructure that is "did not run", a quarantine, and three new checks.
+The decision and its reasons are in `docs/testing-panel-2026-10-23.md`.
 
 ## How much testing a change needs
 
@@ -42,8 +51,16 @@ small the change is or what it is called. The first rule that matches a file dec
 | **Tests and tooling** | `e2e/`, `scripts/qa/`, workflows, test files | The tests it changes, run. Nothing ships to anybody. |
 | **Words and documents** | The guide, the player's Help, `docs/`, `CLAUDE.md` | Its own tests and CI. No round. |
 | **The front door** | The landing page, FAQ, privacy, terms | The landing specs on three sizes, and CI. No round: its stylesheet cannot reach an app screen. |
-| **Function in one area** | How a form reads what is typed, one action, one flow, one screen | A browser test for it, proven by breaking the code; CI; and **one full round** on the commit that will be production, before it merges. |
-| **Core and shared** | Scoring, handicaps, money, draws and brackets, sign-in and access, the database, the shells and stylesheets every screen stands on, the build | Batch it, freeze, and **three full rounds** on the commit that will be production, before it merges. |
+| **Function in one area** | How a form reads what is typed, one action, one flow, one screen | A browser test for it, proven by breaking the code; CI; and **one round** (`round/<name>-1`) on the commit that will be production, before it merges. When every file is in ONE area of `scripts/qa/specs-by-area.mjs` that round is **targeted**. Since 2026-11-01 every function commit, targeted or full, then waits for a clean nightly before production — see "Targeted rounds". |
+| **Core and shared** | Scoring, handicaps, money, draws and brackets, sign-in and access, the database, the shells and stylesheets every screen stands on, the build | Batch it, and **one round that visits all six countries** on the commit that will be production, before it merges. It then reaches production only once **the nightly round** on main, on that commit or a later one containing it, is clean — the deploy job holds it until then. |
+| *Money or handicap arithmetic* (core) | `ARITHMETIC` in `layers.mjs` | **Three rounds**, all six countries, for now — until property-based tests and the nightly mutation ratchet are on main (`ARITHMETIC_KEEPS_THREE_ROUNDS`). And the nightly, as core. |
+
+`npm run qa:changed` prints the exact rounds: the branches to push, the countries, whether the
+console crawl is in them and which file asked for it, and whether the nightly gates production. The
+Round workflow reads the same plan off the pushed branch, so push the branches it names and nothing
+else. The crawl is in a change's round when it touches what a secretary types or picks (a console
+screen or action, or a component or rule named for entry, handicaps, tees, scores, courses, members,
+flights, formats and the like — `crawlNeeded`) and for every core change; otherwise the nightly runs it.
 
 Three consecutive clean rounds is also the bar before go-live, whatever has changed.
 
@@ -60,10 +77,11 @@ really run, and what it cannot see — so a row in the report is never read as m
 | Asked for | Layer | What is really run |
 |---|---|---|
 | Laptop, phone, Android | **The whole suite** | Chromium at 1280 wide, as a Pixel 5, and at 320 wide: every spec, every screen opened as each kind of person, every control operated and read back, every server action called by a stranger |
+| Anybody typing into a box | **Every text box** | `e2e/every-text-box.spec.ts`: every text box on every console and player screen of every seeded tournament given empty, over-long, bad and good input, saved the way its screen saves, reloaded and read back, and put back as it was. Three shares, one machine each (`TEXT_PARTS`) |
 | Nearly every visitor | **With the animation on** | The front door's specs with the page's motion left on. Every other layer asks for reduced motion, which almost nobody has set; a test about how a page looks at rest has to wait for rest |
 | A club in another time zone | **Somewhere else** | Every screen again with the browser and the club on another calendar day from the server |
 | US members and organizers | **An American club** | Every screen with the club in Indiana: dollars, the month first, American golf words |
-| International | **Abroad** (three a round) | Every screen with the club in India, Japan, Australia, South Africa, Ireland — and a Scottish club read from a German browser. Three rounds visit them all |
+| International | **Abroad** (three a round, or all six) | Every screen with the club in India, Japan, Australia, South Africa, Ireland — and a Scottish club read from a German browser. A function change's round visits three; a core change's round and the nightly visit all six |
 | Tablet (Android) | **An Android tablet** | Chromium as a Galaxy Tab, upright and on its side, touch |
 | Chrome, Edge | **As installed** | The real Chrome and the real Edge, not the test build |
 | iOS | **An iPhone**, **Safari**, **An iPad** | WebKit — Safari's engine — as an iPhone 13, an iPhone SE, a Mac, and an iPad upright and on its side |
@@ -80,6 +98,125 @@ On one machine that is about six hours. On GitHub the same layers are cut into a
 (`partsFor` in `layers.mjs`), each with a machine and a database of its own and all drawing one
 build, so a round takes as long as its slowest part.
 
+### Rounds, nights and weeks
+
+Not every layer runs in every round (the panel, 2026-10-23). Each layer says when (`when` in
+`layers.mjs`; `npm run qa:round -- --list --schedule=pr` prints a schedule's layers):
+
+| | Runs | Layers |
+|---|---|---|
+| **A change's round** (`pr`) | when a change pushes `round/<name>-N` | the whole suite (Chromium at its three sizes), somewhere else, the American club, abroad, the iPhone, Safari (Mac and iPhone SE), the eleven tournaments — and the console crawl when the change touches input screens |
+| **The nightly** | scheduled 02:00 UTC on main (`nightly.yml`) — but GitHub starts a scheduled run when it has room, and the last eight (to 31 Oct) started **07:30–08:15 UTC** | every `pr` layer, all six countries, the console crawl in full, **plus the other browsers: the iPad, Firefox at three sizes, Chrome as installed**, the Android tablet, the libraries' holes and the quarantine's dates. When clean, it deploys what it cleared |
+| **The weekly** | Sunday 03:00 UTC (`weekly.yml`) | Edge as installed (and Chrome as installed again), the front door with its animation on |
+
+**Which browser runs where (the browser split, testing panel, 1 Nov 2026).** Core browsers per
+change; the rest nightly; Edge weekly. The thinking: the engines that most players and organizers
+use (Chromium, and Safari's engine on a phone and a Mac) are where a change can break something
+a club sees, so those gate a merge; Firefox, the iPad and installed Chrome find different faults
+rarely and are the same code at other widths, so they are seen every night, and a clean nightly
+is what lets a core or function change reach production (the deploy gate counts them: they are
+layers of the Nightly round's verdict). Nothing was dropped; `qa-pipeline.test.ts` holds that the
+three schedules together run every browser that ran before.
+
+| Browser | A change's round | Nightly | Weekly |
+|---|---|---|---|
+| Chromium: desktop, phone, small phone (the whole suite) | yes | yes | |
+| iPhone (WebKit) | yes | yes | |
+| Safari: Mac and iPhone SE | yes | yes | |
+| iPad (WebKit) | | yes | |
+| Firefox: desktop, phone, small phone | | yes | |
+| Android tablet | | yes | |
+| Chrome as installed | | yes | yes |
+| Edge as installed | | | yes |
+
+**After launch**, Firefox's small phone and Edge move into a change's round.
+
+`npm run qa:round` on one machine still runs every layer (`--schedule=all`) unless told otherwise.
+
+### Targeted rounds
+
+Decided by the QA & Test Lead with the testing panel on 2026-11-01, on evidence: of eleven recent
+NOT CLEAN rounds, eight failed in the area the change touched — two of those seen only by the
+screen-wide sweeps — three outside it with none shown to be caused by the change, and one was the
+machine. So a change of **function in one area** gets a round cut to that area, and the full suite
+is left to the nightly, which already runs every night.
+
+**When a round is targeted** (`targetFor` in `layers.mjs`, from `scripts/qa/specs-by-area.mjs`):
+only when EVERY changed file is plainly inside ONE area — a function file an area names, an e2e spec
+that area lists, a unit test, or words. Anything else gives today's full round, exactly as before:
+core, a shared component no area names, money or handicap arithmetic (still three rounds), `prisma/`,
+`.github/`, `scripts/qa/`, an e2e helper or fixture, package files, the front door, two areas at
+once, or a file nobody names. `npm run qa:changed` says which, and which file made it full. *Run
+workflow* with `target: full` forces a full round.
+
+**What a targeted round runs.** Every layer that runs the whole suite (the suite at three sizes, the
+iPhone, Firefox at three sizes) runs instead **the area's specs plus the always-on set**, at the same
+sizes, one part per size (no `--shard`: a shard of a short list can hold only tests that skip at that
+size). The always-on set, whatever the area (`ALWAYS_ON`):
+
+- the every-screen walk (`everything.spec`) — the smoke set in a browser; CI's `smoke:all` still
+  runs on the pull request as on every push;
+- the console crawl (`every-control.spec`, its four shares) — always, whatever `crawlNeeded` says;
+- every text box (the `text-boxes` layer, three shares);
+- every action against a stranger (`every-action-vs-a-stranger.spec`);
+- accessibility (`a11y.spec`) and fonts (`fonts.spec`);
+- layout and legibility (`layout`, `legible`, `nothing-is-covered`, `touch`);
+- the reach check, held to `reach-baseline.json` for the area's own action files (the rest is
+  printed, not held — most actions are not meant to be reached in a targeted round).
+
+Kept exactly as in any change's round: somewhere else, the American club, the walks abroad, and
+Safari's and the iPad's screen layers. The scenarios are the area's own (a bracket change plays the
+matchplay knockout; a Rounds-screen change plays all eleven); an area with none plays none.
+**Countries:** all six when the area's specs read days, times or zones (`dateSensitive` — print kit,
+rounds, registration, tee sheet, reports, the player app), otherwise the three that round's number
+picks, as any function round.
+
+**Its verdict says so**, first thing: "TARGETED round: <area> — <n> specs + the always-on set; the
+full suite runs in the nightly", and the plan job's summary says the same. A targeted CLEAN is not
+evidence about any spec outside the area and the always-on set.
+
+**What stays full**: every core change's round, every money or handicap change's three, the nightly
+and the weekly (never targeted — `layersFor` refuses it), and any function change that is not
+plainly in one area.
+
+**The nightly is the full net, and the gate holds for it.** EVERY commit that changes function —
+its round targeted or full — does not deploy until a clean nightly contains it, exactly as a core
+commit (`nightlyWait` in `deploy-rules.mjs`). The gate reads only the TIER of each commit's files and
+never asks the manifest: asked at the deploying commit, a later manifest edit (or turning targeting
+off) would otherwise re-read a held targeted commit as "full" and let it through unseen (the
+Operations/Reliability Lead's review of #982). It fails closed: a git command that fails stops the
+gate (exit 1, the deploy is red, nothing ships), and a commit whose files cannot be read waits. With
+the nightly starting around 08:00 UTC, a function change merged in the day usually reaches production
+the next morning.
+
+**The urgent path for a held fix during a live event:** run **`nightly.yml`** by hand (*Run
+workflow* on the Nightly round) on `main` once the fix is merged. Only a clean NIGHTLY round releases
+a held commit — a clean full `round/…` on that commit does not, because the gate reads Nightly runs
+only. *Override freeze* overrides the freeze and nothing else.
+
+**The cap on parts at a time is counted at plan time** (`round-cap.mjs`): it sees the jobs running
+when the round's plan job ran, not the ones that start after, and it does not count queued jobs. So a
+round planned on a quiet account can still crowd a CI run that starts later: watch the deploy job's
+queue time, by the panel's rule in `docs/release-strategy.md` step 9.
+
+**The manifest only lists what belongs to one area.** Every file an area names is imported by nothing
+outside that area's own paths (`outsideImporters`, swept over the whole manifest by
+`qa-framework.test.ts`). The first sweep (2026-11-01) moved about forty shared files out — among them
+`lib/owner.ts` (now core: the sign-in gate reads it), `services/messaging.ts`, `services/waitlist.ts`,
+`CommentaryFeed.tsx`, `services/event-report.ts` and `bracket-visibility.ts` — so a change to any of
+them gets a full round.
+
+**The two-week measurement** (from the first targeted round): for each targeted round, did the next
+nightly find something it did not, in its area or anywhere it could have reached? Each `retro.json`
+records the round's `target`. **Revert to full rounds** (`targetFor` returning full for every
+change is one line) if a leak reaches production, if two or more leaks are found by the nightly in
+the two weeks, or if held deploys average more than 24 hours.
+
+**Keeping the manifest true.** Every spec in `e2e/` is in an area, in `ALWAYS_ON`, or in `FULL_ONLY`;
+every path and spec it names exists; an area whose specs read dates is `dateSensitive`
+(`qa-framework.test.ts`). A new spec is a line there; a new screen of an area is a line in its
+`paths`, or its changes get full rounds — the safe mistake.
+
 ### Does end-to-end cover everything? Not yet — and the gap has a number
 
 Asked twice by Ajay on 2026-10-12, and the answer he is owed each time is the measured one, not
@@ -92,7 +229,7 @@ Asked twice by Ajay on 2026-10-12, and the answer he is owed each time is the me
 | Every action is tried by the wrong person and refused | Yes |
 | Whole tournaments played from entry to payout | Yes — eleven |
 | **Every action done by the RIGHT person, with the result checked** | **No.** 36 of 263 on 2026-10-10; 127 of 272 in the first clean round (2026-10-13, commit `77d59567`), with 17 more performed by specs written after it. Every round re-measures it and names each action nothing performs |
-| Every text box given good, bad and empty input | Only where a spec was written for it |
+| Every text box given good, bad, empty and over-long input | Yes, since 2026-10-21 — the **Every text box** layer (`e2e/every-text-box.spec.ts`). A box that appears only after a press the crawl does not make (a dialog, a second step), and a box behind a button that sends, deletes or spends an allowance, are not tried; each share lists them by name |
 | Every figure a club can TYPE, in every language it can choose | Amounts, handicaps and course ratings: yes, since 2026-10-13 (`figures-are-read-in-every-language.test.ts`). Any other decimal somebody types: only once it goes through `minorUnitsFrom` or `decimalPoint` |
 
 **What writing a spec per flow has found.** Ten flows were written in the two nights to
@@ -141,10 +278,32 @@ Those are checked by a person with the device.
 
 ## Running a round
 
-**On GitHub — the normal way.** Push the commit to a branch named `round/<anything>-1` (then `-2`
-and `-3` for the second and third of a count; the number decides which three countries that round
-visits), or use *Run workflow* on the **Round** workflow. The verdict and the table are the run's
-summary. Three rounds can be asked for at once.
+**On GitHub — the normal way.** Push the branches `npm run qa:changed` names: `round/<anything>-1`
+(and `-2`, `-3` when it says three; with three countries, the number decides which three). The plan
+job reads the changed files against main and decides the countries and the crawl itself. Or use *Run
+workflow* on the **Round** workflow and give the plan by hand. The verdict and the table are the
+run's summary, and the summary says which kind of round it was and what it leaves to the nightly or
+the weekly.
+
+**A round the machine did not finish is re-run, not read.** When a verdict is INCOMPLETE, the
+**Round waiter** workflow re-runs its failed jobs — exactly the parts the machine stopped — up to
+the third attempt. Nothing else is re-run: NOT CLEAN is a finding.
+
+**Reading what a part found.** The verdict lists every finding a part printed, not only the line
+saying it failed — each of the text-box crawl's, by share. Each machine's own files are an artifact
+named `part-<id>`, and inside it every file of the part's own is named by the part
+(`.qa/rounds/<tag>/text-boxes-2of3.log`, `…-kept/` with the crawl's ledger of every try,
+`summary-text-boxes-2of3.md`), so two parts fetched into one folder do not overwrite each other
+(`partFile` in `layers.mjs`; until 2026-10-21 three shares wrote one `text-boxes.log`). Fetch
+them one artifact to a folder with a short path: `gh run download <run> -n part-<id> -D <dir>`.
+
+**Reading what a part found.** The verdict lists every finding a part printed, not only the line
+saying it failed — each of the text-box crawl's, by share. Each machine's own files are an artifact
+named `part-<id>`, and inside it every file of the part's own is named by the part
+(`.qa/rounds/<tag>/text-boxes-2of3.log`, `…-kept/` with the crawl's ledger of every try,
+`summary-text-boxes-2of3.md`), so two parts fetched into one folder do not overwrite each other
+(`partFile` in `layers.mjs`; until 2026-10-21 three shares wrote one `text-boxes.log`). Fetch
+them one artifact to a folder with a short path: `gh run download <run> -n part-<id> -D <dir>`.
 
 **On one machine** — for one layer, or when a part needs looking at:
 
@@ -174,7 +333,21 @@ Any one of these, in any layer:
   list — something added to the app without a test, or a test that was lost.
 
 A layer that was left out or could not run makes a round **clean, but not all over**. It is said
-that way and never rounded up.
+that way and never rounded up. (A layer the KIND of round leaves to the nightly or the weekly is not
+"left out": the summary names it, and where it runs.)
+
+**INCOMPLETE — re-run** is the fourth verdict: no finding, but a part the MACHINE never ran — the
+runner lost, the dependencies or the throwaway database not set up, the build not downloaded, the
+browser not installed, a registry not reached (`scripts/qa/infra.mjs`, which says why only those).
+It is evidence about nothing, so it is neither clean nor not clean, `qa:status` will not record it,
+and the waiter re-runs it. A crashed browser, a timed-out test and a server that would not start
+are NOT the machine: each has been the app before.
+
+**A quarantined test still runs and does not count.** Zero retries stays. `e2e/quarantine.json`
+lists tests known to be wrong about themselves — spec, test, owner, reason, an expiry at most 30
+days out. The round reports each in a section of its own; an entry past its date quarantines nothing
+and fails the nightly's check. It starts empty, and adding to it is a decision written in the pull
+request, with the failing log beside it.
 
 ### What a finding costs
 
@@ -216,7 +389,8 @@ So three things, in order of what they save. None of them removes a test.
    crawl is one test and `--shard` cannot cut a test, so it is cut by SCREEN into four parts
    (`E2E_CRAWL_PART`, `CRAWL_PARTS` in `layers.mjs`); the merge adds the four counts and holds the
    total to the crawl's own minimum. When a part grows past about thirty minutes, cut it the same
-   way rather than waiting on it.
+   way rather than waiting on it. The text-box crawl (2026-10-21) was built cut: it is one test per
+   share, so `--shard` splits it exactly, into `TEXT_PARTS` parts of its own layer.
 3. **Nothing is run twice for no reason.** The every-push checks do not run on a `round/**`
    branch: a round is a push of a commit that already has its pull request's checks.
 
@@ -249,9 +423,42 @@ What decides the time of THREE rounds pushed together is machine time over the m
 account may use at once: about 1,400 minutes over forty is 35 minutes of queue-free running, so
 three rounds together finish in a little over the time of one and a half.
 
-**What is not on the list, deliberately:** fewer browsers, fewer rounds for a change to scoring,
-a shorter crawl, or re-running a failed part until it passes. Each of those is where a fault this
-suite found was found.
+**What is not on the list, deliberately:** fewer browsers, a shorter crawl, or re-running a failed
+part until it passes. Each of those is where a fault this suite found was found. (Fewer rounds for a
+core change WAS decided on 2026-10-23 — one round of all six countries and the nightly before
+production, with three kept for money and handicap arithmetic until the instruments that look along
+those axes exist. Nothing stopped being tested; the layers that left a change's round run every
+night or every week. See `docs/testing-panel-2026-10-23.md`.) And a part the MACHINE did not run is
+re-run, which is not re-running a failure: it never got as far as a test.
+
+## Deploys: the gate and the freeze
+
+`deploy.yml` is the only way into production (called by `ci.yml` after `verify`, by the nightly
+after a clean round, hourly, and by hand). It deploys a commit when `verify` is green on it, every
+core commit since the last deploy — and, since 2026-11-01, every function commit, its round targeted
+or full — is in a clean nightly round, and no club is in its freeze — a
+tournament on today in the club's own time, or Saturday and Sunday 05:00–14:00 in any club's zone.
+The app answers the freeze itself (`/api/deploy-window`, `{ frozen, reason }` only), because the
+runner may not hold production's database credentials. A held deploy is green and says why; the
+hourly run picks it up. *Override freeze* on *Run workflow* is for emergencies and overrides the
+freeze only — a core fix that cannot wait runs the Nightly round by hand.
+
+Two more read-only watchers: the **Production canary** every hour (the public doors and one public
+board; a failed run is GitHub's email to whoever last changed its schedule), and the shotgun load
+test (`scripts/load/README.md`: 144 players and 300 phones, against a preview with a
+production-sized database — never production).
+
+## The retro
+
+`node scripts/qa/retro.mjs --last=20 --write` is how the testing is refined from evidence rather
+than memory (Ajay's standing order: "keep learning and refining the testing approach and keep making
+it efficient"). Every round's verdict job writes `retro.json` beside its verdict — wall-clock and
+runner-minutes, parts, each failure classed **app / test / infrastructure**, assertion failures per
+layer, flaky and quarantined counts — and the retro reads the last N back from GitHub with time to
+merge per pull request, runner-minutes per round, the infrastructure share of failures, which layers
+found real defects and which found nothing (candidates to move to the nightly or the weekly — for the
+panel to decide), and the mutation score once `mutation-baseline.json` exists. It writes
+`docs/testing-retro.md`; commit that when it is used to argue a change.
 
 ## Proving a test by breaking the app
 
@@ -280,6 +487,74 @@ new test can fail"). For a browser test that is a build per break, so it is not 
 One break on a desk, to see it work before pushing a list: `node scripts/qa/breaks.mjs --run=1
 qa-breaks.json`. Quote the count in the pull request, with every break that was not caught explained.
 
+## How strong are the tests: properties and mutation
+
+Ajay, 2026-10-23: "I need the foundation / backbone of the app really strong and tested." Two
+instruments answer a question a green suite cannot — not "did the tests pass" but "would they have
+noticed".
+
+**Property tests** (`src/lib/domain/__tests__/properties-*.test.ts`, fast-check). Each states a
+Rule — of Handicapping, of Golf, of a side game, of money — and checks it over thousands of
+generated cases against the same Rule worked a second way, in whole numbers, in
+`properties-reference.ts`: a Course Handicap as an exact fraction over 1130, strokes handed out one
+at a time from stroke index 1, a match walked hole by hole the way a referee walks the card. Fixed
+seeds, so a run is the same run on every machine. **A failure fast-check shrinks is pinned as an
+ordinary test** beside the property (the first one found a margin no match can finish on —
+"6&3" — accepted and stored as 5&4). When you change a rule they cover, run them; when you add a
+rule, add its property, worked by a route the code does not take.
+
+**Mutation testing** (`npm run mutation`, Stryker, `stryker.config.mjs`). It breaks the foundation
+one small change at a time — a `<` made `<=`, a `+ 1` made `- 1`, a condition made `true` — in the
+modules that hold a rule (handicap, strokes by stroke index, a card's points and to-par, a match,
+ranking and countback, the cut, the draw, money, a round's allowance, the club's dates) and runs
+the unit suite against each. A change no test notices SURVIVED. The score per module is the share
+that were noticed.
+
+| Command | What it does |
+|---|---|
+| `npm run mutation` | the whole set; hours on one machine (incremental: a second run re-tests only what changed) |
+| `npm run mutation -- --mutate src/lib/domain/money.ts` | one module, minutes |
+| `npm run mutation -- --report-only` | the scores of the last run, from `reports/mutation/mutation.json` |
+| `npm run mutation -- --scope=arithmetic` | the arithmetic core only (`ARITHMETIC_CORE` in `scripts/qa/mutation-ratchet.mjs`) — what the nightly runs |
+| `npm run mutation -- --ratchet` | the same, and FAILS if any module in scope is below `mutation-baseline.json` |
+| `npm run mutation -- --write-baseline` | RAISE the floors of the modules in scope to this run's scores — after the tests that earned them. A floor is never lowered by the script: a lower score is said and the old floor kept |
+
+It is **not in `ci.yml`**: a run is too long for every push. It is a NIGHTLY RATCHET (since
+2026-10-31, backlog A7): the nightly round's `mutation` layer runs
+`node scripts/mutation.mjs --scope=arithmetic --ratchet --quiet --concurrency 4` — handicap, a
+round's allowance and figure, strokes by stroke index, a side's strokes, the split to the cent,
+skins and the skins split — and the score of each module may rise and may never fall below its
+floor. A fall is one finding per module in the verdict; the score line is printed under the reach
+(`**Mutation score:**`) and kept in the round's `retro.json`. Stryker's incremental file is kept
+between nights (`round.yml`'s cache), so a night re-tests only the mutants whose code or covering
+tests changed. `gameNets`, the sink every side game's money passes through, reads the database and
+is out of the unit suite's reach: the audit suite holds it. The rest of the foundation is still run
+by hand (`npm run mutation`). The floors started at the first measured score per module
+(2026-10-23, `docs/foundation-pass-2026-10-23.md`). The unit suite runs whole under it except three
+files that cannot run in Stryker's sandbox, listed with their reasons in `vitest.mutation.config.ts`.
+
+**A timeout counts as caught only when Stryker stopped an endless loop** (its "hit limit"). A
+timeout because the tests merely ran slowly depends on the machine's load, and counts as not
+caught: on 2026-10-31 three equivalent mutants in `skins.ts` were timeouts in one run and survivors
+in the next, and `skins.ts` read 96.77% one night and 91.94% the next with nothing changed. The
+arithmetic core's floors were re-measured under this rule that day; the other modules' floors are
+still the 2026-10-23 figures, counted the old way (every timeout caught), so re-measure them before
+relying on `npm run mutation -- --ratchet` over the whole set.
+
+**Lowering a floor** is a hand edit of `mutation-baseline.json`, in a commit that says which
+survivors were read and why they are not golf (an equivalent mutant, a word in an explanation).
+`mutation-ratchet.test.ts` holds the ratchet itself: a drop fails, an unmeasured module fails, a
+module with no floor fails, and writing a baseline never lowers one.
+
+**In a worktree whose `node_modules` is a junction** Stryker finds no `node_modules` to link into
+its sandbox (it skips links), and `font-hosts.test.ts` fails the dry run. Make `node_modules` a real
+folder of junctions, one per package, instead of one junction for the whole folder.
+
+Read a survivor before writing a test for it. Some are EQUIVALENT — the change does nothing a
+golfer could see (a `>=` that can only ever meet a strict case) — and a test written to kill one
+asserts nothing about golf. A survivor in strokes by stroke index or in money is a real gap until
+shown otherwise.
+
 ## Keeping it true when the app changes
 
 A change is not finished until the tests know about it. What to add, by what was added:
@@ -288,7 +563,7 @@ A change is not finished until the tests know about it. What to add, by what was
 |---|---|
 | A screen | Nothing for the walk or the layout sweep — they read the screens from the filesystem. Its guide and Help lines (`CLAUDE.md`, "Help and docs travel with the change"). |
 | An action, a form, a flow | A spec in `e2e/` that **does** it as the person who would, and reads the result back. Prove it can fail: break the code, watch it go red, put it back. Until it exists the next round reports the action as *no screen test calls it* — a finding, not a note. |
-| A format, a draw, a cut, a money rule | A scenario in `e2e/scenarios/`, or a phase in one: a tournament of that kind played by a full field, with a check against the Rules rather than against the app. List it in `SCENARIOS`. And the cell in `src/lib/__tests__/matrix.test.ts`. |
+| A format, a draw, a cut, a money rule | A scenario in `e2e/scenarios/`, or a phase in one: a tournament of that kind played by a full field, with a check against the Rules rather than against the app. List it in `SCENARIOS`. And the cell in `src/lib/__tests__/matrix.test.ts`. And its property in `src/lib/domain/__tests__/properties-*.test.ts`, worked by a route the code does not take — and for a money rule, its row in `SIDE_GAME_PAYS` (when its amount may be reported) and a case worked by hand in `side-games-by-their-own-rules.test.ts`. |
 | A country, a currency, a language | A language's dates are the app's own: add its tag to `TAGS` in `scripts/build-date-words.mjs`, run it, **read the new line by eye** (it is what a club will see), and only then offer it in `LOCALES` — `date-words.test.ts` refuses a tag the picker offers and the table does not hold. The row in `LOCALES` / `CURRENCIES` is then swept by `formats-agree`. A place for the seeded club is a line in `scripts/seed-club.mjs` and in `ABROAD`. |
 | A date or a time on a screen | Nothing new: write it with `formatDay` / `formatDayAt` / `formatMonthDayAt` / `formatDayRange` / `formatClock` / `shortDate`. A screen that asks the platform to word one itself is refused by `date-words.test.ts`, because two browsers word it two ways. |
 | A box with no Save button | `onKeyDown={leaveOnEnter}` above its `onBlur` (`src/lib/leave-on-enter.ts`), so Enter keeps what was typed. `saves-on-leave-saves-on-enter.test.ts` finds every box that acts when it is left and holds it to that, or to a stated reason. |
@@ -299,8 +574,15 @@ A change is not finished until the tests know about it. What to add, by what was
 | An allowance, a share, any percentage of a handicap | Take it with `playingHandicapFrom(exact, pct)`, of the figure BEFORE rounding (`CourseHandicaps.exact`, `resolveRoundHandicap().exact`, a side member's `handicapExact`). The sweep in `allowance-is-taken-of-the-exact-figure.test.ts` reads every caller and refuses the arithmetic written out by hand. |
 | A block inside an answer or a page that shares the landing chrome | A rule for its class in `lib/landing/styles.ts` (`landing-answers-are-dressed.test.ts` refuses a class with none), and a look at it OPEN in a browser: `e2e/faq-blocks.spec.ts` measures the three the questions page has. |
 | Anything in the seeded club (`scripts/seed-club.mjs`), or a control on a console screen | Before a round, the crawl, locally: `E2E_EVERYTHING=1 npx playwright test e2e/every-control.spec.ts e2e/everything.spec.ts --project=desktop`. The ordinary local run leaves it out because it takes most of an hour, and it is the one layer that reads every control on every seeded tournament. Putting the seeded club on a paid plan unlocked one tick-box, the crawl lost track of it, and a round of thirty-four parts was spent finding that out (2026-10-13). `E2E_ONLY_EVENT=<slug> E2E_ONLY_SCREEN=<name>` narrows it to one screen in a few minutes. |
+| A printed document, or anything new on one | One renderer: a page kind in `services/print-kit.ts` (its data, sealed with `seal`, so the fingerprint covers what it prints) and its drawing in `components/print/PrintPages.tsx` — never a second print button on a screen. Its count, its page size and the QR on it in `e2e/print-kit.spec.ts` (a page per sheet in the PDF at A4 and Letter, nothing running off a page, every QR decoded, `paperRefusals` over every text); any stroke it prints in `print-kit-paper-equals-screen.audit.test.ts`, hole by hole against the score-entry screen. Decisions: `docs/print-kit-panel-2026-10-23.md`. |
+| A text box | Nothing new: the text-box crawl finds it. Run its share locally before a round: `E2E_EVERYTHING=1 E2E_TEXT_BOXES=1 npx playwright test e2e/every-text-box.spec.ts --project=desktop` (add `--shard=k/6` for one share, `E2E_TEXT_SHARES=1` for the whole crawl as one test, `E2E_ONLY_SCREEN` / `E2E_ONLY_BOX` to narrow it, `E2E_TEXT_INVENTORY=1` to list the boxes without typing). Give the box a `maxLength` where the server keeps only so many characters, or the crawl reports it **cut silently**; say a refusal beside the press, or it reports **refused out of view**. Where the crawl reports a fault on a screen that is right, prove it from the screen and fix how it READS (`e2e/text-box-reading.ts`, with a case in `text-box-reading.test.ts`): ten of its first eleven findings were its own. |
 | Anything on the front door | `await landingSettled(page)` before measuring or pressing: the page grows by thousands of pixels when its script starts (`e2e/landing-settled.ts`). |
 | A kind of file nothing here names | A line in `TIER_RULES`. Until then it is treated as core, which is the safe mistake. |
+| A new money or handicap rule file | Its path in `ARITHMETIC` (`layers.mjs`) while `ARITHMETIC_KEEPS_THREE_ROUNDS` is on; `qa-pipeline.test.ts` holds every listed file to existing and being core. |
+| A new input screen whose file name says nothing of input | A word in `CRAWL_WORDS`, or the console crawl will be left out of the rounds of changes to it. |
+| A spec | Its line in `scripts/qa/specs-by-area.mjs`: the area it tests, `ALWAYS_ON`, or `FULL_ONLY`. `qa-framework.test.ts` is red until it is in one. |
+| A screen or component that belongs to one area | Its path in that area's `paths` in `specs-by-area.mjs`, so a change to it gets a targeted round; until then its changes get full rounds. |
+| A layer, or a change to when one runs | Its `when` in `layersFor`, and the table in "Rounds, nights and weeks" — and the panel's say, recorded beside `docs/testing-panel-2026-10-23.md`. |
 
 Three tests hold this page to the code (`src/lib/__tests__/qa-framework.test.ts`): every scenario
 file is listed and every listed file exists; the parts of a round add up to exactly its layers;

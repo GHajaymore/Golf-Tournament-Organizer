@@ -7,12 +7,40 @@ import { orgRoleName } from "@/lib/roles";
 import { emailDocument, emailText, escapeHtml } from "@/lib/domain/email-layout";
 import { emailBrandFor } from "@/lib/services/email-brand";
 import { EMAIL } from "@/lib/themes";
-import { SUPPORT_EMAIL } from "@/lib/contact";
+import { SALES_EMAIL, SUPPORT_EMAIL } from "@/lib/contact";
 import { interestSubject } from "@/lib/domain/interest";
+import { EARLY_LIST } from "@/lib/go-live";
+import { signUpLinkFor } from "@/lib/domain/discount";
+import { EMAIL_CODE_WORDS } from "@/lib/domain/email-code";
+import { NEW_SIGN_IN_WORDS } from "@/lib/domain/device-words";
+import { demoRefusesMessage } from "@/lib/services/demo-guard";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const client = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+type Outgoing = Parameters<Resend["emails"]["send"]>[0];
+type Sent = Awaited<ReturnType<Resend["emails"]["send"]>>;
+
+/**
+ * EVERY EMAIL LEAVES THROUGH HERE — and the demo club's never do (2026-10-24).
+ *
+ * Each sender below calls `resend.emails.send`, so the one place to refuse a
+ * send is the client they all hold. An address on the demo's domain, or a
+ * message sent on the demo club's behalf (`scope`), is refused here and
+ * reported as sent: the demo must never message anyone (docs/claude/demo-club.md),
+ * and a sender written later is held to it without knowing the rule exists.
+ */
+async function deliver(message: Outgoing, scope: { organizationId?: string | null; eventId?: string | null } = {}): Promise<Sent> {
+  const to = [message.to, message.cc, message.bcc].flat().filter((a): a is string => typeof a === "string");
+  if (await demoRefusesMessage({ to, organizationId: scope.organizationId, eventId: scope.eventId })) {
+    console.warn("[email] not sent: the demo club sends nothing.");
+    return { data: null, error: null } as unknown as Sent;
+  }
+  return client!.emails.send(message);
+}
+
+const resend = client ? { emails: { send: deliver } } : null;
 
 /**
  * Resend's shared sandbox sender.
@@ -291,6 +319,105 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
 }
 
 /**
+ * THE SIX-DIGIT CODE THAT PROVES AN ADDRESS (2026-10-21) — the marketing
+ * panel's words, `EMAIL_CODE_WORDS.email`. Same sender and reply-to as a reset.
+ *
+ * With no mail provider the code is written to the SERVER's log and nowhere
+ * else — never on the screen, never in the action's answer — so a developer, CI
+ * and the e2e server can still finish a sign-up. Not on Vercel's production,
+ * though: a log there is read by more people than an inbox, and a code in it is
+ * the address. Production without a provider says it could not send.
+ */
+export async function sendEmailCodeEmail(
+  to: string,
+  code: string,
+  purpose: "signup" | "claim" | "device",
+): Promise<{ ok: boolean; error?: string }> {
+  const words = EMAIL_CODE_WORDS.email;
+  if (!resend) {
+    if (process.env.VERCEL_ENV === "production") {
+      console.warn("[email] RESEND_API_KEY not set — email code not sent.");
+      return { ok: false, error: "Email isn't configured on this server." };
+    }
+    console.warn(`[email] RESEND_API_KEY not set — the ${purpose} code for ${maskEmail(to)} is ${code}`);
+    return { ok: true };
+  }
+  const subject = purpose === "claim" ? words.claimSubject : purpose === "device" ? words.deviceSubject : words.subject;
+  const intro = purpose === "claim" ? words.claimIntro : purpose === "device" ? words.deviceIntro : words.intro;
+  const ignore = purpose === "device" ? words.deviceIgnore : words.ignore;
+  // Every word here is the app's own and the code is six digits it made, so
+  // it all goes in raw; nothing anybody typed reaches this body.
+  const body =
+    `<p>${intro}</p>` +
+    `<p style="font-size:30px;font-weight:700;letter-spacing:0.32em;margin:18px 0;font-family:ui-monospace,Menlo,Consolas,monospace">${code}</p>` +
+    `<p>${words.where}</p>` +
+    `<p>${ignore}</p>` +
+    `<p>${words.signoff}</p>`;
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      replyTo: SUPPORT_EMAIL,
+      to,
+      ...(await compose(subject, body, words.why, { preview: words.preheader })),
+    });
+    if (error) {
+      console.error(`[email] Resend rejected the code email for ${maskEmail(to)}: ${error.message}`);
+      await recordFailure({
+        kind: "code",
+        reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
+        detail: error.message,
+        organizationIds: await organizationsFor(to),
+      });
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to send email.";
+    console.error(`[email] Failed sending code email to ${maskEmail(to)}: ${message}`);
+    await recordFailure({ kind: "code", reason: classifySendFailure(message), detail: message, organizationIds: await organizationsFor(to) });
+    return { ok: false, error: message };
+  }
+}
+
+/**
+ * "NEW SIGN-IN TO YOUR ACCOUNT" (2026-10-21): sent when somebody signs in with
+ * a password on a browser this account has not been signed in on before
+ * (`services/known-device.ts`). Best effort: the sign-in has already happened,
+ * and an email that fails to go must not undo it, so a failure is logged and
+ * nothing else. `device` and `when` are the app's own words ("Chrome on
+ * Windows", "Wed 21 Oct at 14:05 UTC"); escaped all the same, because the
+ * device's words are read from a header the browser chose.
+ */
+export async function sendNewSignInEmail(to: string, device: string, when: string): Promise<{ ok: boolean }> {
+  const words = NEW_SIGN_IN_WORDS;
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — new sign-in email for ${maskEmail(to)} not sent.`);
+    return { ok: false };
+  }
+  try {
+    const body =
+      `<p>${words.intro(escapeHtml(device), escapeHtml(when))}</p>` +
+      `<p>${words.ifYou}</p>` +
+      `<p>${words.ifNot}</p>` +
+      `<p>${EMAIL_CODE_WORDS.email.signoff}</p>`;
+    const { error } = await resend.emails.send({
+      from: FROM,
+      replyTo: SUPPORT_EMAIL,
+      to,
+      ...(await compose(words.subject, body, words.why, { preview: words.preheader })),
+    });
+    if (error) {
+      console.error(`[email] Resend rejected the new sign-in email for ${maskEmail(to)}: ${error.message}`);
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error(`[email] Failed sending the new sign-in email to ${maskEmail(to)}: ${e instanceof Error ? e.message : String(e)}`);
+    return { ok: false };
+  }
+}
+
+/**
  * Best-effort "you're registered" confirmation for open registration.
  *
  * Deliberately fire-and-forget: registration is confirmed on-screen the moment
@@ -332,7 +459,7 @@ export async function sendRegistrationEmail(
         `You're getting this because this address was used to enter ${escapeHtml(opts.eventName)} on TourneyHQ.`,
         { preview: line, organizationId: opts.organizationId },
       )),
-    });
+    }, { organizationId: opts.organizationId, eventId: opts.eventId });
     if (error) {
       console.error(`[email] Resend rejected the registration email for ${maskEmail(to)}: ${error.message}`);
       await recordFailure({
@@ -426,7 +553,7 @@ export async function sendStaffInviteEmail(
           organizationId: opts.organizationId,
         },
       )),
-    });
+    }, { organizationId: opts.organizationId });
     if (error) {
       console.error(`[email] Resend rejected the staff invite for ${maskEmail(to)}: ${error.message}`);
       await recordFailure({
@@ -505,6 +632,40 @@ export type FieldChange = "promoted" | "waitlisted";
  * still on the screen.
  */
 /**
+ * AN EARLY-LIST CODE, TO THE PERSON WHO JOINED (2026-10-23) — sent only by the owner's press on
+ * /owner (`services/early-list.ts`), never by Go live itself. Its words are the go-live module's
+ * (`EARLY_LIST.email`); the name they typed is escaped like everything else a person typed. Unlike
+ * the other senders this one REPORTS its outcome, because the caller records a send only when it went.
+ */
+export async function sendEarlyListCodeEmail(to: string, name: string, code: string): Promise<{ ok: boolean; error?: string }> {
+  if (!resend) return { ok: false, error: "Email isn't configured on this server." };
+  const words = EARLY_LIST.email;
+  const base = appUrl().base;
+  const body = words
+    .paragraphs(name, code)
+    .map((p) => (p === code ? `<p style="font-size:22px;font-weight:700;letter-spacing:2px;margin:12px 0">${escapeHtml(p)}</p>` : `<p>${escapeHtml(p)}</p>`))
+    .join("");
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      replyTo: SALES_EMAIL,
+      to,
+      // The reason is the app's own fixed sentence, written raw like every other sender's.
+      ...(await compose(words.subject, body, words.why, { preview: words.preview, action: { label: words.action, url: signUpLinkFor(base, code) } })),
+    });
+    if (error) {
+      console.error(`[email] Resend rejected an early-list code for ${maskEmail(to)}: ${error.message}`);
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to send email.";
+    console.error(`[email] Failed sending an early-list code to ${maskEmail(to)}: ${message}`);
+    return { ok: false, error: message };
+  }
+}
+
+/**
  * A NOTE OF INTEREST, TO INQUIRIES@ (2026-10-21) — somebody filled in /interest
  * before launch. Reply-To is THEIR address, so answering it answers them. The
  * row is on /owner whether or not this arrives; a failure is recorded like
@@ -512,11 +673,13 @@ export type FieldChange = "promoted" | "waitlisted";
  */
 export async function sendInterestEmail(
   to: string,
+  /** What the person was promised — the go-live switch's sentence (`interestWords(state).toldInquiries`). */
+  told: string,
   who: { name: string; email: string; phone: string; club: string; role: string; size: string; note: string },
-): Promise<void> {
+): Promise<InterestCopy> {
   if (!resend) {
     console.warn(`[email] RESEND_API_KEY not set — skipping a note of interest to ${maskEmail(to)}.`);
-    return;
+    return { id: "", status: "unsent", detail: "RESEND_API_KEY is not set on the server." };
   }
   const base = appUrl().base;
   const line = (label: string, value: string) =>
@@ -531,7 +694,7 @@ export async function sendInterestEmail(
       toName: "",
     });
   try {
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM,
       replyTo: who.email,
       to,
@@ -540,11 +703,11 @@ export async function sendInterestEmail(
         line("Name", who.name) +
           line("Email", who.email) +
           line("Phone", who.phone) +
-          line("Club or society", who.club) +
+          line("Club or group", who.club) +
           line("Who they are", who.role) +
           line("Size", who.size) +
           (who.note ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid ${EMAIL.flag}">${escapeHtml(who.note)}</blockquote>` : "") +
-          `<p>They were told they will be emailed a code for 25% off their first term when TourneyHQ opens. Reply to this email to write to them.</p>`,
+          `<p>${escapeHtml(told)}</p>`,
         "You're getting this because the /interest form on tourneyhq.club sends here.",
         { preview: `${who.club || "A club"} — ${who.role || "interested"}.`, action: { label: "See every note", url: `${base}/owner#interest` } },
       )),
@@ -552,11 +715,61 @@ export async function sendInterestEmail(
     if (error) {
       console.error(`[email] Resend rejected a note of interest: ${error.message}`);
       await fail(error.message, (error as { statusCode?: number }).statusCode);
+      return { id: "", status: "failed", detail: error.message.slice(0, 500) };
     }
+    return { id: data?.id ?? "", status: "sent", detail: "" };
   } catch (e) {
     const message = e instanceof Error ? e.message : "unknown error";
     console.error(`[email] Failed sending a note of interest: ${message}`);
     await fail(message);
+    return { id: "", status: "failed", detail: message.slice(0, 500) };
+  }
+}
+
+/**
+ * What became of a copy to inquiries@, kept on the note's own row. `fail`
+ * above records nothing for it — `recordFailure` files a failure under a club
+ * and a note of interest has none — so until 2026-10-30 a refused copy left no
+ * trace at all. The row is the trace now (`domain/email-delivery.ts`).
+ */
+export interface InterestCopy {
+  id: string;
+  status: "unsent" | "failed" | "sent";
+  detail: string;
+}
+
+/**
+ * THE EARLY-LIST CANARY'S SEND (2026-10-30). One message from production's own
+ * sender to the provider's test mailbox `delivered@resend.dev` — never to
+ * tourneyhq.club, whose forwarder has an allowance (Ajay, 28 Oct). It proves
+ * the key, the sending domain and the account; the canary then asks the
+ * provider whether it was delivered (`emailLastEvent`).
+ */
+export async function sendCanaryEmail(): Promise<{ id: string; error: string }> {
+  if (!resend) return { id: "", error: "RESEND_API_KEY is not set on the server." };
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: "delivered@resend.dev",
+      subject: "TourneyHQ canary",
+      text: "The hourly check that production can send email. Nobody reads this.",
+    });
+    if (error) return { id: "", error: error.message };
+    return { id: data?.id ?? "", error: data?.id ? "" : "No message id came back." };
+  } catch (e) {
+    return { id: "", error: e instanceof Error ? e.message : "unknown error" };
+  }
+}
+
+/** The provider's last word on a message it accepted: "delivered", "bounced", "suppressed" … "" when it cannot say. */
+export async function emailLastEvent(id: string): Promise<string> {
+  // A READ of the provider's record, not a send: it goes to the raw client, past `deliver`.
+  if (!client || !id) return "";
+  try {
+    const { data } = await client.emails.get(id);
+    return data?.last_event ?? "";
+  } catch {
+    return "";
   }
 }
 
@@ -686,7 +899,7 @@ export async function sendFieldStatusEmail(
             : "You're on the waitlist — please don't travel expecting to play.",
         organizationId: opts.organizationId,
       })),
-    });
+    }, { organizationId: opts.organizationId, eventId: opts.eventId });
     if (error) {
       console.error(`[email] Resend rejected the field-status email for ${maskEmail(to)}: ${error.message}`);
       await recordFailure({
@@ -715,5 +928,67 @@ export async function sendFieldStatusEmail(
       toEmail: to,
       toName: opts.toName ?? "",
     });
+  }
+}
+
+/**
+ * A LAPSED CLUB'S ARCHIVE IS ABOUT TO BE DELETED — to each of its owners, 30
+ * days before and again 7 days before (Ajay, 2026-10-21, decision A4;
+ * `services/club-archive.ts` decides when). One email per owner, so no owner's
+ * address is shown to another.
+ *
+ * The club's name was typed by a person and is escaped; the day comes worded
+ * at the club's own clock (`clubDayInWords`). The way to keep everything is the
+ * one button: the plan screen, where resubscribing lifts the archive.
+ */
+export async function sendArchiveNoticeEmail(n: {
+  to: string[];
+  organizationId: string;
+  organizationName: string;
+  days: 30 | 7;
+  until: string;
+  tournaments: number;
+}): Promise<void> {
+  const club = n.organizationName || "your club";
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping the ${n.days}-day archive notice to ${n.to.length} owner(s).`);
+    return;
+  }
+  const base = appUrl().base;
+  const what = n.tournaments === 1 ? "1 tournament" : `${n.tournaments} tournaments`;
+  const subject = `${club}: your archived tournaments are deleted on ${n.until}`;
+  const body =
+    `<p>The paid plan for <strong>${escapeHtml(club)}</strong> on TourneyHQ has ended, and its ${escapeHtml(what)} ${n.tournaments === 1 ? "has" : "have"} been kept read-only since.</p>` +
+    `<p><strong>${n.days === 7 ? "In 7 days" : "In 30 days"}, on ${escapeHtml(n.until)}, ${n.tournaments === 1 ? "it is" : "they are"} deleted for good</strong> — entries, cards, results, prizes and money records.</p>` +
+    `<p>To keep everything, choose a plan again before then: every tournament carries on exactly where it stopped. Or download what you want to keep from Reports &amp; export on each tournament.</p>`;
+  for (const to of n.to) {
+    const fail = async (message: string, statusCode?: number) =>
+      recordFailure({
+        kind: "archive",
+        reason: classifySendFailure(message, statusCode),
+        detail: message,
+        organizationIds: [n.organizationId],
+        toEmail: to,
+      });
+    try {
+      const { error } = await resend.emails.send({
+        from: FROM,
+        replyTo: SUPPORT_EMAIL,
+        to,
+        ...(await compose(subject, body, `You're getting this because you own ${escapeHtml(club)} on TourneyHQ.`, {
+          preview: `Choose a plan before ${n.until} to keep every tournament.`,
+          action: { label: "Keep everything", url: `${base}/organization#plan` },
+          organizationId: n.organizationId,
+        })),
+      }, { organizationId: n.organizationId });
+      if (error) {
+        console.error(`[email] Resend rejected the archive notice for ${maskEmail(to)}: ${error.message}`);
+        await fail(error.message, (error as { statusCode?: number }).statusCode);
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "unknown error";
+      console.error(`[email] Failed sending the archive notice to ${maskEmail(to)}: ${message}`);
+      await fail(message);
+    }
   }
 }

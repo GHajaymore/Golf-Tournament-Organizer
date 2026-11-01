@@ -21,12 +21,16 @@ import { formatDayAt } from "@/lib/domain/locale";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { Icon } from "./Icon";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { MAX_MARGIN } from "@/lib/domain/score-payload";
 
 /* The drawing's measures, in pixels. A seat is a tap target: 44px, the touch
    minimum (CLAUDE.md; `globals.css` holds `.bracket-seat` to it under a finger
    as well). A tie is two seats. */
 const SEAT = 44;
-const TIE_W = 236;
+// 256, not 236: Firefox sets the same names a little wider than Chrome, and at 236 a
+// twenty-letter name beside a winner's tick and a seed was cut ("Cressida Wedderburn",
+// "Gwendolyn Cobbledene" in the whole draw — round G332-1, Firefox desktop).
+const TIE_W = 256;
 const COL_GAP = 40;
 const HEAD = 40;
 const CHAMP_W = 150;
@@ -578,6 +582,8 @@ export function BracketDrawing({
                             <input
                               className="input"
                               defaultValue={results[m.key] ?? ""}
+                              // The server's own limit (`cleanMargin`), so nothing typed is cut where nobody sees.
+                              maxLength={MAX_MARGIN}
                               placeholder="Result e.g. 3&2"
                               // A placeholder is not a name, and there is one of these
                               // per finished match — each says whose match it records.
@@ -593,7 +599,7 @@ export function BracketDrawing({
                                   setSavedKey(m.key);
                                 });
                               }}
-                              style={{ marginTop: 4, fontSize: 13, minHeight: 30, padding: "2px 8px", flex: 1, minWidth: 0 }}
+                              style={{ marginTop: 4, fontSize: 13, minHeight: "var(--tap-min, 30px)", padding: "2px 8px", flex: 1, minWidth: 0 }}
                             />
                           )}
                           {m.winnerId && !readOnly && savedKey === m.key && !pending && (

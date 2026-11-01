@@ -1,7 +1,6 @@
-"use client";
-import { indexLabel } from "@/lib/domain/handicap-label";
-import { Fragment, useState } from "react";
-import { Icon } from "./Icon";
+import { indexFigure, indexLabel } from "@/lib/domain/handicap-label";
+import { Fragment } from "react";
+import type React from "react";
 import { holeNumber, startHoleNumber } from "@/lib/domain/hole-number";
 
 export interface PrintGroup {
@@ -53,6 +52,14 @@ export interface PrintGroup {
      * did before.
      */
     shots?: number[];
+    /** The whole-number course handicap off their tees, for a named card (Rule 3.3b(4)). */
+    courseHandicap?: number;
+    /**
+     * Nobody has claimed an index for them (`handicapSource: "none"`). Paper
+     * prints "to be confirmed" and no dots, rather than a zero that reads as
+     * scratch.
+     */
+    unconfirmed?: boolean;
   }>;
 }
 
@@ -95,9 +102,11 @@ export interface PrintTeamRound {
  * provenance is a page of numbers; body carries par and stroke index so net
  * strokes can be marked where they fall.
  *
- * Print isolation is the classic visibility trick: on screen this renders a
- * button and nothing else; on paper, only the cards exist. Each card breaks
- * to its own page — a foursome shares one card, not half of someone else's.
+ * ONE PRINT PATH (2026-10-23). This drew its own Print button and hid the
+ * rest of the page on paper; the Print kit (`/print`) is now the only way to
+ * the printer, and this is the CARD it draws — the Tee sheet's group card, and
+ * with one player or one side in the group, the named scorecard. `wrap` puts
+ * each card on its page; without it the cards render bare, as they always did.
  */
 export function TeeSheetPrint({
   groups,
@@ -113,7 +122,28 @@ export function TeeSheetPrint({
   sides = [],
   pins = [],
   firstHole = 1,
+  eventName = "",
+  yards = [],
+  named = false,
+  points = false,
+  startStyle = "tee",
+  signNote = "",
+  wrap,
 }: {
+  /** The competition's name, as the card's headline. */
+  eventName?: string;
+  /** Yards per hole, as a row on the card. Empty prints no row. */
+  yards?: number[];
+  /** A NAMED card: course AND playing handicap beside each name (Rule 3.3b(4)). */
+  named?: boolean;
+  /** A Stableford card: a points row under each score row, for the Committee. */
+  points?: boolean;
+  /** How the field starts. A shotgun or two-tee start prints the starting hole large. */
+  startStyle?: "tee" | "split" | "shotgun";
+  /** Who signs, in the format's words — printed under the signature lines. */
+  signNote?: string;
+  /** Each card's page: the Print kit's sheet, with its footer. */
+  wrap?: (group: PrintGroup, card: React.ReactNode) => React.ReactNode;
   /** The course's number for the first hole on the card — 10 on a back nine (`firstHoleOf`). */
   firstHole?: number;
   groups: PrintGroup[];
@@ -134,9 +164,7 @@ export function TeeSheetPrint({
    *  strings for holes with no position. No pin sheet, no row. */
   pins?: string[];
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const all = selected.size === 0;
-  const printable = all ? groups : groups.filter((g) => selected.has(g.name));
+  const printable = groups;
   const nums = Array.from({ length: holes }, (_, i) => i);
   if (groups.length === 0) return null;
 
@@ -241,55 +269,6 @@ export function TeeSheetPrint({
 
   return (
     <>
-      <div
-        /**
-         * NAMED, so something can link to it.
-         *
-         * Reports offers "Scorecards — open printable scorecards for the
-         * field" and sent an organizer to `/foursomes`, which is headed "Tee
-         * sheet" and opens on "Re-draw this sheet". The print button was on
-         * the page and below the fold, under the pairing editor. Ajay,
-         * 2026-09-22: "when I click on the print scorecards on the reports
-         * menu, it takes me to teesheet and not the actual scorecards".
-         *
-         * The redirect itself is right and stays — one print control, not two
-         * producing different groupings; see `app/(app)/scorecard/page.tsx`.
-         * What was missing is a way to land ON it.
-         *
-         * `scrollMarginTop` because the console header is sticky and an anchor
-         * without it parks the target underneath.
-         */
-        id="print-scorecards"
-        style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12, scrollMarginTop: 80 }}
-      >
-        <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
-          <Icon name="cards" /> Print scorecards
-          {all ? " (all groups)" : ` (${selected.size} selected)`}
-        </button>
-        <span className="text-muted" style={{ fontSize: 12 }}>
-          One card per group, from the saved sheet.
-        </span>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {groups.map((g) => (
-            <label key={g.name} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 11.5 }}>
-              <input
-                type="checkbox"
-                checked={selected.has(g.name)}
-                onChange={() =>
-                  setSelected((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(g.name)) next.delete(g.name);
-                    else next.add(g.name);
-                    return next;
-                  })
-                }
-              />
-              {g.name}
-            </label>
-          ))}
-        </div>
-      </div>
-
       <style>{`
         /**
          * THE CARDS ARE ON SCREEN NOW, and that is the fix.
@@ -359,19 +338,20 @@ export function TeeSheetPrint({
 
         /* Wide on a phone, so it scrolls in its own box rather than taking the
            page sideways — the rule everything wide in this app follows. */
-        #foursome-cards { overflow-x: auto; }
-
-        @media print {
-          body * { visibility: hidden; }
-          #foursome-cards, #foursome-cards * { visibility: visible; }
-          #foursome-cards { display: block; position: absolute; left: 0; top: 0; width: 100%; overflow: visible; }
-          /* Paper needs no rounding, no gap and one card per sheet. */
-          .foursome-card { page-break-after: always; border-radius: 0; margin-bottom: 0; }
-        }
+        .foursome-cards { overflow-x: auto; }
+        /* The starting hole, large, where the field does not all go off one tee. */
+        .foursome-card .startBig { font-size: 20pt; font-weight: 800; border: 1.5pt solid #000; padding: 2px 10px; }
+        .foursome-card .note { font-size: 10px; margin-top: 6px; }
+        .foursome-card .card-headline { font-size: 18px; font-weight: 800; margin: 2px 0 6px; overflow-wrap: anywhere; }
+        .foursome-card td.named { min-width: 160px; }
+        .foursome-card .pname { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+        .foursome-card .pfig { font-size: 10px; margin-top: 2px; }
+        .foursome-card .pointsRow td { font-size: 9px; }
+        /* Printing is the Print kit's (\`/print\`): it puts each card on a page of its own. */
       `}</style>
 
-      <div id="foursome-cards">
-        {printable.map((g) => {
+      <div className="foursome-cards">
+        {printable.map((g, gi) => {
           const blocks = blocksOf(g);
           /**
            * WHOSE VIEW THE MATCH ROW IS, because "2 up" on its own is the very
@@ -406,8 +386,8 @@ export function TeeSheetPrint({
                   .filter(Boolean)
                   .join("  vs  ")
               : "";
-          return (
-          <div key={g.name} className="foursome-card">
+          const card = (
+          <div key={`${g.name}-${gi}`} className="foursome-card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
               <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                 {/* The club's own badge on the card its members carry round.
@@ -418,6 +398,7 @@ export function TeeSheetPrint({
                   <img
                     src={clubLogoUrl}
                     alt=""
+                    className="club-logo"
                     style={{ height: 30, width: "auto", maxWidth: 110, objectFit: "contain" }}
                   />
                 )}
@@ -425,14 +406,30 @@ export function TeeSheetPrint({
               </span>
               <span style={{ fontSize: 12 }}>{[courseName, dates].filter(Boolean).join(" · ")}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 10 }}>
+            {/* THE COMPETITION, as the headline (Rule 3.3b(4)'s "the competition
+                in which the score is made"): a card is filed afterwards, and a
+                card that does not say which competition is a page of numbers. */}
+            {eventName && <div className="card-headline">{eventName}</div>}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 10 }}>
               <span>
                 {roundLabel} — {g.name}
               </span>
-              <span>
-                Hole {startHoleNumber(g.startHole, firstHole)}
-                {g.half ?? ""} · {g.time}
-              </span>
+              {/* A SHOTGUN SENDS EVERY GROUP TO A DIFFERENT HOLE, so the hole a
+                  group starts on is the first thing the card says, large. */}
+              {startStyle !== "tee" ? (
+                <span>
+                  <span className="startBig">
+                    Start: hole {startHoleNumber(g.startHole, firstHole)}
+                    {g.half ?? ""}
+                  </span>{" "}
+                  {g.time}
+                </span>
+              ) : (
+                <span>
+                  Hole {startHoleNumber(g.startHole, firstHole)}
+                  {g.half ?? ""} · {g.time}
+                </span>
+              )}
             </div>
             {/* WHAT IS BEING PLAYED. A card that does not say changes how the
                 hole is played and says nothing about it — best-ball-one-of-four
@@ -505,6 +502,22 @@ export function TeeSheetPrint({
                   <th className="tot" />
                   <th className="tot" />
                 </tr>
+                {yards.some((y) => y > 0) && (
+                  <tr>
+                    <th>Yards</th>
+                    {cols.map((c) =>
+                      c.kind === "hole" ? (
+                        <th key={`y${c.i}`} style={{ fontWeight: 400 }}>
+                          {yards[c.i] || ""}
+                        </th>
+                      ) : (
+                        <th key={c.label} className="tot" />
+                      ),
+                    )}
+                    <th className="tot" />
+                    <th className="tot" />
+                  </tr>
+                )}
                 {/* Where the hole is cut, when the committee has set a pin
                     sheet — the line a player reads on the tee. */}
                 {pins.some(Boolean) && (
@@ -571,7 +584,25 @@ export function TeeSheetPrint({
                   return (
                     <Fragment key={`b${bi}`}>
                       {b.players.map((p) => (
-                        <tr key={p.name} style={{ height: 30 }}>
+                        <Fragment key={p.name}>
+                        <tr style={{ height: 30 }}>
+                          {named ? (
+                            <td className="named">
+                              {/* A NAMED CARD (Rule 3.3b(4)): the player, their
+                                  tees, and both figures — the course handicap
+                                  off those tees and what they play off once
+                                  the round's allowance is taken. A figure the
+                                  committee has not confirmed is said so, never
+                                  printed as a nought that reads as scratch. */}
+                              <span className="pname">{p.name}</span>
+                              <div className="pfig">
+                                {p.unconfirmed
+                                  ? "Handicap to be confirmed by the Committee"
+                                  : `Course hcp ${indexFigure(p.courseHandicap ?? 0)} · Playing hcp ${indexFigure(p.playingHandicap ?? 0)}${showsMatchStrokes ? ` · receives ${p.matchStrokes ?? 0}` : ""}`}
+                                {p.tee ? ` · ${p.tee}` : ""}
+                              </div>
+                            </td>
+                          ) : (
                           <td>
                             {/*
                              * ON A MATCH CARD THE BRACKET IS THE SHOTS THEY GET,
@@ -596,6 +627,7 @@ export function TeeSheetPrint({
                               <span style={{ fontSize: 8.5, marginLeft: 4, opacity: 0.75 }}>{p.tee}</span>
                             ) : null}
                           </td>
+                          )}
                           {cols.map((c) => {
                             if (c.kind !== "hole") return <td key={c.label} className="tot" />;
                             /**
@@ -612,9 +644,23 @@ export function TeeSheetPrint({
                               </td>
                             );
                           })}
-                          <td className="tot">{p.playingHandicap ?? ""}</td>
+                          <td className="tot">{p.unconfirmed ? "" : (p.playingHandicap ?? "")}</td>
                           <td className="tot" />
                         </tr>
+                        {/* STABLEFORD: the points are the Committee's to work
+                            out (Rule 21.1b — the player returns gross scores),
+                            so the row says whose it is. */}
+                        {points && (
+                          <tr className="pointsRow" style={{ height: 24 }}>
+                            <td>Points — for Committee use</td>
+                            {cols.map((c) =>
+                              c.kind === "hole" ? <td key={`pt${c.i}`} className="box" /> : <td key={c.label} className="tot" />,
+                            )}
+                            <td className="tot" />
+                            <td className="tot" />
+                          </tr>
+                        )}
+                        </Fragment>
                       ))}
                       {/* THE NUMBER THAT DECIDES THE ROUND, which had nowhere
                           to be written. Each partner plays their own ball and
@@ -721,8 +767,10 @@ export function TeeSheetPrint({
               <span>Marker&rsquo;s signature</span>
               <span>Player&rsquo;s signature</span>
             </div>
+            {signNote && <div className="note">{signNote}</div>}
           </div>
           );
+          return wrap ? <Fragment key={`${g.name}-${gi}`}>{wrap(g, card)}</Fragment> : card;
         })}
       </div>
     </>

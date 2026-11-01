@@ -70,7 +70,7 @@ let proShop = "";
 let somebodyElse = "";
 
 beforeAll(async () => {
-  const user = await prisma.user.create({ data: { email: EMAIL, name: "Zz Everywhere", password: hashPassword(PASSWORD) } });
+  const user = await prisma.user.create({ data: { email: EMAIL, name: "Zz Everywhere", password: hashPassword(PASSWORD), emailVerifiedAt: new Date() } });
   const other = await prisma.user.create({ data: { email: `${MARK}-other@example.invalid`, name: "Zz Other", password: "x:unusable" } });
   userId = user.id;
   otherId = other.id;

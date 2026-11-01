@@ -29,6 +29,11 @@ const PINNED: [label: string, file: string][] = [
   ["Certify my card", "src/components/PlayerCard.tsx"],
   ["Draw sides automatically", "src/components/TeamsClient.tsx"],
   ["Divide the field", "src/components/BracketFlights.tsx"],
+  // The Print kit (2026-10-23) and its doors.
+  ["Reprint these", "src/components/print/PrintKitClient.tsx"],
+  ["Print the signs", "src/components/PlaySettings.tsx"],
+  ["Print…", "src/app/(app)/foursomes/page.tsx"],
+  ["Print…", "src/app/(app)/cup/page.tsx"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */

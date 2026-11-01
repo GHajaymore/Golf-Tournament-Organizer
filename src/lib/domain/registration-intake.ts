@@ -18,6 +18,7 @@
 
 import { registrationStatus, type RegistrationInput } from "../registration";
 import { readHandicapIndex } from "./handicap-label";
+import { EMAIL_RE } from "./typed-limits";
 
 export type ApprovalMode = "auto" | "approve";
 
@@ -94,10 +95,7 @@ export function placementOnApproval(capacity: number, confirmedCount: number): I
  * a number with a real-world range, not free text.
  */
 
-/** Same shape the rest of the app validates emails with (see EMAIL_RE in
- *  actions/tournament.ts). Deliberately loose — the job is to reject obvious
- *  nonsense, not to adjudicate RFC 5322. */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// The app's one shape of an address — `typed-limits.ts` says what it refuses.
 
 export type HandicapParse =
   | { ok: true; value: number; source: "manual" }
@@ -234,7 +232,8 @@ export interface ContactNeeds {
  * the roster picker now shows it beside the member BEFORE anybody ticks them.
  * Found walking the app as a new organizer (2026-09-26): eight members ticked,
  * "Add 8 members" pressed, and the reply was "Added 0 · no mobile for …" — a
- * free club collects a mobile from every entrant, and the roster had none. The
+ * that tournament collected a mobile from every entrant (then every free club's
+ * did; since 2026-10-21 only one whose organizer asks), and the roster had none. The
  * rule is right; finding out after the click is the fault. Both readers call
  * this, so the warning and the refusal cannot disagree.
  *

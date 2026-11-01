@@ -136,6 +136,10 @@ export const CLONED_EVENT_FIELDS = [
   // too. The venue itself is not copied — see the exclusion below — but the
   // decision not to have one is part of what the tournament is.
   "courseMode",
+  // A club's standing rule for its prize list — "one prize per player" is in
+  // its terms of competition, year after year. The prize LINES are not copied
+  // (see `prizes` below), so the copy carries the rule and no awards.
+  "onePrizePerPlayer",
 ] as const;
 
 /**
@@ -174,6 +178,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "a copy has no flights yet — inheriting the sign-off would mark an empty draw as finished, and lock it",
   retainUntil:
     "a hold is granted to one tournament for a reason; a copy inherits neither the reason nor the reprieve",
+  archivedAt:
+    "a copy is a NEW tournament: made after a lapse it is an ordinary Par one, never part of the archive it was copied from (domain/club-archive.ts)",
   closesAt:
     "a Par tournament's own closing day, stamped when ITS golf began; a copy has played nothing, and inheriting the date would have the sweep delete a tournament that never started",
   seriesId:
@@ -354,6 +360,9 @@ export const CLONED_STAGE_FIELDS = [
   "cutMode",
   "cutCount",
   "cutPercent",
+  // How a tie for the last place is settled is part of the cut's terms, which
+  // the club publishes and keeps from year to year.
+  "cutTies",
   "courseId",
   // Carried for the same reason as `courseId` beside it: a round cloned from
   // last year is played at the same course off the same set until somebody
@@ -385,6 +394,8 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
     "when the organizer declared last year's round finished. A copy has not been played, let alone closed — and carrying it would start the new tournament with a round the board treats as settled, unranking every player in it for a card nobody has had the chance to return",
   cutMadeAt:
     "when last year's cut was made into this round. A copy's cut has not been made — carrying it would read the copy's first cut as a re-made one, and keep the card of a player it leaves out",
+  cutTieDecisions:
+    "who won last year's play-off or draw for the last place — about last year's players, never this year's",
   deadline: "same — a copied deadline is always in the past",
   deadlineOverride: "belongs to the deadline that was not copied",
   knockoutPlayBy: "same as deadline — last year's play-by dates for each knockout round have all passed, and a copy would open with every tie Overdue",
@@ -396,6 +407,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   teeSheetPublished: "belongs to the tee sheet that was not copied",
   lineupPublished: "belongs to a cup lineup, and lineups are pairings — never copied, so a copy's sessions start as drafts",
   pinSheet: "where the holes were cut on last year's day — a committee moves them every round",
+  printLog: "what the Print kit printed for last year's round — a copy has printed nothing yet",
   matches: "results and pairings are never copied",
   carriers:
     "the Group rows holding this round's matches — and the matches are not copied, so there is nothing for one to carry. A carrier is created on demand by matchCarrierGroup the first time the copy generates that round",

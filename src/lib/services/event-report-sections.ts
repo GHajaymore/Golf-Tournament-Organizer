@@ -7,7 +7,7 @@ import { directionOnBasis, valueOnBasis } from "../domain/week-basis";
 import { roundStrokes } from "./round-cards";
 import { weekViewFor } from "./week-view";
 import { skinsPotFor } from "./skins-pot";
-import { moneyFor, sidePotResults } from "./expenses";
+import { moneyFor, sidePotOutcomes, type SidePotOutcome } from "./expenses";
 import { nassauBoard } from "./points-standings";
 import { formattingForEvent } from "./organization";
 import { formatDay, formatMoney, type Formatting } from "../domain/locale";
@@ -43,7 +43,7 @@ import type { WeekBasis } from "../domain/week-basis";
  *                       `state.strokeCourseFor(stageId)`, each round's own card
  *   the movement        `weekViewFor`, the week sheet's standings after each round
  *   skins               `skinsPotFor`, the pot's own service
- *   side games          `sidePotResults` (the pass that pays the players) and
+ *   side games          `sidePotOutcomes` (the pass that pays the players) and
  *                       `nassauBoard`
  *   costs and the fund  `moneyFor`'s expenses, `floatSummary` over the fund
  *   settle-up           `moneyFor(...).transfers`, the money screen's own list
@@ -51,7 +51,7 @@ import type { WeekBasis } from "../domain/week-basis";
  *
  * MONEY IS FINAL ONLY, and that is enforced where it already is — at the sink.
  * `skinsPotFor` marks a half-played pot `provisional` and it is left out here
- * exactly as `gameNets` leaves it out of the settle-up; `sidePotResults` holds
+ * exactly as `gameNets` leaves it out of the settle-up; `sidePotOutcomes` holds
  * no pot that is not final. So nothing in this file can report a pot the money
  * screen would not.
  */
@@ -170,6 +170,13 @@ export async function movementRoundsFor(
     const dir = directionOnBasis(basis);
     let before: Array<{ playerId: string; name: string; value: number; rank: number }> = [];
     for (const stage of state.strokeRounds) {
+      /**
+       * A ROUND NOBODY HAS PLAYED IS NOT A TABLE (walked 2026-10-23). The
+       * board "through" a future week is the board through the last week
+       * played, so the seeded league read "Wallace Ferrity stayed top after
+       * Round 5 … Round 6 … Round 7" with three weeks still on the calendar.
+       */
+      if (!state.roundsWithResults.has(stage.id)) continue;
       const through = await loadEventState(state.event.id, stage.id);
       if (!through) continue;
       const rows = through.strokeStandings
@@ -189,6 +196,7 @@ export async function movementRoundsFor(
 
   let found: WeekBasis | null = null;
   for (const stage of playingStages(state.stages)) {
+    if (!state.roundsWithResults.has(stage.id)) continue;
     const view = await weekViewFor(state.event.id, stage.id);
     if (!view || view.stageId !== stage.id || !view.standingsIncludeThisWeek || view.standings.length === 0) continue;
     found = view.basis;
@@ -296,7 +304,7 @@ export async function moneySections(state: EventState, audience: ReportAudience)
   });
   const nameOf = new Map(state.players.map((p) => [p.id, p.name]));
   const sideGames: ReportPot[] = [];
-  const results = new Map<string, Map<string, Array<{ playerId: string; netCents: number }>>>();
+  const results = new Map<string, Map<string, SidePotOutcome>>();
   for (const g of games) {
     const stage = stages.find((s) => s.id === g.stageId);
     if (!stage) continue;
@@ -322,16 +330,19 @@ export async function moneySections(state: EventState, audience: ReportAudience)
       continue;
     }
     if (!isDerivedKind(g.kind)) continue;
-    if (!results.has(g.stageId)) results.set(g.stageId, await sidePotResults(eventId, g.stageId));
-    const nets = results.get(g.stageId)?.get(g.id);
-    // Absent until the round is final — `sidePotResults` holds nothing else.
-    if (!nets || nets.length === 0) continue;
-    const up = nets.filter((n) => n.netCents > 0).sort((a, b) => b.netCents - a.netCents);
+    if (!results.has(g.stageId)) results.set(g.stageId, await sidePotOutcomes(eventId, g.stageId));
+    const outcome = results.get(g.stageId)?.get(g.id);
+    // Absent until the round is final — `sidePotOutcomes` holds nothing else.
+    // PRESENT WITH NO NETS when nobody won and every stake went back, which is
+    // a result and is reported; and the count in it is the pot's ENTRANTS, not
+    // the players its money moved (2026-10-23 — see `SidePotOutcome`).
+    if (!outcome || outcome.entrants === 0) continue;
+    const up = outcome.nets.filter((n) => n.netCents > 0).sort((a, b) => b.netCents - a.netCents);
     sideGames.push({
       title: named(DERIVED_LABEL[g.kind], stage.id),
       line: amounts
-        ? `${money(g.buyInCents)} each, ${nets.length} in: a ${money(g.buyInCents * nets.length)} pot.${up.length === 0 ? " Nobody won it; the stakes went back." : ""}`
-        : `${nets.length} in.${up.length === 0 ? " Nobody won it." : ""}`,
+        ? `${money(g.buyInCents)} each, ${outcome.entrants} in: a ${money(outcome.potCents)} pot.${up.length === 0 ? " Nobody won it; the stakes went back." : ""}`
+        : `${outcome.entrants} in.${up.length === 0 ? " Nobody won it." : ""}`,
       winners: up.map((n) => ({
         name: nameOf.get(n.playerId) ?? "",
         detail: "",
@@ -453,7 +464,9 @@ export async function comingUpFor(state: EventState, audience: ReportAudience): 
       where: {
         organizationId: state.event.organizationId,
         id: { not: state.event.id },
-        status: { in: ["registration", "ready", "live"] },
+        // Not finished: the three setting-up statuses read as one (G1); the
+        // published link below is what says entries are taken.
+        status: { notIn: ["completed"] },
         registrationOpen: true,
       },
       select: {

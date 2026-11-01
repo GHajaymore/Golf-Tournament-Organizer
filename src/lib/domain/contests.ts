@@ -16,14 +16,22 @@
  * Pure. Integer cents throughout.
  */
 
-import { splitExactly } from "./money";
+import { potCents, splitExactly } from "./money";
 
-export const CONTEST_KINDS = ["closest-pin", "long-drive", "off-course", "other"] as const;
+export const CONTEST_KINDS = ["closest-pin", "long-drive", "straightest-drive", "off-course", "other"] as const;
 export type ContestKind = (typeof CONTEST_KINDS)[number];
 
 export const CONTEST_LABEL: Record<ContestKind, string> = {
   "closest-pin": "Closest to the pin",
   "long-drive": "Long drive",
+  /**
+   * STRAIGHTEST DRIVE (2026-10-24, approved after the Golf GameBook
+   * comparison). The same shape as the long drive in every way the app
+   * holds: a hole, a winner the committee names (nearest the centre line,
+   * measured on the fairway), an optional sponsor, a stake or none. No card
+   * decides it, so there is no scoring path — the kind is the whole of it.
+   */
+  "straightest-drive": "Straightest drive",
   /**
    * POKER, CARDS, DARTS, THE QUIZ — the games an outing plays off the course.
    *
@@ -114,7 +122,7 @@ export function contestNets(contest: Contest): Net[] {
   const totals = new Map<string, number>();
   for (const id of entrants) totals.set(id, (totals.get(id) ?? 0) - stake);
 
-  const pot = stake * entrants.length;
+  const pot = potCents(stake, entrants.length);
   const shares = splitExactly(pot, winners.map(() => 1));
   winners.forEach((id, i) => totals.set(id, (totals.get(id) ?? 0) + shares[i]));
 
@@ -144,8 +152,7 @@ export function contestLedger(contests: Contest[]): Net[] {
 
 /** The pot on the table, for the screen. */
 export function potOf(contest: Contest): number {
-  const stake = Math.max(0, Math.round(contest.buyInCents));
-  return stake * new Set(contest.entrantIds.filter(Boolean)).size;
+  return potCents(contest.buyInCents, new Set(contest.entrantIds.filter(Boolean)).size);
 }
 
 /** Whether this contest has been decided. */

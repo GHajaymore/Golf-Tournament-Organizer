@@ -45,6 +45,18 @@ export interface OrgLimits {
 }
 
 /**
+ * A LAPSED CLUB'S ARCHIVE IS NOT COUNTED (decided 2026-10-21, A4). Its
+ * tournaments are read-only and paused: nothing in them can run, so they are
+ * not "at a time". Counting them would have left a club that lapsed with an
+ * unfinished league unable to make even the one Par tournament Par gives
+ * everybody — Par's own allowance refused by the paid plan it no longer has.
+ * Nor are the staff named on them a seat: a seat is somebody who can run
+ * something, and nobody can run an archived tournament. Resubscribing lifts
+ * the archive, and then they count again, as the paid plan allows.
+ */
+const NOT_ARCHIVED = { archivedAt: null };
+
+/**
  * Tournaments not yet finished. A completed event costs nothing to keep.
  *
  * CASUAL ROUNDS ARE NOT TOURNAMENTS AND ARE NOT COUNTED. A quick round is the
@@ -67,7 +79,7 @@ export interface OrgLimits {
  */
 export async function activeEventCount(organizationId: string): Promise<number> {
   return prisma.event.count({
-    where: { organizationId, NOT: { status: "completed" }, shape: { not: "match" } },
+    where: { organizationId, NOT: { status: "completed" }, shape: { not: "match" }, ...NOT_ARCHIVED },
   });
 }
 
@@ -85,7 +97,7 @@ export async function staffSeatCount(organizationId: string): Promise<number> {
       include: { user: { select: { email: true } } },
     }),
     prisma.account.findMany({
-      where: { event: { organizationId }, role: { in: ["admin", "assistant"] } },
+      where: { event: { organizationId, ...NOT_ARCHIVED }, role: { in: ["admin", "assistant"] } },
       select: { email: true },
     }),
   ]);
@@ -110,6 +122,13 @@ export async function staffSeatCount(organizationId: string): Promise<number> {
  * refused, which is the state every organization that predates billing sits in.
  */
 async function enforcementActive(organizationId: string): Promise<boolean> {
+  /**
+   * NEVER FOR THE DEMO CLUB (2026-10-24). It is not a customer: it is on no
+   * plan, pays nothing and is refused nothing, whatever the master switch says
+   * (docs/claude/demo-club.md). Asked first, so no limit below can reach it.
+   */
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { isDemo: true } });
+  if (org?.isDemo) return false;
   if (enforcementEnabled(await storedLimitOverrides())) return true;
   const sub = await prisma.subscription.findUnique({ where: { organizationId } });
   if (!sub) return false;
@@ -183,7 +202,7 @@ async function holdsSeat(organizationId: string, email: string): Promise<boolean
       select: { id: true },
     }),
     prisma.account.findFirst({
-      where: { event: { organizationId }, role: { in: ["admin", "assistant"] }, email: { equals: e, mode: "insensitive" } },
+      where: { event: { organizationId, ...NOT_ARCHIVED }, role: { in: ["admin", "assistant"] }, email: { equals: e, mode: "insensitive" } },
       select: { id: true },
     }),
   ]);

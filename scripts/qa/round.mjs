@@ -10,10 +10,25 @@
  *     npm run qa:round -- T1 --only=scenarios --scenario=c
  *     npm run qa:round -- --list                  # what a round is, and nothing else
  *     npm run qa:round -- --parts --round=2       # the parts a round is cut into, as JSON
+ *     npm run qa:round -- --parts --schedule=pr --countries=all --no-crawl
+ *
+ * WHICH ROUND (2026-10-23, `docs/testing-panel-2026-10-23.md`):
+ *     --schedule=all       every layer — the default, and a round on one machine
+ *     --schedule=pr        the round a change asks for before it merges
+ *     --schedule=nightly   the full round on main: every pr layer, the tablet, the libraries
+ *     --schedule=weekly    Chrome and Edge as installed, the front door's motion
+ *     --countries=all      all six countries in this one round (a core change; the nightly)
+ *     --no-crawl           leave the console crawl out (a change that touches no input screen)
+ *     --target=<area>      a TARGETED round (pr only): the area's specs and scenarios, plus the
+ *                          always-on set, in place of every spec (specs-by-area.mjs, `targetFor`)
+ * A part is told the same plan as the round it belongs to, and writes it into
+ * its `part.json`, so the verdict is judged against the round that was asked for.
  *
  * It runs the layers in `layers.mjs`, in order, against ONE built server on
  * port 3101, and writes what happened to `.qa/rounds/<tag>/`: a log per layer,
- * `verdict.json`, and `summary.md` — the table to put in front of somebody.
+ * `verdict.json`, and `summary.md` — the table to put in front of somebody. As
+ * one part of a round (`--id`), each of those is named by the part (`partFile`
+ * in layers.mjs), and what a layer `keeps` is copied beside its log.
  * The last line it prints is the verdict.
  *
  * ON ONE MACHINE that is about six hours. `.github/workflows/round.yml` runs
@@ -34,11 +49,12 @@
  * port. No edits to src, e2e or scripts while one runs, and no other build.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { layersFor, partsFor, SCENARIOS } from "./layers.mjs";
+import { findingsSaid, layersFor, partFile, partsFor, SCENARIOS, SCHEDULES, targetLine } from "./layers.mjs";
 import { appId } from "./app-id.mjs";
 import { E2E_OWNER_EMAIL } from "../../e2e/owner-email.mjs";
+import { demoTestMark, E2E_DEMO_REPLAY_TOKEN } from "../../e2e/demo-fixture.mjs";
 
 const PORT = Number(process.env.E2E_PORT ?? 3101);
 const DIST = ".next-e2e";
@@ -56,18 +72,23 @@ const SHARD = value("shard");
 const CRAWL = value("crawl");
 const CRAWL_ONLY = Boolean(CRAWL) && !CRAWL.startsWith("0/");
 const SCENARIO = value("scenario") ? value("scenario").split(",") : null;
+/** Which round this is, or is a part of: see SCHEDULES in layers.mjs. */
+const PLAN = { schedule: value("schedule") || "all", countries: value("countries") || "trio", crawl: !flag("no-crawl"), target: value("target") || null };
+/** The part of a round this machine is (`--id`, from round.yml), which its own files are named by: see `partFile`. */
+const PART = value("id");
 
 const git = (...a) => spawnSync("git", a, { encoding: "utf8" }).stdout.trim();
 const strip = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
 
-const layers = layersFor(ROUND);
+const layers = layersFor(ROUND, PLAN);
 if (flag("list")) {
-  for (const l of layers) console.log(`${l.key.padEnd(22)} ${l.name}\n${" ".repeat(23)}stands for: ${l.standsFor}\n${" ".repeat(23)}really is:  ${l.reallyIs}\n${" ".repeat(23)}cannot see: ${l.cannotSee}\n`);
+  console.log(`A round under the "${PLAN.schedule}" schedule — ${SCHEDULES[PLAN.schedule]}; countries: ${PLAN.countries}; console crawl: ${PLAN.crawl ? "yes" : "no"}${PLAN.target ? `\n${targetLine(PLAN.target)}` : ""}\n`);
+  for (const l of layers) console.log(`${l.key.padEnd(22)} ${l.name}   [${l.when.join(", ")}]\n${" ".repeat(23)}stands for: ${l.standsFor}\n${" ".repeat(23)}really is:  ${l.reallyIs}\n${" ".repeat(23)}cannot see: ${l.cannotSee}\n`);
   console.log(`scenarios: ${SCENARIOS.map((s) => `${s.key} ${s.name}`).join(" · ")}`);
   process.exit(0);
 }
 if (flag("parts")) {
-  console.log(JSON.stringify(partsFor(ROUND)));
+  console.log(JSON.stringify(partsFor(ROUND, PLAN)));
   process.exit(0);
 }
 if (!TAG) {
@@ -140,6 +161,11 @@ async function serve(mode) {
     STRIPE_SECRET_KEY: "sk_test_e2e_charges_nothing",
     // The test server's owner, as playwright.config.ts gives it — see e2e/owner-email.mjs.
     OWNER_EMAILS: E2E_OWNER_EMAIL,
+    // The demo club it builds is the test's own, as playwright.config.ts gives it — see e2e/demo-fixture.mjs.
+    DEMO_CLUB_MARK: demoTestMark(),
+    DEMO_REPLAY_TOKEN: E2E_DEMO_REPLAY_TOKEN,
+    // No mail leaves a test server (the owner-console spec presses Send on the early list).
+    RESEND_API_KEY: "",
     ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),
   };
   delete env.E2E_TZ;
@@ -183,8 +209,14 @@ function read(log) {
     skipped: count("skipped"),
     didNotRun: count("did not run"),
     failures: [...text.matchAll(/^\s+\d+\) (\[.*)$/gm)].map((m) => m[1].trim().slice(0, 220)),
-    said: text.split("\n").filter((l) => /^\[everything\]|^\[every-control\] [a-z]+: |^\[every-action\] [a-z ]+: \d|^\[formats-agree\]/.test(l)).map((l) => l.slice(0, 260)),
+    said: text.split("\n").filter((l) => /^\[everything\]|^\[every-control\] [a-z]+: |^\[every-text-box\] (share|control)|^\[every-action\] [a-z ]+: \d|^\[formats-agree\]/.test(l)).map((l) => l.slice(0, 260)),
+    // EVERY FINDING, not just the line saying a share failed: the text-box crawl prints each of its
+    // findings under its tally, and the verdict is the one place a round's reader is sure to look.
+    details: findingsSaid(text),
     hydration: text.split("[hydration #418]").length - 1,
+    // How many of the failures are an ASSERTION — an expected and a received value — rather than a
+    // timeout or a crash. The retro counts these as defects found (scripts/qa/retro.mjs).
+    assertions: (text.match(/^\s+Expected(?: [a-z]+)?:/gm) ?? []).length,
     stopped: text.includes("[round] stopped after"),
   };
 }
@@ -216,6 +248,7 @@ if (builtApp !== app) finish(`NOT RUN — the build in ${DIST} is of app ${built
 
 const started = Date.now();
 say(`ROUND ${TAG} (round ${ROUND} of a count) — commit ${commit}, app ${app}, build ${readFileSync(join(DIST, "BUILD_ID"), "utf8").trim()}`);
+if (PLAN.target) say(targetLine(PLAN.target));
 spawnSync(process.execPath, ["scripts/e2e-coverage.mjs", "--reset"]);
 rmSync(join(".e2e", "every-action", "ledger.tsv"), { force: true });
 
@@ -235,13 +268,14 @@ for (const layer of layers) {
   }
   const t0 = Date.now();
   if (layer.kind === "command") {
-    const log = join(OUT, `${layer.key}.log`);
+    const log = join(OUT, `${partFile(layer.key, PART)}.log`);
     const code = await run(layer.command, { log, minutes: layer.minutes });
     const lines = strip(readFileSync(log, "utf8")).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const failures = lines.filter((l) => l.startsWith("✗")).map((l) => l.slice(1).trim().slice(0, 220));
     // Exit 2 is "could not ask" — it did not run, which is not the same as nothing found.
+    // And it is the machine's network, not the app: the verdict says INCOMPLETE, and the round is re-run.
     if (code === 2) {
-      results.push({ ...row(layer), ran: false, why: lines.slice(-1)[0] ?? "it could not ask" });
+      results.push({ ...row(layer), ran: false, infra: true, why: lines.slice(-1)[0] ?? "it could not ask" });
       say(`${layer.key}: NOT RUN — ${lines.slice(-1)[0] ?? "it could not ask"}`);
       continue;
     }
@@ -294,11 +328,14 @@ for (const layer of layers) {
     continue;
   }
   const projects = PROJECTS ?? layer.projects;
-  const log = join(OUT, `${layer.key}.log`);
+  const log = join(OUT, `${partFile(layer.key, PART)}.log`);
   // A share of the crawl is that one spec; every other part runs the layer's own list.
   const specs = CRAWL_ONLY ? ["e2e/every-control.spec.ts"] : layer.specs;
   const command = ["npx playwright test", ...specs, ...projects.map((p) => `--project=${p}`), SHARD ? `--shard=${SHARD}` : "", "--reporter=line"].filter(Boolean).join(" ");
+  // What the layer's spec writes as it goes, emptied first so only this run's is kept.
+  if (layer.keeps) rmSync(layer.keeps, { recursive: true, force: true });
   const code = await run(command, { env, log, minutes: layer.minutes });
+  if (layer.keeps && existsSync(layer.keeps)) cpSync(layer.keeps, join(OUT, `${partFile(layer.key, PART)}-kept`), { recursive: true });
   const r = read(log);
   const minutes = Math.round((Date.now() - t0) / 60_000);
   // A run that reports nothing passed has not tested anything, whatever its exit code says.
@@ -321,7 +358,7 @@ if (cov.status === 0) {
 
 const minutes = Math.round((Date.now() - started) / 60_000);
 const partial = Boolean(ONLY || SKIP.length || PROJECTS || SHARD || SCENARIO);
-writeFileSync(join(OUT, "part.json"), JSON.stringify({ tag: TAG, id: value("id"), round: ROUND, at: new Date().toISOString(), commit, app, build: readFileSync(join(DIST, "BUILD_ID"), "utf8").trim(), minutes, partial, layers: results, reach }, null, 1));
+writeFileSync(join(OUT, "part.json"), JSON.stringify({ tag: TAG, id: value("id"), round: ROUND, plan: PLAN, at: new Date().toISOString(), commit, app, build: readFileSync(join(DIST, "BUILD_ID"), "utf8").trim(), minutes, partial, layers: results, reach }, null, 1));
 
 // One machine's worth is a whole verdict when nothing was left out; otherwise it is a part for merge.mjs.
 const merge = spawnSync(process.execPath, ["scripts/qa/merge.mjs", TAG, join(OUT, "part.json"), ...(partial ? ["--part"] : [])], { stdio: "inherit" });

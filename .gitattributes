@@ -1,0 +1,8 @@
+# Scripts check out with LF on every machine. A Windows checkout (core.autocrlf) gave
+# them CRLF, and Vite's runner then failed to strip a "#!" first line: every
+# `npx vitest run` here reported qa-pipeline.test.ts as a SyntaxError at its import,
+# while CI on Linux passed. A test that can only fail on one machine is not a check.
+scripts/**/*.mjs text eol=lf
+scripts/**/*.js text eol=lf
+# The workflows too: qa-pipeline.test.ts reads deploy.yml's steps split on "\n".
+.github/**/*.yml text eol=lf
