@@ -56,6 +56,9 @@ export default function robots(): MetadataRoute.Robots {
           // crawler never fetches it and the per-page noindex is not the only
           // thing standing between it and an index.
           "/owner",
+          // The demo club (2026-10-24): an invented club, every page of it also
+          // marked noindex. A demo is not a page about TourneyHQ for an index.
+          "/demo",
           "/api/",
         ],
       },
