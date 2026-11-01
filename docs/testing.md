@@ -51,7 +51,7 @@ small the change is or what it is called. The first rule that matches a file dec
 | **Tests and tooling** | `e2e/`, `scripts/qa/`, workflows, test files | The tests it changes, run. Nothing ships to anybody. |
 | **Words and documents** | The guide, the player's Help, `docs/`, `CLAUDE.md` | Its own tests and CI. No round. |
 | **The front door** | The landing page, FAQ, privacy, terms | The landing specs on three sizes, and CI. No round: its stylesheet cannot reach an app screen. |
-| **Function in one area** | How a form reads what is typed, one action, one flow, one screen | A browser test for it, proven by breaking the code; CI; and **one round** (`round/<name>-1`) on the commit that will be production, before it merges. When every file is in ONE area of `scripts/qa/specs-by-area.mjs` that round is **targeted**, and the commit then waits for a clean nightly before production — see "Targeted rounds". |
+| **Function in one area** | How a form reads what is typed, one action, one flow, one screen | A browser test for it, proven by breaking the code; CI; and **one round** (`round/<name>-1`) on the commit that will be production, before it merges. When every file is in ONE area of `scripts/qa/specs-by-area.mjs` that round is **targeted**. Since 2026-11-01 every function commit, targeted or full, then waits for a clean nightly before production — see "Targeted rounds". |
 | **Core and shared** | Scoring, handicaps, money, draws and brackets, sign-in and access, the database, the shells and stylesheets every screen stands on, the build | Batch it, and **one round that visits all six countries** on the commit that will be production, before it merges. It then reaches production only once **the nightly round** on main, on that commit or a later one containing it, is clean — the deploy job holds it until then. |
 | *Money or handicap arithmetic* (core) | `ARITHMETIC` in `layers.mjs` | **Three rounds**, all six countries, for now — until property-based tests and the nightly mutation ratchet are on main (`ARITHMETIC_KEEPS_THREE_ROUNDS`). And the nightly, as core. |
 
@@ -157,11 +157,32 @@ evidence about any spec outside the area and the always-on set.
 and the weekly (never targeted — `layersFor` refuses it), and any function change that is not
 plainly in one area.
 
-**The nightly is the full net, and the gate holds for it.** A commit whose files would be targeted
-does not deploy until a clean nightly contains it — exactly as a core commit (`nightlyWait` in
-`deploy-rules.mjs`, read off the commit's own files by the same plan, so nothing has to be
-labelled). With the nightly starting around 08:00 UTC, a targeted change merged in the day usually
-reaches production the next morning.
+**The nightly is the full net, and the gate holds for it.** EVERY commit that changes function —
+its round targeted or full — does not deploy until a clean nightly contains it, exactly as a core
+commit (`nightlyWait` in `deploy-rules.mjs`). The gate reads only the TIER of each commit's files and
+never asks the manifest: asked at the deploying commit, a later manifest edit (or turning targeting
+off) would otherwise re-read a held targeted commit as "full" and let it through unseen (the
+Operations/Reliability Lead's review of #982). It fails closed: a git command that fails stops the
+gate (exit 1, the deploy is red, nothing ships), and a commit whose files cannot be read waits. With
+the nightly starting around 08:00 UTC, a function change merged in the day usually reaches production
+the next morning.
+
+**The urgent path for a held fix during a live event:** run **`nightly.yml`** by hand (*Run
+workflow* on the Nightly round) on `main` once the fix is merged. Only a clean NIGHTLY round releases
+a held commit — a clean full `round/…` on that commit does not, because the gate reads Nightly runs
+only. *Override freeze* overrides the freeze and nothing else.
+
+**The cap on parts at a time is counted at plan time** (`round-cap.mjs`): it sees the jobs running
+when the round's plan job ran, not the ones that start after, and it does not count queued jobs. So a
+round planned on a quiet account can still crowd a CI run that starts later: watch the deploy job's
+queue time, by the panel's rule in `docs/release-strategy.md` step 9.
+
+**The manifest only lists what belongs to one area.** Every file an area names is imported by nothing
+outside that area's own paths (`outsideImporters`, swept over the whole manifest by
+`qa-framework.test.ts`). The first sweep (2026-11-01) moved about forty shared files out — among them
+`lib/owner.ts` (now core: the sign-in gate reads it), `services/messaging.ts`, `services/waitlist.ts`,
+`CommentaryFeed.tsx`, `services/event-report.ts` and `bracket-visibility.ts` — so a change to any of
+them gets a full round.
 
 **The two-week measurement** (from the first targeted round): for each targeted round, did the next
 nightly find something it did not, in its area or anywhere it could have reached? Each `retro.json`
@@ -392,8 +413,8 @@ re-run, which is not re-running a failure: it never got as far as a test.
 
 `deploy.yml` is the only way into production (called by `ci.yml` after `verify`, by the nightly
 after a clean round, hourly, and by hand). It deploys a commit when `verify` is green on it, every
-core commit since the last deploy — and, since 2026-11-01, every commit whose files would have had a
-TARGETED round — is in a clean nightly round, and no club is in its freeze — a
+core commit since the last deploy — and, since 2026-11-01, every function commit, its round targeted
+or full — is in a clean nightly round, and no club is in its freeze — a
 tournament on today in the club's own time, or Saturday and Sunday 05:00–14:00 in any club's zone.
 The app answers the freeze itself (`/api/deploy-window`, `{ frozen, reason }` only), because the
 runner may not hold production's database credentials. A held deploy is green and says why; the

@@ -708,7 +708,7 @@ export const TIERS = {
   function: {
     rank: 2,
     name: "Function in one area",
-    needs: "a browser test for it, proven by breaking the code; the standing suite; and ONE round on the commit that will be production, before it merges. When every file is in ONE area of specs-by-area.mjs that round is TARGETED (the area's specs and scenarios plus the always-on set), and the commit then waits for a clean nightly before production, as a core one does.",
+    needs: "a browser test for it, proven by breaking the code; the standing suite; and ONE round on the commit that will be production, before it merges. When every file is in ONE area of specs-by-area.mjs that round is TARGETED (the area's specs and scenarios plus the always-on set). Since 2026-11-01 EVERY function commit, targeted or full, waits for a clean nightly before production, as a core one does.",
   },
   core: {
     rank: 3,
@@ -823,7 +823,8 @@ export function roundPlan(paths) {
     countries: tier === "core" ? "all" : target ? target.countries : "trio",
     crawl: crawl.needed,
     crawlBecause: crawl.because,
-    nightly: tier === "core" || Boolean(target),
+    // Every function change waits for the nightly, targeted or not: the gate reads tiers, not the manifest (deploy-rules.mjs).
+    nightly: tier === "core" || tier === "function",
     arithmetic,
     target: target ? { area: target.area, name: target.name, specs: target.specs, scenarios: target.scenarios, countries: target.countries, countriesBecause: target.countriesBecause } : null,
     fullBecause: aimed && !aimed.targeted ? aimed.why : "",
@@ -911,6 +912,8 @@ export const TIER_RULES = [
   ["core", ["src/app/layout.tsx", "src/app/globals.css", "src/app/design-system.css", "src/app/fonts.ts", "src/app/(app)/layout.tsx", "src/app/(player)/layout.tsx", "src/lib/themes.ts", "src/lib/nav.ts", "src/lib/player-nav.ts", "src/lib/db.ts"]],
   // Core: who may do what.
   ["core", ["src/lib/auth.ts", "src/lib/play-auth.ts", "src/lib/roles.ts", "src/lib/access-roles.ts", "src/lib/secure-cookies.ts", "src/lib/rate-limit.ts", "src/lib/domain/session-token.ts", "src/lib/domain/password.ts", "src/lib/domain/access-lockout.ts", "src/lib/domain/rate-limit.ts", "src/lib/services/access.ts", "src/lib/services/org-access.ts", "src/lib/services/player-access.ts", "src/lib/services/match-access.ts", "src/lib/services/game-access.ts", "src/lib/services/action-shared.ts", "src/app/actions/auth.ts"]],
+  // Who the owners are: the sign-in gate reads it (`parseOwnerEmails`), so it is who may sign in at all.
+  ["core", ["src/lib/owner.ts", "src/lib/sign-in-gate.ts"]],
   // Core: the arithmetic of golf and of money, and who plays whom.
   ["core", ["src/lib/domain/stroke.ts", "src/lib/domain/stroke-agg.ts", "src/lib/domain/stroke-countback.ts", "src/lib/domain/match.ts", "src/lib/domain/match-tiebreak.ts", "src/lib/domain/handicap.ts", "src/lib/domain/handicap-policy.ts", "src/lib/domain/round-handicap.ts", "src/lib/domain/card-points.ts", "src/lib/domain/card-totals.ts", "src/lib/domain/ranked-score.ts", "src/lib/domain/standings.ts", "src/lib/domain/shared-position.ts", "src/lib/domain/cut.ts", "src/lib/domain/bracket.ts", "src/lib/domain/bracket-flights.ts", "src/lib/domain/draw.ts", "src/lib/domain/league-draw.ts", "src/lib/domain/grouping.ts", "src/lib/domain/team.ts", "src/lib/domain/team-match-standings.ts", "src/lib/domain/cup.ts", "src/lib/domain/pair-totals.ts"]],
   ["core", ["src/lib/domain/money.ts", "src/lib/domain/money-layout.ts", "src/lib/domain/money-mode.ts", "src/lib/domain/skins.ts", "src/lib/domain/skins-pot.ts", "src/lib/domain/nassau.ts", "src/lib/domain/derived-games.ts", "src/lib/domain/carry.ts", "src/lib/domain/expenses.ts", "src/lib/domain/score-payload.ts", "src/lib/services/scorecard-write.ts", "src/lib/services/handicaps.ts", "src/lib/services/round-handicap.ts", "src/lib/services/tournament.ts", "src/lib/services/skins-pot.ts", "src/lib/services/stroke-cut.ts", "src/lib/services/bracket-results.ts", "src/lib/services/finish-order.ts", "src/lib/services/intake-lock.ts", "src/lib/services/limits.ts", "src/lib/services/entitlements.ts", "src/lib/plans.ts"]],

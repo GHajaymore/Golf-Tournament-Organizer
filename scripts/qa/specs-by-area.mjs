@@ -60,17 +60,20 @@ export const ALWAYS_ON_LAYERS = ["text-boxes"];
  * files whose reach is held to reach-baseline.json in a targeted round.
  */
 export const AREAS = {
+  // Swept 2026-11-01 (the Operations/Reliability Lead's review of #982): every file listed here is
+  // imported by nothing outside its area's own paths (`outsideImporters`, held by qa-framework.test.ts).
+  // Taken out on that sweep, and so FULL rounds now: BracketClient, BracketModePicker,
+  // ThirdPlaceControl, bracket-visibility; services/print-kit; lib/owner (core: sign-in-gate reads it);
+  // services/early-list; RoundAvailability, RoundDaySetup, RoundExpiryBanner, RoundReadyCard,
+  // RoundVenue, actions/round-day, actions/round-expiry; EnterButton, WithdrawButton, lib/registration,
+  // services/registration, services/waitlist, actions/enter; TeeSheetPrint, actions/pairing,
+  // services/pairing; EventReport, FinalReport, ReportRecapEditor, ReportTie, lib/report/,
+  // services/event-report, services/final-report, services/event-report-sections; MessagesClient,
+  // AnnouncementCard, AnnouncementList, FoldedAnnouncements, services/messaging, services/announcements,
+  // actions/messaging, actions/draft-message; and the whole commentary area.
   bracket: {
-    name: "Brackets and knockouts",
-    paths: [
-      "src/app/(app)/bracket/",
-      "src/components/BracketClient.tsx",
-      "src/components/BracketFlights.tsx",
-      "src/components/BracketModePicker.tsx",
-      "src/components/BracketReports.tsx",
-      "src/components/ThirdPlaceControl.tsx",
-      "src/lib/bracket-visibility.ts",
-    ],
+    name: "Brackets and knockouts (the Bracket screen)",
+    paths: ["src/app/(app)/bracket/", "src/components/BracketFlights.tsx", "src/components/BracketReports.tsx"],
     specs: [
       "e2e/bracket-sections.spec.ts",
       "e2e/organizer-knockout.spec.ts",
@@ -85,7 +88,7 @@ export const AREAS = {
   },
   "print-kit": {
     name: "The print kit",
-    paths: ["src/app/(app)/print/", "src/components/print/", "src/components/print-face.ts", "src/app/actions/print-kit.ts", "src/lib/services/print-kit.ts"],
+    paths: ["src/app/(app)/print/", "src/components/print/", "src/components/print-face.ts", "src/app/actions/print-kit.ts"],
     specs: ["e2e/print-kit.spec.ts", "e2e/print-kit-fits.spec.ts", "e2e/print.spec.ts"],
     scenarios: [],
     // It prints the day and the tee times.
@@ -102,7 +105,6 @@ export const AREAS = {
       "src/components/OwnerLimits.tsx",
       "src/components/OwnerPricing.tsx",
       "src/app/actions/owner.ts",
-      "src/lib/owner.ts",
     ],
     specs: ["e2e/owner-console.spec.ts", "e2e/owner-console-refusals.spec.ts", "e2e/go-live-switch.spec.ts", "e2e/interest.spec.ts"],
     scenarios: [],
@@ -111,7 +113,7 @@ export const AREAS = {
   },
   interest: {
     name: "The early list (/interest)",
-    paths: ["src/app/interest/", "src/components/InterestForm.tsx", "src/app/actions/interest.ts", "src/lib/services/early-list.ts"],
+    paths: ["src/app/interest/", "src/components/InterestForm.tsx", "src/app/actions/interest.ts"],
     specs: ["e2e/interest.spec.ts", "e2e/early-list-says-free-no-card.spec.ts"],
     scenarios: [],
     dateSensitive: false,
@@ -119,19 +121,7 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: [
-      "src/app/(app)/stages/",
-      "src/components/StagesClient.tsx",
-      "src/components/RoundDaySetup.tsx",
-      "src/components/RoundVenue.tsx",
-      "src/components/RoundDeadlineControl.tsx",
-      "src/components/RoundClosedControl.tsx",
-      "src/components/RoundReadyCard.tsx",
-      "src/components/RoundAvailability.tsx",
-      "src/components/RoundExpiryBanner.tsx",
-      "src/app/actions/round-day.ts",
-      "src/app/actions/round-expiry.ts",
-    ],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
       "e2e/rounds-and-formats.spec.ts",
@@ -144,24 +134,18 @@ export const AREAS = {
     // Every scenario builds its rounds through this screen.
     scenarios: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"],
     dateSensitive: true,
-    actions: ["src/app/actions/round-day.ts", "src/app/actions/round-expiry.ts"],
+    actions: [],
   },
   registration: {
-    name: "Registration and entry",
+    name: "Registration and entry (the Entries screen and the entry form)",
     paths: [
       "src/app/(app)/registration/",
       "src/app/register/",
       "src/components/RegistrationClient.tsx",
       "src/components/RegisterClient.tsx",
-      "src/components/EnterButton.tsx",
-      "src/components/WithdrawButton.tsx",
       "src/components/DisqualifyPanel.tsx",
       "src/app/actions/register.ts",
-      "src/app/actions/enter.ts",
       "src/app/actions/disqualify.ts",
-      "src/lib/registration.ts",
-      "src/lib/services/registration.ts",
-      "src/lib/services/waitlist.ts",
     ],
     specs: [
       "e2e/entry-needs-approval.spec.ts",
@@ -176,42 +160,20 @@ export const AREAS = {
     scenarios: ["a"],
     // An entry closes on a day, and the day is the club's.
     dateSensitive: true,
-    actions: ["src/app/actions/register.ts", "src/app/actions/enter.ts", "src/app/actions/disqualify.ts"],
+    actions: ["src/app/actions/register.ts", "src/app/actions/disqualify.ts"],
   },
   "tee-sheet": {
     name: "The tee sheet",
-    paths: [
-      "src/app/(app)/foursomes/",
-      "src/components/FoursomeMaker.tsx",
-      "src/components/TeeSheetPrint.tsx",
-      "src/components/PairingRequests.tsx",
-      "src/app/actions/tee-sheet.ts",
-      "src/app/actions/pairing.ts",
-      "src/lib/services/pairing.ts",
-    ],
+    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/app/actions/tee-sheet.ts"],
     specs: ["e2e/organizer-teesheet.spec.ts", "e2e/play-with.spec.ts"],
     scenarios: [],
     // Tee times are read on the club's clock.
     dateSensitive: true,
-    actions: ["src/app/actions/tee-sheet.ts", "src/app/actions/pairing.ts"],
+    actions: ["src/app/actions/tee-sheet.ts"],
   },
   reports: {
-    name: "Reports",
-    paths: [
-      "src/app/(app)/reports/",
-      "src/components/ReportsClient.tsx",
-      "src/components/FinalReport.tsx",
-      "src/components/EventReport.tsx",
-      "src/components/ReportRecapEditor.tsx",
-      "src/components/ReportTie.tsx",
-      "src/components/PrintReportButton.tsx",
-      "src/components/AttendanceReport.tsx",
-      "src/lib/report/",
-      "src/lib/services/final-report.ts",
-      "src/lib/services/event-report.ts",
-      "src/lib/services/event-report-sections.ts",
-      "src/lib/services/attendance-report.ts",
-    ],
+    name: "Reports (the Reports screen)",
+    paths: ["src/app/(app)/reports/", "src/components/ReportsClient.tsx", "src/components/PrintReportButton.tsx", "src/components/AttendanceReport.tsx", "src/lib/services/attendance-report.ts"],
     specs: ["e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts"],
     scenarios: [],
     // A report writes the event's dates.
@@ -243,32 +205,12 @@ export const AREAS = {
     actions: [],
   },
   messages: {
-    name: "Messages and announcements",
-    paths: [
-      "src/app/(app)/messages/",
-      "src/app/(app)/announcements/",
-      "src/components/MessagesClient.tsx",
-      "src/components/AnnouncementCard.tsx",
-      "src/components/AnnouncementList.tsx",
-      "src/components/AnnouncementsClient.tsx",
-      "src/components/FoldedAnnouncements.tsx",
-      "src/app/actions/messaging.ts",
-      "src/app/actions/draft-message.ts",
-      "src/lib/services/messaging.ts",
-      "src/lib/services/announcements.ts",
-    ],
+    name: "Messages and announcements (the organizer's screens)",
+    paths: ["src/app/(app)/messages/", "src/app/(app)/announcements/", "src/components/AnnouncementsClient.tsx"],
     specs: ["e2e/messages.spec.ts", "e2e/messages-to-a-flight.spec.ts", "e2e/announcements.spec.ts", "e2e/organizer-announcements.spec.ts"],
     scenarios: [],
     dateSensitive: false,
-    actions: ["src/app/actions/messaging.ts", "src/app/actions/draft-message.ts"],
-  },
-  commentary: {
-    name: "Commentary",
-    paths: ["src/components/CommentaryFeed.tsx", "src/components/CommentaryPanel.tsx", "src/app/actions/commentary.ts"],
-    specs: ["e2e/commentary.spec.ts"],
-    scenarios: [],
-    dateSensitive: false,
-    actions: ["src/app/actions/commentary.ts"],
+    actions: [],
   },
   guide: {
     name: "The organizer's guide screen",
@@ -303,6 +245,7 @@ export const FULL_ONLY = [
   "e2e/club-staff.spec.ts",
   "e2e/club-theme.spec.ts",
   "e2e/code-event-no-mobile.spec.ts",
+  "e2e/commentary.spec.ts",
   "e2e/completing-asks-about-unplayed-rounds.spec.ts",
   "e2e/contest-sponsor.spec.ts",
   "e2e/country-words.spec.ts",
@@ -408,4 +351,27 @@ export function manifestProblems(m, specsOnDisk, exists, source) {
   for (const s of m.alwaysOn) if (m.fullOnly.includes(s)) problems.push(`${s} is ALWAYS_ON and FULL_ONLY`);
   for (const s of specsOnDisk) if (!placed.has(s)) problems.push(`${s} is in no area, not ALWAYS_ON and not FULL_ONLY: a targeted round would not know whether to run it`);
   return problems;
+}
+
+/**
+ * EVERY FILE AN AREA LISTS IS USED ONLY INSIDE THAT AREA — or a change to it is not a change in one
+ * area at all. A component the dashboard, a public board or the player's layout also imports is shared
+ * ground, and a targeted round of the area would not run the specs of the screens it reaches.
+ * (The Operations/Reliability Lead's review of #982, 2026-11-01: the first sweep moved forty files out.)
+ *
+ *   files        every source file in src/ (not tests), as repository paths
+ *   importers    Map: a source file → the files that import it
+ *
+ * Returns "area: file ← importer" for each import from outside the area's own paths. Pure, so the test
+ * can prove it sees one by handing it a graph with one.
+ */
+export function outsideImporters(areas, files, importers) {
+  const inside = (paths, f) => paths.some((p) => (p.endsWith("/") ? f.startsWith(p) : f === p));
+  const found = [];
+  for (const [key, a] of Object.entries(areas)) {
+    for (const f of files.filter((x) => inside(a.paths, x))) {
+      for (const i of importers.get(f) ?? []) if (!inside(a.paths, i)) found.push(`${key}: ${f} ← ${i}`);
+    }
+  }
+  return found;
 }

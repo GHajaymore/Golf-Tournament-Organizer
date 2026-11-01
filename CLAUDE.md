@@ -202,7 +202,7 @@ manual is `docs/testing.md`). In one paragraph, so nobody acts on the old rules:
 
 - **Rounds by tier**: tests, words and the front door need none; function in one area ONE —
   TARGETED (that area's specs + the always-on sweeps) when `scripts/qa/specs-by-area.mjs` places
-  every file in one area, and then it waits for the NIGHTLY before production; core
+  every file in one area; every function commit, targeted or full, then waits for the NIGHTLY; core
   ONE round that visits all six countries, and then it waits for the NIGHTLY before production;
   money or handicap arithmetic keeps THREE until property-based tests and the mutation ratchet are
   on main (`ARITHMETIC_KEEPS_THREE_ROUNDS` in `layers.mjs` is the switch). `npm run qa:changed`

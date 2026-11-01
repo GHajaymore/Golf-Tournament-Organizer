@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join, posix } from "node:path";
 import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose: the framework runs on a bare runner, before anything is installed.
 import { ABROAD, CRAWL_PARTS, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, findingsSaid, layersFor, partFile, partsFor, targetedSpecs, tierOf } from "../../../scripts/qa/layers.mjs";
-import { ALWAYS_ON, AREAS, FULL_ONLY, manifestProblems } from "../../../scripts/qa/specs-by-area.mjs";
+import { ALWAYS_ON, AREAS, FULL_ONLY, manifestProblems, outsideImporters } from "../../../scripts/qa/specs-by-area.mjs";
 import { BASELINE, VERDICTS, applyBreak } from "../../../scripts/qa/breaks.mjs";
 
 /**
@@ -465,6 +465,54 @@ describe("the targeted-round manifest is held to the files on disk", () => {
     // …and an area path that is gone.
     const moved = { ...manifest, areas: { ...AREAS, guide: { ...AREAS.guide, paths: ["src/components/ZzMovedAway.tsx"] } } };
     expect(manifestProblems(moved, specsOnDisk(), exists, source).join("\n")).toContain("ZzMovedAway.tsx, which is not there");
+  });
+
+  /** Every source file in src/ (not tests) and who imports it — `from "…"` and `import("…")`, `@/` and relative. */
+  function importGraph() {
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(at(dir))) {
+        const path = `${dir}/${name}`;
+        if (statSync(at(path)).isDirectory()) {
+          if (name !== "__tests__") walk(path);
+        } else if (/\.(ts|tsx|mjs)$/.test(name) && !/\.test\./.test(name)) files.push(path);
+      }
+    };
+    walk("src");
+    const known = new Set(files);
+    const resolve = (from: string, spec: string) => {
+      let base: string;
+      if (spec.startsWith("@/")) base = `src/${spec.slice(2)}`;
+      else if (spec.startsWith(".")) base = posix.normalize(posix.join(posix.dirname(from), spec));
+      else return null;
+      return [base, `${base}.ts`, `${base}.tsx`, `${base}.mjs`, `${base}/index.ts`, `${base}/index.tsx`].find((c) => known.has(c)) ?? null;
+    };
+    const importers = new Map<string, Set<string>>();
+    for (const f of files) {
+      for (const m of readVerbatim(f).matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
+        const target = resolve(f, m[1]);
+        if (!target) continue;
+        if (!importers.has(target)) importers.set(target, new Set());
+        importers.get(target)!.add(f);
+      }
+    }
+    return { files, importers };
+  }
+
+  it("every file an area lists is imported by nothing outside that area — swept over the WHOLE manifest", () => {
+    const { files, importers } = importGraph();
+    // CONTROL that the graph is real: a file known to be shared is seen with its importers.
+    expect([...(importers.get("src/components/BracketClient.tsx") ?? [])]).toContain("src/app/(app)/leaderboard/page.tsx");
+    expect(outsideImporters(AREAS, files, importers)).toEqual([]);
+  });
+
+  it("CONTROL: an import from outside an area is found", () => {
+    const { files, importers } = importGraph();
+    const withShared = { ...AREAS, bracket: { ...AREAS.bracket, paths: [...AREAS.bracket.paths, "src/components/BracketClient.tsx"] } };
+    expect(outsideImporters(withShared, files, importers).join("\n")).toContain("bracket: src/components/BracketClient.tsx ← src/app/(app)/leaderboard/page.tsx");
+    // And on a graph made by hand: one importer outside, one inside.
+    const fake = new Map([["src/x/a.ts", new Set(["src/x/b.ts", "src/y/c.ts"])]]);
+    expect(outsideImporters({ zz: { paths: ["src/x/"] } }, ["src/x/a.ts", "src/x/b.ts", "src/y/c.ts"], fake)).toEqual(["zz: src/x/a.ts ← src/y/c.ts"]);
   });
 
   it("CONTROL: an area whose spec reads dates but says it does not is refused", () => {

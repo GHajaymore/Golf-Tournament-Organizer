@@ -107,7 +107,7 @@ if (plan.rounds === 0) {
 }
 console.log(
   plan.nightly
-    ? `AND BEFORE PRODUCTION: the nightly round on main (scheduled 02:00 UTC; it has been starting 07:30–08:15 UTC), on this commit or a later one containing it, must be clean${plan.target ? " — because its round was targeted, not full" : ""}. The deploy job holds the change until then and deploys it after.`
+    ? `AND BEFORE PRODUCTION: the nightly round on main (scheduled 02:00 UTC; it has been starting 07:30–08:15 UTC), on this commit or a later one containing it, must be clean${plan.tier === "function" ? " — every function change waits for it since 2026-11-01, targeted round or full" : ""}. The deploy job holds the change until then and deploys it after.`
     : "AND BEFORE PRODUCTION: nothing more — the deploy job ships it once `verify` is green, outside a deploy freeze.",
 );
 console.log("");

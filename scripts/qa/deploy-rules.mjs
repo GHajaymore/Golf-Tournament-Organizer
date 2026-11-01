@@ -18,25 +18,45 @@
  * Decisions: "deploy", "hold" (not now: a reason, and the hourly deploy.yml or
  * the nightly will try again), "done" (production already has this commit).
  *
- * SINCE 2026-11-01 rule 2 has a second kind of commit in it: one that merged on a
- * TARGETED round (specs-by-area.mjs) — its round ran the area's specs and the
- * always-on set, not every spec, so the full suite has not yet seen it, and it
- * waits for the nightly exactly as a core commit does. Which commits those are is
- * read off each commit's own FILES (`nightlyWait`), by the same function that
- * planned the round (`roundPlan`): nobody has to remember to label anything, and
- * a commit whose files would not be targeted today is not held.
+ * SINCE 2026-11-01 rule 2 holds EVERY commit that changes function, not only core:
+ * targeted rounds (specs-by-area.mjs) run an area's specs, not every spec, so the
+ * full suite has not yet seen such a commit. The gate does NOT ask the manifest
+ * which commits were targeted: asked at the deploying commit, a later edit of the
+ * manifest (or turning targeting off) would reclassify a held targeted commit as
+ * "full" and let it through unseen (the Operations/Reliability Lead's review of
+ * #982). So the rule reads only the TIER of each commit's files: core or function
+ * waits for a clean nightly; tests and words do not. Fail-closed: a commit whose
+ * files cannot be read waits too.
  */
-import { roundPlan } from "./layers.mjs";
+import { tierOf } from "./layers.mjs";
 
 /**
  * Whether a commit, by the files it changed, must be inside a clean nightly before production:
- * "core", "targeted" (function in one area, whose round was cut to that area), or null.
+ * "core", "function" (whether its round was targeted or full), "unknown" (no files could be read —
+ * it waits, the safe mistake), or null (tests and words only).
  */
 export function nightlyWait(files) {
-  const plan = roundPlan(files);
-  if (plan.tier === "core") return "core";
-  if (plan.target) return "targeted";
+  if (!files || !files.length) return "unknown";
+  const tiers = files.map(tierOf);
+  if (tiers.includes("core")) return "core";
+  if (tiers.includes("function")) return "function";
   return null;
+}
+
+/** A git or gh result that must have succeeded: anything else THROWS, so the gate exits 1 and nothing ships. */
+export function mustSucceed(result, what) {
+  if (!result || result.status !== 0) throw new Error(`${what} failed (exit ${result?.status ?? "none"}): ${String(result?.stderr ?? "").trim().slice(0, 200)}`);
+  return result.stdout;
+}
+
+/** The commits of `list` that wait for the nightly, with why: `filesOf(sha)` is each commit's changed files. */
+export function commitsWaiting(list, filesOf, subjectOf = () => "") {
+  const waiting = [];
+  for (const sha of list) {
+    const kind = nightlyWait(filesOf(sha));
+    if (kind) waiting.push({ sha, kind, subject: subjectOf(sha) });
+  }
+  return waiting;
 }
 
 /**
@@ -46,7 +66,7 @@ export function nightlyWait(files) {
  * @param {string|null} f.deployed          the commit production holds, or null when nobody can tell
  * @param {boolean} f.alreadyThere          `sha` is `deployed` or an ancestor of it
  * @param {Array<{sha:string, subject:string, kind?:string}>} f.coreCommits   commits in deployed..sha that wait for
- *                                          the nightly (`nightlyWait`): kind "core", or "targeted"
+ *                                          the nightly (`nightlyWait`): kind "core", "function" or "unknown"
  * @param {Array<{sha:string}>} f.uncovered  of those, the ones no clean nightly contains
  * @param {boolean} [f.nightlyCoversSha]    a clean nightly round contains `sha` itself (asked when `deployed` is unknown)
  * @param {{checked:boolean, frozen:boolean, reason:string}} f.window   the freeze, as the app answered
@@ -62,16 +82,15 @@ export function decideDeploy(f) {
     if (!f.nightlyCoversSha) return { decision: "hold", reason: `cannot tell which commit production holds, so ${short(f.sha)} waits for a clean nightly round that contains it`, notes };
     notes.push("which commit production holds could not be read; a clean nightly round contains this one, so it goes");
   } else if (f.uncovered.length) {
-    const list = f.uncovered.slice(0, 5).map((c) => `${short(c.sha)}${c.kind === "targeted" ? " (merged on a TARGETED round)" : ""} ${c.subject}`).join("; ");
-    const targeted = f.uncovered.filter((c) => c.kind === "targeted").length;
-    const what = targeted === f.uncovered.length ? "change(s) merged on a TARGETED round" : targeted ? `core change(s) and change(s) merged on a TARGETED round (${targeted})` : "core change(s)";
+    const list = f.uncovered.slice(0, 5).map((c) => `${short(c.sha)}${c.kind && c.kind !== "core" ? ` (${c.kind})` : ""} ${c.subject}`).join("; ");
+    const what = f.uncovered.every((c) => !c.kind || c.kind === "core") ? "core change(s)" : "core or function change(s)";
     return {
       decision: "hold",
       reason: `${f.uncovered.length} ${what} since production's ${short(f.deployed)} wait for a clean nightly round that contains them: ${list}${f.uncovered.length > 5 ? " …" : ""}`,
       notes,
     };
   }
-  if (f.coreCommits.length) notes.push(`${f.coreCommits.length} change(s) since the last deploy that wait for the nightly (core, or merged on a targeted round), each in a clean nightly round`);
+  if (f.coreCommits.length) notes.push(`${f.coreCommits.length} core or function change(s) since the last deploy, each in a clean nightly round`);
   if (f.overrideFreeze) {
     notes.push(`the freeze was OVERRIDDEN by hand${f.window.checked && f.window.frozen ? ` — it said: ${f.window.reason}` : ""}`);
   } else if (!f.window.checked) {
@@ -79,7 +98,7 @@ export function decideDeploy(f) {
   } else if (f.window.frozen) {
     return { decision: "hold", reason: `deploy freeze: ${f.window.reason}`, notes };
   }
-  return { decision: "deploy", reason: `${short(f.sha)} may go: verify is green${f.coreCommits.length ? ", its core and targeted changes are in a clean nightly round" : ", no core or targeted change waits for the nightly"}${f.overrideFreeze ? ", and the freeze was overridden" : ", and no club is in its freeze"}`, notes };
+  return { decision: "deploy", reason: `${short(f.sha)} may go: verify is green${f.coreCommits.length ? ", its core and function changes are in a clean nightly round" : ", no core or function change waits for the nightly"}${f.overrideFreeze ? ", and the freeze was overridden" : ", and no club is in its freeze"}`, notes };
 }
 
 /**

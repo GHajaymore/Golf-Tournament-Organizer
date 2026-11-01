@@ -8,7 +8,7 @@
  * decision. On a runner it also writes `decision`, `reason` and `deployed` to
  * $GITHUB_OUTPUT and the reasoning to the job's summary. Exit 0 whatever it
  * decides — holding a deploy is the gate WORKING, and must not read as red —
- * and exit 1 only when it could not ask GitHub at all.
+ * and exit 1 when it could not ask GitHub or git (fail closed: the deploy is red, nothing ships).
  *
  * THE FACTS, and where each comes from:
  *
@@ -19,8 +19,8 @@
  *                "Deploy to production" job got through its `Deploy` step (which
  *                is how every deploy before this gate is found)
  *   waiting      every commit in deployed..sha whose files `nightlyWait`
- *                (deploy-rules.mjs) says must wait for the nightly: core, or
- *                targeted (its round was cut to one area) — commit by commit,
+ *                (deploy-rules.mjs) says must wait for the nightly: core or
+ *                function (targeted round or full), or unreadable — commit by commit,
  *                not the range's net diff, so a change made and undone still counts
  *   nightly      the Nightly round's runs on main whose Verdict job succeeded (finished or
                 still running: the round asking is its own deploy's run);
@@ -37,7 +37,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { decideDeploy, cleanNightlyShas, nightlyWait } from "./deploy-rules.mjs";
+import { decideDeploy, cleanNightlyShas, commitsWaiting, mustSucceed } from "./deploy-rules.mjs";
 
 export const PRODUCTION_ENVIRONMENT = "tourneyhq-production";
 const args = process.argv.slice(2);
@@ -55,7 +55,15 @@ function gh(...a) {
   if (r.status !== 0) throw new Error(`gh ${a.join(" ")}: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
   return r.stdout.trim() ? JSON.parse(r.stdout) : null;
 }
-const isAncestor = (a, b) => git("merge-base", "--is-ancestor", a, b).status === 0;
+/** A git command whose failure must stop the gate (exit 1: the deploy is red and nothing ships), never read as "nothing". */
+const gitOut = (...a) => mustSucceed(git(...a), `git ${a.join(" ")}`);
+/** 0 is yes and 1 is no; anything else is git failing, which must not be read as either. */
+function isAncestor(a, b) {
+  const r = git("merge-base", "--is-ancestor", a, b);
+  if (r.status === 0) return true;
+  if (r.status === 1) return false;
+  return mustSucceed(r, `git merge-base --is-ancestor ${a} ${b}`);
+}
 
 function verifyGreen(sha) {
   const runs = gh("api", `repos/${REPO}/commits/${sha}/check-runs?check_name=verify&per_page=100`);
@@ -88,20 +96,18 @@ function deployedSha() {
 }
 
 /**
- * The commits in deployed..sha that wait for a clean nightly, oldest first: core ones, and (since
- * 2026-11-01) ones whose files would have been given a TARGETED round — read off the commit's own
- * files by `nightlyWait`, the same plan that cut its round, so nothing has to be labelled.
+ * The commits in deployed..sha that wait for a clean nightly, oldest first: every core or function
+ * commit (since 2026-11-01, whether its round was targeted or full — `nightlyWait` reads tiers, never
+ * the manifest), and any commit whose files could not be read. A git failure THROWS (fail closed).
  */
 function waitingCommitsSince(deployed, sha) {
   const range = deployed ? `${deployed}..${sha}` : sha;
-  const list = git("rev-list", "--reverse", ...(deployed ? [range] : ["-1", sha])).stdout.split("\n").filter(Boolean);
-  const waiting = [];
-  for (const c of list) {
-    const files = git("diff-tree", "--no-commit-id", "--name-only", "-r", "-m", c).stdout.split("\n").filter(Boolean);
-    const kind = nightlyWait(files);
-    if (kind) waiting.push({ sha: c, kind, subject: git("log", "-1", "--format=%s", c).stdout.trim().slice(0, 80) });
-  }
-  return waiting;
+  const list = gitOut("rev-list", "--reverse", ...(deployed ? [range] : ["-1", sha])).split(/\r?\n/).filter(Boolean);
+  return commitsWaiting(
+    list,
+    (c) => gitOut("diff-tree", "--no-commit-id", "--name-only", "-r", "-m", c).split(/\r?\n/).filter(Boolean),
+    (c) => gitOut("log", "-1", "--format=%s", c).trim().slice(0, 80),
+  );
 }
 
 /** The commits a Nightly round was clean on: its Verdict job succeeded. */
@@ -160,7 +166,7 @@ try {
     overrideFreeze: OVERRIDE,
   });
 } catch (e) {
-  console.error(`DEPLOY GATE: could not ask GitHub — ${e instanceof Error ? e.message : String(e)}`);
+  console.error(`DEPLOY GATE: could not ask GitHub or git — nothing deploys — ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
 }
 
