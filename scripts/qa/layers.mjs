@@ -37,7 +37,11 @@
  *   a new country,      a row in LOCALES / CURRENCIES is swept by
  *   currency or device  `formats-agree`; a new place for the seeded club is a
  *                       line in `scripts/seed-club.mjs` and in ABROAD below.
+ *   a new spec          a line in `specs-by-area.mjs`: in the area it tests, in
+ *                       ALWAYS_ON, or in FULL_ONLY (`qa-framework.test.ts` fails
+ *                       until it is in one). See TARGETED ROUNDS below.
  */
+import { ALWAYS_ON, AREAS } from "./specs-by-area.mjs";
 
 /** Screens, layout and touch: what changes with the size and kind of screen, and with the engine drawing it. */
 export const SCREEN_SPECS = [
@@ -99,7 +103,9 @@ export const ABROAD = [
 export const SCHEDULES = {
   all: "every layer, one after another (a round on one machine)",
   pr: "the round a change asks for before it merges",
-  nightly: "the full round on main, every night at 02:00 UTC, with all six countries and the console crawl in full",
+  // Scheduled for 02:00 UTC; GitHub starts a scheduled run when it has room, and the last eight
+  // nights (to 2026-10-31) it started between 07:30 and 08:15 UTC.
+  nightly: "the full round on main, every night (scheduled 02:00 UTC; it has been starting 07:30–08:15 UTC), with all six countries and the console crawl in full",
   weekly: "Chrome and Edge as installed, and the front door with its animation on, every Sunday",
 };
 
@@ -118,12 +124,55 @@ export const COUNTRY_MODES = ["trio", "all"];
  * layer, and the round number picks the three countries, exactly as before.
  */
 export function layersFor(round, plan = {}) {
-  const { schedule = "all", countries = "trio" } = plan;
+  const { schedule = "all", countries = "trio", target = null } = plan;
   if (!SCHEDULES[schedule]) throw new Error(`no schedule called "${schedule}" — one of ${Object.keys(SCHEDULES).join(", ")}`);
   if (!COUNTRY_MODES.includes(countries)) throw new Error(`no country mode called "${countries}" — one of ${COUNTRY_MODES.join(", ")}`);
+  if (target && !AREAS[target]) throw new Error(`no area called "${target}" in specs-by-area.mjs — one of ${Object.keys(AREAS).join(", ")}`);
+  if (target && schedule !== "pr") throw new Error(`a targeted round is a change's round (schedule pr), not "${schedule}": the nightly and the weekly are always full`);
   const abroad = countries === "all" ? ABROAD.flat() : ABROAD[(Math.max(1, round) - 1) % ABROAD.length];
   const every = everyLayer(abroad);
-  return schedule === "all" ? every : every.filter((layer) => layer.when.includes(schedule));
+  const chosen = schedule === "all" ? every : every.filter((layer) => layer.when.includes(schedule));
+  return target ? targeted(chosen, target) : chosen;
+}
+
+/**
+ * TARGETED ROUNDS (the QA & Test Lead with the testing panel, 2026-11-01; `specs-by-area.mjs`).
+ *
+ * A change of "function in one area" whose every file the manifest places in ONE area (`targetFor`)
+ * gets a round in which every layer that runs THE WHOLE SUITE (the suite, the iPhone, Firefox) runs
+ * instead that area's specs and the always-on set, at the same sizes; the scenarios are the area's
+ * own; and every layer that runs a fixed list (the text-box crawl, the walks, Safari's and the iPad's
+ * screen layers) is kept as it is. The nightly runs everything, and the deploy gate holds the commit
+ * until a clean one contains it (`nightlyWait` in deploy-rules.mjs).
+ */
+export function targetedSpecs(area) {
+  return [...new Set([...AREAS[area].specs, ...ALWAYS_ON])];
+}
+
+/** The words every report of a targeted round carries, so nobody mistakes it for a full one. */
+export function targetLine(area) {
+  const a = AREAS[area];
+  const scenarios = a.scenarios.length ? `, scenario${a.scenarios.length > 1 ? "s" : ""} ${a.scenarios.join(", ")}` : "";
+  return `TARGETED round: ${area} — ${a.specs.length} specs${scenarios} + the always-on set; the full suite runs in the nightly`;
+}
+
+function targeted(layers, area) {
+  const a = AREAS[area];
+  const specs = targetedSpecs(area);
+  const out = [];
+  for (const layer of layers) {
+    if (layer.kind === "scenarios") {
+      // Only the area's own tournaments; an area with none plays none (the nightly plays all eleven).
+      if (a.scenarios.length) out.push({ ...layer, only: a.scenarios, name: `${layer.name} — the area's ${a.scenarios.length} (TARGETED)`, reallyIs: `TARGETED (${a.name}): scenario${a.scenarios.length > 1 ? "s" : ""} ${a.scenarios.join(", ")} only — ${layer.reallyIs}` });
+      continue;
+    }
+    if (!layer.kind && layer.specs.length === 0) {
+      out.push({ ...layer, specs, targeted: area, reallyIs: `TARGETED (${a.name}): the area's ${a.specs.length} specs and the always-on set (${ALWAYS_ON.length}), NOT every spec — in place of: ${layer.reallyIs}` });
+      continue;
+    }
+    out.push(layer);
+  }
+  return out;
 }
 
 const PR_AND_NIGHTLY = ["pr", "nightly"];
@@ -479,7 +528,7 @@ export function partsFor(round, plan = {}) {
   const crawlWanted = plan.crawl !== false;
   for (const layer of layersFor(round, plan)) {
     if (layer.kind === "scenarios") {
-      for (const s of SCENARIOS) parts.push({ id: `scenario-${s.key}`, layer: layer.key, args: `--only=scenarios --scenario=${s.key}`, browsers: "chromium", minutes: 45 });
+      for (const s of SCENARIOS.filter((x) => !layer.only || layer.only.includes(x.key))) parts.push({ id: `scenario-${s.key}`, layer: layer.key, args: `--only=scenarios --scenario=${s.key}`, browsers: "chromium", minutes: 45 });
       continue;
     }
     if (layer.kind === "command") {
@@ -489,10 +538,13 @@ export function partsFor(round, plan = {}) {
     }
     const browsers = layer.env?.E2E_ENGINE ?? (layer.env?.E2E_CHANNEL ? `chromium ${layer.env.E2E_CHANNEL}` : "chromium");
     const projects = layer.projects.length ? layer.projects : all;
-    // Only the layers that run EVERY spec are worth cutting; a walk is three tests.
-    if (layer.specs.length === 0) {
+    // Only the layers that run EVERY spec are worth cutting; a walk is three tests. A targeted round's
+    // stand-in for every spec is cut by size the same way (each size its own part, the crawl its shares),
+    // but not by --shard: its list is a fraction of the suite, and a shard of it can hold only tests that
+    // skip at that size, which the verdict would rightly call a part that tested nothing.
+    if (layer.specs.length === 0 || layer.targeted) {
       for (const project of projects) {
-        const shards = SHARDS[`${layer.key}:${project}`] ?? 1;
+        const shards = layer.targeted ? 1 : SHARDS[`${layer.key}:${project}`] ?? 1;
         // The console crawl is one test, on the laptop size of the suite, and as long as everything
         // else in that size together. It is taken out of the shards and given parts of its own.
         const crawl = layer.key === "suite" && project === "desktop" ? CRAWL_PARTS : 0;
@@ -656,7 +708,7 @@ export const TIERS = {
   function: {
     rank: 2,
     name: "Function in one area",
-    needs: "a browser test for it, proven by breaking the code; the standing suite; and ONE round on the commit that will be production, before it merges.",
+    needs: "a browser test for it, proven by breaking the code; the standing suite; and ONE round on the commit that will be production, before it merges. When every file is in ONE area of specs-by-area.mjs that round is TARGETED (the area's specs and scenarios plus the always-on set). Since 2026-11-01 EVERY function commit, targeted or full, waits for a clean nightly before production, as a core one does.",
   },
   core: {
     rank: 3,
@@ -752,22 +804,94 @@ export function crawlNeeded(paths) {
  *   crawl         whether those rounds run the console crawl
  *   nightly       true: it does not reach production until a clean nightly round contains it
  *   arithmetic    the money and handicap files that keep it at three rounds, if any
+ *   target        a function change's round cut to ONE area (`targetFor`), or null: a full round
+ *   fullBecause   for a function change that is not targeted, the file that made it full
  */
 export function roundPlan(paths) {
   const clean = paths.map((p) => p.replace(/\\/g, "/"));
-  if (!clean.length) return { tier: "none", rounds: 0, countries: "trio", crawl: false, crawlBecause: [], nightly: false, arithmetic: [] };
+  if (!clean.length) return { tier: "none", rounds: 0, countries: "trio", crawl: false, crawlBecause: [], nightly: false, arithmetic: [], target: null, fullBecause: "" };
   const tier = clean.map(tierOf).sort((a, b) => TIERS[b].rank - TIERS[a].rank)[0];
   const arithmetic = tier === "core" ? clean.filter((p) => ARITHMETIC.includes(p)) : [];
   const rounds = tier === "core" ? (arithmetic.length && ARITHMETIC_KEEPS_THREE_ROUNDS ? 3 : 1) : tier === "function" ? 1 : 0;
-  const crawl = rounds > 0 ? crawlNeeded(clean) : { needed: false, because: [] };
+  const aimed = tier === "function" ? targetFor(clean) : null;
+  const target = aimed?.targeted ? aimed : null;
+  // A targeted round always runs the console crawl: it is one of the sweeps that saw what the area's specs did not.
+  const crawl = target ? { needed: true, because: ["a targeted round always runs the console crawl"] } : rounds > 0 ? crawlNeeded(clean) : { needed: false, because: [] };
   return {
     tier,
     rounds,
-    countries: tier === "core" ? "all" : "trio",
+    countries: tier === "core" ? "all" : target ? target.countries : "trio",
     crawl: crawl.needed,
     crawlBecause: crawl.because,
-    nightly: tier === "core",
+    // Every function change waits for the nightly, targeted or not: the gate reads tiers, not the manifest (deploy-rules.mjs).
+    nightly: tier === "core" || tier === "function",
     arithmetic,
+    target: target ? { area: target.area, name: target.name, specs: target.specs, scenarios: target.scenarios, countries: target.countries, countriesBecause: target.countriesBecause } : null,
+    fullBecause: aimed && !aimed.targeted ? aimed.why : "",
+  };
+}
+
+/** The areas of specs-by-area.mjs a source path belongs to. */
+export function areasOfPath(path) {
+  const clean = path.replace(/\\/g, "/");
+  return Object.entries(AREAS).filter(([, a]) => a.paths.some((p) => matches(p, clean))).map(([k]) => k);
+}
+
+/** The areas that list a spec. */
+export function areasOfSpec(path) {
+  const clean = path.replace(/\\/g, "/");
+  return Object.entries(AREAS).filter(([, a]) => a.specs.includes(clean)).map(([k]) => k);
+}
+
+/**
+ * WHETHER A CHANGE'S ROUND MAY BE TARGETED, and at which area — FAIL-SAFE: any file that is not
+ * plainly inside one area makes it a full round, and the answer says which file.
+ *
+ *   words (docs, the guide's and Help's text)       ride along: they cannot change what a screen does
+ *   a unit test, or a helper of the unit tests      ride along: it ships to nobody
+ *   an e2e spec the area lists                      rides along, and must be in the SAME area
+ *   any other test or tooling (an e2e helper, a fixture, scripts/qa/, .github/, the Playwright config)
+ *                                                   full: it changes how every spec runs
+ *   function in one area, named by an area          targets that area — every such file the same one
+ *   function no area names; core; the front door    full (core is also all six countries and the nightly)
+ */
+export function targetFor(paths) {
+  const clean = paths.map((p) => p.replace(/\\/g, "/"));
+  const full = (why) => ({ targeted: false, why });
+  if (!clean.length) return full("nothing changed");
+  let common = null;
+  let functional = 0;
+  const narrow = (keys) => {
+    common = common ? common.filter((k) => keys.includes(k)) : keys;
+  };
+  for (const path of clean) {
+    const tier = tierOf(path);
+    if (tier === "words") continue;
+    if (tier === "tests") {
+      if (path.startsWith("src/")) continue;
+      const keys = path.startsWith("e2e/") && !path.startsWith("e2e/scenarios/") ? areasOfSpec(path) : [];
+      if (!keys.length) return full(`${path} is test tooling no one area owns (an e2e helper, a scenario, scripts/qa/, .github/ or a config changes how every spec runs)`);
+      narrow(keys);
+      continue;
+    }
+    if (tier !== "function") return full(`${path} is ${TIERS[tier].name}`);
+    const keys = areasOfPath(path);
+    if (!keys.length) return full(`${path} is in no area of scripts/qa/specs-by-area.mjs`);
+    narrow(keys);
+    functional += 1;
+  }
+  if (!functional) return full("it changes no function in an area");
+  if (!common.length) return full("its files are in more than one area");
+  const area = common[0];
+  const a = AREAS[area];
+  return {
+    targeted: true,
+    area,
+    name: a.name,
+    specs: a.specs,
+    scenarios: a.scenarios,
+    countries: a.dateSensitive ? "all" : "trio",
+    countriesBecause: a.dateSensitive ? "the area's specs read days, times or zones, so all six countries" : "the area's specs read no day, time or zone, so the three that round's number picks (as any function round)",
   };
 }
 
@@ -788,6 +912,8 @@ export const TIER_RULES = [
   ["core", ["src/app/layout.tsx", "src/app/globals.css", "src/app/design-system.css", "src/app/fonts.ts", "src/app/(app)/layout.tsx", "src/app/(player)/layout.tsx", "src/lib/themes.ts", "src/lib/nav.ts", "src/lib/player-nav.ts", "src/lib/db.ts"]],
   // Core: who may do what.
   ["core", ["src/lib/auth.ts", "src/lib/play-auth.ts", "src/lib/roles.ts", "src/lib/access-roles.ts", "src/lib/secure-cookies.ts", "src/lib/rate-limit.ts", "src/lib/domain/session-token.ts", "src/lib/domain/password.ts", "src/lib/domain/access-lockout.ts", "src/lib/domain/rate-limit.ts", "src/lib/services/access.ts", "src/lib/services/org-access.ts", "src/lib/services/player-access.ts", "src/lib/services/match-access.ts", "src/lib/services/game-access.ts", "src/lib/services/action-shared.ts", "src/app/actions/auth.ts"]],
+  // Who the owners are: the sign-in gate reads it (`parseOwnerEmails`), so it is who may sign in at all.
+  ["core", ["src/lib/owner.ts", "src/lib/sign-in-gate.ts"]],
   // Core: the arithmetic of golf and of money, and who plays whom.
   ["core", ["src/lib/domain/stroke.ts", "src/lib/domain/stroke-agg.ts", "src/lib/domain/stroke-countback.ts", "src/lib/domain/match.ts", "src/lib/domain/match-tiebreak.ts", "src/lib/domain/handicap.ts", "src/lib/domain/handicap-policy.ts", "src/lib/domain/round-handicap.ts", "src/lib/domain/card-points.ts", "src/lib/domain/card-totals.ts", "src/lib/domain/ranked-score.ts", "src/lib/domain/standings.ts", "src/lib/domain/shared-position.ts", "src/lib/domain/cut.ts", "src/lib/domain/bracket.ts", "src/lib/domain/bracket-flights.ts", "src/lib/domain/draw.ts", "src/lib/domain/league-draw.ts", "src/lib/domain/grouping.ts", "src/lib/domain/team.ts", "src/lib/domain/team-match-standings.ts", "src/lib/domain/cup.ts", "src/lib/domain/pair-totals.ts"]],
   ["core", ["src/lib/domain/money.ts", "src/lib/domain/money-layout.ts", "src/lib/domain/money-mode.ts", "src/lib/domain/skins.ts", "src/lib/domain/skins-pot.ts", "src/lib/domain/nassau.ts", "src/lib/domain/derived-games.ts", "src/lib/domain/carry.ts", "src/lib/domain/expenses.ts", "src/lib/domain/score-payload.ts", "src/lib/services/scorecard-write.ts", "src/lib/services/handicaps.ts", "src/lib/services/round-handicap.ts", "src/lib/services/tournament.ts", "src/lib/services/skins-pot.ts", "src/lib/services/stroke-cut.ts", "src/lib/services/bracket-results.ts", "src/lib/services/finish-order.ts", "src/lib/services/intake-lock.ts", "src/lib/services/limits.ts", "src/lib/services/entitlements.ts", "src/lib/plans.ts"]],
