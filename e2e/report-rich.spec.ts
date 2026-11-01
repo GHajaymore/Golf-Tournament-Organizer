@@ -126,6 +126,28 @@ test.describe("on a phone, and on paper", () => {
       await open(page, seeded.events[key].shareToken);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, key).toBeLessThanOrEqual(0);
+      // The overflow above depends on the font: with Oswald loaded a knockout's figure ("beat … in
+      // the final at the 19th") fitted, and the champion's name was squeezed to one letter a line
+      // instead; with the fallback font on CI it pushed the page 80px. So also: no name or figure in
+      // the prize list is broken INSIDE a word — a word drawn on two lines is a column too narrow.
+      const broken = await page.evaluate(() => {
+        const out: string[] = [];
+        for (const el of document.querySelectorAll(".fr-lead-line .fr-ln, .fr-lead-line .fr-lf")) {
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            const text = n.textContent ?? "";
+            for (const m of text.matchAll(/\S+/g)) {
+              const r = document.createRange();
+              r.setStart(n, m.index!);
+              r.setEnd(n, m.index! + m[0].length);
+              const tops = new Set([...r.getClientRects()].map((q) => Math.round(q.top)));
+              if (tops.size > 1) out.push(`${el.className}: "${m[0]}"`);
+            }
+          }
+        }
+        return out;
+      });
+      expect(broken, key).toEqual([]);
       const small = await page.evaluate(() => {
         const out: string[] = [];
         for (const el of document.querySelectorAll(".fr-hole b, .fr-bar-fig, .fr-lf, .fr-weeks .fr-figs")) {
