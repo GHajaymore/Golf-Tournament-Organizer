@@ -39,8 +39,11 @@ export interface EventRow {
   isCasual?: boolean;
   /** Not launched, and its last day has gone by at the club (`datesPassedUnlaunched`). */
   datesPassed?: boolean;
-  /** The day it was created, written the club's way — only when another tournament shares its name. */
-  createdOn?: string;
+  /**
+   * How it is told apart from another tournament of the same name — its dates the club's way,
+   * and "#2" where they are shared too (`tellApart`). Empty when its name is its own.
+   */
+  toldApart?: string;
 }
 
 /** Said where the bin is pressed by somebody who may not delete (`deleteEvent`'s one refusal). */
@@ -200,8 +203,7 @@ export function EventSwitcher({
                   <td style={{ fontWeight: 500 }}>
                     {e.name || "Untitled"}
                     <div className="text-muted" style={{ fontSize: 13 }}>
-                      {e.dates || "No dates set"}
-                      {e.createdOn && ` · created ${e.createdOn}`}
+                      {e.toldApart || e.dates || "No dates set"}
                     </div>
                     {whyId === e.id && (
                       // Information, not an error (the panel, 30 Oct): said politely, in the muted style.
