@@ -339,6 +339,9 @@ jobs:
       # outcomes down: see scripts/qa/infra.mjs for which steps those are and why only those.
       - id: setup
         uses: ./.github/actions/setup
+        with:
+          # StrykerJS 10 needs Node 22; every other part keeps the app's 20 (.github/actions/setup).
+          node-version: ${{ matrix.part.id == 'mutation' && '22' || '20' }}
       - name: Take the build
         id: build
         uses: actions/download-artifact@v4
