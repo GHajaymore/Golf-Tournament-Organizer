@@ -437,11 +437,15 @@ export function EventSwitcher({
               const res = copyId
                 ? await cloneEvent(copyId, name)
                 : await createEvent(name, source, shape, undefined, organizationId || undefined);
+              // A refused name stays in the box (2026-11-01): the refusal offers a free one, and
+              // the organizer edits what they typed rather than typing it all again.
               if (res && !res.ok) setError(res.error ?? "Could not create the tournament.");
               // Into the tournament just made — see the note on `openIn`.
-              else router.push("/dashboard");
+              else {
+                setName("");
+                router.push("/dashboard");
+              }
             });
-            setName("");
           }}
         >
           <Icon name="plus" /> Create tournament
