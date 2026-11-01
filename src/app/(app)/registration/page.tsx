@@ -95,6 +95,8 @@ export default async function RegistrationPage() {
     // boundary as a Date. The badge is rendered from this on the client so
     // "2 days ago" is relative to the reader's clock, not the server's.
     promotedAt: p.promotedAt ? p.promotedAt.toISOString() : null,
+    // "Don't show my name on public pages" (2026-10-24).
+    publicNameWithheld: p.publicNameWithheld,
   });
 
   return (

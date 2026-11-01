@@ -38,6 +38,10 @@ async function open(page: Page, path: string) {
 }
 
 const SECTIONS = [
+  // Since 2026-10-23 the report leads with its prize list and one picture.
+  "The prize list",
+  "Place after each round",
+  "Twos and contests",
   "How it was won",
   "Format and field",
   "The leaderboard",
@@ -45,10 +49,9 @@ const SECTIONS = [
   "Prize winners",
   "Highlights",
   "In numbers",
-  "Skins (Gross), Round 1",
   "Side games",
   "Entry fees and costs",
-  "Settle-up",
+  "Settle up",
   "Coming up",
 ];
 
@@ -82,12 +85,14 @@ test("the organizer opens the conclusion from Reports; the public link names win
     await expect(section("How it was won")).toContainText(`${name("Bob")} went top after Round 2 on gross 141, up from 2nd.`);
     await expect(section("Highlights")).toContainText("Eagle");
     await expect(section("Highlights")).toContainText("2 on the par-4 hole 5, Round 2");
-    await expect(section("Skins (Gross), Round 1")).toContainText(`${name("Ann")} · holes 1 and 2`);
+    await expect(section("Side games")).toContainText("Skins (Gross), Round 1");
+    await expect(section("Side games")).toContainText(`${name("Ann")} · holes 1 and 2`);
     // Amounts, in the club's money: the prize, the pot, the settle-up.
     await expect(section("Prize winners")).toContainText(/Winner.*\$50/);
-    await expect(section("Skins (Gross), Round 1")).toContainText(/\$5(\.00)? each, 4 in/);
-    await expect(section("Settle-up")).toContainText("TourneyHQ records them; players pay each other.");
-    await expect(section("Settle-up")).toContainText(/pays .*\$\d/);
+    await expect(section("Side games")).toContainText(/\$5(\.00)? each, 4 in/);
+    await expect(section("Settle up")).toContainText("Recorded by TourneyHQ. Settle between yourselves.");
+    await expect(section("Settle up")).toContainText(/pays .*\$\d/);
+    await expect(section("Settle up")).toContainText("Where everybody ends up");
     await expect(section("Coming up")).toContainText(`Entries close for ${RUN} Autumn Foursomes; it is played on`);
     await expect(section("Coming up")).toContainText("Prize giving in the clubhouse");
 
@@ -108,7 +113,7 @@ test("the organizer opens the conclusion from Reports; the public link names win
       await expect(main.getByRole("group", { name: "Winner" })).toContainText(name("Bob"));
       await expect(main).toContainText(`${name("Ann")} · holes 1 and 2`);
       await expect(main.getByRole("heading", { level: 2, name: "Highlights" })).toBeVisible();
-      for (const gone of ["Settle-up", "Entry fees and costs"]) {
+      for (const gone of ["Settle up", "Entry fees and costs"]) {
         await expect(main.getByRole("heading", { level: 2, name: gone, exact: true }), gone).toHaveCount(0);
       }
       const text = await main.innerText();
@@ -128,7 +133,7 @@ test("the organizer opens the conclusion from Reports; the public link names win
       await open(cat, `/live/${seeded.shareToken}/report`);
       const main = cat.getByRole("main");
       await expect(main.getByRole("status")).toContainText(/^You pay \$/);
-      await expect(main.getByRole("heading", { level: 2, name: "Settle-up", exact: true })).toBeVisible();
+      await expect(main.getByRole("heading", { level: 2, name: "Settle up", exact: true })).toBeVisible();
     } finally {
       await phone.close();
     }

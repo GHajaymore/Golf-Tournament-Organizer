@@ -128,6 +128,40 @@ export function pointsTrack(input: {
   return { a, b, outsideA, outsideB, open: Math.max(0, cells - a - b - outsideA - outsideB), cells };
 }
 
+/**
+ * THE CUP SESSION BY SESSION, and the match that clinched it (2026-10-23, the
+ * rich report's hero for a cup): the decided points after each session, added
+ * up in play order, and — once a side has reached the points it needed — the
+ * match whose result took it there. Points outside the matches are not in a
+ * session, so a cup that needed one of them to be won is clinched by no match
+ * and says none.
+ */
+export function cupProgress(
+  sessions: ReportSession[],
+  target: number,
+): { after: Array<{ name: string; a: number; b: number; session: [number, number] }>; clinch: { session: string; match: ReportMatch; by: ReportSide } | null } {
+  let a = 0;
+  let b = 0;
+  let clinch: { session: string; match: ReportMatch; by: ReportSide } | null = null;
+  const after = sessions.map((s) => {
+    let sa = 0;
+    let sb = 0;
+    for (const m of s.matches) {
+      if (!m.final) continue;
+      sa += m.points[0];
+      sb += m.points[1];
+      a += m.points[0];
+      b += m.points[1];
+      if (!clinch && target > 0) {
+        if (a >= target) clinch = { session: s.name, match: m, by: "A" };
+        else if (b >= target) clinch = { session: s.name, match: m, by: "B" };
+      }
+    }
+    return { name: s.name, a, b, session: [sa, sb] as [number, number] };
+  });
+  return { after, clinch };
+}
+
 /* ------------------------------------------------------------------------ */
 /*  The words                                                               */
 /* ------------------------------------------------------------------------ */
@@ -339,6 +373,56 @@ export function placeFigure(
   }
   const total = basis.isNet ? `net ${row.net}` : `gross ${row.gross}`;
   return open ? `${total} through ${row.thru}` : total;
+}
+
+/**
+ * THE FIGURE ON THE PRIZE LIST (2026-10-23, the rich report): gross AND net
+ * side by side for a finished stroke card ("71 gross / 66 net"), points for a
+ * Stableford — never a to-par beside them — and match points for a match
+ * board. A card still being played is the board's running figure
+ * (`placeFigure`), because a total through nine beside one through eighteen
+ * says nothing.
+ */
+export function leadFigure(
+  row: { gross: number; net: number; points: number; pts: string; thru: number; holesOwed: number; toPar: number; parKnown?: boolean },
+  basis: RankBasis,
+): string {
+  const open = row.holesOwed > 0 && row.thru < row.holesOwed;
+  if (!basis.isStroke || basis.isStableford || open) return placeFigure(row, basis);
+  return `${row.gross} gross / ${row.net} net`;
+}
+
+/** A side's figure on the prize list: points, or gross and net side by side. */
+export function sideLeadFigure(row: { gross: number; net: number; points: number }, basis: "stableford" | "gross" | "net"): string {
+  return basis === "stableford" ? `${row.points} points` : `${row.gross} gross / ${row.net} net`;
+}
+
+/**
+ * What a place on the prize list is called. "Winner", "Second", "Third" once it
+ * is over; "Leading" while it is played; "Joint …" where it is shared.
+ */
+export function leadPlaceWords(rank: number, shared: boolean, completed: boolean): string {
+  const word =
+    rank === 1 ? (completed ? (shared ? "winners" : "Winner") : "Leading") : rank === 2 ? "Second" : rank === 3 ? "Third" : placeOrdinalWords(rank);
+  if (!shared) return word;
+  return rank === 1 && completed ? "Joint winners" : `Joint ${word.toLowerCase()}`;
+}
+
+function placeOrdinalWords(n: number): string {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th";
+  return `${n}${s}`;
+}
+
+/**
+ * How a place on the prize list was decided, when it was decided on countback:
+ * "won on countback, back 9" — on the net card for a net event ("net back 9"),
+ * on points for a Stableford ("back 9 points"). `step` is the board's own
+ * (`state.countbackBetween`).
+ */
+export function countbackWords(step: string, rank: number, basis: RankBasis, completed: boolean, behind: string[]): string {
+  const on = basis.isStableford ? `${step} points` : basis.isNet ? `net ${step}` : step;
+  if (rank === 1 && completed) return `won on countback, ${on}`;
+  return `ahead of ${listWords(behind)} on countback, ${on}`;
 }
 
 /**
