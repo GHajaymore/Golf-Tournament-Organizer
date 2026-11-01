@@ -19,6 +19,8 @@
  *     --schedule=weekly    Chrome and Edge as installed, the front door's motion
  *     --countries=all      all six countries in this one round (a core change; the nightly)
  *     --no-crawl           leave the console crawl out (a change that touches no input screen)
+ *     --target=<area>      a TARGETED round (pr only): the area's specs and scenarios, plus the
+ *                          always-on set, in place of every spec (specs-by-area.mjs, `targetFor`)
  * A part is told the same plan as the round it belongs to, and writes it into
  * its `part.json`, so the verdict is judged against the round that was asked for.
  *
@@ -49,9 +51,10 @@
 import { spawn, spawnSync } from "node:child_process";
 import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { findingsSaid, layersFor, partFile, partsFor, SCENARIOS, SCHEDULES } from "./layers.mjs";
+import { findingsSaid, layersFor, partFile, partsFor, SCENARIOS, SCHEDULES, targetLine } from "./layers.mjs";
 import { appId } from "./app-id.mjs";
 import { E2E_OWNER_EMAIL } from "../../e2e/owner-email.mjs";
+import { demoTestMark, E2E_DEMO_REPLAY_TOKEN } from "../../e2e/demo-fixture.mjs";
 
 const PORT = Number(process.env.E2E_PORT ?? 3101);
 const DIST = ".next-e2e";
@@ -70,7 +73,7 @@ const CRAWL = value("crawl");
 const CRAWL_ONLY = Boolean(CRAWL) && !CRAWL.startsWith("0/");
 const SCENARIO = value("scenario") ? value("scenario").split(",") : null;
 /** Which round this is, or is a part of: see SCHEDULES in layers.mjs. */
-const PLAN = { schedule: value("schedule") || "all", countries: value("countries") || "trio", crawl: !flag("no-crawl") };
+const PLAN = { schedule: value("schedule") || "all", countries: value("countries") || "trio", crawl: !flag("no-crawl"), target: value("target") || null };
 /** The part of a round this machine is (`--id`, from round.yml), which its own files are named by: see `partFile`. */
 const PART = value("id");
 
@@ -79,7 +82,7 @@ const strip = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
 
 const layers = layersFor(ROUND, PLAN);
 if (flag("list")) {
-  console.log(`A round under the "${PLAN.schedule}" schedule — ${SCHEDULES[PLAN.schedule]}; countries: ${PLAN.countries}; console crawl: ${PLAN.crawl ? "yes" : "no"}\n`);
+  console.log(`A round under the "${PLAN.schedule}" schedule — ${SCHEDULES[PLAN.schedule]}; countries: ${PLAN.countries}; console crawl: ${PLAN.crawl ? "yes" : "no"}${PLAN.target ? `\n${targetLine(PLAN.target)}` : ""}\n`);
   for (const l of layers) console.log(`${l.key.padEnd(22)} ${l.name}   [${l.when.join(", ")}]\n${" ".repeat(23)}stands for: ${l.standsFor}\n${" ".repeat(23)}really is:  ${l.reallyIs}\n${" ".repeat(23)}cannot see: ${l.cannotSee}\n`);
   console.log(`scenarios: ${SCENARIOS.map((s) => `${s.key} ${s.name}`).join(" · ")}`);
   process.exit(0);
@@ -158,6 +161,9 @@ async function serve(mode) {
     STRIPE_SECRET_KEY: "sk_test_e2e_charges_nothing",
     // The test server's owner, as playwright.config.ts gives it — see e2e/owner-email.mjs.
     OWNER_EMAILS: E2E_OWNER_EMAIL,
+    // The demo club it builds is the test's own, as playwright.config.ts gives it — see e2e/demo-fixture.mjs.
+    DEMO_CLUB_MARK: demoTestMark(),
+    DEMO_REPLAY_TOKEN: E2E_DEMO_REPLAY_TOKEN,
     // No mail leaves a test server (the owner-console spec presses Send on the early list).
     RESEND_API_KEY: "",
     ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),
@@ -242,6 +248,7 @@ if (builtApp !== app) finish(`NOT RUN — the build in ${DIST} is of app ${built
 
 const started = Date.now();
 say(`ROUND ${TAG} (round ${ROUND} of a count) — commit ${commit}, app ${app}, build ${readFileSync(join(DIST, "BUILD_ID"), "utf8").trim()}`);
+if (PLAN.target) say(targetLine(PLAN.target));
 spawnSync(process.execPath, ["scripts/e2e-coverage.mjs", "--reset"]);
 rmSync(join(".e2e", "every-action", "ledger.tsv"), { force: true });
 

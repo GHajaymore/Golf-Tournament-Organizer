@@ -46,7 +46,8 @@ export async function peopleOwningSeveralParClubs(): Promise<number> {
     by: ["userId"],
     where: {
       role: "owner",
-      organization: { subscription: { planTermsApply: true, plan: { in: PLANS_THAT_DELETE } } },
+      // Real clubs: the demo club is nobody's (docs/claude/demo-club.md).
+      organization: { isDemo: false, subscription: { planTermsApply: true, plan: { in: PLANS_THAT_DELETE } } },
     },
     _count: { _all: true },
   });

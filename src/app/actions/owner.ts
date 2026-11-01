@@ -10,6 +10,7 @@ import { drainWaitlist } from "@/lib/services/waitlist";
 import { saveLimitOverride } from "@/lib/services/platform-limits";
 import { createDiscount, setDiscountActive } from "@/lib/services/platform-discounts";
 import { setSignInsOpen } from "@/lib/services/signins-switch";
+import { buildDemoClub, demoMark, type DemoLinks } from "@/lib/services/demo-club";
 import { sendEarlyListCodes as sendCodes } from "@/lib/services/early-list";
 import { ownerClockInWords } from "@/lib/services/owner-clock";
 
@@ -43,6 +44,23 @@ export async function setAccountsOpen(open: boolean): Promise<OwnerActionResult 
   // Every public page reads it, not only / and /owner — the whole router cache, as prices do.
   revalidatePath("/", "layout");
   return { ok: true, now };
+}
+
+/**
+ * DEMO CLUB: CREATE / REFRESH (Ajay, 2026-10-24). Builds the invented demo club
+ * and its two tournaments, or builds them again from nothing — the same press
+ * either way, and safe to press twice. Ajay presses it in production himself;
+ * nothing else there can. Refused, with nothing written, when a club that is
+ * not the demo holds the demo's name (`services/demo-club.ts`).
+ */
+export async function refreshDemoClub(): Promise<OwnerActionResult & { links?: DemoLinks }> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  const built = await buildDemoClub({ mark: demoMark() });
+  if (!built.ok) return { ok: false, error: built.error };
+  revalidatePath("/owner");
+  revalidatePath("/demo");
+  return { ok: true, links: built.links };
 }
 
 /**
@@ -80,8 +98,9 @@ export async function setClubPlan(clubName: string, plan: string): Promise<Owner
   const name = clubName.trim();
   if (!name) return { ok: false, error: "Type the club's name." };
 
+  // The demo club has no plan to set: it is never billed and never limited (docs/claude/demo-club.md).
   const matches = await prisma.organization.findMany({
-    where: { name: { equals: name, mode: "insensitive" } },
+    where: { name: { equals: name, mode: "insensitive" }, isDemo: false },
     select: { id: true, name: true },
     take: 2,
   });

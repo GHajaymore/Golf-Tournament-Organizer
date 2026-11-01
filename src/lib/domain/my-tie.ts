@@ -213,6 +213,7 @@ export function tieReportSentence(r: { winnerName: string; result: string; repor
  *   "19th", "19", "at the 20th"        " at the 19th", " at the 20th"
  *   "W/O", "wo", "walkover"            " by walkover"
  *   "conceded", "concession"           " by concession"
+ *   "withdrew", "withdrawn", "WD"      " (opponent withdrew)"
  *   anything else                      as typed
  *
  * Found 2026-10-23 on a knockout of 129: the player's line knew that "19th" is
@@ -235,6 +236,7 @@ export function marginWords(raw: string | null | undefined): string {
   if (up) return ` ${up[1]} up`;
   if (/^(?:w\/o|w\.o\.?|wo|walk ?-?over)$/i.test(s)) return " by walkover";
   if (/^(?:conceded|concession|conc\.?)$/i.test(s)) return " by concession";
+  if (/^(?:withdrew|withdrawn|wd)$/i.test(s)) return " (opponent withdrew)";
   return ` ${s}`;
 }
 

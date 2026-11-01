@@ -93,7 +93,9 @@ is only worth having while it is true. So a change to what somebody sees or does
 until, **in the same pull request**:
 
 - **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown at `/guide/steps` with a
-  search box (`guide-search.ts`) and shipped as a PDF. Rebuild the PDF when the guide changes:
+  search box (`guide-search.ts`) and shipped as a PDF. **The PDF is rebuilt ONCE, before 19 Nov
+  2026, stamped with its date, and then parked until the product stabilises** (Ajay and the panel,
+  1 Nov): do not rebuild it per change. The Download PDF button stays. The one rebuild:
   `node scripts/build-guide-pdf.mjs` against a built server (see the script's header);
 - **the player's Help** says it — `src/lib/player-help.ts`, shown at `/me/help`;
 - any doc that describes it is corrected — this file, `docs/`.
@@ -200,12 +202,14 @@ its first run is where the dates above and `src/lib/leave-on-enter.ts` came from
 **SINCE 2026-10-23 THE PIPELINE IS THE TESTING PANEL'S** (`docs/testing-panel-2026-10-23.md`; the
 manual is `docs/testing.md`). In one paragraph, so nobody acts on the old rules:
 
-- **Rounds by tier**: tests, words and the front door need none; function in one area ONE; core
+- **Rounds by tier**: tests, words and the front door need none; function in one area ONE —
+  TARGETED (that area's specs + the always-on sweeps) when `scripts/qa/specs-by-area.mjs` places
+  every file in one area; every function commit, targeted or full, then waits for the NIGHTLY; core
   ONE round that visits all six countries, and then it waits for the NIGHTLY before production;
   money or handicap arithmetic keeps THREE until property-based tests and the mutation ratchet are
   on main (`ARITHMETIC_KEEPS_THREE_ROUNDS` in `layers.mjs` is the switch). `npm run qa:changed`
   prints the exact branches; the Round workflow plans a pushed branch with the same function.
-- **The nightly** (02:00 UTC, `nightly.yml`) runs every per-PR layer with all six countries, the
+- **The nightly** (scheduled 02:00 UTC, but it has been starting 07:30–08:15 UTC; `nightly.yml`) runs every per-PR layer with all six countries, the
   console crawl in full, the Android tablet and the libraries' holes, and deploys what it cleared.
   **The weekly** (`weekly.yml`) runs Chrome, Edge and the front door's motion. A change's round
   runs the console crawl only when it touches input screens (`crawlNeeded`).
@@ -446,4 +450,5 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | editing files via PowerShell, Git Bash or `node -e`; a refusing rebase | `docs/claude/shell-traps.md` | encoding corruption, CRLF, eaten backslashes |
 | building a sweep/audit, walking screens, browser sessions | `docs/claude/sweeps-and-screen-walks.md` | controls, checks that pass on nothing, which session |
 | scoring, draw, cut, bracket, handicap changes | `docs/claude/combination-sweep.md` | `matrix.test.ts`, invariants, constant-offset errors |
+| the demo club, `isDemo`, `/demo`, the replay cron, anything that counts or messages clubs | `docs/claude/demo-club.md` | an invented club in production; every place it is left out, and the test for each |
 | history only | `docs/claude/retired.md` | Paragraphs superseded by a later ruling, kept verbatim with the reason |

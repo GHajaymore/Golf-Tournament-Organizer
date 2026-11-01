@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
-import { PLANS, effectiveAnnualPrice, planTagline, retentionNotice, retentionSummary } from "@/lib/plans";
+import { PLANS, effectiveAnnualPrice, onEveryPlan, planTagline, retentionNotice, retentionSummary } from "@/lib/plans";
 import { PLAN_KEYS, planDiff } from "@/lib/landing/plan-diff";
+import { DEMO_CLUB, DEMO_HUB, DEMO_LABEL, DEMO_WATCH_LINE, demoDoorHref } from "@/lib/domain/demo-club";
+import { demoCardQr } from "@/lib/landing/demo-qr";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { siteOrigin } from "@/lib/site";
@@ -139,6 +141,42 @@ const THEMES: Array<{ shot: string; name: string; swatch: string }> = [
   { shot: "look-midnight-dark", name: "Midnight, dark", swatch: "hsl(262 72% 60%)" },
 ];
 
+/**
+ * THREE DOORS, ONE FOR EACH KIND OF ORGANIZER (2026-10-24, borrowed from Golf
+ * GameBook's site with Ajay's approval): a short card each, and the path that
+ * is theirs. Written in US words — the UK editions read "societies", "society
+ * days" and "fourball" through the swaps. No sign-up anywhere in it, so it is
+ * the same page whether the front door is held or open.
+ */
+const AUDIENCES: Array<{ id: string; who: string; h: string; p: string; href: string; go: string }> = [
+  { id: "leagues", who: "Leagues & golf groups", h: "A season, not just a day.",
+    p: "Weekly leagues, golf groups and outings: every foursome's tee time on their phone, a table across the season, and who owes whom worked out.",
+    href: "/faq#q-league", go: "How a league runs" },
+  { id: "pros", who: "Golf pros", h: "Your event, from your phone.",
+    p: "A clinic day, a member-guest or a corporate day, with the field scoring from a round code and no account to make.",
+    href: DEMO_HUB, go: "See a day run" },
+  { id: "clubs", who: "Clubs", h: "Every competition, in your colors.",
+    p: "The medal, the championship and the knockout, any size of field, with the board on the clubhouse TV and in every member's hand.",
+    href: "#pricing", go: "See the club plans" },
+];
+
+/**
+ * THREE QUESTIONS EVERY ORGANIZER ASKS FIRST, answered short, each with its
+ * longer answer on /faq. The money answer says it as a CHOICE (the marketing
+ * manager's draft, 2026-10-24): TourneyHQ records money and never moves it.
+ */
+const ANSWERS: Array<{ q: string; a: string; href: string }> = [
+  { q: "Do players need an app?",
+    a: "No. They scan the round's sign or open a link, tap their name, and score in the browser. It saves to the home screen if they want it there.",
+    href: "/faq#q-app" },
+  { q: "Does it take entry fees?",
+    a: "No, and that is a choice. Your club takes its entry fees the way it does today, and TourneyHQ keeps the record: every amount worked out, nothing held or moved.",
+    href: "/faq#q-entry-fees" },
+  { q: "What does a player pay?",
+    a: "Nothing. A plan is the organizer's. A player never pays to enter scores, follow the board or see what they are owed.",
+    href: "/faq#q-cost" },
+];
+
 /** The demo club's board at 11:42, as the strip under the first screen runs it. Names are the demo's, invented. */
 const TICKER: Array<[string, string, string, string]> = [
   ["1", "Erin Walsh", "thru 9", "−6"],
@@ -196,6 +234,12 @@ export default async function LandingPage() {
     jar.get(US_OVERRIDE_COOKIE)?.value === "1",
   );
   const prices = landingPrices(shown, overrides);
+  // The QR opens the demo's player card on THIS host, so a preview's QR opens the preview.
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const origin = host ? `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https")}://${host}` : siteOrigin();
+  const qr = await demoCardQr(origin);
+  // "On every plan": read from PLANS, never typed — a line is here exactly while every tier has it.
+  const everyPlan = onEveryPlan();
   const note = editionNote(local, overridden);
   // UK-English editions only: the app follows the club's own conventions there
   // — the course's unit, the club's clock, and a Monday week.
@@ -417,6 +461,40 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ═══════════ EVERYONE CAN WATCH: THE DEMO CLUB ═══════════
+            (2026-10-24) A real club's day, played by the app itself on an invented club
+            (`docs/claude/demo-club.md`). Every address is `/demo/<door>`, which goes to the
+            demo's page or, before it is built, to /demo saying it is on its way. */}
+        <section className="m-chapter" id="demo" aria-labelledby="demo-h">
+          <div className="m-wrap">
+            <div className="m-watch-grid">
+              <div className="m-watch-copy">
+                <p className="m-eyebrow">Everyone can watch</p>
+                <h2 id="demo-h">See a demo club&rsquo;s day.</h2>
+                <p className="m-lead">{DEMO_WATCH_LINE}</p>
+                <div className="m-cta-row">
+                  <a className="m-btn m-primary" href={DEMO_HUB}>See a demo club&rsquo;s day <span className="m-arrow" aria-hidden="true">→</span></a>
+                </div>
+                <ul className="m-watch-links" aria-label="Straight to one of the demo club's pages">
+                  <li><a href={demoDoorHref("board")}>The board</a></li>
+                  <li><a href={demoDoorHref("event")}>The event page</a></li>
+                  <li><a href={demoDoorHref("clubhouse")}>The clubhouse screen</a></li>
+                  <li className="m-watch-card"><a href={demoDoorHref("card")}>A player&rsquo;s card</a></li>
+                </ul>
+                <p className="m-watch-note">{DEMO_LABEL}. {DEMO_CLUB.name} is made up, and so is everybody on its board.</p>
+              </div>
+              {/* For a visitor on a laptop: the same player's card, on the phone in their pocket. Drawn on the server. */}
+              <figure className="m-qr" aria-labelledby="demo-qr-cap">
+                <svg viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label="A QR code that opens a player's card at the demo club" shapeRendering="crispEdges">
+                  <rect width={qr.size} height={qr.size} className="m-qr-ground" />
+                  <path d={qr.d} className="m-qr-ink" />
+                </svg>
+                <figcaption id="demo-qr-cap"><b>On your phone</b><span>Scan to open a player&rsquo;s card at the demo club, and watch it fill in.</span></figcaption>
+              </figure>
+            </div>
+          </div>
+        </section>
+
         {/* ═══════════ WHAT IT DOES ═══════════ */}
         <section className="m-chapter" id="does" aria-labelledby="does-h">
           <div className="m-wrap">
@@ -515,6 +593,26 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ═══════════ WHO IT'S FOR: THREE DOORS ═══════════ */}
+        <section className="m-chapter" id="for" aria-labelledby="for-h">
+          <div className="m-wrap">
+            <div className="m-head">
+              <p className="m-eyebrow">Who it&rsquo;s for</p>
+              <h2 id="for-h">Three ways in.</h2>
+            </div>
+            <div className="m-doors">
+              {AUDIENCES.map((d) => (
+                <a className="m-door" href={d.href} key={d.id} id={`for-${d.id}`}>
+                  <span className="m-what">{d.who}</span>
+                  <h3>{d.h}</h3>
+                  <p>{d.p}</p>
+                  <span className="m-go">{d.go} <span className="m-arrow" aria-hidden="true">→</span></span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ═══════════ WHEREVER YOU PLAY ═══════════ */}
         <section className="m-chapter" id="world" aria-labelledby="world-h">
           <div className="m-wrap">
@@ -535,6 +633,34 @@ export default async function LandingPage() {
             <ul className="m-runs m-world-also" aria-label="Also" data-no-dialect="">
               {["Canadian dollars", "Australian dollars", "New Zealand dollars", "Yen", "Yards or metres", "Carts or buggies", "A Sunday or a Monday week"].map((x) => <li key={x}>{x}</li>)}
             </ul>
+          </div>
+        </section>
+
+        {/* ═══════════ ON EVERY PLAN, AND THREE QUESTIONS ═══════════
+            The list is `onEveryPlan()` — read from PLANS, never typed here. The answers are
+            short, each with its long form on /faq. */}
+        <section className="m-chapter" id="every-plan" aria-labelledby="every-h">
+          <div className="m-wrap">
+            <div className="m-every-grid">
+              <div>
+                <p className="m-eyebrow">On every plan</p>
+                <h2 id="every-h">What every plan includes.</h2>
+                <ul className="m-checks" aria-label="On every plan">
+                  {everyPlan.map((item) => (
+                    <li key={item.key} data-plan-term={item.key}><span className="m-tick" aria-hidden="true">✓</span>{item.label}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="m-answers">
+                {ANSWERS.map((x) => (
+                  <div className="m-answer" key={x.q}>
+                    <h3>{x.q}</h3>
+                    <p>{x.a}</p>
+                    <a href={x.href}>More on the questions page <span className="m-arrow" aria-hidden="true">→</span></a>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 

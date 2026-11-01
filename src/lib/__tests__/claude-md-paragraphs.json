@@ -76,10 +76,6 @@
   "t": "Ajay, 2026-10-10: \"keep a step when there is any change in the app to "
  },
  {
-  "h": "ce8a5108f85fad88",
-  "t": "- **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown "
- },
- {
   "h": "073644a124ea2b09",
   "t": "Say which in the PR description: \"Help/docs: updated …\" or \"Help/docs:"
  },
@@ -826,10 +822,6 @@
  {
   "h": "b14e9cfcdaa4be8e",
   "t": "**SINCE 2026-10-23 THE PIPELINE IS THE TESTING PANEL'S** (`docs/testin"
- },
- {
-  "h": "c23091c587d85727",
-  "t": "- **Rounds by tier**: tests, words and the front door need none; funct"
  },
  {
   "h": "e40f61c36d2b9fc9",

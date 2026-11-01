@@ -34,6 +34,10 @@ import { TheDraw } from "@/components/TheDraw";
 import { isKnockoutRound } from "@/lib/stage-types";
 import { drawnDraws } from "@/lib/domain/my-tie";
 import { seededDraws } from "@/lib/domain/draw-seeding";
+import { parsePlayBy, roundPlayBy, myTieCard } from "@/lib/domain/knockout-play-by";
+import { formattingForEvent } from "@/lib/services/organization";
+import { MyKnockoutTie } from "@/components/MyKnockoutTie";
+import { isNetBasis } from "@/lib/domain/match-entry";
 import { bracketResults } from "@/lib/services/bracket-results";
 import { golfTermsForEvent } from "@/lib/services/organization";
 import { cupBoard } from "@/lib/services/cup";
@@ -369,11 +373,40 @@ export default async function PlayBoardPage({
   );
 
   const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
-  const draws = knockoutAt >= 0 ? seededDraws(state, drawnDraws(state.brackets)) : [];
+  const koStage = knockoutAt >= 0 ? state.stages[knockoutAt] : null;
+  const playByDates = parsePlayBy(koStage?.knockoutPlayBy);
+  const { locale } = await formattingForEvent(state.event.id);
+  const draws = (knockoutAt >= 0 ? seededDraws(state, drawnDraws(state.brackets)) : []).map((d) => ({
+    ...d,
+    playBy: roundPlayBy(d.view, playByDates, state.today, locale),
+  }));
   const straightKnockout = knockoutAt === 0 && isKnockoutRound(stage.type);
-  // Opened on the section that holds them, with "You" beside their name.
+  const knockoutResults = draws.length > 0 ? await bracketResults(state.event.id) : {};
+  /*
+   * THE PLAYER OPENS ON THEIR OWN TIE (the panel, 2026-10-23): who they play,
+   * the strokes, the play-by date and where a win takes them — then the draw,
+   * opened on the section that holds them, with "You" beside their name.
+   */
+  const tieCard =
+    me && koStage
+      ? myTieCard({
+          draws,
+          playerId: me.id,
+          results: knockoutResults,
+          dates: playByDates,
+          today: state.today,
+          locale,
+          net: isNetBasis(koStage.scoringBasis),
+          playing: (id) => state.strokeHandicapFor(id, koStage.id),
+        })
+      : null;
   const drawSection =
-    draws.length > 0 ? <TheDraw draws={draws} results={await bracketResults(state.event.id)} me={me?.id ?? ""} /> : null;
+    draws.length > 0 ? (
+      <>
+        {tieCard && <MyKnockoutTie {...tieCard} />}
+        <TheDraw draws={draws} results={knockoutResults} me={me?.id ?? ""} />
+      </>
+    ) : null;
 
   const rows = standingRows(state);
   // The day's own result, round by round — see services/tournament-result.ts.
