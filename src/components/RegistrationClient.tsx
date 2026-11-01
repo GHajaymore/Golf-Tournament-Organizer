@@ -8,6 +8,7 @@ import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, 
 import { Fragment, useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
 import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
+import { setNameWithheld } from "@/app/actions/report-settings";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { SetupLockBanner } from "./SetupLockBanner";
 import { RosterPicker } from "./RosterPicker";
@@ -52,6 +53,8 @@ interface Signup {
   flight?: string;
   /** ISO string, set only for entries promoted off the waitlist. */
   promotedAt?: string | null;
+  /** "Don't show my name on public pages": signed out, they are "Player (name withheld)". */
+  publicNameWithheld?: boolean;
 }
 interface EventInfo {
   name: string;
@@ -571,6 +574,27 @@ export function RegistrationClient({
                     {p.homeClub ? (
                       <div className="text-muted" style={{ fontSize: 13, fontWeight: 400 }}>{p.homeClub}</div>
                     ) : null}
+                    {/* ON THE ENTRY, NOT THE REPORT (2026-10-24): signed out — the public
+                        board, the public report, a share card — this player is "Player
+                        (name withheld)"; the field and the staff see the name. Not behind
+                        the setup lock: it is asked after the day as often as before. */}
+                    {/* Muted by its style, not the `text-muted` class: that class under a
+                        name is the home club's line, and a player with no home club has none. */}
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, fontWeight: 400, color: "var(--color-text-muted)" }}>
+                      <input
+                        type="checkbox"
+                        checked={!!p.publicNameWithheld}
+                        disabled={pending}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          startTransition(async () => {
+                            const r = await setNameWithheld(p.id, on);
+                            setRowError(r.ok ? "" : `${p.name}: ${r.error ?? "That did not save."}`);
+                          });
+                        }}
+                      />
+                      Don&rsquo;t show name on public pages
+                    </label>
                   </td>
                   {showTees && (
                     <td>

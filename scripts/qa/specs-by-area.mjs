@@ -177,7 +177,7 @@ export const AREAS = {
   reports: {
     name: "Reports (the Reports screen)",
     paths: ["src/app/(app)/reports/", "src/components/ReportsClient.tsx", "src/components/PrintReportButton.tsx", "src/components/AttendanceReport.tsx", "src/lib/services/attendance-report.ts"],
-    specs: ["e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts"],
+    specs: ["e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts", "e2e/report-rich.spec.ts", "e2e/report-settings.spec.ts"],
     scenarios: [],
     // A report writes the event's dates.
     dateSensitive: true,

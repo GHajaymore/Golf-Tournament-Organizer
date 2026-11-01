@@ -64,6 +64,10 @@ export const CLONED_EVENT_FIELDS = [
   "tiebreakers",
   "matchTiebreakers",
   "leaderboardVisibility",
+  // Who may read the report and who sees its amounts are the club's policy,
+  // like who may see the board — they travel with a copy.
+  "reportVisibility",
+  "reportAmounts",
   "scoreEntryBy",
   "scoreEntryWindow",
   "voiceEntry",
