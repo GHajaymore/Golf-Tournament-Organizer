@@ -14,6 +14,10 @@ import { LANDING_CSS } from "@/lib/landing/styles";
 import { LandingEffects } from "@/components/LandingEffects";
 import { FaqSearch } from "@/components/landing/FaqSearch";
 import { contactEmail, editionNote, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
+import { socialLink } from "@/lib/social-links";
+
+/** The profile the contact panel names, read from the one list (lib/social-links.ts). */
+const facebook = socialLink("facebook");
 
 const FAQ_DESCRIPTION =
   "How TourneyHQ scores every format, what players need, how the money is handled and what it costs — answered plainly.";
@@ -122,7 +126,10 @@ export default async function FaqPage() {
                 <>
                   <div>
                     <h2>Still have a question?</h2>
-                    <p>Send it to us and we&rsquo;ll answer it.</p>
+                    <p>
+                      Send it to us and we&rsquo;ll answer it. For news, follow TourneyHQ on{" "}
+                      <a href={facebook.href} target="_blank" rel="noopener">{facebook.label}</a>.
+                    </p>
                   </div>
                   <a className="btn" href={`mailto:${contactEmail}`}>Email TourneyHQ</a>
                 </>
