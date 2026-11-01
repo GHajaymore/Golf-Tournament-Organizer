@@ -1,4 +1,5 @@
 import "server-only";
+import { demoRefusesMessage } from "@/lib/services/demo-guard";
 
 /**
  * Sending a text.
@@ -65,7 +66,15 @@ export interface SendResult {
  * other eighty-nine, so every failure comes back as a value the caller records
  * against that recipient.
  */
-export async function sendSms(to: string, body: string): Promise<SendResult> {
+export async function sendSms(
+  to: string,
+  body: string,
+  /** The club the text is sent for — REQUIRED, so the demo club texts nobody (docs/claude/demo-club.md). */
+  scope: { organizationId: string | null },
+): Promise<SendResult> {
+  if (await demoRefusesMessage({ organizationId: scope.organizationId })) {
+    return { ok: false, error: "The demo club sends nothing." };
+  }
   const config = smsConfig();
   if (!config.configured) {
     // Visible in dev, and honest: this did not go anywhere.

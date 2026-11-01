@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
-import { prisma } from "@/lib/db";
+import { ownerCounts, interestShown } from "@/lib/services/owner-counts";
+import { demoMark, demoStatus } from "@/lib/services/demo-club";
+import { OwnerDemoClub } from "@/components/OwnerDemoClub";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
 import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, planTagline, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
@@ -19,7 +21,7 @@ import { OwnerAccounts } from "@/components/OwnerAccounts";
 import { launchSwitch } from "@/lib/services/signins-switch";
 import { ownerClockInWords } from "@/lib/services/owner-clock";
 import { earlyListStatus } from "@/lib/services/early-list";
-import { DEFAULT_LOCALE } from "@/lib/domain/locale";
+import { DEFAULT_LOCALE, formatDay } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
 import { deliveryWords } from "@/lib/domain/email-delivery";
@@ -43,7 +45,9 @@ const INTEREST_SHOWN = 200;
  * `effectivePrice` a customer is quoted (see `owner-metrics.ts`), so the number
  * here and the number on the pricing page move together.
  *
- * Read-only. Nothing on it writes.
+ * Its figures are about REAL clubs: the demo club is in none of them
+ * (`services/owner-counts.ts`). The controls that write are the cards, each
+ * through `actions/owner.ts`.
  */
 
 export const metadata: Metadata = { title: "Owner console", robots: NOINDEX };
@@ -68,43 +72,9 @@ export default async function OwnerConsolePage() {
   // allow-list, gets exactly what a non-existent page gives.
   if (!session || !isOwner(session.email)) notFound();
 
-  const [
-    totalOrgs,
-    orgsByPlan,
-    orgsByKind,
-    eventsByStatus,
-    totalPlayers,
-    orgsWithNoEvents,
-    recentOrgs,
-    liveEvents,
-    severalParClubs,
-  ] = await Promise.all([
-    prisma.organization.count(),
-    prisma.subscription.groupBy({ by: ["plan"], _count: { _all: true } }),
-    prisma.organization.groupBy({ by: ["kind"], _count: { _all: true } }),
-    prisma.event.groupBy({ by: ["status"], _count: { _all: true } }),
-    prisma.player.count(),
-    prisma.organization.count({ where: { events: { none: {} } } }),
-    prisma.organization.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 12,
-      select: {
-        id: true,
-        name: true,
-        kind: true,
-        createdAt: true,
-        subscription: { select: { plan: true } },
-        _count: { select: { events: true } },
-      },
-    }),
-    prisma.event.findMany({
-      where: { status: "live" },
-      orderBy: { updatedAt: "desc" },
-      take: 12,
-      select: { id: true, name: true, organization: { select: { name: true } } },
-    }),
-    peopleOwningSeveralParClubs(),
-  ]);
+  // Real clubs only: the demo club is in none of these (`services/owner-counts.ts`).
+  const [{ totalOrgs, orgsByPlan, orgsByKind, eventsByStatus, totalPlayers, orgsWithNoEvents, recentOrgs, liveEvents }, severalParClubs, demo] =
+    await Promise.all([ownerCounts(), peopleOwningSeveralParClubs(), demoStatus(demoMark())]);
 
   // The owner's own price overrides, so the projected MRR here and the price
   // the editor below shows both reflect what customers are actually quoted.
@@ -154,7 +124,7 @@ export default async function OwnerConsolePage() {
 
   // Discount codes the owner has generated, with their usage rendered ready for
   // the client (which stays free of Date objects and locale calls).
-  const interest = await prisma.interestRequest.findMany({ orderBy: { createdAt: "desc" }, take: INTEREST_SHOWN });
+  const interest = await interestShown(INTEREST_SHOWN);
   const discountRows = await listDiscountCodes();
   const discounts = discountRows.map((c) => ({
     code: c.code,
@@ -271,6 +241,15 @@ export default async function OwnerConsolePage() {
       {/* The go-live switch first: the one control that decides who can get in, and what every
           public page says about it. */}
       <OwnerAccounts switchSays={sw.switchSays} liveSince={liveSince} rule={sw.rule} earlyList={earlyList} />
+
+      {/* The demo club a visitor can watch (2026-10-24): built and rebuilt from here, and nowhere else. */}
+      <OwnerDemoClub
+        built={demo.built}
+        when={demo.builtAt ? shortDate(demo.builtAt) : ""}
+        day={demo.day ? formatDay(demo.day, DEFAULT_LOCALE) : ""}
+        holesIn={demo.holesIn}
+        links={demo.links}
+      />
 
       {/* The controls that write: the price every screen quotes, and the caps
           every entry gate reads. */}
