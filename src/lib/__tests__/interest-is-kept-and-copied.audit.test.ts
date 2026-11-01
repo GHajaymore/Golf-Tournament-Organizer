@@ -60,6 +60,25 @@ describe("registerInterest", () => {
     expect(rows[0].notifyAt).not.toBeNull();
   });
 
+  // ImprovMX refused a copy over the provider's shared address being on a
+  // spam list (27 Oct), so production names a mailbox past it (2026-10-30).
+  it("sends the copy to INTEREST_NOTIFY_TO when it names an address, and to inquiries@ when it does not", async () => {
+    const before = process.env.INTEREST_NOTIFY_TO;
+    try {
+      process.env.INTEREST_NOTIFY_TO = "zz-owner-inbox@example.invalid";
+      const one = `zz-interest-to1-${RUN}@example.invalid`;
+      expect((await registerInterest({ ...good, email: one })).ok).toBe(true);
+      expect(sent.at(-1)?.to).toBe("zz-owner-inbox@example.invalid");
+      // The control: a value that is not an address falls back, never sends nowhere.
+      process.env.INTEREST_NOTIFY_TO = "not an address";
+      expect((await registerInterest({ ...good, email: `zz-interest-to2-${RUN}@example.invalid` })).ok).toBe(true);
+      expect(sent.at(-1)?.to).toBe("inquiries@tourneyhq.club");
+    } finally {
+      if (before === undefined) delete process.env.INTEREST_NOTIFY_TO;
+      else process.env.INTEREST_NOTIFY_TO = before;
+    }
+  });
+
   it("refuses a bad address beside its box, and keeps nothing", async () => {
     const before = await prisma.interestRequest.count({ where: { email: { startsWith: "zz-interest-" } } });
     expect(await registerInterest({ ...good, email: "not an address" })).toMatchObject({ ok: false, field: "email" });
