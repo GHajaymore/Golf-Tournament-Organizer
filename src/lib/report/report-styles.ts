@@ -191,8 +191,8 @@ export const REPORT_CSS = `
 .fr-club img { height: 44px; width: auto; max-width: 120px; object-fit: contain; border-radius: 6px; background: #fff; padding: 3px; }
 .fr-lead-group + .fr-lead-group { margin-top: 16px; }
 .fr-lead-group > .fr-eyebrow { margin: 0 0 2px; }
-/* The figure column is fit-content, never auto: a figure can be a sentence ("beat Bram Kettle in the
-   final at the 19th", a knockout's), and an auto column sized to it one line long pushed the page 80px
+/* The figure column is fit-content, never auto: a figure can be a sentence (a knockout's "beat
+   <the runner-up> in the final at the 19th"), and an auto column sized to it one line long pushed the page 80px
    sideways and squeezed the champion's name to a letter a line. A short figure keeps its width; a
    long one wraps inside 45% of the line. */
 .fr-lead-line { display: grid; grid-template-columns: 8.5em minmax(0,1fr) fit-content(45%); gap: 2px 14px; align-items: baseline; padding: 11px 0; border-top: 1px solid var(--fr-rule); }
