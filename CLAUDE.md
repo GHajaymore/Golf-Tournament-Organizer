@@ -200,12 +200,14 @@ its first run is where the dates above and `src/lib/leave-on-enter.ts` came from
 **SINCE 2026-10-23 THE PIPELINE IS THE TESTING PANEL'S** (`docs/testing-panel-2026-10-23.md`; the
 manual is `docs/testing.md`). In one paragraph, so nobody acts on the old rules:
 
-- **Rounds by tier**: tests, words and the front door need none; function in one area ONE; core
+- **Rounds by tier**: tests, words and the front door need none; function in one area ONE —
+  TARGETED (that area's specs + the always-on sweeps) when `scripts/qa/specs-by-area.mjs` places
+  every file in one area, and then it waits for the NIGHTLY before production; core
   ONE round that visits all six countries, and then it waits for the NIGHTLY before production;
   money or handicap arithmetic keeps THREE until property-based tests and the mutation ratchet are
   on main (`ARITHMETIC_KEEPS_THREE_ROUNDS` in `layers.mjs` is the switch). `npm run qa:changed`
   prints the exact branches; the Round workflow plans a pushed branch with the same function.
-- **The nightly** (02:00 UTC, `nightly.yml`) runs every per-PR layer with all six countries, the
+- **The nightly** (scheduled 02:00 UTC, but it has been starting 07:30–08:15 UTC; `nightly.yml`) runs every per-PR layer with all six countries, the
   console crawl in full, the Android tablet and the libraries' holes, and deploys what it cleared.
   **The weekly** (`weekly.yml`) runs Chrome, Edge and the front door's motion. A change's round
   runs the console crawl only when it touches input screens (`crawlNeeded`).

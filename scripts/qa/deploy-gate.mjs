@@ -18,9 +18,10 @@
  *                the first one is recorded: the newest run on main whose
  *                "Deploy to production" job got through its `Deploy` step (which
  *                is how every deploy before this gate is found)
- *   core         every commit in deployed..sha whose files include one that
- *                `tierOf` (layers.mjs) calls core — commit by commit, not the
- *                range's net diff, so a change made and undone still counts
+ *   waiting      every commit in deployed..sha whose files `nightlyWait`
+ *                (deploy-rules.mjs) says must wait for the nightly: core, or
+ *                targeted (its round was cut to one area) — commit by commit,
+ *                not the range's net diff, so a change made and undone still counts
  *   nightly      the Nightly round's runs on main whose Verdict job succeeded (finished or
                 still running: the round asking is its own deploy's run);
  *                a core commit is covered when it is one of them or an ancestor
@@ -36,8 +37,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { tierOf } from "./layers.mjs";
-import { decideDeploy, cleanNightlyShas } from "./deploy-rules.mjs";
+import { decideDeploy, cleanNightlyShas, nightlyWait } from "./deploy-rules.mjs";
 
 export const PRODUCTION_ENVIRONMENT = "tourneyhq-production";
 const args = process.argv.slice(2);
@@ -87,16 +87,21 @@ function deployedSha() {
   return best;
 }
 
-/** Core commits in deployed..sha, oldest first. */
-function coreCommitsSince(deployed, sha) {
+/**
+ * The commits in deployed..sha that wait for a clean nightly, oldest first: core ones, and (since
+ * 2026-11-01) ones whose files would have been given a TARGETED round — read off the commit's own
+ * files by `nightlyWait`, the same plan that cut its round, so nothing has to be labelled.
+ */
+function waitingCommitsSince(deployed, sha) {
   const range = deployed ? `${deployed}..${sha}` : sha;
   const list = git("rev-list", "--reverse", ...(deployed ? [range] : ["-1", sha])).stdout.split("\n").filter(Boolean);
-  const core = [];
+  const waiting = [];
   for (const c of list) {
     const files = git("diff-tree", "--no-commit-id", "--name-only", "-r", "-m", c).stdout.split("\n").filter(Boolean);
-    if (files.some((f) => tierOf(f) === "core")) core.push({ sha: c, subject: git("log", "-1", "--format=%s", c).stdout.trim().slice(0, 80) });
+    const kind = nightlyWait(files);
+    if (kind) waiting.push({ sha: c, kind, subject: git("log", "-1", "--format=%s", c).stdout.trim().slice(0, 80) });
   }
-  return core;
+  return waiting;
 }
 
 /** The commits a Nightly round was clean on: its Verdict job succeeded. */
@@ -140,7 +145,7 @@ try {
   deployed = deployedSha();
   const alreadyThere = Boolean(deployed) && isAncestor(SHA, deployed.sha);
   const green = verifyGreen(SHA);
-  const coreCommits = alreadyThere ? [] : coreCommitsSince(deployed?.sha ?? null, SHA);
+  const coreCommits = alreadyThere ? [] : waitingCommitsSince(deployed?.sha ?? null, SHA);
   const nightlies = coreCommits.length || !deployed ? cleanNightlies() : [];
   const covered = (c) => nightlies.some((n) => isAncestor(c, n));
   decided = decideDeploy({
