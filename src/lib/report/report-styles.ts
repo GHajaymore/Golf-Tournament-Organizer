@@ -191,14 +191,18 @@ export const REPORT_CSS = `
 .fr-club img { height: 44px; width: auto; max-width: 120px; object-fit: contain; border-radius: 6px; background: #fff; padding: 3px; }
 .fr-lead-group + .fr-lead-group { margin-top: 16px; }
 .fr-lead-group > .fr-eyebrow { margin: 0 0 2px; }
-.fr-lead-line { display: grid; grid-template-columns: 8.5em minmax(0,1fr) auto; gap: 2px 14px; align-items: baseline; padding: 11px 0; border-top: 1px solid var(--fr-rule); }
+/* The figure column is fit-content, never auto: a figure can be a sentence ("beat Bram Kettle in the
+   final at the 19th", a knockout's), and an auto column sized to it one line long pushed the page 80px
+   sideways and squeezed the champion's name to a letter a line. A short figure keeps its width; a
+   long one wraps inside 45% of the line. */
+.fr-lead-line { display: grid; grid-template-columns: 8.5em minmax(0,1fr) fit-content(45%); gap: 2px 14px; align-items: baseline; padding: 11px 0; border-top: 1px solid var(--fr-rule); }
 .fr-lp { font: 600 13px/1.3 var(--font-body), sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--fr-muted); }
 .fr-ln { font: 600 18px/1.3 var(--font-heading); min-width: 0; overflow-wrap: anywhere; }
-.fr-lf { font: 600 17px var(--font-scoreboard), "Arial Narrow", sans-serif; letter-spacing: .03em; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.fr-lf { font: 600 17px var(--font-scoreboard), "Arial Narrow", sans-serif; letter-spacing: .03em; font-variant-numeric: tabular-nums; text-align: right; min-width: 0; overflow-wrap: break-word; }
 .fr-lh { grid-column: 2 / -1; font-size: 15px; color: var(--fr-muted); }
 .fr-lead-line.fr-first .fr-ln { font-size: 22px; }
 @media (max-width: 560px) {
-  .fr-lead-line { grid-template-columns: minmax(0,1fr) auto; }
+  .fr-lead-line { grid-template-columns: minmax(0,1fr) fit-content(45%); }
   .fr-lp { grid-column: 1 / -1; }
   .fr-lh { grid-column: 1 / -1; }
 }
