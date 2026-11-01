@@ -147,6 +147,9 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "list",
         items: [
           "**Who can see the leaderboard**: Organizers only, Organizers and players, or **Anyone with the link** — which shows the **Public leaderboard link** with [[Copy]] and [[New link]] (the old link stops working at once).",
+          "Under it, with **Anyone with the link**, are two more links on the same board, each with **Open** and [[Copy]]: the **Event page** and the **Clubhouse screen**. [[New link]] replaces all three at once, and all three close when the board is set to Organizers only or Organizers and players.",
+          "The **Event page** is the one link to send before and after the day — in the newsletter, on the noticeboard, in the group chat. It shows the tournament's name, date, course and format; while entries are open, an **Enter this tournament** button and the sign-up QR poster; on the day, the leaderboard and the clubhouse screen; afterwards, the result and **Read the final report**. Contests with a sponsor are listed with their winners. It is a link, not an email: nothing is sent.",
+          "The **Clubhouse screen** is the leaderboard for a TV in the bar: large type, no buttons, the field a page at a time when it is longer than the screen, starting again after the last page, and refreshing every 30 seconds like the board. It shows nothing the board does not.",
           "**Who enters scores**: Organizers and assistants only, or Players may enter their own scores.",
           "**When players may submit**: during the round, hole by hole; or after the round, as a completed card. A match is complete once it is decided, so a match won 5&4 goes in without the four holes nobody played.",
           "**How players sign in**: Email and password, Access code on their scorecard, or Either email or access code (see Round codes in Part 3).",
@@ -411,7 +414,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "list",
         items: [
           "A pairs event over more than one round shows the pairs' **Total over N rounds** above the round's own board — on the public board and on players' phones too — as long as the same pairs played every round. A team board ranks on score to par while a round is being played. Players or sides level on the round's figure are separated by countback on their card (last nine, six, three, then the last hole); only those still level share the place.",
-          "**Leaderboard** refreshes every 30 seconds and shows Live or Final. For the clubhouse screen or the group chat, set **Who can see the leaderboard** to **Anyone with the link** and share the public link — names and scores, and anything you post as commentary.",
+          "**Leaderboard** refreshes every 30 seconds and shows Live or Final. For the group chat, set **Who can see the leaderboard** to **Anyone with the link** and share the public link — names and scores, and anything you post as commentary. For the TV in the clubhouse, open the **Clubhouse screen** link from Tournament details → Players & scoring on the TV's browser and leave it: it turns its own pages and refreshes itself.",
           "**Commentary**: under the Leaderboard, write a line — a run of birdies, a delay, where the cut is falling — and press [[Post]]. The latest shows above the scores on the public board and on every player's Board, with how long ago and without your name; the two before it are one tap away. Take one down with the ✕ beside it.",
           "**Weather**: [[Suspend play]], add a reason, [[Suspend play now]] — every player and the public board are told. [[Resume play]] when ready.",
           "**Pace of play** on the Dashboard shows each group's Thru and Due in, and names groups running behind.",
@@ -531,8 +534,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "list",
         items: [
           "**Settled by the scores**: low gross, low net, birdies, eagles, The match and Nassau — set a stake per player. The match and Nassau need a head-to-head round.",
-          "**You name the winner**: closest to the pin, long drive and the like — [[Start this game]], pick entrants, then the winner (a tie splits the pot).",
-          "A closest to the pin or long drive is shown on the public leaderboard under **Contests** — its winner once you name one, never the stake. If somebody sponsors it, [[Add a sponsor]] on its card: their name, and their website if they have one (https only). The board says **Sponsored by** beside the contest and thanks every sponsor at the foot. The printed standings on Reports carry the same list. Poker and other side games stay off both.",
+          "**You name the winner**: closest to the pin, long drive, straightest drive and the like — [[Start this game]], pick entrants, then the winner (a tie splits the pot).",
+          "A closest to the pin, long drive or straightest drive is shown on the public leaderboard, the event page and the clubhouse screen under **Contests** — its winner once you name one, never the stake. If somebody sponsors it, [[Add a sponsor]] on its card: their name, and their website if they have one (https only). The board says **Sponsored by** beside the contest and thanks every sponsor at the foot. The printed standings on Reports carry the same list. Poker and other side games stay off all of them.",
           "**Side games** (Afterwards → Side games): a pot for one group only, separate from the field's money.",
         ],
       },
@@ -559,7 +562,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Award prizes and settle the money.",
           "Export from **Afterwards → Reports & export**: [[Export CSV]] for standings and flight results (or the format's own sheet), **Who turned out**, the **Bracket sheet** and **Scorecards**. The snapshot has a [[Print]] button for a PDF.",
           "On the Dashboard press [[Complete tournament]] and confirm. If a round has no scores it asks first: [[Complete anyway]] closes that round as not played and decides results on the rounds played, [[Keep playing]] leaves everything open. Boards switch to Final standings. To correct a card afterwards, press [[Reopen tournament]] — it asks first too — then complete it again.",
-          "**Open the final report**, the first button on Reports & export, is the whole tournament on one page to send round: the champion, the story, the format and field, the full leaderboard with gross and net, and who won the prizes. A tie for first is shown as shared — the committee settles it. A knockout's report is its draw, every result in the words a club uses (\"3&2\", \"at the 19th\", \"by walkover\"); while it is being played it says how many ties are played and how many players are still in, and it names the champion as soon as the final is played. Write **The story** yourself and [[Save the story]], or leave it and the report tells it from the results. Once the tournament is complete, the public leaderboard and the players' Board link to it.",
+          "**Open the final report**, the first button on Reports & export, is the whole tournament on one page to send round: the champion, the story, the format and field, the full leaderboard with gross and net, and who won the prizes. A tie for first is shown as shared — the committee settles it. A knockout's report is its draw, every result in the words a club uses (\"3&2\", \"at the 19th\", \"by walkover\"); while it is being played it says how many ties are played and how many players are still in, and it names the champion as soon as the final is played. Write **The story** yourself and [[Save the story]], or leave it and the report tells it from the results. Once the tournament is complete, the public leaderboard and the players' Board link to it, and the **Event page** leads with the result and **Read the final report**.",
           "The report holds every part of the app the tournament used, and only those: flight winners, the draw, **How it was won** (who led after each round, the biggest climb, and the podium's place after each round), **Each round**'s winner, the prizes and contests, the **Highlights** read off the cards (holes-in-one and eagles first, the best round, the lowest gross, the best nine, the longest run at par or better, the most birdies), **In numbers**, the skins and side games, the entry fees and costs, the **Settle-up** and **Coming up** — the next round, the club's tournaments taking entries, and your pinned notices. Money is shown only once it is final.",
           "Opened while the tournament is still being played, it is **The results so far**: the leader is named on the figure the board ranks them on (\"net −6 through 9\", \"19 points through 9\"), the leaderboard has a **Thru** column, somebody yet to tee off reads \"Not started\", the flights show their leaders, and a round nobody has played yet is in no table. Before anybody has played, there is no leaderboard at all.",
           "Who sees the amounts: your copy on Reports, and a player in the field who is signed in (their own line comes first: \"You pay … to …\" or \"You are owed …\"). The public link names the winners and never what they won, and has no costs, no settle-up and no notices. TourneyHQ records the payments; players pay each other.",
@@ -583,7 +586,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           { title: "Knockout with qualifying", for: "A medal round seeds a bracket.", steps: ["Round 1 Stroke play round; Round 2 Bracket.", "Qualification cut: Overall top 8 or 16, or per flight.", "Optional Third and fourth.", "Enter winners on Bracket."] },
           { title: "Club match play in flights", for: "A big field, each flight its own knockout.", steps: ["How is it played: a knockout; one Bracket round.", "Bracket → Arrangement: Several flights.", "By handicap, the Suggested shape, Divide the field.", "Enter winners flight by flight."] },
           { title: "Team cup", for: "Two teams, sessions, running score.", steps: ["Template … team cup.", "Flights: Manual, exactly two, named for the teams.", "Team session rounds.", "Lineups on Team cup."] },
-          { title: "Charity scramble", for: "Teams of four, public board, specials.", steps: ["Template Scramble; shotgun start.", "Draw sides automatically.", "Leaderboard: Anyone with the link.", "Round codes so guests need no account.", "Prizes plus closest-to-pin and long-drive games."] },
+          { title: "Charity scramble", for: "Teams of four, public board, specials.", steps: ["Template Scramble; shotgun start.", "Draw sides automatically.", "Leaderboard: Anyone with the link.", "Round codes so guests need no account.", "Prizes plus closest-to-pin, long-drive and straightest-drive games.", "Send the Event page; open the Clubhouse screen on the bar's TV."] },
           { title: "Golf trip", for: "A few rounds away, costs split fairly.", steps: ["Money: Split shared costs.", "Players add expenses as they go.", "Skins and side games each round.", "The ledger lists the fewest payments; Mark settled."] },
           { title: "Casual round", for: "2–8 players, one round, maybe a side game.", steps: ["Choose screen: Just playing a round?", "Game, players, holes, shots given or not.", "Playing for anything? — money or “a pint”.", "Pick the course; Start the round. Deleted about a day later unless kept."] },
         ],
@@ -611,6 +614,34 @@ export const GUIDE_STEPS: GuideSection[] = [
           { q: "My password was refused as found in a data leak", a: "When a password is chosen, it is checked against the passwords known from leaks at other websites, because those are the first ones anybody tries. Only the first five characters of a scrambled copy leave TourneyHQ, never the password itself. Choose a different password, ideally three or four unrelated words, and keep it to TourneyHQ alone." },
           { q: "I'm still signed in on a device I don't have", a: "Open Your account (your name, at the foot of the sidebar) and press Sign out everywhere. Every device is signed out, this one included. Your password stays the same, so sign straight back in." },
         ],
+      },
+    ],
+  },
+  {
+    id: "owners",
+    part: "Part 13",
+    title: "For TourneyHQ's owners: the demo club",
+    blocks: [
+      {
+        kind: "p",
+        text: "This part is for the people who run TourneyHQ itself, not for a club. The **demo club** is an invented club with invented players that anybody can watch from the front door's **See a demo club's day**: a medal **playing now**, whose holes appear through the day by the club's own clock, and a finished championship with its event page and final report. Every page of it says **Demo club, invented players**.",
+      },
+      { kind: "where", text: "The owner console, /owner → Demo club" },
+      {
+        kind: "steps",
+        items: [
+          "Press [[Create the demo club]] and confirm. It takes a few seconds and builds the club, its course and both tournaments.",
+          "To start it again from nothing at any time, press [[Refresh the demo club]] and confirm. The club, its two boards and their addresses stay the same; every card is written again.",
+          "The card links to the demo's board, event page, clubhouse screen and finished report, and says how many holes are in today.",
+        ],
+      },
+      {
+        kind: "tip",
+        text: "The medal plays itself: groups go off from eight o'clock at the club, a hole every fourteen minutes, and it starts again early each morning. A visitor who opens a player's card can tap a score; the next replay puts the club's day back.",
+      },
+      {
+        kind: "warn",
+        text: "The demo club is left out of everything about real clubs: the console's counts, the deploy freeze, plan limits and billing, the check for a club of the same name, and every email, text and notification. It never messages anybody. Only a club marked as the demo is ever rebuilt; a real club with the same name is refused and left untouched.",
       },
     ],
   },

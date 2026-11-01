@@ -54,6 +54,7 @@ import { join } from "node:path";
 import { findingsSaid, layersFor, partFile, partsFor, SCENARIOS, SCHEDULES, targetLine } from "./layers.mjs";
 import { appId } from "./app-id.mjs";
 import { E2E_OWNER_EMAIL } from "../../e2e/owner-email.mjs";
+import { demoTestMark, E2E_DEMO_REPLAY_TOKEN } from "../../e2e/demo-fixture.mjs";
 
 const PORT = Number(process.env.E2E_PORT ?? 3101);
 const DIST = ".next-e2e";
@@ -160,6 +161,9 @@ async function serve(mode) {
     STRIPE_SECRET_KEY: "sk_test_e2e_charges_nothing",
     // The test server's owner, as playwright.config.ts gives it — see e2e/owner-email.mjs.
     OWNER_EMAILS: E2E_OWNER_EMAIL,
+    // The demo club it builds is the test's own, as playwright.config.ts gives it — see e2e/demo-fixture.mjs.
+    DEMO_CLUB_MARK: demoTestMark(),
+    DEMO_REPLAY_TOKEN: E2E_DEMO_REPLAY_TOKEN,
     // No mail leaves a test server (the owner-console spec presses Send on the early list).
     RESEND_API_KEY: "",
     ...(mode === "plain" ? { E2E_PLAIN_HTTP: "1" } : {}),

@@ -448,4 +448,5 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | editing files via PowerShell, Git Bash or `node -e`; a refusing rebase | `docs/claude/shell-traps.md` | encoding corruption, CRLF, eaten backslashes |
 | building a sweep/audit, walking screens, browser sessions | `docs/claude/sweeps-and-screen-walks.md` | controls, checks that pass on nothing, which session |
 | scoring, draw, cut, bracket, handicap changes | `docs/claude/combination-sweep.md` | `matrix.test.ts`, invariants, constant-offset errors |
+| the demo club, `isDemo`, `/demo`, the replay cron, anything that counts or messages clubs | `docs/claude/demo-club.md` | an invented club in production; every place it is left out, and the test for each |
 | history only | `docs/claude/retired.md` | Paragraphs superseded by a later ruling, kept verbatim with the reason |

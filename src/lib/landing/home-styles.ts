@@ -833,6 +833,44 @@ export const HOME_CSS = `
   .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 5% auto auto -50%; width: 90%; }
 }
 @media (min-width: 901px) and (max-width: 1099px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 4% auto auto -16%; width: 84%; } }
+/* ── EVERYONE CAN WATCH: the demo club (2026-10-24) ──
+   The words and the button; beside them on a laptop, the QR for the visitor's own phone. A phone
+   has no use for a code to scan with itself, so there the QR gives way to a plain link. */
+.m-home .m-watch-grid { display: grid; gap: clamp(28px, 5vw, 64px); grid-template-columns: minmax(0, 1fr); align-items: center; }
+.m-home .m-watch-copy { display: grid; gap: 18px; justify-items: start; max-width: 680px; }
+.m-home .m-watch-links { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.m-home .m-watch-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--m-on-ground); text-decoration: underline; text-underline-offset: 4px; }
+.m-home .m-watch-note { color: var(--m-on-ground-soft); font-size: 0.92rem; }
+.m-home .m-qr { display: none; margin: 0; }
+.m-home .m-qr svg { display: block; width: 200px; height: 200px; border-radius: 12px; }
+.m-home .m-qr .m-qr-ground { fill: var(--m-paper); }
+.m-home .m-qr .m-qr-ink { fill: var(--m-ink); }
+.m-home .m-qr figcaption { display: grid; gap: 4px; margin-top: 12px; max-width: 220px; font-size: 0.92rem; color: var(--m-on-ground-soft); }
+.m-home .m-qr figcaption b { color: var(--m-on-ground); }
+@media (min-width: 900px) {
+  .m-home .m-watch-grid { grid-template-columns: minmax(0, 1fr) auto; }
+  .m-home .m-qr { display: block; }
+  .m-home .m-watch-links .m-watch-card { display: none; }
+}
+/* ── WHO IT'S FOR: three doors, each a card that is wholly its link ── */
+.m-home .m-doors { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .m-home .m-doors { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.m-home .m-door { display: grid; gap: 10px; align-content: start; padding: 24px; border: 1px solid var(--m-line); border-radius: 16px; background: var(--m-ground-rise); color: var(--m-on-ground); text-decoration: none; min-width: 0; transition: border-color 0.15s ease; }
+.m-home .m-door:hover { border-color: var(--m-on-ground); }
+.m-home .m-door .m-what { font-family: var(--m-mono); font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--m-label); }
+.m-home .m-door p { color: var(--m-on-ground-soft); }
+.m-home .m-door .m-go { margin-top: 6px; font-weight: 600; min-height: 24px; }
+/* ── ON EVERY PLAN, and three short answers ── */
+.m-home .m-every-grid { display: grid; gap: clamp(32px, 5vw, 64px); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .m-home .m-every-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.m-home .m-every-grid h2 { margin: 14px 0 22px; }
+.m-home .m-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.m-home .m-checks li { display: flex; gap: 12px; align-items: baseline; }
+.m-home .m-checks .m-tick { color: var(--m-hl); font-weight: 700; flex: none; }
+.m-home .m-answers { display: grid; gap: 22px; align-content: start; }
+.m-home .m-answer { display: grid; gap: 8px; padding-bottom: 20px; border-bottom: 1px solid var(--m-line); }
+.m-home .m-answer p { color: var(--m-on-ground-soft); }
+.m-home .m-answer a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-weight: 600; justify-self: start; }
 /* The closing glow reaches below its section on purpose, and that reach was scrollable: the page ran
    some 250px past the footer into nothing. Clipped where the page's main part ends, with clip and not hidden, so nothing
    that sticks while scrolling loses the viewport it sticks to. */

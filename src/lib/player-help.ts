@@ -151,6 +151,9 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "It reads Final once the committee closes the round.",
       "Level for the last place at a cut? It says Tied.",
       "You are not out until the committee records the tie.",
+      "Your club may send one link: the event page.",
+      "It has the entry link, the board and the report.",
+      "The TV in the clubhouse shows the same board.",
     ],
   },
   {

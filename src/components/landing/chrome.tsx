@@ -97,7 +97,7 @@ export function icon(id: string, className = "i") {
  * `launch`: the go-live switch's answer (`launchState()`), REQUIRED, so a new public page cannot
  * draw the button without asking. Held, it does not promise "Start free" (the ad director).
  */
-export function landingNav(at: "home" | "faq" | "privacy" | "terms" | "interest", launch: LaunchState) {
+export function landingNav(at: "home" | "faq" | "privacy" | "terms" | "interest" | "demo", launch: LaunchState) {
   const words = frontDoorWords(launch);
   const cta = words.navCta;
   const home = at === "home" ? "" : "/";
@@ -185,7 +185,7 @@ export function editionNote(local: Edition, overridden: boolean): ReactNode {
   );
 }
 
-export function landingFooter(at: "home" | "faq" | "privacy" | "terms" | "interest", editionNoteNode: ReactNode) {
+export function landingFooter(at: "home" | "faq" | "privacy" | "terms" | "interest" | "demo", editionNoteNode: ReactNode) {
   const home = at === "home" ? "" : "/";
   const links: Array<[string, string]> = [
     [`${home}#pricing`, "Pricing"],

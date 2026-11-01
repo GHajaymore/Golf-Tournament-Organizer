@@ -20,10 +20,13 @@ import { listWords } from "@/lib/domain/final-report";
 export function EventReport({
   report,
   footer,
+  notice,
   embedded = false,
 }: {
   report: Report;
   footer?: React.ReactNode;
+  /** A line above the masthead: the demo club's label (`DemoClubLabel`), or nothing. */
+  notice?: React.ReactNode;
   /** Inside the console, which already has the page's main landmark. */
   embedded?: boolean;
 }) {
@@ -41,6 +44,7 @@ export function EventReport({
       <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
       {page(
         <>
+          {notice}
           {/* No teams, so no team colours: the masthead's edge is the gold. */}
           <header className="fr-mast fr-plain">
             <div className="fr-crest">

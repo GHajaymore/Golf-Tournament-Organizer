@@ -58,7 +58,7 @@ export async function notifyTeeTimesPublished(opts: {
         const body = `${round}${when}${hole} · ${event}`;
         // One tag per stage per player collapses a quick correction into a
         // single, latest notification rather than a stack of them.
-        return sendPushToEmails([email], { title, body, url: "/me", tag: `tee-${opts.stageId}` });
+        return sendPushToEmails([email], { title, body, url: "/me", tag: `tee-${opts.stageId}` }, { eventId: opts.eventId });
       }),
     );
   } catch (e) {

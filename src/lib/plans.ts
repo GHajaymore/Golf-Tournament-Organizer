@@ -172,7 +172,54 @@ export interface Plan {
      */
     publicBoard: boolean;
   };
+  /**
+   * WHAT THIS PLAN INCLUDES THAT NO PLAN GATES (2026-10-24) — the front door's
+   * "On every plan" list is read from here (`onEveryPlan`), never typed on the
+   * page, so the page cannot promise on every plan what one plan lacks.
+   *
+   * These are TERMS, not gates: nothing reads them to refuse anybody, because
+   * nothing refuses them today. That is the difference from `features`, whose
+   * every key has a sink (`no-dead-feature-keys.test.ts`). The day a tier is to
+   * go without one, its gate is built first and the key moves to `features`;
+   * `on-every-plan.test.ts` refuses a `false` here until then, so this list can
+   * only ever say what is true of every plan.
+   */
+  includes: Record<IncludedKey, boolean>;
 }
+
+/** The terms every plan carries today — see `Plan.includes`. */
+export type IncludedKey = "everyFormat" | "roundCodes" | "offlineCards" | "voiceScoring" | "sideGames" | "playersPayNothing";
+
+const ON_EVERY_PLAN_TODAY: Record<IncludedKey, boolean> = {
+  everyFormat: true,
+  roundCodes: true,
+  offlineCards: true,
+  voiceScoring: true,
+  sideGames: true,
+  // "A player never PAYS" (this file's header): no plan charges a player anything.
+  playersPayNothing: true,
+};
+
+/**
+ * What the front door's "On every plan" list says for each key — a term above,
+ * or a feature every plan has. In US English; the edition swaps the rest.
+ */
+const EVERY_PLAN_WORDS: Record<IncludedKey | FeatureKey, string> = {
+  publicBoard: "A live board anyone can watch by link",
+  everyFormat: "Every format, each scored by its own rules",
+  roundCodes: "Round codes: players need no account and no app",
+  offlineCards: "Cards that keep saving without signal",
+  voiceScoring: "Scores by voice, hole by hole or the whole card",
+  sideGames: "Skins, side games and the settle-up, worked out",
+  playersPayNothing: "Nothing for a player to pay, ever",
+  whiteLabel: "Your club's branding in place of ours",
+  seasonStandings: "A season table across events",
+  sms: "Text alerts",
+  cardScan: "Reading a photographed card",
+  aiAssist: "Drafted commentary",
+  // Not the country's word ("honors board" / "honours board"): this file types none (country-words.test.ts).
+  honours: "A board of every past champion",
+};
 
 export const PLANS: Record<PlanKey, Plan> = {
   free: {
@@ -197,6 +244,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // completes, so its honours board could only ever be empty. Clubs that
     // predate the terms keep it — see `GRANDFATHERED_FEATURES`.
     features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: false, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
   society: {
     key: "society",
@@ -230,6 +278,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // White-label OFF — that is a Club line. The metered three stay dark here
     // as everywhere, switched off by cost until revenue covers them.
     features: { whiteLabel: false, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
   club: {
     key: "club",
@@ -263,6 +312,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // copy already lists them (see METERED_FEATURES below), so the promise and
     // the switch move together.
     features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
   enterprise: {
     key: "enterprise",
@@ -282,8 +332,22 @@ export const PLANS: Record<PlanKey, Plan> = {
     limits: { activeEvents: null, staffSeats: null, playersPerEvent: null },
     retentionHours: null,
     features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
 };
+
+/**
+ * THE FRONT DOOR'S "ON EVERY PLAN" (2026-10-24): every feature and every term
+ * that EVERY plan has, in the words the page prints — worked out from `PLANS`,
+ * so a line is on the page exactly while it is true of all four tiers.
+ * Features first (they are gates, so a tier can lose one), then the terms.
+ */
+export function onEveryPlan(plans: Record<PlanKey, Plan> = PLANS): { key: IncludedKey | FeatureKey; label: string }[] {
+  const all = Object.values(plans);
+  const features = (Object.keys(all[0].features) as FeatureKey[]).filter((k) => all.every((p) => p.features[k] === true));
+  const terms = (Object.keys(all[0].includes) as IncludedKey[]).filter((k) => all.every((p) => p.includes[k] === true));
+  return [...features, ...terms].map((key) => ({ key, label: EVERY_PLAN_WORDS[key] }));
+}
 
 /**
  * A plan's line and blurb in the reader's golf — the only way they are read.
