@@ -142,6 +142,21 @@ describe("copy", () => {
   });
 });
 
+describe("a name past the bound", () => {
+  it("is refused on create and on copy, as on a rename, and nothing is made", async () => {
+    const long = `${TAG} ${"x".repeat(200)}`;
+    const made = await createEvent(long, undefined, "single", undefined, orgId, true);
+    expect(made).toMatchObject({ ok: false });
+    expect((made as { error?: string }).error ?? "").toContain("characters");
+    const last = await tournament(`${TAG} Long Source`, "completed");
+    session.eventId = last.id;
+    const copied = await cloneEvent(last.id, long);
+    expect(copied.ok).toBe(false);
+    expect(copied.error ?? "").toContain("characters");
+    expect(await count(long)).toBe(0);
+  });
+});
+
 describe("reopen", () => {
   it("refuses reopening a completed one while another in play holds its name", async () => {
     const old = await tournament(`${TAG} Foursomes`, "completed");

@@ -4135,6 +4135,9 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
     ? name.trim()
     : await nameOrFree({ organizationId: source.organizationId, name: `${source.name} (copy)`, selfId: null });
   if (name.trim()) {
+    // The same length bound as a rename: a "use server" export is a public endpoint.
+    const tooLong = nameRefusal(clean, TITLE_MAX, "");
+    if (tooLong) return { ok: false, error: tooLong };
     const taken = await tournamentNameRefusal({ organizationId: source.organizationId, name: clean, selfId: null, door: "copy" });
     if (taken) return { ok: false, error: taken };
   }
@@ -4438,6 +4441,9 @@ export async function createEvent(
     ? clean
     : await nameOrFree({ organizationId, name: clean, selfId: null });
   if (name.trim()) {
+    // The same length bound as a rename: a "use server" export is a public endpoint.
+    const tooLong = nameRefusal(named, TITLE_MAX, "");
+    if (tooLong) return { ok: false, error: tooLong };
     const taken = await tournamentNameRefusal({ organizationId, name: named, selfId: null, door: "create" });
     if (taken) return { ok: false, error: taken };
   }
