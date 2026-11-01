@@ -134,7 +134,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
   });
 
   await test.step("arranged in several flights: nothing is drawn until the field is divided", async () => {
-    await open(page, "/bracket");
+    await open(page, "/bracket?view=draw");
     await page.getByRole("button", { name: "Change", exact: true }).click();
     await page.getByRole("button", { name: /^Several flights/ }).click();
     await expect(page.getByRole("heading", { name: "Divide the field of 10" })).toBeVisible({ timeout: 20_000 });
@@ -155,7 +155,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
   });
 
   await test.step("divided by handicap into the organizer's own sizes", async () => {
-    await open(page, "/bracket");
+    await open(page, "/bracket?view=draw");
     await page.getByRole("radio", { name: "Your own sizes" }).check();
     const own = page.getByLabel("Players in each flight, top flight first, separated by commas");
     // Sizes that do not hold the field are answered before the button is.
@@ -210,7 +210,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
     await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
 
-    await open(page, "/bracket");
+    await open(page, "/bracket?view=draw");
     await expect(page.getByText(/it is locked while setup is/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Change", exact: true })).toHaveCount(0);
     // The division is the draw: still the organizer's to adjust until somebody has played.
@@ -229,20 +229,20 @@ test("a new organizer divides a field of ten into three flights and plays them t
     });
 
     await test.step("the Championship flight, with an upset, to its champion", async () => {
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       await showFlight(page, "Championship flight");
       await decide(page, "Dune Marsh", "Alder Marsh", "Semi-finals", "2&1");
       // The first result fixes the flights, in every flight.
       await expect(page.getByText("Results are in, so the flights are fixed.")).toBeVisible({ timeout: 20_000 });
       await expect(page.getByRole("button", { name: "Start again" })).toHaveCount(0);
       await decide(page, "Briar Marsh", "Cedar Marsh", "Semi-finals", "4&3");
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       await showFlight(page, "Championship flight");
       await decide(page, "Dune Marsh", "Briar Marsh", "Final", "1 UP");
     });
 
     await test.step("the third flight to its champion; the middle one a single tie", async () => {
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       await showFlight(page, "Second flight");
       // Nobody from another flight is in this one, and nothing played above has landed here.
       const before = await page.locator("main").innerText();
@@ -252,11 +252,11 @@ test("a new organizer divides a field of ten into three flights and plays them t
       const drawn = before.slice(before.indexOf("Bracket manager"));
       expect(drawn, `the third flight's bye is not its top seed's:\n${drawn}`).toMatch(/Hazel Marsh\s+bye\s+1/);
       await decide(page, "Juniper Marsh", "Iris Marsh", "Semi-finals", "19th");
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       await showFlight(page, "Second flight");
       await decide(page, "Juniper Marsh", "Hazel Marsh", "Final", "2 UP");
 
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       await showFlight(page, "Seniors");
       // Elm, moved by hand, is the last seed: no bye for him, and drawn against the second.
       await decide(page, "Elm Marsh", "Gorse Marsh", "Semi-finals", "5&4");
@@ -268,7 +268,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
         ["Second flight", "Juniper Marsh", ["19th", "2 UP"], ["2&1", "4&3", "1 UP", "5&4"]],
         ["Seniors", null, ["5&4"], ["2&1", "4&3", "1 UP", "19th", "2 UP"]],
       ] as const) {
-        await open(page, "/bracket");
+        await open(page, "/bracket?view=draw");
         await showFlight(page, flight);
         const text = await page.locator("main").innerText();
         const board = text.slice(text.indexOf("Bracket manager"));

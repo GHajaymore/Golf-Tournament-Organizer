@@ -1,5 +1,6 @@
 import type { BracketView } from "@/lib/domain";
 import { BracketDrawing } from "./BracketClient";
+import type { PlayBy } from "@/lib/domain/knockout-play-by";
 
 /**
  * A knockout's draw, read-only, for the people playing in it and following
@@ -12,7 +13,8 @@ export function TheDraw({
   results,
   me = "",
 }: {
-  draws: { label: string; view: BracketView; seeded: boolean }[];
+  /** Each draw, whether it was seeded, and its rounds' play-by dates (`roundPlayBy`). */
+  draws: { label: string; view: BracketView; seeded: boolean; playBy?: Record<number, PlayBy> }[];
   results: Record<string, string>;
   /** The signed-in player, on the player app: their section opens and they are marked "You". */
   me?: string;
@@ -49,6 +51,7 @@ export function TheDraw({
             me={me}
             param={i === 0 ? "section" : `section-${d.view.kind}`}
             name={draws.length > 1 ? d.label : ""}
+            playBy={d.playBy}
           />
         </div>
       ))}

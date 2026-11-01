@@ -114,7 +114,8 @@ describe("targeted rounds (2026-11-01: specs-by-area.mjs)", () => {
     const full = partsFor(1, { schedule: "pr" }) as Part[];
     const aimed = partsFor(1, { schedule: "pr", target: "bracket" }) as Part[];
     expect(aimed.length).toBeLessThan(full.length);
-    expect(targetLine("bracket")).toMatch(/^TARGETED round: bracket — 6 specs, scenario e \+ the always-on set; the full suite runs in the nightly$/);
+    // The count is the manifest's own, so a spec added to the area does not break this line.
+    expect(targetLine("bracket")).toBe(`TARGETED round: bracket — ${AREAS.bracket.specs.length} specs, scenario e + the always-on set; the full suite runs in the nightly`);
     const merge = readVerbatim("scripts/qa/merge.mjs");
     expect(merge).toContain("targetLine(plan.target)");
     const round = readVerbatim(".github/workflows/round.yml");

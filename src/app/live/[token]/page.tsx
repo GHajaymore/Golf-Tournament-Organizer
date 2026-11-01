@@ -18,6 +18,7 @@ import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { TheDraw } from "@/components/TheDraw";
+import { KnockoutNews } from "@/components/KnockoutNews";
 import { OrgBrand } from "@/components/OrgBrand";
 import { LOGO_SIZE } from "@/components/Logo";
 import { LiveRefresh } from "@/components/LiveRefresh";
@@ -353,6 +354,9 @@ export default async function PublicLeaderboardPage({
           />
         )}
 
+        {/* A knockout opens on its news — the latest results, who is still in and
+            what is still to play — and then the drawing (the panel, 2026-10-23). */}
+        {!cup.ok && board.knockoutNews && <KnockoutNews news={board.knockoutNews} />}
         {!cup.ok && board.draws.length > 0 && <TheDraw draws={board.draws} results={board.bracketResults} />}
 
         {/* Closest to the pin, long drive, and who sponsors them — for the round

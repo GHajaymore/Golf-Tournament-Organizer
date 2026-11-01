@@ -136,7 +136,7 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
   });
 
   await test.step("the draw is seeded on handicap: 1 v 4, 2 v 3", async () => {
-    await open(page, "/bracket");
+    await open(page, "/bracket?view=draw");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Bracket manager/);
     // Each pairing has its own margin box once decided; before that the draw
     // is read off the names in order down the first column.
@@ -152,12 +152,12 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
   });
 
   await test.step("the final", async () => {
-    await open(page, "/bracket");
+    await open(page, "/bracket?view=draw");
     await decide(page, "Dune Quayle", "Briar Quayle", "Final", "1 UP");
   });
 
   await test.step("the champion, on the bracket and the dashboard", async () => {
-    await open(page, "/bracket");
+    await open(page, "/bracket?view=draw");
     const bracket = await page.locator("main").innerText();
     expect(bracket, `no champion on the bracket:\n${bracket}`).toMatch(/CHAMPION[\s\S]{0,40}Dune Quayle/i);
     for (const margin of ["2&1", "4&3", "1 UP"]) {

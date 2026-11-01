@@ -242,6 +242,8 @@ const EXEMPT: Record<string, string> = {
   // this test's patterns cannot see: a comparison against the tie's two seats.
   "tournament.ts:setBracketWinner:winnerId":
     "held to tieByKey(bracketDraws(state.brackets), key): refused unless it is one of the two players of that tie in this event's own draw — pinned by what-the-every-action-sweep-found.audit.test.ts",
+  "tournament.ts:recordTieResult:winnerId":
+    "the To-play list's door, held tighter than setBracketWinner's: the tie is read off this event's own draw by tieByKey, must still hold exactly the two players the screen sent (tieStillHolds), and the winner must be one of them — pinned by a-result-lands-on-its-tie.audit.test.ts",
   "tournament.ts:reportBracketResult:winnerId":
     "narrower than setBracketWinner's: tieReportRefusal refuses any winnerId that is not one of the two seats of the tie, read off this event's own draw by tieByKey — and the reporter must hold one of those seats (myPlayerIds on this event). Pinned in a-player-reports-their-tie.audit.test.ts, which refuses a winner from another tie",
   "side-games.ts:confirmSideGameEntry:playerId":
