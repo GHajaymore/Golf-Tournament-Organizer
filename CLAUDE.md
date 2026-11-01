@@ -93,7 +93,9 @@ is only worth having while it is true. So a change to what somebody sees or does
 until, **in the same pull request**:
 
 - **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown at `/guide/steps` with a
-  search box (`guide-search.ts`) and shipped as a PDF. Rebuild the PDF when the guide changes:
+  search box (`guide-search.ts`) and shipped as a PDF. **The PDF is rebuilt ONCE, before 19 Nov
+  2026, stamped with its date, and then parked until the product stabilises** (Ajay and the panel,
+  1 Nov): do not rebuild it per change. The Download PDF button stays. The one rebuild:
   `node scripts/build-guide-pdf.mjs` against a built server (see the script's header);
 - **the player's Help** says it — `src/lib/player-help.ts`, shown at `/me/help`;
 - any doc that describes it is corrected — this file, `docs/`.

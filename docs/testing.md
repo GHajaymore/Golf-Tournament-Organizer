@@ -105,9 +105,31 @@ Not every layer runs in every round (the panel, 2026-10-23). Each layer says whe
 
 | | Runs | Layers |
 |---|---|---|
-| **A change's round** (`pr`) | when a change pushes `round/<name>-N` | the whole suite, somewhere else, the American club, abroad, iPhone, Safari, iPad, Firefox, the eleven tournaments — and the console crawl when the change touches input screens |
-| **The nightly** | scheduled 02:00 UTC on main (`nightly.yml`) — but GitHub starts a scheduled run when it has room, and the last eight (to 31 Oct) started **07:30–08:15 UTC** | every `pr` layer, all six countries, the console crawl in full, the Android tablet, the libraries' holes and the quarantine's dates. When clean, it deploys what it cleared |
-| **The weekly** | Sunday 03:00 UTC (`weekly.yml`) | Chrome and Edge as installed, the front door with its animation on |
+| **A change's round** (`pr`) | when a change pushes `round/<name>-N` | the whole suite (Chromium at its three sizes), somewhere else, the American club, abroad, the iPhone, Safari (Mac and iPhone SE), the eleven tournaments — and the console crawl when the change touches input screens |
+| **The nightly** | scheduled 02:00 UTC on main (`nightly.yml`) — but GitHub starts a scheduled run when it has room, and the last eight (to 31 Oct) started **07:30–08:15 UTC** | every `pr` layer, all six countries, the console crawl in full, **plus the other browsers: the iPad, Firefox at three sizes, Chrome as installed**, the Android tablet, the libraries' holes and the quarantine's dates. When clean, it deploys what it cleared |
+| **The weekly** | Sunday 03:00 UTC (`weekly.yml`) | Edge as installed (and Chrome as installed again), the front door with its animation on |
+
+**Which browser runs where (the browser split, testing panel, 1 Nov 2026).** Core browsers per
+change; the rest nightly; Edge weekly. The thinking: the engines that most players and organizers
+use (Chromium, and Safari's engine on a phone and a Mac) are where a change can break something
+a club sees, so those gate a merge; Firefox, the iPad and installed Chrome find different faults
+rarely and are the same code at other widths, so they are seen every night, and a clean nightly
+is what lets a core or function change reach production (the deploy gate counts them: they are
+layers of the Nightly round's verdict). Nothing was dropped; `qa-pipeline.test.ts` holds that the
+three schedules together run every browser that ran before.
+
+| Browser | A change's round | Nightly | Weekly |
+|---|---|---|---|
+| Chromium: desktop, phone, small phone (the whole suite) | yes | yes | |
+| iPhone (WebKit) | yes | yes | |
+| Safari: Mac and iPhone SE | yes | yes | |
+| iPad (WebKit) | | yes | |
+| Firefox: desktop, phone, small phone | | yes | |
+| Android tablet | | yes | |
+| Chrome as installed | | yes | yes |
+| Edge as installed | | | yes |
+
+**After launch**, Firefox's small phone and Edge move into a change's round.
 
 `npm run qa:round` on one machine still runs every layer (`--schedule=all`) unless told otherwise.
 
