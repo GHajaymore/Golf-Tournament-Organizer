@@ -8,6 +8,7 @@ import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape"
 import { Icon } from "./Icon";
 import { useOrgProfile } from "./OrgProfileProvider";
 import { STATUS_META } from "@/lib/format";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 export interface EventRow {
   id: string;
@@ -462,7 +463,8 @@ export function EventSwitcher({
         </p>
       )}
       <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{blurb}</p>
-      {error && <p className="form-error">{error}</p>}
+      {/* A refusal (a name in play, a name too long) is said where the press was. */}
+      {error && <p className="form-error" role="alert" ref={bringIntoView}>{error}</p>}
 
       {/* THE CASUAL ROUND IS NOT AN ORGANIZER FEATURE, and the card that
           used to sit here has gone.
