@@ -4,6 +4,9 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { checkInterest, roleLabel, sizeLabel } from "@/lib/domain/interest";
 import { sendInterestEmail } from "@/lib/email";
 import { SALES_EMAIL } from "@/lib/contact";
+import { EMAIL_RE } from "@/lib/domain/typed-limits";
+import { launchState } from "@/lib/services/signins-switch";
+import { interestWords } from "@/lib/go-live";
 
 /**
  * WHERE THE OWNER'S COPY GOES (2026-10-30). inquiries@ is behind ImprovMX, and
@@ -17,7 +20,7 @@ import { SALES_EMAIL } from "@/lib/contact";
  */
 function interestCopyTo(): string {
   const named = (process.env.INTEREST_NOTIFY_TO ?? "").trim();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(named) ? named : SALES_EMAIL;
+  return EMAIL_RE.test(named) ? named : SALES_EMAIL;
 }
 
 export interface InterestResult {
@@ -48,7 +51,10 @@ export async function registerInterest(raw: unknown): Promise<InterestResult> {
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   const row = await prisma.interestRequest.create({ data: who, select: { id: true } });
-  const copy = await sendInterestEmail(interestCopyTo(), {
+  // What they were promised depends on the go-live switch — the early-list code only while held —
+  // asked here on the server, never taken from the form.
+  const { toldInquiries } = interestWords(await launchState());
+  const copy = await sendInterestEmail(interestCopyTo(), toldInquiries, {
     name: who.name,
     email: who.email,
     phone: who.phone,

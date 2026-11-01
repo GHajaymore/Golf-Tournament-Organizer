@@ -3,7 +3,8 @@ import { siteStructuredData } from "@/lib/domain/structured-data";
 import { PLANS } from "@/lib/plans";
 import { readSource } from "./source";
 
-const DATA = siteStructuredData({ origin: "https://tourneyhq.club" });
+// Live: every priced plan. Held (the go-live switch), the free plan is offered nowhere — see the end.
+const DATA = siteStructuredData({ origin: "https://tourneyhq.club", launch: "live" });
 const graph = DATA["@graph"] as Array<Record<string, unknown>>;
 const node = (t: string) => graph.find((g) => g["@type"] === t)!;
 
@@ -67,6 +68,16 @@ describe("the prices come from the plans, not from a second copy", () => {
     const offer = offers.find((o) => o.name === paid.name)!;
     expect(offer.price).toBe(String(paid.priceMonthly));
     expect(offer.price).not.toBe("0");
+  });
+});
+
+describe("held for launch, the free plan is not offered to a crawler either", () => {
+  it("the paid plans only, at their prices", () => {
+    const held = siteStructuredData({ origin: "https://tourneyhq.club", launch: "held" })["@graph"] as Array<Record<string, unknown>>;
+    const offers = held.find((g) => g["@type"] === "SoftwareApplication")!.offers as Array<Record<string, unknown>>;
+    const paid = Object.values(PLANS).filter((p) => !p.contactOnly && p.priceMonthly > 0);
+    expect(offers.map((o) => o.name).sort()).toEqual(paid.map((p) => p.name).sort());
+    expect(offers.some((o) => o.price === "0"), "a $0 offer while held").toBe(false);
   });
 });
 

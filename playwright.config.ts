@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER_EMAIL } from "./e2e/owner-email.mjs";
+import { demoTestMark, E2E_DEMO_REPLAY_TOKEN } from "./e2e/demo-fixture.mjs";
 
 /**
  * End-to-end tests, for the class of bug the unit suite cannot see.
@@ -289,6 +290,15 @@ export default defineConfig({
       // to everybody and its five actions were never pressed (2026-10-21).
       // Production's own list is set in Vercel and is not this.
       OWNER_EMAILS: E2E_OWNER_EMAIL,
+      // THE DEMO CLUB THIS SERVER BUILDS IS THIS WORKTREE'S OWN (2026-10-24): the owner's
+      // create/refresh and the replay act on a `zz-demo` club, which `e2e/demo-club.spec.ts`
+      // removes afterwards — never the bare demo a visitor watches (docs/claude/demo-club.md).
+      DEMO_CLUB_MARK: demoTestMark(),
+      // And the replay's door, opened to the spec with a test-only token.
+      DEMO_REPLAY_TOKEN: E2E_DEMO_REPLAY_TOKEN,
+      // NO MAIL LEAVES FROM A TEST SERVER: an empty key beats any in .env, so the sender answers "not configured"
+      // (the owner-console spec presses Send on the early list and expects exactly that).
+      RESEND_API_KEY: "",
     },
   },
 });

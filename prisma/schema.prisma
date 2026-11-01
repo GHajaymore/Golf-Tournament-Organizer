@@ -417,6 +417,21 @@ model Organization {
    */
   timeZone       String @default("")
 
+  /**
+   * THE DEMO CLUB (2026-10-24): an invented club with invented players, built
+   * and rebuilt by the owner's "Demo club: create / refresh" on /owner and
+   * played through the day by `/api/cron/demo-replay`. True on that one club
+   * and nowhere else; nothing a club can do sets it.
+   *
+   * It is how code tells the demo from a real club, so the demo can be left
+   * OUT of what is about real clubs — the deploy freeze, the owner's counts,
+   * plan limits and billing, the namesake check, every message the app sends —
+   * while every board, report and scoring reader treats it exactly as it
+   * treats any club. `services/demo-club.ts` is the one writer, and it refuses
+   * to touch a club without this mark. `docs/claude/demo-club.md`.
+   */
+  isDemo         Boolean @default(false)
+
   members      OrganizationMember[]
   joinRequests JoinRequest[]
   roster       Member[]
@@ -1795,6 +1810,16 @@ model Stage {
   playedOn            String   @default("")
   deadline            String   @default("")
   /**
+   * A KNOCKOUT'S ROUNDS EACH HAVE A "PLAY BY" DATE (the panel, 2026-10-23), as
+   * JSON: rounds counted back from the final ("0" the final, "1" the
+   * semi-finals, "2" the quarter-finals …) to an ISO day. Counted from the
+   * final so one set of dates serves flights of different sizes — every
+   * flight's final is played by the same day. Empty for no dates; read and
+   * written only through `domain/knockout-play-by.ts`. `deadline` above stays
+   * the whole round's date.
+   */
+  knockoutPlayBy      String   @default("")
+  /**
    * The organizer closing this round early or extending it past its date.
    * null follows the deadline. Same rule as registration — see
    * src/lib/deadline.ts — because they are the same question asked twice.
@@ -2046,6 +2071,16 @@ model Stage {
    * lib/domain/pace.ts.
    */
   paceMinutes       Int     @default(0)
+  /**
+   * What the Print kit has sent to the printer for this round (2026-10-23), as
+   * JSON — see lib/domain/print-kit.ts. One entry per printed SHEET (a player's
+   * card, a group's cart sign, the starting sheet): a fingerprint of what was
+   * on it, its version and when. When the groups, the times, the tees or the
+   * round code change afterwards, the sheet's fingerprint no longer matches and
+   * the hub says which sheets to reprint. Empty means nothing printed yet,
+   * which is every round that existed before this field.
+   */
+  printLog          String  @default("")
 
   event      Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   course     Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
@@ -3697,4 +3732,21 @@ model InterestRequest {
 
   @@index([createdAt])
   @@index([notifyId])
+}
+
+/// An early-list code, sent (2026-10-23): who was sent which code, and when. One row per address
+/// (lower-cased) — the early list was promised one code per club — written BEFORE the email goes,
+/// so two presses cannot send one person two codes, and removed again if the send fails. Sent only
+/// by the owner's own press on /owner (`services/early-list.ts`), never by Go live itself.
+model EarlyListSend {
+  email  String   @id
+  name   String   @default("")
+  /// The `DiscountCode.code` made for them: single-use, 25% off the first term.
+  code   String   @default("")
+  /// sending | sent
+  status String   @default("sending")
+  /// When it went (or began going): the mail service's daily allowance is counted from these.
+  sentAt DateTime @default(now())
+
+  @@index([sentAt])
 }

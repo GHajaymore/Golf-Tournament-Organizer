@@ -4,14 +4,17 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
-import { PLANS, effectiveAnnualPrice, planTagline, retentionNotice, retentionSummary, type PlanKey } from "@/lib/plans";
+import { PLANS, effectiveAnnualPrice, onEveryPlan, planTagline, retentionNotice, retentionSummary } from "@/lib/plans";
+import { PLAN_KEYS, planDiff } from "@/lib/landing/plan-diff";
+import { DEMO_CLUB, DEMO_HUB, DEMO_LABEL, DEMO_WATCH_LINE, demoDoorHref } from "@/lib/domain/demo-club";
+import { demoCardQr } from "@/lib/landing/demo-qr";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { siteOrigin } from "@/lib/site";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
-import { landingPrices, type LandingPrices } from "@/lib/landing/pricing";
+import { landingPrices } from "@/lib/landing/pricing";
 import { FAQ_COUNT, FORMAT_NAMES } from "@/lib/landing/faq";
 import { featureCount, featureGroups } from "@/lib/landing/features";
 import { LANDING_CSS } from "@/lib/landing/styles";
@@ -19,8 +22,8 @@ import { HOME_CSS } from "@/lib/landing/home-styles";
 import { COMPARED_ON, PRICES_READ_ON, RIVALS, TOP_PUBLISHED, compareRows, type Cell } from "@/lib/landing/compare";
 import { SALES_EMAIL } from "@/lib/contact";
 import { LandingAuth } from "@/components/LandingAuth";
-import { signInsHeld } from "@/lib/services/signins-switch";
-import { HELD_FRONT_DOOR } from "@/lib/sign-in-gate";
+import { launchState } from "@/lib/services/signins-switch";
+import { frontDoorWords } from "@/lib/go-live";
 import { LandingEffects } from "@/components/LandingEffects";
 import { LandingHomeEffects } from "@/components/LandingHomeEffects";
 import { FeatureSearch } from "@/components/landing/FeatureSearch";
@@ -50,37 +53,6 @@ const STORE_LINKS = {
   android: process.env.TOURNEYHQ_ANDROID_URL ?? "",
 };
 
-/** The plans, in the order the page shows them. */
-const PLAN_KEYS: PlanKey[] = ["free", "society", "club"];
-
-/**
- * "Compare plans": only what DIFFERS between the plans, every cell read from
- * PLANS. TourneyHQv2 read the code (2026-09-29): of the 69 feature lines only
- * the order of merit (seasonStandings) and white-label are plan-gated; the rest
- * is on every plan, which the table's footer says. The limits are the plans'
- * published terms — the page never claims anyone is blocked at them.
- */
-function planDiff(prices: LandingPrices): [string, React.ReactNode[]][] {
-  const each = (f: (k: PlanKey) => React.ReactNode) => PLAN_KEYS.map(f);
-  const count = (n: number | null, one: string) => (n === null ? "No limit" : n === 1 ? one : `Up to ${n}`);
-  const has = (on: boolean, note?: string) =>
-    on ? <><span className="cp-m cp-y" aria-hidden="true">✓</span><span className="sr">Included</span>{note ? <small>{note}</small> : null}</>
-       : <><span className="cp-m cp-x" aria-hidden="true">✕</span><span className="sr">Not included</span></>;
-  return [
-    ["Price", [
-      <><b>{prices.zero}</b><small>free for good</small></>,
-      <><b>{prices.society.yearly} a year</b><small>or {prices.society.monthly} a month</small></>,
-      <><b>{prices.club.yearly} a year</b><small>or {prices.club.monthly} a month</small></>,
-    ]],
-    ["Players in one tournament", each((k) => count(PLANS[k].limits.playersPerEvent, "One"))],
-    ["Tournaments at once", each((k) => count(PLANS[k].limits.activeEvents, "One"))],
-    ["Organizers and assistants", each((k) => count(PLANS[k].limits.staffSeats, "One"))],
-    ["Results kept", each((k) => capitalise(retentionSummary(PLANS[k]).replace(/^results /, "")))],
-    ["Order of merit across events", each((k) => has(PLANS[k].features.seasonStandings))],
-    ["The honors board", each((k) => has(PLANS[k].features.honours))],
-    ["Your club's branding in place of ours", each((k) => has(PLANS[k].features.whiteLabel, "with your logo"))],
-  ];
-}
 
 /**
  * How wide each picture is SHOWN, per place it sits — the `sizes` its <img>
@@ -169,6 +141,42 @@ const THEMES: Array<{ shot: string; name: string; swatch: string }> = [
   { shot: "look-midnight-dark", name: "Midnight, dark", swatch: "hsl(262 72% 60%)" },
 ];
 
+/**
+ * THREE DOORS, ONE FOR EACH KIND OF ORGANIZER (2026-10-24, borrowed from Golf
+ * GameBook's site with Ajay's approval): a short card each, and the path that
+ * is theirs. Written in US words — the UK editions read "societies", "society
+ * days" and "fourball" through the swaps. No sign-up anywhere in it, so it is
+ * the same page whether the front door is held or open.
+ */
+const AUDIENCES: Array<{ id: string; who: string; h: string; p: string; href: string; go: string }> = [
+  { id: "leagues", who: "Leagues & golf groups", h: "A season, not just a day.",
+    p: "Weekly leagues, golf groups and outings: every foursome's tee time on their phone, a table across the season, and who owes whom worked out.",
+    href: "/faq#q-league", go: "How a league runs" },
+  { id: "pros", who: "Golf pros", h: "Your event, from your phone.",
+    p: "A clinic day, a member-guest or a corporate day, with the field scoring from a round code and no account to make.",
+    href: DEMO_HUB, go: "See a day run" },
+  { id: "clubs", who: "Clubs", h: "Every competition, in your colors.",
+    p: "The medal, the championship and the knockout, any size of field, with the board on the clubhouse TV and in every member's hand.",
+    href: "#pricing", go: "See the club plans" },
+];
+
+/**
+ * THREE QUESTIONS EVERY ORGANIZER ASKS FIRST, answered short, each with its
+ * longer answer on /faq. The money answer says it as a CHOICE (the marketing
+ * manager's draft, 2026-10-24): TourneyHQ records money and never moves it.
+ */
+const ANSWERS: Array<{ q: string; a: string; href: string }> = [
+  { q: "Do players need an app?",
+    a: "No. They scan the round's sign or open a link, tap their name, and score in the browser. It saves to the home screen if they want it there.",
+    href: "/faq#q-app" },
+  { q: "Does it take entry fees?",
+    a: "No, and that is a choice. Your club takes its entry fees the way it does today, and TourneyHQ keeps the record: every amount worked out, nothing held or moved.",
+    href: "/faq#q-entry-fees" },
+  { q: "What does a player pay?",
+    a: "Nothing. A plan is the organizer's. A player never pays to enter scores, follow the board or see what they are owed.",
+    href: "/faq#q-cost" },
+];
+
 /** The demo club's board at 11:42, as the strip under the first screen runs it. Names are the demo's, invented. */
 const TICKER: Array<[string, string, string, string]> = [
   ["1", "Erin Walsh", "thru 9", "−6"],
@@ -215,26 +223,35 @@ export default async function LandingPage() {
   // The owner's price overrides, so the price here is the one the owner set on
   // the console — the same number the schema.org offer below quotes.
   const overrides = await storedPricingOverrides();
-  // Held until launch — the deploy's rule, unless the owner has opened accounts on the console.
-  const held = await signInsHeld();
+  // The go-live switch: held until launch — the deploy's rule, unless the owner has pressed Go live
+  // on the console. Every word below that differs held and live comes from `go-live.ts`.
+  const launch = await launchState();
+  const words = frontDoorWords(launch);
+  const start = words.startHref("");
   const [h, jar] = await Promise.all([headers(), cookies()]);
   const { local, shown, overridden } = landingEdition(
     h.get("x-vercel-ip-country"),
     jar.get(US_OVERRIDE_COOKIE)?.value === "1",
   );
   const prices = landingPrices(shown, overrides);
+  // The QR opens the demo's player card on THIS host, so a preview's QR opens the preview.
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const origin = host ? `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https")}://${host}` : siteOrigin();
+  const qr = await demoCardQr(origin);
+  // "On every plan": read from PLANS, never typed — a line is here exactly while every tier has it.
+  const everyPlan = onEveryPlan();
   const note = editionNote(local, overridden);
   // UK-English editions only: the app follows the club's own conventions there
   // — the course's unit, the club's clock, and a Monday week.
   const groups = featureGroups({ localGolf: shown.register !== "us" });
   // The plan lines in this edition's golf — "golf groups" or "societies".
-  const words = golfTermsFor(shown.register);
+  const golf = golfTermsFor(shown.register);
   const total = featureCount(groups);
 
   // The two CLUB platforms, and only those (Ajay, 2026-10-11: name the rivals a
   // buyer already knows; nobody smaller is advertised from our own front door).
   const named = RIVALS.map((r, i) => ({ ...r, i })).filter((r) => r.kind === "Club platform");
-  const rows = compareRows(prices);
+  const rows = compareRows(prices, launch);
 
   // What a year costs at each one's highest published plan, with its one-time
   // setup fee — the two figures each company prints, added. Ours beside them,
@@ -261,7 +278,7 @@ export default async function LandingPage() {
   );
   const doors = (
     <div className="m-cta-row">
-      <a className="m-btn m-primary" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.cta : "Run an event"} <span className="m-arrow" aria-hidden="true">→</span></a>
+      <a className="m-btn m-primary" href={start}>{words.heroCta} <span className="m-arrow" aria-hidden="true">→</span></a>
       <a className="m-btn m-line" href="/play"><span className="m-long">I have a round code</span><span className="m-short">Enter a code</span></a>
     </div>
   );
@@ -275,13 +292,13 @@ export default async function LandingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, currency: shown.currency })),
+          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, currency: shown.currency, launch })),
         }}
       />
       <LandingEffects />
       <LandingHomeEffects />
       {iconSprite()}
-      {landingNav("home", held)}
+      {landingNav("home", launch)}
 
       <main id="top" className="m-home">
         <div className="m-progress" aria-hidden="true" />
@@ -291,11 +308,10 @@ export default async function LandingPage() {
           <div className="m-wrap">
             <div className="m-hero-grid">
               <div className="m-copy">
-                {held ? (
-                  <a className="m-news m-rise" href="/interest">{HELD_FRONT_DOOR.pill} <span aria-hidden="true">→</span></a>
-                ) : (
-                  <a className="m-news m-rise" href="#does"><b>New</b> Ryder-style cups, on every player&rsquo;s phone <span aria-hidden="true">→</span></a>
-                )}
+                <a className="m-news m-rise" href={words.pill.href}>
+                  {words.pill.badge ? <><b>{words.pill.badge}</b> </> : null}
+                  {words.pill.text} <span aria-hidden="true">→</span>
+                </a>
                 <p className="m-eyebrow m-rise">Golf tournament &amp; league software</p>
                 <h1 id="hero-h">
                   <span className="m-line"><span>From Registration</span></span>
@@ -309,15 +325,7 @@ export default async function LandingPage() {
                 <p className="m-sub m-rise m-d2"><span>Run the whole competition.</span> <span>Your players just type a code.</span></p>
                 <div className="m-rise m-d3">{doors}</div>
                 <ul className="m-facts3 m-rise m-d4">
-                  {held ? (
-                    HELD_FRONT_DOOR.facts.map((f) => <li key={f}>{f}</li>)
-                  ) : (
-                    <>
-                      <li>Free for fields of up to {PLANS.free.limits.playersPerEvent}</li>
-                      <li>No card</li>
-                      <li>No app for players</li>
-                    </>
-                  )}
+                  {words.facts.map((f) => <li key={f}>{f}</li>)}
                 </ul>
               </div>
 
@@ -453,6 +461,40 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ═══════════ EVERYONE CAN WATCH: THE DEMO CLUB ═══════════
+            (2026-10-24) A real club's day, played by the app itself on an invented club
+            (`docs/claude/demo-club.md`). Every address is `/demo/<door>`, which goes to the
+            demo's page or, before it is built, to /demo saying it is on its way. */}
+        <section className="m-chapter" id="demo" aria-labelledby="demo-h">
+          <div className="m-wrap">
+            <div className="m-watch-grid">
+              <div className="m-watch-copy">
+                <p className="m-eyebrow">Everyone can watch</p>
+                <h2 id="demo-h">See a demo club&rsquo;s day.</h2>
+                <p className="m-lead">{DEMO_WATCH_LINE}</p>
+                <div className="m-cta-row">
+                  <a className="m-btn m-primary" href={DEMO_HUB}>See a demo club&rsquo;s day <span className="m-arrow" aria-hidden="true">→</span></a>
+                </div>
+                <ul className="m-watch-links" aria-label="Straight to one of the demo club's pages">
+                  <li><a href={demoDoorHref("board")}>The board</a></li>
+                  <li><a href={demoDoorHref("event")}>The event page</a></li>
+                  <li><a href={demoDoorHref("clubhouse")}>The clubhouse screen</a></li>
+                  <li className="m-watch-card"><a href={demoDoorHref("card")}>A player&rsquo;s card</a></li>
+                </ul>
+                <p className="m-watch-note">{DEMO_LABEL}. {DEMO_CLUB.name} is made up, and so is everybody on its board.</p>
+              </div>
+              {/* For a visitor on a laptop: the same player's card, on the phone in their pocket. Drawn on the server. */}
+              <figure className="m-qr" aria-labelledby="demo-qr-cap">
+                <svg viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label="A QR code that opens a player's card at the demo club" shapeRendering="crispEdges">
+                  <rect width={qr.size} height={qr.size} className="m-qr-ground" />
+                  <path d={qr.d} className="m-qr-ink" />
+                </svg>
+                <figcaption id="demo-qr-cap"><b>On your phone</b><span>Scan to open a player&rsquo;s card at the demo club, and watch it fill in.</span></figcaption>
+              </figure>
+            </div>
+          </div>
+        </section>
+
         {/* ═══════════ WHAT IT DOES ═══════════ */}
         <section className="m-chapter" id="does" aria-labelledby="does-h">
           <div className="m-wrap">
@@ -551,6 +593,26 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ═══════════ WHO IT'S FOR: THREE DOORS ═══════════ */}
+        <section className="m-chapter" id="for" aria-labelledby="for-h">
+          <div className="m-wrap">
+            <div className="m-head">
+              <p className="m-eyebrow">Who it&rsquo;s for</p>
+              <h2 id="for-h">Three ways in.</h2>
+            </div>
+            <div className="m-doors">
+              {AUDIENCES.map((d) => (
+                <a className="m-door" href={d.href} key={d.id} id={`for-${d.id}`}>
+                  <span className="m-what">{d.who}</span>
+                  <h3>{d.h}</h3>
+                  <p>{d.p}</p>
+                  <span className="m-go">{d.go} <span className="m-arrow" aria-hidden="true">→</span></span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ═══════════ WHEREVER YOU PLAY ═══════════ */}
         <section className="m-chapter" id="world" aria-labelledby="world-h">
           <div className="m-wrap">
@@ -574,6 +636,34 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ═══════════ ON EVERY PLAN, AND THREE QUESTIONS ═══════════
+            The list is `onEveryPlan()` — read from PLANS, never typed here. The answers are
+            short, each with its long form on /faq. */}
+        <section className="m-chapter" id="every-plan" aria-labelledby="every-h">
+          <div className="m-wrap">
+            <div className="m-every-grid">
+              <div>
+                <p className="m-eyebrow">On every plan</p>
+                <h2 id="every-h">What every plan includes.</h2>
+                <ul className="m-checks" aria-label="On every plan">
+                  {everyPlan.map((item) => (
+                    <li key={item.key} data-plan-term={item.key}><span className="m-tick" aria-hidden="true">✓</span>{item.label}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="m-answers">
+                {ANSWERS.map((x) => (
+                  <div className="m-answer" key={x.q}>
+                    <h3>{x.q}</h3>
+                    <p>{x.a}</p>
+                    <a href={x.href}>More on the questions page <span className="m-arrow" aria-hidden="true">→</span></a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ═══════════ PRICING ═══════════
             Read from PLANS through the owner's overrides, in the visitor's
             currency, so the page cannot promise a price or a limit the code
@@ -586,11 +676,11 @@ export default async function LandingPage() {
             </div>
             <div className="m-plans">
               <div className="m-plan">
-                <p className="m-who">{planTagline(PLANS.free, words)}</p>
+                <p className="m-who">{planTagline(PLANS.free, golf)}</p>
                 <h3>{PLANS.free.name}</h3>
                 <div className="m-price">{prices.zero}</div>
-                <p className="m-year">{held ? HELD_FRONT_DOOR.freeCard : "Free for good"}</p>
-                <a className="m-btn m-line" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.cta : "Start free"}</a>
+                <p className="m-year">{words.freeYear}</p>
+                <a className="m-btn m-line" href={start}>{words.freeButton}</a>
                 <ul>
                   <li>Up to {PLANS.free.limits.playersPerEvent} players</li>
                   <li>One tournament at a time</li>
@@ -599,11 +689,11 @@ export default async function LandingPage() {
                 <p className="m-term">{retentionNotice("free")}</p>
               </div>
               <div className="m-plan m-pick lightband">
-                <p className="m-who">{planTagline(PLANS.society, words)}</p>
+                <p className="m-who">{planTagline(PLANS.society, golf)}</p>
                 <h3>{PLANS.society.name}</h3>
                 <div className="m-price">{prices.society.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.society.yearly} a year</p>
-                <a className="m-btn" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.planButton(PLANS.society.name) : `Choose ${PLANS.society.name}`}</a>
+                <a className="m-btn" href={start}>{words.planButton(PLANS.society.name)}</a>
                 <ul>
                   <li>Up to {PLANS.society.limits.playersPerEvent} players in a field</li>
                   <li>As many events as your season runs</li>
@@ -611,11 +701,11 @@ export default async function LandingPage() {
                 </ul>
               </div>
               <div className="m-plan">
-                <p className="m-who">{planTagline(PLANS.club, words)}</p>
+                <p className="m-who">{planTagline(PLANS.club, golf)}</p>
                 <h3>{PLANS.club.name}</h3>
                 <div className="m-price">{prices.club.monthly}<small>a month</small></div>
                 <p className="m-year">or {prices.club.yearly} a year</p>
-                <a className="m-btn m-line" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.planButton(PLANS.club.name) : `Choose ${PLANS.club.name}`}</a>
+                <a className="m-btn m-line" href={start}>{words.planButton(PLANS.club.name)}</a>
                 <ul>
                   <li>Any size of field</li>
                   <li>Up to {PLANS.club.limits.staffSeats} organizers and assistants</li>
@@ -623,7 +713,7 @@ export default async function LandingPage() {
                 </ul>
               </div>
             </div>
-            <p className="m-small">{held ? HELD_FRONT_DOOR.pricingNote : "Paid plans are arranged with us directly: create your account and we move it to the plan."} Nothing is charged through the app. {note}</p>
+            <p className="m-small">{words.pricingNote} Nothing is charged through the app. {note}</p>
 
             <div className="m-versus">
               <div className="m-say">
@@ -674,7 +764,7 @@ export default async function LandingPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {planDiff(prices).map(([label, cells]) => (
+                        {planDiff(prices, launch).map(([label, cells]) => (
                           <tr key={label}>
                             <th scope="row">{label}</th>
                             {cells.map((c, i) => <td key={PLAN_KEYS[i]} className={PLAN_KEYS[i] === "society" ? "hot" : undefined}>{c}</td>)}
@@ -817,23 +907,11 @@ export default async function LandingPage() {
               <div className="m-close-copy">
               {/* Held until launch, the box below takes no new accounts, so the words above it do not
                   invite one (Ajay, 2026-10-21: "it still allow to sign up"). */}
-              {held ? (
-                <>
-                  <h2 id="start-h">{HELD_FRONT_DOOR.heading}</h2>
-                  <p className="m-lead">{HELD_FRONT_DOOR.lead}</p>
-                </>
-              ) : (
-                <>
-                  <h2 id="start-h">Run your first event.</h2>
-                  <p className="m-lead">
-                    A name is enough to start. No card, and with round codes on your players don&rsquo;t need an account.
-                    Organizers create an event here; players invited to one sign in with the same box.
-                  </p>
-                </>
-              )}
+              <h2 id="start-h">{words.closeHeading}</h2>
+              <p className="m-lead">{words.closeLead}</p>
               </div>
               <div className="authpanel m-auth">
-                <LandingAuth defaultMode="signup" organizers={words.organizers} golfGroup={words.golfGroup} closed={held} />
+                <LandingAuth defaultMode="signup" organizers={golf.organizers} golfGroup={golf.golfGroup} launch={launch} />
               </div>
               <div className="m-close-more">
               <div className="m-stores">
@@ -851,7 +929,7 @@ export default async function LandingPage() {
 
         {/* The two doors, within reach on a phone once the first screen's have scrolled away. */}
         <div className="m-dock" id="dock">
-          <a className="m-btn m-primary" href={held ? "/interest" : "#signup"}>{held ? HELD_FRONT_DOOR.cta : "Run an event"}</a>
+          <a className="m-btn m-primary" href={start}>{words.heroCta}</a>
           <a className="m-btn m-line" href="/play">Enter a code</a>
         </div>
       </main>
@@ -885,8 +963,4 @@ function storeButton(store: "ios" | "android", url: string) {
   ) : (
     <Link className="store soon" href="/faq#q-stores" aria-label={`${lead} ${name}. How to install it from your browser today`}>{inner}</Link>
   );
-}
-
-function capitalise(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

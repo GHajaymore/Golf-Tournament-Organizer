@@ -2,6 +2,7 @@ import "server-only";
 import webpush from "web-push";
 import { prisma } from "@/lib/db";
 import { ADMIN_EMAIL } from "@/lib/contact";
+import { demoRefusesMessage } from "@/lib/services/demo-guard";
 
 /**
  * Sending a web-push notification to a member, on every device they opted in on.
@@ -64,13 +65,23 @@ export interface PushPayload {
  * stored. A member with no subscription is simply skipped — opting in is
  * theirs to do, and the absence is not an error.
  */
-export async function sendPushToEmails(emails: string[], payload: PushPayload): Promise<void> {
+export async function sendPushToEmails(
+  emails: string[],
+  payload: PushPayload,
+  /**
+   * The tournament the push is about, or null for none — REQUIRED, so every
+   * caller says, and the demo club's tournaments push nothing to anybody
+   * (2026-10-24; docs/claude/demo-club.md).
+   */
+  scope: { eventId: string | null },
+): Promise<void> {
+  const targets = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (targets.length === 0) return;
+  if (await demoRefusesMessage({ to: targets, eventId: scope.eventId })) return;
   if (!ensureConfigured()) {
     console.warn("[push] VAPID keys not set — skipping push notification.");
     return;
   }
-  const targets = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
-  if (targets.length === 0) return;
 
   try {
     const subs = await prisma.pushSubscription.findMany({ where: { email: { in: targets } } });

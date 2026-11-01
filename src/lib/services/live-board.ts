@@ -11,6 +11,10 @@ import { teamMatchBoard } from "./teams";
 import { boardKindForRound, isKnockoutRound } from "../stage-types";
 import { drawnDraws } from "../domain/my-tie";
 import { seededDraws } from "../domain/draw-seeding";
+import { parsePlayBy, roundPlayBy, toPlay, latestResults, resultLine, type PlayBy } from "../domain/knockout-play-by";
+import { marginWords } from "../domain/my-tie";
+import { stillInTheDraw } from "../domain/bracket";
+import { formattingForEvent } from "./organization";
 import { bracketResults } from "./bracket-results";
 import type { BracketView } from "../domain/bracket";
 import { isLeaguePointsSystem, type LeaguePointsSystem } from "../domain/league-meeting";
@@ -103,8 +107,21 @@ export interface LiveBoardView {
    * share link is the page a knockout's members and families actually follow,
    * and it printed the qualifying table and nothing about who was still in.
    */
-  draws: { label: string; view: BracketView; seeded: boolean }[];
+  draws: { label: string; view: BracketView; seeded: boolean; playBy: Record<number, PlayBy> }[];
   bracketResults: Record<string, string>;
+  /**
+   * What the public board opens on for a knockout (the panel, 2026-10-23):
+   * the latest results, how many are still in, what is still to play with its
+   * play-by dates, and the champion of each draw once there is one. Null with
+   * no draw.
+   */
+  knockoutNews: {
+    latest: Array<{ key: string; line: string }>;
+    stillIn: number;
+    toPlay: Array<{ round: string; playBy: PlayBy | null; ties: Array<{ key: string; pair: string }> }>;
+    waiting: number;
+    champions: Array<{ draw: string; name: string }>;
+  } | null;
   /** The knockout IS the first round: the draw replaces the table. */
   straightKnockout: boolean;
   allIn: boolean;
@@ -470,7 +487,36 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
           expectedStarted.every((r) => thruHere(r) >= holeCount));
 
   const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
-  const draws = knockoutAt >= 0 ? seededDraws(state, drawnDraws(state.brackets)) : [];
+  const playByDates = parsePlayBy(knockoutAt >= 0 ? state.stages[knockoutAt].knockoutPlayBy : "");
+  const { locale } = knockoutAt >= 0 ? await formattingForEvent(event.id) : { locale: "" };
+  const draws = (knockoutAt >= 0 ? seededDraws(state, drawnDraws(state.brackets)) : []).map((d) => ({
+    ...d,
+    playBy: roundPlayBy(d.view, playByDates, state.today, locale),
+  }));
+  const knockoutMargins = draws.length > 0 ? await bracketResults(event.id) : {};
+  /*
+   * WHAT THE PUBLIC BOARD OPENS ON for a knockout (the panel, 2026-10-23): the
+   * latest results, then what is still to play and how many are still in —
+   * then the drawing. Worked out here, with the draw, so it is cached with it.
+   */
+  const ready = toPlay(draws, playByDates, state.today, locale);
+  const knockoutNews =
+    draws.length > 0
+      ? {
+          latest: latestResults(draws).map(({ draw, round, match }) => ({
+            key: match.key,
+            line: `${resultLine(draws.length > 1 ? `${draw} · ${round}` : round, match)}${marginWords(knockoutMargins[match.key])}`,
+          })),
+          stillIn: stillInTheDraw(...draws.map((d) => d.view)).stillIn,
+          toPlay: ready.rounds.map((g) => ({
+            round: draws.length > 1 ? `${g.draw} · ${g.round}` : g.round,
+            playBy: g.playBy,
+            ties: g.ties.map((m) => ({ key: m.key, pair: `${m.a.name} v ${m.b.name}` })),
+          })),
+          waiting: ready.waiting,
+          champions: draws.filter((d) => d.view.champion?.playerId).map((d) => ({ draw: d.label, name: d.view.champion!.name })),
+        }
+      : null;
 
   return {
     name: event.name,
@@ -508,7 +554,8 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
     unit: state.boardIsStroke ? state.strokeUnitLabel : "match points",
     manualFormat: kind === "manual",
     draws,
-    bracketResults: draws.length > 0 ? await bracketResults(event.id) : {},
+    bracketResults: knockoutMargins,
+    knockoutNews,
     straightKnockout: knockoutAt === 0 && !!activeStage && isKnockoutRound(activeStage.type),
     allIn,
     official: declaredFinal || activeStage?.closedAt != null,
@@ -562,7 +609,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
  * entries — the shape number is the backstop for a local server, which has
  * no deployment id and keeps its cache across restarts.
  */
-export const LIVE_BOARD_SHAPE = 8; // 8: `draws[].seeded`, seed numbers only where seeded (2026-10-23)
+export const LIVE_BOARD_SHAPE = 9; // 9: `knockoutNews`, and each draw's `playBy` (2026-10-24); 8: `draws[].seeded`
 const deployment = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
 
 /**

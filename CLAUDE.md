@@ -55,9 +55,12 @@ Ajay, 2026-10-17 and 2026-10-21: block sign-up and sign-in until he says launch.
 **Production holds itself:** only the owners on `OWNER_EMAILS` (and anybody on `SIGNIN_ALLOW_EMAILS`) may
 sign in, set or reset a password, sign up, or keep a session; everybody else sees the "opens soon" front
 door (sign-in only, `/play` for a player, every button to `/interest`). Previews, dev, CI and e2e are not
-production and stay open. **To launch:** the Accounts card on `/owner` (`services/signins-switch.ts`), or
-`SIGNINS=open` in Vercel. **Every door asks `maySignInNow` / `signInsHeld`** (`createSession`, `getSession`,
-the sign-in actions, the front door), so a new door must too. The held page's words are
+production and stay open. **To launch:** Go live on the Accounts card of `/owner` (`services/signins-switch.ts`),
+or `SIGNINS=open` in Vercel — ONE press takes every held place live, Hold again holds them all; the places are
+`LAUNCH_SURFACES` in `src/lib/go-live.ts` (= `docs/go-live-switch.md`), each screen takes `LaunchState` as a
+REQUIRED argument, and once live the card sends the early-list codes on the owner's press (`services/early-list.ts`).
+**Every door asks `maySignInNow` / `signInsHeld` / `launchState`** (`createSession`, `getSession`,
+the sign-in actions, the public pages), so a new door must too. The held page's words are
 `HELD_FRONT_DOOR` / `SIGNINS_CLOSED_NOTICE`: sign-ups "paused" (never "under development"), never the word
 "closed" on screen, and the free plan's "Free for fields of up to 10" and "No card" stay down until launch.
 It is held only while `OWNER_EMAILS` names somebody, so it can never lock everyone out.
@@ -90,7 +93,9 @@ is only worth having while it is true. So a change to what somebody sees or does
 until, **in the same pull request**:
 
 - **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown at `/guide/steps` with a
-  search box (`guide-search.ts`) and shipped as a PDF. Rebuild the PDF when the guide changes:
+  search box (`guide-search.ts`) and shipped as a PDF. **The PDF is rebuilt ONCE, before 19 Nov
+  2026, stamped with its date, and then parked until the product stabilises** (Ajay and the panel,
+  1 Nov): do not rebuild it per change. The Download PDF button stays. The one rebuild:
   `node scripts/build-guide-pdf.mjs` against a built server (see the script's header);
 - **the player's Help** says it — `src/lib/player-help.ts`, shown at `/me/help`;
 - any doc that describes it is corrected — this file, `docs/`.
@@ -197,12 +202,14 @@ its first run is where the dates above and `src/lib/leave-on-enter.ts` came from
 **SINCE 2026-10-23 THE PIPELINE IS THE TESTING PANEL'S** (`docs/testing-panel-2026-10-23.md`; the
 manual is `docs/testing.md`). In one paragraph, so nobody acts on the old rules:
 
-- **Rounds by tier**: tests, words and the front door need none; function in one area ONE; core
+- **Rounds by tier**: tests, words and the front door need none; function in one area ONE —
+  TARGETED (that area's specs + the always-on sweeps) when `scripts/qa/specs-by-area.mjs` places
+  every file in one area; every function commit, targeted or full, then waits for the NIGHTLY; core
   ONE round that visits all six countries, and then it waits for the NIGHTLY before production;
   money or handicap arithmetic keeps THREE until property-based tests and the mutation ratchet are
   on main (`ARITHMETIC_KEEPS_THREE_ROUNDS` in `layers.mjs` is the switch). `npm run qa:changed`
   prints the exact branches; the Round workflow plans a pushed branch with the same function.
-- **The nightly** (02:00 UTC, `nightly.yml`) runs every per-PR layer with all six countries, the
+- **The nightly** (scheduled 02:00 UTC, but it has been starting 07:30–08:15 UTC; `nightly.yml`) runs every per-PR layer with all six countries, the
   console crawl in full, the Android tablet and the libraries' holes, and deploys what it cleared.
   **The weekly** (`weekly.yml`) runs Chrome, Edge and the front door's motion. A change's round
   runs the console crawl only when it touches input screens (`crawlNeeded`).
@@ -246,7 +253,10 @@ rebased onto `main` to merge.
 `needs: verify` and runs only on a push to `main`. Nothing reaches production until the
 whole gate is green. Vercel's own Git deploy for `main` is off — `vercel.json` sets
 `git.deploymentEnabled.main = false` — so that job is the only route in. Preview deploys
-on other branches are untouched.
+on `claude/*` branches are untouched, since a PR's reviewer needs one. **`round/*`, `breaks/*`
+and `dependabot/*` build no preview** (2026-10-30): a round builds its own server on the runner
+and never opened the preview, and 170 round branches had filled Function Storage past the free
+plan's 10 GB, the point at which Vercel may refuse a production deploy.
 
 **SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A FREEZE** (the testing
 panel's item C). `ci.yml`'s `deploy` job calls it; so do the nightly round (after a clean
@@ -440,4 +450,5 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | editing files via PowerShell, Git Bash or `node -e`; a refusing rebase | `docs/claude/shell-traps.md` | encoding corruption, CRLF, eaten backslashes |
 | building a sweep/audit, walking screens, browser sessions | `docs/claude/sweeps-and-screen-walks.md` | controls, checks that pass on nothing, which session |
 | scoring, draw, cut, bracket, handicap changes | `docs/claude/combination-sweep.md` | `matrix.test.ts`, invariants, constant-offset errors |
+| the demo club, `isDemo`, `/demo`, the replay cron, anything that counts or messages clubs | `docs/claude/demo-club.md` | an invented club in production; every place it is left out, and the test for each |
 | history only | `docs/claude/retired.md` | Paragraphs superseded by a later ruling, kept verbatim with the reason |

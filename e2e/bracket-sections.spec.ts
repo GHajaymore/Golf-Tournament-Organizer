@@ -174,7 +174,8 @@ test("a knockout of 129: sections, a result from inside one, Find a player, on a
     await signIn(page.context(), baseURL!, ko.club, ko.event.id);
 
     await test.step("the secretary's draw: six tabs, each with what is left to play", async () => {
-      await open(page, "/bracket");
+      // The drawing is the second tab of the secretary's screen (part b: "To play" is the first).
+      await open(page, "/bracket?view=draw");
       for (const s of sections) {
         await expect(tab(page, s.label)).toContainText(s.toPlay === 0 ? "all played" : `${s.toPlay} to play`);
       }
@@ -239,7 +240,7 @@ test("a knockout of 129: sections, a result from inside one, Find a player, on a
       await page.unroute("**/bracket**");
       // Nothing else moved: the rows are the fixture's and this one.
       expect(await prisma.bracketWinner.count({ where: { eventId: ko.event.id } })).toBe(Object.keys(ko.winners).length + 1);
-      await open(page, "/bracket?section=q2");
+      await open(page, "/bracket?view=draw&section=q2");
       const margin = page.getByRole("textbox", { name: `Result of ${tie.a.name} v ${tie.b.name}, ${roundLabel}` });
       await expect(margin, "no margin box on the tie just decided").toBeVisible();
       await margin.fill("2&1");
@@ -261,12 +262,12 @@ test("a knockout of 129: sections, a result from inside one, Find a player, on a
       expect(lit, "their path is not lit").toBeGreaterThan(0);
       await capture(page, `find-a-player-${project}`);
       // The link, opened fresh, shows the same.
-      await open(page, `/bracket?section=q4&p=${who.id}`);
+      await open(page, `/bracket?view=draw&section=q4&p=${who.id}`);
       await expectSelected(page, "Quarter 4");
       expect(await drawing(page).locator('[data-tie][data-on-path="true"]').count()).toBe(lit);
     });
 
-    await open(page, "/bracket?section=whole");
+    await open(page, "/bracket?view=draw&section=whole");
     const secretary = await tieTexts(drawing(page));
 
     await test.step("signed out, the public board: the same tabs, the same names and results for every tie", async () => {

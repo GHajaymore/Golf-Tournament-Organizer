@@ -62,9 +62,9 @@ import { dayAtClubForEvent } from "@/lib/services/club-clock";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
-import { formatFitsRound, naturalFormatFor, newRoundBasis, unscorableRoundLabels } from "@/lib/domain/round-choices";
+import { formatFitsRound, naturalFormatFor, newRoundBasis } from "@/lib/domain/round-choices";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
-import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
+import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
@@ -116,11 +116,12 @@ import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
-import { launchRefusal, finishRefusal, statusMove } from "@/lib/domain/phase-gate";
+import { finishRefusal, statusMove, completingCheckFor } from "@/lib/domain/phase-gate";
+import { launchCheckFor } from "@/lib/services/setup-flow";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
-import { roundsMissingCards } from "@/lib/services/round-card-lines";
-import { bracketDraws, tieByKey, tieReportRefusal } from "@/lib/domain/my-tie";
+import { bracketDraws, tieByKey, tieReportRefusal, marginWords } from "@/lib/domain/my-tie";
+import { cleanPlayBy, resultLine, tieStillHolds } from "@/lib/domain/knockout-play-by";
 import {
   planWithPlayerAdded,
   isFlightCriterion,
@@ -1724,9 +1725,21 @@ export async function setStageDeadline(stageId: string, deadline: string): Promi
   const eventId = await requireStaffEvent();
   // Not behind the lock: moving the day scores are due is a decision made
   // during an event (rain, a late group) — Ajay, 2026-09-27.
-  const updated = await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
+  //
+  // A date or nothing (2026-10-30): this is a public endpoint and stored
+  // whatever text it was handed. And never before the round's own day — Ajay's
+  // round played on 6 Nov read "Due Fri, Oct 23" (`dueBeforePlayed`).
+  const typed = typeof deadline === "string" ? deadline : "";
+  const due = cleanIsoDate(typed);
+  if (typed.trim() && !due) return { ok: false, error: "Pick a date from the calendar." };
+  const round = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } });
   // A round removed in another tab matched nothing, and the box went on showing a date nobody
   // held, with nothing said (2026-10-21). The same words the sign-up deadline uses.
+  if (!round) return { ok: false, error: "That round isn't in this tournament." };
+  if (dueBeforePlayed(due, round.playedOn)) {
+    return { ok: false, error: "That's before the round is played. Pick the round's day or later." };
+  }
+  const updated = await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline: due } });
   if (updated.count === 0) return { ok: false, error: "That round isn't in this tournament." };
   await refresh();
   return { ok: true };
@@ -3772,6 +3785,76 @@ export async function setBracketResult(key: string, result: string) {
   await refresh();
 }
 
+/** How a knockout tie was settled, as the "To play" list offers it. */
+const TIE_SETTLED = { played: "", conceded: "conceded", walkover: "W/O", withdrawn: "withdrew" } as const;
+
+/**
+ * A KNOCKOUT RESULT FROM THE "TO PLAY" LIST — saved by the TIE, never by its
+ * place (the panel, 2026-10-23).
+ *
+ * The list names a tie by its key AND its two players. A key is a place in the
+ * draw, and a place can hold somebody else by the time the press lands — a
+ * result taken back above it, a second secretary — so the two players must
+ * still be the ones in it, or nothing is written and the screen is told why.
+ * The winner, how it was settled (played, with its margin; conceded; a
+ * walkover; withdrawn) and the margin go in one write, and the answer names
+ * the round and both players, so the secretary reads back what was recorded.
+ */
+export async function recordTieResult(input: {
+  key: string;
+  players: string[];
+  winnerId: string;
+  how: string;
+  margin?: string;
+}): Promise<{ ok: boolean; error?: string; said?: string }> {
+  const eventId = await requireStaffEvent();
+  const { key, players, winnerId, how } = input ?? ({} as typeof input);
+  if (typeof key !== "string" || typeof winnerId !== "string" || !Array.isArray(players) || players.length !== 2) {
+    return { ok: false, error: "Choose who won the tie." };
+  }
+  if (!Object.prototype.hasOwnProperty.call(TIE_SETTLED, how)) return { ok: false, error: "Say how the tie was settled." };
+  const state = await loadEventState(eventId);
+  const tie = state ? tieByKey(bracketDraws(state.brackets), key) : null;
+  const m = tie?.match;
+  if (!tie || !m) return { ok: false, error: "That tie isn't in the draw any more. Reload and record it again." };
+  const notReady = tieNotReady(m);
+  if (notReady) return { ok: false, error: notReady };
+  if (!tieStillHolds(m, players)) {
+    return { ok: false, error: "The draw has changed: that place now holds a different tie. Reload and record it again." };
+  }
+  if (winnerId !== m.a.playerId && winnerId !== m.b.playerId) return { ok: false, error: "The winner of a tie is one of the two players in it." };
+  if (m.winnerId) return { ok: false, error: "That tie already has a result. Change it on the draw." };
+
+  const settled = TIE_SETTLED[how as keyof typeof TIE_SETTLED];
+  const result = how === "played" ? cleanMargin(input.margin) : settled;
+  await recordBracketWinner(eventId, key, winnerId, result);
+  // A player's report of the same tie has been answered.
+  await prisma.bracketReport.deleteMany({ where: { eventId, key } });
+  const round = tie.draw ? `${tie.draw} · ${tie.round}` : tie.round;
+  const said = `${resultLine(round, { a: m.a, b: m.b, winnerId })}${marginWords(result)}`;
+  await logAudit(eventId, "knockout.result", `${said}, recorded from To play`);
+  await refresh();
+  return { ok: true, said };
+}
+
+/**
+ * THE PLAY-BY DATE OF EACH ROUND OF A KNOCKOUT, set on the Bracket screen (the
+ * panel, 2026-10-23). Running the event, not setup: open after launch, like
+ * any round's dates. Staff, for the knockout round of this tournament only.
+ */
+export async function setKnockoutPlayBy(stageId: string, dates: Record<string, string>): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  if (typeof stageId !== "string") return { ok: false, error: "That round isn't a knockout in this tournament." };
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, type: true } });
+  if (!stage || !isKnockoutRound(stage.type)) return { ok: false, error: "That round isn't a knockout in this tournament." };
+  const clean = cleanPlayBy(dates);
+  if (!clean.ok) return { ok: false, error: clean.error };
+  await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { knockoutPlayBy: clean.json } });
+  await logAudit(eventId, "knockout.play-by", `Play-by dates for the knockout ${clean.json ? `set: ${clean.json}` : "cleared"}`);
+  await refresh();
+  return { ok: true };
+}
+
 /**
  * A PLAYER REPORTS THEIR KNOCKOUT TIE (Ajay, 2026-09-28: "player may enter it
  * but organizer/club needs to approve it").
@@ -4558,7 +4641,9 @@ export async function setEventStatus(
   status: string,
   /** Must be true to complete a tournament the Free plan deletes on completion. */
   confirmDelete = false,
-): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean }> {
+  /** Must be true to complete with rounds nobody has played (`completingCheckFor`). */
+  confirmUnplayed = false,
+): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean; needsUnplayedConfirm?: boolean }> {
   const gate = await adminEventOrRefusal();
   if ("refused" in gate) return { ok: false, error: gate.refused };
   const { eventId } = gate;
@@ -4604,6 +4689,20 @@ export async function setEventStatus(
         })
       : null;
     if (refusal) return { ok: false, error: refusal };
+
+    /**
+     * ROUNDS NOBODY HAS PLAYED ARE ASKED ABOUT FIRST (2026-10-31, the panel). Completing closes
+     * every open round below, so a round with no scores would close as not played on one confirm.
+     * Asked rather than refused — a committee may abandon a round — and refused only when nothing
+     * at all was scored. Before the free plan's question, one topic at a time: this one is about
+     * the golf, that one about keeping the tournament. A public endpoint, so a caller that did not
+     * ask is answered with the question, as `confirmDelete` is.
+     */
+    if (state) {
+      const check = completingCheckFor(state.stages, state.roundsWithResults);
+      if (check && "refuse" in check) return { ok: false, error: check.refuse };
+      if (check && "ask" in check && !confirmUnplayed) return { ok: false, needsUnplayedConfirm: true, error: check.ask };
+    }
 
     /**
      * ON THE FREE PLAN, COMPLETING IS DELETING (Ajay, 2026-09-29) — for a club
@@ -4703,22 +4802,15 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
    * move was to unlock the thing they had just locked, in order to build the
    * tournament they had just published.
    *
-   * The two conditions are in `launchRefusal` with the reasoning. Guided
+   * The conditions are in `launchRefusal` with the reasoning. Guided
    * inside setting up, gated between phases — see phase-gate.ts.
+   *
+   * The facts are the setup flow's own (`launchCheckFor`, gap G3 2026-10-31):
+   * the dashboard's button asks the same function, so this refuses exactly what
+   * the button refuses, in the same words. Behind the staff gate above; the
+   * refusal names this tournament's own rounds and screens, nothing else.
    */
-  const [stages, confirmed, event] = await Promise.all([
-    prisma.stage.findMany({ where: { eventId }, select: { id: true, type: true, format: true, position: true } }),
-    prisma.player.count({ where: { eventId, status: "confirmed" } }),
-    prisma.event.findUnique({ where: { id: eventId }, select: { dates: true } }),
-  ]);
-  const playingRounds = stages.filter((s) => isPlayingRound(s.type)).length;
-  const refusal = launchRefusal({
-    playingRounds,
-    confirmed,
-    dated: !!event?.dates.trim(),
-    missingCards: await roundsMissingCards(eventId),
-    unscorable: unscorableRoundLabels(stages),
-  });
+  const { refusal } = await launchCheckFor(eventId);
   if (refusal) return { ok: false, error: refusal };
 
   // On launch, every non-staff account receives the Player role. Once registration

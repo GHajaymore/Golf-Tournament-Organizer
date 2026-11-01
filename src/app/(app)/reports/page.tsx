@@ -11,6 +11,8 @@ import { redirect } from "next/navigation";
 import { ReportsClient } from "@/components/ReportsClient";
 import { StatCard } from "@/components/PageHeader";
 import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
+import { prisma } from "@/lib/db";
+import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
@@ -36,6 +38,9 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { snapshotStanding, cardsIn } from "@/lib/domain/lifecycle-state";
 import { attendanceReport, attendanceCsvRows } from "@/lib/services/attendance-report";
 import { AttendanceReport } from "@/components/AttendanceReport";
+import { cupResult, TEAM_SESSION } from "@/lib/services/cup";
+import { cupPoints, cupResultNote } from "@/lib/domain/cup";
+import { Icon } from "@/components/Icon";
 
 /**
  * D8 of the 2026-08-12 audit. This page called `standingRows` unconditionally
@@ -71,6 +76,9 @@ export default async function ReportsPage({
   const state = withBoardRound(loaded, round);
   const choices = leaderboardRounds(loaded.stages);
   const brand = await brandForEvent(session.eventId);
+  // The club's golf words, for the Print kit row: a {cart} is a buggy in Britain.
+  const clubOf = await prisma.event.findUnique({ where: { id: session.eventId }, select: { organization: { select: { country: true, golfTerms: true } } } });
+  const golf = golfTermsFor(golfRegister(clubOf?.organization?.country, clubOf?.organization?.golfTerms));
 
   const { event } = state;
   const rows = standingRows(state);
@@ -152,7 +160,54 @@ export default async function ReportsPage({
    */
   const attendance = await attendanceReport(state);
 
-  if (kind === "team-match" && activeStage) {
+  /**
+   * A TEAM CUP IS DECIDED BY ITS OWN RESULT (2026-10-30) — `cupResult`, the
+   * one reader the honours board and the season table ask too. Its matches are
+   * on cup sessions, which `standingRows` does not read, so this sheet printed
+   * a completed cup's whole field at P0 W0 ½0 L0 under "Final standings".
+   */
+  const cup = state.stages.some((s) => s.type === TEAM_SESSION) ? await cupResult(session.eventId) : null;
+
+  if (cup) {
+    const final = event.status === "completed" && cup.outcome !== "open";
+    snapshotTitle = final ? "Final result" : "The cup so far";
+    board = (
+      <EmbeddedBoard note={cupResultNote(cup)}>
+        <div style={{ overflowX: "auto" }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th style={{ textAlign: "right" }}>Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cup.teams.map((t, i) => (
+                <tr key={t.id}>
+                  <td>
+                    {t.name}
+                    {cup.champion === (i === 0 ? "A" : "B") && <b> · won the cup</b>}
+                  </td>
+                  <td style={{ textAlign: "right" }}>{cupPoints(t.points)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </EmbeddedBoard>
+    );
+    extraCsv = [
+      {
+        label: "Cup result",
+        desc: "Both teams and their points.",
+        filename: `${event.name}-cup-result.csv`,
+        rows: [
+          ["Team", "Points", "Result"],
+          ...cup.teams.map((t) => [t.name, cupPoints(t.points), cup.scoreLine]),
+        ],
+      },
+    ];
+  } else if (kind === "team-match" && activeStage) {
     const sides = await teamMatchBoard(
       session.eventId,
       activeStage.id,
@@ -352,8 +407,12 @@ export default async function ReportsPage({
         {/* The whole tournament on one page to send round — the same report
             the public board links to once the tournament is finished. */}
         <div style={{ margin: "12px 0 0", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <Link href="/reports/final" className="btn" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
-            {state.event.status === "completed" ? "Final report" : "The results so far"}
+          {/* A BUTTON THAT SAYS WHAT IT DOES (Ajay, 2026-10-26: "Final report"
+              in plain text was easy to miss). The primary act on this screen
+              once the tournament is over, worded as the lifecycle bar words it. */}
+          <Link href="/reports/final" className="btn btn-primary" style={{ minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Icon name="trophy" />
+            {state.event.status === "completed" ? "Open the final report" : "The results so far"}
           </Link>
           {/* What it holds, in one line, so the report is found here rather
               than mistaken for the snapshot below (2026-10-21). */}
@@ -452,6 +511,7 @@ export default async function ReportsPage({
          * round from the sheet screen, and an organizer who has drawn round 1
          * and is looking at round 2 has not lost the ability to print.
          */
+        cartWord={golf.cart}
         hasTeeSheet={state.stages.some((s) => {
           try {
             return ((JSON.parse(s.teeSheet || "{}") as { groups?: unknown[] }).groups ?? []).length > 0;

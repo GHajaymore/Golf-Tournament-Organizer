@@ -398,6 +398,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
     "who won last year's play-off or draw for the last place — about last year's players, never this year's",
   deadline: "same — a copied deadline is always in the past",
   deadlineOverride: "belongs to the deadline that was not copied",
+  knockoutPlayBy: "same as deadline — last year's play-by dates for each knockout round have all passed, and a copy would open with every tie Overdue",
   carryForwardAsked:
     "records that an organizer was ASKED about carry-forward on the original; the copy asks again",
   accessCode: "a credential — a new tournament gets new Round Codes, and only if it turns them on",
@@ -406,6 +407,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   teeSheetPublished: "belongs to the tee sheet that was not copied",
   lineupPublished: "belongs to a cup lineup, and lineups are pairings — never copied, so a copy's sessions start as drafts",
   pinSheet: "where the holes were cut on last year's day — a committee moves them every round",
+  printLog: "what the Print kit printed for last year's round — a copy has printed nothing yet",
   matches: "results and pairings are never copied",
   carriers:
     "the Group rows holding this round's matches — and the matches are not copied, so there is nothing for one to carry. A carrier is created on demand by matchCarrierGroup the first time the copy generates that round",

@@ -153,10 +153,6 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
 
   await test.step("launch", async () => {
     await open(page, "/dashboard");
-    for (const step of ["Start taking entries", "Mark ready"]) {
-      await page.getByRole("button", { name: step }).click();
-      await expect(page.getByRole("button", { name: step })).toHaveCount(0, { timeout: 20_000 });
-    }
     await page.getByRole("button", { name: "Launch tournament" }).click();
     const dialog = page.getByRole("dialog");
     /**

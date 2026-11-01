@@ -1,4 +1,5 @@
 import { PRICED_PLANS, effectivePrice, planCurrency, type PricingOverrides } from "@/lib/plans";
+import { freePlanWords, type LaunchState } from "@/lib/go-live";
 
 /**
  * What the site tells a search engine about itself, in schema.org terms.
@@ -31,9 +32,14 @@ export interface StructuredDataOptions {
    * reading "GBP" beside a dollar figure is worse than no offer.
    */
   currency?: string;
+  /**
+   * The go-live switch's answer, required. Held, the free plan is offered nowhere (Ajay: "I dont
+   * want it until go live") — so a search engine is not told of a $0 plan the page has taken down.
+   */
+  launch: LaunchState;
 }
 
-export function siteStructuredData({ origin, overrides, currency }: StructuredDataOptions): Record<string, unknown> {
+export function siteStructuredData({ origin, overrides, currency, launch }: StructuredDataOptions): Record<string, unknown> {
   const org = `${origin}/#organization`;
   /** ISO 4217, and always a currency the price below is actually set in. */
   const CURRENCY = planCurrency(currency);
@@ -75,7 +81,7 @@ export function siteStructuredData({ origin, overrides, currency }: StructuredDa
           "season tables and the settle-up at the end.",
         // Priced tiers only: a "Let's talk" tier has no price to index, and an
         // Offer at "0" would tell a search engine Albatross is free.
-        offers: PRICED_PLANS.map((plan) => {
+        offers: PRICED_PLANS.filter((plan) => plan.key !== "free" || freePlanWords(launch).offered).map((plan) => {
           // The configurable price, not `priceMonthly` raw, so the offer a
           // crawler indexes and the number on the page are the same one.
           const price = effectivePrice(plan, overrides, CURRENCY);

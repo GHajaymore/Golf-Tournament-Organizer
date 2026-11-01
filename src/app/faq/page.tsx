@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { signInsHeld } from "@/lib/services/signins-switch";
+import { launchState } from "@/lib/services/signins-switch";
+import { frontDoorWords } from "@/lib/go-live";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
@@ -47,7 +48,10 @@ export default async function FaqPage() {
     h.get("x-vercel-ip-country"),
     jar.get(US_OVERRIDE_COOKIE)?.value === "1",
   );
-  const ctx = { prices: landingPrices(shown, overrides), email: contactEmail };
+  // The go-live switch: two answers and the last call to action read it (`go-live.ts`).
+  const launch = await launchState();
+  const ctx = { prices: landingPrices(shown, overrides), email: contactEmail, launch };
+  const cta = frontDoorWords(launch).faqCta;
   const swaps = editionSwaps(shown);
 
   const page = (
@@ -62,7 +66,7 @@ export default async function FaqPage() {
       />
       <LandingEffects />
       {iconSprite()}
-      {landingNav("faq", await signInsHeld())}
+      {landingNav("faq", launch)}
 
       <main>
         <section className="fq-hero">
@@ -125,10 +129,10 @@ export default async function FaqPage() {
               ) : (
                 <>
                   <div>
-                    <h2>The quickest answer is to try it.</h2>
-                    <p>Free for up to ten players, with no card and no setup fee.</p>
+                    <h2>{cta.heading}</h2>
+                    <p>{cta.body}</p>
                   </div>
-                  <Link className="btn" href="/#signup">Start free</Link>
+                  <Link className="btn" href={frontDoorWords(launch).startHref("/")}>{cta.button}</Link>
                 </>
               )}
             </div>
