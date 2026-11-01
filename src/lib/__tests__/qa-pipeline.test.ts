@@ -244,6 +244,18 @@ describe("what runs when (item B)", () => {
     expect(keys("pr")).not.toContain("mutation");
   });
 
+  it("the ratchet's part sets up Node 22, which StrykerJS 10 needs; every other part keeps the app's 20", () => {
+    // 2026-11-01: the first nightly with the ratchet ran it on Node 20, Stryker refused to start,
+    // and the night was NOT CLEAN with no scores at all.
+    const engines = JSON.parse(readVerbatim("node_modules/@stryker-mutator/core/package.json")).engines.node as string;
+    expect(engines).toBe(">=22.0.0");
+    const setup = readVerbatim(".github/actions/setup/action.yml").replace(/\r\n/g, "\n");
+    expect(setup).toContain('default: "20"');
+    expect(setup).toContain("node-version: ${{ inputs.node-version }}");
+    const round = readVerbatim(".github/workflows/round.yml").replace(/\r\n/g, "\n");
+    expect(round).toContain("node-version: ${{ matrix.part.id == 'mutation' && '22' || '20' }}");
+  });
+
   it("a schedule or a country mode nobody defined is refused, not read as everything", () => {
     expect(() => layersFor(1, { schedule: "nighlty" })).toThrow();
     expect(() => layersFor(1, { countries: "six" })).toThrow();
