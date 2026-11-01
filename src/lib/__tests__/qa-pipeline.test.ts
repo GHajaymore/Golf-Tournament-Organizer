@@ -183,6 +183,49 @@ describe("the console crawl in a change's round", () => {
   });
 });
 
+describe("the browser split (testing panel, 2026-11-01)", () => {
+  type L = { key: string; env?: Record<string, string>; projects: string[] };
+  const layers = (schedule: string) => layersFor(1, { schedule, countries: "all" }) as L[];
+  /** Every browser a layer drives: "<engine>/<layer>:<sizes>" (an empty list of sizes is all three, or the layer's own devices). */
+  const browsers = (schedule: string) =>
+    layers(schedule)
+      .filter((l) => ["suite", "iphone", "safari", "ipad", "firefox", "tablet-android", "chrome", "edge"].includes(l.key))
+      .map((l) => `${l.env?.E2E_CHANNEL ?? l.env?.E2E_ENGINE ?? "chromium"}/${l.key}:${l.projects.join("+") || "all"}`)
+      .sort();
+
+  // What ran BEFORE the split, in some schedule or other: the thing that must not be lost.
+  const BEFORE = [
+    "chromium/suite:all", "webkit/iphone:phone", "webkit/safari:desktop+small-phone", "webkit/ipad:all",
+    "firefox/firefox:all", "chromium/tablet-android:all", "chrome/chrome:all", "msedge/edge:desktop",
+  ].sort();
+
+  it("a change's round runs the core browsers and no others", () => {
+    expect(browsers("pr")).toEqual(["chromium/suite:all", "webkit/iphone:phone", "webkit/safari:desktop+small-phone"].sort());
+  });
+
+  it("the nightly adds the iPad, Firefox at three sizes, the Android tablet and installed Chrome", () => {
+    const added = browsers("nightly").filter((b) => !browsers("pr").includes(b));
+    expect(added).toEqual(["chrome/chrome:all", "chromium/tablet-android:all", "firefox/firefox:all", "webkit/ipad:all"].sort());
+  });
+
+  it("the weekly keeps Edge", () => {
+    expect(browsers("weekly")).toEqual(expect.arrayContaining(["msedge/edge:desktop"]));
+  });
+
+  it("no browser that ran before runs nowhere now: per-PR, nightly and weekly together cover them all", () => {
+    const union = new Set([...browsers("pr"), ...browsers("nightly"), ...browsers("weekly")]);
+    expect([...union].sort()).toEqual(BEFORE);
+  });
+
+  it("Firefox still runs at three sizes", () => {
+    const sizes = (layersFor(1, { schedule: "nightly" }) as Array<{ key: string }>).filter((l) => l.key === "firefox");
+    expect(sizes).toHaveLength(1);
+    const parts = partsFor(1, { schedule: "nightly", countries: "all" }) as Array<{ layer: string; args: string }>;
+    const ff = parts.filter((p) => p.layer === "firefox").map((p) => p.args).join(" ");
+    for (const size of ["phone", "small-phone", "desktop"]) expect(ff).toContain(`--projects=${size}`);
+  });
+});
+
 describe("what runs when (item B)", () => {
   const keys = (schedule: string) => (layersFor(1, { schedule, countries: "all" }) as Layer[]).map((l) => l.key);
 
@@ -192,9 +235,9 @@ describe("what runs when (item B)", () => {
     expect([...scheduled].sort()).toEqual([...every].sort());
   });
 
-  it("the nightly is every pr layer plus the tablet, the libraries and the mutation ratchet; the weekly is Chrome, Edge and the motion", () => {
+  it("the nightly is every pr layer plus the other browsers, the libraries and the mutation ratchet; the weekly is Chrome, Edge and the motion", () => {
     expect(keys("nightly")).toEqual(expect.arrayContaining(keys("pr")));
-    expect(keys("nightly").filter((k) => !keys("pr").includes(k)).sort()).toEqual(["dependencies", "mutation", "tablet-android"]);
+    expect(keys("nightly").filter((k) => !keys("pr").includes(k)).sort()).toEqual(["chrome", "dependencies", "firefox", "ipad", "mutation", "tablet-android"]);
     expect(keys("weekly").sort()).toEqual(["chrome", "edge", "motion"]);
     expect(keys("pr")).not.toContain("dependencies");
     // The ratchet costs a pull request nothing: it is never in a change's round.

@@ -91,11 +91,17 @@ export const ABROAD = [
  *            `--schedule`). It is what a round was until that day.
  *   pr       the round a change asks for before it merges (`round/<name>-1`).
  *   nightly  the full round on main, every night: every `pr` layer, all six
- *            countries, the console crawl in full, the Android tablet and the
+ *            countries, the console crawl in full, the other browsers (iPad,
+ *            Firefox at three sizes, Chrome as installed), the Android tablet and the
  *            libraries' published holes. A core change waits for it before it
  *            reaches production (the deploy gate, `scripts/qa/deploy-gate.mjs`).
  *   weekly   what moves slowly and is the same engine as the suite: Chrome and
  *            Edge as installed, and the front door with its animation on.
+ *
+ * THE BROWSER SPLIT (2026-11-01): a change's round runs the core browsers only — Chromium at its
+ * three sizes (the suite), the iPhone, and Safari on a Mac and as an iPhone SE. The iPad, Firefox
+ * (three sizes) and Chrome as installed moved to the nightly; Edge stays weekly. Firefox's small
+ * phone and Edge return to a change's round after launch. `qa-pipeline.test.ts` holds the lists.
  *
  * Nothing was removed from testing that day; what moved was WHEN. A layer that
  * left the `pr` list runs every night or every week on main instead.
@@ -291,7 +297,8 @@ function everyLayer(abroad) {
     {
       key: "chrome",
       // Weekly since 2026-10-23: "the same engine, a version apart" is a question of the calendar, not of a change.
-      when: ["weekly"],
+      // Nightly too since 2026-11-01 (the browser split): the installed Chrome is a core browser, so it is seen every night.
+      when: ["nightly", "weekly"],
       name: "Chrome, as installed",
       standsFor: "Google Chrome on a laptop and on a phone-sized window",
       reallyIs: "the Chrome installed on this machine (not Playwright's own build) — every screen, layout, touch targets, the front door",
@@ -343,7 +350,8 @@ function everyLayer(abroad) {
     },
     {
       key: "ipad",
-      when: PR_AND_NIGHTLY,
+      // Nightly only since 2026-11-01 (the browser split, ruled by the testing panel): a change's round keeps the core browsers.
+      when: ["nightly"],
       name: "An iPad",
       standsFor: "iOS on a tablet: an organizer at the registration desk, a player on the sofa",
       reallyIs: "WebKit as an iPad upright (810 wide), an iPad Mini upright (768 wide) and an iPad Pro 11 on its side (1194 wide), touch — every screen, layout, touch targets, the front door",
@@ -404,7 +412,8 @@ function everyLayer(abroad) {
     },
     {
       key: "firefox",
-      when: PR_AND_NIGHTLY,
+      // Nightly only since 2026-11-01 (the browser split). After launch, Firefox's small phone returns to a change's round.
+      when: ["nightly"],
       name: "Firefox",
       standsFor: "Firefox on a laptop, and at a phone's and a small phone's width",
       reallyIs: "the whole standing suite on Firefox at three sizes",

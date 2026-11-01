@@ -542,6 +542,6 @@ describe("the targeted-round manifest is held to the files on disk", () => {
     expect(parts.filter((p) => p.layer === "scenarios").map((p) => p.id)).toEqual(["scenario-e"]);
     // The layers that run a fixed list are kept as they are in a full pr round.
     const full = layersFor(1, { schedule: "pr" }) as Array<{ key: string; specs: string[] }>;
-    for (const key of ["elsewhere", "us-club", "safari", "ipad", "text-boxes"]) expect(layers.find((l) => l.key === key)?.specs, key).toEqual(full.find((l) => l.key === key)?.specs);
+    for (const key of ["elsewhere", "us-club", "safari", "text-boxes"]) expect(layers.find((l) => l.key === key)?.specs, key).toEqual(full.find((l) => l.key === key)?.specs);
   });
 });

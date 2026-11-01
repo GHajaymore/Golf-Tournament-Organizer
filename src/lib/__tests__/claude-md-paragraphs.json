@@ -76,10 +76,6 @@
   "t": "Ajay, 2026-10-10: \"keep a step when there is any change in the app to "
  },
  {
-  "h": "ce8a5108f85fad88",
-  "t": "- **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown "
- },
- {
   "h": "073644a124ea2b09",
   "t": "Say which in the PR description: \"Help/docs: updated …\" or \"Help/docs:"
  },
