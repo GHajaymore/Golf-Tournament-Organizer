@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { recordTieResult } from "@/app/actions/tournament";
 import type { PlayBy } from "@/lib/domain/knockout-play-by";
 import { Icon } from "./Icon";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 export interface ToPlayTie {
   key: string;
@@ -164,7 +165,9 @@ function TieRow({ tie, onSaid }: { tie: ToPlayTie; onSaid: (s: string) => void }
         </button>
       </div>
       {refused && (
-        <p className="form-error" role="alert" style={{ margin: 0 }}>
+        // Brought into view as it appears: on a phone the row's buttons wrap and the
+        // refusal lands below the bottom edge, where the press cannot see it.
+        <p key={refused} className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
           {refused}
         </p>
       )}
