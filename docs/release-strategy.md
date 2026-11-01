@@ -108,20 +108,34 @@ database that is not empty.
    held every GitHub runner the free plan gives (about twenty jobs at once),
    and `main`'s verify-and-deploy sat queued for an hour behind them. Each
    round then ran eight parts at a time. The account is on GitHub Pro (its
-   profile shows the PRO badge, 31 Oct; about forty jobs at once), so since
-   2026-10-31 a round runs twelve (`round.yml`, `max-parallel: 12`), and **no
-   more than two rounds run at once** — the nightly counts as one; push the
-   third when one has finished. Two at twelve, with their setup jobs, still
-   leave about ten for CI and the deploy job.
+   profile shows the PRO badge, 31 Oct; about forty jobs at once), so on
+   2026-10-31 a round went to twelve (`max-parallel: 12`), and **no more than
+   two rounds run at once** — the nightly counts as one; push the third when
+   one has finished.
 
-   The panel's rule (31 Oct) for moving it, over the first three rounds at
-   twelve (one beside the nightly), measuring wall-clock, INCOMPLETE parts,
-   install-timeout lines, the deploy job's queue time and the peak of jobs at
-   once: **raise to sixteen** only if a round beside the nightly kept every
-   deploy queued under 5 minutes, INCOMPLETE parts did not rise, and twelve
-   saved about 20 minutes; **go back to eight** if a deploy or `verify` waits
-   over 10 minutes behind rounds, more than 2 parts a round are INCOMPLETE, or
-   GitHub answers a 403 secondary rate limit.
+   **Since 2026-11-01 the cap adjusts itself** (Ajay approved 31 Oct). The
+   round's plan job counts the jobs already running and sets
+   `max-parallel` to **clamp(40 − running − 10 reserved, at least 4, at most
+   16)** — the ten reserved are for a CI run's jobs and the deploy job, which
+   must never wait behind a round. "Running" is the `in_progress` jobs of this
+   repository's in-progress runs, asked of GitHub with the workflow's own
+   token (it cannot see another repository of the account, and it does not
+   count queued jobs); the plan job itself is one of them. On any error it
+   falls back to **12**. The number and the reason are the first lines of the
+   round's run summary (`scripts/qa/round-cap.mjs`, `round.yml`). A lone round
+   on a quiet account gets sixteen; a round beside the nightly gets what is
+   left after the reserve, and never fewer than four.
+
+   The panel's rule (31 Oct) still decides whether this stays, measured over
+   the first three rounds under it (one beside the nightly): wall-clock,
+   INCOMPLETE parts, install-timeout lines, the deploy job's queue time and
+   the peak of jobs at once. **Keep the upper bound of sixteen** only if a
+   round beside the nightly kept every deploy queued under 5 minutes,
+   INCOMPLETE parts did not rise, and the rounds that got more than twelve
+   saved about 20 minutes; **lower the bounds** (to 4/12, or back to a fixed
+   eight) if a deploy or `verify` waits over 10 minutes behind rounds, more
+   than 2 parts a round are INCOMPLETE, or GitHub answers a 403 secondary rate
+   limit. Changing the bounds is three numbers in `round-cap.mjs`.
 
 ## How we know it is working
 

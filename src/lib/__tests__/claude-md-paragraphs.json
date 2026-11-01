@@ -828,10 +828,6 @@
   "t": "**SINCE 2026-10-23 THE PIPELINE IS THE TESTING PANEL'S** (`docs/testin"
  },
  {
-  "h": "c23091c587d85727",
-  "t": "- **Rounds by tier**: tests, words and the front door need none; funct"
- },
- {
   "h": "e40f61c36d2b9fc9",
   "t": "**TWO SESSIONS ON ONE MACHINE SHARE ONE FIXTURE, AND A PLAYWRIGHT RUN "
  },

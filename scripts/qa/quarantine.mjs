@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * THE QUARANTINE: TESTS A ROUND RUNS AND DOES NOT COUNT (the panel, 2026-10-23).
  *

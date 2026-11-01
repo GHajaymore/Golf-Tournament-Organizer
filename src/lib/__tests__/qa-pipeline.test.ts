@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { readVerbatim } from "./source";
+import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose, as in qa-framework.test.ts: the pipeline runs on a bare runner.
-import { ABROAD, ARITHMETIC, ARITHMETIC_KEEPS_THREE_ROUNDS, CRAWL_PARTS, SCHEDULES, crawlNeeded, layersFor, partsFor, roundPlan, tierOf } from "../../../scripts/qa/layers.mjs";
+import { ABROAD, ARITHMETIC, ARITHMETIC_KEEPS_THREE_ROUNDS, CRAWL_PARTS, SCHEDULES, crawlNeeded, layersFor, partsFor, roundPlan, targetLine, tierOf } from "../../../scripts/qa/layers.mjs";
+import { countRunning, roundCap } from "../../../scripts/qa/round-cap.mjs";
 import { activeEntries, quarantineProblems, quarantinedBy, readQuarantine } from "../../../scripts/qa/quarantine.mjs";
 import { infraReason } from "../../../scripts/qa/infra.mjs";
-import { cleanNightlyShas, decideDeploy } from "../../../scripts/qa/deploy-rules.mjs";
+import { cleanNightlyShas, commitsWaiting, decideDeploy, mustSucceed, nightlyWait } from "../../../scripts/qa/deploy-rules.mjs";
+import { AREAS } from "../../../scripts/qa/specs-by-area.mjs";
 
 /**
  * THE TESTING PIPELINE THE PANEL DECIDED ON 2026-10-23 (docs/testing-panel-2026-10-23.md),
@@ -27,9 +29,9 @@ describe("rounds by tier (item A)", () => {
     expect(roundPlan([]).rounds).toBe(0);
   });
 
-  it("function in one area needs ONE round of three countries, and no nightly", () => {
+  it("function in one area needs ONE round of three countries, and (since 2026-11-01) the nightly before production", () => {
     const p = roundPlan(["src/components/RosterClient.tsx"]);
-    expect([p.tier, p.rounds, p.countries, p.nightly]).toEqual(["function", 1, "trio", false]);
+    expect([p.tier, p.rounds, p.countries, p.nightly]).toEqual(["function", 1, "trio", true]);
   });
 
   it("core needs ONE round of all six countries, and the nightly before production", () => {
@@ -63,6 +65,95 @@ describe("rounds by tier (item A)", () => {
     expect(abroad.size).toBe(6);
     // Everything else is the same parts, once.
     expect(all.filter((p) => !p.layer.startsWith("abroad-")).map((p) => p.id)).toEqual(trio.filter((p) => !p.layer.startsWith("abroad-")).map((p) => p.id));
+  });
+});
+
+describe("targeted rounds (2026-11-01: specs-by-area.mjs)", () => {
+  it("a change inside one area is targeted at it, with its specs, scenarios and the crawl — and waits for the nightly", () => {
+    const p = roundPlan(["src/components/BracketFlights.tsx", "e2e/bracket-sections.spec.ts", "src/lib/__tests__/qa-pipeline.test.ts", "docs/testing.md"]);
+    expect([p.tier, p.rounds, p.target?.area, p.crawl, p.nightly]).toEqual(["function", 1, "bracket", true, true]);
+    expect(p.target?.scenarios).toEqual(["e"]);
+    expect(p.countries).toBe("trio");
+    // An area whose specs read days visits all six.
+    expect(roundPlan(["src/components/print/PrintPages.tsx"]).countries).toBe("all");
+  });
+
+  it("FAIL-SAFE: anything not plainly in one area is today's full round, and says which file", () => {
+    const full = (files: string[]) => {
+      const p = roundPlan(files);
+      expect(p.target, files.join(", ")).toBeNull();
+      return p;
+    };
+    // core, money, the schema, the workflows, the framework, an e2e helper, package files, two areas, an unnamed screen
+    expect(full(["src/components/BracketFlights.tsx", "prisma/schema.prisma"]).tier).toBe("core");
+    expect(full(["src/components/BracketFlights.tsx", "src/lib/domain/money.ts"]).rounds).toBe(3);
+    expect(full(["src/components/BracketFlights.tsx", ".github/workflows/round.yml"]).fullBecause).toContain(".github/workflows/round.yml");
+    expect(full(["src/components/BracketFlights.tsx", "scripts/qa/layers.mjs"]).fullBecause).toContain("scripts/qa/layers.mjs");
+    expect(full(["src/components/BracketFlights.tsx", "e2e/fixture.mjs"]).fullBecause).toContain("e2e/fixture.mjs");
+    expect(full(["src/components/BracketFlights.tsx", "package.json"]).tier).toBe("core");
+    expect(full(["src/components/BracketFlights.tsx", "src/app/owner/page.tsx"]).fullBecause).toContain("more than one area");
+    expect(full(["src/components/RosterClient.tsx"]).fullBecause).toContain("in no area");
+    expect(full(["src/components/BracketFlights.tsx", "e2e/print-kit.spec.ts"]).fullBecause).toContain("more than one area");
+    expect(full(["src/components/BracketFlights.tsx", "src/app/page.tsx"]).fullBecause).toContain("front door");
+    // A full function round is the round it got before targeting existed (and, since 2026-11-01, waits for the nightly).
+    expect(full(["src/components/RosterClient.tsx"])).toMatchObject({ tier: "function", rounds: 1, countries: "trio", nightly: true });
+    // Swept out of their areas for being imported from outside them (#982 review): full rounds.
+    for (const shared of ["src/components/BracketClient.tsx", "src/lib/services/messaging.ts", "src/lib/services/waitlist.ts", "src/components/CommentaryFeed.tsx", "src/lib/services/event-report.ts", "src/lib/bracket-visibility.ts"]) {
+      expect(full([shared]).fullBecause, shared).toContain("in no area");
+    }
+    expect(tierOf("src/lib/owner.ts")).toBe("core");
+  });
+
+  it("a targeted round is a change's round only: the nightly and the weekly are never cut", () => {
+    expect(() => layersFor(1, { schedule: "nightly", target: "bracket" })).toThrow();
+    expect(() => layersFor(1, { schedule: "weekly", target: "bracket" })).toThrow();
+    expect(() => layersFor(1, { schedule: "pr", target: "no-such-area" })).toThrow();
+  });
+
+  it("is smaller than the full round, and says so in its verdict and its plan", () => {
+    const full = partsFor(1, { schedule: "pr" }) as Part[];
+    const aimed = partsFor(1, { schedule: "pr", target: "bracket" }) as Part[];
+    expect(aimed.length).toBeLessThan(full.length);
+    expect(targetLine("bracket")).toMatch(/^TARGETED round: bracket — 6 specs, scenario e \+ the always-on set; the full suite runs in the nightly$/);
+    const merge = readVerbatim("scripts/qa/merge.mjs");
+    expect(merge).toContain("targetLine(plan.target)");
+    const round = readVerbatim(".github/workflows/round.yml");
+    expect(round).toContain('ARGS="$ARGS --target=$TARGET"');
+    expect(round).toContain("if [ \"$SCHEDULE\" != \"pr\" ]; then TARGET_MODE=full; fi");
+  });
+});
+
+describe("the round's own cap on parts at a time (Ajay, 2026-10-31)", () => {
+  it("is 40 − running − 10, held between 4 and 16, and 12 when nothing could be counted", () => {
+    expect(roundCap(2).cap).toBe(16);
+    expect(roundCap(14).cap).toBe(16);
+    expect(roundCap(18).cap).toBe(12);
+    expect(roundCap(18).reason).toContain("40 − 18 job(s) already running");
+    expect(roundCap(26).cap).toBe(4);
+    expect(roundCap(60).cap).toBe(4);
+    expect(roundCap(Number.NaN).cap).toBe(12);
+    expect(roundCap(-1).cap).toBe(12);
+  });
+
+  it("counts the in-progress jobs of in-progress runs, and throws (so the fallback is taken) when GitHub does not answer", () => {
+    const answers: Record<string, unknown> = {
+      "repos/x/y/actions/runs?status=in_progress&per_page=100": { workflow_runs: [{ id: 1 }, { id: 2 }] },
+      "repos/x/y/actions/runs/1/jobs?filter=latest&per_page=100": { jobs: [{ status: "in_progress" }, { status: "queued" }, { status: "completed" }] },
+      "repos/x/y/actions/runs/2/jobs?filter=latest&per_page=100": { jobs: [{ status: "in_progress" }, { status: "in_progress" }] },
+    };
+    const fake = (args: string[]) => (answers[args[1]] ? { status: 0, stdout: JSON.stringify(answers[args[1]]), stderr: "" } : { status: 1, stdout: "", stderr: "HTTP 403" });
+    const gh = fake as unknown as Parameters<typeof countRunning>[1];
+    expect(countRunning("x/y", gh)).toBe(3);
+    expect(() => countRunning("x/z", gh)).toThrow(/403/);
+  });
+
+  it("round.yml feeds it into max-parallel through the plan job, and prints it", () => {
+    const round = readVerbatim(".github/workflows/round.yml");
+    expect(round).toContain("max-parallel: ${{ fromJSON(needs.plan.outputs.cap || '12') }}");
+    expect(round).toContain("cap: ${{ steps.cap.outputs.cap }}");
+    expect(round).toContain("node scripts/qa/round-cap.mjs");
+    expect(round).toContain("Parts at a time:");
+    expect(round).not.toMatch(/max-parallel: \d+/);
   });
 });
 
@@ -209,6 +300,56 @@ describe("the deploy gate (item C)", () => {
     expect(decideDeploy({ ...base, coreCommits: core, uncovered: core, overrideFreeze: true }).decision).toBe("hold");
   });
 
+  it("EVERY function commit waits for a clean nightly, targeted or full — and a later manifest change cannot release one", () => {
+    const targetedFiles = ["src/components/BracketFlights.tsx", "e2e/bracket-sections.spec.ts"];
+    expect(roundPlan(targetedFiles).target?.area).toBe("bracket");
+    expect(nightlyWait(targetedFiles)).toBe("function");
+    // A function commit whose round was FULL waits too.
+    expect(nightlyWait(["src/components/RosterClient.tsx"])).toBe("function");
+    expect(nightlyWait(["src/lib/domain/bracket.ts"])).toBe("core");
+    // The manifest changes after the targeted commit merged (an area dropped, as the documented revert
+    // of targeting would): the commit's round no longer reads as targeted, and it STILL waits.
+    const bracket = AREAS.bracket;
+    try {
+      delete (AREAS as Record<string, unknown>).bracket;
+      expect(roundPlan(targetedFiles).target).toBeNull();
+      expect(nightlyWait(targetedFiles)).toBe("function");
+    } finally {
+      (AREAS as Record<string, unknown>).bracket = bracket;
+    }
+    // CONTROLS: words and tests do not wait.
+    expect(nightlyWait(["docs/testing.md"])).toBeNull();
+    expect(nightlyWait(["e2e/bracket-sections.spec.ts", "src/lib/__tests__/qa-pipeline.test.ts"])).toBeNull();
+    // Since production, a function commit with no clean nightly containing it: HOLD; with one: DEPLOY.
+    const waiting = [{ sha: "e".repeat(40), subject: "the bracket reads its flights", kind: "function" }];
+    const held = decideDeploy({ ...base, coreCommits: waiting, uncovered: waiting });
+    expect(held.decision).toBe("hold");
+    expect(held.reason).toContain("function");
+    expect(decideDeploy({ ...base, coreCommits: waiting, uncovered: [] }).decision).toBe("deploy");
+    // The gate reads tiers through commitsWaiting, never the manifest.
+    const gate = readVerbatim("scripts/qa/deploy-gate.mjs");
+    expect(gate).toContain("commitsWaiting(");
+    // (Code only: the comments say why the manifest is NOT asked.)
+    expect(readSource("scripts/qa/deploy-gate.mjs")).not.toMatch(/roundPlan|targetFor|specs-by-area/);
+    expect(readSource("scripts/qa/deploy-rules.mjs")).not.toMatch(/roundPlan|targetFor|specs-by-area/);
+  });
+
+  it("FAIL CLOSED: a git failure throws (the gate exits 1, nothing ships) and a commit with no readable files waits", () => {
+    expect(() => mustSucceed({ status: 128, stdout: "", stderr: "fatal: bad revision" }, "git rev-list")).toThrow(/git rev-list failed \(exit 128\)/);
+    expect(() => mustSucceed(null, "git diff-tree")).toThrow();
+    expect(mustSucceed({ status: 0, stdout: "abc\n", stderr: "" }, "git")).toBe("abc\n");
+    // A commit whose file list comes back empty or unknown is held, never waved through.
+    const files: Record<string, string[]> = { a: [], b: ["docs/testing.md"], c: ["src/components/RosterClient.tsx"] };
+    expect(commitsWaiting(["a", "b", "c"], (s: string) => files[s]).map((c) => `${c.sha}:${c.kind}`)).toEqual(["a:unknown", "c:function"]);
+    expect(nightlyWait(undefined as unknown as string[])).toBe("unknown");
+    // And the gate uses the throwing form for every git question it builds the list from.
+    const gate = readVerbatim("scripts/qa/deploy-gate.mjs");
+    const fn = gate.slice(gate.indexOf("function waitingCommitsSince"), gate.indexOf("/** The commits a Nightly round"));
+    expect(fn).toContain('gitOut("rev-list"');
+    expect(fn).toContain('gitOut("diff-tree"');
+    expect(fn).not.toMatch(/\bgit\(/);
+  });
+
   it("holds in the freeze unless overridden, and deploys — saying so — when the freeze cannot be asked", () => {
     const frozen = { checked: true, frozen: true, reason: "2 tournaments are being played today" };
     expect(decideDeploy({ ...base, window: frozen })).toMatchObject({ decision: "hold" });
@@ -249,7 +390,8 @@ describe("the deploy gate (item C)", () => {
     expect(job).toContain("needs: verify");
     expect(job).toContain("uses: ./.github/workflows/deploy.yml");
     expect(job).not.toContain("vercel deploy");
-    const deploy = readVerbatim(".github/workflows/deploy.yml");
+    // Line endings as GitHub sees them: a Windows checkout's CRLF would hide every step from `${name}\n`.
+    const deploy = readVerbatim(".github/workflows/deploy.yml").replace(/\r\n/g, "\n");
     expect(deploy).toContain("node scripts/qa/deploy-gate.mjs");
     const steps = deploy.split("      - name: ").slice(1);
     for (const name of ["Install the Vercel CLI", "Link the project", "Deploy", "Record what production holds", "Smoke-test production"]) {

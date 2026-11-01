@@ -24,12 +24,17 @@ name: Round
 #   round/<anything>-1 (and -2, -3 when it says three). The plan job reads the
 #   changed files with the same function (`roundPlan` in layers.mjs), so a core
 #   change's round visits all six countries and a change that touches no input
-#   screen leaves the console crawl out — without anybody choosing.
+#   screen leaves the console crawl out — without anybody choosing. And a change
+#   whose every file is in ONE area of scripts/qa/specs-by-area.mjs gets a
+#   TARGETED round: the area's specs and scenarios plus the always-on sweeps in
+#   place of every spec; the full suite runs in the nightly, and the deploy gate
+#   holds the commit until a clean nightly contains it (docs/testing.md).
 #   Or "Run workflow", with the plan given by hand.
 #
 # THREE KINDS OF ROUND (the panel, 2026-10-23 — docs/testing-panel-2026-10-23.md):
 #   pr        a pushed round/** branch: the round a change asks for before it merges
-#   nightly   nightly.yml calls this file at 02:00 UTC on main: every pr layer, all
+#   nightly   nightly.yml calls this file on main (scheduled 02:00 UTC; it has been
+#             starting 07:30–08:15 UTC, when GitHub has room): every pr layer, all
 #             six countries, the console crawl in full, the Android tablet and the
 #             libraries' published holes. A core change reaches production only
 #             after one of these is clean on a commit containing it (deploy.yml).
@@ -82,6 +87,10 @@ on:
         description: "on, off, or auto (from the changed files)"
         required: true
         default: "auto"
+      target:
+        description: "auto (a TARGETED round when every changed file is in one area of scripts/qa/specs-by-area.mjs), or full"
+        required: true
+        default: "auto"
   workflow_call:
     inputs:
       round:
@@ -116,11 +125,16 @@ jobs:
     name: Plan
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # actions: read, to count the jobs already running (the cap, below).
+    permissions:
+      contents: read
+      actions: read
     outputs:
       parts: ${{ steps.plan.outputs.parts }}
       round: ${{ steps.plan.outputs.round }}
       tag: ${{ steps.plan.outputs.tag }}
       planargs: ${{ steps.plan.outputs.planargs }}
+      cap: ${{ steps.cap.outputs.cap }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -136,6 +150,7 @@ jobs:
           SCHEDULE_ASKED: ${{ inputs.schedule }}
           COUNTRIES_ASKED: ${{ inputs.countries }}
           CRAWL_ASKED: ${{ inputs.crawl }}
+          TARGET_ASKED: ${{ inputs.target }}
           REF: ${{ github.ref_name }}
           RUN: ${{ github.run_number }}
         run: |
@@ -145,24 +160,49 @@ jobs:
           SCHEDULE="${SCHEDULE_ASKED:-pr}"
           COUNTRIES="${COUNTRIES_ASKED:-auto}"
           CRAWL="${CRAWL_ASKED:-auto}"
-          # The nightly is the full round, whatever it is asked: all six, the crawl in full.
+          TARGET_MODE="${TARGET_ASKED:-auto}"
+          TARGET=""
+          # The nightly is the full round, whatever it is asked: all six, the crawl in full. So is the weekly.
           if [ "$SCHEDULE" = "nightly" ]; then COUNTRIES=all; CRAWL=on; fi
-          if [ "$COUNTRIES" = "auto" ] || [ "$CRAWL" = "auto" ]; then
+          if [ "$SCHEDULE" != "pr" ]; then TARGET_MODE=full; fi
+          if [ "$COUNTRIES" = "auto" ] || [ "$CRAWL" = "auto" ] || [ "$TARGET_MODE" = "auto" ]; then
             # What the change touches, read by the same function `npm run qa:changed` prints from.
             node scripts/qa/what-changed.mjs origin/main --json > change-plan.json
             echo "The change, as qa:changed reads it: $(cat change-plan.json)"
+            # A TARGETED round (scripts/qa/specs-by-area.mjs): only when every changed file is in one area.
+            if [ "$TARGET_MODE" = "auto" ]; then TARGET=$(node -p "(require('./change-plan.json').target || {}).area || ''"); fi
             if [ "$COUNTRIES" = "auto" ]; then COUNTRIES=$(node -p "require('./change-plan.json').countries"); fi
             if [ "$CRAWL" = "auto" ]; then CRAWL=$(node -p "require('./change-plan.json').crawl ? 'on' : 'off'"); fi
           fi
+          # A targeted round always runs the console crawl, whatever was asked.
+          if [ -n "$TARGET" ]; then CRAWL=on; fi
           ARGS="--schedule=$SCHEDULE --countries=$COUNTRIES"
           if [ "$CRAWL" = "off" ]; then ARGS="$ARGS --no-crawl"; fi
+          if [ -n "$TARGET" ]; then ARGS="$ARGS --target=$TARGET"; fi
           SUFFIX=""
           if [ "$SCHEDULE" != "pr" ]; then SUFFIX="-$SCHEDULE"; fi
           echo "round=$ROUND" >> "$GITHUB_OUTPUT"
           echo "tag=G${RUN}-${ROUND}${SUFFIX}" >> "$GITHUB_OUTPUT"
           echo "planargs=$ARGS" >> "$GITHUB_OUTPUT"
-          echo "parts=$(node scripts/qa/round.mjs --parts --round=$ROUND $ARGS)" >> "$GITHUB_OUTPUT"
-          echo "### Round $ROUND: $ARGS" >> "$GITHUB_STEP_SUMMARY"
+          PARTS=$(node scripts/qa/round.mjs --parts --round=$ROUND $ARGS)
+          echo "parts=$PARTS" >> "$GITHUB_OUTPUT"
+          echo "### Round $ROUND: $ARGS — $(node -p "JSON.parse(process.argv[1]).length" "$PARTS") parts" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$TARGET" ]; then
+            echo "**$(node -e 'import("./scripts/qa/layers.mjs").then((m) => console.log(m.targetLine(process.argv[1])))' "$TARGET").**" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$SCHEDULE" = "pr" ] && [ -f change-plan.json ]; then
+            echo "A FULL round: $(node -p "require('./change-plan.json').fullBecause || require('./change-plan.json').tier + ' tier'")" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: How many parts at a time
+        # SELF-ADJUSTING (Ajay, 2026-10-31; docs/release-strategy.md, step 9): clamp(40 − running − 10, 4, 16),
+        # from the jobs already in progress in this repository; 12 on any error. scripts/qa/round-cap.mjs.
+        id: cap
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/qa/round-cap.mjs || echo "cap=12" >> "$GITHUB_OUTPUT"
+          CAP=$(grep -E '^cap=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
+          REASON=$(grep -E '^capreason=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)
+          echo "**Parts at a time: ${CAP:-12}** — ${REASON:-the cap script did not answer, so the fixed 12}" >> "$GITHUB_STEP_SUMMARY"
 
   build:
     name: Database suite and the one build
@@ -266,16 +306,18 @@ jobs:
     # a round is everything it found, not the first thing.
     strategy:
       fail-fast: false
-      # TWELVE PARTS AT A TIME, so a round never starves a production deploy
+      # HOW MANY PARTS AT A TIME, so a round never starves a production deploy
       # (docs/release-strategy.md, step 9). On 2026-10-19 two rounds of ~30
       # parts each held every runner and main's deploy sat queued for an hour
-      # behind them. The account is on GitHub Pro (the profile's PRO badge, seen
-      # 31 Oct; about forty jobs at once; eight was set for the free plan's twenty, and on 2026-10-31 a
-      # lone round left most runners idle). Two rounds at twelve — a PR round
-      # beside the nightly — plus their setup jobs, a CI run and the deploy job
-      # fit under forty; at sixteen one CI push queued the deploy (the panel,
-      # 31 Oct). Raised to sixteen only on the measures in step 9.
-      max-parallel: 12
+      # behind them. The account is on GitHub Pro (about forty jobs at once). A
+      # fixed twelve left a lone round's runners idle, and sixteen beside another
+      # round queued the deploy (the panel, 31 Oct). So since 2026-11-01 the plan
+      # job counts what is already running and sets the cap:
+      # clamp(40 − running − 10 reserved, 4, 16), and 12 if it cannot ask
+      # (scripts/qa/round-cap.mjs; the number and why are in the run's summary).
+      # `strategy` may read `needs` (GitHub's context table), and max-parallel
+      # takes a number, hence fromJSON.
+      max-parallel: ${{ fromJSON(needs.plan.outputs.cap || '12') }}
       matrix:
         part: ${{ fromJson(needs.plan.outputs.parts) }}
     services:
