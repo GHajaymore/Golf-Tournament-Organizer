@@ -107,9 +107,21 @@ database that is not empty.
    merge that carries it.* On 2026-10-19 two full rounds (~30 parts each)
    held every GitHub runner the free plan gives (about twenty jobs at once),
    and `main`'s verify-and-deploy sat queued for an hour behind them. Each
-   round now runs eight parts at a time (`round.yml`, `max-parallel: 8`), and
-   **no more than two rounds run at once** — push the third when one has
-   finished. That leaves room for CI and the deploy job at all times.
+   round then ran eight parts at a time. The account is on GitHub Pro (its
+   profile shows the PRO badge, 31 Oct; about forty jobs at once), so since
+   2026-10-31 a round runs twelve (`round.yml`, `max-parallel: 12`), and **no
+   more than two rounds run at once** — the nightly counts as one; push the
+   third when one has finished. Two at twelve, with their setup jobs, still
+   leave about ten for CI and the deploy job.
+
+   The panel's rule (31 Oct) for moving it, over the first three rounds at
+   twelve (one beside the nightly), measuring wall-clock, INCOMPLETE parts,
+   install-timeout lines, the deploy job's queue time and the peak of jobs at
+   once: **raise to sixteen** only if a round beside the nightly kept every
+   deploy queued under 5 minutes, INCOMPLETE parts did not rise, and twelve
+   saved about 20 minutes; **go back to eight** if a deploy or `verify` waits
+   over 10 minutes behind rounds, more than 2 parts a round are INCOMPLETE, or
+   GitHub answers a 403 secondary rate limit.
 
 ## How we know it is working
 
