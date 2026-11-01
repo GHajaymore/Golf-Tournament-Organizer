@@ -110,6 +110,10 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       {
+        kind: "tip",
+        text: "**One name in play at a time.** Two of your tournaments still being set up or live cannot share a name (capitals and extra spaces do not count as a difference). Creating, copying or renaming to a name another one is using is refused with the name of the one using it and a free name you can take, such as one with the year or (2). Completed tournaments may share a name, so last year's Spring Medal and this year's can both be called Spring Medal; reopening last year's while this year's is still in play is refused until one of them is renamed or completed.",
+      },
+      {
         kind: "table",
         head: ["Template", "What it sets up"],
         rows: [
@@ -128,14 +132,14 @@ export const GUIDE_STEPS: GuideSection[] = [
       },
       {
         kind: "tip",
-        text: "The list above the form is every tournament you can reach. A tournament whose last day has gone by without being launched reads **Dates passed, not launched**. Two tournaments with the same name each show the day they were created. The bin deletes a tournament with its players and every score, and asks first; only an {organizer} of that tournament can delete it, and pressing the bin on any other says so.",
+        text: "The list above the form is every tournament you can reach. A tournament whose last day has gone by without being launched reads **Dates passed, not launched**. Two tournaments with the same name each show their dates (or the day they were created, where they have none), with a number such as #2 where the dates are the same too; the same dates are shown in **Start from**. The bin deletes a tournament with its players and every score, and asks first; only an {organizer} of that tournament can delete it, and pressing the bin on any other says so.",
       },
       { kind: "h", text: "Tournament details" },
       { kind: "where", text: "Set up → Tournament details ({organizers} only)" },
       {
         kind: "steps",
         items: [
-          "**Tournament name** and **Tournament dates** are required to launch. Tick **These dates are tentative** if they may move; dates have their own [[Save dates]].",
+          "**Tournament name** and **Tournament dates** are required to launch; the name cannot be one another of your tournaments in play is using. Tick **These dates are tentative** if they may move; dates have their own [[Save dates]].",
           "**Overall result** — Match play or Stroke play — decides how season standings are worked out, not each round's format.",
           "**Golf course**: pick a course, **Other (enter manually)**, or **No fixed course — players choose**.",
           "Registration: **Entries open**, **Registration deadline** and **Field capacity** (a fixed number, or open). The deadline day itself is open, until midnight at the club. Press [[Save event]].",
@@ -561,7 +565,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Approve the last cards. When everything is in, the Dashboard offers to close the round — or mark it over with **Is this round over?** on Rounds & formats. Any cut is made then, and the board reads Final.",
           "Award prizes and settle the money.",
           "Export from **Afterwards → Reports & export**: [[Export CSV]] for standings and flight results (or the format's own sheet), **Who turned out**, the **Bracket sheet** and **Scorecards**. The snapshot has a [[Print]] button for a PDF.",
-          "On the Dashboard press [[Complete tournament]] and confirm. If a round has no scores it asks first: [[Complete anyway]] closes that round as not played and decides results on the rounds played, [[Keep playing]] leaves everything open. Boards switch to Final standings. To correct a card afterwards, press [[Reopen tournament]] — it asks first too — then complete it again.",
+          "On the Dashboard press [[Complete tournament]] and confirm. If a round has no scores it asks first: [[Complete anyway]] closes that round as not played and decides results on the rounds played, [[Keep playing]] leaves everything open. Boards switch to Final standings. To correct a card afterwards, press [[Reopen tournament]] — it asks first too — then complete it again. It is refused while another tournament in play has the same name; rename one of them first.",
           "**Open the final report**, the first button on Reports & export, is the whole tournament on one page to send round: the champion, the story, the format and field, the full leaderboard with gross and net, and who won the prizes. A tie for first is shown as shared — the committee settles it. A knockout's report is its draw, every result in the words a club uses (\"3&2\", \"at the 19th\", \"by walkover\"); while it is being played it says how many ties are played and how many players are still in, and it names the champion as soon as the final is played. Write **The story** yourself and [[Save the story]], or leave it and the report tells it from the results. Once the tournament is complete, the public leaderboard and the players' Board link to it, and the **Event page** leads with the result and **Read the final report**.",
           "The report holds every part of the app the tournament used, and only those: flight winners, the draw, **How it was won** (who led after each round, the biggest climb, and the podium's place after each round), **Each round**'s winner, the prizes and contests, the **Highlights** read off the cards (holes-in-one and eagles first, the best round, the lowest gross, the best nine, the longest run at par or better, the most birdies), **In numbers**, the skins and side games, the entry fees and costs, the **Settle-up** and **Coming up** — the next round, the club's tournaments taking entries, and your pinned notices. Money is shown only once it is final.",
           "Opened while the tournament is still being played, it is **The results so far**: the leader is named on the figure the board ranks them on (\"net −6 through 9\", \"19 points through 9\"), the leaderboard has a **Thru** column, somebody yet to tee off reads \"Not started\", the flights show their leaders, and a round nobody has played yet is in no table. Before anybody has played, there is no leaderboard at all.",
