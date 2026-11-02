@@ -64,6 +64,8 @@ export function copiedEventId(value: string): string {
 export interface CopyableEvent {
   id: string;
   name: string;
+  /** Its dates (and "#2"), where another tournament shares its name — `tellApart`. */
+  toldApart?: string;
 }
 
 export interface StartFromOption {
@@ -129,7 +131,8 @@ export function startFromGroups(input: {
         value: copyValue(e.id),
         // An untitled draft is a real row and must still be pickable — a blank
         // option is one nobody can choose on purpose.
-        label: e.name.trim() || "Untitled tournament",
+        // Last year's Spring Medal and this year's read the same; the date tells them apart.
+        label: `${e.name.trim() || "Untitled tournament"}${e.toldApart ? ` — ${e.toldApart}` : ""}`,
       })),
     });
   }

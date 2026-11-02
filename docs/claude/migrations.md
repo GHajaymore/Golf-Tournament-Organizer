@@ -28,3 +28,15 @@ in production, because a deploy is always a fresh build.
 
 So after `prisma migrate deploy`: `npx prisma generate`, then stop and restart the dev server
 before believing anything the browser tells you.
+
+**An index Prisma cannot express lives in SQL alone (2026-11-01).** `A036_a_name_in_play_is_the_clubs_once`
+makes `Event_name_in_play_key`, a partial unique index on an expression (one name in play per club;
+the rule is `domain/tournament-name.ts`). It is not in `schema.prisma`, only a comment beside
+`Event`'s indexes. Measured: CI's `prisma migrate diff --from-migrations … --to-schema-datamodel …
+--exit-code` says "No difference detected" with it in place, so the drift check stays green. If a
+migration Prisma GENERATES later carries `DROP INDEX "Event_name_in_play_key"`, delete that line
+before applying it. It is GUARDED: a `DO $$ … $$` block that creates it only where no club already
+holds two in-play tournaments of one name, so production's real events are never renamed or
+blocked; where it was skipped the app's own check still holds, and its SQL can be run again by
+hand with `prisma db execute --file` (it is idempotent) once the clubs have resolved their duplicates. Check whether it exists
+with `select indexname from pg_indexes where indexname = 'Event_name_in_play_key'`.

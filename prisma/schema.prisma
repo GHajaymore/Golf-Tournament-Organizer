@@ -1565,6 +1565,10 @@ model Event {
 
   @@index([organizationId])
   @@index([courseId])
+  // ONE NAME IN PLAY PER CLUB: migration A036 makes "Event_name_in_play_key", a PARTIAL unique
+  // index on (organizationId, normalised name) WHERE status is in play and shape is not 'match'.
+  // Prisma cannot express it, so it is not declared here; `migrate diff` ignores it. If a
+  // migration Prisma generates ever DROPs it, delete that line (docs/claude/migrations.md).
 
   /// Attempts to post this tournament’s rounds to an association.
   handicapPosts HandicapPost[]
