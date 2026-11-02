@@ -122,7 +122,7 @@ export const HOME_CSS = `
   .m-home .m-card.m-armed:nth-child(2), .m-home .m-plan.m-armed:nth-child(2) { transition-delay: 0.12s; }
   .m-home .m-card.m-armed:nth-child(3), .m-home .m-plan.m-armed:nth-child(3) { transition-delay: 0.24s; }
   .m-home .m-wide .m-screen.m-armed { transform: perspective(1600px) rotateX(14deg) translateY(40px) scale(0.95); transform-origin: 50% 100%; opacity: 0.5; transition-duration: 1.2s, 0.8s; }
-  .m-home .m-moment.m-armed .m-time, .m-home .m-moment.m-armed .m-l1, .m-home .m-moment.m-armed .m-l2, .m-home .m-moment.m-armed .m-aside { display: inline-block; opacity: 0; transform: translateY(22px); transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.6s ease; }
+  .m-home .m-moment.m-armed .m-time, .m-home .m-moment.m-armed .m-l1, .m-home .m-moment.m-armed .m-l2, .m-home .m-moment.m-armed .m-aside { opacity: 0; transform: translateY(22px); transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.6s ease; }
   .m-home .m-moment.m-armed .m-aside { display: block; transition-delay: 1.5s; }
   .m-home .m-moment.m-armed .m-l1 { transition-delay: 0.55s; }
   .m-home .m-moment.m-armed .m-l2 { transition-delay: 1.05s; }

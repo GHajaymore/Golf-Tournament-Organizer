@@ -63,6 +63,9 @@ test("the week steps forward with ›, says where it is, and its buttons can be 
   const slide = (i: number) => page.locator(`#week-${i}`);
   await expect(slide(0)).toContainText("1 of 7");
   for (const id of ["#week-prev", "#week-next"]) {
+    // In the middle of the screen, where a thumb presses it: at the very foot of a phone the page's own
+    // fixed bar of two doors passes over everything, this included.
+    await page.locator(id).evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
     const box = await page.locator(id).boundingBox();
     expect(box!.width, `${id} is ${box!.width}px wide`).toBeGreaterThanOrEqual(44);
     expect(box!.height, `${id} is ${box!.height}px tall`).toBeGreaterThanOrEqual(44);

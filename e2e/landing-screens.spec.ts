@@ -529,6 +529,9 @@ test("a visitor already at the sign-up form is still at it once the page's scrip
       page: document.documentElement.scrollHeight,
       formOnScreen: Math.round(document.querySelector("#start")!.getBoundingClientRect().top),
     }));
+  // The typefaces are the stylesheet's, not the script's: wait for them, or a heading that rewraps when
+  // they arrive is counted as the script moving the page (32px on a phone, the first run of 2026-11-01).
+  await page.evaluate(() => document.fonts.ready);
   // What the "Run an event" link does: go to the form.
   await page.evaluate(() => document.querySelector("#start")!.scrollIntoView({ block: "start", behavior: "instant" }));
   const before = await read();
