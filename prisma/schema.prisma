@@ -3510,6 +3510,10 @@ model HonoursEntry {
 
   /**
    * Who won. Kept for linking to a member's history where they still exist.
+   * A PLAYER's id or "" — never a team's. A team cup's champion line carries
+   * no id (its words are in `championName`, "Oakmere 6½–3½"). Rows confirmed
+   * between #978 and 2026-11-02 may hold the team's Group id here; a join to
+   * Player finds nothing for them, and nothing reads the column yet.
    */
   playerId     String @default("")
   /**
