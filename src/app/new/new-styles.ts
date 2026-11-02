@@ -52,7 +52,8 @@ export const NEW_CSS = `
   --n-glass-edge: color-mix(in srgb, var(--ink) 13%, transparent);
   --n-rim: inset 0 1px 0 color-mix(in srgb, white 13%, transparent);
   --n-flood: color-mix(in srgb, white 9%, transparent);
-  --n-glow: color-mix(in srgb, var(--brass-ui) 24%, transparent);
+  /* the light a lit screen throws: warm white, never an orange neon halo (Ajay: "should not look artificial") */
+  --n-glow: color-mix(in srgb, var(--ink) 9%, transparent);
   --n-quiet: color-mix(in srgb, var(--ink) 34%, var(--ground));
   --n-device: color-mix(in srgb, var(--ground) 32%, black);
   --n-device-edge: color-mix(in srgb, var(--ink) 24%, transparent);
@@ -143,12 +144,12 @@ export const NEW_CSS = `
 .n-zoom-story { --z: 1.55; --fx: 17%; --fy: 0%; }
 /* the floodlight's sheen on the glass: the top-right corner only, faint, above the screen */
 .n-phone-screen::after, .n-lid-screen::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: inherit;
-  background: linear-gradient(222deg, color-mix(in srgb, white 9%, transparent) 0%, transparent 24%); box-shadow: inset 0 0 0 1px color-mix(in srgb, black 22%, transparent); }
+  background: linear-gradient(222deg, color-mix(in srgb, white 4%, transparent) 0%, transparent 18%); box-shadow: inset 0 0 0 1px color-mix(in srgb, black 22%, transparent); }
 .n-base { height: clamp(9px, 1.2vw, 16px); margin: 0 -5%; border-radius: 0 0 20px 20px; background: linear-gradient(color-mix(in srgb, var(--ink) 42%, var(--n-device)), var(--n-device) 60%, black); box-shadow: inset 0 1px 0 color-mix(in srgb, white 30%, transparent), -30px 40px 50px -24px black; }
 .n-base::after { content: ""; display: block; width: 14%; height: 40%; margin: 0 auto; border-radius: 0 0 10px 10px; background: color-mix(in srgb, black 35%, transparent); }
 .n-frame { position: absolute; inset: 0; }
 .n-frame.n-off { opacity: 0; }
-.n-mark { position: absolute; z-index: 2; border: 3px solid var(--brass-ui); border-radius: 8px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--brass-ui) 24%, transparent), 0 0 28px color-mix(in srgb, var(--brass-ui) 45%, transparent); pointer-events: none; opacity: 0; }
+.n-mark { position: absolute; z-index: 2; border: 3px solid var(--brass-ui); border-radius: 8px; box-shadow: 0 0 0 5px color-mix(in srgb, var(--brass-ui) 22%, transparent); pointer-events: none; opacity: 0; }
 .n-mark.n-show { opacity: 1; }
 .n-tap { position: absolute; z-index: 2; border-radius: 12px; pointer-events: none; opacity: 0; }
 .n-tap.n-show { opacity: 1; box-shadow: 0 0 0 3px var(--brass-ui), 0 0 0 10px color-mix(in srgb, var(--brass-ui) 28%, transparent); }
@@ -156,10 +157,12 @@ export const NEW_CSS = `
 /* ═════════ HERO: the words, and the live moment under the floodlights ═════════ */
 .n-hero { position: relative; isolation: isolate; overflow: clip; padding: clamp(32px, 5vw, 76px) 0 clamp(56px, 6vw, 96px); }
 .n-flood { position: absolute; inset: 0; z-index: -2;
+  /* the lamp itself sits just past the top-right edge: its beam comes in from off the frame, as a
+     real floodlight's does in a photograph taken beside it (Ajay: "should not look artificial") */
   background:
-    linear-gradient(90deg, var(--ground) 0%, color-mix(in srgb, var(--ground) 90%, transparent) 30%, color-mix(in srgb, var(--ground) 35%, transparent) 58%, transparent 80%),
-    linear-gradient(180deg, color-mix(in srgb, var(--ground) 75%, transparent) 0%, transparent 24%, transparent 66%, var(--ground) 100%),
-    url(/new/d/floodlit-green.w1920.webp) 70% 62% / cover no-repeat,
+    linear-gradient(90deg, var(--ground) 0%, color-mix(in srgb, var(--ground) 90%, transparent) 30%, color-mix(in srgb, var(--ground) 30%, transparent) 58%, transparent 80%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ground) 40%, transparent) 0%, transparent 20%, transparent 66%, var(--ground) 100%),
+    url(/new/d/floodlit-green.w1920.webp) 82% 44% / auto 132% no-repeat,
     var(--n-deep);
 }
 .n-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background-image: ${GRAIN}; background-size: 180px; opacity: .08; mix-blend-mode: overlay; }
@@ -171,7 +174,7 @@ export const NEW_CSS = `
 .n-kicker i { width: 9px; height: 9px; border-radius: 50%; background: var(--brass-ui); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brass-ui) 25%, transparent); flex: none; }
 .n-tagline { font: 700 14px/1.2 var(--n-text); letter-spacing: .1em; text-transform: uppercase; color: var(--brass); margin-bottom: 16px; }
 .n-hero h1 span { display: block; }
-.n-hero h1 .n-h1-2 { color: var(--brass); text-shadow: 0 0 42px color-mix(in srgb, var(--brass-ui) 30%, transparent); }
+.n-hero h1 .n-h1-2 { color: var(--brass); }
 .n-hero-sub { margin-top: 22px; max-width: 32em; font-size: clamp(17px, calc(15.5px + .2vw), 18px); line-height: 1.55; color: var(--ink-soft); }
 .n-hero-sub b { color: var(--ink); font-weight: 700; }
 .n-hero-go { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
@@ -192,7 +195,7 @@ export const NEW_CSS = `
   background: var(--n-glass); backdrop-filter: blur(14px) saturate(1.2); border: 1px solid var(--n-glass-edge); box-shadow: var(--n-rim), 0 24px 44px -20px black; font-size: 15.5px; max-width: 100%; }
 .n-live b { font-weight: 700; color: var(--ink); }
 .n-live > span:nth-child(3) { color: var(--ink-soft); min-width: 0; }
-.n-live .n-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brass-ui); flex: none; box-shadow: 0 0 12px var(--brass-ui); }
+.n-live .n-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brass-ui); flex: none; }
 .n-live .n-big { font: 750 30px/1 var(--n-head); color: var(--brass); min-width: 2.2ch; }
 .n-replay { margin-left: 6px; background: none; border: 0; color: var(--ink-soft); font: 600 15px/1 var(--n-text); text-decoration: underline; text-decoration-color: var(--brass); text-underline-offset: 4px; cursor: pointer; padding: 8px 6px; min-height: 44px; }
 .n-replay:hover { color: var(--ink); }
@@ -217,7 +220,7 @@ export const NEW_CSS = `
   .n-flood {
     background:
       linear-gradient(180deg, var(--ground) 0%, color-mix(in srgb, var(--ground) 86%, transparent) 34%, color-mix(in srgb, var(--ground) 40%, transparent) 58%, color-mix(in srgb, var(--ground) 55%, transparent) 82%, var(--ground) 100%),
-      url(/new/d/floodlit-green.w960.webp) 64% 70% / auto 62% no-repeat,
+      url(/new/d/floodlit-green.w960.webp) 36% 100% / auto 74% no-repeat,
       var(--n-deep);
   }
   .n-hero-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
@@ -288,7 +291,7 @@ export const NEW_CSS = `
 .n-rail a span:first-child { font: 700 14px/1 var(--n-head); font-variant-numeric: tabular-nums; }
 .n-rail a:hover { color: var(--ink); }
 .n-rail .n-done a { color: var(--ink-soft); }
-.n-rail .n-on a { color: var(--ink); border-color: var(--brass-ui); background: color-mix(in srgb, var(--brass-ui) 14%, transparent); box-shadow: 0 0 18px -4px var(--n-glow); }
+.n-rail .n-on a { color: var(--ink); border-color: var(--brass-ui); background: color-mix(in srgb, var(--brass-ui) 14%, transparent); }
 .n-rail .n-on a span:first-child { color: var(--brass); }
 @media (prefers-reduced-motion: no-preference) {
   .n-story-pin .n-frame { transition: opacity .45s ease; }
@@ -337,7 +340,7 @@ export const NEW_CSS = `
 /* a window onto a capture: cropped and shown nearer its own size, never redrawn */
 .n-win { position: relative; overflow: hidden; margin-top: auto; border-radius: 12px; background: var(--ground-2); aspect-ratio: var(--ar, 16 / 10);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 16%, transparent), var(--n-cast); }
-.n-win::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: linear-gradient(222deg, color-mix(in srgb, white 7%, transparent), transparent 22%); }
+.n-win::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: linear-gradient(222deg, color-mix(in srgb, white 4%, transparent), transparent 18%); }
 /* --z: how many windows wide the capture is drawn; --fx/--fy: the share of it left above and to the left */
 .n-site .n-win img { position: absolute; left: 0; top: 0; max-width: none; width: calc(var(--z, 1) * 100%); height: auto; transform: translate(calc(-1 * var(--fx, 0%)), calc(-1 * var(--fy, 0%))); }
 .n-win-needs { --z: 1.3; --fx: 19%; --fy: 0%; }
@@ -358,7 +361,7 @@ export const NEW_CSS = `
 .n-tile-128 { grid-column: span 7;
   background: linear-gradient(180deg, color-mix(in srgb, var(--n-deep) 78%, transparent), color-mix(in srgb, var(--n-deep) 52%, transparent)), url(/new/d/dusk-turf.w800.webp) center 70% / cover, var(--n-deep); }
 .n-tile-128 p { color: var(--ink-soft); font-size: 16px; margin-top: 10px; }
-.n-tile-128 .n-num-big { font: 760 clamp(64px, 6.6vw, 92px)/.9 var(--n-head); letter-spacing: -.05em; color: var(--brass); text-shadow: 0 0 40px color-mix(in srgb, var(--brass-ui) 35%, transparent); }
+.n-tile-128 .n-num-big { font: 760 clamp(64px, 6.6vw, 92px)/.9 var(--n-head); letter-spacing: -.05em; color: var(--brass); }
 .n-tile-128 .n-128-say { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 22px; align-items: end; }
 .n-tile-128 .n-win { --ar: 16 / 8; }
 @media (min-width: 1001px) {
@@ -389,7 +392,7 @@ export const NEW_CSS = `
     url(/new/d/dusk-turf.w1600.webp) center 40% / cover no-repeat; }
 .n-watch { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 6fr); gap: clamp(32px, 5vw, 80px); align-items: end; }
 .n-watch-big { font: 720 clamp(28px, calc(19px + 2vw), 48px)/1.07 var(--n-head); letter-spacing: -.02em; text-wrap: balance; }
-.n-watch-big .n-t { display: block; color: var(--brass); font-variant-numeric: tabular-nums; text-shadow: 0 0 36px color-mix(in srgb, var(--brass-ui) 35%, transparent); }
+.n-watch-big .n-t { display: block; color: var(--brass); font-variant-numeric: tabular-nums; }
 .n-watch-row { display: flex; gap: clamp(14px, 2vw, 32px); align-items: flex-end; justify-content: center; margin-top: clamp(40px, 5vw, 72px); }
 .n-watch-row figure { flex: 0 1 300px; min-width: 0; }
 .n-watch-row figure:nth-child(2) { translate: 0 -28px; }
@@ -453,7 +456,7 @@ export const NEW_CSS = `
 .n-for li { min-width: 0; }
 .n-for a { height: 100%; display: grid; align-content: start; gap: 12px; padding: 26px 24px; border: 1px solid var(--n-glass-edge); border-radius: 20px; background: linear-gradient(165deg, var(--ground-2), color-mix(in srgb, var(--ground-2) 40%, var(--ground))); box-shadow: var(--n-rim), 0 30px 60px -40px black; text-decoration: none; }
 .n-for .n-who { font: 700 14px/1.2 var(--n-text); letter-spacing: .08em; text-transform: uppercase; color: var(--ink); }
-.n-for .n-who::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--brass-ui); margin-right: 10px; vertical-align: 2px; box-shadow: 0 0 10px var(--brass-ui); }
+.n-for .n-who::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--brass-ui); margin-right: 10px; vertical-align: 2px; }
 .n-for p { color: var(--ink-soft); font-size: 16.5px; }
 .n-for p b { display: block; color: var(--ink); font: 700 21px/1.2 var(--n-head); margin-bottom: 6px; }
 .n-for .n-go { font-weight: 700; text-decoration: underline; text-decoration-color: var(--brass); text-decoration-thickness: 2px; text-underline-offset: 5px; }
@@ -483,7 +486,7 @@ export const NEW_CSS = `
 .n-bars li { display: grid; grid-template-columns: 112px minmax(0, 1fr) 92px; gap: 14px; align-items: center; font-weight: 700; font-size: 16px; }
 .n-bars .n-track { height: 28px; background: color-mix(in srgb, var(--ink) 5%, transparent); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
 .n-bars .n-fill { display: block; height: 100%; background: var(--n-quiet); border-radius: 999px; }
-.n-bars .n-us .n-fill { background: var(--brass-ui); box-shadow: 0 0 18px var(--n-glow); }
+.n-bars .n-us .n-fill { background: var(--brass-ui); }
 .n-bars .n-amt { text-align: right; font-variant-numeric: tabular-nums; }
 .n-saved { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 10px; font-size: 16px; color: var(--ink-soft); }
 .n-saved b { font: 750 28px/1 var(--n-head); color: var(--brass); display: block; }
@@ -522,13 +525,13 @@ export const NEW_CSS = `
   background:
     linear-gradient(90deg, var(--n-deep) 0%, color-mix(in srgb, var(--n-deep) 88%, transparent) 45%, color-mix(in srgb, var(--n-deep) 60%, transparent) 100%),
     linear-gradient(180deg, var(--n-deep) 0%, transparent 30%, transparent 70%, var(--n-deep) 100%),
-    url(/new/d/floodlit-green.w1920.webp) 70% 60% / cover no-repeat,
+    url(/new/d/floodlit-green.w1920.webp) 30% 76% / auto 132% no-repeat,
     var(--n-deep); }
 .n-close::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background-image: ${GRAIN}; background-size: 180px; opacity: .07; mix-blend-mode: overlay; }
 .n-close-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: clamp(32px, 5vw, 80px); align-items: start; }
 .n-close-grid > div { min-width: 0; }
 .n-close .n-display span { display: block; }
-.n-close .n-display span + span { color: var(--brass); text-shadow: 0 0 42px color-mix(in srgb, var(--brass-ui) 30%, transparent); }
+.n-close .n-display span + span { color: var(--brass); }
 .n-close .n-lead { margin-top: 18px; }
 .n-close-auth { scroll-margin-top: 90px; }
 .n-stores { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
@@ -541,7 +544,7 @@ export const NEW_CSS = `
   .n-close-grid { grid-template-columns: minmax(0, 1fr); }
   .n-close { background:
     linear-gradient(180deg, var(--n-deep) 0%, color-mix(in srgb, var(--n-deep) 75%, transparent) 30%, var(--n-deep) 62%),
-    url(/new/d/floodlit-green.w960.webp) 64% 0 / auto 46% no-repeat,
+    url(/new/d/floodlit-green.w960.webp) 36% 0 / auto 52% no-repeat,
     var(--n-deep); }
 }
 
