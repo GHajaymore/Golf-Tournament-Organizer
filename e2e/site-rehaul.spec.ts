@@ -67,6 +67,18 @@ test.describe("/new, the site rehaul's preview", () => {
     expect(sub!.y).toBeLessThan(box!.y);
   });
 
+  test("design B: the committee's bento holds four real crops at unequal sizes", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/new");
+    const tiles = page.locator("#desk .n-bento > .n-tile");
+    await expect(tiles).toHaveCount(4);
+    const boxes = await tiles.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return Math.round(r.width * r.height); }));
+    // A bento, not identical cards: the largest tile is well over the smallest.
+    expect(Math.max(...boxes) / Math.min(...boxes)).toBeGreaterThan(1.5);
+    // Every tile shows a capture, and nothing else is drawn in its place.
+    for (let i = 0; i < 4; i++) await expect(tiles.nth(i).locator("img")).toHaveAttribute("src", /^\/landing\//);
+  });
+
   test("a time on the day board turns the screen beside it", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/new");

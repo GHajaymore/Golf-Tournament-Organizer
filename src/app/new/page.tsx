@@ -53,16 +53,17 @@ function screen(id: string, alt: string, sizes: string, priority = false) {
 }
 
 const SIZES = {
-  heroDesk: "(max-width: 760px) 100vw, min(1000px, 86vw)",
-  heroPhone: "(max-width: 760px) min(78vw, 330px), min(300px, 25vw)",
-  // Below 600px the laptop shots are cropped to a square, so the picture is drawn 1.6 times as wide.
-  desk: "(max-width: 600px) 160vw, (max-width: 900px) 100vw, 60vw",
-  deskPhone: "(max-width: 900px) 38vw, 18vw",
-  day: "(max-width: 900px) min(76vw, 320px), 330px",
-  watch: "(max-width: 900px) min(64vw, 260px), 300px",
-  wide: "(max-width: 600px) 150vw, (max-width: 900px) 100vw, 66vw",
-  money: "(max-width: 900px) min(80vw, 330px), 330px",
-  theme: "(max-width: 900px) min(58vw, 230px), 290px",
+  heroDesk: "(max-width: 760px) 100vw, min(900px, 76vw)",
+  heroPhone: "(max-width: 760px) min(64vw, 270px), min(270px, 22vw)",
+  // The bento's windows show a laptop capture zoomed in (1.3 to 2.6 times the window), so the
+  // picture is drawn wider than the tile that holds it.
+  bentoXl: "(max-width: 680px) 200vw, (max-width: 1000px) 130vw, 860px",
+  bentoWide: "(max-width: 680px) 230vw, (max-width: 1000px) 125vw, 860px",
+  bentoPhone: "(max-width: 680px) 70vw, (max-width: 1000px) 40vw, 320px",
+  day: "(max-width: 900px) min(70vw, 300px), 330px",
+  watch: "(max-width: 600px) min(62vw, 250px), 300px",
+  money: "(max-width: 900px) min(72vw, 310px), 310px",
+  theme: "(max-width: 900px) min(56vw, 230px), 290px",
 } as const;
 
 /**
@@ -222,12 +223,15 @@ export default async function NewSitePreview() {
         {/* ═════════ HERO: what it is, that it is real, what to do next ═════════ */}
         <section className="n-hero" id="top" aria-labelledby="hero-h">
           <div className="n-wrap n-hero-top">
-            <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
-            {/* Ajay's line (11 Oct), kept in the opening as the tagline and again as the close. */}
-            <p className="n-tagline">From Registration to Recognition.</p>
-            <h1 id="hero-h" className="n-display">
-              <span>Run the whole competition.</span> <span className="n-h1-2">They score by phone.</span>
-            </h1>
+            <div className="n-hero-head">
+              <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
+              {/* Ajay's line (11 Oct), kept in the opening as the tagline and again as the close. */}
+              <p className="n-tagline">From Registration to Recognition.</p>
+              <h1 id="hero-h" className="n-display">
+                <span>Run the whole competition.</span> <span className="n-h1-2">They score by phone.</span>
+              </h1>
+            </div>
+            <div className="n-hero-side">
             <p className="n-hero-sub">
               <b>Golf tournament and league software</b><span className="n-sub-more"> for clubs, golf groups and leagues</span>.{" "}
               <span className="n-sub-more">Entries, the draw, live scoring, side games and the prize table, from one screen. </span>
@@ -241,16 +245,21 @@ export default async function NewSitePreview() {
               {words.facts.map((f) => <li key={f}>{f}</li>)}
               <li>Playing today? <a className="n-link" href="/play">Enter your round code</a></li>
             </ul>
+            </div>
           </div>
 
-          <div className="n-stage">
-            <HeroMoment
-              facts={moment}
-              deskBefore={screen("live-desk-before", "", SIZES.heroDesk, true)}
-              deskAfter={screen("live-desk-after", "", SIZES.heroDesk)}
-              card={screen("live-card-before", "", SIZES.heroPhone, true)}
-              board={screen("live-board-after", "", SIZES.heroPhone)}
-            />
+          <div className="n-wrap">
+            <div className="n-plinth">
+              <div className="n-stage">
+                <HeroMoment
+                  facts={moment}
+                  deskBefore={screen("live-desk-before", "", SIZES.heroDesk, true)}
+                  deskAfter={screen("live-desk-after", "", SIZES.heroDesk)}
+                  card={screen("live-card-before", "", SIZES.heroPhone, true)}
+                  board={screen("live-board-after", "", SIZES.heroPhone)}
+                />
+              </div>
+            </div>
           </div>
           {/* On a phone the pill moves below the live moment, so the moment is in the first screen. */}
           <div className="n-wrap n-kicker-after">
@@ -262,22 +271,37 @@ export default async function NewSitePreview() {
         </section>
 
         {/* ═════════ THE COMMITTEE'S DESK ═════════ */}
+        {/* Design B: a bento of real crops at unequal sizes. Each tile is a window onto a capture,
+            cropped and shown nearer its own size; nothing in a screen is redrawn. */}
         <section className="n-sec" id="desk" aria-labelledby="desk-h">
-          <div className="n-wrap n-desk">
-            <div>
-              <div className="n-sec-head">
-                <h2 id="desk-h" className="n-h2">The committee on a laptop.</h2>
-                <p className="n-lead">Registration, flights, the draw, the tee sheet and the cut from one screen, in your club&rsquo;s colors. The field is on their phones.</p>
-              </div>
-              <ol className="n-desk-list">
-                <li><span className="n-t" aria-hidden="true">1</span><b>What needs you comes first.</b><p>A disputed result, a card to approve, a player still to place.</p></li>
-                <li><span className="n-t" aria-hidden="true">2</span><b>Nothing counts until you say so.</b><p>Cards are certified, approved or disputed. A result from the course waits for you.</p></li>
-                <li><span className="n-t" aria-hidden="true">3</span><b>Pace of play, group by group.</b><p>Which group is behind, and by how much, while the round is on.</p></li>
-              </ol>
+          <div className="n-wrap">
+            <div className="n-sec-head">
+              <h2 id="desk-h" className="n-h2">The committee on a laptop.</h2>
+              <p className="n-lead">Registration, flights, the draw, the tee sheet and the cut from one screen, in your club&rsquo;s colors. The field is on their phones.</p>
             </div>
-            <div className="n-desk-pic">
-              <div className="n-lid n-crop" style={{ "--cx": "100%" } as React.CSSProperties}><div className="n-lid-screen">{screen("desk-dashboard", "The organizer's dashboard during a round: what needs a decision, the tee sheet, and the pace of play group by group.", SIZES.desk)}</div></div>
-              <div className="n-phone"><div className="n-phone-screen">{screen("org-dashboard", "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", SIZES.deskPhone)}</div></div>
+            <div className="n-bento">
+              <div className="n-tile n-tile-xl n-tile-bleed">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">1</span><b>What needs you comes first.</b><p>A disputed result, a card to approve, a player still to place.</p></div>
+                <div className="n-win n-win-needs">{screen("desk-dashboard", "The organizer's dashboard during a round: what needs a decision, the tee sheet, and the pace of play group by group.", SIZES.bentoXl)}</div>
+              </div>
+              <div className="n-tile n-tile-tall">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">2</span><b>Nothing counts until you say so.</b><p>Cards are certified, approved or disputed. A result from the course waits for you.</p></div>
+                <div className="n-tile-phone"><div className="n-phone"><div className="n-phone-screen">{screen("org-dashboard", "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", SIZES.bentoPhone)}</div></div></div>
+              </div>
+              <div className="n-tile n-tile-pace n-tile-bleed">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">3</span><b>Pace of play, group by group.</b><p>Which group is behind, and by how much, while the round is on.</p></div>
+                <div className="n-win n-win-pace">{screen("desk-dashboard", "The pace of play on the organizer's dashboard: each group's tee time, holes played and when it is due in.", SIZES.bentoXl)}</div>
+              </div>
+              <div className="n-tile n-tile-128">
+                <div className="n-128-say">
+                  <p className="n-num-big n-num" aria-hidden="true">128</p>
+                  <div>
+                    <h3 className="n-h3">128 in the match play? Eight flights, eight champions.</h3>
+                    <p>Divide a big field by handicap, by your own flights or at random. Each flight is its own knockout, and every player is told who they play.</p>
+                  </div>
+                </div>
+                <div className="n-win n-win-flights">{screen("desk-matchplay", "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", SIZES.bentoWide)}</div>
+              </div>
             </div>
           </div>
         </section>
@@ -368,14 +392,6 @@ export default async function NewSitePreview() {
                   {["Weekly leagues", "Golf outings", "Club championships", "Knockouts", "Ryder-style cups", "Member-guests", "Charity scrambles", "Golf trips", "A Saturday foursome"].map((x) => <li key={x}>{x}</li>)}
                 </ul>
               </div>
-            </div>
-            <div className="n-big128">
-              <div>
-                <p className="n-num-big n-num" aria-hidden="true">128</p>
-                <h3 className="n-h3">128 in the match play? Eight flights, eight champions.</h3>
-                <p>Divide a big field by handicap, by your own flights or at random. Each flight is its own knockout, and every player is told who they play.</p>
-              </div>
-              <div className="n-lid n-crop" style={{ "--cx": "40%" } as React.CSSProperties}><div className="n-lid-screen">{screen("desk-matchplay", "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", SIZES.wide)}</div></div>
             </div>
           </div>
         </section>
