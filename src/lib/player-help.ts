@@ -174,6 +174,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Other tabs show the rest; Whole draw shows everything.",
       "Find a player shows anybody's path through the draw.",
       "A bye is marked under a name. Nobody plays it.",
+      "Tap [[Print the draw]] for a sheet a quarter.",
     ],
   },
   {

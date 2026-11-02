@@ -13,7 +13,7 @@ decided, why, and who disagreed. It is built in three pull requests, stacked:
 |---|---|---|
 | (a) | one drawing for every surface, club round names, no bye boxes, "Winner of", seeds only when seeded, section tabs, Find a player | `claude/bracket-sections` |
 | (b) | what each surface opens on: the secretary's "To play" list, the player's own tie, the public's latest results; play-by dates per round | `claude/bracket-defaults` |
-| (c) | print: each quarter on an A4 landscape page, plus Finals | to follow |
+| (c) | print: each quarter on an A4 landscape page, plus Finals | `claude/bracket-print` |
 
 ## 1. No bye boxes; club round names (all four)
 
@@ -144,6 +144,15 @@ when the address says nothing.
 Print CSS: each quarter on its own A4 landscape page plus one Finals page, legible
 in black and white, "Printed on <date>", a blank result line under each unplayed
 tie, byes left out.
+
+Built in part (c): **Print the draw** on every drawing (Bracket screen, player's Board,
+public board) mounts `BracketPrint` under `<body>` and prints it alone
+(`body.printing-draw`). Each section is laid out by the same model as the screen at
+paper's measures, then `zoom`ed to fit the A4 landscape page (`@page bracket-sheet`,
+10mm margins) with type never printed under 6.5px. Black on white, a tick and bold
+for a winner, "(bye)" beside a seed who had one in a drawn round. Chromium's PDF of a
+129 draw is five A4 landscape pages, counted in the PDF itself
+(`e2e/the-draw-prints.spec.ts`).
 
 ## 7. Not built (all four)
 

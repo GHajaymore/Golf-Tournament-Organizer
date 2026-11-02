@@ -389,6 +389,93 @@ body {
   color: var(--color-text);
 }
 
+/* THE DRAW ON PAPER (the panel, 2026-10-23, part c; `BracketPrint.tsx`): each
+   quarter, half or the Finals on its own A4 landscape sheet, black on white.
+   Mounted under <body> only while "Print the draw" is printing, and then the
+   only thing printed. */
+@page bracket-sheet {
+  size: A4 landscape;
+  margin: 10mm;
+}
+.bracket-print {
+  display: none;
+}
+@media print {
+  body.printing-draw > *:not(.bracket-print) {
+    display: none !important;
+  }
+  body.printing-draw {
+    background: #fff !important;
+  }
+  body.printing-draw .bracket-print {
+    display: block;
+    color: #000;
+    background: #fff;
+    font-family: var(--font-body, system-ui), sans-serif;
+  }
+}
+.bracket-print-page {
+  page: bracket-sheet;
+  break-after: page;
+  break-inside: avoid;
+}
+.bracket-print-page:last-child {
+  break-after: auto;
+}
+.bracket-print-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  height: 36px;
+  margin-bottom: 8px;
+  border-bottom: 2px solid #000;
+  font-size: 15px;
+}
+.bracket-print-round {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.bracket-print-tie {
+  border: 1px solid #000;
+  background: #fff;
+}
+.bracket-print-seat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 0 5px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.bracket-print-seat + .bracket-print-seat {
+  border-top: 1px solid #000;
+}
+.bracket-print-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bracket-print-result {
+  font-size: 9px;
+  height: 11px;
+  margin-top: 1px;
+  border-bottom: 1px solid #000;
+}
+.bracket-print-champion {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  border: 2px solid #000;
+}
+
 .page-kicker {
   font-size: 13px; /* the type floor, 2026-10-05 */
   letter-spacing: 0.07em;
