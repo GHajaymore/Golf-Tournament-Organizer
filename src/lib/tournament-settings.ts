@@ -166,7 +166,7 @@ export const SCORE_ENTRY_BY_HELP: Record<ScoreEntryBy, string> = {
   staff:
     "Only you and your assistants can put a score in. Use it when the committee holds the cards — a club championship, or anything where nothing goes on the board until somebody has checked it.",
   players:
-    "Players enter their own as they go, and you can still correct anything. Fastest for a society day, and it is what keeps the leaderboard live while they are out there.",
+    "Players enter their own as they go, and you can still correct anything. Fastest for a big social day, and it is what keeps the leaderboard live while they are out there.",
 };
 
 /**
@@ -280,7 +280,7 @@ export const PLAYER_ACCESS_HELP: Record<PlayerAccess, string> = {
   email:
     "Each player signs in with the address on their entry. Simplest when you already hold one for everybody.",
   code:
-    "A short code printed on their scorecard, and no address needed. This exists because a society roster is often names and nothing else, and chasing sixty people for an email before anyone can score is not a workable ask.",
+    "A short code printed on their scorecard, and no address needed. This exists because a visiting group's list is often names and nothing else, and chasing sixty people for an email before anyone can score is not a workable ask.",
   both:
     "Either gets them in. Use it when part of the field has an address on file and part does not — which is most fields, most of the time.",
 };

@@ -88,7 +88,9 @@ async function outfit(kind: string, opts: { unnamed?: boolean; members?: number 
     select: { id: true },
   });
   const org = await prisma.organization.create({
-    data: { name: unnamed ? DERIVED : `${TAG} Bushwood Society`, kind },
+    // A British society: since the country words (2026-10-24) an outfit with no country is a US
+    // one and its noun is "league", and the sentences below are about a society by name.
+    data: { name: unnamed ? DERIVED : `${TAG} Bushwood Society`, kind, country: "GB" },
     select: { id: true },
   });
   await prisma.organizationMember.create({

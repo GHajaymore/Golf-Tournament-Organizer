@@ -12,6 +12,7 @@ import {
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
 import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
+import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-check";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 
@@ -34,6 +35,8 @@ export function LifecycleBar({
   summary,
   resultsIn = 0,
   blockedReason,
+  unplayedAsk,
+  launchOpen,
   deletesOnComplete = false,
   keepOffer,
   closesOn,
@@ -82,6 +85,19 @@ export function LifecycleBar({
    * out it will not work.
    */
   blockedReason?: string;
+  /**
+   * The question completing must ask first, when some rounds have no scores (`completingCheckFor`,
+   * the action's own check). Asked before the free plan's notice — one topic per dialog — and the
+   * server asks it too, for a page that has sat open while a round's cards went in or came out.
+   */
+  unplayedAsk?: string;
+  /**
+   * What setup still has open that does not stop a launch — no tee sheet, no
+   * money answer, no flights (`launchCheck`, the setup flow's own steps). Said
+   * in the launch dialog, plain text, before the organizer presses (gap G3,
+   * 2026-10-31). Refusals disable the button instead; these never do.
+   */
+  launchOpen?: Pick<LaunchCheck, "warnings" | "stepsOpen" | "steps">;
 }) {
   const [confirming, setConfirming] = useState(false);
   /** What the server said when it refused a launch — shown in the dialog. */
@@ -95,6 +111,9 @@ export function LifecycleBar({
    * completed tournament offers its Reopen.
    */
   const [confirmingStatus, setConfirmingStatus] = useState<"completed" | "live" | null>(null);
+  /** The unplayed-rounds question while it is open, and whether it has been answered "Complete anyway". */
+  const [askingUnplayed, setAskingUnplayed] = useState("");
+  const [unplayedConfirmed, setUnplayedConfirmed] = useState(false);
   const [pending, startTransition] = useTransition();
   /**
    * What the server said when it refused.
@@ -105,6 +124,14 @@ export function LifecycleBar({
    * is still no. Silence there would read as a click that did nothing.
    */
   const [refused, setRefused] = useState("");
+  /** What the server answered, whichever dialog pressed: its question, the free plan's, or a refusal. */
+  const answered = (res: Awaited<ReturnType<typeof setEventStatus>> | undefined) => {
+    if (res?.needsUnplayedConfirm) {
+      setUnplayedConfirmed(false);
+      setAskingUnplayed(res.error ?? "");
+    } else if (res?.needsDeleteConfirm) setConfirmingDelete(true);
+    else if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
+  };
   const meta = STATUS_META[status] ?? STATUS_META.draft;
   // The same answer the server gives — `configurationLocked` is what
   // `isSetupLocked` and `assertUnlocked` both call. This component could not
@@ -188,6 +215,11 @@ export function LifecycleBar({
                 }
                 const to = action.to;
                 if (!to) return;
+                if (to === "completed" && unplayedAsk) {
+                  setUnplayedConfirmed(false);
+                  setAskingUnplayed(unplayedAsk);
+                  return;
+                }
                 if (to === "completed" && deletesOnComplete) {
                   setConfirmingDelete(true);
                   return;
@@ -197,10 +229,8 @@ export function LifecycleBar({
                   return;
                 }
                 startTransition(async () => {
-                  const res = await setEventStatus(to);
                   // The server asks too — it is the one that knows for certain.
-                  if (res?.needsDeleteConfirm) setConfirmingDelete(true);
-                  else if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
+                  answered(await setEventStatus(to));
                 });
               }}
             >
@@ -305,6 +335,47 @@ export function LifecycleBar({
           on, so the button in the card above IS this button — offering it
           twice was the duplication, not the placement. */}
 
+      {/* ROUNDS NOBODY HAS PLAYED, asked before anything else (2026-10-31). Completing closes
+          them as not played; a committee may mean that — weather, a short day — so it is asked,
+          in the panel's words, and never done on the way past. Answering it IS the confirmation
+          on a paid plan; on the free plan the keeping question follows, one topic per dialog. */}
+      {askingUnplayed && (
+        <div className="dialog-backdrop" onClick={() => setAskingUnplayed("")}>
+          <div
+            className="dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="complete-unplayed-title"
+            aria-describedby="complete-unplayed-body"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="dialog-title" id="complete-unplayed-title">Complete “{summary.name}”?</div>
+            <div className="dialog-body" id="complete-unplayed-body">
+              {askingUnplayed}
+            </div>
+            <div className="dialog-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setAskingUnplayed("")}>Keep playing</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={pending}
+                onClick={() => {
+                  setAskingUnplayed("");
+                  setUnplayedConfirmed(true);
+                  if (deletesOnComplete) {
+                    setConfirmingDelete(true);
+                    return;
+                  }
+                  startTransition(async () => answered(await setEventStatus("completed", false, true)));
+                }}
+              >
+                Complete anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmingDelete && (
         <div className="dialog-backdrop" onClick={() => setConfirmingDelete(false)}>
           <div
@@ -353,9 +424,9 @@ export function LifecycleBar({
                   startTransition(async () => {
                     // Completes it and starts its fifteen days, read-only; a
                     // refusal (a disputed card) comes back here.
-                    const res = await setEventStatus("completed", true);
+                    const res = await setEventStatus("completed", true, unplayedConfirmed);
                     setConfirmingDelete(false);
-                    if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
+                    answered(res);
                   })
                 }
               >
@@ -395,8 +466,7 @@ export function LifecycleBar({
                   startTransition(async () => {
                     const res = await setEventStatus(to);
                     setConfirmingStatus(null);
-                    if (res?.needsDeleteConfirm) setConfirmingDelete(true);
-                    else if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
+                    answered(res);
                   });
                 }}
               >
@@ -423,6 +493,42 @@ export function LifecycleBar({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="dialog-title" id="launch-dialog-title">Launch “{summary.name}”?</div>
+            {/* WHAT SETUP STILL HAS OPEN (gap G3, 2026-10-31), first, and in a block
+                of its own rather than inside `.dialog-body`: that one is dimmed, and
+                these have to read in sunlight. At most three rows; a fourth and on
+                is counted on the third. */}
+            {launchOpen && launchOpen.warnings.length > 0 && (
+              <section
+                className="launch-warnings"
+                aria-label="Still open"
+                style={{ margin: "0 0 12px", padding: "10px 12px", fontSize: 13, lineHeight: 1.55, color: "var(--color-text)", background: "var(--color-surface-2)", border: "1px solid var(--color-divider)", borderRadius: 8 }}
+              >
+                <b>
+                  {launchOpen.stepsOpen > 0
+                    ? `${launchOpen.stepsOpen} of ${launchOpen.steps} setup steps still open — you can launch without ${launchOpen.stepsOpen === 1 ? "it" : "them"}.`
+                    : "Setup is done — one thing you may still want."}
+                </b>
+                <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                  {launchRows(launchOpen.warnings).rows.map((w) => (
+                    <li key={w.says} title={warningText(w)}>
+                      {w.says} <Link href={w.href}>{w.fix}</Link>
+                      {w.afterLaunch === "unlock" ? " — after launch, this needs Unlock first." : " — you can still do this after launch."}
+                    </li>
+                  ))}
+                  {launchRows(launchOpen.warnings).alsoOpen.length > 0 && (
+                    <li className="launch-also-open">
+                      Also open:{" "}
+                      {launchRows(launchOpen.warnings).alsoOpen.map((w, i) => (
+                        <span key={w.href}>
+                          {i > 0 && " · "}
+                          <Link href={w.href} title={warningText(w)}>{w.screen}</Link>
+                        </span>
+                      ))}
+                    </li>
+                  )}
+                </ul>
+              </section>
+            )}
             <div className="dialog-body">
               {/**
                * THE THIRD COPY OF A CLAIM THAT WAS MEASURED FALSE, and the one

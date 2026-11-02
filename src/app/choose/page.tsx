@@ -14,7 +14,7 @@ import { NOINDEX } from "@/lib/site";
 // Behind a session, and it lists the tournaments this person can reach.
 export const metadata = { title: "Choose a tournament", robots: NOINDEX };
 import { roleName } from "@/lib/roles";
-import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
+import { casualRoundKinds, golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { LOGO_SIZE } from "@/components/Logo";
 import { Lockup } from "@/components/Lockup";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
@@ -26,6 +26,7 @@ import { orgSetupState } from "@/lib/domain/org-setup";
 import { isMatch } from "@/lib/tournament-shape";
 import { Icon } from "@/components/Icon";
 import { sinceWords } from "@/lib/domain/since";
+import { tellApart } from "@/lib/domain/tournament-name";
 
 export default async function ChooseTournamentPage({
   searchParams,
@@ -41,9 +42,11 @@ export default async function ChooseTournamentPage({
   const access = await accessibleEvents(session.email);
   const events = await prisma.event.findMany({
     where: { id: { in: access.map((a) => a.eventId) } },
-    include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true, country: true, communityNoun: true, golfTerms: true } } },
+    include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true, country: true, communityNoun: true, golfTerms: true, timeZone: true, locale: true } } },
     orderBy: { createdAt: "desc" },
   });
+  // Two of one name — only completed ones may share it — are told apart by their date (`tellApart`).
+  const toldApart = tellApart(events);
   // Null for anybody who runs no organization of their own, which is every
   // player invited to somebody else's tournament.
   const facts = await orgSetupFactsFor(session.email, session.name);
@@ -215,7 +218,7 @@ export default async function ChooseTournamentPage({
                     {a.event.name || "Untitled tournament"}
                   </div>
                   <div className="text-muted" style={{ fontSize: 12, marginTop: 3 }}>
-                    {a.event.dates || "No dates set"}
+                    {toldApart.get(a.event.id) || a.event.dates || "No dates set"}
                     {a.event.course ? ` · ${a.event.course}` : ""} · {a.event._count.players} players
                     {/* Whose name is worth showing: a tenant shared with other
                         people, so the row says which one. A personal organizer's
@@ -311,7 +314,9 @@ export default async function ChooseTournamentPage({
                 three places to drift, and all three said "two players" the day
                 that stopped being true. */}
             <div className="text-muted" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>
-              A match, a medal or a fourball. Up to eight players, one round, no tournament
+              {/* In the golf of this person's club, from its country: the
+                  British line was said to everybody until 2026-10-24. */}
+              {casualRoundKinds(golfTermsFor(golfRegister(facts?.country)))}. Up to eight players, one round, no tournament
               needed.
             </div>
           </div>
@@ -354,7 +359,7 @@ export default async function ChooseTournamentPage({
              the tournament somebody repeats is nearly always the last one. */
           copyable={accounts
             .filter((a) => a.role === "admin" && !isMatch(a.event.shape))
-            .map((a) => ({ id: a.event.id, name: a.event.name }))}
+            .map((a) => ({ id: a.event.id, name: a.event.name, toldApart: toldApart.get(a.event.id) ?? "" }))}
           /* Only asked when there is more than one — see the prop. Each one
              carries its own plan, so the retention warning follows the pick. */
           organizations={await organizationsForOrganizer(session.email)}

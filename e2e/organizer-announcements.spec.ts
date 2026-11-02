@@ -96,10 +96,6 @@ test("the secretary posts; a member sees the pinned one always and the rest once
     await expect(page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ })).toBeVisible({ timeout: 20_000 });
 
     await open(page, "/dashboard");
-    for (const step of ["Start taking entries", "Mark ready"]) {
-      await page.getByRole("button", { name: step }).click();
-      await expect(page.getByRole("button", { name: step })).toHaveCount(0, { timeout: 20_000 });
-    }
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
     await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });

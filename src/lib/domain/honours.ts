@@ -23,6 +23,8 @@
  * A committee confirms, and the confirmed entry is the record.
  */
 
+import type { CupResult } from "./cup";
+
 /** A finishing position, from whichever board the tournament was scored on. */
 export interface FinishingPosition {
   playerId: string;
@@ -36,10 +38,25 @@ export type NoChampionReason =
   | "not-completed"
   | "no-results"
   | "tied"
-  | "unconfirmed";
+  | "unconfirmed"
+  | "cup-halved"
+  | "cup-open";
 
 export type ChampionSuggestion =
-  | { ok: true; playerId: string; name: string; runnersUp: FinishingPosition[] }
+  | {
+      ok: true;
+      /**
+       * The champion PLAYER's id, and only ever a player's. "" when the
+       * champion is a team (`team` is set): a team is not a player, and an id
+       * in this field is read as one — it is what `HonoursEntry.playerId` is
+       * written from, the column kept "for linking to a member's history".
+       */
+      playerId: string;
+      name: string;
+      runnersUp: FinishingPosition[];
+      /** Set when the champion is a team: the result as written, "Oakmere 6½–3½". */
+      team?: { score: string };
+    }
   | { ok: false; reason: NoChampionReason; tied: FinishingPosition[] };
 
 /** What each refusal means, in the words a committee needs. */
@@ -49,7 +66,32 @@ export const CHAMPION_REFUSAL: Record<NoChampionReason, string> = {
   "no-results": "No ranked results yet — nobody can be named from an empty board.",
   tied: "Two or more players finished level. The committee decides this one — a countback, a play-off, or a shared title.",
   unconfirmed: "Nobody has confirmed this result yet.",
+  "cup-halved": "The cup was halved — neither team reached the points to win, so nobody is named on the board.",
+  "cup-open": "The cup still has points to be decided. A team goes on the board once one of them has won it.",
 };
+
+/**
+ * A TEAM CUP'S CHAMPION IS A TEAM (2026-10-30). The cup's own result —
+ * `cupResult`, the one reader — names it with its score; a halved cup names
+ * nobody, whoever holds the trophy; an open one names nobody yet.
+ *
+ * NO PLAYER ID (2026-11-02). The team's flight id used to ride in `playerId`
+ * and so in `HonoursEntry.playerId`, where nothing joined it to anybody yet —
+ * but the column says it holds a player, and the first reader to link a board
+ * line to a member's history would have taken a flight for a person. A team
+ * line is keyed by its tournament alone (one champion per cup) and carries its
+ * words in `championName`, which is all a board line ever shows.
+ */
+export function suggestCupChampion(
+  completed: boolean,
+  cup: Pick<CupResult, "outcome" | "champion" | "teams" | "scoreLine">,
+): ChampionSuggestion {
+  if (!completed) return { ok: false, reason: "not-completed", tied: [] };
+  if (cup.outcome === "halved") return { ok: false, reason: "cup-halved", tied: [] };
+  if (cup.outcome !== "won" || !cup.champion) return { ok: false, reason: "cup-open", tied: [] };
+  const team = cup.champion === "A" ? cup.teams[0] : cup.teams[1];
+  return { ok: true, playerId: "", name: team.name, runnersUp: [], team: { score: cup.scoreLine } };
+}
 
 /**
  * The player the standings point at, or the reason they do not point cleanly.

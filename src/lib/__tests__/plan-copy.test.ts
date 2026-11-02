@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { stripComments, readSource } from "./source";
 import { PLANS, upgradeBenefits, retentionNotice, METERED_FEATURES, PAR_LIFESPAN_DAYS, type FeatureKey } from "@/lib/plans";
 import { KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
+import { golfTermsFor, inClubWords } from "@/lib/domain/golf-terms";
 
 /**
  * What a club gets for its money has to be SAID somewhere.
@@ -45,7 +46,9 @@ describe("what a club gets for its money is actually said", () => {
   it("every paid-tier feature is named in the upgrade pitch", () => {
     const free = PLANS.free.features;
     const paid = PLANS.club.features;
-    const pitch = upgradeBenefits("free").join(" ").toLowerCase();
+    // As a British club reads it: the pitch holds `{honoursBoard}`-style tokens
+    // that the plan panel fills with the club's words (`golf-terms.ts`).
+    const pitch = upgradeBenefits("free").map((b) => inClubWords(b, golfTermsFor("uk"))).join(" ").toLowerCase();
 
     // A feature the paid tier has and free does not IS the reason to pay.
     // Adding one and not saying so leaves a club paying for something it was

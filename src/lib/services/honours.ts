@@ -3,8 +3,10 @@ import { prisma } from "../db";
 import { organizationAllows } from "./entitlements";
 import { loadEventState } from "./tournament";
 import { finishingPositions } from "./finish-order";
+import { cupResult } from "./cup";
 import {
   suggestChampion,
+  suggestCupChampion,
   honoursYear,
   honoursByYear,
   type ChampionSuggestion,
@@ -108,6 +110,23 @@ function positionsFrom(state: NonNullable<Awaited<ReturnType<typeof loadEventSta
 }
 
 /**
+ * What the app would put on the board for one finished tournament.
+ *
+ * A TEAM CUP FIRST, through `cupResult`: its champion is a team, named with the
+ * score. Asked of the standings, a cup has none — its matches are on cup
+ * sessions, which the round-robin chain does not read — and the board said
+ * "No ranked results yet" under a cup won 6½–3½ (2026-10-30).
+ */
+async function suggestionFor(eventId: string, completed: boolean): Promise<ChampionSuggestion> {
+  const cup = await cupResult(eventId);
+  if (cup) return suggestCupChampion(completed, cup);
+  const state = await loadEventState(eventId);
+  return state
+    ? suggestChampion({ completed, positions: positionsFrom(state) })
+    : { ok: false, reason: "no-results", tied: [] };
+}
+
+/**
  * Completed tournaments with no confirmed champion, and what the app would say.
  *
  * Deliberately only the UNCONFIRMED ones. Recomputing a tournament somebody has
@@ -154,19 +173,14 @@ export async function championSuggestions(organizationId: string): Promise<Pendi
   // made the honours screen a waterfall. They are independent — resolve in
   // parallel and keep event order.
   const unconfirmed = events.filter((event) => !confirmed.has(event.id));
-  const states = await Promise.all(unconfirmed.map((event) => loadEventState(event.id)));
-  const pending: PendingChampion[] = unconfirmed.map((event, i) => {
-    const state = states[i];
-    return {
-      eventId: event.id,
-      eventName: event.name,
-      dates: event.dates,
-      year: honoursYear(event.dates, event.completedAt),
-      suggestion: state
-        ? suggestChampion({ completed: true, positions: positionsFrom(state) })
-        : { ok: false, reason: "no-results", tied: [] },
-    };
-  });
+  const suggestions = await Promise.all(unconfirmed.map((event) => suggestionFor(event.id, true)));
+  const pending: PendingChampion[] = unconfirmed.map((event, i) => ({
+    eventId: event.id,
+    eventName: event.name,
+    dates: event.dates,
+    year: honoursYear(event.dates, event.completedAt),
+    suggestion: suggestions[i],
+  }));
   return pending;
 }
 
@@ -190,15 +204,12 @@ export async function championFor(
   });
   if (!event) return null;
 
-  const state = await loadEventState(eventId);
   return {
     event: {
       name: event.name,
       dates: event.dates,
       year: honoursYear(event.dates, event.completedAt),
     },
-    suggestion: state
-      ? suggestChampion({ completed: event.status === "completed", positions: positionsFrom(state) })
-      : { ok: false, reason: "no-results", tied: [] },
+    suggestion: await suggestionFor(eventId, event.status === "completed"),
   };
 }
