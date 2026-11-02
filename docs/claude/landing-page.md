@@ -30,6 +30,13 @@ shared chrome (`components/landing/chrome.tsx`, `lib/landing/styles.ts`) also dr
   (`hero-scene`) is AI-made atmosphere with no screen and no words, placed with
   `place-landing-shots.mjs --scene=<image>`. Glass, rim light and the row light are CSS layers
   over the pictures, never in them.
+- **The week ("How it works") is a stepper, never pinned** (2026-11-01, backlog B35; Ajay, 30 Oct:
+  "my friends just stopped there without scrolling down"). One row of seven slides in the page's own
+  flow — swipe, ‹ ›, the hours on a laptop, "2 of 7" — that walks itself through once while on screen
+  and stops for good at the first touch. The markup is the same with or without script, so the page
+  never grows after it loads (`landing-story.spec.ts`, and the sign-up-form test in
+  `landing-screens.spec.ts`). The design is "Landing story section - redesign spec" in the
+  TourneyHQ Documents folder; its new hand-off sentences were NOT added (copy unchanged).
 - **A screen meant to be READ is flat, upright and still** once it has arrived
   (`e2e/landing-screens.spec.ts`); only a layer marked `m-decor` and `aria-hidden` (the hero's
   laptop, the wall of screens) may be turned, dimmed or moving, and nobody is asked to read one.
