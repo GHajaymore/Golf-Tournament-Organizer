@@ -126,7 +126,7 @@ describe("every door asks", () => {
 
 describe("the front door says so before the form", () => {
   it("shows the notice when held: paused, the early-list offer with its terms, and never a code", () => {
-    const html = renderToStaticMarkup(<LandingAuth closed />);
+    const html = renderToStaticMarkup(<LandingAuth launch="held" />);
     expect(html).toContain(SIGNINS_CLOSED_NOTICE.lead);
     expect(html).toContain("href=\"/play\"");
     // The early list is the /interest form; the inquiries mailbox stays for anybody who would rather
@@ -162,7 +162,7 @@ describe("the front door says so before the form", () => {
   });
 
   it("CONTROL: says nothing of it when open", () => {
-    expect(renderToStaticMarkup(<LandingAuth />)).not.toContain(SIGNINS_CLOSED_NOTICE.lead);
+    expect(renderToStaticMarkup(<LandingAuth launch="live" />)).not.toContain(SIGNINS_CLOSED_NOTICE.lead);
   });
 
   /**
@@ -174,7 +174,7 @@ describe("the front door says so before the form", () => {
    */
   it("shows a visitor no login boxes while held — only one quiet link for the staff — even when a link asked for sign-up", () => {
     // Ajay, 2026-10-21, looking at the front page: it was "allowing me to enter the userid and password".
-    const held = renderToStaticMarkup(<LandingAuth closed defaultMode="signup" />);
+    const held = renderToStaticMarkup(<LandingAuth launch="held" defaultMode="signup" />);
     expect(held, "a password box is on the held front door").not.toContain('type="password"');
     expect(held, "an email box is on the held front door").not.toContain('type="email"');
     expect(held, "a Sign up tab is on the held front door").not.toMatch(/>\s*Sign up\s*</);
@@ -182,7 +182,7 @@ describe("the front door says so before the form", () => {
     expect(held, "the owners have no way in").toContain(HELD_FRONT_DOOR.staffLink);
     expect(held).toContain('aria-expanded="false"');
     // CONTROL: open, the same link opens the sign-up form with its tab and its boxes.
-    const open = renderToStaticMarkup(<LandingAuth defaultMode="signup" />);
+    const open = renderToStaticMarkup(<LandingAuth launch="live" defaultMode="signup" />);
     expect(open).toContain("Create your account");
     expect(open).toMatch(/>\s*Sign up\s*</);
     expect(open).toContain('type="password"');
@@ -197,6 +197,6 @@ describe("the front door says so before the form", () => {
   });
 
   it("the landing page hands the gate's answer to the box", () => {
-    expect(readSource("src/app/page.tsx")).toMatch(/const held = await signInsHeld\(\);[\s\S]*closed=\{held\}/);
+    expect(readSource("src/app/page.tsx")).toMatch(/const launch = await launchState\(\);[\s\S]*launch=\{launch\}/);
   });
 });

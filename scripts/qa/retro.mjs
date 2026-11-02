@@ -22,8 +22,8 @@
  *                         fails may be the one keeping a class of fault out, and
  *                         moving one is a decision for the panel, with this as
  *                         its evidence
- *   the mutation score    trend, once `mutation-baseline.json` exists (being built
- *                         on claude/foundation-pass)
+ *   the mutation score    each nightly round's score line (the `mutation` layer),
+ *                         beside the floors in `mutation-baseline.json`
  *
  * The rounds' records are cached in `.qa/retro/` so a second run asks GitHub
  * only for what is new. Nothing here is a secret or a name: counts, minutes,
@@ -95,6 +95,7 @@ for (const [workflow, kind] of [["round.yml", "pr"], ["nightly.yml", "nightly"],
       failures: retro?.failures ?? { app: verdict?.findings?.length ?? 0, test: 0, infrastructure: 0 },
       defects: retro?.defects ?? {},
       layersRan: retro?.layersRan ?? (verdict?.layers ?? []).filter((l) => l.ran).map((l) => l.key),
+      mutation: retro?.mutation ?? null,
     });
   }
 }
@@ -110,13 +111,10 @@ try {
 }
 
 // ── The mutation score, when somebody is keeping one ───────────────────────
-const mutationFile = ["mutation-baseline.json", join("scripts", "qa", "mutation-baseline.json")].find((f) => existsSync(f));
-let mutation = null;
-if (mutationFile) {
-  const m = JSON.parse(readFileSync(mutationFile, "utf8"));
-  const history = Array.isArray(m) ? m : Array.isArray(m.history) ? m.history : [m];
-  mutation = history.map((h) => ({ at: h.at ?? h.date ?? h.measuredOn ?? "?", score: h.score ?? h.mutationScore ?? null })).filter((h) => h.score !== null);
-}
+// Each nightly round's score line (the `mutation` layer, kept in its retro.json), and the floor it is
+// held to (mutation-baseline.json, measured on the date it says).
+const mutation = rounds.filter((r) => r.mutation).map((r) => ({ at: r.at.slice(0, 10), score: r.mutation }));
+const mutationFloor = existsSync("mutation-baseline.json") ? JSON.parse(readFileSync("mutation-baseline.json", "utf8")) : null;
 
 // ── Add it up ──────────────────────────────────────────────────────────────
 const totals = recent.reduce((t, r) => ({ app: t.app + r.failures.app, test: t.test + r.failures.test, infrastructure: t.infrastructure + r.failures.infrastructure }), { app: 0, test: 0, infrastructure: 0 });
@@ -165,7 +163,8 @@ const lines = [
   "",
   "## Mutation score",
   "",
-  mutation?.length ? mutation.map((m) => `- ${m.at}: ${m.score}`).join("\n") : "Not kept yet: there is no `mutation-baseline.json` (the nightly mutation ratchet is being built on claude/foundation-pass).",
+  mutation.length ? mutation.map((m) => `- ${m.at}: ${m.score}`).join("\n") : "No nightly round in the window measured it (the `mutation` layer).",
+  mutationFloor ? `\nFloors: \`mutation-baseline.json\`, measured ${mutationFloor.measured}, ${Object.keys(mutationFloor.modules ?? {}).length} modules.` : "No `mutation-baseline.json`: the ratchet has no floor to hold.",
   "",
 ];
 const text = lines.join("\n");

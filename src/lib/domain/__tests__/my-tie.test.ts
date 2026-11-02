@@ -29,25 +29,25 @@ const one = (view: BracketView) => [{ label: "", view }];
 describe("myTie", () => {
   it("names the opponent of a tie still to be played", () => {
     const t = myTie(one(draw({})), "p1");
-    expect(t).toMatchObject({ state: "to-play", round: "Quarterfinals", opponent: "Hal" });
-    expect(myTieLine(t!)).toBe("Quarterfinal v Hal");
+    expect(t).toMatchObject({ state: "to-play", round: "Quarter-finals", opponent: "Hal" });
+    expect(myTieLine(t!)).toBe("Quarter-final v Hal");
   });
 
   it("says which tie decides an opponent not yet known", () => {
     // Ada is through; the other half of her semi is Dot v Eve, unplayed.
     const t = myTie(one(draw({ "winners-0-0": "p1" })), "p1");
-    expect(t).toMatchObject({ state: "to-play", round: "Semifinals", opponent: "" });
-    expect(myTieLine(t!)).toBe("Semifinal v the winner of Dot v Eve");
+    expect(t).toMatchObject({ state: "to-play", round: "Semi-finals", opponent: "" });
+    expect(myTieLine(t!)).toBe("Semi-final v the winner of Dot v Eve");
   });
 
   it("reports the round a player went out in, who beat them and by how much", () => {
     const view = draw({ "winners-0-0": "p1", "winners-0-1": "p4", "winners-1-0": "p4" });
     const t = myTie(one(view), "p1", { "winners-1-0": "19th" });
-    expect(t).toMatchObject({ state: "out", round: "Semifinals", opponent: "Dot" });
+    expect(t).toMatchObject({ state: "out", round: "Semi-finals", opponent: "Dot" });
     // "19th" is the hole it was settled on, not a margin.
-    expect(myTieLine(t!)).toBe("Out in the semifinal · lost to Dot at the 19th");
+    expect(myTieLine(t!)).toBe("Out in the semi-final · lost to Dot at the 19th");
     expect(myTieLine(myTie(one(view), "p1", { "winners-1-0": "2&1" })!)).toBe(
-      "Out in the semifinal · lost to Dot 2&1",
+      "Out in the semi-final · lost to Dot 2&1",
     );
   });
 
@@ -97,7 +97,7 @@ describe("myTie", () => {
     const draws = bracketDraws({ winners: main, consolation: plate, mainLabel: "Flight A", secondLabel: "Flight B" });
     const t = myTie(draws, "p5");
     expect(t).toMatchObject({ draw: "Flight B", opponent: "Hal" });
-    expect(myTieLine(t!)).toBe("Semifinal (Flight B) v Hal");
+    expect(myTieLine(t!)).toBe("Semi-final (Flight B) v Hal");
   });
 
   it("does not search a second draw the mode does not have", () => {
@@ -157,7 +157,7 @@ describe("reporting a tie", () => {
 
   it("keeps a report on the organizer's list only while the draw still waits on it", () => {
     const open = openTieReport(one(draw({})), { key: "winners-0-0", winnerId: "p8" });
-    expect(open).toEqual({ round: "Quarterfinals", a: "Ada", b: "Hal", winner: "Hal" });
+    expect(open).toEqual({ round: "Quarter-finals", a: "Ada", b: "Hal", winner: "Hal" });
     // Answered on the draw since, or naming somebody the tie no longer holds.
     expect(openTieReport(one(draw({ "winners-0-0": "p1" })), { key: "winners-0-0", winnerId: "p8" })).toBeNull();
     expect(openTieReport(one(draw({})), { key: "winners-0-0", winnerId: "p4" })).toBeNull();

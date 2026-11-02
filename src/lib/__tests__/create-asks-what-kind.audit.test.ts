@@ -59,7 +59,9 @@ describe("what kind of outfit runs it", () => {
     // The club-first rule: a society adds its members before its first
     // tournament, and says which answer it is waiting for.
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/Finish setting up your society first/);
+    // In its own country's word: a newcomer's outfit has no country yet, and since the country
+    // words (2026-10-24) that is a US one, whose word for a community outfit is "league".
+    expect(r.error).toMatch(/Finish setting up your league first/);
   });
 
   it("CONTROL: a company or one-off day goes straight through", async () => {
@@ -77,6 +79,14 @@ describe("what kind of outfit runs it", () => {
     const org = await orgOf(email);
     expect(org.name).toBe(`${TAG} Cedar Dunes Golf Club`);
     expect(org.kind).toBe("club");
+    // AND THE FIRST TOURNAMENT'S MONEY DID NOT MOVE. It followed the kind
+    // (personal: split shared costs); this form cannot ask, so it writes that
+    // onto the tournament itself, and the new one starts as a club starts.
+    const first = await prisma.event.findFirstOrThrow({ where: { name: `${TAG} first` }, select: { moneyMode: true } });
+    expect(first.moneyMode, "the first tournament's shared costs went with the change of kind").toBe("split");
+    // Not by pinning the club's default, which would quietly answer "Decide how
+    // money works" for a club that has never been asked.
+    expect(org.moneyMode).toBe("");
   });
 
   it("CONTROL: a named outfit is never renamed or re-kinded from this form", async () => {

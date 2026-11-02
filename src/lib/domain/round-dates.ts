@@ -206,3 +206,19 @@ export function datedSaid(count: number, firstDay: string): string {
     ? `1 round dated, on ${firstDay}. Players now see it on their calendar.`
     : `${count} rounds dated, the first on ${firstDay}. Players now see them on their calendar.`;
 }
+
+/**
+ * A ROUND IS NOT DUE BEFORE IT IS PLAYED (2026-10-30).
+ *
+ * Ajay's Round 2, played Fri 6 Nov, read "Due Fri, Oct 23" on Rounds &
+ * formats. The deadline was saved with no look at the round's own day, and a
+ * round moved later (a rain-out, a reschedule) left its old deadline behind it,
+ * so a date that can never be met sat on the screen with nothing said.
+ *
+ * True only when both are real dates and the deadline is the earlier: an
+ * undated round, or an older free-text deadline, is not judged. The same day
+ * is fine: a medal's cards are in on the day it is played.
+ */
+export function dueBeforePlayed(deadline: string, playedOn: string): boolean {
+  return isIsoDate(deadline) && isIsoDate(playedOn) && deadline < playedOn;
+}

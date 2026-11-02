@@ -1,4 +1,4 @@
-import { tieNotReady, type BracketMatch, type BracketView } from "./bracket";
+import { tieNotReady, winnerOfWords, type BracketMatch, type BracketView } from "./bracket";
 
 /**
  * WHERE I AM IN THE DRAW — the knockout player's version of "who am I playing".
@@ -116,10 +116,8 @@ export function myTie(
     let waitingOn = "";
     if (!other.playerId && latest.roundIndex > 0) {
       const prev = view.rounds[latest.roundIndex - 1]?.matches ?? [];
-      const feeder = prev[latest.matchIndex * 2 + (mine === "a" ? 1 : 0)];
-      if (feeder && feeder.a.playerId && feeder.b.playerId) {
-        waitingOn = `the winner of ${feeder.a.name} v ${feeder.b.name}`;
-      }
+      const words = winnerOfWords(prev[latest.matchIndex * 2 + (mine === "a" ? 1 : 0)]);
+      if (words) waitingOn = `the ${words.charAt(0).toLowerCase()}${words.slice(1)}`;
     }
     return { ...base, state: "to-play", opponent: other.playerId ? other.name : "", waitingOn };
   }
@@ -215,6 +213,7 @@ export function tieReportSentence(r: { winnerName: string; result: string; repor
  *   "19th", "19", "at the 20th"        " at the 19th", " at the 20th"
  *   "W/O", "wo", "walkover"            " by walkover"
  *   "conceded", "concession"           " by concession"
+ *   "withdrew", "withdrawn", "WD"      " (opponent withdrew)"
  *   anything else                      as typed
  *
  * Found 2026-10-23 on a knockout of 129: the player's line knew that "19th" is
@@ -237,18 +236,19 @@ export function marginWords(raw: string | null | undefined): string {
   if (up) return ` ${up[1]} up`;
   if (/^(?:w\/o|w\.o\.?|wo|walk ?-?over)$/i.test(s)) return " by walkover";
   if (/^(?:conceded|concession|conc\.?)$/i.test(s)) return " by concession";
+  if (/^(?:withdrew|withdrawn|wd)$/i.test(s)) return " (opponent withdrew)";
   return ` ${s}`;
 }
 
 /**
- * The bracket labels a round by its column ("Semifinals"); one player is in
- * one tie of it ("Semifinal").
+ * The bracket labels a round by its column ("Semi-finals"); one player is in
+ * one tie of it ("Semi-final").
  */
 function oneTie(round: string): string {
   return round.replace(/finals$/, "final");
 }
 
-/** One line a player can read: "Semifinal v Toby Marchetti". */
+/** One line a player can read: "Semi-final v Toby Marchetti". */
 export function myTieLine(t: MyTie): string {
   const round = oneTie(t.round);
   const draw = t.draw ? ` (${t.draw})` : "";

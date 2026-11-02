@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { PLANS } from "@/lib/plans";
 import type { LandingPrices } from "./pricing";
+import { freePlanWords, type LaunchState } from "@/lib/go-live";
 
 /**
  * HOW TOURNEYHQ COMPARES — the named comparison, as data.
@@ -103,8 +104,10 @@ export const TOP_PUBLISHED = {
   BlueGolf: { low: 495, year: 2495, setupLow: 99, setup: 499 },
 } as const;
 
-export function compareRows(prices: LandingPrices): CompareRow[] {
+/** `launch` is the go-live switch's answer, required: held, our free plan is not offered. */
+export function compareRows(prices: LandingPrices, launch: LaunchState): CompareRow[] {
   const usd = prices.usd;
+  const free = freePlanWords(launch);
   return [
     {
       label: "Price per year",
@@ -121,7 +124,7 @@ export function compareRows(prices: LandingPrices): CompareRow[] {
     {
       label: "A free plan",
       detail: "Free for good, not a trial.",
-      ours: y(`up to ${PLANS.free.limits.playersPerEvent} players`),
+      ours: free.offered ? y(free.versus) : p(free.versus),
       theirs: [x("none listed"), x("none listed"), y("unlimited players"), p("a free account to explore"), p("21-day trial")],
     },
     {
@@ -178,7 +181,13 @@ export function compareRows(prices: LandingPrices): CompareRow[] {
       // Live posting is still to come; what is true today is the plus point
       // (Ajay, 2026-10-17): every WHS country's body, and visitors from any of them.
       ours: v("Coming soon", "Your country's handicap body on every screen, and visitors from any WHS country, today"),
-      theirs: [y("GHIN"), y("WHS"), y("WHS"), na(), na()],
+      // Golf GameBook's cell re-read on 24 October 2026, after COMPARED_ON, from
+      // its own pages: golfgamebook.com/tournament-manager/golf-clubs ("integrated
+      // with Golf Federations' handicap systems in Spain, Sweden and Finland") and
+      // golfgamebook.com/ggb-handicap, which lists Sweden, Finland, Spain, Iceland
+      // and Denmark as the countries "where Golf GameBook is integrated with the
+      // respective national golf federations". Part, not yes: five federations.
+      theirs: [y("GHIN"), y("WHS"), y("WHS"), p("federations in Sweden, Finland, Spain, Iceland and Denmark (read 24 Oct 2026)"), na()],
     },
   ];
 }

@@ -65,8 +65,11 @@ test("an organizer of a lapsed club sees the tournament read-only, and a press i
       },
     });
     ids.event = event.id;
-    await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Stroke Play Round", format: "Individual Stroke Play", holes: 18, scoringBasis: "gross" } });
-    await prisma.player.create({ data: { eventId: event.id, name: "Wren Halloway", email: `zz-archive-wren-${size}@example.invalid`, seed: 1, status: "confirmed" } });
+    const round = await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Stroke Play Round", format: "Individual Stroke Play", holes: 18, scoringBasis: "gross" } });
+    const wren = await prisma.player.create({ data: { eventId: event.id, name: "Wren Halloway", email: `zz-archive-wren-${size}@example.invalid`, seed: 1, status: "confirmed" } });
+    // A card in, so Complete is offered at all (with nothing scored it is refused before the
+    // archive is asked) and the refusal under test is the archive's.
+    await prisma.scorecard.create({ data: { eventId: event.id, stageId: round.id, playerId: wren.id, strokes: JSON.stringify(new Array(18).fill(4)) } });
     await prisma.account.create({ data: { eventId: event.id, email, name: "Zz Archive Owner", role: "admin" } });
     await ctx.addCookies([
       { name: "ng_session", value: sign(signedInNow(user.id)), url: baseURL! },

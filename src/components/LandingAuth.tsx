@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { LoginPanel } from "@/components/LoginPanel";
-import { HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
+import { HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE, type LaunchState } from "@/lib/go-live";
 
 /**
  * The real sign-in form, embedded in the landing page so every "Sign in" and
@@ -20,8 +21,16 @@ import { HELD_FRONT_DOOR, SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
 export function LandingAuth({
   defaultMode = "login",
   organizers = "organizers",
-  closed = false,
-}: { defaultMode?: "login" | "signup"; organizers?: string; closed?: boolean } = {}) {
+  golfGroup = golfTermsFor("us").golfGroup,
+  launch,
+}: {
+  defaultMode?: "login" | "signup";
+  organizers?: string;
+  golfGroup?: string;
+  /** The go-live switch's answer (`launchState()`). Required: the box cannot be drawn without asking. */
+  launch: LaunchState;
+}) {
+  const closed = launch === "held";
   // Where no link said otherwise: the closing section asks the visitor to set
   // up their first event, so it opens on sign-up (Ajay, 2026-09-28).
   const [mode, setMode] = useState<"login" | "signup">(defaultMode);
@@ -47,7 +56,7 @@ export function LandingAuth({
   // instead of the top of the hero.
   // The edition's word (UK "organisers"): the page's server-side dialect swap
   // cannot reach inside this client component, so the word is passed in.
-  const panel = <LoginPanel key={closed ? "held" : mode} initialMode={mode} autoFocusFields={false} organizers={organizers} signupClosed={closed} />;
+  const panel = <LoginPanel key={closed ? "held" : mode} initialMode={mode} autoFocusFields={false} organizers={organizers} golfGroup={golfGroup} signupClosed={closed} />;
   if (!closed) return panel;
   // Sign-ins held until launch (sign-in-gate.ts): said before the form, and the form below is
   // signing in only — no Sign up tab, so nobody is offered an account the server would refuse.
