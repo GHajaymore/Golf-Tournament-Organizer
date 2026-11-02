@@ -12,7 +12,7 @@ import { expect, test } from "./coverage";
  * Reduced motion, so the hero shows its settled state at once (the moment itself is a component
  * test of timing, not of layout).
  */
-test.use({ storageState: { cookies: [], origins: [] }, reducedMotion: "reduce" });
+test.use({ storageState: { cookies: [], origins: [] } });
 
 const WIDTHS = [
   { width: 393, height: 852 },
@@ -21,9 +21,10 @@ const WIDTHS = [
 ] as const;
 
 test.describe("/new, the site rehaul's preview", () => {
-  test.beforeEach(({}, testInfo) => {
+  test.beforeEach(async ({ page }, testInfo) => {
     // The widths are set below, so one project is enough.
     test.skip(testInfo.project.name !== "desktop", "the widths are set by the test itself");
+    await page.emulateMedia({ reducedMotion: "reduce" });
   });
 
   for (const size of WIDTHS) {
