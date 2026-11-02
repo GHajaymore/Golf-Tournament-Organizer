@@ -37,9 +37,14 @@ export interface StructuredDataOptions {
    * want it until go live") — so a search engine is not told of a $0 plan the page has taken down.
    */
   launch: LaunchState;
+  /**
+   * TourneyHQ's own social profiles, as the Organization's `sameAs`. Only the site rehaul at `/new`
+   * passes them so far (2026-11-01), so today's `/` says exactly what it said.
+   */
+  sameAs?: readonly string[];
 }
 
-export function siteStructuredData({ origin, overrides, currency, launch }: StructuredDataOptions): Record<string, unknown> {
+export function siteStructuredData({ origin, overrides, currency, launch, sameAs }: StructuredDataOptions): Record<string, unknown> {
   const org = `${origin}/#organization`;
   /** ISO 4217, and always a currency the price below is actually set in. */
   const CURRENCY = planCurrency(currency);
@@ -53,6 +58,7 @@ export function siteStructuredData({ origin, overrides, currency, launch }: Stru
         name: "TourneyHQ",
         url: origin,
         logo: `${origin}/icon-512.png`,
+        ...(sameAs && sameAs.length ? { sameAs: [...sameAs] } : {}),
       },
       {
         "@type": "WebSite",

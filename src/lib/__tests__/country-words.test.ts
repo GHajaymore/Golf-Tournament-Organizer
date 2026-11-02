@@ -138,6 +138,8 @@ const LANDING_FAMILY = [
   "src/app/terms/page.tsx",
   "src/app/faq/page.tsx",
   "src/app/interest/page.tsx",
+  // The site rehaul's preview (2026-11-01): written in US words and passed through `inDialect`, like `/`.
+  "src/app/new/",
   "src/lib/landing/",
   "src/components/landing/",
 ];
@@ -166,6 +168,7 @@ const ALLOWED: Record<string, string> = {
  */
 const ALLOWED_LINES: ReadonlyArray<{ file: string; text: string; why: string }> = [
   { file: "src/app/page.tsx", text: "Carts or buggies", why: "names both on purpose: the app follows the club's word" },
+  { file: "src/app/new/page.tsx", text: "carts or buggies", why: "the same sentence in the site rehaul's preview: both words on purpose" },
 ];
 
 function bannedFor(file: string): readonly RegExp[] {
