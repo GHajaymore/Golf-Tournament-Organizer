@@ -39,7 +39,10 @@ test.describe("/new, the site rehaul's preview", () => {
       // Walk down so every lazy picture is asked for, then come back.
       const height = await page.evaluate(() => document.documentElement.scrollHeight);
       for (let y = 0; y < height; y += 600) await page.evaluate((top) => window.scrollTo(0, top), y);
+      // A swipe row's later pictures are never scrolled into view down the page: ask for them too.
+      await page.evaluate(() => document.querySelectorAll<HTMLImageElement>("img[loading=lazy]").forEach((i) => (i.loading = "eager")));
       await page.waitForLoadState("networkidle");
+      await page.evaluate(() => Promise.all([...document.images].map((i) => i.decode().catch(() => undefined))));
       await page.evaluate(() => window.scrollTo(0, 0));
 
       const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
