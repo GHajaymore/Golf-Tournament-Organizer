@@ -1,4 +1,4 @@
-import { stablefordPointsForHole, modifiedStablefordForHole } from "./stroke";
+import { stablefordPointsForHole, modifiedStablefordForHole, allocationHoles, holeStrokesReceived } from "./stroke";
 
 /** Which Stableford table a round is scored on, or none. */
 export type PointsTable = "standard" | "modified";
@@ -48,4 +48,24 @@ export function cardPoints(
  */
 export function stablefordPickUp(par: number, strokesReceived: number): number {
   return par + 2 + Math.max(0, Math.round(strokesReceived));
+}
+
+/**
+ * Which holes of a STANDARD Stableford card were picked up — a hole AT the
+ * pick-up figure, off the strokes this player receives there, exactly as the
+ * card itself reads it back (`PlayerCard`, "a hole already at that figure
+ * reads as picked up"). For the server's readers, which hold the playing
+ * handicap and the stroke index rather than the card's own shots.
+ */
+export function pickedUpHoles(
+  strokes: readonly (number | null)[],
+  pars: readonly number[],
+  strokeIndex: readonly number[],
+  playingHandicap: number,
+  holes: number,
+): boolean[] {
+  const alloc = allocationHoles(holes);
+  return strokes.map(
+    (v, i) => v != null && v === stablefordPickUp(pars[i] ?? 4, holeStrokesReceived(playingHandicap, strokeIndex[i] ?? 18, alloc)),
+  );
 }

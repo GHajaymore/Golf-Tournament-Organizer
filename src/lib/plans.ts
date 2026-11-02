@@ -31,6 +31,7 @@
  * `society` is Birdie and `enterprise` is Albatross.
  */
 import { ARCHIVE_MONTHS } from "./domain/club-archive";
+import { inClubWords, type GolfWords } from "./domain/golf-terms";
 
 export type PlanKey = "free" | "society" | "club" | "enterprise";
 
@@ -171,7 +172,54 @@ export interface Plan {
      */
     publicBoard: boolean;
   };
+  /**
+   * WHAT THIS PLAN INCLUDES THAT NO PLAN GATES (2026-10-24) — the front door's
+   * "On every plan" list is read from here (`onEveryPlan`), never typed on the
+   * page, so the page cannot promise on every plan what one plan lacks.
+   *
+   * These are TERMS, not gates: nothing reads them to refuse anybody, because
+   * nothing refuses them today. That is the difference from `features`, whose
+   * every key has a sink (`no-dead-feature-keys.test.ts`). The day a tier is to
+   * go without one, its gate is built first and the key moves to `features`;
+   * `on-every-plan.test.ts` refuses a `false` here until then, so this list can
+   * only ever say what is true of every plan.
+   */
+  includes: Record<IncludedKey, boolean>;
 }
+
+/** The terms every plan carries today — see `Plan.includes`. */
+export type IncludedKey = "everyFormat" | "roundCodes" | "offlineCards" | "voiceScoring" | "sideGames" | "playersPayNothing";
+
+const ON_EVERY_PLAN_TODAY: Record<IncludedKey, boolean> = {
+  everyFormat: true,
+  roundCodes: true,
+  offlineCards: true,
+  voiceScoring: true,
+  sideGames: true,
+  // "A player never PAYS" (this file's header): no plan charges a player anything.
+  playersPayNothing: true,
+};
+
+/**
+ * What the front door's "On every plan" list says for each key — a term above,
+ * or a feature every plan has. In US English; the edition swaps the rest.
+ */
+const EVERY_PLAN_WORDS: Record<IncludedKey | FeatureKey, string> = {
+  publicBoard: "A live board anyone can watch by link",
+  everyFormat: "Every format, each scored by its own rules",
+  roundCodes: "Round codes: players need no account and no app",
+  offlineCards: "Cards that keep saving without signal",
+  voiceScoring: "Scores by voice, hole by hole or the whole card",
+  sideGames: "Skins, side games and the settle-up, worked out",
+  playersPayNothing: "Nothing for a player to pay, ever",
+  whiteLabel: "Your club's branding in place of ours",
+  seasonStandings: "A season table across events",
+  sms: "Text alerts",
+  cardScan: "Reading a photographed card",
+  aiAssist: "Drafted commentary",
+  // Not the country's word ("honors board" / "honours board"): this file types none (country-words.test.ts).
+  honours: "A board of every past champion",
+};
 
 export const PLANS: Record<PlanKey, Plan> = {
   free: {
@@ -196,15 +244,17 @@ export const PLANS: Record<PlanKey, Plan> = {
     // completes, so its honours board could only ever be empty. Clubs that
     // predate the terms keep it — see `GRANDFATHERED_FEATURES`.
     features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: false, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
   society: {
     key: "society",
     name: "Birdie",
-    tagline: "Leagues and golf groups",
-    // Written in US words: the landing is authored in US English and its UK
-    // editions swap "golf groups" for "societies" (landing/edition.ts). Until
-    // 2026-10-24 this said "societies", which US visitors read unswapped.
-    blurb: "For a league, society or golf group running a full season — unlimited events, up to fifty a field.",
+    // IN THE READER'S GOLF (2026-10-24): "Leagues and golf groups" to a US
+    // club, "Leagues and societies" to a British one. The token is filled by
+    // `planTagline` / `planBlurb` with the club's words, or the landing
+    // edition's. Until that day this said "societies" to every US club.
+    tagline: "Leagues and {golfGroups}",
+    blurb: "For a league or {golfGroup} running a full season — unlimited events, up to fifty a field.",
     // The growth-engine rung between Free and Club — see the monetization
     // proposal. Priced here as the default; the number is configurable through
     // `effectivePrice` without a code edit, which is why $12 is a starting
@@ -228,6 +278,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // White-label OFF — that is a Club line. The metered three stay dark here
     // as everywhere, switched off by cost until revenue covers them.
     features: { whiteLabel: false, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
   club: {
     key: "club",
@@ -261,6 +312,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // copy already lists them (see METERED_FEATURES below), so the promise and
     // the switch move together.
     features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
   enterprise: {
     key: "enterprise",
@@ -280,8 +332,34 @@ export const PLANS: Record<PlanKey, Plan> = {
     limits: { activeEvents: null, staffSeats: null, playersPerEvent: null },
     retentionHours: null,
     features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    includes: { ...ON_EVERY_PLAN_TODAY },
   },
 };
+
+/**
+ * THE FRONT DOOR'S "ON EVERY PLAN" (2026-10-24): every feature and every term
+ * that EVERY plan has, in the words the page prints — worked out from `PLANS`,
+ * so a line is on the page exactly while it is true of all four tiers.
+ * Features first (they are gates, so a tier can lose one), then the terms.
+ */
+export function onEveryPlan(plans: Record<PlanKey, Plan> = PLANS): { key: IncludedKey | FeatureKey; label: string }[] {
+  const all = Object.values(plans);
+  const features = (Object.keys(all[0].features) as FeatureKey[]).filter((k) => all.every((p) => p.features[k] === true));
+  const terms = (Object.keys(all[0].includes) as IncludedKey[]).filter((k) => all.every((p) => p.includes[k] === true));
+  return [...features, ...terms].map((key) => ({ key, label: EVERY_PLAN_WORDS[key] }));
+}
+
+/**
+ * A plan's line and blurb in the reader's golf — the only way they are read.
+ * `tagline` and `blurb` hold `{golfGroups}`-style tokens (`golf-terms.ts`).
+ */
+export function planTagline(plan: Pick<Plan, "tagline">, words: GolfWords): string {
+  return inClubWords(plan.tagline, words);
+}
+
+export function planBlurb(plan: Pick<Plan, "blurb">, words: GolfWords): string {
+  return inClubWords(plan.blurb, words);
+}
 
 /**
  * The Par terms' two numbers, here rather than in `domain/close-terms.ts`
@@ -777,7 +855,7 @@ export const SEASON_LOCKED =
  * tier is named from PLANS so a renamed tier cannot leave this saying the old one.
  */
 export const HONOURS_LOCKED =
-  `The honours board comes with ${PLANS.society.name} and above. On ${PLANS.free.name} a ` +
+  `The {honoursBoard} comes with ${PLANS.society.name} and above. On ${PLANS.free.name} a ` +
   "tournament is deleted when it is completed, so there would be no champions to keep on it.";
 
 /** Whether this plan keeps data indefinitely. */
@@ -951,7 +1029,7 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     out.push("Run as many tournaments at once as your season needs.");
   }
   if (plan.limits.staffSeats !== null && plan.limits.staffSeats < 10) {
-    out.push("Bring your committee in — up to ten organizers and assistants.");
+    out.push("Bring your committee in — up to ten {organizers} and assistants.");
   }
   if (!plan.features.whiteLabel) {
     out.push("Your own branding on every screen, with ours removed.");
@@ -966,7 +1044,7 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     );
   }
   if (!plan.features.honours) {
-    out.push("The honours board — every champion the club has had, kept year after year.");
+    out.push("The {honoursBoard} — every champion the club has had, kept year after year.");
   }
   // The metered ones last and flagged as coming: they are the reason the paid
   // tier exists, but promising them as available today would be a lie until

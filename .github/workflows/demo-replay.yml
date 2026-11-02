@@ -1,0 +1,52 @@
+name: Demo club replay
+
+# THE DEMO CLUB'S DAY, A FEW HOLES AT A TIME (2026-10-24; docs/claude/demo-club.md).
+#
+# Every quarter of an hour this asks production to play the invented demo
+# club's "playing now" medal up to the club's present minute
+# (`/api/cron/demo-replay`). Vercel's own cron on this plan runs once a day,
+# which is enough to start the day again each morning (vercel.json) and not
+# enough for holes to appear through it; this is the smallest scheduler that
+# fits: one HTTP GET, no checkout, no install.
+#
+# WHAT THIS RUNNER HOLDS: one token, DEMO_REPLAY_TOKEN, which opens that route
+# and nothing else — the route writes only the demo club's own tournaments.
+# Never a database credential (CLAUDE.md, "the deploy job does not build").
+# Without the secret the run says so and passes: nothing is played, nothing breaks.
+#
+# A missed run is harmless: the next one writes what the clock says is due.
+#
+# SECRET (name only): DEMO_REPLAY_TOKEN — the same value as the Vercel
+# production variable of that name.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: demo-replay
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    name: Play the demo club's day up to now
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask production to play the demo up to now
+        env:
+          DEMO_REPLAY_TOKEN: ${{ secrets.DEMO_REPLAY_TOKEN }}
+        run: |
+          if [ -z "$DEMO_REPLAY_TOKEN" ]; then
+            echo "DEMO_REPLAY_TOKEN is not set: the demo is not played this time."
+            exit 0
+          fi
+          code=$(curl -s -o answer.json -w "%{http_code}" --max-time 60 \
+            -H "Authorization: Bearer $DEMO_REPLAY_TOKEN" \
+            "https://tourneyhq.club/api/cron/demo-replay")
+          echo "answered $code: $(cat answer.json)"
+          [ "$code" = "200" ]

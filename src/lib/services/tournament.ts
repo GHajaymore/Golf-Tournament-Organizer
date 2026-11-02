@@ -42,6 +42,8 @@ import {
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
 import {
   countbackCompare,
+  countbackStep,
+  countbackStepWords,
   compareOnBasis,
   levelOnBasis,
   type RankingBasis,
@@ -656,6 +658,14 @@ export interface EventState {
    * on, a tie at the cut included (`cutTiesUndecided`).
    */
   strokeRankingBasis: RankingBasis;
+  /**
+   * WHICH STEP OF THE COUNTBACK put `aheadId` above `behindId` on the board —
+   * "back 9", "last 3" — read off the same cards, on the same basis and over
+   * the same round the board's own sort read (`cbCard`), so a report cannot
+   * name a step the board did not use. Null when they are not level on the
+   * score, or the countback did not separate them.
+   */
+  countbackBetween: (aheadId: string, behindId: string) => string | null;
   /**
    * Players withdrawn after they began, as WD rows — NOT part of the field,
    * so not in `strokeStandings`. Only the printed sheet adds them.
@@ -2433,6 +2443,13 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     }
     return rows;
   };
+  const countbackBetween = (aheadId: string, behindId: string): string | null => {
+    const a = strokeStandings.find((s) => s.player.id === aheadId);
+    const b = strokeStandings.find((s) => s.player.id === behindId);
+    if (!a || !b || !a.ranked || !b.ranked || !levelOnBasis(a, b, rankingBasis)) return null;
+    const step = countbackStep(cbCard(aheadId, rankingBasis), cbCard(behindId, rankingBasis), lastRoundHoles, rankingBasis === "stableford");
+    return step && step.compare < 0 ? countbackStepWords(step.holes, lastRoundHoles) : null;
+  };
 
   /**
    * WHICH COMPETITION QUALIFIES THE DRAW — the round before the bracket, in
@@ -2972,7 +2989,14 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
      * been out on the course" — one hole is enough.
      */
     roundsWithResults: new Set<string>([
-      ...scorecards.filter((c) => c.stageId).map((c) => c.stageId as string),
+      /**
+       * `playedCards`, not `scorecards` (2026-10-31): a side playing one ball — a scramble, a
+       * best ball — files a `TeamScorecard`, and this set was built from the individual cards
+       * alone. A played scramble read "Upcoming" on Rounds & formats, was left out of the final
+       * report's round-by-round tables, and would have been called "not played" by completing.
+       * `playedCards` is the one spelling of "a card was returned", written above for exactly this.
+       */
+      ...playedCards.filter((c) => c.stageId).map((c) => c.stageId as string),
       ...matchStrokeCards(matchCards, matches).map((c) => c.stageId),
       ...matches.filter((m) => /[1-9AaBbHh]/.test(m.holes) || m.forfeitedBy).map((m) => m.stageId),
       /**
@@ -3010,6 +3034,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     strokeStandings,
     strokeStandingsOn,
     strokeRankingBasis: rankingBasis,
+    countbackBetween,
     withdrawnStandings,
     strokeUnit,
     // Only "strokes" is ambiguous; points name themselves. Derived once above,

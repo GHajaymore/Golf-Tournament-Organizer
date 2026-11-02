@@ -49,7 +49,7 @@ export const SIDE_STYLE_OPTIONS: SideStyleOption[] = [
   {
     key: "teams",
     label: "In teams",
-    blurb: "Three or four a side — a scramble, a shamble, a texas scramble. Society and charity days.",
+    blurb: "Three or four a side — a scramble, a shamble, a texas scramble. Days out and charity events.",
   },
   {
     key: "varies",

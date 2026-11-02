@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { saveOrganizationKind } from "@/app/actions/organization";
 import { ORG_KINDS, orgProfile } from "@/lib/domain/org-profile";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { Icon } from "./Icon";
 
 /**
@@ -37,22 +38,35 @@ export function OrgKindPicker({ kind, country, noun }: { kind: string; country: 
   const [error, setError] = useState("");
   /** The roster this would hide, when the answer was "ask me first". */
   const [confirmCount, setConfirmCount] = useState(0);
+  /**
+   * The kind being asked about, and whether the roster question was already
+   * answered on the way — the money question can follow it, and answering the
+   * second must not ask the first again.
+   */
+  const [asking, setAsking] = useState<{ kind: string; rosterConfirmed: boolean } | null>(null);
+  /** How many tournaments would change money, when that was the question. */
+  const [moneyCount, setMoneyCount] = useState(0);
 
-  const save = (next: string, confirmed = false) => {
+  const save = (next: string, confirmed = false, moneyChoice?: "keep" | "switch") => {
     setError("");
     startTransition(async () => {
-      const res = await saveOrganizationKind(next, confirmed);
+      const res = await saveOrganizationKind(next, confirmed, moneyChoice);
       if (res.ok) {
         setValue(next);
         setConfirmCount(0);
+        setMoneyCount(0);
+        setAsking(null);
         return;
       }
       setError(res.error ?? "That could not be saved.");
+      setAsking({ kind: next, rosterConfirmed: confirmed });
       // A number rather than a flag: the button then says how many people it
       // is about, which is the fact that makes the decision.
       setConfirmCount(res.hidesRoster ?? 0);
+      setMoneyCount(res.moneyChanges?.count ?? 0);
     });
   };
+  const asked = confirmCount > 0 || moneyCount > 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -115,23 +129,51 @@ export function OrgKindPicker({ kind, country, noun }: { kind: string; country: 
       </div>
 
       {error && (
-        <p style={{ fontSize: 13, margin: 0, color: confirmCount ? undefined : "var(--color-danger)" }}>
-          <Icon name={confirmCount ? "warning" : "warning-circle"} /> {error}
+        <p
+          role="alert"
+          ref={bringIntoView}
+          style={{ fontSize: 13, margin: 0, color: asked ? undefined : "var(--color-danger)" }}
+        >
+          <Icon name={asked ? "warning" : "warning-circle"} /> {error}
         </p>
       )}
 
       {/* The way through the question, with the number in the words — the same
           shape as the same-name warning: asked, not refused. */}
-      {confirmCount > 0 && (
+      {confirmCount > 0 && asking && (
         <button
           type="button"
           className="btn btn-secondary"
           style={{ alignSelf: "flex-start" }}
           disabled={pending}
-          onClick={() => save("personal", true)}
+          onClick={() => save(asking.kind, true)}
         >
           Switch anyway and hide the list
         </button>
+      )}
+
+      {/* Money: two answers, the safe one first. "Keep" sets the club's own
+          money default to what these tournaments get today, then changes the
+          kind, so nothing a player sees moves. */}
+      {moneyCount > 0 && asking && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={pending}
+            onClick={() => save(asking.kind, asking.rosterConfirmed, "keep")}
+          >
+            Keep their money as it is
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={pending}
+            onClick={() => save(asking.kind, asking.rosterConfirmed, "switch")}
+          >
+            Switch anyway
+          </button>
+        </div>
       )}
     </div>
   );

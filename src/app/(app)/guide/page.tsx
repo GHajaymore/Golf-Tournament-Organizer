@@ -2,6 +2,9 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { PageHeader } from "@/components/PageHeader";
 import { Icon } from "@/components/Icon";
+import { golfTermsForEvent } from "@/lib/services/organization";
+import { inClubWords } from "@/lib/domain/golf-terms";
+import { PLANS, planTagline } from "@/lib/plans";
 
 /**
  * HOW TOURNEYHQ WORKS, in the console (Ajay, 2026-10-01: "include it as part
@@ -12,8 +15,9 @@ import { Icon } from "@/components/Icon";
  * same content ships as a PDF in /public/guide, and the diagrams are images
  * exported from it, so the page, the download and the diagrams say one thing.
  *
- * Static on purpose: it reads nothing from the database, so it renders the
- * same for every club at every stage of a tournament. The detailed step-by-step
+ * It reads one thing from the database, the club's golf words, so a US league
+ * and a British society each read it in their own golf (2026-10-24); otherwise
+ * it renders the same for every club at every stage of a tournament. The detailed step-by-step
  * user guide joins the Help section when it is written.
  */
 
@@ -80,7 +84,11 @@ const FORMATS = [
 ];
 
 export default async function GuidePage() {
-  await requireScreen("guide");
+  const session = await requireScreen("guide");
+  // The club's golf words (2026-10-24): a US league reads "league or golf
+  // group" and "honors board", a British society "society" and "honours".
+  const words = await golfTermsForEvent(session.eventId);
+  const w = (text: string) => inClubWords(text, words);
 
   return (
     <div style={{ maxWidth: 980 }}>
@@ -102,20 +110,20 @@ export default async function GuidePage() {
 
       <Section id="people" kicker="Who uses it" title="Four kinds of people, three ways in">
         <P>
-          Organizers run things from this console. Players use the player app on their phone. Anyone with a club&rsquo;s
+          {w("{Organizers}")} run things from this console. Players use the player app on their phone. Anyone with a club&rsquo;s
           link can watch the public board without signing in.
         </P>
         <Cards
           items={[
-            { where: "Console", title: "Organizer", lines: ["The club secretary, society or league organizer", "Sets up tournaments, the field, rounds and money", "Publishes the draw, approves cards, closes the event"] },
-            { where: "Console", title: "Staff", lines: ["Assistants added by the organizer", "Help run the day: the field, the draw, entering cards", "Each one takes a staff seat on the club's plan"] },
+            { where: "Console", title: w("{Organizer}"), lines: [w("The club secretary, or the {organizer} of a league or {golfGroup}"), "Sets up tournaments, the field, rounds and money", "Publishes the draw, approves cards, closes the event"] },
+            { where: "Console", title: "Staff", lines: [w("Assistants added by the {organizer}"), "Help run the day: the field, the draw, entering cards", "Each one takes a staff seat on the club's plan"] },
             { where: "Player app", title: "Player", lines: ["Signs up for events, sees their tee time and group", "Scores their card on the phone, even with no signal", "Follows the board, their money and the club calendar"] },
-            { where: "Public board", title: "Spectator", lines: ["Opens a shared link: a clubhouse screen, a group chat", "No login. Names and scores only.", "Nothing appears until the organizer publishes"] },
+            { where: "Public board", title: "Spectator", lines: ["Opens a shared link: a clubhouse screen, a group chat", "No login. Names and scores only.", w("Nothing appears until the {organizer} publishes")] },
           ]}
         />
       </Section>
 
-      <Section id="lifecycle" kicker="A tournament's life" title="From a name to the honours board">
+      <Section id="lifecycle" kicker="A tournament's life" title={w("From a name to the {honoursBoard}")}>
         <P>
           A tournament needs only a name to exist. Everything else is added as it becomes known, and stays editable through
           the event. Multi-round events go back to the draw for each round; a stroke-play cut is applied automatically when
@@ -137,7 +145,7 @@ export default async function GuidePage() {
           src="/guide/round.png"
           width={1920}
           height={846}
-          alt="The organizer publishes the tee sheet; each player gets their tee time on Today and by push notification; hole scores save as they are entered and queue on the phone without signal; standings update for everyone; players certify cards; the organizer approves cards, settles ties and finishes the round, and results become final."
+          alt={w("The {organizer} publishes the tee sheet; each player gets their tee time on Today and by push notification; hole scores save as they are entered and queue on the phone without signal; standings update for everyone; players certify cards; the {organizer} approves cards, settles ties and finishes the round, and results become final.")}
         />
         <Cards
           items={[
@@ -188,9 +196,9 @@ export default async function GuidePage() {
               <tr><th></th><th>Casual round</th><th>Tournament</th></tr>
             </thead>
             <tbody>
-              <tr><td>For</td><td>2 to 8 players, decided on the day</td><td>A club, society or league event</td></tr>
+              <tr><td>For</td><td>2 to 8 players, decided on the day</td><td>{w("A club, league or {golfGroup} event")}</td></tr>
               <tr><td>Rounds</td><td>One</td><td>One or many, with cuts, flights and brackets</td></tr>
-              <tr><td>Who runs it</td><td>The player who set it up, for that round only</td><td>The organizer and staff, in the console</td></tr>
+              <tr><td>Who runs it</td><td>The player who set it up, for that round only</td><td>{w("The {organizer} and staff, in the console")}</td></tr>
               <tr><td>Money</td><td>A game between the players</td><td>Skins, side games, prizes and shared costs</td></tr>
               <tr><td>Afterwards</td><td>Expires after its window</td><td>Kept, except on Par, where it is removed on close</td></tr>
             </tbody>
@@ -202,8 +210,11 @@ export default async function GuidePage() {
         <P>Every format, the scoring, the boards and the money work on every plan. Plans differ in size, administration and how much is kept.</P>
         <Cards
           items={[
-            { title: "Par", where: "Free", lines: ["Up to 10 players, one tournament at a time, one organizer", "A tournament is removed when it is closed, after a prompt to download it"] },
-            { title: "Birdie", where: "Leagues and societies", lines: ["Bigger fields", "Seasons across tournaments, honours boards"] },
+            { title: "Par", where: "Free", lines: [w("Up to 10 players, one tournament at a time, one {organizer}"), "A tournament is removed when it is closed, after a prompt to download it"] },
+            // The plan's own line, so this card and the plan panel cannot name
+            // the tier's golfers two ways. It said "Leagues and societies" to a
+            // US league until 2026-10-24.
+            { title: PLANS.society.name, where: planTagline(PLANS.society, words), lines: ["Bigger fields", w("Seasons across tournaments, the {honoursBoard}")] },
             { title: "Eagle", where: "Clubs", lines: ["No field cap", "More staff seats"] },
             { title: "Albatross", where: "Associations", lines: ["By conversation"] },
           ]}
