@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { openSettingsTab } from "./settings-tabs";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
@@ -116,6 +117,8 @@ test("the secretary adds somebody to the club, changes their role, removes them,
     const settings = async () => {
       await desk.goto(`/organization?bust=${Date.now()}`);
       await desk.waitForLoadState("networkidle").catch(() => {});
+      // The club's staff are on their own tab: Club settings shows one section at a time.
+      await openSettingsTab(desk, "Staff & access");
     };
     const membership = () => prisma.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: clubId, userId: person.id } } });
     const row = () => desk.locator("tbody tr", { hasText: email }).first();

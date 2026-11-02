@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { currencySymbol, DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import {
@@ -45,6 +46,15 @@ async function requireMembership() {
 }
 
 /**
+ * Nothing is posted in a lapsed club's read-only archive (2026-10-21) — the
+ * threads stay readable, and the sentence says why the box will not send.
+ * Not in `requireMembership`, which the reads go through too.
+ */
+async function archivedFor(session: { eventId: string; role: string }): Promise<string | null> {
+  return archiveRefusalFor(session.eventId, session.role === "player" ? "player" : "organizer");
+}
+
+/**
  * One conversation. Null for "no such thread" AND for "not yours" — telling
  * those apart would confirm a thread exists to somebody not entitled to know.
  */
@@ -56,6 +66,8 @@ export async function readThread(threadId: string): Promise<ThreadView | null> {
 /** Post to a scope, creating its conversation on the first message. */
 export async function sendMessage(scope: string, body: string): Promise<PostResult> {
   const { session, ctx } = await requireMembership();
+  const archived = await archivedFor(session);
+  if (archived) return { ok: false, error: archived };
   const res = await postToScope(ctx, scope, body, session.name);
   if (res.ok) revalidatePath("/", "layout");
   return res;
@@ -79,6 +91,8 @@ export async function markThreadRead(threadId: string): Promise<void> {
  */
 export async function startDirectThread(playerIds: string[], firstMessage = ""): Promise<PostResult> {
   const { session, ctx } = await requireMembership();
+  const archived = await archivedFor(session);
+  if (archived) return { ok: false, error: archived };
   const res = await openDirectThreadWithPlayers(ctx, playerIds, session.name, firstMessage);
   if (res.ok) revalidatePath("/", "layout");
   return res;
@@ -95,6 +109,8 @@ export async function startDirectThread(playerIds: string[], firstMessage = ""):
  */
 export async function broadcastToScope(scope: string, body: string): Promise<PostResult> {
   const { session, ctx } = await requireMembership();
+  const archived = await archivedFor(session);
+  if (archived) return { ok: false, error: archived };
   const res = await staffBroadcast(ctx, scope, body, session.name);
   if (res.ok) revalidatePath("/", "layout");
   return res;
@@ -150,6 +166,8 @@ export async function broadcastWithText(
   body: string,
 ): Promise<PostResult & { texted?: number; failed?: number; skipped?: number }> {
   const { session, ctx } = await requireMembership();
+  const archived = await archivedFor(session);
+  if (archived) return { ok: false, error: archived };
   const org = await prisma.organization.findUnique({
     where: { id: ctx.organizationId },
     select: { name: true },

@@ -1,0 +1,40 @@
+name: Weekly round
+
+# WHAT CHANGES SLOWLY, ONCE A WEEK (the panel, 2026-10-23 —
+# docs/testing-panel-2026-10-23.md).
+#
+#   Chrome as installed, and Edge as installed — the same engine as the suite's
+#     Chromium, a version or two apart: a question of the calendar, not of a change
+#   the front door with its animation on — every other layer asks the browser for
+#     reduced motion; this is the page the way nearly every visitor sees it
+#
+# They were in every round until that day. Nothing about them depends on what a
+# change touched, so a change's round no longer waits on them. Sunday 03:00 UTC,
+# an hour after the nightly round, so the two never share the machines.
+#
+# Gates nothing: it does not deploy. A finding here is a finding like any other,
+# read from this run's summary.
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-round
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  round:
+    name: Round
+    uses: ./.github/workflows/round.yml
+    with:
+      round: "1"
+      schedule: weekly
+      countries: trio
+      crawl: "off"
+    secrets: inherit

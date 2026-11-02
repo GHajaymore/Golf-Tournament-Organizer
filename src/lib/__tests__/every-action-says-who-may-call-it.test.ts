@@ -36,6 +36,8 @@ import { readSource } from "./source";
 
 /** A gate that refuses anybody who is not staff of the tournament or the club. */
 const STAFF_GATES = [
+  // `requireAdminEvent` with an archived tournament's refusal returned in words (tournament.ts).
+  "adminEventOrRefusal(",
   "requireStaffEvent(",
   "requireStaff(",
   "requireAdminEvent(",
@@ -65,7 +67,7 @@ const WRITES = [".create(", ".createMany(", ".update(", ".updateMany(", ".upsert
 const WHO: Record<string, string> = {
   // anyone
   signInWithPassword: "anyone", claimPassword: "anyone", requestPasswordReset: "anyone", resetPassword: "anyone",
-  signUp: "anyone", signOutAction: "anyone", registerForEvent: "anyone", getVapidPublicKey: "anyone",
+  signUp: "anyone", verifyEmailCode: "anyone", resendEmailCode: "anyone", signOutAction: "anyone", registerForEvent: "anyone", getVapidPublicKey: "anyone",
   redeemRoundCode: "anyone", claimPlayerSlot: "anyone", leavePlay: "anyone", registerInterest: "anyone",
   // Sets a cookie and nothing else, and the cookie can only ever show an
   // organizer LESS (the player's view of their own tournament): `getSession`
@@ -108,7 +110,7 @@ const WHO: Record<string, string> = {
   broadcastToScope: "organizer", previewSmsBroadcast: "organizer", broadcastWithText: "organizer",
   // the business
   setClubPlan: "the business", saveTierPrices: "the business", saveTierLimits: "the business",
-  createDiscountCode: "the business", setDiscountCodeActive: "the business", setAccountsOpen: "the business",
+  createDiscountCode: "the business", setDiscountCodeActive: "the business", setAccountsOpen: "the business", sendEarlyListCodes: "the business", refreshDemoClub: "the business",
 };
 
 /** What must appear in the body of an action of each kind. Not proof the check is right — proof it is there. */

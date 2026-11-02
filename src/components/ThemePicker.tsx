@@ -129,6 +129,69 @@ const APPEARANCE_ICON: Record<string, string> = {
 };
 
 /**
+ * A hex box with its preview and its "Use this colour".
+ *
+ * DECLARED HERE, NOT INSIDE `ThemePicker` (the text-box crawl, 2026-10-21).
+ * Inside, it was a new component on every render of the picker, so React threw
+ * the box away and drew a fresh one at every keystroke: one character went in,
+ * the focus went with the old box, and nothing more could be typed. Neither hex
+ * box on Club settings could be filled in by a person at a keyboard.
+ */
+function HexField({
+  label,
+  value,
+  onChange,
+  onUse,
+  active,
+  ground,
+  readOnly,
+  pending,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onUse: () => void;
+  active: boolean;
+  /** The ground the preview is painted on — the one the club is choosing. */
+  ground: Ground;
+  readOnly: boolean;
+  pending: boolean;
+}) {
+  const preview = customPreset(value);
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <input
+        className="input"
+        style={{ width: 130, fontFamily: "var(--font-mono, monospace)" }}
+        value={value}
+        disabled={readOnly}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="#138808"
+        aria-label={label}
+      />
+      {preview && (
+        <div style={{ display: "flex", gap: 4 }}>
+          {[300, 400, 500, 600, 700].map((step) => (
+            <span
+              key={step}
+              style={{ width: 20, height: 20, borderRadius: 4, background: themeScale(preview, ground)[step] }}
+            />
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        className="btn btn-secondary"
+        disabled={pending || readOnly || !preview}
+        onClick={onUse}
+      >
+        {active ? "Update" : "Use this colour"}
+      </button>
+    </div>
+  );
+}
+
+/**
  * The club's whole look: light or dark, and both accent colours.
  *
  * Presets first because most clubs want a colour that looks right rather than
@@ -303,53 +366,6 @@ export function ThemePicker({
           {disabledReason ?? preset.blurb}
         </div>
       </button>
-    );
-  };
-
-  const HexField = ({
-    label,
-    value,
-    onChange,
-    onUse,
-    active,
-  }: {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-    onUse: () => void;
-    active: boolean;
-  }) => {
-    const preview = customPreset(value);
-    return (
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <input
-          className="input"
-          style={{ width: 130, fontFamily: "var(--font-mono, monospace)" }}
-          value={value}
-          disabled={readOnly}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="#138808"
-          aria-label={label}
-        />
-        {preview && (
-          <div style={{ display: "flex", gap: 4 }}>
-            {[300, 400, 500, 600, 700].map((step) => (
-              <span
-                key={step}
-                style={{ width: 20, height: 20, borderRadius: 4, background: themeScale(preview, ground)[step] }}
-              />
-            ))}
-          </div>
-        )}
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={pending || readOnly || !preview}
-          onClick={onUse}
-        >
-          {active ? "Update" : "Use this colour"}
-        </button>
-      </div>
     );
   };
 
@@ -617,6 +633,9 @@ export function ThemePicker({
             what stops a pale crest colour producing text nobody can read. */}
         <HexField
           label="Main colour hex"
+          ground={ground}
+          readOnly={readOnly}
+          pending={pending}
           value={accentHexDraft}
           onChange={setAccentHexDraft}
           onUse={() => set({ accentKey: "custom", accentHex: accentHexDraft })}
@@ -657,6 +676,9 @@ export function ThemePicker({
         </div>
         <HexField
           label="Second colour hex"
+          ground={ground}
+          readOnly={readOnly}
+          pending={pending}
           value={secondaryHexDraft}
           onChange={setSecondaryHexDraft}
           onUse={() => set({ secondaryKey: "custom", secondaryHex: secondaryHexDraft })}

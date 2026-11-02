@@ -148,7 +148,7 @@ beforeAll(async () => {
   matchId = match.id;
 
   const user = await prisma.user.create({
-    data: { email: at("organizer"), name: "Organizer", password: "x" },
+    data: { email: at("organizer"), name: "Organizer", password: "x", emailVerifiedAt: new Date() },
   });
   organizerId = user.id;
   await prisma.account.create({

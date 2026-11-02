@@ -150,7 +150,11 @@ export function OwnerLimits({
           {pending ? "Saving…" : "Save limits"}
         </button>
         <span className="text-muted" style={{ fontSize: 13 }}>
-          {enforce ? "Enforcement is ON." : "Enforcement is off — nothing is refused."}
+          {/* Said truthfully (2026-10-21): "nothing is refused" was false — clubs created since
+              29 September are held by their terms whatever this switch says (`enforcementActive`). */}
+          {enforce
+            ? "Enforced for every club."
+            : "Clubs created since 29 September 2026 are held to their plan's limits by their terms. Older clubs are not held until you switch this on."}
         </span>
         {saved && (
           <span style={{ fontSize: 13, color: "var(--color-accent-2-200)", display: "inline-flex", alignItems: "center", gap: 5 }}>

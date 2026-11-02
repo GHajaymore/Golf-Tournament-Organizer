@@ -4,11 +4,13 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { E2E_OWNER_EMAIL } from "./owner-email.mjs";
+import { interestWords, type LaunchState } from "../src/lib/go-live";
 
 /**
  * SOMEBODY REGISTERS INTEREST BEFORE WE OPEN, AND THE OWNER SEES IT (2026-10-21).
  *
- *   /interest, signed out, on a phone → the offer, with its first-term terms
+ *   /interest, signed out, on a phone → the words of this server's go-live switch (held: the offer,
+ *                                       with its first-term terms; live: "Now open", no 25%)
  *   sent with no club                 → refused beside the club box; nothing kept
  *   a whole answer                    → thanked by name and address; kept as a row
  *   an organizer is invited to share; a player is told to bring their organizer
@@ -50,11 +52,20 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
   watchPageErrors(page, errors, "visitor");
   const email = `${MARK}-${testInfo.project.name}-${RUN}@example.invalid`;
 
-  await test.step("the page offers 25% off the first term, and names no code", async () => {
+  // THE PAGE FOLLOWS THE GO-LIVE SWITCH (2026-10-23): the early list while held, "Now open" once
+  // live. This server is never held, so it is the live page here; both ways are walked by
+  // `go-live-switch.spec.ts` on a server that holds. The form works the same in both.
+  let words = interestWords("live");
+  await test.step("the page says what this server's switch says, and names no code", async () => {
     await page.goto(`/interest?bust=${Date.now()}`);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(page.getByText(/25% off the paid plan you choose at launch/)).toBeVisible();
-    await expect(page.getByText(/your first month, or your first year if you pay yearly/).first()).toBeVisible();
+    const launch = (await page.locator("main").getAttribute("data-launch")) as LaunchState | null;
+    expect(launch === "held" || launch === "live", `/interest does not say which state it is in: ${launch}`).toBe(true);
+    words = interestWords(launch!);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(words.h1);
+    await expect(page.getByText(words.sub)).toBeVisible();
+    if (launch === "held") await expect(page.getByText(/your first month, or your first year if you pay yearly/).first()).toBeVisible();
+    else await expect(page.getByText(/25%/), "the live page still offers the early list").toHaveCount(0);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(over, `/interest scrolls sideways by ${over}px`).toBeLessThanOrEqual(1);
   });
@@ -64,15 +75,16 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
     await page.getByLabel("Email").fill(email);
     await page.getByRole("radio", { name: "Club secretary or manager" }).check();
     await page.getByRole("button", { name: "Register my interest" }).click();
-    const refused = page.getByText(/Tell us your club or society/);
+    // In US words: a request with no country header is the US edition (golf-terms.ts).
+    const refused = page.getByText(/Tell us your club or golf group/);
     await expect(refused).toBeVisible({ timeout: 20_000 });
-    const [box, said] = [await page.getByLabel("Club or society").boundingBox(), await refused.boundingBox()];
+    const [box, said] = [await page.getByLabel("Club or golf group").boundingBox(), await refused.boundingBox()];
     expect(Math.abs((said?.y ?? 1e6) - (box?.y ?? 0)), "the refusal is not beside the club box").toBeLessThan(120);
     expect(await prisma.interestRequest.count({ where: { email } })).toBe(0);
   });
 
   await test.step("a whole answer: thanked by name and address, and kept", async () => {
-    await page.getByLabel("Club or society").fill("Zz Oakmere Golf Club");
+    await page.getByLabel("Club or golf group").fill("Zz Oakmere Golf Club");
     // Phone is optional; a number that is not one is refused beside its box.
     await page.getByLabel(/^Phone/).fill("call me");
     await page.getByRole("button", { name: "Register my interest" }).click();
@@ -81,7 +93,7 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
     await page.getByRole("radio", { name: "50 to 150" }).check();
     await page.getByLabel(/Anything you.d like us to know/).fill("We run a Thursday draw.");
     await page.getByRole("button", { name: "Register my interest" }).click();
-    await expect(page.getByText(`Thanks, Zz Pat, you're on the list. We'll email ${email} when TourneyHQ opens`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(words.sent("Zz Pat", email))).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("button", { name: "Copy the link" }), "an organizer is not invited to share").toBeVisible();
     const row = await prisma.interestRequest.findFirst({ where: { email } });
     expect(row).toMatchObject({ name: "Zz Pat", phone: "+1 (513) 555-0142", club: "Zz Oakmere Golf Club", role: "secretary", members: "50-150", note: "We run a Thursday draw." });
@@ -94,7 +106,7 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
       await p.goto(`/interest?bust=${Date.now()}`);
       await p.getByLabel("Your name").fill("Zz Lee");
       await p.getByLabel("Email").fill(`${MARK}-player-${testInfo.project.name}-${RUN}@example.invalid`);
-      await p.getByLabel("Club or society").fill("Zz Oakmere Golf Club");
+      await p.getByLabel("Club or golf group").fill("Zz Oakmere Golf Club");
       await p.getByRole("radio", { name: "Player" }).check();
       await p.getByRole("button", { name: "Register my interest" }).click();
       await expect(p.getByText(/Tell your secretary or organizer, and they can register here too/)).toBeVisible({ timeout: 20_000 });

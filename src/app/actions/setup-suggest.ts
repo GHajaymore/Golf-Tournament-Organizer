@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { basisFor } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { PLAYABLE_FORMAT_NAMES } from "@/lib/formats";
@@ -74,6 +75,7 @@ async function requireStaff(): Promise<{ eventId: string; who: string }> {
   }
   // The person, not their Account row on this event — see card-photo.ts, where
   // the same helper explains why an empty `accountId` shared one budget.
+  await assertEventWritable(session.eventId);
   return { eventId: session.eventId, who: session.userId };
 }
 

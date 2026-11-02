@@ -3,12 +3,16 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
-import { PLANS, LIMIT_KEYS, isValidPercentOff, type PlanKey, type LimitKey } from "@/lib/plans";
+import { PLANS, LIMIT_KEYS, isValidPercentOff, keepsDataForever, type PlanKey, type LimitKey } from "@/lib/plans";
+import { liftArchive } from "@/lib/services/club-archive";
 import { savePricingOverride } from "@/lib/services/platform-pricing";
 import { drainWaitlist } from "@/lib/services/waitlist";
 import { saveLimitOverride } from "@/lib/services/platform-limits";
 import { createDiscount, setDiscountActive } from "@/lib/services/platform-discounts";
 import { setSignInsOpen } from "@/lib/services/signins-switch";
+import { buildDemoClub, demoMark, type DemoLinks } from "@/lib/services/demo-club";
+import { sendEarlyListCodes as sendCodes } from "@/lib/services/early-list";
+import { ownerClockInWords } from "@/lib/services/owner-clock";
 
 /**
  * Owner-only writes — the platform's own controls, not a club's.
@@ -26,19 +30,53 @@ export interface OwnerActionResult {
 }
 
 /**
- * OPEN ACCOUNTS, OR HOLD THEM AGAIN — the one switch for launch (Ajay, 2026-10-21: "make sure its
- * an easy control which we can flip back to allow signup / signin"). A row, not a deploy: it takes
- * effect on the next page anybody opens. It can only open what production's hold shut; it never
- * shuts dev, CI or a preview (`services/signins-switch.ts`).
+ * GO LIVE, OR HOLD AGAIN — the one switch for launch (Ajay, 2026-10-21: "make sure its an easy
+ * control which we can flip back to allow signup / signin"; 2026-10-23: "one switch to say let's go
+ * live"). A row, not a deploy: every page listed in `go-live.ts` follows it on the next page anybody
+ * opens. It can only open what production's hold shut; it never shuts dev, CI or a preview
+ * (`services/signins-switch.ts`).
  */
 export async function setAccountsOpen(open: boolean): Promise<OwnerActionResult & { now?: "open" | "held" }> {
   const session = await getSession();
   if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
   if (typeof open !== "boolean") return { ok: false, error: "Say open or held." };
   const now = await setSignInsOpen(open);
-  revalidatePath("/owner");
-  revalidatePath("/");
+  // Every public page reads it, not only / and /owner — the whole router cache, as prices do.
+  revalidatePath("/", "layout");
   return { ok: true, now };
+}
+
+/**
+ * DEMO CLUB: CREATE / REFRESH (Ajay, 2026-10-24). Builds the invented demo club
+ * and its two tournaments, or builds them again from nothing — the same press
+ * either way, and safe to press twice. Ajay presses it in production himself;
+ * nothing else there can. Refused, with nothing written, when a club that is
+ * not the demo holds the demo's name (`services/demo-club.ts`).
+ */
+export async function refreshDemoClub(): Promise<OwnerActionResult & { links?: DemoLinks }> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  const built = await buildDemoClub({ mark: demoMark() });
+  if (!built.ok) return { ok: false, error: built.error };
+  revalidatePath("/owner");
+  revalidatePath("/demo");
+  return { ok: true, links: built.links };
+}
+
+/**
+ * SEND THE EARLY-LIST CODES — the owner's own press, once live (2026-10-23). Never part of Go live
+ * and never automatic: the card shows who is waiting and the email they will get, and this runs only
+ * when the owner presses Send and confirms. Today's mail allowance is kept; the rest wait for his
+ * next press (`services/early-list.ts`).
+ */
+export async function sendEarlyListCodes(): Promise<OwnerActionResult & { sent?: number; later?: number; nextAt?: string | null }> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  const res = await sendCodes();
+  revalidatePath("/owner");
+  // When the rest can go, in words on the owner's own clock — said beside the press.
+  const nextAt = res.nextAt ? await ownerClockInWords(session.userId, res.nextAt) : null;
+  return { ok: res.ok, error: res.error, sent: res.sent, later: res.later, nextAt };
 }
 
 /**
@@ -60,8 +98,9 @@ export async function setClubPlan(clubName: string, plan: string): Promise<Owner
   const name = clubName.trim();
   if (!name) return { ok: false, error: "Type the club's name." };
 
+  // The demo club has no plan to set: it is never billed and never limited (docs/claude/demo-club.md).
   const matches = await prisma.organization.findMany({
-    where: { name: { equals: name, mode: "insensitive" } },
+    where: { name: { equals: name, mode: "insensitive" }, isDemo: false },
     select: { id: true, name: true },
     take: 2,
   });
@@ -71,11 +110,16 @@ export async function setClubPlan(clubName: string, plan: string): Promise<Owner
   }
 
   const org = matches[0];
-  await prisma.subscription.upsert({
-    where: { organizationId: org.id },
-    update: { plan },
-    // No row is a club that predates the terms, so a new row keeps it so.
-    create: { organizationId: org.id, plan, planTermsApply: false },
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.upsert({
+      where: { organizationId: org.id },
+      update: { plan },
+      // No row is a club that predates the terms, so a new row keeps it so.
+      create: { organizationId: org.id, plan, planTermsApply: false },
+    });
+    // A paid plan arranged directly is the club paying again: a lapsed club's
+    // archive lifts, exactly as resubscribing through Stripe lifts it.
+    if (keepsDataForever(plan)) await liftArchive(tx, org.id);
   });
   /**
    * A HIGHER CAP OPENS PLACES (2026-10-09). Players put on a waiting list only

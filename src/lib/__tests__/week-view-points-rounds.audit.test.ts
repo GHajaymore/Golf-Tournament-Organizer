@@ -183,14 +183,16 @@ describe("the day's result, round by round", () => {
     expect(skins!.result, "reported as a stroke score").not.toContain("net");
   });
 
-  it("settles the Nassau in bets", async () => {
+  it("settles the Nassau in its games", async () => {
     const state = await loadEventState(eventId);
     const lines = await resultLinesFor(state!);
     const nassau = lines.find((l) => l.label.includes("2"));
     expect(nassau, "no line for the Nassau round").toBeTruthy();
     expect(nassau!.result, "a decided Nassau read as unplayed").not.toContain("Not settled");
-    // One bet each on the nines and the eighteen halved: level at one apiece.
-    expect(nassau!.result).toContain("bet");
+    // One game each on the nines and the eighteen halved: level at one apiece.
+    expect(nassau!.result).toContain("game");
+    // "Side game", never "bet" (Ajay, 2026-10-21).
+    expect(nassau!.result).not.toMatch(/\bbets?\b/i);
   });
 });
 

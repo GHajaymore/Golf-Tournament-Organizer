@@ -1,5 +1,10 @@
 # Country-based wording and prices
 
+> **Since 2026-10-24 the word table is `docs/country-words.md`.** It has three registers (`us`,
+> `uk`, `au`), the audience words (league or society, outing or society day or golf day), and the
+> guard that refuses them typed into a screen. What follows is the history up to that day: where
+> it says "two registers" or "UK: … AU, NZ, ZA", read that document instead.
+
 Ajay, 2026-09-27: "local by default and overridden option for USD and US terminologies,
 including currency and golf terminologies." Decided the same day:
 - real local plan prices;
@@ -44,7 +49,7 @@ including currency and golf terminologies." Decided the same day:
   - Everything else, Canada included, is US. Blank or unknown is US.
 - **`Organization.golfTerms`**: `""` follows the country; `"us"` or `"uk"` is the club's
   choice. Migration `84_golf_terms` is additive, and the empty default means no backfill.
-- **Club settings**, "Golf words": the picker (`GolfTermsPicker`) and the action
+- **Club settings**, "Golf words" (on the Name & branding tab since 2026-10-21): the picker (`GolfTermsPicker`) and the action
   (`saveOrganizationGolfTerms`), with the owner/admin guard and validation, the same shape
   as the community noun.
 - **Terms so far:**

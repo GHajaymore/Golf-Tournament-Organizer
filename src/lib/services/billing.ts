@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { prisma } from "@/lib/db";
 import {
+  PAYING_STATUSES,
   PLAN_EVENTS,
   checkoutLineItem,
   subscriptionIdOf,
@@ -11,6 +12,9 @@ import {
 } from "@/lib/domain/billing";
 import type { PlanKey, PricingOverrides } from "@/lib/plans";
 import { stripeCouponFor, stripeCouponId, type DiscountRow } from "@/lib/domain/discount";
+import { liftArchive } from "@/lib/services/club-archive";
+import { golfRegisterForOrganization } from "@/lib/services/organization";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 
 /**
  * Subscription billing through Stripe — the I/O half. The rules are in
@@ -38,6 +42,9 @@ export function billingEnabled(): boolean {
 
 /** Said when Stripe can't be reached or refuses — nothing was charged either way. */
 const STRIPE_DOWN = "Couldn't reach the payment page just now. Nothing was charged — try again in a moment.";
+
+/** Said to anybody who asks to pay for the demo club's plan. */
+export const DEMO_NOT_BILLED = "The demo club is on no plan and is never billed.";
 
 /** The club's existing Stripe customer, or a new one recorded on its Subscription row. */
 async function customerFor(stripe: Stripe, organizationId: string, email: string | null): Promise<string> {
@@ -113,6 +120,10 @@ export interface CheckoutRequest {
 
 /** A Stripe Checkout page for this plan, or a reason it can't be offered. */
 export async function checkoutUrl(req: CheckoutRequest): Promise<{ url: string } | { error: string }> {
+  // THE DEMO CLUB IS NEVER BILLED (2026-10-24): refused before Stripe is asked anything, so it has
+  // no customer, no subscription and no payment page (docs/claude/demo-club.md).
+  const org = await prisma.organization.findUnique({ where: { id: req.organizationId }, select: { isDemo: true } });
+  if (org?.isDemo) return { error: DEMO_NOT_BILLED };
   const stripe = stripeClient();
   if (!stripe) return { error: "Online payment isn't switched on yet. Contact us to change plan." };
 
@@ -134,7 +145,9 @@ export async function checkoutUrl(req: CheckoutRequest): Promise<{ url: string }
       mode: "subscription",
       customer,
       client_reference_id: req.organizationId,
-      line_items: [checkoutLineItem(req.plan, req.interval, req.currency, req.overrides)],
+      line_items: [
+        checkoutLineItem(req.plan, req.interval, req.currency, req.overrides, golfTermsFor(await golfRegisterForOrganization(req.organizationId))),
+      ],
       subscription_data: { metadata },
       metadata,
       ...discount,
@@ -171,35 +184,66 @@ export async function portalUrl(organizationId: string, origin: string): Promise
 
 /**
  * Write a Stripe subscription's meaning onto the club's Subscription row —
- * and, when a paid plan has ended, hold the club's tournaments.
+ * and, when a paid plan LAPSES, archive the club's tournaments; when it is
+ * paid again, lift the archive (`domain/club-archive.ts`).
  *
- * ONE TRANSACTION, the hold FIRST in it. Par's terms reach a club the moment
- * its plan reads "free", and the sweep runs on a clock that does not wait for
- * this function; a club that is briefly "free and unheld" is a club whose
- * events could be deleted in the gap. So the hold and the plan change land
- * together or not at all.
+ * ONE TRANSACTION, the archive FIRST in it. Par's terms reach a club the
+ * moment its plan reads "free", and the sweep runs on a clock that does not
+ * wait for this function; a club that is briefly "free and unarchived" is a
+ * club whose tournaments the Par sweep could take in the gap. So the stamp and
+ * the plan change land together or not at all.
+ *
+ * Three things it refuses to let an event do, each a real Stripe behaviour:
+ *
+ *   - A LATE OR REPLAYED LAPSE of a subscription that is no longer the club's —
+ *     the old cancelled one, arriving after the club resubscribed on a new one —
+ *     changes nothing. Without this a resubscribed club was put back in the
+ *     archive by Stripe retrying yesterday's event.
+ *   - A SECOND lapse event (a replay, or `unpaid` followed by `canceled`) keeps
+ *     the first instant, and stamps nothing new: a tournament the club made on
+ *     Par since is Par's, not the archive's.
+ *   - A checkout that expired unpaid (`incomplete_expired`) lifts nothing and
+ *     archives nothing.
  */
 export async function applySubscriptionWrite(w: SubscriptionWrite): Promise<void> {
-  const data = {
-    plan: w.plan,
-    status: w.status,
-    provider: "stripe",
-    providerCustomerId: w.providerCustomerId,
-    providerSubscriptionId: w.providerSubscriptionId,
-    currentPeriodEnd: w.currentPeriodEnd,
-    ...(w.planTermsApply ? { planTermsApply: true } : {}),
-  };
   await prisma.$transaction(async (tx) => {
-    if (w.retainEventsUntil) {
-      // Only ever EXTENDS a hold: a later date somebody set by hand stands.
-      await tx.event.updateMany({
-        where: {
-          organizationId: w.organizationId,
-          OR: [{ retainUntil: null }, { retainUntil: { lt: w.retainEventsUntil } }],
-        },
-        data: { retainUntil: w.retainEventsUntil },
-      });
+    const row = await tx.subscription.findUnique({
+      where: { organizationId: w.organizationId },
+      select: { providerSubscriptionId: true, status: true, plan: true, lapsedAt: true },
+    });
+    const anotherIsLive =
+      !!row?.providerSubscriptionId &&
+      row.providerSubscriptionId !== w.providerSubscriptionId &&
+      row.plan !== "free" &&
+      PAYING_STATUSES.includes(row.status);
+    if (anotherIsLive && !PAYING_STATUSES.includes(w.status)) return;
+
+    const archive: { lapsedAt?: Date } = {};
+    if (w.lapsedAt) {
+      const lapsedAt = row?.lapsedAt ?? w.lapsedAt;
+      if (!row?.lapsedAt) {
+        // Every tournament the club holds NOW — completed and unfinished alike.
+        await tx.event.updateMany({
+          where: { organizationId: w.organizationId, archivedAt: null },
+          data: { archivedAt: lapsedAt },
+        });
+      }
+      archive.lapsedAt = lapsedAt;
+    } else if (PAYING_STATUSES.includes(w.status) && w.plan !== "free" && row?.lapsedAt) {
+      // Paid again: the archive lifts, every tournament carries on as it was.
+      await liftArchive(tx, w.organizationId);
     }
+
+    const data = {
+      plan: w.plan,
+      status: w.status,
+      provider: "stripe",
+      providerCustomerId: w.providerCustomerId,
+      providerSubscriptionId: w.providerSubscriptionId,
+      currentPeriodEnd: w.currentPeriodEnd,
+      ...(w.planTermsApply ? { planTermsApply: true } : {}),
+      ...archive,
+    };
     await tx.subscription.upsert({
       where: { organizationId: w.organizationId },
       create: { organizationId: w.organizationId, ...data },

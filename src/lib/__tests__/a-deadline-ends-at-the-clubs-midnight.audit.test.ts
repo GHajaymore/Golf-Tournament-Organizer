@@ -124,7 +124,7 @@ async function club(name: string, timeZone: string, regDeadline: string, optDead
   }
   const email = `${TAG}-${name}-member@example.invalid`;
   const user = await prisma.user.create({
-    data: { email, name: `${TAG} ${name} Member`, password: "x:unusable" },
+    data: { email, name: `${TAG} ${name} Member`, password: "x:unusable", emailVerifiedAt: new Date() },
     select: { id: true },
   });
   await prisma.player.create({
@@ -258,7 +258,7 @@ describe("saying where the club is", () => {
   beforeAll(async () => {
     const mk = async (who: string, orgId: string, eventId: string) => {
       const email = `${TAG}-${who}@example.invalid`;
-      const user = await prisma.user.create({ data: { email, name: `${TAG} ${who}`, password: "x:unusable" }, select: { id: true } });
+      const user = await prisma.user.create({ data: { email, name: `${TAG} ${who}`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } });
       await prisma.organizationMember.create({ data: { organizationId: orgId, userId: user.id, role: "owner" } });
       await prisma.account.create({ data: { eventId, name: `${TAG} ${who}`, email, role: "admin" } });
       return user.id;

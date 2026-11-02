@@ -49,7 +49,7 @@ export interface PotResult {
  * exported here so every existing caller and test is untouched, and so there
  * remains exactly one implementation of each.
  */
-import { splitExactly } from "./money";
+import { potCents as potOf, splitExactly } from "./money";
 export { splitExactly, settle, type Transfer } from "./money";
 
 /**
@@ -118,7 +118,7 @@ export function skinsPot(
 ): PotResult {
   const stake = Math.max(0, Math.round(buyInCents));
   const players = [...new Set(playerIds)];
-  const potCents = stake * players.length;
+  const potCents = potOf(stake, players.length);
 
   const claimedSkins = outcome.standings.reduce((a, s) => a + s.skins, 0);
   const unclaimedSkins = Math.max(0, outcome.unclaimed);

@@ -140,9 +140,9 @@ beforeAll(async () => {
     ).id;
   }
 
-  adminUser = (await prisma.user.create({ data: { email: `${lower}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable" }, select: { id: true } })).id;
+  adminUser = (await prisma.user.create({ data: { email: `${lower}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } })).id;
   await prisma.account.create({ data: { eventId, name: `${TAG} Admin`, email: `${lower}-admin@example.invalid`, role: "admin" } });
-  dUser = (await prisma.user.create({ data: { email: `${lower}-d@example.invalid`, name: `${TAG} d`, password: "x:unusable" }, select: { id: true } })).id;
+  dUser = (await prisma.user.create({ data: { email: `${lower}-d@example.invalid`, name: `${TAG} d`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } })).id;
   await prisma.account.create({ data: { eventId, name: `${TAG} d`, email: `${lower}-d@example.invalid`, role: "player" } });
   await prisma.account.create({ data: { eventId, name: `${TAG} a`, email: `${lower}-a@example.invalid`, role: "player" } });
 });

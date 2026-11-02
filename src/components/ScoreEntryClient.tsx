@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useRef, useTransition, type ReactNode } f
 import Link from "next/link";
 import {
   resolveMatch,
+  matchIsOver,
   parseResultTranscript,
   parseHolesTranscript,
   parseStrokesTranscript,
@@ -271,7 +272,7 @@ export function reviewedStatus(stored: string, reviews: boolean): string {
 
 function statusOf(holes: HoleResult[], confirmStatus: string): { tag: string; tagClass: string } {
   const key = matchStatusKey({
-    complete: resolveMatch(holes).complete,
+    complete: matchIsOver(holes),
     started: holes.some((h) => h !== null),
     confirmStatus,
   });
@@ -487,7 +488,7 @@ export function ScoreEntryClient({
         return {
           ...m,
           status: matchStatusKey({
-            complete: resolveMatch(holes).complete,
+            complete: matchIsOver(holes),
             started: holes.some((h) => h !== null),
             confirmStatus: reviewedStatus(statusById[m.id] ?? m.status, reviews),
           }),

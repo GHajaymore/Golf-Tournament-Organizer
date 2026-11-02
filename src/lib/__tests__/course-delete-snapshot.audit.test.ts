@@ -104,7 +104,7 @@ beforeAll(async () => {
   ownCardId = own.id;
 
   const user = await prisma.user.create({
-    data: { email: `${TAG}-organizer@example.invalid`.toLowerCase(), name: "Organizer", password: "x" },
+    data: { email: `${TAG}-organizer@example.invalid`.toLowerCase(), name: "Organizer", password: "x", emailVerifiedAt: new Date() },
   });
   await prisma.account.create({
     data: { eventId: pickedId, email: user.email, name: "Organizer", role: "admin" },

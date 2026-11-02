@@ -35,6 +35,13 @@ export interface MovementInput {
    * here throws that work away after it has been done.
    */
   rank?: number;
+  /**
+   * The holes `value` is a total over, where that is not the same for every
+   * row — a stroke board ranks against par for the holes played, so while a
+   * round is live a total over 27 holes can sit above one over 36. Carried so
+   * the screen can say so beside the figure. See `standingsThroughRound`.
+   */
+  holes?: number;
 }
 
 export interface WeekRow {
@@ -46,6 +53,8 @@ export interface WeekRow {
   change: number;
   /** True when this is the player's first appearance in the table. */
   isNew: boolean;
+  /** As `MovementInput.holes`; absent where the ranker did not say. */
+  holes?: number;
 }
 
 /**
@@ -117,8 +126,19 @@ export function movementBetween(
   const then = positions(before, dir);
   const firstWeek = before.length === 0;
 
+  /**
+   * IN THE ORDER OF THE PLACES, not re-sorted on the figure.
+   *
+   * Where the places were derived from `value` the two orders are one. Where a
+   * ranker that knew more handed them in, the figure is not always what put a
+   * row there: a stroke board ranks a live round against par for the holes
+   * played, and sorting its rows on their totals put the player thru 27 below
+   * the player thru 36 they lead. Level places keep the figure's order, then
+   * the order they arrived in.
+   */
+  const byValue = (a: MovementInput, b: MovementInput) => (dir === "asc" ? a.value - b.value : b.value - a.value);
   return [...after]
-    .sort((a, b) => (dir === "asc" ? a.value - b.value : b.value - a.value))
+    .sort((a, b) => (now.get(a.playerId) ?? 0) - (now.get(b.playerId) ?? 0) || byValue(a, b))
     .map((r) => {
       const position = now.get(r.playerId) ?? 0;
       const prev = then.get(r.playerId);
@@ -131,6 +151,7 @@ export function movementBetween(
         // minus current.
         change: prev === undefined ? 0 : prev - position,
         isNew: !firstWeek && prev === undefined,
+        ...(r.holes !== undefined ? { holes: r.holes } : {}),
       };
     });
 }

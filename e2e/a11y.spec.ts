@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, expect, type Page } from "./coverage";
 import { consoleScreens, playerScreens, entryUrl } from "./routes";
+import { eachOtherSection } from "./settings-tabs";
 
 /**
  * CAN IT BE USED BY SOMEBODY WHO CANNOT SEE IT, OR CANNOT USE A MOUSE?
@@ -78,16 +79,22 @@ async function sweep(page: Page, who: string, paths: string[], record: Baseline,
     const landed = new URL(page.url()).pathname;
     if (landed !== path.split("?")[0]) continue;
     looked += 1;
-    const key = `${who} ${path}`;
-    const { found, samples } = await audit(page);
-    record[key] = found;
-    const known = baseline[key] ?? {};
-    for (const [rule, count] of Object.entries(found)) {
-      if (!(rule in known)) faults.push(`${key}: ${rule} ×${count} — ${samples[rule]}`);
-      else if (count > known[rule]) faults.push(`${key}: ${rule} ×${count}, was ×${known[rule]} — ${samples[rule]}`);
-      else if (count < known[rule]) improved.push(`${key}: ${rule} ×${count}, baseline says ×${known[rule]}`);
-    }
-    for (const rule of Object.keys(known)) if (!(rule in found)) improved.push(`${key}: ${rule} is fixed — take it off the baseline`);
+    const judge = async (key: string) => {
+      const { found, samples } = await audit(page);
+      record[key] = found;
+      const known = baseline[key] ?? {};
+      for (const [rule, count] of Object.entries(found)) {
+        if (!(rule in known)) faults.push(`${key}: ${rule} ×${count} — ${samples[rule]}`);
+        else if (count > known[rule]) faults.push(`${key}: ${rule} ×${count}, was ×${known[rule]} — ${samples[rule]}`);
+        else if (count < known[rule]) improved.push(`${key}: ${rule} ×${count}, baseline says ×${known[rule]}`);
+      }
+      for (const rule of Object.keys(known)) if (!(rule in found)) improved.push(`${key}: ${rule} is fixed — take it off the baseline`);
+    };
+    await judge(`${who} ${path}`);
+    // A screen shown one section at a time: axe skips what is hidden, so the
+    // audit above saw the first section only. Each other one is tapped open and
+    // audited as a screen of its own.
+    await eachOtherSection(page, (section) => judge(`${who} ${path}#${section}`));
   }
   return looked;
 }
@@ -127,6 +134,9 @@ test.describe("as the organizer", () => {
   // CONTROL: the screens were really opened and really audited.
   expect(publicLooked, "the public pages did not open").toBeGreaterThanOrEqual(5);
   expect(consoleLooked, "the organizer's screens did not open — not signed in?").toBeGreaterThan(15);
+  // CONTROL: the sections behind tabs were opened and audited — Club settings has six past its first.
+  const sections = Object.keys(record).filter((k) => k.startsWith("organizer /organization#"));
+  expect(sections.length, "no section of Club settings behind a tab was audited").toBeGreaterThanOrEqual(5);
   settle(record, faults, improved, "desktop");
   });
 });

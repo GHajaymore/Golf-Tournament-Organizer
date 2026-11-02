@@ -35,11 +35,14 @@ function viewFields(): string[] {
 // 6: `pairTotals`, a pairs event's total over its rounds (2026-10-10).
 // 7: `teamRows[].place`, a side placed by countback (2026-10-14) — a nested field, which
 //    the field list below cannot see; bumped by hand.
-const SHAPE = 7;
+// 8: `draws[].seeded`, seed numbers only where the draw was seeded (2026-10-23) — nested,
+//    bumped by hand.
+// 9: `knockoutNews`, and `draws[].playBy` (2026-10-24).
+const SHAPE = 9;
 const FIELDS = [
   "name", "dates", "venue", "teamFormat", "rows", "teamRows", "pairTotals", "teamMatchRows", "pointsSystem",
   "skins", "nassau", "modStableford", "skinsNet", "kind", "teamRound", "isStroke", "isStableford",
-  "teamBasis", "holeCount", "cutNote", "unit", "manualFormat", "draws", "bracketResults",
+  "teamBasis", "holeCount", "cutNote", "unit", "manualFormat", "draws", "bracketResults", "knockoutNews",
   "straightKnockout", "allIn", "official", "knockoutRound", "roundLabel", "rounds", "shownStageId", "brand", "themeStyleSheet", "colorScheme",
 ];
 

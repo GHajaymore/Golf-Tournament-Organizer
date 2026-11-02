@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PLANS, retentionNotice } from "@/lib/plans";
 import { HANDICAP_EXAMPLE } from "./example";
 import type { LandingPrices } from "./pricing";
+import { faqWords, type LaunchState } from "@/lib/go-live";
 
 /**
  * EVERY QUESTION THE FRONT DOOR ANSWERS, in one place.
@@ -23,6 +24,8 @@ export interface FaqContext {
   prices: LandingPrices;
   /** The address people write to, or null while it cannot receive mail (see CONTACT_EMAIL_LIVE). */
   email: string | null;
+  /** The go-live switch's answer: the two answers that offer the free plan read it (`go-live.ts`). */
+  launch: LaunchState;
 }
 
 export interface FaqItem {
@@ -65,12 +68,8 @@ export const FAQ: FaqGroup[] = [
       {
         id: "try-free",
         q: "Can I try it for free?",
-        a: () => (
-          <p>
-            Yes. The {PLANS.free.name} plan runs one tournament at a time with up to {free.playersPerEvent} players and one
-            organizer — every format, the live board and the money side included. There&rsquo;s no card to start.
-          </p>
-        ),
+        // Held, the free plan is not offered (the front door says "Opens at launch."), so neither is it here.
+        a: ({ launch }) => <p>{faqWords(launch).tryFree}</p>,
       },
       {
         id: "reuse",
@@ -238,7 +237,7 @@ export const FAQ: FaqGroup[] = [
       {
         id: "cut",
         q: "Can we run a multi-round event with a cut?",
-        a: () => <p>Yes. A stroke-play cut — &ldquo;top 16 and ties&rdquo;, say — is made as its round is marked finished, and scores can carry forward into the next round. Everyone tied at the cut line goes through, and players who miss it keep their scores, listed beneath the field. Try to carry a round into one scored differently, strokes into points, and it warns you and won&rsquo;t combine them.</p>,
+        a: () => <p>Yes. A stroke-play cut — &ldquo;top 16 and ties&rdquo;, say — is made as its round is marked finished, and scores can carry forward into the next round. A tie at the cut line goes the way the committee chose — everyone tied through, a play-off, or a countback — and players who miss it keep their scores, listed beneath the field. Try to carry a round into one scored differently, strokes into points, and it warns you and won&rsquo;t combine them.</p>,
       },
       {
         id: "brackets",
@@ -311,6 +310,13 @@ export const FAQ: FaqGroup[] = [
         id: "money",
         q: "Does TourneyHQ handle our money?",
         a: () => <p>It works every amount out and keeps the record — skins, pots, entry fees, shared costs — and never holds, moves or takes a cut of any of it. There&rsquo;s no pay button; it reduces everything to the fewest handovers, and you mark each one settled when it&rsquo;s done.</p>,
+      },
+      {
+        // The marketing manager's draft (2026-10-24), said as a choice. Its "you mark who has paid"
+        // sentence is left out until every money mode is checked to have that column.
+        id: "entry-fees",
+        q: "Can players pay their entry fee through TourneyHQ?",
+        a: () => <p>No, and that is deliberate. Entry fees go to your club the way they do today — at the pro shop, by bank transfer, on your own payment page or in cash — and TourneyHQ keeps the record. That means no payment fees on your players&rsquo; money, no card details for entry fees held here, and no refunds to sort out through us: if a player withdraws, your club refunds them as it already would. What TourneyHQ does is work out everything that depends on the entries — skins and side-game pots, prizes, shared costs, and who pays whom — and keep it in one record your club can show its members.</p>,
       },
       {
         id: "trip",
@@ -391,7 +397,7 @@ export const FAQ: FaqGroup[] = [
       {
         id: "card",
         q: "Do I need a credit card?",
-        a: () => <p>No card to start. Nothing is charged through the app — moving to a paid plan is arranged with us directly.</p>,
+        a: ({ launch }) => <p>{faqWords(launch).card}</p>,
       },
       {
         id: "setup-fee",

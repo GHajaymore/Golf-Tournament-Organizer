@@ -22,9 +22,19 @@ import { golfBeganAt, closesAtFrom, holesEntered, PLANS_THAT_DELETE } from "../d
 /** Never touch more than this in one pass. */
 const SWEEP_LIMIT = 200;
 
-/** The tournaments held to the Par terms — the same rule `wipesOnClose` states. */
+/**
+ * The tournaments held to the Par terms — the same rule `wipesOnClose` states.
+ *
+ * NEVER ONE IN A LAPSED CLUB'S ARCHIVE (`archivedAt`, Ajay 2026-10-21). Its
+ * club reads as Par from the day it lapsed, but those tournaments were never
+ * Par's: the stamp below would have dated a season-long league's 14 days from
+ * its first round, months ago, and the delete would have taken it the next
+ * morning. The archive has its own twelve months (`services/club-archive.ts`).
+ * In the WHERE, so the stamp and the delete both repeat it.
+ */
 const onParTerms = {
   shape: { not: "match" },
+  archivedAt: null,
   organization: { subscription: { planTermsApply: true, plan: { in: PLANS_THAT_DELETE } } },
 };
 

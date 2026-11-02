@@ -113,7 +113,7 @@ describe("console form controls are named", () => {
           name: "zz-Club Championship", capacity: 2, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
-          requirePhone: false, phoneLocked: false, registrationToken: "",
+          requirePhone: false, registrationToken: "",
         }} />,
     );
     // The rows rendered — so the per-row controls were actually checked.
@@ -129,7 +129,7 @@ describe("console form controls are named", () => {
       name: "zz-Society Day", capacity: 40, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
       registrationOverride: null, inviteMessage: "", organizationName: "zz-Society",
       dates: "", course: "", city: "", registrationOpen: true, registrationApproval: "auto",
-      requirePhone: false, phoneLocked: false, registrationToken: "",
+      requirePhone: false, registrationToken: "",
     };
     const empty = render(<RegistrationClient noFormatYet confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
     expect(empty).toContain("No format yet");
@@ -210,7 +210,7 @@ describe("console form controls are named", () => {
         stages={[{
           id: "r1", position: 0, type: "Stroke Play Round", description: "", format: "Scramble", closed: false,
           holes: 18, playedOn: "", deadline: "", scoringBasis: "net", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
-          carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall",
+          carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", cutTies: "ties",
           deadlineOverride: null, optDeadline: "", attendance: null, matchCount: 0, courseId: null, nine: "full",
           teamScoring: null, allowance: null, handicaps: [],
         }]} />,
@@ -236,7 +236,7 @@ describe("console form controls are named", () => {
         stages={[{
           id: "w1", position: 0, type: "Stroke Play Round", description: "", format: "Stableford", closed: false,
           holes: 9, playedOn: "", deadline: "", scoringBasis: "net", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
-          carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall",
+          carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", cutTies: "ties",
           deadlineOverride: null, optDeadline: "", attendance: null,
           matchCount: 0, courseId: null, nine: "front", teamScoring: null, allowance: null, handicaps: [],
         }]} />,

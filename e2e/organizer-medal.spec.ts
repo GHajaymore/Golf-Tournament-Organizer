@@ -119,7 +119,8 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     for (const [i, p] of FIELD.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
       await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
-      await page.getByRole("textbox", { name: /^Mobile · required/ }).fill(`555010${i}`);
+      // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
+      await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
       await page.getByRole("button", { name: "Add to field" }).click();
       await expect(page.getByText(p.name).first()).toBeVisible({ timeout: 20_000 });
@@ -152,10 +153,6 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
 
   await test.step("launch", async () => {
     await open(page, "/dashboard");
-    for (const step of ["Start taking entries", "Mark ready"]) {
-      await page.getByRole("button", { name: step }).click();
-      await expect(page.getByRole("button", { name: step })).toHaveCount(0, { timeout: 20_000 });
-    }
     await page.getByRole("button", { name: "Launch tournament" }).click();
     const dialog = page.getByRole("dialog");
     /**
@@ -276,11 +273,13 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Complete tournament" }).click();
     const confirm = page.getByRole("alertdialog");
-    // A free club's tournament is deleted on completion, so the warning offers
-    // the report first — the only way to keep it (2026-10-19).
+    // A free club's completed tournament is kept read-only for fifteen days and
+    // then deleted (2026-10-21), so the warning offers the report first.
     await expect(confirm.getByRole("link", { name: "Open the final report" })).toHaveAttribute("href", "/reports/final");
     await confirm.getByRole("button", { name: /^Complete/ }).click();
-    await page.waitForURL((u) => !u.pathname.startsWith("/dashboard"), { timeout: 30_000 });
+    // It stays, completed, and the dashboard says until when.
+    await expect(page.getByRole("note").filter({ hasText: "Kept read-only until" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("alertdialog")).toBeHidden();
   });
 
   expect(errors, "a screen threw").toEqual([]);

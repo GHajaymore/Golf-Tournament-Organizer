@@ -217,10 +217,29 @@ export function marginRefusal(winner: "A" | "B" | "H", margin: string, totalHole
     if (lead <= toPlay) {
       return `"${typed}" isn't a possible result — ${lead} up with ${toPlay} to play isn't a closed-out match. Did you mean "${toPlay}&${lead}"?`;
     }
-    if (lead > totalHoles) return `"${typed}" can't happen over ${totalHoles} holes.`;
+    /**
+     * AND ONLY A MARGIN A MATCH CAN FINISH ON (2026-10-23, found by a property
+     * test). A match ends the moment one side is up by more holes than are left,
+     * so it ends one or two holes clear of the holes remaining: 3&2 (the 16th
+     * won from 2 up with 3 to play), 3&1 (the 17th won from dormie 2), never
+     * 6&3 — that match was over at 5&4. Each of these was accepted, and stored
+     * as the card `marginToHoles` builds, which `resolveMatch` then reads as
+     * the result it really is: "6&3" typed, "5&4" on the board.
+     */
+    if (toPlay === 0) return `"${typed}" is a match that went the distance — write it "${lead} UP".`;
+    if (lead + toPlay > totalHoles) return `"${typed}" can't happen over ${totalHoles} holes.`;
+    if (lead > toPlay + 2) {
+      return `"${typed}" can't happen — a match ${toPlay + 2} up with ${toPlay + 1} to play is already over.`;
+    }
     return null;
   }
-  if (/^[1-9]\d*\s*UP$/.test(raw)) return null;
+  const up = /^([1-9]\d*)\s*UP$/.exec(raw);
+  if (up) {
+    // Through the round a match is won 1 up or 2 up: 2 up with one to play is
+    // already over, 2&1, so nothing finishes 3 up on the last green.
+    if (parseInt(up[1], 10) > 2) return `"${typed}" can't happen — a match two up with one to play is over (2&1).`;
+    return null;
+  }
   return `"${typed}" isn't a margin — write it like "2&1" or "1 UP".`;
 }
 

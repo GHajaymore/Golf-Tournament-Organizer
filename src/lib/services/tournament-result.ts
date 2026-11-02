@@ -244,7 +244,9 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
         }
       }
       if (bets.size === 0) {
-        return { kind: "pending", label, note: nassau.length > 0 ? "Every bet halved" : "" };
+        // "Side game", never "bet", on every screen (Ajay, 2026-10-21). A
+        // Nassau's three are its GAMES: the front nine, the back and the match.
+        return { kind: "pending", label, note: nassau.length > 0 ? "Every game halved" : "" };
       }
       const most = Math.max(...bets.values());
       return {
@@ -253,7 +255,7 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
         winners: [...bets.entries()]
           .filter(([, n]) => n === most)
           .map(([name]) => ({ name, score: String(most) })),
-        unit: most === 1 ? "bet" : "bets",
+        unit: most === 1 ? "game" : "games",
       };
     }
 

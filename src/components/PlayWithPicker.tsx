@@ -63,7 +63,7 @@ export function PlayWithPicker({
                   <label
                     key={p.id}
                     className={on ? "btn btn-primary" : "btn btn-ghost"}
-                    style={{ fontSize: 13, minHeight: 40, cursor: "pointer" }}
+                    style={{ fontSize: 13, minHeight: "var(--tap-min, 40px)", cursor: "pointer" }}
                   >
                     <input
                       type="checkbox"

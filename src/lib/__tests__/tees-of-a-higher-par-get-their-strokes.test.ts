@@ -322,7 +322,8 @@ describe("every place a round is priced says whether the pars are in it", () => 
       "src/lib/services/league.ts",
       "src/lib/services/teams.ts",
       "src/app/actions/tournament.ts",
-      "src/app/(app)/foursomes/page.tsx",
+      // The printed card moved from the Tee sheet to the Print kit (2026-10-23).
+      "src/lib/services/print-kit.ts",
       "src/lib/domain/team.ts",
     ]) {
       expect(priced, f).toContain(f);

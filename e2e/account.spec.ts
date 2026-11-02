@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { test, expect, type Browser, type TestInfo } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { openSettingsTab } from "./settings-tabs";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 
@@ -145,6 +146,7 @@ test("a member leaves a club that added them, and keeps the tournament they ente
     const herRow = hisPage.locator("tr").filter({ hasText: club.player.email });
     await hisPage.goto(bust("/organization"));
     await hisPage.waitForLoadState("networkidle").catch(() => {});
+    await openSettingsTab(hisPage, "Staff & access");
     // Twice: on the club's own list of its people, and in the table of who can open what.
     await expect(herRow).toHaveCount(2);
     await expect(herRow.last().locator("td").nth(1)).toHaveText("Member");
@@ -169,6 +171,7 @@ test("a member leaves a club that added them, and keeps the tournament they ente
     await hisPage.goto(bust("/organization"));
     await hisPage.waitForLoadState("networkidle").catch(() => {});
     await expect(hisPage.getByRole("heading", { level: 1 })).toBeVisible();
+    await openSettingsTab(hisPage, "Staff & access");
     await expect(herRow, "she is still on the club's own list of its people").toHaveCount(1);
     await expect(herRow.locator("td").nth(1), "the club still has her down as a Member").toHaveText("—");
   } finally {

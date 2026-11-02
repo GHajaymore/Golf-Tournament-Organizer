@@ -2,7 +2,15 @@ import { prisma } from "../db";
 import { loadEventState, settingsOf } from "./tournament";
 import { allowsAutoConfirm } from "../tournament-settings";
 import { cutBlockers, cutBlockedSentence, cutRuleOf, cutHasBeenMade } from "../domain/cut-ready";
-import { survivorsWithTies, type CutRule } from "../domain/cut";
+import {
+  strokeCutOutcome,
+  cutLineRows,
+  cutTieRuleOf,
+  cutTieDecisionsOf,
+  type CutRule,
+  type CutOutcome,
+  type CutTie,
+} from "../domain/cut";
 import { isPlayingRound, isIndividualStrokeRound } from "../stage-types";
 import { holesPlayed } from "../domain/handicap";
 import { logAudit } from "./action-shared";
@@ -20,7 +28,10 @@ import { roundLabel, roundKicker } from "../domain/round-label";
  *
  * Two decisions: the cut is applied when the round it is taken out of is
  * closed ("This round is finished"), and players level on the last place ALL go
- * through ("top 16 and ties").
+ * through ("top 16 and ties") — since 2026-10-23 the default of three, the
+ * organizer choosing per cut between that, a play-off and a countback
+ * (`strokeCutOutcome`). A tie the chosen rule leaves to the committee holds the
+ * cut until it is recorded (`strokeCutRefusal`).
  *
  * NOT by completing the tournament, which this comment used to claim and the
  * code never did. Ajay confirmed on 2026-10-05 that it should not: a cut is
@@ -56,6 +67,8 @@ type StageRow = {
   cutCount: number;
   cutPercent: number;
   cutMadeAt: Date | null;
+  cutTies: string;
+  cutTieDecisions: string;
   closedAt: Date | null;
 };
 
@@ -72,6 +85,8 @@ const STAGE_SELECT = {
   cutCount: true,
   cutPercent: true,
   cutMadeAt: true,
+  cutTies: true,
+  cutTieDecisions: true,
   closedAt: true,
 } as const;
 
@@ -148,7 +163,69 @@ export async function strokeCutRefusal(eventId: string, feederId: string): Promi
     })
   ).filter((c) => field.has(c.playerId));
   const blockers = cutBlockers(cards, staffApproves);
-  return blockers.total > 0 ? cutBlockedSentence(blockers, nameOf(pair.all, pair.feeder)) : null;
+  if (blockers.total > 0) return cutBlockedSentence(blockers, nameOf(pair.all, pair.feeder));
+  /**
+   * AND A TIE FOR THE LAST PLACE THE COMMITTEE HAS NOT SETTLED (2026-10-23).
+   * Under a play-off, or a countback that could not separate them, the cut
+   * waits for the committee to record who went through — refused rather than
+   * made with a pick, so nobody in the tie is ever told they are out.
+   */
+  const made = await strokeCutOutcomeOf(eventId, feederId);
+  if (made && made.outcome.undecided.length > 0) {
+    return cutTieRefusal(made.outcome.undecided, made.names, nameOf(pair.all, pair.feeder));
+  }
+  return null;
+}
+
+/** "Ann", "Ann and Bob", "Ann, Bob and Cy". */
+function listOf(names: string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** What the organizer is told when a cut waits on a tie — said where they pressed. */
+export function cutTieRefusal(undecided: readonly CutTie[], names: ReadonlyMap<string, string>, feederName: string): string {
+  const t = undecided[0];
+  const who = listOf(t.playerIds.map((id) => names.get(id) ?? "A player"));
+  const places = t.places === 1 ? "the last place" : `the last ${t.places} places`;
+  const how =
+    t.by === "playoff"
+      ? "This cut settles a tie by play-off: record who won it on the dashboard's cut card"
+      : "This cut settles a tie by countback, and theirs cannot be separated: record the draw by lot on the dashboard's cut card";
+  const more = undecided.length > 1 ? ` (and ${undecided.length - 1} more flight${undecided.length === 2 ? " is" : "s are"} tied)` : "";
+  return `${who} are level for ${places}${more}. ${how}, then mark ${feederName} finished.`;
+}
+
+/**
+ * WHO GOES THROUGH THE CUT OUT OF `feederId` — `strokeCutOutcome` on the field
+ * ranked as of that round, under the next round's tie rule and the decisions the
+ * committee has recorded. The one door the cut, its refusal, the dashboard's
+ * preview and the tie card all go through. Null when there is no stroke cut, or
+ * nothing has been returned to cut on.
+ */
+export async function strokeCutOutcomeOf(
+  eventId: string,
+  feederId: string,
+): Promise<{
+  outcome: CutOutcome;
+  feeder: StageRow;
+  next: StageRow;
+  all: StageRow[];
+  state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>;
+  /** Everybody's name, by id, for the sentences. */
+  names: Map<string, string>;
+} | null> {
+  const pair = await cutRoundAfter(eventId, feederId);
+  if (!pair) return null;
+  // Ranked on the rounds up to and including the feeder only — a round 2 card
+  // somebody started early must not move who made a cut out of round 1.
+  const state = await loadEventState(eventId, pair.feeder.id);
+  if (!state) return null;
+  const rows = cutLineRows(state.strokeStandings, state.strokeRankingBasis);
+  if (rows.length === 0) return null;
+  const outcome = strokeCutOutcome(rows, ruleOf(pair.next), cutTieRuleOf(pair.next.cutTies), cutTieDecisionsOf(pair.next.cutTieDecisions));
+  const names = new Map(state.players.map((p) => [p.id, p.name]));
+  return { outcome, ...pair, state, names };
 }
 
 /**
@@ -160,22 +237,17 @@ export async function applyStrokeCut(eventId: string, feederId: string): Promise
   if (!pair) return null;
   const { feeder, next, all } = pair;
   // The same refusal `setRoundClosed` asks first. Never reached through that
-  // door; here so a cut can never be made on cards that are not results.
+  // door; here so a cut can never be made on cards that are not results, nor
+  // through a tie nobody has settled.
   if (await strokeCutRefusal(eventId, feederId)) return null;
 
-  // Ranked on the rounds up to and including the feeder only — a round 2 card
-  // somebody started early must not move who made a cut out of round 1.
-  const state = await loadEventState(eventId, feeder.id);
-  if (!state) return null;
-  const ranked = state.strokeStandings
-    .filter((s) => s.ranked)
-    .map((s) => ({ id: s.player.id, groupId: s.player.groupId, rank: s.rank }));
   // Nothing returned yet: a cut taken on nothing would advance nobody, which
   // is worse than leaving the round open to all. Refuse quietly — the board
   // still shows the cut line, and closing again once cards are in applies it.
-  if (ranked.length === 0) return null;
-
-  const through = survivorsWithTies(ranked, ruleOf(next));
+  const made = await strokeCutOutcomeOf(eventId, feederId);
+  if (!made || made.outcome.undecided.length > 0) return null;
+  const { state, outcome } = made;
+  const through = outcome.through;
   const emptyStrokes = JSON.stringify(new Array(holesPlayed(next.holes)).fill(null));
 
   const existing = await prisma.scorecard.findMany({
@@ -242,11 +314,20 @@ export async function applyStrokeCut(eventId: string, feederId: string): Promise
   }
 
   const rule = ruleOf(next);
+  const tieRule = cutTieRuleOf(next.cutTies);
   const wording = rule.mode === "percent" ? `top ${rule.percent}%` : `top ${rule.count}`;
+  // How the line was settled, in the record: "and ties", or who won the
+  // play-off or the draw, by name, so Recent changes answers "why him?".
+  const settled = outcome.decided
+    .map(
+      (d) =>
+        ` ${listOf(d.through.map((id) => made.names.get(id) ?? "A player"))} went through on the ${d.by === "playoff" ? "play-off" : "draw"} for ${d.places === 1 ? "the last place" : `the last ${d.places} places`}, of ${listOf(d.playerIds.map((id) => made.names.get(id) ?? "A player"))}.`,
+    )
+    .join("");
   await logAudit(
     eventId,
     "cut-applied",
-    `${nameOf(all, feeder)} closed: ${wording} and ties go through — ${through.size} into ${nameOf(all, next)}.`,
+    `${nameOf(all, feeder)} closed: ${wording}${tieRule === "ties" ? " and ties" : ""} go through — ${through.size} into ${nameOf(all, next)}.${settled}`,
   );
   return { through: through.size };
 }

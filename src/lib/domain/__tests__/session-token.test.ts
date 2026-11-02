@@ -174,7 +174,9 @@ describe("where it is enforced", () => {
     const actions = readSource("src", "app", "actions", "auth.ts");
     const reset = actions.slice(actions.indexOf("export async function resetPassword"), actions.indexOf("export async function signUp"));
     expect(reset).toMatch(/const now = new Date\(\);/);
-    expect(reset).toMatch(/data: \{ password: hashPassword\(password\), sessionsValidFrom: now \}/);
+    // Written together. (A reset also proves the address since 2026-10-21, so
+    // the statement carries `emailVerifiedAt` after these two.)
+    expect(reset).toMatch(/data: \{ password: hashPassword\(password\), sessionsValidFrom: now[, ]/);
     expect(reset.indexOf("sessionsValidFrom: now")).toBeLessThan(reset.indexOf("startSessionFor("));
   });
 

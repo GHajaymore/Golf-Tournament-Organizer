@@ -17,7 +17,8 @@ export function PlanBilling({
   hasSubscription,
   pastDue,
   canEdit,
-  heldUntil,
+  archive,
+  unpaid = false,
   discountCode = "",
   discountNote,
 }: {
@@ -25,8 +26,13 @@ export function PlanBilling({
   discountCode?: string;
   /** What the server found that code does now: what comes off, or why it can't be used. */
   discountNote?: { ok: boolean; text: string };
-  /** A paid plan ended: the date its tournaments are kept until, already formatted. */
-  heldUntil?: string;
+  /**
+   * A paid plan LAPSED: its tournaments are a read-only archive until `until`
+   * (`domain/club-archive.ts`). Both days already worded at the club's clock.
+   */
+  archive?: { lapsed: string; until: string; tournaments: number };
+  /** Stripe gave up on the card, and the subscription is still there to be paid. */
+  unpaid?: boolean;
   /** What can be bought, already priced by the panel: one per plan and interval. */
   offers: { plan: string; interval: "month" | "year"; label: string }[];
   /** A live Stripe subscription — change it in the portal, not a second checkout. */
@@ -82,10 +88,15 @@ export function PlanBilling({
           Checkout was cancelled. Nothing was charged.
         </p>
       )}
-      {heldUntil && (
+      {archive && (
         <p role="status" style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
-          <Icon name="clock-countdown" /> Your paid plan has ended. Every tournament is kept until{" "}
-          <strong>{heldUntil}</strong>; after that the free plan&rsquo;s terms apply. Choose a plan to keep everything.
+          <Icon name="clock-countdown" /> This club&rsquo;s subscription ended on <strong>{archive.lapsed}</strong>.{" "}
+          {archive.tournaments === 1 ? "Its tournament is" : `Its ${archive.tournaments} tournaments are`} kept read-only until{" "}
+          <strong>{archive.until}</strong>, then deleted.{" "}
+          {unpaid
+            ? "Pay the outstanding invoice in Manage billing to carry on — everything picks up where it stopped."
+            : "Choose a plan to carry on — everything picks up where it stopped."}{" "}
+          A tournament you start now is on the free plan&rsquo;s terms.
         </p>
       )}
       {pastDue && (

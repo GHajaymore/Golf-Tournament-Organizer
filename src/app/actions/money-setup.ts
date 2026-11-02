@@ -1,5 +1,6 @@
 "use server";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { organizationAccess } from "@/lib/services/org-access";
 import { prisma } from "@/lib/db";
 import { formattingForEvent } from "@/lib/services/organization";
@@ -36,6 +37,8 @@ async function requireOrganizer(): Promise<{ eventId: string; name: string } | n
   const session = await getSession();
   if (!session?.eventId) return null;
   if (session.role !== "admin" && session.role !== "assistant") return null;
+  // A lapsed club's archive is read-only, money records included (2026-10-21).
+  await assertEventWritable(session.eventId);
   return { eventId: session.eventId, name: session.name };
 }
 

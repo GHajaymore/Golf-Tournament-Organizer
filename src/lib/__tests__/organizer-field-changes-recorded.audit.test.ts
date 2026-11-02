@@ -80,7 +80,7 @@ beforeAll(async () => {
   await prisma.scorecard.create({
     data: { eventId, stageId: stage.id, playerId: ids["has-a-card"], strokes: JSON.stringify([4, 4, 4]) },
   });
-  const user = await prisma.user.create({ data: { email: at("organizer"), name: `${TAG} Organizer`, password: "x" } });
+  const user = await prisma.user.create({ data: { email: at("organizer"), name: `${TAG} Organizer`, password: "x", emailVerifiedAt: new Date() } });
   await prisma.account.create({ data: { eventId, email: at("organizer"), name: `${TAG} Organizer`, role: "admin" } });
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: user.id, role: "owner" } });
   jar.clear();
@@ -98,7 +98,7 @@ afterAll(async () => {
 
 describe("what the organizer does to the field is recorded", () => {
   it("adding a player writes a line naming them", async () => {
-    // A free club needs a mobile from every entrant; Ofcom's drama range.
+    // A mobile, in case the tournament asks for one; Ofcom's drama range.
     const res = await addSignup({ name: `${TAG} Added`, email: at("added"), phone: "07700 900654", handicap: 12 });
     expect(res.ok, res.error).toBe(true);
     const [latest] = await recentChanges(eventId, { only: "field" });

@@ -52,6 +52,21 @@ export function splitExactly(totalCents: number, weights: number[]): number[] {
   return out;
 }
 
+/**
+ * WHAT IS IN A POT: the stake times the entrants, in whole cents.
+ *
+ * One function since 2026-10-23. Six places multiplied it out for themselves,
+ * and the tournament report's side-game line multiplied by the wrong count:
+ * the players whose net was not nought, which leaves out anybody whose share
+ * came to exactly their stake — "2 in: a $10 pot" for a pot of five at $5. The
+ * entrants are the people who put the stake in, never the people it moved.
+ */
+export function potCents(stakeCents: number, entrants: number): number {
+  const stake = Math.max(0, Math.round(stakeCents));
+  const count = Math.max(0, Math.floor(entrants));
+  return stake * count;
+}
+
 export interface Transfer {
   fromPlayerId: string;
   toPlayerId: string;

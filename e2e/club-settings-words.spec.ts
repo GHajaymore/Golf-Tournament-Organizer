@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { prisma, makeClub, dropClub, makeEvent, signIn, centre } from "./rounds-fixture";
+import { openSettingsTab } from "./settings-tabs";
 
 /**
  * WHAT A SOCIETY CALLS ITSELF, AND WHEN ITS SEASON RUNS — set on Club settings
@@ -37,11 +38,13 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-async function openSettings(page: Page) {
+/** Club settings, and the tab a control is on (it opens on Name & branding, where the society's word is). */
+async function openSettings(page: Page, tab?: string) {
   await page.goto(`/organization?bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
   expect(new URL(page.url()).pathname, "sent away from Club settings — not signed in?").toBe("/organization");
   await expect(page.locator("main h1")).toBeVisible();
+  if (tab) await openSettingsTab(page, tab);
 }
 
 test("a society calls itself a league, and the console says so; following the country puts its word back", async ({ page, context, baseURL }, testInfo) => {
@@ -110,7 +113,8 @@ test("a season from April to March is kept as month and day, worded 2026–27, a
     };
     expect(await stored()).toEqual({ starts: "", ends: "" });
 
-    await openSettings(page);
+    // The season is in the Currency card, on the Money tab.
+    await openSettings(page, "Money");
     const starts = page.getByLabel("Season starts", { exact: true });
     const ends = page.getByLabel("Season ends", { exact: true });
     await expect(page.getByText(/The calendar year\. Tournaments group as 2026, 2027/)).toBeVisible();
@@ -122,7 +126,7 @@ test("a season from April to March is kept as month and day, worded 2026–27, a
     await expect.poll(stored, { message: "the season's last day was not stored as month and day" }).toEqual({ starts: "04-01", ends: "03-31" });
     await expect(page.getByText(/Crosses the new year, so this season is written 2026–27\./)).toBeVisible();
 
-    await openSettings(page);
+    await openSettings(page, "Money");
     await expect(page.getByLabel("Season starts", { exact: true }), "the season's start did not survive a reload").toHaveValue("2026-04-01");
     await expect(page.getByLabel("Season ends", { exact: true })).toHaveValue("2026-03-31");
     await expect(page.getByText(/Crosses the new year, so this season is written 2026–27\./)).toBeVisible();
@@ -135,13 +139,13 @@ test("a season from April to March is kept as month and day, worded 2026–27, a
     await expect(page.getByText("2025–26", { exact: false }).first(), "the March round was not filed in the season before").toBeVisible();
 
     // Cleared, the club is back on the calendar year.
-    await openSettings(page);
+    await openSettings(page, "Money");
     await centre(page.getByLabel("Season starts", { exact: true }));
     await page.getByLabel("Season starts", { exact: true }).fill("");
     await expect.poll(stored).toEqual({ starts: "", ends: "03-31" });
     await page.getByLabel("Season ends", { exact: true }).fill("");
     await expect.poll(stored, { message: "clearing both did not return the club to the calendar year" }).toEqual({ starts: "", ends: "" });
-    await openSettings(page);
+    await openSettings(page, "Money");
     await expect(page.getByText(/The calendar year\. Tournaments group as 2026, 2027/)).toBeVisible();
   } finally {
     await dropClub(mark);

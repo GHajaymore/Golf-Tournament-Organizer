@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER_EMAIL } from "./e2e/owner-email.mjs";
+import { demoTestMark, E2E_DEMO_REPLAY_TOKEN } from "./e2e/demo-fixture.mjs";
 
 /**
  * End-to-end tests, for the class of bug the unit suite cannot see.
@@ -128,7 +129,10 @@ export default defineConfig({
   testDir: "./e2e",
   // The eleven scenario tournaments (e2e/scenarios) are a layer of a round, run a phase at a time
   // by scripts/qa/round.mjs. Each takes minutes and a field of 120; the standing suite leaves them out.
-  testIgnore: process.env.E2E_SCENARIOS === "1" ? [] : ["**/scenarios/**"],
+  // The text-box crawl (e2e/every-text-box.spec.ts) is a layer of its own, `text-boxes`, cut into
+  // shares by `--shard`; the standing suite and every other layer leave it out, so no part of the
+  // suite is made an hour longer by it. `E2E_TEXT_BOXES=1` is that layer's switch.
+  testIgnore: process.env.E2E_SCENARIOS === "1" ? [] : ["**/scenarios/**"].concat(process.env.E2E_TEXT_BOXES === "1" ? [] : ["**/every-text-box.spec.ts"]),
   // A real database and one dev server: parallel workers would race on the
   // shared fixture. Correctness over speed for a suite this small.
   workers: 1,
@@ -286,6 +290,15 @@ export default defineConfig({
       // to everybody and its five actions were never pressed (2026-10-21).
       // Production's own list is set in Vercel and is not this.
       OWNER_EMAILS: E2E_OWNER_EMAIL,
+      // THE DEMO CLUB THIS SERVER BUILDS IS THIS WORKTREE'S OWN (2026-10-24): the owner's
+      // create/refresh and the replay act on a `zz-demo` club, which `e2e/demo-club.spec.ts`
+      // removes afterwards — never the bare demo a visitor watches (docs/claude/demo-club.md).
+      DEMO_CLUB_MARK: demoTestMark(),
+      // And the replay's door, opened to the spec with a test-only token.
+      DEMO_REPLAY_TOKEN: E2E_DEMO_REPLAY_TOKEN,
+      // NO MAIL LEAVES FROM A TEST SERVER: an empty key beats any in .env, so the sender answers "not configured"
+      // (the owner-console spec presses Send on the early list and expects exactly that).
+      RESEND_API_KEY: "",
     },
   },
 });

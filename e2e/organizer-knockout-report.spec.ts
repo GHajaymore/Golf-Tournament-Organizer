@@ -72,7 +72,8 @@ test("a player reports their knockout tie; the organizer approves it and the dra
     for (const [i, p] of FIELD.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
       await page.getByRole("textbox", { name: /^Email · required/ }).fill(medalEmail(i));
-      await page.getByRole("textbox", { name: /^Mobile · required/ }).fill(`555080${i}`);
+      // A new club is on Par, which since 2026-10-21 (A7) asks no mobile unless the organizer does.
+      await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "Par still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
       await page.getByRole("button", { name: "Add to field" }).click();
       await expect(page.getByText(p.name).first()).toBeVisible({ timeout: 20_000 });
@@ -89,10 +90,6 @@ test("a player reports their knockout tie; the organizer approves it and the dra
     await playScratch(page, "Round 1 · Bracket Stage");
 
     await open(page, "/dashboard");
-    for (const step of ["Start taking entries", "Mark ready"]) {
-      await page.getByRole("button", { name: step }).click();
-      await expect(page.getByRole("button", { name: step })).toHaveCount(0, { timeout: 20_000 });
-    }
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
     await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
@@ -108,7 +105,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
   try {
     await test.step("Dune reports beating the top seed, 2&1", async () => {
       await open(dune, "/me");
-      await expect(dune.getByText("Semifinal v Alder Quayle")).toBeVisible({ timeout: 20_000 });
+      await expect(dune.getByText("Semi-final v Alder Quayle")).toBeVisible({ timeout: 20_000 });
       await dune.getByRole("button", { name: "Report the result" }).click();
       await dune.getByRole("radio", { name: "I won" }).check();
       await dune.getByLabel("By how much (optional)").fill("2&1");
@@ -122,7 +119,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
     });
 
     await test.step("the organizer sees it, the draw not yet moved, and approves", async () => {
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       await expect(page.getByText("A result to approve")).toBeVisible();
       await expect(page.getByText(/Alder Quayle v Dune Quayle: Dune Quayle won 2&1/)).toBeVisible();
       await expect(page.getByText("Reported by Dune Quayle")).toBeVisible();
@@ -132,8 +129,8 @@ test("a player reports their knockout tie; the organizer approves it and the dra
       await page.getByRole("button", { name: /^Approve: Dune Quayle won Alder Quayle v Dune Quayle/ }).click();
       await expect(page.getByText("A result to approve")).toHaveCount(0, { timeout: 20_000 });
       await expect(async () => {
-        await open(page, "/bracket");
-        await expect(page.getByRole("textbox", { name: /^Result of Alder Quayle v Dune Quayle, Semifinals$/ })).toHaveValue("2&1");
+        await open(page, "/bracket?view=draw");
+        await expect(page.getByRole("textbox", { name: /^Result of Alder Quayle v Dune Quayle, Semi-finals$/ })).toHaveValue("2&1");
       }).toPass({ timeout: 20_000 });
     });
 

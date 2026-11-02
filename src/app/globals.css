@@ -366,6 +366,116 @@ body {
   white-space: nowrap;
 }
 
+/* The words under a name on a knockout's draw: "You" on the player's own app,
+   "bye" where the seed had a bye in a round that is drawn, "through the
+   preliminary round", and the winner's margin. Words, never a colour alone (the
+   panel, 2026-10-23), and UNDER the name so they never cut it short. */
+.bracket-notes {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+.bracket-tag {
+  font-weight: 600;
+}
+.bracket-tag-you {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* THE DRAW ON PAPER (the panel, 2026-10-23, part c; `BracketPrint.tsx`): each
+   quarter, half or the Finals on its own A4 landscape sheet, black on white.
+   Mounted under <body> only while "Print the draw" is printing, and then the
+   only thing printed. */
+@page bracket-sheet {
+  size: A4 landscape;
+  margin: 10mm;
+}
+.bracket-print {
+  display: none;
+}
+@media print {
+  body.printing-draw > *:not(.bracket-print) {
+    display: none !important;
+  }
+  body.printing-draw {
+    background: #fff !important;
+  }
+  body.printing-draw .bracket-print {
+    display: block;
+    color: #000;
+    background: #fff;
+    font-family: var(--font-body, system-ui), sans-serif;
+  }
+}
+.bracket-print-page {
+  page: bracket-sheet;
+  break-after: page;
+  break-inside: avoid;
+}
+.bracket-print-page:last-child {
+  break-after: auto;
+}
+.bracket-print-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  height: 36px;
+  margin-bottom: 8px;
+  border-bottom: 2px solid #000;
+  font-size: 15px;
+}
+.bracket-print-round {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.bracket-print-tie {
+  border: 1px solid #000;
+  background: #fff;
+}
+.bracket-print-seat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 0 5px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.bracket-print-seat + .bracket-print-seat {
+  border-top: 1px solid #000;
+}
+.bracket-print-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bracket-print-result {
+  font-size: 9px;
+  height: 11px;
+  margin-top: 1px;
+  border-bottom: 1px solid #000;
+}
+.bracket-print-champion {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  border: 2px solid #000;
+}
+
 .page-kicker {
   font-size: 13px; /* the type floor, 2026-10-05 */
   letter-spacing: 0.07em;
@@ -889,6 +999,22 @@ body {
   label:has(> input[type="checkbox"]),
   label:has(> input[type="radio"]) {
     min-height: 44px;
+  }
+}
+
+/* THE TAP SIZE A COMPONENT WRITES INLINE: `--tap-min`.
+   An inline `minHeight` beats every rule in this file — no stylesheet
+   `min-height` outranks a style attribute — so a control that sets its own
+   (`minHeight: 36` on a `.btn`, a radio's label, a flight's move select) kept
+   that size under a finger and every coarse-pointer rule above was dead on it.
+   Nine places did, found 2026-10-23 when the touch sweep first opened Club
+   settings' tabs. Such a control writes `minHeight: "var(--tap-min, 36px)"`:
+   its own size under a mouse, this one under a finger. One token, set here
+   and only here; `a-tap-size-is-not-beaten-inline.test.ts` refuses an inline
+   size under 44px on a pressable that does not read it. */
+@media (pointer: coarse) {
+  :root {
+    --tap-min: 44px;
   }
 }
 

@@ -2,6 +2,7 @@
 import { byAddress } from "@/lib/domain/my-entry";
 import { isExpenseCategory } from "@/lib/domain/expense-categories";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { isIsoDate } from "@/lib/deadline";
@@ -85,6 +86,9 @@ async function requireEventSession() {
   const session = await getSession();
   if (!session?.eventId) throw new Error("Not authenticated");
   const isStaff = session.role === "admin" || session.role === "assistant";
+  // Every action in this file writes the tournament's money records, which a
+  // lapsed club's archive keeps read-only (2026-10-21).
+  await assertEventWritable(session.eventId);
   return { session, isStaff, eventId: session.eventId };
 }
 

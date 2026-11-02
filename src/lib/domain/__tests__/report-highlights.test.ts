@@ -179,6 +179,24 @@ describe("what the cards cannot say is not said", () => {
     // Twelve birdies on one card is the most in a round.
     expect(h.mostBirdiesInARound).toEqual({ count: 12, holders: [{ name: "Ida", round: "Round 1" }] });
   });
+
+  /**
+   * Walked 2026-10-23 on the seeded Thursday league: seven weeks on the
+   * calendar, four played, and the report said "0 played every round" — every
+   * member charged the three weeks nobody has reached. A round with no card on
+   * it has not been played, and counts for nothing either way.
+   */
+  it("a round on the calendar that nobody has played is not a round anybody missed", () => {
+    const toCome = round({ label: "Round 4", cards: [] });
+    const h = reportHighlights([R1, R2, toCome]);
+    // As with two rounds: Ann and Bob have a complete card in both played rounds.
+    expect(h.numbers.everyRound).toBe(2);
+    expect(h.mostBirdies).toEqual({ count: 3, names: ["Ann"] });
+    // One round played and one to come is ONE round: no tournament-wide count.
+    const one = reportHighlights([R1, toCome]);
+    expect(one.numbers.everyRound).toBeNull();
+    expect(one.mostBirdies).toBeNull();
+  });
 });
 
 describe("the words", () => {

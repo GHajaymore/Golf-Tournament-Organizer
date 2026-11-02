@@ -109,10 +109,10 @@ beforeAll(async () => {
       data: { eventId, name: `${TAG} ${who}`, email: at(who), seed: ++seed, status: "confirmed", handicap: 0, groupId: flight },
     });
     p[who] = row.id;
-    userIds[who] = (await prisma.user.create({ data: { email: at(who), name: who, password: "x" } })).id;
+    userIds[who] = (await prisma.user.create({ data: { email: at(who), name: who, password: "x", emailVerifiedAt: new Date() } })).id;
     await prisma.account.create({ data: { eventId, email: at(who), name: who, role: "player" } });
   }
-  userIds.org = (await prisma.user.create({ data: { email: at("org"), name: "org", password: "x" } })).id;
+  userIds.org = (await prisma.user.create({ data: { email: at("org"), name: "org", password: "x", emailVerifiedAt: new Date() } })).id;
   await prisma.account.create({ data: { eventId, email: at("org"), name: "org", role: "admin" } });
 
   await signIn("org");

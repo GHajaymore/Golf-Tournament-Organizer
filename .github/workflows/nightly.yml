@@ -1,0 +1,67 @@
+name: Nightly round
+
+# THE FULL ROUND ON MAIN, EVERY NIGHT (the panel, 2026-10-23 —
+# docs/testing-panel-2026-10-23.md).
+#
+# A change's round (round.yml, `round/**`) runs what that change can reach. This
+# runs everything a round can, every night, on whatever `main` is at 02:00 UTC:
+#
+#   every layer of a change's round, with ALL SIX countries in it
+#   the console crawl in full (every dropdown, choice and tick-box, four shares)
+#   the Android tablet
+#   the libraries' published holes, and the quarantine list held to its dates
+#     (moved here OUT of a change's round: a hole published overnight is about
+#     the calendar, and a registry that could not be asked stopped rounds that
+#     had tested everything else)
+#
+# AND IT IS THE GATE A CORE CHANGE WAITS AT. A "Core and shared" change merges
+# after ONE round, and the deploy job (deploy.yml, scripts/qa/deploy-gate.mjs)
+# then holds it out of production until a nightly round on that commit — or a
+# later one containing it — is clean. When this round is clean it calls the
+# deploy itself, so the change goes out the same night, outside the freeze.
+#
+# 02:00 UTC is the middle of the night in Europe, evening in the Americas and
+# morning in Asia and Australia; the deploy that follows is still held by the
+# freeze wherever a club is playing (src/lib/domain/deploy-window.ts).
+#
+# Runs on main only (a schedule always does). "Run workflow" runs it by hand —
+# the emergency path for a core fix that cannot wait for 02:00.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-round
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  round:
+    name: Round
+    uses: ./.github/workflows/round.yml
+    with:
+      round: "1"
+      schedule: nightly
+      countries: all
+      crawl: "on"
+    secrets: inherit
+
+  deploy:
+    # Only after a CLEAN verdict: the round's result is failure for anything else.
+    name: Deploy what the round cleared
+    needs: round
+    if: needs.round.result == 'success'
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      deployments: write
+    uses: ./.github/workflows/deploy.yml
+    with:
+      sha: ${{ github.sha }}
+    secrets: inherit

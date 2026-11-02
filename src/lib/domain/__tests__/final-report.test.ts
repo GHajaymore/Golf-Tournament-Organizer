@@ -10,6 +10,7 @@ import {
   sessionDescription,
   scoringWords,
   placeFigure,
+  sharedFigure,
   eventRibbon,
   eventStory,
   type ReportSession,
@@ -191,13 +192,49 @@ describe("the final report's arithmetic", () => {
 });
 
 describe("the report of any other tournament", () => {
-  const row = { gross: 78, net: 66, points: 38, pts: "4" };
+  const row = { gross: 78, net: 66, points: 38, pts: "4", thru: 18, holesOwed: 18, toPar: -6 };
 
   it("names the figure the board ranked on, and only that one", () => {
     expect(placeFigure(row, { isStroke: true, isStableford: false, isNet: true })).toBe("net 66");
     expect(placeFigure(row, { isStroke: true, isStableford: false, isNet: false })).toBe("gross 78");
     expect(placeFigure(row, { isStroke: true, isStableford: true, isNet: true })).toBe("38 points");
     expect(placeFigure(row, { isStroke: false, isStableford: false, isNet: false })).toBe("4 match points");
+  });
+
+  /**
+   * Walked 2026-10-23 on the seeded live medal: "Marnie leads on net 30 …
+   * Nkechi is next, on net 67". Marnie was six under through eight and Nkechi
+   * four under through eighteen — two shots, not thirty-seven. A part-played
+   * card is placed on its to-par over the holes played, so that is its figure.
+   */
+  it("a card still being played is given on its to-par and how far round, never its total", () => {
+    const marnie = { gross: 44, net: 30, points: 0, pts: "", thru: 8, holesOwed: 18, toPar: -6 };
+    const net = { isStroke: true, isStableford: false, isNet: true };
+    expect(placeFigure(marnie, net)).toBe("net -6 through 8");
+    expect(placeFigure(marnie, { ...net, isNet: false })).toBe("-6 through 8");
+    expect(placeFigure({ ...marnie, toPar: 0 }, net)).toBe("net level par through 8");
+    expect(placeFigure({ ...marnie, points: 19, thru: 9, holesOwed: 9 }, { ...net, isStableford: true })).toBe("19 points");
+    expect(placeFigure({ ...marnie, points: 9 }, { ...net, isStableford: true })).toBe("9 points through 8");
+    // No par known: the board prints no to-par, so neither does the report.
+    expect(placeFigure({ ...marnie, parKnown: false }, net)).toBe("net 30 through 8");
+  });
+
+  it("a shared place carries a figure only when everybody holding it holds it on that figure", () => {
+    // Evening Back Nine, walked live: T2 Gordon on 9 points through 4 and Rafe on 19 through 9.
+    expect(sharedFigure(["9 points through 4", "19 points"])).toBe("");
+    expect(sharedFigure(["net 66", "net 66"])).toBe("net 66");
+    expect(sharedFigure(["gross 74"])).toBe("gross 74");
+    expect(sharedFigure([])).toBe("");
+  });
+
+  it("a live leader level with the next on the figure is ahead on countback, and said so", () => {
+    const story = eventStory({
+      completed: false,
+      first: { names: ["Elias Wardlow"], figure: "16 points" },
+      second: { names: ["Séamus"], figure: "16 points" },
+      rounds: [],
+    });
+    expect(story[0]).toBe("Elias Wardlow leads on 16 points, ahead of Séamus on countback, with the tournament still to finish.");
   });
 
   it("a single winner is the champion; a tie at the top is shared, never broken", () => {

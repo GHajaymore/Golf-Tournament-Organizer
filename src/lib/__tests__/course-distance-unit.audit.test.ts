@@ -75,7 +75,7 @@ beforeAll(async () => {
   });
   eventId = event.id;
   const email = `${TAG.toLowerCase()}-sec@example.invalid`;
-  const user = await prisma.user.create({ data: { email, name: `${TAG} Sec`, password: "x" } });
+  const user = await prisma.user.create({ data: { email, name: `${TAG} Sec`, password: "x", emailVerifiedAt: new Date() } });
   await prisma.account.create({ data: { eventId, email, name: `${TAG} Sec`, role: "admin" } });
   await prisma.organizationMember.create({ data: { organizationId: orgId, userId: user.id, role: "owner" } });
   jar.clear();

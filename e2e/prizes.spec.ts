@@ -90,15 +90,16 @@ test("the organizer adds a prize, re-prices it, awards it, takes the award back 
   await expect.poll(async () => (await row())?.amount, { timeout: 20_000, message: "the new amount was not kept" }).toBe(30);
   expect((await head(page)).purse, "re-pricing 25 to 30 did not add 5 to the purse").toBe(before.purse + 3000);
 
-  // ── a negative amount is not a prize ────────────────────────────────────
+  // ── a negative amount is not a prize: refused beside the box, and the prize keeps its 30 ──
+  // (Until 2026-10-21 it was stored as no prize, without a word — the text-box crawl.)
   await amount.fill("-5");
   await amount.press("Enter");
-  await expect.poll(async () => (await row())?.amount, { timeout: 20_000, message: "a negative prize was stored" }).toBe(0);
-  await expect(amount, "the box shows a negative prize that was not stored").not.toHaveValue("-5", { timeout: 10_000 });
-  expect((await head(page)).purse, "a prize of nothing still counts toward the purse").toBe(before.purse);
-  await amount.fill("30");
-  await amount.press("Enter");
-  await expect.poll(async () => (await row())?.amount, { timeout: 20_000 }).toBe(30);
+  const refused = page.getByRole("alert").filter({ hasText: "A prize can't be less than nothing." }).locator("visible=true");
+  await expect(refused, "a negative prize was not refused in words").toBeVisible({ timeout: 10_000 });
+  await expect(refused, "the refusal is not where the box is").toBeInViewport();
+  await expect(amount, "the box shows a negative prize that was not stored").toHaveValue("30", { timeout: 10_000 });
+  expect((await row())?.amount, "a negative prize changed what was stored").toBe(30);
+  expect((await head(page)).purse, "a refused amount changed the purse").toBe(before.purse + 3000);
 
   // ── awarded, and taken back ─────────────────────────────────────────────
   const first = await winner.locator("option").nth(1).getAttribute("value");

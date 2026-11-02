@@ -43,12 +43,14 @@ import {
 } from "@/lib/tournament-settings";
 import { formatAccessCode } from "@/lib/code-format";
 import { lockoutNotice } from "@/lib/domain/access-lockout";
+import { eventLinks } from "@/lib/domain/event-page";
 import { Icon } from "./Icon";
-import { RoundSigns } from "./RoundSigns";
+import Link from "next/link";
 import { ConfirmButton } from "./ConfirmButton";
 import { StickySave } from "./StickySave";
 import FieldInfo from "./FieldInfo";
 import { MoreInfo } from "./MoreInfo";
+import { useGolfTerms } from "./GolfTermsProvider";
 
 export interface RoundCode {
   stageId: string;
@@ -72,7 +74,10 @@ interface Props {
   rounds?: RoundCode[];
   /** Tournament mode only — the public leaderboard token. */
   shareToken?: string;
-  /** Tournament mode only — the tournament's name, printed at the top of each round's sign. */
+  /**
+   * Tournament mode only — the tournament's name. Was printed on each round's sign; the signs
+   * are the Print kit's now (2026-10-23), which reads it for itself.
+   */
   eventName?: string;
   /**
    * Tournament mode only — the sets this course is rated for.
@@ -186,7 +191,12 @@ function Choice<T extends string>({
                 alignItems: "center",
                 gap: 8,
                 fontSize: 14,
-                minHeight: 36,
+                // 36px under a mouse, 44 under a finger (`--tap-min`,
+                // globals.css). A bare `minHeight: 36` beat the touch rule for
+                // a label round a radio, and each option was a 36px target on a
+                // phone — found the first time the touch sweep opened Club
+                // settings' Defaults tab (2026-10-23).
+                minHeight: "var(--tap-min, 36px)",
                 cursor: disabled ? "default" : "pointer",
                 opacity: disabled ? 0.6 : 1,
               }}
@@ -209,11 +219,11 @@ export function PlaySettings({
   strandedCount = 0,
   rounds = [],
   shareToken,
-  eventName = "",
   tees = [],
   defaultTeeId = null,
 }: Props) {
   const [form, setForm] = useState<TournamentSettings>(settings);
+  const golf = useGolfTerms();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState("");
@@ -282,6 +292,7 @@ export function PlaySettings({
   };
 
   const shareUrl = shareToken && origin ? `${origin}/live/${shareToken}` : "";
+  const shareLinks = shareToken ? eventLinks(shareToken) : null;
   const codesOn = usesAccessCodes(form);
 
   return (
@@ -378,6 +389,28 @@ export function PlaySettings({
               {rotateError}
             </p>
           )}
+          {/* THE TWO OTHER WAYS IN, ON THE SAME LINK (2026-10-24): the event
+              page to send before and after the day, and the clubhouse screen
+              for the TV in the bar. Both live under this token, so New link
+              replaces all three at once, and both obey this setting. */}
+          {[
+            { key: "event", label: "Event page", href: shareLinks!.event, what: "One link to send before and after the day: entries, the board, the report." },
+            { key: "clubhouse", label: "Clubhouse screen", href: shareLinks!.clubhouse, what: "The board for a TV: large type, a page at a time." },
+          ].map((l) => (
+            <div key={l.key} style={{ flexBasis: "100%", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{l.label}</div>
+                <p className="text-muted" style={{ fontSize: 13, margin: "0 0 2px" }}>{l.what}</p>
+                <code style={{ fontSize: 13, wordBreak: "break-all" }}>{origin + l.href}</code>
+              </div>
+              <a className="btn btn-secondary" href={l.href} target="_blank" rel="noopener">
+                Open {l.label.toLowerCase()} <Icon name="arrow-right" />
+              </a>
+              <button type="button" className="btn btn-secondary" aria-label={`Copy the ${l.label.toLowerCase()} link`} onClick={() => copy(origin + l.href, l.key)}>
+                <Icon name="copy" /> {copied === l.key ? "Copied" : "Copy"}
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -737,7 +770,7 @@ export function PlaySettings({
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            style={{ fontSize: 13, minHeight: 36 }}
+                            style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)" }}
                             onClick={() => copy(formatAccessCode(r.code), r.stageId)}
                           >
                             <Icon name="copy" /> {copied === r.stageId ? "Copied" : "Copy"}
@@ -756,7 +789,7 @@ export function PlaySettings({
                               confirmLabel={r.code ? `Stop ${formatAccessCode(r.code)}` : "Make a code"}
                               note={r.code ? `Players holding ${formatAccessCode(r.code)} will be refused, and its printed signs stop working.` : undefined}
                               className="btn btn-secondary"
-                              style={{ fontSize: 13, minHeight: 36 }}
+                              style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)" }}
                               disabled={pending}
                               onConfirm={() =>
                                 startTransition(async () => {
@@ -774,7 +807,21 @@ export function PlaySettings({
               </table>
             </div>
           )}
-          {rounds.length > 0 && <RoundSigns eventName={eventName} rounds={rounds} shareToken={shareToken} />}
+          {/* THE ROUND'S SIGN, printed through the Print kit (2026-10-23): the one way to the
+              printer, so the sign here and the cart signs there cannot drift apart. The sign
+              itself is unchanged — the round, a QR to `/play#CODE`, the code in large letters. */}
+          {rounds.some((r) => r.code) && (
+            <p style={{ margin: "10px 0 0", fontSize: 13 }}>
+              <Link
+                href={`/print?round=${rounds.find((r) => r.code)!.stageId}&docs=spare,signs`}
+                className="btn btn-secondary"
+                style={{ fontSize: 13, minHeight: "var(--tap-min, 36px)", display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <Icon name="qr-code" /> Print the signs
+              </Link>{" "}
+              <span className="text-muted">One sign per round for walk-ins and the first tee, and a named one for every {golf.cart}, in the {screenName("/print")}.</span>
+            </p>
+          )}
         </div>
       )}
     </div>

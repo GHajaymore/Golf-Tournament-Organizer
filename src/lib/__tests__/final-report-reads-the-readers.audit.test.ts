@@ -156,6 +156,59 @@ describe("the final report reads the app's own readers", () => {
     expect(pot.winners.map((w) => w.name)).toEqual([seeded.players.Bob.name, seeded.players.Cat.name]);
   });
 
+  it("the birdie pot's line counts who was IN it, not whose money moved", async () => {
+    // $2 a head, all four in: an $8 pot — whatever the birdies did to it.
+    const pot = staff.sideGames.find((g) => g.title.startsWith("Birdie pot"))!;
+    expect(pot.line).toBe(`${money(200)} each, 4 in: a ${money(800)} pot.`);
+  });
+
+  it("a player who takes back exactly their stake is still in the pot (2026-10-23)", async () => {
+    // Give Ann a birdie on the 4th in round 2. Shares are then Bob 2 (eagle and
+    // birdie), Cat 1, Ann 1, Dan 0: $8 over four shares is $4, $2, $2, $0 — so
+    // Cat and Ann each take back exactly their $2 and their nets are nought.
+    // The report read the pot's size off the players with a net, and printed
+    // "2 in: a $4.00 pot" for this.
+    const prisma = new PrismaClient();
+    const ann = await prisma.scorecard.findFirstOrThrow({ where: { stageId: seeded.stageIds[1], playerId: seeded.players.Ann.id } });
+    try {
+      const card = (JSON.parse(ann.strokes) as (number | null)[]).map((s, i) => (i === 3 ? 3 : s));
+      await prisma.scorecard.update({ where: { id: ann.id }, data: { strokes: JSON.stringify(card) } });
+      const nets = (await sidePotResults(seeded.eventId, seeded.stageIds[1])).values().next().value!;
+      // CONTROL: the fixture really did leave two players at nought.
+      expect(nets.length, "the fixture did not leave anybody at their stake").toBe(2);
+      const r = (await eventReport(seeded.eventId, { kind: "staff", email: seeded.organizerEmail }))!;
+      const pot = r.sideGames.find((g) => g.title.startsWith("Birdie pot"))!;
+      expect(pot.line).toBe(`${money(200)} each, 4 in: a ${money(800)} pot.`);
+      expect(pot.winners.map((w) => [w.name, w.amount])).toEqual([[seeded.players.Bob.name, `up ${money(200)}`]]);
+    } finally {
+      await prisma.scorecard.update({ where: { id: ann.id }, data: { strokes: ann.strokes } });
+      await prisma.$disconnect();
+    }
+  });
+
+  it("a pot nobody won is reported, stakes back — not left out (2026-10-23)", async () => {
+    // Take the three round-2 birdies off (Bob's eagle and birdie, Cat's birdie).
+    const prisma = new PrismaClient();
+    const rows = await prisma.scorecard.findMany({
+      where: { stageId: seeded.stageIds[1], playerId: { in: [seeded.players.Bob.id, seeded.players.Cat.id] } },
+    });
+    try {
+      for (const row of rows) {
+        await prisma.scorecard.update({ where: { id: row.id }, data: { strokes: JSON.stringify(Array(18).fill(4)) } });
+      }
+      const nets = (await sidePotResults(seeded.eventId, seeded.stageIds[1])).values().next().value;
+      // CONTROL: the pot is final and nobody's money moved — an empty result, not an absent one.
+      expect(nets, "the pot did not settle").toEqual([]);
+      const r = (await eventReport(seeded.eventId, { kind: "staff", email: seeded.organizerEmail }))!;
+      const pot = r.sideGames.find((g) => g.title.startsWith("Birdie pot"));
+      expect(pot?.line).toBe(`${money(200)} each, 4 in: a ${money(800)} pot. Nobody won it; the stakes went back.`);
+      expect(pot?.winners).toEqual([]);
+    } finally {
+      for (const row of rows) await prisma.scorecard.update({ where: { id: row.id }, data: { strokes: row.strokes } });
+      await prisma.$disconnect();
+    }
+  });
+
   it("the settle-up is the money screen's own list, payment for payment", async () => {
     const view = await moneyFor(seeded.eventId, "");
     expect(staff.settleUp?.lines).toEqual(view.transfers.map((t) => ({ from: t.fromName, to: t.toName, amount: money(t.cents) })));
@@ -174,7 +227,9 @@ describe("the final report reads the app's own readers", () => {
 
   it("prizes and contests carry their amounts on the organizer's copy", () => {
     expect(staff.prizes).toContainEqual({ what: "Winner", winners: [seeded.players.Bob.name], amount: money(5000) });
-    expect(staff.prizes).toContainEqual({ what: "Closest to the pin (hole 3)", winners: [seeded.players.Ann.name], amount: money(400) });
+    // A contest is said "on the course", next after the prizes (2026-10-23), with the pot the money screen holds.
+    expect(staff.onTheCourse).toContainEqual({ what: "Closest to the pin, hole 3", who: seeded.players.Ann.name, detail: money(400) });
+    expect(staff.prizes.some((p) => p.what.startsWith("Closest to the pin"))).toBe(false);
   });
 
   it("coming up: the club's next tournament taking entries, and the pinned notice for the field only", () => {
@@ -192,12 +247,16 @@ describe("the public copy names winners and carries no amount", () => {
     expect(pub.amounts).toBe(false);
     expect(pub.skins[0].winners.map((w) => [w.name, w.detail, w.amount])).toEqual([[seeded.players.Ann.name, "holes 1 and 2", ""]]);
     expect(pub.sideGames.flatMap((g) => g.winners.map((w) => w.amount))).toEqual(["", ""]);
-    expect(pub.prizes.map((p) => p.amount)).toEqual(["", ""]);
+    expect(pub.prizes.map((p) => p.amount)).toEqual([""]);
+    expect(pub.onTheCourse.map((c) => [c.who, c.detail])).toEqual([[seeded.players.Ann.name, ""]]);
     expect(pub.costs).toBeNull();
     expect(pub.settleUp).toBeNull();
+    expect(pub.standing).toBeNull();
     // Every amount the organizer's copy prints, absent from the public one.
     const amounts = [
       ...staff.prizes.map((p) => p.amount),
+      ...staff.onTheCourse.map((c) => c.detail),
+      ...(staff.standing?.map((s) => s.net.replace(/^[+−]/, "")) ?? []),
       ...staff.skins.flatMap((s) => s.winners.map((w) => w.amount)),
       ...staff.sideGames.flatMap((g) => g.winners.map((w) => w.amount)),
       ...(staff.settleUp?.lines.map((l) => l.amount) ?? []),
@@ -210,7 +269,8 @@ describe("the public copy names winners and carries no amount", () => {
   it("and the page drawn from it holds no money at all", () => {
     const html = renderToStaticMarkup(createElement(EventReport, { report: pub }));
     expect(html).toContain(seeded.players.Ann.name);
-    expect(html).not.toContain("Settle-up");
+    expect(html).not.toContain("Settle up");
+    expect(html).not.toContain("Where everybody ends up");
     expect(html).not.toContain("Entry fees and costs");
     // The club's currency sign appears nowhere on the public page.
     const sign = money(100).replace(/[\d.,\s ]/g, "");

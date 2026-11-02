@@ -278,7 +278,8 @@ export function MoneySetup({
             `profile.noun` is the answer. */}
         <Icon name="buildings" /> The default for every tournament at{" "}
         {clubName || `this ${profile.noun}`} is on{" "}
-        <a href="/organization">{profile.settingsLabel}</a>.
+        {/* To the Money tab: the settings screen shows one section at a time. */}
+        <a href="/organization#money">{profile.settingsLabel}</a>.
       </p>
 
       <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>

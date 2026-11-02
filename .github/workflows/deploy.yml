@@ -1,0 +1,135 @@
+name: Deploy
+
+# THE ONE WAY INTO PRODUCTION, AND THE GATE IN FRONT OF IT (the panel,
+# 2026-10-23 — docs/testing-panel-2026-10-23.md, item C).
+#
+# Called from three places, and the steps are written once, here:
+#
+#   ci.yml       every push to main, after `verify` is green — as before
+#   nightly.yml  after a CLEAN nightly round, for the commit it was clean on: this
+#                is how a core change that was held reaches production
+#   the hour     a deploy held by the freeze (or waiting on a nightly that has
+#                since come in) is picked up within the hour it opens, without
+#                anybody remembering it. A run with nothing to ship does nothing
+#
+# And by hand ("Run workflow"), with OVERRIDE FREEZE for an emergency — a fix
+# that cannot wait for the clubs on the course to come in. Overriding the freeze
+# does NOT skip the nightly for a core change: run the Nightly round by hand
+# instead (about forty minutes), and it deploys when it is clean.
+#
+# THE GATE (scripts/qa/deploy-gate.mjs → deploy-rules.mjs) deploys a commit only if
+#   1. `verify` is green on it;
+#   2. every "Core and shared" commit since the last deploy is in a clean nightly
+#      round (that commit, or a later one containing it);
+#   3. no club is in its freeze: a tournament on today in the club's own time,
+#      or Saturday and Sunday 05:00–14:00 in any club's zone. The app answers
+#      that question itself, at /api/deploy-window, with only {frozen, reason}:
+#      THIS RUNNER NEVER GETS PRODUCTION DATABASE CREDENTIALS (the reason is in
+#      ci.yml, above "VERCEL BUILDS IT"). If the app cannot be asked, the deploy
+#      is not frozen, and the summary says so.
+# A HOLD IS GREEN. It is the gate doing its job; the summary says why, and the
+# next hourly run, or the nightly, tries again.
+#
+# SECRETS (names only; values are Ajay's to add):
+#   VERCEL_TOKEN          as before
+#   DEPLOY_WINDOW_TOKEN   any long random string; the SAME value goes into Vercel's
+#                         production environment variables as DEPLOY_WINDOW_TOKEN.
+#                         Until both are set, deploys go out unfrozen and say so.
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: "The commit to deploy"
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      override_freeze:
+        description: "Deploy through the freeze (an emergency). Does not skip the nightly for a core change."
+        type: boolean
+        default: false
+  schedule:
+    - cron: "23 * * * *"
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  deployments: write
+
+jobs:
+  deploy:
+    name: Deploy to production
+    # The schedule and "Run workflow" deploy main as it stands; a caller names its commit.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # One deploy at a time, from whichever workflow; never cancel one that has started.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    env:
+      # Identifiers, not credentials — they name which project to deploy, and
+      # the token is scoped to that one project so it cannot infer them.
+      VERCEL_ORG_ID: team_du2Cf2nXyLU3G2Dju8DZUYg8
+      VERCEL_PROJECT_ID: prj_wGD4aR7UauZ1NXVWpEMDl27bWgog
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      SHA: ${{ inputs.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          # The gate reads which commits since the last deploy were core, and which a nightly contains.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: The gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_WINDOW_TOKEN: ${{ secrets.DEPLOY_WINDOW_TOKEN }}
+          OVERRIDE: ${{ inputs.override_freeze && '--override-freeze' || '' }}
+        run: node scripts/qa/deploy-gate.mjs --sha="$SHA" $OVERRIDE
+
+      - name: Install the Vercel CLI
+        if: steps.gate.outputs.decision == 'deploy'
+        run: npm i -g vercel@latest
+
+      # Links the project and proves the credentials work before anything is
+      # uploaded, so a bad token fails in two seconds rather than after a build.
+      - name: Link the project
+        if: steps.gate.outputs.decision == 'deploy'
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      # VERCEL BUILDS IT — see ci.yml for why this job must not. The step is
+      # called "Deploy" on purpose: deploy-gate.mjs finds the deploys made before
+      # the first deployment record by this step's name.
+      - name: Deploy
+        if: steps.gate.outputs.decision == 'deploy'
+        run: vercel deploy --prod --token="$VERCEL_TOKEN"
+
+      # What production now holds, written where the next gate reads it. Done
+      # straight after the deploy, before the smoke test: a deploy that went out
+      # and then failed its smoke is still what production holds.
+      - name: Record what production holds
+        if: steps.gate.outputs.decision == 'deploy'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          node -e 'process.stdout.write(JSON.stringify({ ref: process.env.SHA, environment: "tourneyhq-production", auto_merge: false, required_contexts: [], description: "vercel deploy --prod, through the deploy gate" }))' > deployment.json
+          ID=$(gh api -X POST "repos/$REPO/deployments" --input deployment.json -q .id)
+          gh api -X POST "repos/$REPO/deployments/$ID/statuses" -f state=success -f environment_url=https://tourneyhq.club > /dev/null
+          echo "Recorded deployment $ID of $SHA."
+
+      # AND THEN LOOK AT WHAT SHIPPED (docs/release-strategy.md, step 2): the
+      # public doors answer as pages. Read-only — no cookie, nothing written.
+      - name: Smoke-test production
+        if: steps.gate.outputs.decision == 'deploy'
+        env:
+          PROD_BOARD_URL: ${{ secrets.CANARY_BOARD_URL }}
+        run: node scripts/prod-smoke.mjs

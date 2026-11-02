@@ -8,6 +8,13 @@ import { isSupportedLocale } from "@/lib/domain/locale";
 import { clubClockInWords, isTimeZone } from "@/lib/domain/club-clock";
 import { isCommunityVoice, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { isGolfRegister } from "@/lib/domain/golf-terms";
+import {
+  isKindChangeMoneyChoice,
+  kindChangeMoneyQuestion,
+  KIND_CHANGE_NAMES_SHOWN,
+  moneyModeFlipsOnKindChange,
+  moneyModeToKeep,
+} from "@/lib/domain/kind-change-money";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { otherOrganizationNamed } from "@/lib/services/organization";
 import { seatRefusalFor } from "@/lib/services/limits";
@@ -17,6 +24,14 @@ import {
 import { checkLogoUrl } from "@/lib/services/logo-check";
 import { organizationAccess } from "@/lib/services/org-access";
 import { isBrandDisplay } from "@/lib/brand";
+import {
+  EMAIL_REFUSAL,
+  isEmailAddress,
+  PERSON_NAME_MAX,
+  PLACE_MAX,
+  SHORT_NAME_MAX,
+  TITLE_MAX,
+} from "@/lib/domain/typed-limits";
 
 export interface OrgResult {
   ok: boolean;
@@ -55,7 +70,6 @@ async function currentOrganization() {
  */
 const ORG_ROLES = ["owner", "admin", "member", "guest"] as const;
 const cleanOrgRole = (r: string) => (ORG_ROLES.includes(r as (typeof ORG_ROLES)[number]) ? r : "member");
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** True once the organization has an owner other than this member — the same
  *  guard the per-event access screen uses, applied one level up. Losing the
@@ -90,8 +104,11 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    * at its cap could not add the field it just took entries from.
    */
   const role = cleanOrgRole(roleInput);
-  const cleanEmail = email.trim().toLowerCase();
-  if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+  const cleanEmail = String(email ?? "").trim().toLowerCase();
+  if (!isEmailAddress(cleanEmail)) return { ok: false, error: EMAIL_REFUSAL };
+  if (String(name ?? "").trim().length > PERSON_NAME_MAX) {
+    return { ok: false, error: `Keep the name to ${PERSON_NAME_MAX} characters.` };
+  }
   if (role === "owner" || role === "admin") {
     // By person, so somebody already holding a seat is not refused one.
     const refusal = await seatRefusalFor(org.organizationId, cleanEmail);
@@ -113,7 +130,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    * is being made, or has no name on it yet — somebody entered by email alone
    * — and never to replace one.
    */
-  const typedName = name.trim();
+  const typedName = String(name ?? "").trim();
   const known = await prisma.user.findUnique({ where: { email: cleanEmail }, select: { id: true, name: true } });
   const user = known
     ? await prisma.user.update({
@@ -255,8 +272,18 @@ export async function saveOrganizationBranding(
   if (!org) return { ok: false, error: "No organization found for this tournament." };
   if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change these settings." };
 
-  const cleanName = name.trim();
+  const cleanName = String(name ?? "").trim();
   if (!cleanName) return { ok: false, error: "Enter an organization name." };
+  // HELD TO A NAME'S LENGTH, AND SAID (the text-box crawl, 2026-10-21): 2,000
+  // characters were stored, and every screen that draws the club's name was
+  // pushed sideways; the town, region and country were cut to 80 without a
+  // word. The boxes carry the same limits.
+  if (cleanName.length > TITLE_MAX) return { ok: false, error: `Keep the name to ${TITLE_MAX} characters.` };
+  const cleanShort = String(shortName ?? "").trim();
+  if (cleanShort.length > SHORT_NAME_MAX) return { ok: false, error: `Keep the short name to ${SHORT_NAME_MAX} characters.` };
+  for (const [what, value] of [["town", location.city], ["region", location.region], ["country", location.country]] as const) {
+    if (String(value ?? "").trim().length > PLACE_MAX) return { ok: false, error: `Keep the ${what} to ${PLACE_MAX} characters.` };
+  }
 
   /**
    * THE OTHER PLACE A CLUB GETS ITS NAME, and the one Ajay pointed at: setup
@@ -299,11 +326,11 @@ export async function saveOrganizationBranding(
     where: { id: org.organizationId },
     data: {
       name: cleanName,
-      shortName: shortName.trim(),
+      shortName: cleanShort,
       logoUrl: cleanLogo,
-      city: (location.city ?? "").trim().slice(0, 80),
-      region: (location.region ?? "").trim().slice(0, 80),
-      country: (location.country ?? "").trim().slice(0, 80),
+      city: String(location.city ?? "").trim(),
+      region: String(location.region ?? "").trim(),
+      country: String(location.country ?? "").trim(),
       brandDisplay: isBrandDisplay(brandDisplay) ? brandDisplay : "short",
     },
   });
@@ -636,7 +663,14 @@ export async function saveOrganizationKind(
   kind: string,
   /** "Yes, hide the roster" — only meaningful when moving to `personal`. */
   confirmHidingRoster?: boolean,
-): Promise<OrgResult & { hidesRoster?: number }> {
+  /**
+   * The answer to "this changes how money works in these tournaments":
+   * `keep` pins the club's own money default to what it resolves to today and
+   * then changes the kind, so nothing moves; `switch` changes the kind and lets
+   * the tournaments follow it. Only asked when something would change.
+   */
+  moneyChoice?: unknown,
+): Promise<OrgResult & { hidesRoster?: number; moneyChanges?: { count: number; names: string[] } }> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
   if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
@@ -653,9 +687,12 @@ export async function saveOrganizationKind(
     // one-argument `orgProfile(kind)` and caught this being written that way.
     // `sharedRoster` happens not to vary by country, but a rule that holds
     // "except where I checked" is the rule that gets forgotten next time.
-    select: { kind: true, country: true, communityNoun: true },
+    select: { kind: true, country: true, communityNoun: true, moneyMode: true },
   });
   if (current?.kind === value) return { ok: true };
+  if (moneyChoice !== undefined && moneyChoice !== null && !isKindChangeMoneyChoice(moneyChoice)) {
+    return { ok: false, error: "Choose whether to keep their money as it is or switch anyway." };
+  }
 
   const next = orgProfile(value, current?.country, current?.communityNoun);
   if (!next.sharedRoster && !confirmHidingRoster) {
@@ -679,9 +716,37 @@ export async function saveOrganizationKind(
     }
   }
 
+  /**
+   * AND THE MONEY OF EVERY TOURNAMENT THAT FOLLOWS THE KIND. A tournament with
+   * no money mode of its own, in a club with none, takes the kind's default —
+   * so this change would silently move it between "Split shared costs" and
+   * "Costs handled outside the app". Refused here without an answer, not only
+   * asked on the screen, because a `"use server"` export is called with
+   * whatever the caller likes.
+   */
+  const orgMode = current?.moneyMode ?? "";
+  const fromKind = current?.kind ?? "";
+  const tournaments = await prisma.event.findMany({
+    where: { organizationId: org.organizationId },
+    select: { id: true, name: true, moneyMode: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const flips = moneyModeFlipsOnKindChange({ orgMode, fromKind, toKind: value, tournaments });
+  if (flips.length > 0 && !isKindChangeMoneyChoice(moneyChoice)) {
+    return {
+      ok: false,
+      moneyChanges: { count: flips.length, names: flips.slice(0, KIND_CHANGE_NAMES_SHOWN).map((f) => f.name) },
+      error: kindChangeMoneyQuestion(flips),
+    };
+  }
+  const keep = flips.length > 0 && moneyChoice === "keep";
+
+  // One write for both, so "keep" can never land half done: a kind changed
+  // with the club's default not yet pinned is exactly the silent change this
+  // question exists to stop.
   await prisma.organization.update({
     where: { id: org.organizationId },
-    data: { kind: value },
+    data: keep ? { kind: value, moneyMode: moneyModeToKeep({ orgMode, fromKind }) } : { kind: value },
   });
   // The layout resolves the profile once and hands it to eleven components
   // through OrgProfileProvider, so the whole tree has to re-render: this

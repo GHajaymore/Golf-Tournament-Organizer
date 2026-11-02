@@ -116,11 +116,35 @@ interface Control {
   choiceLabels: string[];
   current: string;
   disabled: boolean;
+  /**
+   * The tab the control is on, by the tab's id (`tab-money`), or "" on a screen
+   * with no tabs. Club settings shows one section at a time (2026-10-21): a
+   * control in a section not open is in the page and not on the screen, so the
+   * crawl opens each tab as a person would — by tapping it — before it looks.
+   */
+  tab: string;
 }
 
-/** Every dropdown, choice group and tick-box in the working area — never the sidebar. */
-async function controlsOn(page: Page): Promise<Control[]> {
-  return page.evaluate(() => {
+/** The tabs a screen shows its sections behind, by id; `[""]` for a screen that has none. */
+async function tabsOn(page: Page): Promise<string[]> {
+  const ids = await page.locator('main [role="tab"]').evaluateAll((els) => els.map((el) => el.id));
+  return ids.length ? ids : [""];
+}
+
+/** The screen a control is on, with its tab where it has one: `/organization#money`. */
+const screenOf = (path: string, c: Control) => (c.tab ? `${path}#${c.tab.replace(/^tab-/, "")}` : path);
+
+/** Tap a tab open, unless it is already the open one. */
+async function openTab(page: Page, tab: string): Promise<void> {
+  if (!tab) return;
+  const el = page.locator(`main [id="${tab}"]`);
+  if ((await el.getAttribute("aria-selected")) !== "true") await el.click();
+  await expect(el).toHaveAttribute("aria-selected", "true");
+}
+
+/** Every dropdown, choice group and tick-box in the working area — never the sidebar — on the tab that is open. */
+async function controlsOn(page: Page, tab = ""): Promise<Control[]> {
+  const found = await page.evaluate(() => {
     const scope = document.querySelector("main") ?? document.body;
     // OPEN WHAT A PERSON WOULD OPEN. "League settings" folds itself away once
     // the league is on, and a control inside a closed disclosure is on the
@@ -169,7 +193,7 @@ async function controlsOn(page: Page): Promise<Control[]> {
       const r = (el.closest("label") ?? el).getBoundingClientRect();
       return r.width > 0 && r.height > 0;
     };
-    const out: Control[] = [];
+    const out: Omit<Control, "tab">[] = [];
     [...scope.querySelectorAll("select")].forEach((el, nth) => {
       if (!shown(el)) return;
       const opts = [...el.options].filter((o) => !o.disabled);
@@ -220,11 +244,13 @@ async function controlsOn(page: Page): Promise<Control[]> {
     });
     return out;
   });
+  return found.map((c) => ({ ...c, tab }));
 }
 
-/** The same control after a reload: same kind, same place, same label — or it is not the same control. */
+/** The same control after a reload: same kind, same place, same label, on the same tab — or it is not the same control. */
 async function find(page: Page, was: Control): Promise<Control | null> {
-  const now = await controlsOn(page);
+  await openTab(page, was.tab);
+  const now = await controlsOn(page, was.tab);
   const hit = now.find((c) => c.kind === was.kind && (was.kind === "radio" ? c.radios[0] === was.radios[0] : c.nth === was.nth));
   return hit && hit.label === was.label ? hit : null;
 }
@@ -564,9 +590,14 @@ async function crawl(page: Page, context: BrowserContext, baseURL: string, run: 
       await page.goto(path, { waitUntil: "domcontentloaded" });
       await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
       if (new URL(page.url()).pathname !== path) continue;
-      const here = (await controlsOn(page)).filter((c) => !c.disabled && c.choices.length > 1);
+      // Every tab of a tabbed screen, each opened by a tap before its controls are read.
+      const here: Control[] = [];
+      for (const t of await tabsOn(page)) {
+        await openTab(page, t);
+        here.push(...(await controlsOn(page, t)).filter((c) => !c.disabled && c.choices.length > 1));
+      }
       for (const c of here) {
-        const key = `${path}|${c.kind}|${c.label}|${c.choices.length}`;
+        const key = `${screenOf(path, c)}|${c.kind}|${c.label}|${c.choices.length}`;
         if (done.has(key)) continue;
         // Another machine has this one: see `E2E_CRAWL_PART`.
         if (run.inParts && !inThisPart(key)) continue;
@@ -596,9 +627,9 @@ async function crawl(page: Page, context: BrowserContext, baseURL: string, run: 
           const choiceName = c.choiceLabels[c.choices.indexOf(pick)] ?? pick;
           // One line a choice: a thrown error's message has newlines and tabs in it.
           const flat = (s: string) => s.replace(/\s+/g, " ").trim();
-          appendFileSync(LOG, [result.outcome, event.slug, path, c.kind, flat(c.label), flat(choiceName), flat(result.note)].join("\t") + "\n");
+          appendFileSync(LOG, [result.outcome, event.slug, screenOf(path, c), c.kind, flat(c.label), flat(choiceName), flat(result.note)].join("\t") + "\n");
           if (FINDINGS.has(result.outcome)) {
-            findings.push(`${result.outcome.toUpperCase()} · ${event.slug} ${path} · ${c.label || c.kind} → ${choiceName}${result.note ? ` · ${result.note}` : ""}`);
+            findings.push(`${result.outcome.toUpperCase()} · ${event.slug} ${screenOf(path, c)} · ${c.label || c.kind} → ${choiceName}${result.note ? ` · ${result.note}` : ""}`);
           }
           // Put it back, so the next control meets the tournament as it was.
           if (result.outcome === "kept" || result.outcome === "lost") {

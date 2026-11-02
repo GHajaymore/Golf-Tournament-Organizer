@@ -232,7 +232,8 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // Not "they agree" — they agree by construction now. What this refuses is
     // a future caller re-deriving the subtraction inline, which is exactly how
     // the three readers drifted apart in the first place.
-    const card = readSource("src/app/(app)/foursomes/page.tsx");
+    // The printed card is built in the Print kit's service since 2026-10-23.
+    const card = readSource("src/lib/services/print-kit.ts");
     const entry = readSource("src/app/(app)/entry/page.tsx");
     for (const src of [card, entry]) {
       expect(src).toMatch(/matchStrokesPerHole\(/);

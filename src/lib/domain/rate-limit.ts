@@ -43,11 +43,14 @@
  * actually threatens a round code, and it wants a different control.
  */
 
+import { EMAIL_CODE_WORDS } from "./email-code";
+
 /** The throttled entry points. One budget per kind, per identifier. */
 export type RateLimitKind =
   | "signin"
   | "claim-password"
   | "password-reset"
+  | "email-code-send"
   | "round-code"
   | "discount-check"
   | "register-token"
@@ -77,6 +80,11 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  bomb somebody's inbox and burn the sending domain's reputation, so the
    *  window is longer even though the limit is the same. */
   "password-reset": { limit: 5, windowMs: 60 * MINUTE },
+  /** A six-digit code sent to prove an address (`services/email-code.ts`),
+   *  keyed on the address. It sends mail to whoever owns it, so three in
+   *  fifteen minutes: a person who asked twice and then once more. Each code
+   *  takes five tries, so this also caps guessing at fifteen in the window. */
+  "email-code-send": { limit: 3, windowMs: 15 * MINUTE },
   /** Round codes are typed off a printed card by people standing on a tee in
    *  the rain, so the allowance is deliberately roomier than a password's —
    *  ten wrong entries is a group that needs to ask, not an attack. It still
@@ -319,6 +327,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many attempts. Try again in ${wait}.`;
     case "password-reset":
       return `Too many reset requests. Try again in ${wait}.`;
+    case "email-code-send":
+      return EMAIL_CODE_WORDS.tooManySends(wait);
     case "round-code":
       return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
     case "discount-check":

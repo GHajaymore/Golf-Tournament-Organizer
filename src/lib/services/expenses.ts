@@ -12,11 +12,11 @@ import {
   type Expense as DomainExpense,
   type Net,
 } from "../domain/expenses";
-import { settle, type Transfer } from "../domain/money";
+import { potCents as potCentsOf, settle, type Transfer } from "../domain/money";
 import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
 import { resolveMoneyMode, sharedCostsApply, moneyScreenApplies } from "../domain/money-mode";
-import { roundMoneyIsFinal } from "../domain/money-layout";
+import { paysWhen, roundMoneyIsFinal } from "../domain/money-layout";
 import { sharedBallRound } from "../domain/shared-ball";
 import { roundLabel } from "../domain/round-label";
 import { potMembership, isPotEntryMode } from "../domain/pot-entry";
@@ -38,7 +38,7 @@ import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domai
 import { matchIsOver } from "../domain/match";
 import { nassauIsDecided } from "../domain/nassau";
 import { roundCard } from "./course-resolution";
-import { holeStrokesReceived, allocationHoles } from "../domain";
+import { strokesReceivedOnHolesPlayed } from "../domain";
 import { roundStrokes } from "./round-cards";
 import { holesPlayed } from "../domain/handicap";
 import { canAddExpense, resolveExpenseEntry } from "../domain/expense-entry";
@@ -571,7 +571,7 @@ function anyNotStarted(
 async function gameNets(
   eventId: string,
   onlyStageId?: string,
-): Promise<{ nets: Net[]; nassauNets: Net[]; lines: GameLine[]; pots: Array<{ gameId: string; nets: Net[] }> }> {
+): Promise<{ nets: Net[]; nassauNets: Net[]; lines: GameLine[]; pots: SidePotOutcome[] }> {
   /**
    * TWO lists, because a withdrawal separates two questions.
    *
@@ -609,7 +609,7 @@ async function gameNets(
    */
   const nassauTotals = new Map<string, number>();
   // Each card-settled pot's own outcome, as it is added in — see `sidePotResults`.
-  const sidePots: Array<{ gameId: string; nets: Net[] }> = [];
+  const sidePots: SidePotOutcome[] = [];
   /**
    * The itemised half.
    *
@@ -894,7 +894,11 @@ async function gameNets(
             .filter((b) => !inBet || [...b.sideA, ...b.sideB].every((id) => inBet.has(id)));
         };
 
-        if (game.kind === "nassau") {
+        // When this game may pay — `SIDE_GAME_PAYS`, the one table. The two
+        // match bets pay as each bet is decided; every pot waits for the round.
+        const pays = paysWhen(game.kind);
+
+        if (pays === "as-each-bet-is-decided" && game.kind === "nassau") {
           // Every match in the round, at the same stake — how a club calls one.
           for (const n of nassauLedger(await sideBets())) {
             add(n.playerId, n.netCents);
@@ -919,12 +923,12 @@ async function gameNets(
          * by holes nobody is going to play. Withholding a settled result is
          * the opposite failure and just as wrong.
          */
-        if (game.kind === "match") {
+        if (pays === "as-each-bet-is-decided" && game.kind === "match") {
           for (const n of matchBetLedger(await sideBets())) add(n.playerId, n.netCents);
           continue;
         }
 
-        if (!isDerivedKind(game.kind)) continue;
+        if (!isDerivedKind(game.kind) || pays !== "when-the-round-is-final") continue;
 
         /**
          * A HALF-PLAYED POT IS NOT A RESULT — the derived half of the rule the
@@ -1020,13 +1024,7 @@ async function gameNets(
             // Strokes received over the holes actually played, from the same
             // resolver the board totals with.
             const playing = state.strokeHandicapFor(c.playerId, c.stageId);
-            const alloc = allocationHoles(holes);
-            let received = 0;
-            for (let i = 0; i < holes; i += 1) {
-              const s = strokes[i];
-              if (typeof s !== "number" || s <= 0) continue;
-              received += holeStrokesReceived(playing, course.strokeIndex[i] ?? 18, alloc);
-            }
+            const received = strokesReceivedOnHolesPlayed(playing, strokes, course.strokeIndex, holes);
             return { playerId: c.playerId, strokes, strokesReceived: received };
           });
 
@@ -1037,7 +1035,13 @@ async function gameNets(
           cards: potCards,
           pars,
         });
-        sidePots.push({ gameId: game.id, nets: potNets });
+        sidePots.push({
+          gameId: game.id,
+          nets: potNets,
+          entrants: entrantIds.length,
+          entrantIds,
+          potCents: potCentsOf(game.buyInCents, entrantIds.length),
+        });
         for (const n of potNets) {
           add(n.playerId, n.netCents);
         }
@@ -1104,6 +1108,32 @@ async function gameNets(
 export async function sidePotResults(eventId: string, stageId: string): Promise<Map<string, Net[]>> {
   const { pots } = await gameNets(eventId, stageId);
   return new Map(pots.map((p) => [p.gameId, p.nets]));
+}
+
+/**
+ * One card-settled pot once it is final: what it paid, and who was IN it.
+ *
+ * `nets` leaves out anybody whose share came to exactly their stake (a net of
+ * nought), and is EMPTY when nobody won and every stake went back — so neither
+ * its length nor its absence says who was in the pot. The tournament report
+ * read it as both until 2026-10-23: a birdie pot of five with three players
+ * taking back exactly their stake read "2 in: a $10 pot", and a pot nobody won
+ * was left out of the report altogether.
+ */
+export interface SidePotOutcome {
+  gameId: string;
+  nets: Net[];
+  /** Everyone the pot charged — the people who put the stake in. */
+  entrants: number;
+  /** Who they are, so a reader naming who made a two need not guess it from `nets`. */
+  entrantIds: string[];
+  /** What was in it: `potCents(stake, entrants)`. */
+  potCents: number;
+}
+
+export async function sidePotOutcomes(eventId: string, stageId: string): Promise<Map<string, SidePotOutcome>> {
+  const { pots } = await gameNets(eventId, stageId);
+  return new Map(pots.map((p) => [p.gameId, p]));
 }
 
 /**
@@ -1507,7 +1537,7 @@ export async function moneyFor(
           buyInCents: g.buyInCents,
           // The cash collected, never the number of names — `entrants` is
           // what potMembership counts as settled, so this stays true to that.
-          potCents: g.buyInCents * membership.entrants.length,
+          potCents: potCentsOf(g.buyInCents, membership.entrants.length),
           entrants: membership.entrants.length,
           youIn: !!me && (membership.entrants.includes(me.id) || membership.pending.includes(me.id)),
           youConfirmed: !!me && membership.entrants.includes(me.id),
@@ -1540,7 +1570,7 @@ export async function moneyFor(
               help: "Low score wins the hole. Ties carry to the next one.",
               buyInCents: p.buyInCents,
               // The cash collected, never the number of names.
-              potCents: p.buyInCents * confirmed.length,
+              potCents: potCentsOf(p.buyInCents, confirmed.length),
               entrants: confirmed.length,
               youIn: !!mine,
               youConfirmed: !!mine?.confirmed,

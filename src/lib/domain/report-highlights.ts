@@ -34,6 +34,14 @@ export interface HighlightCard {
   name: string;
   /** One entry per hole of the round as played, null where nothing is written. */
   strokes: ReadonlyArray<number | null>;
+  /**
+   * A Stableford hole the player PICKED UP on (2026-10-23). The card stores a
+   * pick-up as a net double bogey — no points, and the card still complete —
+   * so its figure is not a score anybody holed out in. It is left out of every
+   * card fact and every hole's average: "the hardest hole" is not the one most
+   * people walked off.
+   */
+  pickedUp?: ReadonlyArray<boolean>;
 }
 
 export interface HighlightRound {
@@ -141,7 +149,13 @@ function best<T>(items: T[], better: (a: T, b: T) => number): T[] {
   return out;
 }
 
-export function reportHighlights(rounds: ReadonlyArray<HighlightRound>): ReportHighlights {
+export function reportHighlights(asReturned: ReadonlyArray<HighlightRound>): ReportHighlights {
+  // A picked-up hole is a hole with no score in it, for every fact below; the
+  // card it is on is still a returned card (counted off `asReturned`).
+  const rounds: HighlightRound[] = asReturned.map((r) => ({
+    ...r,
+    cards: r.cards.map((c) => (c.pickedUp ? { ...c, strokes: c.strokes.map((s, i) => (c.pickedUp?.[i] ? null : s)) } : c)),
+  }));
   const aces: Feat[] = [];
   const eagles: Feat[] = [];
   let birdies = 0;
@@ -184,10 +198,12 @@ export function reportHighlights(rounds: ReadonlyArray<HighlightRound>): ReportH
   const longest = Math.max(0, ...stroke.map((r) => r.holes));
   const totals: Array<Holder & { score: number }> = [];
   let cards = 0;
+  for (const r of asReturned.filter((x) => x.strokePlay)) {
+    for (const card of r.cards) if (complete(card, r.holes)) cards += 1;
+  }
   for (const r of stroke) {
     for (const card of r.cards) {
       if (!complete(card, r.holes)) continue;
-      cards += 1;
       if (r.holes === longest) {
         totals.push({ name: card.name, round: r.label, score: sum(card.strokes.slice(0, r.holes) as number[]) });
       }
@@ -264,22 +280,32 @@ export function reportHighlights(rounds: ReadonlyArray<HighlightRound>): ReportH
     mostOnACard.length && mostOnACard[0].count >= 2
       ? { count: mostOnACard[0].count, holders: mostOnACard.map(({ name, round }) => ({ name, round })) }
       : null;
+  /**
+   * ROUNDS THAT HAVE BEEN PLAYED, which is not the rounds that exist
+   * (walked 2026-10-23). A league of seven weeks with four played reported
+   * "0 played every round": every member was charged the three weeks nobody
+   * has reached. A round with no card on it has not happened yet.
+   */
+  const played = rounds.filter((r) => r.cards.some((c) => c.strokes.some(isStroke)));
   const across = best([...birdiesBy.values()], (a, b) => b.count - a.count);
   const mostBirdies =
-    rounds.length > 1 && across.length && across[0].count >= 2
+    played.length > 1 && across.length && across[0].count >= 2
       ? { count: across[0].count, names: across.map((a) => a.name) }
       : null;
 
   // ── Played every round ────────────────────────────────────────────────────
   let everyRound: number | null = null;
-  if (stroke.length > 1) {
+  const strokePlayed = stroke.filter((r) => played.includes(r));
+  if (strokePlayed.length > 1) {
     const seen = new Map<string, number>();
-    for (const r of stroke) {
-      for (const id of new Set(r.cards.filter((c) => complete(c, r.holes)).map((c) => c.playerId))) {
+    for (const r of strokePlayed) {
+      // A returned card, pick-ups and all.
+      const card = asReturned[rounds.indexOf(r)] ?? r;
+      for (const id of new Set(card.cards.filter((c) => complete(c, r.holes)).map((c) => c.playerId))) {
         seen.set(id, (seen.get(id) ?? 0) + 1);
       }
     }
-    everyRound = [...seen.values()].filter((n) => n === stroke.length).length;
+    everyRound = [...seen.values()].filter((n) => n === strokePlayed.length).length;
   }
 
   // ── The hardest and easiest holes, by strokes over par on average ─────────

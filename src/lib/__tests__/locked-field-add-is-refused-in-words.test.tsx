@@ -46,7 +46,7 @@ const reg = async (locked: boolean) => {
         // the Close button), the state in which the banner offers "add below".
         registrationOverride: true, inviteMessage: "", organizationName: "zz-Club",
         dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
-        requirePhone: false, phoneLocked: false, registrationToken: "",
+        requirePhone: false, registrationToken: "",
       }} />,
   );
 };

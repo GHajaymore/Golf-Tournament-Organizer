@@ -232,6 +232,28 @@ export function minorUnitsFrom(
   return Math.round((negative ? -n : n) * 10 ** digits);
 }
 
+/**
+ * WHAT TO SAY ABOUT A MONEY BOX BEFORE IT IS SENT, or null when it will do.
+ *
+ * `minorUnitsFrom` gives 0 for a box with no figure in it, and 0 for a figure
+ * too long to be a number at all — never NaN, by design, so a caller that must
+ * REFUSE has to ask (CLAUDE.md). Three boxes did not: a skins buy-in of "abc",
+ * a cup's "Points to win" of "abc" and a buy-in of four hundred nines each
+ * saved as nothing, and nothing was said (the text-box crawl, 2026-10-21).
+ * `cents` is what the screen's own reader made of `text`; `maxCents` is the
+ * ceiling its action holds the figure to.
+ */
+export function moneyBoxRefusal(text: string, cents: number, maxCents: number): string | null {
+  const typed = String(text ?? "");
+  if (!/\d/.test(typed)) return "Enter the amount as a figure, like 5 or 12.50 — or 0 for none.";
+  if (!Number.isFinite(cents) || cents < 0) return "The amount can't be less than nothing.";
+  // Past fifteen digits the figure is not a number JavaScript can hold, and the
+  // reader has already made it 0: it is the largest figure, not the smallest.
+  const significant = typed.replace(/\D/g, "").replace(/^0+/, "");
+  if (cents > maxCents || significant.length > 15) return "That amount is too large to record.";
+  return null;
+}
+
 /** The mark a locale writes a decimal with — asked only for a three-decimal currency. */
 function decimalMarkOf(locale: string): string {
   try {

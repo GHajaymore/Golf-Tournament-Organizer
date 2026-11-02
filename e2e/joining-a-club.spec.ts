@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { openSettingsTab } from "./settings-tabs";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
@@ -146,6 +147,9 @@ test("two newcomers ask to join a club that exists; the secretary adds one and d
     await signIn(page, baseURL!, cookies.owner, ids.event);
     await page.goto(`/organization?bust=${Date.now()}`);
     await page.waitForLoadState("networkidle").catch(() => {});
+    // Two people waiting: the Staff & access tab says so before it is opened.
+    await expect(page.getByRole("tab", { name: /^Staff & access \(2 waiting\)/ }), "the tab does not say two people are waiting").toBeVisible();
+    await openSettingsTab(page, "Staff & access");
     await expect(page.getByText("I run the Thursday draw with Dana", { exact: false })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Ladies' captain", { exact: false })).toBeVisible();
 

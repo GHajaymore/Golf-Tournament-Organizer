@@ -17,7 +17,7 @@
  * be worse still — the app is not a house.
  */
 
-import { splitExactly } from "./money";
+import { potCents, splitExactly } from "./money";
 import { playNassau } from "./nassau";
 import { resolveMatch } from "./match";
 import type { HoleResult } from "./types";
@@ -157,10 +157,10 @@ export function derivedNets(pot: DerivedPot): Net[] {
 
   const totals = new Map<string, number>();
   for (const id of entrants) totals.set(id, -stake);
-  const potCents = stake * entrants.length;
+  const inThePot = potCents(stake, entrants.length);
 
   const pay = (ids: string[], weights: number[]) => {
-    const shares = splitExactly(potCents, weights);
+    const shares = splitExactly(inThePot, weights);
     ids.forEach((id, i) => totals.set(id, (totals.get(id) ?? 0) + shares[i]));
   };
 

@@ -16,14 +16,10 @@ import { DEFAULT_PLAN, featureAllowed, METERED_FEATURES, type FeatureKey } from 
  * whole of turning them on. See the features block there.
  */
 
-/** The plan key for one organization, defaulting to free when there's no row. */
-export async function planForOrganization(organizationId: string): Promise<string> {
-  const sub = await prisma.subscription.findUnique({
-    where: { organizationId },
-    select: { plan: true },
-  });
-  return sub?.plan ?? DEFAULT_PLAN;
-}
+// `planForOrganization` and `planForEvent` lived here — a club's bare plan key
+// — and were deleted on 2026-10-21: their last callers were the free plan's
+// forced mobile, which the decisions review (A7) retired. A gate asks
+// `organizationAllows` below, never a plan key it fetched itself.
 
 /**
  * MAY THIS CLUB DO THIS? The one question, and the one place it is answered.
@@ -36,8 +32,7 @@ export async function planForOrganization(organizationId: string): Promise<strin
  * another is worse than no override at all. A club told it has the honours
  * board, on a screen that then shows nothing, has been lied to twice.
  *
- * No row means the free tier, which is what `planForOrganization` already
- * says. A club with no subscription row and an override is not a state that
+ * No row means the free tier (`DEFAULT_PLAN`). A club with no subscription row and an override is not a state that
  * exists — the override lives ON the subscription.
  */
 export async function organizationAllows(
@@ -50,16 +45,6 @@ export async function organizationAllows(
   });
   // No row is grandfathered, like a row that predates the terms.
   return featureAllowed(sub?.plan ?? DEFAULT_PLAN, sub?.featureOverrides, feature, sub?.planTermsApply === true);
-}
-
-/** The plan key for the club that owns an event. */
-export async function planForEvent(eventId: string): Promise<string> {
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { organizationId: true },
-  });
-  if (!event) return DEFAULT_PLAN;
-  return planForOrganization(event.organizationId);
 }
 
 export interface Entitlement {
@@ -83,7 +68,7 @@ export async function entitlementForEvent(
   /**
    * THE CLUB, not the plan key, because a club's exceptions are the club's.
    *
-   * This read `hasFeature(planForEvent(...))`, which answers from the tier
+   * This read `hasFeature(planForEvent(...))` (since deleted), which answers from the tier
    * alone — so a club grandfathered into a feature would have been allowed it
    * everywhere `organizationAllows` is asked and refused it everywhere this
    * is, which is four of the app's gates. One question, one answer.

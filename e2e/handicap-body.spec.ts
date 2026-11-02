@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { openSettingsTab } from "./settings-tabs";
 
 /**
  * A CLUB'S HANDICAP BODY FOLLOWS WHERE THE CLUB IS — ON EVERY SCREEN THAT NAMES IT.
@@ -76,6 +77,7 @@ test("a club's handicap body follows its country on Club settings, Members and E
         await prisma.organization.update({ where: { id: clubId }, data: { country: place.country, handicapPolicy: "club", handicapAuthorityId: "ghin" } });
 
         await open(page, "/organization");
+        await openSettingsTab(page, "Handicaps");
         const panel = page.locator("section.card", { has: page.locator(".card-title", { hasText: /^Handicaps$/ }) }).first();
         await expect(panel, "Club settings has no Handicaps panel").toBeVisible();
         await expect(panel).toContainText(`Handicap body: ${place.name}`);

@@ -17,14 +17,17 @@ const prisma = new PrismaClient();
 const RUN = Date.now().toString(36);
 const EMAIL = `zz-interest-${RUN}@example.invalid`;
 
-const sent: Array<{ to: string; who: { name: string; club: string; role: string } }> = [];
+const sent: Array<{ to: string; told: string; who: { name: string; club: string; role: string } }> = [];
 vi.mock("@/lib/email", () => ({
-  sendInterestEmail: async (to: string, who: { name: string; club: string; role: string }) => {
-    sent.push({ to, who });
+  sendInterestEmail: async (to: string, told: string, who: { name: string; club: string; role: string }) => {
+    sent.push({ to, told, who });
+    return { id: `zz-msg-${sent.length}`, status: "sent", detail: "" };
   },
 }));
 
 const { registerInterest } = await import("@/app/actions/interest");
+const { interestWords } = await import("@/lib/go-live");
+const { launchState } = await import("@/lib/services/signins-switch");
 
 const good = { name: "Zz Pat", email: EMAIL, club: "Zz Oakmere GC", role: "secretary", members: "50-150", note: "Thursday draw" };
 
@@ -50,6 +53,30 @@ describe("registerInterest", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toBe("inquiries@tourneyhq.club");
     expect(sent[0].who.role).toBe("Club secretary or manager");
+    // What they were promised is the go-live switch's, asked on the server: this deployment's.
+    expect(sent[0].told).toBe(interestWords(await launchState()).toldInquiries);
+    // Where the copy went is kept on the note, so /owner can say it.
+    expect(rows[0]).toMatchObject({ notifyId: "zz-msg-1", notifyStatus: "sent" });
+    expect(rows[0].notifyAt).not.toBeNull();
+  });
+
+  // ImprovMX refused a copy over the provider's shared address being on a
+  // spam list (27 Oct), so production names a mailbox past it (2026-10-30).
+  it("sends the copy to INTEREST_NOTIFY_TO when it names an address, and to inquiries@ when it does not", async () => {
+    const before = process.env.INTEREST_NOTIFY_TO;
+    try {
+      process.env.INTEREST_NOTIFY_TO = "zz-owner-inbox@example.invalid";
+      const one = `zz-interest-to1-${RUN}@example.invalid`;
+      expect((await registerInterest({ ...good, email: one })).ok).toBe(true);
+      expect(sent.at(-1)?.to).toBe("zz-owner-inbox@example.invalid");
+      // The control: a value that is not an address falls back, never sends nowhere.
+      process.env.INTEREST_NOTIFY_TO = "not an address";
+      expect((await registerInterest({ ...good, email: `zz-interest-to2-${RUN}@example.invalid` })).ok).toBe(true);
+      expect(sent.at(-1)?.to).toBe("inquiries@tourneyhq.club");
+    } finally {
+      if (before === undefined) delete process.env.INTEREST_NOTIFY_TO;
+      else process.env.INTEREST_NOTIFY_TO = before;
+    }
   });
 
   it("refuses a bad address beside its box, and keeps nothing", async () => {

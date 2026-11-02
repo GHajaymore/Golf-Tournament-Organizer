@@ -90,7 +90,7 @@ beforeAll(async () => {
   stageId = stage.id;
 
   const boss = await prisma.user.create({
-    data: { email: `${TAG}.boss@example.invalid`.toLowerCase(), name: "boss", password: "x" },
+    data: { email: `${TAG}.boss@example.invalid`.toLowerCase(), name: "boss", password: "x", emailVerifiedAt: new Date() },
   });
   organizerUserId = boss.id;
   await prisma.account.create({

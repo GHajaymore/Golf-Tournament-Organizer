@@ -154,7 +154,7 @@ beforeAll(async () => {
   // The people. A session belongs to a User; what they may do in this event
   // comes from the Account row, which is the grant the actions read.
   for (const who of ["player", "loser", "assistant", "organizer"]) {
-    const user = await prisma.user.create({ data: { email: at(who), name: who, password: "x" } });
+    const user = await prisma.user.create({ data: { email: at(who), name: who, password: "x", emailVerifiedAt: new Date() } });
     userIds[who] = user.id;
   }
   await prisma.account.createMany({

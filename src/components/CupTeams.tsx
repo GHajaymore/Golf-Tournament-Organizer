@@ -4,6 +4,7 @@ import { createCupTeams, renameCupTeam, setCupPlayerTeam } from "@/app/actions/c
 import { setFlightCaptain } from "@/app/actions/attendance";
 import { useAction } from "./useAction";
 import { indexLabel } from "@/lib/domain/handicap-label";
+import { TEAM_NAME_MAX } from "@/lib/domain/typed-limits";
 
 interface Person {
   id: string;
@@ -52,11 +53,11 @@ export function CreateCupTeams() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
         <div className="field">
           <label htmlFor="cup-team-a">First team</label>
-          <input id="cup-team-a" className="input" value={a} placeholder="e.g. Blues" onChange={(e) => setA(e.target.value)} />
+          <input id="cup-team-a" className="input" value={a} maxLength={TEAM_NAME_MAX} placeholder="e.g. Blues" onChange={(e) => setA(e.target.value)} />
         </div>
         <div className="field">
           <label htmlFor="cup-team-b">Second team</label>
-          <input id="cup-team-b" className="input" value={b} placeholder="e.g. Whites" onChange={(e) => setB(e.target.value)} />
+          <input id="cup-team-b" className="input" value={b} maxLength={TEAM_NAME_MAX} placeholder="e.g. Whites" onChange={(e) => setB(e.target.value)} />
         </div>
       </div>
       <div>
@@ -114,12 +115,30 @@ function TeamCard({ team, unplaced, busy }: { team: Team; unplaced: Person[]; bu
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div className="field" style={{ flex: "1 1 140px", minWidth: 0, margin: 0 }}>
           <label htmlFor={`cup-name-${team.id}`}>Team name</label>
-          <input id={`cup-name-${team.id}`} className="input" value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            id={`cup-name-${team.id}`}
+            className="input"
+            value={name}
+            maxLength={TEAM_NAME_MAX}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
-        {renamed && (
-          <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => run(() => renameCupTeam(team.id, name))}>
-            Save name
-          </button>
+        {/* Always there, and pressable only when there is a new name to save: it
+            used to appear only then, so an emptied box had no button at all and
+            nothing said why. The press beside the box is now this one, and the
+            line below says why it will not go (the text-box crawl, 2026-10-21). */}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={pending || !renamed}
+          onClick={() => run(() => renameCupTeam(team.id, name))}
+        >
+          Save name
+        </button>
+        {!name.trim() && (
+          <p role="alert" className="form-error" style={{ margin: 0, flexBasis: "100%" }}>
+            A team needs a name. Type one to save it.
+          </p>
         )}
       </div>
 

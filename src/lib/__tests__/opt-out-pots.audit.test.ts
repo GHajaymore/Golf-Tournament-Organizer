@@ -120,7 +120,7 @@ beforeAll(async () => {
       data: { eventId, name: `${TAG} ${who}`, email: at(who), seed: i + 1, status: "confirmed" },
     });
     player[who] = p.id;
-    const u = await prisma.user.create({ data: { email: at(who), name: who, password: "x" } });
+    const u = await prisma.user.create({ data: { email: at(who), name: who, password: "x", emailVerifiedAt: new Date() } });
     userIds[who] = u.id;
     // Sam is a player; the organizer runs the pot.
     await prisma.account.create({

@@ -39,10 +39,17 @@ const SCORE_ACTIONS = [
 ];
 const ROUND_ACTIONS = [
   "round-closed", "cut-applied", "regenerate-flights", "play-suspended", "play-resumed",
+  // Who won the play-off or the draw for the last place at a cut.
+  "cut-tie-settled",
   // Round-day set-up: where the holes are cut, and the time allowed.
   "pin-sheet", "pace-set",
 ];
-const SETTINGS_ACTIONS = ["rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on"];
+const SETTINGS_ACTIONS = [
+  "rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on",
+  // Who may read the final report, who sees its amounts, and a player's name
+  // withheld from public pages (2026-10-24).
+  "report.settings", "player.public-name",
+];
 
 export function changeKind(action: string): ChangeKind {
   const a = action.trim();

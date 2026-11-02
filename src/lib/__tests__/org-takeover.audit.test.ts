@@ -111,7 +111,7 @@ beforeAll(async () => {
   orphanEventId = orphanEvent.id;
 
   for (const who of ["owner", "guest", "legacy"]) {
-    const user = await prisma.user.create({ data: { email: at(who), name: who, password: "x" } });
+    const user = await prisma.user.create({ data: { email: at(who), name: who, password: "x", emailVerifiedAt: new Date() } });
     userIds[who] = user.id;
   }
 

@@ -5,21 +5,25 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
 import { watchPageErrors } from "./page-errors";
 
 /**
- * A CODE-SCORED TOURNAMENT ON THE FREE PLAN TAKES A PLAYER WITHOUT A MOBILE,
- * AND ITS ROUNDS ARE NUMBERED DOWN THE SCREEN.
+ * A FREE CLUB'S TOURNAMENT TAKES A PLAYER WITHOUT A MOBILE UNLESS ITS
+ * ORGANIZER ASKS FOR ONE, AND ITS ROUNDS ARE NUMBERED DOWN THE SCREEN.
  *
  * Both found setting up a real two-team cup on 2026-10-17:
  *
  *   - the free plan asked a mobile of every entrant, and refused thirteen
- *     guests whose players would only ever use the round code. Since that day
- *     a tournament whose players sign in with codes asks for none (Ajay:
- *     "I dont understand why we need mobile number of other players");
+ *     guests whose players would only ever use the round code. That day a
+ *     tournament whose players sign in with codes stopped asking (Ajay:
+ *     "I dont understand why we need mobile number of other players"); since
+ *     2026-10-21 (decisions review A7) no tournament on any plan asks unless
+ *     its organizer ticks "Require a mobile number", and one that does asks
+ *     whatever the sign-in;
  *   - the team-cup template made three sessions, the organizer removed the
  *     middle one, and Rounds & formats went on calling the last "Round 3"
  *     because it read the stored position, which keeps the gap.
  *
  *   added by name and handicap alone, code tournament  → in the field
- *   CONTROL: the same club's EMAIL tournament           → refused for the mobile
+ *   the same club's EMAIL tournament, given an email   → in the field (A7)
+ *   CONTROL: the code tournament once it asks          → "· required", Add waits
  *   rounds stored at positions 0 and 2                  → "Round 1", "Round 2"
  *
  * Its own club on the free plan, two tournaments, invented names, deleted
@@ -99,7 +103,7 @@ async function fillNew(page: import("@playwright/test").Page, name: string, emai
   await page.getByLabel("Handicap", { exact: true }).fill("12");
 }
 
-test("a free club's code tournament takes a player with no mobile; its email tournament does not", async ({ page, baseURL }) => {
+test("a free club's tournaments take a player with no mobile, code or email, until the organizer asks for one", async ({ page, baseURL }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   watchPageErrors(page, errors);
@@ -116,15 +120,33 @@ test("a free club's code tournament takes a player with no mobile; its email tou
     })
     .toBe(1);
 
-  // CONTROL: the same club, a tournament signing players in by email, still asks.
-  // Given an email, so the mobile is the ONLY thing missing — refused for the
-  // address instead, this would pass whatever the rule said.
+  // The same club, a tournament signing players in by email: since A7 it does
+  // not ask either. Given an email, so the mobile is the ONLY thing missing.
   await as(page, baseURL!, ids.email);
   await fillNew(page, "Zz Guest Mailer", `${MARK}-mailer@example.invalid`);
-  await expect(page.getByText(/Mobile\s*·\s*required/)).toBeVisible();
-  // The form will not even send it without the mobile.
-  await expect(page.getByRole("button", { name: "Add to field" })).toBeDisabled();
-  expect(await prisma.player.count({ where: { eventId: ids.email, name: "Zz Guest Mailer" } }), "the email tournament let a player in without a mobile").toBe(0);
+  await expect(page.getByText(/Mobile\s*·\s*required/)).toHaveCount(0);
+  await page.getByRole("button", { name: "Add to field" }).click();
+  await expect
+    .poll(() => prisma.player.count({ where: { eventId: ids.email, name: "Zz Guest Mailer" } }), {
+      timeout: 15_000,
+      message: "an email tournament on the free plan refused a player for having no mobile",
+    })
+    .toBe(1);
+
+  // CONTROL: once the organizer asks, the code tournament asks too — the rule
+  // is the setting, whatever the sign-in. Without this, a form that never asked
+  // anybody would pass both cases above.
+  await prisma.event.update({ where: { id: ids.code }, data: { requirePhone: true } });
+  try {
+    await as(page, baseURL!, ids.code);
+    await fillNew(page, "Zz Guest Asked");
+    await expect(page.getByText(/Mobile\s*·\s*required/)).toBeVisible();
+    // The form will not even send it without the mobile.
+    await expect(page.getByRole("button", { name: "Add to field" })).toBeDisabled();
+    expect(await prisma.player.count({ where: { eventId: ids.code, name: "Zz Guest Asked" } }), "a tournament that asks let a player in without a mobile").toBe(0);
+  } finally {
+    await prisma.event.update({ where: { id: ids.code }, data: { requirePhone: false } });
+  }
   expect(errors).toEqual([]);
 });
 

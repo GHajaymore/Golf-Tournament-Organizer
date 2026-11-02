@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { assertEventWritable } from "@/lib/services/club-archive";
 import { loadEventState, computeHighlights } from "@/lib/services/tournament";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { askClaude } from "@/lib/services/claude";
@@ -10,6 +11,7 @@ async function requireStaff() {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   if (session.role !== "admin" && session.role !== "assistant") throw new Error("Organizer access required");
+  await assertEventWritable(session.eventId);
   return session;
 }
 

@@ -18,6 +18,8 @@ import {
   generateTeamMatches,
 } from "@/app/actions/teams";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { bringIntoView } from "@/lib/bring-into-view";
+import { SIDE_NAME_MAX } from "@/lib/domain/typed-limits";
 
 export interface TeamMemberRow {
   playerId: string;
@@ -118,6 +120,8 @@ export function TeamsClient({
   league?: boolean;
 }) {
   const { pending, error, setError, run, startTransition } = useAction();
+  /** A side's rename refused, said under that side's name. */
+  const [nameSaid, setNameSaid] = useState<{ id: string; text: string } | null>(null);
   const saveStatus = useSaveStatus(pending);
   /** Anything that changes a side: waiting on a save, or setup locked. */
   const busy = pending || locked;
@@ -302,6 +306,7 @@ export function TeamsClient({
             id="teams-new-name"
             className="input"
             value={newName}
+            maxLength={SIDE_NAME_MAX}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="e.g. The Slicers"
             onKeyDown={(e) => {
@@ -422,16 +427,27 @@ export function TeamsClient({
                   className="input card-title"
                   aria-label={`Name of ${t.name}`}
                   defaultValue={t.name}
+                  maxLength={SIDE_NAME_MAX}
                   disabled={pending}
-                  style={{ fontSize: 14, flex: 1, minHeight: 44, padding: "4px 8px" }}
+                  style={{ fontSize: 14, flex: 1, minWidth: 0, minHeight: 44, padding: "4px 8px" }}
                   onKeyDown={leaveOnEnter}
                   onBlur={(e) => {
-                    const next = e.target.value.trim();
+                    const box = e.target;
+                    const next = box.value.trim();
+                    setNameSaid(null);
                     if (!next || next === t.name) {
-                      e.target.value = t.name;
+                      box.value = t.name;
                       return;
                     }
-                    run(() => renameTeam(t.id, next));
+                    // A refusal is said under THIS side's name, not at the head of the
+                    // screen, and the box goes back to the name it has.
+                    startTransition(async () => {
+                      const res = await renameTeam(t.id, next);
+                      if (!res.ok) {
+                        setNameSaid({ id: t.id, text: res.error ?? "That name didn't save." });
+                        box.value = t.name;
+                      }
+                    });
                   }}
                 />
                 {/* Says what the number IS. It rendered as a bare "14" beside
@@ -449,6 +465,11 @@ export function TeamsClient({
                   onConfirm={() => run(() => deleteTeam(t.id))}
                 />
               </div>
+              {nameSaid?.id === t.id && (
+                <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
+                  {nameSaid.text}
+                </p>
+              )}
 
               {t.members.length === 0 ? (
                 <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>Nobody on this side yet.</p>

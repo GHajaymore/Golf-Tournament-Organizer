@@ -95,7 +95,7 @@ beforeAll(async () => {
         select: { id: true },
       })
     ).id;
-    userIds[who] = (await prisma.user.create({ data: { email: at(who), name: who, password: "x:unusable" }, select: { id: true } })).id;
+    userIds[who] = (await prisma.user.create({ data: { email: at(who), name: who, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } })).id;
     await prisma.account.create({ data: { eventId, email: at(who), name: who, role: "player" } });
   }
   for (const side of ["A", "B"]) {

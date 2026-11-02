@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "./coverage";
 import { join } from "node:path";
 import { routesForTier } from "../src/lib/nav";
-import { standaloneScreens, entryUrl } from "./routes";
+import { consoleScreens, standaloneScreens, entryUrl } from "./routes";
+import { eachOtherSection } from "./settings-tabs";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -109,6 +110,25 @@ async function undersizedTargets(page: Page) {
 }
 
 /**
+ * The same, over every section of a screen shown one at a time.
+ *
+ * A control in a section behind a tab has no box until its tab is opened, so
+ * `undersizedTargets` passes it whatever its size: Club settings was measured
+ * on its first section and nothing else. Each other section is tapped open and
+ * measured, and what it finds is filed under `#section`, so a failure names
+ * the section a person has to open to meet it.
+ */
+async function undersizedInEverySection(page: Page) {
+  const small: Array<Awaited<ReturnType<typeof undersizedTargets>>[number] & { section?: string }> = [
+    ...(await undersizedTargets(page)),
+  ];
+  const sections = await eachOtherSection(page, async (section) => {
+    for (const t of await undersizedTargets(page)) small.push({ ...t, section });
+  });
+  return { small, sections };
+}
+
+/**
  * THE TOUCH FLOOR IS SWEPT, not spot-checked.
  *
  * This measured `/dashboard` and nothing else, which is the wrong route for
@@ -140,7 +160,7 @@ for (const route of routesForTier("on-course")) {
     expect(res?.status(), `${route} did not render`).toBeLessThan(500);
     await page.waitForLoadState("networkidle");
 
-    const small = await undersizedTargets(page);
+    const { small } = await undersizedInEverySection(page);
     expect(small, `${route} has sub-44px targets: ${JSON.stringify(small)}`).toEqual([]);
   });
 }
@@ -165,7 +185,7 @@ test("even an at-desk screen stays tappable on a phone", async ({ page }) => {
   await page.goto("/dashboard");
   await page.waitForLoadState("networkidle");
 
-  const small = await undersizedTargets(page);
+  const { small } = await undersizedInEverySection(page);
   expect(small, `sub-44px targets: ${JSON.stringify(small)}`).toEqual([]);
 });
 
@@ -247,7 +267,46 @@ for (const path of standaloneScreens()) {
     // green having checked nothing.
     expect(new URL(page.url()).pathname, `${path} redirected away`).toBe(path);
 
-    const small = await undersizedTargets(page);
+    const { small } = await undersizedInEverySection(page);
     expect(small, `${path} has sub-44px targets: ${JSON.stringify(small)}`).toEqual([]);
   });
 }
+
+/**
+ * AND EVERY CONSOLE SCREEN SHOWN IN TABS, AT DESK OR NOT.
+ *
+ * Club settings is an at-desk screen, so the on-course sweep above never
+ * opens it; and when its sections became tabs (2026-10-21) the one check
+ * that could have reached them by width — a box — could only see the first
+ * one. A screen with tabs is a screen with sections a person opens one by one
+ * on a phone, so every section is held to the floor, the first included —
+ * the same reasoning as the at-desk counter-example: the tier decides where
+ * the floor is enforced additionally, never where it is waived.
+ *
+ * The screens are found by opening every console screen and looking for tabs
+ * that hide a section, not listed: Tournament details is next.
+ */
+test("every section of a screen shown in tabs clears the touch minimum", async ({ page }) => {
+  const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  test.skip(!coarse, "a touch-size rule only applies to touch");
+  test.setTimeout(600_000);
+
+  const tabbed: string[] = [];
+  const faults: string[] = [];
+  for (const path of consoleScreens()) {
+    const res = await page.goto(path).catch(() => null);
+    if (!res || res.status() >= 400) continue;
+    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+    if (new URL(page.url()).pathname !== path) continue;
+    if ((await page.locator('main [role="tab"][aria-controls]').count()) === 0) continue;
+    tabbed.push(path);
+    const { small, sections } = await undersizedInEverySection(page);
+    expect(sections, `${path} has tabs and none of them opened another section`).toBeGreaterThan(0);
+    for (const t of small) faults.push(`${path}${t.section ? `#${t.section}` : ""}: ${JSON.stringify(t)}`);
+  }
+  console.log(`[touch] screens in tabs, every section measured: ${tabbed.join(", ") || "none"}`);
+  // CONTROL: the sweep found the screen it was written for. Without it a walk
+  // that reached no tabbed screen at all would pass on nothing.
+  expect(tabbed, "Club settings was not found as a screen in tabs — not signed in?").toContain("/organization");
+  expect(faults, `sub-44px targets in a section behind a tab:\n${faults.join("\n")}`).toEqual([]);
+});

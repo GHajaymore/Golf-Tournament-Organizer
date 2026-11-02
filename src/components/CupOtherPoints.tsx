@@ -4,6 +4,7 @@ import { addCupPoint, awardCupPoint, removeCupPoint } from "@/app/actions/cup";
 import { cupPoints } from "@/lib/domain/cup";
 import { readDecimal } from "@/lib/domain/decimal-text";
 import { ConfirmButton } from "./ConfirmButton";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 /**
  * POINTS OUTSIDE THE MATCHES, kept by the organizer (2026-10-19). The first
@@ -22,18 +23,31 @@ export function CupOtherPoints({
   const [pending, start] = useTransition();
   const [label, setLabel] = useState("");
   const [worth, setWorth] = useState("1");
-  const [error, setError] = useState("");
+  /**
+   * A refusal, and WHERE it was pressed: a point's own row, or "add" for the form.
+   * It was one line under the form for all of them, and the form is the foot of
+   * a long screen — "A point is worth a whole or half number" came up below the
+   * fold (the text-box crawl, 2026-10-21).
+   */
+  const [said, setSaid] = useState<{ at: string; text: string } | null>(null);
+  const setError = (text: string, at = "add") => setSaid(text ? { at, text } : null);
   // The team just chosen, shown at once rather than after the page comes back;
   // a refusal puts the radio back where the server has it.
   const [chosen, setChosen] = useState<Record<string, "A" | "B" | null>>({});
-  const run = (act: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => {
+  const run = (act: () => Promise<{ ok: boolean; error?: string }>, after?: () => void, at = "add") => {
     setError("");
     start(async () => {
       const res = await act();
-      if (!res.ok) setError(res.error ?? "Couldn't save that.");
+      if (!res.ok) setError(res.error ?? "Couldn't save that.", at);
       else after?.();
     });
   };
+  const saidAt = (at: string) =>
+    said?.at === at ? (
+      <p role="alert" ref={bringIntoView} style={{ margin: 0, fontSize: 13, color: "var(--color-danger)", flexBasis: "100%" }}>
+        {said.text}
+      </p>
+    ) : null;
 
   return (
     <section aria-labelledby="other-points" style={{ marginTop: 16 }}>
@@ -54,7 +68,7 @@ export function CupOtherPoints({
                   {p.label} · {cupPoints(p.points)} {p.points === 1 ? "point" : "points"}
                 </b>
                 <ConfirmButton
-                  onConfirm={() => run(() => removeCupPoint(p.id))}
+                  onConfirm={() => run(() => removeCupPoint(p.id), undefined, p.id)}
                   label="Remove"
                   confirmLabel={`Remove ${p.label}`}
                   title={`Remove ${p.label} from the cup`}
@@ -79,7 +93,7 @@ export function CupOtherPoints({
                         start(async () => {
                           const res = await awardCupPoint(p.id, o.key);
                           if (!res.ok) {
-                            setError(res.error ?? "Couldn't save that.");
+                            setError(res.error ?? "Couldn't save that.", p.id);
                             setChosen((c) => {
                               const next = { ...c };
                               delete next[p.id];
@@ -93,6 +107,7 @@ export function CupOtherPoints({
                   </label>
                 ))}
               </div>
+              {saidAt(p.id)}
             </li>
           ))}
         </ul>
@@ -141,12 +156,8 @@ export function CupOtherPoints({
         <button type="submit" className="btn btn-primary" disabled={pending || !label.trim()} style={{ minHeight: 44 }}>
           Add point
         </button>
+        {saidAt("add")}
       </form>
-      {error && (
-        <p role="alert" style={{ margin: "8px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
-          {error}
-        </p>
-      )}
     </section>
   );
 }

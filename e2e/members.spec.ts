@@ -238,7 +238,8 @@ test("the secretary adds, corrects, retires, imports and enters members from the
     await page.getByLabel("Player name").fill(dee);
     // By its placeholder: every row of the field has an "Email for …" box of its own.
     await page.getByPlaceholder("name@email").fill(mail("dee"));
-    // This tournament asks for a mobile. A number from the range kept for fiction; nothing is sent to it.
+    // A mobile, though since 2026-10-21 (A7) this tournament no longer insists on one. A number
+    // from the range kept for fiction; nothing is sent to it.
     await page.getByPlaceholder("+1…").fill("+1 555 555 0142");
     await page.getByLabel("Handicap", { exact: true }).fill("+1.5");
     await page.getByRole("button", { name: "Add to field" }).click();

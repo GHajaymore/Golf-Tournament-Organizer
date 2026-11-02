@@ -68,7 +68,14 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   }
   return out;
 }
-const PHRASES = /\b(side bets?|add a bet|start this bet|(?:this|the|a|one|friendly) bet|three bets|bets? (?:on|in|and|between))\b/i;
+/**
+ * And the word as a WHOLE STRING, which a sentence is assembled around: the
+ * Nassau's round result was `${n} ${unit}` with the unit "bets", so every
+ * report and results screen read "Tied: … · 3 bets" while no phrase above was
+ * anywhere in the source (walked on the seeded festival's report, 2026-10-23).
+ */
+const PHRASES =
+  /\b(side bets?|add a bet|start this bet|(?:this|the|a|one|friendly|every) bet|three bets|bets? (?:on|in|and|between|halved))\b|["'`]bets?["'`]/i;
 
 describe("the words a member reads after signing in", () => {
   const all = sourceFiles("src");
@@ -78,6 +85,7 @@ describe("the words a member reads after signing in", () => {
     for (const said of [
       "Start a side bet", "Side bets — Round 1", "Add a bet", "Remove this bet", "Start this bet",
       "One bet on the match itself", "three bets on one match", "a bet between two sides", "a friendly bet",
+      'unit: most === 1 ? "bet" : "bets"', 'note: "Every bet halved"',
     ]) expect(PHRASES.test(said), said).toBe(true);
     for (const name of ["bet.name", "renameBet(", "sideBet ? x : y", "const bets = []", "betName"]) {
       expect(PHRASES.test(name), name).toBe(false);

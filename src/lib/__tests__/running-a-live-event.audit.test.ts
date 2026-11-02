@@ -97,7 +97,7 @@ beforeAll(async () => {
       data: { eventId, stageId: round1, playerId: p.id, strokes: JSON.stringify(new Array(18).fill(4)) },
     });
   }
-  const user = await prisma.user.create({ data: { email: at("organizer"), name: `${TAG} Organizer`, password: "x" } });
+  const user = await prisma.user.create({ data: { email: at("organizer"), name: `${TAG} Organizer`, password: "x", emailVerifiedAt: new Date() } });
   await prisma.account.create({ data: { eventId, email: at("organizer"), name: `${TAG} Organizer`, role: "admin" } });
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: user.id, role: "owner" } });
   jar.clear();
@@ -143,6 +143,22 @@ describe("on a live tournament whose setup is locked", () => {
     await setStageDeadlineOverride(round2, false);
     const s = await prisma.stage.findUniqueOrThrow({ where: { id: round2 }, select: { deadline: true, deadlineOverride: true } });
     expect(s).toEqual({ deadline: "2026-10-04", deadlineOverride: false });
+  });
+
+  // Ajay's Round 2, played on 6 Nov, read "Due Fri, Oct 23" (2026-10-30).
+  it("refuses a deadline before the round's own day, and anything that is not a date", async () => {
+    await prisma.stage.update({ where: { id: round2 }, data: { playedOn: "2026-11-06", deadline: "" } });
+    const early = await setStageDeadline(round2, "2026-10-23");
+    expect(early.ok).toBe(false);
+    expect(early.error).toMatch(/before the round is played/);
+    expect((await setStageDeadline(round2, "next Tuesday")).ok).toBe(false);
+    expect((await prisma.stage.findUniqueOrThrow({ where: { id: round2 }, select: { deadline: true } })).deadline).toBe("");
+    // The control: the round's own day and later are kept, and a clear is a clear.
+    expect(await setStageDeadline(round2, "2026-11-06")).toEqual({ ok: true });
+    expect(await setStageDeadline(round2, "2026-11-13")).toEqual({ ok: true });
+    expect((await prisma.stage.findUniqueOrThrow({ where: { id: round2 }, select: { deadline: true } })).deadline).toBe("2026-11-13");
+    expect(await setStageDeadline(round2, "")).toEqual({ ok: true });
+    await prisma.stage.update({ where: { id: round2 }, data: { playedOn: "" } });
   });
 
   it("still refuses a real SETUP change (the control)", async () => {

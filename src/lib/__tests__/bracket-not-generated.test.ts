@@ -46,6 +46,7 @@ const round = (id: string, over: Partial<Round> = {}): Round => ({
   cutMode: "count",
   cutCount: 8,
   cutPercent: 50,
+  cutTies: "ties",
   ...over,
 });
 /** The Cut line on the sheet for round `id` of these rounds. */
@@ -69,6 +70,15 @@ describe("the published rules sheet only prints a cut the engine applies", () =>
     expect(cutLine([round("r1"), round("r2", { cutEnabled: true, cutScope: "perFlight" })], "r1")).toBe(
       "Top 8 in each flight advance to the next round",
     );
+  });
+
+  it("prints the committee's method for a tie when it is not 'and ties' (2026-10-23)", () => {
+    const medal = { type: "Stroke Play Round", format: "Stroke Play" };
+    const cut = (cutTies: string) => cutLine([round("r1", medal), round("r2", { ...medal, cutEnabled: true, cutTies })], "r1");
+    expect(cut("playoff")).toBe("Top 8 advance to the next round. A tie for the last place is decided by a play-off");
+    expect(cut("countback")).toMatch(/^Top 8 advance to the next round\. A tie for the last place is decided by countback/);
+    // CONTROL: the default says "and ties" and nothing more.
+    expect(cut("ties")).toBe("Top 8 and ties advance to the next round");
   });
 
   it("prints no cut for a bracket, whose field is the qualifiers", () => {

@@ -142,7 +142,7 @@ beforeAll(async () => {
     data: {
       email: `${TAG.toLowerCase()}-admin@example.invalid`,
       name: `${TAG} Admin`,
-      password: "x:unusable",
+      password: "x:unusable", emailVerifiedAt: new Date(),
     },
     select: { id: true },
   });

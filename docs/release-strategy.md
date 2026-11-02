@@ -43,8 +43,14 @@ migrated only by a production deploy, which runs only after `verify` is green.
 | Class | Before merge | After merge |
 | --- | --- | --- |
 | Tests, tooling, words only | its own tests, CI | production smoke |
-| Function in one area | a browser test that does it, proven by breaking the code; CI; **one** full round | production smoke |
-| Core and shared | the same, plus **three** full rounds on the commit that will ship | production smoke, and a look at Sentry after 30 minutes |
+| Function in one area | a browser test that does it, proven by breaking the code; CI; **one** round | outside the deploy freeze; production smoke |
+| Core and shared | the same, with that one round visiting **all six** countries (money or handicap arithmetic: **three** rounds, for now) | held until the **nightly** round on main is clean on a commit containing it; outside the freeze; production smoke, and a look at Sentry after 30 minutes |
+
+Since 2026-10-23 (the testing panel, `docs/testing-panel-2026-10-23.md`) the "after merge" column
+is enforced by `deploy.yml`'s gate rather than remembered, and the freeze — a tournament on today
+at any club, in its own time, or a weekend morning 05:00–14:00 in any club's zone — holds every
+class. An hourly production canary (`canary.yml`) watches the public doors and one public board
+between deploys.
 
 And, for every change: **its preview must build.** A failed preview is a
 finding, read the same day — it is the first place a migration meets a
@@ -80,12 +86,13 @@ database that is not empty.
    test planned.* The A003 incident. A migration folder that has existed on
    any pushed branch keeps its name; a new number is a new migration.
 6. **Watching production.** — Sentry (errors) since 2026-10-14; page
-   analytics since 2026-10-19 (`NEXT_PUBLIC_ANALYTICS`). *Planned:* an uptime
-   check of `/` and `/play` every five minutes from outside, and Sentry alerts
-   to Ajay's email.
+   analytics since 2026-10-19 (`NEXT_PUBLIC_ANALYTICS`); an hourly canary of
+   `/`, `/faq`, `/play` and one public board since 2026-10-23 (`canary.yml`, a
+   failed run is GitHub's email). *Planned:* Sentry alerts to Ajay's email.
 7. **After launch: two lanes.** — *planned.*
-   - **Release lane** (features, enhancements): batched, frozen, three rounds
-     on the release commit, merged one at a time, production smoke after each.
+   - **Release lane** (features, enhancements): batched, the rounds its tier
+     asks for (`npm run qa:changed`) on the release commit, the nightly before a
+     core change ships, merged one at a time, production smoke after each.
    - **Fix lane** (a member-facing bug): one branch per fix, a browser test
      that reproduces the bug and goes green with the fix, CI, one round,
      preview checked, merged on its own, production smoke. Target: a
@@ -100,9 +107,35 @@ database that is not empty.
    merge that carries it.* On 2026-10-19 two full rounds (~30 parts each)
    held every GitHub runner the free plan gives (about twenty jobs at once),
    and `main`'s verify-and-deploy sat queued for an hour behind them. Each
-   round now runs eight parts at a time (`round.yml`, `max-parallel: 8`), and
-   **no more than two rounds run at once** — push the third when one has
-   finished. That leaves room for CI and the deploy job at all times.
+   round then ran eight parts at a time. The account is on GitHub Pro (its
+   profile shows the PRO badge, 31 Oct; about forty jobs at once), so on
+   2026-10-31 a round went to twelve (`max-parallel: 12`), and **no more than
+   two rounds run at once** — the nightly counts as one; push the third when
+   one has finished.
+
+   **Since 2026-11-01 the cap adjusts itself** (Ajay approved 31 Oct). The
+   round's plan job counts the jobs already running and sets
+   `max-parallel` to **clamp(40 − running − 10 reserved, at least 4, at most
+   16)** — the ten reserved are for a CI run's jobs and the deploy job, which
+   must never wait behind a round. "Running" is the `in_progress` jobs of this
+   repository's in-progress runs, asked of GitHub with the workflow's own
+   token (it cannot see another repository of the account, and it does not
+   count queued jobs); the plan job itself is one of them. On any error it
+   falls back to **12**. The number and the reason are the first lines of the
+   round's run summary (`scripts/qa/round-cap.mjs`, `round.yml`). A lone round
+   on a quiet account gets sixteen; a round beside the nightly gets what is
+   left after the reserve, and never fewer than four.
+
+   The panel's rule (31 Oct) still decides whether this stays, measured over
+   the first three rounds under it (one beside the nightly): wall-clock,
+   INCOMPLETE parts, install-timeout lines, the deploy job's queue time and
+   the peak of jobs at once. **Keep the upper bound of sixteen** only if a
+   round beside the nightly kept every deploy queued under 5 minutes,
+   INCOMPLETE parts did not rise, and the rounds that got more than twelve
+   saved about 20 minutes; **lower the bounds** (to 4/12, or back to a fixed
+   eight) if a deploy or `verify` waits over 10 minutes behind rounds, more
+   than 2 parts a round are INCOMPLETE, or GitHub answers a 403 secondary rate
+   limit. Changing the bounds is three numbers in `round-cap.mjs`.
 
 ## How we know it is working
 

@@ -87,7 +87,7 @@ beforeAll(async () => {
   orgId = org.id;
 
   for (const who of ["ann", "rob", "boss", "owner"]) {
-    const u = await prisma.user.create({ data: { email: at(who), name: who, password: "x" } });
+    const u = await prisma.user.create({ data: { email: at(who), name: who, password: "x", emailVerifiedAt: new Date() } });
     userIds[who] = u.id;
   }
 });

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { upsertMember, entryContactNeeds } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
@@ -13,12 +14,13 @@ import { clubHandicapBody, homeBodyId } from "@/lib/domain/handicap-body";
 import { indexRefusal } from "@/lib/domain/handicap-label";
 import { championFor } from "@/lib/services/honours";
 import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
-import { organizationAllows, planForOrganization } from "@/lib/services/entitlements";
-import { HONOURS_LOCKED, phoneRequiredFor } from "@/lib/plans";
+import { organizationAllows } from "@/lib/services/entitlements";
+import { HONOURS_LOCKED } from "@/lib/plans";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
 import { parseHandicapInput, parseHandicapType, contactGap } from "@/lib/domain/registration-intake";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { organizationsForOrganizer } from "@/lib/services/organization";
+import { EMAIL_RE } from "@/lib/domain/typed-limits";
 
 /**
  * Club roster management.
@@ -33,8 +35,6 @@ export interface RosterResult {
   ok: boolean;
   error?: string;
 }
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** The club whose roster the current tournament draws from, for staff only. */
 async function requireRosterOrg(): Promise<{ organizationId: string; eventId: string }> {
@@ -187,13 +187,10 @@ export interface MemberImportResult {
   skippedInvalid: number;
   /** Header cells we didn't recognise, so the organizer can see what was ignored. */
   unknownColumns: string[];
-  /**
-   * Active members still without a mobile, counted only where the plan makes
-   * every entrant give one (Par). Said AT the import, because otherwise the
-   * first the secretary hears is on Registration, with every name blocked
-   * (walked 2026-09-30: twelve imported, twelve "Needs a mobile number").
-   */
-  missingMobile?: number;
+  // There was a `missingMobile` count here, said at the import because Par
+  // made every entrant give a mobile. Since 2026-10-21 (decisions review A7)
+  // no plan does: a tournament asks only when its organizer turns it on, and a
+  // club roster has no tournament behind it, so there is nothing to warn of.
   error?: string;
 }
 
@@ -323,19 +320,12 @@ export async function importCsvMembers(csv: string): Promise<MemberImportResult>
   }
 
   await refresh();
-  // The plan's own rule, so a club that may switch the mobile off is not told
-  // it is missing anything.
-  // A club screen with no tournament behind it: the strict side ("email").
-  const missingMobile = phoneRequiredFor(await planForOrganization(organizationId), false, "email")
-    ? await prisma.member.count({ where: { organizationId, status: "active", phone: "" } })
-    : 0;
   return {
     imported,
     updated,
     skippedDuplicates,
     skippedInvalid,
     unknownColumns,
-    ...(missingMobile > 0 ? { missingMobile } : {}),
   };
 }
 
@@ -546,6 +536,8 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   const { organizationId, eventId } = await requireRosterOrg();
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return { ok: false, error: "Event not found.", added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
+  const archived = await archiveRefusalFor(eventId);
+  if (archived) return { ok: false, error: archived, added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
   // One definition of "locked" — see domain/lifecycle-state.
   if (configurationLocked(event)) {
     return {
@@ -612,8 +604,8 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
      * messaged, could not be sent a thing — a second-class entrant nobody had
      * decided to create.
      *
-     * The phone half follows the plan, not this screen: free clubs collect a
-     * mobile from every entrant, paid clubs decide per tournament. See
+     * The phone half follows the tournament, not this screen: a mobile is
+     * needed only where its organizer has asked for one, on any plan. See
      * phoneRequiredFor.
      *
      * Skipped and named rather than failing the batch: an organizer picking
@@ -803,7 +795,9 @@ export async function confirmChampion(
       eventId,
       event: found.event,
       playerId: suggestion.playerId,
-      championName: suggestion.name,
+      // A team cup's champion is a TEAM, named with its score — "Oakmere
+      // 6½–3½" — and keyed by the team's id, so it is one line per cup.
+      championName: suggestion.team ? suggestion.team.score : suggestion.name,
       note,
     });
     return { ok: true, championName: entry.championName };

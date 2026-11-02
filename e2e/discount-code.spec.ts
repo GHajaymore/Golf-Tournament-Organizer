@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { openSettingsTab } from "./settings-tabs";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
@@ -62,6 +63,7 @@ test("a club's Commissioner applies a discount code on the plan panel and is tol
     watchPageErrors(page, errors);
     await page.goto(`/organization?bust=${Date.now()}`);
     await page.waitForLoadState("networkidle").catch(() => {});
+    await openSettingsTab(page, "Plan");
     const box = page.getByLabel(/^Discount code/);
     await expect(box, "the plan panel has no discount box for the club's Commissioner").toBeVisible({ timeout: 20_000 });
     const apply = page.getByRole("button", { name: "Apply" });

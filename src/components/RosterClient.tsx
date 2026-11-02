@@ -11,7 +11,6 @@ import { indexLabel, indexFigure, hasIndex, NO_INDEX } from "@/lib/domain/handic
 import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
-import { PLANS } from "@/lib/plans";
 import {
   addMember,
   updateMember,
@@ -1079,15 +1078,6 @@ export function ImportSummary({
                 Ignored {result.unknownColumns.length === 1 ? "column" : "columns"}:{" "}
                 {result.unknownColumns.join(", ")}. Rename to a recognised heading and upload again to
                 bring {result.unknownColumns.length === 1 ? "it" : "them"} in.
-              </div>
-            )}
-            {(result.missingMobile ?? 0) > 0 && (
-              <div style={{ fontSize: 13, marginTop: 4 }}>
-                {result.missingMobile === 1
-                  ? "1 member has no mobile number yet"
-                  : `${result.missingMobile} members have no mobile number yet`}
-                , and every entrant in a {PLANS.free.name} tournament gives one. Add a phone column and
-                upload the file again — members already here are updated, not duplicated.
               </div>
             )}
           </>

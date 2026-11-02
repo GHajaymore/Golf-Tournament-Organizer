@@ -133,11 +133,11 @@ beforeAll(async () => {
     await prisma.scorecard.create({
       data: { eventId, stageId: r1, playerId: id[who], strokes: JSON.stringify(card(totals[who])), status: "approved" },
     });
-    user[who] = (await prisma.user.create({ data: { email, name: `${TAG} ${who}`, password: "x:unusable" }, select: { id: true } })).id;
+    user[who] = (await prisma.user.create({ data: { email, name: `${TAG} ${who}`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } })).id;
     await prisma.account.create({ data: { eventId, name: `${TAG} ${who}`, email, role: "player" } });
   }
   const adminEmail = `${lower}-admin@example.invalid`;
-  user.admin = (await prisma.user.create({ data: { email: adminEmail, name: `${TAG} Admin`, password: "x:unusable" }, select: { id: true } })).id;
+  user.admin = (await prisma.user.create({ data: { email: adminEmail, name: `${TAG} Admin`, password: "x:unusable", emailVerifiedAt: new Date() }, select: { id: true } })).id;
   await prisma.account.create({ data: { eventId, name: `${TAG} Admin`, email: adminEmail, role: "admin" } });
 });
 

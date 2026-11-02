@@ -6,21 +6,22 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 
 /**
- * AN ORGANIZER ON A PAID PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE.
+ * AN ORGANIZER ON ANY PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE.
  *
  * `setRequirePhone` was performed by no browser test (the reach list of every
- * round on 2026-10-14 named it). On the free plan the box is locked on and the
- * form always asks — `phoneRequiredFor`, at the sink, so a direct call cannot
- * undo it. On Birdie the organizer chooses, and this walks both directions as
- * they would: the box on Registration, then the public form as somebody
- * entering would see it.
+ * round on 2026-10-14 named it). Until 2026-10-21 the free plan locked the box
+ * on and the form always asked; since the decisions review (A7) the organizer
+ * chooses on every plan (`phoneRequiredFor`, at the sink). So this is walked on
+ * PAR, the plan that used to lock it — a paid plan never did — in both
+ * directions as the organizer would: the box on Registration, then the public
+ * form as somebody entering would see it.
  *
  *   tick "Require a mobile number"     → the form says "· required", the box is required
  *   untick it                          → "· optional", and not required
  *
- * Its own club on Birdie, so the e2e fixture's club stays on the free plan the
- * other specs walk; the fixture's organizer is made an admin of it for the run.
- * Everything it makes is deleted afterwards.
+ * Its own club, so the e2e fixture's club is left as the other specs walk it;
+ * the fixture's organizer is made an admin of it for the run. Everything it
+ * makes is deleted afterwards.
  */
 
 const prisma = new PrismaClient();
@@ -40,7 +41,7 @@ test.beforeAll(async () => {
   await prisma.user.findUniqueOrThrow({ where: { id: admin.userId }, select: { id: true } });
   const org = await prisma.organization.create({ data: { name: `${MARK} club ${Date.now()}`, kind: "club" } });
   ids.org = org.id;
-  await prisma.subscription.create({ data: { organizationId: org.id, plan: "society" } });
+  await prisma.subscription.create({ data: { organizationId: org.id, plan: "free" } });
   await prisma.organizationMember.create({ data: { organizationId: org.id, userId: admin.userId, role: "admin" } });
   ids.token = `${MARK}-${Date.now()}`;
   const event = await prisma.event.create({
@@ -100,7 +101,7 @@ test("the organizer's own invitation is kept, under a box a screen reader can na
 
 const required = async () => (await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { requirePhone: true } })).requirePhone;
 
-test("an organizer on Birdie turns the mobile number on and off, and the entry form follows", async ({ page, context, browser, baseURL }) => {
+test("an organizer on Par turns the mobile number on and off, and the entry form follows", async ({ page, context, browser, baseURL }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   watchPageErrors(page, errors, "organizer");
@@ -127,7 +128,9 @@ test("an organizer on Birdie turns the mobile number on and off, and the entry f
     await page.goto(`/registration?bust=${Date.now()}`);
     await page.waitForLoadState("networkidle").catch(() => {});
     const box = page.getByRole("checkbox", { name: /Require a mobile number/ });
-    await expect(box, "Registration offers no mobile switch on a Birdie club").toBeEnabled({ timeout: 20_000 });
+    await expect(box, "Registration offers no mobile switch on a Par club").toBeEnabled({ timeout: 20_000 });
+    await expect(box, "the switch starts ticked, as the free plan's old lock had it").not.toBeChecked();
+    await expect(page.getByText(/Always on/), "the free plan's lock is still drawn").toHaveCount(0);
 
     await box.check();
     await expect.poll(required, { timeout: 15_000, message: "ticking the box stored nothing" }).toBe(true);

@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { revalidatePath } from "next/cache";
 import { casualKeepRefusal } from "@/lib/domain/close-terms";
 
@@ -42,6 +43,8 @@ export async function keepRound(): Promise<KeepRoundResult> {
   if (session.role !== "admin" && session.role !== "assistant") {
     return { ok: false, error: "Only whoever set this round up can keep it." };
   }
+  const archived = await archiveRefusalFor(session.eventId);
+  if (archived) return { ok: false, error: archived };
 
   const event = await prisma.event.findUnique({
     where: { id: session.eventId },

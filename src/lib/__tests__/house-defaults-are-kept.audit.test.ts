@@ -100,7 +100,7 @@ beforeAll(async () => {
       data: { organizationId: orgId, name: `${TAG} medal`, dates: "", course: "", city: "", address: "", regDeadline: "", shareToken: `${TAG}-${process.pid}` },
     })
   ).id;
-  userId = (await prisma.user.create({ data: { email: EMAIL, name: "Owner", password: "x:unusable" } })).id;
+  userId = (await prisma.user.create({ data: { email: EMAIL, name: "Owner", password: "x:unusable", emailVerifiedAt: new Date() } })).id;
   await prisma.organizationMember.create({ data: { organizationId: orgId, userId, role: "owner" } });
   jar.clear();
   await createSession(userId);

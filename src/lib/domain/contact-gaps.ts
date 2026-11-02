@@ -7,8 +7,9 @@ import { looksLikePhone } from "./registration-intake";
  * earns its place: access is email-based, so a player without one cannot sign
  * in, and that is worth saying loudly. The phone half was missing, and its
  * absence was uneven in a way that read as the app not knowing its own mind —
- * a free club is now obliged to collect a mobile from every new entrant while
- * the screen said nothing about a field of thirty-two that had none.
+ * a tournament that asks for a mobile (then every free club's; since
+ * 2026-10-21 only one whose organizer turns it on) collected one from every new
+ * entrant while the screen said nothing about a field of thirty-two that had none.
  *
  * The important thing this has to convey is that the existing entries are not
  * a mistake. The requirement applies when somebody is entered, so anyone

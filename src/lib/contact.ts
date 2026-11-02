@@ -23,3 +23,13 @@ export const SUPPORT_EMAIL = "support@tourneyhq.club";
 export const CONTACT_EMAIL = "contact@tourneyhq.club";
 export const SALES_EMAIL = "inquiries@tourneyhq.club";
 export const ADMIN_EMAIL = "admin@tourneyhq.club";
+
+/**
+ * TOURNEYHQ'S OWN SOCIAL ACCOUNTS (2026-10-30), offered as "Follow us" on the
+ * early list's thank-you. LinkedIn and YouTube join when their addresses are
+ * confirmed; X when it exists.
+ */
+export const SOCIAL_LINKS: ReadonlyArray<{ name: string; url: string }> = [
+  { name: "Facebook", url: "https://www.facebook.com/TourneyHQ" },
+  { name: "Instagram", url: "https://www.instagram.com/tourneyhq" },
+];

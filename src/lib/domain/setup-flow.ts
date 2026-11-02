@@ -31,7 +31,7 @@
  * shape of the tournament is not a lock either, for the same reason.
  */
 
-import { launchRefusal } from "./phase-gate";
+import { launchCheck, type LaunchCheck } from "./launch-check";
 
 /**
  * ONE ROUND, as the guide has to judge it.
@@ -123,6 +123,14 @@ export interface SetupRound {
   cutFed: boolean;
   /** Fixtures drawn for THIS round. */
   matches: number;
+  /**
+   * Whether a tee sheet is saved, for a round the field turns up for together
+   * (a stroke round). Undefined where a tee sheet is not the question — a round
+   * robin, a knockout, a cup session — and in facts built without it. Read
+   * only by the launch dialog's warnings (`launchCheck`); never a step, since
+   * a league whose players arrange their own times has none.
+   */
+  teeSheetSaved?: boolean;
 }
 
 /**
@@ -299,6 +307,13 @@ export interface SetupFlow {
    * dashboard call — rather than restating its rules.
    */
   launchBlocked: string | null;
+  /**
+   * WHAT LAUNCH SAYS, whatever stage setup is at — the refusal and the
+   * warnings (`launchCheck`), built from these same facts and steps. The
+   * dashboard's button and `launchTournament` read this through
+   * `launchCheckFor`, so all three ask one builder (gap G3, 2026-10-31).
+   */
+  launch: LaunchCheck;
   /**
    * Past launch — live or finished. The guide stops here whatever is left.
    *
@@ -649,6 +664,12 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
 
   const complete = currentIndex === -1;
   const readyToLaunch = complete && !facts.launched;
+  // The launch gate's verdict from these facts and these steps — see launch-check.ts.
+  const launch = launchCheck(
+    { ...facts, playingRounds: facts.playingRounds ?? facts.rounds.length, missingCards: facts.missingCards ?? [] },
+    steps,
+    labelFor,
+  );
   return {
     steps,
     current: complete ? null : steps[currentIndex],
@@ -656,16 +677,8 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
     complete,
     readyToLaunch,
     launched: !!facts.launched,
-    launchBlocked: readyToLaunch
-      ? launchRefusal({
-          playingRounds: facts.playingRounds ?? facts.rounds.length,
-          confirmed: facts.confirmed,
-          dated: facts.dated,
-          missingCards: facts.missingCards ?? [],
-          // The step's own fact — the same rule (`roundShapeMismatch`).
-          unscorable: facts.rounds.filter((r) => !r.scorable).map((r) => r.label),
-        })
-      : null,
+    launchBlocked: readyToLaunch ? launch.refusal : null,
+    launch,
   };
 }
 

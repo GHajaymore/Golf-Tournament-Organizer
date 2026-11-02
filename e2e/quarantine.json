@@ -1,0 +1,4 @@
+{
+  "about": "Tests a round still RUNS and reports, but does not count toward its verdict. One entry each: spec (the file, as e2e/x.spec.ts), test (words from its title), owner (who is fixing it), reason (what is wrong with the TEST, never 'the app is broken'), expires (yyyy-mm-dd, at most 30 days ahead). An entry past its date no longer quarantines anything and fails the nightly's check (scripts/qa/quarantine.mjs). Zero retries stays: this list is the only way a red test does not count, and every entry on it is said in every verdict. See docs/testing-panel-2026-10-23.md.",
+  "entries": []
+}

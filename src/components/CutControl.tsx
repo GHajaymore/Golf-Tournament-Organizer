@@ -1,8 +1,8 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
-import { setStageCut, setStageCutScope } from "@/app/actions/tournament";
-import { cutAdvancesEveryone } from "@/lib/domain/cut";
+import { setStageCut, setStageCutScope, setStageCutTies } from "@/app/actions/tournament";
+import { cutAdvancesEveryone, cutTieRuleOf, type CutTieRule } from "@/lib/domain/cut";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { plural } from "@/lib/format";
@@ -21,13 +21,17 @@ export function CutControl({
   flightCount = 1,
   locked = false,
   tiesGoThrough = false,
+  tieRule = "ties",
 }: {
   /**
-   * The cut sends everyone level on the last place through — the stroke-play
-   * rule ("top N and ties", `survivorsWithTies`). Said in the count so "2 of 5
+   * A cut between two stroke rounds, where a tie for the last place is settled
+   * the way `tieRule` says (`strokeCutOutcome`) — and offered here. Under the
+   * default, everyone level goes through, which the count says so "2 of 5
    * advance" is not read as a promise of exactly two.
    */
   tiesGoThrough?: boolean;
+  /** "ties" | "playoff" | "countback" — the stored `Stage.cutTies`. */
+  tieRule?: string;
   /** Setup is locked, which both cut actions refuse — see `SetupLocked`. */
   locked?: boolean;
   /** Stable id for radio/name grouping — doesn't need to be a real stage id yet. */
@@ -52,7 +56,18 @@ export function CutControl({
   const [n, setN] = useState(count);
   const [pct, setPct] = useState(percent);
   const [sc, setSc] = useState(scope === "perFlight" ? "perFlight" : "overall");
+  const [ties, setTies] = useState<CutTieRule>(cutTieRuleOf(tieRule));
   const [saving, startTransition] = useTransition();
+  // "and anyone tied" only where the ties DO go through.
+  const allTied = tiesGoThrough && ties === "ties";
+
+  const commitTies = (next: CutTieRule) => {
+    setTies(next);
+    startTransition(async () => {
+      const stageId = await getStageId();
+      await setStageCutTies(stageId, next);
+    });
+  };
   // The number saves when its box is left — said beside it, as every other
   // control that saves itself does (`SaveState`).
   const saveStatus = useSaveStatus(saving);
@@ -193,10 +208,10 @@ export function CutControl({
                 "16 and ties of 0 advance into Round 3" (2026-10-16) — a count
                 of nothing, and "16 and ties of" read as one phrase. */}
             {confirmedCount === 0
-              ? `The top ${m === "percent" ? `${pct}%` : n}${perFlight ? " in each flight" : ""}${tiesGoThrough ? ", and anyone tied with the last place," : ""} play ${roundLabel}. Nobody is entered yet.`
+              ? `The top ${m === "percent" ? `${pct}%` : n}${perFlight ? " in each flight" : ""}${allTied ? ", and anyone tied with the last place," : ""} play ${roundLabel}. Nobody is entered yet.`
               : perFlight
-                ? `The top ${bucketSurvivors} in each of ${plural(flights, "flight")} play ${roundLabel} — ${survivors} of the ${confirmedCount} entered${tiesGoThrough ? ", and anyone tied with a flight's last place" : ""}.`
-                : `${survivors} of the ${confirmedCount} entered play ${roundLabel}${tiesGoThrough ? ", and anyone tied with the last of them" : ""}.`}
+                ? `The top ${bucketSurvivors} in each of ${plural(flights, "flight")} play ${roundLabel} — ${survivors} of the ${confirmedCount} entered${allTied ? ", and anyone tied with a flight's last place" : ""}.`
+                : `${survivors} of the ${confirmedCount} entered play ${roundLabel}${allTied ? ", and anyone tied with the last of them" : ""}.`}
             {/* Why "Per flight" is dead, in the sentence that is already here
                 rather than in a `title` nobody on a phone can reach. The same
                 pattern removed from the draw button, Teams & pairs and the tee
@@ -206,6 +221,40 @@ export function CutControl({
             {flightCount === 0
               ? " Flights are not drawn yet, so the cut is across the whole field."
               : flights < 2 && " The field is in one flight, so a per-flight cut would be the same cut."}
+          </span>
+        </div>
+      )}
+      {/* HOW A TIE FOR THE LAST PLACE IS SETTLED (2026-10-23). A committee
+          states it in the terms of the competition, so it is chosen with the
+          cut, before play — and locks with it. */}
+      {on && tiesGoThrough && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div className="seg" role="radiogroup" aria-label={`How a tie for the last place in the cut for ${roundLabel} is settled`}>
+            {(
+              [
+                ["ties", "Ties go through"],
+                ["playoff", "Play-off"],
+                ["countback", "Countback"],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className="seg-opt">
+                <input
+                  type="radio"
+                  name={`cutties-${formId}`}
+                  checked={ties === value}
+                  disabled={pending}
+                  onChange={() => commitTies(value)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
+            {ties === "ties"
+              ? "A tie for the last place: everybody level on that score goes through, so the field can be a little bigger than the number."
+              : ties === "playoff"
+                ? "A tie for the last place: the players level on that score play off, and you record who won before the cut is made. Nobody in the tie is out until you do."
+                : "A tie for the last place: the better last 9 holes go through, then the last 6, 3 and the last hole, on what the round is decided by — gross, net or points. If they are still level, you draw lots and record who went through before the cut is made."}
           </span>
         </div>
       )}

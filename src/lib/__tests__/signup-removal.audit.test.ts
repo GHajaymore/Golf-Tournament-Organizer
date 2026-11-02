@@ -123,7 +123,7 @@ beforeAll(async () => {
     data: { eventId, stageId, playerId: player.cass, strokes: JSON.stringify(new Array(18).fill(4)) },
   });
 
-  const user = await prisma.user.create({ data: { email: at("organizer"), name: "Organizer", password: "x" } });
+  const user = await prisma.user.create({ data: { email: at("organizer"), name: "Organizer", password: "x", emailVerifiedAt: new Date() } });
   organizerId = user.id;
   await prisma.account.create({
     data: { eventId, email: at("organizer"), name: "Organizer", role: "admin" },

@@ -23,6 +23,9 @@ import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { useAction } from "./useAction";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { bringIntoView } from "@/lib/bring-into-view";
+import { moneyBoxRefusal } from "@/lib/domain/money-format";
+import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 
 /**
  * The derived pots, in the order a club would read them. Nassau is last and
@@ -212,7 +215,11 @@ export function ContestsClient({
   contestsApply?: boolean;
 }) {
   const { money, plain, parse } = useMoney();
-  const { pending, error, setError, run } = useAction();
+  const { pending, error, run, startTransition } = useAction();
+  /** A stake box's refusal, said beside that row's box. */
+  const [stakeSaid, setStakeSaid] = useState<{ kind: string; error: string } | null>(null);
+  /** "Start this game" refused, said beside it. */
+  const [createSaid, setCreateSaid] = useState("");
   const saveStatus = useSaveStatus(pending);
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState<ContestKind>("closest-pin");
@@ -311,11 +318,18 @@ export function ContestsClient({
     // so a stake of "ten", or a box left empty, started a bet for nothing a
     // head and never reached the sentence below. Found by the first browser
     // test to start a bet (2026-10-13).
+    // Said beside "Start this game", where it was pressed — not at the foot of the card.
+    setCreateSaid("");
     if (!/\d/.test(stake) || !Number.isFinite(cents) || cents < 0) {
-      setError("Enter a stake per player, or zero for a free contest.");
+      setCreateSaid("Enter a stake per player, or zero for a free contest.");
       return;
     }
-    run(async () => {
+    const tooBig = moneyBoxRefusal(stake, cents, MAX_EXPENSE_CENTS);
+    if (tooBig) {
+      setCreateSaid(tooBig);
+      return;
+    }
+    startTransition(async () => {
       const res = await addContest({
         kind,
         name: name.trim() || CONTEST_LABEL[kind],
@@ -330,8 +344,9 @@ export function ContestsClient({
         setAdding(false);
         setName("");
         setHole("");
+      } else {
+        setCreateSaid(res.error ?? "That game wasn't started.");
       }
-      return res;
     });
   };
 
@@ -416,6 +431,11 @@ export function ContestsClient({
               Start this game
             </button>
           </div>
+          {createSaid && (
+            <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
+              <Icon name="warning-circle" /> {createSaid}
+            </p>
+          )}
         </div>
       )}
 
@@ -477,16 +497,42 @@ export function ContestsClient({
                   <input
                     className="input"
                     inputMode="decimal"
+                    // NAMED FOR ITS GAME. Every row's box was "Stake", so a screen reader heard six
+                    // boxes of one name, and the text-box crawl (2026-10-21) could not tell the Low
+                    // gross stake from the Birdie pot's once a save moved the row.
+                    aria-label={`Stake for ${row.label}`}
                     defaultValue={game ? plain(game.buyInCents) : ""}
                     placeholder="0.00"
                     disabled={pending}
                     style={{ width: 82, minHeight: 44, textAlign: "right" }}
                     onKeyDown={leaveOnEnter}
                     onBlur={(e) => {
-                      const cents = parse(e.target.value);
-                      if (!Number.isFinite(cents)) return;
+                      const box = e.target;
+                      const text = box.value;
+                      // An empty box is no stake: nothing to start on a row with no
+                      // game, and the game switched off on one that has one. Junk is
+                      // REFUSED beside this box and the box goes back to what is
+                      // stored — "abc" was saved as a stake of nothing, unsaid (the
+                      // text-box crawl, 2026-10-21).
+                      let cents = 0;
+                      if (text.trim()) {
+                        cents = parse(text);
+                        const refused = moneyBoxRefusal(text, cents, MAX_EXPENSE_CENTS);
+                        if (refused) {
+                          setStakeSaid({ kind: row.kind, error: refused });
+                          box.value = game ? plain(game.buyInCents) : "";
+                          return;
+                        }
+                      } else if (!game) {
+                        setStakeSaid(null);
+                        return;
+                      }
+                      setStakeSaid(null);
                       if (game && cents === game.buyInCents) return;
-                      run(() => saveSideGame(stageId, row.kind, cents, groupKey));
+                      startTransition(async () => {
+                        const res = await saveSideGame(stageId, row.kind, cents, groupKey);
+                        if (!res.ok) setStakeSaid({ kind: row.kind, error: res.error ?? "That stake didn't save." });
+                      });
                     }}
                   />
                 </label>
@@ -517,6 +563,11 @@ export function ContestsClient({
                     disabled={pending}
                     onConfirm={() => run(() => removeSideGame(game.id))}
                   />
+                )}
+                {stakeSaid?.kind === row.kind && (
+                  <p className="form-error" role="alert" style={{ margin: 0, flexBasis: "100%" }} ref={bringIntoView}>
+                    <Icon name="warning-circle" /> {stakeSaid.error}
+                  </p>
                 )}
               </div>
 

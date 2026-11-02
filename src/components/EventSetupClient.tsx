@@ -14,6 +14,9 @@ import { MoreInfo } from "./MoreInfo";
 import { StickySave } from "./StickySave";
 import { TournamentJourney } from "./TournamentJourney";
 import { overallResultLabel } from "@/lib/domain/overall-result";
+import { TITLE_MAX } from "@/lib/domain/typed-limits";
+import { bringIntoView } from "@/lib/bring-into-view";
+import { useGolfTerms } from "./GolfTermsProvider";
 
 interface EventForm {
   name: string;
@@ -158,6 +161,8 @@ export function EventSetupClient({
   scored?: boolean;
 }) {
   const [f, setF] = useState<EventForm>(initial);
+  // The club's golf words — "a league or golf group", "a league or society".
+  const golfWords = useGolfTerms();
   // Captions below are real <label>s for their controls (a screen reader said
   // an unnamed "edit text" for the name, dates, course and deadline).
   const fid = useId();
@@ -165,6 +170,8 @@ export function EventSetupClient({
   /** Scored matches a resize would destroy, once the action refuses. */
   const [resizeScored, setResizeScored] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
+  /** A refused "Save event", said beside it. */
+  const [saveError, setSaveError] = useState("");
   // The button reflects real dirty state against the last-saved snapshot,
   // not a timed flash — it only reads "Save event" when something has
   // actually changed since the last save (or since load).
@@ -448,6 +455,7 @@ export function EventSetupClient({
             id={`${fid}-name`}
             className="input"
             value={f.name}
+            maxLength={TITLE_MAX}
             onChange={(e) => set("name", e.target.value)}
             placeholder="Name your tournament"
             style={!f.name.trim() ? { borderColor: "var(--color-accent)" } : undefined}
@@ -670,7 +678,7 @@ export function EventSetupClient({
           />
           {courseSelect === "__open" && (
             <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
-              For a league or society where each pairing arranges its own venue.
+              For a league or {golfWords.golfGroup} where each pairing arranges its own venue.
               Nothing is set here; whoever enters a card names the course they
               played, and it is saved to the club&rsquo;s list for next time.
             </p>
@@ -878,23 +886,41 @@ export function EventSetupClient({
             className="btn btn-primary"
             disabled={pending || !isDirty || locked || courseAdding}
             onClick={() => {
-              startTransition(() =>
-                saveEvent({
-                  name: f.name, playKind: f.playKind, dates: f.dates, datesTentative: f.datesTentative,
+              setSaveError("");
+              // Said here, beside the press, rather than sent: the name box is a
+              // thousand pixels up the card (the text-box crawl, 2026-10-21).
+              const name = f.name.trim();
+              if (!name) {
+                setSaveError("Name the tournament before saving.");
+                return;
+              }
+              const sent = f;
+              startTransition(async () => {
+                const result = await saveEvent({
+                  name, playKind: sent.playKind, dates: sent.dates, datesTentative: sent.datesTentative,
                   // The calendar dates with their label — see `saveEvent`.
-                  startOn: f.startOn, endOn: f.endOn,
-                  format: f.format, course: f.course, courseId: f.courseId, city: f.city,
-                  address: f.address, regDeadline: f.regDeadline, regOpens: f.regOpens, capacity: f.capacity, playerCountMode: f.playerCountMode,
-                  courseMode: f.courseMode,
-                }),
-              );
-              setSavedSnapshot(f);
-              // Saved with the rest, so "Save dates" has nothing left to save.
-              setSavedDates({ startOn: f.startOn, endOn: f.endOn, datesTentative: f.datesTentative });
+                  startOn: sent.startOn, endOn: sent.endOn,
+                  format: sent.format, course: sent.course, courseId: sent.courseId, city: sent.city,
+                  address: sent.address, regDeadline: sent.regDeadline, regOpens: sent.regOpens, capacity: sent.capacity, playerCountMode: sent.playerCountMode,
+                  courseMode: sent.courseMode,
+                });
+                if (!result.ok) {
+                  setSaveError(result.error ?? "That didn't save. Try again.");
+                  return;
+                }
+                setSavedSnapshot(sent);
+                // Saved with the rest, so "Save dates" has nothing left to save.
+                setSavedDates({ startOn: sent.startOn, endOn: sent.endOn, datesTentative: sent.datesTentative });
+              });
             }}
           >
             <Icon name="check" /> {courseAdding ? "Adding the course…" : isDirty ? "Save event" : "Saved"}
           </button>
+          {saveError && (
+            <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
+              {saveError}
+            </p>
+          )}
         </StickySave>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

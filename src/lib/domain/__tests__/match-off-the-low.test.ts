@@ -100,6 +100,18 @@ describe("what a player receives in a match", () => {
     expect(matchStrokesPerHole(17, 0, SI).reduce((a, b) => a + b, 0)).toBe(17);
   });
 
+  it("is the identity for a PLUS handicap on a medal too: strokes given back, from the easiest hole", () => {
+    // A +2 adds a stroke back on the two easiest holes (Rules of Handicapping,
+    // Appendix E: from stroke index 18 down), as the board's own allocation does.
+    // Floored at nought, the entry screen drew him none while the board took two
+    // (found 2026-10-23 by the Print kit's paper-equals-screen test).
+    const plus = matchStrokesPerHole(-2, 0, SI);
+    expect(plus.flatMap((n, i) => (n !== 0 ? [[SI[i], n]] : []))).toEqual([[17, -1], [18, -1]]);
+    expect(plus).toEqual(SI.map((si) => holeStrokesReceived(-2, si, 18)));
+    // What he is TOLD he receives is still none.
+    expect(matchStrokesCount(-2, 0)).toBe(0);
+  });
+
   it("rounds before it subtracts, so a playing handicap is whole strokes", () => {
     // 10.6 and 10.4 both play off 11 and 10; the low is taken from the rounded
     // figures, not from the raw ones, or two players off the same number could

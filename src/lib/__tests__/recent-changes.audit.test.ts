@@ -50,7 +50,7 @@ beforeAll(async () => {
   session.email = user.email;
   session.name = user.name;
   session.id = user.id;
-  // Ofcom drama range — a free club needs a mobile from every entrant.
+  // Ofcom drama range — a mobile, in case the tournament asks for one.
   await prisma.member.create({
     data: { organizationId: org.id, name: `${TAG} Roster Name`, email: user.email, handicap: 9, phone: "07700 900321" },
   });

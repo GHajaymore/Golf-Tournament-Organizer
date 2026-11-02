@@ -7,6 +7,58 @@ import { useClubDistanceWords } from "@/components/DistanceUnitProvider";
 import { Icon } from "./Icon";
 
 /**
+ * One row of the card: its box and what is wrong with it.
+ *
+ * Declared HERE, not inside `CardImport`: inside, it was a new component on
+ * every render, so the box was thrown away and drawn again at each keystroke
+ * and took the focus with it — the fault the text-box crawl found in the club's
+ * colour boxes (2026-10-21), and `components-are-declared-once.test.ts` refuses.
+ */
+function Row({
+  label,
+  hint,
+  value,
+  onChange,
+  problems,
+  pending,
+  optional,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (v: string) => void;
+  problems: CardProblem[];
+  pending: boolean;
+  optional?: boolean;
+}) {
+  return (
+    <div className="field">
+      <label>
+        {label}
+        {optional && <span className="text-muted"> — optional</span>}
+      </label>
+      <textarea
+        className="input"
+        rows={2}
+        value={value}
+        disabled={pending}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={hint}
+        style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 13, minHeight: 48 }}
+      />
+      {problems.map((p, i) => (
+        <p key={i} style={{ fontSize: 13, margin: "4px 0 0", color: "var(--color-danger)", lineHeight: 1.45 }}>
+          <Icon name="warning-circle" /> {p.message}
+          {p.holes.length > 0 && (
+            <> Check hole{p.holes.length > 1 ? "s" : ""} {p.holes.join(", ")}.</>
+          )}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Add a course by pasting its card.
  *
  * A club's own website almost always renders the card as a table, and pasting
@@ -60,48 +112,6 @@ export function CardImport({
 
   const problemsFor = (row: CardProblem["row"]) => card?.problems.filter((p) => p.row === row) ?? [];
 
-  const Row = ({
-    label,
-    hint,
-    value,
-    onChange,
-    row,
-    optional,
-  }: {
-    label: string;
-    hint: string;
-    value: string;
-    onChange: (v: string) => void;
-    row: CardProblem["row"];
-    optional?: boolean;
-  }) => {
-    const problems = problemsFor(row);
-    return (
-      <div className="field">
-        <label>
-          {label}
-          {optional && <span className="text-muted"> — optional</span>}
-        </label>
-        <textarea
-          className="input"
-          rows={2}
-          value={value}
-          disabled={pending}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={hint}
-          style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 13, minHeight: 48 }}
-        />
-        {problems.map((p, i) => (
-          <p key={i} style={{ fontSize: 13, margin: "4px 0 0", color: "var(--color-danger)", lineHeight: 1.45 }}>
-            <Icon name="warning-circle" /> {p.message}
-            {p.holes.length > 0 && (
-              <> Check hole{p.holes.length > 1 ? "s" : ""} {p.holes.join(", ")}.</>
-            )}
-          </p>
-        ))}
-      </div>
-    );
-  };
 
   const submit = () => {
     setError("");
@@ -174,21 +184,24 @@ export function CardImport({
 
       <Row
         label="Par"
-        row="pars"
+        problems={problemsFor("pars")}
+        pending={pending}
         value={pars}
         onChange={setPars}
         hint="4 5 3 4 4 4 3 4 5 36 4 4 3 4 5 4 3 4 4 35 71"
       />
       <Row
         label="Stroke index"
-        row="strokeIndex"
+        problems={problemsFor("strokeIndex")}
+        pending={pending}
         value={strokeIndex}
         onChange={setStrokeIndex}
         hint="7 3 11 1 15 5 17 9 13 8 4 12 2 16 6 18 10 14"
       />
       <Row
         label={distance.row}
-        row="yards"
+        problems={problemsFor("yards")}
+        pending={pending}
         value={yards}
         onChange={setYards}
         optional

@@ -105,7 +105,7 @@ beforeAll(async () => {
   }
 
   const user = await prisma.user.create({
-    data: { email: `${TAG.toLowerCase()}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable" },
+    data: { email: `${TAG.toLowerCase()}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable", emailVerifiedAt: new Date() },
     select: { id: true },
   });
   await prisma.account.create({
@@ -221,7 +221,9 @@ describe("the screens that reach them", () => {
     expect(src).toContain("renameTeam(");
     // A blank must not be sent — the action refuses it, and the input puts the
     // old name back rather than leaving the field empty on screen.
-    const block = src.slice(src.indexOf("renameTeam(") - 500, src.indexOf("renameTeam(") + 60);
-    expect(block).toContain("e.target.value = t.name");
+    // The guarantee, not a spelling: the box gets the old name back (2026-10-21 the box was renamed
+    // from `e.target` to `box` when its refusal moved beside it; the rule did not change).
+    const block = src.slice(src.indexOf("renameTeam(") - 700, src.indexOf("renameTeam(") + 300);
+    expect(block).toMatch(/\b\w+(\.target)?\.value = t\.name/);
   });
 });

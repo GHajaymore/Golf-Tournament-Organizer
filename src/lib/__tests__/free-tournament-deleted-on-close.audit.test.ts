@@ -6,8 +6,9 @@ import { PrismaClient } from "@prisma/client";
  * THE FREE PLAN'S TERMS, FOR NEW CLUBS ONLY (Ajay, 2026-09-29):
  *
  *   - ten players a tournament, one tournament at a time, one organizer;
- *   - a tournament is deleted the moment it is marked Completed — after a
- *     confirmation, never without one;
+ *   - a completed tournament is kept, read-only, for fifteen days and then
+ *     deleted (it was deleted the moment it was completed until 2026-10-21) —
+ *     after a confirmation, never without one;
  *   - every club that existed before is grandfathered: nothing capped, nothing
  *     deleted.
  *
@@ -134,21 +135,51 @@ describe("a new Free club", () => {
     expect(res.error).toMatch(/up to 10 players/);
   });
 
-  it("is ASKED before completing deletes anything, and nothing is deleted by asking", async () => {
+  it("is ASKED before completing, and is told it is kept fifteen days and then deleted; asking changes nothing", async () => {
     const res = await setEventStatus("completed");
     expect(res.ok).toBe(false);
     expect(res.needsDeleteConfirm).toBe(true);
-    expect(res.error).toMatch(/deletes it for good/);
+    expect(res.error).toMatch(/read-only, for 15 days/);
+    expect(res.error).toMatch(/deleted for good/);
     expect(await exists(eventId), "an unconfirmed completion deleted the tournament").toBe(true);
     const ev = await prisma.event.findUnique({ where: { id: eventId } });
     expect(ev?.status, "an unconfirmed completion still completed it").not.toBe("completed");
   });
 
-  it("deletes the tournament, and everything under it, once confirmed", async () => {
+  /**
+   * 2026-10-21 (Ajay: "keep it for 15 days"): completing used to delete the tournament on the
+   * spot — at prize-giving, with the link the members had just been sent. It is now kept,
+   * read-only, for fifteen days, cannot be reopened, and is deleted by the daily sweep after.
+   */
+  it("once confirmed it is COMPLETED and KEPT, closing fifteen days on — and everything under it stays", async () => {
     await prisma.player.create({ data: { eventId, name: `${TAG} Ann`, handicap: 10, seed: 1, status: "confirmed" } });
-    const { redirected } = await completeConfirmed();
-    expect(redirected, "the organizer is sent somewhere that still exists").toBe(true);
-    expect(await exists(eventId)).toBe(false);
+    const before = Date.now();
+    const { redirected, res } = await completeConfirmed();
+    expect(redirected, "completing still navigated away as if it had deleted").toBe(false);
+    expect(res?.ok).toBe(true);
+    expect(await exists(eventId), "completing deleted the tournament on the spot").toBe(true);
+    expect(await prisma.player.count({ where: { eventId } })).toBe(1);
+    const ev = await prisma.event.findUnique({ where: { id: eventId } });
+    expect(ev?.status).toBe("completed");
+    const days = (ev!.closesAt!.getTime() - before) / (24 * 3600 * 1000);
+    expect(days, "the close is not fifteen days on").toBeGreaterThan(14.99);
+    expect(days).toBeLessThan(15.01);
+  });
+
+  it("cannot be reopened in those fifteen days — that would be a way round them", async () => {
+    const res = await setEventStatus("live");
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/kept read-only until .+, then deleted/);
+    expect((await prisma.event.findUnique({ where: { id: eventId } }))?.status).toBe("completed");
+  });
+
+  it("the daily sweep keeps it before the fifteen days are up, and deletes it — everything under it too — after", async () => {
+    const { sweepClosedPar } = await import("@/lib/services/par-sweep");
+    const DAY = 24 * 3600 * 1000;
+    await sweepClosedPar(new Date(Date.now() + 14 * DAY));
+    expect(await exists(eventId), "the sweep deleted it before the fifteen days were up").toBe(true);
+    await sweepClosedPar(new Date(Date.now() + 16 * DAY));
+    expect(await exists(eventId), "the sweep kept it after the fifteen days").toBe(false);
     expect(await prisma.player.count({ where: { eventId } })).toBe(0);
   });
 });
