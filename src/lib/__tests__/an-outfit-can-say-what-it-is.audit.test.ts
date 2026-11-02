@@ -79,6 +79,11 @@ beforeAll(async () => {
         organizationId: orgId,
         name: `${TAG} Week 1`,
         status: "registration", shape: "series", format: "stroke", formationRule: "balanced",
+        // Its own money setting, so changing the kind moves none of its money
+        // and this file stays about the ROSTER. A tournament that follows the
+        // kind is asked a question of its own:
+        // `a-kind-change-says-what-it-does-to-money.audit.test.ts`.
+        moneyMode: "split",
         dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
         shareToken: `${TAG.toLowerCase()}-share`,
         registrationToken: `${TAG.toLowerCase()}-reg`,

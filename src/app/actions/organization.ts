@@ -8,6 +8,13 @@ import { isSupportedLocale } from "@/lib/domain/locale";
 import { clubClockInWords, isTimeZone } from "@/lib/domain/club-clock";
 import { isCommunityVoice, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { isGolfRegister } from "@/lib/domain/golf-terms";
+import {
+  isKindChangeMoneyChoice,
+  kindChangeMoneyQuestion,
+  KIND_CHANGE_NAMES_SHOWN,
+  moneyModeFlipsOnKindChange,
+  moneyModeToKeep,
+} from "@/lib/domain/kind-change-money";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { otherOrganizationNamed } from "@/lib/services/organization";
 import { seatRefusalFor } from "@/lib/services/limits";
@@ -656,7 +663,14 @@ export async function saveOrganizationKind(
   kind: string,
   /** "Yes, hide the roster" — only meaningful when moving to `personal`. */
   confirmHidingRoster?: boolean,
-): Promise<OrgResult & { hidesRoster?: number }> {
+  /**
+   * The answer to "this changes how money works in these tournaments":
+   * `keep` pins the club's own money default to what it resolves to today and
+   * then changes the kind, so nothing moves; `switch` changes the kind and lets
+   * the tournaments follow it. Only asked when something would change.
+   */
+  moneyChoice?: unknown,
+): Promise<OrgResult & { hidesRoster?: number; moneyChanges?: { count: number; names: string[] } }> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
   if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
@@ -673,9 +687,12 @@ export async function saveOrganizationKind(
     // one-argument `orgProfile(kind)` and caught this being written that way.
     // `sharedRoster` happens not to vary by country, but a rule that holds
     // "except where I checked" is the rule that gets forgotten next time.
-    select: { kind: true, country: true, communityNoun: true },
+    select: { kind: true, country: true, communityNoun: true, moneyMode: true },
   });
   if (current?.kind === value) return { ok: true };
+  if (moneyChoice !== undefined && moneyChoice !== null && !isKindChangeMoneyChoice(moneyChoice)) {
+    return { ok: false, error: "Choose whether to keep their money as it is or switch anyway." };
+  }
 
   const next = orgProfile(value, current?.country, current?.communityNoun);
   if (!next.sharedRoster && !confirmHidingRoster) {
@@ -699,9 +716,37 @@ export async function saveOrganizationKind(
     }
   }
 
+  /**
+   * AND THE MONEY OF EVERY TOURNAMENT THAT FOLLOWS THE KIND. A tournament with
+   * no money mode of its own, in a club with none, takes the kind's default —
+   * so this change would silently move it between "Split shared costs" and
+   * "Costs handled outside the app". Refused here without an answer, not only
+   * asked on the screen, because a `"use server"` export is called with
+   * whatever the caller likes.
+   */
+  const orgMode = current?.moneyMode ?? "";
+  const fromKind = current?.kind ?? "";
+  const tournaments = await prisma.event.findMany({
+    where: { organizationId: org.organizationId },
+    select: { id: true, name: true, moneyMode: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const flips = moneyModeFlipsOnKindChange({ orgMode, fromKind, toKind: value, tournaments });
+  if (flips.length > 0 && !isKindChangeMoneyChoice(moneyChoice)) {
+    return {
+      ok: false,
+      moneyChanges: { count: flips.length, names: flips.slice(0, KIND_CHANGE_NAMES_SHOWN).map((f) => f.name) },
+      error: kindChangeMoneyQuestion(flips),
+    };
+  }
+  const keep = flips.length > 0 && moneyChoice === "keep";
+
+  // One write for both, so "keep" can never land half done: a kind changed
+  // with the club's default not yet pinned is exactly the silent change this
+  // question exists to stop.
   await prisma.organization.update({
     where: { id: org.organizationId },
-    data: { kind: value },
+    data: keep ? { kind: value, moneyMode: moneyModeToKeep({ orgMode, fromKind }) } : { kind: value },
   });
   // The layout resolves the profile once and hands it to eleven components
   // through OrgProfileProvider, so the whole tree has to re-render: this

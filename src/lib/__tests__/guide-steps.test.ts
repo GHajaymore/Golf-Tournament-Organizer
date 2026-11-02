@@ -14,6 +14,8 @@ import { GUIDE_STEPS } from "../guide-steps";
 
 const PINNED: [label: string, file: string][] = [
   ["Publish the link", "src/components/RegistrationClient.tsx"],
+  ["Keep their money as it is", "src/components/OrgKindPicker.tsx"],
+  ["Switch anyway", "src/components/OrgKindPicker.tsx"],
   ["Generate flights", "src/components/GroupingControls.tsx"],
   ["Save & publish", "src/components/FoursomeMaker.tsx"],
   ["Publish the tee sheet", "src/components/FoursomeMaker.tsx"],
