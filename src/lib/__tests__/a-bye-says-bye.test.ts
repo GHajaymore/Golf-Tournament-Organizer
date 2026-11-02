@@ -32,11 +32,13 @@ describe("a knockout of five", () => {
     ]);
   });
 
-  it("still says TBD where somebody IS coming — the control", () => {
-    // P1 waits on the winner of 4 v 5: that opponent exists, undecided.
-    expect(names(sf.matches[0])).toEqual(["P1", "TBD"]);
+  it("names who IS coming where somebody is — the control", () => {
+    // P1 waits on the winner of 4 v 5: that opponent exists, undecided. Since the
+    // panel of 2026-10-23 the place says WHICH tie fills it ("Winner of P4 v P5");
+    // a place whose feeding tie is itself still waiting on somebody stays "TBD".
+    expect(names(sf.matches[0])).toEqual(["P1", "Winner of P4 v P5"]);
     expect(names(sf.matches[1])).toEqual(["P3", "P2"]);
-    expect(names(final.matches[0])).toEqual(["TBD", "TBD"]);
+    expect(names(final.matches[0])).toEqual(["TBD", "Winner of P3 v P2"]);
   });
 });
 

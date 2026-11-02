@@ -151,7 +151,8 @@ test("a new leaderboard link: the old address is not found, the new one is the b
   const old = (await token(ids.board)).shareToken;
 
   await open(page, "/event");
-  const shown = page.locator("code", { hasText: "/live/" });
+  // The board's own link: the screen also shows its event page (/event) and clubhouse screen (?screen=clubhouse).
+  const shown = page.locator("code").filter({ hasText: /\/live\/[^/?\s]+$/ });
   await expect(shown, "the leaderboard link is not on the screen").toHaveText(new RegExp(`/live/${old}$`), { timeout: 30_000 });
   page.once("dialog", (d) => void d.accept());
   await page.getByRole("button", { name: "New link" }).click();

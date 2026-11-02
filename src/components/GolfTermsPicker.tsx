@@ -1,15 +1,18 @@
 "use client";
 import { useState, useTransition } from "react";
 import { saveOrganizationGolfTerms } from "@/app/actions/organization";
-import { GOLF_TERMS_LABEL, golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
+import { GOLF_REGISTERS, GOLF_TERMS_LABEL, golfRegister, golfTermsFor, type GolfRegister } from "@/lib/domain/golf-terms";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
+
+const REGISTER_SHORT: Record<GolfRegister, string> = { us: "US", uk: "UK and Ireland", au: "Australia, NZ and South Africa" };
 
 /**
  * WHICH GOLF THE APP SPEAKS TO THIS CLUB.
  *
- * The club's country picks it — UK golf in Britain, Ireland, Australia, New
- * Zealand, South Africa and the eurozone; US golf elsewhere — and this is
+ * The club's country picks it — UK golf in Britain, Ireland and the eurozone;
+ * the third register in Australia, New Zealand and South Africa (carts, golf
+ * days, fourballs — `docs/country-words.md`); US golf elsewhere — and this is
  * where the club overrules it (Ajay, 2026-09-27: "local by default and
  * overridden option for … US terminologies"). The same shape as the
  * community-noun picker beside it, for the same reasons.
@@ -55,7 +58,7 @@ export function GolfTermsPicker({
         Which golf words the app uses
         <FieldInfo label="which golf words the app uses">
           <p>
-            Golf says the same things two ways. The app picks one from the country on this page, and
+            Golf says the same things in different ways in different countries. The app picks one from the country on this page, and
             this is where you overrule it.
           </p>
           <p>
@@ -73,15 +76,20 @@ export function GolfTermsPicker({
         onChange={(e) => save(e.target.value)}
       >
         <option value="">
-          {GOLF_TERMS_LABEL[""]} — {followed === "us" ? "US" : "UK"}
+          {GOLF_TERMS_LABEL[""]} — {REGISTER_SHORT[followed]}
         </option>
-        <option value="us">{GOLF_TERMS_LABEL.us}</option>
-        <option value="uk">{GOLF_TERMS_LABEL.uk}</option>
+        {/* Every register the table holds, from the table — a third arrived on
+            2026-10-24 (Australia, New Zealand, South Africa). */}
+        {GOLF_REGISTERS.map((r) => (
+          <option key={r} value={r}>{GOLF_TERMS_LABEL[r]}</option>
+        ))}
       </select>
 
       <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55 }}>
         Screens say <b style={{ color: "var(--color-text)" }}>{words.cart}</b>,{" "}
-        <b style={{ color: "var(--color-text)" }}>your {words.group}</b> and{" "}
+        <b style={{ color: "var(--color-text)" }}>your {words.group}</b>,{" "}
+        <b style={{ color: "var(--color-text)" }}>{words.community}</b>,{" "}
+        <b style={{ color: "var(--color-text)" }}>{words.outing}</b> and{" "}
         <b style={{ color: "var(--color-text)" }}>{words.organizer}</b>.
       </p>
 

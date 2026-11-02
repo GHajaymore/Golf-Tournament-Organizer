@@ -18,12 +18,20 @@
 
 import { potCents, splitExactly } from "./money";
 
-export const CONTEST_KINDS = ["closest-pin", "long-drive", "off-course", "other"] as const;
+export const CONTEST_KINDS = ["closest-pin", "long-drive", "straightest-drive", "off-course", "other"] as const;
 export type ContestKind = (typeof CONTEST_KINDS)[number];
 
 export const CONTEST_LABEL: Record<ContestKind, string> = {
   "closest-pin": "Closest to the pin",
   "long-drive": "Long drive",
+  /**
+   * STRAIGHTEST DRIVE (2026-10-24, approved after the Golf GameBook
+   * comparison). The same shape as the long drive in every way the app
+   * holds: a hole, a winner the committee names (nearest the centre line,
+   * measured on the fairway), an optional sponsor, a stake or none. No card
+   * decides it, so there is no scoring path — the kind is the whole of it.
+   */
+  "straightest-drive": "Straightest drive",
   /**
    * POKER, CARDS, DARTS, THE QUIZ — the games an outing plays off the course.
    *

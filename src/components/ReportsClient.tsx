@@ -36,6 +36,7 @@ export function ReportsClient({
   hasBracket = true,
   qualifying = true,
   hasTeeSheet = true,
+  cartWord = "cart",
   casual = false,
   rankedOn = "net",
   contests,
@@ -125,6 +126,8 @@ export function ReportsClient({
    * what it offered before.
    */
   hasTeeSheet?: boolean;
+  /** The club's word for a golf car (`GOLF_TERMS.cart`), for the Print kit row. */
+  cartWord?: string;
 }) {
   const router = useRouter();
   /**
@@ -287,7 +290,7 @@ export function ReportsClient({
      */
     // No tee sheet to print from on a casual round — its card is on the phone.
     ...(casual ? [] : [{
-      label: "Scorecards",
+      label: "Print kit",
       /**
        * SAYS WHERE IT LANDS, and lands on the control rather than the page.
        *
@@ -301,11 +304,13 @@ export function ReportsClient({
        * organizer prints the wrong thing on a Sunday morning. So the fix is
        * the anchor and the sentence, not a second printer.
        */
+      // AND SINCE 2026-10-23 THE PRINTER IS THE PRINT KIT, with the cards ticked.
       desc: hasTeeSheet
-        ? "One card per group, on the tee sheet."
-        : "Draw and save a tee sheet first — cards print one per group.",
+        ? `Scorecards, ${cartWord} signs and the starting sheet for a round.`
+        : "Draw and save a tee sheet first — cards are printed from its groups.",
       icon: "ph ph-cards",
-      action: () => router.push(hasTeeSheet ? "/foursomes#print-scorecards" : "/foursomes"),
+      // The ruling of 30 Oct: Reports is a door to the one renderer, with the morning's paper ticked.
+      action: () => router.push(hasTeeSheet ? "/print?docs=cards,signs,spare,start" : "/foursomes"),
       kind: "open" as const,
     }]),
   ];

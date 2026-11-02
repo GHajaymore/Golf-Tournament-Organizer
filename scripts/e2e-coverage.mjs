@@ -71,6 +71,8 @@ const hitActions = new Map();
 const hitScreens = new Map();
 /** Refusals that appeared after a press with none of them on the screen: the words, and how often. */
 const outOfSight = new Map();
+/** Pages where the refusal watcher stopped on its own error — see `WATCH_STOPPED` in e2e/coverage.ts. */
+const watchStopped = new Map();
 let lines = 0;
 if (existsSync(LEDGER)) {
   for (const name of readdirSync(LEDGER)) {
@@ -98,6 +100,10 @@ if (existsSync(LEDGER)) {
         was.pressed.add(pressed.replace("pressed: ", ""));
         was.times += 1;
         outOfSight.set(key, was);
+      } else if (line.startsWith("W ")) {
+        // W <path>: <the error>
+        const path = line.slice(2).split(":")[0].trim();
+        watchStopped.set(path, (watchStopped.get(path) ?? 0) + 1);
       }
     }
   }
@@ -128,6 +134,8 @@ const report = {
   refusalsOutOfSight: [...outOfSight.values()]
     .map((r) => ({ screen: r.screen, kind: r.kind, words: r.words, pressed: [...r.pressed].sort(), times: r.times }))
     .sort((a, b) => a.screen.localeCompare(b.screen) || a.words.localeCompare(b.words)),
+  // Pages where the refusal watcher stopped: on these, "none seen" above means "not looked".
+  refusalWatchStopped: [...watchStopped.entries()].map(([path, times]) => ({ path, times })).sort((a, b) => b.times - a.times),
 };
 
 if (process.argv.includes("--json")) {
@@ -152,4 +160,9 @@ if (process.argv.includes("--json")) {
     console.log(`  ${r.screen} — ${r.kind}, ${r.times}x, after pressing ${r.pressed.map((p) => `"${p}"`).join(" or ")}`);
     console.log(`    ${r.words}`);
   }
+  console.log("\nPAGES WHERE THE REFUSAL WATCHER STOPPED (refusals on these were not looked for):");
+  if (!report.refusalWatchStopped.length) console.log("  none");
+  for (const w of report.refusalWatchStopped) console.log(`  ${w.path} — ${w.times}x`);
+  // More than a few is the watcher broken, not a page: say so loudly.
+  if (report.refusalWatchStopped.length > 3) console.log("  !! The watcher stopped on more than 3 pages: the refusal list above is not a measurement.");
 }

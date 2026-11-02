@@ -67,14 +67,18 @@ describe("seed order", () => {
 
 describe("round labels", () => {
   it("names the closing rounds properly", () => {
-    expect(roundLabels(8)).toEqual(["Quarterfinals", "Semifinals", "Final"]);
-    expect(roundLabels(4)).toEqual(["Semifinals", "Final"]);
-    expect(roundLabels(2)).toEqual(["Final"]);
+    expect(roundLabels(8, 8)).toEqual(["Quarter-finals", "Semi-finals", "Final"]);
+    expect(roundLabels(4, 4)).toEqual(["Semi-finals", "Final"]);
+    expect(roundLabels(2, 2)).toEqual(["Final"]);
   });
 
-  it("counts the early ones by size", () => {
-    expect(roundLabels(32)).toEqual([
-      "Round of 32", "Round of 16", "Quarterfinals", "Semifinals", "Final",
+  it("numbers the early ones as a club does, from Round 1 (the panel, 2026-10-23)", () => {
+    expect(roundLabels(32, 32)).toEqual([
+      "Round 1", "Round 2", "Quarter-finals", "Semi-finals", "Final",
+    ]);
+    // A field that does not fill its sheet plays a preliminary round first.
+    expect(roundLabels(32, 20)).toEqual([
+      "Preliminary round", "Round 1", "Quarter-finals", "Semi-finals", "Final",
     ]);
   });
 });

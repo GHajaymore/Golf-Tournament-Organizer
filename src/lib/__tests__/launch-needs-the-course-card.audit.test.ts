@@ -66,7 +66,9 @@ async function tournament(round: { format: string; scoringBasis: string; courseI
       // Round for every case, so the match-play control was Match Play on a round
       // with no opponents — a round nobody can score, which launch refuses since
       // 2026-10-16. The fixture was the defect, not the gate.
-      type: round.type ?? (round.format === "Match Play" ? "Round Robin" : "Stroke Play Round"),
+      // A knockout, not a round robin: an undrawn round robin has no matches to
+      // score, which launch refuses since gap G3 (2026-10-31); a bracket draws its own.
+      type: round.type ?? (round.format === "Match Play" ? "Bracket Stage" : "Stroke Play Round"),
       holes: 18,
       format: round.format,
       scoringBasis: round.scoringBasis,

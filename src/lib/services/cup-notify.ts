@@ -36,7 +36,7 @@ export async function notifyLineupPublished(eventId: string, session: Announced)
         if (!email) return Promise.resolve();
         // One tag per session: a re-announcement replaces the first rather
         // than stacking two notifications for the same match.
-        return sendPushToEmails([email], { title: n.title, body: n.body, url: "/me", tag: `lineup-${session.id}` });
+        return sendPushToEmails([email], { title: n.title, body: n.body, url: "/me", tag: `lineup-${session.id}` }, { eventId });
       }),
     );
   } catch (e) {
