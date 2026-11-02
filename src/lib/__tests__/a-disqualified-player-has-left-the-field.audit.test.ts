@@ -54,7 +54,8 @@ async function scrub() {
 async function tournament(left: "withdrawn" | "disqualified" | "confirmed") {
   const event = await prisma.event.create({
     data: {
-      organizationId: orgId, name: `${TAG} ${left}`, dates: "", course: "", city: "", address: "", regDeadline: "",
+      // Numbered: two of one name may not be in play in one club (migration A036).
+      organizationId: orgId, name: `${TAG} ${left} #${made + 1}`, dates: "", course: "", city: "", address: "", regDeadline: "",
       shareToken: `${TAG}-${left}-${process.pid}-${++made}`, format: "stroke", moneyMode: "split", configUnlocked: true, playerAccess: "code",
     },
   });

@@ -78,7 +78,9 @@ export async function seedFits() {
     const event = async (key, extra = {}) => {
       const e = await prisma.event.create({
         data: {
-          name: `${MARK} ${EVENT}`.slice(0, MARK.length + 1 + 80),
+          // Each its own key at the front, at the same long length: two of one name may not be in
+          // play in one club (migration A036, `domain/tournament-name.ts`).
+          name: `${MARK} ${key} ${EVENT}`.slice(0, MARK.length + 1 + 80),
           organizationId: org.id, status: "live", dates: "", course: course.name, city: "", address: "", regDeadline: "",
           shareToken: `${MARK}-${key}-${Math.random().toString(36).slice(2, 10)}`,
           leaderboardVisibility: "public", playerAccess: "both", scoreEntryBy: "players",

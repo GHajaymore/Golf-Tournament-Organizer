@@ -11,6 +11,7 @@ import { isMoneyMode } from "../domain/money-mode";
 import { TEAM_FORMAT_NAMES } from "../formats";
 import { roundsMissingCards } from "./round-card-lines";
 import type { LaunchCheck } from "../domain/launch-check";
+import { isUnnamed } from "../domain/tournament-name";
 
 /**
  * The setup flow for one tournament, read once per screen.
@@ -143,7 +144,8 @@ async function setupFactsFor(eventId: string): Promise<{ facts: SetupFacts; matc
      * trimmed, because it is a placeholder being recognised, not a value being
      * validated.
      */
-    named: !!event.name.trim() && event.name.trim().toLowerCase() !== "new tournament",
+    // Since 2026-11-01 the placeholder may carry a year or "(2)" to keep it free (`isUnnamed`).
+    named: !isUnnamed(event.name),
     dated: !!event.dates.trim(),
     // The launch gate's own count, so the guide's "what is left" is its answer.
     playingRounds: stageRows.filter((s) => isPlayingRound(s.type)).length,

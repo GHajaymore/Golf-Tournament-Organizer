@@ -282,6 +282,7 @@ export const FULL_ONLY = [
   "e2e/named-side-bet.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
+  "e2e/one-name-in-play.spec.ts",
   "e2e/one-prize-per-player.spec.ts",
   "e2e/one-setting-up-step.spec.ts",
   "e2e/organizer-championship.spec.ts",
