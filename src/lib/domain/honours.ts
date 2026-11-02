@@ -45,7 +45,12 @@ export type NoChampionReason =
 export type ChampionSuggestion =
   | {
       ok: true;
-      /** A player's id — or, for a team cup, the winning TEAM's (its flight's) id. */
+      /**
+       * The champion PLAYER's id, and only ever a player's. "" when the
+       * champion is a team (`team` is set): a team is not a player, and an id
+       * in this field is read as one — it is what `HonoursEntry.playerId` is
+       * written from, the column kept "for linking to a member's history".
+       */
       playerId: string;
       name: string;
       runnersUp: FinishingPosition[];
@@ -69,6 +74,13 @@ export const CHAMPION_REFUSAL: Record<NoChampionReason, string> = {
  * A TEAM CUP'S CHAMPION IS A TEAM (2026-10-30). The cup's own result —
  * `cupResult`, the one reader — names it with its score; a halved cup names
  * nobody, whoever holds the trophy; an open one names nobody yet.
+ *
+ * NO PLAYER ID (2026-11-02). The team's flight id used to ride in `playerId`
+ * and so in `HonoursEntry.playerId`, where nothing joined it to anybody yet —
+ * but the column says it holds a player, and the first reader to link a board
+ * line to a member's history would have taken a flight for a person. A team
+ * line is keyed by its tournament alone (one champion per cup) and carries its
+ * words in `championName`, which is all a board line ever shows.
  */
 export function suggestCupChampion(
   completed: boolean,
@@ -78,7 +90,7 @@ export function suggestCupChampion(
   if (cup.outcome === "halved") return { ok: false, reason: "cup-halved", tied: [] };
   if (cup.outcome !== "won" || !cup.champion) return { ok: false, reason: "cup-open", tied: [] };
   const team = cup.champion === "A" ? cup.teams[0] : cup.teams[1];
-  return { ok: true, playerId: team.id, name: team.name, runnersUp: [], team: { score: cup.scoreLine } };
+  return { ok: true, playerId: "", name: team.name, runnersUp: [], team: { score: cup.scoreLine } };
 }
 
 /**

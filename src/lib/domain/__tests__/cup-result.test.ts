@@ -95,7 +95,10 @@ describe("a cup of ten matches won 6½–3½", () => {
 
   it("the honours board names the TEAM with its score", () => {
     const s = suggestCupChampion(true, r);
-    expect(s).toMatchObject({ ok: true, playerId: "zz-team-oak", name: "Oakmere", team: { score: "Oakmere 6½–3½" } });
+    expect(s).toMatchObject({ ok: true, name: "Oakmere", team: { score: "Oakmere 6½–3½" } });
+    // A team is not a player: no flight id rides in the field the board's
+    // `HonoursEntry.playerId` is written from (2026-11-02).
+    expect(s.ok && s.playerId).toBe("");
   });
 
   it("CONTROL: an unfinished tournament names nobody yet", () => {
