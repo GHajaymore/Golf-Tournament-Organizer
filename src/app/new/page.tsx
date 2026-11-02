@@ -299,6 +299,7 @@ export default async function NewSitePreview() {
                 player's own row outlined over it. Behind it, turned and dimmed, two more real screens
                 as depth only (`e-decor`) — the same screens are shown flat further down. */}
             <div className="n-stage e-stage">
+              <div className="e-stage-hour"><Hour light="dawn" /></div>
               <div className="e-decor e-desk" aria-hidden="true"><div className="n-lid"><div className="n-lid-screen">{plainShot({ name: "desk-leaderboard", alt: "", sizes: SIZES.heroDesk })}</div></div></div>
               <div className="e-decor e-back" aria-hidden="true"><div className="n-phone"><div className="n-phone-screen">{plainShot({ name: "club-today", alt: "", sizes: SIZES.heroBack })}</div></div></div>
               <div className="n-phone e-front">
@@ -323,18 +324,15 @@ export default async function NewSitePreview() {
           <div className="n-wrap n-kicker-after">
             <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
           </div>
-          <div className="n-wrap e-hero-foot">
-            <Hour light="dawn">First light at the demo club. The page follows one example day, to the prize-giving.</Hour>
-            <p className="n-caption">
-              The app itself, at {FACTS.club}: a demo club with invented players. Every screen on this page is a capture of TourneyHQ, never a mock-up.
-            </p>
-          </div>
           <Course variant="dawn" />
         </section>
 
         {/* ═════════ THE WEEK BEFORE, THEN SATURDAY MORNING: the day in order, one phone in view ═════════ */}
         <section className="n-story-sec e-sec e-l-night" id="day" aria-labelledby="day-h">
           <div className="n-wrap">
+            <p className="n-caption e-hero-caption">
+              The app itself, at {FACTS.club}: a demo club with invented players. Every screen on this page is a capture of TourneyHQ, never a mock-up, and every time is one example day there.
+            </p>
             <div className="n-story-head">
               <Hour light="night" />
               <h2 id="day-h" className="n-h2">One competition, from the first entry to the prize table.</h2>

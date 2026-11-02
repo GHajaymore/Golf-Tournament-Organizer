@@ -1,46 +1,45 @@
 /**
- * THE COURSE ON THE HORIZON (design E): one parkland hole drawn as layered silhouettes — far hills,
- * a tree line, the near fairway and a green with its flag — that each hour of the page lights in
- * its own colours (`--e-far`, `--e-trees`, `--e-near`, `--e-green`, `--e-pin`, `--e-sun`).
+ * THE COURSE ON THE HORIZON (design E): the far side of a parkland course seen against the sky —
+ * a line of low hills and a tree line, softened by distance, with low mist over the turf and the
+ * sun's light behind it. Each hour of the page lights it in its own colours (`--e-far`,
+ * `--e-trees`, `--e-near`, `--e-sun`, `--e-mist`).
  *
- * Drawn here, by hand, in vector: no generated image, nothing that could look made by a model, and
- * no words. It is decoration only (`aria-hidden`), set behind the words and never under a screen.
- * `variant` moves the sun: low on the left at first light, high at midday, low on the right at
- * golden hour, gone in the evening.
+ * Ajay, 2 Nov: "it should not look really artificial." So there is no drawn sun disc, no flag and
+ * no hard outline: the shapes are blurred the way a far tree line is in real air, and the sun is
+ * only its light, a soft glow behind the trees. Drawn here in vector; no words, `aria-hidden`, set
+ * behind the words and never under a screen. The light sits on the right, behind the devices, at
+ * first light and at golden hour alike; `variant` only changes its colours.
  */
-export function Course({ variant, className = "" }: { variant: "dawn" | "golden" | "evening"; className?: string }) {
-  const sun = variant === "dawn" ? { cx: 330, cy: 250, r: 70 } : variant === "golden" ? { cx: 1210, cy: 205, r: 84 } : null;
+export function Course({ variant, className = "" }: { variant: "dawn" | "golden"; className?: string }) {
+  const sun = variant === "dawn" ? { cx: 1180, cy: 262 } : { cx: 1180, cy: 236 };
+  const id = (n: string) => `e-${n}-${variant}`;
   return (
     <svg className={`e-course e-course-${variant} ${className}`} viewBox="0 0 1600 360" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
       <defs>
-        <radialGradient id={`e-halo-${variant}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0" stopColor="var(--e-sun)" stopOpacity=".95" />
-          <stop offset=".35" stopColor="var(--e-sun)" stopOpacity=".42" />
+        <radialGradient id={id("halo")} cx="50%" cy="50%" r="50%">
+          <stop offset="0" stopColor="var(--e-sun-core)" stopOpacity=".95" />
+          <stop offset=".18" stopColor="var(--e-sun)" stopOpacity=".7" />
+          <stop offset=".55" stopColor="var(--e-sun)" stopOpacity=".22" />
           <stop offset="1" stopColor="var(--e-sun)" stopOpacity="0" />
         </radialGradient>
-        <linearGradient id={`e-rim-${variant}`} x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="var(--e-rim)" stopOpacity={variant === "golden" ? 0 : 0.9} />
-          <stop offset="1" stopColor="var(--e-rim)" stopOpacity={variant === "golden" ? 0.9 : 0} />
+        <linearGradient id={id("mist")} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="var(--e-mist)" stopOpacity="0" />
+          <stop offset=".55" stopColor="var(--e-mist)" stopOpacity=".38" />
+          <stop offset="1" stopColor="var(--e-mist)" stopOpacity="0" />
         </linearGradient>
+        <filter id={id("far")} x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur stdDeviation="3.2" /></filter>
+        <filter id={id("near")} x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur stdDeviation="1.1" /></filter>
       </defs>
-      {sun ? (
-        <g className="e-sun">
-          <circle cx={sun.cx} cy={sun.cy} r={sun.r * 4.2} fill={`url(#e-halo-${variant})`} />
-          <circle cx={sun.cx} cy={sun.cy} r={sun.r * 0.55} fill="var(--e-sun-core)" />
-        </g>
-      ) : null}
-      {/* far hills */}
-      <path className="e-far" d="M0 250 C 140 214 260 222 380 236 C 520 252 600 206 760 200 C 900 196 1000 236 1120 232 C 1260 228 1360 196 1480 204 C 1540 208 1580 216 1600 222 L1600 360 L0 360 Z" />
-      {/* the far hills' lit edge, toward the sun */}
-      <path className="e-rim" d="M0 250 C 140 214 260 222 380 236 C 520 252 600 206 760 200 C 900 196 1000 236 1120 232 C 1260 228 1360 196 1480 204 C 1540 208 1580 216 1600 222" fill="none" stroke={`url(#e-rim-${variant})`} strokeWidth="2.2" />
-      {/* the tree line: rounded crowns along the back of the hole */}
-      <path className="e-trees" d="M0 286 C 20 262 44 258 62 270 C 74 248 104 246 116 264 C 132 244 166 248 172 270 C 196 256 222 262 230 278 C 260 270 300 276 318 288 L 640 296 C 660 278 690 276 700 290 C 714 266 750 264 760 284 C 782 270 808 276 812 292 L 1040 296 C 1056 272 1088 270 1098 288 C 1112 260 1150 258 1162 280 C 1180 262 1214 266 1222 284 C 1246 268 1276 272 1284 290 C 1310 278 1340 280 1352 292 L1600 290 L1600 360 L0 360 Z" />
-      {/* the fairway sweeping to the green */}
-      <path className="e-near" d="M0 330 C 220 300 420 302 640 314 C 820 324 980 304 1160 300 C 1330 296 1480 310 1600 318 L1600 360 L0 360 Z" />
-      {/* the green, and its flag */}
-      <ellipse className="e-green" cx="1010" cy="306" rx="96" ry="11" />
-      <line className="e-pin" x1="1032" y1="304" x2="1032" y2="238" strokeWidth="2.4" strokeLinecap="round" />
-      <path className="e-flag" d="M1033 239 L1062 247 L1033 256 Z" />
+      {/* the sun's light, just under the hills: no disc, only the glow it throws */}
+      <ellipse cx={sun.cx} cy={sun.cy} rx="520" ry="200" fill={`url(#${id("halo")})`} />
+      {/* far hills, softened by distance */}
+      <path className="e-far" filter={`url(#${id("far")})`} d="M-20 254 C 140 226 260 232 380 242 C 520 254 600 222 760 218 C 900 214 1000 244 1120 240 C 1260 236 1360 214 1480 220 C 1540 223 1580 228 1620 232 L1620 380 L-20 380 Z" />
+      {/* the tree line along the back of the hole: irregular crowns, slightly soft */}
+      <path className="e-trees" filter={`url(#${id("near")})`} d="M-20 292 C 6 276 22 270 38 279 C 46 262 70 258 84 271 C 92 255 120 252 132 268 C 146 258 160 262 168 276 C 186 266 204 270 214 282 C 236 274 262 279 280 290 C 320 286 360 288 400 292 C 440 289 470 291 500 294 L 640 297 C 652 283 668 279 680 287 C 690 268 716 264 728 280 C 740 270 760 272 770 284 C 786 276 800 281 810 293 L 1030 296 C 1040 280 1060 275 1072 286 C 1080 264 1108 260 1120 276 C 1130 262 1152 262 1162 278 C 1176 266 1198 268 1206 282 C 1222 270 1248 272 1258 286 C 1276 278 1300 280 1312 290 C 1340 284 1370 288 1400 292 C 1460 290 1540 292 1620 291 L1620 380 L-20 380 Z" />
+      {/* the turf in front, in shade */}
+      <path className="e-near" d="M-20 326 C 220 304 420 306 640 316 C 820 324 980 308 1160 304 C 1330 300 1480 312 1620 318 L1620 380 L-20 380 Z" />
+      {/* low mist lying over the fairway */}
+      <rect x="-20" y="270" width="1640" height="70" fill={`url(#${id("mist")})`} />
     </svg>
   );
 }

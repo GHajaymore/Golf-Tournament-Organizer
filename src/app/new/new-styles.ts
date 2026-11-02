@@ -187,12 +187,12 @@ ${LIGHT_CSS}
 }
 
 /* ═════════ 06:12, FIRST LIGHT ═════════ */
-.n-hero { --e-horizon: clamp(150px, 17vw, 250px); overflow: clip; padding: clamp(28px, 5vw, 72px) 0 calc(var(--e-horizon) + 8px); background: ${D.grounds[0]}; }
+/* the horizon sits inside the first screen of a laptop: the course is drawn under the devices */
+.n-hero { --e-horizon: clamp(140px, 13vw, 200px); overflow: clip; padding: clamp(24px, 3.4vw, 48px) 0 var(--e-horizon); background: ${D.grounds[0]}; }
 .e-sky-dawn {
   background:
-    radial-gradient(40% 60% at 22% 100%, rgba(255,170,110,.5), transparent 70%),
-    radial-gradient(42% 520px at 82% 720px, rgba(255,186,124,.78), rgba(238,116,118,.42) 34%, rgba(128,62,132,.2) 60%, transparent 78%),
-    linear-gradient(to top, #f39a6a 0, #c4686c calc(var(--e-horizon) * .35), #6a3a66 calc(var(--e-horizon) * .7), ${D.grounds[2]} calc(var(--e-horizon) + 20px), ${D.grounds[1]} 62%, ${D.grounds[0]} 100%),
+    radial-gradient(44% 480px at 76% calc(100% - var(--e-horizon) * .42), rgba(255,184,128,.62), rgba(226,120,118,.32) 38%, rgba(120,62,130,.16) 64%, transparent 80%),
+    linear-gradient(to top, #f6a477 0, #f6a477 calc(var(--e-horizon) * .35), #d47a74 calc(var(--e-horizon) * .52), #8a4a6e calc(var(--e-horizon) * .74), #3a2a5e calc(var(--e-horizon) * .96), ${D.grounds[2]} calc(var(--e-horizon) + 30px), ${D.grounds[1]} 62%, ${D.grounds[0]} 100%),
     ${GRAIN};
 }
 /* the last of the night: a scatter of stars, high and faint */
@@ -220,9 +220,12 @@ ${LIGHT_CSS}
 
 /* the stage: the live board standing in the first light, two more screens behind it as depth */
 .e-stage { position: relative; min-width: 0; display: grid; justify-items: center; padding: 20px 0 0; }
-.e-stage::before { content: ""; position: absolute; z-index: 0; left: 50%; top: 80%; width: 190%; height: 120%; transform: translate(-50%, -50%); background: radial-gradient(closest-side, rgba(255,196,128,.8), rgba(246,128,104,.5) 30%, rgba(160,72,140,.26) 58%, transparent); filter: blur(4px); pointer-events: none; }
-/* the sun, just under the stage's horizon, about to come up behind the phones */
-.e-stage::after { content: ""; position: absolute; z-index: 0; left: 58%; top: 96%; width: 120px; height: 120px; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, #fff1d8 0 34%, rgba(255,200,140,.7) 46%, transparent 70%); pointer-events: none; }
+.e-stage::before { content: ""; position: absolute; z-index: 0; left: 50%; top: 80%; width: 190%; height: 120%; transform: translate(-50%, -50%); background: radial-gradient(closest-side, rgba(255,190,132,.55), rgba(236,128,108,.32) 34%, rgba(150,72,140,.16) 62%, transparent); filter: blur(8px); pointer-events: none; }
+/* the hour, floating at the top of the stage on glass */
+.e-stage-hour { position: absolute; z-index: 5; top: 0; right: 0; padding: 6px 12px 6px 10px; border-radius: 999px; background: color-mix(in srgb, ${D.panel} 88%, transparent); border: 1px solid var(--line-2); backdrop-filter: blur(10px); }
+.e-stage-hour .e-hour { margin: 0; color: var(--ink); }
+.e-stage-hour .e-hour b { padding: 0; border: 0; background: none; }
+.e-hero-caption { margin-bottom: clamp(36px, 5vw, 64px); }
 .e-stage .e-front { position: relative; z-index: 3; width: min(320px, 74%, max(230px, calc((100svh - 330px) * .46))); }
 .e-stage .e-front { box-shadow: 0 0 0 1.5px var(--n-device-edge), inset 0 0 0 1px rgba(255,255,255,.08), -30px 60px 90px -40px #000, 0 0 90px -20px rgba(255,150,90,.55); }
 .e-decor { position: absolute; pointer-events: none; }
@@ -233,8 +236,6 @@ ${LIGHT_CSS}
 .n-live > span:last-child { color: var(--ink-soft); min-width: 0; }
 .n-live .n-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brass-ui); flex: none; box-shadow: 0 0 12px ${SUN_FILL}; }
 .n-live .n-big { font: 750 30px/1 var(--n-fig); color: var(--brass); }
-.e-hero-foot { position: relative; z-index: 1; margin-top: clamp(36px, 4.5vw, 60px); display: grid; gap: 4px; }
-.e-hero-foot .e-hour { margin-bottom: 0; }
 .n-caption { max-width: 52em; font-size: 15px; color: var(--ink-soft); }
 .e-caption-left { margin-top: 26px; }
 .n-kicker-after { display: none; }
@@ -247,15 +248,12 @@ ${LIGHT_CSS}
   .e-ball { animation: e-drop .5s ease-out 2s both; }
   @keyframes e-draw { to { stroke-dashoffset: 0; } }
   @keyframes e-drop { from { opacity: 0; transform: translateX(-140%) scale(.6); } }
-  @supports (animation-timeline: view()) {
-    .e-course-dawn .e-sun { animation: e-rise linear both; animation-timeline: view(); animation-range: exit 0% exit 100%; }
-    @keyframes e-rise { to { transform: translateY(-60px); } }
-  }
 }
 @media (max-width: 1000px) and (min-width: 768px) { .n-hero-grid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } }
 /* A PHONE: words first, then the board, which must be in the first screen of 393 x 852 */
 @media (max-width: 767px) {
-  .n-hero { padding-top: 18px; --e-horizon: 130px; }
+  .n-hero { padding-top: 18px; --e-horizon: 120px; }
+  .e-stage-hour { position: relative; justify-self: start; margin-bottom: 10px; }
   .n-hero-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .n-hero-top .n-kicker { display: none; }
   .n-kicker-after { display: block; margin-top: 26px; position: relative; z-index: 1; }
@@ -277,9 +275,8 @@ ${LIGHT_CSS}
 /* ═════════ the course on the horizon (course.tsx), lit per hour ═════════ */
 .e-course { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: var(--e-horizon, 220px); z-index: 0; pointer-events: none; display: block; }
 .e-course .e-far { fill: var(--e-far); } .e-course .e-trees { fill: var(--e-trees); } .e-course .e-near { fill: var(--e-near); }
-.e-course .e-green { fill: var(--e-green); } .e-course .e-pin { stroke: var(--e-pin); } .e-course .e-flag { fill: ${SUN_FILL}; }
-.e-course-dawn { --e-far: #4a2f5c; --e-trees: #231c40; --e-near: ${N.grounds[0]}; --e-green: #1c2546; --e-pin: #e9dfd2; --e-sun: #ffb27a; --e-sun-core: #ffe4c4; --e-rim: #ffb27a; }
-.e-course-golden { --e-far: #b5502c; --e-trees: #6e2a18; --e-near: ${G.grounds[0]}; --e-green: #7a321c; --e-pin: #ffe9cc; --e-sun: #ffcf7a; --e-sun-core: #fff3d2; --e-rim: #ffd59a; }
+.e-course-dawn { --e-far: #3e2a52; --e-trees: #1a1838; --e-near: ${N.grounds[0]}; --e-sun: #f6a477; --e-sun-core: #ffd9b8; --e-mist: #b9a3c4; }
+.e-course-golden { --e-far: #8a3a22; --e-trees: #5a2214; --e-near: ${G.grounds[0]}; --e-sun: #f7b468; --e-sun-core: #ffe6b8; --e-mist: #f0b27c; }
 
 /* ═════════ THE WEEK BEFORE, THEN SATURDAY MORNING (C's scroll story, in its light) ═════════ */
 .n-story-sec { padding-top: var(--n-sec); overflow-x: clip; background: ${N.grounds[0]}; }
@@ -520,7 +517,7 @@ ${LIGHT_CSS}
 .e-golden-sky { position: relative; height: clamp(220px, 27vw, 400px);
   background: linear-gradient(180deg, ${LIGHT.late.grounds[0]} 0, #f6cf8e 26%, #f3a85e 52%, #e07a43 72%, #b9532d 88%, #9a3f22 100%); }
 .e-golden-sky .e-course { height: 100%; }
-.e-golden { background-image: radial-gradient(60% 520px at 78% clamp(220px, 27vw, 400px), rgba(255,160,80,.34), transparent 72%), linear-gradient(180deg, transparent 0, transparent clamp(220px, 27vw, 400px), ${G.grounds[0]} clamp(220px, 27vw, 400px), ${G.grounds[2]} 45%, ${G.grounds[1]} 100%), ${GRAIN}; }
+.e-golden { background-image: radial-gradient(60% 380px at 78% calc(clamp(220px, 27vw, 400px) + 380px), rgba(255,160,80,.3), transparent 100%), linear-gradient(180deg, transparent 0, transparent clamp(220px, 27vw, 400px), ${G.grounds[0]} clamp(220px, 27vw, 400px), ${G.grounds[2]} 45%, ${G.grounds[1]} 100%), ${GRAIN}; }
 .n-close.e-from-golden { --e-from: ${G.grounds[1]}; }
 .e-final { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: clamp(28px, 4vw, 64px); align-items: start; margin-top: clamp(28px, 3.5vw, 52px); }
 .e-final-say { min-width: 0; display: grid; gap: 16px; align-content: start; }
