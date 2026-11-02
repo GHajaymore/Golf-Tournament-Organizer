@@ -33,3 +33,6 @@ stylesheet (`new-styles.ts`, classes `n-`), its own two faces served from `publi
 the hero's live moment reads `screen-facts.json`. Its social strip and footer read `SOCIAL_CHANNELS`
 in `src/lib/contact.ts`. Unlike `/` it does not send a signed-in visitor on to the app. It replaces
 `/` only on Ajay's word; the design plan is in `TourneyHQ Documents\Landing concepts Nov 2026\Rehaul\`.
+Several drafts of it are built side by side on their own branches for him to compare (2026-11-02);
+`claude/site-rehaul-c` is design C, the day as a scroll story (`DayStory.tsx`: one phone held in
+view whose real screen turns with each moment, a plain sequence below 768px, on `DARK_GROUND`).

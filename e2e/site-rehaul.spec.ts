@@ -5,8 +5,9 @@ import { expect, test } from "./coverage";
  *
  * What it holds: the page renders and is never indexed; nothing scrolls sideways; every picture
  * arrives; on a 393 x 852 phone the live moment (the member's phone with their row marked on the
- * board) is in the first screen without scrolling — the panel's condition for adopting it; the day
- * board's times turn the screen beside them; and the social links are TourneyHQ's own, in the same
+ * board) is in the first screen without scrolling — the panel's condition for adopting it; the day,
+ * told as a scroll story (design C), turns the screen of the phone held in view and becomes a plain
+ * sequence on a phone; and the social links are TourneyHQ's own, in the same
  * tab, with no X until it has an address.
  *
  * Reduced motion, so the hero shows its settled state at once (the moment itself is a component
@@ -67,18 +68,26 @@ test.describe("/new, the site rehaul's preview", () => {
     expect(sub!.y).toBeLessThan(box!.y);
   });
 
-  test("a time on the day board turns the screen beside it", async ({ page }) => {
+  test("scrolling the day turns the phone that stays in view, and a phone gets a plain sequence", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/new");
-    const board = page.getByRole("tablist", { name: "The week, by time" });
-    const tab = board.getByRole("tab", { name: /11:42/ });
-    await tab.click();
-    await expect(tab).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("tabpanel").filter({ hasText: "The board moves." })).toBeVisible();
-    await expect(page.locator(".n-day-phone .n-frame:not(.n-off) img")).toHaveAttribute("alt", /Board/);
-    // The arrow keys move along the board.
-    await tab.press("ArrowRight");
-    await expect(board.getByRole("tab", { name: /14:00/ })).toHaveAttribute("aria-selected", "true");
+    // Bring the 11:42 moment to the middle of the window: the phone in view shows the board.
+    const moment = page.locator(".n-step").filter({ hasText: "The board moves." });
+    await moment.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      window.scrollTo(0, window.scrollY + r.top + r.height / 2 - window.innerHeight / 2);
+    });
+    await expect(page.locator(".n-story-pin .n-frame:not(.n-off) img")).toHaveAttribute("alt", /Board/);
+    await expect(page.getByRole("navigation", { name: "The day, by chapter" }).locator('[aria-current="step"]')).toHaveText(/The live board/);
+    const pin = await page.locator(".n-story-pin .n-phone").boundingBox();
+    expect(pin!.y, "the phone is not held in view").toBeGreaterThanOrEqual(0);
+    expect(pin!.y + pin!.height).toBeLessThanOrEqual(900);
+
+    // Below 768px there is no sticky phone: every moment carries its own screen.
+    await page.setViewportSize({ width: 393, height: 852 });
+    await expect(page.locator(".n-story-dev")).toBeHidden();
+    await expect(page.locator(".n-step-phone")).toHaveCount(7);
+    await expect(page.locator(".n-step-phone").first()).toBeVisible();
   });
 
   test("the social links are TourneyHQ's own, in the same tab, and X is not drawn", async ({ page }) => {

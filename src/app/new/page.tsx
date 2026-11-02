@@ -26,8 +26,8 @@ import { LOGO_SIZE } from "@/components/Logo";
 import { landingScreen } from "@/lib/landing/screens";
 import FACTS from "@/lib/landing/screen-facts.json";
 import { NEW_CSS } from "./new-styles";
-import { HeroMoment } from "./HeroMoment";
 import { BoardTabs } from "./BoardTabs";
+import { DayStory, type StoryStep } from "./DayStory";
 import { SocialIcon } from "./social-icons";
 
 /**
@@ -36,6 +36,11 @@ import { SocialIcon } from "./social-icons";
  * nothing links to it. It says what `/` says — the same claims, the same prices read from PLANS, the
  * same held/live words from `go-live.ts` — in a new order, a new type and a new layout. The design
  * plan is in `TourneyHQ Documents\Landing concepts Nov 2026\Rehaul\Design plan.md`.
+ *
+ * DESIGN C (2026-11-02), one of several drafts put side by side: the day told as a scroll story.
+ * The hero stands the live board on a phone in slight perspective on the app's own dark ground;
+ * then one phone stays in view while its real screen turns with each moment of the day, from the
+ * first entry to the prize table (`DayStory`). Below 768px it is a plain sequence.
  *
  * Unlike `/`, a signed-in visitor is NOT sent on to the app: the owners judging the preview are
  * signed in.
@@ -53,12 +58,11 @@ function screen(id: string, alt: string, sizes: string, priority = false) {
 }
 
 const SIZES = {
-  heroDesk: "(max-width: 760px) 100vw, min(1000px, 86vw)",
-  heroPhone: "(max-width: 760px) min(78vw, 330px), min(300px, 25vw)",
+  heroBoard: "(max-width: 767px) min(62vw, 250px), 340px",
+  story: "(max-width: 767px) min(76vw, 300px), 330px",
   // Below 600px the laptop shots are cropped to a square, so the picture is drawn 1.6 times as wide.
   desk: "(max-width: 600px) 160vw, (max-width: 900px) 100vw, 60vw",
   deskPhone: "(max-width: 900px) 38vw, 18vw",
-  day: "(max-width: 900px) min(76vw, 320px), 330px",
   watch: "(max-width: 900px) min(64vw, 260px), 300px",
   wide: "(max-width: 600px) 150vw, (max-width: 900px) 100vw, 66vw",
   money: "(max-width: 900px) min(80vw, 330px), 330px",
@@ -92,6 +96,31 @@ const DAY: Array<{ day: string; when: string; what: string; who: string; h: stri
     p: "The final board, the prizes and the honors board, done before the prize-giving starts.",
     shot: "club-final", alt: "A player's Board for the finished championship: the result of each round, then the final order." },
 ];
+
+/**
+ * The story's five chapters, in the order of the tagline: from registration to recognition. Each
+ * names the first moment of the day it opens (an index into DAY); the moments after it belong to
+ * it until the next one opens.
+ */
+const CHAPTERS: Array<{ n: number; title: string; first: number }> = [
+  { n: 1, title: "Entries", first: 0 },
+  { n: 2, title: "The draw and the tee sheet", first: 1 },
+  { n: 3, title: "Scoring by phone", first: 2 },
+  { n: 4, title: "The live board", first: 4 },
+  { n: 5, title: "The prize table", first: 5 },
+];
+
+const STEPS: StoryStep[] = DAY.map((d, i) => {
+  const ch = [...CHAPTERS].reverse().find((c) => c.first <= i)!;
+  return { chapter: ch.n, chapterTitle: ch.first === i ? ch.title : undefined, day: d.day, when: d.when, what: d.what, who: d.who, h: d.h, p: d.p };
+});
+
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st: the hole as a person says it. */
+function ordinal(n: number): string {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  const tail = teen ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${tail}`;
+}
 
 /** Five demo clubs, each in its own money, written the way that country writes it. */
 const WORLD: Array<{ shot: string; symbol: string; place: string; money: string; alt: string }> = [
@@ -164,14 +193,10 @@ export default async function NewSitePreview() {
   ];
   const widest = Math.max(...bars.map((b) => b.amount));
 
-  // The live moment's facts, as the capture command measured them.
-  const r = FACTS.rects;
-  const moment = {
-    player: FACTS.player, hole: FACTS.hole, score: FACTS.score, field: FACTS.field,
-    holesBefore: FACTS.holesBefore, holesAfter: FACTS.holesAfter, placeBefore: FACTS.placeBefore, placeAfter: FACTS.placeAfter,
-    deskBefore: r["live-desk-before"].selfRow, deskAfter: r["live-desk-after"].selfRow,
-    press: r["live-card-before"].press, boardRow: r["live-board-after"].selfRow,
-  };
+  // The live board's facts, as the capture command measured them.
+  const row = FACTS.rects["live-board-after"].selfRow;
+  const rowAt = { left: `${row.x * 100}%`, top: `${row.y * 100}%`, width: `${row.w * 100}%`, height: `${row.h * 100}%` };
+  const nth = ordinal(FACTS.hole);
 
   const page = (
     <div className="thq n-site" lang={shown.locale}>
@@ -221,7 +246,8 @@ export default async function NewSitePreview() {
       <main id="main">
         {/* ═════════ HERO: what it is, that it is real, what to do next ═════════ */}
         <section className="n-hero" id="top" aria-labelledby="hero-h">
-          <div className="n-wrap n-hero-top">
+          <div className="n-wrap n-hero-grid">
+          <div className="n-hero-top">
             <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
             {/* Ajay's line (11 Oct), kept in the opening as the tagline and again as the close. */}
             <p className="n-tagline">From Registration to Recognition.</p>
@@ -243,22 +269,50 @@ export default async function NewSitePreview() {
             </ul>
           </div>
 
+          {/* The live board, standing on the desk: a real capture, its player's own row outlined over it. */}
           <div className="n-stage">
-            <HeroMoment
-              facts={moment}
-              deskBefore={screen("live-desk-before", "", SIZES.heroDesk, true)}
-              deskAfter={screen("live-desk-after", "", SIZES.heroDesk)}
-              card={screen("live-card-before", "", SIZES.heroPhone, true)}
-              board={screen("live-board-after", "", SIZES.heroPhone)}
-            />
+            <div className="n-phone">
+              <div className="n-phone-screen">
+                {screen("live-board-after", `The live board on ${FACTS.player}'s phone: their own row first, at ${FACTS.placeAfter} of ${FACTS.field}, after a ${FACTS.score} on the ${nth}.`, SIZES.heroBoard, true)}
+                <span className="n-mark n-show" style={rowAt} aria-hidden="true" />
+                <span className="n-glass" aria-hidden="true" />
+              </div>
+            </div>
+            <p className="n-live">
+              <span className="n-dot" aria-hidden="true" />
+              <span className="n-big n-num">{FACTS.placeAfter}</span>
+              <span>
+                <b>{FACTS.player}, {FACTS.score} on the {nth}</b>
+                <br />
+                <span className="n-num">{FACTS.field} players · {FACTS.holesAfter} holes in</span>
+              </span>
+            </p>
           </div>
-          {/* On a phone the pill moves below the live moment, so the moment is in the first screen. */}
+          </div>
+          {/* On a phone the pill moves below the live board, so the board is in the first screen. */}
           <div className="n-wrap n-kicker-after">
             <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
           </div>
           <p className="n-wrap n-caption">
             The app itself, at {FACTS.club}: a demo club with invented players. Every screen on this page is a capture of TourneyHQ, never a mock-up.
           </p>
+        </section>
+
+        {/* ═════════ THE STORY: the day in order, one phone in view ═════════ */}
+        <section className="n-story-sec" id="day" aria-labelledby="day-h">
+          <div className="n-wrap">
+            <div className="n-story-head">
+              <p className="n-eyebrow">From Registration to Recognition.</p>
+              <h2 id="day-h" className="n-h2">One competition, from the first entry to the prize table.</h2>
+              <p className="n-lead">An example week at the demo club.</p>
+            </div>
+            <DayStory
+              steps={STEPS}
+              chapters={CHAPTERS.map(({ n, title }) => ({ n, title }))}
+              screens={DAY.map((d) => <Fragment key={d.when}>{screen(d.shot, d.alt, SIZES.story)}</Fragment>)}
+              inline={DAY.map((d) => <Fragment key={d.when}>{screen(d.shot, d.alt, SIZES.story)}</Fragment>)}
+            />
+          </div>
         </section>
 
         {/* ═════════ THE COMMITTEE'S DESK ═════════ */}
@@ -279,37 +333,6 @@ export default async function NewSitePreview() {
               <div className="n-lid n-crop" style={{ "--cx": "100%" } as React.CSSProperties}><div className="n-lid-screen">{screen("desk-dashboard", "The organizer's dashboard during a round: what needs a decision, the tee sheet, and the pace of play group by group.", SIZES.desk)}</div></div>
               <div className="n-phone"><div className="n-phone-screen">{screen("org-dashboard", "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", SIZES.deskPhone)}</div></div>
             </div>
-          </div>
-        </section>
-
-        {/* ═════════ THE DAY BOARD ═════════ */}
-        <section className="n-board-sec n-on-board" id="day" aria-labelledby="day-h">
-          <div className="n-wrap">
-            <div className="n-sec-head">
-              <h2 id="day-h" className="n-h2">One competition, from the first entry to the prize table.</h2>
-              <p className="n-lead">An example week at the demo club. Choose a time on the board.</p>
-            </div>
-            <BoardTabs
-              label="The week, by time"
-              idBase="day"
-              layout="day"
-              listClass="n-slats"
-              tabClass="n-slat"
-              tabs={DAY.map((d) => (
-                <Fragment key={d.when}>
-                  <span><span className="n-day-name">{d.day}</span><span className="n-when">{d.when}</span></span>
-                  <span className="n-what">{d.what}</span>
-                </Fragment>
-              ))}
-              panes={DAY.map((d) => (
-                <Fragment key={d.when}>
-                  <span className="n-who">{d.who}</span>
-                  <h3>{d.h}</h3>
-                  <p>{d.p}</p>
-                </Fragment>
-              ))}
-              screens={DAY.map((d) => <Fragment key={d.when}>{screen(d.shot, d.alt, SIZES.day)}</Fragment>)}
-            />
           </div>
         </section>
 
@@ -353,7 +376,7 @@ export default async function NewSitePreview() {
         </section>
 
         {/* ═════════ ANY FORMAT, ANY FIELD ═════════ */}
-        <section className="n-board-sec n-on-board" id="formats" aria-labelledby="formats-h">
+        <section className="n-band" id="formats" aria-labelledby="formats-h">
           <div className="n-wrap">
             <div className="n-sec-head">
               <h2 id="formats-h" className="n-h2">{FORMAT_NAMES.length} formats. One leaderboard.</h2>
@@ -441,7 +464,7 @@ export default async function NewSitePreview() {
         </section>
 
         {/* ═════════ PRICING ═════════ */}
-        <section className="n-board-sec n-on-board" id="pricing" aria-labelledby="pricing-h">
+        <section className="n-band" id="pricing" aria-labelledby="pricing-h">
           <div className="n-wrap">
             <div className="n-sec-head">
               <h2 id="pricing-h" className="n-h2">Priced on your field. Never per player.</h2>
