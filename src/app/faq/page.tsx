@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { signInsHeld } from "@/lib/services/signins-switch";
+import { launchState } from "@/lib/services/signins-switch";
+import { frontDoorWords } from "@/lib/go-live";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
@@ -13,6 +14,10 @@ import { LANDING_CSS } from "@/lib/landing/styles";
 import { LandingEffects } from "@/components/LandingEffects";
 import { FaqSearch } from "@/components/landing/FaqSearch";
 import { contactEmail, editionNote, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
+import { socialLink } from "@/lib/social-links";
+
+/** The profile the contact panel names, read from the one list (lib/social-links.ts). */
+const facebook = socialLink("facebook");
 
 const FAQ_DESCRIPTION =
   "How TourneyHQ scores every format, what players need, how the money is handled and what it costs — answered plainly.";
@@ -47,7 +52,10 @@ export default async function FaqPage() {
     h.get("x-vercel-ip-country"),
     jar.get(US_OVERRIDE_COOKIE)?.value === "1",
   );
-  const ctx = { prices: landingPrices(shown, overrides), email: contactEmail };
+  // The go-live switch: two answers and the last call to action read it (`go-live.ts`).
+  const launch = await launchState();
+  const ctx = { prices: landingPrices(shown, overrides), email: contactEmail, launch };
+  const cta = frontDoorWords(launch).faqCta;
   const swaps = editionSwaps(shown);
 
   const page = (
@@ -62,7 +70,7 @@ export default async function FaqPage() {
       />
       <LandingEffects />
       {iconSprite()}
-      {landingNav("faq", await signInsHeld())}
+      {landingNav("faq", launch)}
 
       <main>
         <section className="fq-hero">
@@ -118,17 +126,20 @@ export default async function FaqPage() {
                 <>
                   <div>
                     <h2>Still have a question?</h2>
-                    <p>Send it to us and we&rsquo;ll answer it.</p>
+                    <p>
+                      Send it to us and we&rsquo;ll answer it. For news, follow TourneyHQ on{" "}
+                      <a href={facebook.href} target="_blank" rel="noopener">{facebook.label}</a>.
+                    </p>
                   </div>
                   <a className="btn" href={`mailto:${contactEmail}`}>Email TourneyHQ</a>
                 </>
               ) : (
                 <>
                   <div>
-                    <h2>The quickest answer is to try it.</h2>
-                    <p>Free for up to ten players, with no card and no setup fee.</p>
+                    <h2>{cta.heading}</h2>
+                    <p>{cta.body}</p>
                   </div>
-                  <Link className="btn" href="/#signup">Start free</Link>
+                  <Link className="btn" href={frontDoorWords(launch).startHref("/")}>{cta.button}</Link>
                 </>
               )}
             </div>

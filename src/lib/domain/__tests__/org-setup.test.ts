@@ -155,7 +155,7 @@ describe("naming the organization", () => {
     for (const kind of ["club", "community", "personal"]) {
       const title = orgSetupState(facts({ kind })).steps.find((x) => x.key === "profile")?.title;
       // A community with no country is a league — the app's US default.
-      expect(title, kind).toMatch(/^Name your (club|league|outing)$/);
+      expect(title, kind).toMatch(/^Name your (club|league|group)$/);
     }
   });
 });

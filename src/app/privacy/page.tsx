@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { signInsHeld } from "@/lib/services/signins-switch";
+import { launchState } from "@/lib/services/signins-switch";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { privacyContact } from "@/lib/domain/privacy-contact";
@@ -77,7 +77,7 @@ export default async function PrivacyPage() {
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS }} />
       <LandingEffects />
       {iconSprite()}
-      {landingNav("privacy", await signInsHeld())}
+      {landingNav("privacy", await launchState())}
 
       <main className="legal">
       <section className="fq-hero">

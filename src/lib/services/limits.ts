@@ -122,6 +122,13 @@ export async function staffSeatCount(organizationId: string): Promise<number> {
  * refused, which is the state every organization that predates billing sits in.
  */
 async function enforcementActive(organizationId: string): Promise<boolean> {
+  /**
+   * NEVER FOR THE DEMO CLUB (2026-10-24). It is not a customer: it is on no
+   * plan, pays nothing and is refused nothing, whatever the master switch says
+   * (docs/claude/demo-club.md). Asked first, so no limit below can reach it.
+   */
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { isDemo: true } });
+  if (org?.isDemo) return false;
   if (enforcementEnabled(await storedLimitOverrides())) return true;
   const sub = await prisma.subscription.findUnique({ where: { organizationId } });
   if (!sub) return false;

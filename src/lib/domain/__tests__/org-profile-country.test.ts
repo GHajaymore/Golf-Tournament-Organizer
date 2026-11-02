@@ -61,10 +61,10 @@ describe("the community noun follows the club's own country", () => {
   });
 
   it("leaves every other kind alone in every country", () => {
-    // A club is a club and an outing is an outing, wherever it is played.
+    // A club is a club and one person's own golf is theirs, wherever it is played.
     for (const country of ["", "US", "GB", "IE", "AU"]) {
       expect(orgProfile("club", country).noun).toBe("club");
-      expect(orgProfile("personal", country).noun).toBe("outing");
+      expect(orgProfile("personal", country).noun).toBe("group");
     }
   });
 
@@ -131,12 +131,12 @@ describe("the organizer overrules the country", () => {
     expect(orgProfile("community", "GB", "guild").noun).toBe("society");
   });
 
-  it("changes nothing for a club or an outing", () => {
+  it("changes nothing for a club or a personal organizer", () => {
     // Only the community kind reads it. A club is a club wherever it is
     // played, and the settings screen does not offer the control at all.
     for (const voice of ["league", "association", "society"]) {
       expect(orgProfile("club", "US", voice).noun).toBe("club");
-      expect(orgProfile("personal", "GB", voice).noun).toBe("outing");
+      expect(orgProfile("personal", "GB", voice).noun).toBe("group");
     }
   });
 

@@ -36,10 +36,6 @@
   "t": "## Sign-ins until launch: production is held"
  },
  {
-  "h": "85b91c1e53dd07c8",
-  "t": "Ajay, 2026-10-17: \"block the signins until I say so or when we launch "
- },
- {
   "h": "561f2b1a41989007",
   "t": "It is held only while `OWNER_EMAILS` names somebody, so it can never l"
  },
@@ -78,10 +74,6 @@
  {
   "h": "79c99c1787a349e9",
   "t": "Ajay, 2026-10-10: \"keep a step when there is any change in the app to "
- },
- {
-  "h": "ce8a5108f85fad88",
-  "t": "- **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown "
  },
  {
   "h": "073644a124ea2b09",
@@ -832,10 +824,6 @@
   "t": "**SINCE 2026-10-23 THE PIPELINE IS THE TESTING PANEL'S** (`docs/testin"
  },
  {
-  "h": "c23091c587d85727",
-  "t": "- **Rounds by tier**: tests, words and the front door need none; funct"
- },
- {
   "h": "e40f61c36d2b9fc9",
   "t": "**TWO SESSIONS ON ONE MACHINE SHARE ONE FIXTURE, AND A PLAYWRIGHT RUN "
  },
@@ -854,10 +842,6 @@
  {
   "h": "c17c36cea00083dc",
   "t": "**What stops a bad merge** is a RULESET named \"main must be green\", no"
- },
- {
-  "h": "a5c85125558ba4c7",
-  "t": "**What stops a bad deploy**, since 2026-09-04: the `deploy` job in `ci"
  },
  {
   "h": "62cdd200a4cadac8",

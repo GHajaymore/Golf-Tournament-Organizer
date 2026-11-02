@@ -372,7 +372,7 @@ describe("a checklist row calls a screen what the sidebar calls it", () => {
 
     expect(forKind("community").label).toBe("Add your society's logo & colours");
     expect(forKind("community").detail).toContain("your society's badge");
-    expect(forKind("personal").label).toBe("Add your outing's logo & colours");
+    expect(forKind("personal").label).toBe("Add your group's logo & colours");
     // A CLUB still reads exactly as it did, which is the assertion that keeps
     // this from being a rewrite of the wording for everybody.
     expect(forKind("club").label).toBe("Add your club's logo & colours");

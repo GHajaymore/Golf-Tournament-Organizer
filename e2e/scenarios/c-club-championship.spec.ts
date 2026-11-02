@@ -159,13 +159,6 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
 
     await test.step("make the board public and launch", async () => {
       await read(page, "/dashboard", "dashboard-before-launch", 4000);
-      for (const step of ["Start taking entries", "Mark ready"]) {
-        const b = page.getByRole("button", { name: step });
-        if (await b.count()) {
-          await b.click();
-          await expect(b).toHaveCount(0, { timeout: 20_000 });
-        }
-      }
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
       await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });

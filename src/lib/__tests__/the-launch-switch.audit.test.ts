@@ -6,7 +6,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 // A stranger presses the switch: no session at all.
 vi.mock("@/lib/auth", () => ({ getSession: async () => null }));
 
-import { signInsHeld, maySignInNow, SIGNINS_KEY } from "@/lib/services/signins-switch";
+import { signInsHeld, maySignInNow, launchState, launchSwitch, SIGNINS_KEY } from "@/lib/services/signins-switch";
 import { setAccountsOpen } from "@/app/actions/owner";
 
 /**
@@ -68,6 +68,31 @@ describe("the launch switch on the owner console", () => {
     await set("held");
     expect(await signInsHeld(), "the console held accounts again and the door stayed open").toBe(true);
     expect(await maySignInNow(STRANGER)).toBe(false);
+  });
+
+  it("every held page asks one answer, and the card is told since when it went live", async () => {
+    await set(null);
+    expect(await launchState()).toBe("held");
+    expect(await launchSwitch()).toMatchObject({ state: "held", switchSays: "held", liveSince: null, rule: "holds" });
+    const before = Date.now();
+    await set("open");
+    expect(await launchState()).toBe("live");
+    const sw = await launchSwitch();
+    expect(sw).toMatchObject({ state: "live", switchSays: "live", rule: "holds" });
+    // The row's own time, so "Live since" is when it was pressed and not when the card was read.
+    expect(sw.liveSince!.getTime()).toBeGreaterThanOrEqual(before - 5_000);
+    expect(sw.liveSince!.getTime()).toBeLessThanOrEqual(Date.now() + 5_000);
+  });
+
+  it("SIGNINS=open in the environment is live whatever the row says, and the card is told why", async () => {
+    process.env.SIGNINS = "open";
+    try {
+      await set("held");
+      expect(await launchState()).toBe("live");
+      expect(await launchSwitch()).toMatchObject({ state: "live", switchSays: "held", rule: "signins-open" });
+    } finally {
+      delete process.env.SIGNINS;
+    }
   });
 
   it("CONTROL: it never shuts a deployment that does not hold (dev, CI, a preview)", async () => {

@@ -45,6 +45,7 @@ async function tellTheField(
     // One tag for both, so "resumed" replaces "suspended" on a lock screen
     // rather than stacking under it.
     { title: words.title, body: `${words.body} · ${eventName}`, url: "/me", tag: `play-${eventId}`, urgent },
+    { eventId },
   );
 }
 

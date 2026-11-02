@@ -91,13 +91,42 @@ export function countbackCompare(
    */
   higherWins = false,
 ): number {
+  return countbackStep(a, b, holeCount, higherWins)?.compare ?? 0;
+}
+
+/**
+ * WHICH STEP OF THE COUNTBACK SEPARATED TWO CARDS — "the last nine", "the last
+ * six", "the last three", "the last hole" — as holes from the end, with the
+ * comparison it gave. Null where the countback cannot separate them.
+ *
+ * The one ladder: `countbackCompare` is this, so the report's "won on
+ * countback, last 9" can never name a different step from the one the board
+ * placed them by (2026-10-23, the report's prize list).
+ */
+export function countbackStep(
+  a: CountbackCard,
+  b: CountbackCard,
+  holeCount: number,
+  higherWins = false,
+): { holes: number; compare: number } | null {
   for (const n of countbackSegments(holeCount)) {
     const ta = tailTotal(a.holes, n);
     const tb = tailTotal(b.holes, n);
-    if (ta === null || tb === null) return 0;
-    if (ta !== tb) return higherWins ? tb - ta : ta - tb;
+    if (ta === null || tb === null) return null;
+    if (ta !== tb) return { holes: n, compare: higherWins ? tb - ta : ta - tb };
   }
-  return 0;
+  return null;
+}
+
+/**
+ * A countback step as a results sheet words it, after "on countback, ":
+ * "back 9" (the last nine of eighteen IS the back nine), "last 6", "last 3",
+ * "last hole".
+ */
+export function countbackStepWords(holes: number, holeCount: number): string {
+  if (holes === 1) return "last hole";
+  if (holes === 9 && holeCount === 18) return "back 9";
+  return `last ${holes}`;
 }
 
 /** What a stroke competition may be decided on. */

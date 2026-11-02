@@ -68,9 +68,12 @@ describe("every dialog is accounted for", () => {
      * everybody except a screen reader, and the only thing announcing itself
      * as a dialog was the one that is not one. Both modals are labelled now.
      */
+    // OwnerAccounts (2026-10-23): the go-live switch asks once more in a modal. Its geometry is
+    // measured at every width by `e2e/go-live-switch.spec.ts`, where it is opened.
     expect(found).toEqual([
       { file: "CardConflict.tsx", modal: false, announced: true },
       { file: "LifecycleBar.tsx", modal: true, announced: true },
+      { file: "OwnerAccounts.tsx", modal: true, announced: true },
       { file: "PlayerSignOut.tsx", modal: true, announced: true },
       // The redesign's one-thing-open panel (2026-10-30). Its geometry joins
       // `e2e/dialog.spec.ts` with the first screen that opens it.
