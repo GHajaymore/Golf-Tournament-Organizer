@@ -65,8 +65,7 @@ const STORE_LINKS = {
 const SIZES = {
   // The hero's two sizes live with its stage (`hero-stage.tsx`). A width said here must be the one the
   // stylesheet draws: a 640-wide tablet was once sent a picture for 220 and drew it at 290, soft (2026-10-13).
-  story: "(max-width: 899px) min(60vw, 250px), 300px",
-  step: "250px",
+  story: "(max-width: 899px) min(58vw, 240px), 300px",
   desk: "(max-width: 899px) 1px, min(1070px, 92vw)",
   twin: "(max-width: 899px) min(70vw, 270px), 1px",
   peek: "(max-width: 899px) 70vw, 290px",
@@ -375,48 +374,38 @@ export default async function LandingPage() {
               <p className="m-lead">An example week at our demo club. Every screen is the app itself, on invented players.</p>
             </div>
 
+            {/* THE WEEK, ONE STEP AT A TIME (2026-11-01; Ajay, 30 Oct: "my friends just stopped there without
+                scrolling down"). A stepper in the page's own flow — never pinned, never sticky, the same markup
+                with or without script, so the page never grows after it loads. Swipe, ‹ ›, or the hours on a
+                laptop; it walks itself through once while on screen, and stops for good at the first touch. */}
             <div className="m-times" role="tablist" aria-label="The week, by time">
               {WEEK.map((m, i) => (
-                <button type="button" role="tab" aria-selected={i === 0} key={m.when}><b>{m.when}</b><span>{m.tab}</span></button>
+                <button type="button" role="tab" id={`week-tab-${i}`} aria-controls={`week-${i}`} aria-selected={i === 0} tabIndex={i === 0 ? 0 : -1} key={m.when}><b>{m.when}</b><span>{m.tab}</span></button>
               ))}
             </div>
 
-            <div className="m-story" id="story">
-              <div className="m-pin">
-                <div className="m-stage">
-                  <div className="m-phone">
-                    {WEEK.map((m, i) => (
-                      <Fragment key={m.when}>{plainShot({ name: m.shot, alt: m.alt, sizes: SIZES.story, className: i === 0 ? "m-on" : "" })}</Fragment>
-                    ))}
-                  </div>
-                </div>
-                <div className="m-beats">
-                  <div className="m-rail" id="rail" aria-hidden="true"><span className="m-flag" /><span className="m-cup" /><span className="m-ball" /></div>
-                  {WEEK.map((m, i) => (
-                    <div className={i === 0 ? "m-beat m-on" : "m-beat"} key={m.when}>
-                      <span className="m-what">{m.tab} · {m.who}</span>
-                      <span className="m-clock">{m.when}</span>
+            <div className="m-week" id="story" aria-roledescription="carousel" aria-label="An example week, step by step">
+              <div className="m-week-bar" aria-hidden="true">
+                {WEEK.map((m, i) => <i key={m.when} className={i === 0 ? "m-on" : undefined} />)}
+              </div>
+              <div className="m-week-row" id="week-row">
+                {WEEK.map((m, i) => (
+                  <div className="m-slide" id={`week-${i}`} role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${WEEK.length}: ${m.tab}`} key={m.when}>
+                    <div className="m-phone">{plainShot({ name: m.shot, alt: m.alt, sizes: SIZES.story })}</div>
+                    <div className="m-slide-words">
+                      <p className="m-what">{m.tab} · {m.who}<span className="m-of">{i + 1} of {WEEK.length}</span></p>
+                      <p className="m-clock">{m.when}</p>
                       <h3>{m.h}</h3>
                       <p>{m.p}</p>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* The same week as a row of cards: what a narrow screen shows when the page's script has not run. */}
-            <div id="steps" aria-hidden="true">
-              {WEEK.map((m) => (
-                <div className="m-step" key={m.when}>
-                  <div className="m-phone">{plainShot({ name: m.shot, alt: "", sizes: SIZES.step })}</div>
-                  <div className="m-say">
-                    <span className="m-what">{m.tab} · {m.who}</span>
-                    <span className="m-clock">{m.when}</span>
-                    <b>{m.h}</b>
-                    <p>{m.p}</p>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <div className="m-week-keys">
+                <button type="button" className="m-key m-hold" id="week-hold" aria-label="Pause" hidden><span aria-hidden="true" /></button>
+                <button type="button" className="m-key" id="week-prev" aria-label="Previous step"><span aria-hidden="true">‹</span></button>
+                <button type="button" className="m-key" id="week-next" aria-label="Next step"><span aria-hidden="true">›</span></button>
+              </div>
             </div>
           </div>
         </section>

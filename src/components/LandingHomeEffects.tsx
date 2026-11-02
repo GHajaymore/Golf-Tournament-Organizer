@@ -14,9 +14,10 @@ import { useEffect } from "react";
  *
  * What it does, in the order a visitor meets it:
  *   - the round-code box demonstrates itself until somebody takes it;
- *   - the week is told by scrolling: on a laptop the phone stays beside the
- *     hours as they pass; on a narrow screen the phone is pinned and the track
- *     behind it decides the moment (`m-pin-story`);
+ *   - the hero plays its live moment once, and rests;
+ *   - the week is a stepper in the page's own flow (swipe, ‹ ›, the hours on
+ *     a laptop), which walks itself through once while on screen — never
+ *     pinned, so the page always moves under the thumb (2026-11-01);
  *   - sections arrive as they are reached, the dashboard's four points light
  *     in turn, the price bars count up, the theme slider sways until touched.
  *
@@ -121,12 +122,7 @@ export function LandingHomeEffects() {
       });
     }
 
-    // ── the week, told by scrolling ──
-    home.classList.add("m-pin-story");
-    const story = $("#story");
-    const beatEls = story ? Array.from(story.querySelectorAll<HTMLElement>(".m-beat")) : [];
-    const stageImgs = story ? Array.from(story.querySelectorAll<HTMLElement>(".m-stage img")) : [];
-    const stageEl = story?.querySelector<HTMLElement>(".m-stage") ?? null;
+    // ── the hours of the week, as tabs (the stepper itself is wired further down) ──
     const tabs = $$<HTMLButtonElement>(".m-times button");
     const turn = (list: HTMLElement[], i: number) =>
       list.forEach((im, n) => {
@@ -134,87 +130,10 @@ export function LandingHomeEffects() {
         im.classList.toggle("m-on", n === i);
       });
 
-    let lastBurst = 0;
-    const burst = (from: Element) => {
-      const now = performance.now();
-      if (now - lastBurst < 5000) return;
-      lastBurst = now;
-      const box = from.getBoundingClientRect();
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      canvas.className = "m-burst";
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      home.appendChild(canvas);
-      // The page's own colours, read off it rather than written again here.
-      const style = getComputedStyle(home);
-      const colours = ["--brass-ui", "--ink", "--brass-hi", "--flag", "--brass"].map((v) => style.getPropertyValue(v).trim() || "white");
-      // A small generator seeded off the frame time: the scatter only has to look thrown, not be unguessable.
-      let seed = Math.floor(now * 1000) % 2147483647 || 1;
-      const rand = () => { seed = (seed * 48271) % 2147483647; return seed / 2147483647; };
-      const bits = Array.from({ length: 90 }, (_, n) => {
-        const angle = -Math.PI / 2 + (rand() - 0.5) * 2.4;
-        const speed = 5 + rand() * 9;
-        return {
-          x: box.left + box.width / 2 + (rand() - 0.5) * box.width * 0.6,
-          y: box.top + box.height * 0.3,
-          vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-          w: 5 + rand() * 6, h: 3 + rand() * 5,
-          turn: rand() * 6, spin: (rand() - 0.5) * 0.4,
-          colour: colours[n % colours.length],
-        };
-      });
-      const step = (at: number) => {
-        const age = (at - now) / 2200;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        for (const b of bits) {
-          b.vy += 0.28; b.vx *= 0.99; b.x += b.vx; b.y += b.vy; b.turn += b.spin;
-          ctx.save();
-          ctx.globalAlpha = Math.max(0, 1 - age);
-          ctx.translate(b.x, b.y);
-          ctx.rotate(b.turn);
-          ctx.fillStyle = b.colour;
-          ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h);
-          ctx.restore();
-        }
-        if (age < 1 && alive) requestAnimationFrame(step); else canvas.remove();
-      };
-      requestAnimationFrame(step);
-    };
-
-    const beat = (i: number) => {
-      if (!beatEls[i] || !stageImgs[i]) return;
-      if (beatEls[i].classList.contains("m-on") && stageImgs[i].classList.contains("m-on")) return;
-      beatEls.forEach((b, n) => b.classList.toggle("m-on", n === i));
-      turn(stageImgs, i);
-      if (stageEl) {
-        stageEl.classList.remove("m-flare");
-        void stageEl.offsetWidth;
-        stageEl.classList.add("m-flare");
-      }
-      const phone = story?.querySelector(".m-stage .m-phone");
-      if (i === beatEls.length - 1 && !calm && phone) burst(phone);
-      if (wide()) tabs.forEach((tb, n) => tb.setAttribute("aria-selected", n === i ? "true" : "false"));
-    };
-    if (story && canWatch) {
-      story.classList.add("m-live");
-      const middle = new IntersectionObserver(
-        (entries) => {
-          if (!wide()) return;
-          entries.forEach((e) => { if (e.isIntersecting) beat(beatEls.indexOf(e.target as HTMLElement)); });
-        },
-        { rootMargin: "-50% 0px -50% 0px", threshold: 0 },
-      );
-      observers.push(middle);
-      beatEls.forEach((b) => middle.observe(b));
-    }
-
-    // ── scrolling moves the line at the top and the story ──
+    // ── scrolling moves the line at the top ──
     // (The very large running tagline is gone: on a wide screen it ran off both edges, cut mid-word,
     // over a second running line, and said the headline again. Ajay, 2026-10-21: "fix this … the
-    // banner". The week's steps are one still row at every width now.)
-    const rail = $("#rail");
+    // banner". The week is a stepper of its own now, and nothing here reads the scroll for it.)
     const header = () => document.querySelector<HTMLElement>(".thq .hdr")?.offsetHeight ?? 58;
     let queued = false;
     const onScroll = () => {
@@ -222,28 +141,8 @@ export function LandingHomeEffects() {
       const y = window.scrollY;
       const room = document.documentElement.scrollHeight - window.innerHeight;
       home.style.setProperty("--m-p", room > 0 ? (y / room).toFixed(4) : "0");
-      if (story && rail && !wide()) {
-        // Narrow: the story is a tall track with one pinned frame; where the track is decides the moment.
-        const t = story.getBoundingClientRect();
-        const span = t.height - window.innerHeight;
-        if (span > 0 && t.top < window.innerHeight && t.bottom > 0) {
-          const gone = Math.max(0, Math.min(0.9999, (header() - t.top) / span));
-          beat(Math.floor(gone * beatEls.length));
-          rail.style.setProperty("--m-roll", gone.toFixed(4));
-          rail.classList.toggle("m-in", gone > 0.94);
-        }
-      }
       if (calm) return;
       home.style.setProperty("--m-sy", String(Math.min(y, 900)));
-      if (rail && wide()) {
-        // The ball: how far the middle of the screen has travelled down the story.
-        const box = rail.getBoundingClientRect();
-        if (box.height > 0) {
-          const roll = Math.max(0, Math.min(1, (window.innerHeight * 0.5 - box.top) / box.height));
-          rail.style.setProperty("--m-roll", roll.toFixed(4));
-          rail.classList.toggle("m-in", roll > 0.985);
-        }
-      }
     };
     window.addEventListener("scroll", () => { if (!queued) { queued = true; frameLoop(onScroll); } }, passive);
     onScroll();
@@ -602,29 +501,106 @@ export function LandingHomeEffects() {
       }
     }
 
-    // ── the hours as tabs (laptop), and the same moments as a row of cards where there is no script-driven pin ──
-    const panels = $$("#steps .m-step");
-    const stepsEl = $("#steps");
-    const timesEl = $("#round .m-times");
-    const show = (i: number) => {
-      tabs.forEach((t, n) => t.setAttribute("aria-selected", n === i ? "true" : "false"));
-      if (wide() || !stepsEl || !timesEl || !panels[i]) return;
-      const how: ScrollBehavior = calm ? "auto" : "smooth";
-      stepsEl.scrollTo({ left: panels[i].offsetLeft - (stepsEl.clientWidth - panels[i].offsetWidth) / 2, behavior: how });
-      timesEl.scrollTo({ left: Math.max(0, tabs[i].offsetLeft - 16), behavior: how });
+    // ── THE WEEK, ONE STEP AT A TIME (2026-11-01): a row that snaps sideways, the hours as tabs on a laptop,
+    // ‹ ›, and one pass on its own while it is on screen. All behaviour, no layout: the page is the height it
+    // loaded at whatever this does, and nothing here ever holds the page still. ──
+    const row = $("#week-row");
+    const slides = $$("#week-row .m-slide");
+    const bars = $$("#story .m-week-bar i");
+    const prev = $<HTMLButtonElement>("#week-prev");
+    const next = $<HTMLButtonElement>("#week-next");
+    const hold = $<HTMLButtonElement>("#week-hold");
+    const STEP_MS = 7000;
+    let at = 0;
+    let walking = false;
+    let walkTimer: ReturnType<typeof setTimeout> | null = null;
+    const mark = (i: number) => {
+      at = i;
+      bars.forEach((b, n) => {
+        b.classList.toggle("m-done", n < i);
+        b.classList.toggle("m-on", n === i);
+        b.classList.remove("m-timing");
+      });
+      tabs.forEach((t, n) => {
+        t.setAttribute("aria-selected", n === i ? "true" : "false");
+        t.tabIndex = n === i ? 0 : -1;
+      });
+      slides.forEach((s, n) => { s.inert = n !== i; });
+      if (prev) prev.disabled = i === 0;
+      if (next) next.disabled = i === slides.length - 1;
     };
-    tabs.forEach((t, i) => {
-      t.addEventListener("click", () => {
-        if (wide()) { beatEls[i]?.scrollIntoView({ block: "center" }); return; }
-        show(i);
+    const go = (i: number) => {
+      if (!row || !slides[i]) return;
+      row.scrollTo({ left: slides[i].offsetLeft - row.offsetLeft, behavior: calm ? "auto" : "smooth" });
+      mark(i);
+    };
+    const stopWalk = () => {
+      walking = false;
+      if (walkTimer) { clearTimeout(walkTimer); timers.delete(walkTimer); walkTimer = null; }
+      bars.forEach((b) => b.classList.remove("m-timing"));
+      if (hold) { hold.classList.add("m-paused"); hold.setAttribute("aria-label", "Play"); }
+    };
+    const walk = () => {
+      if (!walking) return;
+      bars[at]?.classList.add("m-timing");
+      walkTimer = wait(() => {
+        if (!walking) return;
+        if (at >= slides.length - 1) { stopWalk(); return; } // one pass, and it rests on the last step
+        go(at + 1);
+        walk();
+      }, STEP_MS);
+    };
+    if (row && slides.length) {
+      mark(0);
+      home.style.setProperty("--m-step", `${STEP_MS}ms`);
+      // Where a swipe lands decides the step.
+      let settle: ReturnType<typeof setTimeout> | null = null;
+      row.addEventListener("scroll", () => {
+        if (settle) clearTimeout(settle);
+        settle = wait(() => {
+          const i = Math.round(row.scrollLeft / Math.max(1, row.clientWidth));
+          if (i !== at) mark(Math.max(0, Math.min(slides.length - 1, i)));
+        }, 90);
+      }, passive);
+      // Any touch of the stepper is the visitor taking it over: the walk stops for good.
+      const takeOver = () => { if (walking || walkTimer) stopWalk(); };
+      row.addEventListener("pointerdown", takeOver, on);
+      row.addEventListener("wheel", (e) => { if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) takeOver(); }, passive);
+      prev?.addEventListener("click", () => { takeOver(); go(Math.max(0, at - 1)); }, on);
+      next?.addEventListener("click", () => { takeOver(); go(Math.min(slides.length - 1, at + 1)); }, on);
+      tabs.forEach((t, i) => {
+        t.addEventListener("click", () => { takeOver(); go(i); }, on);
+        t.addEventListener("keydown", (e) => {
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+          takeOver();
+          const to = (i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
+          go(to);
+          tabs[to].focus();
+        }, on);
+      });
+      hold?.addEventListener("click", () => {
+        if (walking) { stopWalk(); return; }
+        walking = true;
+        hold.classList.remove("m-paused");
+        hold.setAttribute("aria-label", "Pause");
+        if (at >= slides.length - 1) go(0);
+        walk();
       }, on);
-      t.addEventListener("keydown", (e) => {
-        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-        const next = (i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
-        if (wide()) beatEls[next]?.scrollIntoView({ block: "center" }); else show(next);
-        tabs[next].focus();
-      }, on);
-    });
+      // One pass on its own, with motion only, once the stepper is well on screen; paused while it is not.
+      if (!calm && canWatch && hold) {
+        hold.hidden = false;
+        let started = false;
+        const seen = new IntersectionObserver((entries) => {
+          const inView = entries[0].isIntersecting;
+          if (inView && !started) { started = true; walking = true; walkTimer = wait(walk, 1500); }
+          else if (!inView && walking) { if (walkTimer) { clearTimeout(walkTimer); timers.delete(walkTimer); walkTimer = null; } bars.forEach((b) => b.classList.remove("m-timing")); }
+          else if (inView && walking && !walkTimer) walk();
+        }, { threshold: 0.6 });
+        observers.push(seen);
+        seen.observe(row);
+      }
+      $("#story")?.setAttribute("data-ready", "");
+    }
 
     // ── the two doors stay within reach on a phone once the hero's have scrolled away, and step aside at the end ──
     const dock = $("#dock");
@@ -659,8 +635,6 @@ export function LandingHomeEffects() {
       observers.forEach((o) => o.disconnect());
       timers.forEach((t) => clearTimeout(t));
       intervals.forEach((t) => clearInterval(t));
-      home.querySelectorAll(".m-burst").forEach((c) => c.remove());
-      home.classList.remove("m-pin-story");
     };
   }, []);
 

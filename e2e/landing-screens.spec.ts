@@ -506,9 +506,11 @@ test("a phone's bottom bar is up only mid-page, and unreachable when it is down"
  *
  * So the script is held back, the form is gone to, and when the script has run:
  *
- *   the script really was late      → the story was not yet a track (control)
- *   the page really did grow        → by more than a thousand pixels, on a phone
- *                                      (control: nothing moved is no test)
+ *   the script really was late      → the stepper was not yet wired (control)
+ *   the page                        → did NOT grow: since 2026-11-01 the week is a stepper in the
+ *                                      page's own flow, the same markup with or without script, so
+ *                                      the 2,500px a phone used to gain above the form is gone
+ *                                      ("Landing story section - redesign spec", test 2)
  *   the form                        → is where it was on the screen
  */
 test("a visitor already at the sign-up form is still at it once the page's script has started", async ({ page }) => {
@@ -523,7 +525,7 @@ test("a visitor already at the sign-up form is still at it once the page's scrip
   await page.waitForSelector("#start", { state: "attached" });
   const read = () =>
     page.evaluate(() => ({
-      live: !!document.querySelector("#story.m-live"),
+      live: !!document.querySelector("#story[data-ready]"),
       page: document.documentElement.scrollHeight,
       formOnScreen: Math.round(document.querySelector("#start")!.getBoundingClientRect().top),
     }));
@@ -532,11 +534,10 @@ test("a visitor already at the sign-up form is still at it once the page's scrip
   const before = await read();
   expect(before.live, "CONTROL: the page's script had already started, so nothing was being held back").toBe(false);
 
-  await page.waitForFunction(() => !!document.querySelector("#story.m-live"), null, { timeout: 30_000 });
+  await page.waitForFunction(() => !!document.querySelector("#story[data-ready]"), null, { timeout: 30_000 });
   await landingSettled(page);
   const after = await read();
-  const phone = (page.viewportSize()?.width ?? 0) < 900;
-  if (phone) expect(after.page - before.page, "CONTROL: the page did not grow when its script started, so this measured nothing").toBeGreaterThan(1_000);
+  expect(Math.abs(after.page - before.page), `the page grew ${after.page - before.page}px when its script started — something is laid out by the script again`).toBeLessThanOrEqual(4);
   expect(Math.abs(after.formOnScreen - before.formOnScreen), `the sign-up form moved ${after.formOnScreen - before.formOnScreen}px on the screen when the page's script started (the page grew ${after.page - before.page}px above it)`).toBeLessThanOrEqual(4);
 });
 

@@ -189,23 +189,8 @@ export const HOME_CSS = `
 .m-home .m-times button[aria-selected="true"] { background: var(--m-sel-bg); border-color: var(--m-sel-bg); color: var(--m-sel-soft); }
 .m-home .m-times button[aria-selected="true"] b { color: var(--m-sel-fg); }
 .m-home .m-times button { position: relative; overflow: hidden; }
-.m-home .m-story { display: none; }
 @media (min-width: 900px) {
-  .m-home #round .m-times, .m-home #round #steps { display: none; }
-  .m-home .m-story { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: clamp(48px, 9vw, 130px); align-items: start; }
-  .m-home .m-story .m-stage { position: sticky; top: max(84px, calc(50vh - 266px)); }
-  .m-home .m-story .m-stage .m-phone { position: relative; aspect-ratio: 9 / 16; }
-  .m-home .m-story .m-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity 0.45s ease; }
-  .m-home .m-story .m-stage img.m-on { opacity: 1; z-index: 2; }
-  .m-home .m-story .m-stage img.m-was { opacity: 1; z-index: 1; }
-  .m-home .m-story .m-beat { min-height: 62vh; display: grid; align-content: center; gap: 16px; transition: opacity 0.4s ease; }
   /* The moments not yet reached step back, but stay readable: at 0.3 they were 2.3:1, below any floor. */
-  .m-home .m-story.m-live .m-beat { opacity: 0.68; }
-  .m-home .m-story.m-live .m-beat.m-on { opacity: 1; }
-  .m-home .m-story .m-beat .m-clock { font: 500 clamp(3rem, 6vw, 5.2rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.03em; }
-  .m-home .m-story .m-beat .m-what { font: 600 0.75rem/1 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
-  .m-home .m-story .m-beat h3 { font-size: clamp(1.8rem, 3vw, 2.6rem); max-width: 16ch; }
-  .m-home .m-story .m-beat p { color: var(--m-on-ground-soft); font-size: 1.15rem; max-width: 40ch; }
 }
 /* THE WHOLE COMPETITION, IN ORDER: one still row of the week's steps, at every width. It was a
    very large running tagline over a second running line on a wide screen, cut off at both edges
@@ -240,17 +225,6 @@ export const HOME_CSS = `
 .m-home .m-moment p { color: var(--m-on-ground-soft); font-size: 1.08rem; max-width: 38ch; }
 @media (max-width: 820px) {
   .m-home .m-moment .m-grid { grid-template-columns: minmax(0, 1fr); }
-}
-.m-home .m-step { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: clamp(28px, 6vw, 84px); align-items: center; }
-.m-home .m-step .m-phone { aspect-ratio: 9 / 14; }
-.m-home .m-step .m-phone img { height: 100%; object-fit: cover; object-position: top; }
-.m-home .m-step .m-say { display: grid; gap: 16px; align-content: start; }
-.m-home .m-step .m-clock { font: 500 clamp(2.2rem, 5vw, 3.6rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.02em; }
-.m-home .m-step p { color: var(--m-on-ground-soft); max-width: 44ch; font-size: 1.08rem; }
-@media (max-width: 760px) {
-  .m-home .m-step { grid-template-columns: minmax(0, 1fr); }
-  .m-home .m-step .m-say { order: -1; }
-  .m-home .m-step .m-phone { max-width: 240px; margin-inline: auto; width: 100%; }
 }
 .m-home .m-wide { display: grid; gap: 26px; }
 .m-home .m-wide .m-line { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px clamp(28px, 6vw, 80px); align-items: end; }
@@ -344,16 +318,8 @@ export const HOME_CSS = `
 .m-home .m-close h2 { font-size: clamp(2.2rem, 5.2vw, 4rem); }
 .m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 320px); column-gap: clamp(60px, 9vw, 150px); }
 @media (min-width: 900px) {
-  .m-home #round .m-times, .m-home #round #steps { display: none; }
-  .m-home #round .m-times { display: flex; position: sticky; top: var(--m-hdr); z-index: 6; margin-inline: -24px; padding: 12px 24px; margin-bottom: 30px; background: color-mix(in srgb, var(--m-ground) 86%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid var(--m-line); }
-  .m-home .m-story { grid-template-columns: minmax(0, 340px) minmax(0, 1fr); }
-  .m-home .m-story .m-stage { top: max(calc(var(--m-hdr) + 92px), calc(50vh - 250px)); }
-  .m-home .m-story .m-stage .m-phone { box-shadow: 0 50px 100px -30px rgba(0, 0, 0, 0.8), 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent); }
-  .m-home .m-story .m-stage img { transform: scale(1.08); transition: opacity 0.45s ease, transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
-  .m-home .m-story .m-stage img.m-on, .m-home .m-story .m-stage img.m-was { transform: none; }
-  .m-home .m-story .m-beat { min-height: 56vh; }
+  .m-home #round .m-times { margin-bottom: 26px; }
 }
-.m-home .m-step .m-say .m-what { font: 600 0.75rem/1 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
 .m-home .m-moment { position: relative; overflow: hidden; }
 .m-home .m-moment .m-wrap { position: relative; z-index: 2; }
 .m-home .m-wall { position: absolute; z-index: 1; top: 50%; right: -12%; width: 60%; height: 190%; transform: translateY(-50%) perspective(1500px) rotateX(46deg) rotateZ(-24deg); transform-origin: 60% 50%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; pointer-events: none; -webkit-mask-image: radial-gradient(closest-side, black 55%, transparent 100%); mask-image: radial-gradient(closest-side, black 55%, transparent 100%); }
@@ -371,10 +337,7 @@ export const HOME_CSS = `
 }
 .m-home .m-phone { position: relative; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 26%, var(--ground)), 0 30px 60px -28px var(--m-shot-shadow); }
 .m-home .m-phone::after { content: ""; position: absolute; inset: 0; z-index: 5; pointer-events: none; border-radius: inherit; background: linear-gradient(118deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 20%, rgba(255, 255, 255, 0) 78%, rgba(255, 255, 255, 0.04) 100%); }
-.m-home .m-card .m-peek .m-phone, .m-home .m-story .m-stage .m-phone { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 26%, var(--ground)), 0 50px 100px -30px rgba(0, 0, 0, 0.8); }
-@media (min-width: 900px) {
-  .m-home .m-story .m-stage::before { content: ""; position: absolute; z-index: -1; inset: 16% -34% -8%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 24%, transparent), transparent); pointer-events: none; }
-}
+.m-home .m-card .m-peek .m-phone { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 26%, var(--ground)), 0 50px 100px -30px rgba(0, 0, 0, 0.8); }
 .m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 330px); column-gap: clamp(70px, 11vw, 190px); }
 @media (max-width: 900px) {
   .m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
@@ -393,18 +356,6 @@ export const HOME_CSS = `
   .m-home .m-hero::before { animation: m-weather 20s ease-in-out infinite alternate; }
 }
 @keyframes m-weather { from { transform: translate3d(-3%, -2%, 0) rotate(-4deg) scale(1); } to { transform: translate3d(4%, 3%, 0) rotate(5deg) scale(1.12); } }
-.m-home .m-rail { display: none; }
-@media (min-width: 900px) {
-  .m-home .m-story .m-beats { position: relative; }
-  .m-home .m-rail { display: block; position: absolute; left: clamp(-90px, -5.5vw, -34px); top: 8vh; bottom: 12vh; width: 2px; background: var(--m-line); }
-  .m-home .m-rail::before { content: ""; position: absolute; left: 0; top: 0; width: 2px; height: calc(var(--m-roll, 0) * 100%); background: var(--m-hl); }
-  .m-home .m-rail .m-ball { position: absolute; left: 50%; top: calc(var(--m-roll, 0) * 100%); width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, white, color-mix(in srgb, var(--ink) 88%, black) 58%, color-mix(in srgb, var(--ink) 66%, black)); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ink) 7%, transparent), 0 0 26px color-mix(in srgb, var(--ink) 55%, transparent); transition: transform 0.45s cubic-bezier(0.5, 0, 0.8, 0.4), opacity 0.45s ease; }
-  .m-home .m-rail .m-cup { position: absolute; left: 50%; bottom: -12px; width: 30px; height: 11px; margin-left: -15px; border-radius: 50%; background: black; box-shadow: 0 0 0 2px var(--m-line); transition: box-shadow 0.5s ease; }
-  .m-home .m-rail .m-flag { position: absolute; left: 50%; bottom: -6px; width: 2px; height: 46px; background: var(--m-on-ground); }
-  .m-home .m-rail .m-flag::after { content: ""; position: absolute; left: 2px; top: 0; border: solid transparent; border-width: 8px 0 8px 16px; border-left-color: var(--m-hl); }
-  .m-home .m-rail.m-in .m-ball { transform: translateY(14px) scale(0.3); opacity: 0; }
-  .m-home .m-rail.m-in .m-cup { box-shadow: 0 0 0 2px var(--m-hl), 0 0 0 12px color-mix(in srgb, var(--brass-ui) 22%, transparent), 0 0 0 26px color-mix(in srgb, var(--brass-ui) 8%, transparent); }
-}
 .m-home .m-card { position: relative; }
 .m-home .m-card::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 0.3s ease; background: radial-gradient(420px 420px at var(--m-gx, 50%) var(--m-gy, 50%), rgba(255, 255, 255, 0.13), transparent 60%); }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
@@ -432,13 +383,6 @@ export const HOME_CSS = `
 }
 @keyframes m-draw { to { stroke-dashoffset: 0; } }
 @keyframes m-roll { 0% { offset-distance: 0%; opacity: 1; } 85% { offset-distance: 97%; opacity: 1; transform: scale(1); } 100% { offset-distance: 100%; opacity: 0; transform: scale(0.4); } }
-@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .m-home .m-story.m-live .m-beat .m-what, .m-home .m-story.m-live .m-beat .m-clock, .m-home .m-story.m-live .m-beat h3, .m-home .m-story.m-live .m-beat p { transform: translateY(18px); transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
-  .m-home .m-story.m-live .m-beat.m-on .m-what, .m-home .m-story.m-live .m-beat.m-on .m-clock, .m-home .m-story.m-live .m-beat.m-on h3, .m-home .m-story.m-live .m-beat.m-on p { transform: none; }
-  .m-home .m-story.m-live .m-beat.m-on .m-clock { transition-delay: 0.05s; }
-  .m-home .m-story.m-live .m-beat.m-on h3 { transition-delay: 0.1s; }
-  .m-home .m-story.m-live .m-beat.m-on p { transition-delay: 0.16s; }
-}
 @media (min-width: 821px) {
   .m-home .m-wall { transform: translateY(-50%) perspective(1500px) rotateX(calc(46deg + var(--m-wy, 0) * 5deg)) rotateZ(calc(-24deg + var(--m-wx, 0) * 5deg)); transition: transform 0.4s ease-out; }
 }
@@ -480,16 +424,10 @@ export const HOME_CSS = `
 .m-home .m-ticker { position: relative; }
 .m-home .m-ticker.m-flash::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--brass-ui) 30%, transparent), transparent); animation: m-sweep 1.2s ease-out 1 both; }
 @keyframes m-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-.m-home .m-burst { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
 .m-home .m-hues { position: absolute; left: 0; right: 0; bottom: 0; height: 12px; z-index: 3; pointer-events: none; }
 .m-home .m-hues i { position: absolute; top: 0; bottom: 0; }
 .m-home .m-compare .m-handle { background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18); }
 .m-home { background-image: repeating-linear-gradient(112deg, color-mix(in srgb, var(--ink) 1.3%, transparent) 0 110px, transparent 110px 220px); background-attachment: fixed; }
-@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .m-home .m-story .m-beats { perspective: 900px; }
-  .m-home .m-story.m-live .m-beat .m-clock { transform: rotateX(-82deg); transform-origin: 50% 100%; transition: transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1.1); backface-visibility: hidden; display: inline-block; }
-  .m-home .m-story.m-live .m-beat.m-on .m-clock { transform: none; }
-}
 .m-home .m-bars li.m-saved { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 28px; padding-top: 22px; border-top: 1px solid var(--m-line); align-items: start; }
 .m-home .m-saved div { display: grid; gap: 4px; }
 .m-home .m-saved b { font-family: var(--m-display); font-weight: 560; font-size: clamp(1.9rem, 3.4vw, 2.8rem); line-height: 1; color: var(--m-hl); font-variant-numeric: tabular-nums; }
@@ -505,15 +443,6 @@ export const HOME_CSS = `
 @media (hover: hover) {
   .m-home .m-wide .m-screen.m-in:hover { box-shadow: 0 -1px 0 0 rgba(255, 255, 255, 0.4), 0 80px 130px -50px rgba(0, 0, 0, 0.95), 0 40px 170px -30px color-mix(in srgb, var(--brass-ui) 50%, transparent), 0 -30px 140px -56px color-mix(in srgb, var(--flag) 40%, transparent); }
 }
-@media (min-width: 900px) {
-  .m-home .m-story .m-stage .m-phone { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 0 0 9px color-mix(in srgb, var(--ink) 4%, transparent), 0 60px 110px -34px rgba(0, 0, 0, 0.9), 0 30px 120px -20px color-mix(in srgb, var(--brass-ui) 30%, transparent); }
-  .m-home .m-story .m-stage::after { content: ""; position: absolute; z-index: -1; left: 6%; right: 6%; bottom: -46px; height: 44px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), transparent); filter: blur(7px); pointer-events: none; }
-  .m-home .m-story .m-stage::before { inset: 10% -40% -12%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 30%, transparent), color-mix(in srgb, var(--flag) 7%, transparent) 62%, transparent); }
-}
-@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .m-home .m-story .m-stage.m-flare::before { animation: m-flare 0.95s ease-out 1; }
-}
-@keyframes m-flare { 0% { transform: scale(0.86); opacity: 1; filter: brightness(2.3); } 100% { transform: none; opacity: 1; filter: none; } }
 .m-home .m-colours .m-pic { position: relative; }
 .m-home .m-colours .m-pic::before { content: ""; position: absolute; z-index: 0; inset: 18% -30% -14%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 26%, transparent), transparent); pointer-events: none; }
 .m-home .m-colours .m-pic .m-phone { position: relative; z-index: 1; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 0 0 9px color-mix(in srgb, var(--ink) 4%, transparent), 0 50px 90px -30px rgba(0, 0, 0, 0.9); }
@@ -521,9 +450,6 @@ export const HOME_CSS = `
 .m-home .m-card .m-peek::before { content: ""; position: absolute; z-index: 0; inset: 12% -10% -30%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 20%, transparent), transparent); pointer-events: none; opacity: 0.55; transition: opacity 0.4s ease; }
 .m-home .m-card:hover .m-peek::before { opacity: 1; }
 .m-home .m-card .m-peek .m-phone { position: relative; z-index: 1; }
-@media (max-width: 899px) {
-  .m-home #steps .m-step .m-phone { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 -18px 70px -18px color-mix(in srgb, var(--brass-ui) 32%, transparent); }
-}
 .m-home .m-close .m-rings { width: 660px; height: 660px; top: calc(50% + 80px); }
 @media (max-width: 899px) {
   .m-home .m-kinetic { padding: 6px 16px 30px; }
@@ -536,11 +462,6 @@ export const HOME_CSS = `
   .m-home .m-close::before { right: -30%; top: 0; width: 110%; height: 70%; transform: translateY(-45%); }
 }
 .m-home .m-pin { display: contents; }
-@media (min-width: 900px) {
-  .m-home .m-story { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); }
-  .m-home .m-story .m-stage .m-phone { aspect-ratio: 393 / 852; }
-  .m-home .m-story .m-stage { top: max(calc(var(--m-hdr) + 86px), calc(50vh - 300px)); }
-}
 .m-home .m-world { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(14px, 2.2vw, 30px); align-items: start; padding-top: 22px; }
 .m-home .m-wphone { position: relative; margin: 0; display: grid; gap: 16px; }
 .m-home .m-wphone:nth-child(2), .m-home .m-wphone:nth-child(4) { margin-top: 38px; }
@@ -567,47 +488,14 @@ export const HOME_CSS = `
   .m-home .m-world-also { justify-content: flex-start; }
 }
 @media (max-width: 899px) {
-  .m-home.m-pin-story #round .m-times, .m-home.m-pin-story #round #steps { display: none; }
-  .m-home.m-pin-story .m-story { display: block; position: relative; height: calc(100vh - var(--m-hdr) + 7 * 56vh); height: calc(100svh - var(--m-hdr) + 7 * 56svh); margin-inline: -16px; }
-  .m-home.m-pin-story .m-story .m-pin { display: flex; flex-direction: column; position: sticky; top: var(--m-hdr); height: calc(100vh - var(--m-hdr)); height: calc(100svh - var(--m-hdr)); overflow: hidden; --m-foot: 136px; padding-bottom: var(--m-foot); }
-  .m-home.m-pin-story .m-story .m-pin::before { content: ""; position: absolute; z-index: 0; left: -20%; right: -20%; top: -6%; height: 62%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 30%, transparent), color-mix(in srgb, var(--flag) 6%, transparent) 64%, transparent); pointer-events: none; }
   /* THE SCREEN TAKES WHAT THE WORDS LEAVE (2026-10-13). It was a fixed 46% of the pin, and the words a
      box as tall as whatever was left over — so on a tall phone the picture stopped half-way down a
      phone it had room to show, and a band of nothing sat between the last line and the rail. Now the
      words are as tall as the longest of the seven (they share one grid cell), the rail has its strip
      at the foot, and the picture has all the rest, at any height. */
-  .m-home.m-pin-story .m-story .m-stage { position: relative; z-index: 1; flex: 1 1 0; min-height: 0; display: grid; justify-items: center; align-items: start; padding-top: 18px; overflow: hidden; -webkit-mask-image: linear-gradient(black 74%, transparent); mask-image: linear-gradient(black 74%, transparent); }
-  .m-home.m-pin-story .m-story .m-stage .m-phone { position: relative; width: min(60vw, 250px); aspect-ratio: 393 / 852; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 0 0 8px color-mix(in srgb, var(--ink) 4%, transparent), 0 30px 80px -20px rgba(0, 0, 0, 0.9); }
-  .m-home.m-pin-story .m-story .m-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity 0.4s ease; }
-  .m-home.m-pin-story .m-story .m-stage img.m-on { opacity: 1; z-index: 2; }
-  .m-home.m-pin-story .m-story .m-stage img.m-was { opacity: 1; z-index: 1; }
-  .m-home.m-pin-story .m-story .m-beats { position: relative; z-index: 2; flex: 0 0 auto; display: grid; margin-inline: 16px; }
-  .m-home.m-pin-story .m-story .m-beat { grid-area: 1 / 1; display: grid; gap: 8px; align-content: start; opacity: 0; transform: translateY(22px); transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); pointer-events: none; }
-  .m-home.m-pin-story .m-story .m-beat.m-on { opacity: 1; transform: none; pointer-events: auto; }
-  .m-home.m-pin-story .m-story .m-beat .m-what { font: 600 0.72rem/1 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
-  .m-home.m-pin-story .m-story .m-beat .m-clock { font: 500 clamp(2.5rem, 12vw, 3.4rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.03em; }
-  .m-home.m-pin-story .m-story .m-beat h3 { font-size: clamp(1.45rem, 6.4vw, 1.9rem); max-width: 18ch; }
-  .m-home.m-pin-story .m-story .m-beat p { color: var(--m-on-ground-soft); font-size: 1rem; max-width: 38ch; }
-  .m-home.m-pin-story .m-rail { display: block; position: absolute; left: 4px; right: 34px; top: auto; bottom: calc(92px - var(--m-foot)); width: auto; height: 2px; background: var(--m-line); }
-  .m-home.m-pin-story .m-rail::before { content: ""; position: absolute; left: 0; top: 0; height: 2px; width: calc(var(--m-roll, 0) * 100%); background: var(--m-hl); }
-  .m-home.m-pin-story .m-rail .m-ball { position: absolute; left: calc(var(--m-roll, 0) * 100%); top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, white, color-mix(in srgb, var(--ink) 88%, black) 58%, color-mix(in srgb, var(--ink) 66%, black)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 7%, transparent), 0 0 22px color-mix(in srgb, var(--ink) 55%, transparent); transition: transform 0.45s ease, opacity 0.45s ease; }
-  .m-home.m-pin-story .m-rail .m-cup { position: absolute; right: -30px; top: 50%; width: 28px; height: 10px; margin-top: -5px; border-radius: 50%; background: black; box-shadow: 0 0 0 2px var(--m-line); transition: box-shadow 0.5s ease; }
-  .m-home.m-pin-story .m-rail .m-flag { position: absolute; right: -17px; bottom: 0; width: 2px; height: 40px; background: var(--m-on-ground); }
-  .m-home.m-pin-story .m-rail .m-flag::after { content: ""; position: absolute; left: 2px; top: 0; border: solid transparent; border-width: 7px 0 7px 14px; border-left-color: var(--m-hl); }
-  .m-home.m-pin-story .m-rail.m-in .m-ball { transform: translateX(22px) scale(0.3); opacity: 0; }
 }
 /* a short phone (an SE, a landscape-ish browser bar): the screen gives up height to the words, and the
    words keep clear of the flag standing at the end of the rail */
-@media (max-width: 899px) and (max-height: 700px) {
-  .m-home.m-pin-story .m-story .m-pin { --m-foot: 124px; }
-  .m-home.m-pin-story .m-story .m-stage { padding-top: 12px; }
-  .m-home.m-pin-story .m-story .m-beat { gap: 6px; }
-  .m-home.m-pin-story .m-story .m-beat .m-clock { font-size: 2rem; }
-  .m-home.m-pin-story .m-story .m-beat h3 { font-size: 1.3rem; }
-  .m-home.m-pin-story .m-story .m-beat p { font-size: 0.95rem; padding-right: 46px; }
-  .m-home.m-pin-story .m-rail .m-flag { height: 26px; }
-  .m-home.m-pin-story .m-rail.m-in .m-cup { box-shadow: 0 0 0 2px var(--m-hl), 0 0 0 10px color-mix(in srgb, var(--brass-ui) 22%, transparent), 0 0 0 22px color-mix(in srgb, var(--brass-ui) 8%, transparent); }
-}
 .m-home img { image-rendering: auto; }
 .m-home .m-btn .m-short { display: none; }
 .m-home .m-dock { display: none; }
@@ -620,16 +508,7 @@ export const HOME_CSS = `
   .m-home .m-news { font-size: 0.84rem; }
   .m-home .m-runs { gap: 8px; }
   .m-home .m-runs li { font-size: 0.88rem; padding: 7px 12px; }
-  .m-home #round .m-times { position: relative; margin-inline: -16px; padding-inline: 16px; scroll-padding-inline: 16px; scrollbar-width: none; margin-bottom: 18px; }
-  .m-home #round .m-times::-webkit-scrollbar { display: none; }
-  .m-home #steps { position: relative; display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -16px; padding: 4px 16px 18px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .m-home #steps::-webkit-scrollbar { display: none; }
-  .m-home #steps .m-step, .m-home #steps .m-step[hidden] { display: grid !important; flex: 0 0 84%; scroll-snap-align: center; grid-template-columns: minmax(0, 1fr); gap: 0; align-items: start; border: 1px solid var(--m-line); border-radius: 22px; background: var(--m-ground-rise); padding: 22px 22px 0; overflow: hidden; }
-  .m-home #steps .m-step .m-say { order: -1; gap: 10px; }
-  .m-home #steps .m-step .m-clock { font-size: 2.3rem; }
-  .m-home #steps .m-step p { font-size: 1rem; }
-  .m-home #steps .m-step .m-phone { margin: 20px auto 0; max-width: 250px; width: 100%; aspect-ratio: auto; height: 310px; border-bottom: 0; border-radius: 30px 30px 0 0; }
-  .m-home #steps .m-step .m-phone img { height: auto; }
+  .m-home #round .m-times { display: none; }
   .m-home .m-moment { display: flex; flex-direction: column-reverse; padding-bottom: 0; }
   .m-home .m-moment .m-big > span { display: block; }
   .m-home .m-moment .m-big .m-l1, .m-home .m-moment .m-big .m-l2 { white-space: normal; }
@@ -683,12 +562,11 @@ export const HOME_CSS = `
    The prototype cropped screens to a frame (object-fit: cover), scaled one up on a phone, and tilted a
    card toward the pointer. A cropped or scaled capture is not the screen, and a turned one blurs. */
 /* screens that take turns share one grid cell, so each keeps the capture's own shape */
-.m-home .m-story .m-stage .m-phone, .m-home.m-pin-story .m-story .m-stage .m-phone, .m-home .m-compare { display: grid; aspect-ratio: auto; }
-.m-home .m-story .m-stage img, .m-home.m-pin-story .m-story .m-stage img, .m-home .m-compare img { position: static; inset: auto; grid-area: 1 / 1; width: 100%; height: auto; object-fit: fill; transform: none; }
-.m-home .m-story .m-stage img.m-on, .m-home .m-story .m-stage img.m-was { transform: none; }
+.m-home .m-compare { display: grid; aspect-ratio: auto; }
+.m-home .m-compare img { position: static; inset: auto; grid-area: 1 / 1; width: 100%; height: auto; object-fit: fill; transform: none; }
 /* single screens: the frame takes its height from the picture */
-.m-home .m-step .m-phone, .m-home .m-wphone .m-phone { aspect-ratio: auto; }
-.m-home .m-step .m-phone img, .m-home .m-wphone .m-phone img { height: auto; object-fit: fill; }
+.m-home .m-wphone .m-phone { aspect-ratio: auto; }
+.m-home .m-wphone .m-phone img { height: auto; object-fit: fill; }
 /* the organizer's laptop screen, whole; on a narrow screen its place is taken by the same organizer on a phone,
    because a laptop screen shrunk to a phone's width is four-pixel text */
 .m-home .m-wide .m-screen { aspect-ratio: auto; }
@@ -835,5 +713,45 @@ export const HOME_CSS = `
   .m-home .m-hand-screen { border-radius: 45.5px; border-width: 7px; }
   .m-home .m-chip { left: 50%; bottom: -22px; translate: -50% 0; font-size: 0.84rem; padding: 10px 14px; }
   .m-home .m-toast { right: auto; left: 50%; top: -18px; translate: -50% 0; font-size: 0.82rem; }
+}
+/* ── THE WEEK, ONE STEP AT A TIME (2026-11-01; "Landing story section - redesign spec", option b) ──
+   It replaces the pinned story a phone was held in for five screens (Ajay, 30 Oct: "my friends just
+   stopped there without scrolling down"). One frame in the page's own flow: a row of seven slides that
+   snaps sideways, a seven-part bar and "2 of 7" in plain sight, ‹ › at 48px. Nothing is sticky or
+   pinned, a vertical swipe on it scrolls the page, and the markup is the same with or without script,
+   so the page is the height it loads at. The screens are read: they move only sideways, in the row. */
+.m-home .m-week { position: relative; }
+.m-home .m-week-bar { display: flex; gap: 6px; margin-bottom: 22px; }
+.m-home .m-week-bar i { position: relative; flex: 1 1 0; height: 4px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--m-on-ground) 20%, transparent); }
+.m-home .m-week-bar i::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--m-hl); transform-origin: left; transform: scaleX(0); }
+.m-home .m-week-bar i.m-done::after, .m-home .m-week-bar i.m-on::after { transform: none; }
+.m-home .m-week-row { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; touch-action: pan-x pan-y; }
+.m-home .m-week-row::-webkit-scrollbar { display: none; }
+.m-home .m-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: clamp(32px, 7vw, 110px); align-items: center; padding: 6px 4px 40px; }
+.m-home .m-slide .m-phone { width: 100%; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 30%, var(--ground)), 0 50px 100px -34px rgba(0, 0, 0, 0.85), 0 26px 90px -30px color-mix(in srgb, var(--brass-ui) 32%, transparent); }
+.m-home .m-slide-words { display: grid; gap: 14px; align-content: center; }
+.m-home .m-slide-words .m-what { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; font: 600 0.75rem/1.3 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
+.m-home .m-of { color: var(--m-on-ground); letter-spacing: 0.08em; }
+.m-home .m-slide-words .m-clock { font: 500 clamp(2.6rem, 5.4vw, 4.6rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.03em; }
+.m-home .m-slide-words h3 { font-size: clamp(1.6rem, 3vw, 2.5rem); max-width: 18ch; }
+.m-home .m-slide-words p:last-child { color: var(--m-on-ground-soft); font-size: clamp(1rem, 1.4vw, 1.15rem); max-width: 42ch; }
+.m-home .m-week-keys { display: flex; gap: 12px; justify-content: flex-end; margin-top: 4px; }
+.m-home .m-key { display: inline-grid; place-items: center; width: 48px; height: 48px; padding: 0; border-radius: 50%; border: 1.5px solid var(--m-on-ground-soft); background: var(--m-ground-rise); color: var(--m-on-ground); font: 500 1.6rem/1 var(--m-body); cursor: pointer; }
+.m-home .m-key:hover { border-color: var(--m-on-ground); }
+.m-home .m-key[disabled] { opacity: 0.35; cursor: default; }
+.m-home .m-hold span { display: block; width: 12px; height: 14px; border-inline: 4px solid currentColor; }
+.m-home .m-hold.m-paused span { width: 0; height: 0; border: solid transparent; border-width: 8px 0 8px 13px; border-left-color: currentColor; margin-left: 4px; }
+@media (prefers-reduced-motion: no-preference) {
+  .m-home .m-week-row { scroll-behavior: smooth; }
+  .m-home .m-week-bar i.m-on.m-timing::after { animation: m-fill var(--m-step, 7s) linear 1 both; }
+}
+@keyframes m-fill { from { transform: scaleX(0); } to { transform: none; } }
+@media (max-width: 899px) {
+  .m-home .m-slide { grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; padding-bottom: 28px; }
+  .m-home .m-slide .m-phone { order: 2; width: min(58vw, 240px); margin-inline: auto; }
+  .m-home .m-slide-words { gap: 8px; }
+  .m-home .m-slide-words .m-clock { font-size: 2.4rem; }
+  .m-home .m-slide-words h3 { font-size: 1.45rem; }
+  .m-home .m-week-keys { justify-content: center; }
 }
 `;

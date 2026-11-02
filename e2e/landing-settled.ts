@@ -27,12 +27,18 @@ import type { Page } from "@playwright/test";
  * So: nothing on this page is measured until its script has run and its height
  * has stopped changing, and a test that scrolls to a thing asks where the
  * thing is at the moment it scrolls.
+ *
+ * SINCE 2026-11-01 THE PAGE NO LONGER GROWS: the week is a stepper in the
+ * page's own flow, the same markup with or without script ("Landing story
+ * section - redesign spec"), and `landing-screens.spec.ts` holds the growth to
+ * a few pixels. The wait is kept because it is cheap, and a late typeface or
+ * the hero could still nudge a pixel.
  */
 export async function landingSettled(page: Page): Promise<number> {
-  // The script's own marks: the live strip is doubled first, and the story goes live in the same pass.
+  // The script's own marks: the live strip is doubled first, and the week's stepper is wired in the same pass.
   // A page with neither (the FAQ, the terms) has no script to wait for.
   await page
-    .waitForFunction(() => !document.querySelector("main.m-home") || !!document.querySelector("#ticker-track[data-doubled], #story.m-live"), null, { timeout: 15_000 })
+    .waitForFunction(() => !document.querySelector("main.m-home") || !!document.querySelector("#ticker-track[data-doubled], #story[data-ready]"), null, { timeout: 15_000 })
     .catch(() => {});
   let last = -1;
   let same = 0;
