@@ -173,21 +173,38 @@ export const NEW_CSS = `
   .n-live .n-dot { animation: n-beat 2s ease-in-out infinite; }
   @keyframes n-beat { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--n-flag) 0%, transparent); } 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--n-flag) 50%, transparent); } }
 }
+.n-tagline { font: 700 clamp(16px, 1.4vw, 20px)/1.2 var(--n-display); font-stretch: 75%; color: var(--n-cream-soft); margin-bottom: clamp(10px, 1.2vw, 16px); }
+.n-kicker-after { display: none; }
+/* A PHONE: the live moment (the card, the tap, the board re-ranking) must be in the first screen of
+   393 x 852. So the pill moves below it, the sub keeps its first and last sentence, the facts go
+   (each is said again further down), and the member's phone leads the stage, the laptop after it. */
 @media (max-width: 760px) {
+  .n-hdr-in { min-height: 60px; }
+  .n-hdr .lockup svg { max-height: 30px; }
+  .n-hero { padding-top: 16px; }
   .n-hero-top { text-align: left; justify-items: start; }
-  .n-hero-go, .n-hero-facts { justify-content: flex-start; }
-  .n-kicker { font-size: 14px; line-height: 1.3; padding: 7px 12px 7px 9px; margin-bottom: 18px; }
-  .n-hero-sub { font-size: 17px; margin-top: 16px; }
-  .n-hero-go { margin-top: 22px; gap: 10px; }
-  .n-hero-go .n-btn { flex: 1 1 0; padding: 0 8px; font-size: 15.5px; min-height: 52px; white-space: nowrap; }
-  .n-hero h1 { font-size: clamp(44px, 12.4vw, 64px); }
+  .n-hero-top .n-kicker { display: none; }
+  .n-kicker-after { display: block; margin-top: 22px; }
+  .n-kicker-after .n-kicker { font-size: 15px; line-height: 1.35; padding: 8px 14px 8px 10px; margin: 0; }
+  .n-tagline { font-size: 15px; margin-bottom: 6px; }
+  .n-hero h1 { font-size: clamp(38px, 10.8vw, 60px); line-height: .88; }
+  .n-hero-sub { font-size: 16.5px; line-height: 1.4; margin-top: 12px; }
   .n-sub-more { display: none; }
-  .n-hero-facts { font-size: 15px; gap: 6px 18px; margin-top: 16px; }
-  .n-stage { padding: 0; margin-top: 44px; }
-  .n-laptop { width: 100%; }
-  .n-stage .n-phone { position: relative; right: auto; bottom: auto; width: min(78%, 330px); margin: -22% auto 0; }
-  .n-live { position: relative; left: auto; bottom: auto; margin: 22px 0 0; flex-wrap: wrap; }
-  .n-caption { margin-top: 28px; text-align: left; }
+  .n-hero-go { justify-content: flex-start; margin-top: 16px; gap: 10px; width: 100%; }
+  .n-hero-go .n-btn { flex: 1 1 0; padding: 0 8px; font-size: 15.5px; min-height: 48px; white-space: nowrap; }
+  .n-hero-facts { display: none; }
+  .n-stage { display: flex; flex-direction: column; padding: 0 var(--n-gut); margin-top: 20px; }
+  .n-stage .n-phone { order: 1; position: relative; right: auto; bottom: auto; width: min(72%, 300px); margin: 0 auto; }
+  .n-live { order: 2; position: relative; left: auto; bottom: auto; margin: 18px 0 0; flex-wrap: wrap; }
+  .n-laptop { order: 3; width: 100%; margin-top: 30px; }
+  .n-caption { margin-top: 22px; text-align: left; }
+}
+
+/* A laptop screen on a phone is drawn at a third of its size: crop it to the part that matters
+   (a square of the capture, at --cx across) so its words are half as large again. Never redrawn. */
+@media (max-width: 600px) {
+  .n-crop .n-lid-screen { aspect-ratio: 1 / 1; }
+  .n-crop .n-lid-screen img { object-position: var(--cx, 50%) top; }
 }
 
 /* ═════════ SECTIONS ═════════ */
@@ -216,9 +233,11 @@ export const NEW_CSS = `
   .n-desk-pic { margin-right: calc(-1 * var(--n-gut)); padding-bottom: 34%; }
   .n-desk-pic .n-phone { left: 4%; width: 30%; bottom: 0; }
 }
+/* a phone shows the organizer's own phone screen, large, rather than a laptop it cannot read */
 @media (max-width: 600px) {
-  .n-desk-pic { padding-bottom: 46%; }
-  .n-desk-pic .n-phone { width: 40%; }
+  .n-desk-pic { padding-bottom: 0; margin-right: 0; }
+  .n-desk-pic .n-lid { display: none; }
+  .n-desk-pic .n-phone { position: relative; left: auto; bottom: auto; width: min(76%, 320px); margin: 8px auto 0; }
 }
 
 /* ── 2. THE DAY BOARD (the page's one bold device) ── */
@@ -270,6 +289,9 @@ export const NEW_CSS = `
 .n-doors { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 22px; }
 @media (max-width: 900px) {
   .n-watch { grid-template-columns: minmax(0, 1fr); }
+  .n-watch-row figure:nth-child(2) { translate: none; }
+}
+@media (max-width: 600px) {
   .n-watch-row { overflow-x: auto; scroll-snap-type: x mandatory; margin: 48px calc(-1 * var(--n-gut)) 0; padding: 30px var(--n-gut) 6px; scrollbar-width: none; }
   .n-watch-row::-webkit-scrollbar { display: none; }
   .n-watch-row figure { flex: 0 0 min(64vw, 260px); scroll-snap-align: start; }

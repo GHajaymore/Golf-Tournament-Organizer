@@ -250,7 +250,8 @@ test("the measurement sees faint text and covered text, and passes good text", a
   expect(found.filter((f) => f.text.startsWith("zz-legible")), "misreads color() syntax").toEqual([]);
 });
 
-for (const path of ["/", "/faq", "/privacy", "/terms", "/interest"]) {
+// `/new` is the site rehaul's preview (2026-11-01): held to the same floor before it can replace `/`.
+for (const path of ["/", "/faq", "/privacy", "/terms", "/interest", "/new"]) {
   test(`every word on ${path} is readable against what is behind it`, async ({ page, browserName }) => {
     test.skip(browserName === "webkit", NO_CANVAS);
     await settle(page, path);

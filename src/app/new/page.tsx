@@ -55,11 +55,12 @@ function screen(id: string, alt: string, sizes: string, priority = false) {
 const SIZES = {
   heroDesk: "(max-width: 760px) 100vw, min(1000px, 86vw)",
   heroPhone: "(max-width: 760px) min(78vw, 330px), min(300px, 25vw)",
-  desk: "(max-width: 900px) 100vw, 60vw",
+  // Below 600px the laptop shots are cropped to a square, so the picture is drawn 1.6 times as wide.
+  desk: "(max-width: 600px) 160vw, (max-width: 900px) 100vw, 60vw",
   deskPhone: "(max-width: 900px) 38vw, 18vw",
   day: "(max-width: 900px) min(76vw, 320px), 330px",
   watch: "(max-width: 900px) min(64vw, 260px), 300px",
-  wide: "(max-width: 900px) 100vw, 66vw",
+  wide: "(max-width: 600px) 150vw, (max-width: 900px) 100vw, 66vw",
   money: "(max-width: 900px) min(80vw, 330px), 330px",
   theme: "(max-width: 900px) min(58vw, 230px), 290px",
 } as const;
@@ -222,11 +223,13 @@ export default async function NewSitePreview() {
         <section className="n-hero" id="top" aria-labelledby="hero-h">
           <div className="n-wrap n-hero-top">
             <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
+            {/* Ajay's line (11 Oct), kept in the opening as the tagline and again as the close. */}
+            <p className="n-tagline">From Registration to Recognition.</p>
             <h1 id="hero-h" className="n-display">
               <span>Run the whole competition.</span> <span className="n-h1-2">They score by phone.</span>
             </h1>
             <p className="n-hero-sub">
-              <b>Golf tournament and league software</b> for clubs, golf groups and leagues.{" "}
+              <b>Golf tournament and league software</b><span className="n-sub-more"> for clubs, golf groups and leagues</span>.{" "}
               <span className="n-sub-more">Entries, the draw, live scoring, side games and the prize table, from one screen. </span>
               Players type a round code: no app, no account.
             </p>
@@ -249,6 +252,10 @@ export default async function NewSitePreview() {
               board={screen("live-board-after", "", SIZES.heroPhone)}
             />
           </div>
+          {/* On a phone the pill moves below the live moment, so the moment is in the first screen. */}
+          <div className="n-wrap n-kicker-after">
+            <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
+          </div>
           <p className="n-wrap n-caption">
             The app itself, at {FACTS.club}: a demo club with invented players. Every screen on this page is a capture of TourneyHQ, never a mock-up.
           </p>
@@ -269,7 +276,7 @@ export default async function NewSitePreview() {
               </ol>
             </div>
             <div className="n-desk-pic">
-              <div className="n-lid"><div className="n-lid-screen">{screen("desk-dashboard", "The organizer's dashboard during a round: what needs a decision, the tee sheet, and the pace of play group by group.", SIZES.desk)}</div></div>
+              <div className="n-lid n-crop" style={{ "--cx": "100%" } as React.CSSProperties}><div className="n-lid-screen">{screen("desk-dashboard", "The organizer's dashboard during a round: what needs a decision, the tee sheet, and the pace of play group by group.", SIZES.desk)}</div></div>
               <div className="n-phone"><div className="n-phone-screen">{screen("org-dashboard", "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", SIZES.deskPhone)}</div></div>
             </div>
           </div>
@@ -368,7 +375,7 @@ export default async function NewSitePreview() {
                 <h3 className="n-h3">128 in the match play? Eight flights, eight champions.</h3>
                 <p>Divide a big field by handicap, by your own flights or at random. Each flight is its own knockout, and every player is told who they play.</p>
               </div>
-              <div className="n-lid"><div className="n-lid-screen">{screen("desk-matchplay", "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", SIZES.wide)}</div></div>
+              <div className="n-lid n-crop" style={{ "--cx": "40%" } as React.CSSProperties}><div className="n-lid-screen">{screen("desk-matchplay", "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", SIZES.wide)}</div></div>
             </div>
           </div>
         </section>
@@ -390,7 +397,7 @@ export default async function NewSitePreview() {
                 </>
               }
               tabs={WORLD.map((w) => (<Fragment key={w.place}><b aria-hidden="true">{w.symbol}</b><span>{w.place}</span></Fragment>))}
-              panes={WORLD.map((w) => (<span key={w.place}>A club in {w.place}: {w.money}.</span>))}
+              panes={WORLD.map((w) => (<span key={w.place}>A club in {w.place.startsWith("United") ? `the ${w.place}` : w.place}: {w.money}.</span>))}
               screens={WORLD.map((w) => <Fragment key={w.place}>{screen(w.shot, w.alt, SIZES.money)}</Fragment>)}
             />
             <p className="n-also" data-no-dialect="">Also Canadian, Australian and New Zealand dollars, and yen. Yards or metres, carts or buggies, a Sunday or a Monday week.</p>

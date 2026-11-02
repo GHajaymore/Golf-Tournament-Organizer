@@ -311,6 +311,7 @@ export const FULL_ONLY = [
   "e2e/side-bet-named-winner.spec.ts",
   "e2e/side-game-renamed.spec.ts",
   "e2e/sides-and-splits.spec.ts",
+  "e2e/site-rehaul.spec.ts",
   "e2e/skins-pot.spec.ts",
   "e2e/slow-signal-scoring.spec.ts",
   "e2e/team-cup.spec.ts",
