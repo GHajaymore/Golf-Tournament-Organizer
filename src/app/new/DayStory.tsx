@@ -12,6 +12,8 @@ export type StoryStep = {
   who: string;
   h: string;
   p: string;
+  /** Which device the moment is on: the committee's laptop (the console) or the member's phone. */
+  device: "laptop" | "phone";
 };
 
 /**
@@ -27,6 +29,11 @@ export type StoryStep = {
  * moment (`inline`), so a phone reads a simple sequence and needs no script. Rendered on the
  * server with the first moment chosen, so with no script the desktop still shows a whole screen.
  * Under reduced motion the screen changes without a fade.
+ *
+ * Design D (2026-11-02): the day is the committee's AND the member's. The pinned stage holds the
+ * committee's laptop and a member's phone; each moment says which device it is on, that device is
+ * lit and brought forward, and the other rests with the last screen it showed. Below 768px a
+ * console moment shows a cropped detail of its capture (a window, never the whole screen shrunk).
  */
 export function DayStory({
   steps,
@@ -60,9 +67,16 @@ export function DayStory({
     return () => io.disconnect();
   }, []);
 
-  const now = steps[on];
-  const chapterOn = now.chapter;
+  const chapterOn = steps[on].chapter;
   const progress = steps.length > 1 ? on / (steps.length - 1) : 1;
+  // Each device keeps the last screen it was given: the laptop the committee's, the phone the member's.
+  const lastOn = (device: StoryStep["device"]) => {
+    for (let i = on; i >= 0; i--) if (steps[i].device === device) return i;
+    return steps.findIndex((s) => s.device === device);
+  };
+  const deskOn = lastOn("laptop");
+  const phoneOn = lastOn("phone");
+  const active = steps[on].device;
 
   return (
     <div className="n-story">
@@ -79,9 +93,13 @@ export function DayStory({
             <span className="n-who">{s.who}</span>
             <h3>{s.h}</h3>
             <p className="n-say">{s.p}</p>
-            <div className="n-step-phone">
-              <div className="n-phone"><div className="n-phone-screen">{inline[i]}</div></div>
-            </div>
+            {s.device === "laptop" ? (
+              <div className="n-step-desk"><div className="n-win n-win-detail">{inline[i]}</div></div>
+            ) : (
+              <div className="n-step-phone">
+                <div className="n-phone"><div className="n-phone-screen">{inline[i]}</div></div>
+              </div>
+            )}
           </li>
         ))}
       </ol>
@@ -100,15 +118,24 @@ export function DayStory({
               ))}
             </ol>
           </nav>
-          <div>
+          <div className="n-story-lit" data-active={active}>
+            <div className="n-story-desk">
+              <div className="n-lid">
+                <div className="n-lid-screen">
+                  {screens.map((s, i) => steps[i].device === "laptop" ? (
+                    <div key={i} className={i === deskOn ? "n-frame" : "n-frame n-off"} aria-hidden={i === on ? undefined : true}>{s}</div>
+                  ) : null)}
+                </div>
+              </div>
+              <div className="n-base" aria-hidden="true" />
+            </div>
             <div className="n-phone">
               <div className="n-phone-screen">
-                {screens.map((s, i) => (
-                  <div key={i} className={i === on ? "n-frame" : "n-frame n-off"} aria-hidden={i === on ? undefined : true}>{s}</div>
-                ))}
+                {screens.map((s, i) => steps[i].device === "phone" ? (
+                  <div key={i} className={i === phoneOn ? "n-frame" : "n-frame n-off"} aria-hidden={i === on ? undefined : true}>{s}</div>
+                ) : null)}
               </div>
             </div>
-            <p className="n-now" aria-hidden="true">{now.day} <b className="n-num">{now.when}</b> · {now.what}</p>
           </div>
         </div>
       </div>

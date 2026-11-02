@@ -3,7 +3,7 @@ import { useState, useTransition } from "react";
 import { registerInterest } from "@/app/actions/interest";
 import { INTEREST_COPY, INTEREST_LIMITS, INTEREST_ROLES, INTEREST_SIZES, interestSource, interestWords as inVisitorGolf } from "@/lib/domain/interest";
 import { golfTermsFor, type GolfRegister } from "@/lib/domain/golf-terms";
-import { SOCIAL_LINKS } from "@/lib/contact";
+import { SOCIAL_LINKS } from "@/lib/social-links";
 import { interestWords, type LaunchState } from "@/lib/go-live";
 
 type Field = "name" | "email" | "phone" | "club" | "role" | "members" | "note";
@@ -56,10 +56,10 @@ export function InterestForm({ launch, register }: { launch: LaunchState; regist
         <p className="iv-small">
           {words.follow}{" "}
           {SOCIAL_LINKS.map((s, i) => (
-            <span key={s.name}>
+            <span key={s.id}>
               {i > 0 ? " · " : null}
-              <a href={s.url} target="_blank" rel="noopener noreferrer">
-                {s.name}
+              <a href={s.href} target="_blank" rel="noopener noreferrer">
+                {s.label}
               </a>
             </span>
           ))}

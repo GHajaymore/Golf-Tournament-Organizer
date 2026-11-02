@@ -78,6 +78,25 @@ const ONLY = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
  * reel shots below. `npm run landing:capture` runs this and then the placing script.
  */
 const LANDING = args.includes("--landing");
+/**
+ * --theme=<pair>:<ground> (2026-11-02, the site rehaul's design D): dress the club in one of
+ * `THEME_PAIRS` on the dark or light ground for the length of the run, as a club would set it in
+ * Branding. A theme is a real setting, so the screens stay real and unedited. It is journalled
+ * like every other dressed value and put back before the teardown; and before EVERY shot it is
+ * read back from the database and set again if anything changed it (two sessions share the dev
+ * database).
+ *
+ * --shots=<file.json>: shoot this list instead of the manifest's, each entry
+ * `{ name, viewport: "phone"|"laptop", who, event, costume, path, expect? }`, plus `{ "live": true }`
+ * for the hero's live moment in its order. Each name is written with `-<pair>` after it.
+ */
+const THEME_ARG = (args.find((a) => a.startsWith("--theme=")) ?? "").slice(8);
+const [THEME, THEME_GROUND = "auto"] = THEME_ARG.split(":");
+const SHOTS_FILE = (args.find((a) => a.startsWith("--shots=")) ?? "").slice(8);
+const THEME_PAIR = THEME ? (await import("../src/lib/themes.ts")).THEME_PAIRS.find((p) => p.key === THEME) : null;
+if (THEME && !THEME_PAIR) throw new Error(`--theme: no pair named "${THEME}" in THEME_PAIRS.`);
+if (THEME && !["dark", "light", "auto"].includes(THEME_GROUND)) throw new Error(`--theme: the ground is dark, light or auto, not "${THEME_GROUND}".`);
+const EXTRA_SHOTS = SHOTS_FILE ? JSON.parse(readFileSync(SHOTS_FILE, "utf8")) : null;
 const { SCREENS, LIVE_MOMENT, VIEWPORTS } = await import("../src/lib/landing/screens.ts");
 const TEXT = join(OUT, "text");
 const JOURNAL = join(OUT, ".capture-demo-journal.json");
@@ -156,6 +175,23 @@ async function setCell(table, id, column, value) {
     saveJournal();
   }
   await prisma.$executeRawUnsafe(`UPDATE "${table}" SET "${column}" = $1 WHERE id = $2`, value, id);
+}
+
+/** The club's colours, as `--theme` asked for them. */
+const THEME_CELLS = () => ({ themeKey: THEME_PAIR.accentKey, themeSecondaryKey: THEME_PAIR.secondaryKey, themeAppearance: THEME_GROUND });
+
+async function dressTheme(ctx) {
+  for (const [col, v] of Object.entries(THEME_CELLS())) await setCell("Organization", ctx.orgId, col, v);
+}
+
+/** Read the club's colours back; if anything changed them under the run, set them again and say so. */
+async function themeHolds(ctx) {
+  const want = THEME_CELLS();
+  const [row] = await prisma.$queryRawUnsafe(`SELECT "themeKey", "themeSecondaryKey", "themeAppearance" FROM "Organization" WHERE id = $1`, ctx.orgId);
+  const off = Object.entries(want).filter(([col, v]) => row?.[col] !== v);
+  if (!off.length) return null;
+  await dressTheme(ctx);
+  return `theme changed under the run (${off.map(([c]) => `${c}=${row?.[c]}`).join(", ")}); set again`;
 }
 
 /** The value a cell was seeded with, whether or not it has been overwritten since. */
@@ -613,6 +649,10 @@ async function main() {
     const stripped = await stripMarks();
     console.log(`Seeded ${data.counts.events} tournaments; took the mark off ${stripped} display strings.`);
     await addExtras(ctx);
+    if (THEME) {
+      await dressTheme(ctx);
+      console.log(`Dressed the club in ${THEME_PAIR.name} (${THEME_PAIR.accentKey} + ${THEME_PAIR.secondaryKey}) on the ${THEME_GROUND} ground.`);
+    }
 
     const { chromium } = require("playwright");
     browser = await chromium.launch();
@@ -653,8 +693,11 @@ async function main() {
     const landingShot = (s) => ({ name: s.id, ...s.capture, laptop: s.viewport === "laptop", measure: s.measure ?? [] });
     const live = new Set([...LIVE_MOMENT.before, ...LIVE_MOMENT.after]);
     const wanted = (id) => !ONLY.length || ONLY.includes(id);
-    const plain = LANDING ? SCREENS.filter((s) => s.capture && !live.has(s.id) && wanted(s.id)).map(landingShot) : CAPTURES;
-    const sequence = LANDING && [...live].some(wanted)
+    const extraShot = (s) => ({ name: THEME ? `${s.name}-${THEME}` : s.name, who: s.who, event: s.event, costume: s.costume, path: s.path, laptop: s.viewport === "laptop", measure: [] });
+    const plain = EXTRA_SHOTS
+      ? EXTRA_SHOTS.filter((s) => !s.live).map(extraShot)
+      : LANDING ? SCREENS.filter((s) => s.capture && !live.has(s.id) && wanted(s.id)).map(landingShot) : CAPTURES;
+    const sequence = (EXTRA_SHOTS ? EXTRA_SHOTS.some((s) => s.live) : LANDING && [...live].some(wanted))
       ? [
           ...LIVE_MOMENT.before.map((id) => landingShot(SCREENS.find((s) => s.id === id))),
           { press: true },
@@ -666,6 +709,10 @@ async function main() {
     }
 
     for (const shot of [...plain, ...sequence]) {
+      if (THEME) {
+        const moved = await themeHolds(ctx);
+        if (moved) console.log(`NOTE  ${moved}`);
+      }
       if (shot.press) {
         // The member presses the score on their own card, as a member does. A real save, in the club's
         // own rows, which the teardown takes away with everything else.

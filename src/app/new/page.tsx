@@ -15,7 +15,8 @@ import { landingPrices } from "@/lib/landing/pricing";
 import { FAQ_COUNT, FORMAT_NAMES } from "@/lib/landing/faq";
 import { LANDING_CSS } from "@/lib/landing/styles";
 import { PRICES_READ_ON, TOP_PUBLISHED } from "@/lib/landing/compare";
-import { SALES_EMAIL, SOCIAL_CHANNELS, socialChannels } from "@/lib/contact";
+import { SALES_EMAIL } from "@/lib/contact";
+import { SOCIAL_LINKS, type SocialId } from "@/lib/social-links";
 import { LandingAuth } from "@/components/LandingAuth";
 import { launchState } from "@/lib/services/signins-switch";
 import { frontDoorWords } from "@/lib/go-live";
@@ -24,10 +25,13 @@ import { plainShot } from "@/components/landing/shots";
 import { Lockup } from "@/components/Lockup";
 import { LOGO_SIZE } from "@/components/Logo";
 import { landingScreen } from "@/lib/landing/screens";
-import FACTS from "@/lib/landing/screen-facts.json";
+// The hero's live moment as design D's own capture measured it (Tournament theme, dark ground).
+import FACTS from "./d-facts.json";
+import D_SHOTS from "./d-shots.json";
 import { NEW_CSS } from "./new-styles";
 import { BoardTabs } from "./BoardTabs";
 import { DayStory, type StoryStep } from "./DayStory";
+import { HeroMoment } from "./HeroMoment";
 import { SocialIcon } from "./social-icons";
 
 /**
@@ -41,6 +45,13 @@ import { SocialIcon } from "./social-icons";
  * The hero stands the live board on a phone in slight perspective on the app's own dark ground;
  * then one phone stays in view while its real screen turns with each moment of the day, from the
  * first entry to the prize table (`DayStory`). Below 768px it is a plain sequence.
+ *
+ * DESIGN D, "FLOODLIT" (2026-11-02): today's navy drama made deeper. The hero stands the live
+ * moment (a score goes in on a member's phone and the committee's board moves, `HeroMoment`) on a
+ * green under evening floodlights; C's scroll story is the spine; B's bento carries the
+ * committee's desk; the money, the formats and the close sit on lit turf and glass. The
+ * backdrops (`public/new/d`) are made images of light and grass only: every screen is still a
+ * real capture, framed and lit, never redrawn.
  *
  * Unlike `/`, a signed-in visitor is NOT sent on to the app: the owners judging the preview are
  * signed in.
@@ -58,43 +69,84 @@ function screen(id: string, alt: string, sizes: string, priority = false) {
 }
 
 const SIZES = {
-  heroBoard: "(max-width: 767px) min(62vw, 250px), 340px",
-  story: "(max-width: 767px) min(76vw, 300px), 330px",
-  // Below 600px the laptop shots are cropped to a square, so the picture is drawn 1.6 times as wide.
-  desk: "(max-width: 600px) 160vw, (max-width: 900px) 100vw, 60vw",
-  deskPhone: "(max-width: 900px) 38vw, 18vw",
+  heroDesk: "(max-width: 767px) 100vw, min(820px, 56vw)",
+  heroPhone: "(max-width: 767px) min(64vw, 260px), min(250px, 17vw)",
+  // The bento's windows show a laptop capture zoomed in (1.25 to 2.6 times the window).
+  bentoXl: "(max-width: 680px) 200vw, (max-width: 1000px) 130vw, 860px",
+  bentoWide: "(max-width: 680px) 230vw, (max-width: 1000px) 125vw, 860px",
+  bentoPhone: "(max-width: 680px) 70vw, (max-width: 1000px) 40vw, 320px",
+  story: "(max-width: 767px) min(72vw, 280px), 240px",
+  storyDesk: "(max-width: 1100px) 46vw, 600px",
+  // On a phone a console moment is a window onto its capture, drawn 3.2 windows wide.
+  storyDetail: "(max-width: 767px) 300vw, 1px",
   watch: "(max-width: 900px) min(64vw, 260px), 300px",
-  wide: "(max-width: 600px) 150vw, (max-width: 900px) 100vw, 66vw",
   money: "(max-width: 900px) min(80vw, 330px), 330px",
   theme: "(max-width: 900px) min(58vw, 230px), 290px",
 } as const;
 
 /**
- * THE DAY, AS A HAND-HUNG BOARD: one competition at the demo club, in the order it happens. The
- * times are an example and are said to be (Ajay, 2026-10-11): a draw goes out days before the round.
+ * DESIGN D'S OWN CAPTURES (2026-11-02): the same invented demo club, shot by
+ * `scripts/capture-demo.mjs --theme=<pair>:<ground>` in four club themes, so the screens on the page
+ * are not all one colour (Ajay). Unedited; resized with the landing's "crisp" treatment into
+ * `public/new/d/shots`, their true sizes in `d-shots.json`.
+ *
+ *   Tournament (Verdigris + Optic), dark  ·  the hero's live moment
+ *   Desert (Bunker + Verdigris), dark     ·  the day's story
+ *   Championship (Claret + Bunker), light ·  the committee's desk
+ *   Coastal (Links + Bunker), light       ·  the money
  */
-const DAY: Array<{ day: string; when: string; what: string; who: string; h: string; p: string; shot: string; alt: string }> = [
-  { day: "Monday", when: "09:00", what: "Entries open", who: "Players", h: "Entries open.",
-    p: "Players put their name down from their own phone. You see who is in, who is out and who is waiting.",
-    shot: "club-enter", alt: "A player's Events screen: a tournament open for entries, 22 of 40 places left, and the button to enter." },
-  { day: "Thursday", when: "18:00", what: "The draw", who: "The organizer", h: "You publish the draw.",
-    p: "Drawn from who's in, then yours to adjust. Every player has their group and tee time on their phone.",
-    shot: "org-teesheet", alt: "The organizer's tee sheet: two pairing requests above the published draw." },
-  { day: "Saturday", when: "08:05", what: "The code", who: "Players", h: "They scan the sign.",
+function dShot(name: keyof typeof D_SHOTS, alt: string, sizes: string, priority = false) {
+  const e = D_SHOTS[name];
+  const big = e.v[e.v.length - 1];
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- pre-sized copies with a srcset; next/image would re-encode them
+    <img
+      src={`/new/d/shots/${name}.w${big}.webp`}
+      srcSet={e.v.map((w) => `/new/d/shots/${name}.w${w}.webp ${w}w`).join(", ")}
+      sizes={sizes}
+      width={e.w}
+      height={e.h}
+      alt={alt}
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : undefined}
+      decoding="async"
+    />
+  );
+}
+
+/**
+ * THE DAY: one competition at the demo club, in the order it happens, told by BOTH sides: what the
+ * committee does on the laptop, and what a member sees on their phone. The times are an example and
+ * are said to be (Ajay, 2026-10-11): a draw goes out days before the round.
+ */
+const DAY: Array<{ day: string; when: string; what: string; who: string; h: string; p: string; shot: keyof typeof D_SHOTS; device: "laptop" | "phone"; alt: string }> = [
+  { day: "Monday", when: "09:00", what: "The season", who: "The organizer", device: "laptop", h: "You set up the season.",
+    p: "Every tournament the club runs, in one list: the medal, the league night, the championship, each with its status and its field.",
+    shot: "c-tournaments-desert", alt: "The organizer's Tournaments list: each tournament with its status, course and number of players." },
+  { day: "Monday", when: "09:05", what: "Entries open", who: "Players", device: "phone", h: "They put their name down.",
+    p: "From their own phone. You see who is in, who is out and who is waiting.",
+    shot: "p-events-desert", alt: "A player's Events screen: a casual round, their calendar, and the club's tournaments." },
+  { day: "Thursday", when: "18:00", what: "The draw", who: "The organizer", device: "laptop", h: "You publish the draw.",
+    p: "Drawn from who's in, then yours to adjust: pairing requests are kept together where the draw can, and every group has its tee and its time.",
+    shot: "c-teesheet-desert", alt: "The organizer's tee sheet: two pairing requests above the published draw of six groups with their tee times." },
+  { day: "Saturday", when: "08:05", what: "The code", who: "Players", device: "phone", h: "They scan the sign.",
     p: "Each round's printed sign carries a QR code and its eight-character code. Scan or type it, tap your name, and you're on your round. No account and no password.",
-    shot: "club-today", alt: "A player's Today screen: the round, a pinned notice, their card so far and their position." },
-  { day: "Saturday", when: "10:50", what: "The card", who: "Players", h: "They tap the score, or say it.",
+    shot: "p-today-desert", alt: "A player's Today screen: a pinned notice, their card so far and their position." },
+  { day: "Saturday", when: "10:50", what: "The card", who: "Players", device: "phone", h: "They tap the score, or say it.",
     p: "The card saves as they go, and keeps saving when there is no signal. In a match the organizer chooses how it is kept: one tap for who won each hole, or stroke cards with gross and net.",
-    shot: "club-card", alt: "My card, by hole: hole 10, par 4, score buttons and a microphone." },
-  { day: "Saturday", when: "11:42", what: "The board", who: "Everyone", h: "The board moves.",
-    p: "Their own line first, then the field, as every card comes in.",
-    shot: "club-board", alt: "The player's Board: their own position first, then the field." },
-  { day: "Saturday", when: "14:00", what: "The money", who: "Everyone", h: "Everyone knows who owes what.",
+    shot: "p-card-desert", alt: "My card, by hole: hole 10, par 4, score buttons and a microphone." },
+  { day: "Saturday", when: "11:42", what: "The office", who: "The organizer", device: "laptop", h: "The office sees every group.",
+    p: "What needs you comes first, a disputed result or a card to approve, then the pace of play group by group while the round is on.",
+    shot: "c-dashboard-desert", alt: "The organizer's dashboard during the round: what needs a decision, the tee sheet, and the pace of play group by group." },
+  { day: "Saturday", when: "14:00", what: "The money", who: "Everyone", device: "phone", h: "Everyone knows who owes what.",
     p: "Skins, pots and shared costs in one settle-up. Worked out, never collected.",
-    shot: "club-money", alt: "A player's Money screen: what they are owed, and who pays whom to settle it." },
-  { day: "Saturday", when: "15:30", what: "Recognition", who: "The organizer", h: "The champion is on the board.",
-    p: "The final board, the prizes and the honors board, done before the prize-giving starts.",
-    shot: "club-final", alt: "A player's Board for the finished championship: the result of each round, then the final order." },
+    shot: "p-money-desert", alt: "A player's Money screen: what they are owed, and who pays whom to settle it." },
+  { day: "Saturday", when: "15:30", what: "The result", who: "The organizer", device: "laptop", h: "The result, ready for the prize table.",
+    p: "Final standings, flight results and the print kit, with the tournament's final report on one page.",
+    shot: "c-reports-desert", alt: "The organizer's Reports screen for the finished championship: players, cards in, the exports and the final standings." },
+  { day: "Saturday", when: "15:31", what: "Recognition", who: "Everyone", device: "phone", h: "The champion is on every phone.",
+    p: "The final board, each round's result and the order, in every member's hand before the prize-giving starts.",
+    shot: "p-final-desert", alt: "A player's Board for the finished championship: the result of each round, then the final order." },
 ];
 
 /**
@@ -104,38 +156,32 @@ const DAY: Array<{ day: string; when: string; what: string; who: string; h: stri
  */
 const CHAPTERS: Array<{ n: number; title: string; first: number }> = [
   { n: 1, title: "Entries", first: 0 },
-  { n: 2, title: "The draw and the tee sheet", first: 1 },
-  { n: 3, title: "Scoring by phone", first: 2 },
-  { n: 4, title: "The live board", first: 4 },
-  { n: 5, title: "The prize table", first: 5 },
+  { n: 2, title: "The draw and the tee sheet", first: 2 },
+  { n: 3, title: "Scoring by phone", first: 3 },
+  { n: 4, title: "The live round", first: 5 },
+  { n: 5, title: "The prize table", first: 6 },
 ];
 
 const STEPS: StoryStep[] = DAY.map((d, i) => {
   const ch = [...CHAPTERS].reverse().find((c) => c.first <= i)!;
-  return { chapter: ch.n, chapterTitle: ch.first === i ? ch.title : undefined, day: d.day, when: d.when, what: d.what, who: d.who, h: d.h, p: d.p };
+  return { chapter: ch.n, chapterTitle: ch.first === i ? ch.title : undefined, day: d.day, when: d.when, what: d.what, who: d.who, h: d.h, p: d.p, device: d.device };
 });
 
-/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st: the hole as a person says it. */
-function ordinal(n: number): string {
-  const teen = n % 100 >= 11 && n % 100 <= 13;
-  const tail = teen ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
-  return `${n}${tail}`;
-}
-
-/** Five demo clubs, each in its own money, written the way that country writes it. */
-const WORLD: Array<{ shot: string; symbol: string; place: string; money: string; alt: string }> = [
-  { shot: "club-money", symbol: "$", place: "United States", money: "US dollars", alt: "A player's Money screen at a club in Indiana: what they are owed, in dollars." },
-  { shot: "world-gbp-money", symbol: "£", place: "United Kingdom", money: "Pounds", alt: "The same screen at a club in Harrogate, in pounds." },
-  { shot: "world-eur-money", symbol: "€", place: "Ireland", money: "Euros", alt: "The same screen at a club in Kilkenny, in euros." },
-  { shot: "world-zar-money", symbol: "R", place: "South Africa", money: "Rand", alt: "The same screen at a club in Stellenbosch, in rand, written with a decimal comma." },
-  { shot: "world-inr-money", symbol: "₹", place: "India", money: "Rupees", alt: "The same screen at a club in Pune, in rupees." },
+/** Five demo clubs, each in its own money, written the way that country writes it (all in Coastal). */
+const WORLD: Array<{ shot: keyof typeof D_SHOTS; symbol: string; place: string; money: string; alt: string }> = [
+  { shot: "p-money-coastal", symbol: "$", place: "United States", money: "US dollars", alt: "A player's Money screen at a club in Indiana: what they are owed, in dollars." },
+  { shot: "p-money-gbp-coastal", symbol: "£", place: "United Kingdom", money: "Pounds", alt: "The same screen at a club in England, in pounds." },
+  { shot: "p-money-eur-coastal", symbol: "€", place: "Ireland", money: "Euros", alt: "The same screen at a club in Ireland, in euros." },
+  { shot: "p-money-zar-coastal", symbol: "R", place: "South Africa", money: "Rand", alt: "The same screen at a club in South Africa, in rand, written with a decimal comma." },
+  { shot: "p-money-inr-coastal", symbol: "₹", place: "India", money: "Rupees", alt: "The same screen at a club in India, in rupees." },
 ];
 
-const THEMES: Array<{ shot: string; name: string; swatch: string }> = [
-  { shot: "look-tournament-light", name: "Tournament", swatch: "hsl(182 68% 36%)" },
-  { shot: "look-championship-dark", name: "Championship, dark", swatch: "hsl(352 62% 42%)" },
-  { shot: "look-coastal-light", name: "Coastal", swatch: "hsl(205 70% 46%)" },
-  { shot: "look-midnight-dark", name: "Midnight, dark", swatch: "hsl(262 72% 60%)" },
+/** One board in the four club themes the page is shot in. The swatch is the theme's own accent hue. */
+const THEMES: Array<{ shot: keyof typeof D_SHOTS; name: string; swatch: string }> = [
+  { shot: "p-board-tournament", name: "Tournament, dark", swatch: "hsl(182 68% 40%)" },
+  { shot: "p-board-desert", name: "Desert, dark", swatch: "hsl(42 72% 52%)" },
+  { shot: "p-board-championship", name: "Championship, light", swatch: "hsl(352 62% 42%)" },
+  { shot: "p-board-coastal", name: "Coastal, light", swatch: "hsl(205 70% 46%)" },
 ];
 
 const AUDIENCES: Array<{ who: string; h: string; p: string; href: string; go: string }> = [
@@ -162,12 +208,19 @@ const ANSWERS: Array<{ q: string; a: string; href: string }> = [
     href: "/faq#q-cost" },
 ];
 
+/** What is on each channel (the addresses themselves are only in `lib/social-links.ts`). */
+const ON_EACH: Record<SocialId, string> = {
+  facebook: "News for organizers, and updates as launch comes closer.",
+  instagram: "Pictures and short clips of the app at work: the board, the card, the prize table.",
+};
+
 const STORE_LINKS = {
   ios: process.env.TOURNEYHQ_IOS_URL ?? "",
   android: process.env.TOURNEYHQ_ANDROID_URL ?? "",
 };
 
-export default async function NewSitePreview() {
+export default async function NewSitePreview({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const showFilmSlot = (await searchParams).slot === "video";
   const overrides = await storedPricingOverrides();
   const launch = await launchState();
   const words = frontDoorWords(launch);
@@ -181,7 +234,7 @@ export default async function NewSitePreview() {
   const everyPlan = onEveryPlan();
   const note = editionNote(local, overridden);
   const golf = golfTermsFor(shown.register);
-  const channels = socialChannels();
+  const channels = SOCIAL_LINKS;
 
   const eagleYear = effectiveAnnualPrice(PLANS.club, overrides, "USD");
   const birdieYear = effectiveAnnualPrice(PLANS.society, overrides, "USD");
@@ -193,10 +246,14 @@ export default async function NewSitePreview() {
   ];
   const widest = Math.max(...bars.map((b) => b.amount));
 
-  // The live board's facts, as the capture command measured them.
-  const row = FACTS.rects["live-board-after"].selfRow;
-  const rowAt = { left: `${row.x * 100}%`, top: `${row.y * 100}%`, width: `${row.w * 100}%`, height: `${row.h * 100}%` };
-  const nth = ordinal(FACTS.hole);
+  // The live moment's facts, as the capture command measured them.
+  const r = FACTS.rects;
+  const moment = {
+    player: FACTS.player, hole: FACTS.hole, score: FACTS.score, field: FACTS.field,
+    holesBefore: FACTS.holesBefore, holesAfter: FACTS.holesAfter, placeBefore: FACTS.placeBefore, placeAfter: FACTS.placeAfter,
+    deskBefore: r["live-desk-before"].selfRow, deskAfter: r["live-desk-after"].selfRow,
+    press: r["live-card-before"].press, boardRow: r["live-board-after"].selfRow,
+  };
 
   const page = (
     <div className="thq n-site" lang={shown.locale}>
@@ -207,7 +264,7 @@ export default async function NewSitePreview() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, currency: shown.currency, launch, sameAs: channels.map((c) => c.url) })),
+          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, currency: shown.currency, launch, sameAs: channels.map((c) => c.href) })),
         }}
       />
       {iconSprite()}
@@ -246,6 +303,7 @@ export default async function NewSitePreview() {
       <main id="main">
         {/* ═════════ HERO: what it is, that it is real, what to do next ═════════ */}
         <section className="n-hero" id="top" aria-labelledby="hero-h">
+          <div className="n-flood" aria-hidden="true" />
           <div className="n-wrap n-hero-grid">
           <div className="n-hero-top">
             <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
@@ -265,28 +323,21 @@ export default async function NewSitePreview() {
             </div>
             <ul className="n-hero-facts">
               {words.facts.map((f) => <li key={f}>{f}</li>)}
-              <li>Playing today? <a className="n-link" href="/play">Enter your round code</a></li>
             </ul>
           </div>
 
-          {/* The live board, standing on the desk: a real capture, its player's own row outlined over it. */}
+          {/* The live moment under the floodlights: the committee's laptop and a member's phone, real
+              captures before and after one score goes in. The light, the pool on the green and the
+              shadows are drawn around the devices, never into a screen. */}
           <div className="n-stage">
-            <div className="n-phone">
-              <div className="n-phone-screen">
-                {screen("live-board-after", `The live board on ${FACTS.player}'s phone: their own row first, at ${FACTS.placeAfter} of ${FACTS.field}, after a ${FACTS.score} on the ${nth}.`, SIZES.heroBoard, true)}
-                <span className="n-mark n-show" style={rowAt} aria-hidden="true" />
-                <span className="n-glass" aria-hidden="true" />
-              </div>
-            </div>
-            <p className="n-live">
-              <span className="n-dot" aria-hidden="true" />
-              <span className="n-big n-num">{FACTS.placeAfter}</span>
-              <span>
-                <b>{FACTS.player}, {FACTS.score} on the {nth}</b>
-                <br />
-                <span className="n-num">{FACTS.field} players · {FACTS.holesAfter} holes in</span>
-              </span>
-            </p>
+            <span className="n-pool" aria-hidden="true" />
+            <HeroMoment
+              facts={moment}
+              deskBefore={dShot("live-desk-before-tournament", "", SIZES.heroDesk, true)}
+              deskAfter={dShot("live-desk-after-tournament", "", SIZES.heroDesk)}
+              card={dShot("live-card-before-tournament", "", SIZES.heroPhone, true)}
+              board={dShot("live-board-after-tournament", "", SIZES.heroPhone)}
+            />
           </div>
           </div>
           {/* On a phone the pill moves below the live board, so the board is in the first screen. */}
@@ -294,7 +345,7 @@ export default async function NewSitePreview() {
             <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
           </div>
           <p className="n-wrap n-caption">
-            The app itself, at {FACTS.club}: a demo club with invented players. Every screen on this page is a capture of TourneyHQ, never a mock-up.
+            The app itself, at {FACTS.club}: a demo club with invented players. Every screen on this page is a capture of TourneyHQ, never a mock-up, shown in four of the club themes: each club picks its own colors, and the organizer&rsquo;s screens, the board and every player&rsquo;s phone wear them.
           </p>
         </section>
 
@@ -309,35 +360,69 @@ export default async function NewSitePreview() {
             <DayStory
               steps={STEPS}
               chapters={CHAPTERS.map(({ n, title }) => ({ n, title }))}
-              screens={DAY.map((d) => <Fragment key={d.when}>{screen(d.shot, d.alt, SIZES.story)}</Fragment>)}
-              inline={DAY.map((d) => <Fragment key={d.when}>{screen(d.shot, d.alt, SIZES.story)}</Fragment>)}
+              screens={DAY.map((d) => <Fragment key={d.when}>{dShot(d.shot, d.alt, d.device === "laptop" ? SIZES.storyDesk : SIZES.story)}</Fragment>)}
+              inline={DAY.map((d) => <Fragment key={d.when}>{dShot(d.shot, d.alt, d.device === "laptop" ? SIZES.storyDetail : SIZES.story)}</Fragment>)}
             />
           </div>
         </section>
 
+        {/* ═════════ THE FILM: a slot kept for the narrated demo (not built yet) ═════════
+            Ajay, 2026-11-02: a narrated film of a tournament from setup to prize-giving will sit on
+            this page once the screens settle. Until it exists nothing here pretends to play: the slot
+            is drawn only behind `?slot=video` (for the design captures), never on the page itself. */}
+        {showFilmSlot ? (
+          <section className="n-sec n-film" aria-labelledby="film-h">
+            <div className="n-wrap n-film-in">
+              <div>
+                <p className="n-eyebrow">Placeholder: the film is not made yet</p>
+                <h2 id="film-h" className="n-h2">Watch a tournament from setup to prize-giving.</h2>
+              </div>
+              <div className="n-film-frame">
+                <div className="n-lid"><div className="n-lid-screen">{dShot("c-tournaments-desert", "", SIZES.storyDesk)}</div></div>
+                <p className="n-film-note">Poster frame: a real screen. The narrated film goes here when it exists.</p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         {/* ═════════ THE COMMITTEE'S DESK ═════════ */}
         <section className="n-sec" id="desk" aria-labelledby="desk-h">
-          <div className="n-wrap n-desk">
-            <div>
-              <div className="n-sec-head">
-                <h2 id="desk-h" className="n-h2">The committee on a laptop.</h2>
-                <p className="n-lead">Registration, flights, the draw, the tee sheet and the cut from one screen, in your club&rsquo;s colors. The field is on their phones.</p>
-              </div>
-              <ol className="n-desk-list">
-                <li><span className="n-t" aria-hidden="true">1</span><b>What needs you comes first.</b><p>A disputed result, a card to approve, a player still to place.</p></li>
-                <li><span className="n-t" aria-hidden="true">2</span><b>Nothing counts until you say so.</b><p>Cards are certified, approved or disputed. A result from the course waits for you.</p></li>
-                <li><span className="n-t" aria-hidden="true">3</span><b>Pace of play, group by group.</b><p>Which group is behind, and by how much, while the round is on.</p></li>
-              </ol>
+          {/* Design B's bento, on glass: each tile a window onto a real capture, cropped and shown
+              nearer its own size; nothing in a screen is redrawn. */}
+          <div className="n-wrap">
+            <div className="n-sec-head">
+              <h2 id="desk-h" className="n-h2">The committee on a laptop.</h2>
+              <p className="n-lead">Registration, flights, the draw, the tee sheet and the cut from one screen, in your club&rsquo;s colors. The field is on their phones.</p>
             </div>
-            <div className="n-desk-pic">
-              <div className="n-lid n-crop" style={{ "--cx": "100%" } as React.CSSProperties}><div className="n-lid-screen">{screen("desk-dashboard", "The organizer's dashboard during a round: what needs a decision, the tee sheet, and the pace of play group by group.", SIZES.desk)}</div></div>
-              <div className="n-phone"><div className="n-phone-screen">{screen("org-dashboard", "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", SIZES.deskPhone)}</div></div>
+            <div className="n-bento">
+              <div className="n-tile n-tile-xl n-tile-bleed">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">1</span><b>The whole field, gross and net.</b><p>The leaderboard across every flight, live as the cards come in: overall, or flight by flight.</p></div>
+                <div className="n-win n-win-needs">{dShot("c-leaderboard-championship", "The organizer's leaderboard during the round: each player's flight, holes played, gross, net and score to par.", SIZES.bentoXl)}</div>
+              </div>
+              <div className="n-tile n-tile-tall">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">2</span><b>Nothing counts until you say so.</b><p>Cards are certified, approved or disputed. A result from the course waits for you.</p></div>
+                <div className="n-tile-phone"><div className="n-phone"><div className="n-phone-screen">{dShot("p-orgdash-championship", "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", SIZES.bentoPhone)}</div></div></div>
+              </div>
+              <div className="n-tile n-tile-pace n-tile-bleed">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">3</span><b>Pace of play, group by group.</b><p>Which group is behind, and by how much, while the round is on.</p></div>
+                <div className="n-win n-win-pace">{dShot("c-dashboard-championship", "The pace of play on the organizer's dashboard: each group's tee time, holes played and when it is due in.", SIZES.bentoXl)}</div>
+              </div>
+              <div className="n-tile n-tile-128">
+                <div className="n-128-say">
+                  <p className="n-num-big n-num" aria-hidden="true">128</p>
+                  <div>
+                    <h3 className="n-h3">128 in the match play? Eight flights, eight champions.</h3>
+                    <p>Divide a big field by handicap, by your own flights or at random. Each flight is its own knockout, and every player is told who they play.</p>
+                  </div>
+                </div>
+                <div className="n-win n-win-flights">{screen("desk-matchplay", "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", SIZES.bentoWide)}</div>
+              </div>
             </div>
           </div>
         </section>
 
         {/* ═════════ THE WHOLE CLUB WATCHES ═════════ */}
-        <section className="n-sec" id="watch" aria-labelledby="watch-h">
+        <section className="n-sec n-turf" id="watch" aria-labelledby="watch-h">
           <div className="n-wrap">
             <div className="n-watch">
               <h2 id="watch-h" className="n-watch-big"><span className="n-t">11:42.</span> A birdie on the 14th. The whole club sees it.</h2>
@@ -392,14 +477,6 @@ export default async function NewSitePreview() {
                 </ul>
               </div>
             </div>
-            <div className="n-big128">
-              <div>
-                <p className="n-num-big n-num" aria-hidden="true">128</p>
-                <h3 className="n-h3">128 in the match play? Eight flights, eight champions.</h3>
-                <p>Divide a big field by handicap, by your own flights or at random. Each flight is its own knockout, and every player is told who they play.</p>
-              </div>
-              <div className="n-lid n-crop" style={{ "--cx": "40%" } as React.CSSProperties}><div className="n-lid-screen">{screen("desk-matchplay", "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", SIZES.wide)}</div></div>
-            </div>
           </div>
         </section>
 
@@ -421,7 +498,7 @@ export default async function NewSitePreview() {
               }
               tabs={WORLD.map((w) => (<Fragment key={w.place}><b aria-hidden="true">{w.symbol}</b><span>{w.place}</span></Fragment>))}
               panes={WORLD.map((w) => (<span key={w.place}>A club in {w.place.startsWith("United") ? `the ${w.place}` : w.place}: {w.money}.</span>))}
-              screens={WORLD.map((w) => <Fragment key={w.place}>{screen(w.shot, w.alt, SIZES.money)}</Fragment>)}
+              screens={WORLD.map((w) => <Fragment key={w.place}>{dShot(w.shot, w.alt, SIZES.money)}</Fragment>)}
             />
             <p className="n-also" data-no-dialect="">Also Canadian, Australian and New Zealand dollars, and yen. Yards or metres, carts or buggies, a Sunday or a Monday week.</p>
           </div>
@@ -432,12 +509,12 @@ export default async function NewSitePreview() {
           <div className="n-wrap">
             <div className="n-sec-head">
               <h2 id="colors-h" className="n-h2">Your club&rsquo;s colors, on every screen.</h2>
-              <p className="n-lead">Choose a theme once and every screen wears it: the organizer&rsquo;s, the public board, every player&rsquo;s phone. Each is checked for how it reads in full sun.</p>
+              <p className="n-lead">Choose a theme once and every screen wears it: the organizer&rsquo;s, the public board, every player&rsquo;s phone. The picker says which read best in full sun.</p>
             </div>
             <div className="n-themes">
               {THEMES.map((t) => (
                 <figure key={t.shot}>
-                  <div className="n-phone"><div className="n-phone-screen">{screen(t.shot, `One board in the ${t.name} theme.`, SIZES.theme)}</div></div>
+                  <div className="n-phone"><div className="n-phone-screen">{dShot(t.shot, `One board in the ${t.name} theme.`, SIZES.theme)}</div></div>
                   <figcaption data-no-dialect=""><i aria-hidden="true" style={{ background: t.swatch }} />{t.name}</figcaption>
                 </figure>
               ))}
@@ -579,11 +656,10 @@ export default async function NewSitePreview() {
             </div>
             <ul className="n-follow">
               {channels.map((c) => (
-                <li key={c.key}>
-                  <a href={c.url} rel="me noopener">
-                    <span className="n-net">{c.name}<SocialIcon net={c.key} /></span>
-                    <span className="n-handle">{c.handle}</span>
-                    <p>{c.what}</p>
+                <li key={c.id}>
+                  <a href={c.href} rel="me noopener">
+                    <span className="n-net">{c.label}<SocialIcon net={c.id} /></span>
+                    <p>{ON_EACH[c.id]}</p>
                   </a>
                 </li>
               ))}
@@ -628,8 +704,8 @@ export default async function NewSitePreview() {
               </ul>
             </nav>
             <ul className="n-socials" aria-label="TourneyHQ elsewhere">
-              {SOCIAL_CHANNELS.filter((c) => c.url !== "").map((c) => (
-                <li key={c.key}><a href={c.url} rel="me noopener"><SocialIcon net={c.key} label={`TourneyHQ on ${c.name}`} /></a></li>
+              {channels.map((c) => (
+                <li key={c.id}><a href={c.href} rel="me noopener"><SocialIcon net={c.id} label={`TourneyHQ on ${c.label}`} /></a></li>
               ))}
             </ul>
           </div>
