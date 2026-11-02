@@ -1,4 +1,5 @@
 import { expect, test } from "./coverage";
+import { SOCIAL_LINKS } from "../src/lib/social-links";
 
 /**
  * THE SITE REHAUL'S PREVIEW, `/new` (2026-11-01), at the three widths it was designed at.
@@ -9,6 +10,11 @@ import { expect, test } from "./coverage";
  * told as a scroll story (design C), turns the screen of the phone held in view and becomes a plain
  * sequence on a phone; and the social links are TourneyHQ's own, in the same
  * tab, with no X until it has an address.
+ *
+ * Design E ("one day's light", 2026-11-02) keeps all of that: the h1 is today's "From Registration
+ * to Recognition." with "Run the whole competition. They score by phone." under it, the story runs
+ * five moments (the money and the result have sections of their own), and the social links are
+ * read from `src/lib/social-links.ts`, so the footer is their only place on the page.
  *
  * Reduced motion, so the hero shows its settled state at once (the moment itself is a component
  * test of timing, not of layout).
@@ -33,8 +39,9 @@ test.describe("/new, the site rehaul's preview", () => {
       await page.setViewportSize(size);
       const res = await page.goto("/new");
       expect(res?.status()).toBe(200);
-      await expect(page.locator("h1")).toHaveText(/Run the whole competition\.\s*They score by phone\./i);
-      await expect(page.locator(".n-tagline")).toHaveText("From Registration to Recognition.");
+      await expect(page.locator("h1")).toHaveText(/From Registration\s*to Recognition\./i);
+      await expect(page.locator(".e-sub")).toHaveText(/Run the whole competition\.\s*They score by phone\./i);
+      await expect(page.locator(".n-tagline")).toHaveText(/Golf tournament & league software/i);
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 
       // Walk down so every lazy picture is asked for, then come back.
@@ -86,7 +93,7 @@ test.describe("/new, the site rehaul's preview", () => {
     // Below 768px there is no sticky phone: every moment carries its own screen.
     await page.setViewportSize({ width: 393, height: 852 });
     await expect(page.locator(".n-story-dev")).toBeHidden();
-    await expect(page.locator(".n-step-phone")).toHaveCount(7);
+    await expect(page.locator(".n-step-phone")).toHaveCount(5);
     await expect(page.locator(".n-step-phone").first()).toBeVisible();
   });
 
@@ -94,9 +101,9 @@ test.describe("/new, the site rehaul's preview", () => {
     await page.goto("/new");
     const links = page.locator('a[rel~="me"]');
     const hrefs = await links.evaluateAll((as) => as.map((a) => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]));
-    expect(hrefs.length).toBe(8); // four in Follow along, four in the footer
+    expect(hrefs.length).toBe(SOCIAL_LINKS.length); // the footer's, one per profile
     for (const [href, target, rel] of hrefs) {
-      expect(href).toMatch(/^https:\/\/www\.(instagram\.com\/tourneyhq|youtube\.com\/@tourneyhq|facebook\.com\/TourneyHQ|linkedin\.com\/company\/tourneyhq)$/);
+      expect(SOCIAL_LINKS.map((s) => s.href)).toContain(href);
       expect(target).toBeNull();
       expect(rel).toContain("noopener");
     }
@@ -105,6 +112,6 @@ test.describe("/new, the site rehaul's preview", () => {
       const graph = JSON.parse(s.textContent ?? "{}")["@graph"] as Array<{ "@type": string; sameAs?: string[] }>;
       return graph.find((n) => n["@type"] === "Organization")?.sameAs ?? [];
     });
-    expect(sameAs).toHaveLength(4);
+    expect(sameAs).toEqual(SOCIAL_LINKS.map((s) => s.href));
   });
 });

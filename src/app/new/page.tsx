@@ -15,7 +15,8 @@ import { landingPrices } from "@/lib/landing/pricing";
 import { FAQ_COUNT, FORMAT_NAMES } from "@/lib/landing/faq";
 import { LANDING_CSS } from "@/lib/landing/styles";
 import { PRICES_READ_ON, TOP_PUBLISHED } from "@/lib/landing/compare";
-import { SALES_EMAIL, SOCIAL_CHANNELS, socialChannels } from "@/lib/contact";
+import { SALES_EMAIL } from "@/lib/contact";
+import { SOCIAL_LINKS } from "@/lib/social-links";
 import { LandingAuth } from "@/components/LandingAuth";
 import { launchState } from "@/lib/services/signins-switch";
 import { frontDoorWords } from "@/lib/go-live";
@@ -24,23 +25,34 @@ import { plainShot } from "@/components/landing/shots";
 import { Lockup } from "@/components/Lockup";
 import { LOGO_SIZE } from "@/components/Logo";
 import { landingScreen } from "@/lib/landing/screens";
+import { posterFontVars } from "@/app/fonts";
+import { THEME_PAIRS, secondaryFor, themeFor } from "@/lib/themes";
 import FACTS from "@/lib/landing/screen-facts.json";
 import { NEW_CSS } from "./new-styles";
 import { BoardTabs } from "./BoardTabs";
 import { DayStory, type StoryStep } from "./DayStory";
 import { SocialIcon } from "./social-icons";
+import { Course } from "./course";
+import { LIGHT, type LightName } from "./day-light";
 
 /**
- * THE SITE REHAUL — A PREVIEW (2026-11-01). Ajay: "I didn't like it. Show me the complete rehaul of
- * the site." Built beside today's front door so `/` is untouched: this page is never indexed and
- * nothing links to it. It says what `/` says — the same claims, the same prices read from PLANS, the
- * same held/live words from `go-live.ts` — in a new order, a new type and a new layout. The design
- * plan is in `TourneyHQ Documents\Landing concepts Nov 2026\Rehaul\Design plan.md`.
+ * THE SITE REHAUL — A PREVIEW (2026-11-01). Built beside today's front door so `/` is untouched:
+ * this page is never indexed and nothing links to it. It says what `/` says — the same claims, the
+ * same prices read from PLANS, the same held/live words from `go-live.ts`.
  *
- * DESIGN C (2026-11-02), one of several drafts put side by side: the day told as a scroll story.
- * The hero stands the live board on a phone in slight perspective on the app's own dark ground;
- * then one phone stays in view while its real screen turns with each moment of the day, from the
- * first entry to the prize table (`DayStory`). Below 768px it is a plain sequence.
+ * DESIGN E, "ONE DAY'S LIGHT" (2026-11-02). Ajay liked the drama of today's `/` and parts of B and
+ * C, and asked for a version combining them with "more drama, bold richness". The page IS the
+ * tournament day: as the visitor scrolls, the ground follows the light (`day-light.ts`) from first
+ * light before the field arrives, through the bright middle of the day, to golden hour and the
+ * evening prize-giving. Taken from today's `/`: the serif headline, its putt, and the fanned
+ * devices standing in a glow. From C: the day as a scroll story with one phone held in view. From
+ * B: the committee's bento of real crops, set in the midday stretch. The close is the darkest,
+ * warmest moment: the result and the sign-up. Every time on the page is an example day at the
+ * invented demo club, and says so.
+ *
+ * Every screen is a real capture, flat and upright; only layers marked `e-decor` and `aria-hidden`
+ * are turned or dimmed, and nobody is asked to read one. The course on the horizon is drawn here
+ * in vector (`course.tsx`), not generated.
  *
  * Unlike `/`, a signed-in visitor is NOT sent on to the app: the owners judging the preview are
  * signed in.
@@ -58,61 +70,55 @@ function screen(id: string, alt: string, sizes: string, priority = false) {
 }
 
 const SIZES = {
-  heroBoard: "(max-width: 767px) min(62vw, 250px), 340px",
+  heroBoard: "(max-width: 767px) min(60vw, 240px), 320px",
+  heroBack: "(max-width: 767px) 40vw, 240px",
+  heroDesk: "(max-width: 767px) 1px, 520px",
   story: "(max-width: 767px) min(76vw, 300px), 330px",
-  // Below 600px the laptop shots are cropped to a square, so the picture is drawn 1.6 times as wide.
-  desk: "(max-width: 600px) 160vw, (max-width: 900px) 100vw, 60vw",
-  deskPhone: "(max-width: 900px) 38vw, 18vw",
+  bentoXl: "(max-width: 680px) 200vw, (max-width: 1000px) 130vw, 860px",
+  bentoWide: "(max-width: 680px) 230vw, (max-width: 1000px) 125vw, 860px",
+  bentoPhone: "(max-width: 680px) 70vw, (max-width: 1000px) 40vw, 320px",
   watch: "(max-width: 900px) min(64vw, 260px), 300px",
-  wide: "(max-width: 600px) 150vw, (max-width: 900px) 100vw, 66vw",
   money: "(max-width: 900px) min(80vw, 330px), 330px",
-  theme: "(max-width: 900px) min(58vw, 230px), 290px",
+  // Below 600px a laptop capture is cropped to a square and drawn twice as wide.
+  wide: "(max-width: 600px) 200vw, (max-width: 900px) 100vw, 66vw",
+  final: "(max-width: 767px) min(62vw, 250px), 300px",
 } as const;
 
 /**
- * THE DAY, AS A HAND-HUNG BOARD: one competition at the demo club, in the order it happens. The
- * times are an example and are said to be (Ajay, 2026-10-11): a draw goes out days before the round.
+ * THE DAY, up to the moment the board moves: one competition at the demo club, in the order it
+ * happens. The times are an example and are said to be (Ajay, 2026-10-11): a draw goes out days
+ * before the round. Each moment names the light it is told in; the money (14:00) and the result
+ * (17:40) have sections of their own further down, in the light of their hour.
  */
-const DAY: Array<{ day: string; when: string; what: string; who: string; h: string; p: string; shot: string; alt: string }> = [
-  { day: "Monday", when: "09:00", what: "Entries open", who: "Players", h: "Entries open.",
+const DAY: Array<{ day: string; when: string; what: string; who: string; h: string; p: string; shot: string; alt: string; tone: LightName }> = [
+  { day: "Monday", when: "09:00", what: "Entries open", who: "Players", h: "Entries open.", tone: "night",
     p: "Players put their name down from their own phone. You see who is in, who is out and who is waiting.",
     shot: "club-enter", alt: "A player's Events screen: a tournament open for entries, 22 of 40 places left, and the button to enter." },
-  { day: "Thursday", when: "18:00", what: "The draw", who: "The organizer", h: "You publish the draw.",
+  { day: "Thursday", when: "18:00", what: "The draw", who: "The organizer", h: "You publish the draw.", tone: "night",
     p: "Drawn from who's in, then yours to adjust. Every player has their group and tee time on their phone.",
     shot: "org-teesheet", alt: "The organizer's tee sheet: two pairing requests above the published draw." },
-  { day: "Saturday", when: "08:05", what: "The code", who: "Players", h: "They scan the sign.",
+  { day: "Saturday", when: "08:05", what: "The code", who: "Players", h: "They scan the sign.", tone: "sunrise",
     p: "Each round's printed sign carries a QR code and its eight-character code. Scan or type it, tap your name, and you're on your round. No account and no password.",
-    shot: "club-today", alt: "A player's Today screen: the round, a pinned notice, their card so far and their position." },
-  { day: "Saturday", when: "10:50", what: "The card", who: "Players", h: "They tap the score, or say it.",
+    shot: "e-club-today", alt: "A player's Today screen: the round, a pinned notice, their card so far and their position." },
+  { day: "Saturday", when: "10:50", what: "The card", who: "Players", h: "They tap the score, or say it.", tone: "morning",
     p: "The card saves as they go, and keeps saving when there is no signal. In a match the organizer chooses how it is kept: one tap for who won each hole, or stroke cards with gross and net.",
-    shot: "club-card", alt: "My card, by hole: hole 10, par 4, score buttons and a microphone." },
-  { day: "Saturday", when: "11:42", what: "The board", who: "Everyone", h: "The board moves.",
+    shot: "e-club-card", alt: "My card, by hole: hole 10, par 4, score buttons and a microphone." },
+  { day: "Saturday", when: "11:42", what: "The board", who: "Everyone", h: "The board moves.", tone: "morning",
     p: "Their own line first, then the field, as every card comes in.",
-    shot: "club-board", alt: "The player's Board: their own position first, then the field." },
-  { day: "Saturday", when: "14:00", what: "The money", who: "Everyone", h: "Everyone knows who owes what.",
-    p: "Skins, pots and shared costs in one settle-up. Worked out, never collected.",
-    shot: "club-money", alt: "A player's Money screen: what they are owed, and who pays whom to settle it." },
-  { day: "Saturday", when: "15:30", what: "Recognition", who: "The organizer", h: "The champion is on the board.",
-    p: "The final board, the prizes and the honors board, done before the prize-giving starts.",
-    shot: "club-final", alt: "A player's Board for the finished championship: the result of each round, then the final order." },
+    shot: "e-club-board", alt: "The player's Board: their own position first, then the field." },
 ];
 
-/**
- * The story's five chapters, in the order of the tagline: from registration to recognition. Each
- * names the first moment of the day it opens (an index into DAY); the moments after it belong to
- * it until the next one opens.
- */
+/** The story's chapters: each names the first moment it opens (an index into DAY). */
 const CHAPTERS: Array<{ n: number; title: string; first: number }> = [
   { n: 1, title: "Entries", first: 0 },
   { n: 2, title: "The draw and the tee sheet", first: 1 },
   { n: 3, title: "Scoring by phone", first: 2 },
   { n: 4, title: "The live board", first: 4 },
-  { n: 5, title: "The prize table", first: 5 },
 ];
 
 const STEPS: StoryStep[] = DAY.map((d, i) => {
   const ch = [...CHAPTERS].reverse().find((c) => c.first <= i)!;
-  return { chapter: ch.n, chapterTitle: ch.first === i ? ch.title : undefined, day: d.day, when: d.when, what: d.what, who: d.who, h: d.h, p: d.p };
+  return { chapter: ch.n, chapterTitle: ch.first === i ? ch.title : undefined, day: d.day, when: d.when, what: d.what, who: d.who, h: d.h, p: d.p, tone: d.tone };
 });
 
 /** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st: the hole as a person says it. */
@@ -131,12 +137,18 @@ const WORLD: Array<{ shot: string; symbol: string; place: string; money: string;
   { shot: "world-inr-money", symbol: "₹", place: "India", money: "Rupees", alt: "The same screen at a club in Pune, in rupees." },
 ];
 
-const THEMES: Array<{ shot: string; name: string; swatch: string }> = [
-  { shot: "look-tournament-light", name: "Tournament", swatch: "hsl(182 68% 36%)" },
-  { shot: "look-championship-dark", name: "Championship, dark", swatch: "hsl(352 62% 42%)" },
-  { shot: "look-coastal-light", name: "Coastal", swatch: "hsl(205 70% 46%)" },
-  { shot: "look-midnight-dark", name: "Midnight, dark", swatch: "hsl(262 72% 60%)" },
-];
+/**
+ * The four club themes the screens on this page wear (Ajay, 2 Nov), named as the app's theme
+ * picker names them (`THEME_PAIRS`), each swatch the pair's accent then its second colour, read
+ * from the presets rather than typed.
+ */
+const THEMES = (["tournament", "desert", "championship", "coastal"] as const).map((key) => {
+  const pair = THEME_PAIRS.find((p) => p.key === key)!;
+  const a = themeFor(pair.accentKey);
+  const b = secondaryFor(pair.secondaryKey);
+  const hsl = (t: { hue: number; saturation: number }) => `hsl(${t.hue} ${Math.round(t.saturation * 100)}% 46%)`;
+  return { name: pair.name, swatch: `linear-gradient(90deg, ${hsl(a)} 50%, ${hsl(b)} 50%)` };
+});
 
 const AUDIENCES: Array<{ who: string; h: string; p: string; href: string; go: string }> = [
   { who: "Leagues & golf groups", h: "A season, not just a day.",
@@ -167,6 +179,18 @@ const STORE_LINKS = {
   android: process.env.TOURNEYHQ_ANDROID_URL ?? "",
 };
 
+/** The chapter marker: the hour, and what the light is doing. An example day, said once in the hero. */
+function Hour({ light, children }: { light: LightName; children?: React.ReactNode }) {
+  const l = LIGHT[light];
+  return (
+    <p className="e-hour">
+      <span className="e-hour-sun" aria-hidden="true" />
+      <b className="n-num">{l.clock}</b>
+      <span>{children ?? l.label}</span>
+    </p>
+  );
+}
+
 export default async function NewSitePreview() {
   const overrides = await storedPricingOverrides();
   const launch = await launchState();
@@ -181,7 +205,6 @@ export default async function NewSitePreview() {
   const everyPlan = onEveryPlan();
   const note = editionNote(local, overridden);
   const golf = golfTermsFor(shown.register);
-  const channels = socialChannels();
 
   const eagleYear = effectiveAnnualPrice(PLANS.club, overrides, "USD");
   const birdieYear = effectiveAnnualPrice(PLANS.society, overrides, "USD");
@@ -199,15 +222,14 @@ export default async function NewSitePreview() {
   const nth = ordinal(FACTS.hole);
 
   const page = (
-    <div className="thq n-site" lang={shown.locale}>
+    <div className="thq n-site" lang={shown.locale} style={posterFontVars}>
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS }} />
       <style dangerouslySetInnerHTML={{ __html: NEW_CSS }} />
-      <link rel="preload" href="/new/fonts/archivo-latin-wdth-normal.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
       <link rel="preload" href="/new/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, currency: shown.currency, launch, sameAs: channels.map((c) => c.url) })),
+          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, currency: shown.currency, launch, sameAs: SOCIAL_LINKS.map((s) => s.href) })),
         }}
       />
       {iconSprite()}
@@ -241,70 +263,82 @@ export default async function NewSitePreview() {
             </details>
           </div>
         </div>
+        {/* The day, as a line of light under the header: the sun crosses it as the page is read. */}
+        <div className="e-daybar" aria-hidden="true"><span /></div>
       </header>
 
       <main id="main">
-        {/* ═════════ HERO: what it is, that it is real, what to do next ═════════ */}
-        <section className="n-hero" id="top" aria-labelledby="hero-h">
+        {/* ═════════ 06:12, FIRST LIGHT: what it is, that it is real, what to do next ═════════ */}
+        <section className="n-hero e-sec e-l-dawn" id="top" aria-labelledby="hero-h">
+          <div className="e-sky e-sky-dawn" aria-hidden="true" />
           <div className="n-wrap n-hero-grid">
-          <div className="n-hero-top">
-            <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
-            {/* Ajay's line (11 Oct), kept in the opening as the tagline and again as the close. */}
-            <p className="n-tagline">From Registration to Recognition.</p>
-            <h1 id="hero-h" className="n-display">
-              <span>Run the whole competition.</span> <span className="n-h1-2">They score by phone.</span>
-            </h1>
-            <p className="n-hero-sub">
-              <b>Golf tournament and league software</b><span className="n-sub-more"> for clubs, golf groups and leagues</span>.{" "}
-              <span className="n-sub-more">Entries, the draw, live scoring, side games and the prize table, from one screen. </span>
-              Players type a round code: no app, no account.
-            </p>
-            <div className="n-hero-go">
-              <a className="n-btn n-btn-go" href={start}>{words.heroCta}</a>
-              <a className="n-btn n-btn-line" href={demoDoorHref("card")}>Try the demo</a>
-            </div>
-            <ul className="n-hero-facts">
-              {words.facts.map((f) => <li key={f}>{f}</li>)}
-              <li>Playing today? <a className="n-link" href="/play">Enter your round code</a></li>
-            </ul>
-          </div>
-
-          {/* The live board, standing on the desk: a real capture, its player's own row outlined over it. */}
-          <div className="n-stage">
-            <div className="n-phone">
-              <div className="n-phone-screen">
-                {screen("live-board-after", `The live board on ${FACTS.player}'s phone: their own row first, at ${FACTS.placeAfter} of ${FACTS.field}, after a ${FACTS.score} on the ${nth}.`, SIZES.heroBoard, true)}
-                <span className="n-mark n-show" style={rowAt} aria-hidden="true" />
-                <span className="n-glass" aria-hidden="true" />
+            <div className="n-hero-top">
+              <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
+              <p className="n-tagline">Golf tournament &amp; league software</p>
+              <h1 id="hero-h" className="e-h1">
+                <span>From Registration</span>
+                <span>to <span className="e-hl">Recognition.<svg className="e-putt" viewBox="0 0 200 24" preserveAspectRatio="none" aria-hidden="true"><path d="M2 14 C 55 0, 130 30, 186 13" /></svg><i className="e-ball" aria-hidden="true" /></span></span>
+              </h1>
+              <p className="e-sub"><span>Run the whole competition.</span> <span>They score by phone.</span></p>
+              <p className="n-hero-sub">
+                <b>Golf tournament and league software</b><span className="n-sub-more"> for clubs, golf groups and leagues</span>.{" "}
+                <span className="n-sub-more">Entries, the draw, live scoring, side games and the prize table, from one screen. </span>
+                Players type a round code: no app, no account.
+              </p>
+              <div className="n-hero-go">
+                <a className="n-btn n-btn-go" href={start}>{words.heroCta}</a>
+                <a className="n-btn n-btn-line" href={demoDoorHref("card")}>Try the demo</a>
               </div>
+              <ul className="n-hero-facts">
+                {words.facts.map((f) => <li key={f}>{f}</li>)}
+                <li>Playing today? <a className="n-link" href="/play">Enter your round code</a></li>
+              </ul>
             </div>
-            <p className="n-live">
-              <span className="n-dot" aria-hidden="true" />
-              <span className="n-big n-num">{FACTS.placeAfter}</span>
-              <span>
-                <b>{FACTS.player}, {FACTS.score} on the {nth}</b>
-                <br />
-                <span className="n-num">{FACTS.field} players · {FACTS.holesAfter} holes in</span>
-              </span>
-            </p>
-          </div>
+
+            {/* The live board, standing in the first light: a real capture, flat and upright, its
+                player's own row outlined over it. Behind it, turned and dimmed, two more real screens
+                as depth only (`e-decor`) — the same screens are shown flat further down. */}
+            <div className="n-stage e-stage">
+              <div className="e-decor e-desk" aria-hidden="true"><div className="n-lid"><div className="n-lid-screen">{plainShot({ name: "desk-leaderboard", alt: "", sizes: SIZES.heroDesk })}</div></div></div>
+              <div className="e-decor e-back" aria-hidden="true"><div className="n-phone"><div className="n-phone-screen">{plainShot({ name: "club-today", alt: "", sizes: SIZES.heroBack })}</div></div></div>
+              <div className="n-phone e-front">
+                <div className="n-phone-screen">
+                  {screen("live-board-after", `The live board on ${FACTS.player}'s phone: their own row first, at ${FACTS.placeAfter} of ${FACTS.field}, after a ${FACTS.score} on the ${nth}.`, SIZES.heroBoard, true)}
+                  <span className="n-mark n-show" style={rowAt} aria-hidden="true" />
+                  <span className="n-glass" aria-hidden="true" />
+                </div>
+              </div>
+              <p className="n-live">
+                <span className="n-dot" aria-hidden="true" />
+                <span className="n-big n-num">{FACTS.placeAfter}</span>
+                <span>
+                  <b>{FACTS.player}, {FACTS.score} on the {nth}</b>
+                  <br />
+                  <span className="n-num">{FACTS.field} players · {FACTS.holesAfter} holes in</span>
+                </span>
+              </p>
+            </div>
           </div>
           {/* On a phone the pill moves below the live board, so the board is in the first screen. */}
           <div className="n-wrap n-kicker-after">
             <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
           </div>
-          <p className="n-wrap n-caption">
-            The app itself, at {FACTS.club}: a demo club with invented players. Every screen on this page is a capture of TourneyHQ, never a mock-up.
-          </p>
+          <div className="n-wrap e-hero-foot">
+            <Hour light="dawn">First light at the demo club. The page follows one example day, to the prize-giving.</Hour>
+            <p className="n-caption">
+              The app itself, at {FACTS.club}: a demo club with invented players. Every screen on this page is a capture of TourneyHQ, never a mock-up.
+            </p>
+          </div>
+          <Course variant="dawn" />
         </section>
 
-        {/* ═════════ THE STORY: the day in order, one phone in view ═════════ */}
-        <section className="n-story-sec" id="day" aria-labelledby="day-h">
+        {/* ═════════ THE WEEK BEFORE, THEN SATURDAY MORNING: the day in order, one phone in view ═════════ */}
+        <section className="n-story-sec e-sec e-l-night" id="day" aria-labelledby="day-h">
           <div className="n-wrap">
             <div className="n-story-head">
-              <p className="n-eyebrow">From Registration to Recognition.</p>
+              <Hour light="night" />
               <h2 id="day-h" className="n-h2">One competition, from the first entry to the prize table.</h2>
-              <p className="n-lead">An example week at the demo club.</p>
+              <p className="n-lead">An example week at the demo club. The work is done in the dark; Saturday morning, the field arrives.</p>
             </div>
             <DayStory
               steps={STEPS}
@@ -315,29 +349,8 @@ export default async function NewSitePreview() {
           </div>
         </section>
 
-        {/* ═════════ THE COMMITTEE'S DESK ═════════ */}
-        <section className="n-sec" id="desk" aria-labelledby="desk-h">
-          <div className="n-wrap n-desk">
-            <div>
-              <div className="n-sec-head">
-                <h2 id="desk-h" className="n-h2">The committee on a laptop.</h2>
-                <p className="n-lead">Registration, flights, the draw, the tee sheet and the cut from one screen, in your club&rsquo;s colors. The field is on their phones.</p>
-              </div>
-              <ol className="n-desk-list">
-                <li><span className="n-t" aria-hidden="true">1</span><b>What needs you comes first.</b><p>A disputed result, a card to approve, a player still to place.</p></li>
-                <li><span className="n-t" aria-hidden="true">2</span><b>Nothing counts until you say so.</b><p>Cards are certified, approved or disputed. A result from the course waits for you.</p></li>
-                <li><span className="n-t" aria-hidden="true">3</span><b>Pace of play, group by group.</b><p>Which group is behind, and by how much, while the round is on.</p></li>
-              </ol>
-            </div>
-            <div className="n-desk-pic">
-              <div className="n-lid n-crop" style={{ "--cx": "100%" } as React.CSSProperties}><div className="n-lid-screen">{screen("desk-dashboard", "The organizer's dashboard during a round: what needs a decision, the tee sheet, and the pace of play group by group.", SIZES.desk)}</div></div>
-              <div className="n-phone"><div className="n-phone-screen">{screen("org-dashboard", "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", SIZES.deskPhone)}</div></div>
-            </div>
-          </div>
-        </section>
-
-        {/* ═════════ THE WHOLE CLUB WATCHES ═════════ */}
-        <section className="n-sec" id="watch" aria-labelledby="watch-h">
+        {/* ═════════ 11:42, THE WHOLE CLUB WATCHES ═════════ */}
+        <section className="n-sec e-sec e-l-morning" id="watch" aria-labelledby="watch-h">
           <div className="n-wrap">
             <div className="n-watch">
               <h2 id="watch-h" className="n-watch-big"><span className="n-t">11:42.</span> A birdie on the 14th. The whole club sees it.</h2>
@@ -357,54 +370,79 @@ export default async function NewSitePreview() {
                 </ul>
               </div>
             </div>
-            <div className="n-watch-row">
+            <div className="e-watch-row">
+              <figure className="e-fig-lap">
+                <div className="n-lid n-crop" style={{ "--cx": "32%" } as React.CSSProperties}><div className="n-lid-screen">{screen("live-desk-after", `The committee's leaderboard on a laptop, the moment ${FACTS.player}'s ${FACTS.score} on the ${nth} goes in: gross, net and to par for every player, by flight.`, SIZES.wide)}</div></div>
+                <figcaption><b>In the office: the committee&rsquo;s leaderboard</b>Every flight, gross and net, the moment a card is saved.</figcaption>
+              </figure>
               <figure>
                 <div className="n-phone"><div className="n-phone-screen">{screen("public-stableford", "A live public board ranked by Stableford points.", SIZES.watch)}</div></div>
                 <figcaption><b>Stableford, live</b>Ranked by points as cards come in.</figcaption>
               </figure>
               <figure>
                 <div className="n-phone"><div className="n-phone-screen">{screen("public-pairs", "A public board for a member-guest in foursomes: eight sides, their total over three rounds.", SIZES.watch)}</div></div>
-                <figcaption><b>A member-guest</b>Foursomes sides, totalled over three rounds.</figcaption>
-              </figure>
-              <figure>
-                <div className="n-phone"><div className="n-phone-screen">{screen("public-final", "The public board of a finished club championship: the final order, ranked by gross strokes.", SIZES.watch)}</div></div>
-                <figcaption><b>The championship, final</b>The result for the whole club, with nothing to sign in to.</figcaption>
+                <figcaption><b>A member-guest</b>Foursomes sides, over three rounds.</figcaption>
               </figure>
             </div>
-            <p className="n-caption" style={{ textAlign: "left", marginLeft: 0 }}>{DEMO_LABEL}. {FACTS.club} is made up, and so is everybody on its boards.</p>
+            <p className="n-caption e-caption-left">{DEMO_LABEL}. {FACTS.club} is made up, and so is everybody on its boards.</p>
           </div>
         </section>
 
-        {/* ═════════ ANY FORMAT, ANY FIELD ═════════ */}
-        <section className="n-band" id="formats" aria-labelledby="formats-h">
+        {/* ═════════ 12:30, MIDDAY: the committee's desk, as a bento of real crops (from B) ═════════ */}
+        <section className="n-sec e-sec e-l-midday e-from-morning" id="desk" aria-labelledby="desk-h">
+          <div className="e-sky e-sky-midday" aria-hidden="true" />
           <div className="n-wrap">
             <div className="n-sec-head">
-              <h2 id="formats-h" className="n-h2">{FORMAT_NAMES.length} formats. One leaderboard.</h2>
+              <Hour light="midday">Midday. Half the field is in, and the office is busy.</Hour>
+              <h2 id="desk-h" className="n-h2">The committee on a laptop.</h2>
+              <p className="n-lead">Registration, flights, the draw, the tee sheet and the cut from one screen, in your club&rsquo;s colors. The field is on their phones.</p>
             </div>
-            <div className="n-formats">
-              <ul className="n-format-wall" aria-label="The formats it scores" data-no-dialect="">
-                {FORMAT_NAMES.map((f) => <li key={f}>{f}</li>)}
-              </ul>
+            <div className="n-bento">
+              <div className="n-tile n-tile-xl n-tile-bleed">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">1</span><b>What needs you comes first.</b><p>A disputed result, a card to approve, a player still to place.</p></div>
+                <div className="n-win n-win-needs">{screen("e-desk-dashboard", "The organizer's tournament dashboard during a round, in the Championship theme: one disputed result to settle, one card to approve, the round's tee sheet, and the pace of play group by group.", SIZES.bentoXl)}</div>
+              </div>
+              <div className="n-tile n-tile-tall">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">2</span><b>Nothing counts until you say so.</b><p>Cards are certified, approved or disputed. A result from the course waits for you.</p></div>
+                <div className="n-tile-phone"><div className="n-phone"><div className="n-phone-screen">{screen("org-dashboard", "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", SIZES.bentoPhone)}</div></div></div>
+              </div>
+              <div className="n-tile n-tile-draw n-tile-bleed">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">3</span><b>Flights, your way.</b><p>Balanced, by handicap, by seeding, at random or by hand. Preview it, then generate.</p></div>
+                <div className="n-win n-win-draw">{screen("e-desk-grouping", "The organizer's Flights screen in the Coastal theme: six ways to form flights, and a preview of six flights of four with each flight's average handicap.", SIZES.bentoXl)}</div>
+              </div>
+              <div className="n-tile n-tile-128">
+                <div className="n-128-say">
+                  <p className="n-num-big n-num" aria-hidden="true">128</p>
+                  <div>
+                    <h3 className="n-h3">128 in the match play? Eight flights, eight champions.</h3>
+                    <p>Divide a big field by handicap, by your own flights or at random. Each flight is its own knockout, and every player is told who they play.</p>
+                  </div>
+                </div>
+                <div className="n-win n-win-flights">{screen("desk-matchplay", "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", SIZES.bentoWide)}</div>
+              </div>
+              <div className="n-tile n-tile-list">
+                <div className="n-tile-say"><span className="n-t" aria-hidden="true">4</span><b>The whole season in one list.</b><p>Every tournament the club can reach, live, setting up or finished. Switch between them, start a new one, or copy one you have run before.</p></div>
+                <div className="n-win n-win-list">{screen("e-desk-tournaments", "The organizer's Tournaments list in the Desert theme, on the dark ground: fifteen tournaments, each with its status, course and number of players.", SIZES.bentoXl)}</div>
+              </div>
+            </div>
+
+            <div className="n-formats" id="formats">
               <div>
+                <h2 className="n-h2 e-h2-sm">{FORMAT_NAMES.length} formats. One leaderboard.</h2>
                 <p className="n-lead">Each scored by its own rules, gross and net, with handicaps by the Rules. Stroke play to Stableford, match play to scramble, skins and Nassau. All on every plan.</p>
                 <ul className="n-runs" aria-label="What it runs">
                   {["Weekly leagues", "Golf outings", "Club championships", "Knockouts", "Ryder-style cups", "Member-guests", "Charity scrambles", "Golf trips", "A Saturday foursome"].map((x) => <li key={x}>{x}</li>)}
                 </ul>
               </div>
-            </div>
-            <div className="n-big128">
-              <div>
-                <p className="n-num-big n-num" aria-hidden="true">128</p>
-                <h3 className="n-h3">128 in the match play? Eight flights, eight champions.</h3>
-                <p>Divide a big field by handicap, by your own flights or at random. Each flight is its own knockout, and every player is told who they play.</p>
-              </div>
-              <div className="n-lid n-crop" style={{ "--cx": "40%" } as React.CSSProperties}><div className="n-lid-screen">{screen("desk-matchplay", "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", SIZES.wide)}</div></div>
+              <ul className="n-format-wall" aria-label="The formats it scores" data-no-dialect="">
+                {FORMAT_NAMES.map((f) => <li key={f}>{f}</li>)}
+              </ul>
             </div>
           </div>
         </section>
 
-        {/* ═════════ MONEY, AND WHEREVER YOU PLAY ═════════ */}
-        <section className="n-sec" id="money" aria-labelledby="money-h">
+        {/* ═════════ 14:00, AFTERNOON: the money, and wherever you play ═════════ */}
+        <section className="n-sec e-sec e-l-afternoon e-from-midday" id="money" aria-labelledby="money-h">
           <div className="n-wrap">
             <BoardTabs
               label="The same screen in five countries"
@@ -414,6 +452,7 @@ export default async function NewSitePreview() {
               tabClass="n-coin"
               intro={
                 <>
+                  <Hour light="afternoon">The last cards are in. Everyone knows who owes what.</Hour>
                   <h2 id="money-h" className="n-h2">Works out the money. Never holds it.</h2>
                   <p className="n-lead" style={{ marginTop: 22 }}>Skins, pots, prizes and trip costs, worked out from the cards, in your club&rsquo;s own currency and written the way your country writes it.</p>
                   <p className="n-never"><b>TourneyHQ never moves money.</b> Nothing is collected or paid through the app: it keeps the record, and your club settles the way it does today.</p>
@@ -425,29 +464,30 @@ export default async function NewSitePreview() {
             />
             <p className="n-also" data-no-dialect="">Also Canadian, Australian and New Zealand dollars, and yen. Yards or metres, carts or buggies, a Sunday or a Monday week.</p>
           </div>
-        </section>
 
-        {/* ═════════ YOUR COLOURS ═════════ */}
-        <section className="n-sec" id="colors" aria-labelledby="colors-h">
-          <div className="n-wrap">
-            <div className="n-sec-head">
-              <h2 id="colors-h" className="n-h2">Your club&rsquo;s colors, on every screen.</h2>
-              <p className="n-lead">Choose a theme once and every screen wears it: the organizer&rsquo;s, the public board, every player&rsquo;s phone. Each is checked for how it reads in full sun.</p>
+          <div className="n-wrap e-ledger">
+            <div>
+              <h3 className="n-h3">On the committee&rsquo;s laptop: the prize list.</h3>
+              <p>The purse, every prize line and its winner. The skins sit underneath, worked out from the cards.</p>
             </div>
-            <div className="n-themes">
+            <div className="n-lid n-crop" style={{ "--cx": "32%" } as React.CSSProperties}><div className="n-lid-screen">{screen("e-desk-prizes", "The organizer's Prizes and payouts screen in the Championship theme: a $470 purse, four prize lines, three awarded, and the winners beside each prize.", SIZES.wide)}</div></div>
+          </div>
+
+          {/* Each club picks its colours (Ajay, 2 Nov: the screens are not all one scheme). */}
+          <div className="n-wrap" id="colors">
+            <p className="e-themes-line" data-no-dialect="">
+              <b>Every club picks its own colors,</b> and they reach the console, the board and every player&rsquo;s phone. On this page:
               {THEMES.map((t) => (
-                <figure key={t.shot}>
-                  <div className="n-phone"><div className="n-phone-screen">{screen(t.shot, `One board in the ${t.name} theme.`, SIZES.theme)}</div></div>
-                  <figcaption data-no-dialect=""><i aria-hidden="true" style={{ background: t.swatch }} />{t.name}</figcaption>
-                </figure>
+                <span key={t.name}><i aria-hidden="true" style={{ background: t.swatch }} />{t.name}</span>
               ))}
-            </div>
+            </p>
           </div>
         </section>
 
-        {/* ═════════ WHO IT IS FOR ═════════ */}
-        <section className="n-sec" id="for" aria-labelledby="for-h">
+        {/* ═════════ 16:20, LATE AFTERNOON: who it is for, what it costs, three questions ═════════ */}
+        <section className="n-sec e-sec e-l-late e-from-afternoon" id="for" aria-labelledby="for-h">
           <div className="n-wrap">
+            <Hour light="late" />
             <h2 id="for-h" className="n-h2">Three ways in.</h2>
             <ul className="n-for">
               {AUDIENCES.map((a) => (
@@ -461,11 +501,8 @@ export default async function NewSitePreview() {
               ))}
             </ul>
           </div>
-        </section>
 
-        {/* ═════════ PRICING ═════════ */}
-        <section className="n-band" id="pricing" aria-labelledby="pricing-h">
-          <div className="n-wrap">
+          <div className="n-wrap e-pricing" id="pricing">
             <div className="n-sec-head">
               <h2 id="pricing-h" className="n-h2">Priced on your field. Never per player.</h2>
             </div>
@@ -543,12 +580,9 @@ export default async function NewSitePreview() {
               <Link className="n-link" href="/#features">Every feature</Link>
             </p>
           </div>
-        </section>
 
-        {/* ═════════ QUESTIONS ═════════ */}
-        <section className="n-sec" id="questions" aria-labelledby="q-h">
-          <div className="n-wrap">
-            <h2 id="q-h" className="n-h2">Three questions first.</h2>
+          <div className="n-wrap e-questions" id="questions">
+            <h2 id="q-h" className="n-h2 e-h2-sm">Three questions first.</h2>
             <div className="n-qa">
               <div>
                 <h3 className="n-h3">On every plan</h3>
@@ -570,32 +604,47 @@ export default async function NewSitePreview() {
           </div>
         </section>
 
-        {/* ═════════ FOLLOW ALONG ═════════ */}
-        <section className="n-sec" id="follow" aria-labelledby="follow-h">
-          <div className="n-wrap">
-            <div className="n-sec-head">
-              <h2 id="follow-h" className="n-h2">Follow along.</h2>
-              <p className="n-lead">See TourneyHQ run before it opens: the app on the course, short walk-throughs, and the news as launch comes closer.</p>
+        {/* THE FILM'S PLACE, NOT YET BUILT (Ajay, 2 Nov): a narrated demo, "Watch a tournament from
+            setup to prize-giving", will sit here, between the late afternoon and golden hour, once the
+            screens settle. Nothing is drawn until the film exists: no poster, no play button. See
+            Design plan E.md. */}
+
+        {/* ═════════ 17:40, GOLDEN HOUR: the result ═════════ */}
+        <section className="e-sec e-l-golden e-golden" id="result" aria-labelledby="result-h">
+          <div className="e-golden-sky" aria-hidden="true">
+            <Course variant="golden" />
+          </div>
+          <div className="n-wrap e-final">
+            <div className="e-final-say">
+              <Hour light="golden" />
+              <h2 id="result-h" className="n-h2">The champion is on the board.</h2>
+              <p className="n-lead">The final board, the prizes and the honors board, done before the prize-giving starts. The whole club can open the result, with nothing to sign in to.</p>
+              <ul className="e-final-facts">
+                <li>Each round&rsquo;s result, then the final order</li>
+                <li>Ranked the way the event is played: gross, net or points</li>
+                <li>Prizes and side games worked out, never collected</li>
+              </ul>
             </div>
-            <ul className="n-follow">
-              {channels.map((c) => (
-                <li key={c.key}>
-                  <a href={c.url} rel="me noopener">
-                    <span className="n-net">{c.name}<SocialIcon net={c.key} /></span>
-                    <span className="n-handle">{c.handle}</span>
-                    <p>{c.what}</p>
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <div className="e-final-pics">
+              <figure className="e-fig-report">
+                <div className="n-lid n-crop" style={{ "--cx": "48%" } as React.CSSProperties}><div className="n-lid-screen">{screen("e-desk-report", "The organizer's final report for the club championship, in the Tournament theme on the dark ground: the champion, the prize list with gross and net, and each player's place after each round.", SIZES.wide)}</div></div>
+                <figcaption><b>The final report, on the committee&rsquo;s laptop</b>The champion, the prize list and how the places moved. Print it, or share its link.</figcaption>
+              </figure>
+              <figure className="e-fig-final">
+                <div className="n-phone"><div className="n-phone-screen">{screen("e-club-final", "A player's Board for the finished championship, in the Desert theme on the dark ground: the result of each round, then the final order.", SIZES.final)}</div></div>
+                <figcaption><b>On every player&rsquo;s phone</b>Each round, then the final order.</figcaption>
+              </figure>
+            </div>
           </div>
         </section>
 
-        {/* ═════════ THE CLOSE: sign up, or the early list while held ═════════ */}
-        <section className="n-close" id="start" aria-labelledby="start-h">
+        {/* ═════════ 19:30, THE PRIZE-GIVING: the close ═════════ */}
+        <section className="n-close e-sec e-l-evening e-from-golden" id="start" aria-labelledby="start-h">
+          <div className="e-lanterns" aria-hidden="true" />
           <div className="n-wrap n-close-grid">
             <div>
-              <p className="n-display" aria-hidden="true"><span>From registration</span><span>to recognition.</span></p>
+              <Hour light="evening" />
+              <p className="e-close-line" aria-hidden="true"><span>From registration</span><span>to recognition.</span></p>
               <h2 id="start-h" className="n-h3" style={{ marginTop: 36 }}>{words.closeHeading}</h2>
               <p className="n-lead">{words.closeLead}</p>
               <div className="n-stores">
@@ -628,8 +677,8 @@ export default async function NewSitePreview() {
               </ul>
             </nav>
             <ul className="n-socials" aria-label="TourneyHQ elsewhere">
-              {SOCIAL_CHANNELS.filter((c) => c.url !== "").map((c) => (
-                <li key={c.key}><a href={c.url} rel="me noopener"><SocialIcon net={c.key} label={`TourneyHQ on ${c.name}`} /></a></li>
+              {SOCIAL_LINKS.map((s) => (
+                <li key={s.id}><a href={s.href} rel="me noopener"><SocialIcon net={s.id} label={`TourneyHQ on ${s.label}`} /></a></li>
               ))}
             </ul>
           </div>

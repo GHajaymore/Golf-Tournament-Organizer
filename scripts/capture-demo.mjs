@@ -78,7 +78,7 @@ const ONLY = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
  * reel shots below. `npm run landing:capture` runs this and then the placing script.
  */
 const LANDING = args.includes("--landing");
-const { SCREENS, LIVE_MOMENT, VIEWPORTS } = await import("../src/lib/landing/screens.ts");
+const { SCREENS, LIVE_MOMENT, VIEWPORTS, CAPTURE_THEMES } = await import("../src/lib/landing/screens.ts");
 const TEXT = join(OUT, "text");
 const JOURNAL = join(OUT, ".capture-demo-journal.json");
 mkdirSync(TEXT, { recursive: true });
@@ -482,6 +482,27 @@ function steps(...fns) {
  * Bring the card holding a line of words to the top of the screen, just under the sticky header
  * (about 80px on a phone), as a thumb would scroll it.
  */
+/** Bring the words themselves (not their card) to `above` pixels below the top of the window. */
+function scrollToWords(pattern, above) {
+  return async (page) => {
+    const target = page.getByText(new RegExp(`^(${pattern})$`)).filter({ visible: true }).first();
+    if (!(await target.count())) return `NOT FOUND: words matching /${pattern}/`;
+    await target.evaluate((el, gap) => window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - gap)), above);
+    await page.waitForTimeout(400);
+    return null;
+  };
+}
+
+/**
+ * The named steps a manifest screen may take before its shot (`CaptureSpec.act` in
+ * `src/lib/landing/screens.ts`). Design E's console shots: the final report itself rather than the
+ * controls above it, and the prize list on the finished championship.
+ */
+const LANDING_ACTS = {
+  "final-report": scrollToWords("Final report|FINAL REPORT", 110),
+  "prize-list": scrollToWords("Total purse|TOTAL PURSE", 150),
+};
+
 function scrollToText(pattern) {
   return async (page) => {
     const re = new RegExp(`^(${pattern})$`);
@@ -613,6 +634,25 @@ async function main() {
     const stripped = await stripMarks();
     console.log(`Seeded ${data.counts.events} tournaments; took the mark off ${stripped} display strings.`);
     await addExtras(ctx);
+    const THEME_COLS = { themeKey: true, themeSecondaryKey: true, themeAppearance: true };
+    ctx.seededTheme = await prisma.organization.findUnique({ where: { id: ctx.orgId }, select: THEME_COLS });
+    /**
+     * THE CLUB'S COLOURS FOR ONE SHOT (design E, 2026-11-02). A theme is a setting any club can save,
+     * so a screen shot in it is still a real screen. Saved on THIS run's seeded club only (its own
+     * id), read back and compared before the shot — another session dressing another club in the
+     * same database cannot pass unnoticed — and the seed's own theme put back for a shot that names
+     * none. The teardown removes the club, theme and all.
+     */
+    ctx.dress = async (theme) => {
+      const want = theme
+        ? { themeKey: CAPTURE_THEMES[theme.pair].accent, themeSecondaryKey: CAPTURE_THEMES[theme.pair].secondary, themeAppearance: theme.appearance }
+        : ctx.seededTheme;
+      await prisma.organization.update({ where: { id: ctx.orgId }, data: want });
+      const got = await prisma.organization.findUnique({ where: { id: ctx.orgId }, select: THEME_COLS });
+      for (const k of Object.keys(want)) {
+        if (got[k] !== want[k]) throw new Error(`the club's ${k} reads "${got[k]}", not the "${want[k]}" just saved — refusing the shot`);
+      }
+    };
 
     const { chromium } = require("playwright");
     browser = await chromium.launch();
@@ -628,6 +668,7 @@ async function main() {
         await wear(shot.costume, ctx);
         wearing = shot.costume;
       }
+      if (LANDING) await ctx.dress(shot.theme);
       const context = await browser.newContext({
         ...(shot.laptop ? LAPTOP : PHONE),
         locale: COSTUMES[shot.costume].place.locale,
@@ -650,7 +691,11 @@ async function main() {
     };
 
     // THE FRONT DOOR: the manifest's screens, then the live moment in its order.
-    const landingShot = (s) => ({ name: s.id, ...s.capture, laptop: s.viewport === "laptop", measure: s.measure ?? [] });
+    const landingShot = (s) => {
+      const act = s.capture?.act;
+      if (act && !LANDING_ACTS[act]) throw new Error(`${s.id}: no landing act "${act}" (LANDING_ACTS)`);
+      return { name: s.id, ...s.capture, act: act ? LANDING_ACTS[act] : undefined, laptop: s.viewport === "laptop", measure: s.measure ?? [] };
+    };
     const live = new Set([...LIVE_MOMENT.before, ...LIVE_MOMENT.after]);
     const wanted = (id) => !ONLY.length || ONLY.includes(id);
     const plain = LANDING ? SCREENS.filter((s) => s.capture && !live.has(s.id) && wanted(s.id)).map(landingShot) : CAPTURES;
@@ -688,6 +733,7 @@ async function main() {
         await wear(shot.costume, ctx);
         wearing = shot.costume;
       }
+      if (LANDING) await ctx.dress(shot.theme);
       const geometry = shot.laptop ? LAPTOP : PHONE;
       const context = await browser.newContext({
         ...geometry,

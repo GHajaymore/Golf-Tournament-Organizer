@@ -30,9 +30,16 @@ shared chrome (`components/landing/chrome.tsx`, `lib/landing/styles.ts`) also dr
 stylesheet (`new-styles.ts`, classes `n-`), its own two faces served from `public/new/fonts`
 (Archivo, Atkinson Hyperlegible Next, OFL), `noindex`, linked from nowhere. It reads the same facts as
 `/` (PLANS, `go-live.ts`, `FORMAT_NAMES`) and draws only screens named in `src/lib/landing/screens.ts`;
-the hero's live moment reads `screen-facts.json`. Its social strip and footer read `SOCIAL_CHANNELS`
-in `src/lib/contact.ts`. Unlike `/` it does not send a signed-in visitor on to the app. It replaces
+the hero's live moment reads `screen-facts.json`. Its footer reads `SOCIAL_LINKS` in
+`src/lib/social-links.ts`, the one place those addresses are written. Unlike `/` it does not send a signed-in visitor on to the app. It replaces
 `/` only on Ajay's word; the design plan is in `TourneyHQ Documents\Landing concepts Nov 2026\Rehaul\`.
 Several drafts of it are built side by side on their own branches for him to compare (2026-11-02);
 `claude/site-rehaul-c` is design C, the day as a scroll story (`DayStory.tsx`: one phone held in
 view whose real screen turns with each moment, a plain sequence below 768px, on `DARK_GROUND`).
+`claude/site-rehaul-e` is design E, "one day's light": each section is painted in the light of its
+hour (`src/app/new/day-light.ts`, every text colour held to 7:1 on its own ground by
+`day-light.test.ts`), today's serif headline and putt at dawn, C's story, B's bento at midday, the
+result at golden hour and the sign-up at the evening prize-giving. Its screens are half the console
+and half the player's app, in four club themes (Tournament and Desert on dark, Championship and
+Coastal on light): `capture-demo.mjs` saves a manifest screen's `theme` on the seeded demo club,
+reads it back before the shot and puts the seed's own back after (the `e-*` screens in `screens.ts`).

@@ -12,6 +12,8 @@ export type StoryStep = {
   who: string;
   h: string;
   p: string;
+  /** The light this moment is told in (design E): its band of ground runs the width of the page. */
+  tone: string;
 };
 
 /**
@@ -27,6 +29,10 @@ export type StoryStep = {
  * moment (`inline`), so a phone reads a simple sequence and needs no script. Rendered on the
  * server with the first moment chosen, so with no script the desktop still shows a whole screen.
  * Under reduced motion the screen changes without a fade.
+ *
+ * Design E: each moment carries its TONE, the light of its hour; its band of ground runs the width
+ * of the page behind it, so the day brightens as the reader goes down. The rail and the clock under
+ * the phone sit on frosted glass, so they read on whichever band is behind them.
  */
 export function DayStory({
   steps,
@@ -68,7 +74,7 @@ export function DayStory({
     <div className="n-story">
       <ol className="n-steps">
         {steps.map((s, i) => (
-          <li key={`${s.day}-${s.when}`} className="n-step" ref={(el) => { refs.current[i] = el; }}>
+          <li key={`${s.day}-${s.when}`} className={`n-step e-in-${s.tone}${i > 0 && steps[i - 1].tone !== s.tone ? ` e-turn e-prev-${steps[i - 1].tone}` : ""}`} ref={(el) => { refs.current[i] = el; }}>
             {s.chapterTitle ? (
               <p className="n-ch" id={`chapter-${s.chapter}`}>
                 <span className="n-ch-n n-num" aria-hidden="true">{String(s.chapter).padStart(2, "0")}</span>
@@ -100,7 +106,7 @@ export function DayStory({
               ))}
             </ol>
           </nav>
-          <div>
+          <div className="e-pin-dev">
             <div className="n-phone">
               <div className="n-phone-screen">
                 {screens.map((s, i) => (

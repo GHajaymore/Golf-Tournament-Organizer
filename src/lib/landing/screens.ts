@@ -76,7 +76,23 @@ export interface CaptureSpec {
   path: string;
   /** A named step `capture-demo.mjs` takes on the screen before the shot (its `LANDING_ACTS`). */
   act?: string;
+  /**
+   * The club's colours for this shot (design E, 2026-11-02: Ajay, "the screens must not all be one
+   * colour scheme"). A theme is a real setting a club can choose, so the screen stays a real one:
+   * `capture-demo.mjs` saves this pair and ground on the seeded demo club, reads it back before the
+   * shot, and puts the seed's own theme back after it. Absent: the seed's theme (Tournament, auto).
+   */
+  theme?: { pair: ThemePairKey; appearance: "dark" | "light" };
 }
+
+/** The `THEME_PAIRS` (src/lib/themes.ts) a capture may wear, with their two preset keys. */
+export const CAPTURE_THEMES = {
+  tournament: { accent: "verdigris", secondary: "optic" },
+  desert: { accent: "bunker", secondary: "verdigris" },
+  championship: { accent: "claret", secondary: "bunker" },
+  coastal: { accent: "links", secondary: "bunker" },
+} as const;
+export type ThemePairKey = keyof typeof CAPTURE_THEMES;
 
 export interface LandingScreen {
   /** The name the page uses: `public/landing/<id>.webp` and its copies. */
@@ -161,6 +177,28 @@ export const SCREENS: LandingScreen[] = [
     capture: { who: "secretary", event: "medal", costume: "us", path: "/leaderboard" }, expect: ["Leaderboard"] },
   { id: "desk-matchplay", viewport: laptop, preset: "crisp", onPage: true,
     kept: "a match play of 128 in eight flights — a second club the seed does not build", expect: [] },
+
+  // ── design E (`/new`, "one day's light", 2026-11-02): the same demo club in four club themes, so
+  //    neighbouring screens differ, and the organizer's console beside the player's phone. Dark-ground
+  //    themes are shown in the page's dark hours, light-ground ones in its bright hours. ──
+  { id: "e-club-today", viewport: phone, preset: "crisp", onPage: true,
+    capture: { who: "member", event: "medal", costume: "us", path: "/me", theme: { pair: "coastal", appearance: "light" } }, expect: ["October Stroke Play"] },
+  { id: "e-club-card", viewport: phone, preset: "crisp", onPage: true,
+    capture: { who: "member", event: "medal", costume: "us", path: "/me/card", theme: { pair: "championship", appearance: "light" } }, expect: ["Hole", "Par"] },
+  { id: "e-club-board", viewport: phone, preset: "crisp", onPage: true,
+    capture: { who: "member", event: "medal", costume: "us", path: "/me/board", theme: { pair: "tournament", appearance: "dark" } }, expect: ["Ranked by net strokes"] },
+  { id: "e-club-final", viewport: phone, preset: "crisp", onPage: true,
+    capture: { who: "member", event: "champs", costume: "us", path: "/me/board", theme: { pair: "desert", appearance: "dark" } }, expect: ["Board"] },
+  { id: "e-desk-dashboard", viewport: laptop, preset: "crisp", onPage: true,
+    capture: { who: "secretary", event: "medal", costume: "us", path: "/dashboard", theme: { pair: "championship", appearance: "light" } }, expect: ["Tournament dashboard"] },
+  { id: "e-desk-tournaments", viewport: laptop, preset: "crisp", onPage: true,
+    capture: { who: "secretary", event: "medal", costume: "us", path: "/tournaments", theme: { pair: "desert", appearance: "dark" } }, expect: ["Tournaments"] },
+  { id: "e-desk-grouping", viewport: laptop, preset: "crisp", onPage: true,
+    capture: { who: "secretary", event: "medal", costume: "us", path: "/grouping", theme: { pair: "coastal", appearance: "light" } }, expect: ["Flights"] },
+  { id: "e-desk-prizes", viewport: laptop, preset: "crisp", onPage: true,
+    capture: { who: "secretary", event: "champs", costume: "us", path: "/prizes", act: "prize-list", theme: { pair: "championship", appearance: "light" } }, expect: ["Prizes"] },
+  { id: "e-desk-report", viewport: laptop, preset: "crisp", onPage: true,
+    capture: { who: "secretary", event: "champs", costume: "us", path: "/reports/final", act: "final-report", theme: { pair: "tournament", appearance: "dark" } }, expect: ["Final report"] },
 
   // ── the public boards (no sign-in) ──
   { id: "public-stableford", viewport: phone, preset: "crisp", onPage: true, kept: "a public board of a Stableford round — the seed's link is not yet named here", expect: [] },
