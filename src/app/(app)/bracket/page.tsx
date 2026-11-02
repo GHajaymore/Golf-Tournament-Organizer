@@ -354,6 +354,8 @@ export default async function BracketPage() {
         seeds={mode === "flights" ? undefined : seeds}
         playBy={playBy}
         toPlay={toPlayPanel}
+        printTitle={state.event.name}
+        locale={locale}
         seeded={drawsSeeded({ stages: state.stages, roundsWithResults: state.roundsWithResults, mode, criterion: state.flights?.plan.criterion ?? null, draws })}
         awaitingFlights={mode === "flights" && !state.flights}
       />
