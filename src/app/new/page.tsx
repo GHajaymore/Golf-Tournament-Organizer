@@ -262,7 +262,7 @@ export default async function NewSitePreview() {
         </section>
 
         {/* ═════════ THE COMMITTEE'S DESK ═════════ */}
-        <section className="n-sec" id="desk" aria-labelledby="desk-h">
+        <section className="n-sec n-band" id="desk" aria-labelledby="desk-h">
           <div className="n-wrap n-desk">
             <div>
               <div className="n-sec-head">
@@ -314,7 +314,7 @@ export default async function NewSitePreview() {
         </section>
 
         {/* ═════════ THE WHOLE CLUB WATCHES ═════════ */}
-        <section className="n-sec" id="watch" aria-labelledby="watch-h">
+        <section className="n-sec n-glow" id="watch" aria-labelledby="watch-h">
           <div className="n-wrap">
             <div className="n-watch">
               <h2 id="watch-h" className="n-watch-big"><span className="n-t">11:42.</span> A birdie on the 14th. The whole club sees it.</h2>
@@ -405,7 +405,7 @@ export default async function NewSitePreview() {
         </section>
 
         {/* ═════════ YOUR COLOURS ═════════ */}
-        <section className="n-sec" id="colors" aria-labelledby="colors-h">
+        <section className="n-sec n-glow" id="colors" aria-labelledby="colors-h">
           <div className="n-wrap">
             <div className="n-sec-head">
               <h2 id="colors-h" className="n-h2">Your club&rsquo;s colors, on every screen.</h2>
