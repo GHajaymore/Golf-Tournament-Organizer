@@ -1039,6 +1039,7 @@ async function gameNets(
           gameId: game.id,
           nets: potNets,
           entrants: entrantIds.length,
+          entrantIds,
           potCents: potCentsOf(game.buyInCents, entrantIds.length),
         });
         for (const n of potNets) {
@@ -1124,6 +1125,8 @@ export interface SidePotOutcome {
   nets: Net[];
   /** Everyone the pot charged — the people who put the stake in. */
   entrants: number;
+  /** Who they are, so a reader naming who made a two need not guess it from `nets`. */
+  entrantIds: string[];
   /** What was in it: `potCents(stake, entrants)`. */
   potCents: number;
 }

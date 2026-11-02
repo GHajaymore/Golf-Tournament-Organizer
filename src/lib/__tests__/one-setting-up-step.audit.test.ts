@@ -56,7 +56,8 @@ async function tournament(status: string, published: boolean) {
   const token = `${TAG}-${status}-${published ? "open" : "shut"}-${RUN}-${(made += 1)}`;
   const row = await prisma.event.create({
     data: {
-      organizationId: orgId, name: `${TAG} ${status} ${published ? "open" : "shut"}`, status, shape: "single", format: "stroke",
+      // Numbered: two of one name may not be in play in one club (migration A036).
+      organizationId: orgId, name: `${TAG} ${status} ${published ? "open" : "shut"} #${made}`, status, shape: "single", format: "stroke",
       formationRule: "balanced", dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
       registrationOpen: published, registrationApproval: "auto", registrationToken: token, shareToken: `${token}-share`,
     },

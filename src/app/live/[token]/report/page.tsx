@@ -4,7 +4,10 @@ import { prisma } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
 import { settingsOf } from "@/lib/services/tournament";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
-import { reportAudienceFor, reportFor } from "@/lib/services/event-report";
+import { reportAudienceFor, reportCardInput, reportFor } from "@/lib/services/event-report";
+import { reportNewsLine } from "@/lib/domain/report-card";
+import { reportOpenToPublic } from "@/lib/domain/report-settings";
+import { ReportForPlayersOnly } from "@/components/ReportForPlayersOnly";
 import { getSession } from "@/lib/auth";
 import { FinalReport } from "@/components/FinalReport";
 import { EventReport } from "@/components/EventReport";
@@ -30,22 +33,42 @@ import { DemoClubLabel } from "@/components/DemoClubLabel";
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * The link's title and description (2026-10-23): "Final report" only once it
+ * is final, and a news line — "Jane Doe wins the Spring Medal by 3 at Braid
+ * Hollow" — read off the PUBLIC copy, under the same rule as the share card
+ * (`reportNewsLine`): a board that is not public names nobody.
+ */
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const event = await prisma.event.findUnique({
     where: { shareToken: token },
-    select: { name: true, leaderboardVisibility: true },
+    select: { id: true, name: true, leaderboardVisibility: true, reportVisibility: true },
   });
-  if (!event || event.leaderboardVisibility !== "public") return { title: "Final report", robots: NOINDEX };
-  return { title: `${event.name} — Final report`, robots: NOINDEX };
+  // A report for the players only has no public title or news line, and no share card.
+  if (!event || !reportOpenToPublic(event.leaderboardVisibility === "public", event.reportVisibility)) return { title: "Report", robots: NOINDEX };
+  const found = await reportFor(event.id, { kind: "public" });
+  const input = found ? reportCardInput(found) : null;
+  const title = `${event.name} — ${input?.completed ? "Final report" : "The results so far"}`;
+  const description = reportNewsLine(input, "public");
+  return { title, description, openGraph: { title, description }, twitter: { card: "summary_large_image", title, description }, robots: NOINDEX };
 }
 
 export default async function PublicFinalReportPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const event = await prisma.event.findUnique({ where: { shareToken: token } });
-  if (!event || !isLeaderboardPublic(settingsOf(event))) notFound();
+  if (!event) notFound();
   const session = await getSession();
   const audience = await reportAudienceFor(event.id, session ? { email: session.email, staff: false } : null);
+  /**
+   * WHO MAY OPEN IT (2026-10-24): anyone with the board's link, or the players
+   * in this tournament — never more than the board (`reportOpenToPublic`). A
+   * visitor it is not for is told so in a sentence, with the way in for a
+   * player; somebody in the field, signed in, reads it either way.
+   */
+  if (audience.kind === "public" && !reportOpenToPublic(isLeaderboardPublic(settingsOf(event)), event.reportVisibility)) {
+    return <ReportForPlayersOnly />;
+  }
   const found = await reportFor(event.id, audience);
   if (!found) notFound();
   const footer = (

@@ -35,7 +35,8 @@ async function makeEvent(playerAccess: string, rounds: number): Promise<string> 
   const event = await prisma.event.create({
     data: {
       organizationId,
-      name: `${MARK}-cup`,
+      // One per call: two of one name may not be in play in one club (migration A036).
+      name: `${MARK}-cup-${Math.random().toString(36).slice(2, 8)}`,
       dates: "",
       course: "",
       city: "",

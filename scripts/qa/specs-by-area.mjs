@@ -178,7 +178,7 @@ export const AREAS = {
   reports: {
     name: "Reports (the Reports screen)",
     paths: ["src/app/(app)/reports/", "src/components/ReportsClient.tsx", "src/components/PrintReportButton.tsx", "src/components/AttendanceReport.tsx", "src/lib/services/attendance-report.ts"],
-    specs: ["e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts"],
+    specs: ["e2e/final-report.spec.ts", "e2e/organizer-knockout-report.spec.ts", "e2e/a-finished-cup-shows-its-points.spec.ts", "e2e/report-rich.spec.ts", "e2e/report-settings.spec.ts"],
     scenarios: [],
     // A report writes the event's dates.
     dateSensitive: true,
@@ -282,6 +282,7 @@ export const FULL_ONLY = [
   "e2e/named-side-bet.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
+  "e2e/one-name-in-play.spec.ts",
   "e2e/one-prize-per-player.spec.ts",
   "e2e/one-setting-up-step.spec.ts",
   "e2e/organizer-championship.spec.ts",

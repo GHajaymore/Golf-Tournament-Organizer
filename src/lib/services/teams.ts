@@ -22,6 +22,7 @@ import {
   SCRAMBLE_WEIGHTS_2,
   SCRAMBLE_WEIGHTS_3,
   SCRAMBLE_WEIGHTS_4,
+  type TeamHole,
 } from "../domain/team";
 
 export interface TeamMemberView {
@@ -437,6 +438,27 @@ export async function teamStandings(
   weightsOverride?: number[] | null,
   countBestOverride = 0,
 ): Promise<TeamStanding[]> {
+  const rows = await teamStandingsWithCards(eventId, stageId, format, pars, strokeIndex, basis, allowanceOverride, weightsOverride, countBestOverride);
+  return rows.map(({ holes: _holes, ...r }) => r);
+}
+
+/**
+ * `teamStandings`, with each side's card as it was COUNTED, hole by hole —
+ * the side's score and whose ball it was (`TeamHole.playerId`). The final
+ * report draws the winning side's card from it (2026-10-23), so the picture
+ * is the board's own counting, not a second one.
+ */
+export async function teamStandingsWithCards(
+  eventId: string,
+  stageId: string,
+  format: string,
+  pars: number[],
+  strokeIndex: number[],
+  basis: string,
+  allowanceOverride = 0,
+  weightsOverride?: number[] | null,
+  countBestOverride = 0,
+): Promise<Array<TeamStanding & { holes: TeamHole[] }>> {
   const f = findFormat(format);
   const [teams, cards, stageRow] = await Promise.all([
     // The card's own length. This passed a hard 18 until 2026-08-09, which
@@ -585,7 +607,7 @@ export async function teamStandings(
     const level = prev !== null && prev.played > 0 && compareTeamRows(order, prev, r) === 0 && countback(prev, r) === 0;
     places.push(level ? places[i - 1] : i + 1);
   });
-  return sorted.map(({ holes: _holes, ...r }, i) => ({ ...r, place: places[i] }));
+  return sorted.map((r, i) => ({ ...r, place: places[i] }));
 }
 
 /**
