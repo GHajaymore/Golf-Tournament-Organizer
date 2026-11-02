@@ -82,6 +82,7 @@ export const AREAS = {
       "e2e/knockout-flights-adjust.spec.ts",
       "e2e/draws-and-play-offs.spec.ts",
       "e2e/knockout-opens-on-its-question.spec.ts",
+      "e2e/the-draw-prints.spec.ts",
     ],
     scenarios: ["e"],
     dateSensitive: false,
