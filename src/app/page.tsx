@@ -384,7 +384,7 @@ export default async function LandingPage() {
               ))}
             </div>
 
-            <div className="m-week" id="story" aria-roledescription="carousel" aria-label="An example week, step by step">
+            <div className="m-week" id="story" role="region" aria-roledescription="carousel" aria-label="An example week, step by step">
               <div className="m-week-bar" aria-hidden="true">
                 {WEEK.map((m, i) => <i key={m.when} className={i === 0 ? "m-on" : undefined} />)}
               </div>

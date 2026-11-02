@@ -38,7 +38,6 @@ export function LandingHomeEffects() {
 
     const calm = media("(prefers-reduced-motion: reduce)");
     const canWatch = "IntersectionObserver" in window;
-    const wide = () => media("(min-width: 900px)");
     const stop = new AbortController();
     const on = { signal: stop.signal };
     const passive = { signal: stop.signal, passive: true };

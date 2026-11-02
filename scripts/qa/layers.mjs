@@ -52,6 +52,8 @@ export const SCREEN_SPECS = [
   "e2e/front-door.spec.ts",
   "e2e/landing-screens.spec.ts",
   "e2e/landing-legible.spec.ts",
+  "e2e/landing-colours.spec.ts",
+  "e2e/landing-story.spec.ts",
 ];
 
 /** Every screen of the app opened as each kind of person. */

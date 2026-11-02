@@ -639,14 +639,14 @@ export const HOME_CSS = `
    (hero-scene). The phone a visitor READS stands square and still once it has arrived; only the laptop,
    which is scenery, is turned. Glass, rim light and the light on the changed row are layers over the
    pictures, never in them. */
-.m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: clamp(60px, 9vw, 150px); }
+.m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: clamp(40px, 5vw, 76px); }
 .m-home .m-rig { grid-area: phone; align-self: start; position: relative; width: 100%; padding-top: 44px; }
 .m-home .m-rig::before { content: ""; position: absolute; z-index: 0; left: 50%; top: 52%; width: 190%; height: 95%; transform: translate(-50%, -50%); background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 30%, transparent), transparent); filter: blur(18px); pointer-events: none; }
 .m-home .m-scene { position: absolute; z-index: 0; left: -70%; top: 30%; width: 360%; pointer-events: none; opacity: 0.95; -webkit-mask-image: radial-gradient(60% 62% at 52% 58%, black 55%, transparent 100%); mask-image: radial-gradient(60% 62% at 52% 58%, black 55%, transparent 100%); }
 .m-home .m-scene img { width: 100%; }
 
 /* the laptop: scenery, turned in 3D */
-.m-home .m-laptop { position: absolute; z-index: 1; left: 22%; top: -4%; width: 820px; transform-style: preserve-3d; transform-origin: 0 50%; transform: perspective(2200px) rotateY(-24deg) rotateX(5deg); }
+.m-home .m-laptop { position: absolute; z-index: 1; left: 30%; top: -3%; width: 880px; transform-style: preserve-3d; transform-origin: 0 50%; transform: perspective(2200px) rotateY(-21deg) rotateX(5deg); }
 .m-home .m-lid { position: relative; padding: 13px 13px 20px; border-radius: 20px; background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 9%, black), black 18%); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 30%, black), 0 0 0 3px color-mix(in srgb, var(--ink) 10%, black), inset 0 1px 0 color-mix(in srgb, var(--ink) 22%, transparent), 50px 60px 90px -30px rgba(0, 0, 0, 0.85); }
 .m-home .m-lid::before { content: ""; position: absolute; top: 5px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 18%, black); }
 .m-home .m-lid-screen { position: relative; display: grid; border-radius: 6px; overflow: hidden; background: var(--paper); }
@@ -695,12 +695,15 @@ export const HOME_CSS = `
   .m-home .m-sheen { animation: m-glint 9s ease-in-out 2s infinite; }
   .m-home .m-rig.m-asleep .m-chip .m-dot, .m-home .m-rig.m-asleep .m-sheen { animation-play-state: paused; }
 }
-@keyframes m-swing { from { opacity: 0; transform: perspective(1900px) rotateY(-64deg) rotateX(14deg) translateX(120px); } to { opacity: 1; transform: perspective(1900px) rotateY(-30deg) rotateX(7deg) rotateZ(0.6deg); } }
+@keyframes m-swing { from { opacity: 0; transform: perspective(1900px) rotateY(-64deg) rotateX(14deg) translateX(120px); } to { opacity: 1; transform: perspective(2200px) rotateY(-21deg) rotateX(5deg); } }
 @keyframes m-lift { from { opacity: 0; transform: perspective(1300px) rotateX(24deg) rotateY(-20deg) translateY(90px) scale(0.92); } to { opacity: 1; transform: none; } }
 @keyframes m-press { 0% { opacity: 0; transform: scale(1.25); } 30% { opacity: 1; transform: scale(0.97); } 100% { opacity: 0; transform: scale(1); } }
 @keyframes m-glow { 0% { opacity: 0; } 25% { opacity: 1; box-shadow: 0 0 0 3px var(--m-hl), 0 0 60px 16px color-mix(in srgb, var(--m-hl) 60%, transparent); } 100% { opacity: 1; } }
 @keyframes m-bump { 0% { color: var(--m-hl); transform: translateY(-6px); } 100% { transform: none; } }
 @keyframes m-glint { 0%, 70% { background-position: 100% 0; } 100% { background-position: -60% 0; } }
+@media (min-width: 1181px) {
+  .m-home .m-rig { left: -80px; }
+}
 @media (max-width: 1180px) and (min-width: 900px) {
   .m-home .m-laptop { width: 640px; left: 50%; }
 }
