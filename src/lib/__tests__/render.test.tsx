@@ -6364,7 +6364,7 @@ describe("the honours board", () => {
     // Until 2026-10-30 a completed cup read "No ranked results yet" here.
     const html = await board([], [
       { eventId: "c1", eventName: "zz Club Cup", dates: "2026", year: 2026,
-        suggestion: { ok: true, playerId: "team-oak", name: "zz Oakmere", runnersUp: [], team: { score: "zz Oakmere 6½–3½" } } },
+        suggestion: { ok: true, playerId: "", name: "zz Oakmere", runnersUp: [], team: { score: "zz Oakmere 6½–3½" } } },
       { eventId: "c2", eventName: "zz Halved Cup", dates: "2026", year: 2026,
         suggestion: { ok: false, reason: "cup-halved", tied: [] } },
     ]);
