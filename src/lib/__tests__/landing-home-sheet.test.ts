@@ -29,7 +29,7 @@ import { readSource, stripComments } from "./source";
  */
 
 /** Where an `m-` class can be written: the page, its script, and the two shared pieces it draws with. */
-const WRITERS = ["src/app/page.tsx", "src/components/LandingHomeEffects.tsx", "src/components/landing/chrome.tsx", "src/components/landing/shots.tsx"];
+const WRITERS = ["src/app/page.tsx", "src/components/LandingHomeEffects.tsx", "src/components/landing/chrome.tsx", "src/components/landing/shots.tsx", "src/components/landing/hero-stage.tsx"];
 
 /**
  * Written on purpose and styled by nothing, each with what it is for.

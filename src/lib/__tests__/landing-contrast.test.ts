@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { contrastRatio } from "@/lib/themes";
-import { LANDING_HUES, MIN_LANDING_HUE_SEPARATION, landingTokens, leafTokens } from "@/lib/landing-palette";
+import { LANDING_HUES, MIN_LANDING_HUE_SEPARATION, landingTokens } from "@/lib/landing-palette";
 import { readSource } from "./source";
 
 /**
@@ -150,77 +150,52 @@ describe("the landing palette can be read", () => {
 });
 
 /**
- * THE THIRD GROUND: LEAF, THE OUTDOOR TEST (2026-10-13).
+ * ONE SET OF COLOURS AT EVERY WIDTH (Ajay, 2026-11-01: "keep the default color on all platforms for
+ * the landing page … entire landing page desktop/laptop/tablet or mobile the same color").
  *
- * The note at the top of this file says a third ground needs a row here the
- * day it is added. This is it: the sections a phone draws in the India-flag
- * green's hue, in both forms the page uses — green panels on the navy ground,
- * and green from edge to edge.
- *
- * Graded at Ajay's standing rule rather than at this file's older floors:
- * EVERY word 7:1 on every background it can land on. The one figure that is
- * lower than its navy counterpart is the headline ink, which owes 12:1 on the
- * navy and cannot have it here — white itself is under 10:1 on a green this
- * light — so it is held to 9, which is the solver giving all it has.
+ * From 2026-10-13 to 2026-11-01 two sections were drawn on a third ground, LEAF (the India-flag green),
+ * on a phone only, as his outdoor test; this file graded that ground. He ended the test: the page is
+ * the navy and the orange everywhere. What this guards now is that a width cannot bring a colour of
+ * its own back: no phone-width block in either sheet re-declares a colour token. The rendered check
+ * of the same thing, every section at 393, 768 and 1440, is `e2e/landing-colours.spec.ts`.
  */
-describe("the leaf ground (the outdoor test) can be read", () => {
-  function leaf(ground: "navy" | "leaf"): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const m of leafTokens(ground, "").matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+);/g)) out[m[1]] = m[2].trim();
+describe("the landing page has one set of colours at every width", () => {
+  const COLOUR_TOKEN = /--(ground|ground-2|panel|paper|paper-2|ink|ink-soft|ink-faint|line|line-2|flag|brass|brass-ui|brass-hi|on-accent|m-ground|m-ground-deep|m-ground-rise|m-on-ground|m-on-ground-soft|m-hl|m-label)\s*:/;
+
+  /** Every `@media (max-width: …)` block of a sheet, by brace depth. */
+  function narrowBlocks(sheet: string): string[] {
+    const out: string[] = [];
+    for (const m of sheet.matchAll(/@media \(max-width:[^{]*\{/g)) {
+      let depth = 1;
+      let i = (m.index ?? 0) + m[0].length;
+      const from = i;
+      for (; i < sheet.length && depth > 0; i += 1) {
+        if (sheet[i] === "{") depth += 1;
+        else if (sheet[i] === "}") depth -= 1;
+      }
+      out.push(sheet.slice(from, i));
+    }
     return out;
   }
 
-  it("found it, and it is a green and not the navy over again", () => {
-    const onNavy = leaf("navy");
-    const whole = leaf("leaf");
-    const dark = tokens("dark");
-    expect(Object.keys(onNavy).sort()).toEqual(Object.keys(dark).sort());
-    // Panels on the navy ground: the ground is the page's own, the panel is not.
-    expect(onNavy.ground).toBe(dark.ground);
-    expect(onNavy["ground-2"]).not.toBe(dark["ground-2"]);
-    // Edge to edge: the ground moves too, and the panels are the same green either way.
-    expect(whole.ground).not.toBe(dark.ground);
-    expect(whole["ground-2"]).toBe(onNavy["ground-2"]);
-    // A green: more green in it than red and blue together, on the panel a card is drawn with.
-    const [r, g, b] = [1, 3, 5].map((i) => parseInt(onNavy["ground-2"].slice(i, i + 2), 16));
-    expect(g, `the panel is ${onNavy["ground-2"]}`).toBeGreaterThan(r + b);
+  it("CONTROL: the reader finds narrow blocks, and would see a colour declared in one", () => {
+    const blocks = narrowBlocks(readSource("src/lib/landing/home-styles.ts"));
+    expect(blocks.length, "phone-width blocks in the page's sheet").toBeGreaterThan(5);
+    expect(narrowBlocks("@media (max-width: 899px) { .thq .x { --ground-2: #123; } }").some((b) => COLOUR_TOKEN.test(b))).toBe(true);
   });
 
-  const WORDS: Array<[token: string, floor: number]> = [
-    ["ink", 9],
-    ["ink-soft", 7],
-    ["ink-faint", 7],
-    ["brass", 7],
-    ["flag", 7],
-    ["under", 7],
-    ["danger", 7],
-    ["warn", 7],
-  ];
-  for (const ground of ["navy", "leaf"] as const) {
-    for (const [name, floor] of WORDS) {
-      for (const bg of PAGE_BG) {
-        it(`leaf on ${ground}: --${name} clears ${floor}:1 on --${bg}`, () => {
-          const t = leaf(ground);
-          const ratio = contrastRatio(opaque(t[name]), opaque(t[bg]));
-          expect(Number(ratio.toFixed(2)), `--${name} ${t[name]} on --${bg} ${t[bg]} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(floor);
-        });
-      }
+  it("no phone-width block of either sheet re-declares a colour", () => {
+    for (const file of ["src/lib/landing/styles.ts", "src/lib/landing/home-styles.ts"]) {
+      const bad = narrowBlocks(readSource(file)).filter((b) => COLOUR_TOKEN.test(b)).map((b) => b.trim().slice(0, 120));
+      expect(bad, `${file}: a narrow screen gets colours of its own`).toEqual([]);
     }
-    it(`leaf on ${ground}: the button label can be read on the button`, () => {
-      const t = leaf(ground);
-      expect(contrastRatio(opaque(t["on-accent"]), opaque(t["brass-ui"]))).toBeGreaterThanOrEqual(7);
-    });
-  }
+  });
 
-  it("is drawn through the generator, on a phone only", () => {
-    const sheet = readSource("src/lib/landing/styles.ts");
-    expect(sheet).toMatch(/leafTokens\(\s*"navy"/);
-    expect(sheet).toMatch(/leafTokens\(\s*"leaf"/);
-    // Both uses sit inside the phone-width block: a laptop keeps the navy.
-    const at = sheet.search(/@media \(max-width: 899px\) \{\s+\.thq \.m-leaf \{/);
-    expect(at, "the leaf tokens are no longer inside the phone-width block").toBeGreaterThan(-1);
-    expect(sheet.indexOf('leafTokens("navy"')).toBeGreaterThan(at);
-    expect(sheet.lastIndexOf("leafTokens(")).toBeLessThan(sheet.indexOf(".thq :where(h1,h2,h3"));
+  it("the green test's ground and classes are gone whole", () => {
+    expect(readSource("src/lib/landing-palette.ts")).not.toMatch(/leafTokens|key: "leaf"/);
+    for (const file of ["src/app/page.tsx", "src/lib/landing/styles.ts", "src/lib/landing/home-styles.ts"]) {
+      expect(readSource(file), file).not.toMatch(/m-leaf/);
+    }
   });
 });
 

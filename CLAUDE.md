@@ -106,9 +106,11 @@ capability, a claim that has changed, a better screen to show. Do not decide sil
 needs nothing.
 
 **The landing page** (`src/app/page.tsx`, `src/lib/landing/home-styles.ts`) is its own stylesheet and its
-chrome also dresses `/faq`, `/privacy`, `/terms`. Pictures are unedited captures with an invented demo
-club. Two sections are green on a phone as Ajay's TEST — never extend, restyle or remove them on
-anybody's word but his; after go-live nothing changes without his preview. **Read `docs/claude/landing-page.md` before touching it.**
+chrome also dresses `/faq`, `/privacy`, `/terms`. Pictures are real captures of an invented demo club,
+listed in ONE manifest (`src/lib/landing/screens.ts`) and re-shot by `npm run landing:capture`; a look
+preset may sharpen them, never change what they say. One set of colours at every width: Ajay ended the
+phone-only green test on 2026-11-01 ("the same color" everywhere; `e2e/landing-colours.spec.ts`). After
+go-live nothing changes without his preview. **Read `docs/claude/landing-page.md` before touching it.**
 
 Three ways help goes stale are tested, so they cannot happen quietly: a new player screen with
 no help topic, a button the help names that a screen no longer draws (`player-help.test.ts`,
@@ -429,7 +431,7 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | --- | --- | --- |
 | sign-in, sign-up, sessions, passwords, codes, known devices, launching accounts | `docs/claude/sign-ins.md` | the hold in full; proved address, leaked passwords, new-device codes |
 | any date, deadline, "today", time zone, E2E_TZ | `docs/claude/club-clock.md` | why the day is the club's; the helpers that must be told it |
-| `src/app/page.tsx`, `src/lib/landing/*`, `/faq`, `/privacy`, `/terms` | `docs/claude/landing-page.md` | its stylesheet, its three rules, the green test, ownership |
+| `src/app/page.tsx`, `src/lib/landing/*`, `/faq`, `/privacy`, `/terms` | `docs/claude/landing-page.md` | its stylesheet, the screens manifest and `landing:capture`, one colour at every width, ownership |
 | writing or REPORTING a browser-test result; coverage | `docs/claude/e2e-across-the-board.md` | why a pass count is not a claim; reach instruments; mutation habits |
 | writing or debugging a spec | `docs/claude/e2e-traps.md` | service worker, typing before load, slow saves, fonts, front door, WebKit |
 | `npm run smoke`, `smoke:all`, `verify-*`, a gate that pipes an exit code | `docs/claude/smoke-and-gate-scripts.md` | what each CI smoke script asserts and why |

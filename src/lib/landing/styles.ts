@@ -1,4 +1,4 @@
-import { landingTokens, leafTokens } from "@/lib/landing-palette";
+import { landingTokens } from "@/lib/landing-palette";
 
 /**
  * The front door's stylesheet, shared by `/` and `/faq`, scoped under `.thq`.
@@ -73,28 +73,11 @@ ${landingTokens("dark", "  ")}
   --shadow: 0 24px 48px -28px rgba(0,0,0,.8);
   background: var(--ground); color: var(--ink);
 }
-/* THE OUTDOOR TEST (Ajay, 2026-10-13: "indoor navi looks okay but outdoors it
-   looks not great … give me couple section with green while keeping navy so
-   that I can test it"). On a phone, a section the page marks m-leaf has its
-   lifted panels in the India-flag green's hue on the navy ground, and one
-   marked m-leaf-ground is green from edge to edge. Everything else on the
-   page, and every wider screen, is the navy it was. The palette says why the
-   green is this deep and no brighter (LEAF, landing-palette.ts). It is a test:
-   kept, changed or taken out on his word, not on anybody else's. */
-@media (max-width: 899px) {
-  .thq .m-leaf {
-${leafTokens("navy", "    ")}
-    --card: color-mix(in srgb, var(--ground-2) 70%, var(--ground));
-    --wash: color-mix(in srgb, var(--ink) 4%, transparent);
-    --wash-2: color-mix(in srgb, var(--ink) 8%, transparent);
-    --accent-a12: color-mix(in srgb, var(--brass-ui) 12%, transparent);
-    --flag-a: color-mix(in srgb, var(--flag) 14%, transparent);
-    color: var(--ink);
-  }
-  .thq .m-leaf.m-leaf-ground {
-${leafTokens("leaf", "    ")}
-  }
-}
+/* ONE SET OF COLOURS ON EVERY SCREEN (Ajay, 2026-11-01: "keep the default color on all platforms for
+   the landing page … entire landing page desktop/laptop/tablet or mobile the same color", and "I need all
+   same"). The phone-only green of his outdoor test (2026-10-13 to 2026-11-01) is taken out whole: the
+   page is the navy and the orange at every width. e2e/landing-colours.spec.ts holds every section to
+   the same colours at 393, 768 and 1440. */
 .thq :where(h1,h2,h3,h4,p,ul,ol,figure,dl,dd) { margin: 0; padding: 0; }
 /* The app's own caption rule (design-system.css: 11px, text at 55%) is written
    for the app's dark ground; on this white page it painted the format boards'

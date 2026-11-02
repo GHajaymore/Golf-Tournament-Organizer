@@ -1,0 +1,57 @@
+{
+ "hole": 10,
+ "score": 4,
+ "capturedOn": "2026-11-02",
+ "club": "Braid Hollow Golf Club",
+ "event": "October Stroke Play",
+ "player": "Ben Carter",
+ "field": 24,
+ "holesBefore": 284,
+ "holesAfter": 285,
+ "placeBefore": "T7",
+ "placeAfter": "T5",
+ "toParAfter": "-1",
+ "rows": 24,
+ "rects": {
+  "live-desk-before": {
+   "selfRow": {
+    "x": 0.2056,
+    "y": 0.7059,
+    "w": 0.7625,
+    "h": 0.0421
+   }
+  },
+  "live-board-before": {
+   "selfRow": {
+    "x": 0.0407,
+    "y": 0.888,
+    "w": 0.9186,
+    "h": 0.0812
+   }
+  },
+  "live-card-before": {
+   "press": {
+    "x": 0.6548,
+    "y": 0.5919,
+    "w": 0.2688,
+    "h": 0.0657
+   }
+  },
+  "live-board-after": {
+   "selfRow": {
+    "x": 0.0407,
+    "y": 0.6422,
+    "w": 0.9186,
+    "h": 0.0812
+   }
+  },
+  "live-desk-after": {
+   "selfRow": {
+    "x": 0.2056,
+    "y": 0.6216,
+    "w": 0.7625,
+    "h": 0.0421
+   }
+  }
+ }
+}

@@ -72,6 +72,13 @@ const BASE = process.env.CAPTURE_BASE_URL ?? "http://localhost:3100";
 const args = process.argv.slice(2);
 const OUT = args.find((a) => !a.startsWith("--")) ?? join(tmpdir(), "tourneyhq-demo-shots");
 const ONLY = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",").filter(Boolean);
+/**
+ * --landing: shoot the FRONT DOOR's screens, as `src/lib/landing/screens.ts` lists them (the one
+ * manifest), and the hero's live moment in its order — before, the press, after. Without it, the
+ * reel shots below. `npm run landing:capture` runs this and then the placing script.
+ */
+const LANDING = args.includes("--landing");
+const { SCREENS, LIVE_MOMENT, VIEWPORTS } = await import("../src/lib/landing/screens.ts");
 const TEXT = join(OUT, "text");
 const JOURNAL = join(OUT, ".capture-demo-journal.json");
 mkdirSync(TEXT, { recursive: true });
@@ -383,8 +390,8 @@ async function addExtras(ctx) {
 
 /* ------------------------------------------------------------ the browser */
 
-const PHONE = { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
-const LAPTOP = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 };
+const PHONE = { viewport: { width: VIEWPORTS.phone.width, height: VIEWPORTS.phone.height }, deviceScaleFactor: VIEWPORTS.phone.scale, isMobile: true, hasTouch: true };
+const LAPTOP = { viewport: { width: VIEWPORTS.laptop.width, height: VIEWPORTS.laptop.height }, deviceScaleFactor: VIEWPORTS.laptop.scale };
 
 async function settle(page) {
   await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
@@ -516,6 +523,54 @@ async function openStartSideGame(page) {
   return null;
 }
 
+/**
+ * What the hero needs to know about a screen, measured on the screen as it was shot: where the
+ * signed-in player's row is (`self-row`), where the button the member presses is (`press`), each as
+ * a fraction of the capture so the page can lay a light over exactly that row at any size; and on
+ * the organizer's leaderboard, every row's place, thru and to-par — the holes in are their sum.
+ */
+async function measureOn(page, what, selfName, pressPattern) {
+  return page.evaluate(({ what, selfName, pressPattern }) => {
+    const W = window.innerWidth, H = window.innerHeight;
+    const frac = (b) => ({ x: +(b.left / W).toFixed(4), y: +(b.top / H).toFixed(4), w: +(b.width / W).toFixed(4), h: +(b.height / H).toFixed(4) });
+    const out = {};
+    if (what.includes("self-row")) {
+      const leaf = Array.from(document.querySelectorAll("body *")).find(
+        (e) => e.childElementCount === 0 && e.textContent.trim() === selfName && e.getBoundingClientRect().height > 0 && e.getBoundingClientRect().top < H,
+      );
+      if (leaf) {
+        let row = leaf.closest("tr");
+        if (!row) {
+          row = leaf;
+          while (row.parentElement && row.getBoundingClientRect().width < W * 0.8) row = row.parentElement;
+        }
+        out["self-row"] = frac(row.getBoundingClientRect());
+      }
+      const table = document.querySelector("table");
+      if (table) {
+        const head = Array.from(table.querySelectorAll("thead th")).map((th) => th.innerText.replace(/\s+/g, " ").trim().toLowerCase()); // "TO PAR" is written with a no-break space
+        const col = (name) => head.findIndex((h) => h === name);
+        const [iPlace, iName, iThru, iPar] = ["#", "player", "thru", "to par"].map(col);
+        const rows = Array.from(table.querySelectorAll("tbody tr")).map((tr) => Array.from(tr.cells).map((c) => c.innerText.trim()));
+        if (iThru >= 0) {
+          const self = rows.find((r) => r[iName] === selfName);
+          out.table = {
+            rows: rows.length,
+            holes: rows.reduce((s, r) => s + (/^\d+$/.test(r[iThru]) ? Number(r[iThru]) : r[iThru] === "F" ? 18 : 0), 0),
+            self: self ? { place: self[iPlace], thru: self[iThru], toPar: self[iPar] } : null,
+          };
+        }
+      }
+    }
+    if (what.includes("press")) {
+      const re = new RegExp(pressPattern);
+      const b = Array.from(document.querySelectorAll("button")).find((el) => re.test(el.innerText.replace(/\s+/g, " ").trim()));
+      if (b) out.press = frac(b.getBoundingClientRect());
+    }
+    return out;
+  }, { what, selfName, pressPattern });
+}
+
 /* ------------------------------------------------------------------ main */
 
 async function main() {
@@ -564,8 +619,71 @@ async function main() {
     const cookieFor = { member: data.player.session, secretary: data.organizer.session };
 
     let wearing = null;
-    for (const shot of CAPTURES) {
-      if (ONLY.length && !ONLY.includes(shot.name)) continue;
+    const selfName = COSTUMES.us.names[0];
+    const measured = {};
+
+    /** Open a screen as `shot.who`, run `fn(page)` on it, close it. */
+    const onScreen = async (shot, fn) => {
+      if (wearing !== shot.costume) {
+        await wear(shot.costume, ctx);
+        wearing = shot.costume;
+      }
+      const context = await browser.newContext({
+        ...(shot.laptop ? LAPTOP : PHONE),
+        locale: COSTUMES[shot.costume].place.locale,
+        colorScheme: "light",
+        reducedMotion: "reduce",
+        serviceWorkers: "block",
+      });
+      await context.addCookies([
+        { name: "ng_session", value: cookieFor[shot.who], url: BASE, httpOnly: true, sameSite: "Lax" },
+        { name: "ng_active_event", value: sign(ctx.events[shot.event]), url: BASE, httpOnly: true, sameSite: "Lax" },
+      ]);
+      const page = await context.newPage();
+      try {
+        const res = await page.goto(BASE + shot.path, { waitUntil: "domcontentloaded", timeout: 90_000 });
+        await settle(page);
+        return await fn(page, res?.status() ?? 0);
+      } finally {
+        await context.close();
+      }
+    };
+
+    // THE FRONT DOOR: the manifest's screens, then the live moment in its order.
+    const landingShot = (s) => ({ name: s.id, ...s.capture, laptop: s.viewport === "laptop", measure: s.measure ?? [] });
+    const live = new Set([...LIVE_MOMENT.before, ...LIVE_MOMENT.after]);
+    const wanted = (id) => !ONLY.length || ONLY.includes(id);
+    const plain = LANDING ? SCREENS.filter((s) => s.capture && !live.has(s.id) && wanted(s.id)).map(landingShot) : CAPTURES;
+    const sequence = LANDING && [...live].some(wanted)
+      ? [
+          ...LIVE_MOMENT.before.map((id) => landingShot(SCREENS.find((s) => s.id === id))),
+          { press: true },
+          ...LIVE_MOMENT.after.map((id) => landingShot(SCREENS.find((s) => s.id === id))),
+        ]
+      : [];
+    if (LANDING) {
+      for (const s of SCREENS.filter((x) => !x.capture && wanted(x.id))) console.log(`kept  ${s.id} — ${s.kept}`);
+    }
+
+    for (const shot of [...plain, ...sequence]) {
+      if (shot.press) {
+        // The member presses the score on their own card, as a member does. A real save, in the club's
+        // own rows, which the teardown takes away with everything else.
+        const on = SCREENS.find((s) => s.id === LIVE_MOMENT.press.on);
+        const note = await onScreen(landingShot(on), async (page) => {
+          const button = page.getByRole("button", { name: new RegExp(LIVE_MOMENT.press.button) }).first();
+          if (!(await button.count())) return `NOT FOUND: the button /${LIVE_MOMENT.press.button}/`;
+          await button.click();
+          await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
+          await page.waitForTimeout(1500);
+          return null;
+        });
+        report.push({ name: "press", ok: !note, notes: note ? [note] : [] });
+        console.log(`${note ? "FAIL " : "ok   "} the member presses /${LIVE_MOMENT.press.button}/${note ? "  — " + note : ""}`);
+        if (note) throw new Error(note);
+        continue;
+      }
+      if (ONLY.length && !ONLY.includes(shot.name) && !live.has(shot.name)) continue;
       if (wearing !== shot.costume) {
         await wear(shot.costume, ctx);
         wearing = shot.costume;
@@ -596,6 +714,11 @@ async function main() {
         writeFileSync(join(TEXT, `${shot.name}.txt`), text);
         await page.screenshot({ path: join(OUT, `${shot.name}.png`) });
         const bad = faults(text, page.url());
+        if (shot.measure?.length) {
+          const m = await measureOn(page, shot.measure, selfName, LIVE_MOMENT.press.button);
+          measured[shot.name] = m;
+          for (const what of shot.measure) if (!m[what]) bad.push(`could not measure ${what}`);
+        }
         if (status !== 200) bad.push(`status ${status}`);
         if (actNote) bad.push(actNote);
         if (pageErrors.length) bad.push(`page errors: ${pageErrors.join(" | ")}`);
@@ -607,6 +730,35 @@ async function main() {
       } finally {
         await context.close();
       }
+    }
+
+    // THE LIVE MOMENT'S FIGURES, read off its own captures — the hero says nothing typed by hand.
+    if (sequence.length) {
+      const field = await prisma.player.count({ where: { eventId: ctx.medalId, status: "confirmed" } });
+      const deskBefore = measured["live-desk-before"]?.table;
+      const deskAfter = measured["live-desk-after"]?.table;
+      // The hole and the score pressed, as the card said them: "HOLE 10" above, "4 / Par" on the button.
+      const cardText = readFileSync(join(TEXT, `${LIVE_MOMENT.press.on}.txt`), "utf8");
+      const hole = Number((cardText.match(/HOLE\s+(\d+)/i) ?? [])[1]) || null;
+      const score = Number((LIVE_MOMENT.press.button.match(/\d+/) ?? [])[0]) || null;
+      const facts = {
+        hole,
+        score,
+        capturedOn: new Date().toISOString().slice(0, 10),
+        club: COSTUMES.us.club,
+        event: COSTUMES.us.events.medal,
+        player: selfName,
+        field,
+        holesBefore: deskBefore?.holes ?? null,
+        holesAfter: deskAfter?.holes ?? null,
+        placeBefore: deskBefore?.self?.place ?? null,
+        placeAfter: deskAfter?.self?.place ?? null,
+        toParAfter: deskAfter?.self?.toPar ?? null,
+        rows: deskAfter?.rows ?? null,
+        rects: Object.fromEntries(Object.entries(measured).map(([k, v]) => [k, { press: v.press ?? undefined, selfRow: v["self-row"] ?? undefined }])),
+      };
+      writeFileSync(join(OUT, "screen-facts.json"), JSON.stringify(facts, null, 1));
+      console.log(`Live moment: ${facts.player} ${facts.placeBefore} -> ${facts.placeAfter} (${facts.toParAfter}); holes in ${facts.holesBefore} -> ${facts.holesAfter}; field ${field} (${facts.rows} on the leaderboard).`);
     }
   } finally {
     if (browser) await browser.close().catch(() => {});

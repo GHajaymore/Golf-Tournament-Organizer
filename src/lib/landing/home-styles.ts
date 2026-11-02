@@ -46,25 +46,6 @@ export const HOME_CSS = `
   /* the shared header's height: set from the header itself by the page's script, so a pinned row sits under it exactly */
   --m-hdr: 72px;
 }
-/* THE OUTDOOR TEST'S SECTIONS (see .thq .m-leaf in landing/styles.ts, which gives them their colours on a
-   phone). The page's own names for those colours are said AGAIN here, because a name declared on the page
-   was worked out there, once, from the navy — and everything inside would inherit that answer, however
-   the colours underneath it were changed. Only the names that are colours: the fonts, the widths and the
-   header's height stay the page's. */
-.m-home .m-leaf {
-  --m-ground: var(--ground); --m-ground-deep: color-mix(in srgb, var(--ground) 62%, black); --m-ground-rise: var(--ground-2);
-  --m-on-ground: var(--ink); --m-on-ground-soft: var(--ink-soft); --m-line: var(--line-2);
-  --m-hl: var(--brass); --m-label: var(--brass);
-  --m-btn-bg: var(--ink); --m-btn-fg: var(--ground); --m-btn-hover: white;
-  --m-sel-bg: var(--ink); --m-sel-fg: var(--ground); --m-sel-soft: color-mix(in srgb, var(--ground) 72%, var(--ink));
-  --m-stick: var(--ink); --m-cup: var(--line-2);
-  --m-word-1: var(--brass-hi); --m-word-2: var(--brass); --m-word-3: var(--brass-ui);
-  --m-flag: var(--brass-ui);
-  --m-bar: color-mix(in srgb, var(--ink) 30%, transparent);
-}
-@media (max-width: 899px) {
-  .m-home .m-leaf-ground { background: var(--m-ground); }
-}
 .m-home { margin: 0; background: var(--m-ground); color: var(--m-on-ground); font-family: var(--m-body); font-size: 17px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
 .m-home * { box-sizing: border-box; }
 .m-home [hidden] { display: none !important; }
@@ -125,42 +106,23 @@ export const HOME_CSS = `
 .m-home .m-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); grid-template-rows: auto 1fr; grid-template-areas: "copy phone" "try phone"; column-gap: clamp(28px, 5vw, 72px); row-gap: 30px; align-items: start; }
 .m-home .m-hero-grid .m-copy { grid-area: copy; display: grid; gap: 20px; }
 .m-home .m-hero .m-lead { max-width: 44ch; }
-.m-home .m-hero-phone { grid-area: phone; align-self: center; position: relative; }
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .m-home .m-hero-phone { transform: perspective(1200px) rotateY(calc((var(--m-mx, 0.5) - 0.5) * 10deg)) rotateX(calc((var(--m-my, 0.5) - 0.5) * -8deg)); transition: transform 0.25s ease-out; }
-}
-.m-home .m-hero-phone .m-phone { translate: 0 calc(var(--m-sy, 0) * -0.04px); }
-.m-home .m-hero-phone .m-phone.m-back { translate: 0 calc(var(--m-sy, 0) * 0.07px); }
-.m-home .m-hero-phone .m-rings { scale: calc(1 + var(--m-sy, 0) * 0.0004); }
-.m-home .m-hero-phone .m-phone { position: relative; z-index: 2; transform: rotate(2.5deg); }
-.m-home .m-hero-phone .m-phone.m-back { position: absolute; z-index: 1; inset: 6% auto auto -46%; width: 82%; transform: rotate(-8deg); opacity: 0.92; }
-.m-home .m-hero-phone .m-phone.m-back img { aspect-ratio: 720 / 1400; object-fit: cover; object-position: top; }
-.m-home .m-hero-phone::before { content: ""; position: absolute; z-index: 0; left: 50%; top: 58%; width: 150%; height: 70%; transform: translate(-50%, -50%); background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 34%, transparent), transparent); filter: blur(10px); pointer-events: none; }
 .m-home .m-rings { position: absolute; z-index: 0; left: 50%; top: 50%; width: 230%; height: 120%; transform: translate(-50%, -50%); pointer-events: none; }
 .m-home .m-rings ellipse { fill: none; stroke: var(--m-line); stroke-width: 1; transform-box: fill-box; transform-origin: center; }
 @media (prefers-reduced-motion: no-preference) {
-  .m-home .m-hero-phone .m-rings ellipse { animation: m-ripple 7s ease-out infinite; }
-  .m-home .m-hero-phone .m-rings ellipse:nth-child(2) { animation-delay: 1.75s; }
-  .m-home .m-hero-phone .m-rings ellipse:nth-child(3) { animation-delay: 3.5s; }
-  .m-home .m-hero-phone .m-rings ellipse:nth-child(4) { animation-delay: 5.25s; }
   .m-home .m-rise { animation: m-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
   .m-home .m-rise.m-d2 { animation-delay: 0.16s; }
   .m-home .m-rise.m-d3 { animation-delay: 0.24s; }
   .m-home .m-rise.m-d4 { animation-delay: 0.32s; }
   .m-home .m-rise.m-d5 { animation-delay: 0.42s; }
-  .m-home .m-hero-phone .m-phone { animation: m-arrive 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s both; }
-  .m-home .m-hero-phone .m-phone.m-back { animation: m-arrive-back 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.05s both; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .m-home .m-hero-phone .m-phone { animation: m-arrive 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s both, m-float 7s ease-in-out 1.3s infinite; }
-  .m-home .m-hero-phone .m-phone.m-back { animation: m-arrive-back 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.05s both, m-float-back 8s ease-in-out 1.3s infinite; }
   .m-home .m-hero h1 .m-hl { background: linear-gradient(100deg, var(--m-hl) 42%, color-mix(in srgb, var(--brass-hi) 45%, white) 50%, var(--m-hl) 58%); background-size: 260% 100%; background-position: 120% 0; -webkit-background-clip: text; background-clip: text; color: transparent; animation: m-shine 1.8s ease 0.9s 1 both; }
   .m-home .m-armed { transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.7s ease; }
   .m-home .m-card.m-armed, .m-home .m-plan.m-armed, .m-home .m-colours.m-armed, .m-home .m-close.m-armed { transform: translateY(36px); opacity: 0.15; }
   .m-home .m-card.m-armed:nth-child(2), .m-home .m-plan.m-armed:nth-child(2) { transition-delay: 0.12s; }
   .m-home .m-card.m-armed:nth-child(3), .m-home .m-plan.m-armed:nth-child(3) { transition-delay: 0.24s; }
   .m-home .m-wide .m-screen.m-armed { transform: perspective(1600px) rotateX(14deg) translateY(40px) scale(0.95); transform-origin: 50% 100%; opacity: 0.5; transition-duration: 1.2s, 0.8s; }
-  .m-home .m-moment.m-armed .m-time, .m-home .m-moment.m-armed .m-l1, .m-home .m-moment.m-armed .m-l2, .m-home .m-moment.m-armed .m-aside { display: inline-block; opacity: 0; transform: translateY(22px); transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.6s ease; }
+  .m-home .m-moment.m-armed .m-time, .m-home .m-moment.m-armed .m-l1, .m-home .m-moment.m-armed .m-l2, .m-home .m-moment.m-armed .m-aside { opacity: 0; transform: translateY(22px); transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.6s ease; }
   .m-home .m-moment.m-armed .m-aside { display: block; transition-delay: 1.5s; }
   .m-home .m-moment.m-armed .m-l1 { transition-delay: 0.55s; }
   .m-home .m-moment.m-armed .m-l2 { transition-delay: 1.05s; }
@@ -177,20 +139,9 @@ export const HOME_CSS = `
   .m-home .m-card .m-peek .m-phone { transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1); }
   .m-home .m-card:hover .m-peek .m-phone { transform: translateY(-14px); }
 }
-@keyframes m-float { 0%, 100% { transform: rotate(2.5deg) translateY(0); } 50% { transform: rotate(2.5deg) translateY(-10px); } }
-@keyframes m-float-back { 0%, 100% { transform: rotate(-8deg) translateY(0); } 50% { transform: rotate(-8deg) translateY(8px); } }
 @keyframes m-shine { from { background-position: 120% 0; } to { background-position: -20% 0; } }
 @keyframes m-ripple { 0% { transform: scale(0.45); opacity: 0; } 18% { opacity: 1; } 100% { transform: scale(1.18); opacity: 0; } }
 @keyframes m-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-@keyframes m-arrive { from { opacity: 0; transform: translateY(46px) rotate(6deg); } to { opacity: 1; transform: rotate(2.5deg); } }
-@keyframes m-arrive-back { from { opacity: 0; transform: translateY(60px) rotate(-2deg); } to { opacity: 0.92; transform: rotate(-8deg); } }
-.m-home .m-loop { position: relative; aspect-ratio: 720 / 1400; }
-.m-home .m-loop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity 0.5s ease; }
-.m-home .m-loop img.m-on { opacity: 1; z-index: 2; }
-.m-home .m-loop img.m-was { opacity: 1; z-index: 1; }
-@media (prefers-reduced-motion: reduce) {
-  .m-home .m-loop img { transition: none; }
-}
 .m-home .m-tryline { grid-area: try; display: grid; gap: 12px; max-width: 470px; padding: 18px 20px; border: 1px solid var(--m-line); border-radius: 18px; background: var(--m-ground-deep); }
 .m-home .m-tryline label { color: var(--m-on-ground-soft); font-size: 0.98rem; }
 .m-home .m-tryline label b { color: var(--m-on-ground); font-weight: 600; }
@@ -203,9 +154,6 @@ export const HOME_CSS = `
 @media (max-width: 900px) {
   .m-home .m-hero { background: radial-gradient(520px 420px at 50% 62%, var(--m-ground-rise), transparent 70%); }
   .m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "copy" "phone" "try"; }
-  .m-home .m-hero-phone { max-width: 230px; margin-inline: auto; width: 100%; translate: 34px 0; }
-  .m-home .m-hero-phone .m-loop { aspect-ratio: 9 / 13; }
-  .m-home .m-hero-phone .m-phone.m-back img { aspect-ratio: 9 / 13; }
   .m-home .m-tryline { max-width: none; }
 }
 .m-home .m-ticker { margin-top: clamp(44px, 6vw, 76px); border-block: 1px solid var(--m-line); background: var(--m-ground-deep); overflow: hidden; font: 500 0.95rem/1 var(--m-mono); }
@@ -241,23 +189,8 @@ export const HOME_CSS = `
 .m-home .m-times button[aria-selected="true"] { background: var(--m-sel-bg); border-color: var(--m-sel-bg); color: var(--m-sel-soft); }
 .m-home .m-times button[aria-selected="true"] b { color: var(--m-sel-fg); }
 .m-home .m-times button { position: relative; overflow: hidden; }
-.m-home .m-story { display: none; }
 @media (min-width: 900px) {
-  .m-home #round .m-times, .m-home #round #steps { display: none; }
-  .m-home .m-story { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: clamp(48px, 9vw, 130px); align-items: start; }
-  .m-home .m-story .m-stage { position: sticky; top: max(84px, calc(50vh - 266px)); }
-  .m-home .m-story .m-stage .m-phone { position: relative; aspect-ratio: 9 / 16; }
-  .m-home .m-story .m-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity 0.45s ease; }
-  .m-home .m-story .m-stage img.m-on { opacity: 1; z-index: 2; }
-  .m-home .m-story .m-stage img.m-was { opacity: 1; z-index: 1; }
-  .m-home .m-story .m-beat { min-height: 62vh; display: grid; align-content: center; gap: 16px; transition: opacity 0.4s ease; }
   /* The moments not yet reached step back, but stay readable: at 0.3 they were 2.3:1, below any floor. */
-  .m-home .m-story.m-live .m-beat { opacity: 0.68; }
-  .m-home .m-story.m-live .m-beat.m-on { opacity: 1; }
-  .m-home .m-story .m-beat .m-clock { font: 500 clamp(3rem, 6vw, 5.2rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.03em; }
-  .m-home .m-story .m-beat .m-what { font: 600 0.75rem/1 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
-  .m-home .m-story .m-beat h3 { font-size: clamp(1.8rem, 3vw, 2.6rem); max-width: 16ch; }
-  .m-home .m-story .m-beat p { color: var(--m-on-ground-soft); font-size: 1.15rem; max-width: 40ch; }
 }
 /* THE WHOLE COMPETITION, IN ORDER: one still row of the week's steps, at every width. It was a
    very large running tagline over a second running line on a wide screen, cut off at both edges
@@ -292,17 +225,6 @@ export const HOME_CSS = `
 .m-home .m-moment p { color: var(--m-on-ground-soft); font-size: 1.08rem; max-width: 38ch; }
 @media (max-width: 820px) {
   .m-home .m-moment .m-grid { grid-template-columns: minmax(0, 1fr); }
-}
-.m-home .m-step { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: clamp(28px, 6vw, 84px); align-items: center; }
-.m-home .m-step .m-phone { aspect-ratio: 9 / 14; }
-.m-home .m-step .m-phone img { height: 100%; object-fit: cover; object-position: top; }
-.m-home .m-step .m-say { display: grid; gap: 16px; align-content: start; }
-.m-home .m-step .m-clock { font: 500 clamp(2.2rem, 5vw, 3.6rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.02em; }
-.m-home .m-step p { color: var(--m-on-ground-soft); max-width: 44ch; font-size: 1.08rem; }
-@media (max-width: 760px) {
-  .m-home .m-step { grid-template-columns: minmax(0, 1fr); }
-  .m-home .m-step .m-say { order: -1; }
-  .m-home .m-step .m-phone { max-width: 240px; margin-inline: auto; width: 100%; }
 }
 .m-home .m-wide { display: grid; gap: 26px; }
 .m-home .m-wide .m-line { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px clamp(28px, 6vw, 80px); align-items: end; }
@@ -395,29 +317,9 @@ export const HOME_CSS = `
 .m-home .m-close .m-rings { position: absolute; z-index: 0; left: 86%; top: 50%; width: 62%; height: 240%; }
 .m-home .m-close h2 { font-size: clamp(2.2rem, 5.2vw, 4rem); }
 .m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 320px); column-gap: clamp(60px, 9vw, 150px); }
-.m-home .m-hero-phone .m-phone.m-back.m-left { inset: 9% auto auto -50%; width: 80%; transform: rotate(-9deg); opacity: 1; }
-.m-home .m-hero-phone .m-phone:not(.m-back) { box-shadow: 0 50px 90px -30px rgba(0, 0, 0, 0.75), 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent); }
-@media (prefers-reduced-motion: no-preference) {
-  .m-home .m-hero-phone .m-phone:not(.m-back) { animation: m-deal 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both, m-float 7s ease-in-out 1.4s infinite; }
-  .m-home .m-hero-phone .m-phone.m-back.m-left { animation: m-deal-left 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.35s both, m-float-left 8s ease-in-out 1.6s infinite; }
-}
-@keyframes m-deal { from { opacity: 0; transform: translateY(70px) rotate(0deg) scale(0.82); } to { opacity: 1; transform: rotate(2.5deg); } }
-@keyframes m-deal-left { from { opacity: 0; transform: translate(58%, 60px) rotate(0deg) scale(0.8); } to { opacity: 1; transform: rotate(-9deg); } }
-@keyframes m-float-left { 0%, 100% { transform: rotate(-9deg) translateY(0); } 50% { transform: rotate(-9deg) translateY(9px); } }
-@media (max-width: 900px) {
-  .m-home .m-hero-phone { max-width: 210px; translate: 0 0; }
-}
 @media (min-width: 900px) {
-  .m-home #round .m-times, .m-home #round #steps { display: none; }
-  .m-home #round .m-times { display: flex; position: sticky; top: var(--m-hdr); z-index: 6; margin-inline: -24px; padding: 12px 24px; margin-bottom: 30px; background: color-mix(in srgb, var(--m-ground) 86%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid var(--m-line); }
-  .m-home .m-story { grid-template-columns: minmax(0, 340px) minmax(0, 1fr); }
-  .m-home .m-story .m-stage { top: max(calc(var(--m-hdr) + 92px), calc(50vh - 250px)); }
-  .m-home .m-story .m-stage .m-phone { box-shadow: 0 50px 100px -30px rgba(0, 0, 0, 0.8), 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent); }
-  .m-home .m-story .m-stage img { transform: scale(1.08); transition: opacity 0.45s ease, transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
-  .m-home .m-story .m-stage img.m-on, .m-home .m-story .m-stage img.m-was { transform: none; }
-  .m-home .m-story .m-beat { min-height: 56vh; }
+  .m-home #round .m-times { margin-bottom: 26px; }
 }
-.m-home .m-step .m-say .m-what { font: 600 0.75rem/1 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
 .m-home .m-moment { position: relative; overflow: hidden; }
 .m-home .m-moment .m-wrap { position: relative; z-index: 2; }
 .m-home .m-wall { position: absolute; z-index: 1; top: 50%; right: -12%; width: 60%; height: 190%; transform: translateY(-50%) perspective(1500px) rotateX(46deg) rotateZ(-24deg); transform-origin: 60% 50%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; pointer-events: none; -webkit-mask-image: radial-gradient(closest-side, black 55%, transparent 100%); mask-image: radial-gradient(closest-side, black 55%, transparent 100%); }
@@ -435,51 +337,17 @@ export const HOME_CSS = `
 }
 .m-home .m-phone { position: relative; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 26%, var(--ground)), 0 30px 60px -28px var(--m-shot-shadow); }
 .m-home .m-phone::after { content: ""; position: absolute; inset: 0; z-index: 5; pointer-events: none; border-radius: inherit; background: linear-gradient(118deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 20%, rgba(255, 255, 255, 0) 78%, rgba(255, 255, 255, 0.04) 100%); }
-.m-home .m-card .m-peek .m-phone, .m-home .m-story .m-stage .m-phone { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 26%, var(--ground)), 0 50px 100px -30px rgba(0, 0, 0, 0.8); }
-@media (min-width: 900px) {
-  .m-home .m-story .m-stage::before { content: ""; position: absolute; z-index: -1; inset: 16% -34% -8%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 24%, transparent), transparent); pointer-events: none; }
-}
+.m-home .m-card .m-peek .m-phone { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 26%, var(--ground)), 0 50px 100px -30px rgba(0, 0, 0, 0.8); }
 .m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 330px); column-gap: clamp(70px, 11vw, 190px); }
-.m-home .m-hero-phone .m-phone:not(.m-back) { --m-rest: perspective(1400px) rotateY(-17deg) rotateX(5deg) rotateZ(2deg); transform: var(--m-rest); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 30%, var(--ground)), 16px 14px 0 -5px color-mix(in srgb, var(--ground) 80%, black), 17px 15px 0 -4px color-mix(in srgb, var(--ink) 18%, var(--ground)), 60px 70px 90px -20px rgba(0, 0, 0, 0.75); }
-.m-home .m-hero-phone .m-phone.m-back.m-left { --m-rest: perspective(1400px) rotateY(-22deg) rotateX(6deg) rotateZ(-7deg); transform: var(--m-rest); inset: 12% auto auto -56%; width: 78%; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 26%, var(--ground)), 13px 11px 0 -5px color-mix(in srgb, var(--ground) 80%, black), 14px 12px 0 -4px color-mix(in srgb, var(--ink) 15%, var(--ground)), 40px 50px 70px -20px rgba(0, 0, 0, 0.7); }
-.m-home .m-hero-desk { position: absolute; z-index: 0; top: -4%; left: 34%; width: 250%; transform: perspective(1800px) rotateY(-26deg) rotateX(9deg) rotateZ(1.5deg); transform-origin: 0 50%; border-radius: 14px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent); box-shadow: 0 60px 120px -30px rgba(0, 0, 0, 0.8); opacity: 0.92; -webkit-mask-image: linear-gradient(90deg, black 45%, transparent 96%); mask-image: linear-gradient(90deg, black 45%, transparent 96%); translate: 0 calc(var(--m-sy, 0) * 0.05px); }
-.m-home .m-hero-desk img { width: 100%; }
-.m-home .m-hero-phone .m-rings { left: 40%; }
-.m-home .m-hero-phone { transform-style: preserve-3d; }
-@media (prefers-reduced-motion: no-preference) {
-  .m-home .m-hero-phone .m-phone:not(.m-back) { animation: m-stand 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s both, m-hover-a 7s ease-in-out 1.5s infinite; }
-  .m-home .m-hero-phone .m-phone.m-back.m-left { animation: m-stand 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s both, m-hover-b 8s ease-in-out 1.7s infinite; }
-  .m-home .m-hero-desk { animation: m-lay 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both; }
-}
-@keyframes m-stand { from { opacity: 0; transform: var(--m-rest) translate3d(0, 90px, -260px) rotateX(24deg); } to { opacity: 1; transform: var(--m-rest); } }
-@keyframes m-hover-a { 0%, 100% { transform: var(--m-rest) translateY(0); } 50% { transform: var(--m-rest) translateY(-11px); } }
-@keyframes m-hover-b { 0%, 100% { transform: var(--m-rest) translateY(0); } 50% { transform: var(--m-rest) translateY(9px); } }
 @media (max-width: 900px) {
   .m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
-  .m-home .m-hero-phone { max-width: 220px; translate: 26px 0; }
-  .m-home .m-hero-desk { display: none; }
 }
-.m-home .m-hero-phone .m-phone img, .m-home .m-hero-desk img { filter: contrast(1.1) saturate(1.3); }
-.m-home .m-hero-desk { opacity: 0.97; }
-.m-home .m-hero-phone::after { content: ""; position: absolute; z-index: 0; left: 118%; top: 34%; width: 150%; height: 80%; transform: translate(-50%, -50%); background: radial-gradient(closest-side, color-mix(in srgb, var(--flag) 30%, transparent), transparent); filter: blur(14px); pointer-events: none; }
-.m-home .m-hero-phone::before { background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 42%, transparent), transparent); }
-@keyframes m-lay { from { opacity: 0; transform: perspective(1800px) rotateY(-44deg) rotateX(22deg) translateY(60px); } to { opacity: 0.97; transform: perspective(1800px) rotateY(-26deg) rotateX(9deg) rotateZ(1.5deg); } }
 .m-home .m-facts3 { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.93rem; color: var(--m-on-ground-soft); }
 .m-home .m-facts3 li { display: inline-flex; align-items: center; gap: 9px; }
 .m-home .m-facts3 li::before { content: ""; width: 6px; height: 11px; border: solid var(--m-hl); border-width: 0 2px 2px 0; transform: rotate(45deg) translateY(-2px); }
 .m-home .m-news { justify-self: start; display: inline-flex; align-items: center; gap: 10px; font-size: 0.9rem; text-decoration: none; color: var(--m-on-ground-soft); padding: 6px 14px 6px 6px; border: 1px solid var(--m-line); border-radius: 999px; background: color-mix(in srgb, var(--m-ground-rise) 60%, transparent); }
 .m-home .m-news b { font: 600 0.75rem/1 var(--m-mono); letter-spacing: 0.1em; text-transform: uppercase; background: var(--m-hl); color: var(--ground); padding: 5px 8px; border-radius: 999px; }
 .m-home .m-news:hover { color: var(--m-on-ground); border-color: var(--m-on-ground); }
-.m-home .m-chip { position: absolute; z-index: 6; left: -62%; bottom: 9%; display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 0.9rem; color: var(--m-on-ground); padding: 11px 16px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); background: color-mix(in srgb, var(--m-ground-deep) 72%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 20px 40px -18px rgba(0, 0, 0, 0.8); }
-.m-home .m-chip b { font-weight: 600; }
-.m-home .m-chip .m-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--flag); }
-@media (prefers-reduced-motion: no-preference) {
-  .m-home .m-chip { animation: m-rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 1.3s both; }
-  .m-home .m-chip .m-dot { animation: m-pulse 1.6s ease-in-out infinite; }
-}
-@media (max-width: 900px) {
-  .m-home .m-chip { left: -40%; bottom: 4%; font-size: 0.82rem; padding: 9px 12px; }
-}
 .m-home .m-runs { list-style: none; margin: clamp(26px, 4vw, 44px) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .m-home .m-runs li { font-size: 0.95rem; padding: 9px 15px; border: 1px solid var(--m-line); border-radius: 999px; color: var(--m-on-ground-soft); }
 .m-home .m-runs li b { color: var(--m-on-ground); font-weight: 600; }
@@ -488,22 +356,6 @@ export const HOME_CSS = `
   .m-home .m-hero::before { animation: m-weather 20s ease-in-out infinite alternate; }
 }
 @keyframes m-weather { from { transform: translate3d(-3%, -2%, 0) rotate(-4deg) scale(1); } to { transform: translate3d(4%, 3%, 0) rotate(5deg) scale(1.12); } }
-.m-home .m-chip { translate: 0 0 240px; left: auto; right: -34%; bottom: -5%; }
-@media (max-width: 900px) {
-  .m-home .m-chip { left: auto; right: -6%; bottom: -3%; }
-}
-.m-home .m-rail { display: none; }
-@media (min-width: 900px) {
-  .m-home .m-story .m-beats { position: relative; }
-  .m-home .m-rail { display: block; position: absolute; left: clamp(-90px, -5.5vw, -34px); top: 8vh; bottom: 12vh; width: 2px; background: var(--m-line); }
-  .m-home .m-rail::before { content: ""; position: absolute; left: 0; top: 0; width: 2px; height: calc(var(--m-roll, 0) * 100%); background: var(--m-hl); }
-  .m-home .m-rail .m-ball { position: absolute; left: 50%; top: calc(var(--m-roll, 0) * 100%); width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, white, color-mix(in srgb, var(--ink) 88%, black) 58%, color-mix(in srgb, var(--ink) 66%, black)); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ink) 7%, transparent), 0 0 26px color-mix(in srgb, var(--ink) 55%, transparent); transition: transform 0.45s cubic-bezier(0.5, 0, 0.8, 0.4), opacity 0.45s ease; }
-  .m-home .m-rail .m-cup { position: absolute; left: 50%; bottom: -12px; width: 30px; height: 11px; margin-left: -15px; border-radius: 50%; background: black; box-shadow: 0 0 0 2px var(--m-line); transition: box-shadow 0.5s ease; }
-  .m-home .m-rail .m-flag { position: absolute; left: 50%; bottom: -6px; width: 2px; height: 46px; background: var(--m-on-ground); }
-  .m-home .m-rail .m-flag::after { content: ""; position: absolute; left: 2px; top: 0; border: solid transparent; border-width: 8px 0 8px 16px; border-left-color: var(--m-hl); }
-  .m-home .m-rail.m-in .m-ball { transform: translateY(14px) scale(0.3); opacity: 0; }
-  .m-home .m-rail.m-in .m-cup { box-shadow: 0 0 0 2px var(--m-hl), 0 0 0 12px color-mix(in srgb, var(--brass-ui) 22%, transparent), 0 0 0 26px color-mix(in srgb, var(--brass-ui) 8%, transparent); }
-}
 .m-home .m-card { position: relative; }
 .m-home .m-card::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 0.3s ease; background: radial-gradient(420px 420px at var(--m-gx, 50%) var(--m-gy, 50%), rgba(255, 255, 255, 0.13), transparent 60%); }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
@@ -531,13 +383,6 @@ export const HOME_CSS = `
 }
 @keyframes m-draw { to { stroke-dashoffset: 0; } }
 @keyframes m-roll { 0% { offset-distance: 0%; opacity: 1; } 85% { offset-distance: 97%; opacity: 1; transform: scale(1); } 100% { offset-distance: 100%; opacity: 0; transform: scale(0.4); } }
-@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .m-home .m-story.m-live .m-beat .m-what, .m-home .m-story.m-live .m-beat .m-clock, .m-home .m-story.m-live .m-beat h3, .m-home .m-story.m-live .m-beat p { transform: translateY(18px); transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
-  .m-home .m-story.m-live .m-beat.m-on .m-what, .m-home .m-story.m-live .m-beat.m-on .m-clock, .m-home .m-story.m-live .m-beat.m-on h3, .m-home .m-story.m-live .m-beat.m-on p { transform: none; }
-  .m-home .m-story.m-live .m-beat.m-on .m-clock { transition-delay: 0.05s; }
-  .m-home .m-story.m-live .m-beat.m-on h3 { transition-delay: 0.1s; }
-  .m-home .m-story.m-live .m-beat.m-on p { transition-delay: 0.16s; }
-}
 @media (min-width: 821px) {
   .m-home .m-wall { transform: translateY(-50%) perspective(1500px) rotateX(calc(46deg + var(--m-wy, 0) * 5deg)) rotateZ(calc(-24deg + var(--m-wx, 0) * 5deg)); transition: transform 0.4s ease-out; }
 }
@@ -579,22 +424,10 @@ export const HOME_CSS = `
 .m-home .m-ticker { position: relative; }
 .m-home .m-ticker.m-flash::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--brass-ui) 30%, transparent), transparent); animation: m-sweep 1.2s ease-out 1 both; }
 @keyframes m-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-.m-home .m-burst { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
 .m-home .m-hues { position: absolute; left: 0; right: 0; bottom: 0; height: 12px; z-index: 3; pointer-events: none; }
 .m-home .m-hues i { position: absolute; top: 0; bottom: 0; }
 .m-home .m-compare .m-handle { background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18); }
 .m-home { background-image: repeating-linear-gradient(112deg, color-mix(in srgb, var(--ink) 1.3%, transparent) 0 110px, transparent 110px 220px); background-attachment: fixed; }
-@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .m-home .m-story .m-beats { perspective: 900px; }
-  .m-home .m-story.m-live .m-beat .m-clock { transform: rotateX(-82deg); transform-origin: 50% 100%; transition: transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1.1); backface-visibility: hidden; display: inline-block; }
-  .m-home .m-story.m-live .m-beat.m-on .m-clock { transform: none; }
-}
-.m-home .m-toast { position: absolute; z-index: 7; right: -22%; top: 12%; translate: 0 0 260px; display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; font: 600 0.9rem/1 var(--m-body); color: var(--ground); background: var(--ink); padding: 11px 15px; border-radius: 999px; box-shadow: 0 18px 36px -14px rgba(0, 0, 0, 0.8); opacity: 0; transform: translateY(10px) scale(0.92); transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1.3); pointer-events: none; }
-.m-home .m-toast::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--flag); }
-.m-home .m-toast.m-show { opacity: 1; transform: none; }
-@media (max-width: 900px) {
-  .m-home .m-toast { right: -4%; top: 6%; font-size: 0.82rem; padding: 9px 12px; }
-}
 .m-home .m-bars li.m-saved { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 28px; padding-top: 22px; border-top: 1px solid var(--m-line); align-items: start; }
 .m-home .m-saved div { display: grid; gap: 4px; }
 .m-home .m-saved b { font-family: var(--m-display); font-weight: 560; font-size: clamp(1.9rem, 3.4vw, 2.8rem); line-height: 1; color: var(--m-hl); font-variant-numeric: tabular-nums; }
@@ -610,15 +443,6 @@ export const HOME_CSS = `
 @media (hover: hover) {
   .m-home .m-wide .m-screen.m-in:hover { box-shadow: 0 -1px 0 0 rgba(255, 255, 255, 0.4), 0 80px 130px -50px rgba(0, 0, 0, 0.95), 0 40px 170px -30px color-mix(in srgb, var(--brass-ui) 50%, transparent), 0 -30px 140px -56px color-mix(in srgb, var(--flag) 40%, transparent); }
 }
-@media (min-width: 900px) {
-  .m-home .m-story .m-stage .m-phone { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 0 0 9px color-mix(in srgb, var(--ink) 4%, transparent), 0 60px 110px -34px rgba(0, 0, 0, 0.9), 0 30px 120px -20px color-mix(in srgb, var(--brass-ui) 30%, transparent); }
-  .m-home .m-story .m-stage::after { content: ""; position: absolute; z-index: -1; left: 6%; right: 6%; bottom: -46px; height: 44px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), transparent); filter: blur(7px); pointer-events: none; }
-  .m-home .m-story .m-stage::before { inset: 10% -40% -12%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 30%, transparent), color-mix(in srgb, var(--flag) 7%, transparent) 62%, transparent); }
-}
-@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .m-home .m-story .m-stage.m-flare::before { animation: m-flare 0.95s ease-out 1; }
-}
-@keyframes m-flare { 0% { transform: scale(0.86); opacity: 1; filter: brightness(2.3); } 100% { transform: none; opacity: 1; filter: none; } }
 .m-home .m-colours .m-pic { position: relative; }
 .m-home .m-colours .m-pic::before { content: ""; position: absolute; z-index: 0; inset: 18% -30% -14%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 26%, transparent), transparent); pointer-events: none; }
 .m-home .m-colours .m-pic .m-phone { position: relative; z-index: 1; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 0 0 9px color-mix(in srgb, var(--ink) 4%, transparent), 0 50px 90px -30px rgba(0, 0, 0, 0.9); }
@@ -626,9 +450,6 @@ export const HOME_CSS = `
 .m-home .m-card .m-peek::before { content: ""; position: absolute; z-index: 0; inset: 12% -10% -30%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 20%, transparent), transparent); pointer-events: none; opacity: 0.55; transition: opacity 0.4s ease; }
 .m-home .m-card:hover .m-peek::before { opacity: 1; }
 .m-home .m-card .m-peek .m-phone { position: relative; z-index: 1; }
-@media (max-width: 899px) {
-  .m-home #steps .m-step .m-phone { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 -18px 70px -18px color-mix(in srgb, var(--brass-ui) 32%, transparent); }
-}
 .m-home .m-close .m-rings { width: 660px; height: 660px; top: calc(50% + 80px); }
 @media (max-width: 899px) {
   .m-home .m-kinetic { padding: 6px 16px 30px; }
@@ -641,11 +462,6 @@ export const HOME_CSS = `
   .m-home .m-close::before { right: -30%; top: 0; width: 110%; height: 70%; transform: translateY(-45%); }
 }
 .m-home .m-pin { display: contents; }
-@media (min-width: 900px) {
-  .m-home .m-story { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); }
-  .m-home .m-story .m-stage .m-phone { aspect-ratio: 393 / 852; }
-  .m-home .m-story .m-stage { top: max(calc(var(--m-hdr) + 86px), calc(50vh - 300px)); }
-}
 .m-home .m-world { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(14px, 2.2vw, 30px); align-items: start; padding-top: 22px; }
 .m-home .m-wphone { position: relative; margin: 0; display: grid; gap: 16px; }
 .m-home .m-wphone:nth-child(2), .m-home .m-wphone:nth-child(4) { margin-top: 38px; }
@@ -672,60 +488,17 @@ export const HOME_CSS = `
   .m-home .m-world-also { justify-content: flex-start; }
 }
 @media (max-width: 899px) {
-  .m-home.m-pin-story #round .m-times, .m-home.m-pin-story #round #steps { display: none; }
-  .m-home.m-pin-story .m-story { display: block; position: relative; height: calc(100vh - var(--m-hdr) + 7 * 56vh); height: calc(100svh - var(--m-hdr) + 7 * 56svh); margin-inline: -16px; }
-  .m-home.m-pin-story .m-story .m-pin { display: flex; flex-direction: column; position: sticky; top: var(--m-hdr); height: calc(100vh - var(--m-hdr)); height: calc(100svh - var(--m-hdr)); overflow: hidden; --m-foot: 136px; padding-bottom: var(--m-foot); }
-  .m-home.m-pin-story .m-story .m-pin::before { content: ""; position: absolute; z-index: 0; left: -20%; right: -20%; top: -6%; height: 62%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 30%, transparent), color-mix(in srgb, var(--flag) 6%, transparent) 64%, transparent); pointer-events: none; }
   /* THE SCREEN TAKES WHAT THE WORDS LEAVE (2026-10-13). It was a fixed 46% of the pin, and the words a
      box as tall as whatever was left over — so on a tall phone the picture stopped half-way down a
      phone it had room to show, and a band of nothing sat between the last line and the rail. Now the
      words are as tall as the longest of the seven (they share one grid cell), the rail has its strip
      at the foot, and the picture has all the rest, at any height. */
-  .m-home.m-pin-story .m-story .m-stage { position: relative; z-index: 1; flex: 1 1 0; min-height: 0; display: grid; justify-items: center; align-items: start; padding-top: 18px; overflow: hidden; -webkit-mask-image: linear-gradient(black 74%, transparent); mask-image: linear-gradient(black 74%, transparent); }
-  .m-home.m-pin-story .m-story .m-stage .m-phone { position: relative; width: min(60vw, 250px); aspect-ratio: 393 / 852; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 0 0 8px color-mix(in srgb, var(--ink) 4%, transparent), 0 30px 80px -20px rgba(0, 0, 0, 0.9); }
-  .m-home.m-pin-story .m-story .m-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity 0.4s ease; }
-  .m-home.m-pin-story .m-story .m-stage img.m-on { opacity: 1; z-index: 2; }
-  .m-home.m-pin-story .m-story .m-stage img.m-was { opacity: 1; z-index: 1; }
-  .m-home.m-pin-story .m-story .m-beats { position: relative; z-index: 2; flex: 0 0 auto; display: grid; margin-inline: 16px; }
-  .m-home.m-pin-story .m-story .m-beat { grid-area: 1 / 1; display: grid; gap: 8px; align-content: start; opacity: 0; transform: translateY(22px); transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); pointer-events: none; }
-  .m-home.m-pin-story .m-story .m-beat.m-on { opacity: 1; transform: none; pointer-events: auto; }
-  .m-home.m-pin-story .m-story .m-beat .m-what { font: 600 0.72rem/1 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
-  .m-home.m-pin-story .m-story .m-beat .m-clock { font: 500 clamp(2.5rem, 12vw, 3.4rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.03em; }
-  .m-home.m-pin-story .m-story .m-beat h3 { font-size: clamp(1.45rem, 6.4vw, 1.9rem); max-width: 18ch; }
-  .m-home.m-pin-story .m-story .m-beat p { color: var(--m-on-ground-soft); font-size: 1rem; max-width: 38ch; }
-  .m-home.m-pin-story .m-rail { display: block; position: absolute; left: 4px; right: 34px; top: auto; bottom: calc(92px - var(--m-foot)); width: auto; height: 2px; background: var(--m-line); }
-  .m-home.m-pin-story .m-rail::before { content: ""; position: absolute; left: 0; top: 0; height: 2px; width: calc(var(--m-roll, 0) * 100%); background: var(--m-hl); }
-  .m-home.m-pin-story .m-rail .m-ball { position: absolute; left: calc(var(--m-roll, 0) * 100%); top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, white, color-mix(in srgb, var(--ink) 88%, black) 58%, color-mix(in srgb, var(--ink) 66%, black)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 7%, transparent), 0 0 22px color-mix(in srgb, var(--ink) 55%, transparent); transition: transform 0.45s ease, opacity 0.45s ease; }
-  .m-home.m-pin-story .m-rail .m-cup { position: absolute; right: -30px; top: 50%; width: 28px; height: 10px; margin-top: -5px; border-radius: 50%; background: black; box-shadow: 0 0 0 2px var(--m-line); transition: box-shadow 0.5s ease; }
-  .m-home.m-pin-story .m-rail .m-flag { position: absolute; right: -17px; bottom: 0; width: 2px; height: 40px; background: var(--m-on-ground); }
-  .m-home.m-pin-story .m-rail .m-flag::after { content: ""; position: absolute; left: 2px; top: 0; border: solid transparent; border-width: 7px 0 7px 14px; border-left-color: var(--m-hl); }
-  .m-home.m-pin-story .m-rail.m-in .m-ball { transform: translateX(22px) scale(0.3); opacity: 0; }
 }
 /* a short phone (an SE, a landscape-ish browser bar): the screen gives up height to the words, and the
    words keep clear of the flag standing at the end of the rail */
-@media (max-width: 899px) and (max-height: 700px) {
-  .m-home.m-pin-story .m-story .m-pin { --m-foot: 124px; }
-  .m-home.m-pin-story .m-story .m-stage { padding-top: 12px; }
-  .m-home.m-pin-story .m-story .m-beat { gap: 6px; }
-  .m-home.m-pin-story .m-story .m-beat .m-clock { font-size: 2rem; }
-  .m-home.m-pin-story .m-story .m-beat h3 { font-size: 1.3rem; }
-  .m-home.m-pin-story .m-story .m-beat p { font-size: 0.95rem; padding-right: 46px; }
-  .m-home.m-pin-story .m-rail .m-flag { height: 26px; }
-  .m-home.m-pin-story .m-rail.m-in .m-cup { box-shadow: 0 0 0 2px var(--m-hl), 0 0 0 10px color-mix(in srgb, var(--brass-ui) 22%, transparent), 0 0 0 22px color-mix(in srgb, var(--brass-ui) 8%, transparent); }
-}
-.m-home .m-hero-phone { transform: none; transform-style: flat; }
-.m-home .m-hero-phone .m-phone:not(.m-back) { z-index: 3; }
-.m-home .m-hero-phone .m-phone.m-back.m-left { z-index: 1; }
-.m-home .m-hero-phone .m-phone:not(.m-back) { --m-rest: none; transform: none; translate: none; animation: none; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 0 0 9px color-mix(in srgb, var(--ink) 5%, transparent), 0 60px 110px -30px rgba(0, 0, 0, 0.9), 0 30px 120px -18px color-mix(in srgb, var(--brass-ui) 36%, transparent); }
-@media (prefers-reduced-motion: no-preference) {
-  .m-home .m-hero-phone .m-phone:not(.m-back) { animation: m-rise-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s both; }
-}
-@keyframes m-rise-in { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }
-.m-home .m-hero-phone .m-phone img, .m-home .m-hero-desk img { filter: none; }
 .m-home img { image-rendering: auto; }
 .m-home .m-btn .m-short { display: none; }
 .m-home .m-dock { display: none; }
-.m-home .m-hero-phone .m-phone.m-back.m-left { inset: 12% auto auto -46%; }
 @media (max-width: 899px) {
   .m-home .m-hero .m-lead { display: none; }
   .m-home .m-hero .m-cta-row { flex-wrap: nowrap; }
@@ -735,16 +508,7 @@ export const HOME_CSS = `
   .m-home .m-news { font-size: 0.84rem; }
   .m-home .m-runs { gap: 8px; }
   .m-home .m-runs li { font-size: 0.88rem; padding: 7px 12px; }
-  .m-home #round .m-times { position: relative; margin-inline: -16px; padding-inline: 16px; scroll-padding-inline: 16px; scrollbar-width: none; margin-bottom: 18px; }
-  .m-home #round .m-times::-webkit-scrollbar { display: none; }
-  .m-home #steps { position: relative; display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -16px; padding: 4px 16px 18px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .m-home #steps::-webkit-scrollbar { display: none; }
-  .m-home #steps .m-step, .m-home #steps .m-step[hidden] { display: grid !important; flex: 0 0 84%; scroll-snap-align: center; grid-template-columns: minmax(0, 1fr); gap: 0; align-items: start; border: 1px solid var(--m-line); border-radius: 22px; background: var(--m-ground-rise); padding: 22px 22px 0; overflow: hidden; }
-  .m-home #steps .m-step .m-say { order: -1; gap: 10px; }
-  .m-home #steps .m-step .m-clock { font-size: 2.3rem; }
-  .m-home #steps .m-step p { font-size: 1rem; }
-  .m-home #steps .m-step .m-phone { margin: 20px auto 0; max-width: 250px; width: 100%; aspect-ratio: auto; height: 310px; border-bottom: 0; border-radius: 30px 30px 0 0; }
-  .m-home #steps .m-step .m-phone img { height: auto; }
+  .m-home #round .m-times { display: none; }
   .m-home .m-moment { display: flex; flex-direction: column-reverse; padding-bottom: 0; }
   .m-home .m-moment .m-big > span { display: block; }
   .m-home .m-moment .m-big .m-l1, .m-home .m-moment .m-big .m-l2 { white-space: normal; }
@@ -798,12 +562,11 @@ export const HOME_CSS = `
    The prototype cropped screens to a frame (object-fit: cover), scaled one up on a phone, and tilted a
    card toward the pointer. A cropped or scaled capture is not the screen, and a turned one blurs. */
 /* screens that take turns share one grid cell, so each keeps the capture's own shape */
-.m-home .m-loop, .m-home .m-hero-phone .m-loop, .m-home .m-story .m-stage .m-phone, .m-home.m-pin-story .m-story .m-stage .m-phone, .m-home .m-compare { display: grid; aspect-ratio: auto; }
-.m-home .m-loop img, .m-home .m-story .m-stage img, .m-home.m-pin-story .m-story .m-stage img, .m-home .m-compare img { position: static; inset: auto; grid-area: 1 / 1; width: 100%; height: auto; object-fit: fill; transform: none; }
-.m-home .m-story .m-stage img.m-on, .m-home .m-story .m-stage img.m-was { transform: none; }
+.m-home .m-compare { display: grid; aspect-ratio: auto; }
+.m-home .m-compare img { position: static; inset: auto; grid-area: 1 / 1; width: 100%; height: auto; object-fit: fill; transform: none; }
 /* single screens: the frame takes its height from the picture */
-.m-home .m-step .m-phone, .m-home .m-wphone .m-phone { aspect-ratio: auto; }
-.m-home .m-step .m-phone img, .m-home .m-wphone .m-phone img { height: auto; object-fit: fill; }
+.m-home .m-wphone .m-phone { aspect-ratio: auto; }
+.m-home .m-wphone .m-phone img { height: auto; object-fit: fill; }
 /* the organizer's laptop screen, whole; on a narrow screen its place is taken by the same organizer on a phone,
    because a laptop screen shrunk to a phone's width is four-pixel text */
 .m-home .m-wide .m-screen { aspect-ratio: auto; }
@@ -820,19 +583,12 @@ export const HOME_CSS = `
 /* THE SECOND PHONE IS A PHONE, NOT A THUMBNAIL (Ajay, 2026-10-12: "the other screen looks tiny").
    It was cropped short and turned in depth, which shrank it twice. Now it is nearly the size of the
    first, whole, tilted flat, and half behind it — still scenery, still marked so. */
-.m-home .m-hero-phone .m-phone.m-back.m-left { --m-rest: rotate(-7deg); transform: var(--m-rest); inset: 4% auto auto -30%; width: 88%; }
-.m-home .m-hero-phone .m-phone.m-back img { aspect-ratio: auto; }
 /* ON A PHONE THE PAIR IS CENTRED AS A PAIR (Ajay, 2026-10-13: "the two screenshots are coming left of
    the screen with gap on the right"). The front phone was centred and nudged 26px, with the second
    hung 62% out to its left — right for a laptop, where the organizer's screen fills the right-hand
    side, and lopsided here, where that screen is not drawn. The second phone now shows half of itself
    to the left, and the pair is moved right by half of that: a quarter of the front phone's own width,
    so it is centred at every width without a number per phone. */
-@media (max-width: 900px) {
-  .m-home .m-hero-phone { max-width: min(56vw, 290px); translate: 25% 0; }
-  .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 5% auto auto -50%; width: 90%; }
-}
-@media (min-width: 901px) and (max-width: 1099px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 4% auto auto -16%; width: 84%; } }
 /* ── EVERYONE CAN WATCH: the demo club (2026-10-24) ──
    The words and the button; beside them on a laptop, the QR for the visitor's own phone. A phone
    has no use for a code to scan with itself, so there the QR gives way to a plain link. */
@@ -875,4 +631,130 @@ export const HOME_CSS = `
    some 250px past the footer into nothing. Clipped where the page's main part ends, with clip and not hidden, so nothing
    that sticks while scrolling loses the viewport it sticks to. */
 .m-home { overflow-y: clip; }
+/* ── THE HERO'S STAGE (2026-11-01, hero-stage.tsx) ──
+   Ajay, 1 Nov: "make it real impressive, keep up with the latest trend" — and only if it beats the stage it
+   replaces, whose strength was large, lit devices. A laptop built in CSS 3D (lid, screen, aluminium deck),
+   turned and lit, with the organizer's live leaderboard on it; in front, the player's phone in a real frame
+   (titanium rim, side keys, glass), as large as before or larger; behind both, an AI-made plinth and glow
+   (hero-scene). The phone a visitor READS stands square and still once it has arrived; only the laptop,
+   which is scenery, is turned. Glass, rim light and the light on the changed row are layers over the
+   pictures, never in them. */
+.m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: clamp(40px, 5vw, 76px); }
+.m-home .m-rig { grid-area: phone; align-self: start; position: relative; width: 100%; padding-top: 44px; }
+.m-home .m-rig::before { content: ""; position: absolute; z-index: 0; left: 50%; top: 52%; width: 190%; height: 95%; transform: translate(-50%, -50%); background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 30%, transparent), transparent); filter: blur(18px); pointer-events: none; }
+.m-home .m-scene { position: absolute; z-index: 0; left: -70%; top: 30%; width: 360%; pointer-events: none; opacity: 0.95; -webkit-mask-image: radial-gradient(60% 62% at 52% 58%, black 55%, transparent 100%); mask-image: radial-gradient(60% 62% at 52% 58%, black 55%, transparent 100%); }
+.m-home .m-scene img { width: 100%; }
+
+/* the laptop: scenery, turned in 3D */
+.m-home .m-laptop { position: absolute; z-index: 1; left: 30%; top: -3%; width: 880px; transform-style: preserve-3d; transform-origin: 0 50%; transform: perspective(2200px) rotateY(-21deg) rotateX(5deg); }
+.m-home .m-lid { position: relative; padding: 13px 13px 20px; border-radius: 20px; background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 9%, black), black 18%); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 30%, black), 0 0 0 3px color-mix(in srgb, var(--ink) 10%, black), inset 0 1px 0 color-mix(in srgb, var(--ink) 22%, transparent), 50px 60px 90px -30px rgba(0, 0, 0, 0.85); }
+.m-home .m-lid::before { content: ""; position: absolute; top: 5px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 18%, black); }
+.m-home .m-lid-screen { position: relative; display: grid; border-radius: 6px; overflow: hidden; background: var(--paper); }
+.m-home .m-lid-screen img, .m-home .m-hand-screen img { grid-area: 1 / 1; width: 100%; opacity: 0; }
+.m-home .m-lid-screen img.m-on, .m-home .m-hand-screen img.m-on { opacity: 1; z-index: 2; }
+.m-home .m-lid-screen img.m-was, .m-home .m-hand-screen img.m-was { opacity: 1; z-index: 1; }
+.m-home .m-sheen { position: absolute; inset: 0; z-index: 4; pointer-events: none; background: linear-gradient(105deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.13) 44%, rgba(255, 255, 255, 0) 58%); background-size: 260% 100%; background-position: 100% 0; mix-blend-mode: screen; }
+.m-home .m-deck { position: absolute; left: -7%; top: calc(100% - 3px); width: 114%; height: 470px; transform-origin: 50% 0; transform: rotateX(88deg); border-radius: 6px 6px 26px 26px; background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 62%, black) 0%, color-mix(in srgb, var(--ink) 44%, black) 8%, color-mix(in srgb, var(--ink) 30%, black) 100%); box-shadow: inset 0 2px 0 color-mix(in srgb, var(--ink) 80%, white), 0 0 0 1px color-mix(in srgb, var(--ink) 20%, black); }
+.m-home .m-deck::before { content: ""; position: absolute; left: 50%; top: 0; width: 18%; height: 10px; margin-left: -9%; border-radius: 0 0 10px 10px; background: color-mix(in srgb, var(--ink) 26%, black); }
+
+/* the phone: read, so square and still once it has arrived */
+.m-home .m-hand { position: relative; z-index: 3; padding: 3px; border-radius: 56px; background: linear-gradient(150deg, color-mix(in srgb, var(--ink) 62%, black) 0%, color-mix(in srgb, var(--ink) 18%, black) 10%, color-mix(in srgb, var(--ink) 9%, black) 45%, color-mix(in srgb, var(--ink) 20%, black) 82%, color-mix(in srgb, var(--brass-ui) 75%, black) 100%); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 10%, black), inset 0 1px 0 color-mix(in srgb, var(--ink) 40%, transparent), 0 70px 110px -30px rgba(0, 0, 0, 0.9), 40px 30px 140px -30px color-mix(in srgb, var(--brass-ui) 48%, transparent), -30px -20px 120px -50px color-mix(in srgb, var(--ink) 30%, transparent); }
+.m-home .m-hand::after { content: ""; position: absolute; z-index: -2; left: 6%; right: 6%; bottom: -46px; height: 64px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), transparent); filter: blur(6px); }
+.m-home .m-keys { position: absolute; inset: 0; pointer-events: none; }
+.m-home .m-keys::before, .m-home .m-keys::after { content: ""; position: absolute; width: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 40%, black); }
+.m-home .m-keys::before { left: -3px; top: 19%; height: 58px; width: 3px; box-shadow: 0 72px 0 color-mix(in srgb, var(--ink) 40%, black); }
+.m-home .m-keys::after { right: -3px; top: 26%; height: 92px; width: 3px; }
+.m-home .m-hand-screen { position: relative; display: grid; border: 9px solid black; border-radius: 53px; overflow: hidden; background: var(--paper); }
+.m-home .m-hand-screen::after { content: ""; position: absolute; inset: 0; z-index: 5; pointer-events: none; border-radius: inherit; background: linear-gradient(122deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 26%, rgba(255, 255, 255, 0) 82%, rgba(255, 255, 255, 0.05) 100%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+
+/* the moment: a press on the card, a light on the row that moved */
+.m-home .m-tap { position: absolute; z-index: 4; border-radius: 14px; opacity: 0; pointer-events: none; box-shadow: 0 0 0 3px var(--m-hl), 0 0 30px 6px color-mix(in srgb, var(--m-hl) 45%, transparent); }
+.m-home .m-row-light { position: absolute; z-index: 3; border-radius: 12px; opacity: 0; pointer-events: none; box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--m-hl) 90%, transparent), 0 0 34px 6px color-mix(in srgb, var(--m-hl) 40%, transparent); }
+.m-home .m-lid-screen .m-row-light { border-radius: 4px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--m-hl) 90%, transparent), 0 0 46px 10px color-mix(in srgb, var(--m-hl) 40%, transparent); }
+.m-home .m-rig.m-moved .m-row-light { opacity: 1; }
+.m-home .m-chip { position: absolute; z-index: 6; left: -30%; bottom: 7%; display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 0.92rem; color: var(--m-on-ground); padding: 11px 16px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent); background: color-mix(in srgb, var(--m-ground-deep) 74%, transparent); -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3); box-shadow: 0 24px 44px -18px rgba(0, 0, 0, 0.85), inset 0 1px 0 color-mix(in srgb, var(--ink) 14%, transparent); }
+.m-home .m-chip b { font-weight: 600; }
+.m-home .m-chip .m-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--m-hl); box-shadow: 0 0 0 4px color-mix(in srgb, var(--m-hl) 25%, transparent); }
+.m-home .m-count { display: inline-block; font-variant-numeric: tabular-nums; font-weight: 600; }
+.m-home .m-toast { position: absolute; z-index: 6; right: -46%; top: -6px; display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; font: 500 0.9rem/1 var(--m-body); color: var(--ground); background: var(--ink); padding: 11px 15px; border-radius: 999px; box-shadow: 0 20px 40px -14px rgba(0, 0, 0, 0.85); opacity: 0; transform: translateY(10px) scale(0.94); pointer-events: none; }
+.m-home .m-toast b { font: 600 0.88rem/1 var(--m-mono); padding: 5px 8px; border-radius: 999px; background: var(--ground); color: var(--ink); }
+.m-home .m-rig.m-told .m-toast { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .m-home .m-lid-screen img, .m-home .m-hand-screen img { transition: opacity 0.55s ease; }
+  .m-home .m-lid-screen img { transition-delay: 0.3s; }
+  .m-home .m-row-light { transition: opacity 0.5s ease 0.45s; }
+  .m-home .m-rig.m-moved.m-playing .m-row-light { animation: m-glow 1.8s ease-out 0.45s 1 both; }
+  .m-home .m-rig.m-tapping .m-tap { animation: m-press 0.9s ease-out 1 both; }
+  .m-home .m-toast { transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1.25); }
+  .m-home .m-count.m-bump { animation: m-bump 0.8s ease 1; }
+  .m-home .m-laptop { animation: m-swing 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both; }
+  .m-home .m-hand { animation: m-lift 1.15s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s both; }
+  .m-home .m-scene { animation: m-rise 1.4s ease 0s both; }
+  .m-home .m-chip { animation: m-rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 1.1s both; }
+  .m-home .m-chip .m-dot { animation: m-pulse 1.6s ease-in-out infinite; }
+  .m-home .m-sheen { animation: m-glint 9s ease-in-out 2s infinite; }
+  .m-home .m-rig.m-asleep .m-chip .m-dot, .m-home .m-rig.m-asleep .m-sheen { animation-play-state: paused; }
+}
+@keyframes m-swing { from { opacity: 0; transform: perspective(1900px) rotateY(-64deg) rotateX(14deg) translateX(120px); } to { opacity: 1; transform: perspective(2200px) rotateY(-21deg) rotateX(5deg); } }
+@keyframes m-lift { from { opacity: 0; transform: perspective(1300px) rotateX(24deg) rotateY(-20deg) translateY(90px) scale(0.92); } to { opacity: 1; transform: none; } }
+@keyframes m-press { 0% { opacity: 0; transform: scale(1.25); } 30% { opacity: 1; transform: scale(0.97); } 100% { opacity: 0; transform: scale(1); } }
+@keyframes m-glow { 0% { opacity: 0; } 25% { opacity: 1; box-shadow: 0 0 0 3px var(--m-hl), 0 0 60px 16px color-mix(in srgb, var(--m-hl) 60%, transparent); } 100% { opacity: 1; } }
+@keyframes m-bump { 0% { color: var(--m-hl); transform: translateY(-6px); } 100% { transform: none; } }
+@keyframes m-glint { 0%, 70% { background-position: 100% 0; } 100% { background-position: -60% 0; } }
+@media (min-width: 1181px) {
+  .m-home .m-rig { left: -80px; }
+}
+@media (max-width: 1180px) and (min-width: 900px) {
+  .m-home .m-laptop { width: 640px; left: 50%; }
+}
+@media (max-width: 899px) {
+  .m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
+  .m-home .m-rig { max-width: min(80vw, 330px); margin: 18px auto 34px; padding-top: 30px; }
+  .m-home .m-rig::before { width: 170%; height: 80%; }
+  .m-home .m-laptop, .m-home .m-scene { display: none; }
+  .m-home .m-hand { padding: 2.5px; border-radius: 48px; }
+  .m-home .m-hand-screen { border-radius: 45.5px; border-width: 7px; }
+  .m-home .m-chip { left: 50%; bottom: -22px; translate: -50% 0; font-size: 0.84rem; padding: 10px 14px; }
+  .m-home .m-toast { right: auto; left: 50%; top: -18px; translate: -50% 0; font-size: 0.82rem; }
+}
+/* ── THE WEEK, ONE STEP AT A TIME (2026-11-01; "Landing story section - redesign spec", option b) ──
+   It replaces the pinned story a phone was held in for five screens (Ajay, 30 Oct: "my friends just
+   stopped there without scrolling down"). One frame in the page's own flow: a row of seven slides that
+   snaps sideways, a seven-part bar and "2 of 7" in plain sight, ‹ › at 48px. Nothing is sticky or
+   pinned, a vertical swipe on it scrolls the page, and the markup is the same with or without script,
+   so the page is the height it loads at. The screens are read: they move only sideways, in the row. */
+.m-home .m-week { position: relative; }
+.m-home .m-week-bar { display: flex; gap: 6px; margin-bottom: 22px; }
+.m-home .m-week-bar i { position: relative; flex: 1 1 0; height: 4px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--m-on-ground) 20%, transparent); }
+.m-home .m-week-bar i::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--m-hl); transform-origin: left; transform: scaleX(0); }
+.m-home .m-week-bar i.m-done::after, .m-home .m-week-bar i.m-on::after { transform: none; }
+.m-home .m-week-row { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; touch-action: pan-x pan-y; }
+.m-home .m-week-row::-webkit-scrollbar { display: none; }
+.m-home .m-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: clamp(32px, 7vw, 110px); align-items: center; padding: 6px 4px 40px; }
+.m-home .m-slide .m-phone { width: 100%; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 30%, var(--ground)), 0 50px 100px -34px rgba(0, 0, 0, 0.85), 0 26px 90px -30px color-mix(in srgb, var(--brass-ui) 32%, transparent); }
+.m-home .m-slide-words { display: grid; gap: 14px; align-content: center; }
+.m-home .m-slide-words .m-what { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; font: 600 0.75rem/1.3 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
+.m-home .m-of { color: var(--m-on-ground); letter-spacing: 0.08em; }
+.m-home .m-slide-words .m-clock { font: 500 clamp(2.6rem, 5.4vw, 4.6rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.03em; }
+.m-home .m-slide-words h3 { font-size: clamp(1.6rem, 3vw, 2.5rem); max-width: 18ch; }
+.m-home .m-slide-words p:last-child { color: var(--m-on-ground-soft); font-size: clamp(1rem, 1.4vw, 1.15rem); max-width: 42ch; }
+.m-home .m-week-keys { display: flex; gap: 12px; justify-content: flex-end; margin-top: 4px; }
+.m-home .m-key { display: inline-grid; place-items: center; width: 48px; height: 48px; padding: 0; border-radius: 50%; border: 1.5px solid var(--m-on-ground-soft); background: var(--m-ground-rise); color: var(--m-on-ground); font: 500 1.6rem/1 var(--m-body); cursor: pointer; }
+.m-home .m-key:hover { border-color: var(--m-on-ground); }
+.m-home .m-key[disabled] { opacity: 0.35; cursor: default; }
+.m-home .m-hold span { display: block; width: 12px; height: 14px; border-inline: 4px solid currentColor; }
+.m-home .m-hold.m-paused span { width: 0; height: 0; border: solid transparent; border-width: 8px 0 8px 13px; border-left-color: currentColor; margin-left: 4px; }
+@media (prefers-reduced-motion: no-preference) {
+  .m-home .m-week-row { scroll-behavior: smooth; }
+  .m-home .m-week-bar i.m-on.m-timing::after { animation: m-fill var(--m-step, 7s) linear 1 both; }
+}
+@keyframes m-fill { from { transform: scaleX(0); } to { transform: none; } }
+@media (max-width: 899px) {
+  .m-home .m-slide { grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; padding-bottom: 28px; }
+  .m-home .m-slide .m-phone { order: 2; width: min(58vw, 240px); margin-inline: auto; }
+  .m-home .m-slide-words { gap: 8px; }
+  .m-home .m-slide-words .m-clock { font-size: 2.4rem; }
+  .m-home .m-slide-words h3 { font-size: 1.45rem; }
+  .m-home .m-week-keys { justify-content: center; }
+}
 `;
