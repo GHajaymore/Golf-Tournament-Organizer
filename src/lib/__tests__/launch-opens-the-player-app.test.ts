@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { playerAppShut, isLaunched } from "../domain/lifecycle-state";
+import { playerAppShut } from "../domain/lifecycle-state";
 
 /**
  * LAUNCHING A TOURNAMENT OPENS IT TO ITS PLAYERS — and until 2026-09-23 it
@@ -12,35 +12,33 @@ import { playerAppShut, isLaunched } from "../domain/lifecycle-state";
  *
  * THE HARD PART IS THE OLD DATA, which is why this is a column and not a
  * behaviour change. Tournaments are being PLAYED IN DRAFT today, the seeded
- * Demo Cup among them. A rule that simply read `!isLaunched(status)` would
- * have shut live players out of rounds they were halfway through. Ajay's call
- * was to gate NEW tournaments only: `accessGated` defaults true, and the
- * migration backfills false for every tournament that already existed.
+ * Demo Cup among them. Ajay's call was to gate NEW tournaments only:
+ * `accessGated` defaults true, and the migration backfilled false for every
+ * tournament that already existed.
  *
- * So the three cells that matter are the three states a real club is in:
- * a tournament created today and not yet launched (shut), the same one after
- * launch (open), and one that predates the gate (open whatever its status).
+ * ONE SETTING-UP STEP (Ajay, 2026-10-31, gap G1). Draft, registration and ready
+ * now read as one, so the status cannot say "the club has opened this to its
+ * players" any more — nobody presses "Start taking entries". The published
+ * sign-up link says it: once entries are taken a player has something true to
+ * be told (in, waiting, not entered — what `verify-player-states.mjs` protects),
+ * and before that nobody should be in here.
  */
 
-const gated = (status: string) => ({ status, accessGated: true });
-const legacy = (status: string) => ({ status, accessGated: false });
+const PRE = ["draft", "registration", "ready"];
+const gated = (status: string, registrationOpen = false) => ({ status, accessGated: true, registrationOpen });
+const legacy = (status: string) => ({ status, accessGated: false, registrationOpen: false });
 
 describe("launching opens the player app", () => {
-  it("shuts a new tournament only while the club is still building it", () => {
+  it("shuts a new tournament while it is being set up and nobody can sign up", () => {
     expect(playerAppShut(gated("draft"), false)).toBe(true);
   });
 
-  it("OPENS during registration, which is when a player most wants it", () => {
-    /**
-     * THE CELL THAT CORRECTED THE DESIGN. The first attempt read
-     * `!isLaunched(status)` — and pre-launch is THREE statuses, so it shut a
-     * player out during registration, exactly when they want to see they are
-     * in, or on the waiting list, or not entered.
-     *
-     * `verify-player-states.mjs` caught it: those three sentences are a rule
-     * it exists to protect, and the gate was deleting them. Ajay narrowed the
-     * gate to draft on 2026-09-23 rather than weaken that script.
-     */
+  it("OPENS once entries are taken, which is when a player most wants it — whichever stored status", () => {
+    for (const s of PRE) expect(playerAppShut(gated(s, true), false), s).toBe(false);
+  });
+
+  it("keeps a legacy registration or ready row open with no link: nothing members saw disappears (QA, 2026-10-31)", () => {
+    // New tournaments never reach these values (`statusMove` refuses them).
     expect(playerAppShut(gated("registration"), false)).toBe(false);
     expect(playerAppShut(gated("ready"), false)).toBe(false);
   });
@@ -57,37 +55,13 @@ describe("launching opens the player app", () => {
      * are being played in draft right now. If this ever goes red, somebody has
      * made the gate unconditional and a club is locked out of its own round.
      */
-    for (const status of ["draft", "registration", "ready", "live", "completed"]) {
+    for (const status of [...PRE, "live", "completed"]) {
       expect(playerAppShut(legacy(status), false), `${status} was shut`).toBe(false);
     }
   });
 
   it("never shuts STAFF, because that is when an organizer looks", () => {
-    // Checking the player app before launching is precisely the moment an
-    // organizer opens it, so this is the point rather than an exception.
     expect(playerAppShut(gated("draft"), true)).toBe(false);
     expect(playerAppShut(gated("ready"), true)).toBe(false);
-  });
-
-  it("is NARROWER than not-launched, and that is the whole design", () => {
-    /**
-     * Pinned as a difference rather than as an agreement, because the obvious
-     * refactor — "surely this is just `!isLaunched`" — is the bug that was
-     * caught and backed out. Two of the three pre-launch statuses are open to
-     * players; only `draft` is not.
-     */
-    const shutStatuses = ["draft", "registration", "ready", "live", "completed"].filter((s) =>
-      playerAppShut(gated(s), false),
-    );
-    const unlaunched = ["draft", "registration", "ready", "live", "completed"].filter(
-      (s) => !isLaunched(s),
-    );
-    expect(shutStatuses).toEqual(["draft"]);
-    expect(unlaunched, "pre-launch really is three statuses").toEqual([
-      "draft",
-      "registration",
-      "ready",
-    ]);
-    expect(shutStatuses).not.toEqual(unlaunched);
   });
 });

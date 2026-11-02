@@ -85,7 +85,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   // Violet is the developer-tool palette on a near-black page. No golf club
   // has ever been this colour, which is exactly why a society or a corporate
   // outing might pick it.
-  { key: "violet", name: "Violet", blurb: "Cool violet on near-black — a society day, not a members' medal.", hue: 249, saturation: 0.88 },
+  { key: "violet", name: "Violet", blurb: "Cool violet on near-black — a day out, not a members' medal.", hue: 249, saturation: 0.88 },
 
   // ── Three bold ones, placed by where the wheel was actually empty ────────
   //

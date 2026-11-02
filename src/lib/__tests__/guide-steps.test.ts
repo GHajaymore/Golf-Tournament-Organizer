@@ -14,6 +14,8 @@ import { GUIDE_STEPS } from "../guide-steps";
 
 const PINNED: [label: string, file: string][] = [
   ["Publish the link", "src/components/RegistrationClient.tsx"],
+  ["Keep their money as it is", "src/components/OrgKindPicker.tsx"],
+  ["Switch anyway", "src/components/OrgKindPicker.tsx"],
   ["Generate flights", "src/components/GroupingControls.tsx"],
   ["Save & publish", "src/components/FoursomeMaker.tsx"],
   ["Publish the tee sheet", "src/components/FoursomeMaker.tsx"],
@@ -34,6 +36,11 @@ const PINNED: [label: string, file: string][] = [
   ["Approve entries", "src/lib/domain/needs-you-now.ts"],
   ["Open score entry", "src/lib/domain/needs-you-now.ts"],
   ["Complete the tournament", "src/lib/domain/needs-you-now.ts"],
+  // The Print kit (2026-10-23) and its doors.
+  ["Reprint these", "src/components/print/PrintKitClient.tsx"],
+  ["Print the signs", "src/components/PlaySettings.tsx"],
+  ["Print…", "src/app/(app)/foursomes/page.tsx"],
+  ["Print…", "src/app/(app)/cup/page.tsx"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */

@@ -588,6 +588,12 @@ ${leafTokens("leaf", "    ")}
 .thq .ftr-legal .ftr-copy { white-space: nowrap; }
 .thq .ftr-legal a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-soft); font-weight: 550; }
 .thq .ftr-legal a:hover { color: var(--ink); }
+/* "Follow us" and TourneyHQ's own profiles (lib/social-links.ts), beside the
+   legal links and in their style: the words in the small print's colour, each
+   profile a legal-style link with its mark at the text's size. */
+.thq .ftr-follow { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 12px; }
+.thq .ftr-follow a { gap: 6px; }
+.thq .ftr-follow .i { width: 16px; height: 16px; flex: none; }
 /* Footer on a phone (Ajay, 2026-09-30: "it looks unprofessional"): the links
    wrapped ragged with "Sign in" alone on its own line. Now the mark, then the
    links in an even two-column grid, then the small print as one quiet block. */
@@ -629,6 +635,8 @@ ${leafTokens("leaf", "    ")}
 .thq .fq-cta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; margin-top: 56px; padding: 32px; border-radius: var(--r); background: var(--ground-2); }
 .thq .fq-cta h2 { font: 750 26px/1.1 var(--sans); letter-spacing: -.03em; }
 .thq .fq-cta p { color: var(--ink-soft); margin-top: 4px; }
+/* A link in its sentence (the Facebook Page) reads as one, as an answer's does. */
+.thq .fq-cta p a { color: var(--brass); text-decoration: underline; text-underline-offset: 3px; }
 
 /* ── the privacy page: a policy set as reading, on the front door's chrome ── */
 .thq .legal .fq-hero { padding-bottom: 24px; }

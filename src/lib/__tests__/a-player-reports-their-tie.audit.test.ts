@@ -176,3 +176,24 @@ describe("who may report, and what", () => {
     expect(await prisma.bracketWinner.count({ where: { eventId } })).toBe(0);
   });
 });
+
+/**
+ * THE ORGANIZER'S DOOR IS HELD TO THE SAME RULE AS A PLAYER'S (2026-10-23): a
+ * tie is decided between two players. Found on a knockout of 129, where the
+ * top seed could be pressed through a round-of-128 tie against "TBD".
+ */
+describe("the organizer records a tie only between two players", () => {
+  it("refuses the final while one semi-final is unplayed, and takes it once both are", async () => {
+    const { eventId, first, second } = await seed();
+    staff(eventId);
+    expect((await setBracketWinner(first.key, first.a.playerId!)).ok).toBe(true);
+    const finalKey = (await loadEventState(eventId))!.brackets.winners.rounds[1].matches[0].key;
+    const early = await setBracketWinner(finalKey, first.a.playerId!);
+    expect(early).toEqual({ ok: false, error: "Both players in that tie aren't known yet." });
+    expect(await prisma.bracketWinner.count({ where: { eventId, key: finalKey } })).toBe(0);
+    // CONTROL: with the other semi-final played, the same press is a result.
+    expect((await setBracketWinner(second.key, second.b.playerId!)).ok).toBe(true);
+    expect((await setBracketWinner(finalKey, first.a.playerId!)).ok).toBe(true);
+    expect((await loadEventState(eventId))!.brackets.winners.champion?.playerId).toBe(first.a.playerId);
+  });
+});

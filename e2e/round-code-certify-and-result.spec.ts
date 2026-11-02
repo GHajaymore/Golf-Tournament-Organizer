@@ -188,9 +188,15 @@ test("a round-code player signs their own card, and it is stored and shown as ce
  */
 test("a signed card still reads as signed when the player opens it again", async ({ browser, baseURL }) => {
   test.setTimeout(120_000);
-  await prisma.scorecard.deleteMany({ where: { stageId: ids.medal, playerId: ids.wren } });
-  await prisma.scorecard.create({
-    data: { eventId: ids.event, stageId: ids.medal, playerId: ids.wren, strokes: JSON.stringify(new Array(9).fill(4)), status: "certified", certifiedBy: WREN, certifiedAt: new Date() },
+  // ONE WRITE, NOT A DELETE AND A CREATE. The test before this one leaves Wren's card being saved
+  // as its browser closes; on Safari's engine that save landed between the two writes and the
+  // create failed on the card's own key (round G322-1, iPhone). The signed card is put in place
+  // whatever is there.
+  const signed = { eventId: ids.event, strokes: JSON.stringify(new Array(9).fill(4)), status: "certified", certifiedBy: WREN, certifiedAt: new Date() };
+  await prisma.scorecard.upsert({
+    where: { stageId_playerId: { stageId: ids.medal, playerId: ids.wren } },
+    create: { ...signed, stageId: ids.medal, playerId: ids.wren },
+    update: signed,
   });
   const ctx = await signedOut(browser, baseURL);
   try {

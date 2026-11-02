@@ -34,8 +34,32 @@ describe("what the board names a contest", () => {
   it("only for what a club announces: not the poker, not four friends' side bet", () => {
     expect(shownOnBoard("closest-pin")).toBe(true);
     expect(shownOnBoard("long-drive")).toBe(true);
+    expect(shownOnBoard("straightest-drive")).toBe(true);
     expect(shownOnBoard("off-course")).toBe(false);
     expect(shownOnBoard("other")).toBe(false);
+  });
+});
+
+/**
+ * STRAIGHTEST DRIVE (2026-10-24) is the long drive's shape: a hole, a named
+ * winner, an optional sponsor, the same board and printed sheet. Pinned beside
+ * the long drive so a later edit that gives one a path the other lacks shows.
+ */
+describe("a straightest drive is a contest like the long drive", () => {
+  it("is a kind the editor offers, played on a hole, named by kind and hole", async () => {
+    const { CONTEST_KINDS, CONTEST_LABEL, contestHasHole, isContestKind } = await import("../contests");
+    expect(CONTEST_KINDS).toContain("straightest-drive");
+    expect(isContestKind("straightest-drive")).toBe(true);
+    expect(CONTEST_LABEL["straightest-drive"]).toBe("Straightest drive");
+    expect(contestHasHole("straightest-drive")).toBe(contestHasHole("long-drive"));
+    expect(contestTitle({ kind: "straightest-drive", name: "", hole: 10 })).toBe("Straightest drive · 10th");
+    expect(contestTitle({ kind: "straightest-drive", name: "Straightest drive", hole: 3 })).toBe("Straightest drive · 3rd");
+  });
+
+  it("pays out by the one contest rule, exactly as a long drive with the same entrants would", async () => {
+    const { contestNets } = await import("../contests");
+    const base = { id: "c", name: "", buyInCents: 500, entrantIds: ["a", "b", "c"], winnerIds: ["b"] };
+    expect(contestNets({ ...base, kind: "straightest-drive" })).toEqual(contestNets({ ...base, kind: "long-drive" }));
   });
 });
 

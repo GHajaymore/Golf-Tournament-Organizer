@@ -4,6 +4,8 @@ import { loadEventState } from "./tournament";
 import { SEASON_LOCKED } from "../plans";
 import { organizationAllows } from "./entitlements";
 import { finishingPositions } from "./finish-order";
+import { cupResult } from "./cup";
+import { cupFinishingPositions } from "../domain/cup";
 import {
   seriesStandings,
   DEFAULT_POINTS_TABLE,
@@ -111,7 +113,11 @@ export async function finishOrderFor(eventId: string): Promise<(EventFinish & { 
    * handicap order — and after the filter above, scored nobody at all, since
    * a player whose only golf was in the bracket has `played` of 0.
    */
-  const ordered = finishingPositions(state);
+  // A TEAM CUP is decided by its own result (`cupResult`), not by standings
+  // it has none of: the winning team's players share first, the other team's
+  // the place after them, a halved cup everybody first (2026-10-30).
+  const cup = await cupResult(eventId);
+  const ordered = cup ? cupFinishingPositions(cup) : finishingPositions(state);
 
   const finishers = ordered
     .filter((o) => memberByPlayer.has(o.playerId))

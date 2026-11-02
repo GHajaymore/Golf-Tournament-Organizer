@@ -64,6 +64,10 @@ export const CLONED_EVENT_FIELDS = [
   "tiebreakers",
   "matchTiebreakers",
   "leaderboardVisibility",
+  // Who may read the report and who sees its amounts are the club's policy,
+  // like who may see the board — they travel with a copy.
+  "reportVisibility",
+  "reportAmounts",
   "scoreEntryBy",
   "scoreEntryWindow",
   "voiceEntry",
@@ -430,6 +434,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
     "who won last year's play-off or draw for the last place — about last year's players, never this year's",
   deadline: "same — a copied deadline is always in the past",
   deadlineOverride: "belongs to the deadline that was not copied",
+  knockoutPlayBy: "same as deadline — last year's play-by dates for each knockout round have all passed, and a copy would open with every tie Overdue",
   carryForwardAsked:
     "records that an organizer was ASKED about carry-forward on the original; the copy asks again",
   accessCode: "a credential — a new tournament gets new Round Codes, and only if it turns them on",
@@ -438,6 +443,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   teeSheetPublished: "belongs to the tee sheet that was not copied",
   lineupPublished: "belongs to a cup lineup, and lineups are pairings — never copied, so a copy's sessions start as drafts",
   pinSheet: "where the holes were cut on last year's day — a committee moves them every round",
+  printLog: "what the Print kit printed for last year's round — a copy has printed nothing yet",
   matches: "results and pairings are never copied",
   carriers:
     "the Group rows holding this round's matches — and the matches are not copied, so there is nothing for one to carry. A carrier is created on demand by matchCarrierGroup the first time the copy generates that round",
@@ -467,7 +473,7 @@ export const NOT_CLONED_CONTEST_FIELDS: Record<string, string> = {
   id: "the copy is a different game",
   eventId: "points at the new tournament",
   event: "the relation object for eventId",
-  stageId: "remapped onto the copy's own round; \"\" (the whole outing) stays \"\"",
+  stageId: "remapped onto the copy's own round; \"\" (the whole day) stays \"\"",
   entrants: "who entered, paid and won last year — a person's acts, never a setting",
   createdBy: "the secretary who made the copy, not whoever set up last year's",
   createdAt: "set on insert",
@@ -481,7 +487,7 @@ export const NOT_CLONED_SIDE_GAME_FIELDS: Record<string, string> = {
   event: "the relation object for eventId",
   stageId: "remapped onto the copy's own round",
   groupKey:
-    "a fourball's own game is addressed by a group of a tee sheet the copy does not have, so only the field's game (\"\") is copied, and it is copied as the field's",
+    "a four-ball's own game is addressed by a group of a tee sheet the copy does not have, so only the field's game (\"\") is copied, and it is copied as the field's",
   entrants: "who entered, paid and won last year — a person's acts, never a setting",
   createdBy: "the secretary who made the copy, not whoever set up last year's",
   createdAt: "set on insert",
@@ -495,7 +501,7 @@ export const NOT_CLONED_SKINS_POT_FIELDS: Record<string, string> = {
   event: "the relation object for eventId",
   stageId: "remapped onto the copy's own round",
   stage: "the relation object for stageId",
-  groupKey: "a fourball's own pot names a group of a tee sheet the copy does not have — only the field's pot is copied",
+  groupKey: "a four-ball's own pot names a group of a tee sheet the copy does not have — only the field's pot is copied",
   entrants: "who paid in last year, and so who is owed a carry — money, never a setting",
   createdAt: "set on insert",
   updatedAt: "set on insert",

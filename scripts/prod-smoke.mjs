@@ -39,7 +39,15 @@ const DOORS = [
  * this public repository's. Still a GET with no cookie: nothing is written.
  */
 const BOARD = process.env.PROD_BOARD_URL ?? "";
-if (BOARD) DOORS.push({ url: BOARD, path: "the public board", status: 200, says: process.env.PROD_BOARD_SAYS || "TourneyHQ" });
+/**
+ * NOT THE DEMO CLUB'S BOARD (2026-10-24; docs/claude/demo-club.md). The demo
+ * is rebuilt and replayed on a schedule of its own and is up when a real
+ * club's board may not be, so watching it would answer "is the demo up", not
+ * "can a club's members read their board". Every demo page carries
+ * `data-demo-club`; a board that does is refused at once, without retries.
+ */
+const DEMO_MARK = "data-demo-club";
+if (BOARD) DOORS.push({ url: BOARD, path: "the public board", status: 200, says: process.env.PROD_BOARD_SAYS || "TourneyHQ", notDemo: true });
 else console.log("(no PROD_BOARD_URL given: the public board is not checked this time)");
 
 async function ask(door) {
@@ -50,6 +58,9 @@ async function ask(door) {
       const target = door.url ? `${door.url}${door.url.includes("?") ? "&" : "?"}smoke=${Date.now()}` : `${BASE}${door.path}?smoke=${Date.now()}`;
       const res = await fetch(target, { redirect: "manual", headers: { "user-agent": "tourneyhq-prod-smoke" } });
       const body = res.status === 200 ? await res.text() : "";
+      if (door.notDemo && body.includes(DEMO_MARK)) {
+        return "is the demo club's board: CANARY_BOARD_URL must name a real club's board";
+      }
       if (res.status !== door.status) {
         last = `answered ${res.status}, expected ${door.status}`;
       } else if (/Application error/i.test(body)) {
@@ -74,8 +85,11 @@ for (const door of DOORS) {
   console.log(`${fault ? "FAIL" : "ok  "}  ${door.path}${fault ? ` — ${fault}` : ""}`);
   if (fault) failures.push(door.path);
 }
+// The status, not `process.exit`: exiting with sockets still open crashes Node on Windows (0xC0000409),
+// which reads as a failure whatever the doors said.
 if (failures.length) {
   console.log(`\nPRODUCTION SMOKE: ${failures.length} of ${DOORS.length} doors failed on ${BASE}: ${failures.join(", ")}`);
-  process.exit(1);
+  process.exitCode = 1;
+} else {
+  console.log(`\nPRODUCTION SMOKE: all ${DOORS.length} doors answered as they should on ${BASE}.`);
 }
-console.log(`\nPRODUCTION SMOKE: all ${DOORS.length} doors answered as they should on ${BASE}.`);

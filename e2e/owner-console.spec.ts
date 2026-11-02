@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { E2E_OWNER_EMAIL } from "./owner-email.mjs";
+import { EARLY_LIST, OWNER_CARD } from "../src/lib/go-live";
 
 /**
  * THE OWNER CONSOLE, AS THE OWNER USES IT (2026-10-21).
@@ -36,8 +37,14 @@ const ids = { org: "", owner: "", stranger: "" };
 const cookies = { owner: "", stranger: "" };
 const saved: Record<string, { value: string } | null> = {};
 
+const started = new Date(Date.now() - 1000);
+
 async function cleanup() {
   await prisma.discountCode.deleteMany({ where: { label: { startsWith: MARK } } });
+  // The early-list step's own rows: its two notes, any send it recorded, and the code(s) the press made.
+  await prisma.earlyListSend.deleteMany({ where: { email: { startsWith: MARK } } });
+  await prisma.interestRequest.deleteMany({ where: { email: { startsWith: MARK } } });
+  await prisma.discountCode.deleteMany({ where: { label: EARLY_LIST.codeLabel, createdAt: { gte: started } } });
   const orgs = await prisma.organization.findMany({ where: { name: { startsWith: MARK } }, select: { id: true } });
   await prisma.subscription.deleteMany({ where: { organizationId: { in: orgs.map((o) => o.id) } } });
   await prisma.organization.deleteMany({ where: { id: { in: orgs.map((o) => o.id) } } });
@@ -96,23 +103,68 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
    * so — but the press is the same press, and the row it writes is the one production reads (what the
    * row DOES is held to real rows in `the-launch-switch.audit.test.ts`).
    */
-  await test.step("the launch switch: accounts opened, then held again — each asked first, each said", async () => {
+  // What each held page then SAYS, both ways, is walked by `go-live-switch.spec.ts` on a server that holds.
+  await test.step("the go-live switch: live, then held again — each asked first in a dialog, each said", async () => {
     await prisma.platformSetting.deleteMany({ where: { key: "signins" } });
     await open();
     const card = page.locator("#accounts");
-    await expect(card).toContainText("Held until launch");
+    await expect(card).toContainText(OWNER_CARD.held);
     await expect(card, "the card does not say this server never holds accounts").toContainText("never holds accounts");
-    await card.getByRole("button", { name: "Open accounts" }).click();
-    expect(await prisma.platformSetting.findUnique({ where: { key: "signins" } }), "one press opened accounts without asking").toBeNull();
-    await card.getByRole("button", { name: "Yes, open to everybody" }).click();
-    await expect(card.getByRole("status")).toContainText("Accounts are open");
+    await expect(card).toContainText(OWNER_CARD.willGoLive);
+    await card.getByRole("button", { name: OWNER_CARD.goLive }).click();
+    expect(await prisma.platformSetting.findUnique({ where: { key: "signins" } }), "one press went live without asking").toBeNull();
+    await page.getByRole("dialog", { name: OWNER_CARD.goLiveTitle }).getByRole("button", { name: OWNER_CARD.goLiveConfirm }).click();
+    await expect(card.getByRole("status")).toContainText(OWNER_CARD.wentLive);
     await expect.poll(async () => (await prisma.platformSetting.findUnique({ where: { key: "signins" } }))?.value).toBe("open");
     await open();
-    await expect(page.locator("#accounts")).toContainText("Open. Anybody can sign up");
-    await page.locator("#accounts").getByRole("button", { name: "Hold accounts again" }).click();
-    await page.locator("#accounts").getByRole("button", { name: "Yes, hold them" }).click();
-    await expect(page.locator("#accounts").getByRole("status")).toContainText("held again");
+    await expect(page.locator("#accounts")).toContainText("Live since ");
+    await page.locator("#accounts").getByRole("button", { name: OWNER_CARD.holdAgain }).click();
+    await page.getByRole("dialog", { name: OWNER_CARD.holdTitle }).getByRole("button", { name: OWNER_CARD.holdConfirm }).click();
+    await expect(page.locator("#accounts").getByRole("status")).toContainText(OWNER_CARD.heldAgain);
     await expect.poll(async () => (await prisma.platformSetting.findUnique({ where: { key: "signins" } }))?.value).toBe("held");
+  });
+
+  /**
+   * THE EARLY-LIST PRESS (`sendEarlyListCodes`). Shown only once live and only while somebody is owed
+   * a code. The press sends to EVERY owed address, and this database is shared, so the step makes sure
+   * the only ones owed are its own: a person is owed a code only if their note was written BEFORE the
+   * switch went live, so the switch row's `updatedAt` is set back to 2000-01-01 and the two notes are
+   * dated 1999. Every other note (all written since) is then "after launch" and owed nothing.
+   * NO MAIL LEAVES: both servers that run this spec are started with `RESEND_API_KEY=""`, so the
+   * sender answers "Email isn't configured" — the press then walks its refusal path (the row it
+   * claimed is removed and the code it made is switched off), which is what is asserted. The success
+   * path, with the sender replaced, is held to real rows in `early-list-codes.audit.test.ts`.
+   */
+  await test.step("the early-list press: preview, ask, send — and a refused send records nothing", async () => {
+    const A = `${MARK}-a@example.invalid`;
+    const B = `${MARK}-b@example.invalid`;
+    const longAgo = new Date("1999-12-30T12:00:00Z");
+    await prisma.interestRequest.create({ data: { name: "Zz Ann", email: A, club: "Zz Club", role: "secretary", createdAt: longAgo } });
+    await prisma.interestRequest.create({ data: { name: "Zz Bo", email: B, club: "Zz Club", role: "society", createdAt: new Date(longAgo.getTime() + 1000) } });
+    await prisma.platformSetting.upsert({ where: { key: "signins" }, update: { value: "open" }, create: { key: "signins", value: "open" } });
+    await prisma.$executeRaw`UPDATE "PlatformSetting" SET "updatedAt" = ${new Date("2000-01-01T00:00:00Z")} WHERE "key" = 'signins'`;
+
+    await open();
+    const section = page.locator("#early-list");
+    await expect(section, "somebody is owed a code, so the section is drawn").toBeVisible();
+    await expect(section).toContainText("2 on the early list are waiting for their code");
+    await expect(section).toContainText(EARLY_LIST.previewTo("Zz Ann"));
+    await expect(section).toContainText(EARLY_LIST.email.subject);
+
+    await section.getByRole("button", { name: /^Send 2 codes/ }).click();
+    expect(await prisma.earlyListSend.count({ where: { email: { startsWith: MARK } } }), "one press sent without asking").toBe(0);
+    await page.getByRole("dialog", { name: EARLY_LIST.confirmTitle }).getByRole("button", { name: EARLY_LIST.confirm }).click();
+
+    // The mail service is not configured on this server, so the first send is refused and the press stops there.
+    await expect(section.getByRole("status")).toContainText(EARLY_LIST.failed(0, "Email isn't configured on this server."), { timeout: 20_000 });
+    expect(await prisma.earlyListSend.count({ where: { email: { startsWith: MARK } } }), "a refused send was recorded as sent").toBe(0);
+    const made = await prisma.discountCode.findMany({ where: { label: EARLY_LIST.codeLabel, createdAt: { gte: started } } });
+    expect(made.length, "the press stopped at the first refusal, after making one code").toBe(1);
+    expect(made[0]).toMatchObject({ percentOff: EARLY_LIST.percentOff, maxRedemptions: 1, active: false });
+
+    // Still owed, both of them: nothing was spent on a refusal.
+    await open();
+    await expect(page.locator("#early-list")).toContainText("2 on the early list are waiting for their code");
   });
 
   await test.step("a club's tier: refused for a name nobody has, then set", async () => {

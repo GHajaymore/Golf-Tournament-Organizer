@@ -10,6 +10,8 @@ import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
 import { isMoneyMode } from "../domain/money-mode";
 import { TEAM_FORMAT_NAMES } from "../formats";
 import { roundsMissingCards } from "./round-card-lines";
+import type { LaunchCheck } from "../domain/launch-check";
+import { isUnnamed } from "../domain/tournament-name";
 
 /**
  * The setup flow for one tournament, read once per screen.
@@ -25,6 +27,26 @@ import { roundsMissingCards } from "./round-card-lines";
  * which hides the same screens for the same reason.
  */
 export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
+  const read = await setupFactsFor(eventId);
+  if (!read || read.match) return null;
+  return setupFlow(read.facts, screenName);
+}
+
+/**
+ * WHAT LAUNCH SAYS about this tournament — the refusal and the warnings — from
+ * the very flow the rail draws (gap G3, 2026-10-31). The dashboard's Launch
+ * button and `launchTournament` both ask this, so the button, the action and
+ * the rail are one verdict. A match is asked too: it has no rail, and it still
+ * goes through the gate.
+ */
+export async function launchCheckFor(eventId: string): Promise<LaunchCheck> {
+  const read = await setupFactsFor(eventId);
+  if (!read) return { refusal: "This tournament could not be found.", warnings: [], stepsOpen: 0, steps: 0 };
+  return setupFlow(read.facts, screenName).launch;
+}
+
+/** The ONE reader of a tournament's setup facts, for the flow and for launch. */
+async function setupFactsFor(eventId: string): Promise<{ facts: SetupFacts; match: boolean } | null> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: {
@@ -38,7 +60,6 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
     },
   });
   if (!event) return null;
-  if (isMatch(event.shape)) return null;
 
   const [confirmed, stageRows, groups, venues, org, teamRounds, sides, unsided] = await Promise.all([
     prisma.player.count({ where: { eventId, status: "confirmed" } }),
@@ -64,6 +85,7 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
         playedOn: true,
         deadline: true,
         cutEnabled: true,
+        teeSheet: true,
         _count: { select: { matches: true } },
       },
       orderBy: { position: "asc" },
@@ -109,6 +131,11 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
       scorable: roundShapeMismatch(s.type, s.format) === null,
       cutFed: s.cutEnabled,
       matches: s._count.matches,
+      // Asked only of a round the field turns up for together: a stroke round.
+      // A round robin, a knockout and a cup session draw their own fixtures.
+      ...(isPlayingRound(s.type) && !generatesPairings(s.type) && !isKnockoutRound(s.type) && s.type !== "Team Session" && !s.cutEnabled
+        ? { teeSheetSaved: !!s.teeSheet.trim() }
+        : {}),
     })),
     /**
      * "New Tournament" is what `createEvent` falls back to when the name field
@@ -117,7 +144,8 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
      * trimmed, because it is a placeholder being recognised, not a value being
      * validated.
      */
-    named: !!event.name.trim() && event.name.trim().toLowerCase() !== "new tournament",
+    // Since 2026-11-01 the placeholder may carry a year or "(2)" to keep it free (`isUnnamed`).
+    named: !isUnnamed(event.name),
     dated: !!event.dates.trim(),
     // The launch gate's own count, so the guide's "what is left" is its answer.
     playingRounds: stageRows.filter((s) => isPlayingRound(s.type)).length,
@@ -161,5 +189,5 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
       : {}),
   };
 
-  return setupFlow(facts, screenName);
+  return { facts, match: isMatch(event.shape) };
 }

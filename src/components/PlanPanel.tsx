@@ -1,6 +1,6 @@
-import { PLANS, planFor, planCurrency, effectivePrice, effectiveAnnualPrice, upgradeBenefits, retentionNotice, retentionSummary, LAPSED_ARCHIVE_TERMS, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
+import { PLANS, planFor, planCurrency, effectivePrice, effectiveAnnualPrice, planBlurb, planTagline, upgradeBenefits, retentionNotice, retentionSummary, LAPSED_ARCHIVE_TERMS, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
 import { wholeMoney } from "@/lib/domain/money-format";
-import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
+import { golfTermsFor, inClubWords, type GolfTerm } from "@/lib/domain/golf-terms";
 import type { OrgLimits } from "@/lib/services/limits";
 import { Suspense } from "react";
 import { PURCHASABLE_PLANS } from "@/lib/domain/billing";
@@ -66,7 +66,8 @@ export function PlanPanel({
   const current = planFor(planKey);
   const quoteIn = planCurrency(currency);
   const price = (amount: number) => wholeMoney(amount, quoteIn, locale);
-  const benefits = upgradeBenefits(planKey);
+  // In the club's golf: "up to ten organisers", "the honours board".
+  const benefits = upgradeBenefits(planKey).map((b) => inClubWords(b, terms));
   const retention = retentionNotice(planKey, termsApply);
 
   /**
@@ -119,7 +120,7 @@ export function PlanPanel({
     // the line left it out entirely (2026-09-29).
     const field = p.limits.playersPerEvent === null ? "Any size of field" : `Up to ${p.limits.playersPerEvent} players`;
     const events = p.limits.activeEvents === null ? "unlimited tournaments" : `${p.limits.activeEvents} tournament at a time`;
-    const seats = p.limits.staffSeats === null ? "unlimited organizers" : `${p.limits.staffSeats} organizer${p.limits.staffSeats === 1 ? "" : "s"}`;
+    const seats = p.limits.staffSeats === null ? `unlimited ${terms.organizers}` : `${p.limits.staffSeats} ${p.limits.staffSeats === 1 ? terms.organizer : terms.organizers}`;
     const keep = retentionSummary(p);
     return `${field} · ${events} · ${seats} · ${keep}`;
   };
@@ -204,7 +205,7 @@ export function PlanPanel({
           )}
           {standing.enforced && !standing.staffSeats.allowed && (
             <span style={{ fontSize: 13, color: "var(--color-danger)" }}>
-              <Icon name="warning-circle" /> Another organizer needs a bigger plan.
+              <Icon name="warning-circle" /> Another {terms.organizer} needs a bigger plan.
             </span>
           )}
         </div>
@@ -290,9 +291,9 @@ export function PlanPanel({
                   <span className="tag" style={{ fontSize: 13 }}>You are here</span>
                 )}
               </div>
-              <p style={{ fontSize: 13, fontWeight: 500, margin: "2px 0 0" }}>{p.tagline}</p>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: "2px 0 0" }}>{planTagline(p, terms)}</p>
               <p className="text-muted" style={{ fontSize: 13, margin: "3px 0 0", lineHeight: 1.5 }}>
-                {p.blurb}
+                {planBlurb(p, terms)}
               </p>
               <p className="text-muted" style={{ fontSize: 13, margin: "5px 0 0", lineHeight: 1.5 }}>
                 {limitLine(p)}

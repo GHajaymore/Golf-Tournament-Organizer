@@ -621,7 +621,10 @@ export function MoneyClient({
                 }}
                 style={{ minHeight: 46 }}
               >
-                <option value="">The whole outing</option>
+                {/* Every round, in words every country uses: "outing" is a US
+                    group's word and a British society reads it as somebody
+                    else's golf (2026-10-24). */}
+                <option value="">Every round</option>
                 {view.rounds.map((r) => (
                   <option key={r.stageId} value={r.stageId}>{r.label}</option>
                 ))}

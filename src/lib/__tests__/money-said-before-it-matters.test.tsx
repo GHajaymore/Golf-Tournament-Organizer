@@ -84,9 +84,13 @@ describe("what the screen says about money before it shows any", () => {
   it("falls back to the right word for the outfit when it has no name", () => {
     // "Following the society", not "Following the club" — the slip this
     // codebase keeps rediscovering, most recently as "Name your personal".
-    // `community` is the kind; "society" is the word `orgProfile` gives it,
-    // which is the whole point of reading the noun rather than writing one.
+    // `community` is the kind; "league" is the word `orgProfile` gives it with
+    // no country (the app's US default — "society" in Britain), which is the
+    // whole point of reading the noun rather than writing one.
     expect(line({ eventMode: "", orgMode: "float", clubName: "", orgKind: "community" })).toMatch(
+      /following the league/i,
+    );
+    expect(line({ eventMode: "", orgMode: "float", clubName: "", orgKind: "community", orgCountry: "GB" })).toMatch(
       /following the society/i,
     );
     expect(line({ eventMode: "", orgMode: "float", clubName: "", orgKind: "club" })).toMatch(

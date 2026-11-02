@@ -3,7 +3,9 @@ import { Icon } from "@/components/Icon";
 import { requireSession } from "@/lib/page-helpers";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { screenName } from "@/lib/nav";
-import { PLAYER_HELP_TOPICS, helpLineText } from "@/lib/player-help";
+import { helpInClubWords, helpLineText } from "@/lib/player-help";
+import { golfRegisterForEvent } from "@/lib/services/organization";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 
 export const metadata = screenMetadata("/me/help");
 
@@ -24,7 +26,10 @@ export const metadata = screenMetadata("/me/help");
  * wrong about a ruling, and costs nothing to run.
  */
 export default async function PlayerHelpPage() {
-  await requireSession();
+  const session = await requireSession();
+  // The club's golf words — "Ask your organiser" to a British member.
+  const words = golfTermsFor(session.eventId ? await golfRegisterForEvent(session.eventId) : "us");
+  const topics = helpInClubWords(words);
   return (
     <>
       <div className="page-kicker">Your club</div>
@@ -32,7 +37,7 @@ export default async function PlayerHelpPage() {
       <p style={{ margin: "8px 0 16px", fontSize: 14 }}>Tap a question to see how.</p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {PLAYER_HELP_TOPICS.map((t) => (
+        {topics.map((t) => (
           <details key={t.id} id={t.id} className="card elev-sm" style={{ padding: 0 }}>
             <summary
               style={{
@@ -70,7 +75,7 @@ export default async function PlayerHelpPage() {
       </div>
 
       <p className="text-muted" style={{ margin: "18px 0 0", fontSize: 14 }}>
-        Still stuck? Ask your organizer.
+        Still stuck? Ask your {words.organizer}.
       </p>
     </>
   );

@@ -7,6 +7,8 @@ import { startFromGroups, copiedEventId } from "@/lib/domain/start-from";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { Icon } from "./Icon";
 import { useOrgProfile } from "./OrgProfileProvider";
+import { STATUS_META } from "@/lib/format";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 export interface EventRow {
   id: string;
@@ -36,15 +38,22 @@ export interface EventRow {
    * used to be.
    */
   isCasual?: boolean;
+  /** Not launched, and its last day has gone by at the club (`datesPassedUnlaunched`). */
+  datesPassed?: boolean;
+  /**
+   * How it is told apart from another tournament of the same name — its dates the club's way,
+   * and "#2" where they are shared too (`tellApart`). Empty when its name is its own.
+   */
+  toldApart?: string;
 }
 
-const STATUS: Record<string, { label: string; tag: string }> = {
-  draft: { label: "Draft", tag: "tag-neutral" },
-  registration: { label: "Registration", tag: "tag-accent" },
-  ready: { label: "Ready", tag: "tag-accent" },
-  live: { label: "Live", tag: "tag-accent-2" },
-  completed: { label: "Completed", tag: "tag-neutral" },
-};
+/** Said where the bin is pressed by somebody who may not delete (`deleteEvent`'s one refusal). */
+const ONLY_THE_ORGANIZER = "Only an organizer of this tournament can delete it.";
+
+// The status words are the chip's own (`STATUS_META`) — this list had a second
+// copy that said "Registration" and "Ready" where the chip said something else.
+const STATUS = STATUS_META;
+const DATES_PASSED = { label: "Dates passed, not launched", tag: "tag-outline" };
 
 export function EventSwitcher({
   events,
@@ -86,6 +95,8 @@ export function EventSwitcher({
    * overrule it. Defined below, once `startTransition` exists.
    */
   const [confirmingId, setConfirmingId] = useState("");
+  /** The row whose bin was pressed by somebody who may not delete it. */
+  const [whyId, setWhyId] = useState("");
   // Deliberately defaults to a blank tournament even though copying is listed
   // first: anyone who clicks Create without reading gets exactly what that
   // button has always done, and copying stays a decision they made on purpose.
@@ -186,33 +197,51 @@ export function EventSwitcher({
           </thead>
           <tbody>
             {tournaments.map((e) => {
-              const s = STATUS[e.status] ?? STATUS.draft;
+              // "Draft" a month after the last day is what the column holds, not what is true.
+              const s = e.datesPassed ? DATES_PASSED : (STATUS[e.status] ?? STATUS.draft);
               return (
                 <tr key={e.id} style={e.isActive ? { background: "var(--color-accent-900)" } : undefined}>
                   <td style={{ fontWeight: 500 }}>
                     {e.name || "Untitled"}
-                    <div className="text-muted" style={{ fontSize: 13 }}>{e.dates || "No dates set"}</div>
+                    <div className="text-muted" style={{ fontSize: 13 }}>
+                      {e.toldApart || e.dates || "No dates set"}
+                    </div>
+                    {whyId === e.id && (
+                      // Information, not an error (the panel, 30 Oct): said politely, in the muted style.
+                      <div className="text-muted" role="status" style={{ fontSize: 13, fontWeight: 400, marginTop: 4 }}>
+                        {ONLY_THE_ORGANIZER}
+                      </div>
+                    )}
                   </td>
                   <td><span className={`tag ${s.tag}`}>{s.label}</span></td>
                   <td className="text-muted">{e.course || "—"}</td>
                   <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{e.players}</td>
                   <td style={{ textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
+                    {/* ONE SLOT FOR THE BIN ON EVERY ROW (Ajay, 2026-10-26: the
+                        buttons did not line up). The bin was drawn only for an
+                        organizer, so Manage sat 40px further right on every row
+                        without one. Now every row keeps the slot, and a row its
+                        reader may not delete says why when the bin is pressed. */}
+                    <div data-row-actions style={{ display: "grid", gridTemplateColumns: "auto 34px", gap: 6, justifyContent: "end", alignItems: "center" }}>
                       {confirmingId === e.id ? (
-                        <>
-                          <span className="text-muted" style={{ fontSize: 13 }}>Delete?</span>
+                        <div style={{ gridColumn: "1 / -1", display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
+                          {/* Says what goes with it: the bin deletes the field
+                              and every card too (`deleteEvent` cascades). */}
+                          <span className="text-muted" style={{ fontSize: 13, textAlign: "right", maxWidth: 220 }}>
+                            {e.players > 0 ? `Delete with its ${e.players} ${e.players === 1 ? "player" : "players"} and every score?` : "Delete?"}
+                          </span>
                           {/* NAMED. Every control in this table acted on a
                               row and said only what it did — twelve identical
                               "Delete tournament" buttons to anyone reading by
                               name, and a "Confirm delete" that destroys a
                               tournament without saying which. */}
-                          <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"} for good`} aria-label={`Delete ${e.name || "this tournament"} for good`} disabled={pending} style={{ color: "var(--color-accent-200)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
+                          <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"} for good`} aria-label={`Delete ${e.name || "this tournament"} for good`} disabled={pending} style={{ color: "var(--color-danger)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
                             <Icon name="check" />
                           </button>
                           <button type="button" className="btn btn-icon" title={`Keep ${e.name || "this tournament"}`} aria-label={`Keep ${e.name || "this tournament"}`} onClick={() => setConfirmingId("")}>
                             <Icon name="x" />
                           </button>
-                        </>
+                        </div>
                       ) : (
                         <>
                           {e.isActive ? (
@@ -224,8 +253,12 @@ export function EventSwitcher({
                           ) : (
                             <span className="text-muted" style={{ fontSize: 13 }}>No access</span>
                           )}
-                          {e.isOrganizer && (
-                            <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"}`} aria-label={`Delete ${e.name || "this tournament"}`} disabled={pending} onClick={() => setConfirmingId(e.id)}>
+                          {e.isOrganizer ? (
+                            <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"}`} aria-label={`Delete ${e.name || "this tournament"}`} disabled={pending} onClick={() => { setWhyId(""); setConfirmingId(e.id); }}>
+                              <Icon name="trash" />
+                            </button>
+                          ) : (
+                            <button type="button" className="btn btn-icon" title={ONLY_THE_ORGANIZER} aria-label={`Why can't I delete ${e.name || "this tournament"}?`} aria-expanded={whyId === e.id} style={{ opacity: 0.6, border: "1px dashed var(--color-divider)" }} onClick={() => setWhyId(whyId === e.id ? "" : e.id)}>
                               <Icon name="trash" />
                             </button>
                           )}
@@ -405,11 +438,15 @@ export function EventSwitcher({
               const res = copyId
                 ? await cloneEvent(copyId, name)
                 : await createEvent(name, source, shape, undefined, organizationId || undefined);
+              // A refused name stays in the box (2026-11-01): the refusal offers a free one, and
+              // the organizer edits what they typed rather than typing it all again.
               if (res && !res.ok) setError(res.error ?? "Could not create the tournament.");
               // Into the tournament just made — see the note on `openIn`.
-              else router.push("/dashboard");
+              else {
+                setName("");
+                router.push("/dashboard");
+              }
             });
-            setName("");
           }}
         >
           <Icon name="plus" /> Create tournament
@@ -426,7 +463,8 @@ export function EventSwitcher({
         </p>
       )}
       <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{blurb}</p>
-      {error && <p className="form-error">{error}</p>}
+      {/* A refusal (a name in play, a name too long) is said where the press was. */}
+      {error && <p className="form-error" role="alert" ref={bringIntoView}>{error}</p>}
 
       {/* THE CASUAL ROUND IS NOT AN ORGANIZER FEATURE, and the card that
           used to sit here has gone.
