@@ -1,4 +1,5 @@
 import SHOT_WIDTHS from "@/lib/landing/shot-widths.json";
+import { landingScreen } from "@/lib/landing/screens";
 
 /**
  * A real capture of the app.
@@ -77,6 +78,7 @@ export function plainShot({
   className?: string;
   priority?: boolean;
 }) {
+  landingScreen(name); // only a screen the manifest names (src/lib/landing/screens.ts) — it throws on any other
   const e = (SHOT_WIDTHS as Record<string, { w: number; h?: number; v: number[] }>)[name];
   if (!e || !e.h) throw new Error(`landing picture "${name}" is not in shot-widths.json with its size — place it with scripts/place-landing-shots.mjs`);
   return <Shot src={`/landing/${name}.webp`} width={e.w} height={e.h} alt={alt} className={className} priority={priority} sizes={sizes} />;
@@ -84,6 +86,7 @@ export function plainShot({
 
 /** One sharp small copy of a capture, for a decorative tile that is never read. */
 export function thumbShot(name: string, width: number) {
+  landingScreen(name);
   return (
     // eslint-disable-next-line @next/next/no-img-element -- a pre-sized copy; next/image would re-encode it
     <img src={`/landing/${name}.w${width}.webp`} alt="" loading="lazy" decoding="async" />

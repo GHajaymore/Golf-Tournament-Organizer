@@ -383,28 +383,55 @@ export function LandingHomeEffects() {
       }, on);
     }
 
-    // ── the round-code box: it shows how it goes until somebody takes it ──
+    // ── THE LIVE MOMENT (2026-11-01, hero-stage.tsx): the demo code is typed, the member's card takes a score,
+    // and the phone's board and the organizer's leaderboard both move — ONCE, and then it rests. The stage is
+    // drawn settled (the board after the score); this sets it back to the card only to play the moment, and
+    // never for a visitor who asks for less motion. Every picture is a real before or after capture. ──
     const BOARD = 0;
     const CARD = 1;
-    const frames = $$("#loop img");
+    const rig = $(".m-rig");
+    const frames = $$("#loop img"); // [the board after, the card before]
+    const desk = $$("#desk-loop img"); // [the leaderboard after, before]
+    const count = $("#live-count");
     const codeBox = $<HTMLInputElement>("#hero-code");
     const codeSay = $("#hero-code-say");
-    const toast = $("#toast");
     const strip = $(".m-ticker");
     let shownFrame = BOARD;
     const frame = (i: number) => {
-      if (!frames[i] || (shownFrame === i && frames[i].classList.contains("m-on"))) return;
+      if (!frames[i] || shownFrame === i) return;
       shownFrame = i;
       turn(frames, i);
+      turn(desk, i);
+      rig?.classList.toggle("m-moved", i === BOARD);
+      if (count) {
+        count.textContent = (i === BOARD ? count.dataset.after : count.dataset.before) ?? count.textContent;
+        count.classList.remove("m-bump");
+        if (i === BOARD && !calm) { void count.offsetWidth; count.classList.add("m-bump"); }
+      }
     };
-    let toastTimer: ReturnType<typeof setTimeout> | null = null;
-    const say = (words: string) => {
-      if (!toast) return;
-      toast.textContent = words;
-      toast.classList.add("m-show");
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = wait(() => toast.classList.remove("m-show"), 2100);
+    /** The press on the card, then the boards move, and the moved line is told for a few seconds. */
+    const play = (after: () => void) => {
+      frame(CARD);
+      wait(() => {
+        rig?.classList.add("m-tapping", "m-playing");
+        wait(() => {
+          rig?.classList.remove("m-tapping");
+          frame(BOARD);
+          rig?.classList.add("m-told");
+          if (strip) { strip.classList.remove("m-flash"); void strip.offsetWidth; strip.classList.add("m-flash"); }
+          wait(() => rig?.classList.remove("m-told"), 4200);
+          after();
+        }, 650);
+      }, 900);
     };
+    if (rig && !calm) {
+      // The loops on the stage (the laptop's sheen, the live dot) rest while it is out of sight.
+      if (canWatch) {
+        const resting = new IntersectionObserver((entries) => entries.forEach((e) => rig.classList.toggle("m-asleep", !e.isIntersecting)), { rootMargin: "200px 0px" });
+        observers.push(resting);
+        resting.observe(rig);
+      }
+    }
     if (codeBox && codeSay) {
       const REST = codeBox.placeholder;
       const DEMO = "K7M4PQ2X";
@@ -421,34 +448,28 @@ export function LandingHomeEffects() {
           codeBox.placeholder = DEMO_SHOWN.slice(0, typed) + (typed < DEMO_SHOWN.length ? "_" : "");
           typed += 1;
           if (typed <= DEMO_SHOWN.length) { later(key, 150); return; }
-          frame(CARD);
           codeSay.textContent = "On their card. No account, no password.";
-          say("On their card");
-          later(() => {
-            frame(BOARD);
+          play(() => {
             codeSay.textContent = "A score goes in, and the board moves.";
-            say("Board moved");
-            if (strip) { strip.classList.remove("m-flash"); void strip.offsetWidth; strip.classList.add("m-flash"); }
+            // Once. Then the stage rests on the moved board, and the box is the visitor's.
             later(() => {
               codeBox.classList.remove("m-typing");
               codeBox.placeholder = REST;
               codeSay.textContent = "";
-              running = false;
-              if (heroSeen) { running = true; later(selfDemo, 2400); }
-            }, 3200);
-          }, 2600);
+              demoOn = false;
+            }, 3600);
+          });
         };
         key();
       };
       const stopDemo = () => {
-        toast?.classList.remove("m-show");
         if (!demoOn) return;
         demoOn = false;
         codeBox.classList.remove("m-typing");
         codeBox.placeholder = REST;
         codeSay.textContent = "";
       };
-      const begin = () => { if (demoOn && heroSeen && !running) { running = true; later(selfDemo, 2800); } };
+      const begin = () => { if (demoOn && heroSeen && !running) { running = true; later(selfDemo, 1600); } };
       if (heroEl && canWatch) {
         const io = new IntersectionObserver((entries) => {
           heroSeen = entries[0].isIntersecting;
@@ -468,11 +489,9 @@ export function LandingHomeEffects() {
           return;
         }
         codeSay.textContent = "You are on your card. No account, no password.";
-        frame(CARD);
-        wait(() => {
-          frame(BOARD);
+        play(() => {
           codeSay.textContent = "A score goes in and the board moves. That is all a player does.";
-        }, 1900);
+        });
       }, on);
     }
 

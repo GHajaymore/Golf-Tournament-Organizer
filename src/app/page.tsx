@@ -29,6 +29,7 @@ import { LandingHomeEffects } from "@/components/LandingHomeEffects";
 import { FeatureSearch } from "@/components/landing/FeatureSearch";
 import { contactEmail, editionNote, icon, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
 import { plainShot, thumbShot } from "@/components/landing/shots";
+import { HeroStage } from "@/components/landing/hero-stage";
 import { posterFontVars } from "@/app/fonts";
 
 /**
@@ -62,11 +63,8 @@ const STORE_LINKS = {
  * reuses it everywhere else the same picture appears.
  */
 const SIZES = {
-  // The width the stylesheet draws it at (`.m-hero-phone` below 900px). It said 220px after the pair
-  // was made to scale with the screen, so a 640-wide tablet was sent a picture for 220 and drew it
-  // at 290, soft — found by the first round to hold a tablet (2026-10-13).
-  heroPhone: "(max-width: 899px) min(56vw, 290px), 330px",
-  heroDesk: "(max-width: 899px) 1px, 900px",
+  // The hero's two sizes live with its stage (`hero-stage.tsx`). A width said here must be the one the
+  // stylesheet draws: a 640-wide tablet was once sent a picture for 220 and drew it at 290, soft (2026-10-13).
   story: "(max-width: 899px) min(60vw, 250px), 300px",
   step: "250px",
   desk: "(max-width: 899px) 1px, min(1070px, 92vw)",
@@ -329,29 +327,8 @@ export default async function LandingPage() {
                 </ul>
               </div>
 
-              <div className="m-hero-phone">
-                <svg className="m-rings" viewBox="0 0 700 700" aria-hidden="true" preserveAspectRatio="none">
-                  <ellipse cx="350" cy="350" rx="150" ry="205" />
-                  <ellipse cx="356" cy="346" rx="205" ry="250" />
-                  <ellipse cx="344" cy="356" rx="262" ry="292" />
-                  <ellipse cx="352" cy="350" rx="318" ry="328" />
-                </svg>
-                {/* Decorative depth behind the phone: turned, so never read — the same screens are shown flat below. */}
-                <div className="m-hero-desk m-decor" aria-hidden="true">
-                  {plainShot({ name: "desk-leaderboard", alt: "", sizes: SIZES.heroDesk })}
-                </div>
-                <div className="m-toast" id="toast" aria-hidden="true" />
-                <div className="m-chip" aria-hidden="true"><span className="m-dot" /><span><b>Live now</b> · 40 of 40 cards in</span></div>
-                <div className="m-phone m-back m-left m-decor" aria-hidden="true">
-                  {plainShot({ name: "club-today", alt: "", sizes: SIZES.heroPhone })}
-                </div>
-                <div className="m-phone">
-                  <div className="m-loop" id="loop" role="img" aria-label="A player's phone: the live board, and a score going in on their card.">
-                    {plainShot({ name: "club-board", alt: "", sizes: SIZES.heroPhone, className: "m-on", priority: true })}
-                    {plainShot({ name: "club-card", alt: "", sizes: SIZES.heroPhone })}
-                  </div>
-                </div>
-              </div>
+              {/* The stage: a laptop in 3D, the player's phone in front, one live moment (hero-stage.tsx). */}
+              <HeroStage />
 
               <div className="m-tryline m-rise m-d5">
                 <label htmlFor="hero-code"><b>See what a player sees.</b> Type the demo code.</label>
@@ -528,7 +505,7 @@ export default async function LandingPage() {
               </div>
             </div>
 
-            <div className="m-cards m-leaf">
+            <div className="m-cards">
               <div className="m-card">
                 <h3>Nothing counts until you say so.</h3>
                 <p>Cards are certified, approved or disputed. A result from the course waits for you.</p>
@@ -668,7 +645,7 @@ export default async function LandingPage() {
             Read from PLANS through the owner's overrides, in the visitor's
             currency, so the page cannot promise a price or a limit the code
             does not hold. */}
-        <section className="m-chapter m-leaf m-leaf-ground" id="pricing" aria-labelledby="pricing-h">
+        <section className="m-chapter" id="pricing" aria-labelledby="pricing-h">
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">Pricing</p>
