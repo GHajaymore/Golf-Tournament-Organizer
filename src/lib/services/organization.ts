@@ -169,31 +169,44 @@ async function nameIfStillUnnamed(
 
   const kind = (orgKind ?? "").trim();
   let kindData: { kind?: string } = {};
+  const current = isOrgKind(kind)
+    ? await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { country: true, communityNoun: true, kind: true, moneyMode: true },
+      })
+    : null;
   if (isOrgKind(kind)) {
-    const current = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { country: true, communityNoun: true, kind: true, moneyMode: true },
-    });
     // Never hide somebody's members list on the way through a create form —
     // `saveOrganizationKind` asks first for that, and this form cannot.
     const keepsRoster = orgProfile(kind, current?.country, current?.communityNoun).sharedRoster;
     const members = keepsRoster ? 0 : await prisma.member.count({ where: { organizationId } });
-    // Nor move the money of a tournament that follows the kind: the same
-    // question `saveOrganizationKind` asks, and this form cannot ask it either.
-    const tournaments = await prisma.event.findMany({
-      where: { organizationId },
-      select: { id: true, name: true, moneyMode: true },
-    });
-    const moneyMoves =
-      moneyModeFlipsOnKindChange({
-        orgMode: current?.moneyMode ?? "",
-        fromKind: current?.kind ?? "",
-        toKind: kind,
-        tournaments,
-      }).length > 0;
-    if ((keepsRoster || members === 0) && !moneyMoves) kindData = { kind };
+    if (keepsRoster || members === 0) kindData = { kind };
   }
-  await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted, ...kindData } });
+  if (!kindData.kind) {
+    await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted } });
+    return;
+  }
+  /**
+   * Nor move the money of a tournament that follows the kind. `saveOrganizationKind`
+   * asks; this form cannot, so it keeps each such tournament exactly as it is by
+   * writing its current mode onto the tournament itself. Not onto the club's
+   * default: the club has just said what it is, and its NEXT tournament — the one
+   * this form is creating — should start the way that kind of outfit starts.
+   */
+  const tournaments = await prisma.event.findMany({
+    where: { organizationId },
+    select: { id: true, name: true, moneyMode: true },
+  });
+  const flips = moneyModeFlipsOnKindChange({
+    orgMode: current?.moneyMode ?? "",
+    fromKind: current?.kind ?? "",
+    toKind: kindData.kind,
+    tournaments,
+  });
+  await prisma.$transaction([
+    ...flips.map((f) => prisma.event.update({ where: { id: f.id }, data: { moneyMode: f.from } })),
+    prisma.organization.update({ where: { id: organizationId }, data: { name: wanted, ...kindData } }),
+  ]);
 }
 
 /**
