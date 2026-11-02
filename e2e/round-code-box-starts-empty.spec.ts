@@ -57,7 +57,10 @@ test("after 'Use a different code' the box is empty, and a code typed key by key
     watchPageErrors(page, errors);
     await page.goto("/play");
     await page.waitForLoadState("networkidle").catch(() => {});
-    const box = page.locator("main input").first();
+    // The box by its label: the code screen is a real form that posts with no
+    // script, so React draws hidden inputs ahead of it, and the first input in
+    // `main` is not the one a thumb types into.
+    const box = page.getByLabel("Round code");
     const back = page.getByRole("button", { name: "Use a different code" });
     await expect(box, "the code screen has no box to type a code into").toBeVisible({ timeout: 20_000 });
 
@@ -76,7 +79,7 @@ test("after 'Use a different code' the box is empty, and a code typed key by key
     // Say what the screen showed when it failed, in the error itself — a
     // summary that keeps one line keeps this one.
     const shown = await page.locator("main").innerText().catch(() => "(no page)");
-    const typed = await page.locator("main input").first().inputValue().catch(() => "(no box)");
+    const typed = await page.getByLabel("Round code").inputValue({ timeout: 1_000 }).catch(() => "(no box)");
     throw new Error(`${(err as Error).message.split("\n")[0]} | box: "${typed}" | screen: ${shown.replace(/\s+/g, " ").slice(0, 300)}`);
   } finally {
     // Never let closing hide what failed: a timed-out test has already closed it.
