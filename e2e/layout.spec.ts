@@ -479,3 +479,31 @@ test("the public leaderboard fits a phone too", async ({ page }) => {
   expect(await overflowing(page)).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
 });
+
+/**
+ * THE TWO OTHER PAGES UNDER THE BOARD'S LINK (2026-10-24). The filesystem walk
+ * above cannot reach a route under `[token]`, so they are named here, as the
+ * board is: the event page a secretary sends, and the clubhouse screen for a TV.
+ */
+test("the event page fits a phone too", async ({ page }) => {
+  await page.goto(`/live/${data.shareToken}/event`);
+  await page.waitForLoadState("networkidle");
+  // As above: prove it rendered, or a 404 passes.
+  await expect(page.getByRole("link", { name: "Open the leaderboard" })).toBeVisible();
+  const h1s = await page.locator("h1").allInnerTexts();
+  expect(h1s, `/live/<token>/event has ${h1s.length} h1s`).toHaveLength(1);
+  const width = page.viewportSize()?.width ?? 0;
+  expect(await overflowing(page)).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
+});
+
+test("the clubhouse screen fills the screen and never scrolls", async ({ page }) => {
+  await page.goto(`/live/${data.shareToken}?screen=clubhouse`);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("main", { name: "Clubhouse screen" })).toBeVisible();
+  const h1s = await page.locator("h1").allInnerTexts();
+  expect(h1s, `the clubhouse screen has ${h1s.length} h1s`).toHaveLength(1);
+  const doc = await page.evaluate(() => ({ h: document.documentElement.scrollHeight, w: document.documentElement.scrollWidth, ih: innerHeight, iw: innerWidth }));
+  expect(doc.w, "the clubhouse screen scrolls sideways").toBeLessThanOrEqual(doc.iw + 1);
+  expect(doc.h, "the clubhouse screen scrolls").toBeLessThanOrEqual(doc.ih + 1);
+});

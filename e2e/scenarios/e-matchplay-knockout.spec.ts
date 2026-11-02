@@ -109,13 +109,6 @@ test("five E", async ({ page, context, baseURL }, testInfo) => {
     });
     await test.step("launch, the board public, the qualifier's tee sheet", async () => {
       await open(page, "/dashboard");
-      for (const step of ["Start taking entries", "Mark ready"]) {
-        const b = page.getByRole("button", { name: step });
-        if (await b.count()) {
-          await b.click();
-          await expect(b).toHaveCount(0, { timeout: 20_000 });
-        }
-      }
       const launch = page.getByRole("button", { name: "Launch tournament" });
       if (await launch.count()) {
         await launch.click();
@@ -184,7 +177,7 @@ test("five E", async ({ page, context, baseURL }, testInfo) => {
     const ROUNDS = ["Round 1", "Round 2", "Round 3", "Quarter-finals", "Semi-finals", "Final"];
     const MARGINS = ["3&2", "2&1", "1 UP", "4&3", "19th", "5&4"];
     await test.step("the committee records the knockout, round by round", async () => {
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       // The first column, in draw order: "Name seed Name seed …".
       const text = (await page.locator("main").innerText()).replace(/\s+/g, " ");
       // The Whole draw tab, which the secretary's screen opens on; the first column follows its heading.

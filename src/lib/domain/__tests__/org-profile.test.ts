@@ -139,8 +139,11 @@ describe("what to call the settings screen", () => {
    */
   it("names it for each kind", () => {
     expect(orgProfile("club").settingsLabel).toBe("Club settings");
-    expect(orgProfile("community").settingsLabel).toBe("Society settings");
-    expect(orgProfile("personal").settingsLabel).toBe("Outing settings");
+    // A community with no country is a US league (the app's default); a
+    // British one is a society. See org-profile-country.test.ts.
+    expect(orgProfile("community").settingsLabel).toBe("League settings");
+    expect(orgProfile("community", "GB").settingsLabel).toBe("Society settings");
+    expect(orgProfile("personal").settingsLabel).toBe("Settings");
   });
 
   it("gives every kind a label, and never a blank one", () => {
@@ -166,9 +169,17 @@ describe("what to call the settings screen", () => {
      * The section heading sits directly above the settings entry. "Club" over
      * "Outing settings" would be the same disagreement moved rather than
      * fixed, so the group label must be the first word of the settings one.
+     *
+     * Except where there is no group to name (the panel, 2026-10-26): one
+     * person's own golf is "Your golf", and its entry the plain "Settings",
+     * which names no outfit to disagree with.
      */
     for (const k of ORG_KINDS) {
       const p = orgProfile(k);
+      if (p.settingsLabel === "Settings") {
+        expect(k).toBe("personal");
+        continue;
+      }
       expect(p.settingsLabel.startsWith(p.groupLabel), k).toBe(true);
     }
   });

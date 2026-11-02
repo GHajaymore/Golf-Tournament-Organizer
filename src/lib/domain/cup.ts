@@ -236,6 +236,109 @@ export function cupVerdict(t: CupTally, target: number, holder: CupSide | null, 
   return { kind: "open", needA: Math.max(0, win - t.a), needB: Math.max(0, win - t.b) };
 }
 
+/** One team in a cup's result: its points, and who played a match for it. */
+export interface CupResultTeam {
+  id: string;
+  name: string;
+  points: number;
+  /** Everybody who played in an announced match for this team, once each. */
+  players: Array<{ id: string; name: string }>;
+}
+
+/**
+ * A TEAM CUP'S RESULT — the one answer every reader of "who won" asks
+ * (2026-10-30). Until then a cup had a board (`cupBoard`) and a report
+ * (`finalReport`), and three readers that asked the ROUND ROBIN standings
+ * instead: /reports printed every player at P0 W0 ½0 L0, the honours board
+ * said nobody could be named, and the season scored nobody. A cup's matches
+ * are on "Team Session" rounds, and the round-robin chain reads "Round Robin"
+ * rounds only, so for a cup it is an empty table that looks like a result.
+ *
+ *   won     a team reached the points to win. It is the champion.
+ *   halved  every point is decided and neither reached it — level, or level
+ *           with a holder keeping the cup. NOBODY is crowned: a holder keeps a
+ *           trophy, it does not win a tournament.
+ *   open    points still to be decided.
+ *
+ * `scoreLine` is how the result is written: "Oakmere 6½–3½" (winner first),
+ * "Halved 5–5", or both teams in order while it is open.
+ */
+export interface CupResult {
+  teams: [CupResultTeam, CupResultTeam];
+  outcome: "won" | "halved" | "open";
+  /** The team that won the cup outright; null unless `outcome` is "won". */
+  champion: CupSide | null;
+  /** The holder, when one is named — "keeps the cup" on a halved cup. */
+  holder: CupSide | null;
+  scoreLine: string;
+  /** Points decided, and every point there is. */
+  decided: number;
+  inPlay: number;
+}
+
+export function cupResultOf(input: {
+  teams: [Omit<CupResultTeam, "points">, Omit<CupResultTeam, "points">];
+  tally: CupTally;
+  verdict: CupVerdict;
+  holder: CupSide | null;
+}): CupResult {
+  const { tally, verdict, holder } = input;
+  const teams: [CupResultTeam, CupResultTeam] = [
+    { ...input.teams[0], points: tally.a },
+    { ...input.teams[1], points: tally.b },
+  ];
+  const inPlay = cupPointsInPlay(tally);
+  const decided = cupPointsDecided(tally);
+  const allDecided = inPlay > 0 && decided >= inPlay;
+  const outcome: CupResult["outcome"] =
+    verdict.kind === "won" ? "won" : verdict.kind === "tied" || (verdict.kind === "retained" && allDecided) ? "halved" : "open";
+  const champion = verdict.kind === "won" ? verdict.by : null;
+  const [a, b] = teams;
+  let scoreLine: string;
+  if (champion) {
+    const [w, l] = champion === "A" ? [a, b] : [b, a];
+    scoreLine = `${w.name} ${cupPoints(w.points)}–${cupPoints(l.points)}`;
+  } else if (outcome === "halved") {
+    scoreLine = `Halved ${cupPoints(a.points)}–${cupPoints(b.points)}`;
+  } else {
+    scoreLine = `${a.name} ${cupPoints(a.points)}–${cupPoints(b.points)} ${b.name}`;
+  }
+  return { teams, outcome, champion, holder, scoreLine, decided, inPlay };
+}
+
+/**
+ * The one line above a cup's result on a printed sheet: who won and by what,
+ * that it was halved (and who keeps the cup), or that it is not decided yet.
+ */
+export function cupResultNote(r: CupResult): string {
+  if (r.outcome === "won") {
+    const [w, l] = r.champion === "A" ? r.teams : [r.teams[1], r.teams[0]];
+    return `${w.name} won the cup ${cupPoints(w.points)}–${cupPoints(l.points)}. A point a match won, half a point a match halved.`;
+  }
+  if (r.outcome === "halved") {
+    const keeps = r.holder ? ` ${(r.holder === "A" ? r.teams[0] : r.teams[1]).name} keep the cup as holders.` : "";
+    return `The cup was halved, ${cupPoints(r.teams[0].points)}–${cupPoints(r.teams[1].points)}.${keeps}`;
+  }
+  return `${r.scoreLine}, with ${cupPoints(r.inPlay - r.decided)} of ${cupPoints(r.inPlay)} points still to be decided.`;
+}
+
+/**
+ * Where each player who played finished, for the season table: the winning
+ * team's players share first, the other team's share the place after them; a
+ * halved cup leaves everybody sharing first. Nothing while the cup is open —
+ * an order that can still reverse is not a finish.
+ */
+export function cupFinishingPositions(r: CupResult): Array<{ playerId: string; name: string; rank: number }> {
+  if (r.outcome === "open") return [];
+  const [a, b] = r.teams;
+  const at = (t: CupResultTeam, rank: number) => t.players.map((p) => ({ playerId: p.id, name: p.name, rank }));
+  if (r.outcome === "halved") return [...at(a, 1), ...at(b, 1)];
+  const [w, l] = r.champion === "A" ? [a, b] : [b, a];
+  // Below every winner, and never level with first even if the winners'
+  // points all came from outside the matches.
+  return [...at(w, 1), ...at(l, Math.max(2, w.players.length + 1))];
+}
+
 /** "8½", "14", "½" — how a cup score is written. */
 export function cupPoints(n: number): string {
   const whole = Math.floor(n);

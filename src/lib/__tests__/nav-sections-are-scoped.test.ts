@@ -177,7 +177,12 @@ describe("the sections read in the order the work happens", () => {
     for (const s of NAV) {
       // Set up mirrors the strip: its seven include Flights and Teams & pairs, which
       // one tournament rarely shows together (2026-10-16, Prizes moved in).
-      expect(s.items.length, `${s.label} has ${s.items.length} entries`).toBeLessThanOrEqual(s.label === "Set up" ? 7 : 6);
+      // On the day took the Print kit under the Tee sheet it prints from (2026-10-23): its
+      // seven include Bracket, Team cup and This week, each for one kind of tournament, so a
+      // sidebar shows five of them at most.
+      expect(s.items.length, `${s.label} has ${s.items.length} entries`).toBeLessThanOrEqual(
+        s.label === "Set up" || s.label === "On the day" ? 7 : 6,
+      );
     }
   });
 });

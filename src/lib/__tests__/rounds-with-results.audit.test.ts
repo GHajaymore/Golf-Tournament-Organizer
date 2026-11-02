@@ -103,6 +103,23 @@ describe("a round counts as started when", () => {
     expect(state!.roundsWithResults.has(untouched.id), "a round nobody has touched").toBe(false);
   });
 
+  // A SIDE'S CARD (2026-10-31): a scramble or best ball files a `TeamScorecard`, the fourth table
+  // a round's result can live in, and this set was built without it — a played scramble read as
+  // never played. The fixture had no team round, so no case here could reach it.
+  it("a scramble round has one side's card, which lives in neither of the individual tables", async () => {
+    const { eventId, untouched } = await seed();
+    const scramble = await prisma.stage.create({
+      data: { eventId, position: 4, type: "Stroke Play Round", format: "Scramble", holes: 18 },
+    });
+    const side = await prisma.team.create({ data: { eventId, stageId: scramble.id, name: "Side A" } });
+    await prisma.teamScorecard.create({
+      data: { eventId, stageId: scramble.id, teamId: side.id, strokes: JSON.stringify([4, ...new Array(17).fill(0)]) },
+    });
+    const state = await loadEventState(eventId);
+    expect(state!.roundsWithResults.has(scramble.id), "a scramble with a side's card read as never played").toBe(true);
+    expect(state!.roundsWithResults.has(untouched.id), "a round nobody has touched").toBe(false);
+  });
+
   it("a match round has one hole on it", async () => {
     // One hole is the line `playRefusal` draws for "has anybody been out on
     // the course", and it is the right line here: this is not "is it finished".

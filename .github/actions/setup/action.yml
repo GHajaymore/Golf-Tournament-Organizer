@@ -12,12 +12,21 @@ description: Node, dependencies, a generated Prisma client and a migrated databa
 # run until the repository containing it has been checked out, so every job has
 # to do that itself first.
 
+inputs:
+  node-version:
+    # 20 for the app and every test. The mutation ratchet's part asks for 22: StrykerJS 10
+    # refuses to start on anything older ("requires version to match >=22.0.0"), which is how
+    # the first nightly with it (2026-11-01) reported no scores at all.
+    description: The Node.js version to set up
+    required: false
+    default: "20"
+
 runs:
   using: composite
   steps:
     - uses: actions/setup-node@v4
       with:
-        node-version: 20
+        node-version: ${{ inputs.node-version }}
         cache: npm
 
     - name: Install

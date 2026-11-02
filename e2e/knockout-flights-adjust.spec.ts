@@ -102,7 +102,7 @@ async function storedFlights(): Promise<string[][] | null> {
 }
 
 async function open(page: Page) {
-  await page.goto(`/bracket?bust=${Date.now()}`);
+  await page.goto(`/bracket?view=draw&bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
 }
 

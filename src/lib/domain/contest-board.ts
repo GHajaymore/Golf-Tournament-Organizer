@@ -14,7 +14,7 @@ import { CONTEST_LABEL, isContestKind } from "./contests";
  * dinner and a side bet between four friends are their business, not the
  * club's board's.
  */
-export const BOARD_CONTEST_KINDS = ["closest-pin", "long-drive"] as const;
+export const BOARD_CONTEST_KINDS = ["closest-pin", "long-drive", "straightest-drive"] as const;
 
 export function shownOnBoard(kind: string): boolean {
   return (BOARD_CONTEST_KINDS as readonly string[]).includes(kind);

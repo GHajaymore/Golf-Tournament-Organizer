@@ -794,8 +794,12 @@ export async function confirmChampion(
       organizationId,
       eventId,
       event: found.event,
-      playerId: suggestion.playerId,
-      championName: suggestion.name,
+      // A team cup's champion is a TEAM, named with its score — "Oakmere
+      // 6½–3½". `playerId` holds a PLAYER or nothing: a team's line carries
+      // no id (one champion per cup, so (eventId, "") is its one line), and
+      // the column is never given a flight to be mistaken for a person.
+      playerId: suggestion.team ? "" : suggestion.playerId,
+      championName: suggestion.team ? suggestion.team.score : suggestion.name,
       note,
     });
     return { ok: true, championName: entry.championName };
