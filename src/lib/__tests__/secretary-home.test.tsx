@@ -83,6 +83,16 @@ describe("copy last event, drawn", () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>.*Create the copy/s);
   });
 
+  it("names flights for a field, and none for a team cup, whose two flights are its teams", () => {
+    const draw = (isCup: boolean) =>
+      renderToStaticMarkup(
+        <CopyLastEvent copyable={[{ id: "a", name: "zz-sechome Cup", startOn: "2026-05-02", isCup }]} today="2026-10-21" />,
+      );
+    expect(draw(false)).toContain("tees, flights, side games");
+    expect(draw(true)).not.toContain("flights");
+    expect(draw(true)).toContain("tees, side games");
+  });
+
   it("draws nothing with nothing to copy", () => {
     expect(renderToStaticMarkup(<CopyLastEvent copyable={[]} today="2026-10-21" />)).toBe("");
   });

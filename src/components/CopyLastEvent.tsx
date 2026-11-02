@@ -23,7 +23,7 @@ export function CopyLastEvent({
   copyable,
   today,
 }: {
-  copyable: { id: string; name: string; startOn: string }[];
+  copyable: { id: string; name: string; startOn: string; isCup?: boolean }[];
   /** Today at the club — the earliest day the copy may be given. */
   today: string;
 }) {
@@ -46,8 +46,9 @@ export function CopyLastEvent({
         <span className="card-kicker">Copy last event</span>
         <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
           Starts the next one from {source.name.trim() || "that tournament"}: its format, rounds, allowances, tees,
-          flights, side games, entry settings and who sees the board. Never its players, cards, results, money or
-          links. Its entry window and rounds move with the day you pick.
+          {/* A cup's two flights are its teams, picked from its players: it has no flights to name. */}
+          {source.isCup ? "" : " flights,"} side games, entry settings and who sees the board. Never its players,
+          cards, results, money or links. Its entry window and rounds move with the day you pick.
         </p>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>

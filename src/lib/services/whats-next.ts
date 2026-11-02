@@ -12,6 +12,7 @@ import { playOverOf } from "../domain/tournament-switcher";
 import { isFinished, isLaunched } from "../domain/lifecycle-state";
 import { roundLabel } from "../domain/round-label";
 import { isPlayingRound } from "../stage-types";
+import { TEAM_SESSION } from "./cup";
 
 /**
  * THE SECRETARY'S HOME — what's next for every tournament of the open
@@ -32,8 +33,12 @@ export interface SecretaryHome {
   jobs: ClubJob[];
   /** Whether this person may press the jobs' buttons and copy a tournament. */
   mayAct: boolean;
-  /** Tournaments a copy may start from, newest first — the first is "last event". */
-  copyable: { id: string; name: string; startOn: string }[];
+  /**
+   * Tournaments a copy may start from, newest first — the first is "last event".
+   * `isCup` when it is a team cup, whose two flights ARE its teams: the copy
+   * panel then names no flights (a cup's dashboard never does).
+   */
+  copyable: { id: string; name: string; startOn: string; isCup: boolean }[];
   /** Today at the club, `yyyy-mm-dd` — the earliest day a copy may be given. */
   today: string;
 }
@@ -82,7 +87,12 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
         // Newest first by the day it was played, then by when it was made — the
         // tournament a club repeats is nearly always the last one it ran.
         .sort((a, b) => (b.startOn || "").localeCompare(a.startOn || "") || b.createdAt.getTime() - a.createdAt.getTime())
-        .map((e) => ({ id: e.id, name: e.name, startOn: e.startOn }))
+        .map((e) => ({
+          id: e.id,
+          name: e.name,
+          startOn: e.startOn,
+          isCup: e.stages.some((s) => s.type === TEAM_SESSION),
+        }))
     : [];
 
   // A finished tournament is waiting on nobody; nor is one in a lapsed club's archive.
