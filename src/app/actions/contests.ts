@@ -10,6 +10,7 @@ import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { logAudit } from "@/lib/services/action-shared";
 import { money } from "@/lib/domain/money-format";
 import { currencyForEvent } from "@/lib/services/organization";
+import { contestStakeRefusal } from "@/lib/domain/shared-ball";
 
 /**
  * Side bets: closest to the pin, long drive, and whatever the first tee
@@ -82,10 +83,16 @@ export async function addContest(input: {
   }
 
   const stageId = (input.stageId ?? "").trim();
+  let format: string | null = null;
   if (stageId) {
-    const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });
+    const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, format: true } });
     if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+    format = stage.format;
   }
+  // A free contest runs on any round; a STAKED one never on a shared-ball
+  // round — the rule and its words are `contestStakeRefusal`'s.
+  const stakeRefused = contestStakeRefusal(format, buyInCents);
+  if (stakeRefused) return { ok: false, error: stakeRefused };
 
   const hole = Math.round(Number(input.hole ?? 0));
   const contest = await prisma.contest.create({

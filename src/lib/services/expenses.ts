@@ -17,7 +17,7 @@ import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
 import { resolveMoneyMode, sharedCostsApply, moneyScreenApplies } from "../domain/money-mode";
 import { paysWhen, roundMoneyIsFinal } from "../domain/money-layout";
-import { sharedBallRound } from "../domain/shared-ball";
+import { sharedBallRound, contestStakeOnRound } from "../domain/shared-ball";
 import { roundLabel } from "../domain/round-label";
 import { potMembership, isPotEntryMode } from "../domain/pot-entry";
 import { potAudience } from "../domain/pot-audience";
@@ -568,6 +568,16 @@ function anyNotStarted(
   return false;
 }
 
+/**
+ * Each round's format by id, for `contestStakeOnRound`: null for a contest
+ * tied to no round (stageId ""), or to one no longer in the event.
+ */
+async function stageFormats(eventId: string): Promise<(stageId: string) => string | null> {
+  const rows = await prisma.stage.findMany({ where: { eventId }, select: { id: true, format: true } });
+  const byId = new Map(rows.map((r) => [r.id, r.format]));
+  return (stageId: string) => byId.get(stageId) ?? null;
+}
+
 async function gameNets(
   eventId: string,
   onlyStageId?: string,
@@ -1055,12 +1065,16 @@ async function gameNets(
     include: { entrants: true },
   });
   const playedForContest = await playedOnceRoundIsOver(eventId, contests);
+  // A contest's round, for the shared-ball rule: a stake on a shared-ball
+  // round is read as free here, at the sink, so it can never settle however
+  // it got there (`contestStakeOnRound`).
+  const contestFormat = await stageFormats(eventId);
   for (const n of contestLedger(
     contests.map((c) => ({
       id: c.id,
       kind: isContestKind(c.kind) ? c.kind : "other",
       name: c.name,
-      buyInCents: c.buyInCents,
+      buyInCents: contestStakeOnRound(contestFormat(c.stageId), c.buyInCents),
       /**
        * Through potMembership, so an opt-out pot means what it says here too.
        *
