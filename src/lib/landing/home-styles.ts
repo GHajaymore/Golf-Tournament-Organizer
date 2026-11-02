@@ -875,4 +875,22 @@ export const HOME_CSS = `
    some 250px past the footer into nothing. Clipped where the page's main part ends, with clip and not hidden, so nothing
    that sticks while scrolling loses the viewport it sticks to. */
 .m-home { overflow-y: clip; }
+/* ── WHAT LOOPS FOR EVER RESTS OUT OF SIGHT (2026-11-01) ──
+   Eight animations run without end (the weather, the rings, the pulsing dots, the back phone's hover,
+   the strip, the wall's drift, the dashboard's ping, the picked plan's edge), and they kept the
+   browser drawing while nobody could see them. The script marks a part \`m-asleep\` while it is out of
+   view (with 200px to spare, so it is moving again before it shows) and this holds those loops where
+   they are. Only the loops: a phone's arrival is the first of its two animations, so it is left
+   running ("running, paused"), and nothing that plays once is ever held. On screen, nothing differs. */
+@media (prefers-reduced-motion: no-preference) {
+  .m-home .m-hero.m-asleep::before,
+  .m-home .m-asleep .m-rings ellipse,
+  .m-home .m-asleep .m-dot,
+  .m-home .m-ticker.m-asleep .m-track,
+  .m-home .m-moment.m-asleep .m-col,
+  .m-home .m-screen.m-asleep .m-spot i,
+  .m-home .m-plan.m-pick.m-asleep::before,
+  .m-home .m-close.m-asleep .m-cloth { animation-play-state: paused !important; }
+  .m-home .m-hero-phone.m-asleep .m-phone.m-back { animation-play-state: running, paused !important; }
+}
 `;

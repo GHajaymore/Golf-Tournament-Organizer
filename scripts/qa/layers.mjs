@@ -915,7 +915,7 @@ export const TIER_RULES = [
   // Words.
   ["words", ["docs/", "CLAUDE.md", "README.md", "src/lib/guide-steps.ts", "src/lib/guide-search.ts", "src/lib/player-help.ts", "public/guide/", "scripts/build-guide-pdf.mjs"]],
   // The front door and its three sister pages.
-  ["landing", ["src/app/page.tsx", "src/lib/landing/", "src/lib/landing-palette.ts", "src/components/landing/", "src/components/LandingAuth.tsx", "src/components/LandingEffects.tsx", "src/components/LandingHomeEffects.tsx", "public/landing/", "src/app/faq/", "src/app/privacy/", "src/app/terms/", "scripts/place-landing-shots.mjs", "src/lib/domain/landing-event.ts"]],
+  ["landing", ["src/app/page.tsx", "src/lib/landing/", "src/lib/landing-palette.ts", "src/components/landing/", "src/components/LandingAuth.tsx", "src/components/LandingEffects.tsx", "src/components/LandingHomeEffects.tsx", "public/landing/", "src/app/landing.css/", "src/app/faq/", "src/app/privacy/", "src/app/terms/", "scripts/place-landing-shots.mjs", "src/lib/domain/landing-event.ts"]],
   // Core: what every screen stands on.
   ["core", ["prisma/", "package.json", "package-lock.json", "next.config.mjs", "vercel.json", "tsconfig.json", "public/sw.js", "src/middleware.ts", "scripts/build-checked.mjs", "scripts/react-hydration-replay-backport.cjs", "scripts/deploy-migrations.mjs", "scripts/pad-migration-names.mjs"]],
   ["core", ["src/app/layout.tsx", "src/app/globals.css", "src/app/design-system.css", "src/app/fonts.ts", "src/app/(app)/layout.tsx", "src/app/(player)/layout.tsx", "src/lib/themes.ts", "src/lib/nav.ts", "src/lib/player-nav.ts", "src/lib/db.ts"]],
