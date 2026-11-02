@@ -25,3 +25,11 @@ shared chrome (`components/landing/chrome.tsx`, `lib/landing/styles.ts`) also dr
 - **Until go-live it is built and shipped as the designer and reported to Ajay; after go-live
   nothing on it changes without his preview first** (his ruling, 2026-10-11). Another session
   used to own these files; it has said it holds nothing in them.
+
+**`/new` is the site rehaul's PREVIEW (2026-11-01), not the front door.** `src/app/new/` with its own
+stylesheet (`new-styles.ts`, classes `n-`), its own two faces served from `public/new/fonts`
+(Archivo, Atkinson Hyperlegible Next, OFL), `noindex`, linked from nowhere. It reads the same facts as
+`/` (PLANS, `go-live.ts`, `FORMAT_NAMES`) and draws only screens named in `src/lib/landing/screens.ts`;
+the hero's live moment reads `screen-facts.json`. Its social strip and footer read `SOCIAL_CHANNELS`
+in `src/lib/contact.ts`. Unlike `/` it does not send a signed-in visitor on to the app. It replaces
+`/` only on Ajay's word; the design plan is in `TourneyHQ Documents\Landing concepts Nov 2026\Rehaul\`.
