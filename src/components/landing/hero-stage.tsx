@@ -47,7 +47,7 @@ export function HeroStage() {
     <div className="m-rig m-moved">
       <div className="m-scene m-decor" aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element -- one pre-sized file; next/image would re-encode it */}
-        <img src="/landing/hero-scene.w1100.webp" width={1100} height={728} alt="" decoding="async" fetchPriority="low" />
+        <img src="/landing/hero-scene.w1100.webp" width={1100} height={728} alt="" loading="lazy" decoding="async" />
       </div>
 
       <div className="m-laptop m-decor" aria-hidden="true">
