@@ -11,6 +11,7 @@ import { generateShareToken } from "../codes";
 import { newOrganizationName, organizationWasNamed } from "../org-naming";
 import { orgNamesLookLikeOne, inTheSameArea, type Whereabouts } from "../domain/org-name-match";
 import { isOrgKind, orgProfile, type OrgKind } from "../domain/org-profile";
+import { moneyModeFlipsOnKindChange } from "../domain/kind-change-money";
 import type { OrgSetupFacts } from "../domain/org-setup";
 import { logoSrc } from "../domain/logo-upload";
 import { golfRegister, golfTermsFor, type GolfRegister, type GolfTerm } from "../domain/golf-terms";
@@ -171,13 +172,26 @@ async function nameIfStillUnnamed(
   if (isOrgKind(kind)) {
     const current = await prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { country: true, communityNoun: true },
+      select: { country: true, communityNoun: true, kind: true, moneyMode: true },
     });
     // Never hide somebody's members list on the way through a create form —
     // `saveOrganizationKind` asks first for that, and this form cannot.
     const keepsRoster = orgProfile(kind, current?.country, current?.communityNoun).sharedRoster;
     const members = keepsRoster ? 0 : await prisma.member.count({ where: { organizationId } });
-    if (keepsRoster || members === 0) kindData = { kind };
+    // Nor move the money of a tournament that follows the kind: the same
+    // question `saveOrganizationKind` asks, and this form cannot ask it either.
+    const tournaments = await prisma.event.findMany({
+      where: { organizationId },
+      select: { id: true, name: true, moneyMode: true },
+    });
+    const moneyMoves =
+      moneyModeFlipsOnKindChange({
+        orgMode: current?.moneyMode ?? "",
+        fromKind: current?.kind ?? "",
+        toKind: kind,
+        tournaments,
+      }).length > 0;
+    if ((keepsRoster || members === 0) && !moneyMoves) kindData = { kind };
   }
   await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted, ...kindData } });
 }

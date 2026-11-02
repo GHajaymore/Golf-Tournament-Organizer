@@ -268,6 +268,7 @@ export const FULL_ONLY = [
   "e2e/interclub-league.spec.ts",
   "e2e/joining-a-club-refusals.spec.ts",
   "e2e/joining-a-club.spec.ts",
+  "e2e/kind-change-asks-about-money.spec.ts",
   "e2e/kitty.spec.ts",
   "e2e/landing-demo-doors.spec.ts",
   "e2e/landing-legible.spec.ts",
