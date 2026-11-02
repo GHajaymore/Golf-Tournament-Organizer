@@ -33,6 +33,7 @@ const { cupResult } = await import("@/lib/services/cup");
 const { finalReport } = await import("@/lib/services/final-report");
 const { championFor, championSuggestions } = await import("@/lib/services/honours");
 const { seriesTable } = await import("@/lib/services/series");
+const { confirmChampion } = await import("@/app/actions/roster");
 
 const prisma = new PrismaClient();
 const TAG = "zz-cup-result";
@@ -164,12 +165,28 @@ describe("a cup won 6½–3½", () => {
     const pending = (await championSuggestions(orgId)).find((p) => p.eventId === f.eventId);
     expect(pending?.suggestion).toMatchObject({
       ok: true,
-      playerId: f.oak,
+      playerId: "",
       name: `${TAG} Oakmere`,
       team: { score: `${TAG} Oakmere 6½–3½` },
     });
     // The confirm path recomputes it the same way.
     expect((await championFor(orgId, f.eventId))!.suggestion).toEqual(pending!.suggestion);
+  });
+
+  it("confirming it writes one board line in the team's words, with no team id in playerId", async () => {
+    // `HonoursEntry.playerId` is "for linking to a member's history". Until
+    // 2026-11-02 a cup's line carried the winning FLIGHT's id there, which any
+    // reader joining it to Player would have taken for a person.
+    expect(await confirmChampion(f.eventId)).toMatchObject({ ok: true, championName: `${TAG} Oakmere 6½–3½` });
+    // Twice is still one line: (eventId, "") is the cup's one key.
+    expect(await confirmChampion(f.eventId)).toMatchObject({ ok: true });
+    const rows = await prisma.honoursEntry.findMany({ where: { eventId: f.eventId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].championName).toBe(`${TAG} Oakmere 6½–3½`);
+    expect(rows[0].playerId).toBe("");
+    // CONTROL: the id the old code wrote is a real flight, so "" is not a
+    // coincidence of an empty fixture.
+    expect(await prisma.group.count({ where: { id: f.oak, eventId: f.eventId } })).toBe(1);
   });
 
   it("the season places Oakmere's ten level first and Elmbridge's ten below them", async () => {
