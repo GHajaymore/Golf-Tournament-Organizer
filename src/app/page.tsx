@@ -17,8 +17,7 @@ import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { landingPrices } from "@/lib/landing/pricing";
 import { FAQ_COUNT, FORMAT_NAMES } from "@/lib/landing/faq";
 import { featureCount, featureGroups } from "@/lib/landing/features";
-import { LANDING_CSS } from "@/lib/landing/styles";
-import { HOME_CSS } from "@/lib/landing/home-styles";
+import { FRONT_DOOR_CSS_HREF } from "@/lib/landing/front-door-sheet";
 import { COMPARED_ON, PRICES_READ_ON, RIVALS, TOP_PUBLISHED, compareRows, type Cell } from "@/lib/landing/compare";
 import { SALES_EMAIL } from "@/lib/contact";
 import { LandingAuth } from "@/components/LandingAuth";
@@ -285,8 +284,8 @@ export default async function LandingPage() {
 
   const page = (
     <div className="thq" lang={shown.locale} style={posterFontVars}>
-      <style dangerouslySetInnerHTML={{ __html: LANDING_CSS }} />
-      <style dangerouslySetInnerHTML={{ __html: HOME_CSS }} />
+      {/* LANDING_CSS then HOME_CSS, as one cached file rather than twice inline (`front-door-sheet.ts`). */}
+      <link rel="stylesheet" href={FRONT_DOOR_CSS_HREF} precedence="front-door" />
       {/* What this is, in schema.org terms — a product with a free tier and two
           paid ones, priced from PLANS in the visitor's currency. */}
       <script
