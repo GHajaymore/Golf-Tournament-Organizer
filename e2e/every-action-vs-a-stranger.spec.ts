@@ -862,7 +862,12 @@ test("a member of the club, pointing at other members' rows, changes only what i
     const others = new Map<string, string>();
     for (const model of world.models) {
       const rows = [...clubRows.get(model)!].map((k) => ({ k, row: clubWas.get(`${model}/${k}`) }));
-      const notMine = rows.filter((r) => !own.has(r.k) && !hasOne(r.row, own));
+      // A tournament the member is entered in is theirs to withdraw from, not somebody else's.
+      // The row watcher reads Event with no order, so on a database refilled by earlier tests the
+      // first "other" tournament was one the member had entered: round G391 (1 Nov) counted their
+      // own withdrawal as a finding, while a local run picked a closed one and passed.
+      const notMine = rows.filter((r) => !own.has(r.k) && !hasOne(r.row, own) && !(model === "Event" && enteredIn.has(r.k)));
+      if (model === "Event") expect(notMine.length, "every club tournament is one the member is in — the fixture cannot offer somebody else's").toBeGreaterThan(0);
       const pick = notMine.find((r) => r.row?.eventId === event.id) ?? notMine[0] ?? rows[0];
       others.set(model, pick.k);
     }

@@ -132,6 +132,8 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
 
   // Manage — running the live competition.
   foursomes: ["admin", "assistant"],
+  // What the Tee sheet prints, and who prints it: the same people.
+  print: ["admin", "assistant"],
   entry: ["admin", "assistant", "player"],
   // No `qualification` key: it is not a screen any more. The audit moved under
   // the draw it seeds, on /bracket, and its old route is a redirect — the same

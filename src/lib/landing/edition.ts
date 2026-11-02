@@ -137,6 +137,12 @@ export function editionSwaps(edition: Edition): WordSwap[] {
     both(us.golfGroups, uk.golfGroups, false);
     both(us.golfGroup, uk.golfGroup, false);
     swaps.push([/\bGolf outings\b/g, cap(uk.outings)]);
+    // And in a sentence ("leagues, golf groups and outings"), after the capital
+    // form above so "Golf outings" is read whole first.
+    // "charity outing" is its own phrase, never "charity society day".
+    both(us.charityDay, uk.charityDay, false);
+    both(us.outings, uk.outings, false);
+    both(us.outing, uk.outing, false);
   }
   if (edition.spelling !== "us") {
     swaps.push(

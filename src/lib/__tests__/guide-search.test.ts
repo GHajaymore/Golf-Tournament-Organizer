@@ -37,7 +37,12 @@ describe("searching the guide", () => {
 
   it("needs every word, and gives one result per place", () => {
     const hits = searchGuide(index, "approve cards");
-    expect(hits.every((h) => /approve/i.test(`${h.heading} ${h.text}`) && /cards/i.test(`${h.heading} ${h.text}`))).toBe(true);
+    // Every word — or its listed other way of saying it: "approve" is also searched as "sign off"
+    // (`SAME`), and the Print kit's steps (2026-10-23) hold "sign", "off" and "cards" without "approve".
+    const holds = (t: string) => /cards/i.test(t) && (/approve/i.test(t) || (/sign/i.test(t) && /off/i.test(t)));
+    expect(hits.every((h) => holds(`${h.heading} ${h.text}`))).toBe(true);
+    // CONTROL: a step with "cards" and neither way of saying approve is not held.
+    expect(holds("Print the cards for the round")).toBe(false);
     expect(new Set(hits.map((h) => h.anchor)).size).toBe(hits.length);
   });
 

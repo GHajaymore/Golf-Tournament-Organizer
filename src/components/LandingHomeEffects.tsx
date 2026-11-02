@@ -121,6 +121,16 @@ export function LandingHomeEffects() {
       });
     }
 
+    // ── what loops for ever rests while it is out of sight (2026-11-01; the rule is `m-asleep` in home-styles.ts) ──
+    if (!calm && canWatch) {
+      const resting = new IntersectionObserver(
+        (entries) => entries.forEach((e) => e.target.classList.toggle("m-asleep", !e.isIntersecting)),
+        { rootMargin: "200px 0px" },
+      );
+      observers.push(resting);
+      $$(".m-hero, .m-hero-phone, .m-ticker, .m-moment, .m-screen, .m-plan.m-pick, .m-close").forEach((el) => resting.observe(el));
+    }
+
     // ── the week, told by scrolling ──
     home.classList.add("m-pin-story");
     const story = $("#story");

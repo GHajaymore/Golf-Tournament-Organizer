@@ -1307,7 +1307,8 @@ describe("rounds and format", () => {
        * organizer is about to take, and hiding the entry would mean never
        * learning printed cards exist.
        */
-      expect(await reports({ hasTeeSheet: false })).toContain("Scorecards");
+      // The Print kit row since the ruling of 30 Oct (it replaced "Scorecards").
+      expect(await reports({ hasTeeSheet: false })).toContain("Print kit");
     });
 
     /**

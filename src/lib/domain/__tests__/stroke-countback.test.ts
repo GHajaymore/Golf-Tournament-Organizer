@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   countbackSegments,
   countbackCompare,
+  countbackStep,
+  countbackStepWords,
   type CountbackCard,
 } from "@/lib/domain/stroke-countback";
 
@@ -75,5 +77,31 @@ describe("separating two cards on the same score", () => {
     const short: CountbackCard = { playerId: "b", total: 72, holes: [...a.holes.slice(0, 17), null] };
     expect(countbackCompare(a, short, 18)).toBe(0);
     expect(countbackCompare(short, a, 18)).toBe(0);
+  });
+});
+
+describe("which step of the countback decided it (the report's 'won on countback, back 9')", () => {
+  it("names the first step that separates them, and the comparison agrees with countbackCompare", () => {
+    // Level on the back nine (one worse on the 10th, one better on the 13th), apart on the last six.
+    const a = card("a", { 9: 5, 12: 3 });
+    const b = card("b");
+    expect(countbackStep(a, b, 18)?.holes).toBe(6);
+    expect(Math.sign(countbackStep(a, b, 18)!.compare)).toBe(Math.sign(countbackCompare(a, b, 18)));
+    expect(countbackStep(card("a", { 1: 5, 10: 3 }), b, 18)?.holes).toBe(9);
+    expect(countbackStep(card("a", { 0: 5, 17: 3 }), b, 18)?.holes).toBe(9);
+    // (`card` counts holes from 0: 16 and 17 are the 17th and the 18th.)
+    expect(countbackStep(card("a", { 16: 5, 17: 3 }), b, 18)?.holes).toBe(1);
+  });
+
+  it("is null where the countback cannot part them", () => {
+    expect(countbackStep(card("a"), card("b"), 18)).toBeNull();
+  });
+
+  it("words a step the way a results sheet does: the back nine of eighteen is the back 9", () => {
+    expect(countbackStepWords(9, 18)).toBe("back 9");
+    expect(countbackStepWords(6, 18)).toBe("last 6");
+    expect(countbackStepWords(6, 9)).toBe("last 6");
+    expect(countbackStepWords(3, 18)).toBe("last 3");
+    expect(countbackStepWords(1, 18)).toBe("last hole");
   });
 });

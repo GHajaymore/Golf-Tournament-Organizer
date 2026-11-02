@@ -8,6 +8,7 @@ import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape"
 import { Icon } from "./Icon";
 import { useOrgProfile } from "./OrgProfileProvider";
 import { STATUS_META } from "@/lib/format";
+import { bringIntoView } from "@/lib/bring-into-view";
 
 export interface EventRow {
   id: string;
@@ -39,8 +40,11 @@ export interface EventRow {
   isCasual?: boolean;
   /** Not launched, and its last day has gone by at the club (`datesPassedUnlaunched`). */
   datesPassed?: boolean;
-  /** The day it was created, written the club's way — only when another tournament shares its name. */
-  createdOn?: string;
+  /**
+   * How it is told apart from another tournament of the same name — its dates the club's way,
+   * and "#2" where they are shared too (`tellApart`). Empty when its name is its own.
+   */
+  toldApart?: string;
 }
 
 /** Said where the bin is pressed by somebody who may not delete (`deleteEvent`'s one refusal). */
@@ -200,8 +204,7 @@ export function EventSwitcher({
                   <td style={{ fontWeight: 500 }}>
                     {e.name || "Untitled"}
                     <div className="text-muted" style={{ fontSize: 13 }}>
-                      {e.dates || "No dates set"}
-                      {e.createdOn && ` · created ${e.createdOn}`}
+                      {e.toldApart || e.dates || "No dates set"}
                     </div>
                     {whyId === e.id && (
                       // Information, not an error (the panel, 30 Oct): said politely, in the muted style.
@@ -435,11 +438,15 @@ export function EventSwitcher({
               const res = copyId
                 ? await cloneEvent(copyId, name)
                 : await createEvent(name, source, shape, undefined, organizationId || undefined);
+              // A refused name stays in the box (2026-11-01): the refusal offers a free one, and
+              // the organizer edits what they typed rather than typing it all again.
               if (res && !res.ok) setError(res.error ?? "Could not create the tournament.");
               // Into the tournament just made — see the note on `openIn`.
-              else router.push("/dashboard");
+              else {
+                setName("");
+                router.push("/dashboard");
+              }
             });
-            setName("");
           }}
         >
           <Icon name="plus" /> Create tournament
@@ -456,7 +463,8 @@ export function EventSwitcher({
         </p>
       )}
       <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{blurb}</p>
-      {error && <p className="form-error">{error}</p>}
+      {/* A refusal (a name in play, a name too long) is said where the press was. */}
+      {error && <p className="form-error" role="alert" ref={bringIntoView}>{error}</p>}
 
       {/* THE CASUAL ROUND IS NOT AN ORGANIZER FEATURE, and the card that
           used to sit here has gone.

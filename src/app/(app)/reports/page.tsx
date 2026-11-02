@@ -11,6 +11,8 @@ import { redirect } from "next/navigation";
 import { ReportsClient } from "@/components/ReportsClient";
 import { StatCard } from "@/components/PageHeader";
 import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
+import { prisma } from "@/lib/db";
+import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
@@ -74,6 +76,9 @@ export default async function ReportsPage({
   const state = withBoardRound(loaded, round);
   const choices = leaderboardRounds(loaded.stages);
   const brand = await brandForEvent(session.eventId);
+  // The club's golf words, for the Print kit row: a {cart} is a buggy in Britain.
+  const clubOf = await prisma.event.findUnique({ where: { id: session.eventId }, select: { organization: { select: { country: true, golfTerms: true } } } });
+  const golf = golfTermsFor(golfRegister(clubOf?.organization?.country, clubOf?.organization?.golfTerms));
 
   const { event } = state;
   const rows = standingRows(state);
@@ -506,6 +511,7 @@ export default async function ReportsPage({
          * round from the sheet screen, and an organizer who has drawn round 1
          * and is looking at round 2 has not lost the ability to print.
          */
+        cartWord={golf.cart}
         hasTeeSheet={state.stages.some((s) => {
           try {
             return ((JSON.parse(s.teeSheet || "{}") as { groups?: unknown[] }).groups ?? []).length > 0;
