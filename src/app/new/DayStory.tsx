@@ -121,7 +121,8 @@ export function DayStory({
           <div className="n-story-lit" data-active={active}>
             <div className="n-story-desk">
               <div className="n-lid">
-                <div className="n-lid-screen">
+                {/* a framed crop of the console, past its menu, so its rows read at this size */}
+                <div className="n-lid-screen n-zoom n-zoom-story">
                   {screens.map((s, i) => steps[i].device === "laptop" ? (
                     <div key={i} className={i === deskOn ? "n-frame" : "n-frame n-off"} aria-hidden={i === on ? undefined : true}>{s}</div>
                   ) : null)}

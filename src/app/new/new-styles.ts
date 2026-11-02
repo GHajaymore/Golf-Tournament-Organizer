@@ -138,6 +138,9 @@ export const NEW_CSS = `
   box-shadow: 0 0 0 1.5px var(--n-device-edge), var(--n-lit-edge), var(--n-cast); }
 .n-lid-screen { position: relative; overflow: hidden; border-radius: 4px; aspect-ratio: 16 / 10; background: var(--ground-2); }
 .n-phone-screen img, .n-lid-screen img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+/* a framed crop of a console capture: drawn --z screens wide, --fx/--fy of it left of and above the window */
+.n-site .n-zoom img { inset: auto; left: 0; top: 0; max-width: none; width: calc(var(--z, 1) * 100%); height: auto; object-fit: initial; transform: translate(calc(-1 * var(--fx, 0%)), calc(-1 * var(--fy, 0%))); }
+.n-zoom-story { --z: 1.55; --fx: 17%; --fy: 0%; }
 /* the floodlight's sheen on the glass: the top-right corner only, faint, above the screen */
 .n-phone-screen::after, .n-lid-screen::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: inherit;
   background: linear-gradient(222deg, color-mix(in srgb, white 9%, transparent) 0%, transparent 24%); box-shadow: inset 0 0 0 1px color-mix(in srgb, black 22%, transparent); }
@@ -160,7 +163,8 @@ export const NEW_CSS = `
     var(--n-deep);
 }
 .n-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background-image: ${GRAIN}; background-size: 180px; opacity: .08; mix-blend-mode: overlay; }
-.n-hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(28px, 4vw, 64px); align-items: center; }
+.n-hero > .n-wrap.n-hero-grid { max-width: 1360px; }
+.n-hero-grid { display: grid; grid-template-columns: minmax(0, 4.6fr) minmax(0, 7.4fr); gap: clamp(28px, 3.4vw, 56px); align-items: center; }
 .n-hero-top { min-width: 0; }
 .n-site .n-kicker { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: var(--ink-soft); text-decoration: none; padding: 7px 16px 7px 10px; border: 1px solid var(--line-2); border-radius: 999px; margin-bottom: 26px; max-width: 100%; background: color-mix(in srgb, var(--ground) 60%, transparent); backdrop-filter: blur(8px); }
 .n-site .n-kicker:hover { border-color: var(--ink); color: var(--ink); }
@@ -179,9 +183,11 @@ export const NEW_CSS = `
 .n-stage { position: relative; isolation: isolate; min-width: 0; display: grid; padding-bottom: 6px; }
 .n-pool { position: absolute; z-index: -1; left: -14%; right: -8%; bottom: -14%; height: 46%; pointer-events: none; border-radius: 50%;
   background: radial-gradient(closest-side, color-mix(in srgb, white 16%, transparent), color-mix(in srgb, white 6%, transparent) 55%, transparent); filter: blur(8px); }
-.n-laptop { position: relative; width: 90%; justify-self: end; }
+.n-laptop { position: relative; width: 94%; justify-self: end; }
 .n-laptop .n-lid { box-shadow: 0 0 0 1.5px var(--n-device-edge), var(--n-lit-edge), var(--n-cast), 0 30px 120px -40px var(--n-glow); }
-.n-stage .n-phone { position: absolute; z-index: 2; width: 25%; left: 0; top: 22%; }
+/* the phone stands in front of the laptop's lower-left corner, below the marked row, so neither hides the other's moment */
+.n-stage .n-phone { position: absolute; z-index: 2; width: 21%; left: -3%; top: 50%; }
+@media (min-width: 1101px) { .n-stage { padding-bottom: 70px; } }
 .n-live { justify-self: end; margin-top: 30px; display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 18px; border-radius: 14px;
   background: var(--n-glass); backdrop-filter: blur(14px) saturate(1.2); border: 1px solid var(--n-glass-edge); box-shadow: var(--n-rim), 0 24px 44px -20px black; font-size: 15.5px; max-width: 100%; }
 .n-live b { font-weight: 700; color: var(--ink); }
@@ -236,11 +242,13 @@ export const NEW_CSS = `
 .n-story-sec { position: relative; isolation: isolate; padding-top: var(--n-sec);
   background: radial-gradient(60% 50% at 78% 30%, color-mix(in srgb, var(--ground-2) 70%, transparent), transparent 70%), var(--ground); }
 .n-story-head { display: grid; gap: 16px; max-width: 46em; }
-.n-story { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(32px, 4vw, 72px); margin-top: clamp(16px, 3vw, 40px); }
+/* the stage is the point: a narrow column of words, a wide lit stage */
+.n-story-sec > .n-wrap { max-width: 1360px; }
+.n-story { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: clamp(32px, 3.4vw, 56px); margin-top: clamp(16px, 3vw, 40px); }
 .n-steps { min-width: 0; }
-.n-step { min-height: 62vh; display: grid; align-content: center; gap: 12px; padding: 40px 0; }
-.n-step:first-child { min-height: 60vh; }
-.n-step:last-child { min-height: 80vh; }
+.n-step { min-height: 46vh; display: grid; align-content: center; gap: 10px; padding: 28px 0; }
+.n-step:first-child { min-height: 50vh; }
+.n-step:last-child { min-height: 66vh; }
 .n-ch { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; font: 700 14px/1.2 var(--n-text); letter-spacing: .1em; text-transform: uppercase; color: var(--brass); scroll-margin-top: calc(var(--n-hdr) + 24px); }
 .n-ch-n { font: 750 clamp(40px, 4.4vw, 60px)/.9 var(--n-head); letter-spacing: -.03em; color: transparent; -webkit-text-stroke: 1.5px var(--brass); text-transform: none; }
 .n-stamp { display: flex; align-items: baseline; gap: 10px; font-size: 16px; color: var(--ink-faint); }
@@ -260,8 +268,8 @@ export const NEW_CSS = `
   background: radial-gradient(closest-side, color-mix(in srgb, white 9%, transparent), transparent); }
 /* the committee's laptop and a member's phone, one lit and forward, the other resting */
 .n-story-lit { width: 100%; justify-self: stretch; padding: 0 0 6% 0; }
-.n-story-desk { position: relative; width: 77%; margin-left: 0; }
-.n-story-lit > .n-phone { position: absolute; z-index: 2; right: 0; bottom: 0; width: min(27%, calc((100svh - var(--n-hdr) - 160px) * .4613 * .7)); }
+.n-story-desk { position: relative; width: min(90%, calc((100svh - var(--n-hdr) - 190px) * 1.52)); margin-left: 0; }
+.n-story-lit > .n-phone { position: absolute; z-index: 2; right: -3%; bottom: 0; width: min(21%, calc((100svh - var(--n-hdr) - 190px) * .4613 * .62)); }
 .n-story-pin .n-frame { will-change: opacity; }
 .n-story-lit[data-active="phone"] .n-story-desk { opacity: .5; filter: saturate(.7) brightness(.75); }
 .n-story-lit[data-active="laptop"] > .n-phone { opacity: .6; filter: saturate(.7) brightness(.75); }
@@ -286,7 +294,7 @@ export const NEW_CSS = `
   .n-story-pin .n-frame { transition: opacity .45s ease; }
 }
 @media (max-width: 1100px) and (min-width: 768px) {
-  .n-story { gap: 32px; }
+  .n-story { gap: 28px; grid-template-columns: minmax(0, 4fr) minmax(0, 6fr); }
   .n-story-pin { grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: center; }
   .n-story-desk { width: 76%; }
   .n-story-lit > .n-phone { width: 30%; }

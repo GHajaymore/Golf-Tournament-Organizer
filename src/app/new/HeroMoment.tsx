@@ -20,7 +20,14 @@ export function HeroMoment({
   card,
   board,
   facts,
+  deskView,
 }: {
+  /**
+   * Design D (2026-11-02): the laptop shows a framed crop of its capture so the leaderboard can be
+   * read: drawn `z` windows wide, with the fractions `fx`/`fy` of it left of and above the window.
+   * The capture's image and aspect are the window's, so a measured rectangle maps by (v - f) * z.
+   */
+  deskView?: { z: number; fx: number; fy: number };
   deskBefore: ReactNode;
   deskAfter: ReactNode;
   card: ReactNode;
@@ -60,6 +67,14 @@ export function HeroMoment({
   }, [play]);
 
   const at = (r: Rect): CSSProperties => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });
+  // A desk rectangle seen through the crop, kept inside the window.
+  const atDesk = (r: Rect): CSSProperties => {
+    if (!deskView) return at(r);
+    const { z, fx, fy } = deskView;
+    const x = Math.max(0, (r.x - fx) * z), y = Math.max(0, (r.y - fy) * z);
+    return at({ x, y, w: Math.min(1 - x, r.w * z), h: Math.min(1 - y, r.h * z) });
+  };
+  const view = deskView ? ({ "--z": deskView.z, "--fx": `${deskView.fx * 100}%`, "--fy": `${deskView.fy * 100}%` } as CSSProperties) : undefined;
   const after = step === 2;
   const holes = after ? facts.holesAfter : facts.holesBefore;
   const nth = ordinal(facts.hole);
@@ -68,10 +83,10 @@ export function HeroMoment({
     <>
       <div className="n-laptop" role="img" aria-label={`The committee's live leaderboard on a laptop: ${facts.player} moves from ${facts.placeBefore} to ${facts.placeAfter} when a score on the ${nth} goes in.`}>
         <div className="n-lid">
-          <div className="n-lid-screen">
+          <div className={deskView ? "n-lid-screen n-zoom" : "n-lid-screen"} style={view}>
             <div className={after ? "n-frame n-off" : "n-frame"}>{deskBefore}</div>
             <div className={after ? "n-frame" : "n-frame n-off"}>{deskAfter}</div>
-            <span className={step >= 1 ? "n-mark n-show" : "n-mark"} style={at(after ? facts.deskAfter : facts.deskBefore)} aria-hidden="true" />
+            <span className={step >= 1 ? "n-mark n-show" : "n-mark"} style={atDesk(after ? facts.deskAfter : facts.deskBefore)} aria-hidden="true" />
           </div>
         </div>
         <div className="n-base" aria-hidden="true" />

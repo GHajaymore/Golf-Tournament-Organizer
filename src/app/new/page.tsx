@@ -333,6 +333,7 @@ export default async function NewSitePreview({ searchParams }: { searchParams: P
             <span className="n-pool" aria-hidden="true" />
             <HeroMoment
               facts={moment}
+              deskView={{ z: 1.28, fx: 0.2, fy: 0.22 }}
               deskBefore={dShot("live-desk-before-tournament", "", SIZES.heroDesk, true)}
               deskAfter={dShot("live-desk-after-tournament", "", SIZES.heroDesk)}
               card={dShot("live-card-before-tournament", "", SIZES.heroPhone, true)}
