@@ -59,6 +59,8 @@ import { refusalFor, fieldCapFor, seatRefusalFor } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
 import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal } from "@/lib/domain/close-terms";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { tournamentNameRefusal, nameOrFree, withNameBackstop } from "@/lib/services/tournament-name";
+import { holdsItsName, UNNAMED_TOURNAMENT } from "@/lib/domain/tournament-name";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
@@ -1221,8 +1223,20 @@ export async function saveEvent(data: {
    */
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { organizationId: true, course: true, courseId: true },
+    select: { organizationId: true, course: true, courseId: true, status: true, shape: true },
   });
+  /**
+   * A RENAME IS CHECKED like a new name (Ajay, 2026-11-01): while this one is in play, no other
+   * tournament of the club still in play may already use the name. A completed one holds no
+   * name and may be renamed to anything (`holdsItsName`).
+   */
+  const nameDoor = event && holdsItsName(event)
+    ? { organizationId: event.organizationId, name, selfId: eventId, door: "rename" as const }
+    : null;
+  if (nameDoor) {
+    const taken = await tournamentNameRefusal(nameDoor);
+    if (taken) return { ok: false, error: taken };
+  }
   const owned = data.courseId?.trim()
     ? await prisma.course.findFirst({
         // Narrowed where the id arrives, not through a variable: the club
@@ -1257,7 +1271,10 @@ export async function saveEvent(data: {
     start === undefined
       ? {}
       : { startOn: start, endOn: start && end && end < start ? start : (end ?? "") };
-  await prisma.event.update({
+  // The database's backstop for two renames in the same instant, turned into the same words.
+  const saved = await withNameBackstop(
+    () =>
+      prisma.event.update({
     where: { id: eventId },
     data: {
       name,
@@ -1303,7 +1320,10 @@ export async function saveEvent(data: {
       // two things it decided are now read from the rounds themselves. The
       // column stays as it is; nothing reads it.
     },
-  });
+      }),
+    nameDoor ?? { organizationId: event?.organizationId ?? "", name, selfId: eventId, door: "rename" },
+  );
+  if (!saved.ok) return { ok: false, error: saved.error };
 
   /**
    * A bigger field takes the people already queuing for it.
@@ -4101,11 +4121,26 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
   });
   if (!source) return { ok: false, error: "Tournament not found." };
 
-  const clean = name.trim() || `${source.name} (copy)`;
-
   // A copy is a new tournament and counts like one.
   const refusal = await refusalFor(source.organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };
+
+  /**
+   * A COPY COMES INTO PLAY AS A DRAFT, so its name is checked like a new one's (Ajay,
+   * 2026-11-01). Copying this year's Spring Medal from last year's under the same name is the
+   * case the rule was written for: refused, with a free name offered. An empty box is named by
+   * the app, and the app picks a free one rather than refusing its own choice.
+   */
+  const clean = name.trim()
+    ? name.trim()
+    : await nameOrFree({ organizationId: source.organizationId, name: `${source.name} (copy)`, selfId: null });
+  if (name.trim()) {
+    // The same length bound as a rename: a "use server" export is a public endpoint.
+    const tooLong = nameRefusal(clean, TITLE_MAX, "");
+    if (tooLong) return { ok: false, error: tooLong };
+    const taken = await tournamentNameRefusal({ organizationId: source.organizationId, name: clean, selfId: null, door: "copy" });
+    if (taken) return { ok: false, error: taken };
+  }
 
   /**
    * Copied FROM the declared policy, not from a second list kept by hand.
@@ -4134,7 +4169,9 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
   // event made in a Free club is a 10-player event (`fieldCapFor`).
   const fieldCap = await fieldCapFor(source.organizationId);
 
-  const created = await prisma.event.create({
+  const made = await withNameBackstop(
+    () =>
+      prisma.event.create({
     data: {
       ...carried,
       // The organizer's number, carried as it was; the cap is applied on read
@@ -4152,7 +4189,11 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
       // original's public link.
       shareToken: generateShareToken(),
     },
-  });
+      }),
+    { organizationId: source.organizationId, name: clean, selfId: null, door: "copy" },
+  );
+  if (!made.ok) return { ok: false, error: made.error };
+  const created = made.value;
 
   // Venues carry over — a club plays the same courses year on year.
   for (const link of source.courses) {
@@ -4267,7 +4308,7 @@ export async function createEvent(
 ): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
-  const clean = name.trim() || "New Tournament";
+  const clean = name.trim() || UNNAMED_TOURNAMENT;
   /**
    * THE SHAPE IS ASKED, NEVER ASSUMED.
    *
@@ -4391,10 +4432,27 @@ export async function createEvent(
   // created on the published terms — see services/limits.ts.
   const refusal = await refusalFor(organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };
-  const event = await prisma.event.create({
+  /**
+   * ONE NAME IN PLAY PER CLUB (Ajay, 2026-11-01) — `tournamentNameRefusal`. A name the organizer
+   * typed is refused in words with a free one offered; the app's own "New Tournament", for an
+   * empty box, is simply made free, since nobody chose it.
+   */
+  const named = name.trim()
+    ? clean
+    : await nameOrFree({ organizationId, name: clean, selfId: null });
+  if (name.trim()) {
+    // The same length bound as a rename: a "use server" export is a public endpoint.
+    const tooLong = nameRefusal(named, TITLE_MAX, "");
+    if (tooLong) return { ok: false, error: tooLong };
+    const taken = await tournamentNameRefusal({ organizationId, name: named, selfId: null, door: "create" });
+    if (taken) return { ok: false, error: taken };
+  }
+  const made = await withNameBackstop(
+    async () =>
+      prisma.event.create({
     data: {
       organizationId,
-      name: clean,
+      name: named,
       dates: "",
       course: "",
       city: "",
@@ -4426,7 +4484,11 @@ export async function createEvent(
       ...(await settingsForNewEvent(organizationId)),
       ...(templated ? templated.settings : {}),
     },
-  });
+      }),
+    { organizationId, name: named, selfId: null, door: "create" },
+  );
+  if (!made.ok) return { ok: false, error: made.error };
+  const event = made.value;
   // A club plays at its own course, so a new tournament starts there and
   // nobody is asked to pick a venue they were never going to change. Societies
   // and community organizations have no home course; they choose per event.
@@ -4650,12 +4712,26 @@ export async function setEventStatus(
   // A status is moved, not set: see `statusMove` for the three things that
   // followed from writing whatever arrived, an unknown word read as "draft"
   // among them.
-  const current = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, closesAt: true } });
+  const current = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { status: true, closesAt: true, organizationId: true, name: true, shape: true },
+  });
   if (!current) return { ok: false, error: "That tournament no longer exists." };
   const move = statusMove(current.status, status);
   if (move.kind === "refuse") return { ok: false, error: move.error };
   if (move.kind === "launch") return launchTournament();
   const s = status;
+  /**
+   * REOPENING BRINGS A NAME BACK INTO PLAY (Ajay, 2026-11-01). A completed Spring Medal may share
+   * its name with this year's; reopened, it would be two in play under one name, so it is refused
+   * while another holds the name, and the organizer is told which and offered a free one.
+   */
+  const reopening = !holdsItsName(current) && holdsItsName({ status: s, shape: current.shape });
+  const nameDoor = { organizationId: current.organizationId, name: current.name, selfId: eventId, door: "reopen" as const };
+  if (reopening) {
+    const taken = await tournamentNameRefusal(nameDoor);
+    if (taken) return { ok: false, error: taken };
+  }
   /**
    * A COMPLETED PAR TOURNAMENT IS READ-ONLY (Ajay, 2026-10-21): it stays open to view for fifteen
    * days and is then deleted. Reopening it would be a way round the fifteen days, so it is refused
@@ -4734,10 +4810,15 @@ export async function setEventStatus(
   // un-completes an event has said the result isn't final, and the countdown
   // to deleting it should not keep running underneath them.
   const now = new Date();
-  await prisma.event.update({
-    where: { id: eventId },
-    data: { status: s, completedAt: s === "completed" ? now : null },
-  });
+  const moved = await withNameBackstop(
+    () =>
+      prisma.event.update({
+        where: { id: eventId },
+        data: { status: s, completedAt: s === "completed" ? now : null },
+      }),
+    nameDoor,
+  );
+  if (!moved.ok) return { ok: false, error: moved.error };
   /**
    * AND THE CONSOLE STAYS ON IT (2026-10-10). With no active-event cookie — a
    * fresh device, a new browser — the console shows the organizer's tournament

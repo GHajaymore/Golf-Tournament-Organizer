@@ -228,7 +228,9 @@ test("the list lines up, says why a tournament cannot be deleted, and reads true
       players: 3,
       event: { startOn: "2025-07-30", endOn: "2025-09-26", dates: "30 Jul – 26 Sep 2025" },
     });
-    const twinA = await makeEvent(club, "Spring Medal", { stages: [{}] });
+    // Since 2026-11-01 only one of a name may be in play (`one-name-in-play.spec.ts`), so the
+    // older twin is last year's, completed.
+    const twinA = await makeEvent(club, "Spring Medal", { status: "completed", stages: [{}] });
     const twinB = await makeEvent(club, "Spring Medal", { stages: [{}] });
     await prisma.event.update({ where: { id: twinA.event.id }, data: { createdAt: new Date("2026-03-02T12:00:00Z") } });
     await prisma.event.update({ where: { id: twinB.event.id }, data: { createdAt: new Date("2026-04-06T12:00:00Z") } });
@@ -254,7 +256,8 @@ test("the list lines up, says why a tournament cannot be deleted, and reads true
     // The first cell of EACH twin row (a bare `.first()` took one cell of the first row only).
     const said = await twins.locator("td:first-child").allInnerTexts();
     expect(said.length, "both twins' name cells").toBe(2);
-    for (const s of said) expect(s, "a twin without the day it was created").toMatch(/· created /);
+    // Undated twins: told apart by the day each was created (`tellApart`).
+    for (const s of said) expect(s, "a twin without the day it was created").toMatch(/\bcreated \S.*2026/);
     expect(new Set(said).size, "two twins read the same").toBe(2);
     await expect(row("Summer Matchplay").locator("td").first()).not.toContainText("created");
 
