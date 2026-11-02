@@ -19,8 +19,8 @@
  * Plain constants with no imports, so a client component may read them.
  */
 
-export type SocialId = "facebook";
-// Later, one line each: | "instagram" | "youtube" | "linkedin" | "tiktok" | "x"
+export type SocialId = "facebook" | "instagram";
+// Later, one line each: | "youtube" | "linkedin" | "tiktok" | "x"
 
 export interface SocialLink {
   id: SocialId;
@@ -34,6 +34,7 @@ export interface SocialLink {
 
 export const SOCIAL_LINKS: readonly SocialLink[] = [
   { id: "facebook", label: "Facebook", href: "https://www.facebook.com/TourneyHQ", icon: "facebook" },
+  { id: "instagram", label: "Instagram", href: "https://www.instagram.com/tourneyhq", icon: "instagram" },
 ];
 
 /** One profile, by id. */

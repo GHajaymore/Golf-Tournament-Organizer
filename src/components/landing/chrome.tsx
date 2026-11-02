@@ -78,6 +78,7 @@ export function iconSprite() {
         <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" />{p("M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z")}</symbol>
         {/* The social profiles' marks (`lib/social-links.ts`), in the same line weight as the rest. */}
         <symbol id="i-facebook" viewBox="0 0 24 24">{p("M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z")}</symbol>
+        <symbol id="i-instagram" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="4" />{p("M17.5 6.5h.01")}</symbol>
       </defs>
     </svg>
   );
