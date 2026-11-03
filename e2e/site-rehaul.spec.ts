@@ -1,4 +1,5 @@
 import { expect, test } from "./coverage";
+import { SOCIAL_LINKS } from "../src/lib/social-links";
 
 /**
  * THE SITE REHAUL'S PREVIEW, `/new` (2026-11-01), at the three widths it was designed at.
@@ -68,35 +69,62 @@ test.describe("/new, the site rehaul's preview", () => {
     expect(sub!.y).toBeLessThan(box!.y);
   });
 
-  test("scrolling the day turns the phone that stays in view, and a phone gets a plain sequence", async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/new");
-    // Bring the 11:42 moment to the middle of the window: the phone in view shows the board.
-    const moment = page.locator(".n-step").filter({ hasText: "The board moves." });
+  /** Bring one moment of the day to the middle of the window, as a reader scrolling does. */
+  async function readMoment(page: import("@playwright/test").Page, words: string) {
+    const moment = page.locator(".n-step").filter({ hasText: words });
     await moment.evaluate((el) => {
       const r = el.getBoundingClientRect();
       window.scrollTo(0, window.scrollY + r.top + r.height / 2 - window.innerHeight / 2);
     });
-    await expect(page.locator(".n-story-pin .n-frame:not(.n-off) img")).toHaveAttribute("alt", /Board/);
-    await expect(page.getByRole("navigation", { name: "The day, by chapter" }).locator('[aria-current="step"]')).toHaveText(/The live board/);
-    const pin = await page.locator(".n-story-pin .n-phone").boundingBox();
-    expect(pin!.y, "the phone is not held in view").toBeGreaterThanOrEqual(0);
-    expect(pin!.y + pin!.height).toBeLessThanOrEqual(900);
+  }
 
-    // Below 768px there is no sticky phone: every moment carries its own screen.
+  // Design D (2026-11-02): the day is told by both sides — the committee's laptop and a member's
+  // phone are held in view together, and the device a moment happens on is the one lit.
+  test("scrolling the day turns the device it happens on, and a phone gets a plain sequence", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/new");
+    const stage = page.locator(".n-story-lit");
+
+    // 11:42, the office: the laptop is lit and shows the organizer's dashboard.
+    await readMoment(page, "The office sees every group.");
+    await expect(stage).toHaveAttribute("data-active", "laptop");
+    await expect(page.locator(".n-story-desk .n-frame:not(.n-off) [role=img]")).toHaveAttribute("aria-label", /dashboard/);
+    await expect(page.getByRole("navigation", { name: "The day, by chapter" }).locator('[aria-current="step"]')).toHaveText(/The live round/);
+
+    // 10:50, the card: the phone is lit and shows the member's card.
+    await readMoment(page, "They tap the score, or say it.");
+    await expect(stage).toHaveAttribute("data-active", "phone");
+    await expect(page.locator(".n-story-lit > .n-phone .n-frame:not(.n-off) img")).toHaveAttribute("alt", /card/);
+
+    // Both devices are held in view.
+    for (const sel of [".n-story-desk", ".n-story-lit > .n-phone"]) {
+      const box = await page.locator(sel).boundingBox();
+      expect(box!.y, `${sel} is not held in view`).toBeGreaterThanOrEqual(0);
+      expect(box!.y + box!.height, `${sel} runs below the window`).toBeLessThanOrEqual(900);
+    }
+
+    // Below 768px there is no sticky stage: every moment carries its own screen — the member's on a
+    // phone, the committee's as a window onto the console.
     await page.setViewportSize({ width: 393, height: 852 });
     await expect(page.locator(".n-story-dev")).toBeHidden();
-    await expect(page.locator(".n-step-phone")).toHaveCount(7);
-    await expect(page.locator(".n-step-phone").first()).toBeVisible();
+    const phones = await page.locator(".n-step-phone").count();
+    const desks = await page.locator(".n-step-desk").count();
+    expect(phones, "no member's moment").toBeGreaterThan(0);
+    expect(desks, "no committee's moment").toBeGreaterThan(0);
+    expect(phones + desks).toBe(await page.locator(".n-step").count());
+    await expect(page.locator(".n-step-desk").first()).toBeVisible();
   });
 
   test("the social links are TourneyHQ's own, in the same tab, and X is not drawn", async ({ page }) => {
     await page.goto("/new");
     const links = page.locator('a[rel~="me"]');
     const hrefs = await links.evaluateAll((as) => as.map((a) => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]));
-    expect(hrefs.length).toBe(8); // four in Follow along, four in the footer
+    // Each profile in `lib/social-links.ts` (the one place they are written): once in Follow along,
+    // once in the footer.
+    const ours = SOCIAL_LINKS.map((s) => s.href);
+    expect(hrefs.length).toBe(ours.length * 2);
     for (const [href, target, rel] of hrefs) {
-      expect(href).toMatch(/^https:\/\/www\.(instagram\.com\/tourneyhq|youtube\.com\/@tourneyhq|facebook\.com\/TourneyHQ|linkedin\.com\/company\/tourneyhq)$/);
+      expect(ours).toContain(href);
       expect(target).toBeNull();
       expect(rel).toContain("noopener");
     }
@@ -105,6 +133,6 @@ test.describe("/new, the site rehaul's preview", () => {
       const graph = JSON.parse(s.textContent ?? "{}")["@graph"] as Array<{ "@type": string; sameAs?: string[] }>;
       return graph.find((n) => n["@type"] === "Organization")?.sameAs ?? [];
     });
-    expect(sameAs).toHaveLength(4);
+    expect([...sameAs].sort()).toEqual([...ours].sort());
   });
 });
