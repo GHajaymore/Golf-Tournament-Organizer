@@ -42,6 +42,14 @@ export interface SetupAnswers {
   teeId: string;
   /** The organizer has looked at the card and says it matches the club's. */
   cardChecked: boolean;
+  /**
+   * The card is wrong or missing and the organizer will put it right on the
+   * course's own card screen — the course library's editor, tee editor, paste,
+   * catalogue look-up and photo reader (Ajay, 3 Nov). Those act on a
+   * tournament's club, which a first tournament does not have until it is
+   * made, so the draft is made first and the screen opens on that course.
+   */
+  fixCard: boolean;
   name: string;
 }
 
@@ -141,6 +149,7 @@ export function defaultAnswers(register: GolfRegister, clubToday: string): Setup
     courseId: "",
     teeId: "",
     cardChecked: false,
+    fixCard: false,
     name: "",
   };
 }
@@ -203,17 +212,23 @@ export function parseSetupAnswers(
   const courseId = str("courseId").trim();
   const teeId = str("teeId").trim();
   if (courseId.length > 64 || teeId.length > 64) return { ok: false, error: "That course could not be read." };
-  if (courseId && !teeId) return { ok: false, error: "Choose the tees the field plays from." };
-  const cardChecked = r.cardChecked === true;
-  if (courseId && !cardChecked) {
-    return { ok: false, error: "Check the card against the club's own and tick that it matches — or pick the course later." };
+  const fixCard = r.fixCard === true;
+  // Fixing the card after creation is the one way past the tick: the course's
+  // own card screen then holds it, and its "Mark as checked" is the tick.
+  if (courseId && !teeId && !fixCard) return { ok: false, error: "Choose the tees the field plays from." };
+  const cardChecked = r.cardChecked === true && !fixCard;
+  if (courseId && !cardChecked && !fixCard) {
+    return { ok: false, error: "Check the card against the club's own and tick that it matches — or fix it once the draft is made." };
   }
   const name = str("name").trim();
   if (!name) return { ok: false, error: "Give the tournament a name." };
   if (name.length > NAME_MAX) return { ok: false, error: `A name of at most ${NAME_MAX} characters.` };
   return {
     ok: true,
-    answers: { running, sides, scoring, basis, firstDay, count: countQ ? count : 1, keeper, courseId, teeId: courseId ? teeId : "", cardChecked, name },
+    answers: {
+      running, sides, scoring, basis, firstDay, count: countQ ? count : 1, keeper,
+      courseId, teeId: courseId ? teeId : "", cardChecked, fixCard, name,
+    },
   };
 }
 

@@ -166,7 +166,10 @@ export function SetupQuestions({
         confirmedClubName: confirmed,
       });
       if (res?.ok) {
-        router.push("/dashboard");
+        // Fixing the card: the course library's own card screen, opened on this course.
+        router.push(
+          current.fixCard ? (current.courseId ? `/event?course=${encodeURIComponent(current.courseId)}#courses` : "/event#courses") : "/dashboard",
+        );
         return;
       }
       setRefusal(res?.error ?? "That could not be created.");
@@ -426,7 +429,7 @@ export function SetupQuestions({
               value={orgId}
               onChange={(e) => {
                 setOrgId(e.target.value);
-                set({ courseId: "", teeId: "", cardChecked: false });
+                set({ courseId: "", teeId: "", cardChecked: false, fixCard: false });
               }}
             >
               {orgs.map((o) => (
@@ -443,7 +446,7 @@ export function SetupQuestions({
             value={current.courseId}
             onChange={(e) => {
               const c = orgCourses.find((x) => x.id === e.target.value);
-              set({ courseId: c?.id ?? "", teeId: "", cardChecked: false });
+              set({ courseId: c?.id ?? "", teeId: "", cardChecked: false, fixCard: false });
             }}
           >
             <option value="">I&rsquo;ll pick the course later</option>
@@ -461,8 +464,8 @@ export function SetupQuestions({
         </div>
         {noTees && (
           <p className="form-error" role="alert" style={{ margin: 0 }}>
-            {course?.name} has no tees yet, so nobody&rsquo;s handicap could be worked out on it. Add its tees on Tournament details,
-            or pick the course later.
+            {course?.name} has no tees yet, so nobody&rsquo;s handicap could be worked out on it. Add them with Fix the card below, or
+            pick the course later.
           </p>
         )}
         {course && course.tees.length > 0 && (
@@ -472,7 +475,7 @@ export function SetupQuestions({
               id={`${fid}-tee`}
               className="input"
               value={current.teeId}
-              onChange={(e) => set({ teeId: e.target.value, cardChecked: false })}
+              onChange={(e) => set({ teeId: e.target.value, cardChecked: false, fixCard: false })}
             >
               {/* Nothing pre-chosen: which set the field plays is the organizer's decision. */}
               <option value="">Choose the tees</option>
@@ -512,14 +515,38 @@ export function SetupQuestions({
               <p className="form-error" role="alert" style={{ margin: 0 }}>This card has no holes saved. Add them on Tournament details.</p>
             )}
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
-              <input type="checkbox" checked={current.cardChecked} onChange={(e) => set({ cardChecked: e.target.checked })} />
+              <input type="checkbox" checked={current.cardChecked} onChange={(e) => set({ cardChecked: e.target.checked, fixCard: false })} />
               This matches the club&rsquo;s card
             </label>
-            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              Something wrong? Choose other tees, or pick the course later and correct the card on Tournament details.
-            </p>
           </>
         )}
+        {/* UPDATE, LOAD OR PHOTOGRAPH THE CARD (Ajay, 3 Nov) — through the course
+            library itself, never a second card editor: every hole's par, index and
+            yards, each tee's rating and slope, adding tees, pasting the card, looking
+            it up in the catalogue, or reading a photo of the club's card. Those act on
+            a tournament's club, so the draft is made first and Tournament details opens
+            on this course's card; its "Mark as checked" is then the tick. */}
+        <div className="card" style={{ gap: 6, padding: "10px 12px" }}>
+          <p style={{ fontSize: 14, margin: 0, fontWeight: 600 }}>
+            {course ? "Card wrong or missing something?" : "Course not saved yet?"}
+          </p>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            {course
+              ? "Edit any hole’s par, stroke index or yards and each tee’s rating and slope, add tees, paste the card, look it up, or read a photo of the club’s card — on the course’s own card screen, which opens as soon as the draft is made. Mark it as checked there."
+              : "Look it up, paste its card or read a photo of the club’s card on the courses screen, which opens as soon as the draft is made."}
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ alignSelf: "flex-start" }}
+            onClick={() => {
+              set({ fixCard: true, cardChecked: false });
+              setPhase("confirm");
+            }}
+          >
+            <Icon name="pencil-simple" /> {course ? "Fix the card" : "Add the course"}
+          </button>
+        </div>
         {nav(() => setPhase("review"), ready && !noTees ? () => setPhase("confirm") : null, "Confirm")}
       </section>
     );
@@ -535,8 +562,9 @@ export function SetupQuestions({
         <b>{current.name}</b> — {choiceLabel("running", current.running).toLowerCase()},{" "}
         {draft.rounds.length === 1 ? "one round" : `${draft.rounds.length} rounds`}
         {draft.startOn ? `, from ${dayWords(draft.startOn)}` : ""}
-        {course && tee ? `, at ${course.name} off the ${tee.name} tees` : ", course to be picked"}. Saved as a draft: nothing is
-        published and nobody is invited until you say so.
+        {course && tee ? `, at ${course.name} off the ${tee.name} tees` : course ? `, at ${course.name}` : ", course to be picked"}. Saved
+        as a draft: nothing is published and nobody is invited until you say so.
+        {current.fixCard && (course ? ` Then ${course.name}’s card opens for you to fix and mark as checked.` : " Then the courses screen opens for you to add yours.")}
       </p>
       {!organizationNamed && (clubNameRequired || orgs[0]?.id === "") && (
         <div className="field">
@@ -574,7 +602,7 @@ export function SetupQuestions({
           <Icon name="arrow-left" /> Back
         </button>
         <button type="button" className="btn btn-primary" disabled={pending || blocked} onClick={() => submit(sameName)}>
-          {pending ? "Creating…" : sameName ? `Create a separate ${outfit.noun} anyway` : "Create the draft"} <Icon name="arrow-right" />
+          {pending ? "Creating…" : sameName ? `Create a separate ${outfit.noun} anyway` : current.fixCard ? "Create the draft and open the card" : "Create the draft"} <Icon name="arrow-right" />
         </button>
       </div>
       {refusal && (

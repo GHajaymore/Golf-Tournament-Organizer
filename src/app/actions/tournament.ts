@@ -4391,7 +4391,7 @@ export async function createEventFromAnswers(input: {
     settings: draft.settings,
     rounds: draft.rounds,
     dates: { startOn: draft.startOn, endOn: draft.endOn },
-    course: a.courseId ? { courseId: a.courseId, teeId: a.teeId, cardChecked: a.cardChecked } : null,
+    course: a.courseId ? { courseId: a.courseId, teeId: a.teeId, cardChecked: a.cardChecked, fixCard: a.fixCard } : null,
   });
 }
 
@@ -4409,7 +4409,7 @@ interface NewTournament {
   /** The tournament's days, when the caller knows them. Checked against the club's today. */
   dates?: { startOn: string; endOn: string };
   /** The course and tees chosen, with the organizer's word that the card matches. */
-  course?: { courseId: string; teeId: string; cardChecked: boolean } | null;
+  course?: { courseId: string; teeId: string; cardChecked: boolean; fixCard: boolean } | null;
 }
 
 /**
@@ -4553,26 +4553,34 @@ async function createTournament(
    * made. A course with no tees is refused in words: every net would otherwise
    * be worked off a raw index (backlog J27/J28).
    */
-  let chosenCourse: { id: string; name: string; city: string; teeId: string } | null = null;
+  /*
+   * `fixCard`: the organizer said the card is wrong or missing and will put it
+   * right on the course's own card screen once the draft exists — the course
+   * library is reached through a tournament. Then a course with no tees, or
+   * tees not yet chosen, is linked as it stands, and nothing is marked checked.
+   */
+  let chosenCourse: { id: string; name: string; city: string; teeId: string | null } | null = null;
   if (input.course) {
+    const { fixCard } = input.course;
     const course = await prisma.course.findFirst({
       where: { id: input.course.courseId, organizationId },
       select: { id: true, name: true, city: true, tees: { select: { id: true } } },
     });
     if (!course) return { ok: false, error: "That course is not one of your club's courses." };
-    if (course.tees.length === 0) {
+    if (course.tees.length === 0 && !fixCard) {
       return {
         ok: false,
-        error: `${course.name} has no tees yet, so nobody's handicap could be worked out on it. Add its tees on Courses, or pick the course later.`,
+        error: `${course.name} has no tees yet, so nobody's handicap could be worked out on it. Add them once the draft is made (Fix the card), or pick the course later.`,
       };
     }
-    if (!course.tees.some((t) => t.id === input.course?.teeId)) {
+    const teeId = course.tees.some((t) => t.id === input.course?.teeId) ? input.course.teeId : null;
+    if (!teeId && (input.course.teeId || !fixCard)) {
       return { ok: false, error: "Those tees are not on that course." };
     }
-    if (!input.course.cardChecked) {
+    if (!input.course.cardChecked && !fixCard) {
       return { ok: false, error: "Check the card against the club's own and tick that it matches." };
     }
-    chosenCourse = { id: course.id, name: course.name, city: course.city, teeId: input.course.teeId };
+    chosenCourse = { id: course.id, name: course.name, city: course.city, teeId };
   }
   const datesLabel = startOn ? formatDayRange(startOn, endOn, resolveLocale(owner ?? null)) : "";
   /**
@@ -4628,7 +4636,7 @@ async function createTournament(
       // Start from the club's house defaults, then own them outright.
       ...(await settingsForNewEvent(organizationId)),
       ...(input.settings ?? {}),
-      ...(chosenCourse ? { defaultTeeId: chosenCourse.teeId } : {}),
+      ...(chosenCourse?.teeId ? { defaultTeeId: chosenCourse.teeId } : {}),
     },
       }),
     { organizationId, name: named, selfId: null, door: "create" },

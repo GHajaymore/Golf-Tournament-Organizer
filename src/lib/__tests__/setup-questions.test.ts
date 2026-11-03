@@ -174,6 +174,20 @@ describe("the boundary", () => {
   });
 });
 
+describe("fixing the card on the course's own screen", () => {
+  const ok = { ...base({}), name: "zz-setup" };
+  it("takes a course with no tees chosen when the organizer will fix the card after the draft is made", () => {
+    const r = parseSetupAnswers({ ...ok, courseId: "c1", teeId: "", fixCard: true }, "us");
+    expect(r.ok).toBe(true);
+    // Never "checked": the tick is given on the card screen, after the fix.
+    if (r.ok) expect([r.answers.fixCard, r.answers.cardChecked]).toEqual([true, false]);
+  });
+  it("does not let a fix-later card arrive marked checked", () => {
+    const r = parseSetupAnswers({ ...ok, courseId: "c1", teeId: "t1", cardChecked: true, fixCard: true }, "us");
+    expect(r.ok && r.answers.cardChecked).toBe(false);
+  });
+});
+
 describe("going back keeps the answers", () => {
   it("changing what is run keeps the date and the keeper, and fixes only what no longer fits", () => {
     const a = base({ sides: "teams", firstDay: "2026-12-05", keeper: "committee" });

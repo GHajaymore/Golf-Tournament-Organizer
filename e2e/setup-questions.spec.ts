@@ -193,6 +193,45 @@ test("a new organizer sets up a medal, a scramble and a two-day outing from a fe
       ]);
     });
 
+    await test.step("fix the card: the course's own card screen opens on it; one index and one rating changed there", async () => {
+      await start(page);
+      await toReview(page);
+      const name = `${mark} Fixed Card`;
+      await page.getByLabel("Tournament name").fill(name);
+      await page.getByRole("button", { name: "Check the scorecard" }).click();
+      await page.getByLabel("Course", { exact: true }).selectOption({ label: `${mark} Palmetto Links` });
+      await page.getByRole("button", { name: "Fix the card" }).click();
+      await page.getByRole("button", { name: "Create the draft and open the card" }).click();
+      await page.waitForURL(/\/event\?course=/, { timeout: 30_000 });
+
+      // The course library's own editor, open on this course — never a second card editor.
+      const courses = page.locator("#courses");
+      // Holes 1 and 2 swap indexes (7 ↔ 3), so the card is still a whole 1–18 and `cardRefusal` lets it through.
+      await courses.getByLabel("Stroke index, hole 1", { exact: true }).fill("3");
+      await courses.getByLabel("Stroke index, hole 2", { exact: true }).fill("7");
+      await courses.getByRole("button", { name: "Save course" }).click();
+      await expect
+        .poll(async () => JSON.parse((await prisma.course.findUniqueOrThrow({ where: { id: o.rated.id } })).strokeIndex).slice(0, 2), {
+          timeout: 20_000,
+          message: "the index changed on the card screen was not stored",
+        })
+        .toEqual([3, 7]);
+
+      await courses.getByTitle("Edit these tees").first().click();
+      await courses.getByLabel("Course Rating", { exact: true }).fill("71.2");
+      await courses.getByRole("button", { name: "Save tees" }).click();
+      await expect
+        .poll(async () => (await prisma.tee.findUniqueOrThrow({ where: { id: o.rated.tees[0].id } })).courseRating, {
+          timeout: 20_000,
+          message: "the rating changed on the card screen was not stored",
+        })
+        .toBe(71.2);
+
+      const e = await draft(o.orgId, name);
+      expect(e?.status).toBe("draft");
+      expect(e?.courseId, "the draft was not made on the course whose card was fixed").toBe(o.rated.id);
+    });
+
     expect(errors, errors.join("\n")).toEqual([]);
   } finally {
     await drop(mark);
