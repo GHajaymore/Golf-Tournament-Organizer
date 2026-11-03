@@ -23,6 +23,7 @@ import { ownerClockInWords } from "@/lib/services/owner-clock";
 import { earlyListStatus } from "@/lib/services/early-list";
 import { DEFAULT_LOCALE, formatDay } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
+import { aiAccount } from "@/lib/ai-config";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
 import { deliveryWords } from "@/lib/domain/email-delivery";
 
@@ -153,6 +154,9 @@ export default async function OwnerConsolePage() {
       }
     : null;
 
+  // The AI account in words: on/off, label, models. Never the key (src/lib/ai-config.ts).
+  const ai = aiAccount();
+
   const stat = (label: string, value: string, sub?: string) => (
     <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
       <span className="card-kicker">{label}</span>
@@ -241,6 +245,27 @@ export default async function OwnerConsolePage() {
       {/* The go-live switch first: the one control that decides who can get in, and what every
           public page says about it. */}
       <OwnerAccounts switchSays={sw.switchSays} liveSince={liveSince} rule={sw.rule} earlyList={earlyList} />
+
+      {/* WHICH AI ACCOUNT IS PAYING (2026-11-03): on or off, the account's plain label, and the
+          model each job runs on — from src/lib/ai-config.ts. Never the key or any part of it.
+          Switching accounts is environment values only: docs/ai-account.md. */}
+      <section className="card elev-sm" style={{ marginBottom: 16 }} aria-label="AI account">
+        <span className="card-title" style={{ fontSize: 15 }}>AI</span>
+        {ai.providers
+          .filter((p) => ai.jobs.some((j) => j.provider === p.provider))
+          .map((p) => {
+            const jobs = ai.jobs.filter((j) => j.provider === p.provider);
+            return (
+              <p key={p.provider} style={{ fontSize: 13, margin: "4px 0 0" }}>
+                <strong>{p.on ? "On" : "Off"}</strong> · {p.name}
+                {p.label ? ` · ${p.label}` : ""}
+                {" · "}
+                {jobs.map((j) => (j.model ? `${j.words}: ${j.model}` : j.words)).join(", ")}
+                {!p.on && jobs[0] && !jobs[0].on ? <span className="text-muted"> — {jobs[0].why}</span> : null}
+              </p>
+            );
+          })}
+      </section>
 
       {/* The demo club a visitor can watch (2026-10-24): built and rebuilt from here, and nowhere else. */}
       <OwnerDemoClub

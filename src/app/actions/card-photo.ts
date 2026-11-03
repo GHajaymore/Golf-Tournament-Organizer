@@ -152,7 +152,7 @@ export async function readScorecardPhoto(
     // to check and correct before it goes through the ordinary entry path. A
     // misread here costs a correction, not a wrong result — which is exactly
     // the shape of task where the cheaper model belongs.
-    model: "claude-haiku-4-5",
+    job: "cardReading",
     maxTokens: 400,
     content: [
       { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
@@ -263,7 +263,7 @@ export async function readGroupCardPhoto(
     // Haiku, for the reasons on readScorecardPhoto — narrow extraction rather
     // than judgement, and nothing here is saved without a person checking it.
     // The token budget rises with the number of rows.
-    model: "claude-haiku-4-5",
+    job: "cardReading",
     maxTokens: 250 * Math.max(1, roster.length),
     content: [
       { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
@@ -363,7 +363,7 @@ export async function readCourseCardPhoto(
     // Haiku, as everywhere in this file. Lower volume than the other two — a
     // course is read once, not once a round — and the review screen in front
     // of it is stricter than either.
-    model: "claude-haiku-4-5",
+    job: "cardReading",
     // Three rows rather than one, and yardages are three digits.
     maxTokens: 700,
     content: [

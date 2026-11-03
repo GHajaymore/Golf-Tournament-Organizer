@@ -6,6 +6,7 @@ import { assertEventWritable } from "@/lib/services/club-archive";
 import { loadEventState, computeHighlights } from "@/lib/services/tournament";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { askClaude } from "@/lib/services/claude";
+import { aiJobOn } from "@/lib/ai-config";
 
 async function requireStaff() {
   const session = await getSession();
@@ -38,7 +39,7 @@ export async function deleteCommentary(id: string) {
 
 /**
  * Draft a commentary line from live tournament data using the Claude API.
- * Requires ANTHROPIC_API_KEY; without it, returns a clear "not configured"
+ * Requires the AI account (`src/lib/ai-config.ts`); without it, returns a clear "not configured"
  * result so the organizer can still write commentary by hand.
  */
 export async function suggestCommentary(): Promise<{ text: string; configured: boolean }> {
@@ -50,7 +51,7 @@ export async function suggestCommentary(): Promise<{ text: string; configured: b
   const entitled = await entitlementForEvent(session.eventId, "aiAssist");
   if (!entitled.allowed) return { text: "", configured: false };
 
-  const key = process.env.ANTHROPIC_API_KEY;
+  const key = aiJobOn("commentary");
   const state = await loadEventState(session.eventId);
   if (!state) return { text: "", configured: !!key };
 
@@ -64,14 +65,14 @@ export async function suggestCommentary(): Promise<{ text: string; configured: b
 
   if (!key) {
     return {
-      text: `AI drafting is off. Set ANTHROPIC_API_KEY to enable it. Meanwhile, here's the data:\n${highlights || "No highlights yet."}`,
+      text: `AI drafting is off on this server. Meanwhile, here's the data:\n${highlights || "No highlights yet."}`,
       configured: false,
     };
   }
 
   const prompt = `You are a golf tournament commentator for "${state.event.name}". Write ONE short, punchy live-update line (max 30 words), energetic but factual, no hashtags. Use this data:\n\nStandings:\n${top}\n\nHighlights:\n${highlights}`;
 
-  const answer = await askClaude({ model: "claude-sonnet-5", maxTokens: 120, content: prompt });
+  const answer = await askClaude({ job: "commentary", maxTokens: 120, content: prompt });
   if (answer.ok) return { text: answer.text, configured: true };
   if (answer.reason === "unreachable") return { text: "Could not reach the Claude API.", configured: true };
   // An empty reply is not an error to show a commentator — there is simply

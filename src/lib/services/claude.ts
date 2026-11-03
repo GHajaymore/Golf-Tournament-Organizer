@@ -1,4 +1,5 @@
 import "server-only";
+import { aiKey, JOBS, type AiJob } from "@/lib/ai-config";
 
 /**
  * One way to ask Claude a question.
@@ -39,17 +40,23 @@ export type ClaudeAnswer =
   | { ok: false; reason: "unreachable" };
 
 export async function askClaude({
-  model,
+  job,
   maxTokens,
   content,
 }: {
-  model: string;
+  /**
+   * What is being asked — the model for it, and the account that pays, are
+   * configuration (`src/lib/ai-config.ts`), never a caller's choice.
+   */
+  job: AiJob;
   maxTokens: number;
   /** A prompt, or the content blocks a multimodal request needs. */
   content: ClaudeContent;
 }): Promise<ClaudeAnswer> {
-  const key = process.env.ANTHROPIC_API_KEY;
+  // A job configured onto another provider is not this function's to send.
+  const key = JOBS[job].provider === "anthropic" ? aiKey(job) : null;
   if (!key) return { ok: false, reason: "not-configured" };
+  const { model, thinking } = JOBS[job];
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -62,6 +69,7 @@ export async function askClaude({
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
+        thinking,
         messages: [{ role: "user", content }],
       }),
     });
@@ -69,8 +77,10 @@ export async function askClaude({
     // The status, never the body. See the note above — this is the whole point.
     if (!res.ok) return { ok: false, reason: "refused", status: res.status };
 
-    const data = (await res.json()) as { content?: Array<{ text?: string }> };
-    const text = (data.content?.[0]?.text ?? "").trim();
+    const data = (await res.json()) as { content?: Array<{ type?: string; text?: string }> };
+    // The first TEXT block, not the first block: a current model may put a
+    // thinking block ahead of the answer, and its text is empty.
+    const text = (data.content?.find((b) => b.type === "text")?.text ?? "").trim();
     // Untrusted from here on: every caller parses and bounds what it gets.
     return text ? { ok: true, text } : { ok: false, reason: "empty" };
   } catch {

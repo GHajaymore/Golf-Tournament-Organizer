@@ -84,7 +84,7 @@ export async function draftMessage(kind: string, extra: string): Promise<DraftRe
   if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
   const answer = await askClaude({
-    model: "claude-sonnet-5",
+    job: "messageDraft",
     maxTokens: 800,
     content: draftPrompt(DRAFT_KINDS[kind as DraftKind], facts.eventName, facts.text, note),
   });

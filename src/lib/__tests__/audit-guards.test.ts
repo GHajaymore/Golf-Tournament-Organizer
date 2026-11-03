@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource, stripComments } from "./source";
 import { drawBrackets } from "@/lib/domain";
+import { JOBS, type AiJob } from "@/lib/ai-config";
 
 /**
  * Guard checks that read the source rather than the behaviour.
@@ -1454,18 +1455,30 @@ describe("which model each AI call uses", () => {
    *
    * The prose calls stay on Sonnet deliberately: they are low-volume and their
    * output is read by a person as writing.
+   *
+   * Since 2026-11-03 a caller names a JOB and `src/lib/ai-config.ts` names the
+   * model for it, so the account and the models are configuration. This pins
+   * both halves: which job each file asks for, and which model family each job
+   * is on.
    */
-  const MODEL_FOR: Record<string, string> = {
-    "card-photo.ts": "claude-haiku-4-5",
-    "commentary.ts": "claude-sonnet-5",
-    "draft-message.ts": "claude-sonnet-5",
-    "setup-suggest.ts": "claude-sonnet-5",
+  const JOB_FOR: Record<string, AiJob> = {
+    "card-photo.ts": "cardReading",
+    "commentary.ts": "commentary",
+    "draft-message.ts": "messageDraft",
+    "setup-suggest.ts": "setupSuggest",
   };
 
-  for (const [file, expected] of Object.entries(MODEL_FOR)) {
-    it(`${file} calls ${expected}`, () => {
+  it("reads cards on Haiku and writes on Sonnet", () => {
+    expect(JOBS.cardReading.model).toMatch(/^claude-haiku-/);
+    for (const job of ["commentary", "messageDraft", "setupSuggest"] as const) {
+      expect(JOBS[job].model, job).toMatch(/^claude-sonnet-/);
+    }
+  });
+
+  for (const [file, expected] of Object.entries(JOB_FOR)) {
+    it(`${file} asks for ${expected}`, () => {
       const src = stripComments(read(file));
-      const found = [...src.matchAll(/model:\s*"([^"]+)"/g)].map((m) => m[1]);
+      const found = [...src.matchAll(/job:\s*"([^"]+)"/g)].map((m) => m[1]);
       // Distinct models, not calls. A file may hold more than one call —
       // card-photo.ts reads a single card and a whole group — and what
       // matters is that every one of them is on the model decided above.
@@ -1473,17 +1486,18 @@ describe("which model each AI call uses", () => {
       // like a cost regression when it is the opposite: one call for a
       // fourball in place of four.
       expect(found.length, `${file} should call a model at all`).toBeGreaterThan(0);
-      expect([...new Set(found)], `${file} uses one model throughout`).toEqual([expected]);
+      expect([...new Set(found)], `${file} uses one job throughout`).toEqual([expected]);
     });
   }
 
   it("has no AI call this guard has not been told about", () => {
     // So a new model call cannot be added without a deliberate decision about
-    // which model it should use and what that costs per invocation.
+    // which model it should use and what that costs per invocation. Every
+    // call goes through askClaude now, so that is what is looked for.
     const unlisted = readdirSync(ACTIONS_DIR)
-      .filter((f) => f.endsWith(".ts") && !MODEL_FOR[f])
-      .filter((f) => /api\.anthropic\.com/.test(stripComments(read(f))));
-    expect(unlisted, "add it to MODEL_FOR with a note on why that model").toEqual([]);
+      .filter((f) => f.endsWith(".ts") && !JOB_FOR[f])
+      .filter((f) => /askClaude\(|api\.anthropic\.com/.test(stripComments(read(f))));
+    expect(unlisted, "add it to JOB_FOR with a note on why that model").toEqual([]);
   });
 });
 
