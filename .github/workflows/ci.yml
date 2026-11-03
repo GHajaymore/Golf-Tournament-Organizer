@@ -32,10 +32,18 @@ name: CI
 # pull request's checks, so running these again there tested nothing new and
 # took six machines from each round as it started: three rounds pushed together
 # waited up to 21 minutes for a machine (measured 2026-10-13).
+#
+# And a PUSH runs it only on `main` (2026-11-02). A pushed branch with a pull
+# request was tested twice — once as the push, once as the pull request, in
+# two concurrency groups — so seven branches pushed in an evening put fourteen
+# copies of the three-leg suite in the queue, and a round waited two hours for
+# a machine. The pull request run is the one the "main must be green" ruleset
+# reads and the one reported on the branch's head commit. A branch with no
+# pull request (a landing draft, a design proposal) gets no CI until it has
+# one; `breaks/**` and `round/**` stay outside it as before.
 on:
   push:
-    # Nor on a `breaks/**` branch, which is the app deliberately broken (breaks.yml).
-    branches: ["**", "!round/**", "!breaks/**"]
+    branches: ["main"]
   pull_request:
   workflow_dispatch:
 
