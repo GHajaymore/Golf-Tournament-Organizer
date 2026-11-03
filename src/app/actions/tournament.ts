@@ -68,7 +68,6 @@ import { refusalFor, fieldCapFor, seatRefusalFor } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
 import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal, wipesOnClose } from "@/lib/domain/close-terms";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
-import { clubToday } from "@/lib/domain/club-clock";
 import { parseSetupAnswers, draftFromAnswers } from "@/lib/domain/setup-questions";
 import { markCourseCardChecked } from "@/lib/services/course-card-checked";
 import { tournamentNameRefusal, nameOrFree, withNameBackstop } from "@/lib/services/tournament-name";
