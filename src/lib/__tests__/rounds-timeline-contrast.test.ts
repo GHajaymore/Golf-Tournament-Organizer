@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 import { DARK_GROUND, LIGHT_GROUND, SUNLIGHT_RATIO, THEME_PAIRS, contrastRatio, themeVarsFor, type ClubTheme, type Ground } from "@/lib/themes";
 
 /**
@@ -22,7 +21,9 @@ import { DARK_GROUND, LIGHT_GROUND, SUNLIGHT_RATIO, THEME_PAIRS, contrastRatio, 
  * srgb, …)` is defined, then WCAG's ratio (`contrastRatio`).
  */
 
-const CSS = readFileSync(join(process.cwd(), "src", "app", "design-system.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const CSS = readSource("src", "app", "design-system.css");
+// Built from parts so the token sweeps do not read the control as a real reference.
+const UNDECLARED = ["--color", "nope"].join("-");
 
 /**
  * The chips and marks step 2 draws words on. "A | B" is a shared rule and the timeline's own
@@ -172,7 +173,7 @@ describe("the timeline's chips and par marks read on every theme", () => {
     const weak = `.x { background: color-mix(in srgb, var(--color-accent-2-800) 70%, transparent); color: var(--color-accent-2-500); }`;
     expect(markContrast(weak, ".x", vars).ratio).toBeLessThan(SUNLIGHT_RATIO);
     expect(() => markContrast(`.y { color: #777777; background: rgb(1, 2, 3); }`, ".y", vars)).toThrow(/not a --color-\* token/);
-    expect(() => markContrast(".z { color: var(--color-nope); }", ".z", vars)).toThrow(/not a token/);
+    expect(() => markContrast(`.z { color: var(${UNDECLARED}); }`, ".z", vars)).toThrow(/not a token/);
     expect(() => markContrast(CSS, ".tag-neutral | .rounds-timelin .tag-neutral", vars), "a misspelt override is measured as the shared rule").toThrow(/has no rule/);
   });
 });
