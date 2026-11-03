@@ -2,6 +2,16 @@ import { describe, it, expect } from "vitest";
 import { readSource } from "../../__tests__/source";
 import {
   cardRevision,
+  combineHoleSyncs,
+  HOLE_SYNC_WORDS,
+  holeSyncs,
+  isLongWait,
+  LONG_WAIT_HOLES,
+  LONG_WAIT_MS,
+  refusalWords,
+  serverHoldsAfter,
+  unsentHoles,
+  type HoleSync,
   keptCardChanged,
   mayStartSend,
   SEND_PATIENCE_MS,
@@ -38,9 +48,11 @@ const base: PendingState = {
 const at = (over: Partial<PendingState>) => syncStatus({ ...base, ...over });
 
 describe("what the scorer is told", () => {
-  it("says saved, and means it, when nothing is waiting", () => {
+  it("says sent, and means it, when nothing is waiting", () => {
+    // "Sent", the same word each hole uses (`HOLE_SYNC_WORDS`) — one state, one word.
     const s = at({});
-    expect(s.label).toBe("Saved");
+    expect(s.label).toBe("Sent");
+    expect(s.label).toBe(HOLE_SYNC_WORDS.sent);
     expect(s.safeToLeave).toBe(true);
   });
 
@@ -507,5 +519,195 @@ describe("whether a card may be sent now", () => {
     const at = card.indexOf("await card.landed();");
     expect(at, "signing does not wait for a save that is out").toBeGreaterThan(0);
     expect(card.indexOf("const res = await saveScorecard(stageId, playerId, sent, revision.current);", at), "the wait is not before the save it protects").toBeGreaterThan(at);
+  });
+});
+
+/**
+ * THE HONEST CARD (2026-10-25): where each hole's score is.
+ *
+ * Worked out from the sender's own two values — the card it holds to send, and
+ * what the last answered send read back from the server — and nothing else.
+ * The property that matters, asserted over every combination below: a hole is
+ * "Sent" only when the server holds exactly what the phone holds for it.
+ */
+describe("where each hole is", () => {
+  const sync = (onPhone: (number | null)[], onServer: (number | null)[] | null, refused = false) =>
+    holeSyncs({ onPhone, onServer, refused, holes: onPhone.length });
+
+  it("calls a hole Sent only where the server holds what the phone holds", () => {
+    expect(sync([4, 5, 3], [4, 5, 3])).toEqual(["sent", "sent", "sent"]);
+    expect(sync([4, 5, 3], [4, 5, null])).toEqual(["sent", "sent", "phone"]);
+    expect(sync([4, 5, 3], null)).toEqual(["phone", "phone", "phone"]);
+  });
+
+  it("says nothing about a hole that is empty in both places", () => {
+    expect(sync([null, 4], [null, 4])).toEqual(["none", "sent"]);
+    expect(sync([null], null)).toEqual(["none"]);
+  });
+
+  it("calls a score the server holds and the phone has changed 'On your phone', not Sent", () => {
+    // The server still holds the 5; the 4 has not gone. "Sent" would be about the wrong number.
+    expect(sync([4], [5])).toEqual(["phone"]);
+  });
+
+  it("calls a hole cleared on the phone and not on the server 'On your phone'", () => {
+    // The server still has the old score, and that is the honest thing to say about it.
+    expect(sync([null], [5])).toEqual(["phone"]);
+  });
+
+  it("calls every hole the server would not take 'Not sent', and only those", () => {
+    expect(sync([4, 5, 3], [4, null, null], true)).toEqual(["sent", "refused", "refused"]);
+  });
+
+  it("PROPERTY: over every phone/server pair of values, Sent means equal and non-empty", () => {
+    const values = [null, 1, 3, 4, 9];
+    for (const p of values)
+      for (const s of values)
+        for (const refused of [false, true]) {
+          const [h] = sync([p], [s], refused);
+          if (h === "sent") expect(p, `sent with phone ${p} and server ${s}`).toBe(s);
+          if (h === "sent") expect(p).not.toBeNull();
+          if (p !== s) expect(h, `phone ${p}, server ${s}`).toBe(refused ? "refused" : "phone");
+        }
+  });
+
+  it("works for a match's holes as well as a card's strokes", () => {
+    expect(holeSyncs({ onPhone: ["A", "H", null], onServer: ["A", null, null], refused: false, holes: 3 })).toEqual(["sent", "phone", "none"]);
+  });
+
+  it("counts the holes that are not on the server", () => {
+    const holes: HoleSync[] = ["sent", "phone", "refused", "none", "phone"];
+    expect(unsentHoles(holes)).toBe(3);
+  });
+
+  it("gives the group's hole the worst of its cards: Sent only when every card on it is", () => {
+    const mine: HoleSync[] = ["sent", "sent", "sent", "none"];
+    const partner: HoleSync[] = ["sent", "phone", "refused", "sent"];
+    expect(combineHoleSyncs([mine, partner], 4)).toEqual(["sent", "phone", "refused", "sent"]);
+    expect(combineHoleSyncs([], 2)).toEqual(["none", "none"]);
+  });
+
+  it("takes what the server READ BACK over what was sent, and a held card as nothing heard", () => {
+    expect(serverHoldsAfter({ serverHolds: [4, 5] }, [4, 6])).toEqual([4, 5]);
+    expect(serverHoldsAfter("sent", [4, 6])).toEqual([4, 6]);
+    expect(serverHoldsAfter("held", [4, 6])).toBeNull();
+  });
+
+  it("has three words, and they are the ones on the screen", () => {
+    expect(HOLE_SYNC_WORDS).toEqual({ phone: "On your phone", sent: "Sent", refused: "Not sent" });
+  });
+});
+
+describe("what the card says when the server says no, or the signal is gone a long time", () => {
+  it("says the server's own sentence, and what to do", () => {
+    const s = at({ queued: true, refused: true, refusal: "The committee has closed this round, so no more scores can be entered for it." });
+    expect(s.label).toMatch(/^Not sent: The committee has closed this round/);
+    expect(s.label).toMatch(/kept on this phone/);
+    expect(s.label).toMatch(/committee/);
+    expect(s.tone).toBe("warn");
+    expect(s.safeToLeave).toBe(false);
+  });
+
+  it("keeps a plain sentence when the server gave none", () => {
+    expect(at({ queued: true, refused: true }).label).toMatch(/^Not sent\. This card wouldn't save\./);
+  });
+
+  it("drops the framework's sentence for one a golfer can act on", () => {
+    expect(refusalWords("An error occurred in the Server Components render. The specific message is omitted in production builds to avoid leaking sensitive details.")).toBe("");
+    expect(refusalWords("Failed to fetch")).toBe("");
+    expect(refusalWords("  ")).toBe("");
+    expect(refusalWords("That card has been approved.")).toBe("That card has been approved.");
+  });
+
+  it("does not warn about one or two holes in a dead spot, however long", () => {
+    for (const unsent of [1, 2]) {
+      const s = at({ queued: true, online: false, unsent, waitingMs: 20 * 60_000 });
+      expect(s.label, `${unsent} hole(s)`).toMatch(/no signal/i);
+      expect(s.tone).toBe("queued");
+    }
+  });
+
+  it("does not warn about three holes typed in one breath — a player catching up", () => {
+    const s = at({ queued: true, online: false, unsent: LONG_WAIT_HOLES, waitingMs: 5_000 });
+    expect(s.label).toMatch(/no signal/i);
+    expect(isLongWait(LONG_WAIT_HOLES, NAG_AFTER_MS - 1)).toBe(false);
+  });
+
+  it("warns at three holes left on the phone for longer than a slow save, and says what to do", () => {
+    const s = at({ queued: true, online: false, unsent: LONG_WAIT_HOLES, waitingMs: NAG_AFTER_MS });
+    expect(s.tone).toBe("warn");
+    expect(s.label).toMatch(/^3 holes are only on this phone/);
+    expect(s.label).toMatch(/send by themselves/);
+    expect(s.label).toMatch(/show this card to the committee/i);
+    // Read on a tee: no sentence of twelve words (`e2e/player-words.spec.ts`).
+    for (const sentence of s.label.split(/(?<=[.!?])\s+/)) {
+      expect(sentence.split(" ").filter((w) => /[\p{L}\p{N}]/u.test(w)).length, sentence).toBeLessThan(12);
+    }
+    // Still kept, so still safe to play on.
+    expect(s.safeToLeave).toBe(true);
+  });
+
+  it("warns about a single hole only after half an hour", () => {
+    expect(at({ queued: true, online: false, unsent: 1, waitingMs: LONG_WAIT_MS - 1 }).label).toMatch(/no signal/i);
+    expect(at({ queued: true, online: false, unsent: 1, waitingMs: LONG_WAIT_MS }).label).toMatch(/^1 hole is only on this phone/);
+  });
+
+  it("warns over a send that is out, rather than hiding behind Saving…", () => {
+    expect(at({ queued: true, sending: true, unsent: 4, waitingMs: NAG_AFTER_MS }).label).toMatch(/^4 holes are only on this phone/);
+  });
+
+  it("never warns about a card held back on purpose, or one with nothing waiting", () => {
+    expect(at({ queued: true, holding: true, unsent: 9, waitingMs: LONG_WAIT_MS }).label).toMatch(/whole card/);
+    expect(at({ queued: false, unsent: 0, waitingMs: LONG_WAIT_MS }).label).toBe("Sent");
+  });
+
+  it("says when the phone would not keep the holes, so 'kept' is never a lie", () => {
+    const s = at({ queued: true, online: false, unkept: true });
+    expect(s.tone).toBe("warn");
+    expect(s.label).toMatch(/won’t keep your holes/);
+    expect(s.label).not.toMatch(/saved on this phone/i);
+    expect(s.safeToLeave).toBe(false);
+  });
+});
+
+/**
+ * ONE RULE, ONE PLACE: the marks come from the sender.
+ *
+ * The screen must not be able to say "Sent" for a hole the queue still holds,
+ * which is only true while there is ONE comparison and every card draws it.
+ */
+describe("the marks on every card come from the queue that sends it", () => {
+  it("the queue works the holes out from what it holds to send and what the server read back", () => {
+    const hook = readSource("src", "components", "usePendingCard.ts");
+    expect(hook).toContain("const holes = holeSyncs({");
+    expect(hook).toContain("onPhone: phoneCells,");
+    expect(hook).toContain("onServer: serverCells,");
+    // What it holds to send is set where the device copy is written, before any request.
+    const push = hook.slice(hook.indexOf("const push = useCallback"));
+    expect(push.indexOf("setOnPhone(next)")).toBeGreaterThan(push.indexOf("localStorage.setItem"));
+    expect(push.indexOf("setOnPhone(next)")).toBeLessThan(push.indexOf("setTimeout(attempt"));
+    // A read-back that disagrees with what was sent is not a landing.
+    expect(hook).toContain("!sameCells(cellsOf.current(holds), cellsOf.current(sent))");
+  });
+
+  it("every card that keeps a queue draws its marks from it", () => {
+    for (const file of ["PlayerCard.tsx", "PlayClient.tsx", "MatchKeeper.tsx", "MatchStrokeKeeper.tsx"]) {
+      const src = readSource("src", "components", file);
+      expect(src, file).toMatch(/usePendingCard</);
+      expect(src, `${file} keeps a queue and draws no marks from it`).toMatch(/sync=\{(card|cardQueue|matchQueue|queue)\.holes\}/);
+    }
+    // The group card: the holder's own queue's marks, and each partner's from their own queue.
+    const group = readSource("src", "components", "GroupScoring.tsx");
+    expect(group).toMatch(/sync=\{groupSync\}/);
+    expect(group).toMatch(/combineHoleSyncs\(\[mySync,/);
+    expect(readSource("src", "components", "PlayerCard.tsx")).toMatch(/mySync=\{card\.holes\}/);
+  });
+
+  it("no screen spells the words itself", () => {
+    // CONTROL: the sweep can see the words where they are meant to be.
+    expect(readSource("src", "lib", "domain", "pending-card.ts")).toContain('"On your phone"');
+    for (const file of ["HoleSync.tsx", "HoleByHoleCard.tsx", "HoleResultCard.tsx", "ScorecardTable.tsx", "PlayerCard.tsx", "PlayClient.tsx", "MatchKeeper.tsx", "MatchStrokeKeeper.tsx", "GroupScoring.tsx"]) {
+      expect(readSource("src", "components", file), file).not.toContain('"On your phone"');
+    }
   });
 });

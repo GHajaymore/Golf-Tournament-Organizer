@@ -238,3 +238,30 @@ test.describe("the complete-and-delete dialog", () => {
     }
   });
 });
+
+test.describe("the round's side panel", () => {
+  test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
+
+  /**
+   * THE REDESIGN'S PANEL (`SidePanel`, 2026-10-30), on Rounds & formats behind `?view=timeline`.
+   * The fixture's played round, which carries the most controls: the panel is the whole screen
+   * on a phone and a column at the right on a desktop, and either way nothing in it may hang off
+   * its sides. Its fuller walk (focus, Escape, one at a time, a save) is `e2e/rounds-panel.spec.ts`.
+   * Read-only: opened, measured, closed.
+   */
+  test(`the round's side panel ${FITS}`, async ({ page }) => {
+    await page.goto(`/stages?view=timeline&bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle");
+    const first = page.locator('[id^="round-"] button[aria-expanded]').first();
+    await first.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await first.click();
+
+    const dialog = page.getByRole("dialog", { name: /Round 1/ });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute("aria-modal", "true");
+    await fitsTheViewport(page, dialog, "the round's side panel");
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+  });
+});
