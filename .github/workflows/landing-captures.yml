@@ -1,0 +1,177 @@
+name: Landing captures
+
+# THE FRONT DOOR'S SCREENS, SHOT ON A RUNNER (2026-11-03, the site rehaul's design F).
+#
+# The owner's desktop is short of memory, so nothing is built or shot there. This workflow does
+# what `npm run landing:capture` does — seed the invented demo club, dress it, shoot the screens
+# `src/lib/landing/screens.ts` names, put every value back, tear the club down — on a runner with
+# its OWN throwaway Postgres, and uploads the placed pictures as an artifact for a person to look
+# at and commit. It commits nothing itself.
+#
+# It never touches production: the only database is the service container below, created with the
+# runner and destroyed with it, and no secret is read. `capture-demo.mjs` and
+# `build-guide-pdf.mjs` both refuse any database that is not on localhost as well.
+#
+#   gh workflow run landing-captures.yml --ref <branch> -f only=f-why-board,f-card-sync
+#   gh run download <run-id> -n landing-captures
+#
+# `only` empty shoots every screen the manifest can shoot. The second job rebuilds the organizer
+# guide's PDF from `/guide/steps` and uploads it beside (CLAUDE.md, "Help and docs travel with the
+# change").
+
+on:
+  # A push to `captures/<anything>` runs it too, shooting PUSH_ONLY: a workflow_dispatch workflow can
+  # only be started by name once it is on the default branch, and this one is not yet. `captures/*`
+  # builds no Vercel preview (vercel.json).
+  push:
+    branches: ["captures/**"]
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Screen ids to shoot, comma-separated (empty: every screen the manifest can shoot)"
+        required: false
+        default: ""
+      guide_pdf:
+        description: "Also rebuild the organizer guide's PDF"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: landing-captures-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Local to the runner and destroyed with it — never a real credential.
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  PRISMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  # Signs the seeded cookies AND the server's check of them; exists for one run.
+  AUTH_SECRET: landing-captures-only-not-a-deployment-key
+  NEXT_TELEMETRY_DISABLED: "1"
+  NEXT_DIST_DIR: .next-ci
+  # What a push shoots: design F's new screens (src/lib/landing/screens.ts, "design F").
+  PUSH_ONLY: f-why-board,f-card-sync,f-desk-checklist,f-event-page,f-clubhouse
+
+jobs:
+  captures:
+    name: Shoot the landing's screens
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          # The capture scripts import the manifest, a .ts file, by Node's own type stripping (22.18+).
+          node-version: "22"
+
+      - name: Install Chromium
+        timeout-minutes: 10
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: Start the built server on 3100
+        run: |
+          nohup npx next start --port 3100 > /tmp/server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/ | grep -qE "^(200|307)$"; then echo "up after ${i}s"; exit 0; fi
+            sleep 1
+          done
+          echo "the server did not come up"; tail -50 /tmp/server.log; exit 1
+
+      - name: Shoot and place
+        env:
+          CAPTURE_BASE_URL: http://localhost:3100
+          ONLY_ASKED: ${{ inputs.only }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          OUT="$RUNNER_TEMP/shots"
+          if [ "$EVENT" = "push" ]; then ONLY="$PUSH_ONLY"; else ONLY="$ONLY_ASKED"; fi
+          echo "Shooting: ${ONLY:-every screen the manifest can shoot}"
+          ARGS=""
+          if [ -n "$ONLY" ]; then ARGS="--only=$ONLY"; fi
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/capture-demo.mjs "$OUT" --landing $ARGS
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/place-landing-shots.mjs "$OUT" $ARGS
+          mkdir -p "$RUNNER_TEMP/upload/raw"
+          cp -r public/landing "$RUNNER_TEMP/upload/landing"
+          cp src/lib/landing/shot-widths.json "$RUNNER_TEMP/upload/"
+          if [ -f "$OUT/screen-facts.json" ]; then cp "$OUT/screen-facts.json" "$RUNNER_TEMP/upload/"; fi
+          cp "$OUT"/capture-report.json "$RUNNER_TEMP/upload/raw/" 2>/dev/null || true
+          cp -r "$OUT"/text "$RUNNER_TEMP/upload/raw/" 2>/dev/null || true
+          git status --short public/landing src/lib/landing > "$RUNNER_TEMP/upload/changed.txt"
+          echo "### Changed by this run" >> "$GITHUB_STEP_SUMMARY"
+          sed 's/^/    /' "$RUNNER_TEMP/upload/changed.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: The server's log, if anything failed
+        if: failure()
+        run: tail -200 /tmp/server.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: landing-captures
+          path: ${{ runner.temp }}/upload
+          retention-days: 14
+
+  guide-pdf:
+    name: Rebuild the guide's PDF
+    if: ${{ github.event_name == 'push' || inputs.guide_pdf }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Install Chromium
+        timeout-minutes: 10
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: Print the guide
+        env:
+          GUIDE_BASE_URL: http://127.0.0.1:3102
+        run: |
+          nohup npx next start --port 3102 > /tmp/server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://127.0.0.1:3102/; then break; fi
+            sleep 1
+          done
+          node scripts/build-guide-pdf.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guide-pdf
+          path: public/guide/tourneyhq-organizer-guide.pdf
+          retention-days: 14

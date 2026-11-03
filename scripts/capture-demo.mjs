@@ -78,26 +78,7 @@ const ONLY = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
  * reel shots below. `npm run landing:capture` runs this and then the placing script.
  */
 const LANDING = args.includes("--landing");
-/**
- * --theme=<pair>:<ground> (2026-11-02, the site rehaul's design D): dress the club in one of
- * `THEME_PAIRS` on the dark or light ground for the length of the run, as a club would set it in
- * Branding. A theme is a real setting, so the screens stay real and unedited. It is journalled
- * like every other dressed value and put back before the teardown; and before EVERY shot it is
- * read back from the database and set again if anything changed it (two sessions share the dev
- * database).
- *
- * --shots=<file.json>: shoot this list instead of the manifest's, each entry
- * `{ name, viewport: "phone"|"laptop", who, event, costume, path, expect? }`, plus `{ "live": true }`
- * for the hero's live moment in its order. Each name is written with `-<pair>` after it.
- */
-const THEME_ARG = (args.find((a) => a.startsWith("--theme=")) ?? "").slice(8);
-const [THEME, THEME_GROUND = "auto"] = THEME_ARG.split(":");
-const SHOTS_FILE = (args.find((a) => a.startsWith("--shots=")) ?? "").slice(8);
-const THEME_PAIR = THEME ? (await import("../src/lib/themes.ts")).THEME_PAIRS.find((p) => p.key === THEME) : null;
-if (THEME && !THEME_PAIR) throw new Error(`--theme: no pair named "${THEME}" in THEME_PAIRS.`);
-if (THEME && !["dark", "light", "auto"].includes(THEME_GROUND)) throw new Error(`--theme: the ground is dark, light or auto, not "${THEME_GROUND}".`);
-const EXTRA_SHOTS = SHOTS_FILE ? JSON.parse(readFileSync(SHOTS_FILE, "utf8")) : null;
-const { SCREENS, LIVE_MOMENT, VIEWPORTS } = await import("../src/lib/landing/screens.ts");
+const { SCREENS, LIVE_MOMENT, VIEWPORTS, CAPTURE_THEMES } = await import("../src/lib/landing/screens.ts");
 const TEXT = join(OUT, "text");
 const JOURNAL = join(OUT, ".capture-demo-journal.json");
 mkdirSync(TEXT, { recursive: true });
@@ -175,23 +156,6 @@ async function setCell(table, id, column, value) {
     saveJournal();
   }
   await prisma.$executeRawUnsafe(`UPDATE "${table}" SET "${column}" = $1 WHERE id = $2`, value, id);
-}
-
-/** The club's colours, as `--theme` asked for them. */
-const THEME_CELLS = () => ({ themeKey: THEME_PAIR.accentKey, themeSecondaryKey: THEME_PAIR.secondaryKey, themeAppearance: THEME_GROUND });
-
-async function dressTheme(ctx) {
-  for (const [col, v] of Object.entries(THEME_CELLS())) await setCell("Organization", ctx.orgId, col, v);
-}
-
-/** Read the club's colours back; if anything changed them under the run, set them again and say so. */
-async function themeHolds(ctx) {
-  const want = THEME_CELLS();
-  const [row] = await prisma.$queryRawUnsafe(`SELECT "themeKey", "themeSecondaryKey", "themeAppearance" FROM "Organization" WHERE id = $1`, ctx.orgId);
-  const off = Object.entries(want).filter(([col, v]) => row?.[col] !== v);
-  if (!off.length) return null;
-  await dressTheme(ctx);
-  return `theme changed under the run (${off.map(([c]) => `${c}=${row?.[c]}`).join(", ")}); set again`;
 }
 
 /** The value a cell was seeded with, whether or not it has been overwritten since. */
@@ -518,6 +482,59 @@ function steps(...fns) {
  * Bring the card holding a line of words to the top of the screen, just under the sticky header
  * (about 80px on a phone), as a thumb would scroll it.
  */
+/** Bring the words themselves (not their card) to `above` pixels below the top of the window. */
+function scrollToWords(pattern, above) {
+  return async (page) => {
+    const target = page.getByText(new RegExp(`^(${pattern})$`)).filter({ visible: true }).first();
+    if (!(await target.count())) return `NOT FOUND: words matching /${pattern}/`;
+    await target.evaluate((el, gap) => window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - gap)), above);
+    await page.waitForTimeout(400);
+    return null;
+  };
+}
+
+/**
+ * The named steps a manifest screen may take before its shot (`CaptureSpec.act` in
+ * `src/lib/landing/screens.ts`). Design E's console shots: the final report itself rather than the
+ * controls above it, and the prize list on the finished championship.
+ */
+const LANDING_ACTS = {
+  "final-report": scrollToWords("Final report|FINAL REPORT", 110),
+  "prize-list": scrollToWords("Total purse|TOTAL PURSE", 150),
+  "open-why": openWhy,
+  "offline-press": offlinePress,
+};
+
+/**
+ * DESIGN F (2026-11-03): a figure that explains itself (#953). The member presses the first figure
+ * on their board that has a "how it was worked out", as a member does, and the sentence opens.
+ * Nothing is drawn on the screen: the app opens it.
+ */
+async function openWhy(page) {
+  const figure = page.locator("details[data-working] > summary").filter({ visible: true }).first();
+  if (!(await figure.count())) return "NOT FOUND: a figure with its working on this screen";
+  await figure.evaluate((el) => window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - 260)));
+  await figure.click();
+  await page.waitForTimeout(400);
+  const says = page.locator("details[data-working][open] .why-says").filter({ visible: true }).first();
+  return (await says.count()) ? null : "NOT FOUND: the working did not open";
+}
+
+/**
+ * DESIGN F: the honest card (#959). The signal goes (the browser is put offline, as a phone in a
+ * valley is) and the member presses a score: the hole says "On your phone" until it can be sent,
+ * beside the holes already "Sent". Nothing reaches the server; the context is closed after the shot.
+ */
+async function offlinePress(page) {
+  const button = page.getByRole("button", { name: new RegExp(LIVE_MOMENT.press.button) }).first();
+  if (!(await button.count())) return `NOT FOUND: the button /${LIVE_MOMENT.press.button}/`;
+  await page.context().setOffline(true);
+  await button.click();
+  await page.waitForTimeout(1200);
+  const said = page.getByText(/On your phone/).filter({ visible: true }).first();
+  return (await said.count()) ? null : "NOT FOUND: the card did not say \"On your phone\"";
+}
+
 function scrollToText(pattern) {
   return async (page) => {
     const re = new RegExp(`^(${pattern})$`);
@@ -633,7 +650,9 @@ async function main() {
     ctx.orgId = data.org.id;
     ctx.medalId = data.landing.id;
     const byslug = Object.fromEntries(data.events.map((e) => [e.slug, e.id]));
-    ctx.events = { medal: byslug.medal, team: byslug.fourball, champs: byslug.champs };
+    ctx.events = { medal: byslug.medal, team: byslug.fourball, champs: byslug.champs, meeting: byslug.meeting };
+    // The public pages' addresses (design F): the seeded tournaments' own share tokens, which keep the mark.
+    ctx.shareTokens = { ...data.shareTokens };
     ctx.members = await prisma.member.findMany({ where: { organizationId: ctx.orgId }, orderBy: { memberNumber: "asc" }, select: { id: true } });
     const players = await prisma.player.findMany({ where: { event: { organizationId: ctx.orgId } }, select: { id: true, memberId: true } });
     ctx.playersByMember = new Map();
@@ -649,14 +668,42 @@ async function main() {
     const stripped = await stripMarks();
     console.log(`Seeded ${data.counts.events} tournaments; took the mark off ${stripped} display strings.`);
     await addExtras(ctx);
-    if (THEME) {
-      await dressTheme(ctx);
-      console.log(`Dressed the club in ${THEME_PAIR.name} (${THEME_PAIR.accentKey} + ${THEME_PAIR.secondaryKey}) on the ${THEME_GROUND} ground.`);
-    }
+    const THEME_COLS = { themeKey: true, themeSecondaryKey: true, themeAppearance: true };
+    ctx.seededTheme = await prisma.organization.findUnique({ where: { id: ctx.orgId }, select: THEME_COLS });
+    /**
+     * THE CLUB'S COLOURS FOR ONE SHOT (design E, 2026-11-02). A theme is a setting any club can save,
+     * so a screen shot in it is still a real screen. Saved on THIS run's seeded club only (its own
+     * id), read back and compared before the shot — another session dressing another club in the
+     * same database cannot pass unnoticed — and the seed's own theme put back for a shot that names
+     * none. The teardown removes the club, theme and all.
+     */
+    ctx.dress = async (theme) => {
+      const want = theme
+        ? { themeKey: CAPTURE_THEMES[theme.pair].accent, themeSecondaryKey: CAPTURE_THEMES[theme.pair].secondary, themeAppearance: theme.appearance }
+        : ctx.seededTheme;
+      await prisma.organization.update({ where: { id: ctx.orgId }, data: want });
+      const got = await prisma.organization.findUnique({ where: { id: ctx.orgId }, select: THEME_COLS });
+      for (const k of Object.keys(want)) {
+        if (got[k] !== want[k]) throw new Error(`the club's ${k} reads "${got[k]}", not the "${want[k]}" just saved — refusing the shot`);
+      }
+    };
 
     const { chromium } = require("playwright");
     browser = await chromium.launch();
     const cookieFor = { member: data.player.session, secretary: data.organizer.session };
+    /** The cookies a shot is opened with: none for a visitor, who sees only what anybody can. */
+    const cookiesOf = (shot) => (shot.who === "visitor" ? [] : [
+      { name: "ng_session", value: cookieFor[shot.who], url: BASE, httpOnly: true, sameSite: "Lax" },
+      { name: "ng_active_event", value: sign(ctx.events[shot.event]), url: BASE, httpOnly: true, sameSite: "Lax" },
+    ]);
+    /** Where a shot opens: its path, or the tournament's public page by its own share token. */
+    const pathOf = (shot) => {
+      if (!shot.share) return shot.path;
+      const token = ctx.shareTokens[shot.event];
+      if (!token) throw new Error(`${shot.name}: the seed names no share token for "${shot.event}"`);
+      const board = `/live/${token}`;
+      return { board, event: `${board}/event`, clubhouse: `${board}?screen=clubhouse` }[shot.share];
+    };
 
     let wearing = null;
     const selfName = COSTUMES.us.names[0];
@@ -668,6 +715,7 @@ async function main() {
         await wear(shot.costume, ctx);
         wearing = shot.costume;
       }
+      if (LANDING) await ctx.dress(shot.theme);
       const context = await browser.newContext({
         ...(shot.laptop ? LAPTOP : PHONE),
         locale: COSTUMES[shot.costume].place.locale,
@@ -675,13 +723,10 @@ async function main() {
         reducedMotion: "reduce",
         serviceWorkers: "block",
       });
-      await context.addCookies([
-        { name: "ng_session", value: cookieFor[shot.who], url: BASE, httpOnly: true, sameSite: "Lax" },
-        { name: "ng_active_event", value: sign(ctx.events[shot.event]), url: BASE, httpOnly: true, sameSite: "Lax" },
-      ]);
+      await context.addCookies(cookiesOf(shot));
       const page = await context.newPage();
       try {
-        const res = await page.goto(BASE + shot.path, { waitUntil: "domcontentloaded", timeout: 90_000 });
+        const res = await page.goto(BASE + pathOf(shot), { waitUntil: "domcontentloaded", timeout: 90_000 });
         await settle(page);
         return await fn(page, res?.status() ?? 0);
       } finally {
@@ -690,14 +735,15 @@ async function main() {
     };
 
     // THE FRONT DOOR: the manifest's screens, then the live moment in its order.
-    const landingShot = (s) => ({ name: s.id, ...s.capture, laptop: s.viewport === "laptop", measure: s.measure ?? [] });
+    const landingShot = (s) => {
+      const act = s.capture?.act;
+      if (act && !LANDING_ACTS[act]) throw new Error(`${s.id}: no landing act "${act}" (LANDING_ACTS)`);
+      return { name: s.id, ...s.capture, act: act ? LANDING_ACTS[act] : undefined, laptop: s.viewport === "laptop", measure: s.measure ?? [] };
+    };
     const live = new Set([...LIVE_MOMENT.before, ...LIVE_MOMENT.after]);
     const wanted = (id) => !ONLY.length || ONLY.includes(id);
-    const extraShot = (s) => ({ name: THEME ? `${s.name}-${THEME}` : s.name, who: s.who, event: s.event, costume: s.costume, path: s.path, laptop: s.viewport === "laptop", measure: [] });
-    const plain = EXTRA_SHOTS
-      ? EXTRA_SHOTS.filter((s) => !s.live).map(extraShot)
-      : LANDING ? SCREENS.filter((s) => s.capture && !live.has(s.id) && wanted(s.id)).map(landingShot) : CAPTURES;
-    const sequence = (EXTRA_SHOTS ? EXTRA_SHOTS.some((s) => s.live) : LANDING && [...live].some(wanted))
+    const plain = LANDING ? SCREENS.filter((s) => s.capture && !live.has(s.id) && wanted(s.id)).map(landingShot) : CAPTURES;
+    const sequence = LANDING && [...live].some(wanted)
       ? [
           ...LIVE_MOMENT.before.map((id) => landingShot(SCREENS.find((s) => s.id === id))),
           { press: true },
@@ -709,10 +755,6 @@ async function main() {
     }
 
     for (const shot of [...plain, ...sequence]) {
-      if (THEME) {
-        const moved = await themeHolds(ctx);
-        if (moved) console.log(`NOTE  ${moved}`);
-      }
       if (shot.press) {
         // The member presses the score on their own card, as a member does. A real save, in the club's
         // own rows, which the teardown takes away with everything else.
@@ -735,6 +777,7 @@ async function main() {
         await wear(shot.costume, ctx);
         wearing = shot.costume;
       }
+      if (LANDING) await ctx.dress(shot.theme);
       const geometry = shot.laptop ? LAPTOP : PHONE;
       const context = await browser.newContext({
         ...geometry,
@@ -743,16 +786,13 @@ async function main() {
         reducedMotion: "reduce",
         serviceWorkers: "block",
       });
-      await context.addCookies([
-        { name: "ng_session", value: cookieFor[shot.who], url: BASE, httpOnly: true, sameSite: "Lax" },
-        { name: "ng_active_event", value: sign(ctx.events[shot.event]), url: BASE, httpOnly: true, sameSite: "Lax" },
-      ]);
+      await context.addCookies(cookiesOf(shot));
       const page = await context.newPage();
       const pageErrors = [];
       page.on("pageerror", (e) => pageErrors.push(String(e.message).slice(0, 160)));
       let status = 0;
       try {
-        const res = await page.goto(BASE + shot.path, { waitUntil: "domcontentloaded", timeout: 90_000 });
+        const res = await page.goto(BASE + pathOf(shot), { waitUntil: "domcontentloaded", timeout: 90_000 });
         status = res?.status() ?? 0;
         await settle(page);
         const actNote = shot.act ? await shot.act(page) : null;

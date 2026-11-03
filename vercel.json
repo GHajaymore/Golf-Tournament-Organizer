@@ -5,7 +5,8 @@
       "main": false,
       "round/*": false,
       "breaks/*": false,
-      "dependabot/*": false
+      "dependabot/*": false,
+      "captures/*": false
     }
   },
   "crons": [
