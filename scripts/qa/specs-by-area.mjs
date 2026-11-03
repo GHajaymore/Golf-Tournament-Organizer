@@ -302,6 +302,7 @@ export const FULL_ONLY = [
   "e2e/prizes.spec.ts",
   "e2e/roster-handicap-and-field.spec.ts",
   "e2e/roster.spec.ts",
+  "e2e/round-code-before-the-script.spec.ts",
   "e2e/round-code-box-starts-empty.spec.ts",
   "e2e/round-code-certify-and-result.spec.ts",
   "e2e/round-code-decided-match.spec.ts",
