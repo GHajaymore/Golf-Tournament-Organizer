@@ -125,9 +125,11 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx"],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
+      // The timeline and its side panel, behind `?view=timeline` (the rehaul's step 1 guards).
+      "e2e/rounds-panel.spec.ts",
       "e2e/rounds-and-formats.spec.ts",
       "e2e/round-date-and-viewing-as.spec.ts",
       "e2e/round-day.spec.ts",
