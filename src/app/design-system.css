@@ -798,6 +798,148 @@ textarea.input { min-height: 90px; resize: vertical; }
 @keyframes side-panel-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .side-panel { animation: none; } }
 
+/* ── Rounds & formats, step 2: "Course day" (`?view=timeline`; Ajay, 2 Nov: "Yes, go") ──────
+   The brief: each section says what it decides; one filled button; the next step always in view;
+   richness is golf facts (a scorecard's par strip, tee times as ticks, the recipe as tiles); three
+   depth layers — page, card (`--shadow-sm`), panel (`--shadow-lg`); tokens only. Words step 200 or
+   the text tokens; a labelled fill is 100 on 800, as `.tag` is. */
+
+/* The header: words left, the course right — beside them, never under a figure. */
+.rt-hero {
+  display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  background: var(--color-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  overflow: hidden; margin-bottom: 20px; min-height: 180px;
+}
+.rt-hero-words { padding: 22px 24px; display: grid; gap: 4px; align-content: center; min-width: 0; }
+.rt-hero-where { margin: 0; font-size: 13px; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.rt-hero .page-title { margin: 2px 0 0; }
+.rt-hero-line { margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: var(--color-text); max-width: 60ch; }
+.rt-hero-facts {
+  list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.rt-hero-facts li {
+  font-size: 13px; padding: 3px 10px; border-radius: 999px; color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  box-shadow: inset 0 0 0 1px var(--color-divider);
+}
+.rt-hero-photo { position: relative; min-width: 0; min-height: 100%; }
+.rt-hero-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 60%; }
+/* The veil: the card's own ground fades in from the words' side, and the club's accent tints the
+   rest, so the picture belongs to this club's theme rather than looking pasted in. */
+.rt-hero-photo::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(to right, var(--color-surface) 0%, color-mix(in srgb, var(--color-surface) 40%, transparent) 28%, transparent 60%),
+    color-mix(in srgb, var(--color-accent-900) 22%, transparent);
+}
+@media (max-width: 720px) {
+  /* A phone: the course is a strip above the words, its veil fading into them. */
+  .rt-hero { grid-template-columns: minmax(0, 1fr); }
+  .rt-hero-photo { order: -1; height: 104px; min-height: 0; }
+  .rt-hero-photo::after {
+    background:
+      linear-gradient(to top, var(--color-surface) 0%, color-mix(in srgb, var(--color-surface) 30%, transparent) 45%, transparent 80%),
+      color-mix(in srgb, var(--color-accent-900) 22%, transparent);
+  }
+  .rt-hero-words { padding: 4px 16px 18px; }
+}
+
+/* Needs you: the next thing first, with its consequence in words and the screen's one filled button. */
+.rt-needs {
+  display: grid; gap: 8px; padding: 14px 16px; border-radius: var(--radius-md);
+  background: var(--color-surface); box-shadow: var(--shadow-sm), inset 3px 0 0 var(--color-accent-2);
+}
+.rt-needs-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--color-text); display: flex; align-items: center; gap: 8px; }
+.rt-needs-count {
+  font-size: 12px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; display: inline-grid; place-items: center;
+  background: color-mix(in srgb, var(--color-accent-2-800) 70%, transparent); color: var(--color-accent-2-100);
+  font-variant-numeric: tabular-nums;
+}
+.rt-need { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
+.rt-need-words { margin: 0; font-size: 14px; line-height: 1.45; color: var(--color-text); min-width: 0; flex: 1 1 260px; }
+.rt-need-btn { min-height: 44px; display: inline-flex; align-items: center; }
+.rt-need-rest { list-style: none; margin: 0; padding: 6px 0 0; display: grid; gap: 2px; border-top: 1px solid var(--color-divider); }
+.rt-need-rest .rt-need-words { font-size: 13px; color: var(--color-text-muted); }
+.rt-need-rest .rt-need-words b { color: var(--color-text); font-weight: 600; }
+.rt-need-link {
+  min-height: 44px; display: inline-flex; align-items: center; padding: 0 4px; background: none; border: 0; cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--color-accent-200); text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* A round's recipe as tiles; the format is the one highlighted. */
+.rt-recipe { display: block; margin-top: 6px; }
+.rt-tiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.rt-tile {
+  font-size: 13px; line-height: 1.5; padding: 1px 8px; border-radius: var(--radius-sm); color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent); box-shadow: inset 0 0 0 1px var(--color-divider);
+  font-variant-numeric: tabular-nums;
+}
+.rt-tile-format { background: color-mix(in srgb, var(--color-accent-800) 70%, transparent); color: var(--color-accent-100); box-shadow: none; font-weight: 600; }
+
+/* The field under the row: where, who, when — and the saved tee times as ticks. */
+.rt-field { display: grid; gap: 6px; padding-left: 60px; min-width: 0; }
+.rt-field-words { font-size: 13px; line-height: 1.45; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rt-ticks { display: flex; flex-wrap: wrap; gap: 3px; min-height: 10px; }
+.rt-tick { width: 10px; height: 10px; border-radius: 2px; background: var(--color-accent-300); }
+.rt-ticks-none { width: min(220px, 100%); height: 10px; border: 1px dashed var(--color-divider); border-radius: 3px; }
+@media (max-width: 520px) { .rt-field { padding-left: 0; } }
+
+/* The panel: the effect first, then four numbered golf sections, each a card on the panel. */
+.rt-effect {
+  margin: 0; padding: 12px 14px; border-radius: var(--radius-md); font-size: 14px; line-height: 1.5;
+  background: color-mix(in srgb, var(--color-accent-800) 70%, transparent); color: var(--color-accent-100);
+  font-variant-numeric: tabular-nums;
+}
+.rt-sect {
+  display: grid; gap: 10px; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md);
+  background: var(--color-surface-2); box-shadow: var(--shadow-sm); min-width: 0;
+}
+.rt-sect-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rt-sect-n {
+  width: 24px; height: 24px; flex: none; border-radius: 50%; display: inline-grid; place-items: center;
+  font-size: 13px; font-weight: 600; color: var(--color-text); box-shadow: inset 0 0 0 1px var(--color-divider);
+  font-variant-numeric: tabular-nums;
+}
+.rt-sect-title { margin: 0; font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 16px; color: var(--color-text); }
+.rt-sect-aside { margin-left: auto; font-size: 13px; color: var(--color-text-muted); }
+.rt-sect-decides { margin: -4px 0 0; font-size: 13px; line-height: 1.45; color: var(--color-text-muted); }
+.rt-sect-fact { margin: 0; font-size: 14px; line-height: 1.5; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.rt-sect-link {
+  min-height: 44px; display: inline-flex; align-items: center; gap: 6px; justify-self: start;
+  color: var(--color-accent-200); font-weight: 600; font-size: 14px;
+}
+.rt-after {
+  display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--radius-md); font-size: 14px; line-height: 1.45;
+  color: var(--color-text); border: 1px dashed var(--color-divider);
+}
+.rt-after-title { font-size: 13px; color: var(--color-text-muted); }
+
+/* The course as a printed scorecard shows it. Par 3s and 5s tinted (the golf pro, 2 Nov). */
+.rt-course { display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-divider); min-width: 0; }
+.rt-course-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; align-items: baseline; }
+.rt-course-name { font-weight: 600; font-size: 15px; color: var(--color-text); overflow-wrap: anywhere; }
+.rt-course-par { font-size: 13px; font-variant-numeric: tabular-nums; }
+.rt-course-none { margin: 0; font-size: 13px; line-height: 1.45; }
+.rt-holes { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; }
+.rt-hole {
+  height: 26px; display: grid; place-items: center; border-radius: 4px; font-size: 12px; font-weight: 600;
+  color: var(--color-text); background: color-mix(in srgb, var(--color-text) 7%, transparent); font-variant-numeric: tabular-nums;
+}
+.rt-hole[data-par="3"] { background: color-mix(in srgb, var(--color-accent-800) 70%, transparent); color: var(--color-accent-100); }
+.rt-hole[data-par="5"] { background: color-mix(in srgb, var(--color-accent-2-800) 70%, transparent); color: var(--color-accent-2-100); }
+.rt-tees { list-style: none; margin: 0; padding: 0; display: grid; }
+.rt-tees li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-size: 13px; padding: 6px 0; border-top: 1px solid var(--color-divider); color: var(--color-text); font-variant-numeric: tabular-nums; }
+
+/* DOCKED AT 1280 AND WIDER, WITH NO SCRIM (the brief): a scrim took the list behind the panel below
+   7:1, so the list reflows to the left of the panel and stays readable. The backdrop is still there,
+   transparent, so a press outside still closes the panel as `rounds-panel.spec` expects; a phone
+   keeps the full-screen panel. */
+@media (min-width: 1280px) {
+  .rounds-timeline .side-panel-backdrop { background: transparent; }
+  body:has(.rounds-timeline .side-panel-backdrop:not([hidden])) .app-main { padding-right: 584px !important; }
+}
+
 
 /* ── Score entry ───────────────────────────────────────────────────────────
    Built for the place it is actually used: outdoors, one-handed, on a phone,

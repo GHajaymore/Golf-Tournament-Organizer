@@ -1,6 +1,7 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import React, { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useGolfTerms } from "./GolfTermsProvider";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
@@ -85,6 +86,8 @@ import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "./Icon";
 import { SidePanel } from "./SidePanel";
+import { CourseCard, NeedsYou, PanelSection, RecipeTiles, TeeTicks, factsLine } from "./RoundsTimeline";
+import { effectLine, type NeedItem, type RoundFacts } from "@/lib/rounds-timeline";
 import { countbackSegments } from "@/lib/domain/stroke-countback";
 import { useFormatting } from "./CurrencyProvider";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -698,9 +701,15 @@ function StageCard({
   sharedWithAll = null,
   arrangement = null,
   asPanel = false,
+  facts = null,
+  playingCount = 0,
 }: {
   /** The timeline (behind its switch): the open round's settings in the side panel, not unfolded inline. */
   asPanel?: boolean;
+  /** Step 2's golf facts for this round (course card, field, saved tee times); timeline only. */
+  facts?: RoundFacts | null;
+  /** How many rounds the field plays, for the panel's "Round 2 of 3". */
+  playingCount?: number;
   /** How the knockout is arranged, and whether this viewer may change it — see "The draw". */
   arrangement?: Arrangement | null;
   stage: StageView;
@@ -2001,7 +2010,12 @@ function StageCard({
           </div>
         </SettingsGroup>
       )}
-
+    </>
+  );
+  // "Customize this round" on its own, so the timeline's panel can give it the fourth section
+  // ("Extra rules"); today's screen draws it straight after the body, exactly as before.
+  const extraRules = (
+    <>
       <div>
         <button
           type="button"
@@ -2247,6 +2261,40 @@ function StageCard({
     </>
   );
 
+  // ── STEP 2, "COURSE DAY" (timeline only) ──
+  // How the round is scored, in the tiles' words. Read from the round as stored; the
+  // allowance is the one in force (the committee's, or the Rules' figure).
+  const basisWords = isManualFormat(format)
+    ? ""
+    : isStablefordFormat(format)
+      ? stage.allowance ? `Off handicap ${stage.allowance.allowance}%` : "Off handicap"
+      : basis === "net"
+        ? stage.allowance ? `Net ${stage.allowance.allowance}%` : "Net"
+        : basis === "both"
+          ? "Gross and net"
+          : basis === "gross" ? "Gross" : "";
+  // The state chip: what the round IS, by its own facts. "Needs …" names the first gap, the same
+  // gap the Needs you strip lists first for this round.
+  const chip: { words: string; tone: "accent" | "accent-2" | "neutral" } | null = !asPanel
+    ? null
+    : underWay
+      ? notGenerated
+        ? { words: "Not drawn yet", tone: "neutral" }
+        : { words: standing === "active" ? "In play" : standing === "played" ? "Played" : "Upcoming", tone: standing === "active" ? "accent" : "neutral" }
+      : !isPlayingRound(stage.type)
+        ? null
+        : facts && !facts.courseName
+          ? { words: "No course", tone: "accent-2" }
+          : facts && facts.pars.length === 0
+            ? { words: "No course card", tone: "accent-2" }
+            : !stage.playedOn
+              ? { words: "No date", tone: "accent-2" }
+              : facts && confirmedCount > 0 && !facts.hasSheet
+                ? { words: "No tee times", tone: "accent-2" }
+                : { words: "Set up", tone: "accent" };
+  const effect = asPanel && facts && isPlayingRound(stage.type) ? effectLine({ holes: stage.holes, basis: basisWords.toLowerCase(), facts }) : null;
+  const roundNo = roundNumberOf(allStages, stage.id);
+
   return (
     <div
       id={`round-${stage.id}`}
@@ -2348,14 +2396,16 @@ function StageCard({
                 round is simply set up, and the chips said otherwise: on a draft
                 tournament with no cards, an undated Round 1 read "Played" and
                 Round 2 "Active" (2026-10-16). */}
-            {underWay && !notGenerated && (
+            {!asPanel && underWay && !notGenerated && (
               <span className="tag tag-neutral">
                 {standing === "active" ? "In play" : standing === "played" ? "Played" : "Upcoming"}
               </span>
             )}
-            {notGenerated && (
+            {!asPanel && notGenerated && (
               <span className="tag tag-neutral"><Icon name="clock" /> Not drawn yet</span>
             )}
+            {/* The timeline's state chip (step 2): what the round is, by its own facts. */}
+            {chip && <span className={`tag tag-${chip.tone}`}>{chip.words}</span>}
             {/* Pinned to the right edge rather than trailing the last tag.
                 A disclosure chevron is the affordance for the whole row, and
                 sitting wherever the tags happen to end put it in a different
@@ -2367,7 +2417,12 @@ function StageCard({
               style={{ fontSize: 13, color: "var(--color-neutral-500)", marginLeft: "auto" }}
             />
           </div>
-          {!expanded && (
+          {asPanel ? (
+            // STEP 2: the recipe as tiles, always (the panel is beside the row, not inside it).
+            <span className="rt-recipe">
+              <RecipeTiles holes={stage.holes} format={format} basis={basisWords} />
+            </span>
+          ) : !expanded && (
             // Everything the closed row needs to be useful: what it plays,
             // over how many holes, and the settings summary the card already
             // computed for the "Customize" panel.
@@ -2399,6 +2454,14 @@ function StageCard({
             wrapper vanish from the box tree; none takes the lot away. */}
         {!asPanel && <div style={{ display: expanded ? "contents" : "none" }}>{face}</div>}
       </div>
+      {/* STEP 2: the round's field at a glance — where, who, how many groups, when — and its tee
+          times as ticks. Muted: these are facts, the row's button is the action. */}
+      {asPanel && facts && isPlayingRound(stage.type) && (
+        <div className="rt-field">
+          {factsLine(facts) && <span className="text-muted rt-field-words">{factsLine(facts)}</span>}
+          <TeeTicks facts={facts} />
+        </div>
+      )}
       {/* On the timeline, what flows into the next round sits under the round, on the spine. The
           same words the closed row says on today's screen (`intoNext`), never a second reading. */}
       {asPanel && intoNext && (
@@ -2416,7 +2479,7 @@ function StageCard({
           card is closed. The chain warnings above stay visible either way:
           "this round doesn't follow on from the last one" is the one thing an
           organizer must see without opening anything. */}
-      {!asPanel && <div style={{ display: expanded ? "contents" : "none" }}>{body}</div>}
+      {!asPanel && <div style={{ display: expanded ? "contents" : "none" }}>{body}{extraRules}</div>}
 
       {/* THE TIMELINE (behind its switch, 2026-10-30): the same face and body, in the side panel,
           inside this card in the page so every test's `#round-<id>` still finds them. Kept
@@ -2426,18 +2489,78 @@ function StageCard({
           keepMounted
           open={expanded}
           title={thisRound || stage.type}
-          kicker={[stage.playedOn ? shortDate(stage.playedOn, locale) : "", stage.type].filter(Boolean).join(" · ")}
+          kicker={[
+            roundNo && playingCount > 1 ? `Round ${roundNo} of ${playingCount}` : "",
+            stage.type,
+            stage.playedOn ? shortDate(stage.playedOn, locale) : "",
+          ].filter(Boolean).join(" · ")}
           onClose={onToggle}
           footer={<SaveState status={saveStatus} />}
         >
-          {/* The golf panel's order (30 Oct): when and where first, then how it is played,
-              then what the round decides and the rest, each under its own heading. */}
-          <h3 className="round-panel-heading">Date &amp; course</h3>
-          <div className="round-panel-face">{faceWhere}</div>
-          <h3 className="round-panel-heading">Format &amp; scoring</h3>
-          <div className="round-panel-face">{faceFormat}</div>
-          {formatInfo}
-          {body}
+          {/* STEP 2 ("Course day", 2 Nov). THE EFFECT FIRST, from what is stored (rule 4): what this
+              round will be on the day, before anything in it is touched. */}
+          {effect && (
+            <p className="rt-effect">
+              <b>{effect.setting}</b> <Icon name="arrow-right" aria-hidden="true" /> {effect.outcome}.
+            </p>
+          )}
+          {/* The golf panel's order (30 Oct): when and where first, then how it is played, then
+              who plays with whom, then the rarely-changed rules folded under Customize. Each section
+              says what it decides (rule 1); a choice already made shows as chosen. */}
+          <PanelSection
+            n={1}
+            title="Date & course"
+            decides="When and where this round is played. A new date moves this round only."
+            aside={stage.playedOn ? shortDate(stage.playedOn, locale) : undefined}
+          >
+            {facts && <CourseCard facts={facts} holes={stage.holes} />}
+            <div className="round-panel-face">{faceWhere}</div>
+          </PanelSection>
+          <PanelSection
+            n={2}
+            title="Format & scoring"
+            decides="How a card becomes a score. Set as most clubs play it; change only what your club does differently."
+            aside={<span className="tag tag-accent">{format}</span>}
+          >
+            <div className="round-panel-face">{faceFormat}</div>
+            {formatInfo}
+            {body}
+          </PanelSection>
+          {isPlayingRound(stage.type) && facts && (
+            <PanelSection
+              n={3}
+              title="Groups & pairings"
+              decides="Who plays with whom, and when. Players see their time once the tee sheet is published."
+              aside={!facts.hasSheet && confirmedCount > 0 ? <span className="tag tag-accent-2">No tee times</span> : undefined}
+            >
+              <p className="rt-sect-fact">
+                {facts.hasSheet
+                  ? effectLine({ holes: stage.holes, basis: "", facts }).outcome + "."
+                  : confirmedCount > 0
+                    ? `${facts.players} ${facts.players === 1 ? "player" : "players"} to draw into groups.`
+                    : "Groups are drawn once players have entered."}
+              </p>
+              {/* The tee sheet is its own screen (`/foursomes`, "Tee sheet" in the menu): drawn there,
+                  read here. A quiet link — the screen's one filled button is elsewhere (rule 2). */}
+              <Link href={`/foursomes?round=${stage.id}`} className="rt-sect-link">
+                Tee sheet <span className="sr-only">for {thisRound || "this round"}</span>
+                <Icon name="arrow-right" aria-hidden="true" />
+              </Link>
+            </PanelSection>
+          )}
+          <PanelSection
+            n={isPlayingRound(stage.type) && facts ? 4 : 3}
+            title="Extra rules"
+            decides="Ties and the rules most rounds never change. Folded; its bar says what each is set to."
+          >
+            {extraRules}
+          </PanelSection>
+          {intoNext && (
+            <div className="rt-after">
+              <span className="rt-after-title">After this round</span>
+              <span>{intoNext}</span>
+            </div>
+          )}
           <div className="round-panel-delete">{faceDelete}</div>
         </SidePanel>
       )}
@@ -2673,7 +2796,13 @@ export function StagesClient({
   today,
   timeline = false,
   linkedRound = null,
+  roundFacts = null,
+  needs = [],
 }: {
+  /** Step 2: each round's golf facts, worked out on the server from what is stored (timeline only). */
+  roundFacts?: Record<string, RoundFacts> | null;
+  /** Step 2: what is missing, in the order it is done — the "Needs you" strip (timeline only). */
+  needs?: NeedItem[];
   /** A round named in the address (`?round=<id>`): opened on arrival, if it is one of these. */
   linkedRound?: string | null;
   /**
@@ -2864,7 +2993,9 @@ export function StagesClient({
     <ServerToday.Provider value={today}>
     <Launched.Provider value={launched}>
     <SetupLocked.Provider value={locked}>
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div className={timeline ? "rounds-timeline" : undefined} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* STEP 2: the next step, always visible, above the rounds it opens (the brief's rule 3). */}
+      {timeline && <NeedsYou items={needs} onOpen={(id) => setOpenRound(id)} />}
       {playing.length >= 3 && (
         <EveryRound rounds={playing} resultIds={roundsWithResults} onDone={setEveryNote} />
       )}
@@ -2891,6 +3022,8 @@ export function StagesClient({
             sharedWithAll={shared}
             arrangement={arrangement}
             asPanel={timeline}
+            facts={timeline ? roundFacts?.[s.id] ?? null : null}
+            playingCount={playing.length}
             expanded={openRound === s.id}
             onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}
             isFirst={i === 0}

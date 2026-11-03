@@ -229,7 +229,20 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
  * appears where the reading stops costs one tap; the same control at the top
  * costs a scroll and a search.
  */
-export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: string }) {
+export function SetupFlowFooter({
+  flow,
+  href,
+  quiet = false,
+}: {
+  flow: SetupFlow | null;
+  href: string;
+  /**
+   * Next drawn as a quiet button, because the screen has a filled one of its own: Rounds & formats
+   * as a timeline (step 2, behind its switch) fills the button of the one thing that still needs
+   * doing, and a screen has one filled button (the design brief of 2 Nov, rule 2).
+   */
+  quiet?: boolean;
+}) {
   // Nothing at the foot of the page once setup is done — the hand-off in the
   // rail above says the one remaining thing, and saying it twice on one screen
   // would make it an instruction rather than an offer.
@@ -264,7 +277,7 @@ export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: 
               third time on Rounds & formats, after the strip and "To sort out", and
               read as if the dates blocked the next screen. Every step is a link in
               the strip already; what is left is said once, where it is fixed. */}
-          <Link href={next.href} className="btn btn-primary">
+          <Link href={next.href} className={quiet ? "btn btn-secondary" : "btn btn-primary"}>
             Next: {next.label} <Icon name="arrow-right" />
           </Link>
         </div>
