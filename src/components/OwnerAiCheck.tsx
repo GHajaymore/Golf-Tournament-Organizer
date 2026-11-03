@@ -23,7 +23,8 @@ export function OwnerAiCheck() {
 
   return (
     <div style={{ marginTop: 8 }}>
-      <button type="button" className="btn btn-secondary" title="Send each AI job one tiny real request" disabled={pending} onClick={press}>
+      <p style={{ fontSize: 13, margin: "0 0 6px" }}>Sends each AI job one tiny real request.</p>
+      <button type="button" className="btn btn-secondary" disabled={pending} onClick={press}>
         {pending ? "Checking…" : "Check AI"}
       </button>
       {error && (
