@@ -3,7 +3,17 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { readVerbatim } from "./source";
 // Plain JavaScript on purpose: the ratchet runs on a bare runner (scripts/mutation.mjs).
-import { ARITHMETIC_CORE, headline, modulesOfScope, raisedBaseline, ratchetFalls, scoresOf } from "../../../scripts/qa/mutation-ratchet.mjs";
+import {
+  ARITHMETIC_CORE,
+  SLACK_MUTANTS,
+  floorCount,
+  headline,
+  modulesOfScope,
+  raisedBaseline,
+  ratchetFalls,
+  ratchetSlack,
+  scoresOf,
+} from "../../../scripts/qa/mutation-ratchet.mjs";
 import { MUTATED_MODULES } from "../../../stryker.config.mjs";
 import { layersFor } from "../../../scripts/qa/layers.mjs";
 
@@ -51,11 +61,12 @@ describe("the ratchet", () => {
     expect(ratchetFalls(at, floor, scope)).toEqual([]);
   });
 
-  it("FAILS when one module's score drops below its floor, and names it", () => {
-    const dropped = scoresOf(report({ "src/a.ts": ["Killed", "Killed", "Killed", "Survived", "Survived"], "src/b.ts": ["Killed"] }));
+  it("FAILS when one module's score drops below its floor by more than one mutant, and names it", () => {
+    // Floor 80% of five is four caught; two caught is two short.
+    const dropped = scoresOf(report({ "src/a.ts": ["Killed", "Killed", "Survived", "Survived", "Survived"], "src/b.ts": ["Killed"] }));
     const falls = ratchetFalls(dropped, floor, scope);
     expect(falls.map((f) => f.file)).toEqual(["src/a.ts"]);
-    expect(falls[0].why).toMatch(/60% is below its baseline of 80%/);
+    expect(falls[0].why).toMatch(/40% is below its baseline of 80% — 2 of 5 caught, the floor asks 4/);
   });
 
   it("FAILS when a module in scope was not measured — a run that tested nothing is not a pass", () => {
@@ -70,6 +81,65 @@ describe("the ratchet", () => {
   it("asks only of the modules in scope: the nightly's narrower run is not failed by the rest of the foundation", () => {
     const s = scoresOf(report({ "src/a.ts": ["Killed"] }));
     expect(ratchetFalls(s, floor, ["src/a.ts"])).toEqual([]);
+  });
+});
+
+describe("one mutant of slack per module, counted in mutants (2026-11-02)", () => {
+  // The night that wrote this: stroke.ts, 271 mutants, floor 76.75% (208 caught), and the runner
+  // caught 207 because one mutant only ran slowly there.
+  const FILE = "src/lib/domain/stroke.ts";
+  const floor = { [FILE]: 76.75 };
+  const run = (caught: number, total = 271) =>
+    scoresOf(report({ [FILE]: [...Array(caught).fill("Killed"), ...Array(total - caught).fill("Survived")] }));
+
+  it("a floor is turned into the count of mutants it asks of this run's total", () => {
+    expect(floorCount(76.75, 271)).toBe(208);
+    expect(floorCount(76.38, 271)).toBe(207);
+    expect(floorCount(100, 271)).toBe(271);
+    expect(floorCount(0, 271)).toBe(0);
+    expect(floorCount(80, 5)).toBe(4);
+    expect(floorCount(100.01, 5)).toBe(6);
+    expect(SLACK_MUTANTS).toBe(1);
+  });
+
+  it("CONTROL: at the floor, the ratchet holds and no slack is used", () => {
+    expect(run(208)[FILE].score).toBe(76.75);
+    expect(ratchetFalls(run(208), floor, [FILE])).toEqual([]);
+    expect(ratchetSlack(run(208), floor, [FILE])).toEqual([]);
+  });
+
+  it("ONE mutant lost: it holds, and the module is named as on its slack — in the score line the verdict prints", () => {
+    const s = run(207);
+    expect(s[FILE].score).toBe(76.38);
+    expect(ratchetFalls(s, floor, [FILE])).toEqual([]);
+    const slack = ratchetSlack(s, floor, [FILE]);
+    expect(slack).toEqual([{ file: FILE, detected: 207, need: 208, total: 271, score: 76.38, floor: 76.75 }]);
+    expect(headline(s, [FILE], "arithmetic", slack)).toBe(
+      "Mutation score (arithmetic): 76.38% — 207 of 271 mutants caught; stroke.ts 76.38%; ON ITS ONE MUTANT OF SLACK: stroke.ts (207 of 271 caught, floor 208)",
+    );
+  });
+
+  it("TWO mutants lost: it FAILS, and the module is not counted as on its slack", () => {
+    const s = run(206);
+    const falls = ratchetFalls(s, floor, [FILE]);
+    expect(falls.map((f) => f.file)).toEqual([FILE]);
+    expect(falls[0].why).toMatch(/206 of 271 caught, the floor asks 208/);
+    expect(ratchetSlack(s, floor, [FILE])).toEqual([]);
+  });
+
+  it("the slack is one MUTANT, not a percentage: on a small module one lost is a big drop and still holds; two fail", () => {
+    const f = { "src/a.ts": 100 };
+    const small = (caught: number) => scoresOf(report({ "src/a.ts": [...Array(caught).fill("Killed"), ...Array(4 - caught).fill("Survived")] }));
+    expect(ratchetFalls(small(3), f, ["src/a.ts"])).toEqual([]);
+    expect(ratchetSlack(small(3), f, ["src/a.ts"]).map((x) => x.file)).toEqual(["src/a.ts"]);
+    expect(ratchetFalls(small(2), f, ["src/a.ts"]).map((x) => x.file)).toEqual(["src/a.ts"]);
+  });
+
+  it("scripts/mutation.mjs puts the slack in the first line it prints, and never as a ✗ finding", () => {
+    const src = readVerbatim("scripts/mutation.mjs");
+    expect(src).toContain("headline(scores, inScope, scope, slack)");
+    expect(src).toMatch(/ratchetSlack\(scores, baselineFile\.modules/);
+    expect(src).not.toMatch(/✗[^\n]*of its slack/);
   });
 });
 

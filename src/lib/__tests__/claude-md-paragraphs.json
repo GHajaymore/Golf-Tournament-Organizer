@@ -836,10 +836,6 @@
   "t": "## What gates a merge, and what gates a deploy"
  },
  {
-  "h": "c2feef2a625e4d98",
-  "t": "`ci.yml` is the only workflow that runs on its own — every push and ev"
- },
- {
   "h": "c17c36cea00083dc",
   "t": "**What stops a bad merge** is a RULESET named \"main must be green\", no"
  },
