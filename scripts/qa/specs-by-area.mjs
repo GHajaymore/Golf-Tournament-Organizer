@@ -202,6 +202,7 @@ export const AREAS = {
       "e2e/player-one-screen.spec.ts",
       "e2e/player-words.spec.ts",
       "e2e/player-calendar.spec.ts",
+      "e2e/my-season.spec.ts",
       "e2e/slow-page.spec.ts",
       "e2e/shared-phone.spec.ts",
     ],
