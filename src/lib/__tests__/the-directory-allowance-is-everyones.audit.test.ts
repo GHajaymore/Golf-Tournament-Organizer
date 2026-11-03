@@ -106,7 +106,25 @@ async function person(key: keyof typeof people, role: "admin" | "player"): Promi
   people[key] = { user: user.id, email, event: event.id };
 }
 
+/**
+ * NOT ACROSS THE HOUR. A budget is counted in fixed windows (`windowFor`: an
+ * hour, from the top of the hour), and this file spends four of them in about
+ * four minutes. Started at 15:58 and 21:58 on 2026-11-03, the window turned
+ * over halfway through and handed a fresh budget back: 130 imports where 120
+ * is the limit, and a search that should have stayed at home — a red round
+ * twice in a day, with the rule working. So it starts in a window with room
+ * to finish, waiting for the next one if it must. The clock is not faked: the
+ * sessions and the stored hits read the same clock the app does.
+ */
+const ROOM_MS = 8 * 60_000;
+async function startWithRoomInTheWindow(): Promise<void> {
+  const windowMs = RATE_LIMITS["course-search"].windowMs;
+  const left = windowMs - (Date.now() % windowMs);
+  if (left < ROOM_MS) await new Promise((done) => setTimeout(done, left + 1_000));
+}
+
 beforeAll(async () => {
+  await startWithRoomInTheWindow();
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("opengolfapi")) {
@@ -132,7 +150,7 @@ beforeAll(async () => {
       strokeIndex: JSON.stringify([7, 11, 15, 1, 9, 5, 17, 13, 3, 8, 12, 16, 2, 10, 6, 18, 14, 4]),
     },
   });
-}, 60_000);
+}, 60_000 + 9 * 60_000); // the wait above, at most, and the seeding
 
 afterAll(async () => {
   globalThis.fetch = realFetch;
