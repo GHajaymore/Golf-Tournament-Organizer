@@ -540,34 +540,57 @@ export async function teesForEvent(eventId: string): Promise<TeeView[]> {
     include: { tees: { orderBy: [{ position: "asc" }, { name: "asc" }] } },
   });
 
-  const out: TeeView[] = [];
-  for (const c of courses) {
-    // parseHoleArray returns null for anything unparseable, and an empty array
-    // is the honest representation of "no data" for every consumer here.
-    const coursePars = parseHoleArray(c.pars) ?? [];
-    const courseYards = parseHoleArray(c.yards) ?? [];
-    const courseSi = parseHoleArray(c.strokeIndex) ?? [];
-    for (const t of c.tees) {
-      const pars = parseHoleArray(t.pars) ?? [];
-      const yards = parseHoleArray(t.yards) ?? [];
-      const si = parseHoleArray(t.strokeIndex) ?? [];
-      out.push({
-        id: t.id,
-        courseId: c.id,
-        courseName: c.name,
-        name: t.name,
-        gender: t.gender,
-        courseRating: t.courseRating,
-        slopeRating: t.slopeRating,
-        par: t.par,
-        rated: isRated(t),
-        pars: pars.length ? pars : coursePars,
-        yards: yards.length ? yards : courseYards,
-        strokeIndex: si.length ? si : courseSi,
-      });
-    }
-  }
-  return out;
+  return courses.flatMap(teeViewsOf);
+}
+
+/**
+ * ONE COURSE'S TEES, each with its card resolved — the rule `teesForEvent`
+ * applies, for a reader that has the course and not a tournament (the setup
+ * questionnaire shows the card before the tournament exists). One place, so
+ * the card checked there is the card the round is scored off.
+ */
+export function teeViewsOf(c: {
+  id: string;
+  name: string;
+  pars: string;
+  yards: string;
+  strokeIndex: string;
+  tees: Array<{
+    id: string;
+    name: string;
+    gender: string;
+    courseRating: number;
+    slopeRating: number;
+    par: number;
+    pars: string;
+    yards: string;
+    strokeIndex: string;
+  }>;
+}): TeeView[] {
+  // parseHoleArray returns null for anything unparseable, and an empty array
+  // is the honest representation of "no data" for every consumer here.
+  const coursePars = parseHoleArray(c.pars) ?? [];
+  const courseYards = parseHoleArray(c.yards) ?? [];
+  const courseSi = parseHoleArray(c.strokeIndex) ?? [];
+  return c.tees.map((t) => {
+    const pars = parseHoleArray(t.pars) ?? [];
+    const yards = parseHoleArray(t.yards) ?? [];
+    const si = parseHoleArray(t.strokeIndex) ?? [];
+    return {
+      id: t.id,
+      courseId: c.id,
+      courseName: c.name,
+      name: t.name,
+      gender: t.gender,
+      courseRating: t.courseRating,
+      slopeRating: t.slopeRating,
+      par: t.par,
+      rated: isRated(t),
+      pars: pars.length ? pars : coursePars,
+      yards: yards.length ? yards : courseYards,
+      strokeIndex: si.length ? si : courseSi,
+    };
+  });
 }
 
 /**

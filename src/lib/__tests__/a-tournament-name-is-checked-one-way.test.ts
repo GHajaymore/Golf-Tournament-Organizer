@@ -214,11 +214,17 @@ describe("the sweeps", () => {
 
   it("every door a name comes into play through asks the one function", () => {
     const actions = readSource("src/app/actions/tournament.ts");
-    for (const door of ["createEvent", "cloneEvent", "saveEvent", "setEventStatus"]) {
+    // `createTournament` is the one writer of a new tournament (2 Nov): "Create tournament" and the
+    // setup questionnaire both come through it, so the check is pinned there and each door is held to
+    // reaching it — a door that wrote its own event would fail the sweep above as well.
+    for (const door of ["createTournament", "cloneEvent", "saveEvent", "setEventStatus"]) {
       const body = functionBody(actions, door);
       expect(body, `${door} not found`).not.toBe("");
       expect(body, `${door} does not ask tournamentNameRefusal`).toMatch(/tournamentNameRefusal\(/);
       expect(body, `${door} does not write through withNameBackstop`).toMatch(/withNameBackstop\(/);
+    }
+    for (const door of ["createEvent", "createEventFromAnswers"]) {
+      expect(functionBody(actions, door), `${door} does not create through createTournament`).toMatch(/createTournament\(session,/);
     }
   });
 
@@ -237,7 +243,9 @@ function createsWithoutTheCheck(src: string): boolean {
 }
 
 function functionBody(src: string, name: string): string {
-  const start = src.indexOf(`export async function ${name}(`);
+  // An unexported helper too (`createTournament`): the one writer the create doors share.
+  const exported = src.indexOf(`export async function ${name}(`);
+  const start = exported >= 0 ? exported : src.indexOf(`\nasync function ${name}(`);
   if (start < 0) return "";
   const next = src.indexOf("\nexport ", start + 10);
   return src.slice(start, next < 0 ? undefined : next);

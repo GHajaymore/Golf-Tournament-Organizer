@@ -83,7 +83,7 @@ const WHO: Record<string, string> = {
   savePushSubscription: "themselves", removePushSubscription: "themselves", currentPlayStatus: "themselves",
   setMyMessagesOptOut: "themselves", setMySmsOptIn: "themselves", setMyPlayWith: "themselves", setPairingRequest: "themselves",
   readThread: "themselves", sendMessage: "themselves", markThreadRead: "themselves", startDirectThread: "themselves",
-  createMatch: "themselves", createEvent: "themselves", keepRound: "themselves",
+  createMatch: "themselves", createEvent: "themselves", createEventFromAnswers: "themselves",keepRound: "themselves",
   searchCourseDirectory: "themselves", importCourseFromDirectory: "themselves", readCourseCardPhoto: "themselves",
   setMatchCourse: "themselves", nameMatchVenue: "themselves", setPlayerTee: "themselves", draftMessage: "themselves",
   // their match, their card

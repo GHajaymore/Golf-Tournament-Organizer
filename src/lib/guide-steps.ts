@@ -103,6 +103,31 @@ export const GUIDE_STEPS: GuideSection[] = [
     part: "Part 2",
     title: "Create a tournament",
     blocks: [
+      { kind: "h", text: "Set up with a few questions" },
+      { kind: "where", text: "Club → Tournaments → Set up with a few questions" },
+      {
+        kind: "p",
+        text: "The quickest way in, and the one most club, {community} and group events need. Each question is already answered with the usual choice and says why, so pressing on through is enough to make a real tournament. On a phone it is one question a screen with [[Back]] and [[Next]]; on a computer it is one short form. Going back keeps every answer.",
+      },
+      {
+        kind: "steps",
+        items: [
+          "**What are you running?** One day, two or three days, a weekly league, a knockout, a team cup, or a casual round with friends (that one opens the casual round's own screen).",
+          "**How do players play?** On their own, in pairs, or in teams of four. **How is it scored?** follows from it: medal or Stableford on their own (medal first for a US club, Stableford first elsewhere); four-ball better ball, foursomes or greensomes in pairs; a scramble in teams.",
+          "**Off handicap or scratch?** Off handicap uses the Rules of Handicapping's allowance for the format in that kind of round: 95% for medal and Stableford, 85% for four-ball stroke play, 90% for four-ball match play, 100% for singles match play, 50% of the pair for foursomes, 25% for a scramble.",
+          "**When is the first day?** The next Saturday at the club is chosen for you. Two or three days asks how many (on consecutive days), a league how many weeks (one a week).",
+          "**Who keeps the scores?** Players on their phones, or the committee from cards.",
+          "[[See your tournament]] shows **Here is your tournament — change anything**: the name, the rounds and their days, the handicap allowance, who keeps the scores, and what is left for later. [[Change]] on any line goes back to that question.",
+          "[[Check the scorecard]]: pick the course and the tees the field plays from. The card shows par, stroke index and yards for every hole, with the tees' course rating and slope. Hold it beside the club's own card and tick **This matches the club's card**, which also marks the course's card as checked. A course with no tees is refused, because no handicap could be worked out on it; tees with no slope are flagged. **I'll pick the course later** is fine too.",
+          "Card wrong or missing something? [[Fix the card]] (or [[Add the course]] when it is not saved yet) makes the draft and opens the course's own card on Tournament details → Courses, the same editor as always: change any hole's par, stroke index or yards and press [[Save course]]; change a tee's Course Rating or Slope, or add tees, and press [[Save tees]]; paste the card, look the course up, or read a photo of the club's printed card where your plan includes card reading. Then mark the card as checked there.",
+          "[[Confirm]], then [[Create the draft]]. The tournament is made as a draft, so nothing is published and nobody is invited, and you land on the dashboard with its setup checklist.",
+        ],
+      },
+      {
+        kind: "tip",
+        text: "Left for you, on purpose: the entries, flights (divided once the field is in), the tee sheet (drawn once entries are in, first tee 08:00 unless you change it), contests and side games (off until you add them). Everything the questions set stays editable on the screens below.",
+      },
+      { kind: "h", text: "Or set it up yourself" },
       { kind: "where", text: "Club → Tournaments" },
       {
         kind: "steps",

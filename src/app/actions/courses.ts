@@ -32,6 +32,7 @@ import { libraryOrganizationFor, organizationIdsForPlayer } from "@/lib/services
 import { addCourseToLibrary } from "@/lib/services/course-library";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { roundKicker } from "@/lib/domain/round-label";
+import { markCourseCardChecked } from "@/lib/services/course-card-checked";
 
 /**
  * The club's course library, and which venue a round or match was played on.
@@ -909,14 +910,12 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
  */
 export async function verifyCourseCard(courseId: string): Promise<CourseResult> {
   const { organizationId } = await requireOrganizerOrg();
-  const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
+  const course = await prisma.course.findFirst({ where: { id: courseId, organizationId }, select: { id: true } });
   if (!course) return { ok: false, error: "Course not found." };
 
   const session = await getSession();
-  await prisma.course.update({
-    where: { id: courseId },
-    data: { verifiedAt: new Date(), verifiedBy: session?.name ?? "" },
-  });
+  // The one writer of "checked" — shared with the setup questionnaire's card step.
+  await markCourseCardChecked(course.id, organizationId, session?.name ?? "");
   await refresh();
   return { ok: true };
 }
