@@ -75,8 +75,8 @@ describe("every dialog is accounted for", () => {
       { file: "LifecycleBar.tsx", modal: true, announced: true },
       { file: "OwnerAccounts.tsx", modal: true, announced: true },
       { file: "PlayerSignOut.tsx", modal: true, announced: true },
-      // The redesign's one-thing-open panel (2026-10-30). Its geometry joins
-      // `e2e/dialog.spec.ts` with the first screen that opens it.
+      // The redesign's one-thing-open panel (2026-10-30). Its geometry is in
+      // `e2e/dialog.spec.ts` ("the round's side panel", Rounds & formats' timeline).
       { file: "SidePanel.tsx", modal: true, announced: true },
     ]);
   });

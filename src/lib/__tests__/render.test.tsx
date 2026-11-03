@@ -1720,6 +1720,8 @@ describe("rounds and format", () => {
     }
     // The open round is a named modal panel; the closed one is in the page, hidden.
     expect(html.split('role="dialog"').length - 1, "one panel per round").toBe(2);
+    // And each says it is modal, so a screen reader stays inside the open one.
+    expect(html.split('role="dialog" aria-modal="true"').length - 1, "a panel is not announced as modal").toBe(2);
     expect(html.split('class="side-panel-backdrop" hidden=""').length - 1, "the closed round's panel is not hidden").toBe(1);
     expect(html).toContain('aria-label="Close Round 1"');
     // Every round still opens from its own row, as today: the specs press it by `aria-expanded`.

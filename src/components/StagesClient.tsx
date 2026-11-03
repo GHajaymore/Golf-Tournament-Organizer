@@ -1323,6 +1323,64 @@ function StageCard({
   // The face in three parts, so the timeline's panel can put them under the golf panel's
   // headings ("Date & course" first, then "Format & scoring"); today's screen draws them
   // back to back exactly as before.
+  /*
+   * Deleting a round is the one destructive control here that asked nothing at all, while the
+   * format dropdown above it refuses. The stake count is separate from the card count on purpose:
+   * cards can be re-entered from the paper, and money cannot.
+   *
+   * SAID WHERE THE PRESS WAS. Today's screen draws it under the Format box, which is in the same
+   * row as the trash button. The timeline's panel puts Delete at its very end, a screen away from
+   * the Format box, so there it is drawn beside Delete (`rounds-panel.spec`, 2026-11-02).
+   */
+  const removeWarning = removeCost && (
+    <div
+      style={{
+        marginTop: 8,
+        padding: "8px 10px",
+        border: "1px solid var(--color-danger)",
+        borderRadius: 8,
+        fontSize: 13,
+        lineHeight: 1.55,
+      }}
+    >
+      <b style={{ color: "var(--color-danger)" }}>
+        <Icon name="warning-circle" /> Deleting this round destroys{" "}
+        {removeCost.cards > 0 && (
+          <>
+            {removeCost.cards} entered card{removeCost.cards === 1 ? "" : "s"}
+          </>
+        )}
+        {removeCost.cards > 0 && removeCost.stakes > 0 && " and "}
+        {removeCost.stakes > 0 && (
+          <>
+            {removeCost.stakes} paid stake{removeCost.stakes === 1 ? "" : "s"}
+          </>
+        )}
+        .
+      </b>
+      <div className="text-muted" style={{ marginTop: 4 }}>
+        {removeCost.stakes > 0
+          ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down."
+          : "The matches and cards go with it. There is no undo."}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={pending || locked}
+          onClick={() => {
+            setRemoveCost(null);
+            startTransition(() => void removeStage(stage.id, true));
+          }}
+        >
+          Delete the round anyway
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => setRemoveCost(null)}>
+          Keep it
+        </button>
+      </div>
+    </div>
+  );
   const faceFormat = (
     <>
         <div className="field" style={{ width: 200 }}>
@@ -1460,59 +1518,9 @@ function StageCard({
             </div>
           )}
 
-          {/* Deleting a round is the one destructive control here that asked
-              nothing at all, while the format dropdown above it refuses. The
-              stake count is separate from the card count on purpose: cards can
-              be re-entered from the paper, and money cannot. */}
-          {removeCost && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: "8px 10px",
-                border: "1px solid var(--color-danger)",
-                borderRadius: 8,
-                fontSize: 13,
-                lineHeight: 1.55,
-              }}
-            >
-              <b style={{ color: "var(--color-danger)" }}>
-                <Icon name="warning-circle" /> Deleting this round destroys{" "}
-                {removeCost.cards > 0 && (
-                  <>
-                    {removeCost.cards} entered card{removeCost.cards === 1 ? "" : "s"}
-                  </>
-                )}
-                {removeCost.cards > 0 && removeCost.stakes > 0 && " and "}
-                {removeCost.stakes > 0 && (
-                  <>
-                    {removeCost.stakes} paid stake{removeCost.stakes === 1 ? "" : "s"}
-                  </>
-                )}
-                .
-              </b>
-              <div className="text-muted" style={{ marginTop: 4 }}>
-                {removeCost.stakes > 0
-                  ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down."
-                  : "The matches and cards go with it. There is no undo."}
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={pending || locked}
-                  onClick={() => {
-                    setRemoveCost(null);
-                    startTransition(() => void removeStage(stage.id, true));
-                  }}
-                >
-                  Delete the round anyway
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setRemoveCost(null)}>
-                  Keep it
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Today's screen: under the Format box, as it always was. The timeline's panel says it
+              beside its Delete button instead (`removeWarning`, below). */}
+          {!asPanel && removeWarning}
           {activePending && (
             <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
               This round is set to {activePending.name}, which can be configured but not yet
@@ -2439,6 +2447,8 @@ function StageCard({
           {formatInfo}
           {body}
           <div className="round-panel-delete">{faceDelete}</div>
+          {/* What deleting would destroy, under the button that asked (see `removeWarning`). */}
+          {removeWarning}
         </SidePanel>
       )}
     </div>
