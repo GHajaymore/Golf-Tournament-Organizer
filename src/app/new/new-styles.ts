@@ -104,6 +104,13 @@ export const NEW_CSS = `
 .n-site .n-btn-line:hover { border-color: var(--ink); }
 .n-site .n-link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--brass); text-decoration-thickness: 2px; text-underline-offset: 5px; font-weight: 700; }
 .n-site .n-link:hover { color: var(--brass); }
+/* TOUCH: a link standing on its own is a 44px target (e2e/touch.spec.ts); one inside a sentence stays text */
+.n-site .n-link { display: inline-flex; align-items: center; min-height: 44px; }
+.n-site p .n-link { display: inline; min-height: 0; }
+/* …but a row of links set as a flex line is a row of targets, whatever element holds it */
+.n-site .n-more-links .n-link { display: inline-flex; min-height: 44px; }
+.n-site .n-ftr-base a, .n-site .n-ftr-base button { display: inline-flex; align-items: center; min-height: 44px; }
+.n-site .authpanel a[href="/play"] { min-height: 44px; }
 @media (prefers-reduced-motion: no-preference) {
   .n-btn { transition: background-color .15s, border-color .15s, filter .15s; }
   .n-site .n-btn-go:hover { filter: brightness(1.08); }
@@ -140,8 +147,14 @@ export const NEW_CSS = `
 .n-lid-screen { position: relative; overflow: hidden; border-radius: 4px; aspect-ratio: 16 / 10; background: var(--ground-2); }
 .n-phone-screen img, .n-lid-screen img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
 /* a framed crop of a console capture: drawn --z screens wide, --fx/--fy of it left of and above the window */
-.n-site .n-zoom img { inset: auto; left: 0; top: 0; max-width: none; width: calc(var(--z, 1) * 100%); height: auto; object-fit: initial; transform: translate(calc(-1 * var(--fx, 0%)), calc(-1 * var(--fy, 0%))); }
-.n-zoom-story { --z: 1.55; --fx: 17%; --fy: 0%; }
+/* The capture is drawn as the window's BACKGROUND, sized and placed in the window's own units
+   (cqw), so nothing in the page reaches past the window's edges: no element wider than the screen
+   for the sideways-scroll check to find, and nothing the layout has to clip. Every console capture
+   is 1440 x 900, so its height is 62.5% of its width. --fx/--fy are fractions of the capture. */
+.n-zoom, .n-win { container-type: inline-size; }
+.n-bg { position: absolute; inset: 0; background-repeat: no-repeat; background-size: calc(var(--z, 1) * 100%) auto;
+  background-position: calc(var(--fx, 0) * var(--z, 1) * -100cqw) calc(var(--fy, 0) * var(--z, 1) * -62.5cqw); }
+.n-zoom-story { --z: 1.55; --fx: .17; --fy: 0; }
 /* the floodlight's sheen on the glass: the top-right corner only, faint, above the screen */
 .n-phone-screen::after, .n-lid-screen::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: inherit;
   background: linear-gradient(222deg, color-mix(in srgb, white 4%, transparent) 0%, transparent 18%); box-shadow: inset 0 0 0 1px color-mix(in srgb, black 22%, transparent); }
@@ -184,7 +197,7 @@ export const NEW_CSS = `
 
 /* the stage: the committee's laptop, a member's phone in front of it, both standing on the lit green */
 .n-stage { position: relative; isolation: isolate; min-width: 0; display: grid; padding-bottom: 6px; }
-.n-pool { position: absolute; z-index: -1; left: -14%; right: -8%; bottom: -14%; height: 46%; pointer-events: none; border-radius: 50%;
+.n-pool { position: absolute; z-index: -1; left: -14%; right: 0; bottom: -14%; height: 46%; pointer-events: none; border-radius: 50%;
   background: radial-gradient(closest-side, color-mix(in srgb, white 16%, transparent), color-mix(in srgb, white 6%, transparent) 55%, transparent); filter: blur(8px); }
 .n-laptop { position: relative; width: 94%; justify-self: end; }
 .n-laptop .n-lid { box-shadow: 0 0 0 1.5px var(--n-device-edge), var(--n-lit-edge), var(--n-cast), 0 30px 120px -40px var(--n-glow); }
@@ -237,7 +250,8 @@ export const NEW_CSS = `
   .n-stage .n-phone { order: 1; position: relative; left: auto; top: auto; width: min(64%, 250px); margin: 0 auto; }
   .n-live { order: 2; align-self: stretch; justify-content: flex-start; margin-top: 20px; flex-wrap: wrap; }
   .n-laptop { order: 3; width: 100%; margin-top: 30px; }
-  .n-pool { bottom: auto; top: 30%; height: 40%; left: -20%; right: -20%; }
+  .n-pool { bottom: auto; top: 30%; height: 40%; left: -20%; right: 0; }
+  .n-base { margin: 0 -2%; }
   .n-caption { margin-top: 22px; }
 }
 
@@ -283,7 +297,7 @@ export const NEW_CSS = `
 }
 /* a console moment on a phone: a window onto its capture, drawn 3.2 windows wide, never shrunk whole */
 .n-step-desk { display: none; }
-.n-win-detail { --z: 3.2; --fx: 17%; --fy: 4%; --ar: 4 / 5; }
+.n-win-detail { --z: 3.2; --fx: .17; --fy: .04; --ar: 4 / 5; }
 /* the chapters, as a row of stops above the stage */
 .n-story-pin { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; gap: clamp(20px, 3vh, 36px); }
 .n-rail { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -342,10 +356,9 @@ export const NEW_CSS = `
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 16%, transparent), var(--n-cast); }
 .n-win::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: linear-gradient(222deg, color-mix(in srgb, white 4%, transparent), transparent 18%); }
 /* --z: how many windows wide the capture is drawn; --fx/--fy: the share of it left above and to the left */
-.n-site .n-win img { position: absolute; left: 0; top: 0; max-width: none; width: calc(var(--z, 1) * 100%); height: auto; transform: translate(calc(-1 * var(--fx, 0%)), calc(-1 * var(--fy, 0%))); }
-.n-win-needs { --z: 1.3; --fx: 19%; --fy: 0%; }
-.n-win-pace { --z: 1.65; --fx: 19%; --fy: 51.5%; }
-.n-win-flights { --z: 1.25; --fx: 19%; --fy: 2%; }
+.n-win-needs { --z: 1.3; --fx: .19; --fy: 0; }
+.n-win-pace { --z: 1.65; --fx: .19; --fy: .515; }
+.n-win-flights { --z: 1.25; --fx: .19; --fy: .02; }
 .n-tile-bleed .n-win { margin-right: calc(-1 * clamp(22px, 2.4vw, 32px)); margin-bottom: calc(-1 * clamp(22px, 2.4vw, 32px)); border-radius: 12px 0 0 0; }
 .n-tile-xl { grid-column: span 8; grid-row: span 2; }
 .n-tile-xl::before { content: ""; position: absolute; z-index: -1; right: -10%; bottom: -30%; width: 80%; height: 80%; border-radius: 50%; background: radial-gradient(closest-side, var(--n-glow), transparent); pointer-events: none; }
@@ -367,7 +380,7 @@ export const NEW_CSS = `
 @media (min-width: 1001px) {
   .n-tile-xl .n-win, .n-tile-pace .n-win { flex: 1 1 auto; aspect-ratio: auto; min-height: 340px; }
   .n-tile-pace .n-win { min-height: 260px; }
-  .n-site .n-tile-pace .n-win img { top: auto; bottom: 0; transform: translateX(calc(-1 * var(--fx))); }
+  .n-tile-pace .n-bg { background-position-y: 100%; }
 }
 @media (max-width: 1000px) {
   .n-tile-xl { grid-column: span 12; grid-row: auto; }

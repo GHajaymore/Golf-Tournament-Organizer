@@ -74,7 +74,7 @@ export function HeroMoment({
     const x = Math.max(0, (r.x - fx) * z), y = Math.max(0, (r.y - fy) * z);
     return at({ x, y, w: Math.min(1 - x, r.w * z), h: Math.min(1 - y, r.h * z) });
   };
-  const view = deskView ? ({ "--z": deskView.z, "--fx": `${deskView.fx * 100}%`, "--fy": `${deskView.fy * 100}%` } as CSSProperties) : undefined;
+  const view = deskView ? ({ "--z": deskView.z, "--fx": deskView.fx, "--fy": deskView.fy } as CSSProperties) : undefined;
   const after = step === 2;
   const holes = after ? facts.holesAfter : facts.holesBefore;
   const nth = ordinal(facts.hole);

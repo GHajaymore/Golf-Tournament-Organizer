@@ -69,16 +69,10 @@ function screen(id: string, alt: string, sizes: string, priority = false) {
 }
 
 const SIZES = {
-  heroDesk: "(max-width: 767px) 100vw, min(820px, 56vw)",
   heroPhone: "(max-width: 767px) min(64vw, 260px), min(250px, 17vw)",
-  // The bento's windows show a laptop capture zoomed in (1.25 to 2.6 times the window).
-  bentoXl: "(max-width: 680px) 200vw, (max-width: 1000px) 130vw, 860px",
-  bentoWide: "(max-width: 680px) 230vw, (max-width: 1000px) 125vw, 860px",
   bentoPhone: "(max-width: 680px) 70vw, (max-width: 1000px) 40vw, 320px",
   story: "(max-width: 767px) min(72vw, 280px), 240px",
   storyDesk: "(max-width: 1100px) 46vw, 600px",
-  // On a phone a console moment is a window onto its capture, drawn 3.2 windows wide.
-  storyDetail: "(max-width: 767px) 300vw, 1px",
   watch: "(max-width: 900px) min(64vw, 260px), 300px",
   money: "(max-width: 900px) min(80vw, 330px), 330px",
   theme: "(max-width: 900px) min(58vw, 230px), 290px",
@@ -110,6 +104,24 @@ function dShot(name: keyof typeof D_SHOTS, alt: string, sizes: string, priority 
       loading={priority ? "eager" : "lazy"}
       fetchPriority={priority ? "high" : undefined}
       decoding="async"
+    />
+  );
+}
+
+/**
+ * A console capture seen through a window (a framed crop): drawn as the window's background, so the
+ * picture never reaches past the window's edge (`.n-bg` in the stylesheet). The pixels are the
+ * capture's own sharp copies, unedited; the alternative text is the window's label.
+ */
+function zoomed(src: { d: keyof typeof D_SHOTS } | { landing: string }, alt: string) {
+  const base = "d" in src ? `/new/d/shots/${src.d}` : `/landing/${src.landing}`;
+  return (
+    <div
+      className="n-bg"
+      role={alt ? "img" : undefined}
+      aria-label={alt || undefined}
+      aria-hidden={alt ? undefined : true}
+      style={{ backgroundImage: `image-set(url("${base}.w1620.webp") 1x, url("${base}.w2160.webp") 2x)` }}
     />
   );
 }
@@ -334,8 +346,8 @@ export default async function NewSitePreview({ searchParams }: { searchParams: P
             <HeroMoment
               facts={moment}
               deskView={{ z: 1.28, fx: 0.2, fy: 0.22 }}
-              deskBefore={dShot("live-desk-before-tournament", "", SIZES.heroDesk, true)}
-              deskAfter={dShot("live-desk-after-tournament", "", SIZES.heroDesk)}
+              deskBefore={zoomed({ d: "live-desk-before-tournament" }, "")}
+              deskAfter={zoomed({ d: "live-desk-after-tournament" }, "")}
               card={dShot("live-card-before-tournament", "", SIZES.heroPhone, true)}
               board={dShot("live-board-after-tournament", "", SIZES.heroPhone)}
             />
@@ -361,8 +373,8 @@ export default async function NewSitePreview({ searchParams }: { searchParams: P
             <DayStory
               steps={STEPS}
               chapters={CHAPTERS.map(({ n, title }) => ({ n, title }))}
-              screens={DAY.map((d) => <Fragment key={d.when}>{dShot(d.shot, d.alt, d.device === "laptop" ? SIZES.storyDesk : SIZES.story)}</Fragment>)}
-              inline={DAY.map((d) => <Fragment key={d.when}>{dShot(d.shot, d.alt, d.device === "laptop" ? SIZES.storyDetail : SIZES.story)}</Fragment>)}
+              screens={DAY.map((d) => <Fragment key={d.when}>{d.device === "laptop" ? zoomed({ d: d.shot }, d.alt) : dShot(d.shot, d.alt, SIZES.story)}</Fragment>)}
+              inline={DAY.map((d) => <Fragment key={d.when}>{d.device === "laptop" ? zoomed({ d: d.shot }, d.alt) : dShot(d.shot, d.alt, SIZES.story)}</Fragment>)}
             />
           </div>
         </section>
@@ -398,7 +410,7 @@ export default async function NewSitePreview({ searchParams }: { searchParams: P
             <div className="n-bento">
               <div className="n-tile n-tile-xl n-tile-bleed">
                 <div className="n-tile-say"><span className="n-t" aria-hidden="true">1</span><b>The whole field, gross and net.</b><p>The leaderboard across every flight, live as the cards come in: overall, or flight by flight.</p></div>
-                <div className="n-win n-win-needs">{dShot("c-leaderboard-championship", "The organizer's leaderboard during the round: each player's flight, holes played, gross, net and score to par.", SIZES.bentoXl)}</div>
+                <div className="n-win n-win-needs">{zoomed({ d: "c-leaderboard-championship" }, "The organizer's leaderboard during the round: each player's flight, holes played, gross, net and score to par.")}</div>
               </div>
               <div className="n-tile n-tile-tall">
                 <div className="n-tile-say"><span className="n-t" aria-hidden="true">2</span><b>Nothing counts until you say so.</b><p>Cards are certified, approved or disputed. A result from the course waits for you.</p></div>
@@ -406,7 +418,7 @@ export default async function NewSitePreview({ searchParams }: { searchParams: P
               </div>
               <div className="n-tile n-tile-pace n-tile-bleed">
                 <div className="n-tile-say"><span className="n-t" aria-hidden="true">3</span><b>Pace of play, group by group.</b><p>Which group is behind, and by how much, while the round is on.</p></div>
-                <div className="n-win n-win-pace">{dShot("c-dashboard-championship", "The pace of play on the organizer's dashboard: each group's tee time, holes played and when it is due in.", SIZES.bentoXl)}</div>
+                <div className="n-win n-win-pace">{zoomed({ d: "c-dashboard-championship" }, "The pace of play on the organizer's dashboard: each group's tee time, holes played and when it is due in.")}</div>
               </div>
               <div className="n-tile n-tile-128">
                 <div className="n-128-say">
@@ -416,7 +428,7 @@ export default async function NewSitePreview({ searchParams }: { searchParams: P
                     <p>Divide a big field by handicap, by your own flights or at random. Each flight is its own knockout, and every player is told who they play.</p>
                   </div>
                 </div>
-                <div className="n-win n-win-flights">{screen("desk-matchplay", "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", SIZES.bentoWide)}</div>
+                <div className="n-win n-win-flights">{(landingScreen("desk-matchplay"), zoomed({ landing: "desk-matchplay" }, "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results."))}</div>
               </div>
             </div>
           </div>
