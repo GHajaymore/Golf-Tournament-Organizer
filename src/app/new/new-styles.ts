@@ -230,6 +230,14 @@ ${LIGHT_CSS}
 /* the stage: the live board standing in the first light, two more screens behind it as depth */
 .e-stage { position: relative; min-width: 0; display: grid; justify-items: center; padding: 20px 0 0; }
 .e-stage::before { content: ""; position: absolute; z-index: 0; left: 50%; top: 80%; width: 190%; height: 120%; transform: translate(-50%, -50%); background: radial-gradient(closest-side, rgba(255,190,132,.55), rgba(236,128,108,.32) 34%, rgba(150,72,140,.16) 62%, transparent); filter: blur(8px); pointer-events: none; }
+/* THE PHOTOGRAPHS (Canva AI, 2 Nov, each judged as a believable photograph of real light on a real
+   course): laid low and faint under the CSS light, never under a word that matters and never over a
+   screen. Dawn: the band above the horizon, fading out upward. Golden hour: the whole sky. */
+.e-photo { position: absolute; left: 0; right: 0; bottom: 0; z-index: -1; pointer-events: none; background-repeat: no-repeat; background-size: cover; }
+.e-photo-dawn { height: calc(var(--e-horizon) + 280px); background-image: url(/new/e-dawn.w900.webp); background-position: center 64%; opacity: .32;
+  -webkit-mask-image: linear-gradient(to top, #000 55%, transparent); mask-image: linear-gradient(to top, #000 55%, transparent); }
+.e-photo-golden { top: 0; z-index: 0; background-image: url(/new/e-golden.w900.webp); background-position: center 20%; opacity: .34; }
+@media (min-width: 901px) { .e-photo-dawn { background-image: url(/new/e-dawn.w1776.webp); } .e-photo-golden { background-image: url(/new/e-golden.w1776.webp); } }
 /* the hour, floating at the top of the stage on glass */
 .e-stage-hour { position: absolute; z-index: 5; top: 0; right: 0; padding: 6px 12px 6px 10px; border-radius: 999px; background: color-mix(in srgb, ${D.panel} 88%, transparent); border: 1px solid var(--line-2); backdrop-filter: blur(10px); }
 .e-stage-hour .e-hour { margin: 0; color: var(--ink); }

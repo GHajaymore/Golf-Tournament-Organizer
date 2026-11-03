@@ -271,6 +271,8 @@ export default async function NewSitePreview() {
         {/* ═════════ 06:12, FIRST LIGHT: what it is, that it is real, what to do next ═════════ */}
         <section className="n-hero e-sec e-l-dawn" id="top" aria-labelledby="hero-h">
           <div className="e-sky e-sky-dawn" aria-hidden="true" />
+          {/* A photograph of a course at first light (Canva AI, checked as believable), laid low and faint under the CSS light. */}
+          <div className="e-photo e-photo-dawn" aria-hidden="true" />
           <div className="n-wrap n-hero-grid">
             <div className="n-hero-top">
               <a className="n-kicker" href={words.pill.href}><i aria-hidden="true" />{words.pill.badge ? `${words.pill.badge}: ` : ""}{words.pill.text}</a>
@@ -610,6 +612,7 @@ export default async function NewSitePreview() {
         {/* ═════════ 17:40, GOLDEN HOUR: the result ═════════ */}
         <section className="e-sec e-l-golden e-golden" id="result" aria-labelledby="result-h">
           <div className="e-golden-sky" aria-hidden="true">
+            <div className="e-photo e-photo-golden" />
             <Course variant="golden" />
           </div>
           <div className="n-wrap e-final">
