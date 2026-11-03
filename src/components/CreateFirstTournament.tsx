@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createEvent, cloneEvent } from "@/app/actions/tournament";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
@@ -250,16 +251,26 @@ export function CreateFirstTournament({
     });
   };
 
+  /**
+   * THE QUESTIONNAIRE IS THE FIRST WAY IN (Ajay, 2 Nov: "the main thing is ease
+   * of using the configuration and guided one"). A few plain questions, each
+   * already answered, make a reviewed draft at `/new`; this form — a name, a
+   * shape and a starting point — stays one press away as "set it up yourself".
+   */
+  const guided = (
+    <Link href="/new" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+      <Icon name="clipboard-text" /> Set up with a few questions
+    </Link>
+  );
+
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="btn btn-secondary"
-        style={{ alignSelf: "flex-start", marginTop: 18 }}
-      >
-        <Icon name="plus" /> Create another tournament
-      </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18 }}>
+        {guided}
+        <button type="button" onClick={() => setOpen(true)} className="btn btn-secondary">
+          <Icon name="plus" /> Create another tournament
+        </button>
+      </div>
     );
   }
 
@@ -269,8 +280,12 @@ export function CreateFirstTournament({
         <span className="card-title" style={{ fontSize: 15 }}>
           {first ? "Organizing an event?" : "Create a tournament"}
         </span>
-        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-          Just a name to start — dates, course, format and field all come next, and can be changed any time.
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>
+          Answer a few questions and see the whole tournament before anything is made — most events are covered.
+        </p>
+        {guided}
+        <p className="text-muted" style={{ fontSize: 13, margin: "14px 0 0" }}>
+          Or set it up yourself: just a name to start — dates, course, format and field all come next, and can be changed any time.
         </p>
       </div>
       <div className="field">
@@ -414,7 +429,7 @@ export function CreateFirstTournament({
         </select>
         <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           {copyFrom
-            ? `Copies the settings, rounds and courses from ${copyFrom.name.trim() || "that tournament"} — never its players, scores or access codes. Dates start empty and everything stays editable.`
+            ? `Copies the settings, rounds, courses and side games from ${copyFrom.name.trim() || "that tournament"} — never its players, scores, money or access codes. Dates start empty and everything stays editable.`
             : `${templateFor(template).blurb} A starting point only — every setting, format and round stays editable afterwards.`}
         </p>
       </div>

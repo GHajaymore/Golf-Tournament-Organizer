@@ -19,6 +19,7 @@ import { IconSprite } from "@/components/IconSprite";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { TypedBeforeLoad } from "@/components/TypedBeforeLoad";
+import { FigureWhyCloser } from "@/components/FigureWhyCloser";
 import { SiteAnalytics } from "@/components/SiteAnalytics";
 import { analyticsEnabled } from "@/lib/domain/analytics-event";
 import { siteOrigin } from "@/lib/site";
@@ -216,6 +217,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <TypedBeforeLoad />
         {children}
         <ServiceWorkerRegister />
+        {/* A figure's "why" closes on a tap outside it or Escape (FigureWhy). */}
+        <FigureWhyCloser />
         {/* Cookie-free page counts, off unless switched on (SiteAnalytics.tsx). */}
         {analyticsEnabled(process.env.NEXT_PUBLIC_ANALYTICS) && <SiteAnalytics />}
       </body>

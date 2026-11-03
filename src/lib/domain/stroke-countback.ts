@@ -91,7 +91,56 @@ export function countbackCompare(
    */
   higherWins = false,
 ): number {
-  return countbackStep(a, b, holeCount, higherWins)?.compare ?? 0;
+  return countbackBetween(a, b, holeCount, higherWins).order;
+}
+
+/**
+ * WHAT A COUNTBACK FOUND, AND WHERE — the comparison above with its working
+ * kept (2026-10-24, "every figure explains itself").
+ *
+ * `countbackCompare` IS this function's `order`, so a board that ranks two
+ * players by countback and the sentence that says why cannot disagree: they are
+ * one call. `decidedBy` is the step that separated them — how many holes from
+ * the end, and each card's total over them — or null when nothing did, and then
+ * `incomplete` says whether that was because a card is not finished (a countback
+ * reads finished cards) or because the cards are level at every step.
+ */
+export interface CountbackDecision {
+  /** Negative when `a` ranks ahead, positive when `b` does, 0 when level. */
+  order: number;
+  decidedBy: { holes: number; a: number; b: number } | null;
+  /** The steps the two were level on before it was decided (or all of them). */
+  levelOn: number[];
+  /** A card was not complete over a step, so the countback could not be read. */
+  incomplete: boolean;
+}
+
+export function countbackBetween(
+  a: CountbackCard,
+  b: CountbackCard,
+  holeCount: number,
+  higherWins = false,
+): CountbackDecision {
+  const levelOn: number[] = [];
+  for (const n of countbackSegments(holeCount)) {
+    const ta = tailTotal(a.holes, n);
+    const tb = tailTotal(b.holes, n);
+    if (ta === null || tb === null) return { order: 0, decidedBy: null, levelOn, incomplete: true };
+    if (ta !== tb) {
+      return { order: higherWins ? tb - ta : ta - tb, decidedBy: { holes: n, a: ta, b: tb }, levelOn, incomplete: false };
+    }
+    levelOn.push(n);
+  }
+  return { order: 0, decidedBy: null, levelOn, incomplete: false };
+}
+
+/** The same decision read from the other card's side: `b` becomes `a`. */
+export function fromTheOtherSide(d: CountbackDecision): CountbackDecision {
+  return {
+    ...d,
+    order: d.order === 0 ? 0 : -d.order,
+    decidedBy: d.decidedBy ? { holes: d.decidedBy.holes, a: d.decidedBy.b, b: d.decidedBy.a } : null,
+  };
 }
 
 /**
@@ -99,9 +148,10 @@ export function countbackCompare(
  * six", "the last three", "the last hole" — as holes from the end, with the
  * comparison it gave. Null where the countback cannot separate them.
  *
- * The one ladder: `countbackCompare` is this, so the report's "won on
- * countback, last 9" can never name a different step from the one the board
- * placed them by (2026-10-23, the report's prize list).
+ * The one ladder: this is `countbackBetween` read for the report, and
+ * `countbackCompare` is the same call, so the report's "won on countback,
+ * last 9" can never name a different step from the one the board placed them
+ * by (2026-10-23, the report's prize list).
  */
 export function countbackStep(
   a: CountbackCard,
@@ -109,13 +159,8 @@ export function countbackStep(
   holeCount: number,
   higherWins = false,
 ): { holes: number; compare: number } | null {
-  for (const n of countbackSegments(holeCount)) {
-    const ta = tailTotal(a.holes, n);
-    const tb = tailTotal(b.holes, n);
-    if (ta === null || tb === null) return null;
-    if (ta !== tb) return { holes: n, compare: higherWins ? tb - ta : ta - tb };
-  }
-  return null;
+  const d = countbackBetween(a, b, holeCount, higherWins);
+  return d.decidedBy ? { holes: d.decidedBy.holes, compare: d.order } : null;
 }
 
 /**

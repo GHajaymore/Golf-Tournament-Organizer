@@ -17,6 +17,16 @@ import { deadlineState, deadlinePassed, isIsoDate, formatDeadline, parseDeadline
 
 export { deadlinePassed, isIsoDate, formatDeadline, parseDeadlineIso };
 
+/**
+ * THE ENTRIES WAITING FOR THE COMMITTEE TO APPROVE THEM — the one rule, read by
+ * Entries (its "awaiting approval" list) and by the secretary's home ("3
+ * entries awaiting approval"), so the home's count is the list it opens.
+ */
+export const AWAITING_APPROVAL = "pending";
+export function awaitingApproval<T extends { status: string }>(players: readonly T[]): T[] {
+  return players.filter((p) => p.status === AWAITING_APPROVAL);
+}
+
 export type RegistrationState =
   | "not-open-yet"
   | "open"

@@ -204,6 +204,7 @@ export const AREAS = {
       "e2e/player-one-screen.spec.ts",
       "e2e/player-words.spec.ts",
       "e2e/player-calendar.spec.ts",
+      "e2e/my-season.spec.ts",
       "e2e/slow-page.spec.ts",
       "e2e/shared-phone.spec.ts",
     ],
@@ -218,6 +219,17 @@ export const AREAS = {
     specs: ["e2e/messages.spec.ts", "e2e/messages-to-a-flight.spec.ts", "e2e/announcements.spec.ts", "e2e/organizer-announcements.spec.ts"],
     scenarios: [],
     dateSensitive: false,
+    actions: [],
+  },
+  "setup-questions": {
+    name: "The setup questionnaire (/new — a few questions to a reviewed draft)",
+    // Its pure rules (`domain/setup-questions.ts`) and its writer (`createTournament` in actions/tournament.ts)
+    // are shared ground, read by the create action, so a change there is a full round.
+    paths: ["src/app/new/", "src/components/SetupQuestions.tsx"],
+    specs: ["e2e/setup-questions.spec.ts"],
+    scenarios: [],
+    // The first day is the club's next Saturday, counted on the club's clock.
+    dateSensitive: true,
     actions: [],
   },
   guide: {
@@ -264,6 +276,8 @@ export const FULL_ONLY = [
   "e2e/dialog.spec.ts",
   "e2e/discount-code.spec.ts",
   "e2e/event-setup-calm.spec.ts",
+  // The card, the public board and the handicap working: shared ground, as honest-card and boards-by-the-rules.
+  "e2e/every-figure-explains-itself.spec.ts",
   "e2e/faq-blocks.spec.ts",
   "e2e/flight-board.spec.ts",
   "e2e/formats-agree.spec.ts",
@@ -303,6 +317,7 @@ export const FULL_ONLY = [
   "e2e/prizes.spec.ts",
   "e2e/roster-handicap-and-field.spec.ts",
   "e2e/roster.spec.ts",
+  "e2e/round-code-before-the-script.spec.ts",
   "e2e/round-code-box-starts-empty.spec.ts",
   "e2e/round-code-certify-and-result.spec.ts",
   "e2e/round-code-decided-match.spec.ts",
@@ -312,6 +327,8 @@ export const FULL_ONLY = [
   "e2e/round-code-sign.spec.ts",
   "e2e/seasons.spec.ts",
   "e2e/secretary-back-after-a-week.spec.ts",
+  "e2e/secretary-copy-last-event.spec.ts",
+  "e2e/secretary-first-event.spec.ts",
   "e2e/security.spec.ts",
   "e2e/seo.spec.ts",
   "e2e/setup-checklist-outlives-the-field.spec.ts",
@@ -321,6 +338,7 @@ export const FULL_ONLY = [
   "e2e/sides-and-splits.spec.ts",
   "e2e/skins-pot.spec.ts",
   "e2e/slow-signal-scoring.spec.ts",
+  "e2e/staff-kept-cards.spec.ts",
   "e2e/team-cup.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",

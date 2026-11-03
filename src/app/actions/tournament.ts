@@ -4,7 +4,16 @@ import { clearsConcession, deriveMatchFromItsCards, recomputeTeamMatch } from "@
 import { COURSE_REF, roundCard } from "@/lib/services/course-resolution";
 import { playedOnBy } from "@/lib/services/courses";
 import { parseDeadlineIso } from "@/lib/deadline";
-import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
+import {
+  CLONED_EVENT_FIELDS,
+  CLONED_STAGE_FIELDS,
+  CLONED_CONTEST_FIELDS,
+  CLONED_SIDE_GAME_FIELDS,
+  CLONED_SKINS_POT_FIELDS,
+} from "@/lib/services/clone";
+import { copiedCalendar } from "@/lib/domain/copy-dates";
+import { organizationAccessFor } from "@/lib/services/org-access";
+import { clubToday } from "@/lib/domain/club-clock";
 import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -57,12 +66,14 @@ import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor, fieldCapFor, seatRefusalFor } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
-import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal } from "@/lib/domain/close-terms";
+import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal, wipesOnClose } from "@/lib/domain/close-terms";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { parseSetupAnswers, draftFromAnswers } from "@/lib/domain/setup-questions";
+import { markCourseCardChecked } from "@/lib/services/course-card-checked";
 import { tournamentNameRefusal, nameOrFree, withNameBackstop } from "@/lib/services/tournament-name";
 import { holdsItsName, UNNAMED_TOURNAMENT } from "@/lib/domain/tournament-name";
 import { generateShareToken } from "@/lib/codes";
-import { templateFor } from "@/lib/tournament-templates";
+import { templateFor, type TemplateRound } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { formatFitsRound, naturalFormatFor, newRoundBasis } from "@/lib/domain/round-choices";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
@@ -82,7 +93,7 @@ import {
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
 import { overridesAfterFormatChange, playingHandicapInRound } from "@/lib/round-allowance";
-import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
+import { isTournamentShape, isMatch, type TournamentShape } from "@/lib/tournament-shape";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
@@ -172,7 +183,7 @@ import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
-import { isSupportedLocale } from "@/lib/domain/locale";
+import { isSupportedLocale, formatDayRange, resolveLocale } from "@/lib/domain/locale";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 
 /**
@@ -4125,8 +4136,20 @@ export async function switchEvent(eventId: string) {
  *     hand this year's tournament last year's public link.
  *   - Round Codes. They are credentials; a new tournament gets new ones, and
  *     only if it turns code access on.
+ *
+ * "COPY LAST EVENT" (the secretary's home, 2026-10-24) adds the DAY: given a
+ * first day (and a last), the copy is dated from it — its entry window and its
+ * rounds keep their distance from the first day, worked out by
+ * `copiedCalendar` against the club's own today — and its side games come with
+ * it as games, with nobody in them. Without a day it starts undated, as it
+ * always has, so the two older doors (Tournaments, the first-tournament form)
+ * are unchanged.
  */
-export async function cloneEvent(sourceEventId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+export async function cloneEvent(
+  sourceEventId: string,
+  name: string,
+  when?: { startOn?: unknown; endOn?: unknown },
+): Promise<{ ok: boolean; error?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
 
@@ -4144,9 +4167,49 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
 
   const source = await prisma.event.findUnique({
     where: { id: sourceEventId },
-    include: { stages: { orderBy: { position: "asc" } }, courses: true },
+    include: {
+      stages: { orderBy: { position: "asc" } },
+      courses: true,
+      // The games, as games — see `CLONED_CONTEST_FIELDS`. A fourball's own
+      // pot or game names a group of a tee sheet the copy does not have.
+      contests: true,
+      sideGames: { where: { groupKey: "" } },
+      skinsPots: { where: { groupKey: "" } },
+      organization: { select: { timeZone: true, locale: true } },
+    },
   });
   if (!source) return { ok: false, error: "Tournament not found." };
+
+  /**
+   * AND THE CLUB'S ROLE, because a copy is made in the CLUB's name
+   * (2026-10-24). Organizer of the source is not enough on its own: a Guest of
+   * the club made organizer of one tournament would otherwise mint new
+   * tournaments for a club that has only lent them one — the S1 leak
+   * `org-access.ts` describes, one door along. `canEdit`: the club's
+   * Commissioner or an Admin, or an ownerless club's organizer.
+   */
+  const club = await organizationAccessFor(session.email, source.organizationId, access.role);
+  if (!club.canEdit) {
+    return { ok: false, error: "Only the club's Commissioner or an Admin can copy its tournaments." };
+  }
+
+  /**
+   * THE COPY'S DAYS, from the day the secretary picked and the club's own
+   * today — never the server's (`copiedCalendar`). A day already gone at the
+   * club is refused in words before anything is made.
+   */
+  const calendar = copiedCalendar({
+    source: {
+      startOn: source.startOn,
+      regDeadline: source.regDeadline,
+      regOpens: source.regOpens,
+      rounds: source.stages.map((s) => ({ id: s.id, playedOn: s.playedOn })),
+    },
+    startOn: typeof when?.startOn === "string" ? when.startOn : "",
+    endOn: typeof when?.endOn === "string" ? when.endOn : "",
+    today: clubToday(source.organization?.timeZone),
+  });
+  if (!calendar.ok) return { ok: false, error: calendar.error };
 
   // A copy is a new tournament and counts like one.
   const refusal = await refusalFor(source.organizationId, "activeEvents");
@@ -4208,9 +4271,16 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
         fieldCap === null ? carried.manualPlayerCount : Math.min(carried.manualPlayerCount, fieldCap),
       name: clean,
       // Dates and the registration deadline are the two things that are always
-      // wrong on a copy, so they start empty rather than pointing at last year.
-      dates: "",
-      regDeadline: "",
+      // wrong on a copy, so they never point at last year: they are the day the
+      // secretary picked, and the entry window kept at its distance from it —
+      // or empty, when no day was given (`copiedCalendar`).
+      startOn: calendar.startOn,
+      endOn: calendar.endOn,
+      dates: calendar.startOn
+        ? formatDayRange(calendar.startOn, calendar.endOn, resolveLocale(source.organization, source))
+        : "",
+      regDeadline: calendar.regDeadline,
+      regOpens: calendar.regOpens,
       status: "draft",
       // A fresh token: unique index aside, the copy must not inherit the
       // original's public link.
@@ -4245,6 +4315,8 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
         scoringBasis: basisFor(s.format, s.scoringBasis),
         // Always in the past on a copy.
         deadline: "",
+        // The round's day from the copy's first day — see `copiedCalendar`.
+        playedOn: calendar.playedOn[s.id] ?? "",
         /**
          * Written in the second pass below, once every round exists and has an
          * id to point at.
@@ -4270,6 +4342,40 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
     if (!rule) continue;
     await prisma.stage.update({ where: { id: newStageId.get(s.id)! }, data: { singleMatchRule: rule } });
   }
+
+  /**
+   * THE SIDE GAMES, AS GAMES (2026-10-24). Each from its declared policy, on
+   * the copy's own round, with nobody in it: who entered, who paid and who won
+   * belong to last year's day (`clone.ts`). A game whose round is not one the
+   * copy has — a stray id — stays behind rather than pointing anywhere.
+   */
+  const by = session.name || session.email;
+  for (const c of source.contests) {
+    const stageId = c.stageId ? newStageId.get(c.stageId) : "";
+    if (stageId === undefined) continue;
+    const game = Object.fromEntries(CLONED_CONTEST_FIELDS.map((f) => [f, c[f]])) as Pick<typeof c, (typeof CLONED_CONTEST_FIELDS)[number]>;
+    await prisma.contest.create({ data: { ...game, eventId: created.id, stageId, createdBy: by } });
+  }
+  for (const g of source.sideGames) {
+    const stageId = newStageId.get(g.stageId);
+    if (!stageId) continue;
+    const game = Object.fromEntries(CLONED_SIDE_GAME_FIELDS.map((f) => [f, g[f]])) as Pick<typeof g, (typeof CLONED_SIDE_GAME_FIELDS)[number]>;
+    await prisma.sideGame.create({ data: { ...game, eventId: created.id, stageId, groupKey: "", createdBy: by } });
+  }
+  for (const p of source.skinsPots) {
+    const stageId = newStageId.get(p.stageId);
+    if (!stageId) continue;
+    const pot = Object.fromEntries(CLONED_SKINS_POT_FIELDS.map((f) => [f, p[f]])) as Pick<typeof p, (typeof CLONED_SKINS_POT_FIELDS)[number]>;
+    await prisma.skinsPot.create({ data: { ...pot, eventId: created.id, stageId, groupKey: "" } });
+  }
+  // A name against the games' stakes, as every money write has (`money-leaves-a-trail`).
+  const games = source.contests.length + source.sideGames.length + source.skinsPots.length;
+  await logAudit(
+    created.id,
+    "copy-tournament",
+    `${by} copied this tournament from ${source.name.trim() || "another tournament"}` +
+      (games > 0 ? `, with its side games and nobody entered in them` : ""),
+  );
 
   // The creator is the organizer of the copy.
   await prisma.account.create({
@@ -4335,7 +4441,6 @@ export async function createEvent(
 ): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
-  const clean = name.trim() || UNNAMED_TOURNAMENT;
   /**
    * THE SHAPE IS ASKED, NEVER ASSUMED.
    *
@@ -4366,6 +4471,90 @@ export async function createEvent(
   // against a movable constant is the shape that silently broke the branding
   // nudge for every existing club. See tournament-templates.ts.
   const templated = template && !template.blank ? template : null;
+  return createTournament(session, {
+    name,
+    shape,
+    orgName,
+    chosenOrganizationId,
+    confirmedClubName,
+    orgKind,
+    settings: templated ? templated.settings : null,
+    rounds: templated?.rounds ?? [],
+  });
+}
+
+/**
+ * Create a tournament from the setup questionnaire's answers (2 Nov) — a DRAFT,
+ * through `createTournament`, the same writer "Create tournament" uses. Nothing
+ * goes live and nobody is invited; the organizer lands on the dashboard and its
+ * setup checklist.
+ *
+ * Every answer is checked at this boundary (`parseSetupAnswers`), against the
+ * same lists the screen offers; the course and tees against the club that will
+ * own the tournament, inside `createTournament`.
+ */
+export async function createEventFromAnswers(input: {
+  answers: unknown;
+  orgName?: unknown;
+  orgKind?: unknown;
+  organizationId?: unknown;
+  confirmedClubName?: unknown;
+}): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const raw = input && typeof input === "object" ? input : { answers: null };
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
+  const chosenOrganizationId = text(raw.organizationId, 64) || undefined;
+  // The club's country only decides which format is offered FIRST; the set of
+  // choices is the same in every register, so any register validates it.
+  const parsed = parseSetupAnswers(raw.answers, "us");
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const a = parsed.answers;
+  const draft = draftFromAnswers(a);
+  return createTournament(session, {
+    name: draft.name,
+    shape: draft.shape,
+    orgName: text(raw.orgName, 120),
+    chosenOrganizationId,
+    confirmedClubName: raw.confirmedClubName === true,
+    orgKind: text(raw.orgKind, 20),
+    settings: draft.settings,
+    rounds: draft.rounds,
+    dates: { startOn: draft.startOn, endOn: draft.endOn },
+    course: a.courseId ? { courseId: a.courseId, teeId: a.teeId, cardChecked: a.cardChecked, fixCard: a.fixCard } : null,
+  });
+}
+
+/** What `createTournament` makes. Every field decided by its caller; nothing defaulted here. */
+interface NewTournament {
+  name: string;
+  shape: TournamentShape;
+  orgName: string | undefined;
+  chosenOrganizationId: string | undefined;
+  confirmedClubName: boolean | undefined;
+  orgKind: string | undefined;
+  /** The starting bundle (a template's), or null for the club's house defaults alone. */
+  settings: TournamentSettings | null;
+  rounds: Array<TemplateRound & { playedOn?: string }>;
+  /** The tournament's days, when the caller knows them. Checked against the club's today. */
+  dates?: { startOn: string; endOn: string };
+  /** The course and tees chosen, with the organizer's word that the card matches. */
+  course?: { courseId: string; teeId: string; cardChecked: boolean; fixCard: boolean } | null;
+}
+
+/**
+ * THE ONE WRITER OF A NEW TOURNAMENT. "Create tournament" (`createEvent`) and
+ * the setup questionnaire (`createEventFromAnswers`) both come here, so the
+ * club-first gate, the plan's limits, the name rule, the home course, the
+ * rounds, the event's scoring and the round codes are one rule each — a second
+ * writer would be a second answer to every one of them (One rule, one place).
+ */
+async function createTournament(
+  session: Session,
+  input: NewTournament,
+): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
+  const { name, shape, orgName, chosenOrganizationId, confirmedClubName, orgKind } = input;
+  const clean = name.trim() || UNNAMED_TOURNAMENT;
   // Every tournament belongs to a billing tenant; this creates the organizer's
   // organization on their first event, named after their club/society/company
   // when they said who runs it (else after them). An organizer who already owns
@@ -4438,6 +4627,9 @@ export async function createEvent(
       country: true,
       communityNoun: true,
       moneyMode: true,
+      timeZone: true,
+      locale: true,
+      subscription: { select: { plan: true, planTermsApply: true } },
       _count: { select: { roster: true, events: true, courses: true } },
     },
   });
@@ -4459,6 +4651,68 @@ export async function createEvent(
   // created on the published terms — see services/limits.ts.
   const refusal = await refusalFor(organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };
+
+  /**
+   * THE DAYS, WHEN THE CALLER KNOWS THEM — counted in the CLUB's time
+   * (`clubToday`), never the server's: a first day before the club's today is
+   * refused, and a Par tournament's rounds keep to its window, the rule
+   * `addStage` applies through `parRoundWindowRefusal`.
+   */
+  const startOn = cleanIsoDate(input.dates?.startOn);
+  const endOn = cleanIsoDate(input.dates?.endOn) || startOn;
+  if (startOn && startOn < clubToday(owner?.timeZone ?? "")) {
+    return { ok: false, error: "That first day has already passed where the club is. Choose a day from today on." };
+  }
+  const roundDays = input.rounds.map((r) => cleanIsoDate(r.playedOn)).filter(Boolean);
+  if (
+    roundDays.length > 1 &&
+    wipesOnClose({
+      planTermsApply: owner?.subscription?.planTermsApply,
+      plan: owner?.subscription?.plan,
+      shape,
+      retainUntil: null,
+      archivedAt: null,
+    })
+  ) {
+    const windowRefusal = roundWindowRefusal(roundDays[0], roundDays.slice(1));
+    if (windowRefusal) return { ok: false, error: windowRefusal };
+  }
+
+  /**
+   * THE COURSE AND TEES CHOSEN, checked against THIS club before anything is
+   * made. A course with no tees is refused in words: every net would otherwise
+   * be worked off a raw index (backlog J27/J28).
+   */
+  /*
+   * `fixCard`: the organizer said the card is wrong or missing and will put it
+   * right on the course's own card screen once the draft exists — the course
+   * library is reached through a tournament. Then a course with no tees, or
+   * tees not yet chosen, is linked as it stands, and nothing is marked checked.
+   */
+  let chosenCourse: { id: string; name: string; city: string; teeId: string | null } | null = null;
+  if (input.course) {
+    const { fixCard } = input.course;
+    const course = await prisma.course.findFirst({
+      where: { id: input.course.courseId, organizationId },
+      select: { id: true, name: true, city: true, tees: { select: { id: true } } },
+    });
+    if (!course) return { ok: false, error: "That course is not one of your club's courses." };
+    if (course.tees.length === 0 && !fixCard) {
+      return {
+        ok: false,
+        error: `${course.name} has no tees yet, so nobody's handicap could be worked out on it. Add them once the draft is made (Fix the card), or pick the course later.`,
+      };
+    }
+    const teeId = course.tees.some((t) => t.id === input.course?.teeId) ? input.course.teeId : null;
+    if (!teeId && (input.course.teeId || !fixCard)) {
+      return { ok: false, error: "Those tees are not on that course." };
+    }
+    if (!input.course.cardChecked && !fixCard) {
+      return { ok: false, error: "Check the card against the club's own and tick that it matches." };
+    }
+    chosenCourse = { id: course.id, name: course.name, city: course.city, teeId };
+  }
+  const datesLabel = startOn ? formatDayRange(startOn, endOn, resolveLocale(owner ?? null)) : "";
   /**
    * ONE NAME IN PLAY PER CLUB (Ajay, 2026-11-01) — `tournamentNameRefusal`. A name the organizer
    * typed is refused in words with a free one offered; the app's own "New Tournament", for an
@@ -4480,7 +4734,9 @@ export async function createEvent(
     data: {
       organizationId,
       name: named,
-      dates: "",
+      dates: datesLabel,
+      startOn,
+      endOn: startOn ? endOn : "",
       course: "",
       city: "",
       address: "",
@@ -4509,7 +4765,8 @@ export async function createEvent(
       bracketMode: "single",
       // Start from the club's house defaults, then own them outright.
       ...(await settingsForNewEvent(organizationId)),
-      ...(templated ? templated.settings : {}),
+      ...(input.settings ?? {}),
+      ...(chosenCourse?.teeId ? { defaultTeeId: chosenCourse.teeId } : {}),
     },
       }),
     { organizationId, name: named, selfId: null, door: "create" },
@@ -4523,12 +4780,15 @@ export async function createEvent(
     where: { id: organizationId },
     select: { defaultCourseId: true },
   });
-  const home = org?.defaultCourseId
-    ? await prisma.course.findFirst({
-        where: { id: org.defaultCourseId, organizationId },
-        select: { id: true, name: true, city: true },
-      })
-    : null;
+  // The course the organizer CHOSE (the questionnaire's card step) wins over the home course.
+  const home = chosenCourse
+    ? chosenCourse
+    : org?.defaultCourseId
+      ? await prisma.course.findFirst({
+          where: { id: org.defaultCourseId, organizationId },
+          select: { id: true, name: true, city: true },
+        })
+      : null;
   if (home) {
     await prisma.eventCourse.create({
       data: { eventId: event.id, courseId: home.id },
@@ -4572,7 +4832,13 @@ export async function createEvent(
    * written, and Rounds & formats is step two of the guided flow. The
    * organizer now arrives there and picks, which is what that screen is for.
    */
-  const plannedRounds = templated?.rounds ?? [];
+  // The organizer looked at the card and said it matches the club's: recorded
+  // by the one writer of "checked", the same as Mark as checked on Courses.
+  if (chosenCourse && input.course?.cardChecked) {
+    await markCourseCardChecked(chosenCourse.id, organizationId, session.name);
+  }
+
+  const plannedRounds = input.rounds;
   if (plannedRounds.length > 0) {
     await prisma.stage.createMany({
       data: plannedRounds.map((r, position) => ({
@@ -4582,6 +4848,7 @@ export async function createEvent(
         type: r.type,
         format: r.format,
         holes: r.holes,
+        playedOn: cleanIsoDate(r.playedOn),
         scoringBasis: basisFor(r.format, r.scoringBasis),
         // How the template keeps its matches, where it says (`TemplateRound.kept`).
         ...(r.kept
