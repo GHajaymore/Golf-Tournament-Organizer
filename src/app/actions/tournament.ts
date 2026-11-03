@@ -57,12 +57,15 @@ import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor, fieldCapFor, seatRefusalFor } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
-import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal } from "@/lib/domain/close-terms";
+import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal, wipesOnClose } from "@/lib/domain/close-terms";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { clubToday } from "@/lib/domain/club-clock";
+import { parseSetupAnswers, draftFromAnswers } from "@/lib/domain/setup-questions";
+import { markCourseCardChecked } from "@/lib/services/course-card-checked";
 import { tournamentNameRefusal, nameOrFree, withNameBackstop } from "@/lib/services/tournament-name";
 import { holdsItsName, UNNAMED_TOURNAMENT } from "@/lib/domain/tournament-name";
 import { generateShareToken } from "@/lib/codes";
-import { templateFor } from "@/lib/tournament-templates";
+import { templateFor, type TemplateRound } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { formatFitsRound, naturalFormatFor, newRoundBasis } from "@/lib/domain/round-choices";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
@@ -82,7 +85,7 @@ import {
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
 import { overridesAfterFormatChange, playingHandicapInRound } from "@/lib/round-allowance";
-import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
+import { isTournamentShape, isMatch, type TournamentShape } from "@/lib/tournament-shape";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
@@ -172,7 +175,7 @@ import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
-import { isSupportedLocale } from "@/lib/domain/locale";
+import { isSupportedLocale, formatDayRange, resolveLocale } from "@/lib/domain/locale";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 
 /**
@@ -4308,7 +4311,6 @@ export async function createEvent(
 ): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
-  const clean = name.trim() || UNNAMED_TOURNAMENT;
   /**
    * THE SHAPE IS ASKED, NEVER ASSUMED.
    *
@@ -4339,6 +4341,90 @@ export async function createEvent(
   // against a movable constant is the shape that silently broke the branding
   // nudge for every existing club. See tournament-templates.ts.
   const templated = template && !template.blank ? template : null;
+  return createTournament(session, {
+    name,
+    shape,
+    orgName,
+    chosenOrganizationId,
+    confirmedClubName,
+    orgKind,
+    settings: templated ? templated.settings : null,
+    rounds: templated?.rounds ?? [],
+  });
+}
+
+/**
+ * Create a tournament from the setup questionnaire's answers (2 Nov) — a DRAFT,
+ * through `createTournament`, the same writer "Create tournament" uses. Nothing
+ * goes live and nobody is invited; the organizer lands on the dashboard and its
+ * setup checklist.
+ *
+ * Every answer is checked at this boundary (`parseSetupAnswers`), against the
+ * same lists the screen offers; the course and tees against the club that will
+ * own the tournament, inside `createTournament`.
+ */
+export async function createEventFromAnswers(input: {
+  answers: unknown;
+  orgName?: unknown;
+  orgKind?: unknown;
+  organizationId?: unknown;
+  confirmedClubName?: unknown;
+}): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const raw = input && typeof input === "object" ? input : { answers: null };
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
+  const chosenOrganizationId = text(raw.organizationId, 64) || undefined;
+  // The club's country only decides which format is offered FIRST; the set of
+  // choices is the same in every register, so any register validates it.
+  const parsed = parseSetupAnswers(raw.answers, "us");
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const a = parsed.answers;
+  const draft = draftFromAnswers(a);
+  return createTournament(session, {
+    name: draft.name,
+    shape: draft.shape,
+    orgName: text(raw.orgName, 120),
+    chosenOrganizationId,
+    confirmedClubName: raw.confirmedClubName === true,
+    orgKind: text(raw.orgKind, 20),
+    settings: draft.settings,
+    rounds: draft.rounds,
+    dates: { startOn: draft.startOn, endOn: draft.endOn },
+    course: a.courseId ? { courseId: a.courseId, teeId: a.teeId, cardChecked: a.cardChecked } : null,
+  });
+}
+
+/** What `createTournament` makes. Every field decided by its caller; nothing defaulted here. */
+interface NewTournament {
+  name: string;
+  shape: TournamentShape;
+  orgName: string | undefined;
+  chosenOrganizationId: string | undefined;
+  confirmedClubName: boolean | undefined;
+  orgKind: string | undefined;
+  /** The starting bundle (a template's), or null for the club's house defaults alone. */
+  settings: TournamentSettings | null;
+  rounds: Array<TemplateRound & { playedOn?: string }>;
+  /** The tournament's days, when the caller knows them. Checked against the club's today. */
+  dates?: { startOn: string; endOn: string };
+  /** The course and tees chosen, with the organizer's word that the card matches. */
+  course?: { courseId: string; teeId: string; cardChecked: boolean } | null;
+}
+
+/**
+ * THE ONE WRITER OF A NEW TOURNAMENT. "Create tournament" (`createEvent`) and
+ * the setup questionnaire (`createEventFromAnswers`) both come here, so the
+ * club-first gate, the plan's limits, the name rule, the home course, the
+ * rounds, the event's scoring and the round codes are one rule each — a second
+ * writer would be a second answer to every one of them (One rule, one place).
+ */
+async function createTournament(
+  session: Session,
+  input: NewTournament,
+): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
+  const { name, shape, orgName, chosenOrganizationId, confirmedClubName, orgKind } = input;
+  const clean = name.trim() || UNNAMED_TOURNAMENT;
   // Every tournament belongs to a billing tenant; this creates the organizer's
   // organization on their first event, named after their club/society/company
   // when they said who runs it (else after them). An organizer who already owns
@@ -4411,6 +4497,9 @@ export async function createEvent(
       country: true,
       communityNoun: true,
       moneyMode: true,
+      timeZone: true,
+      locale: true,
+      subscription: { select: { plan: true, planTermsApply: true } },
       _count: { select: { roster: true, events: true, courses: true } },
     },
   });
@@ -4432,6 +4521,60 @@ export async function createEvent(
   // created on the published terms — see services/limits.ts.
   const refusal = await refusalFor(organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };
+
+  /**
+   * THE DAYS, WHEN THE CALLER KNOWS THEM — counted in the CLUB's time
+   * (`clubToday`), never the server's: a first day before the club's today is
+   * refused, and a Par tournament's rounds keep to its window, the rule
+   * `addStage` applies through `parRoundWindowRefusal`.
+   */
+  const startOn = cleanIsoDate(input.dates?.startOn);
+  const endOn = cleanIsoDate(input.dates?.endOn) || startOn;
+  if (startOn && startOn < clubToday(owner?.timeZone ?? "")) {
+    return { ok: false, error: "That first day has already passed where the club is. Choose a day from today on." };
+  }
+  const roundDays = input.rounds.map((r) => cleanIsoDate(r.playedOn)).filter(Boolean);
+  if (
+    roundDays.length > 1 &&
+    wipesOnClose({
+      planTermsApply: owner?.subscription?.planTermsApply,
+      plan: owner?.subscription?.plan,
+      shape,
+      retainUntil: null,
+      archivedAt: null,
+    })
+  ) {
+    const windowRefusal = roundWindowRefusal(roundDays[0], roundDays.slice(1));
+    if (windowRefusal) return { ok: false, error: windowRefusal };
+  }
+
+  /**
+   * THE COURSE AND TEES CHOSEN, checked against THIS club before anything is
+   * made. A course with no tees is refused in words: every net would otherwise
+   * be worked off a raw index (backlog J27/J28).
+   */
+  let chosenCourse: { id: string; name: string; city: string; teeId: string } | null = null;
+  if (input.course) {
+    const course = await prisma.course.findFirst({
+      where: { id: input.course.courseId, organizationId },
+      select: { id: true, name: true, city: true, tees: { select: { id: true } } },
+    });
+    if (!course) return { ok: false, error: "That course is not one of your club's courses." };
+    if (course.tees.length === 0) {
+      return {
+        ok: false,
+        error: `${course.name} has no tees yet, so nobody's handicap could be worked out on it. Add its tees on Courses, or pick the course later.`,
+      };
+    }
+    if (!course.tees.some((t) => t.id === input.course?.teeId)) {
+      return { ok: false, error: "Those tees are not on that course." };
+    }
+    if (!input.course.cardChecked) {
+      return { ok: false, error: "Check the card against the club's own and tick that it matches." };
+    }
+    chosenCourse = { id: course.id, name: course.name, city: course.city, teeId: input.course.teeId };
+  }
+  const datesLabel = startOn ? formatDayRange(startOn, endOn, resolveLocale(owner ?? null)) : "";
   /**
    * ONE NAME IN PLAY PER CLUB (Ajay, 2026-11-01) — `tournamentNameRefusal`. A name the organizer
    * typed is refused in words with a free one offered; the app's own "New Tournament", for an
@@ -4453,7 +4596,9 @@ export async function createEvent(
     data: {
       organizationId,
       name: named,
-      dates: "",
+      dates: datesLabel,
+      startOn,
+      endOn: startOn ? endOn : "",
       course: "",
       city: "",
       address: "",
@@ -4482,7 +4627,8 @@ export async function createEvent(
       bracketMode: "single",
       // Start from the club's house defaults, then own them outright.
       ...(await settingsForNewEvent(organizationId)),
-      ...(templated ? templated.settings : {}),
+      ...(input.settings ?? {}),
+      ...(chosenCourse ? { defaultTeeId: chosenCourse.teeId } : {}),
     },
       }),
     { organizationId, name: named, selfId: null, door: "create" },
@@ -4496,12 +4642,15 @@ export async function createEvent(
     where: { id: organizationId },
     select: { defaultCourseId: true },
   });
-  const home = org?.defaultCourseId
-    ? await prisma.course.findFirst({
-        where: { id: org.defaultCourseId, organizationId },
-        select: { id: true, name: true, city: true },
-      })
-    : null;
+  // The course the organizer CHOSE (the questionnaire's card step) wins over the home course.
+  const home = chosenCourse
+    ? chosenCourse
+    : org?.defaultCourseId
+      ? await prisma.course.findFirst({
+          where: { id: org.defaultCourseId, organizationId },
+          select: { id: true, name: true, city: true },
+        })
+      : null;
   if (home) {
     await prisma.eventCourse.create({
       data: { eventId: event.id, courseId: home.id },
@@ -4545,7 +4694,13 @@ export async function createEvent(
    * written, and Rounds & formats is step two of the guided flow. The
    * organizer now arrives there and picks, which is what that screen is for.
    */
-  const plannedRounds = templated?.rounds ?? [];
+  // The organizer looked at the card and said it matches the club's: recorded
+  // by the one writer of "checked", the same as Mark as checked on Courses.
+  if (chosenCourse && input.course?.cardChecked) {
+    await markCourseCardChecked(chosenCourse.id, organizationId, session.name);
+  }
+
+  const plannedRounds = input.rounds;
   if (plannedRounds.length > 0) {
     await prisma.stage.createMany({
       data: plannedRounds.map((r, position) => ({
@@ -4555,6 +4710,7 @@ export async function createEvent(
         type: r.type,
         format: r.format,
         holes: r.holes,
+        playedOn: cleanIsoDate(r.playedOn),
         scoringBasis: basisFor(r.format, r.scoringBasis),
         // How the template keeps its matches, where it says (`TemplateRound.kept`).
         ...(r.kept

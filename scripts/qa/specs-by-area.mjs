@@ -216,6 +216,17 @@ export const AREAS = {
     dateSensitive: false,
     actions: [],
   },
+  "setup-questions": {
+    name: "The setup questionnaire (/new — a few questions to a reviewed draft)",
+    // Its pure rules (`domain/setup-questions.ts`) and its writer (`createTournament` in actions/tournament.ts)
+    // are shared ground, read by the create action, so a change there is a full round.
+    paths: ["src/app/new/", "src/components/SetupQuestions.tsx"],
+    specs: ["e2e/setup-questions.spec.ts"],
+    scenarios: [],
+    // The first day is the club's next Saturday, counted on the club's clock.
+    dateSensitive: true,
+    actions: [],
+  },
   guide: {
     name: "The organizer's guide screen",
     paths: ["src/app/(app)/guide/", "src/components/GuideSearch.tsx"],
