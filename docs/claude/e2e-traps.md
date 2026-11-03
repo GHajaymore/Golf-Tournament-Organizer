@@ -45,6 +45,59 @@ somebody's edit. `e2e/slow-signal-scoring.spec.ts` holds every save back and sco
 them; to test anything about what happens BETWEEN a tap and its answer, delay the answer
 (`page.route` on the action's POST) rather than waiting for a quiet network.
 
+**AND EVERY HOLE SAYS WHERE ITS SCORE IS (the honest card, 2026-10-25).** "On your phone", "Sent"
+or "Not sent", a mark on the strip and the words at the hole, from `usePendingCard().holes` —
+worked out from the card the queue holds to send against what the last answered save READ BACK
+from the row it wrote (`writeScorecard`'s `stored`, the play and match actions' `card` / `holes`).
+A save that resolves with a read-back that disagrees is not a landing. A spec that waits for the
+card's line reads "Sent" (it was "Saved"); `e2e/honest-card.spec.ts` holds the saves back, cuts the
+signal, and compares the screen with the database hole by hole. Tapping a name on a round code no
+longer reloads the page — the claim's own answer draws the card — and `e2e/round-code-on-3g.spec.ts`
+times it on slow 3G.
+
+**AND A BUTTON THAT WAITS FOR THE SCRIPT WAITS FOR ALL OF IT (2026-10-25).** On slow 3G (400 kbit/s,
+400 ms a request) the cold `/play` drew its code box at 1.8 s and Continue woke at 7.8 s. Measured
+request by request, not read: the page brought down 351 KB — scripts 193, fonts 105, the document
+44, the style sheet 9 — and Continue could be pressed only once React had taken the page over,
+which is after the LAST script chunk, all of it sharing the one line with the fonts. Nothing on the
+page was slow; the button simply had to wait for everything. Three things were found and done:
+
+- **Continue takes a press from the first paint (1.9 s), and a press made before the page is live
+  is HELD on the page** (`HeldBeforeLoad`, a tiny inline script) and taken up the moment React is
+  there. The box and the names are also real forms (`redeemRoundCodeForm`, `claimPlayerSlotForm`,
+  through `useActionState`), posted the plain way with JavaScript off, or if the page has still not
+  woken ten seconds after the press.
+  **The plain post was built first and MEASURED WORSE**: it put the names on screen at 3.3 s instead
+  of 7.4, and the pad that takes a score 2 s LATER (12.5 s against 10.1, a key every 300 ms) —
+  every post is a new page, and the page being left was part-way through its scripts and fonts,
+  which start again. The obvious fix and the fast one were different things, and only timing the
+  WHOLE flow could tell. Two traps found on the way: React writes hidden `$ACTION_…` boxes into such
+  a form and never takes them over, so "is the page live" must not read the first `input` it finds
+  (the spec's control was vacuous until it had to say yes once the script landed); and a held press
+  must keep the form's contents from the moment of the press — read when the page woke, while
+  `TypedBeforeLoadSync` hands the box to React, the box was EMPTY and an empty code was sent.
+- **The icon sprite went down twice in every document**: drawn by a server component, it was the
+  page AND, again, the page's data for React — 37 KB of `/play`'s 44. `IconSprite` is a client
+  component now whose symbols exist only in the server's copy (`typeof window` is fixed at build
+  time), and the browser reads them back from the page. Every document in the app is ~19 KB lighter.
+- **`next/link` in the root `not-found.tsx` cost every page outside the player app 16 KB**: it is in
+  the root layout's tree, and its client reference was filed with the player layout's chunks, so
+  `/play` fetched four chunks of a layout it is not in. Plain links there now.
+
+After: 316 KB, 25 requests; for a thumb that types at once, the pad takes a score at 8.3 s from
+opening the link (10.6 s before), and 0.9 s from a name to the pad once the page is live (1.4 s
+before). **What is NOT fixed, and why**: a pad needs its script, and the framework alone is ~104 KB
+— two seconds of that line — so "a card within 2 s of opening the link" cannot be met on this
+throttle by any page that needs a script to take a score. The next levers, measured and not taken
+without a ruling: the fonts (105 KB at VeryHigh priority beside the scripts — a third of what the
+page brings down), and the sprite's 19 KB still in every document's HTML.
+
+Two things to carry forward. **Measure the page by its requests before choosing a fix** — the
+obvious suspects (data fetched before render, the service worker, the hydration patch) were none of
+it. And **DevTools' throttle shares the line between every request alike**: the style sheet waits
+behind thirty script chunks there, which HTTP/2's priorities would not let happen on Vercel, so the
+draw time it reports is a little pessimistic and the byte counts are the figure to trust.
+
 **AND A BUILD MADE ON WINDOWS HINTS NO FONT, SO THIS MACHINE CANNOT SEE WHAT A PHONE
 DOWNLOADS.** Until 2026-10-13 every screen fetched five font files before it knew which it would
 draw — 248 KB — and no local run or screenshot showed it, because next/font's manifest comes out

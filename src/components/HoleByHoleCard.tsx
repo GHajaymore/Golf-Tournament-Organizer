@@ -13,6 +13,10 @@ import { parseHoleTranscript } from "@/lib/domain/score-entry-input";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 import { pinLong, pinShort, type PinSheet } from "@/lib/domain/pin-sheet";
 import { holeNumber } from "@/lib/domain/hole-number";
+import type { Working } from "@/lib/domain/figure-working";
+import { FigureWhy } from "./FigureWhy";
+import type { HoleSync } from "@/lib/domain/pending-card";
+import { HoleSyncMark, HoleSyncWords, holeSyncSaid } from "./HoleSync";
 
 /**
  * One hole at a time, for everyone sharing the card.
@@ -51,6 +55,12 @@ export interface CardPlayer {
   /** Handicap strokes received on a given hole, from the real course-handicap
    *  allocation. Optional: an event with no ratings has none to show. */
   shotsOn?: (hole: number) => number;
+  /**
+   * Why that hole has those strokes, in one sentence (2026-10-24) — from
+   * `strokesOnHole`, the function the strokes were allocated by. The one-player
+   * pad's "1 stroke on this hole" opens it. Absent, the line is as it was.
+   */
+  shotsWhy?: (hole: number) => Working | null;
   /**
    * Exactly what to call this card, bypassing the "First L." shortening.
    *
@@ -128,7 +138,18 @@ export function HoleByHoleCard({
   onPickUp,
   voice = false,
   dense = false,
+  sync,
+  refusal = "",
 }: {
+  /**
+   * WHERE EACH HOLE'S SCORE IS — "On your phone", "Sent", "Not sent" — from
+   * the card's queue (`usePendingCard().holes`), one per hole. Drawn as a mark
+   * on the strip and in words at the hole. Absent on the organizer's entry
+   * screen, which keeps no queue.
+   */
+  sync?: HoleSync[];
+  /** The server's own words for a refusal, said at the hole beside "Not sent". */
+  refusal?: string;
   /**
    * HOLE 1 FOR THE WHOLE FOURSOME ON ONE PHONE SCREEN — a casual round's card
    * (2026-10-06). Measured at 393x727 the fourth player's row ended at 808px,
@@ -450,9 +471,11 @@ export function HoleByHoleCard({
               type="button"
               className="hole-nav-btn"
               onClick={() => go(i)}
-              aria-label={`Hole ${holeNumber(i, firstHole)}${done ? ", complete" : part ? ", partly scored" : ", not scored"}`}
+              aria-label={`Hole ${holeNumber(i, firstHole)}${done ? ", complete" : part ? ", partly scored" : ", not scored"}${holeSyncSaid(sync?.[i])}`}
               aria-current={here ? "true" : undefined}
+              data-sync={sync?.[i]}
               style={{
+                position: "relative",
                 flex: "1 0 auto",
                 // 36 x 40, from 26 x 30 (2026-10-05): the most-tapped control
                 // on the most-used screen. A coarse pointer lifts the height
@@ -474,6 +497,7 @@ export function HoleByHoleCard({
               }}
             >
               {holeNumber(i, firstHole)}
+              {sync && <HoleSyncMark sync={sync[i] ?? "none"} />}
             </button>
           );
         })}
@@ -526,6 +550,10 @@ export function HoleByHoleCard({
             )}
           </div>
         </div>
+
+        {/* Where this hole's score is, in words: on the phone, sent, or not
+            sent and why — under the hole's number, where the eye already is. */}
+        {sync && <HoleSyncWords sync={sync[hole]} refusal={refusal} />}
 
         {/* Said, not tapped — a round button beside the hole rather than a
             full-width bar, so the pad stays above the fold on a phone. The
@@ -781,12 +809,23 @@ function SoloPad({
   live: boolean;
 }) {
   const shots = player.shotsOn?.(hole) ?? 0;
+  // The dot's sentence, when one was handed down — `strokesOnHole`'s.
+  const why = shots !== 0 ? (player.shotsWhy?.(hole) ?? null) : null;
+  const mark =
+    shots > 0
+      ? `${"•".repeat(shots)} ${shots === 1 ? "1 shot" : `${shots} shots`} on this hole`
+      : `${"+".repeat(-shots)} ${shots === -1 ? "1 shot" : `${-shots} shots`} given back on this hole`;
   return (
     <>
-      {shots > 0 && (
-        <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--color-accent-200)", fontWeight: 600 }}>
-          {"•".repeat(shots)} {shots === 1 ? "1 shot" : `${shots} shots`} on this hole
-        </p>
+      {shots !== 0 && (
+        <div style={{ margin: "10px 0 0", fontSize: 14, color: "var(--color-accent-200)", fontWeight: 600 }}>
+          <FigureWhy
+            figure={mark}
+            working={why}
+            name={mark}
+            shape="inline"
+          />
+        </div>
       )}
       {/* `keep-grid` is not decoration. globals.css stacks every inline grid
           inside <main> on phones — `main [style*="grid-template-columns"]` with

@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { normalizeAccessCode, looksLikeAccessCode } from "@/lib/code-format";
@@ -13,7 +14,7 @@ import { cleanHoleResults, cleanStrokes, strokeFault } from "@/lib/domain/score-
 import { matchIsOver } from "@/lib/domain/match";
 import { roundCodeName } from "@/lib/domain/round-label";
 import { marginRefusal, marginToHoles } from "@/lib/domain";
-import { writeScorecard, certifyCard, assertRoundOpen } from "@/lib/services/scorecard-write";
+import { writeScorecard, certifyCard, assertRoundOpen, storedCard } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit } from "@/lib/services/action-shared";
 import { isCupSession, lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
@@ -198,6 +199,25 @@ async function matchGroups(
 export interface ClaimResult {
   ok: boolean;
   error?: string;
+  /**
+   * What a save left on the server, read back from the row it wrote — the
+   * honest card's "Sent" is measured against this, never against the card
+   * that was sent (2026-10-25). A stroke card's strokes; a match's holes,
+   * A-relative as stored.
+   */
+  card?: (number | null)[];
+  holes?: Array<"A" | "B" | "H" | null>;
+}
+
+/** A match's stored holes, read back: A-relative, one per hole of the round. */
+function storedHoles(json: string): Array<"A" | "B" | "H" | null> {
+  let raw: unknown = [];
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    raw = [];
+  }
+  return (Array.isArray(raw) ? raw : []).map((h) => (h === "A" || h === "B" || h === "H" ? h : null));
 }
 
 /**
@@ -244,6 +264,42 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
   await createPlaySession(stage.id, player.id, stage.accessCode);
   revalidatePath("/play");
   return { ok: true };
+}
+
+/**
+ * THE ROUND CODE WORKS BEFORE THE PAGE'S SCRIPT HAS ARRIVED (2026-10-25).
+ *
+ * Measured on slow 3G (`e2e/round-code-on-3g.spec.ts`): the code box was drawn
+ * at 1.8 s and Continue could not be pressed until 7.8 s, because it waited for
+ * the page's whole script, 193 KB of it, sharing one bar of signal with 105 KB
+ * of fonts. So the box and the names are real forms now. A press made before
+ * the script is held until it arrives (`HeldBeforeLoad`), and the page calls
+ * `redeemRoundCode` and `claimPlayerSlot` itself, as it always did. With no
+ * script — or none ten seconds after the press — the forms are posted to
+ * these two the plain way and the server draws the next step. These call the
+ * same two, so the answer — the names, the refusal in words, the session — is
+ * one answer whichever way the press went.
+ *
+ * Shaped for `useActionState` (the state before, then the form), because that
+ * is how the server hands the result of a plain post to the page it draws.
+ */
+export interface RedeemFormState extends RedeemResult {
+  /** The code as it goes on to the name step, or as it was typed when refused. */
+  code: string;
+}
+
+export async function redeemRoundCodeForm(_before: RedeemFormState | null, form: FormData): Promise<RedeemFormState> {
+  const typed = String(form.get("code") ?? "").slice(0, 64);
+  const res = await redeemRoundCode(typed);
+  return { ...res, code: res.ok ? normalizeAccessCode(typed) : typed };
+}
+
+/** A name tapped before the script arrived: the session starts and the card is drawn, or the refusal is. */
+export async function claimPlayerSlotForm(_before: ClaimResult | null, form: FormData): Promise<ClaimResult> {
+  const res = await claimPlayerSlot(String(form.get("code") ?? "").slice(0, 64), String(form.get("playerId") ?? "").slice(0, 64));
+  // Outside any try: `redirect` works by throwing.
+  if (res.ok) redirect("/play");
+  return res;
 }
 
 export async function leavePlay(): Promise<void> {
@@ -349,8 +405,9 @@ export async function savePlayMatchHoles(
     return { ok: false, error: "Enter the full round, then submit it." };
   }
 
-  await prisma.match.update({
+  const written = await prisma.match.update({
     where: { id: matchId },
+    select: { holes: true },
     data: {
       holes: JSON.stringify(clean),
       scoreStatus: "pending",
@@ -373,7 +430,7 @@ export async function savePlayMatchHoles(
   // see it now rather than when its sixty-second backstop expires.
   boardChanged(session.eventId);
   revalidatePath("/", "layout");
-  return { ok: true };
+  return { ok: true, holes: storedHoles(written.holes) };
 }
 
 /**
@@ -558,6 +615,7 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
    * path checks membership: a round code is a shared secret announced to a
    * field, so anybody holding it could otherwise write anybody's card.
    */
+  let stored: (number | null)[] = [];
   try {
     const result = await writeScorecard({
       eventId: session.eventId,
@@ -574,6 +632,7 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
     if (!result.ok) {
       return { ok: false, error: "Somebody else has changed this card. Reload and try again." };
     }
+    stored = result.stored;
   } catch (e) {
     // `writeScorecard` throws on an invalid payload, a partial card that is
     // not allowed and a locked card, exactly as it did inside the console
@@ -585,7 +644,8 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
   await logAudit(session.eventId, "score", "Card entered via round code", { actor: session.playerName });
   boardChanged(session.eventId);
   revalidatePath("/", "layout");
-  return { ok: true };
+  // The card as the row holds it, so the phone's "Sent" is the record's word.
+  return { ok: true, card: stored };
 }
 
 /**
@@ -728,20 +788,24 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
     if (filled < clean.length) return { ok: false, error: "Enter the full round, then submit it." };
   }
 
+  // The card as its row holds it after the write, read back for the phone's "Sent".
+  let stored: (number | null)[] = [];
   try {
     if (slot) {
-      await prisma.matchScorecard.upsert({
+      const row = await prisma.matchScorecard.upsert({
         where: { matchId_slot: { matchId: match.id, slot } },
         update: { strokes: JSON.stringify(clean) },
         create: { eventId: session.eventId, matchId: match.id, slot, strokes: JSON.stringify(clean) },
+        select: { strokes: true },
       });
+      stored = storedCard(row.strokes, holeCount);
       if (isReturnedCard(clean)) await freezeRoundHandicaps(session.eventId, match.stageId);
       await deriveMatchFromItsCards(session.eventId, match, { name: session.playerName, playerId: session.playerId });
     } else {
       // A side playing one ball keeps one card between them; otherwise each
       // partner keeps their own — the committee's shape for this round.
       const playerId = oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis) ? "" : session.playerId;
-      await prisma.teamScorecard.upsert({
+      const row = await prisma.teamScorecard.upsert({
         where: { stageId_matchId_teamId_playerId: { stageId: match.stageId, matchId: match.id, teamId, playerId } },
         update: { strokes: JSON.stringify(clean) },
         create: {
@@ -753,7 +817,9 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
           strokes: JSON.stringify(clean),
           pickedUp: "[]",
         },
+        select: { strokes: true },
       });
+      stored = storedCard(row.strokes, holeCount);
       if (isReturnedCard(clean)) await freezeRoundHandicaps(session.eventId, match.stageId);
       await recomputeTeamMatch(session.eventId, match, stage.format, holeCount);
     }
@@ -765,5 +831,5 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
   await logAudit(session.eventId, "score", "Card entered via round code", { matchId: match.id, actor: session.playerName });
   boardChanged(session.eventId);
   revalidatePath("/", "layout");
-  return { ok: true };
+  return { ok: true, card: stored };
 }

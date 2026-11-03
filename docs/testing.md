@@ -91,7 +91,7 @@ really run, and what it cannot see — so a row in the report is never read as m
 | Security, in the repository | Every push | `no-secret-is-committed.test.ts`: no tracked file carries a key, a token or an address with a password in it |
 | Search engines, shared links | In **the whole suite** | `seo.spec`: each public page's title, description, one heading, language and its own canonical address; the share card and its picture; structured data that parses; a sitemap that lists exactly the public pages; and every private screen telling crawlers to keep out |
 | People who cannot see it or use a mouse | In **the whole suite** | `a11y.spec`: axe, against WCAG 2.1 A and AA, on every public page, every organizer screen and every player screen |
-| A weak signal | In **the whole suite** | `weight.spec`: what a phone downloads for the screens people open most, held to a budget (kept per platform: a build made on Windows hints no font, so GitHub's figure is the one production matches); `fonts.spec`, every font file a screen downloads is one it draws with; `slow-page.spec`, which delivers pages slowly on purpose; and `slow-signal-scoring.spec`, which holds every save back and scores ahead of them |
+| A weak signal | In **the whole suite** | `weight.spec`: what a phone downloads for the screens people open most, held to a budget (kept per platform: a build made on Windows hints no font, so GitHub's figure is the one production matches); `fonts.spec`, every font file a screen downloads is one it draws with; `slow-page.spec`, which delivers pages slowly on purpose; and `slow-signal-scoring.spec`, which holds every save back and scores ahead of them; `honest-card.spec`, which holds a round-code player's saves back and cuts their signal, and asks of each hole whether "On your phone", "Sent" and "Not sent" are true — within 100 ms of the tap, and read back from the database; `round-code-on-3g.spec`, which times a round code on slow 3G from a cold `/play` — Continue pressable the moment the box is drawn, the whole flow for a quick thumb and at a human pace, and two seconds from a name to a pad that takes a score; and `round-code-before-the-script.spec`, a press made before the script held on the page and taken up when it lands, the plain form posts with JavaScript off or a script that never comes, and the icon sprite sent once a page rather than twice |
 | The app doing its job | **Eleven tournaments, played** | Eleven tournaments of 110–120 invented players, entered, drawn, scored, cut, ranked and paid through the screens, with the results checked against the Rules of Golf and of Handicapping |
 
 On one machine that is about six hours. On GitHub the same layers are cut into about thirty parts
@@ -516,7 +516,7 @@ that were noticed.
 | `npm run mutation -- --mutate src/lib/domain/money.ts` | one module, minutes |
 | `npm run mutation -- --report-only` | the scores of the last run, from `reports/mutation/mutation.json` |
 | `npm run mutation -- --scope=arithmetic` | the arithmetic core only (`ARITHMETIC_CORE` in `scripts/qa/mutation-ratchet.mjs`) — what the nightly runs |
-| `npm run mutation -- --ratchet` | the same, and FAILS if any module in scope is below `mutation-baseline.json` |
+| `npm run mutation -- --ratchet` | the same, and FAILS if any module in scope is more than one caught mutant below `mutation-baseline.json` (one below holds, and is named) |
 | `npm run mutation -- --write-baseline` | RAISE the floors of the modules in scope to this run's scores — after the tests that earned them. A floor is never lowered by the script: a lower score is said and the old floor kept |
 
 It is **not in `ci.yml`**: a run is too long for every push. It is a NIGHTLY RATCHET (since
@@ -541,9 +541,18 @@ arithmetic core's floors were re-measured under this rule that day; the other mo
 still the 2026-10-23 figures, counted the old way (every timeout caught), so re-measure them before
 relying on `npm run mutation -- --ratchet` over the whole set.
 
+**One mutant of slack per module** (2026-11-02). The nightly of 2 Nov held production on
+`stroke.ts` at 207 of 271 caught against a floor of 208: one mutant killed on the build machine
+was a plain timeout on the slower runner. So the floor is turned into the COUNT of mutants it asks
+of the run's total (`floorCount`), and a module one caught mutant below it holds; two below fails.
+A module on its slack is named at the end of the score line — "ON ITS ONE MUTANT OF SLACK:
+stroke.ts (207 of 271 caught, floor 208)" — which is the line the verdict prints, so slack in use
+is never silent. Read that module's survivors before the next one goes.
+
 **Lowering a floor** is a hand edit of `mutation-baseline.json`, in a commit that says which
 survivors were read and why they are not golf (an equivalent mutant, a word in an explanation).
-`mutation-ratchet.test.ts` holds the ratchet itself: a drop fails, an unmeasured module fails, a
+`mutation-ratchet.test.ts` holds the ratchet itself: a drop of two mutants fails and of one holds
+and is named (the boundary on the 2 Nov figures), an unmeasured module fails, a
 module with no floor fails, and writing a baseline never lowers one.
 
 **In a worktree whose `node_modules` is a junction** Stryker finds no `node_modules` to link into
@@ -571,6 +580,7 @@ A change is not finished until the tests know about it. What to add, by what was
 | A national handicap body, or a word about one | Its row in `HANDICAP_BODIES` (`src/lib/domain/handicap-body.ts`) with what its members' numbers are called, and its country in `defaultHandicapBody` — the body follows the club's COUNTRY, never a picker and never an American default. A line in the country table of `a-club-names-its-own-handicap-body.test.tsx`, and the place in `PLACES` in `e2e/handicap-body.spec.ts`, which reads Club settings, Members and Entries for it. A sentence that names the body takes it as an argument (`refuseHandByHand`, `handicapStanding`), never the word "GHIN". |
 | A screen behind a plan | A spec that opens it on a club that HAS the plan. The seeded club is on Birdie; the e2e fixture's club is on none, so a spec there gives it a plan row for as long as it runs and takes it away again (`seasons.spec.ts`). |
 | A figure a board prints (a net, a handicap, points, money) | A spec that works the figure out **for itself**, from the stored rows and the Rule, and holds the board to it — never by calling the app's own function, and never by accepting two answers. Use a field where a wrong method gives a different figure, and assert that it does (a control), or the check cannot fail. A golfer's index has a decimal place: a fixture of whole-number handicaps cannot tell rounding first from rounding last, which is how a stroke's error for one player in five sat under 11,800 green tests (`e2e/team-allowance.spec.ts`, `allowance-is-taken-of-the-exact-figure.test.ts`). |
+| A figure a screen explains (a "why" opened by tapping it) | The sentence comes from `lib/domain/figure-working.ts`, from the same call or the same inputs as the figure, drawn by `FigureWhy` (or the card's working line). Its reader in `figure-reading.ts` takes the numbers out of the words, and `every-figure-explains-itself.test.tsx` holds them to the figure on the rendered screen and to the Rule; `e2e/every-figure-explains-itself.spec.ts` presses it in a browser. A screen that writes a Rule's citation for itself is refused by that test's sweep. |
 | An allowance, a share, any percentage of a handicap | Take it with `playingHandicapFrom(exact, pct)`, of the figure BEFORE rounding (`CourseHandicaps.exact`, `resolveRoundHandicap().exact`, a side member's `handicapExact`). The sweep in `allowance-is-taken-of-the-exact-figure.test.ts` reads every caller and refuses the arithmetic written out by hand. |
 | A block inside an answer or a page that shares the landing chrome | A rule for its class in `lib/landing/styles.ts` (`landing-answers-are-dressed.test.ts` refuses a class with none), and a look at it OPEN in a browser: `e2e/faq-blocks.spec.ts` measures the three the questions page has. |
 | Anything in the seeded club (`scripts/seed-club.mjs`), or a control on a console screen | Before a round, the crawl, locally: `E2E_EVERYTHING=1 npx playwright test e2e/every-control.spec.ts e2e/everything.spec.ts --project=desktop`. The ordinary local run leaves it out because it takes most of an hour, and it is the one layer that reads every control on every seeded tournament. Putting the seeded club on a paid plan unlocked one tick-box, the crawl lost track of it, and a round of thirty-four parts was spent finding that out (2026-10-13). `E2E_ONLY_EVENT=<slug> E2E_ONLY_SCREEN=<name>` narrows it to one screen in a few minutes. |

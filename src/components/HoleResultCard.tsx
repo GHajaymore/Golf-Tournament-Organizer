@@ -11,6 +11,8 @@ import { parseHolesTranscript } from "@/lib/domain/match";
 const DOUBLE_TAP_MS = 400;
 import { holeNumber } from "@/lib/domain/hole-number";
 import type { HoleResult } from "@/lib/domain/types";
+import type { HoleSync } from "@/lib/domain/pending-card";
+import { HoleSyncMark, HoleSyncWords, holeSyncSaid } from "./HoleSync";
 
 /**
  * ONE HOLE OF A MATCH, WON OR HALVED — a casual gross match's card
@@ -50,7 +52,16 @@ export function HoleResultCard({
   shownStrokeIndex,
   onPick,
   onSay,
+  sync,
+  refusal = "",
 }: {
+  /**
+   * Where each hole's result is — "On your phone", "Sent", "Not sent" — from
+   * the card's queue (`usePendingCard().holes`). Absent on the console.
+   */
+  sync?: HoleSync[];
+  /** The server's own words for a refusal, said at the hole. */
+  refusal?: string;
   /** The club card's stroke index to PRINT, where `strokeIndex` is re-ranked for a nine. */
   shownStrokeIndex?: number[];
   /**
@@ -213,9 +224,11 @@ export function HoleResultCard({
             type="button"
             className="hole-nav-btn"
             onClick={() => go(i)}
-            aria-label={`Hole ${holeNumber(i, firstHole)}, ${said(holes[i] ?? null)}`}
+            aria-label={`Hole ${holeNumber(i, firstHole)}, ${said(holes[i] ?? null)}${holeSyncSaid(sync?.[i])}`}
             aria-current={i === hole ? "true" : undefined}
+            data-sync={sync?.[i]}
             style={{
+              position: "relative",
               flex: "1 0 auto",
               minWidth: 36,
               height: 40,
@@ -239,6 +252,7 @@ export function HoleResultCard({
                 {holes[i] === "A" ? "W" : holes[i] === "B" ? "L" : "½"}
               </span>
             )}
+            {sync && <HoleSyncMark sync={sync[i] ?? "none"} />}
           </button>
         ))}
       </div>
@@ -286,6 +300,9 @@ export function HoleResultCard({
             </div>
           </div>
         </div>
+
+        {/* Where this hole's result is, in words, under its number. */}
+        {sync && <HoleSyncWords sync={sync[hole]} refusal={refusal} />}
 
         {noteFor && noteFor(hole) && (
           <p style={{ margin: "10px 0 0", fontSize: 15, fontWeight: 600 }}>{noteFor(hole)}</p>

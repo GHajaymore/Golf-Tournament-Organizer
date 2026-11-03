@@ -32,10 +32,18 @@ name: CI
 # pull request's checks, so running these again there tested nothing new and
 # took six machines from each round as it started: three rounds pushed together
 # waited up to 21 minutes for a machine (measured 2026-10-13).
+#
+# And a PUSH runs it only on `main` (2026-11-02). A pushed branch with a pull
+# request was tested twice — once as the push, once as the pull request, in
+# two concurrency groups — so seven branches pushed in an evening put fourteen
+# copies of the three-leg suite in the queue, and a round waited two hours for
+# a machine. The pull request run is the one the "main must be green" ruleset
+# reads and the one reported on the branch's head commit. A branch with no
+# pull request (a landing draft, a design proposal) gets no CI until it has
+# one; `breaks/**` and `round/**` stay outside it as before.
 on:
   push:
-    # Nor on a `breaks/**` branch, which is the app deliberately broken (breaks.yml).
-    branches: ["**", "!round/**", "!breaks/**"]
+    branches: ["main"]
   pull_request:
   workflow_dispatch:
 
@@ -266,7 +274,15 @@ jobs:
     # test passing (428 green, none red, three tests from the end). A cancelled e2e
     # skips `verify`, so the deploy never ran and production missed the merge. The
     # limit is for a hang, not for a suite doing its work.
-    timeout-minutes: 45
+    #
+    # 60, not 45 (2026-11-03). The same again: `main`'s desktop leg ran 43:55
+    # and 44:09 that afternoon, and #953 was cancelled at 45 on four heads in a
+    # row with nothing red (620 tests done on the last). Measured before moving
+    # the line, against #953's own passing run at 16:38: the tests both ran took
+    # 2,203s against 2,021s — every one a little slower, none stuck — plus the
+    # specs `main` had gained since. The cure is to split the desktop leg in
+    # two, not to keep moving this line.
+    timeout-minutes: 60
 
     # ── ONE VIEWPORT PER JOB ────────────────────────────────────────────────
     #

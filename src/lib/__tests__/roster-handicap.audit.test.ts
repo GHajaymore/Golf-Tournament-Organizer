@@ -1,7 +1,16 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { upsertMember, memberHistory } from "@/lib/services/roster";
+
+// The service-only block below holds a rule that is dormant while no federation
+// link is live (the team's ruling, 2026-10-24): a stored "ghin" then reads as
+// the club's own record. It is the rule the day a link IS live, so that block
+// forces the switch on; `service-only-reads-as-the-clubs-own.audit.test.ts`
+// holds what happens today.
+const link = vi.hoisted(() => ({ live: false }));
+vi.mock("@/lib/integrations/federation-link", () => ({ federationLinkLive: () => link.live }));
+
+const { upsertMember, memberHistory } = await import("@/lib/services/roster");
 import { randomBytes } from "node:crypto";
 
 /**
@@ -261,10 +270,14 @@ describe("a club that plays off association indexes", () => {
   let ghinOrgId = "";
 
   beforeAll(async () => {
+    link.live = true;
     const org = await prisma.organization.create({
       data: { name: `${TAG} ghin club`, kind: "club", handicapPolicy: "ghin" },
     });
     ghinOrgId = org.id;
+  });
+  afterAll(() => {
+    link.live = false;
   });
 
   const ghinMember = (who: string) =>
