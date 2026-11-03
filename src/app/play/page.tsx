@@ -2,10 +2,10 @@ import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf, loadEventState } from "@/lib/services/tournament";
-import { allowsAutoConfirm, isLeaderboardPublic } from "@/lib/tournament-settings";
+import { allowsAutoConfirm, isLeaderboardPublic, canEnterScores } from "@/lib/tournament-settings";
 import { courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { firstHoleOf } from "@/lib/domain/hole-number";
-import { brandForEvent } from "@/lib/services/organization";
+import { brandForEvent, golfTermsForEvent } from "@/lib/services/organization";
 import { matchCardFor, matchStrokeCardFor } from "@/lib/services/match-card";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
@@ -108,6 +108,36 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
   const expiry = expiryNotice(hoursLeft(event), false, keepRefusal);
   // One line, the sentence above behind its ⓘ — what the host reads too.
   const expiryLine = expiryShort(hoursLeft(event), false);
+
+  /**
+   * THE CLUB IS KEEPING THE CARDS, SO THIS PHONE OFFERS NOTHING TO PRESS
+   * (2026-10-24).
+   *
+   * Under "Who enters scores: Organizers and assistants only" every save this
+   * surface makes is refused — `canEnterScores(settings, "player")` in each
+   * writer of actions/play.ts — and this page drew the card and the match
+   * buttons anyway. A player tapped a hole and was told afterwards that the
+   * card would not save. A refusal is said where the press was; better still,
+   * the press is never offered. The same function the server refuses by, asked
+   * before any card or match is drawn, so the two cannot disagree.
+   */
+  if (!canEnterScores(settings, "player")) {
+    const terms = await golfTermsForEvent(event.id);
+    return (
+      <PlayClient
+        boardHref={boardHref}
+        sessionCode={codeStage?.accessCode ?? ""}
+        expiryNotice={expiry}
+        expiryShort={expiryLine}
+        stage="staff-kept"
+        organizer={terms.organizer}
+        brand={brand}
+        playerName={session.playerName}
+        eventName={event.name}
+        roundLabel={session.roundLabel}
+      />
+    );
+  }
 
   if (!match) {
     /**
