@@ -45,6 +45,15 @@ export function FinalReport({
       {page(
         <>
           <header className="fr-mast">
+            {(report.club.name || report.club.logoUrl) && (
+              <div className="fr-club">
+                {report.club.logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- a club's own logo, any host, drawn as uploaded
+                  <img src={report.club.logoUrl} alt={report.club.name ? "" : "The club's logo"} />
+                )}
+                {report.club.name && <span>{report.club.name}</span>}
+              </div>
+            )}
             <div className="fr-crest">
               <svg viewBox="0 0 32 32" aria-hidden="true">
                 <path
@@ -118,6 +127,55 @@ export function FinalReport({
                 ))}
               </div>
             </section>
+          )}
+
+          {report.progress.sessions.length > 1 && report.inPlay > 0 && (
+            <figure className="fr-card fr-fig" data-graphic="tug" aria-labelledby="fr-tug-h">
+              <h2 id="fr-tug-h">Session by session</h2>
+              <figcaption className="fr-caption">
+                {report.progress.clinch ||
+                  `After ${report.progress.sessions.length} sessions: ${ta} ${halves(report.progress.sessions[report.progress.sessions.length - 1].a)}, ${tb} ${halves(report.progress.sessions[report.progress.sessions.length - 1].b)}.`}
+              </figcaption>
+              {/* The cup's points after each session, added up: a tug of war from each end, the
+                  points needed marked in gold. The figures are printed on the bars and in the table. */}
+              <div className="fr-tug" aria-hidden="true">
+                {report.progress.sessions.map((s, i) => (
+                  <div key={i} className="fr-tug-row">
+                    <span>After {s.title}</span>
+                    <span className="fr-tug-bar">
+                      <i className="fr-tug-a" style={{ width: `${(s.a / report.inPlay) * 100}%` }}>
+                        {s.a > 0 ? halves(s.a) : ""}
+                      </i>
+                      <i className="fr-tug-b" style={{ width: `${(s.b / report.inPlay) * 100}%` }}>
+                        {s.b > 0 ? halves(s.b) : ""}
+                      </i>
+                      {report.target > 0 && report.target < report.inPlay && (
+                        <b className="fr-tug-mark" style={{ left: `${(report.target / report.inPlay) * 100}%` }} />
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <table className="fr-mini fr-sr fr-gtable">
+                <caption>The cup after each session</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">After</th>
+                    <th scope="col">{ta}</th>
+                    <th scope="col">{tb}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.progress.sessions.map((s, i) => (
+                    <tr key={i}>
+                      <td>{s.title}</td>
+                      <td>{halves(s.a)}</td>
+                      <td>{halves(s.b)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </figure>
           )}
 
           {report.story.length > 0 && (
@@ -253,7 +311,16 @@ export function FinalReport({
 
           <footer className="fr-foot">
             <span>
-              <b>TourneyHQ</b> · {open ? "The cup so far" : "Final report"}
+              {/* TourneyHQ once, small: the club's document. Where it points follows the launch switch. */}
+              <a href={report.foot.href} className="fr-by">
+                {report.foot.text}
+              </a>
+              {report.foot.cta && (
+                <>
+                  {" · "}
+                  <a href={report.foot.href}>{report.foot.cta}</a>
+                </>
+              )}
             </span>
             {footer}
           </footer>

@@ -4,7 +4,8 @@ import { applySwaps, editionFor, editionSwaps, landingEdition } from "@/lib/land
 import { inDialect } from "@/lib/landing/dialect";
 import { landingPrices } from "@/lib/landing/pricing";
 import { FAQ, FAQ_COUNT, LANDING_FAQ_IDS, faqItem } from "@/lib/landing/faq";
-import { parsePricingOverrides } from "@/lib/plans";
+import { PLANS, parsePricingOverrides } from "@/lib/plans";
+import { readSource } from "./source";
 
 /**
  * The front door's country editions (Ajay, 2026-09-27: "local by default and
@@ -62,6 +63,26 @@ describe("the words, per edition", () => {
     expect(say("GB", "Invite organizers")).toBe("Invite organisers");
     expect(say("GB", "the organizer's ledger")).toBe("the organiser's ledger");
     expect(say("GB", "Leagues & golf groups")).toBe("Leagues & societies");
+    expect(say("GB", "Leagues and golf groups")).toBe("Leagues and societies");
+    expect(say("GB", "Golf outings")).toBe("Society days");
+  });
+
+  // Ajay, 2026-10-24, from the US: "my US websites mentions Society and not league". The page is
+  // authored in US English, so a British audience word written into it reaches every US visitor
+  // unswapped: the "What it runs" list said "Society days" and "A Saturday fourball", and the
+  // Birdie tagline "Leagues and societies". The page's US words must hold none.
+  it("writes no British audience word where a US visitor reads it", () => {
+    const src = readSource("src/app/page.tsx");
+    // A bare lower-case word is a code name (the plan key "society"), not something a person reads.
+    // "Carts or buggies" names BOTH on purpose: it is one of the conventions a club can choose.
+    const words = [...src.matchAll(/"([^"\n]*)"/g)].map((m) => m[1]).filter((s) => !/^[a-z]+$/.test(s) && s !== "Carts or buggies");
+    const british = /\b(societ(y|ies)|fourball|away days?|buggy|buggies)\b/i;
+    expect(words.filter((s) => british.test(s))).toEqual([]);
+    expect(PLANS.society.tagline).not.toMatch(british);
+    expect(PLANS.free.tagline).not.toMatch(british);
+    expect(PLANS.club.tagline).not.toMatch(british);
+    // CONTROL: the detector sees the words it is meant to refuse.
+    expect(["Society days", "A Saturday fourball", "Leagues and societies"].every((s) => british.test(s))).toBe(true);
   });
 
   it("never touches a FORMAT name — UK foursomes is alternate shot", () => {
@@ -118,7 +139,7 @@ describe("the questions", () => {
 
   it("answers the price question in the visitor's currency", () => {
     const prices = landingPrices(editionFor("GB"), parsePricingOverrides(undefined));
-    const html = renderToStaticMarkup(<>{faqItem("cost").a({ prices, email: "x@example.invalid" })}</>);
+    const html = renderToStaticMarkup(<>{faqItem("cost").a({ prices, email: "x@example.invalid", launch: "live" })}</>);
     expect(html).toContain("£39/mo");
     expect(html).toContain("£1,390 a year");
     expect(html).not.toContain("$");
@@ -132,7 +153,7 @@ describe("the contact address", () => {
     expect(CONTACT_EMAIL_LIVE ? contactEmail : null).toBe(contactEmail);
     if (!CONTACT_EMAIL_LIVE) expect(contactEmail).toBeNull();
     const prices = landingPrices(editionFor("US"), parsePricingOverrides(undefined));
-    const html = renderToStaticMarkup(<>{faqItem("several-clubs").a({ prices, email: contactEmail })}</>);
+    const html = renderToStaticMarkup(<>{faqItem("several-clubs").a({ prices, email: contactEmail, launch: "live" })}</>);
     if (!CONTACT_EMAIL_LIVE) expect(html).not.toContain("mailto:");
   });
 });

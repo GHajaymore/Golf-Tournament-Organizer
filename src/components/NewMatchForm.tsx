@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useGolfTerms } from "./GolfTermsProvider";
 import { createMatch } from "@/app/actions/match-setup";
 import { CoursePicker, type CourseOption } from "@/components/CoursePicker";
 import {
@@ -143,6 +144,8 @@ export function NewMatchForm({
   me?: RosterMember | null;
 }) {
   const router = useRouter();
+  // "Two foursomes" or "two fourballs" — the page provides the golfer's words.
+  const golfWords = useGolfTerms();
   /**
    * NOTHING PRESELECTED. The round type is a question, not a default.
    *
@@ -813,7 +816,7 @@ export function NewMatchForm({
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {exact
               ? `${chosen?.name} is ${headToHeadPhrase(sideSize)} — ${exact} players. Pick another round type for a bigger group.`
-              : `${QUICK_ROUND_MAX_PLAYERS} is the most for a casual round — beyond two fourballs, set up a tournament (free on ${PLANS.free.name}).`}
+              : `${QUICK_ROUND_MAX_PLAYERS} is the most for a casual round — beyond two ${golfWords.groups}, set up a tournament (free on ${PLANS.free.name}).`}
           </p>
         )}
 

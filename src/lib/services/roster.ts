@@ -350,6 +350,29 @@ export async function upsertMember(
   return created.id;
 }
 
+/**
+ * WHAT A NEW ENTRY CARRIES IN FROM THE MEMBER'S ROSTER ROW: whether she is a
+ * woman, which is what puts her on the course's ladies' set (`ladiesTeeFor`)
+ * when the organizer has set nothing else.
+ *
+ * Found 2026-10-23 entering a club knockout of 129 from the club's spreadsheet:
+ * the file had a Gender column, the roster import kept it (24 women), and the
+ * ENTRY import matched every row to its member and dropped it — all 129 entries
+ * blank, every lady on the men's tees and their rating. Adding the same members
+ * from the roster carried it; the entry import, adding one by hand, the public
+ * entry form and a casual round did not. So every door that creates a Player
+ * for a member asks here, once the member row has been found or made, rather
+ * than each remembering a column (`a-member-entered-keeps-her-gender.test.ts`).
+ *
+ * The roster's word, not the caller's: `upsertMember` has already filled a
+ * blank gender from what this entry said, and never overwrites a stored one.
+ */
+export async function memberGender(memberId: string | null | undefined): Promise<string> {
+  if (!memberId) return "";
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { gender: true } });
+  return m?.gender ?? "";
+}
+
 export interface MemberHistoryEntry {
   eventName: string;
   eventDates: string;

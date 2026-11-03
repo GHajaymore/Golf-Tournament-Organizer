@@ -15,7 +15,7 @@ import { FLIGHT_CRITERIA, proposeShapes } from "@/lib/domain/bracket-flights";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
-import { plateEntrants } from "@/lib/domain/bracket";
+import { plateEntrants, byeLine } from "@/lib/domain/bracket";
 import { hasKnockoutStage, isStraightKnockout, isKnockoutRound } from "@/lib/stage-types";
 import { BracketReports, type BracketReportRow } from "@/components/BracketReports";
 import { bracketDraws, openTieReport } from "@/lib/domain/my-tie";
@@ -24,6 +24,11 @@ import { qualifyingCutoffText } from "@/lib/domain/cut";
 import { toParText } from "@/lib/domain/stroke";
 import { pts } from "@/lib/format";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
+import { drawsSeeded, qualifyingPlayed as qualifyingWasPlayed } from "@/lib/domain/draw-seeding";
+import { parsePlayBy, roundPlayBy, toPlay, fromFinal } from "@/lib/domain/knockout-play-by";
+import { formattingForEvent } from "@/lib/services/organization";
+import { KnockoutToPlay } from "@/components/KnockoutToPlay";
+import { KnockoutPlayByForm } from "@/components/KnockoutPlayByForm";
 
 export const metadata = screenMetadata("/bracket");
 
@@ -117,9 +122,7 @@ export default async function BracketPage() {
    * over. Walked on a two-round-robin championship with nothing played.
    */
   const firstKnockout = state.stages.findIndex((s) => isKnockoutRound(s.type));
-  const qualifyingPlayed = state.stages
-    .slice(0, firstKnockout < 0 ? 0 : firstKnockout)
-    .some((s) => state.roundsWithResults.has(s.id));
+  const qualifyingPlayed = qualifyingWasPlayed(state.stages, state.roundsWithResults);
   /**
    * THE PLAY-OFF FOR THIRD, ON THE SCREEN THAT SHOWS THE DRAW (2026-10-16).
    * It is switched on and made on the knockout's own card on Rounds & formats,
@@ -133,6 +136,35 @@ export default async function BracketPage() {
           made: (await prisma.match.count({ where: { eventId: session.eventId, stageId: koStage.id, round: 0 } })) > 0,
         }
       : null;
+  /**
+   * THE PLAY-BY DATES, AND "TO PLAY" (the panel, 2026-10-23): each round's date
+   * from the knockout's own round, worded the club's way and judged "Overdue"
+   * against the club's day; and the list the secretary opens on.
+   */
+  const { locale } = await formattingForEvent(session.eventId);
+  const playByDates = parsePlayBy(koStage?.knockoutPlayBy);
+  const playBy = Object.fromEntries(draws.map((d) => [d.view.kind, roundPlayBy(d.view, playByDates, state.today, locale)]));
+  const ready = toPlay(draws, playByDates, state.today, locale);
+  const longest = draws.reduce((a, d) => (d.view.rounds.length > a.rounds.length ? d.view : a), draws[0]?.view ?? state.brackets.winners);
+  const toPlayPanel =
+    isStaff && koStage ? (
+      <>
+        <KnockoutToPlay
+          waiting={ready.waiting}
+          groups={ready.rounds.map((g) => ({
+            draw: draws.length > 1 ? g.draw : "",
+            round: g.round,
+            playBy: g.playBy,
+            ties: g.ties.map((m) => ({ key: m.key, a: { id: m.a.playerId!, name: m.a.name }, b: { id: m.b.playerId!, name: m.b.name } })),
+          }))}
+        />
+        <KnockoutPlayByForm
+          stageId={koStage.id}
+          rounds={longest.rounds.map((r, i) => ({ fromFinal: fromFinal(longest, i), label: r.label }))}
+          dates={playByDates}
+        />
+      </>
+    ) : undefined;
   /** Every qualifier's place in the qualifying order — the seed a player keeps in any draw. */
   const seeds = Object.fromEntries(state.qualifiers.map((q, i) => [q.id, i + 1]));
 
@@ -320,6 +352,11 @@ export default async function BracketPage() {
         straight={straight}
         notYetPlayed={!straight && !qualifyingPlayed}
         seeds={mode === "flights" ? undefined : seeds}
+        playBy={playBy}
+        toPlay={toPlayPanel}
+        printTitle={state.event.name}
+        locale={locale}
+        seeded={drawsSeeded({ stages: state.stages, roundsWithResults: state.roundsWithResults, mode, criterion: state.flights?.plan.criterion ?? null, draws })}
         awaitingFlights={mode === "flights" && !state.flights}
       />
       {third && (
@@ -341,7 +378,7 @@ export default async function BracketPage() {
         <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
           No qualifying round comes before this bracket, so everyone in the field is in the draw
           ({state.qualifiers.length} {state.qualifiers.length === 1 ? "player" : "players"}), seeded in order.
-          Where the numbers are not 4, 8, 16 or 32, the top seeds get byes.
+          {" "}{byeLine(state.qualifiers.length)}
         </p>
       )}
       {/* In flights that sentence was wrong twice over: nobody is "in the draw" until the field is
@@ -350,7 +387,8 @@ export default async function BracketPage() {
         <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
           No qualifying round comes before these flights, so everyone in the field belongs in one of them
           ({state.qualifiers.length} {state.qualifiers.length === 1 ? "player" : "players"}). Inside a flight
-          the players are seeded in order, and where a flight is not 4, 8, 16 or 32 its top seeds get byes.
+          the players are seeded in order, and where a flight does not fill a draw of 4, 8, 16, 32, 64 or 128 its
+          top seeds get byes.
         </p>
       )}
       {/* Under the draw. Qualification comes first in time, so reading order

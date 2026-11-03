@@ -264,7 +264,11 @@ export type FlightPlanResult = { ok: true; plan: FlightPlan } | { ok: false; err
  *
  * `random` deals the shuffled field round the brackets in turn, so the sizes
  * asked for are kept and no bracket gets a run of the shuffle to itself; the
- * seeding inside each is then the order dealt.
+ * order inside each is then the order dealt. That is a draw BY LOT, not a
+ * seeding: the byes fall to whoever the lot dealt first, on the places the
+ * numerical draw spreads through every quarter, and the draw prints no seed
+ * numbers (`drawsSeeded`; the golf professional's ruling of 2026-10-23,
+ * `an-unseeded-draw-gives-byes-by-lot.test.ts`).
  *
  * Refused, with the reason in words an organizer can act on: a shape that does
  * not add up to the field, a bracket of one, `qualifying` when somebody has no

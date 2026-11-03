@@ -25,6 +25,8 @@
  * works differently, and that part is the author's to keep true.
  */
 
+import { tableInClubWords, type GolfWords } from "./domain/golf-terms";
+
 export interface PlayerHelpTopic {
   /** Stable, for the page's own anchors. */
   id: string;
@@ -68,6 +70,23 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "It saves as you go, even with no signal.",
       "Buttons grey? The page is still loading. Wait a moment.",
       "[[Full card]] shows every hole at once.",
+      "No buttons at all? Your club is keeping the cards.",
+      "Then follow the round on the board.",
+    ],
+  },
+  {
+    // THE HONEST CARD (2026-10-25): what the marks on each hole mean.
+    id: "sent",
+    question: "Has the club got my scores?",
+    href: "/me/card",
+    steps: [
+      "Each hole shows where its score is.",
+      "A ring means On your phone. It sends by itself.",
+      "A tick means Sent. The club has it.",
+      "No signal? Keep playing. Your scores stay on the phone.",
+      "Three holes stuck on your phone? The card tells you.",
+      "Not sent means the club refused it. The card says why.",
+      "Then show your card to the committee.",
     ],
   },
   {
@@ -77,8 +96,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     steps: [
       "On Today, tap [[Score this match]].",
       "After each hole, tap who won it, or [[Halved]].",
-      "If your organizer chose stroke cards, enter your own strokes instead. The app works out who won each hole.",
-      "It saves as you go.",
+      "If your {organizer} chose stroke cards, enter your own strokes instead. The app works out who won each hole.",
+      "It saves as you go. Each hole says On your phone or Sent.",
       "The board shows your match as you play.",
     ],
   },
@@ -115,10 +134,10 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     question: "Which tees do I play?",
     href: "/me/card",
     steps: [
-      "Your organizer decides the tees.",
+      "Your {organizer} decides the tees.",
       "For the tournament, for your flight, or for you.",
       "Your card names the tees you are on.",
-      "You cannot change them here. Ask your organizer.",
+      "You cannot change them here. Ask your {organizer}.",
       "On a higher par than others? You get the difference as strokes.",
       "Not in Stableford, where par already counts.",
     ],
@@ -140,7 +159,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     href: "/me/card",
     steps: [
       "Before signing, tap the hole and fix it.",
-      "Signed already? Ask your organizer to reopen it.",
+      "Signed already? Ask your {organizer} to reopen it.",
       "Someone else kept your card? Tap [[Something on this card is wrong]].",
       "The committee settles it before it counts.",
       "Says Read-only at the top? The club's plan has ended.",
@@ -159,11 +178,16 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "A cup on stroke cards shows gross and net under names.",
       "A cup can have other points, like a team net total.",
       "A finished tournament links its Final report.",
-      "It has the highlights, how it was won and what's next.",
+      "It opens with the prize list and a picture.",
+      "Then the highlights, how it was won and what's next.",
       "Signed in, it shows what you won and what you owe.",
+      "The settle-up shows once every side game is decided.",
       "It reads Final once the committee closes the round.",
       "Level for the last place at a cut? It says Tied.",
       "You are not out until the committee records the tie.",
+      "Your club may send one link: the event page.",
+      "It has the entry link, the board and the report.",
+      "The TV in the clubhouse shows the same board.",
     ],
   },
   {
@@ -175,8 +199,14 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Your tie names the round and your opponent.",
       "In a big field it names your flight too.",
       "Played it? Tap [[Report the result]].",
-      "The organizer confirms it, and the winner moves on.",
-      "The whole draw is on Board.",
+      "The {organizer} confirms it, and the winner moves on.",
+      "Board opens on your tie, then the whole draw.",
+      "It shows the strokes, the play-by date and what's next.",
+      "A big draw opens on your part, marked You.",
+      "Other tabs show the rest; Whole draw shows everything.",
+      "Find a player shows anybody's path through the draw.",
+      "A bye is marked under a name. Nobody plays it.",
+      "Tap [[Print the draw]] for a sheet a quarter.",
     ],
   },
   {
@@ -196,7 +226,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     steps: [
       "Open Events and find the tournament.",
       "Tap [[Can’t make it? Withdraw]].",
-      "After entries close, tell your organizer instead.",
+      "After entries close, tell your {organizer} instead.",
     ],
   },
   {
@@ -207,6 +237,21 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Open Your calendar from Events.",
       "Every round you're in is on its day.",
       "Where your league lets you choose, set In or Out there.",
+    ],
+  },
+  {
+    id: "season",
+    question: "How has my season gone?",
+    href: "/me/season",
+    steps: [
+      "Open My season from Events.",
+      "It counts your tournaments, rounds and prizes this season.",
+      "Each tournament shows your place, as its board shows it.",
+      "A team round shows your side's place.",
+      "Results not published yet? Your club has not released them.",
+      "Best scores compare rounds of the same length.",
+      "It is your club's season, or the calendar year.",
+      "Nobody else can see this page.",
     ],
   },
   {
@@ -248,7 +293,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Tap [[Play a casual round]].",
       "Pick the game, the players and the course.",
       "Type a handicap as 12.4, or +2.4 for a plus. An empty box is not scratch: type 0.",
-      "It needs no tournament and no organizer.",
+      "It needs no tournament and no {organizer}.",
     ],
   },
   {
@@ -282,6 +327,16 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
 /** A topic's line with its [[labels]] as plain words — what the page prints. */
 export function helpLineText(line: string): string {
   return line.replace(/\[\[(.+?)\]\]/g, "$1");
+}
+
+/**
+ * The topics in one club's golf (2026-10-24): a golf word that differs between
+ * countries is a token — `{organizer}` — and this fills it in, so a British
+ * member reads "Ask your organiser". `country-words.test.ts` refuses the word
+ * itself in this file.
+ */
+export function helpInClubWords(words: GolfWords): readonly PlayerHelpTopic[] {
+  return tableInClubWords(PLAYER_HELP_TOPICS, words);
 }
 
 /** The control labels a line names. */

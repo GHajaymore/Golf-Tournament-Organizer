@@ -10,6 +10,8 @@ import {
 import { screenName } from "@/lib/nav";
 import { launchRefusal } from "../phase-gate";
 
+const SET_UP = { noSides: false, cupTeams: null, undrawn: [], flightsMade: true } as const;
+
 /**
  * ONE ROUND, FULLY SET UP — a round robin with a day and its fixtures drawn.
  *
@@ -278,7 +280,7 @@ describe("the hand-off from setting up to running", () => {
      */
     const ready = flowOf({ ...finished, launched: false });
     expect(ready.launchBlocked).toBe(
-      launchRefusal({ playingRounds: 1, confirmed: 2, dated: false, missingCards: [], unscorable: [] }),
+      launchRefusal({ ...SET_UP,  playingRounds: 1, confirmed: 2, dated: false, missingCards: [], unscorable: [] }),
     );
     expect(ready.launchBlocked).toContain("no dates");
   });

@@ -71,14 +71,14 @@ const NOT_A_DOOR: Record<string, string> = {
   readCourseCardPhoto: "club",
   // business
   setAccountsOpen: "business", setClubPlan: "business", saveTierPrices: "business", saveTierLimits: "business",
-  createDiscountCode: "business", setDiscountCodeActive: "business",
+  createDiscountCode: "business", setDiscountCodeActive: "business", sendEarlyListCodes: "business", refreshDemoClub: "business",
   // new
   createEvent: "new", cloneEvent: "new", createMatch: "new",
   // own data
   deleteEvent: "own data",
   // reads
   enterTournament: "reads", switchEvent: "reads", setPreviewAction: "reads", redeemRoundCode: "reads",
-  claimPlayerSlot: "reads", leavePlay: "reads", currentPlayStatus: "reads", readThread: "reads",
+  claimPlayerSlot: "reads", redeemRoundCodeForm: "reads", claimPlayerSlotForm: "reads", leavePlay: "reads", currentPlayStatus: "reads", readThread: "reads",
   markThreadRead: "reads", previewSmsBroadcast: "reads", draftMessage: "reads",
 };
 

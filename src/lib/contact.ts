@@ -23,3 +23,6 @@ export const SUPPORT_EMAIL = "support@tourneyhq.club";
 export const CONTACT_EMAIL = "contact@tourneyhq.club";
 export const SALES_EMAIL = "inquiries@tourneyhq.club";
 export const ADMIN_EMAIL = "admin@tourneyhq.club";
+
+// TourneyHQ's own social accounts live in `social-links.ts`, the one place
+// their addresses are written (`social-links-written-once.test.ts`).

@@ -13,6 +13,8 @@ import {
 import type { PlanKey, PricingOverrides } from "@/lib/plans";
 import { stripeCouponFor, stripeCouponId, type DiscountRow } from "@/lib/domain/discount";
 import { liftArchive } from "@/lib/services/club-archive";
+import { golfRegisterForOrganization } from "@/lib/services/organization";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 
 /**
  * Subscription billing through Stripe — the I/O half. The rules are in
@@ -40,6 +42,9 @@ export function billingEnabled(): boolean {
 
 /** Said when Stripe can't be reached or refuses — nothing was charged either way. */
 const STRIPE_DOWN = "Couldn't reach the payment page just now. Nothing was charged — try again in a moment.";
+
+/** Said to anybody who asks to pay for the demo club's plan. */
+export const DEMO_NOT_BILLED = "The demo club is on no plan and is never billed.";
 
 /** The club's existing Stripe customer, or a new one recorded on its Subscription row. */
 async function customerFor(stripe: Stripe, organizationId: string, email: string | null): Promise<string> {
@@ -115,6 +120,10 @@ export interface CheckoutRequest {
 
 /** A Stripe Checkout page for this plan, or a reason it can't be offered. */
 export async function checkoutUrl(req: CheckoutRequest): Promise<{ url: string } | { error: string }> {
+  // THE DEMO CLUB IS NEVER BILLED (2026-10-24): refused before Stripe is asked anything, so it has
+  // no customer, no subscription and no payment page (docs/claude/demo-club.md).
+  const org = await prisma.organization.findUnique({ where: { id: req.organizationId }, select: { isDemo: true } });
+  if (org?.isDemo) return { error: DEMO_NOT_BILLED };
   const stripe = stripeClient();
   if (!stripe) return { error: "Online payment isn't switched on yet. Contact us to change plan." };
 
@@ -136,7 +145,9 @@ export async function checkoutUrl(req: CheckoutRequest): Promise<{ url: string }
       mode: "subscription",
       customer,
       client_reference_id: req.organizationId,
-      line_items: [checkoutLineItem(req.plan, req.interval, req.currency, req.overrides)],
+      line_items: [
+        checkoutLineItem(req.plan, req.interval, req.currency, req.overrides, golfTermsFor(await golfRegisterForOrganization(req.organizationId))),
+      ],
       subscription_data: { metadata },
       metadata,
       ...discount,

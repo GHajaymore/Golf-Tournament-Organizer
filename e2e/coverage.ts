@@ -2,6 +2,7 @@ import { test as base, expect, type BrowserContext, type Page, type Request as P
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { explainHydration, keepWhatTheServerSent } from "./page-errors";
+import { actionsInFormPost } from "./form-post-action";
 
 /**
  * WHAT THE BROWSER TESTS ACTUALLY TOUCH, WRITTEN DOWN AS THEY RUN.
@@ -16,8 +17,9 @@ import { explainHydration, keepWhatTheServerSent } from "./page-errors";
  * So every spec imports `test` from here instead of from Playwright, and every
  * browser context it opens — the default one and any made by hand — records:
  *
- *   A <id>          a server action was called (the `next-action` header;
- *                   the build's manifest names it)
+ *   A <id>          a server action was called (the `next-action` header, or
+ *                   for a form posted without script the action named in its
+ *                   body; the build's manifest names it)
  *   P <role> <path> a screen was opened, and as whom
  *   R <role> <path> … a refusal appeared after a press with none of it on the
  *                   screen (see `watchRefusals`)
@@ -184,6 +186,7 @@ function waitsItsTurn(page: Page): void {
  * provokes. It measures, like the rest of this file. It does not prove.
  */
 const OUT_OF_SIGHT = "[refusal out of sight] ";
+const WATCH_STOPPED = "[refusal watch] stopped on ";
 async function watchRefusals(context: BrowserContext): Promise<void> {
   await context.addInitScript(() => {
     const w = window as unknown as { __thqRefusalWatch?: boolean };
@@ -191,7 +194,11 @@ async function watchRefusals(context: BrowserContext): Promise<void> {
     w.__thqRefusalWatch = true;
     let pressedAt = -1e9;
     let pressedWhat = "";
-    const words = (el: Element | null) => ((el?.textContent ?? "") || (el?.getAttribute("aria-label") ?? "")).replace(/\s+/g, " ").trim();
+    // CAPPED BEFORE THE REGEX (2026-10-30). This ran over the whole text of whatever element the
+    // page added, and on the team cup's final report Firefox overflowed its stack inside it:
+    // "InternalError: too much recursion", counted as the SCREEN throwing (#968's round, Firefox
+    // at phone size). Nothing longer than 400 characters is a refusal anyway (`kindOf`).
+    const words = (el: Element | null) => ((el?.textContent ?? "") || (el?.getAttribute("aria-label") ?? "")).slice(0, 2_000).replace(/\s+/g, " ").trim();
     document.addEventListener(
       "click",
       (e) => {
@@ -262,18 +269,24 @@ async function watchRefusals(context: BrowserContext): Promise<void> {
     };
     const start = () =>
       new MutationObserver((records) => {
-        for (const r of records) {
-          if (r.type === "characterData") {
-            look(r.target.parentElement);
-            continue;
+        // AN INSTRUMENT NEVER THROWS INTO THE PAGE. Anything thrown here lands in the page's own
+        // error list and fails the test as "a screen threw", blaming the app for the ruler.
+        try {
+          for (const r of records) {
+            if (r.type === "characterData") {
+              look(r.target.parentElement);
+              continue;
+            }
+            r.addedNodes.forEach((n) => {
+              if (n.nodeType === Node.TEXT_NODE) return look(n.parentElement);
+              if (!(n instanceof HTMLElement)) return;
+              look(n);
+              const inside = n.querySelectorAll('[role="alert"], .form-error, p, span');
+              for (let i = 0; i < inside.length && i < 40; i += 1) look(inside[i]);
+            });
           }
-          r.addedNodes.forEach((n) => {
-            if (n.nodeType === Node.TEXT_NODE) return look(n.parentElement);
-            if (!(n instanceof HTMLElement)) return;
-            look(n);
-            const inside = n.querySelectorAll('[role="alert"], .form-error, p, span');
-            for (let i = 0; i < inside.length && i < 40; i += 1) look(inside[i]);
-          });
+        } catch (e) {
+          console.info(`[refusal watch] stopped on ${location.pathname}: ${String(e).slice(0, 120)}`);
         }
       }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
     if (document.documentElement) start();
@@ -289,6 +302,9 @@ export function recordCoverage(context: BrowserContext): void {
     page.on("console", (message) => {
       const text = message.text();
       if (text.startsWith(OUT_OF_SIGHT)) void who(context).then((role) => note(`R ${role} ${text.slice(OUT_OF_SIGHT.length)}`));
+      // A watcher that stopped is said, not swallowed (the QA & Test Lead, 30 Oct): a watcher dead
+      // on every page would otherwise read as "no refusals out of sight", which looks like clean.
+      if (text.startsWith(WATCH_STOPPED)) note(`W ${text.slice(WATCH_STOPPED.length)}`);
     });
   // Every page of every context explains a hydration mismatch if one lands on
   // it — see `explainHydration`. Here, because this is the one place every
@@ -308,6 +324,17 @@ export function recordCoverage(context: BrowserContext): void {
     if (action) {
       note(`A ${action}`);
       return;
+    }
+    // A form posted without the page's script names its action in its body, not in a header
+    // (`form-post-action.ts`). Only a POST's body is read, and only when the header is absent.
+    if (request.method() === "POST") {
+      let body: string | null = null;
+      try {
+        body = request.postDataBuffer()?.toString("utf8") ?? null;
+      } catch {
+        body = null;
+      }
+      for (const id of actionsInFormPost(body)) note(`A ${id}`);
     }
     if (request.isNavigationRequest() && request.frame().parentFrame() === null) {
       const url = new URL(request.url());

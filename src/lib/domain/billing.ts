@@ -3,9 +3,11 @@ import {
   effectivePrice,
   effectiveAnnualPrice,
   planCurrency,
+  planTagline,
   type PlanKey,
   type PricingOverrides,
 } from "../plans";
+import type { GolfWords } from "./golf-terms";
 
 /**
  * SUBSCRIPTION BILLING — what TourneyHQ charges a club for the SOFTWARE
@@ -53,6 +55,8 @@ export function checkoutLineItem(
   interval: BillingInterval,
   currency: string,
   overrides: PricingOverrides,
+  /** The club's golf words — the plan's line on Stripe's page is in its golf too. */
+  words: GolfWords,
 ) {
   const plan = PLANS[planKey];
   const code = planCurrency(currency);
@@ -63,7 +67,7 @@ export function checkoutLineItem(
       currency: code.toLowerCase(),
       unit_amount: Math.round(whole * 100),
       recurring: { interval },
-      product_data: { name: `TourneyHQ ${plan.name}`, description: plan.tagline },
+      product_data: { name: `TourneyHQ ${plan.name}`, description: planTagline(plan, words) },
     },
   };
 }

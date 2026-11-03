@@ -11,9 +11,10 @@ import { generateShareToken } from "../codes";
 import { newOrganizationName, organizationWasNamed } from "../org-naming";
 import { orgNamesLookLikeOne, inTheSameArea, type Whereabouts } from "../domain/org-name-match";
 import { isOrgKind, orgProfile, type OrgKind } from "../domain/org-profile";
+import { moneyModeFlipsOnKindChange } from "../domain/kind-change-money";
 import type { OrgSetupFacts } from "../domain/org-setup";
 import { logoSrc } from "../domain/logo-upload";
-import { golfRegister, golfTermsFor, type GolfTerm } from "../domain/golf-terms";
+import { golfRegister, golfTermsFor, type GolfRegister, type GolfTerm } from "../domain/golf-terms";
 
 /**
  * Resolve the organization a new tournament should belong to for this person,
@@ -168,18 +169,44 @@ async function nameIfStillUnnamed(
 
   const kind = (orgKind ?? "").trim();
   let kindData: { kind?: string } = {};
+  const current = isOrgKind(kind)
+    ? await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { country: true, communityNoun: true, kind: true, moneyMode: true },
+      })
+    : null;
   if (isOrgKind(kind)) {
-    const current = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { country: true, communityNoun: true },
-    });
     // Never hide somebody's members list on the way through a create form —
     // `saveOrganizationKind` asks first for that, and this form cannot.
     const keepsRoster = orgProfile(kind, current?.country, current?.communityNoun).sharedRoster;
     const members = keepsRoster ? 0 : await prisma.member.count({ where: { organizationId } });
     if (keepsRoster || members === 0) kindData = { kind };
   }
-  await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted, ...kindData } });
+  if (!kindData.kind) {
+    await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted } });
+    return;
+  }
+  /**
+   * Nor move the money of a tournament that follows the kind. `saveOrganizationKind`
+   * asks; this form cannot, so it keeps each such tournament exactly as it is by
+   * writing its current mode onto the tournament itself. Not onto the club's
+   * default: the club has just said what it is, and its NEXT tournament — the one
+   * this form is creating — should start the way that kind of outfit starts.
+   */
+  const tournaments = await prisma.event.findMany({
+    where: { organizationId },
+    select: { id: true, name: true, moneyMode: true },
+  });
+  const flips = moneyModeFlipsOnKindChange({
+    orgMode: current?.moneyMode ?? "",
+    fromKind: current?.kind ?? "",
+    toKind: kindData.kind,
+    tournaments,
+  });
+  await prisma.$transaction([
+    ...flips.map((f) => prisma.event.update({ where: { id: f.id }, data: { moneyMode: f.from } })),
+    prisma.organization.update({ where: { id: organizationId }, data: { name: wanted, ...kindData } }),
+  ]);
 }
 
 /**
@@ -375,6 +402,8 @@ export async function otherOrganizationNamed(
   const others = await prisma.organization.findMany({
     where: {
       kind: { not: "personal" },
+      // A real club's name only: nobody is asked to join the demo club (docs/claude/demo-club.md).
+      isDemo: false,
       ...(exceptOrganizationId ? { id: { not: exceptOrganizationId } } : {}),
     },
     select: {
@@ -961,11 +990,25 @@ export async function currencyForEvent(eventId: string): Promise<string> {
  * answers the same kind of question: how does THIS club say it.
  */
 export async function golfTermsForEvent(eventId: string): Promise<Record<GolfTerm, string>> {
+  return golfTermsFor(await golfRegisterForEvent(eventId));
+}
+
+/** The register itself, for a layout that hands it to `GolfTermsProvider`. */
+export async function golfRegisterForEvent(eventId: string): Promise<GolfRegister> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { organization: { select: { country: true, golfTerms: true } } },
   });
-  return golfTermsFor(golfRegister(event?.organization?.country, event?.organization?.golfTerms));
+  return golfRegister(event?.organization?.country, event?.organization?.golfTerms);
+}
+
+/** The same answer for a club with no tournament open yet. */
+export async function golfRegisterForOrganization(organizationId: string): Promise<GolfRegister> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { country: true, golfTerms: true },
+  });
+  return golfRegister(org?.country, org?.golfTerms);
 }
 
 export async function themeForEvent(eventId: string): Promise<ClubTheme> {

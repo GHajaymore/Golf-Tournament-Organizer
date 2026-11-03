@@ -8,7 +8,7 @@
  * decision. On a runner it also writes `decision`, `reason` and `deployed` to
  * $GITHUB_OUTPUT and the reasoning to the job's summary. Exit 0 whatever it
  * decides — holding a deploy is the gate WORKING, and must not read as red —
- * and exit 1 only when it could not ask GitHub at all.
+ * and exit 1 when it could not ask GitHub or git (fail closed: the deploy is red, nothing ships).
  *
  * THE FACTS, and where each comes from:
  *
@@ -18,10 +18,12 @@
  *                the first one is recorded: the newest run on main whose
  *                "Deploy to production" job got through its `Deploy` step (which
  *                is how every deploy before this gate is found)
- *   core         every commit in deployed..sha whose files include one that
- *                `tierOf` (layers.mjs) calls core — commit by commit, not the
- *                range's net diff, so a change made and undone still counts
- *   nightly      the Nightly round's runs on main whose Verdict job succeeded;
+ *   waiting      every commit in deployed..sha whose files `nightlyWait`
+ *                (deploy-rules.mjs) says must wait for the nightly: core or
+ *                function (targeted round or full), or unreadable — commit by commit,
+ *                not the range's net diff, so a change made and undone still counts
+ *   nightly      the Nightly round's runs on main whose Verdict job succeeded (finished or
+                still running: the round asking is its own deploy's run);
  *                a core commit is covered when it is one of them or an ancestor
  *   the freeze   GET $DEPLOY_WINDOW_URL with $DEPLOY_WINDOW_TOKEN. The app reads
  *                the clubs' zones and today's tournaments from its own database
@@ -35,8 +37,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { tierOf } from "./layers.mjs";
-import { decideDeploy } from "./deploy-rules.mjs";
+import { decideDeploy, cleanNightlyShas, commitsWaiting, mustSucceed } from "./deploy-rules.mjs";
 
 export const PRODUCTION_ENVIRONMENT = "tourneyhq-production";
 const args = process.argv.slice(2);
@@ -49,12 +50,31 @@ const WINDOW_TOKEN = process.env.DEPLOY_WINDOW_TOKEN || "";
 
 const run = (cmd, a) => spawnSync(cmd, a, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 const git = (...a) => run("git", a);
+// GitHub's own hiccups (a 5xx, a dropped connection) are asked again, up to
+// four times over about a minute, before the gate says it could not ask: on
+// 2026-11-02 one HTTP 502 failed a deploy job that had nothing wrong with it.
+// A 4xx is an answer, and is not asked again.
+const isPassingFault = (text) =>
+  /HTTP 5\d\d|Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|connection reset|TLS handshake timeout/i.test(text);
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 function gh(...a) {
-  const r = run("gh", a);
+  let r = run("gh", a);
+  for (let attempt = 1; attempt <= 4 && r.status !== 0 && isPassingFault(`${r.stderr}${r.stdout}`); attempt += 1) {
+    pause(5000 * attempt);
+    r = run("gh", a);
+  }
   if (r.status !== 0) throw new Error(`gh ${a.join(" ")}: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
   return r.stdout.trim() ? JSON.parse(r.stdout) : null;
 }
-const isAncestor = (a, b) => git("merge-base", "--is-ancestor", a, b).status === 0;
+/** A git command whose failure must stop the gate (exit 1: the deploy is red and nothing ships), never read as "nothing". */
+const gitOut = (...a) => mustSucceed(git(...a), `git ${a.join(" ")}`);
+/** 0 is yes and 1 is no; anything else is git failing, which must not be read as either. */
+function isAncestor(a, b) {
+  const r = git("merge-base", "--is-ancestor", a, b);
+  if (r.status === 0) return true;
+  if (r.status === 1) return false;
+  return mustSucceed(r, `git merge-base --is-ancestor ${a} ${b}`);
+}
 
 function verifyGreen(sha) {
   const runs = gh("api", `repos/${REPO}/commits/${sha}/check-runs?check_name=verify&per_page=100`);
@@ -86,32 +106,36 @@ function deployedSha() {
   return best;
 }
 
-/** Core commits in deployed..sha, oldest first. */
-function coreCommitsSince(deployed, sha) {
+/**
+ * The commits in deployed..sha that wait for a clean nightly, oldest first: every core or function
+ * commit (since 2026-11-01, whether its round was targeted or full — `nightlyWait` reads tiers, never
+ * the manifest), and any commit whose files could not be read. A git failure THROWS (fail closed).
+ */
+function waitingCommitsSince(deployed, sha) {
   const range = deployed ? `${deployed}..${sha}` : sha;
-  const list = git("rev-list", "--reverse", ...(deployed ? [range] : ["-1", sha])).stdout.split("\n").filter(Boolean);
-  const core = [];
-  for (const c of list) {
-    const files = git("diff-tree", "--no-commit-id", "--name-only", "-r", "-m", c).stdout.split("\n").filter(Boolean);
-    if (files.some((f) => tierOf(f) === "core")) core.push({ sha: c, subject: git("log", "-1", "--format=%s", c).stdout.trim().slice(0, 80) });
-  }
-  return core;
+  const list = gitOut("rev-list", "--reverse", ...(deployed ? [range] : ["-1", sha])).split(/\r?\n/).filter(Boolean);
+  return commitsWaiting(
+    list,
+    (c) => gitOut("diff-tree", "--no-commit-id", "--name-only", "-r", "-m", c).split(/\r?\n/).filter(Boolean),
+    (c) => gitOut("log", "-1", "--format=%s", c).trim().slice(0, 80),
+  );
 }
 
 /** The commits a Nightly round was clean on: its Verdict job succeeded. */
 function cleanNightlies() {
   let runs = [];
   try {
-    runs = gh("run", "list", "-R", REPO, "--workflow", "nightly.yml", "--branch", "main", "--limit", "20", "--json", "databaseId,headSha,status") ?? [];
+    runs = gh("run", "list", "-R", REPO, "--workflow", "nightly.yml", "--branch", "main", "--limit", "20", "--json", "databaseId,headSha") ?? [];
   } catch {
     return [];
   }
-  const clean = [];
-  for (const r of runs.filter((x) => x.status === "completed")) {
+  const withJobs = [];
+  for (const r of runs) {
+    // Not filtered to completed runs: the round asking is still running (its deploy job is this very step).
     const view = gh("run", "view", String(r.databaseId), "-R", REPO, "--json", "jobs");
-    if ((view?.jobs ?? []).some((j) => j.name.endsWith("Verdict") && j.conclusion === "success")) clean.push(r.headSha);
+    withJobs.push({ headSha: r.headSha, jobs: view?.jobs ?? [] });
   }
-  return clean;
+  return cleanNightlyShas(withJobs);
 }
 
 async function freeze() {
@@ -138,7 +162,7 @@ try {
   deployed = deployedSha();
   const alreadyThere = Boolean(deployed) && isAncestor(SHA, deployed.sha);
   const green = verifyGreen(SHA);
-  const coreCommits = alreadyThere ? [] : coreCommitsSince(deployed?.sha ?? null, SHA);
+  const coreCommits = alreadyThere ? [] : waitingCommitsSince(deployed?.sha ?? null, SHA);
   const nightlies = coreCommits.length || !deployed ? cleanNightlies() : [];
   const covered = (c) => nightlies.some((n) => isAncestor(c, n));
   decided = decideDeploy({
@@ -153,7 +177,7 @@ try {
     overrideFreeze: OVERRIDE,
   });
 } catch (e) {
-  console.error(`DEPLOY GATE: could not ask GitHub — ${e instanceof Error ? e.message : String(e)}`);
+  console.error(`DEPLOY GATE: could not ask GitHub or git — nothing deploys — ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
 }
 

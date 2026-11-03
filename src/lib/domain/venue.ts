@@ -26,7 +26,7 @@ export const COURSE_MODES: Array<{ key: CourseMode; label: string; blurb: string
     key: "open",
     label: "No fixed course — players choose",
     blurb:
-      "A league or society where each pairing arranges its own venue. Whoever enters the card names the course, and it is saved to the club's list for next time.",
+      "A league or {golfGroup} where each pairing arranges its own venue. Whoever enters the card names the course, and it is saved to the club's list for next time.",
   },
 ];
 

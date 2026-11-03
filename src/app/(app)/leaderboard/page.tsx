@@ -31,6 +31,8 @@ import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { boardKindForRound, isKnockoutRound, isStraightKnockout } from "@/lib/stage-types";
 import { BracketClient } from "@/components/BracketClient";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
+import { bracketDraws } from "@/lib/domain/my-tie";
+import { drawsSeeded } from "@/lib/domain/draw-seeding";
 import { holesPlayed } from "@/lib/domain/handicap";
 
 function ago(d: Date): string {
@@ -175,6 +177,7 @@ export default async function LeaderboardPage({
         mainLabel={mainLabel}
         secondLabel={secondLabel}
         results={results}
+        seeded={drawsSeeded({ stages: state.stages, roundsWithResults: state.roundsWithResults, mode, criterion: state.flights?.plan.criterion ?? null, draws: bracketDraws(state.brackets) })}
         readOnly
         straight
         awaitingFlights={mode === "flights" && !state.flights}

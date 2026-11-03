@@ -41,7 +41,8 @@
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { layersFor, partsFor, SCHEDULES } from "./layers.mjs";
+import { layersFor, partsFor, SCHEDULES, targetLine } from "./layers.mjs";
+import { AREAS } from "./specs-by-area.mjs";
 import { activeEntries, quarantinedBy, readQuarantine } from "./quarantine.mjs";
 import { infraReason } from "./infra.mjs";
 
@@ -54,7 +55,7 @@ const [TAG, ...files] = args.filter((a) => !a.startsWith("--"));
  * own arguments). Needed when no part reported at all — every machine lost — which is still a verdict
  * (INCOMPLETE) and not a usage error. When parts did report, theirs is the plan and must agree.
  */
-const asked = value("schedule") ? { round: Number(value("round") || 1), plan: { schedule: value("schedule"), countries: value("countries") || "trio", crawl: !flag("no-crawl") } } : null;
+const asked = value("schedule") ? { round: Number(value("round") || 1), plan: { schedule: value("schedule"), countries: value("countries") || "trio", crawl: !flag("no-crawl"), target: value("target") || null } } : null;
 if (!TAG || (!files.length && !(flag("expect-parts") && asked))) {
   console.error("usage: node scripts/qa/merge.mjs <TAG> <part.json> [more parts] [--expect-parts] [--reach=reach.json] [--statuses=dir] [--part] [--round=N --schedule=S --countries=C --no-crawl]");
   process.exit(2);
@@ -66,7 +67,7 @@ const round = first.round;
 const apps = [...new Set(parts.map((p) => p.app))];
 const builds = [...new Set(parts.map((p) => p.build))];
 /** A part written before plans existed was a round of every layer. */
-const planOf = (p) => ({ schedule: p.plan?.schedule ?? "all", countries: p.plan?.countries ?? "trio", crawl: p.plan?.crawl !== false });
+const planOf = (p) => ({ schedule: p.plan?.schedule ?? "all", countries: p.plan?.countries ?? "trio", crawl: p.plan?.crawl !== false, target: p.plan?.target ?? null });
 const plan = planOf(first);
 const plans = [...new Set([...parts, ...(asked ? [asked] : [])].map((p) => JSON.stringify(planOf(p))))];
 
@@ -189,10 +190,18 @@ const baselinePath = join("scripts", "qa", "reach-baseline.json");
 const reachHeld = plan.crawl && plan.schedule !== "weekly";
 const complete = !missing.length && !infrastructure.length && reachHeld;
 const baselineMissing = Boolean(reach) && complete && !existsSync(baselinePath);
+/**
+ * A TARGETED round (`plan.target`, specs-by-area.mjs) runs a fraction of the specs, so most of the
+ * app's actions go unreached in it by design. Its reach is held to the list for the AREA's own action
+ * files only — an action of the area that its specs and the always-on set no longer reach is still a
+ * finding — and printed, not held, for the rest. The nightly holds all of it.
+ */
+const heldFiles = plan.target ? (AREAS[plan.target]?.actions ?? []).map((f) => f.replace(/^src\//, "")) : null;
+const isHeld = (file) => !heldFiles || heldFiles.includes(file);
 if (reach && complete && existsSync(baselinePath)) {
   // A build on GitHub names an action's file `app/actions/x.ts`; one made on Windows names it
   // `src/app/actions/x.ts`. One name for both, or a round run here calls every listed action new.
-  const plain = (map) => Object.fromEntries(Object.entries(map).map(([file, names]) => [file.replace(/^src\//, ""), names]));
+  const plain = (map) => Object.fromEntries(Object.entries(map).map(([file, names]) => [file.replace(/^src\//, ""), names]).filter(([file]) => isHeld(file)));
   const known = plain(JSON.parse(readFileSync(baselinePath, "utf8")).neverCalled ?? {});
   const unreached = plain(reach.neverCalled);
   for (const [file, names] of Object.entries(unreached)) {
@@ -273,6 +282,9 @@ const retro = {
   schedule: plan.schedule,
   countries: plan.countries,
   crawl: plan.crawl,
+  // The area of a TARGETED round, or null for a full one: the two-week measure of targeting reads it
+  // (did the next nightly find what this round did not? docs/testing.md).
+  target: plan.target,
   commit: first.commit,
   at: new Date().toISOString(),
   verdict,
@@ -288,17 +300,27 @@ const retro = {
   },
   defects: Object.fromEntries(ranRows.filter((r) => r.failures.length).map((r) => [r.key, Math.min(r.failures.length, r.assertions)])),
   layersRan: ranRows.map((r) => r.key),
+  // The mutation ratchet's score line, on a night it ran (the trend the retro keeps).
+  mutation: ranRows.find((r) => r.key === "mutation")?.said?.[0] ?? null,
 };
 writeFileSync(join(OUT, `verdict${own}.json`), JSON.stringify({ tag: TAG, round, plan, at: new Date().toISOString(), commit: first.commit, app: apps[0], build: builds[0], verdict, minutes, parts: parts.length, findings, infrastructure, quarantined, notRun: missing, layers: rows, reach, retro }, null, 1));
 writeFileSync(join(OUT, `retro${own}.json`), JSON.stringify(retro, null, 1));
 
 const cell = (s) => String(s ?? "").replace(/\|/g, "/").replace(/\n/g, " ");
+// The mutation ratchet's score (the `mutation` layer, nightly): the first line its command prints.
+const mutationRow = rows.find((r) => r.key === "mutation");
+const mutationLine = !mutationRow
+  ? ""
+  : mutationRow.ran && mutationRow.said?.[0]
+    ? `**Mutation score:** ${cell(mutationRow.said[0])}. Held to \`mutation-baseline.json\`: ${mutationRow.failed ? `${mutationRow.failed} module(s) fell — see Findings` : "no module fell"}.`
+    : `**Mutation score:** not measured — ${cell(mutationRow.why ?? "it did not report")}.`;
 const result = (r) => (r.ran ? `${r.passed} ${r.unit === "tournaments" ? "played through" : "passed"}, ${r.failed} ${r.unit === "tournaments" ? "stopped" : "failed"}${r.quarantined.length ? ` (${r.quarantined.length} quarantined)` : ""}${r.hydration ? `, ${r.hydration} hydration` : ""}` : `NOT RUN — ${cell(r.why)}`);
 /** What this kind of round leaves to another, said so that "not in this round" is never read as "not tested". */
 const elsewhere = plan.schedule === "all" ? [] : layersFor(round, { schedule: "all", countries: plan.countries }).filter((l) => !l.when.includes(plan.schedule));
 const summary = [
   `# Round ${TAG} — ${verdict}`,
   "",
+  ...(plan.target ? [`**${targetLine(plan.target)}.** Not a full round: it is not evidence about any spec outside the area and the always-on set.`, ""] : []),
   `Commit \`${first.commit}\` · app \`${apps.join(", ")}\` · build \`${builds.join(", ")}\` · ${parts.length} part(s), the longest ${minutes} min · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`,
   "",
   `**Which round:** ${plan.schedule} — ${SCHEDULES[plan.schedule]}. Countries: ${plan.countries === "all" ? "all six" : "this round's three"}. The console crawl: ${plan.crawl ? "in it" : "left out (the change touches no input screen; the nightly runs it)"}.${elsewhere.length ? ` Not in this kind of round, by the panel's decision of 2026-10-23: ${elsewhere.map((l) => `${l.name} (${l.when.join(", ")})`).join("; ")}.` : ""}`,
@@ -308,9 +330,10 @@ const summary = [
   ...rows.map((r) => `| ${cell(r.name)} | ${cell(r.standsFor)} | ${cell(r.reallyIs)} | ${result(r)} |`),
   "",
   reach
-    ? `**Reach:** ${reach.actions.reached} of ${reach.actions.total} server actions called through a real screen; ${reach.screens.reached} of ${reach.screens.total} screens opened.${reachHeld ? "" : " Not held to `reach-baseline.json`: the list was measured with the console crawl, and this round did not run it."}`
+    ? `**Reach:** ${reach.actions.reached} of ${reach.actions.total} server actions called through a real screen; ${reach.screens.reached} of ${reach.screens.total} screens opened.${reachHeld ? (heldFiles ? ` Held to \`reach-baseline.json\` for the area's own actions only (${heldFiles.length ? heldFiles.join(", ") : "none: the area has no action file of its own"}); the rest is printed, not held, in a targeted round.` : "") : " Not held to `reach-baseline.json`: the list was measured with the console crawl, and this round did not run it."}`
     : "**Reach:** not measured for this run.",
   "",
+  ...(mutationLine ? [mutationLine, ""] : []),
   findings.length ? `## Findings\n\n${findings.map((f) => `- ${f}`).join("\n")}` : "No findings.",
   "",
   infrastructure.length ? `## Did not run — the machine, not the app (${infrastructure.length}). Re-run these parts.\n\n${infrastructure.map((f) => `- ${f}`).join("\n")}\n` : "",
@@ -337,5 +360,6 @@ if (onlyAPart) {
   // A part the machine stopped is red, so that re-running the round's failed jobs re-runs it.
   process.exit(findings.length ? 1 : infrastructure.length ? 4 : 0);
 }
-console.log(`VERDICT ${TAG}: ${verdict} — ${rows.filter((r) => r.ran).length} of ${rows.length} layers ran, ${findings.length} finding(s)${infrastructure.length ? `, ${infrastructure.length} part(s) the machine did not run` : ""}${missing.length ? ` — left out: ${missing.slice(0, 6).join("; ")}` : ""}`);
+if (plan.target) console.log(targetLine(plan.target));
+console.log(`VERDICT ${TAG}: ${verdict}${plan.target ? ` (TARGETED: ${plan.target})` : ""} — ${rows.filter((r) => r.ran).length} of ${rows.length} layers ran, ${findings.length} finding(s)${infrastructure.length ? `, ${infrastructure.length} part(s) the machine did not run` : ""}${missing.length ? ` — left out: ${missing.slice(0, 6).join("; ")}` : ""}`);
 process.exit(findings.length ? 1 : infrastructure.length ? 4 : missing.length ? 3 : 0);

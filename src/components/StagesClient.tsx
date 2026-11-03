@@ -1,6 +1,7 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useRef, useState, useTransition } from "react";
+import { useGolfTerms } from "./GolfTermsProvider";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
 import { roundLabel as roundLabelOf, roundNumber as roundNumberOf } from "@/lib/domain/round-label";
@@ -26,7 +27,7 @@ import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
-import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
+import { INTERVAL_OPTIONS, dueBeforePlayed, roundDates, shortDate } from "@/lib/domain/round-dates";
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
@@ -83,6 +84,7 @@ import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "./Icon";
+import { SidePanel } from "./SidePanel";
 import { countbackSegments } from "@/lib/domain/stroke-countback";
 import { useFormatting } from "./CurrencyProvider";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -695,7 +697,10 @@ function StageCard({
   hasResult = false,
   sharedWithAll = null,
   arrangement = null,
+  asPanel = false,
 }: {
+  /** The timeline (behind its switch): the open round's settings in the side panel, not unfolded inline. */
+  asPanel?: boolean;
   /** How the knockout is arranged, and whether this viewer may change it — see "The draw". */
   arrangement?: Arrangement | null;
   stage: StageView;
@@ -760,6 +765,8 @@ function StageCard({
 }) {
   // The club's own date order — see `shortDate`.
   const { locale } = useFormatting();
+  // And its golf words — "club, league and golf group competitions".
+  const golfWords = useGolfTerms();
   // Gates only the controls whose action refuses a locked tournament — see
   // `SetupLocked` for the ones that deliberately stay open.
   const locked = React.useContext(SetupLocked);
@@ -841,6 +848,12 @@ function StageCard({
    * collected, and the trash icon used to do all of that on one click.
    */
   const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number } | null>(null);
+  // On the timeline Delete is the panel's last control, so its warning opens below the fold of
+  // the panel's own scroll: brought into view when it appears (`rounds-panel.spec`, 2026-11-02).
+  const removeWarningRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (removeCost && asPanel) removeWarningRef.current?.scrollIntoView({ block: "nearest" });
+  }, [removeCost, asPanel]);
   const [pending, startTransition] = useTransition();
   /**
    * One badge for the whole card, derived from the transition every control
@@ -1057,7 +1070,11 @@ function StageCard({
   /** Whether this round raises a tie question at all — every kind but a round scored by hand. */
   const roundRaisesTies = (isKnockoutRound(stage.type) || stage.type === "Single Match Stage" || stage.type === "Round Robin" || (isIndividualStrokeRound(stage) && !isManualFormat(format)) || (stage.type === "Stroke Play Round" && entryModeFor(format) === "team" && !isManualFormat(format)));
   const customizeParts: string[] = [];
-  if (deadline) customizeParts.push(`Due ${isIsoDate(deadline) ? shortDate(deadline, locale) : deadline}`);
+  if (deadline) {
+    customizeParts.push(
+      `Due ${isIsoDate(deadline) ? shortDate(deadline, locale) : deadline}${dueBeforePlayed(deadline, playedOn) ? ", before the round is played" : ""}`,
+    );
+  }
   if (scoreInput && scoreInput !== declaredInput(format)) {
     customizeParts.push(MATCH_ENTRY_MODES.find((m) => m.key === scoreInput)?.label ?? "Scores recorded differently");
   }
@@ -1127,6 +1144,9 @@ function StageCard({
    * cut before Round 3 showed on no closed row at all.
    */
   const nextIsDraw = !!nextStage && seededFromQualifiers(nextStage.type);
+  // What flows into the next round, worked out once: the closed row says it, or — on the
+  // timeline — the link under the round does, and never both (2026-10-30).
+  let intoNext = "";
   if (nextStage && chainsRounds && (showTransition || nextIsDraw || transitionParts.length > 0)) {
     const into = nextIsDraw
       ? qual.mode === "overall"
@@ -1135,7 +1155,8 @@ function StageCard({
       : transitionParts.length
         ? transitionParts.join(" · ")
         : "everyone, points start fresh";
-    rowParts.push(`Into ${roundLabelOf(allStages, nextStage.id)}: ${into}`);
+    intoNext = `Into ${roundLabelOf(allStages, nextStage.id)}: ${into}`;
+    if (!asPanel) rowParts.push(intoNext);
   } else if (showTransition && !nextStage) {
     rowParts.push("No round after this yet");
   }
@@ -1206,13 +1227,25 @@ function StageCard({
                   disabled={pending}
                   onChange={(e) => {
                     const date = e.target.value;
+                    const before = deadline;
                     setDeadline(date);
                     startTransition(async () => {
                       const res = await setStageDeadline(stage.id, date);
                       setDueError(res.ok ? "" : res.error ?? "Couldn't save that.");
+                      // A refused date is not left in the box as if it were kept.
+                      if (!res.ok) setDeadline(before);
                     });
                   }}
                 />
+                {/* A deadline saved before the round was moved later stays
+                    behind it, and cannot be met. Said here, beside the box that
+                    changes it (2026-10-30, Ajay's "Due Fri, Oct 23" on a round
+                    played on 6 Nov). */}
+                {!dueError && dueBeforePlayed(deadline, playedOn) && (
+                  <p className="form-error" role="alert" style={{ margin: "4px 0 0" }}>
+                    This is before the round is played ({shortDate(playedOn, locale)}). Pick that day or later.
+                  </p>
+                )}
                 {dueError && (
                   <p className="form-error" role="alert" style={{ margin: "4px 0 0" }}>
                     {dueError}
@@ -1290,149 +1323,73 @@ function StageCard({
     </>
   );
 
-  return (
+  // The round's face, its format note and its body, named so they can be drawn in one of two
+  // places: unfolded inline (today's screen), or in the side panel (the timeline, behind its
+  // switch). One rendered copy either way — never the same controls twice.
+  // The face in three parts, so the timeline's panel can put them under the golf panel's
+  // headings ("Date & course" first, then "Format & scoring"); today's screen draws them
+  // back to back exactly as before.
+  /*
+   * Deleting a round is the one destructive control here that asked nothing at all, while the
+   * format dropdown above it refuses. The stake count is separate from the card count on purpose:
+   * cards can be re-entered from the paper, and money cannot.
+   *
+   * SAID WHERE THE PRESS WAS. Today's screen draws it under the Format box, which is in the same
+   * row as the trash button. The timeline's panel puts Delete at its very end, a screen away from
+   * the Format box, so there it is drawn beside Delete (`rounds-panel.spec`, 2026-11-02).
+   */
+  const removeWarning = removeCost && (
     <div
-      id={`round-${stage.id}`}
-      className="card elev-sm"
-      // Clear of the sticky header when a new round is scrolled to. A CLOSED
-      // round is a row, so it is padded as one (2026-10-16): ten closed rounds
-      // were 76px each, the card's padding outweighing the line it held.
+      ref={removeWarningRef}
       style={{
-        gap: 14,
-        borderLeft: `3px solid ${roundColor}`,
-        scrollMarginTop: 88,
-        ...(expanded ? {} : { paddingTop: 8, paddingBottom: 8 }),
+        marginTop: 8,
+        padding: "8px 10px",
+        border: "1px solid var(--color-danger)",
+        borderRadius: 8,
+        fontSize: 13,
+        lineHeight: 1.55,
       }}
     >
-      {chainWarnings.length > 0 && (
-        // Shown on the later round of the pair, because that is where the
-        // carry-forward or cut setting causing it actually lives. Advisory
-        // rather than blocking: plenty of real tournaments do deliberately odd
-        // things, and an organizer who understands the trade shouldn't be
-        // stopped by an app that doesn't.
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
-          }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-            <Icon name="warning" />
-            {chainWarnings.length === 1 ? "Check this round follows on" : "Check how this round follows on"}
-          </span>
-          {chainWarnings.map((w, i) => (
-            <p key={i} className="text-muted" style={{ fontSize: 13, margin: 0 }}>{w}</p>
-          ))}
-        </div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-        <div
-          style={{
-            width: 44,
-            height: 44,
-            flex: "none",
-            borderRadius: 10,
-            display: "grid",
-            placeItems: "center",
-            background: `color-mix(in srgb, ${roundColor} 18%, transparent)`,
-            color: roundText,
-            fontFamily: "var(--font-heading)",
-            fontWeight: 700,
-            fontSize: 19,
-          }}
-          title={stage.type}
-        >
-          {/* The tournament's own count (`roundNumber`), which closes up when a
-              round is removed and does not count a cut. Was the stored position
-              plus one: after deleting Round 1 this list read 2, 3, 4 under a
-              banner calling the same rounds 1 and 2. */}
-          {roundNumberOf(allStages, stage.id) || "–"}
-        </div>
-        {/* The whole card in one line when it is closed. A ten-week league
-            used to render ten copies of every control on this screen — about
-            six hundred lines of form — and adding a run of weeks in one click
-            made that far worse. Closed, a round is a row you can scan; open,
-            it is everything it always was. */}
+      <b style={{ color: "var(--color-danger)" }}>
+        <Icon name="warning-circle" /> Deleting this round destroys{" "}
+        {removeCost.cards > 0 && (
+          <>
+            {removeCost.cards} entered card{removeCost.cards === 1 ? "" : "s"}
+          </>
+        )}
+        {removeCost.cards > 0 && removeCost.stakes > 0 && " and "}
+        {removeCost.stakes > 0 && (
+          <>
+            {removeCost.stakes} paid stake{removeCost.stakes === 1 ? "" : "s"}
+          </>
+        )}
+        .
+      </b>
+      <div className="text-muted" style={{ marginTop: 4 }}>
+        {removeCost.stakes > 0
+          ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down."
+          : "The matches and cards go with it. There is no undo."}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
         <button
           type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          style={{
-            flex: 1,
-            minWidth: 160,
-            textAlign: "left",
-            background: "none",
-            border: "none",
-            padding: 0,
-            cursor: "pointer",
-            color: "var(--color-text)",
-            font: "inherit",
+          className="btn btn-secondary"
+          disabled={pending || locked}
+          onClick={() => {
+            setRemoveCost(null);
+            startTransition(() => void removeStage(stage.id, true));
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
-              {thisRound || stage.type}
-              {thisRound && (stage.playedOn ? ` · ${shortDate(stage.playedOn, locale)}` : ` · ${stage.type}`)}
-            </span>
-            {/* ONLY ONCE THERE IS SOMETHING TO SAY. Before a ball is struck every
-                round is simply set up, and the chips said otherwise: on a draft
-                tournament with no cards, an undated Round 1 read "Played" and
-                Round 2 "Active" (2026-10-16). */}
-            {underWay && !notGenerated && (
-              <span className="tag tag-neutral">
-                {standing === "active" ? "In play" : standing === "played" ? "Played" : "Upcoming"}
-              </span>
-            )}
-            {notGenerated && (
-              <span className="tag tag-neutral"><Icon name="clock" /> Not drawn yet</span>
-            )}
-            {/* Pinned to the right edge rather than trailing the last tag.
-                A disclosure chevron is the affordance for the whole row, and
-                sitting wherever the tags happen to end put it in a different
-                place on every round — after "Active" on one, after "Not
-                generated yet" on another, and mid-line once a long round name
-                wrapped. `auto` margin is what makes it the same target on
-                every card whatever the title length. */}
-            <Icon name={expanded ? "ph ph-caret-up" : "ph ph-caret-down"}
-              style={{ fontSize: 13, color: "var(--color-neutral-500)", marginLeft: "auto" }}
-            />
-          </div>
-          {!expanded && (
-            // Everything the closed row needs to be useful: what it plays,
-            // over how many holes, and the settings summary the card already
-            // computed for the "Customize" panel.
-            // ONE LINE WHERE "EVERY ROUND" HAS SAID THE REST (2026-10-16): a
-            // ten-week league repeated "Stableford · 18 holes · Off handicap"
-            // ten times. Only what this round adds is said, and nothing at all
-            // when it adds nothing.
-            sharedWithAll ? (
-              sameAsAllLine && (
-                <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.5 }}>
-                  {sameAsAllLine}
-                </div>
-              )
-            ) : (
-              <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.5 }}>
-                {stage.format} · {stage.holes} holes · {summaryLine}
-              </div>
-            )
-          )}
+          Delete the round anyway
         </button>
-        {/* Every control on this card saves the moment it changes, and this says
-            so — in the header row, OUTSIDE the round's button: inside it, "Saved"
-            became part of the round's name to a screen reader ("Round 2 · … Saved",
-            the UI/UX designer on the review panel). Still a live region. */}
-        <SaveState status={saveStatus} />
-        {/* `display: contents` rather than a conditional render: these fields
-            are flex children of the header row, and wrapping them in an
-            ordinary div when open would change the layout. Contents makes the
-            wrapper vanish from the box tree; none takes the lot away. */}
-        <div style={{ display: expanded ? "contents" : "none" }}>
+        <button type="button" className="btn btn-ghost" onClick={() => setRemoveCost(null)}>
+          Keep it
+        </button>
+      </div>
+    </div>
+  );
+  const faceFormat = (
+    <>
         <div className="field" style={{ width: 200 }}>
           <span className="field-caption" style={{ display: "flex", alignItems: "center", gap: 5 }}>
             Format
@@ -1568,59 +1525,9 @@ function StageCard({
             </div>
           )}
 
-          {/* Deleting a round is the one destructive control here that asked
-              nothing at all, while the format dropdown above it refuses. The
-              stake count is separate from the card count on purpose: cards can
-              be re-entered from the paper, and money cannot. */}
-          {removeCost && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: "8px 10px",
-                border: "1px solid var(--color-danger)",
-                borderRadius: 8,
-                fontSize: 13,
-                lineHeight: 1.55,
-              }}
-            >
-              <b style={{ color: "var(--color-danger)" }}>
-                <Icon name="warning-circle" /> Deleting this round destroys{" "}
-                {removeCost.cards > 0 && (
-                  <>
-                    {removeCost.cards} entered card{removeCost.cards === 1 ? "" : "s"}
-                  </>
-                )}
-                {removeCost.cards > 0 && removeCost.stakes > 0 && " and "}
-                {removeCost.stakes > 0 && (
-                  <>
-                    {removeCost.stakes} paid stake{removeCost.stakes === 1 ? "" : "s"}
-                  </>
-                )}
-                .
-              </b>
-              <div className="text-muted" style={{ marginTop: 4 }}>
-                {removeCost.stakes > 0
-                  ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down."
-                  : "The matches and cards go with it. There is no undo."}
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={pending || locked}
-                  onClick={() => {
-                    setRemoveCost(null);
-                    startTransition(() => void removeStage(stage.id, true));
-                  }}
-                >
-                  Delete the round anyway
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setRemoveCost(null)}>
-                  Keep it
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Today's screen: under the Format box, as it always was. The timeline's panel says it
+              beside its Delete button instead (`removeWarning`, below). */}
+          {!asPanel && removeWarning}
           {activePending && (
             <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
               This round is set to {activePending.name}, which can be configured but not yet
@@ -1640,7 +1547,10 @@ function StageCard({
             </label>
           </div>
         </div>
-
+    </>
+  );
+  const faceWhere = (
+    <>
         {/* Not on a knockout (2026-10-16): its ties are played over weeks, and Play by
             is the date that matters — two dates for one question was a redundancy. */}
         {!isKnockoutRound(stage.type) && (
@@ -1746,6 +1656,10 @@ function StageCard({
             The organizer sets where this round is played.
           </span>
         )}
+    </>
+  );
+  const faceDelete = (
+    <>
         <button
           type="button"
           className="btn btn-icon"
@@ -1765,9 +1679,17 @@ function StageCard({
         >
           <Icon name="trash" />
         </button>
-        </div>
-      </div>
-
+    </>
+  );
+  const face = (
+    <>
+      {faceFormat}
+      {faceWhere}
+      {faceDelete}
+    </>
+  );
+  const formatInfo = (
+    <>
       {expanded && formatInfoOpen && (
         <div className="text-muted" style={{ fontSize: 13, margin: "-8px 0 0 60px", display: "flex", flexDirection: "column", gap: 4 }}>
           <p style={{ margin: 0 }}>{description}</p>
@@ -1780,12 +1702,10 @@ function StageCard({
           )}
         </div>
       )}
-
-      {/* Everything below is the round's configuration, folded away when the
-          card is closed. The chain warnings above stay visible either way:
-          "this round doesn't follow on from the last one" is the one thing an
-          organizer must see without opening anything. */}
-      <div style={{ display: expanded ? "contents" : "none" }}>
+    </>
+  );
+  const body = (
+    <>
 
       {/* OFF HANDICAP OR SCRATCH — on the face of the round, not in Customize
           (2026-10-16). It is the first thing a club decides about a competition
@@ -1803,7 +1723,7 @@ function StageCard({
           <FieldInfo label="playing off handicap or scratch">
             <p>
               <b>Net</b> takes each player&rsquo;s handicap strokes off first, so a 20-handicap can
-              win — how most club, society and league competitions are played. <b>Gross</b> ranks the strokes actually
+              win — how most club, league and {golfWords.golfGroup} competitions are played. <b>Gross</b> ranks the strokes actually
               taken, as a scratch championship does. <b>Both</b> keeps the two orders of merit from
               one card, for a competition that gives a gross and a net prize.
             </p>
@@ -2339,7 +2259,205 @@ function StageCard({
           </div>
         )}
       </div>
+    </>
+  );
+
+  return (
+    <div
+      id={`round-${stage.id}`}
+      // On the timeline a round is a stop on the spine, not a boxed card (`.round-node`), and its
+      // state is drawn from `data-standing` — by shape, never by colour alone.
+      className={asPanel ? "round-node" : "card elev-sm"}
+      data-standing={asPanel ? (underWay ? standing : "setup") : undefined}
+      data-open={asPanel && expanded ? "" : undefined}
+      // Clear of the sticky header when a new round is scrolled to. A CLOSED
+      // round is a row, so it is padded as one (2026-10-16): ten closed rounds
+      // were 76px each, the card's padding outweighing the line it held.
+      style={
+        asPanel
+          ? { scrollMarginTop: 88 }
+          : {
+              gap: 14,
+              borderLeft: `3px solid ${roundColor}`,
+              scrollMarginTop: 88,
+              ...(expanded ? {} : { paddingTop: 8, paddingBottom: 8 }),
+            }
+      }
+    >
+      {chainWarnings.length > 0 && (
+        // Shown on the later round of the pair, because that is where the
+        // carry-forward or cut setting causing it actually lives. Advisory
+        // rather than blocking: plenty of real tournaments do deliberately odd
+        // things, and an organizer who understands the trade shouldn't be
+        // stopped by an app that doesn't.
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon name="warning" />
+            {chainWarnings.length === 1 ? "Check this round follows on" : "Check how this round follows on"}
+          </span>
+          {chainWarnings.map((w, i) => (
+            <p key={i} className="text-muted" style={{ fontSize: 13, margin: 0 }}>{w}</p>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            flex: "none",
+            borderRadius: 10,
+            display: "grid",
+            placeItems: "center",
+            background: `color-mix(in srgb, ${roundColor} 18%, transparent)`,
+            color: roundText,
+            fontFamily: "var(--font-heading)",
+            fontWeight: 700,
+            fontSize: 19,
+          }}
+          title={stage.type}
+        >
+          {/* The tournament's own count (`roundNumber`), which closes up when a
+              round is removed and does not count a cut. Was the stored position
+              plus one: after deleting Round 1 this list read 2, 3, 4 under a
+              banner calling the same rounds 1 and 2. */}
+          {roundNumberOf(allStages, stage.id) || "–"}
+        </div>
+        {/* The whole card in one line when it is closed. A ten-week league
+            used to render ten copies of every control on this screen — about
+            six hundred lines of form — and adding a run of weeks in one click
+            made that far worse. Closed, a round is a row you can scan; open,
+            it is everything it always was. */}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          style={{
+            flex: 1,
+            minWidth: 160,
+            textAlign: "left",
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            color: "var(--color-text)",
+            font: "inherit",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
+              {thisRound || stage.type}
+              {thisRound && (stage.playedOn ? ` · ${shortDate(stage.playedOn, locale)}` : ` · ${stage.type}`)}
+            </span>
+            {/* ONLY ONCE THERE IS SOMETHING TO SAY. Before a ball is struck every
+                round is simply set up, and the chips said otherwise: on a draft
+                tournament with no cards, an undated Round 1 read "Played" and
+                Round 2 "Active" (2026-10-16). */}
+            {underWay && !notGenerated && (
+              <span className="tag tag-neutral">
+                {standing === "active" ? "In play" : standing === "played" ? "Played" : "Upcoming"}
+              </span>
+            )}
+            {notGenerated && (
+              <span className="tag tag-neutral"><Icon name="clock" /> Not drawn yet</span>
+            )}
+            {/* Pinned to the right edge rather than trailing the last tag.
+                A disclosure chevron is the affordance for the whole row, and
+                sitting wherever the tags happen to end put it in a different
+                place on every round — after "Active" on one, after "Not
+                generated yet" on another, and mid-line once a long round name
+                wrapped. `auto` margin is what makes it the same target on
+                every card whatever the title length. */}
+            <Icon name={expanded ? "ph ph-caret-up" : "ph ph-caret-down"}
+              style={{ fontSize: 13, color: "var(--color-neutral-500)", marginLeft: "auto" }}
+            />
+          </div>
+          {!expanded && (
+            // Everything the closed row needs to be useful: what it plays,
+            // over how many holes, and the settings summary the card already
+            // computed for the "Customize" panel.
+            // ONE LINE WHERE "EVERY ROUND" HAS SAID THE REST (2026-10-16): a
+            // ten-week league repeated "Stableford · 18 holes · Off handicap"
+            // ten times. Only what this round adds is said, and nothing at all
+            // when it adds nothing.
+            sharedWithAll ? (
+              sameAsAllLine && (
+                <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.5 }}>
+                  {sameAsAllLine}
+                </div>
+              )
+            ) : (
+              <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.5 }}>
+                {stage.format} · {stage.holes} holes · {summaryLine}
+              </div>
+            )
+          )}
+        </button>
+        {/* Every control on this card saves the moment it changes, and this says
+            so — in the header row, OUTSIDE the round's button: inside it, "Saved"
+            became part of the round's name to a screen reader ("Round 2 · … Saved",
+            the UI/UX designer on the review panel). Still a live region. */}
+        <SaveState status={saveStatus} />
+        {/* `display: contents` rather than a conditional render: these fields
+            are flex children of the header row, and wrapping them in an
+            ordinary div when open would change the layout. Contents makes the
+            wrapper vanish from the box tree; none takes the lot away. */}
+        {!asPanel && <div style={{ display: expanded ? "contents" : "none" }}>{face}</div>}
       </div>
+      {/* On the timeline, what flows into the next round sits under the round, on the spine. The
+          same words the closed row says on today's screen (`intoNext`), never a second reading. */}
+      {asPanel && intoNext && (
+        <div className="round-link">
+          <span className="round-link-chip">
+            <Icon name="arrow-down" aria-hidden="true" /> {intoNext}
+          </span>
+        </div>
+      )}
+
+      {!asPanel && formatInfo}
+
+
+      {/* Everything below is the round's configuration, folded away when the
+          card is closed. The chain warnings above stay visible either way:
+          "this round doesn't follow on from the last one" is the one thing an
+          organizer must see without opening anything. */}
+      {!asPanel && <div style={{ display: expanded ? "contents" : "none" }}>{body}</div>}
+
+      {/* THE TIMELINE (behind its switch, 2026-10-30): the same face and body, in the side panel,
+          inside this card in the page so every test's `#round-<id>` still finds them. Kept
+          mounted while closed, as the inline card always was. */}
+      {asPanel && (
+        <SidePanel
+          keepMounted
+          open={expanded}
+          title={thisRound || stage.type}
+          kicker={[stage.playedOn ? shortDate(stage.playedOn, locale) : "", stage.type].filter(Boolean).join(" · ")}
+          onClose={onToggle}
+          footer={<SaveState status={saveStatus} />}
+        >
+          {/* The golf panel's order (30 Oct): when and where first, then how it is played,
+              then what the round decides and the rest, each under its own heading. */}
+          <h3 className="round-panel-heading">Date &amp; course</h3>
+          <div className="round-panel-face">{faceWhere}</div>
+          <h3 className="round-panel-heading">Format &amp; scoring</h3>
+          <div className="round-panel-face">{faceFormat}</div>
+          {formatInfo}
+          {body}
+          <div className="round-panel-delete">{faceDelete}</div>
+          {/* What deleting would destroy, under the button that asked (see `removeWarning`). */}
+          {removeWarning}
+        </SidePanel>
+      )}
     </div>
   );
 }
@@ -2570,7 +2688,17 @@ export function StagesClient({
   launched = false,
   arrangement = null,
   today,
+  timeline = false,
+  linkedRound = null,
 }: {
+  /** A round named in the address (`?round=<id>`): opened on arrival, if it is one of these. */
+  linkedRound?: string | null;
+  /**
+   * THE REDESIGN, BEHIND ITS SWITCH (2026-10-30): rounds as a timeline, the open one in a side
+   * panel. Off by default; `?view=timeline` turns it on for a preview. Agreed by the panel: no
+   * control renamed or moved out of its card, no data read or written differently.
+   */
+  timeline?: boolean;
   stages: StageView[];
   /** The knockout's arrangement, for a Bracket round's "The draw". */
   arrangement?: Arrangement | null;
@@ -2632,7 +2760,11 @@ export function StagesClient({
    * this replaced.
    */
   const [openRound, setOpenRound] = useState<string | null>(
-    stages.length > 0 && stages.length <= 2 ? stages[0].id : null,
+    // A link straight to one round (`?round=<id>`, 2026-10-30) opens it; an id that is not
+    // one of this tournament's rounds is ignored, never trusted.
+    linkedRound && stages.some((s) => s.id === linkedRound)
+      ? linkedRound
+      : stages.length > 0 && stages.length <= 2 ? stages[0].id : null,
   );
   /**
    * Whether the round builder is open.
@@ -2764,7 +2896,7 @@ export function StagesClient({
         // carry-forward controls appear and it stops saying "No round after
         // this yet". Keyed off the play order, not the round-robin chain.
         const nextStage = nextPlayingStage(stages, s.position);
-        return (
+        const card = (
           <StageCard
             key={s.id}
             stage={s}
@@ -2775,6 +2907,7 @@ export function StagesClient({
             hasResult={roundsWithResults.includes(s.id)}
             sharedWithAll={shared}
             arrangement={arrangement}
+            asPanel={timeline}
             expanded={openRound === s.id}
             onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}
             isFirst={i === 0}
@@ -2799,6 +2932,14 @@ export function StagesClient({
             chainWarnings={issuesForRound(chain, s.position).map((w) => w.message)}
             chainsRounds={chainsRounds}
           />
+        );
+        if (!timeline) return card;
+        // THE SPINE (the timeline's one bold idea, 2026-10-30): each round a stop on one line, like
+        // the routing on a course map; what flows into the next round is said under each stop.
+        return (
+          <div key={s.id} className="round-spine-item" data-last={i === stages.length - 1 ? "" : undefined}>
+            {card}
+          </div>
         );
       })}
       {stages.length === 0 && (
