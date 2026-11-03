@@ -98,7 +98,7 @@ export function costOfCall(model: string, usage: ModelUsage): CallCost {
     note = `${model || "an unnamed model"} is not on the rate card; charged at the dearest rate on it.`;
   } else if (card.above && card.longPromptOver !== undefined && prompt > card.longPromptOver) {
     rates = card.above;
-    note = `long-prompt rate (over ${card.longPromptOver.toLocaleString("en-US")} prompt tokens)`;
+    note = `long-prompt rate (over ${card.longPromptOver / 1000}K prompt tokens)`;
   } else {
     rates = card;
     note = "standard rate";

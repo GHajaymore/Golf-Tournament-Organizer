@@ -55,7 +55,8 @@ export async function setAiBudget(typed: unknown): Promise<{ ok: boolean; error?
   const text = plainFigure(typed).replace(/^\$\s*/, "").replace(/\s+/g, "");
   if (/^-/.test(text)) return { ok: false, error: "The budget can't be less than nothing." };
   if (!/^[0-9][0-9.,]*$/.test(text)) return { ok: false, error: "Enter the budget in dollars, like 20 or 12.50." };
-  const cents = minorUnitsFrom(text, "USD", "en-US");
+  // US dollars: the bill is the AI account's, in the currency it is charged in.
+  const cents = minorUnitsFrom(text, "USD");
   if (cents > MAX_AI_BUDGET_CENTS) return { ok: false, error: `The budget can be at most ${money(MAX_AI_BUDGET_CENTS, "USD")} a month.` };
   const refused = moneyBoxRefusal(text, cents, MAX_AI_BUDGET_CENTS);
   if (refused) return { ok: false, error: refused };

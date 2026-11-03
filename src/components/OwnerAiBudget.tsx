@@ -86,7 +86,7 @@ export function OwnerAiBudget({
           {pending ? "Saving…" : "Save budget"}
         </button>
       </form>
-      <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
         When the month&apos;s spend reaches the budget, every AI feature says it is off until the 1st (UTC). $0 turns AI
         off for everyone. The Anthropic console&apos;s own spend limit is a separate hard cap.
       </p>
