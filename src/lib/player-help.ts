@@ -70,6 +70,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "It saves as you go, even with no signal.",
       "Buttons grey? The page is still loading. Wait a moment.",
       "[[Full card]] shows every hole at once.",
+      "No buttons at all? Your club is keeping the cards.",
+      "Then follow the round on the board.",
     ],
   },
   {
@@ -220,6 +222,21 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Open Your calendar from Events.",
       "Every round you're in is on its day.",
       "Where your league lets you choose, set In or Out there.",
+    ],
+  },
+  {
+    id: "season",
+    question: "How has my season gone?",
+    href: "/me/season",
+    steps: [
+      "Open My season from Events.",
+      "It counts your tournaments, rounds and prizes this season.",
+      "Each tournament shows your place, as its board shows it.",
+      "A team round shows your side's place.",
+      "Results not published yet? Your club has not released them.",
+      "Best scores compare rounds of the same length.",
+      "It is your club's season, or the calendar year.",
+      "Nobody else can see this page.",
     ],
   },
   {
