@@ -36,3 +36,11 @@ in `src/lib/contact.ts`. Unlike `/` it does not send a signed-in visitor on to t
 Several drafts of it are built side by side on their own branches for him to compare (2026-11-02);
 `claude/site-rehaul-c` is design C, the day as a scroll story (`DayStory.tsx`: one phone held in
 view whose real screen turns with each moment, a plain sequence below 768px, on `DARK_GROUND`).
+`claude/site-rehaul-f` is design F (2026-11-03), D and E mixed: E's light (`day-light.ts`), dawn hero
+words and golden-hour finish around D's organizer-led substance (the hero's laptop-and-phone moment,
+the day on both devices, console screens through `.n-bg` windows). Its sections for work still in a
+pull request are switched in `src/app/new/pipeline.ts`, all off; `site-rehaul-pipeline.test.ts`
+refuses a switch turned on before its screens are in the manifest and placed. A section whose
+capture has not been placed is not drawn. Its new screens (`f-*` in `screens.ts`) are shot on a
+runner by `.github/workflows/landing-captures.yml` (its own throwaway Postgres, no secret), which a
+push to `captures/**` starts; download the artifact and commit the placed files.
