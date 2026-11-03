@@ -50,8 +50,19 @@ const WINDOW_TOKEN = process.env.DEPLOY_WINDOW_TOKEN || "";
 
 const run = (cmd, a) => spawnSync(cmd, a, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 const git = (...a) => run("git", a);
+// GitHub's own hiccups (a 5xx, a dropped connection) are asked again, up to
+// four times over about a minute, before the gate says it could not ask: on
+// 2026-11-02 one HTTP 502 failed a deploy job that had nothing wrong with it.
+// A 4xx is an answer, and is not asked again.
+const isPassingFault = (text) =>
+  /HTTP 5\d\d|Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|connection reset|TLS handshake timeout/i.test(text);
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 function gh(...a) {
-  const r = run("gh", a);
+  let r = run("gh", a);
+  for (let attempt = 1; attempt <= 4 && r.status !== 0 && isPassingFault(`${r.stderr}${r.stdout}`); attempt += 1) {
+    pause(5000 * attempt);
+    r = run("gh", a);
+  }
   if (r.status !== 0) throw new Error(`gh ${a.join(" ")}: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
   return r.stdout.trim() ? JSON.parse(r.stdout) : null;
 }
