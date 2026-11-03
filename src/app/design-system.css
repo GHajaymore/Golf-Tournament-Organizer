@@ -1141,9 +1141,15 @@ textarea.input { min-height: 90px; resize: vertical; }
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.28), inset 0 0 0 1px var(--color-divider);
-  /* Under a narrow anchor (a table's place cell) it still has room to read. */
+  /* Under a narrow anchor (a table's place cell) it still has room to read,
+     and never wider than the phone it is read on. */
   min-width: min(18rem, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
 }
+/* Closed, it has no box at all: a closed <details> still lays its content out
+   in Chromium, and an absolute note under a cell near the right edge pushed
+   every phone board sideways (round figures-explain-2, everything.spec). */
+.why:not([open]) > .why-says { display: none; }
 
 /* — field info — */
 /* The "i" beside a label that isn't self-explanatory. It sits in the text
