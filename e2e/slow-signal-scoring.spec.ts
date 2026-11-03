@@ -128,7 +128,7 @@ test("three holes entered faster than they save are all kept, and nobody is aske
   // Two saves of two seconds each is all three holes need: the first hole's, and one for whatever is
   // newest when that comes back. Twelve seconds is generous for that and far short of the retry
   // timer, so holes that only reach the server when the timer next comes round do not pass here.
-  await expect(page.locator('[role="status"]').first(), "the three holes were not saved promptly").toContainText(`Saved — ${filled} of`, { timeout: 12_000 });
+  await expect(page.locator('[role="status"]').first(), "the three holes were not saved promptly").toContainText(`Sent — ${filled} of`, { timeout: 12_000 });
   // The last save has had time to be answered, wrongly or rightly.
   await page.waitForTimeout(2_500);
   expect(await asked(), "a player who only entered three holes quickly was asked which card is right").toBe(false);

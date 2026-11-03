@@ -10,7 +10,8 @@ import { HoleResultCard } from "./HoleResultCard";
 import { distinctLabels, firstName } from "@/lib/format";
 import type { KeptMatch } from "@/lib/services/match-card";
 
-type Saved = { ok: boolean; error?: string };
+/** A save's answer: its refusal in words, and the holes the row holds after it (A-relative) — the read-back. */
+type Saved = { ok: boolean; error?: string; holes?: HoleResult[] };
 
 export interface MatchKeeperProps {
   match: KeptMatch;
@@ -86,9 +87,15 @@ export function MatchKeeper(props: MatchKeeperProps) {
    * signed-in stroke card uses too. Keyed by the match, so a phone keeping two
    * matches never mixes their copies.
    */
+  // The match as the server held it when this card was drawn: every hole on it is "Sent".
+  const [drawn] = useState<HoleResult[]>(() => Array.from({ length: holeCount }, (_, i) => m.holes?.[i] ?? null));
+  // Stored results are always A-relative; the card is the holder's. One flip, both ways.
+  const fromHolder = (list: readonly HoleResult[]) => (m.flipped ? list.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h)) : [...list]);
   const matchQueue = usePendingCard<HoleResult[]>({
     stageId: props.stageId ?? "play",
     playerId: `match:${m.id}`,
+    drawnFrom: drawn,
+    cells: (v) => Array.from({ length: holeCount }, (_, i) => v[i] ?? null),
     enabled: true,
     // Held until the MATCH is decided, not until every cell is filled: a match
     // won 5&4 is over with four holes nobody plays (Rule 3.2a(3)). Asked of the
@@ -96,10 +103,11 @@ export function MatchKeeper(props: MatchKeeperProps) {
     holding: !!props.submitWhole && !matchIsOverAfter(holes, holeCount),
     send: async (value) => {
       // Stored results are always A-relative; flip back if this player is B.
-      const outgoing = m.flipped ? value.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h)) : value;
+      const outgoing = fromHolder(value);
       const res = await props.saveHoles(m.id, outgoing as Array<"A" | "B" | "H" | null>);
       if (!res.ok) throw new Error(res.error ?? "Couldn't save.");
-      return "sent";
+      // READ BACK: the match as the row now holds it, turned to the holder's side.
+      return res.holes ? { serverHolds: fromHolder(res.holes) } : "sent";
     },
   });
   /**
@@ -127,14 +135,10 @@ export function MatchKeeper(props: MatchKeeperProps) {
     matchQueue.push(next);
   };
 
+  // Try again THROUGH THE QUEUE, so it is kept, sent, read back and marked like any tap.
   const save = () => {
     setError("");
-    startTransition(async () => {
-      // Stored results are always A-relative; flip back if this player is B.
-      const outgoing = m.flipped ? holes.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h)) : holes;
-      const res = await props.saveHoles(m.id, outgoing as Array<"A" | "B" | "H" | null>);
-      if (!res.ok) setError(res.error ?? "Couldn't save.");
-    });
+    matchQueue.push(Array.from({ length: holeCount }, (_, i) => holes[i] ?? null));
   };
 
   const saveResult = () => {
@@ -334,6 +338,9 @@ export function MatchKeeper(props: MatchKeeperProps) {
           showVoice={props.voiceEntry ?? true}
           shotsOn={props.matchShots ? (h) => ({ a: props.matchShots?.mine[h] ?? 0, b: props.matchShots?.theirs[h] ?? 0 }) : undefined}
           wonLost
+          // Where each hole's result is — on this phone, sent, or not sent — from the queue itself.
+          sync={matchQueue.holes}
+          refusal={matchQueue.refusal}
           noteFor={
             m.sideShots
               ? (h) => {

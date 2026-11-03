@@ -1678,7 +1678,8 @@ describe("the pending-card queue never clears a card it did not send", () => {
     const writer = cardWriter().body;
     // Off the row the upsert returned. Re-applying `statusAfterEdit` here
     // would be a third copy of the rule whose second copy is the bug.
-    expect(writer).toMatch(/return \{ ok: true, revision: cardRevision\(clean\), status: saved\.status \}/);
+    // And the card as that same row holds it (`stored`, the honest card's read-back), never `clean`.
+    expect(writer).toMatch(/return \{ ok: true, revision: cardRevision\(clean\), status: saved\.status, stored: storedCard\(saved\.strokes, roundHoles\) \}/);
     expect(writer).toMatch(/const saved = await prisma\.scorecard\.upsert\(/);
     // And the action still hands that answer straight back, rather than
     // rebuilding one of its own on the way out.
@@ -1708,10 +1709,12 @@ describe("the pending-card queue never clears a card it did not send", () => {
     );
     const certify = card.slice(card.indexOf("const certify ="));
     expect(certify).toMatch(/const sent = latest\.current;/);
-    expect(certify).toMatch(/if \(latest\.current === sent\) card\.settle\(\);/);
+    // Settled with the card the save READ BACK (the honest card, 2026-10-25), so
+    // every hole it settles reads "Sent" because the row says so.
+    expect(certify).toMatch(/if \(latest\.current === sent\) card\.settle\(Array\.from\(\{ length: holes \}, \(_, i\) => res\.stored\[i\] \?\? null\)\);/);
     // After the certify, never before it: settling first would drop the device
     // copy while the card was still only on this phone.
-    expect(certify.indexOf("card.settle()")).toBeGreaterThan(
+    expect(certify.indexOf("card.settle(")).toBeGreaterThan(
       certify.indexOf("await certifyScorecard("),
     );
   });
