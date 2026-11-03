@@ -5,6 +5,7 @@ import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { E2E_OWNER_EMAIL } from "./owner-email.mjs";
 import { EARLY_LIST, OWNER_CARD } from "../src/lib/go-live";
+import { JOB_WORDS } from "../src/lib/ai-config";
 
 /**
  * THE OWNER CONSOLE, AS THE OWNER USES IT (2026-10-21).
@@ -122,6 +123,29 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     await page.getByRole("dialog", { name: OWNER_CARD.holdTitle }).getByRole("button", { name: OWNER_CARD.holdConfirm }).click();
     await expect(page.locator("#accounts").getByRole("status")).toContainText(OWNER_CARD.heldAgain);
     await expect.poll(async () => (await prisma.platformSetting.findUnique({ where: { key: "signins" } }))?.value).toBe("held");
+  });
+
+  /**
+   * CHECK AI (`checkAiAccount`, 2026-11-03). The servers that run this spec hold no AI key, so the
+   * press reaches no API: every job must come back on its own line, NOT OK, with the reason in words.
+   * A line that said OK here would be a check that passes without asking anybody. The real call per
+   * job, with a key, is the owner's press on the preview (`docs/ai-account.md`).
+   */
+  await test.step("Check AI: one line per job, each saying why it is off when there is no key", async () => {
+    await open();
+    const card = page.getByRole("region", { name: "AI account" });
+    await expect(card).toContainText("Sends each AI job one tiny real request.");
+    await card.getByRole("button", { name: "Check AI" }).click();
+    const lines = card.getByRole("status").getByRole("listitem");
+    await expect(lines.first()).toBeVisible({ timeout: 30_000 });
+    const said = await lines.allInnerTexts();
+    for (const job of Object.values(JOB_WORDS)) {
+      const line = said.find((l) => l.startsWith(`${job}:`));
+      expect(line, `no line for ${job}`).toBeTruthy();
+      expect(line, `${job} said OK with no key`).not.toMatch(/: OK ·/);
+      expect(line!.length, `${job} gave no reason`).toBeGreaterThan(job.length + 3);
+    }
+    await expect(card.getByRole("alert")).toHaveCount(0);
   });
 
   /**
