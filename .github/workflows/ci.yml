@@ -274,7 +274,15 @@ jobs:
     # test passing (428 green, none red, three tests from the end). A cancelled e2e
     # skips `verify`, so the deploy never ran and production missed the merge. The
     # limit is for a hang, not for a suite doing its work.
-    timeout-minutes: 45
+    #
+    # 60, not 45 (2026-11-03). The same again: `main`'s desktop leg ran 43:55
+    # and 44:09 that afternoon, and #953 was cancelled at 45 on four heads in a
+    # row with nothing red (620 tests done on the last). Measured before moving
+    # the line, against #953's own passing run at 16:38: the tests both ran took
+    # 2,203s against 2,021s — every one a little slower, none stuck — plus the
+    # specs `main` had gained since. The cure is to split the desktop leg in
+    # two, not to keep moving this line.
+    timeout-minutes: 60
 
     # ── ONE VIEWPORT PER JOB ────────────────────────────────────────────────
     #

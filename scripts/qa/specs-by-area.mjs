@@ -263,6 +263,8 @@ export const FULL_ONLY = [
   "e2e/dialog.spec.ts",
   "e2e/discount-code.spec.ts",
   "e2e/event-setup-calm.spec.ts",
+  // The card, the public board and the handicap working: shared ground, as honest-card and boards-by-the-rules.
+  "e2e/every-figure-explains-itself.spec.ts",
   "e2e/faq-blocks.spec.ts",
   "e2e/flight-board.spec.ts",
   "e2e/formats-agree.spec.ts",
