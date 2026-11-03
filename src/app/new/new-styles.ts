@@ -163,7 +163,14 @@ ${LIGHT_CSS}
 @media (max-width: 400px) { .n-hdr-act .n-btn { display: none; } }
 
 /* ═════════ THE LIGHT: each section in its hour ═════════ */
-.e-sec { position: relative; isolation: isolate; background: linear-gradient(180deg, var(--e-from, var(--e-g)) 0, var(--e-g) var(--e-blend)); }
+/* the ground is a real background-color too (the blend is an image over it), so anything that reads
+   the colour behind a word, a person or legible.spec, finds the hour's own ground */
+.e-sec { position: relative; isolation: isolate; background: linear-gradient(180deg, var(--e-from, var(--e-g)) 0, var(--e-g) var(--e-blend)); background-color: var(--e-g); }
+
+/* ── tap targets: a link that is not set inline in a sentence is a 44px target ── */
+.n-site .n-more-links a, .n-site .n-answers a, .n-site .n-doors a, .n-site .n-ftr-base a, .n-site .n-ftr nav a, .n-site .n-hero-facts a { display: inline-flex; align-items: center; min-height: 44px; }
+.n-site .n-close-auth a[href="/play"] { min-height: 44px; }
+@media (max-width: 999px) { .e-desk { display: none; } }
 .e-sky { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
 
 /* ═════════ THE DEVICES: one frame everywhere; the shadow takes the colour of its hour ═════════ */
@@ -183,7 +190,9 @@ ${LIGHT_CSS}
 @media (max-width: 600px) {
   .n-crop .n-lid-screen { aspect-ratio: 1 / 1; }
   /* drawn 1.6 windows wide (sidebar off, words about 1.6 times larger); --cx is how far left it moves */
-  .n-crop .n-lid-screen img { width: 160%; max-width: none; height: auto; inset: 0 auto auto calc(-1 * var(--cx, 0%)); }
+  /* a 16:10 capture covering a square is drawn 1.6 windows wide; --cx says which part shows. The
+     picture's own box stays inside the window, so nothing reaches past the page's edge. */
+  .n-crop .n-lid-screen img { object-fit: cover; object-position: var(--cx, 50%) top; }
 }
 
 /* ═════════ 06:12, FIRST LIGHT ═════════ */
@@ -229,7 +238,8 @@ ${LIGHT_CSS}
 .e-stage .e-front { position: relative; z-index: 3; width: min(320px, 74%, max(230px, calc((100svh - 330px) * .46))); }
 .e-stage .e-front { box-shadow: 0 0 0 1.5px var(--n-device-edge), inset 0 0 0 1px rgba(255,255,255,.08), -30px 60px 90px -40px #000, 0 0 90px -20px rgba(255,150,90,.55); }
 .e-decor { position: absolute; pointer-events: none; }
-.e-desk { z-index: 1; width: 128%; left: 20%; top: 4%; transform: perspective(1400px) rotateY(-22deg) rotateX(6deg); transform-origin: left center; opacity: .5; filter: saturate(.75) brightness(.72); }
+.n-win::-webkit-scrollbar { display: none; }
+.e-desk { z-index: 1; width: 78%; left: 20%; top: 4%; transform: perspective(1400px) rotateY(-22deg) rotateX(6deg); transform-origin: left center; opacity: .5; filter: saturate(.75) brightness(.72); }
 .e-back { z-index: 2; width: 52%; left: -4%; top: 16%; transform: rotate(-8deg); opacity: .85; filter: brightness(.8); }
 .n-live { position: relative; z-index: 4; margin-top: -40px; display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-radius: 16px; background: color-mix(in srgb, ${D.panel} 90%, transparent); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3); border: 1px solid var(--line-2); box-shadow: 0 20px 40px -16px #000; font-size: 15.5px; max-width: 100%; color: var(--ink); }
 .n-live b { font-weight: 700; }
@@ -284,7 +294,7 @@ ${LIGHT_CSS}
 .n-story-head .e-hour { margin-bottom: 0; }
 .n-story { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 5vw, 96px); margin-top: clamp(16px, 3vw, 40px); }
 .n-steps { min-width: 0; }
-.n-step { position: relative; min-height: 78vh; display: grid; align-content: center; gap: 12px; padding: 48px 0; color: var(--ink); }
+.n-step { position: relative; min-height: 78vh; display: grid; align-content: center; gap: 12px; padding: 48px 0; color: var(--ink); background-color: var(--e-g); background-image: linear-gradient(180deg, var(--e-prev, var(--e-g)) 0, var(--e-g) 150px); }
 /* the band of the moment's light, the width of the page, behind everything in the story */
 .n-step::before { content: ""; position: absolute; z-index: -1; top: 0; bottom: 0; left: -100vw; right: -100vw; background: linear-gradient(180deg, var(--e-prev, var(--e-g)) 0, var(--e-g) 150px); }
 .n-step:first-child { min-height: 70vh; }
@@ -302,7 +312,8 @@ ${LIGHT_CSS}
 
 .n-story-dev { position: relative; min-width: 0; }
 .n-story-pin { position: sticky; top: calc(var(--n-hdr) + 28px); height: calc(100svh - var(--n-hdr) - 56px); max-height: 820px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: clamp(18px, 3vw, 44px); }
-.n-story-pin .n-phone { width: min(330px, calc((100svh - var(--n-hdr) - 160px) * .4613)); justify-self: start; --e-shadow: rgba(10,10,30,.5); }
+.e-pin-dev { min-width: 0; }
+.n-story-pin .n-phone { width: min(330px, 100%, calc((100svh - var(--n-hdr) - 160px) * .4613)); justify-self: start; --e-shadow: rgba(10,10,30,.5); }
 .n-story-pin .n-phone-screen .n-frame { will-change: opacity; }
 /* glass: the rail and the clock float over whichever band is behind them, in one fixed light */
 .n-story-pin nav, .n-now { ${vars(N)}; background: color-mix(in srgb, ${N.grounds[0]} 80%, transparent); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 20px 40px -20px rgba(0,0,0,.5); }
@@ -378,22 +389,24 @@ ${LIGHT_CSS}
 .n-tile-say b { font: 600 clamp(19px, calc(.4vw + 15px), 22px)/1.25 var(--n-head); letter-spacing: -.01em; }
 .n-tile-say p { color: var(--ink-soft); font-size: 16px; }
 /* a window onto a capture: the screen is cropped and shown nearer its own size, never redrawn */
-.n-win { position: relative; overflow: hidden; margin-top: auto; border-radius: 14px; background: #f4f2ec; box-shadow: 0 0 0 1px var(--line), 0 20px 40px -24px rgba(30,40,60,.4); aspect-ratio: var(--ar, 16 / 10); }
+/* a window onto a capture drawn larger than it: it scrolls sideways rather than spilling, so the
+   real screen can be panned with a finger and nothing reaches past the page's edge */
+.n-win { position: relative; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain; margin-top: auto; border-radius: 14px; background: #f4f2ec; box-shadow: 0 0 0 1px var(--line), 0 20px 40px -24px rgba(30,40,60,.4); aspect-ratio: var(--ar, 16 / 10); }
 .n-site .n-win img { position: absolute; left: 0; top: 0; max-width: none; width: calc(var(--z, 1) * 100%); height: auto; transform: translate(calc(-1 * var(--fx, 0%)), calc(-1 * var(--fy, 0%))); }
 .n-win-needs { --z: 1.3; --fx: 19%; --fy: 0%; }
 .n-win-draw { --z: 1.7; --fx: 18.5%; --fy: 52%; }
 .n-win-flights { --z: 1.25; --fx: 19%; --fy: 2%; }
 .n-win-list { --z: 1.24; --fx: 18%; --fy: 6%; }
 .n-tile-bleed .n-win { margin-right: calc(-1 * var(--e-pad)); margin-bottom: calc(-1 * var(--e-pad)); border-radius: 14px 0 0 0; }
-.n-tile-xl { grid-column: span 8; grid-row: span 2; background: linear-gradient(180deg, var(--card) 40%, #f1f5f8); }
+.n-tile-xl { grid-column: span 8; grid-row: span 2; background: linear-gradient(180deg, var(--card) 40%, #f1f5f8); background-color: var(--card); }
 .n-tile-xl .n-win { --ar: 16 / 10.4; }
-.n-tile-tall { grid-column: span 4; grid-row: span 2; background: linear-gradient(180deg, var(--card), #eef2f5); }
+.n-tile-tall { grid-column: span 4; grid-row: span 2; background: linear-gradient(180deg, var(--card), #eef2f5); background-color: var(--card); }
 .n-tile-tall .n-tile-phone { margin-top: auto; margin-bottom: calc(-1 * var(--e-pad)); padding: 0 6%; height: clamp(300px, 30vw, 420px); overflow: hidden; }
 .n-tile-tall .n-phone { border-bottom-left-radius: 0; border-bottom-right-radius: 0; padding-bottom: 0; --e-shadow: rgba(30,40,60,.3); }
 .n-tile-tall .n-phone-screen { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .n-tile-draw { grid-column: span 5; }
 .n-tile-draw .n-win { --ar: 16 / 9; }
-.n-tile-128 { grid-column: span 7; background: radial-gradient(80% 120% at 100% 0%, #24344a, #121b29); color: #f3f5f8; }
+.n-tile-128 { grid-column: span 7; background: radial-gradient(80% 120% at 100% 0%, #24344a, #121b29); background-color: #121b29; color: #f3f5f8; }
 .n-tile-128 .n-h3 { color: #f3f5f8; }
 .n-tile-128 p { color: #c9d2dc; font-size: 16px; margin-top: 10px; }
 .n-tile-128 .n-num-big { font: 760 clamp(60px, 6.5vw, 92px)/.9 var(--n-fig); letter-spacing: -.05em; color: #f9ae74; }

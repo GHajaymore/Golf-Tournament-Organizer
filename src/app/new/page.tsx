@@ -370,7 +370,7 @@ export default async function NewSitePreview() {
             </div>
             <div className="e-watch-row">
               <figure className="e-fig-lap">
-                <div className="n-lid n-crop" style={{ "--cx": "32%" } as React.CSSProperties}><div className="n-lid-screen">{screen("live-desk-after", `The committee's leaderboard on a laptop, the moment ${FACTS.player}'s ${FACTS.score} on the ${nth} goes in: gross, net and to par for every player, by flight.`, SIZES.wide)}</div></div>
+                <div className="n-lid n-crop" style={{ "--cx": "53%" } as React.CSSProperties}><div className="n-lid-screen">{screen("live-desk-after", `The committee's leaderboard on a laptop, the moment ${FACTS.player}'s ${FACTS.score} on the ${nth} goes in: gross, net and to par for every player, by flight.`, SIZES.wide)}</div></div>
                 <figcaption><b>In the office: the committee&rsquo;s leaderboard</b>Every flight, gross and net, the moment a card is saved.</figcaption>
               </figure>
               <figure>
@@ -468,7 +468,7 @@ export default async function NewSitePreview() {
               <h3 className="n-h3">On the committee&rsquo;s laptop: the prize list.</h3>
               <p>The purse, every prize line and its winner. The skins sit underneath, worked out from the cards.</p>
             </div>
-            <div className="n-lid n-crop" style={{ "--cx": "32%" } as React.CSSProperties}><div className="n-lid-screen">{screen("e-desk-prizes", "The organizer's Prizes and payouts screen in the Championship theme: a $470 purse, four prize lines, three awarded, and the winners beside each prize.", SIZES.wide)}</div></div>
+            <div className="n-lid n-crop" style={{ "--cx": "53%" } as React.CSSProperties}><div className="n-lid-screen">{screen("e-desk-prizes", "The organizer's Prizes and payouts screen in the Championship theme: a $470 purse, four prize lines, three awarded, and the winners beside each prize.", SIZES.wide)}</div></div>
           </div>
 
           {/* Each club picks its colours (Ajay, 2 Nov: the screens are not all one scheme). */}
@@ -625,7 +625,7 @@ export default async function NewSitePreview() {
             </div>
             <div className="e-final-pics">
               <figure className="e-fig-report">
-                <div className="n-lid n-crop" style={{ "--cx": "48%" } as React.CSSProperties}><div className="n-lid-screen">{screen("e-desk-report", "The organizer's final report for the club championship, in the Tournament theme on the dark ground: the champion, the prize list with gross and net, and each player's place after each round.", SIZES.wide)}</div></div>
+                <div className="n-lid n-crop" style={{ "--cx": "80%" } as React.CSSProperties}><div className="n-lid-screen">{screen("e-desk-report", "The organizer's final report for the club championship, in the Tournament theme on the dark ground: the champion, the prize list with gross and net, and each player's place after each round.", SIZES.wide)}</div></div>
                 <figcaption><b>The final report, on the committee&rsquo;s laptop</b>The champion, the prize list and how the places moved. Print it, or share its link.</figcaption>
               </figure>
               <figure className="e-fig-final">
