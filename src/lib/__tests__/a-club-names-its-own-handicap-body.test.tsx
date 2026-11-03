@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("@/app/actions/handicap-policy", () => ({ saveHandicapPolicy: vi.fn(), saveScoreReporting: vi.fn() }));
+const link = vi.hoisted(() => ({ live: false }));
+vi.mock("@/lib/integrations/federation-link", () => ({ federationLinkLive: () => link.live }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }), useSearchParams: () => new URLSearchParams("") }));
 
 import {
@@ -112,6 +114,10 @@ describe("the words a club in England reads", () => {
   });
 
   it("the setting names England Golf from the club's country, offers no picker, and never says GHIN", () => {
+    // The body's two choices are drawn only once a federation link is live
+    // (the team's rulings, 2026-10-24 — `service-only-is-hidden.test.tsx`).
+    // How they NAME the body is held here for that day, so the link is forced on.
+    link.live = true;
     const html = renderToStaticMarkup(
       <HandicapSetup
         view={{
@@ -124,6 +130,7 @@ describe("the words a club in England reads", () => {
         }}
       />,
     );
+    link.live = false;
     expect(html).toContain("England Golf only");
     // Not "Both" (Ajay: "what is both means?") — the choice says what it does.
     expect(html).toContain("England Golf where a member has one");
