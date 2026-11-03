@@ -504,14 +504,13 @@ ${LIGHT_CSS}
 .f-row-phone { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
 .f-row-phone .n-phone { width: min(300px, 100%); justify-self: center; --e-shadow: rgba(30,40,60,.32); }
 .f-row .n-win { --ar: 16 / 9.4; margin: 0; }
-.f-win-checklist { --z: 1.32; --fx: .19; --fy: .06; }
+.f-win-checklist { --z: 1.2; --fx: .135; --fy: 0; }
 .f-win-course-day { --z: 1.28; --fx: .19; --fy: .04; }
 .f-win-questions { --z: 1.0; --fx: 0; --fy: 0; }
-.f-win-clubhouse { --z: 1; --fx: 0; --fy: 0; }
 @media (max-width: 900px) {
   .f-row, .f-row-phone { grid-template-columns: minmax(0, 1fr); }
   .f-row .n-win { --ar: 1 / 1; --z: 2.2; }
-  .f-row .f-win-questions, .f-row .f-win-clubhouse { --ar: 16 / 10; --z: 1; }
+  .f-row .f-win-questions { --ar: 16 / 10; --z: 1; }
   .f-row-phone .n-phone { width: min(70%, 280px); }
 }
 /* ── the field's side: two phones and the words between them ── */

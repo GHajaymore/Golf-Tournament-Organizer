@@ -551,10 +551,10 @@ export default async function NewSitePreview({ searchParams }: { searchParams: P
                 {has.checklist ? (
                   <div className="f-row">
                     <div className="f-row-say">
-                      <h3 className="n-h3">The dashboard keeps the list.</h3>
-                      <p>What is done and what is still to set up, in order, from the field to the format to the round codes. It stays on the dashboard after the field is in, until you launch.</p>
+                      <h3 className="n-h3">The dashboard says what is next.</h3>
+                      <p>Across every tournament the club runs: the cards not yet returned, the tee sheet still to publish, each with the button that does it. Then, for the one you are setting up, what is still to do before you launch, and why it cannot launch yet.</p>
                     </div>
-                    <div className="n-win f-win-checklist">{zoomed({ landing: "f-desk-checklist" }, "The organizer's dashboard for a tournament taking entries, in the Desert theme on the dark ground: the setup checklist saying what is still to set up before launch.")}</div>
+                    <div className="n-win f-win-checklist">{zoomed({ landing: "f-desk-checklist" }, "The organizer's dashboard, in the Desert theme on the dark ground: What's next across the club, from cards not returned to a tee sheet not yet published, then the tournament being set up with the reason it cannot launch yet.")}</div>
                   </div>
                 ) : null}
                 {PIPELINE.courseDay.on ? (
