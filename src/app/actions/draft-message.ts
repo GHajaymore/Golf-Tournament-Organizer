@@ -99,7 +99,7 @@ export async function draftMessage(kind: string, extra: string): Promise<DraftRe
       return {
         ok: false,
         configured: false,
-        error: "Drafting isn't switched on. You can still write and send from Communications.",
+        error: `${answer.why ?? "Drafting isn't switched on."} You can still write and send from Communications.`,
       };
     }
     if (answer.reason === "unreachable") {

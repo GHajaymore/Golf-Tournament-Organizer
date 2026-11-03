@@ -3687,6 +3687,34 @@ model PlatformSetting {
   updatedAt DateTime @updatedAt
 }
 
+/// What the platform's AI account was charged, one row per model call
+/// (2026-11-03: Ajay's $20-a-month AI budget, set on /owner).
+///
+/// A RECORD, never a payment: TourneyHQ moves no money. Written by
+/// `services/ai-spend.ts` after every call that reports `usage`, including the
+/// owner's Check AI; summed per month before every call, which stops when the
+/// month reaches the budget (`PlatformSetting` "ai-budget-cents"). Holds no
+/// prompt, no answer and nobody's name — tokens and a cost only.
+model AiSpend {
+  id               String   @id @default(cuid())
+  /// "YYYY-MM", UTC: the bill is the account's, not a club's day.
+  month            String
+  /// The AI job (`AiJob` in src/lib/ai-config.ts).
+  job              String
+  model            String
+  inputTokens      Int
+  outputTokens     Int
+  cacheReadTokens  Int      @default(0)
+  cacheWriteTokens Int      @default(0)
+  /// Whole micro-dollars (1e-6 USD), rounded up. Never a float.
+  microUsd         Int
+  /// False when the model was not on the rate card and was charged at its dearest rate.
+  priced           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  @@index([month])
+}
+
 /// An owner-generated discount code — a percentage off, handed to a club.
 ///
 /// Generated and managed from the owner console. Redemption at a paid upgrade

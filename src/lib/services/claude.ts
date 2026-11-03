@@ -2,6 +2,7 @@ import "server-only";
 import { aiKey, jobStatus, JOBS, type AiJob } from "@/lib/ai-config";
 import { aiCheckLine, type AiCheckLine } from "@/lib/domain/ai-check";
 import { PROBE_IMAGE, solidSquarePng } from "@/lib/domain/probe-image";
+import { aiBudgetStop, recordAiSpend } from "@/lib/services/ai-spend";
 
 /**
  * One way to ask Claude a question.
@@ -32,8 +33,11 @@ export type ClaudeContent = string | unknown[];
 
 export type ClaudeAnswer =
   | { ok: true; text: string }
-  /** No API key. The feature is off, not broken — screens word that gently. */
-  | { ok: false; reason: "not-configured" }
+  /**
+   * Off, not broken: no API key, or this month's AI budget is spent (`why`
+   * then says so, with the day it starts again). Screens word it gently.
+   */
+  | { ok: false; reason: "not-configured"; why?: string }
   /** The API answered and refused. `status` only — see the rule above. */
   | { ok: false; reason: "refused"; status: number }
   /** It answered with nothing usable. */
@@ -60,14 +64,16 @@ export async function askClaude({
   if (!key) return { ok: false, reason: "not-configured" };
   try {
     const res = await post(key, job, maxTokens, content);
+    // This month's AI budget is spent: off, in words, exactly as a missing key is.
+    if (res.kind === "stopped") return { ok: false, reason: "not-configured", why: res.why };
 
     // The status, never the body. See the note above — this is the whole point.
     if (!res.ok) return { ok: false, reason: "refused", status: res.status };
 
-    const data = (await res.json()) as { content?: Array<{ type?: string; text?: string }> };
+    const data = res.body as { content?: Array<{ type?: string; text?: string }> } | null;
     // The first TEXT block, not the first block: a current model may put a
     // thinking block ahead of the answer, and its text is empty.
-    const text = (data.content?.find((b) => b.type === "text")?.text ?? "").trim();
+    const text = (data?.content?.find((b) => b.type === "text")?.text ?? "").trim();
     // Untrusted from here on: every caller parses and bounds what it gets.
     return text ? { ok: true, text } : { ok: false, reason: "empty" };
   } catch {
@@ -75,10 +81,25 @@ export async function askClaude({
   }
 }
 
-/** The one request: the job's model and thinking setting from ai-config, and the content. */
-function post(key: string, job: AiJob, maxTokens: number, content: ClaudeContent): Promise<Response> {
+type Sent =
+  /** Not sent: this month's AI budget is spent (or cannot be checked). */
+  | { kind: "stopped"; why: string }
+  /** Sent and answered. `body` is the parsed JSON, or null; it is recorded and handed back, never logged. */
+  | { kind: "answered"; ok: boolean; status: number; body: unknown };
+
+/**
+ * THE ONE REQUEST, AND THE ONE GATE EVERY MODEL CALL PASSES: the job's model
+ * and thinking setting from ai-config, the AI budget asked first, and what the
+ * call cost recorded after (`services/ai-spend.ts`). Every job's `askClaude`
+ * and the owner's Check AI come through here, so none can spend past the
+ * budget or go unrecorded; `model-calls-leak-nothing.test.ts` holds that this
+ * is the only file that calls the API.
+ */
+async function post(key: string, job: AiJob, maxTokens: number, content: ClaudeContent): Promise<Sent> {
   const { model, thinking } = JOBS[job];
-  return fetch("https://api.anthropic.com/v1/messages", {
+  const stop = await aiBudgetStop();
+  if (stop) return { kind: "stopped", why: stop };
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -92,6 +113,15 @@ function post(key: string, job: AiJob, maxTokens: number, content: ClaudeContent
       messages: [{ role: "user", content }],
     }),
   });
+  // Read once, here. A failed call that reports usage was still billed.
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  await recordAiSpend(job, model, body);
+  return { kind: "answered", ok: res.ok, status: res.status, body };
 }
 
 /**
@@ -120,13 +150,8 @@ export async function checkAiJob(job: AiJob): Promise<AiCheckLine> {
   const started = Date.now();
   try {
     const res = await post(key, job, 16, content);
-    let body: unknown = null;
-    try {
-      body = await res.json();
-    } catch {
-      body = null;
-    }
-    return aiCheckLine(line, { kind: "answered", status: res.status, body }, Date.now() - started, key);
+    if (res.kind === "stopped") return aiCheckLine(line, { kind: "off", why: res.why }, 0, key);
+    return aiCheckLine(line, { kind: "answered", status: res.status, body: res.body }, Date.now() - started, key);
   } catch {
     return aiCheckLine(line, { kind: "unreachable" }, Date.now() - started, key);
   }

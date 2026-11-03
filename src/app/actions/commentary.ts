@@ -79,6 +79,7 @@ export async function suggestCommentary(): Promise<{ text: string; configured: b
   // nothing to say yet, and a line reading "nothing came back" on a public
   // board is worse than no line.
   if (answer.reason === "empty") return { text: "", configured: true };
-  if (answer.reason === "not-configured") return { text: "", configured: false };
+  // Off: no key (nothing to say), or this month's AI budget is spent (say so).
+  if (answer.reason === "not-configured") return { text: answer.why ?? "", configured: false };
   return { text: `Claude API error (${answer.status}). Check the key.`, configured: true };
 }

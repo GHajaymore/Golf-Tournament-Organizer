@@ -110,7 +110,7 @@ export async function suggestSetup(description: string): Promise<SetupSuggestRes
       return {
         ok: false,
         configured: false,
-        error: "Describing a tournament in words isn't switched on. Build it with the controls instead.",
+        error: `${answer.why ?? "Describing a tournament in words isn't switched on."} Build it with the controls instead.`,
       };
     }
     if (answer.reason === "unreachable") {

@@ -62,15 +62,36 @@ describe("talking to the model", () => {
     const ask = src.slice(src.indexOf("export async function askClaude"), src.indexOf("function post("));
     expect(ask.length, "askClaude and post must both be found").toBeGreaterThan(100);
     expect(ask).toMatch(/if \(!res\.ok\) return \{ ok: false, reason: "refused", status: res\.status \}/);
-    // The body is read exactly once, on the SUCCESS path, and only `.content`
-    // is taken from it.
-    expect(ask.match(/res\.json\(\)/g)?.length ?? 0).toBe(1);
+    // Since 2026-11-03 the body is read exactly once, in `post`, because the
+    // AI budget records the `usage` every response reports — error or not.
+    // askClaude takes only `.content` from it: never the error, never the body.
+    expect(src.match(/res\.json\(\)/g)?.length ?? 0, "a second body reader needs this guard's say").toBe(1);
+    expect(ask, "askClaude must not read the error out of a body").not.toMatch(/\.error\b/);
+    expect(ask, "askClaude must not hand a body back").not.toMatch(/return[^;]*res\.body/);
+    expect(ask).toMatch(/data\?\.content/);
     expect(src, "the response body must not be read as text").not.toMatch(/res\.text\(\)/);
-    // The one other reader of a body is the owner's Check AI, which may show
+    // The one other user of a body is the owner's Check AI, which may show
     // the API's error words ONLY because its request is fixed in this file: it
     // takes a job and nothing a caller could fill with somebody's data.
     expect(src).toMatch(/export async function checkAiJob\(job: AiJob\): Promise<AiCheckLine>/);
-    expect(src.match(/res\.json\(\)/g)?.length ?? 0, "a third body reader needs this guard's say").toBe(2);
+  });
+
+  it("asks the AI budget before every request and records what each one cost", () => {
+    /**
+     * Ajay, 2026-11-03: a $20-a-month AI budget, set on /owner. The gate is in
+     * `post`, the one function that sends a request — so every job and the
+     * owner's Check AI pass it, and there is no second `fetch` to forget it.
+     */
+    const src = readSource(HELPER);
+    expect(src.match(/fetch\(/g)?.length ?? 0, "one request, in post").toBe(1);
+    const post = src.slice(src.indexOf("async function post("));
+    const asked = post.indexOf("aiBudgetStop(");
+    const sent = post.indexOf("fetch(");
+    const recorded = post.indexOf("recordAiSpend(");
+    expect(asked, "post must ask the budget").toBeGreaterThan(0);
+    expect(asked, "the budget is asked BEFORE the request").toBeLessThan(sent);
+    expect(recorded, "what it cost is recorded AFTER the request").toBeGreaterThan(sent);
+    expect(post).toMatch(/if \(stop\) return \{ kind: "stopped", why: stop \}/);
   });
 
   it("says the feature is off rather than throwing when there is no key", () => {

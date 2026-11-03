@@ -93,6 +93,36 @@ export const JOBS: Record<AiJob, JobConfig> = {
   reportDraft: { provider: "anthropic", model: SONNET, thinking: { type: "between_tools" }, needsImages: false },
 };
 
+/**
+ * WHAT A CALL COSTS, per model (2026-11-03: Ajay set a $20-a-month AI budget).
+ *
+ * Prices in MICRO-DOLLARS PER MILLION TOKENS — whole numbers, so $0.10/MTok is
+ * 100_000 and nothing here or in the spend table is ever a float. Anthropic's
+ * list prices for the two models `JOBS` uses (claude-api reference, cached
+ * 2026-10-06): Haiku 5.5 $0.10 in / $0.50 out for a prompt up to 100K tokens
+ * and $0.50 / $2.50 above it; Sonnet 5.5 $2 / $10. A cache read is billed at
+ * 0.1x the input price, a 5-minute cache write at 1.25x and a 1-hour write at
+ * 2x — `domain/ai-cost.ts` derives those from `input` rather than listing them.
+ *
+ * A model `JOBS` names that this card does not price is NOT costed at zero:
+ * `costOfCall` charges it at the dearest rate here and flags it, and
+ * `ai-cost.test.ts` refuses a job whose model is missing from this card.
+ */
+export type ModelRates = {
+  /** Micro-dollars per million input tokens. */
+  input: number;
+  /** Micro-dollars per million output tokens. */
+  output: number;
+  /** Above this many prompt tokens (input + cache reads + cache writes) the `above` rates apply to the whole call. */
+  longPromptOver?: number;
+  above?: { input: number; output: number };
+};
+
+export const RATE_CARD: Record<string, ModelRates> = {
+  [HAIKU]: { input: 100_000, output: 500_000, longPromptOver: 100_000, above: { input: 500_000, output: 2_500_000 } },
+  [SONNET]: { input: 2_000_000, output: 10_000_000 },
+};
+
 export const JOB_WORDS: Record<AiJob, string> = {
   cardReading: "Card reading",
   commentary: "Commentary",

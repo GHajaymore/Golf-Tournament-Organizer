@@ -164,7 +164,7 @@ export async function readScorecardPhoto(
       return {
         ok: false,
         configured: false,
-        error: "Reading cards from a photo is not switched on. Enter the scores by hand.",
+        error: `${answer.why ?? "Reading cards from a photo is not switched on."} Enter the scores by hand.`,
       };
     }
     if (answer.reason === "unreachable") {
@@ -275,7 +275,7 @@ export async function readGroupCardPhoto(
       return {
         ok: false,
         configured: false,
-        error: "Reading cards from a photo is not switched on. Enter the scores by hand.",
+        error: `${answer.why ?? "Reading cards from a photo is not switched on."} Enter the scores by hand.`,
       };
     }
     if (answer.reason === "unreachable") {
@@ -376,7 +376,7 @@ export async function readCourseCardPhoto(
       return {
         ok: false,
         configured: false,
-        error: "Reading cards from a photo is not switched on. Type the card in below.",
+        error: `${answer.why ?? "Reading cards from a photo is not switched on."} Type the card in below.`,
       };
     }
     if (answer.reason === "unreachable") {
