@@ -24,7 +24,7 @@ import { prisma, dayIn, addDays } from "./rounds-fixture";
 const WALKED = ["desktop", "phone"];
 const ZONE = "America/New_York";
 const sign = (v: string) => `${v}.${createHmac("sha256", process.env.AUTH_SECRET ?? "dev-secret").update(v).digest("base64url")}`;
-const PARS = [4, 5, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4];
+const PARS = [4, 5, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 5];
 const SI = [7, 3, 11, 1, 15, 5, 17, 9, 13, 8, 4, 12, 2, 16, 6, 18, 10, 14];
 
 test.describe.configure({ timeout: 180_000 });
