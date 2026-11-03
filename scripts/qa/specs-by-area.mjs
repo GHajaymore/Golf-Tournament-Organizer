@@ -312,6 +312,8 @@ export const FULL_ONLY = [
   "e2e/round-code-sign.spec.ts",
   "e2e/seasons.spec.ts",
   "e2e/secretary-back-after-a-week.spec.ts",
+  "e2e/secretary-copy-last-event.spec.ts",
+  "e2e/secretary-first-event.spec.ts",
   "e2e/security.spec.ts",
   "e2e/seo.spec.ts",
   "e2e/setup-checklist-outlives-the-field.spec.ts",
