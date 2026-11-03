@@ -75,6 +75,11 @@ test("the timeline guides: the next thing first with its consequence, opened in 
       "Round 3 has no date — players cannot see when they play.",
       "Round 3 has no tee times — players cannot see when they start.",
     ]);
+    // ── said once: the old "1 round has no date" notice does not repeat the Needs you line ──
+    await expect(
+      page.getByRole("button", { name: /rounds? (has|have) no date/ }),
+      "the timeline says Round 3 has no date twice (Needs you and the old notice)",
+    ).toHaveCount(0);
     const filled = page.locator("main .btn-primary").filter({ visible: true });
     await expect(filled, "more than one filled button on the screen").toHaveCount(1);
     await expect(filled).toHaveAttribute("href", `/foursomes?round=${r2.id}`);
@@ -85,7 +90,10 @@ test("the timeline guides: the next thing first with its consequence, opened in 
 
     // ── opened in one press, from the gap ──
     await needs.getByRole("button", { name: "Open Round 3" }).click();
-    const panel = page.getByRole("dialog", { name: "Round 3" });
+    // Docked from 1280 the panel is a named region, not a modal dialog (`SidePanel`'s `dock`).
+    const docked = page.viewportSize()!.width >= 1280;
+    const panelRole = docked ? "region" : "dialog";
+    const panel = page.getByRole(panelRole, { name: "Round 3" });
     await expect(panel).toBeVisible();
     await expect(panel.locator(".side-panel-kicker")).toContainText("Round 3 of 3");
     // The effect, before anything is touched — from what is stored.
@@ -121,6 +129,9 @@ test("the timeline guides: the next thing first with its consequence, opened in 
       }, r1.id);
       expect(dock.scrim, "a scrim darkens the rounds at this width").toBe("rgba(0, 0, 0, 0)");
       expect(dock.rowRight, "the panel covers the rounds").toBeLessThanOrEqual(dock.panelLeft);
+      // The list keeps a usable width beside the panel (it was about 430px at 1280).
+      const listWidth = await page.locator(".rounds-timeline").evaluate((el) => el.getBoundingClientRect().width);
+      expect(listWidth, "the rounds are squeezed beside the docked panel").toBeGreaterThanOrEqual(540);
     } else {
       testInfo.annotations.push({ type: "not walked", description: "docking: at this width the panel is over the list by design (full screen on a phone)" });
     }
@@ -132,6 +143,17 @@ test("the timeline guides: the next thing first with its consequence, opened in 
       .toBe(addDays(today, 21));
     await page.keyboard.press("Escape");
     await expect(needs.locator(".rt-need-words").filter({ hasText: "Round 3 has no date" }), "the gap stayed listed after it was set").toHaveCount(0);
+
+    // ── docked, another round is ONE press away: the list is not behind a modal ──
+    if (docked) {
+      const head = (id: string) => page.locator(`[id="round-${id}"] button[aria-expanded]`).first();
+      await head(r3.id).click();
+      await expect(panel).toBeVisible();
+      await head(r1.id).click();
+      await expect(page.getByRole("region", { name: "Round 1" }), "a press on another round did not switch the docked panel to it").toBeVisible();
+      await expect(panel, "the first round's panel stayed open").toBeHidden();
+      expect(await page.evaluate(() => getComputedStyle(document.body).overflow), "the docked panel locks the page").not.toBe("hidden");
+    }
   } finally {
     await dropClub(mark);
   }

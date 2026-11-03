@@ -2502,6 +2502,8 @@ function StageCard({
       {asPanel && (
         <SidePanel
           keepMounted
+          // Beside the list from 1280px, and not modal there: a press on another round switches to it.
+          dock
           open={expanded}
           title={thisRound || stage.type}
           kicker={[

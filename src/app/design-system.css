@@ -853,9 +853,17 @@ textarea.input { min-height: 90px; resize: vertical; }
 .rt-needs-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--color-text); display: flex; align-items: center; gap: 8px; }
 .rt-needs-count {
   font-size: 12px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; display: inline-grid; place-items: center;
-  background: color-mix(in srgb, var(--color-accent-2-800) 70%, transparent); color: var(--color-accent-2-100);
+  /* Step 900, as the par 5 mark: 800 was 6.25:1 on Tournament's dark card. */
+  background: color-mix(in srgb, var(--color-accent-2-900) 70%, transparent); color: var(--color-accent-2-100);
   font-variant-numeric: tabular-nums;
 }
+/* THE TIMELINE'S STATE CHIPS (2 Nov), measured on all four schemes by `rounds-timeline-contrast.test`.
+   "No date" / "No tee times" (`.tag-accent-2`) also sit in a panel section, on the card one step up,
+   where the shared tag's 800 fill read 6.25:1 on Tournament dark; 900 reads 10.3. "Not drawn yet"
+   and "Upcoming" (`.tag-neutral`) take the full text colour: muted words on a tint were 6.38:1.
+   Scoped here so every other screen's tags are untouched until they are measured the same way. */
+.rounds-timeline .tag-accent-2 { background: color-mix(in srgb, var(--color-accent-2-900) 70%, transparent); }
+.rounds-timeline .tag-neutral { color: var(--color-text); }
 .rt-need { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
 .rt-need-words { margin: 0; font-size: 14px; line-height: 1.45; color: var(--color-text); min-width: 0; flex: 1 1 260px; }
 .rt-need-btn { min-height: 44px; display: inline-flex; align-items: center; }
@@ -927,18 +935,32 @@ textarea.input { min-height: 90px; resize: vertical; }
   color: var(--color-text); background: color-mix(in srgb, var(--color-text) 7%, transparent); font-variant-numeric: tabular-nums;
 }
 .rt-hole[data-par="3"] { background: color-mix(in srgb, var(--color-accent-800) 70%, transparent); color: var(--color-accent-100); }
-.rt-hole[data-par="5"] { background: color-mix(in srgb, var(--color-accent-2-800) 70%, transparent); color: var(--color-accent-2-100); }
+/* The par 5 mark on step 900, not 800 (2 Nov): the secondary's 800 put its 100 words at 6.25:1 on
+   Tournament's dark card, under SUNLIGHT_RATIO. 900 is 10.3 there and 15.7 on light paper
+   (`rounds-timeline-contrast.test`). Par 3 on the accent's 800 clears it (7.45) and stays. */
+.rt-hole[data-par="5"] { background: color-mix(in srgb, var(--color-accent-2-900) 70%, transparent); color: var(--color-accent-2-100); }
 .rt-tees { list-style: none; margin: 0; padding: 0; display: grid; }
 .rt-tees li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-size: 13px; padding: 6px 0; border-top: 1px solid var(--color-divider); color: var(--color-text); font-variant-numeric: tabular-nums; }
 
 /* DOCKED AT 1280 AND WIDER, WITH NO SCRIM (the brief): a scrim took the list behind the panel below
-   7:1, so the list reflows to the left of the panel and stays readable. The backdrop is still there,
-   transparent, so a press outside still closes the panel as `rounds-panel.spec` expects; a phone
-   keeps the full-screen panel. */
+   7:1, so the list reflows to the left of the panel and stays readable. Docked, the panel is not
+   modal (`SidePanel`'s `dock`, the same 1280 as `SIDE_PANEL_DOCK_FROM`): the backdrop lets every
+   press through to the list, so a press on another round opens THAT round, in one press.
+   The panel's width gives way before the list does (2 Nov): the list keeps about 560px beside it —
+   at 1280 it was 430 beside a 560px panel. 880 = the console's 250px sidebar, its 30px left
+   padding, the 24px gap, a 16px scrollbar and the list's 560. From 1440 the panel is its full 560.
+   A phone keeps the full-screen panel. */
 @media (min-width: 1280px) {
-  .rounds-timeline .side-panel-backdrop { background: transparent; }
-  body:has(.rounds-timeline .side-panel-backdrop:not([hidden])) .app-main { padding-right: 584px !important; }
+  :root { --side-panel-dock-w: clamp(380px, calc(100vw - 880px), 560px); }
+  .side-panel-backdrop[data-dock] { background: transparent; pointer-events: none; }
+  .side-panel-backdrop[data-dock] > .side-panel { pointer-events: auto; width: var(--side-panel-dock-w); }
+  body:has(.side-panel-backdrop[data-dock]:not([hidden])) .app-main { padding-right: calc(var(--side-panel-dock-w) + 24px) !important; }
+  /* The list beside it: shrinks rather than pushing the page sideways; anything wide wraps or
+     scrolls inside itself. */
+  .rounds-timeline { min-width: 0; }
+  .rounds-timeline .round-node, .rounds-timeline .round-spine-item { min-width: 0; }
 }
+.rounds-timeline > * { min-width: 0; }
 
 
 /* ── Score entry ───────────────────────────────────────────────────────────

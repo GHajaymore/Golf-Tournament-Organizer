@@ -433,7 +433,10 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
                 ),
               }]
             : []),
-          ...(seasonUndated > 0 && playingCount >= 2 && !dated
+          // SAID ONCE (2 Nov): on the timeline each undated round is already a "Needs you" line
+          // with what it costs the players ("Round 3 has no date — players cannot see when they
+          // play"), so this notice would say it a second time. Today's screen keeps it.
+          ...(seasonUndated > 0 && playingCount >= 2 && !dated && !timeline
             ? [{
                 key: "dates",
                 tone: "note" as const,
