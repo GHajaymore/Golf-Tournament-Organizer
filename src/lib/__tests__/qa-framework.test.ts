@@ -429,8 +429,10 @@ describe("a deliberate break is applied exactly, or is said not to have been", (
     expect(flow).toContain("node scripts/qa/breaks.mjs --run=${{ matrix.break.index }} qa-breaks.json");
     expect(flow).toContain("--expect=${{ needs.plan.outputs.count }}");
     expect(flow).toContain("fail-fast: false");
+    // ci.yml's push trigger names `main` alone, so a breaks (or round) branch never runs it.
     const ci = readVerbatim(".github/workflows/ci.yml");
-    expect(ci).toContain('branches: ["**", "!round/**", "!breaks/**"]');
+    const pushBranches = ci.match(/\bpush:\s*\n\s*branches:\s*(\[[^\]]*\])/)?.[1];
+    expect(pushBranches, "ci.yml's push trigger lists no branches").toBe('["main"]');
   });
 });
 

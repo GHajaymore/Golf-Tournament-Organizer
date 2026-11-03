@@ -110,6 +110,10 @@ async function phone(browser: Browser, baseURL: string | undefined, use: { viewp
     userAgent: use.userAgent,
     isMobile: true,
     hasTouch: true,
+    // G411-3 (3 Nov): on WebKit a save the service worker sends never meets `page.route`, so the
+    // held save counted 0 on the iPhone. No step here loads a page offline, so the worker is not
+    // needed; without it every save leaves from the page, where the hold can see it.
+    serviceWorkers: "block",
   });
 }
 
