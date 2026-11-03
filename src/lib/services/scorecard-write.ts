@@ -63,8 +63,28 @@ export type SaveCardResult =
        * was reporting.
        */
       status: string;
+      /**
+       * THE CARD AS THE ROW NOW HOLDS IT, read back from what the database
+       * returned for the write — not the card that was sent (2026-10-25, the
+       * honest card). A phone says a hole is "Sent" only where this says what
+       * the phone says, so the word cannot be true of a send and false of the
+       * record. Fitted to the round, as everything this file hashes is.
+       */
+      stored: (number | null)[];
     }
   | { ok: false; conflict: { strokes: (number | null)[]; revision: string } };
+
+/** A stored card's strokes, fitted to the round — what was written, read back. */
+export function storedCard(json: string, holes: number): (number | null)[] {
+  let raw: unknown = [];
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    raw = [];
+  }
+  const list = Array.isArray(raw) ? raw : [];
+  return Array.from({ length: holes }, (_, i) => (typeof list[i] === "number" ? (list[i] as number) : null));
+}
 
 export async function writeScorecard(input: {
   eventId: string;
@@ -229,7 +249,7 @@ export async function writeScorecard(input: {
   // The status comes off the ROW the upsert returned, not from re-applying
   // `reset` here. Re-deriving it would be a third copy of the same rule, and
   // the second copy is what this is fixing.
-  return { ok: true, revision: cardRevision(clean), status: saved.status };
+  return { ok: true, revision: cardRevision(clean), status: saved.status, stored: storedCard(saved.strokes, roundHoles) };
 }
 
 /**

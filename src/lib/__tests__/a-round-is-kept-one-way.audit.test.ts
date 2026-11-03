@@ -144,7 +144,10 @@ describe("a round kept by tapping", () => {
   it("takes a tap", async () => {
     const m = await matchIn(stages.holes);
     await signIn("a1");
-    expect(await keepMyMatchHoles(m.id, tapped("A"))).toEqual({ ok: true });
+    const res = await keepMyMatchHoles(m.id, tapped("A"));
+    expect(res.ok).toBe(true);
+    // Answered with the holes as the row holds them — read back, for the honest card.
+    expect(res.holes, "the save did not read the match back").toEqual(await holesOf(stages.holes));
     expect((await holesOf(stages.holes))[0]).toBe("A");
   });
 });
@@ -161,9 +164,12 @@ describe("a round kept on stroke cards", () => {
   it("works the hole out from the cards: a 3 beats a 4", async () => {
     const m = await matchIn(stages.cards);
     await signIn("a1");
-    expect(await keepMyMatchCard(m.id, card({ 0: 4 }))).toEqual({ ok: true });
+    const mine = await keepMyMatchCard(m.id, card({ 0: 4 }));
+    expect(mine.ok).toBe(true);
+    // Answered with the card as its row holds it — read back, for the honest card.
+    expect(mine.card?.[0], "the save did not read the card back").toBe(4);
     await signIn("b1");
-    expect(await keepMyMatchCard(m.id, card({ 0: 3 }))).toEqual({ ok: true });
+    expect(await keepMyMatchCard(m.id, card({ 0: 3 }))).toMatchObject({ ok: true });
     expect((await holesOf(stages.cards))[0]).toBe("B");
   });
 
@@ -179,7 +185,7 @@ describe("CONTROL: a round nobody has decided takes both, as it always did", () 
     const m = await matchIn(stages.open);
     await signIn("a1");
     expect(await saveTeamScorecard(m.teamAId, p.a1, m.id, card({ 0: 4 }))).toEqual({ ok: true });
-    expect(await keepMyMatchHoles(m.id, tapped("H"))).toEqual({ ok: true });
+    expect(await keepMyMatchHoles(m.id, tapped("H"))).toMatchObject({ ok: true });
     expect((await holesOf(stages.open))[0]).toBe("H");
   });
 });
