@@ -77,6 +77,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
           "An active member who signs in with the email on the roster sees the club's tournaments straight away — no invitation needed. An inactive member does not.",
           "Before the club's first tournament, the list of what is still to set up sits above the members, so once the first one is added **Create your first tournament** is one press away.",
+          "Each member also has **My season** in the player app, reached from Events: their own tournaments, rounds, places, best scores and prizes this season. Every place is the one that tournament's board gives. A tournament whose standings you have not published shows them no place, and nobody sees another member's season.",
         ],
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },
@@ -168,7 +169,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Under it, with **Anyone with the link**, are two more links on the same board, each with **Open** and [[Copy]]: the **Event page** and the **Clubhouse screen**. [[New link]] replaces all three at once, and all three close when the board is set to Organizers only or Organizers and players.",
           "The **Event page** is the one link to send before and after the day — in the newsletter, on the noticeboard, in the group chat. It shows the tournament's name, date, course and format; while entries are open, an **Enter this tournament** button and the sign-up QR poster; on the day, the leaderboard and the clubhouse screen; afterwards, the result and **Read the final report**. Contests with a sponsor are listed with their winners. It is a link, not an email: nothing is sent.",
           "The **Clubhouse screen** is the leaderboard for a TV in the bar: large type, no buttons, the field a page at a time when it is longer than the screen, starting again after the last page, and refreshing every 30 seconds like the board. It shows nothing the board does not.",
-          "**Who enters scores**: Organizers and assistants only, or Players may enter their own scores.",
+          "**Who enters scores**: Organizers and assistants only, or Players may enter their own scores. With Organizers and assistants only, a player's card and a round code offer no score buttons at all: the screen says the club is keeping the cards and points them to the board.",
           "**When players may submit**: during the round, hole by hole; or after the round, as a completed card. A match is complete once it is decided, so a match won 5&4 goes in without the four holes nobody played.",
           "**How players sign in**: Email and password, Access code on their scorecard, or Either email or access code (see Round codes in Part 3).",
           "**Tees**: pick the tournament's tees, then **Who may play other tees**. You decide the tees at three levels, each beating the one before: the tournament's here; a flight's, on Flights & groups; one player's, on Registration. **Everyone plays the tournament's tees** stops at the first (a seniors' championship off one set), **A flight may play its own tees** at the second (a club championship off three), and **A flight or a player may play their own tees** allows all three and is what a new tournament starts on. A player never chooses their own, and the entry form does not ask.",
@@ -404,7 +405,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
-          "**Players on their phones** — hole by hole or a full card, by tap or by voice. No Save button; holes are kept on the phone with no signal. One phone can hold the group's cards (**Me / Group**). Players press [[Certify my card]] when done, or [[Something on this card is wrong]] to flag it.",
+          "**Players on their phones** — hole by hole or a full card, by tap or by voice. No Save button; holes are kept on the phone with no signal. Each hole says where its score is: **On your phone** (kept, not yet with you), **Sent** (the server read it back), or **Not sent** (refused, with the reason) — so a player who reaches the scorer's table with holes still on their phone knows it, and shows you the card. One phone can hold the group's cards (**Me / Group**). Players press [[Certify my card]] when done, or [[Something on this card is wrong]] to flag it.",
           "**Staff** on The round in play → Score entry, below.",
         ],
       },

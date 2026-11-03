@@ -49,9 +49,15 @@ test.describe("typed while the page was still loading", () => {
       const box = page.getByLabel("Round code");
       await box.waitFor({ timeout: 15_000 });
       await box.pressSequentially("ZZQX7M3P", { delay: 40 });
-      // CONTROL: it really was typed before the page was live — the button is
-      // still asleep, as it is on any page whose script has not arrived.
-      await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+      // CONTROL: it really was typed before the page was live — React has not
+      // taken the box over. (This used to be "Continue is still asleep"; since
+      // 2026-10-25 Continue can be pressed before the script, as a plain form
+      // post — `round-code-before-the-script.spec.ts` — so the box itself is
+      // asked.)
+      expect(
+        await box.evaluate((el) => Object.keys(el).some((k) => k.startsWith("__reactFiber$"))),
+        "the page was live before the code was typed",
+      ).toBe(false);
 
       await live(page);
       await expect(box).toHaveValue(/ZZQX.?7M3P/);

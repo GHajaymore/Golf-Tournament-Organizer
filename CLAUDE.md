@@ -259,7 +259,8 @@ with `playwright`, `next` or `round.mjs` in the command line) and kill what is l
 
 ## What gates a merge, and what gates a deploy
 
-`ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
+`ci.yml` is the only workflow that runs on its own — every PR, and every push to `main` (since
+2026-11-02 a branch push alone runs nothing: open a PR, even a draft, to get its checks). It does the
 command above plus the smoke pass and Playwright.
 
 **What stops a bad merge** is a RULESET named "main must be green", not classic branch
