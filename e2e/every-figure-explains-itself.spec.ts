@@ -272,8 +272,44 @@ test("the card is no heavier for explaining itself", async ({ browser, baseURL, 
     console.log(`[weight] /me/card on zz-explain: document ${w.document} script ${w.script} style ${w.style} — budget script ${line.script}, style ${line.style}`);
     // The scripts and the style sheet are the build's, whatever the fixture;
     // the document is this fixture's own card, so it is not held to the line.
-    expect(w.script).toBeLessThanOrEqual(line.script * 1.1);
-    expect(w.style).toBeLessThanOrEqual(line.style * 1.1);
+    //
+    // HELD AS `weight.spec` HOLDS A KIND: a tenth over its line plus 2 KB
+    // (`w[k] > was[k] * ALLOW + 2_000` there). This first asked for a bare
+    // tenth, stricter than the ratchet it reads, and failed round
+    // figures-explain-2 at style 11,658 against 10,137.6. Measured from that
+    // run's own two stylesheets: every `.why` rule together is 1,177 bytes of
+    // CSS and 237 bytes on the wire; the other ~2.2 KB over the line is main's
+    // own growth since the budget was recorded on 13 Oct (globals.css and
+    // design-system.css 86,653 → 97,241 bytes of source), which `weight.spec`
+    // never flags because it fails on a screen's TOTAL. What this branch adds
+    // is held below, by itself, where a tenth would hide it.
+    expect(w.script).toBeLessThanOrEqual(line.script * 1.1 + 2_000);
+    expect(w.style).toBeLessThanOrEqual(line.style * 1.1 + 2_000);
+    // THE EXPLANATION'S OWN STYLE, by itself: every rule that dresses a
+    // figure's "why", as the browser parsed it — about 1.5 KB as the browser
+    // writes it back out (1,177 minified); 2 KB is room for a fix, not for a
+    // second design.
+    const whyCss = await page.evaluate(() => {
+      let n = 0;
+      const walk = (rules: CSSRuleList) => {
+        for (const r of Array.from(rules)) {
+          if (r instanceof CSSStyleRule && r.selectorText.includes(".why")) n += r.cssText.length;
+          else if ("cssRules" in r && (r as CSSGroupingRule).cssRules) walk((r as CSSGroupingRule).cssRules);
+        }
+      };
+      for (const s of Array.from(document.styleSheets)) {
+        try {
+          walk(s.cssRules);
+        } catch {
+          /* a sheet from another origin cannot be read; the app's are its own */
+        }
+      }
+      return n;
+    });
+    console.log(`[weight] the figures' "why" rules: ${whyCss} bytes of CSS`);
+    // CONTROL: the rules are there to be counted, so a zero is not a pass.
+    expect(whyCss).toBeGreaterThan(300);
+    expect(whyCss).toBeLessThanOrEqual(2_048);
   } finally {
     await context.close();
   }
