@@ -789,8 +789,9 @@ test.describe("a casual round at the course", () => {
     // page that was never slow. The fix itself is engine-blind.
     test.skip(browserName !== "chromium", "scripts cannot be held back on this engine: its cache answers the reload past page.route");
     /**
-     * Picking your name reloads the page, so the card arrives drawn by the
-     * server before its script. A tap in that gap went nowhere: found by a
+     * Picking your name reloaded the page then (it no longer does; reopening
+     * the card still does), so the card arrives drawn by the server before
+     * its script. A tap in that gap went nowhere: found by a
      * round on a small phone (2026-10-18), where "Hole 1 halved" was pressed
      * and the hole stayed "not played". On one bar of signal the gap is
      * seconds. So the script is HELD BACK here, as `typed-before-load.spec.ts`
@@ -811,6 +812,13 @@ test.describe("a casual round at the course", () => {
       await p.getByRole("button", { name: "Continue" }).click();
       const bea = p.getByRole("button", { name: BEA, exact: true });
       await expect(bea).toBeEnabled();
+      // Picking the name now draws the card in the same trip, with no reload
+      // (`claimName`, 2026-10-25). The card is still drawn by the server ahead
+      // of its script whenever the page is opened again — the player's link
+      // reopened, the phone woken — so that is the page held back here.
+      await bea.click();
+      const halved = p.getByRole("button", { name: "Hole 1 halved" });
+      await expect(halved, "picking the name did not open the card").toBeVisible({ timeout: 30_000 });
       // From here every script arrives four seconds late (a route also turns
       // the browser's cache off, so the reload cannot borrow the last copy).
       let held = 0;
@@ -819,8 +827,7 @@ test.describe("a casual round at the course", () => {
         await new Promise((r) => setTimeout(r, 4000));
         await route.continue();
       });
-      await bea.click();
-      const halved = p.getByRole("button", { name: "Hole 1 halved" });
+      await p.reload({ waitUntil: "commit" });
       await expect(halved, "the reloaded card was not drawn by the server").toBeVisible({ timeout: 30_000 });
       // CONTROL: the page really is not live yet — its scripts are still held.
       expect(held, "no script was held back: the card was not reloaded").toBeGreaterThan(0);

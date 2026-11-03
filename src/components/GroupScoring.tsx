@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { HoleByHoleCard, type CardPlayer } from "@/components/HoleByHoleCard";
 import { saveScorecard } from "@/app/actions/tournament";
 import { usePendingCard } from "@/components/usePendingCard";
-import { cardRevision, keptCardChanged, type SyncStatus } from "@/lib/domain/pending-card";
+import { cardRevision, combineHoleSyncs, keptCardChanged, type HoleSync, type SyncStatus } from "@/lib/domain/pending-card";
 import type { PinSheet } from "@/lib/domain/pin-sheet";
 import { stablefordPickUp } from "@/lib/domain/card-points";
 import { isPartnerCardSigned } from "@/lib/domain/card-approval";
@@ -51,6 +51,8 @@ export function GroupScoring({
   me,
   myStrokes,
   onSetMine,
+  mySync,
+  myRefusal = "",
   partners,
   holding,
   startHole = 1,
@@ -84,6 +86,10 @@ export function GroupScoring({
   me: CardPlayer;
   myStrokes: (number | null)[];
   onSetMine: (hole: number, value: number | null) => void;
+  /** Where the holder's own holes are, from `PlayerCard`'s queue. */
+  mySync: HoleSync[];
+  /** The server's words for a refusal of the holder's own card. */
+  myRefusal?: string;
   partners: GroupPartner[];
   /** The tournament takes whole cards only: keep them on the phone until whole. */
   holding: (strokes: (number | null)[]) => boolean;
@@ -93,11 +99,16 @@ export function GroupScoring({
     Object.fromEntries(partners.map((p) => [p.id, Array.from({ length: holes }, (_, i) => p.strokes[i] ?? null)])),
   );
   const [statuses, setStatuses] = useState<Record<string, SyncStatus>>({});
+  /** Where each partner's holes are, as their own queue reports it. */
+  const [partnerSync, setPartnerSync] = useState<Record<string, HoleSync[]>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
 
-  const report = useCallback((id: string, s: SyncStatus) => {
+  const report = useCallback((id: string, s: SyncStatus, holesNow: HoleSync[]) => {
     setStatuses((prev) => (prev[id]?.label === s.label && prev[id]?.tone === s.tone ? prev : { ...prev, [id]: s }));
+    setPartnerSync((prev) => ((prev[id] ?? []).join(",") === holesNow.join(",") ? prev : { ...prev, [id]: holesNow }));
   }, []);
+  // ONE MARK A HOLE FOR THE GROUP: "Sent" only when every card on it is sent (`combineHoleSyncs`).
+  const groupSync = combineHoleSyncs([mySync, ...partners.map((p) => partnerSync[p.id] ?? [])], holes);
   const takeTheirs = useCallback((id: string, name: string, strokes: (number | null)[]) => {
     setCards((prev) => ({ ...prev, [id]: Array.from({ length: holes }, (_, i) => strokes[i] ?? null) }));
     setNotes((prev) => ({
@@ -160,6 +171,8 @@ export function GroupScoring({
         pins={pins}
         firstHole={firstHole}
         dense={dense}
+        sync={groupSync}
+        refusal={myRefusal}
         {...(offerPickUp
           ? (() => {
               const shotsOf = (id: string, h: number) =>
@@ -215,7 +228,7 @@ function PartnerQueue({
   partner: GroupPartner;
   strokes: (number | null)[] | undefined;
   holding: boolean;
-  onStatus: (id: string, s: SyncStatus) => void;
+  onStatus: (id: string, s: SyncStatus, holes: HoleSync[]) => void;
   onTheirs: (id: string, name: string, strokes: (number | null)[]) => void;
 }) {
   /** The revision the server holds, as far as this phone last heard. */
@@ -229,25 +242,32 @@ function PartnerQueue({
    */
   const known = useRef(cardRevision(strokes ?? []));
 
+  const [drawn] = useState(() => (strokes ? [...strokes] : null));
   const queue = usePendingCard<(number | null)[]>({
     stageId,
     playerId: partner.id,
     holding,
+    // The partner's card as the server held it when this view opened.
+    drawnFrom: drawn,
+    cells: (v) => v,
     send: async (value) => {
       const res = await saveScorecard(stageId, partner.id, value, revision.current);
       if (!res.ok) {
-        // Theirs wins. "sent" empties the queue, which is the point: a retry
-        // would overwrite the partner's own entry the moment it stopped
-        // disagreeing.
+        // Theirs wins. Answering with their card empties the queue, which is
+        // the point: a retry would overwrite the partner's own entry the moment
+        // it stopped disagreeing. And the holes are measured against THEIR card,
+        // which is what the server holds.
         revision.current = res.conflict.revision;
         // What the phone now holds is theirs, at the length it holds cards.
-        known.current = cardRevision(Array.from({ length: value.length }, (_, i) => res.conflict.strokes[i] ?? null));
+        const theirs = Array.from({ length: value.length }, (_, i) => res.conflict.strokes[i] ?? null);
+        known.current = cardRevision(theirs);
         onTheirs(partner.id, partner.name, res.conflict.strokes);
-        return "sent";
+        return { serverHolds: theirs, theirsWins: true };
       }
       revision.current = res.revision;
       known.current = cardRevision(value);
-      return "sent";
+      // READ BACK: the partner's card as the row now holds it.
+      return { serverHolds: Array.from({ length: value.length }, (_, i) => res.stored[i] ?? null) };
     },
   });
 
@@ -259,9 +279,11 @@ function PartnerQueue({
     if (strokes && keptCardChanged(strokes, known.current)) push(strokes);
   }, [strokes, push]);
 
+  // Joined, so the effect below fires when a hole's state changes and not on every render.
+  const holesKey = queue.holes.join(",");
   useEffect(() => {
-    onStatus(partner.id, queue.status);
-  }, [queue.status, onStatus, partner.id]);
+    onStatus(partner.id, queue.status, holesKey ? (holesKey.split(",") as HoleSync[]) : []);
+  }, [queue.status, holesKey, onStatus, partner.id]);
 
   return null;
 }

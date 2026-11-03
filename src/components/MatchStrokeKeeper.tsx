@@ -36,7 +36,8 @@ export function MatchStrokeKeeper(props: {
   holderName: string;
   roundLabel?: string;
   eventName?: string;
-  save: (matchId: string, strokes: (number | null)[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Answers its refusal in words, and the card as its row holds it after the write (the read-back). */
+  save: (matchId: string, strokes: (number | null)[]) => Promise<{ ok: boolean; error?: string; card?: (number | null)[] }>;
   otherMatches?: Array<{ href: string; label: string }>;
   next?: ReactNode;
   footer?: ReactNode;
@@ -45,23 +46,24 @@ export function MatchStrokeKeeper(props: {
   const [card, setCard] = useState<(number | null)[]>(() =>
     Array.from({ length: holeCount }, (_, i) => props.card.strokes[i] ?? null),
   );
-  // The server says WHY it refused, and that sentence is shown, not a generic one.
-  const [refusal, setRefusal] = useState("");
   const filled = card.filter((v) => typeof v === "number" && v > 0).length;
 
+  // The card as the server held it when this was drawn: every hole on it is "Sent".
+  const [drawn] = useState(() => Array.from({ length: holeCount }, (_, i) => props.card.strokes[i] ?? null));
   // Onto the phone first, to the server a moment later — the queue every card uses.
   const queue = usePendingCard<(number | null)[]>({
     stageId: props.stageId,
     playerId: `${props.holderId}:${props.match.id}`,
     holding: !!props.submitWhole && filled < holeCount,
+    drawnFrom: drawn,
+    cells: (v) => v,
     send: async (value) => {
       const res = await props.save(props.match.id, value);
-      if (!res.ok) {
-        setRefusal(res.error ?? "");
-        throw new Error(res.error ?? "Couldn't save that card.");
-      }
-      setRefusal("");
-      return "sent";
+      // The server says WHY it refused, and that sentence is shown — at the hole
+      // and on the card's line (`usePendingCard().refusal`), not a generic one.
+      if (!res.ok) throw new Error(res.error ?? "Couldn't save that card.");
+      // READ BACK: the card as its row now holds it.
+      return res.card ? { serverHolds: Array.from({ length: holeCount }, (_, i) => res.card?.[i] ?? null) } : "sent";
     },
   });
   const { recovered, clearRecovered, push } = queue;
@@ -130,14 +132,14 @@ export function MatchStrokeKeeper(props: {
           }}
           meId="me"
           showVoice={props.voiceEntry ?? true}
+          // Where each hole is — on this phone, sent, or not sent — from the queue itself.
+          sync={queue.holes}
+          refusal={queue.refusal}
         />
 
         <p role="status" style={{ fontSize: 14, margin: 0, lineHeight: 1.5 }}>
           {queue.status.label}
         </p>
-        {refusal && (
-          <p style={{ fontSize: 14, margin: 0, lineHeight: 1.5, color: "var(--color-danger)" }}>{refusal}</p>
-        )}
         {standing.complete && props.next}
       </div>
 
