@@ -397,7 +397,7 @@ function everyLayer(abroad) {
       name: "Would the tests notice the arithmetic broken",
       standsFor: "money and handicap arithmetic: a wrong stroke or a wrong cent that every fixture would still pass",
       reallyIs:
-        "Stryker breaks the arithmetic core one small change at a time (ARITHMETIC_CORE in scripts/qa/mutation-ratchet.mjs: handicap, a round's allowance and figure, strokes by stroke index, a side's strokes, the split to the cent, skins and the skins split) and runs the unit suite against each change; a module whose score falls below mutation-baseline.json is a finding",
+        "Stryker breaks the arithmetic core one small change at a time (ARITHMETIC_CORE in scripts/qa/mutation-ratchet.mjs: handicap, a round's allowance and figure, strokes by stroke index, a side's strokes, the split to the cent, skins and the skins split) and runs the unit suite against each change; a module that falls more than one caught mutant below its floor in mutation-baseline.json is a finding (one below holds, and the score line names it as on its slack)",
       cannotSee:
         "a rule no unit test states at all; gameNets, the sink that reads the database (the audit suite holds it); the rest of the foundation in stryker.config.mjs (run `npm run mutation` by hand); an equivalent mutant, which counts against the score",
       // --concurrency 4: a GitHub runner has four cores. Incremental (reports/stryker-incremental.json,

@@ -125,9 +125,11 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx"],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
+      // The timeline and its side panel, behind `?view=timeline` (the rehaul's step 1 guards).
+      "e2e/rounds-panel.spec.ts",
       "e2e/rounds-and-formats.spec.ts",
       "e2e/round-date-and-viewing-as.spec.ts",
       "e2e/round-day.spec.ts",
@@ -266,6 +268,7 @@ export const FULL_ONLY = [
   "e2e/formats-agree.spec.ts",
   "e2e/front-door.spec.ts",
   "e2e/handicap-body.spec.ts",
+  "e2e/honest-card.spec.ts",
   "e2e/hydration-recorder.spec.ts",
   "e2e/interclub-league.spec.ts",
   "e2e/joining-a-club-refusals.spec.ts",
@@ -303,6 +306,7 @@ export const FULL_ONLY = [
   "e2e/round-code-certify-and-result.spec.ts",
   "e2e/round-code-decided-match.spec.ts",
   "e2e/round-code-four-ball-side.spec.ts",
+  "e2e/round-code-on-3g.spec.ts",
   "e2e/round-code-reissued.spec.ts",
   "e2e/round-code-sign.spec.ts",
   "e2e/seasons.spec.ts",
@@ -316,6 +320,7 @@ export const FULL_ONLY = [
   "e2e/sides-and-splits.spec.ts",
   "e2e/skins-pot.spec.ts",
   "e2e/slow-signal-scoring.spec.ts",
+  "e2e/staff-kept-cards.spec.ts",
   "e2e/team-cup.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",

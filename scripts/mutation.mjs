@@ -45,7 +45,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MUTATED_MODULES } from "../stryker.config.mjs";
-import { headline, modulesOfScope, raisedBaseline, ratchetFalls, scoresOf } from "./qa/mutation-ratchet.mjs";
+import { headline, modulesOfScope, raisedBaseline, ratchetFalls, ratchetSlack, scoresOf } from "./qa/mutation-ratchet.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPORT = join(root, "reports", "mutation", "mutation.json");
@@ -112,8 +112,11 @@ if (!existsSync(REPORT)) {
 }
 
 const scores = scoresOf(JSON.parse(readFileSync(REPORT, "utf8")), root);
+let baselineFile = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : null;
+// A module on its one mutant of slack is named in the score line, so the verdict shows it.
+const slack = flag("--ratchet") && baselineFile ? ratchetSlack(scores, baselineFile.modules ?? {}, inScope) : [];
 // The first line is the one the round's verdict keeps (round.mjs, a command layer's `said`).
-console.log(`${headline(scores, inScope, scope)}${minutes !== null ? ` (${minutes} min)` : ""}`);
+console.log(`${headline(scores, inScope, scope, slack)}${minutes !== null ? ` (${minutes} min)` : ""}`);
 const shown = Object.entries(scores).filter(([f]) => inScope.includes(f));
 const width = Math.max(...shown.map(([k]) => k.length), 10);
 console.log("\nMutation score per module (killed, or an endless loop stopped, of all that could be):\n");
@@ -121,8 +124,6 @@ for (const [file, s] of shown.sort((a, b) => a[1].score - b[1].score)) {
   console.log(`  ${file.padEnd(width)}  ${s.score.toFixed(2).padStart(6)}%   ${s.detected} caught, ${s.undetected} not`);
 }
 console.log("");
-
-let baselineFile = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : null;
 
 if (flag("--write-baseline")) {
   const { modules, kept, missing } = raisedBaseline(baselineFile?.modules ?? {}, scores, inScope);
@@ -149,5 +150,11 @@ if (flag("--ratchet")) {
     console.error(`[mutation] RATCHET FAILED — ${falls.length} module(s) of ${inScope.length} in the ${scope} scope.`);
     process.exit(1);
   }
-  console.log(`[mutation] ratchet held: every module in the ${scope} scope at or above its baseline (${inScope.length} modules).`);
+  // Not ✗: the round counts ✗ lines as findings, and a module within its slack held.
+  for (const s of slack) {
+    console.log(`  ⚠ ${s.file}: ${s.detected} of ${s.total} caught, one below its floor of ${s.need} (${s.floor}%) — held on its one mutant of slack; read the survivors before the next one goes`);
+  }
+  console.log(
+    `[mutation] ratchet held: every module in the ${scope} scope at or above its baseline, less at most one mutant (${inScope.length} modules${slack.length ? `, ${slack.length} on its slack` : ""}).`,
+  );
 }

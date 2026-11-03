@@ -70,6 +70,23 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "It saves as you go, even with no signal.",
       "Buttons grey? The page is still loading. Wait a moment.",
       "[[Full card]] shows every hole at once.",
+      "No buttons at all? Your club is keeping the cards.",
+      "Then follow the round on the board.",
+    ],
+  },
+  {
+    // THE HONEST CARD (2026-10-25): what the marks on each hole mean.
+    id: "sent",
+    question: "Has the club got my scores?",
+    href: "/me/card",
+    steps: [
+      "Each hole shows where its score is.",
+      "A ring means On your phone. It sends by itself.",
+      "A tick means Sent. The club has it.",
+      "No signal? Keep playing. Your scores stay on the phone.",
+      "Three holes stuck on your phone? The card tells you.",
+      "Not sent means the club refused it. The card says why.",
+      "Then show your card to the committee.",
     ],
   },
   {
@@ -80,7 +97,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "On Today, tap [[Score this match]].",
       "After each hole, tap who won it, or [[Halved]].",
       "If your {organizer} chose stroke cards, enter your own strokes instead. The app works out who won each hole.",
-      "It saves as you go.",
+      "It saves as you go. Each hole says On your phone or Sent.",
       "The board shows your match as you play.",
     ],
   },
