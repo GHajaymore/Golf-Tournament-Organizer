@@ -3444,6 +3444,9 @@ export function standingRows(state: EventState): StandingRow[] {
       // A match-play row with no stroke card has no par either, so the to-par
       // column reads "—" rather than the zero it used to print.
       parKnown: s?.parKnown ?? false,
+      // Same field the stroke row carries for "how was this worked out";
+      // nought with no stroke card, which `boardNetWorking` reads as nothing to explain.
+      parThru: s?.parThru ?? 0,
       points: s?.points ?? 0,
       thru: s?.thru ?? 0,
       holesOwed: s?.holesOwed ?? 0,
