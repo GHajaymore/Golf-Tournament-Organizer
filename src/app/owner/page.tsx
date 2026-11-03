@@ -8,7 +8,7 @@ import { OwnerDemoClub } from "@/components/OwnerDemoClub";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
 import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, planTagline, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
-import { wholeMoney } from "@/lib/domain/money-format";
+import { money, wholeMoney } from "@/lib/domain/money-format";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
 import { listDiscountCodes } from "@/lib/services/platform-discounts";
@@ -25,6 +25,9 @@ import { DEFAULT_LOCALE, formatDay } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { aiAccount } from "@/lib/ai-config";
 import { OwnerAiCheck } from "@/components/OwnerAiCheck";
+import { OwnerAiBudget } from "@/components/OwnerAiBudget";
+import { aiSpendSummary } from "@/lib/services/ai-spend";
+import { MICRO_USD_PER_CENT } from "@/lib/domain/ai-cost";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
 import { deliveryWords } from "@/lib/domain/email-delivery";
 
@@ -157,6 +160,23 @@ export default async function OwnerConsolePage() {
 
   // The AI account in words: on/off, label, models. Never the key (src/lib/ai-config.ts).
   const ai = aiAccount();
+  // And what it has cost this UTC month against the owner's budget (services/ai-spend.ts).
+  const aiSpend = await aiSpendSummary();
+  const centsUp = (micro: number) => Math.ceil(micro / MICRO_USD_PER_CENT);
+  const aiBudget = {
+    monthWords: "This month (UTC)",
+    spentWords: money(centsUp(aiSpend.spentMicroUsd), "USD"),
+    budgetWords: money(aiSpend.budgetCents, "USD"),
+    leftWords: money(aiSpend.leftCents, "USD"),
+    budgetBox: `${Math.floor(aiSpend.budgetCents / 100)}.${String(aiSpend.budgetCents % 100).padStart(2, "0")}`,
+    stopped: aiSpend.stopped,
+    jobs: aiSpend.jobs.map((j) => ({
+      job: j.job,
+      line: `${j.words}: ${j.calls} ${j.calls === 1 ? "call" : "calls"} · ${money(centsUp(j.microUsd), "USD")}${
+        j.unpriced ? ` · ${j.unpriced} on a model with no price, counted at the dearest rate` : ""
+      }`,
+    })),
+  };
 
   const stat = (label: string, value: string, sub?: string) => (
     <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
@@ -267,6 +287,7 @@ export default async function OwnerConsolePage() {
             );
           })}
         <OwnerAiCheck />
+        <OwnerAiBudget {...aiBudget} />
       </section>
 
       {/* The demo club a visitor can watch (2026-10-24): built and rebuilt from here, and nowhere else. */}

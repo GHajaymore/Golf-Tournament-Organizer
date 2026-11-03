@@ -37,8 +37,45 @@ cannot serve it; the config refuses that pairing.
 | `AI_ACCOUNT_LABEL` | a plain name for the account, e.g. `Ajay's personal account`. Shown on `/owner`. Never the key. |
 
 `/owner` shows one AI card: on or off, the label, and the model per job, plus the
-**Check AI** button (owner-only, once a minute; `actions/owner-ai.ts`). It never
+**Check AI** button (owner-only, once a minute; `actions/owner-ai.ts`) and the
+monthly AI budget (below). It never
 shows the key or any part of it. After any swap of account, press Check AI.
+
+## The monthly AI budget (in the app)
+
+Ajay, 2026-11-03: "let's set the budget to $20 / month. make it configurable in
+owner's console".
+
+- **Default $20.00 a month** when it has never been set.
+- **Where to change it:** `/owner` → the AI card → *Monthly AI budget (US dollars)*
+  → **Save budget**. Owner-only (`setAiBudget` in `actions/owner-ai.ts`). Any figure
+  from $0 to $1,000.00; a negative, a non-number or more than $1,000 is refused in
+  words. Stored as whole cents in `PlatformSetting` `ai-budget-cents`.
+- **$0 means AI is off for everyone.**
+- **What the card shows:** this month's spend, the budget, what is left, and the
+  spend per job (calls and cost).
+- **How it is counted:** after every model call, including each line of Check AI,
+  the cost is worked out from the `usage` the API reports and the rate card in
+  `src/lib/ai-config.ts` (`RATE_CARD`: Haiku 5.5 $0.10/$0.50 per million tokens up
+  to a 100K-token prompt and $0.50/$2.50 above; Sonnet 5.5 $2/$10; cache reads
+  0.1x and cache writes 1.25x the input price), and recorded in the `AiSpend`
+  table in whole micro-dollars. A model the rate card does not price is counted
+  at the dearest rate on it, never at zero. A failed call that reports usage is
+  recorded; one that reports none is not.
+- **The stop:** before every call, if this month's recorded spend has reached the
+  budget, the call is not made and the feature says so: "This month's AI budget is
+  used up; it starts again on Dec 1, 2026 (UTC)." The month is **UTC**, because
+  the bill is the account's, not any club's day. The gate is in one place, `post`
+  in `src/lib/services/claude.ts`, which every job and Check AI go through.
+- **It is not exact to the cent:** the check happens before a call and the cost is
+  known only after it, so calls already in flight when the line is crossed still
+  finish — at these jobs' token ceilings, a few cents at most.
+- **The Anthropic console's own spend limit is a separate HARD cap** (Console →
+  Settings → Limits) that the owner sets there. Set it a little above the in-app
+  budget: the app stops itself first, and the console's cap catches anything the
+  app's record missed.
+- It is a record and a stop, nothing else: the app never pays, tops up or moves
+  any money.
 
 ## To switch accounts
 
