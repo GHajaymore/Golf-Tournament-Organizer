@@ -58,11 +58,19 @@ describe("talking to the model", () => {
      * would pass the count and leak everything.
      */
     const src = readSource(HELPER);
-    expect(src).toMatch(/if \(!res\.ok\) return \{ ok: false, reason: "refused", status: res\.status \}/);
+    // askClaude's own body: from its signature to the shared `post`.
+    const ask = src.slice(src.indexOf("export async function askClaude"), src.indexOf("function post("));
+    expect(ask.length, "askClaude and post must both be found").toBeGreaterThan(100);
+    expect(ask).toMatch(/if \(!res\.ok\) return \{ ok: false, reason: "refused", status: res\.status \}/);
     // The body is read exactly once, on the SUCCESS path, and only `.content`
     // is taken from it.
-    expect(src.match(/res\.json\(\)/g)?.length ?? 0).toBe(1);
+    expect(ask.match(/res\.json\(\)/g)?.length ?? 0).toBe(1);
     expect(src, "the response body must not be read as text").not.toMatch(/res\.text\(\)/);
+    // The one other reader of a body is the owner's Check AI, which may show
+    // the API's error words ONLY because its request is fixed in this file: it
+    // takes a job and nothing a caller could fill with somebody's data.
+    expect(src).toMatch(/export async function checkAiJob\(job: AiJob\): Promise<AiCheckLine>/);
+    expect(src.match(/res\.json\(\)/g)?.length ?? 0, "a third body reader needs this guard's say").toBe(2);
   });
 
   it("says the feature is off rather than throwing when there is no key", () => {

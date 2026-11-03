@@ -24,6 +24,7 @@ import { earlyListStatus } from "@/lib/services/early-list";
 import { DEFAULT_LOCALE, formatDay } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 import { aiAccount } from "@/lib/ai-config";
+import { OwnerAiCheck } from "@/components/OwnerAiCheck";
 import { roleLabel, sizeLabel } from "@/lib/domain/interest";
 import { deliveryWords } from "@/lib/domain/email-delivery";
 
@@ -265,6 +266,7 @@ export default async function OwnerConsolePage() {
               </p>
             );
           })}
+        <OwnerAiCheck />
       </section>
 
       {/* The demo club a visitor can watch (2026-10-24): built and rebuilt from here, and nowhere else. */}

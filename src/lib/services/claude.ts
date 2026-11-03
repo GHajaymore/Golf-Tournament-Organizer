@@ -1,5 +1,7 @@
 import "server-only";
-import { aiKey, JOBS, type AiJob } from "@/lib/ai-config";
+import { aiKey, jobStatus, JOBS, type AiJob } from "@/lib/ai-config";
+import { aiCheckLine, type AiCheckLine } from "@/lib/domain/ai-check";
+import { PROBE_IMAGE, solidSquarePng } from "@/lib/domain/probe-image";
 
 /**
  * One way to ask Claude a question.
@@ -56,23 +58,8 @@ export async function askClaude({
   // A job configured onto another provider is not this function's to send.
   const key = JOBS[job].provider === "anthropic" ? aiKey(job) : null;
   if (!key) return { ok: false, reason: "not-configured" };
-  const { model, thinking } = JOBS[job];
-
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        thinking,
-        messages: [{ role: "user", content }],
-      }),
-    });
+    const res = await post(key, job, maxTokens, content);
 
     // The status, never the body. See the note above — this is the whole point.
     if (!res.ok) return { ok: false, reason: "refused", status: res.status };
@@ -85,5 +72,62 @@ export async function askClaude({
     return text ? { ok: true, text } : { ok: false, reason: "empty" };
   } catch {
     return { ok: false, reason: "unreachable" };
+  }
+}
+
+/** The one request: the job's model and thinking setting from ai-config, and the content. */
+function post(key: string, job: AiJob, maxTokens: number, content: ClaudeContent): Promise<Response> {
+  const { model, thinking } = JOBS[job];
+  return fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      thinking,
+      messages: [{ role: "user", content }],
+    }),
+  });
+}
+
+/**
+ * THE OWNER'S "CHECK AI": one tiny real request for a job, through the same
+ * `post` every real request uses — so it proves the account, the model id and
+ * the thinking setting exactly as the feature will send them.
+ *
+ * It takes a JOB and nothing else: the content is fixed here (a sentence, and a
+ * drawn square for the job that reads photographs). That is why, unlike
+ * `askClaude`, it may hand back the API's own error message — the request it
+ * might echo holds nothing about anybody (`domain/ai-check.ts`).
+ */
+export async function checkAiJob(job: AiJob): Promise<AiCheckLine> {
+  const status = jobStatus(job);
+  const line = { job, words: status.words, model: status.model };
+  const key = JOBS[job].provider === "anthropic" ? aiKey(job) : null;
+  if (!status.on || !key) return aiCheckLine(line, { kind: "off", why: status.on ? "No key." : status.why }, 0, null);
+
+  const content: ClaudeContent = JOBS[job].needsImages
+    ? [
+        { type: "image", source: { type: "base64", media_type: PROBE_IMAGE.media, data: solidSquarePng(PROBE_IMAGE.size, PROBE_IMAGE.rgb) } },
+        { type: "text", text: "What colour is this square? Reply with one word." },
+      ]
+    : "Reply with the word OK.";
+
+  const started = Date.now();
+  try {
+    const res = await post(key, job, 16, content);
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    return aiCheckLine(line, { kind: "answered", status: res.status, body }, Date.now() - started, key);
+  } catch {
+    return aiCheckLine(line, { kind: "unreachable" }, Date.now() - started, key);
   }
 }

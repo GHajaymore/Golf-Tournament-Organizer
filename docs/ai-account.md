@@ -36,8 +36,9 @@ cannot serve it; the config refuses that pairing.
 | `ANTHROPIC_API_KEY` | the Anthropic account's API key. Unset = the Anthropic jobs are off and each screen says so. |
 | `AI_ACCOUNT_LABEL` | a plain name for the account, e.g. `Ajay's personal account`. Shown on `/owner`. Never the key. |
 
-`/owner` shows one AI card: on or off, the label, and the model per job. It never
-shows the key or any part of it.
+`/owner` shows one AI card: on or off, the label, and the model per job, plus the
+**Check AI** button (owner-only, once a minute; `actions/owner-ai.ts`). It never
+shows the key or any part of it. After any swap of account, press Check AI.
 
 ## To switch accounts
 
@@ -47,7 +48,12 @@ shows the key or any part of it.
 2. In Vercel, replace `ANTHROPIC_API_KEY` (Production and Preview) with the new
    key, and set `AI_ACCOUNT_LABEL` to the new account's name.
 3. Redeploy (Vercel reads environment values at deploy time).
-4. Open `/owner` and check the AI card names the new label and says On.
+4. Open `/owner`. Check the AI card shows the new label and says On, then
+   **press Check AI**. It sends each job one tiny real request (a fixed sentence,
+   and a drawn red square for card reading; never a real card or person). For
+   each job it shows OK with the model and the time taken, or the API's own
+   status and error message. It never shows the key. You can press it once a
+   minute. Every line should say OK before you go on.
 5. Revoke the old key in the old account.
 
 Locally: change the same two lines in `.env.local` and restart the dev server.
