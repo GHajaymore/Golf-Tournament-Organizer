@@ -105,7 +105,41 @@ export function scoresOf(report, root = process.cwd()) {
   return out;
 }
 
-/** Every module in scope that is below its floor, unmeasured, or without a floor. Empty means the ratchet held. */
+/**
+ * ONE MUTANT OF SLACK PER MODULE (2026-11-02).
+ *
+ * The nightly of 2 Nov held production on `stroke.ts` at 207 of 271 caught against a floor of
+ * 208: one mutant (`NUMBER_WORDS = {}`) killed on the build machine timed out on the slower
+ * runner, and a plain timeout counts as not caught (above). A floor written at exactly the figure
+ * one machine measured is one slow mutant away from failing on another.
+ *
+ * So a module may sit ONE caught mutant below its floor and the ratchet holds — and that is said,
+ * by name, in the score line the verdict prints (`headline`), so slack in use is never silent. Two
+ * below fails. The slack is a COUNT of mutants, not a percentage: the floor is turned into the
+ * number of mutants it asks of this run's total (`floorCount`), and the comparison is of counts.
+ */
+export const SLACK_MUTANTS = 1;
+
+/** A percentage as the report rounds it (two places), so a floor compares with a score exactly as written. */
+const pct = (detected, total) => (total === 0 ? 100 : Math.round((detected / total) * 10000) / 100);
+
+/**
+ * The fewest caught mutants, of `total`, whose score reaches `floor` — the floor as a count.
+ * `total + 1` when no count can reach it (a floor above 100).
+ */
+export function floorCount(floor, total) {
+  for (let k = 0; k <= total; k += 1) if (pct(k, total) >= floor) return k;
+  return total + 1;
+}
+
+/** Below its floor by more than the slack: the module the ratchet fails on. */
+function measuredAgainstFloor(now, floor) {
+  const total = now.detected + now.undetected;
+  const need = floorCount(floor, total);
+  return { total, need, short: need - now.detected };
+}
+
+/** Every module in scope that is below its floor by more than the slack, unmeasured, or without a floor. Empty means the ratchet held. */
 export function ratchetFalls(scores, baseline, inScope) {
   const falls = [];
   for (const file of inScope) {
@@ -113,9 +147,32 @@ export function ratchetFalls(scores, baseline, inScope) {
     const now = scores[file];
     if (typeof floor !== "number") falls.push({ file, why: `mutated and has no baseline — add it with --write-baseline` });
     else if (!now) falls.push({ file, why: `in the baseline at ${floor}% and not measured in this run` });
-    else if (now.score < floor) falls.push({ file, why: `${now.score}% is below its baseline of ${floor}%`, score: now.score, floor });
+    else {
+      const { total, need, short } = measuredAgainstFloor(now, floor);
+      if (short > SLACK_MUTANTS) {
+        falls.push({
+          file,
+          why: `${now.score}% is below its baseline of ${floor}% — ${now.detected} of ${total} caught, the floor asks ${need}, and a module has ${SLACK_MUTANTS} mutant of slack`,
+          score: now.score,
+          floor,
+        });
+      }
+    }
   }
   return falls;
+}
+
+/** The modules in scope below their floor but within the slack: the ratchet held on them, and says so. */
+export function ratchetSlack(scores, baseline, inScope) {
+  const slack = [];
+  for (const file of inScope) {
+    const floor = baseline[file];
+    const now = scores[file];
+    if (typeof floor !== "number" || !now) continue;
+    const { total, need, short } = measuredAgainstFloor(now, floor);
+    if (short > 0 && short <= SLACK_MUTANTS) slack.push({ file, detected: now.detected, need, total, score: now.score, floor });
+  }
+  return slack;
 }
 
 /**
@@ -141,8 +198,12 @@ export function raisedBaseline(baseline, scores, inScope) {
   return { modules, kept, missing };
 }
 
-/** One line the round's verdict reads (round.mjs keeps a command layer's first line). */
-export function headline(scores, inScope, scope) {
+/**
+ * One line the round's verdict reads (round.mjs keeps a command layer's first line).
+ * `slack` (from `ratchetSlack`) is named at its end, so a module living on its one mutant of
+ * slack is in the verdict and not only in a log.
+ */
+export function headline(scores, inScope, scope, slack = []) {
   let d = 0;
   let u = 0;
   for (const file of inScope) {
@@ -155,5 +216,8 @@ export function headline(scores, inScope, scope) {
     .filter((f) => scores[f])
     .map((f) => `${f.split("/").pop()} ${scores[f].score}%`)
     .join(", ");
-  return `Mutation score (${scope}): ${pct}% — ${d} of ${d + u} mutants caught; ${per}`;
+  const used = slack.length
+    ? `; ON ITS ONE MUTANT OF SLACK: ${slack.map((s) => `${s.file.split("/").pop()} (${s.detected} of ${s.total} caught, floor ${s.need})`).join(", ")}`
+    : "";
+  return `Mutation score (${scope}): ${pct}% — ${d} of ${d + u} mutants caught; ${per}${used}`;
 }
