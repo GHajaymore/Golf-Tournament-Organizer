@@ -1128,6 +1128,9 @@ textarea.input { min-height: 90px; resize: vertical; }
   text-align: left;
   white-space: normal;
   color: var(--color-text);
+  /* Scrolled to with `nearest` when it opens (FigureWhyCloser, the card's
+     working line): clear of a phone's fixed tab bar, not tucked under it. */
+  scroll-margin-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
 }
 .why-says cite { font-style: normal; color: var(--color-neutral-400); }
 .why-inline > .why-says { padding-top: 4px; }

@@ -1,5 +1,5 @@
 "use client";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { toParText } from "@/lib/domain";
 import { cardWorking, type HandicapParts } from "@/lib/domain/figure-working";
 import { useFormatting } from "./CurrencyProvider";
@@ -444,6 +444,22 @@ export function ScorecardTable({
           ? `${pointsWhy.says} (${pointsWhy.cite})`
           : "";
   const explains = hasShots || !!pointsTable;
+  /**
+   * AND THE LINE IS WHERE IT CAN BE READ. It sits under the card, and a box
+   * near the foot of a phone's screen puts it below the fold — Safari does
+   * not scroll a focused box into view the way Chromium does, so on an iPhone
+   * a tap on the 2nd hole left its sentence off the screen entirely (round
+   * figures-explain-2, every-figure-explains-itself.spec on WebKit, viewport
+   * ratio 0). `nearest` moves the page only as far as the line needs, which
+   * keeps the box being typed in on screen above it; the line's
+   * `scroll-margin-bottom` (design-system.css) keeps it clear of the tab bar.
+   */
+  const lineRef = useRef<HTMLParagraphElement | null>(null);
+  useEffect(() => {
+    const line = lineRef.current;
+    if (!why || !line || !line.textContent) return;
+    line.scrollIntoView({ block: "nearest" });
+  }, [why]);
   const toggle = (next: NonNullable<typeof why>) =>
     setWhy((cur) => (cur && cur.kind === next.kind && (cur.kind !== "hole" || (next.kind === "hole" && cur.i === next.i)) && !onSet ? null : next));
   const hasYards = yards.some((y) => typeof y === "number" && y > 0);
@@ -693,6 +709,7 @@ export function ScorecardTable({
           reader hears it after the box it belongs to. Empty until asked. */}
       {explains && (
         <p
+          ref={lineRef}
           id={whyId}
           role="status"
           aria-live="polite"
