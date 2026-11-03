@@ -531,8 +531,15 @@ async function offlinePress(page) {
   await page.context().setOffline(true);
   await button.click();
   await page.waitForTimeout(1200);
-  const said = page.getByText(/On your phone/).filter({ visible: true }).first();
-  return (await said.count()) ? null : "NOT FOUND: the card did not say \"On your phone\"";
+  const said = () => page.getByText(/On your phone/).filter({ visible: true }).first();
+  if (await said().count()) return null;
+  // The card moves on to the next hole after a score; the words are said for the hole on screen, so
+  // the member goes back to the hole they just scored, by its chip on the strip ("…, on your phone").
+  const chip = page.locator('[aria-label*="on your phone"]').filter({ visible: true }).first();
+  if (!(await chip.count())) return "NOT FOUND: no hole on the strip says it is on the phone";
+  await chip.click();
+  await page.waitForTimeout(800);
+  return (await said().count()) ? null : "NOT FOUND: the card did not say \"On your phone\"";
 }
 
 function scrollToText(pattern) {

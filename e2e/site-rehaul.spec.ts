@@ -1,5 +1,6 @@
 import { expect, test } from "./coverage";
 import { SOCIAL_LINKS } from "../src/lib/social-links";
+import { PIPELINE } from "../src/app/new/pipeline";
 
 /**
  * THE SITE REHAUL'S PREVIEW, `/new` (2026-11-01), at the three widths it was designed at.
@@ -10,6 +11,10 @@ import { SOCIAL_LINKS } from "../src/lib/social-links";
  * told as a scroll story (design C), turns the screen of the phone held in view and becomes a plain
  * sequence on a phone; and the social links are TourneyHQ's own, in the same
  * tab, with no X until it has an address.
+ *
+ * Design F (2026-11-03): E's hero words (the serif "From Registration to Recognition." over "Run the
+ * whole competition. They score by phone.") over D's live moment; the day on both devices; the demo
+ * club's day one press from the hero; and no pipeline section drawn while its switch is off.
  *
  * Reduced motion, so the hero shows its settled state at once (the moment itself is a component
  * test of timing, not of layout).
@@ -34,8 +39,9 @@ test.describe("/new, the site rehaul's preview", () => {
       await page.setViewportSize(size);
       const res = await page.goto("/new");
       expect(res?.status()).toBe(200);
-      await expect(page.locator("h1")).toHaveText(/Run the whole competition\.\s*They score by phone\./i);
-      await expect(page.locator(".n-tagline")).toHaveText("From Registration to Recognition.");
+      await expect(page.locator("h1")).toHaveText(/From Registration\s*to Recognition\./i);
+      await expect(page.locator(".e-sub")).toHaveText(/Run the whole competition\.\s*They score by phone\./i);
+      await expect(page.locator(".n-tagline")).toHaveText(/Golf tournament & league software/i);
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 
       // Walk down so every lazy picture is asked for, then come back.
@@ -119,10 +125,9 @@ test.describe("/new, the site rehaul's preview", () => {
     await page.goto("/new");
     const links = page.locator('a[rel~="me"]');
     const hrefs = await links.evaluateAll((as) => as.map((a) => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]));
-    // Each profile in `lib/social-links.ts` (the one place they are written): once in Follow along,
-    // once in the footer.
+    // Each profile in `lib/social-links.ts` (the one place they are written), once, in the footer.
     const ours = SOCIAL_LINKS.map((s) => s.href);
-    expect(hrefs.length).toBe(ours.length * 2);
+    expect(hrefs.length).toBe(ours.length);
     for (const [href, target, rel] of hrefs) {
       expect(ours).toContain(href);
       expect(target).toBeNull();
@@ -134,5 +139,21 @@ test.describe("/new, the site rehaul's preview", () => {
       return graph.find((n) => n["@type"] === "Organization")?.sameAs ?? [];
     });
     expect([...sameAs].sort()).toEqual([...ours].sort());
+  });
+
+  test("the demo club's day is one press from the hero, and no pipeline section shows while its switch is off", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/new");
+    await expect(page.locator(".n-hero-go").getByRole("link", { name: "See a demo club’s day" })).toHaveAttribute("href", "/demo");
+    const off: Record<keyof typeof PIPELINE, RegExp> = {
+      setupQuestions: /Set up with a few questions/,
+      courseDay: /Every round on one timeline/,
+      cardPhoto: /read from a photo/,
+    };
+    for (const [name, words] of Object.entries(off) as Array<[keyof typeof PIPELINE, RegExp]>) {
+      const count = await page.getByText(words).count();
+      if (PIPELINE[name].on) expect(count, `${name} is switched on but not drawn`).toBeGreaterThan(0);
+      else expect(count, `${name} is drawn while its switch is off`).toBe(0);
+    }
   });
 });

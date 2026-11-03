@@ -107,17 +107,32 @@ jobs:
           echo "Shooting: ${ONLY:-every screen the manifest can shoot}"
           ARGS=""
           if [ -n "$ONLY" ]; then ARGS="--only=$ONLY"; fi
+          # Every result is kept and uploaded whether or not a shot failed, so a refusal can be read.
+          set +e
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/capture-demo.mjs "$OUT" --landing $ARGS
-          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/place-landing-shots.mjs "$OUT" $ARGS
+          SHOT=$?
+          PLACED=1
+          if [ $SHOT -eq 0 ]; then
+            node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/place-landing-shots.mjs "$OUT" $ARGS
+            PLACED=$?
+          fi
           mkdir -p "$RUNNER_TEMP/upload/raw"
           cp -r public/landing "$RUNNER_TEMP/upload/landing"
           cp src/lib/landing/shot-widths.json "$RUNNER_TEMP/upload/"
           if [ -f "$OUT/screen-facts.json" ]; then cp "$OUT/screen-facts.json" "$RUNNER_TEMP/upload/"; fi
-          cp "$OUT"/capture-report.json "$RUNNER_TEMP/upload/raw/" 2>/dev/null || true
-          cp -r "$OUT"/text "$RUNNER_TEMP/upload/raw/" 2>/dev/null || true
+          # The raw captures and their words, for reading a refusal (unplaced; never committed from here).
+          cp "$OUT"/*.png "$OUT"/capture-report.json "$RUNNER_TEMP/upload/raw/" 2>/dev/null
+          cp -r "$OUT"/text "$RUNNER_TEMP/upload/raw/" 2>/dev/null
           git status --short public/landing src/lib/landing > "$RUNNER_TEMP/upload/changed.txt"
-          echo "### Changed by this run" >> "$GITHUB_STEP_SUMMARY"
-          sed 's/^/    /' "$RUNNER_TEMP/upload/changed.txt" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Landing captures: shot exit $SHOT, placed exit $PLACED"
+            echo
+            echo "Changed by this run:"
+            sed 's/^/    /' "$RUNNER_TEMP/upload/changed.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # capture-demo exits 0 when a shot only CHECKs; the placing script refuses those, so its
+          # exit is the verdict.
+          [ $SHOT -eq 0 ] && [ $PLACED -eq 0 ]
 
       - name: The server's log, if anything failed
         if: failure()

@@ -21,7 +21,13 @@ export function HeroMoment({
   board,
   facts,
   deskView,
+  startAfter = 900,
 }: {
+  /**
+   * How long after the page settles the moment plays (design F, 2026-11-03): long enough for the
+   * headline's putt to drop first, so the putt, the press and the board are ONE sequence.
+   */
+  startAfter?: number;
   /**
    * Design D (2026-11-02): the laptop shows a framed crop of its capture so the leaderboard can be
    * read: drawn `z` windows wide, with the fractions `fx`/`fy` of it left of and above the window.
@@ -62,9 +68,9 @@ export function HeroMoment({
   useEffect(() => {
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (calm) { setStep(2); return; }
-    const t = setTimeout(play, 900);
+    const t = setTimeout(play, startAfter);
     return () => { clearTimeout(t); clear(); };
-  }, [play]);
+  }, [play, startAfter]);
 
   const at = (r: Rect): CSSProperties => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });
   // A desk rectangle seen through the crop, kept inside the window.

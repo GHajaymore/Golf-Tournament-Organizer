@@ -14,6 +14,12 @@ export type StoryStep = {
   p: string;
   /** Which device the moment is on: the committee's laptop (the console) or the member's phone. */
   device: "laptop" | "phone";
+  /**
+   * The light the moment is told in (design E's `day-light.ts`, kept by design F): its band of
+   * ground runs the width of the page, so the day brightens as the reader goes down. Absent: the
+   * section's own ground.
+   */
+  tone?: string;
 };
 
 /**
@@ -34,6 +40,9 @@ export type StoryStep = {
  * committee's laptop and a member's phone; each moment says which device it is on, that device is
  * lit and brought forward, and the other rests with the last screen it showed. Below 768px a
  * console moment shows a cropped detail of its capture (a window, never the whole screen shrunk).
+ *
+ * Design F (2026-11-03): D's two devices in E's light. Each moment may carry a TONE; where the
+ * tone changes, the moment starts lower (`e-turn`) so no word sits on the blend between two lights.
  */
 export function DayStory({
   steps,
@@ -82,7 +91,7 @@ export function DayStory({
     <div className="n-story">
       <ol className="n-steps">
         {steps.map((s, i) => (
-          <li key={`${s.day}-${s.when}`} className="n-step" ref={(el) => { refs.current[i] = el; }}>
+          <li key={`${s.day}-${s.when}`} className={stepClass(steps, i)} ref={(el) => { refs.current[i] = el; }}>
             {s.chapterTitle ? (
               <p className="n-ch" id={`chapter-${s.chapter}`}>
                 <span className="n-ch-n n-num" aria-hidden="true">{String(s.chapter).padStart(2, "0")}</span>
@@ -142,4 +151,12 @@ export function DayStory({
       </div>
     </div>
   );
+}
+
+/** A moment's class: its light, and where the light turns, the light it turns from. */
+function stepClass(steps: StoryStep[], i: number): string {
+  const s = steps[i];
+  if (!s.tone) return "n-step";
+  const prev = i > 0 ? steps[i - 1].tone : undefined;
+  return `n-step e-in-${s.tone}${prev && prev !== s.tone ? ` e-turn e-prev-${prev}` : ""}`;
 }
