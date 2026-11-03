@@ -59,7 +59,140 @@ export function mayStartSend(input: { out: boolean; outForMs: number }): boolean
  * a person has to settle, so the copy stays on the phone and retrying is
  * pointless until somebody decides.
  */
-export type SendOutcome = "sent" | "held";
+export type SendOutcome<T = unknown> =
+  | "sent"
+  | "held"
+  | {
+      serverHolds: T;
+      /**
+       * The server's card replaces the phone's and the queue is done — a
+       * partner's own entry winning over their marker's (`GroupScoring`). The
+       * caller has put that card on screen; without this, a read-back that
+       * differs from what was sent is a send that did not land.
+       */
+      theirsWins?: boolean;
+    };
+
+/**
+ * THE CARD THE SERVER SAYS IT HOLDS, READ BACK FROM THE ROW IT WROTE.
+ *
+ * A send that resolves is not, on its own, proof of anything about any hole.
+ * The server may have fitted the card to the round, or a second writer may
+ * have landed between the read and the write. So a send that can, answers
+ * with what the database row holds after the write (`writeScorecard`'s
+ * `stored`), and a hole is "Sent" only where THAT says what the phone says.
+ * A plain "sent" is the older answer, from a save that cannot read back yet:
+ * the server took the card as it was sent.
+ */
+export function serverHoldsAfter<T>(outcome: SendOutcome<T>, sent: T): T | null {
+  if (outcome === "held") return null;
+  if (outcome === "sent") return sent;
+  return outcome.serverHolds;
+}
+
+/**
+ * WHERE EACH HOLE'S SCORE IS — the honest card (2026-10-25).
+ *
+ *   none     nothing on this hole, here or there
+ *   phone    "On your phone": kept on this device, the server does not have it yet
+ *   sent     "Sent": the server said, after writing, that it holds exactly this
+ *   refused  "Not sent": the server answered and would not take the card
+ *
+ * Worked out from the SENDER'S OWN STATE and nothing else: what the queue is
+ * holding to send (the newest card pushed) against what the last answered send
+ * read back. So the screen cannot say "Sent" for a hole the queue still holds —
+ * the two are one comparison, not two opinions. A hole cleared on the phone and
+ * not yet cleared on the server is "phone" too: the server still has the old
+ * score, and that is the honest thing to say about it.
+ */
+export type HoleSync = "none" | "phone" | "sent" | "refused";
+
+/** What a golfer reads beside a hole. Three words, no jargon. */
+export const HOLE_SYNC_WORDS: Record<Exclude<HoleSync, "none">, string> = {
+  phone: "On your phone",
+  sent: "Sent",
+  refused: "Not sent",
+};
+
+export function holeSyncs(input: {
+  /** The card the queue holds — what it will send next. */
+  onPhone: readonly unknown[];
+  /** What the last answered send read back, or what the page was drawn from. Null for no card. */
+  onServer: readonly unknown[] | null;
+  /** The last attempt was answered with a refusal. */
+  refused: boolean;
+  holes: number;
+}): HoleSync[] {
+  return Array.from({ length: input.holes }, (_, i) => {
+    const here = input.onPhone[i] ?? null;
+    const there = input.onServer?.[i] ?? null;
+    if (here === there) return here === null ? "none" : "sent";
+    return input.refused ? "refused" : "phone";
+  });
+}
+
+/**
+ * One hole for several cards — the group's hole on a phone keeping the
+ * foursome. The worst of them, because "Sent" for the hole must be true of
+ * every card on it: a refusal outranks a hole still on the phone, which
+ * outranks a hole that is sent.
+ */
+export function combineHoleSyncs(cards: ReadonlyArray<readonly HoleSync[]>, holes: number): HoleSync[] {
+  const rank: Record<HoleSync, number> = { none: 0, sent: 1, phone: 2, refused: 3 };
+  return Array.from({ length: holes }, (_, i) =>
+    cards.reduce<HoleSync>((worst, c) => {
+      const s = c[i] ?? "none";
+      return rank[s] > rank[worst] ? s : worst;
+    }, "none"),
+  );
+}
+
+/** How many holes are on the phone and not on the server. */
+export function unsentHoles(holes: readonly HoleSync[]): number {
+  return holes.filter((h) => h === "phone" || h === "refused").length;
+}
+
+/**
+ * WHEN A CARD THAT CANNOT BE SENT SAYS SO — a few holes, not a few seconds.
+ *
+ * Measured with a golf professional's eye rather than a network engineer's.
+ * A course has dead spots, and a hole or two in one is the ordinary day: the
+ * scores go when the player walks back into coverage on the next tee, and a
+ * warning there is a warning about nothing, which teaches people to ignore
+ * the one that matters. Three holes unsent is a player who has walked a
+ * stretch of the course with nothing reaching the clubhouse, and is when a
+ * marker would want to know before they reach the 18th.
+ *
+ * But three holes typed in one breath — a player catching up on the next tee
+ * — are three holes unsent for the two seconds a save takes, and "nothing has
+ * reached the club for a while" would be false. So the three holes must also
+ * have been waiting longer than any save that is merely slow (`NAG_AFTER_MS`,
+ * the point this file already stops being reassuring). And for a player who
+ * stopped entering, half an hour — about two holes' play — with the oldest
+ * change still on the phone, however few holes it is.
+ */
+export const LONG_WAIT_HOLES = 3;
+export const LONG_WAIT_MS = 30 * 60_000;
+
+export function isLongWait(unsent: number, waitingMs: number): boolean {
+  return (unsent >= LONG_WAIT_HOLES && waitingMs >= NAG_AFTER_MS) || (unsent > 0 && waitingMs >= LONG_WAIT_MS);
+}
+
+/**
+ * The server's own sentence, when it gave one worth reading.
+ *
+ * A server action's thrown message does not survive a production build — the
+ * framework puts its own "An error occurred in the Server Components render"
+ * in its place. That is not a reason a golfer can act on, so it is dropped
+ * and the screen says what to do in its own words. A network failure has no
+ * sentence at all.
+ */
+export function refusalWords(message: string): string {
+  const m = message.trim();
+  if (!m) return "";
+  if (/Server Components render|omitted in production|Failed to fetch|NetworkError|Load failed/i.test(m)) return "";
+  return m;
+}
 
 export interface PendingState {
   /** Holes typed and not yet confirmed by the server. */
@@ -91,6 +224,18 @@ export interface PendingState {
    * error and nothing told the screen to expect it.
    */
   holding: boolean;
+  /**
+   * How many holes are on the phone and not on the server (`unsentHoles`).
+   * Optional so a caller that cannot count holes keeps the time-only rules.
+   */
+  unsent?: number;
+  /** The server's own words for a refusal (`refusalWords`), or "". */
+  refusal?: string;
+  /**
+   * The phone would not keep the card — private browsing, or a full store — so
+   * the holes waiting are in this tab's memory and nowhere else.
+   */
+  unkept?: boolean;
 }
 
 export type SyncTone = "idle" | "working" | "queued" | "warn";
@@ -126,15 +271,33 @@ export function syncStatus(s: PendingState): SyncStatus {
   if (s.refused) {
     // The server understood and said no — a locked card, a closed round.
     // Retrying cannot fix it, so the wording must not promise that it will.
+    // Its own sentence when it gave one: "the committee has closed this
+    // round" is something a player can act on; "wouldn't save" is not.
+    const why = s.refusal?.trim() ?? "";
     return {
       tone: "warn",
-      label: "This card wouldn't save. Show it to the committee before you sign.",
+      // Short sentences: this is read on a tee (`e2e/player-words.spec.ts`).
+      label: why
+        ? `Not sent: ${/[.!?]$/.test(why) ? why : `${why}.`} Your holes are kept on this phone. Show this card to the committee.`
+        : "Not sent. This card wouldn't save. Your holes are kept on this phone. Show it to the committee before you sign.",
       safeToLeave: false,
     };
   }
 
   if (!s.queued) {
-    return { tone: "idle", label: "Saved", safeToLeave: true };
+    // "Sent", the hole's own word for the same fact (`HOLE_SYNC_WORDS`): the
+    // card line and the marks on the strip must not use two words for one state.
+    return { tone: "idle", label: HOLE_SYNC_WORDS.sent, safeToLeave: true };
+  }
+
+  if (s.unkept) {
+    // Every other branch below says, or implies, the holes are on the phone.
+    // Here they are not: closing the tab would lose them.
+    return {
+      tone: "warn",
+      label: "This phone won’t keep your holes. Private browsing, or is it full? Leave this screen open until they say “Sent”.",
+      safeToLeave: false,
+    };
   }
 
   if (s.holding) {
@@ -156,6 +319,24 @@ export function syncStatus(s: PendingState): SyncStatus {
     return {
       tone: "queued",
       label: "Saved on this phone. This tournament takes the whole card, so it goes in when you finish.",
+      safeToLeave: true,
+    };
+  }
+
+  const unsent = s.unsent ?? 0;
+  if (isLongWait(unsent, s.waitingMs)) {
+    /**
+     * A LONG OUTAGE IS SAID, not left to a spinner or a calm "no signal" that
+     * has been on screen since the 4th. Still kept — `push` wrote every one of
+     * these to the phone — and still on its way by itself, so it is safe to
+     * play on; what the player needs is the one thing to do if it never goes.
+     * Before the in-flight branch, so a slow send that is out at the moment
+     * does not hide it behind "Saving…".
+     */
+    const n = unsent > 0 ? `${unsent} hole${unsent === 1 ? " is" : "s are"}` : "Your holes are";
+    return {
+      tone: "warn",
+      label: `${n} only on this phone. Nothing has reached the club for a while. They send by themselves when there’s signal. Still “${HOLE_SYNC_WORDS.phone}” when you finish? Show this card to the committee.`,
       safeToLeave: true,
     };
   }

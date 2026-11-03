@@ -87,7 +87,7 @@ function teamScoringFor(s: {
 
 export const metadata = screenMetadata("/stages");
 
-export default async function StagesPage({ searchParams }: { searchParams: Promise<{ dated?: string; first?: string }> }) {
+export default async function StagesPage({ searchParams }: { searchParams: Promise<{ dated?: string; first?: string; view?: string; round?: string }> }) {
   const session = await requireScreen("stages");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
@@ -450,6 +450,10 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
       />
       <StagesClient
         stages={stages}
+        // The redesign's preview, off unless asked for (2026-10-30; go/no-go Tue 17 Nov).
+        timeline={sp.view === "timeline"}
+        // A link straight to one round opens it (checked against this tournament's rounds there).
+        linkedRound={typeof sp.round === "string" ? sp.round : null}
         // Today AT THE CLUB, from the server, so the browser's render asks the
         // same day — and it is the day the deadline is a deadline in.
         today={state.today}
