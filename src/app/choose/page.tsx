@@ -26,6 +26,7 @@ import { orgSetupState } from "@/lib/domain/org-setup";
 import { isMatch } from "@/lib/tournament-shape";
 import { Icon } from "@/components/Icon";
 import { sinceWords } from "@/lib/domain/since";
+import { tellApart } from "@/lib/domain/tournament-name";
 
 export default async function ChooseTournamentPage({
   searchParams,
@@ -41,9 +42,11 @@ export default async function ChooseTournamentPage({
   const access = await accessibleEvents(session.email);
   const events = await prisma.event.findMany({
     where: { id: { in: access.map((a) => a.eventId) } },
-    include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true, country: true, communityNoun: true, golfTerms: true } } },
+    include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true, country: true, communityNoun: true, golfTerms: true, timeZone: true, locale: true } } },
     orderBy: { createdAt: "desc" },
   });
+  // Two of one name — only completed ones may share it — are told apart by their date (`tellApart`).
+  const toldApart = tellApart(events);
   // Null for anybody who runs no organization of their own, which is every
   // player invited to somebody else's tournament.
   const facts = await orgSetupFactsFor(session.email, session.name);
@@ -215,7 +218,7 @@ export default async function ChooseTournamentPage({
                     {a.event.name || "Untitled tournament"}
                   </div>
                   <div className="text-muted" style={{ fontSize: 12, marginTop: 3 }}>
-                    {a.event.dates || "No dates set"}
+                    {toldApart.get(a.event.id) || a.event.dates || "No dates set"}
                     {a.event.course ? ` · ${a.event.course}` : ""} · {a.event._count.players} players
                     {/* Whose name is worth showing: a tenant shared with other
                         people, so the row says which one. A personal organizer's
@@ -356,7 +359,7 @@ export default async function ChooseTournamentPage({
              the tournament somebody repeats is nearly always the last one. */
           copyable={accounts
             .filter((a) => a.role === "admin" && !isMatch(a.event.shape))
-            .map((a) => ({ id: a.event.id, name: a.event.name }))}
+            .map((a) => ({ id: a.event.id, name: a.event.name, toldApart: toldApart.get(a.event.id) ?? "" }))}
           /* Only asked when there is more than one — see the prop. Each one
              carries its own plan, so the retention warning follows the pick. */
           organizations={await organizationsForOrganizer(session.email)}

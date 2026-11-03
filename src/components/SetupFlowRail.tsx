@@ -63,8 +63,8 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
         </span>
         {/* NAMES THE SCREEN, NOT A BUTTON ON IT.
             "Launch it from the dashboard" was wrong for the commonest case:
-            a tournament still in draft is offered "Start taking entries"
-            there, not "Launch", so this would have sent an organizer looking
+            a tournament still in draft was offered "Start taking entries"
+            there (until G1, 2026-10-31), not "Launch", so this would have sent an organizer looking
             for a control that is two lifecycle steps away. Same fault as a
             refusal telling somebody to press a button that no longer exists —
             and the dashboard's own status bar already walks the steps. */}
@@ -89,7 +89,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
           </p>
         ) : (
           <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
-            The dashboard is where you open entries and take it live. {LAUNCH_DOES}{" "}
+            The dashboard is where you take it live; entries are taken on Entries, by publishing the sign-up link. {LAUNCH_DOES}{" "}
             {VISIBILITY_IS_ELSEWHERE}
           </p>
         )}

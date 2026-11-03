@@ -32,6 +32,15 @@ did not cut WHAT is tested. It changed WHEN, and it stopped the machine being re
   handicap arithmetic keeps its three rounds. **The switch:** `ARITHMETIC_KEEPS_THREE_ROUNDS` and the
   file list `ARITHMETIC` in `scripts/qa/layers.mjs`; set it to false in the pull request that puts
   those instruments on main, and record it here.
+  **2026-10-31 (backlog A7): both instruments are built** — the property tests (#942, plus a round's
+  allowance from Appendix C and a skins night that reconciles), and the ratchet as the nightly
+  round's `mutation` layer (`scripts/qa/mutation-ratchet.mjs`, floors in `mutation-baseline.json`).
+  **The switch stays on** until the ratchet has earned it: (1) five consecutive nightly rounds in
+  which the `mutation` layer RAN and held (not "not measured"), (2) one of them a full run without
+  the incremental file, so a floor is known to hold on a cold start, (3) a deliberate fall seen as a
+  finding in a real nightly verdict, not only locally, and (4) the survivors in `stroke.ts`,
+  `team.ts` and `round-handicap.ts` read one by one and either killed or written down as not golf.
+  Then the panel flips it, in its own pull request.
 - *Test architect:* "all six countries" is one round with three more parts (`countries: "all"`), not
   three repeats of everything else — `partsFor(1, { schedule: "pr", countries: "all" })` is 41 parts
   against 37 for three countries.

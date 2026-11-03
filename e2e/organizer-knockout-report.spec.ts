@@ -90,10 +90,6 @@ test("a player reports their knockout tie; the organizer approves it and the dra
     await playScratch(page, "Round 1 · Bracket Stage");
 
     await open(page, "/dashboard");
-    for (const step of ["Start taking entries", "Mark ready"]) {
-      await page.getByRole("button", { name: step }).click();
-      await expect(page.getByRole("button", { name: step })).toHaveCount(0, { timeout: 20_000 });
-    }
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
     await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
@@ -123,7 +119,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
     });
 
     await test.step("the organizer sees it, the draw not yet moved, and approves", async () => {
-      await open(page, "/bracket");
+      await open(page, "/bracket?view=draw");
       await expect(page.getByText("A result to approve")).toBeVisible();
       await expect(page.getByText(/Alder Quayle v Dune Quayle: Dune Quayle won 2&1/)).toBeVisible();
       await expect(page.getByText("Reported by Dune Quayle")).toBeVisible();
@@ -133,7 +129,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
       await page.getByRole("button", { name: /^Approve: Dune Quayle won Alder Quayle v Dune Quayle/ }).click();
       await expect(page.getByText("A result to approve")).toHaveCount(0, { timeout: 20_000 });
       await expect(async () => {
-        await open(page, "/bracket");
+        await open(page, "/bracket?view=draw");
         await expect(page.getByRole("textbox", { name: /^Result of Alder Quayle v Dune Quayle, Semi-finals$/ })).toHaveValue("2&1");
       }).toPass({ timeout: 20_000 });
     });

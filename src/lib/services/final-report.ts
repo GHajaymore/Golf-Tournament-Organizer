@@ -1,10 +1,15 @@
 import { prisma } from "../db";
 import { cupBoard } from "./cup";
 import { cupPointsInPlay } from "../domain/cup";
+import { reportFoot, type ReportFoot } from "./report-foot";
+import { brandForEvent } from "./organization";
 import {
   countWords,
+  cupProgress,
   halves,
+  listWords,
   marginWords,
+  sessionInSentence,
   nineWords,
   playerRecords,
   pointsTrack,
@@ -74,6 +79,16 @@ export interface FinalReport {
   outside: Array<{ label: string; points: number; side: ReportSide | null }>;
   stars: Star[];
   records: { A: PlayerRecord[]; B: PlayerRecord[]; most: number };
+  /**
+   * The cup after each session, added up in play order — the rich report's
+   * picture for a cup (2026-10-23) — and the sentence naming the match that
+   * clinched it, "" until one has.
+   */
+  progress: { sessions: Array<{ title: string; a: number; b: number }>; clinch: string };
+  /** "Results by TourneyHQ", and where it links — which follows the launch switch. */
+  foot: ReportFoot;
+  /** The club, first on the masthead. */
+  club: { name: string; logoUrl: string };
 }
 
 /** The organizer's story as paragraphs: a blank line between each. */
@@ -185,6 +200,21 @@ export async function finalReport(eventId: string): Promise<FinalReport | null> 
     outside,
     stars: stars(sessions),
     records: { A: perSide("A"), B: perSide("B"), most: Math.max(0, ...records.map((r) => r.played)) },
+    progress: (() => {
+      const p = cupProgress(sessions, board.target);
+      const c = p.clinch;
+      const titles = shown.map((s, i) => (s.name === `Session ${board.sessions.indexOf(s) + 1}` ? s.kind : s.name) || `Session ${i + 1}`);
+      return {
+        sessions: p.after.map((s, i) => ({ title: titles[i] ?? s.name, a: s.a, b: s.b })),
+        clinch: c
+          ? `${listWords(c.by === "A" ? c.match.a : c.match.b)} clinched it for ${teams[c.by === "A" ? 0 : 1]} in ${sessionInSentence(c.session)}${
+              c.match.label && c.match.label !== "A/S" ? `, ${marginWords(c.match.label)}` : ""
+            }.`
+          : "",
+      };
+    })(),
+    foot: await reportFoot(),
+    club: await brandForEvent(eventId).then((b) => ({ name: b?.name ?? "", logoUrl: b?.logoUrl ?? "" })),
   };
 }
 

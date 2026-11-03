@@ -177,11 +177,18 @@ export function HonoursBoard({
 
               {p.suggestion.ok ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span className="text-muted" style={{ fontSize: 13 }}>
-                    Standings say <b>{p.suggestion.name}</b>
-                    {p.suggestion.runnersUp.length > 0 &&
-                      `, then ${p.suggestion.runnersUp.map((r) => r.name).join(" and ")}`}
-                  </span>
+                  {p.suggestion.team ? (
+                    // A team cup: the champion is the team, with the score.
+                    <span className="text-muted" style={{ fontSize: 13 }}>
+                      Won by <b>{p.suggestion.team.score}</b>
+                    </span>
+                  ) : (
+                    <span className="text-muted" style={{ fontSize: 13 }}>
+                      Standings say <b>{p.suggestion.name}</b>
+                      {p.suggestion.runnersUp.length > 0 &&
+                        `, then ${p.suggestion.runnersUp.map((r) => r.name).join(" and ")}`}
+                    </span>
+                  )}
                   <button
                     type="button"
                     className="btn btn-secondary"

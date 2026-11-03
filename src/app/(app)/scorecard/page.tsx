@@ -12,6 +12,9 @@ import { redirect } from "next/navigation";
  *
  * The route stays so an old bookmark lands somewhere useful.
  *
+ * AND SINCE 2026-10-23 IT LANDS IN THE PRINT KIT, scorecards ticked: the Tee
+ * sheet no longer prints, it opens the kit, and so does this.
+ *
  * ON THE PRINT CONTROL, not merely on the page. This redirected to the top of
  * `/foursomes`, which is headed "Tee sheet" and opens on "Re-draw this sheet"
  * — so somebody who asked for scorecards got a pairing editor and had to
@@ -24,5 +27,5 @@ import { redirect } from "next/navigation";
  * somebody with no draw yet needs to be.
  */
 export default function ScorecardPage() {
-  redirect("/foursomes#print-scorecards");
+  redirect("/print?docs=cards");
 }

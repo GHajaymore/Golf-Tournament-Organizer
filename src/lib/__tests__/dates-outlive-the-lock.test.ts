@@ -57,7 +57,11 @@ describe("the tournament's dates", () => {
   });
 
   it("is what the launch gate reads, so the two cannot drift", () => {
-    // `dated` comes off the same column the action writes.
-    expect(actions).toMatch(/launchRefusal\(\{[^}]*dated: !!event\?\.dates\.trim\(\)/);
+    // `dated` comes off the same column the action writes — read once, by the
+    // setup flow's facts, which the launch action asks (gap G3, 2026-10-31).
+    expect(actions).toMatch(/await launchCheckFor\(eventId\)/);
+    const facts = readSource("src", "lib", "services", "setup-flow.ts");
+    expect(facts).toMatch(/dated: !!event\.dates\.trim\(\)/);
+    expect(readSource("src", "lib", "domain", "launch-check.ts")).toMatch(/dated: f\.dated/);
   });
 });

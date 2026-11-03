@@ -175,6 +175,10 @@ interface Dead {
  * boundary stopped needing, formatters replaced by the `Formatting` versions.
  */
 const KNOWN_DEAD: string[] = [
+  // SUPERSEDED 2026-10-31 by the Print kit's own normal-size card (components/print/PrintPages.tsx). Its
+  // render tests (render.test.tsx, back-nine-hole-numbers.test.tsx) still pin the old full-page card;
+  // moving them to the new card and deleting this is the Print kit's slice 2.
+  "components/TeeSheetPrint.tsx:TeeSheetPrint",
   "lib/domain/attendance.ts:isAttendanceMode",
   "lib/domain/attest.ts:enterableBy",
   "lib/domain/bracket.ts:pickQualifiers",

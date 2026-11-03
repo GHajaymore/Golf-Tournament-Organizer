@@ -1087,7 +1087,7 @@ export async function broadcastWithSms(
       },
     });
 
-    const res = await sendSms(to, composed.text);
+    const res = await sendSms(to, composed.text, { organizationId: ctx.organizationId });
     await prisma.smsDelivery.update({
       where: { id: row.id },
       data: {

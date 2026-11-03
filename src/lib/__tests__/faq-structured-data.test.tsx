@@ -7,6 +7,7 @@ import { FAQ, FAQ_COUNT } from "@/lib/landing/faq";
 import { faqStructuredData, nodeText, scriptJson } from "@/lib/landing/faq-structured-data";
 import { pageShareMeta } from "@/lib/landing/share-meta";
 import { parsePricingOverrides } from "@/lib/plans";
+import type { LaunchState } from "@/lib/go-live";
 
 /**
  * /faq's FAQPage structured data says exactly what the page says (Ajay,
@@ -16,7 +17,7 @@ import { parsePricingOverrides } from "@/lib/plans";
  */
 
 const none = parsePricingOverrides(undefined);
-const ctxFor = (country: string) => ({ prices: landingPrices(editionFor(country), none), email: "zz@example.invalid" });
+const ctxFor = (country: string, launch: LaunchState = "live") => ({ prices: landingPrices(editionFor(country), none), email: "zz@example.invalid", launch });
 
 /** What a visitor reads in the rendered answer: tags out, entities decoded, spaces tidied. */
 function shown(html: string): string {
@@ -31,20 +32,22 @@ function shown(html: string): string {
 }
 
 describe("FAQPage structured data", () => {
+  // Held and live (the go-live switch): search must quote the answer the page gives in BOTH.
+  for (const launch of ["held", "live"] as const)
   for (const country of ["US", "GB"]) {
     const edition = editionFor(country);
     const swaps = editionSwaps(edition);
-    const ctx = ctxFor(country);
+    const ctx = ctxFor(country, launch);
     const data = faqStructuredData(FAQ, ctx, swaps);
     const items = FAQ.flatMap((g) => g.items);
 
-    it(`${country}: carries every question once, in the page's order`, () => {
+    it(`${country}, ${launch}: carries every question once, in the page's order`, () => {
       expect(data["@type"]).toBe("FAQPage");
       expect(data.mainEntity).toHaveLength(FAQ_COUNT);
       expect(data.mainEntity.map((q) => q.name)).toEqual(items.map((i) => applySwaps(i.q.replace(/\s+/g, " ").trim(), swaps)));
     });
 
-    it(`${country}: each answer is the text the page renders, prices and words included`, () => {
+    it(`${country}, ${launch}: each answer is the text the page renders, prices and words included`, () => {
       items.forEach((item, i) => {
         const page = shown(renderToStaticMarkup(<>{inDialect(item.a(ctx), swaps)}</>));
         expect(page.length, `${item.id} rendered empty`).toBeGreaterThan(10);
