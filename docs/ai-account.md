@@ -18,7 +18,7 @@ in `src/` or `scripts/`.
 | Commentary | Anthropic | `claude-sonnet-5-5` | `actions/commentary.ts` |
 | Message drafts | Anthropic | `claude-sonnet-5-5` | `actions/draft-message.ts` |
 | Setup suggestions | Anthropic | `claude-sonnet-5-5` | `actions/setup-suggest.ts` |
-| Report drafts | Ajay's Vercel AI integration (to be named) | — | not built; OFF and saying so until the provider is connected |
+| Report drafts | Anthropic | `claude-sonnet-5-5` | configured; no screen asks for it yet |
 
 Card reading needs a model that reads photographs. A provider without vision
 cannot serve it; the config refuses that pairing.
@@ -52,10 +52,10 @@ shows the key or any part of it.
 
 Locally: change the same two lines in `.env.local` and restart the dev server.
 
-## Report drafts on the Vercel integration
+## Moving one job to another provider later
 
-The provider for report drafts is a placeholder (`vercelIntegration`,
-`callable: false`) until Ajay names the integration and its variable. Connecting
-it is a code change once (a caller for that provider's API, its `keyVariable` and
-`labelVariable`, and the model id in `JOBS.reportDraft`); after that it switches
-by environment values like the Anthropic one.
+Every job runs on the one Anthropic account today, so one key switches them all.
+Provider and model are set per job in `JOBS`, so moving one job is a setting
+there, plus, once, an entry in `PROVIDERS` (its `keyVariable`, `labelVariable`,
+`readsImages`) and a caller for that provider's API. A provider the build cannot
+call (`callable: false`) leaves its jobs off, and they say so.

@@ -85,11 +85,12 @@ describe("what the owner is told about the account", () => {
     expect(aiKey("commentary", { ANTHROPIC_API_KEY: ` ${SECRET} ` })).toBe(SECRET);
   });
 
-  it("keeps report drafting off until its provider is connected, whatever keys are set", () => {
-    const s = jobStatus("reportDraft", { ANTHROPIC_API_KEY: SECRET });
-    expect(s.on).toBe(false);
-    if (!s.on) expect(s.why).toMatch(/not connected yet/);
-    expect(aiKey("reportDraft", { ANTHROPIC_API_KEY: SECRET })).toBeNull();
+  it("runs every job on one account today, so one key switches them all", () => {
+    for (const [job, j] of Object.entries(JOBS)) {
+      expect(j.provider, job).toBe("anthropic");
+      expect(jobStatus(job as keyof typeof JOBS, { ANTHROPIC_API_KEY: SECRET }).on, job).toBe(true);
+      expect(jobStatus(job as keyof typeof JOBS, {}).on, job).toBe(false);
+    }
   });
 
   it("never runs card reading on a provider that cannot read photographs", () => {

@@ -22,16 +22,16 @@
  *                      personal account", shown on /owner so it is obvious
  *                      which account is paying. Never the key.
  *
- * Report drafting is to run on Ajay's Vercel AI integration (Groq or xAI's
- * Grok — he is to name it and its variable). Until then that provider is a
- * PLACEHOLDER: `callable: false`, so its job is off and says so, and no request
- * is sent to the wrong account.
+ * Every job runs on the Anthropic provider today (Ajay's key). Provider and
+ * model are per job so that moving one job elsewhere later is a setting here:
+ * a provider this build cannot call (`callable: false`) leaves its jobs OFF
+ * and saying so, rather than sending a request to the wrong account.
  */
 
 /** What the app asks a model to do. */
 export type AiJob = "cardReading" | "commentary" | "messageDraft" | "setupSuggest" | "reportDraft";
 
-export type AiProvider = "anthropic" | "vercelIntegration";
+export type AiProvider = "anthropic";
 
 /**
  * How a request turns thinking off. These jobs are short and bounded, with
@@ -61,18 +61,11 @@ export const PROVIDERS: Record<AiProvider, ProviderConfig> = {
     labelVariable: "AI_ACCOUNT_LABEL",
     readsImages: true,
   },
-  vercelIntegration: {
-    name: "Vercel AI integration (to be named)",
-    callable: false,
-    keyVariable: "",
-    labelVariable: "",
-    readsImages: false,
-  },
 };
 
 export type JobConfig = {
   provider: AiProvider;
-  /** "" while the provider is a placeholder. */
+  /** "" = no model chosen yet; the job is off. */
   model: string;
   thinking?: Thinking;
   /** Sends a photograph. Refused on a provider that does not read images. */
@@ -95,8 +88,9 @@ export const JOBS: Record<AiJob, JobConfig> = {
   commentary: { provider: "anthropic", model: SONNET, thinking: { type: "between_tools" }, needsImages: false },
   messageDraft: { provider: "anthropic", model: SONNET, thinking: { type: "between_tools" }, needsImages: false },
   setupSuggest: { provider: "anthropic", model: SONNET, thinking: { type: "between_tools" }, needsImages: false },
-  // Not built yet (no "Draft with AI" on the report): the seam only.
-  reportDraft: { provider: "vercelIntegration", model: "", needsImages: false },
+  // Writing a person reads, like the three above. No screen asks for it yet
+  // (no "Draft with AI" on the report); it is configured so that one can.
+  reportDraft: { provider: "anthropic", model: SONNET, thinking: { type: "between_tools" }, needsImages: false },
 };
 
 export const JOB_WORDS: Record<AiJob, string> = {
