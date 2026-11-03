@@ -1,6 +1,6 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useRef, useState, useTransition } from "react";
 import { useGolfTerms } from "./GolfTermsProvider";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
@@ -848,6 +848,12 @@ function StageCard({
    * collected, and the trash icon used to do all of that on one click.
    */
   const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number } | null>(null);
+  // On the timeline Delete is the panel's last control, so its warning opens below the fold of
+  // the panel's own scroll: brought into view when it appears (`rounds-panel.spec`, 2026-11-02).
+  const removeWarningRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (removeCost && asPanel) removeWarningRef.current?.scrollIntoView({ block: "nearest" });
+  }, [removeCost, asPanel]);
   const [pending, startTransition] = useTransition();
   /**
    * One badge for the whole card, derived from the transition every control
@@ -1334,6 +1340,7 @@ function StageCard({
    */
   const removeWarning = removeCost && (
     <div
+      ref={removeWarningRef}
       style={{
         marginTop: 8,
         padding: "8px 10px",
