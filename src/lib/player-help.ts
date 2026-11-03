@@ -112,6 +112,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "The allowance is taken before rounding, as the Rules say.",
       "So 95% of 7 can be 6.",
       "Tap a hole's dot, or your Net, to see how.",
+      "Your index is the one your club entered.",
+      "A live link to your handicap body is coming.",
     ],
   },
   {
