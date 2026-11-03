@@ -60,6 +60,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Also on **Name & branding**, **What this is** says whether you are a golf club, a {community}, or one person running their own golf. It decides what the console calls you, what setup asks for, and what money does by default: a golf club leaves costs to the shop, the others split shared costs. If changing it would change the money of tournaments that never chose their own, the screen names them first. [[Keep their money as it is]] sets your club's money default to what they get today and then changes it; [[Switch anyway]] lets them follow the new default. Nothing is deleted either way.",
           "On **Colour**, pick **Appearance** (Light, Dark or Auto) and a **Colour scheme**. The pairs marked easiest to read in direct sun are the safest choice for the course. Press [[Save theme]].",
           "Also on **Name & branding**, **Which golf words the app uses** follows the club's country: US golf in the US and Canada, UK golf in Britain, Ireland and Europe, and the golf of Australia, New Zealand and South Africa there. Your club reads {cart}, {group}, {community} and {outing} today. Pick another if your members say it differently. Format names such as Foursomes and Four-Ball never change.",
+          "On **Handicaps**, the **Handicap body** follows your club's country. **Where indexes come from** says they are entered here: by you, or suggested from your members' cards. A live link that fetches indexes from your body is coming; until it arrives nothing is fetched.",
           "On **Money**, pick your **Currency**. It saves as soon as you choose and shows an example amount.",
           "Beside it, check the **Time zone**. It is taken from your own device the first time you open the console, and the screen shows the time at the club so you can see it is right. Every closing date and sign-up deadline ends at midnight on that clock.",
         ],
@@ -76,6 +77,8 @@ export const GUIDE_STEPS: GuideSection[] = [
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
           "An active member who signs in with the email on the roster sees the club's tournaments straight away — no invitation needed. An inactive member does not.",
+          "Before the club's first tournament, the list of what is still to set up sits above the members, so once the first one is added **Create your first tournament** is one press away.",
+          "Each member also has **My season** in the player app, reached from Events: their own tournaments, rounds, places, best scores and prizes this season. Every place is the one that tournament's board gives. A tournament whose standings you have not published shows them no place, and nobody sees another member's season.",
         ],
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },
@@ -135,6 +138,18 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Press [[Create tournament]], then [[Manage]] to open it.",
         ],
       },
+      { kind: "h", text: "Copy last event" },
+      { kind: "where", text: "Dashboard → Copy last event (the club's Commissioner and Admins)" },
+      {
+        kind: "steps",
+        items: [
+          "It starts from your most recent tournament. To start from another, pick it under **Copy from**.",
+          "Check **Name of the copy**, then pick the **First day** (and the **Last day** if it runs over more than one). Press [[Create the copy]] and you are taken into the new tournament.",
+          "Comes across: the format, rounds, handicap allowances, who decides the tees, flight rules, side games (with nobody entered), entry settings and who can see the leaderboard.",
+          "Never comes across: players, cards, results, money, notices, the tee sheet, round codes or the public links. The copy gets a new sign-up link when you publish it, and the old tournament keeps its own.",
+          "The entry window and each round keep the same distance from the first day as last time — entries closed three days before, so they do again. A day that has already gone at your club is left empty, and a first day that has already gone is refused.",
+        ],
+      },
       {
         kind: "tip",
         text: "**One name in play at a time.** Two of your tournaments still being set up or live cannot share a name (capitals and extra spaces do not count as a difference). Creating, copying or renaming to a name another one is using is refused with the name of the one using it and a free name you can take, such as one with the year or (2). Completed tournaments may share a name, so last year's Spring Medal and this year's can both be called Spring Medal; reopening last year's while this year's is still in play is refused until one of them is renamed or completed.",
@@ -180,7 +195,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Under it, with **Anyone with the link**, are two more links on the same board, each with **Open** and [[Copy]]: the **Event page** and the **Clubhouse screen**. [[New link]] replaces all three at once, and all three close when the board is set to Organizers only or Organizers and players.",
           "The **Event page** is the one link to send before and after the day — in the newsletter, on the noticeboard, in the group chat. It shows the tournament's name, date, course and format; while entries are open, an **Enter this tournament** button and the sign-up QR poster; on the day, the leaderboard and the clubhouse screen; afterwards, the result and **Read the final report**. Contests with a sponsor are listed with their winners. It is a link, not an email: nothing is sent.",
           "The **Clubhouse screen** is the leaderboard for a TV in the bar: large type, no buttons, the field a page at a time when it is longer than the screen, starting again after the last page, and refreshing every 30 seconds like the board. It shows nothing the board does not.",
-          "**Who enters scores**: Organizers and assistants only, or Players may enter their own scores.",
+          "**Who enters scores**: Organizers and assistants only, or Players may enter their own scores. With Organizers and assistants only, a player's card and a round code offer no score buttons at all: the screen says the club is keeping the cards and points them to the board.",
           "**When players may submit**: during the round, hole by hole; or after the round, as a completed card. A match is complete once it is decided, so a match won 5&4 goes in without the four holes nobody played.",
           "**How players sign in**: Email and password, Access code on their scorecard, or Either email or access code (see Round codes in Part 3).",
           "**Tees**: pick the tournament's tees, then **Who may play other tees**. You decide the tees at three levels, each beating the one before: the tournament's here; a flight's, on Flights & groups; one player's, on Registration. **Everyone plays the tournament's tees** stops at the first (a seniors' championship off one set), **A flight may play its own tees** at the second (a club championship off three), and **A flight or a player may play their own tees** allows all three and is what a new tournament starts on. A player never chooses their own, and the entry form does not ask.",
@@ -394,6 +409,17 @@ export const GUIDE_STEPS: GuideSection[] = [
     part: "Part 7",
     title: "On the day",
     blocks: [
+      { kind: "h", text: "What's next" },
+      { kind: "where", text: "Dashboard → What's next" },
+      {
+        kind: "list",
+        items: [
+          "One line for each job waiting on you in the club's tournaments, the soonest first: entries waiting for approval (with the day entries close), a tee sheet for the next fortnight not yet published, cards not returned in a round being played, and results not released once every round is closed.",
+          "Each line names its tournament and has one button that opens that tournament on the screen that does the job: [[Approve entries]], [[Publish the tee sheet]], [[Open score entry]] or [[Complete the tournament]].",
+          "The buttons are for the club's Commissioner and Admins. Anyone else running a tournament sees the same lines without them.",
+          "Nothing waiting says so. A completed tournament never appears.",
+        ],
+      },
       {
         kind: "list",
         items: [
@@ -444,6 +470,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "list",
         items: [
           "A pairs event over more than one round shows the pairs' **Total over N rounds** above the round's own board — on the public board and on players' phones too — as long as the same pairs played every round. A team board ranks on score to par while a round is being played. Players or sides level on the round's figure are separated by countback on their card (last nine, six, three, then the last hole); only those still level share the place.",
+          "**Every figure explains itself.** A figure with a dotted line under it opens one sentence of working and the Rule it follows when it is tapped or pressed — on a player's card the strokes on a hole (Appendix E), their net and how their playing handicap was reached (Rule 6.2a, Appendix C, and 6.2b for tees of a higher par), and a hole's Stableford points; on the public board and a player's Board, a place the countback decided or could not (last nine, six, three, the last hole), a net score against par, and why a row has no place (DQ, WD, a missed cut, no return). On the Leaderboard the place of a tied player opens the same sentence. The working is the same calculation as the figure, so the two cannot disagree. While the leaderboard is held from players, there is no figure to explain.",
           "**Leaderboard** refreshes every 30 seconds and shows Live or Final. For the group chat, set **Who can see the leaderboard** to **Anyone with the link** and share the public link — names and scores, and anything you post as commentary. For the TV in the clubhouse, open the **Clubhouse screen** link from Tournament details → Players & scoring on the TV's browser and leave it: it turns its own pages and refreshes itself.",
           "**Commentary**: under the Leaderboard, write a line — a run of birdies, a delay, where the cut is falling — and press [[Post]]. The latest shows above the scores on the public board and on every player's Board, with how long ago and without your name; the two before it are one tap away. Take one down with the ✕ beside it.",
           "**Weather**: [[Suspend play]], add a reason, [[Suspend play now]] — every player and the public board are told. [[Resume play]] when ready.",

@@ -46,6 +46,8 @@ const ROUND_ACTIONS = [
 ];
 const SETTINGS_ACTIONS = [
   "rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on",
+  // The copy's first line: who made it from which tournament, games and all (2026-10-24).
+  "copy-tournament",
   // Who may read the final report, who sees its amounts, and a player's name
   // withheld from public pages (2026-10-24).
   "report.settings", "player.public-name",

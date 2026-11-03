@@ -6,6 +6,12 @@ import {
   CLONE_IGNORED_RELATIONS,
   CLONED_STAGE_FIELDS,
   NOT_CLONED_STAGE_FIELDS,
+  CLONED_CONTEST_FIELDS,
+  NOT_CLONED_CONTEST_FIELDS,
+  CLONED_SIDE_GAME_FIELDS,
+  NOT_CLONED_SIDE_GAME_FIELDS,
+  CLONED_SKINS_POT_FIELDS,
+  NOT_CLONED_SKINS_POT_FIELDS,
 } from "../services/clone";
 
 /** Field names declared on a model in schema.prisma, in declaration order. */
@@ -242,7 +248,9 @@ describe("clone field policy — rounds", () => {
  */
 describe("cloneEvent copies from the declared policy", () => {
   const action = readSource("src", "app", "actions", "tournament.ts");
-  const body = action.slice(action.indexOf("export async function cloneEvent"));
+  const from = action.indexOf("export async function cloneEvent");
+  // cloneEvent alone: up to the next exported action, so a sentence about another one cannot satisfy it.
+  const body = action.slice(from, action.indexOf("export async function", from + 1));
 
   it("builds the event from CLONED_EVENT_FIELDS", () => {
     expect(body).toMatch(/CLONED_EVENT_FIELDS\.map\(/);
@@ -259,10 +267,54 @@ describe("cloneEvent copies from the declared policy", () => {
   });
 
   it("still sets for itself the four things a copy must not inherit", () => {
-    // Derived-from-policy must not mean derived-from-everything.
-    expect(body).toMatch(/dates: "",/);
-    expect(body).toMatch(/regDeadline: "",/);
+    // Derived-from-policy must not mean derived-from-everything. The dates come
+    // from the day the secretary picks (`copiedCalendar`) — never the source's.
+    expect(body).toMatch(/startOn: calendar\.startOn,/);
+    expect(body).toMatch(/regDeadline: calendar\.regDeadline,/);
+    expect(body).toMatch(/playedOn: calendar\.playedOn\[s\.id\]/);
+    // What is WRITTEN: from the event's create on. (Above it the original's days are handed to
+    // `copiedCalendar` as its input, which is the point.)
+    const writes = stripComments(body.slice(body.indexOf("prisma.event.create(")));
+    expect(writes).not.toMatch(/\b(dates|startOn|endOn|regDeadline|regOpens|playedOn|shareToken|registrationToken): (source|s)\./);
     expect(body).toMatch(/status: "draft",/);
     expect(body).toMatch(/shareToken: generateShareToken\(\)/);
   });
+
+  it("builds each side game from its declared policy, and asks the club's role", () => {
+    expect(body).toMatch(/CLONED_CONTEST_FIELDS\.map\(/);
+    expect(body).toMatch(/CLONED_SIDE_GAME_FIELDS\.map\(/);
+    expect(body).toMatch(/CLONED_SKINS_POT_FIELDS\.map\(/);
+    // A copy is made in the CLUB's name: the club role is asked, not only the tournament's.
+    const clean = stripComments(body.slice(0, body.indexOf("prisma.event.create(")));
+    expect(clean).toMatch(/organizationAccessFor\(session\.email,\s*source\.organizationId/);
+    expect(clean).toMatch(/!club\.canEdit/);
+  });
+});
+
+/**
+ * THE SIDE GAMES' OWN POLICIES (2026-10-24, "copy last event"): every column of
+ * a contest, a side game and a skins pot is carried or refused in writing, so a
+ * column added next month — a winner, a payment — cannot ride along unread.
+ */
+describe("clone field policy — side games", () => {
+  const cases = [
+    ["Contest", CLONED_CONTEST_FIELDS, NOT_CLONED_CONTEST_FIELDS, "sponsorName"],
+    ["SideGame", CLONED_SIDE_GAME_FIELDS, NOT_CLONED_SIDE_GAME_FIELDS, "stakeNote"],
+    ["SkinsPot", CLONED_SKINS_POT_FIELDS, NOT_CLONED_SKINS_POT_FIELDS, "scope"],
+  ] as const;
+
+  for (const [model, cloned, notCloned, known] of cases) {
+    const fields = modelFields(model);
+    it(`classifies every field on ${model}`, () => {
+      expect(fields, `the ${model} parser found nothing`).toContain(known);
+      const classified = new Set<string>([...cloned, ...Object.keys(notCloned)]);
+      expect(fields.filter((f) => !classified.has(f))).toEqual([]);
+      expect([...cloned, ...Object.keys(notCloned)].filter((f) => !fields.includes(f)), "listed but not on the model").toEqual([]);
+      expect((cloned as readonly string[]).filter((f) => f in notCloned)).toEqual([]);
+    });
+    it(`never carries who entered, paid or won on ${model}`, () => {
+      for (const f of ["entrants", "id", "eventId", "stageId"]) expect(cloned as readonly string[]).not.toContain(f);
+      for (const [f, why] of Object.entries(notCloned)) expect(why.length, `${model}.${f} needs a reason`).toBeGreaterThan(10);
+    });
+  }
 });

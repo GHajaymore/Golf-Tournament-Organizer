@@ -150,7 +150,10 @@ async function controlsOn(page: Page, tab = ""): Promise<Control[]> {
     // the league is on, and a control inside a closed disclosure is on the
     // page and not on the screen: the crawl found it, could not operate it,
     // and that is the control the first full run waited on for ever.
-    scope.querySelectorAll<HTMLDetailsElement>("details:not([open])").forEach((d) => {
+    // Not a figure's "why" (FigureWhy): it holds one sentence and no control,
+    // and opened it lies over the controls under it — "Full card" on the
+    // player's card could not be pressed (round figures-explain-4).
+    scope.querySelectorAll<HTMLDetailsElement>("details:not([open]):not(.why)").forEach((d) => {
       d.open = true;
     });
     const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();

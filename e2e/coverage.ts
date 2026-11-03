@@ -2,6 +2,7 @@ import { test as base, expect, type BrowserContext, type Page, type Request as P
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { explainHydration, keepWhatTheServerSent } from "./page-errors";
+import { actionsInFormPost } from "./form-post-action";
 
 /**
  * WHAT THE BROWSER TESTS ACTUALLY TOUCH, WRITTEN DOWN AS THEY RUN.
@@ -16,8 +17,9 @@ import { explainHydration, keepWhatTheServerSent } from "./page-errors";
  * So every spec imports `test` from here instead of from Playwright, and every
  * browser context it opens — the default one and any made by hand — records:
  *
- *   A <id>          a server action was called (the `next-action` header;
- *                   the build's manifest names it)
+ *   A <id>          a server action was called (the `next-action` header, or
+ *                   for a form posted without script the action named in its
+ *                   body; the build's manifest names it)
  *   P <role> <path> a screen was opened, and as whom
  *   R <role> <path> … a refusal appeared after a press with none of it on the
  *                   screen (see `watchRefusals`)
@@ -322,6 +324,17 @@ export function recordCoverage(context: BrowserContext): void {
     if (action) {
       note(`A ${action}`);
       return;
+    }
+    // A form posted without the page's script names its action in its body, not in a header
+    // (`form-post-action.ts`). Only a POST's body is read, and only when the header is absent.
+    if (request.method() === "POST") {
+      let body: string | null = null;
+      try {
+        body = request.postDataBuffer()?.toString("utf8") ?? null;
+      } catch {
+        body = null;
+      }
+      for (const id of actionsInFormPost(body)) note(`A ${id}`);
     }
     if (request.isNavigationRequest() && request.frame().parentFrame() === null) {
       const url = new URL(request.url());
