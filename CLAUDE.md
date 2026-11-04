@@ -35,6 +35,13 @@ These are not preferences. Breaking one has consequences that cannot be undone f
 7. **TourneyHQ calculates and records money. It never moves money.** Skins, payouts and prize
    splits are arithmetic and a record. No payment rails, no transfers.
 
+**Rules 2–6 are also enforced, not only written** (2026-11-04): `.claude/hooks/guard.mjs` runs before
+every Bash and PowerShell command (`.claude/settings.json`) and refuses `git add -A`/`.`, any `git stash`,
+a database reset, a push to `main`, a commit whose changes hold a real-looking email or phone number,
+PowerShell writing a source file, and — on the Windows desktop only — builds, dev servers and Playwright.
+A refusal names its rule. Text in quotes and heredocs is never read as a command. To change what it
+allows, edit the script with `src/lib/__tests__/claude-guard-hook.test.ts`.
+
 ## Test fixtures
 
 Use a throwaway organization and event, prefix every row with a mark (`zz-<purpose>`), invented
