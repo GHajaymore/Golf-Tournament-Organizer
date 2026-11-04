@@ -41,6 +41,7 @@ import {
   type StrokeCard,
 } from "../domain/stroke-agg";
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
+import { roundsWithResultsFrom } from "../domain/rounds-with-results";
 import {
   // Imported under another name: this file's state also has a
   // `countbackBetween` (the report's "back 9" between two board rows), and a
@@ -3035,43 +3036,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     stages,
     matches,
     /**
-     * Built from both tables, because a round's result lives in whichever one
-     * its format writes: a medal round returns `Scorecard` rows, a match round
-     * keeps the result on `Match.holes`, and net match play writes
-     * `MatchScorecard` as well. A set built from cards alone would call a
-     * round-robin night that has been played "upcoming" for ever.
-     *
-     * `/[1-9AaBbHh]/` is the same test `playRefusal` uses for "has anybody
-     * been out on the course" — one hole is enough.
+     * Every table a round's result can live in, ONE rule — `roundsWithResultsFrom`,
+     * which the state machine's reader (`tournamentFactsFor`'s `hasResult`) calls
+     * too, so the two cannot drift. `playedCards`, not `scorecards`: a side
+     * playing one ball files a `TeamScorecard` (2026-10-31; see the rule's note).
      */
-    roundsWithResults: new Set<string>([
-      /**
-       * `playedCards`, not `scorecards` (2026-10-31): a side playing one ball — a scramble, a
-       * best ball — files a `TeamScorecard`, and this set was built from the individual cards
-       * alone. A played scramble read "Upcoming" on Rounds & formats, was left out of the final
-       * report's round-by-round tables, and would have been called "not played" by completing.
-       * `playedCards` is the one spelling of "a card was returned", written above for exactly this.
-       */
-      ...playedCards.filter((c) => c.stageId).map((c) => c.stageId as string),
-      ...matchStrokeCards(matchCards, matches).map((c) => c.stageId),
-      ...matches.filter((m) => /[1-9AaBbHh]/.test(m.holes) || m.forfeitedBy).map((m) => m.stageId),
-      /**
-       * A KNOCKOUT'S RESULTS ARE NOT IN EITHER OF THOSE TABLES.
-       *
-       * `BracketWinner` is keyed by slot (`winners-0-1`) rather than by stage,
-       * so a bracket with every semi-final recorded holds no `Match` row and no
-       * card. Left out, the demo's Round 4 stayed "Upcoming" on a bracket whose
-       * final already had two names in it — which is how a rule fixed for one
-       * round type goes on being wrong for another.
-       *
-       * Any winner recorded means the knockout has started. Attributed to every
-       * knockout stage: the key does not name one, and a tournament with two
-       * brackets runs them off the same set of picks.
-       */
-      ...(bracketWinners.length > 0
-        ? stages.filter((s) => isKnockoutRound(s.type)).map((s) => s.id)
-        : []),
-    ]),
+    roundsWithResults: roundsWithResultsFrom({
+      stages,
+      cards: playedCards,
+      matchCards,
+      matches,
+      bracketWinners: bracketWinners.length,
+    }),
     rrStages,
     playRounds,
     activeStage,

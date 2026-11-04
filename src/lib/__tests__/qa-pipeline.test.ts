@@ -264,7 +264,7 @@ describe("what runs when (item B)", () => {
 
   it("the workflows ask for the round they are said to", () => {
     const nightly = readVerbatim(".github/workflows/nightly.yml");
-    expect(nightly).toContain('cron: "0 2 * * *"');
+    expect(nightly).toContain('cron: "17 2 * * *"');
     expect(nightly).toMatch(/schedule: nightly\s+countries: all\s+crawl: "on"/);
     expect(nightly).toContain("uses: ./.github/workflows/deploy.yml");
     const weekly = readVerbatim(".github/workflows/weekly.yml");

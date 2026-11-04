@@ -76,6 +76,9 @@ import { orderClubs, type ClubRecord, type HeadToHead } from "@/lib/domain/leagu
 import { placesByValue } from "@/lib/domain/flight-places";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
 import type { HoleResult, Match, Player } from "@/lib/domain/types";
+import type { BracketView } from "@/lib/domain/bracket";
+import { tournamentStatus, drawFacts } from "@/lib/domain/tournament-status";
+import { FAMILY_FIXTURES as STATUS_FAMILIES, launched as launchedFacts } from "@/lib/domain/__tests__/tournament-facts-fixtures";
 
 /**
  * The combination sweep.
@@ -2361,4 +2364,115 @@ describe("a knockout in flights, at every field size and every shape", () => {
       }
     });
   }
+});
+
+/**
+ * A KNOCKOUT'S PLAY IS OVER WHEN EVERY DRAW'S FINAL IS DECIDED — in every mode,
+ * at every field size, with THREE draws where the mode has flights (CLAUDE.md:
+ * "flights are separate knockouts; test with THREE").
+ *
+ * The state machine's knockout row (proposal 3 Nov, panel changes 2–3): play
+ * over is every draw in `bracketDraws()` decided, plus the play-off for third
+ * when it is on — never `playOverOf`, which a Bracket Stage cannot satisfy.
+ *
+ * THE EXPECTATION IS WORKED BY A ROUTE THE CODE DOES NOT TAKE. The code asks
+ * the bracket for its champion. The Rules route counts ties: in a
+ * single-elimination draw every tie (Rule 3.2) puts exactly one player out and
+ * a bye puts out nobody, so a draw of n entrants has its Final decided exactly
+ * when n − 1 ties have a winner. Each cell plays a draw out tie by tie, the
+ * higher seed winning, and checks both.
+ */
+describe("a knockout is over when every draw's Final is decided, in every mode", () => {
+  const winnersIn = (kind: string, winners: Record<string, string>) => Object.keys(winners).filter((k) => k.startsWith(`${kind}-`)).length;
+
+  /** Decide ties in order, top seed through, leaving `stopShort` ties undecided. */
+  const playOut = (kind: Parameters<typeof buildBracket>[0], players: Player[], winners: Record<string, string>, fieldComplete = true, stopShort = 0) => {
+    const total = Math.max(0, players.length - 1);
+    for (let guard = 0; guard < 200 && winnersIn(kind, winners) < total - stopShort; guard++) {
+      const view = buildBracket(kind, players, winners, fieldComplete);
+      const tie = view.rounds.flatMap((r) => r.matches).find((m) => m.a.playerId && m.b.playerId && !m.winnerId);
+      if (!tie) break;
+      winners[tie.key] = tie.a.playerId!;
+    }
+    return buildBracket(kind, players, winners, fieldComplete);
+  };
+
+  type Mode = "single" | "split" | "plate" | "flights";
+  /** The draws a mode makes of `n` players, each played out (or one tie short where `short(i)`). */
+  const drawsFor = (mode: Mode, n: number, short: (i: number) => boolean) => {
+    const players = field(n);
+    const winners: Record<string, string> = {};
+    const left = (i: number) => (short(i) ? 1 : 0);
+    if (mode === "single") return [{ label: "", players, view: playOut("winners", players, winners, true, left(0)), results: winners }];
+    if (mode === "split") {
+      const d = drawBrackets(players, "split");
+      return [
+        { label: d.mainLabel, players: d.main, view: playOut("winners", d.main, winners, true, left(0)), results: winners },
+        { label: d.secondLabel, players: d.second, view: playOut("consolation", d.second, winners, true, left(1)), results: winners },
+      ];
+    }
+    if (mode === "plate") {
+      const main = playOut("winners", players, winners, true, left(0));
+      const losers = firstRoundLosers(main, new Map(players.map((p) => [p.id, p])));
+      return [
+        { label: "Main draw", players, view: main, results: winners },
+        { label: "Plate", players: losers, view: playOut("consolation", losers, winners, false, left(1)), results: winners },
+      ];
+    }
+    // Three flights, top-down, each its own knockout.
+    const size = Math.ceil(n / 3);
+    return [0, 1, 2].map((i) => {
+      const own = players.slice(i * size, (i + 1) * size);
+      return { label: `Flight ${i + 1}`, players: own, view: playOut(flightKind(i), own, winners, true, left(i)), results: winners };
+    });
+  };
+
+  const statusOf = (mode: Mode, draws: ReturnType<typeof drawsFor>, thirdPlace = { on: false, decided: false }) =>
+    tournamentStatus({
+      ...launchedFacts(STATUS_FAMILIES[mode === "flights" ? "flightedKnockout" : "knockout"]()),
+      bracketMode: mode,
+      knockout: { draws: draws.map((d) => drawFacts({ label: d.label, view: d.view })), thirdPlace },
+    });
+
+  // Recorded results only: a bye advances a player with no tie played.
+  const decidedTies = (d: { view: BracketView; results: Record<string, string> }) => winnersIn(d.view.kind, d.results);
+
+  for (const mode of ["single", "split", "plate", "flights"] as Mode[]) {
+    for (const n of FIELD_SIZES) {
+      it(`${mode}, ${n} players: a Final is decided exactly when n − 1 ties are, and play is over only then`, () => {
+        const all = drawsFor(mode, n, () => false);
+        for (const d of all) {
+          const where = `${mode} ${n} ${d.label || "draw"}`;
+          // The Rules route: a draw of e entrants is decided after e − 1 ties.
+          expect(decidedTies(d), where).toBe(Math.max(0, d.players.length - 1));
+          const own = drawFacts({ label: d.label, view: d.view });
+          expect(own.entrants, where).toBe(d.players.length);
+          if (d.players.length >= 2) expect(own.finalDecided, `${where}: every tie played and no champion`).toBe(true);
+        }
+        const real = all.filter((d) => d.players.length >= 2).length;
+        expect(statusOf(mode, all).step, `${mode} ${n}: ${real} draws with a tie in them, all decided`).toBe(real > 0 ? "play-over" : "live");
+
+        // One tie short in the LAST draw with a tie in it — the others decided — is not over.
+        const lastReal = all.map((d, i) => (d.players.length >= 2 ? i : -1)).filter((i) => i >= 0).pop();
+        if (lastReal !== undefined) {
+          const short = drawsFor(mode, n, (i) => i === lastReal);
+          expect(decidedTies(short[lastReal]), `${mode} ${n}`).toBe(short[lastReal].players.length - 2);
+          expect(drawFacts({ label: "", view: short[lastReal].view }).finalDecided, `${mode} ${n}`).toBe(false);
+          expect(statusOf(mode, short).step, `${mode} ${n}: draw ${lastReal + 1} one tie short`).toBe("live");
+        }
+      });
+    }
+
+    it(`${mode}: with a play-off for third on, play is over only once it is decided too (F3)`, () => {
+      const all = drawsFor(mode, 8, () => false);
+      expect(statusOf(mode, all, { on: true, decided: false }).step).toBe("live");
+      expect(statusOf(mode, all, { on: true, decided: true }).step).toBe("play-over");
+    });
+  }
+
+  it("CONTROL: the flights mode makes three draws, each its own bracket with players in it", () => {
+    const three = drawsFor("flights", 28, () => false);
+    expect(three.map((d) => d.players.length)).toEqual([10, 10, 8]);
+    expect(new Set(three.map((d) => d.view.kind)).size).toBe(3);
+  });
 });

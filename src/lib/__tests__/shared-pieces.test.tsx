@@ -37,6 +37,15 @@ describe("SidePanel", () => {
     expect(out, "an open panel is drawn hidden").not.toMatch(/class="side-panel-backdrop" hidden=""/);
   });
 
+  it("asked to dock, it is marked for the dock and is still a dialog until the screen is measured", () => {
+    // The server cannot know the width: the first render is the dialog, and the browser docks it
+    // from 1280 (`SIDE_PANEL_DOCK_FROM`; not modal there — `e2e/rounds-panel.spec.ts` walks it).
+    const out = html(<SidePanel dock open title="Round 1" onClose={() => {}}>body</SidePanel>);
+    expect(out).toMatch(/class="side-panel-backdrop" data-dock=""/);
+    expect(out).toContain('role="dialog"');
+    expect(html(<SidePanel open title="Round 1" onClose={() => {}}>body</SidePanel>)).not.toContain("data-dock");
+  });
+
   it("kept mounted while closed: in the page once, and hidden", () => {
     const out = html(
       <SidePanel keepMounted open={false} title="Round 3" onClose={() => {}}>

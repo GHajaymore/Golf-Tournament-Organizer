@@ -214,6 +214,12 @@ const KNOWN_DEAD: string[] = [
   "lib/services/identity-repair.ts:loadRepair",
   "lib/services/league-nomination.ts:clubsIn",
   "lib/services/tournament.ts:expectedRrTotal",
+  // The state machine, PR 1 of 9 (proposal 3 Nov): built beside the readers it
+  // replaces and held to them by tournament-status-shadow.test.ts. PR 2 put the
+  // setup flow on the facts read's batch; PR 3 gives these two their first
+  // callers, and the two lines come off then.
+  "lib/domain/tournament-status.ts:tournamentStatus",
+  "lib/services/tournament-facts.ts:tournamentFactsFor",
 ];
 
 const dead: Dead[] = [];
