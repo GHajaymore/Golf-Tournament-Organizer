@@ -64,6 +64,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# Least privilege for every job that does not say otherwise: check out, and nothing
+# else (none of unit, build, e2e, e2e-cover or verify calls the GitHub API). The
+# `deploy` job below states what it needs for itself.
+permissions:
+  contents: read
+
 # Every job needs the same database wiring. Hoisted here so the three cannot
 # disagree about which URL means what.
 env:
