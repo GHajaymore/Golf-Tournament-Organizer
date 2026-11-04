@@ -687,3 +687,277 @@ test("a secretary runs a four-club league from its first week to its champion, a
     await prisma.$disconnect();
   }
 });
+
+/**
+ * A LEAGUE WEEK PLAYED AS FOURSOMES: ONE BALL A SIDE, PRICED BY APPENDIX C.
+ *
+ * Backlog J22. A league week takes any pairs format, and until 2026-11-03 the
+ * league priced every card by the player it is filed under. A foursomes side
+ * keeps ONE card, filed under nobody, so it played off scratch on the table
+ * while its own card said "Plays off" a figure. Nothing in the browser had
+ * played a league week on one ball: the season above is four-ball throughout.
+ *
+ * Set up as the secretary would — the league switched on, a pair nominated for
+ * each club, the week drawn, each side's one card typed in on the score-entry
+ * screen. The round itself (Foursomes, net) is written as a row, as the season
+ * above writes its four rounds. Then the meetings list and the table are held
+ * to figures worked out HERE, from the stored indexes and Appendix C:
+ *
+ *   course handicap   no tees are set, so it is the index, with its decimal
+ *   Appendix C        foursomes: 50% of the side's COMBINED course handicaps,
+ *                     taken of the unrounded figures and rounded once (6.2a)
+ *                       Kippen  4.7 + 9.6  = 14.3 -> 7.15 -> 7
+ *                       Luss    18.3 + 22.9 = 41.2 -> 20.6 -> 21
+ *   match play        off the low SIDE: Luss receives 21 - 7 = 14 strokes,
+ *                     on stroke index 1-14
+ *   the cards         Kippen a par on every hole, Luss a bogey on every hole:
+ *                     the fourteen holes Luss receives a stroke are halved and
+ *                     Kippen wins the other four (stroke index 15-18), 4&2
+ *   holes won only    a point a hole, half a halve: Kippen 11, Luss 7
+ *
+ * THE CONTROLS, worked out the same way and held NOT to be what the screen says:
+ *
+ *   at scratch (the defect)       Kippen wins all eighteen: 10&8, 18 - 0
+ *   each partner rounded first    5 + 10 = 15 -> 7.5 -> 8, so Luss receives 13
+ *                                 and Kippen wins five: 11.5 - 6.5
+ */
+const FOURSOMES_CLUBS = [
+  { name: "Kippen", indexes: [4.7, 9.6] },
+  { name: "Luss", indexes: [18.3, 22.9] },
+];
+
+async function buildFoursomes(mark: string) {
+  const org = await prisma.organization.create({ data: { name: `${mark} League Committee`, kind: "club" } });
+  const event = await prisma.event.create({
+    data: {
+      organizationId: org.id,
+      name: `${mark} Tuesday Foursomes League`,
+      status: "live",
+      shape: "series",
+      format: "stroke",
+      formationRule: "balanced",
+      dates: "",
+      course: "",
+      city: "",
+      address: "",
+      regDeadline: "",
+      capacity: 0,
+      customPars: JSON.stringify(PARS),
+      customYards: JSON.stringify(new Array(18).fill(380)),
+      customStrokeIndex: JSON.stringify(STROKE_INDEX),
+      shareToken: randomBytes(12).toString("hex"),
+      registrationToken: randomBytes(8).toString("hex"),
+    },
+  });
+  // The committee has said nothing about the allowance: Appendix C's applies.
+  const week = await prisma.stage.create({
+    data: { eventId: event.id, position: 0, description: "Week 1", type: "Round Robin", format: "Foursomes", holes: 18, scoringBasis: "net", handicapAllowance: 0 },
+  });
+  const clubs: { id: string; name: string; players: { id: string; name: string; index: number }[] }[] = [];
+  for (const [c, spec] of FOURSOMES_CLUBS.entries()) {
+    const club = await prisma.group.create({ data: { eventId: event.id, name: spec.name, position: c } });
+    const players = [];
+    for (const [k, index] of spec.indexes.entries()) {
+      const p = await prisma.player.create({
+        data: {
+          eventId: event.id,
+          name: `${spec.name} ${NTH[k]}`,
+          email: `${mark}-${c}-${k}@example.invalid`.toLowerCase(),
+          handicap: index,
+          seed: c * 2 + k + 1,
+          status: "confirmed",
+          groupId: club.id,
+        },
+      });
+      players.push({ id: p.id, name: p.name, index });
+    }
+    clubs.push({ id: club.id, name: spec.name, players });
+  }
+  const organizer = await prisma.user.create({
+    data: { email: `${mark}-secretary@example.invalid`.toLowerCase(), name: "F. Secretary", password: "x:unusable" },
+  });
+  await prisma.account.create({ data: { eventId: event.id, name: "F. Secretary", email: organizer.email, role: "admin" } });
+  return { event, week: week.id, clubs, organizer };
+}
+
+/** Appendix C, foursomes: half the side's combined course handicaps, of the figures with their decimal, rounded once. */
+const foursomesOff = (indexes: number[]) => nearest(indexes.reduce((s, i) => s + Math.round(i * 10), 0) * 50, 1000);
+/** The same, with each partner's course handicap rounded FIRST — the wrong order, for a control. */
+const foursomesOffRoundedFirst = (indexes: number[]) => nearest(indexes.reduce((s, i) => s + nearest(Math.round(i * 10), 10), 0) * 50, 100);
+/** Two shared balls, off the low side: the higher side receives the difference, by stroke index. */
+function oneBallEach(a: { off: number; strokes: number[] }, b: { off: number; strokes: number[] }): Hole[] {
+  const low = Math.min(a.off, b.off);
+  return PARS.map((_, h) => {
+    const x = a.strokes[h] - shotsOn(a.off - low, STROKE_INDEX[h]);
+    const y = b.strokes[h] - shotsOn(b.off - low, STROKE_INDEX[h]);
+    return x < y ? "A" : y < x ? "B" : "H";
+  });
+}
+
+test("a league week played as foursomes is priced by Appendix C, not at scratch, on the card, the meeting and the table", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(!WALKED.includes(testInfo.project.name), "two sizes, as the season above");
+  test.setTimeout(300_000);
+  const mark = `zz-league-foursomes-${testInfo.project.name}`;
+  await remove(mark);
+  const errors: string[] = [];
+  watchPageErrors(page, errors, "secretary");
+  const fx = await buildFoursomes(mark);
+  const [kippen, luss] = fx.clubs;
+
+  try {
+    // ── the figures, worked out here from the stored rows ──────────────────────
+    // Read back what was stored, not what was meant to be: the arithmetic is of the rows.
+    const stored = await prisma.player.findMany({ where: { eventId: fx.event.id }, select: { id: true, handicap: true } });
+    const indexOf = (id: string) => stored.find((p) => p.id === id)!.handicap;
+    const indexesOf = (club: typeof kippen) => club.players.map((p) => indexOf(p.id));
+    const kippenOff = foursomesOff(indexesOf(kippen));
+    const lussOff = foursomesOff(indexesOf(luss));
+    expect([kippenOff, lussOff], "Appendix C, worked by hand in the header").toEqual([7, 21]);
+    const kippenCard = [...PARS];
+    const lussCard = PARS.map((p) => p + 1);
+    const holes = oneBallEach({ off: kippenOff, strokes: kippenCard }, { off: lussOff, strokes: lussCard });
+    expect(result(holes).text).toBe("4&2");
+    const [kPts, lPts] = points(holes, "holes", 0);
+    expect([kPts, lPts]).toEqual([11, 7]);
+    // CONTROLS: the two wrong ways of pricing a side give a different week, so the screen can tell them apart.
+    const atScratch = oneBallEach({ off: 0, strokes: kippenCard }, { off: 0, strokes: lussCard });
+    expect(result(atScratch).text).toBe("10&8");
+    expect(points(atScratch, "holes", 0)).toEqual([18, 0]);
+    const roundedFirst = oneBallEach(
+      { off: foursomesOffRoundedFirst(indexesOf(kippen)), strokes: kippenCard },
+      { off: foursomesOffRoundedFirst(indexesOf(luss)), strokes: lussCard },
+    );
+    expect(foursomesOffRoundedFirst(indexesOf(kippen)), "the control's own figure").toBe(8);
+    expect(points(roundedFirst, "holes", 0)).toEqual([11.5, 6.5]);
+
+    await context.addCookies([
+      { name: "ng_session", value: sign(signedInNow(fx.organizer.id)), url: baseURL! },
+      { name: "ng_active_event", value: sign(fx.event.id), url: baseURL! },
+    ]);
+    const league = page.locator("section", { has: page.locator(".page-kicker", { hasText: "League" }) });
+    const open = async () => {
+      await page.goto(`/teams?round=${fx.week}&bust=${Date.now()}`);
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(league, "the Teams screen shows no league").toBeVisible();
+    };
+
+    // ── 1. the league is switched on: holes won only, one pair a club ─────────
+    await open();
+    const scoring = league.getByLabel("Scoring");
+    if (!(await scoring.isVisible().catch(() => false))) await league.locator("summary", { hasText: "League settings" }).click();
+    await expect(scoring).toBeVisible();
+    await scoring.selectOption({ label: SYSTEMS.holes });
+    await league.getByLabel(/Pairs per club each week/).fill("1");
+    await league.getByRole("button", { name: "Save league settings" }).click();
+    await expect(league.getByText("Saved.")).toBeVisible();
+    expect(
+      await prisma.event.findUniqueOrThrow({ where: { id: fx.event.id }, select: { leaguePoints: true, leaguePairs: true, leaguePlayoffClubs: true } }),
+    ).toEqual({ leaguePoints: "holes", leaguePairs: 1, leaguePlayoffClubs: 0 });
+
+    // ── 2. each club puts up its foursomes pair ──────────────────────────────
+    await open();
+    const sheet = (name: string) =>
+      page.locator("div", { has: page.locator(":scope > .card .card-title", { hasText: new RegExp(`^${name}$`) }) }).last();
+    const pairOf = (club: typeof kippen) => club.players.map((p) => p.name).join(" / ");
+    for (const club of fx.clubs) {
+      const s = sheet(club.name);
+      for (const p of club.players) await s.getByRole("button", { name: new RegExp(`^${p.name} `) }).click();
+      await s.getByRole("button", { name: "Nominate pair" }).click();
+      await expect(s.getByText(pairOf(club), { exact: true }), `${pairOf(club)} was not put up`).toBeVisible();
+    }
+
+    // ── 3. the week is drawn: Kippen's pair against Luss's ───────────────────
+    await league.getByRole("button", { name: "Draw this week", exact: true }).click();
+    await expect.poll(() => prisma.match.count({ where: { stageId: fx.week } }), { message: "the week was not drawn", timeout: 15_000 }).toBe(1);
+    const match = await prisma.match.findFirstOrThrow({ where: { stageId: fx.week } });
+    const sideOf = async (teamId: string) => {
+      const t = await prisma.team.findUniqueOrThrow({ where: { id: teamId } });
+      return { teamId, name: t.name, club: t.clubGroupId };
+    };
+    const [sideA, sideB] = [await sideOf(match.teamAId), await sideOf(match.teamBId)];
+    const kSide = sideA.club === kippen.id ? sideA : sideB;
+    const lSide = sideA.club === luss.id ? sideA : sideB;
+    expect([kSide.name, lSide.name].sort(), "the draw is not Kippen's pair against Luss's").toEqual([pairOf(kippen), pairOf(luss)].sort());
+
+    // ── 4. each side's ONE card, typed in on the score-entry screen ──────────
+    await page.goto(`/entry?round=${fx.week}&bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    const cell = page.locator("input[data-score-cell]").first();
+    if (!(await cell.isVisible().catch(() => false))) await page.getByRole("button", { name: "Full card" }).click();
+    await expect(cell, "the score-entry screen offers no full card").toBeVisible();
+    for (const [side, off, strokes] of [
+      [kSide, kippenOff, kippenCard],
+      [lSide, lussOff, lussCard],
+    ] as const) {
+      const first = `${side.name}, hole 1, par ${PARS[0]}`;
+      // The side's card says what it plays off, before a score is on it: Appendix C's figure.
+      const card = page.locator(".card", { has: page.getByLabel(first, { exact: true }) });
+      await expect(card.getByText(/^Plays off /), `${side.name}'s card does not say what the side plays off`).toHaveText(`Plays off ${off}`);
+      // One card for the side: "Team card", and no partner's own.
+      await expect(card.getByText("Team card", { exact: true })).toBeVisible();
+      const block = page
+        .locator("div", { has: page.locator(":scope > div.sc-wrap") })
+        .filter({ has: page.getByLabel(first, { exact: true }) })
+        .last();
+      for (const [h, s] of strokes.entries()) {
+        await block.getByLabel(`${side.name}, hole ${h + 1}, par ${PARS[h]}`, { exact: true }).fill(String(s));
+      }
+      await block.getByRole("button", { name: "Save card" }).click();
+      await expect
+        .poll(
+          async () => {
+            const row = await prisma.teamScorecard.findFirst({ where: { stageId: fx.week, teamId: side.teamId, playerId: "" } });
+            return row ? row.strokes : "";
+          },
+          { message: `${side.name}'s one card was not stored as it was typed`, timeout: 15_000 },
+        )
+        .toBe(JSON.stringify(strokes));
+    }
+    // Every card on a shared ball is filed under no player.
+    expect(await prisma.teamScorecard.count({ where: { stageId: fx.week, NOT: { playerId: "" } } }), "a partner has a card of their own").toBe(0);
+
+    // The stored match, hole by hole, from side A's point of view.
+    const fromA = (h: Hole): Hole => (sideA.club === kippen.id ? h : h === "A" ? "B" : h === "B" ? "A" : "H");
+    await expect
+      .poll(async () => JSON.parse((await prisma.match.findUniqueOrThrow({ where: { id: match.id } })).holes), {
+        message: "the stored match is not Appendix C's",
+        timeout: 15_000,
+      })
+      .toEqual(holes.map(fromA));
+
+    // ── 5. the meeting and the table say Appendix C's week, not scratch's ────
+    await open();
+    const meetingRows = await league
+      .locator(".card", { has: page.locator("th", { hasText: /^Match$/ }) })
+      .locator("tbody tr")
+      .evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll("td")].map((td) => (td as HTMLElement).innerText.trim())));
+    expect(meetingRows, "the meetings list does not hold one foursomes").toHaveLength(1);
+    const [row] = meetingRows;
+    expect([row[0], row[2]].sort()).toEqual([kSide.name, lSide.name].sort());
+    expect(row[1], "how Kippen v Luss ended").toBe("4&2");
+    expect(row[1], "CONTROL: the meeting was played at scratch").not.toBe(result(atScratch).text);
+    const [first, second] = row[0] === kSide.name ? [kPts, lPts] : [lPts, kPts];
+    expect(row[3].replace(/\s+/g, " "), "the meeting's points").toBe(`${first.toFixed(2)} – ${second.toFixed(2)}`);
+
+    const table = league.locator("table", { has: page.locator("th", { hasText: /^Played$/ }) }).first();
+    await expect(table, "there is no league table").toBeVisible();
+    const rows = (
+      await table.locator("tbody tr").evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll("td")].map((td) => (td as HTMLElement).innerText.trim())))
+    ).map(([pos, name, played, won, holesUp, pts]) => ({ pos, name, played: Number(played), won: Number(won), holes: Number(holesUp), points: Number(pts) }));
+    const up = holes.filter((h) => h === "A").length - holes.filter((h) => h === "B").length;
+    expect(up).toBe(4);
+    expect(rows).toEqual([
+      { pos: "1", name: "Kippen", played: 1, won: 1, holes: up, points: kPts },
+      { pos: "2", name: "Luss", played: 1, won: 0, holes: -up, points: lPts },
+    ]);
+    // CONTROLS on the table: neither the scratch week nor the rounded-first one.
+    const kRow = rows.find((r) => r.name === "Kippen")!;
+    expect(kRow.points, "CONTROL: Kippen's points are the scratch week's").not.toBe(points(atScratch, "holes", 0)[0]);
+    expect(kRow.points, "CONTROL: Kippen's points are each partner rounded first").not.toBe(points(roundedFirst, "holes", 0)[0]);
+
+    expect(errors, errors.join("\n")).toEqual([]);
+  } finally {
+    await remove(mark);
+    await prisma.$disconnect();
+  }
+});
