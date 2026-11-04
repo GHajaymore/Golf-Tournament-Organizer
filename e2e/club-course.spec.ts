@@ -270,6 +270,16 @@ test("a club's own course is typed in, checked, given rated tees, used and remov
   const home = courses.getByRole("combobox", { name: /home course$/ });
   const clubHome = async () => (await prisma.organization.findUniqueOrThrow({ where: { id: clubId }, select: { defaultCourseId: true } })).defaultCourseId;
   await home.click();
+  // Left and taken again at once: the blur's deferred close (120 ms) must not shut the list the
+  // focus has just opened. The nightly of 2026-11-04 met it by chance — a choice, then the box
+  // pressed again inside 120 ms on a fast runner — and waited four minutes on a focused box with
+  // no list. Here it is met every time, and the wait outlasts the deferred close.
+  await home.evaluate((box: HTMLInputElement) => {
+    box.blur();
+    box.focus();
+  });
+  await page.waitForTimeout(400);
+  await expect(page.getByRole("listbox"), "the box was left and taken again, and its list shut under the focus").toBeVisible();
   await page.getByRole("option", { name: new RegExp(NAME) }).click();
   await expect.poll(clubHome, { timeout: 20_000, message: "the home course was not stored" }).toBe(course.id);
   await expect(home, "the box does not show the course that was chosen").toHaveValue(NAME);
