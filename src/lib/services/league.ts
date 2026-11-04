@@ -4,10 +4,13 @@ import { COURSE_REF, roundCard } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { matchHolesOffTheLow, type MatchBall } from "../domain/team";
 import { NO_PAR_STROKES } from "../domain/handicap";
-import { effectiveCountBest } from "./teams";
+import { effectiveCountBest, sideHandicapFromPartners } from "./teams";
 import { playingHandicapInRound } from "../round-allowance";
 import { roundCourseHandicaps, flightTeeByPlayer, confirmedField, FIELD_PLAYER } from "./handicaps";
 import { roundHandicapRows } from "./round-handicap";
+import { roundHandicapExactOf } from "../domain/round-handicap";
+import { sharedBallRound } from "../domain/shared-ball";
+import { hasLeftTheField } from "../domain/left-the-field";
 import {
   meetingPoints,
   meetingsIn,
@@ -105,6 +108,58 @@ export interface LeagueMeeting {
   complete: boolean;
 }
 
+/**
+ * ONE SIDE OF A LEAGUE PAIRING AS THE BALLS OF A MATCH, for `matchHolesOffTheLow`.
+ *
+ * This replaces a `cardFor` that built each side with `aggregateTeamCard` and
+ * handed the two to `teamMatchHoles` — full allowance each, net better ball
+ * against net better ball. That is the net MEDAL method and this is a MATCH;
+ * the difference lands on the hardest holes, which the domain function sets
+ * out with the measurement. A side with no scores yet yields balls of nulls
+ * rather than nothing, so an unplayed pairing still reads as unplayed instead
+ * of as a walkover.
+ *
+ * A SIDE THAT SHARES ONE BALL (foursomes, greensomes, Chapman, a scramble) is
+ * ONE ball at the SIDE's playing handicap — Rules of Handicapping, Appendix C:
+ * foursomes 50% of the partners' combined course handicaps, greensomes and
+ * Chapman 60% of the lower and 40% of the higher, a scramble 35/15, 30/20/10
+ * or 25/20/15/10 by the side's size, each taken of the UNROUNDED figures and
+ * rounded once; the committee's own allowance or split, where the round has
+ * one, in place of the Rule's, of the partners who play. That is
+ * `sideHandicapFromPartners`, the one function the Teams screen, the board and
+ * the stored result (`recomputeTeamMatch`) price such a side with.
+ *
+ * Until 2026-11-03 this priced the shared card the way it prices a four-ball
+ * card — by its player — and a shared card has no player, so every side in a
+ * league week played to one ball was priced at scratch (backlog J22). The
+ * league table, its holes-won countback and the play-off seeding were decided
+ * off nought while the side's own card, and the stored match, gave strokes.
+ *
+ * `partners` are the side's players with their figures BEFORE any allowance
+ * (`roundHandicapExactOf`). `playsOff` prices a card that belongs to one
+ * player. Pure, so `matrix.test.ts` can sweep it.
+ */
+export function leagueSideBalls(
+  round: { format: string; handicapAllowance: number; allowanceWeights: number[] | null },
+  cards: readonly { playerId: string; strokes: string }[],
+  partners: readonly { exact: number; withdrawn: boolean }[],
+  playsOff: (playerId: string) => number,
+): MatchBall[] {
+  const parse = (s: string): (number | null)[] => {
+    try {
+      const v = JSON.parse(s) as unknown;
+      return Array.isArray(v) ? (v as (number | null)[]) : [];
+    } catch {
+      return [];
+    }
+  };
+  if (sharedBallRound(round.format)) {
+    const one = cards.find((c) => c.playerId === "");
+    return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: sideHandicapFromPartners(partners, round) }];
+  }
+  return cards.map((c) => ({ strokes: parse(c.strokes), playingHandicap: playsOff(c.playerId) }));
+}
+
 export async function leagueMeetings(
   eventId: string,
   stageId: string,
@@ -126,7 +181,12 @@ export async function leagueMeetings(
     prisma.stage.findUnique({ where: { id: stageId } }),
     prisma.team.findMany({
       where: { eventId, stageId, clubGroupId: { not: null } },
-      include: { club: { select: { id: true, name: true } } },
+      include: {
+        club: { select: { id: true, name: true } },
+        // Who is on the side, for a round played to a SHARED ball: its card
+        // has no player, and its handicap is taken from the partners'.
+        members: { select: { playerId: true, player: { select: { status: true } } } },
+      },
     }),
     prisma.match.findMany({ where: { eventId, stageId } }),
   ]);
@@ -193,46 +253,40 @@ export async function leagueMeetings(
   const handicapOf = new Map(players.map((p) => [p.id, p.handicap]));
   /** What a player plays off this week: the frozen round handicap if one was
    *  taken, else the Course Handicap, and only the raw index as a last resort;
-   *  then the round's allowance and the strokes for the pars, as the board. A
-   *  side's shared card (no player) receives nothing for the pars. */
+   *  then the round's allowance and the strokes for the pars, as the board.
+   *  Asked only of a card that belongs to ONE player — a side's shared ball is
+   *  priced from its partners in `leagueSideBalls`. A two-ball round's one card
+   *  for the side (gross only) has no player either, and plays off nothing. */
   const playsOff = (id: string): number =>
     playingHandicapInRound(stage, teamRound.get(id), {
       whole: courseHcp.get(id) ?? handicapOf.get(id) ?? 0,
       exact: courseHcp.exact(id) ?? handicapOf.get(id) ?? 0,
       parStrokes: id ? courseHcp.parStrokes(id) : NO_PAR_STROKES,
     });
-
-  /**
-   * One side as the balls of a match, for `matchHolesOffTheLow`.
-   *
-   * This replaces a `cardFor` that built each side with `aggregateTeamCard`
-   * and handed the two to `teamMatchHoles` — full allowance each, net better
-   * ball against net better ball. That is the net MEDAL method and this is a
-   * MATCH; the difference lands on the hardest holes, which the domain
-   * function sets out with the measurement.
-   *
-   * Same rows and the same handicap source as before, deliberately: the only
-   * thing that changed here is the method. A side with no scores yet yields
-   * balls of nulls rather than nothing, so an unplayed pairing still reads as
-   * unplayed instead of as a walkover.
-   */
-  const ballsFor = (teamId: string): MatchBall[] =>
-    cards
-      .filter((c) => c.teamId === teamId)
-      .map((c) => {
-        let strokes: (number | null)[] = [];
-        try {
-          strokes = JSON.parse(c.strokes) as (number | null)[];
-        } catch {
-          strokes = [];
-        }
-        return {
-          strokes,
-          playingHandicap: playsOff(c.playerId),
-        };
-      });
+  /** The same player's figure BEFORE any allowance, for a side's share of it
+   *  (Rules of Handicapping, Appendix C): frozen, then the committee's, then
+   *  the Course Handicap — the chain `recomputeTeamMatch` walks. */
+  const exactOf = (id: string): number =>
+    roundHandicapExactOf(
+      teamRound.get(id),
+      courseHcp.get(id) ?? handicapOf.get(id) ?? 0,
+      courseHcp.exact(id) ?? handicapOf.get(id) ?? 0,
+    );
 
   const sideById = new Map(sides.map((s) => [s.id, s]));
+
+  const ballsFor = (teamId: string): MatchBall[] => {
+    const side = sideById.get(teamId);
+    return leagueSideBalls(
+      stage,
+      cards.filter((c) => c.teamId === teamId),
+      (side?.members ?? []).map((m) => ({
+        exact: exactOf(m.playerId),
+        withdrawn: hasLeftTheField(m.player.status),
+      })),
+      playsOff,
+    );
+  };
 
   const pairings: (PairingResult & LeaguePairing)[] = [];
   for (const m of matches) {

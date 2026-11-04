@@ -14,7 +14,8 @@ import {
   sideSizeRange,
   GOLF_FORMATS,
 } from "@/lib/formats";
-import { sideHandicap, aggregateTeamCard } from "@/lib/domain/team";
+import { sideHandicap, aggregateTeamCard, matchHolesOffTheLow } from "@/lib/domain/team";
+import { leagueSideBalls } from "@/lib/services/league";
 import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo, roundIsStroke, isHeadToHead } from "@/lib/stage-types";
 import {
   LEADERBOARD_VISIBILITY,
@@ -2106,6 +2107,100 @@ describe("what a side plays off, on every team format and size", () => {
     const flat = sideHandicap(pair, 50);
     expect(weighted, "the weights are not being applied").not.toBe(flat);
   });
+});
+
+/**
+ * A LEAGUE WEEK ON A SHARED BALL, on every one-ball format and every side size
+ * from ONE (backlog J22, 2026-11-03).
+ *
+ * `leagueMeetings` priced every card by its player, and a side's shared card
+ * has none — so every foursomes, greensomes and scramble side in a league week
+ * played off scratch, and the league table, its holes-won countback and the
+ * play-off seeding were decided off nought. The block above sweeps what a side
+ * plays off on the TEAMS screen and could not see it: the league never called
+ * that path.
+ *
+ * Asserted against Appendix C, held HERE as its own table (not read from
+ * `formats.ts`), in whole tenths so the rounding is the Rule's — .5 upwards,
+ * once, at the end. A side of ONE is outside the appendix (a pair reduced by a
+ * withdrawal the committee let play): it must still not be scratch, and must
+ * not play off more than its one player.
+ *
+ * And the cell's MATCH invariant, which needs no table: two sides on level
+ * gross, the low one priced however it is, the other wins exactly as many holes
+ * as it receives strokes — the difference, off the low SIDE.
+ */
+describe("a league week on a shared ball, on every one-ball format and side size", () => {
+  const SHARED = GOLF_FORMATS.filter((f) => f.ball === "single" && !f.manual);
+  const FLAT_HALF = { 2: [50, 50] } as Record<number, number[]>;
+  const SIXTY_FORTY = { 2: [60, 40] } as Record<number, number[]>;
+  const SCRAMBLE = { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] } as Record<number, number[]>;
+  // Rules of Handicapping, Appendix C (2024), lowest handicap first.
+  const APPENDIX_C: Record<string, Record<number, number[]>> = {
+    Foursomes: FLAT_HALF,
+    "Alternate Shot": FLAT_HALF,
+    Greensomes: SIXTY_FORTY,
+    "Chapman / Pinehurst": SIXTY_FORTY,
+    Scramble: SCRAMBLE,
+    "Texas Scramble": SCRAMBLE,
+  };
+  // Exact Course Handicaps with a decimal, distinct and spread, NOT in order.
+  const TENTHS = [227, 48, 315, 131];
+  const SI = Array.from({ length: 18 }, (_, i) => i + 1);
+  const LEVEL = JSON.stringify(new Array(18).fill(5));
+  const noPlayer = (id: string): number => {
+    throw new Error(`a shared ball was priced by a player ("${id}")`);
+  };
+
+  it("has one-ball formats to sweep, and Appendix C names every one of them", () => {
+    // The control: a filter that matched nothing would make every cell vacuous.
+    expect(SHARED.length, "no shared-ball formats found").toBeGreaterThanOrEqual(4);
+    // A new one-ball format fails here until somebody reads the appendix for it.
+    for (const f of SHARED) expect(APPENDIX_C[f.name], `${f.name} has no Appendix C row here`).toBeDefined();
+  });
+
+  for (const format of SHARED) {
+    const { max } = sideSizeRange(format.name);
+    for (let size = 1; size <= max; size += 1) {
+      it(`${format.name}, side of ${size}`, () => {
+        const tenths = TENTHS.slice(0, size);
+        const partners = tenths.map((t) => ({ exact: t / 10, withdrawn: false }));
+        const round = { format: format.name, handicapAllowance: 0, allowanceWeights: [] as number[] };
+        const balls = leagueSideBalls(round, [{ playerId: "", strokes: LEVEL }], partners, noPlayer);
+
+        expect(balls, "a shared ball is ONE ball").toHaveLength(1);
+        const got = balls[0].playingHandicap;
+        expect(Number.isFinite(got)).toBe(true);
+        // THE J22 INVARIANT: partners who all receive strokes are not scratch.
+        expect(got, `${format.name} side of ${size} priced at scratch`).toBeGreaterThan(0);
+
+        const shares = APPENDIX_C[format.name]?.[size];
+        if (shares) {
+          const best = [...tenths].sort((a, b) => a - b);
+          const n = best.reduce((sum, t, i) => sum + t * (shares[i] ?? 0), 0); // in 1000ths
+          const rule = Math.floor((2 * n + 1000) / 2000);
+          expect(got, `${format.name} side of ${size} is not Appendix C's figure`).toBe(rule);
+        } else {
+          expect(size, "only a side of one is outside the appendix").toBe(1);
+          expect(got, "a side of one plays off more than its one player").toBeLessThanOrEqual(Math.round(tenths[0] / 10));
+        }
+
+        // Against a scratch side on level gross: wins exactly the holes it
+        // receives a stroke on — the hardest `got` of them, the rest halved.
+        const scratch = leagueSideBalls(
+          round,
+          [{ playerId: "", strokes: LEVEL }],
+          [{ exact: 0, withdrawn: false }],
+          noPlayer,
+        );
+        const holes = matchHolesOffTheLow(scratch, balls, SI, 18);
+        const strokes = Math.min(18, got);
+        expect(holes.filter((h) => h === "B").length, "holes won off the low side").toBe(strokes);
+        expect(holes.slice(0, strokes).every((h) => h === "B"), "on the hardest holes").toBe(true);
+        expect(holes.filter((h) => h === "A").length).toBe(0);
+      });
+    }
+  }
 });
 
 /**
