@@ -1,0 +1,10 @@
+[
+  {
+    "what": "the focus no longer clears the blur's pending close, so a box left and taken again at once shuts its list",
+    "file": "src/components/CoursePicker.tsx",
+    "from": "if (blurTimer.current) clearTimeout(blurTimer.current);",
+    "to": "void blurTimer;",
+    "spec": "e2e/club-course.spec.ts",
+    "grep": "a club's own course is typed in"
+  }
+]
