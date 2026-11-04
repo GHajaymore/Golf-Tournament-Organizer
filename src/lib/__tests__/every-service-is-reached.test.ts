@@ -60,6 +60,10 @@ const UNREACHED: Record<string, string> = {
     "Flights that have fielded a side. The league screens ask `flightsIn` instead, which is the right question before the first nomination — see its comment.",
   "tournament.ts:expectedRrTotal":
     "How many matches a full round robin should have. The draw checks its own arithmetic now.",
+
+  // ── Built ahead of its callers, on purpose ──
+  "tournament-facts.ts:tournamentFactsFor":
+    "The state machine's one reader (proposal 3 Nov). PR 2 put setupFlowFor/launchCheckFor on its batch (setupFactsFor, reached); this entry point and its grouped twin tournamentFactsForMany get their callers in PR 3 (the dashboard) and PR 6 (the secretary's home). Held to roundsWithResults and to the bracket screen meanwhile by tournament-facts.audit.test.ts.",
 };
 
 /** Every `.ts` under services. */

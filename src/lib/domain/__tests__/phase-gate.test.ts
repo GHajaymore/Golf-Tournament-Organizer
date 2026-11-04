@@ -114,8 +114,14 @@ describe("going live", () => {
     // `SetupFacts.missingCards` is optional (many fixtures build one), so the
     // service building the REAL facts is pinned to pass it — otherwise the
     // guide says "take it live" over a Launch the action then refuses.
-    const src = readSource("src/lib/services/setup-flow.ts");
-    expect(src).toContain("missingCards: await roundsMissingCards(eventId)");
+    // Since PR 2 of the state machine the real facts are the setup side of the
+    // one facts read: it asks `roundsMissingCards` per tournament, and
+    // `setupFactsOf` hands the answer to the flow unchanged.
+    expect(readSource("src/lib/services/setup-flow.ts")).toContain('import { setupFactsFor } from "./tournament-facts"');
+    const facts = readSource("src/lib/services/tournament-facts.ts");
+    expect(facts).toContain("await roundsMissingCards(id)");
+    expect(facts).toContain("missingCards: missing.get(id) ?? []");
+    expect(readSource("src/lib/domain/tournament-status.ts")).toContain("missingCards: f.missingCards");
   });
 
   it("takes whitespace as no date at all", () => {
