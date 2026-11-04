@@ -1,0 +1,223 @@
+import "dotenv/config";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { PrismaClient } from "@prisma/client";
+
+/**
+ * THE RAIL AND THE LAUNCH GATE, READ THROUGH THE STATE MACHINE'S ONE READER
+ * (proposal 3 Nov, PR 2: "`setupFactsFor` / `launchCheckFor` / `setupFlowFor`
+ * become thin wrappers").
+ *
+ * Before PR 2 the setup flow had its own read of the tournament
+ * (`setupFactsFor`, eight counts and a list) and the state machine had another
+ * (`tournamentFactsFor`), each spelling "how many are confirmed", "is it dated",
+ * "is the tee sheet saved" for itself. PR 2 leaves ONE: the flow is
+ * `setupFactsOf(the facts)`. A refactor that must change nothing on screen, so
+ * this file was written and run against the OLD reader first, then left
+ * unchanged across the switch — every answer below held on both sides of it.
+ *
+ * EACH EXPECTATION IS WORKED BY HAND from the step rules in
+ * `domain/setup-flow.ts` and the gate in `domain/phase-gate.ts`, not read off
+ * the code's output: a medal with no flights holds on Flights and launches; a
+ * round robin with an undrawn round is refused; a venue with no dates is
+ * refused (D4a); a casual round has no rail at all.
+ *
+ * Throwaway club `zz-setup-wrap`, invented names, `@example.invalid`, removed
+ * before and after. Development database only.
+ *
+ *   npx vitest run --config vitest.audit.config.ts src/lib/__tests__/the-setup-flow-reads-the-facts.audit.test.ts
+ */
+
+vi.mock("@/lib/auth", () => ({ getSession: async () => null }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
+
+const { setupFlowFor, launchCheckFor } = await import("@/lib/services/setup-flow");
+
+const prisma = new PrismaClient();
+const TAG = "zz-setup-wrap";
+const ids: Record<string, string> = {};
+
+async function clean() {
+  await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
+  await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
+}
+
+async function event(orgId: string, name: string, data: Record<string, unknown> = {}) {
+  ids[name] = (
+    await prisma.event.create({
+      data: {
+        name: `${TAG} ${name}`,
+        organizationId: orgId,
+        status: "draft",
+        dates: "14 Nov 2026",
+        startOn: "2026-11-14",
+        course: "Invented Links",
+        city: "",
+        address: "",
+        regDeadline: "",
+        shareToken: `${TAG}-${name}-${process.pid}`,
+        customPars: JSON.stringify(Array(18).fill(4)),
+        customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+        ...data,
+      },
+      select: { id: true },
+    })
+  ).id;
+  return ids[name];
+}
+
+async function field(eventId: string, n: number, extra: (i: number) => Record<string, unknown> = () => ({})): Promise<string[]> {
+  const out: string[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const p = await prisma.player.create({
+      data: {
+        eventId,
+        name: `Invented Entrant ${i + 1}`,
+        email: `${TAG}-${eventId.slice(-6)}-${i + 1}@example.invalid`,
+        seed: i + 1,
+        status: "confirmed",
+        handicap: 12,
+        ...extra(i),
+      },
+      select: { id: true },
+    });
+    out.push(p.id);
+  }
+  return out;
+}
+
+beforeAll(async () => {
+  await clean();
+  const org = await prisma.organization.create({ data: { name: `${TAG} club`, kind: "club" }, select: { id: true } });
+
+  // A: a one-round medal, three in and one waiting, no flights, money not answered.
+  const medal = await event(org.id, "medal");
+  await prisma.stage.create({ data: { eventId: medal, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } });
+  await field(medal, 4, (i) => ({ status: i === 3 ? "pending" : "confirmed" }));
+
+  // B: a round robin in one flight, Round 1 drawn, Round 2 not; money answered "none".
+  const rr = await event(org.id, "round-robin", { moneyMode: "none" });
+  const r1 = await prisma.stage.create({
+    data: { eventId: rr, position: 0, type: "Round Robin", format: "Match Play", holes: 18, playedOn: "2026-11-14" },
+    select: { id: true },
+  });
+  await prisma.stage.create({ data: { eventId: rr, position: 1, type: "Round Robin", format: "Match Play", holes: 18, playedOn: "2026-11-21" } });
+  const flight = await prisma.group.create({ data: { eventId: rr, name: "Flight A", position: 0 }, select: { id: true } });
+  const [a, b] = await field(rr, 2, () => ({ groupId: flight.id }));
+  await prisma.match.create({ data: { eventId: rr, stageId: r1.id, groupId: flight.id, round: 1, playerAId: a, playerBId: b, holes: "[]" } });
+
+  // C: a four-ball round, one side of two made, two players on no side; money "split".
+  const fb = await event(org.id, "four-ball", { moneyMode: "split" });
+  await prisma.stage.create({ data: { eventId: fb, position: 0, type: "Stroke Play Round", format: "Four-Ball", holes: 18 } });
+  const fbField = await field(fb, 4);
+  const side = await prisma.team.create({ data: { eventId: fb, name: "Invented Side", seed: 1 }, select: { id: true } });
+  for (const [i, id] of fbField.slice(0, 2).entries()) await prisma.teamMember.create({ data: { teamId: side.id, playerId: id, position: i } });
+
+  // D: a cup, its two teams named, one of three players on neither.
+  const cup = await event(org.id, "cup");
+  await prisma.stage.create({ data: { eventId: cup, position: 0, type: "Team Session", format: "Match Play", holes: 18, description: "Singles" } });
+  const oak = await prisma.group.create({ data: { eventId: cup, name: "Invented Oaks", position: 0 }, select: { id: true } });
+  const elm = await prisma.group.create({ data: { eventId: cup, name: "Invented Elms", position: 1 }, select: { id: true } });
+  await field(cup, 3, (i) => ({ groupId: i === 0 ? oak.id : i === 1 ? elm.id : null }));
+
+  // E: a straight knockout with a venue and NO dates (D4a); money "none".
+  const ko = await event(org.id, "knockout", { dates: "", startOn: "", moneyMode: "none", bracketMode: "single" });
+  await prisma.stage.create({ data: { eventId: ko, position: 0, type: "Bracket Stage", format: "Match Play", holes: 18 } });
+  await field(ko, 4);
+
+  // F: the medal of A, launched.
+  const live = await event(org.id, "live-medal", { status: "live" });
+  await prisma.stage.create({ data: { eventId: live, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } });
+  await field(live, 3);
+
+  // G: a casual round — two people on the first tee.
+  const casual = await event(org.id, "casual", { shape: "match", status: "live", configUnlocked: true });
+  await prisma.stage.create({ data: { eventId: casual, position: 0, type: "Single Match Stage", format: "Match Play", holes: 18 } });
+  await field(casual, 2);
+}, 120_000);
+
+afterAll(async () => {
+  try {
+    await clean();
+  } finally {
+    await prisma.$disconnect();
+  }
+});
+
+/** The flow, as the facts a person sees: each step ticked or open, where the rail stands, and the gate. */
+async function read(name: string) {
+  const flow = await setupFlowFor(ids[name]);
+  const launch = await launchCheckFor(ids[name]);
+  return {
+    steps: flow ? flow.steps.map((s) => `${s.key}${s.done ? "+" : "-"}`).join(" ") : null,
+    current: flow?.current?.key ?? null,
+    complete: flow?.complete ?? null,
+    readyToLaunch: flow?.readyToLaunch ?? null,
+    refused: launch.refusal !== null,
+    stepsOpen: launch.stepsOpen,
+  };
+}
+
+describe("the setup flow and the launch gate, worked by hand", () => {
+  it("a one-round medal with no flights: Flights and Money open, and nothing refuses launch (D1 as it stands)", async () => {
+    expect(await read("medal")).toEqual({
+      steps: "event+ stages+ registration+ grouping- money-",
+      current: "grouping",
+      complete: false,
+      readyToLaunch: false,
+      refused: false,
+      stepsOpen: 2,
+    });
+  });
+
+  it("a round robin with Round 2 undrawn: Flights holds, and launch is refused", async () => {
+    const r = await read("round-robin");
+    expect(r).toEqual({ steps: "event+ stages+ registration+ grouping- money+", current: "grouping", complete: false, readyToLaunch: false, refused: true, stepsOpen: 1 });
+    const flow = await setupFlowFor(ids["round-robin"]);
+    expect(flow!.current!.missing).toContain("Round 2");
+  });
+
+  it("a four-ball with two players on no side: Sides opens before Flights; a side exists, so launch is not refused", async () => {
+    expect(await read("four-ball")).toEqual({
+      steps: "event+ stages+ registration+ teams- grouping- money+",
+      current: "teams",
+      complete: false,
+      readyToLaunch: false,
+      refused: false,
+      stepsOpen: 2,
+    });
+  });
+
+  it("a cup with one player on neither team: the Teams step, no Flights step", async () => {
+    const r = await read("cup");
+    expect(r.steps).toBe("event+ stages+ registration+ cup- money-");
+    expect(r.current).toBe("cup");
+  });
+
+  it("a knockout with a venue and no dates: the rail is complete and launch is refused (D4a)", async () => {
+    expect(await read("knockout")).toEqual({
+      steps: "event+ stages+ registration+ money+",
+      current: null,
+      complete: true,
+      readyToLaunch: true,
+      refused: true,
+      stepsOpen: 0,
+    });
+    expect((await launchCheckFor(ids.knockout)).refusal).toMatch(/no dates/i);
+  });
+
+  it("launched, the rail no longer offers launching", async () => {
+    const r = await read("live-medal");
+    expect(r.steps).toBe("event+ stages+ registration+ grouping- money-");
+    expect(r.readyToLaunch).toBe(false);
+  });
+
+  it("a casual round has no rail, and still goes through the gate", async () => {
+    expect(await setupFlowFor(ids.casual)).toBeNull();
+    expect((await launchCheckFor(ids.casual)).steps).toBeGreaterThan(0);
+  });
+
+  it("a tournament that does not exist: no rail, and the gate says so", async () => {
+    expect(await setupFlowFor(`${TAG}-no-such-event`)).toBeNull();
+    expect((await launchCheckFor(`${TAG}-no-such-event`)).refusal).toBe("This tournament could not be found.");
+  });
+});
