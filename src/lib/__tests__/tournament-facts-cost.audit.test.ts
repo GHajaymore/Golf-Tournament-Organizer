@@ -47,6 +47,9 @@ counted.$on("query", (e) => {
     settled += 1;
     return;
   }
+  // The pool checking a connection it has held idle — no read sends it, and a slow run gives
+  // it the time to (seen 1, 7 and 8 times in one run with the reports held back 60 ms).
+  if (e.query.trim() === "SELECT 1") return;
   queries += 1;
   statements.push(e.query.replace(/\$\d+/g, "?"));
 });
