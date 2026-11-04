@@ -17,13 +17,15 @@ import { marginRefusal, marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard, assertRoundOpen, storedCard } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit } from "@/lib/services/action-shared";
-import { isCupSession, lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
+import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { deriveMatchFromItsCards, recomputeTeamMatch } from "@/lib/services/match-from-cards";
 import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
 import { isReturnedCard } from "@/lib/domain/round-handicap";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
-import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
+import { matchPlayGroups, sheetPlayGroups, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
+import { matchKeptBy } from "@/lib/domain/match-kept-by";
 
 /**
  * Redeeming a Round Code.
@@ -42,17 +44,17 @@ export interface RedeemResult {
   ok: boolean;
   error?: string;
   /**
-   * The field for that round, for the player to pick themselves from. In a
-   * cup session each carries their team's name (`side`), so a foursome is
-   * shown as its two pairs, each under its team.
+   * The field for that round: the list a scorer picks from where the round has
+   * no groups, and what "find your group by a name" searches.
    */
-  players?: Array<{ id: string; name: string; side?: string }>;
+  players?: Array<{ id: string; name: string }>;
   /**
-   * The round's matches, each with the players in it, when the round draws
-   * matches and their lineup is public — so a player finds their own group
-   * rather than their name in the whole field. Empty otherwise.
+   * The round's GROUPS, which the scorer picks from instead of a name
+   * (`play-groups.ts`): its matches, when it draws them and their lineup is
+   * public, or its published tee sheet's groups. Empty for a round with
+   * neither, which keeps the list of names.
    */
-  groups?: Array<{ label: string; ids: string[] }>;
+  groups?: PlayGroup[];
   stageId?: string;
   eventName?: string;
   roundLabel?: string;
@@ -81,22 +83,11 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     return { ok: false, error: "That code isn't valid. Check it with your organizer." };
   }
 
-  /**
-   * WHICH TEAM, IN A CUP (2026-10-18). A foursome was four names in one block,
-   * two to a row with nothing between the pairs, and at the first real cup a
-   * scorer tapped an opponent's name and kept the whole four-ball from the
-   * other pair's side. So a cup session's names carry their team, and the
-   * list shows each pair under it. Only a cup's: a club's flights are not two
-   * sides of a match, and nobody else's list should change.
-   */
-  const cup = isCupSession(stage);
-  const players = (
-    await prisma.player.findMany({
-      where: { eventId: stage.eventId, status: "confirmed" },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, group: { select: { name: true } } },
-    })
-  ).map(({ group, ...p }) => (cup && group?.name ? { ...p, side: group.name } : p));
+  const players = await prisma.player.findMany({
+    where: { eventId: stage.eventId, status: "confirmed" },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   // `type` as well as `id` — see play-auth: the number counts rounds, not rows,
   // and a cut is a row that is not a round.
@@ -110,7 +101,7 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
   return {
     ok: true,
     players,
-    groups: (await teeSheetGroups(stage.id, stage.eventId, players)) ?? (lineupHidden(stage) ? [] : await matchGroups(stage.id, players)),
+    groups: await playGroups(stage, players),
     stageId: stage.id,
     eventName: stage.event.name,
     // Which round and which holes, so the wrong nine's code shows on the
@@ -124,25 +115,18 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
  *
  * Ajay, setting up a real cup: one code for the whole round, then a name to
  * tap out of twenty — "can you keep it to the foursome?". The code stays one
- * per round; what changes is the list, which is now the round's matches, each
- * with its players, in draw order. A four-ball match IS the foursome. Only the
- * players the code already lists are named, so it reveals nothing the flat
- * list did not, beyond who is drawn against whom — which is why a cup lineup
- * the organizer has not announced is never grouped (the caller checks).
+ * per round; what changes is the list, which is the round's matches, in draw
+ * order. A four-ball match IS the foursome. Only the players the code already
+ * lists are named, so it reveals nothing the flat list did not, beyond who is
+ * drawn against whom.
+ *
+ * THE TEE SHEET: the round's published one, or — for a round with no sheet of
+ * its own — the tournament's other published sheet, because a group plays its
+ * eighteen together and a cup's second nine is the same four (Ajay: "we
+ * already have foursome for this tournament"). Only a PUBLISHED sheet: a draft
+ * is the organizer's. Null when there is none.
  */
-/**
- * THE FOURSOMES, FIRST: the round's published tee sheet, or — for a round
- * with no sheet of its own — the tournament's other published sheet, because
- * a group plays its eighteen together and a cup's second nine is the same
- * four (Ajay: "we already have foursome for this tournament"). Each tee time
- * is a block of its players. Only a PUBLISHED sheet: a draft is the
- * organizer's. Null when there is none, so the matches are asked instead.
- */
-async function teeSheetGroups(
-  stageId: string,
-  eventId: string,
-  players: Array<{ id: string; name: string }>,
-): Promise<Array<{ label: string; ids: string[] }> | null> {
+async function publishedSheet(stageId: string, eventId: string): Promise<TeeSheetGroup[] | null> {
   const sheets = await prisma.stage.findMany({
     where: { eventId, teeSheetPublished: true, NOT: { teeSheet: "" } },
     orderBy: { position: "asc" },
@@ -150,50 +134,53 @@ async function teeSheetGroups(
   });
   const own = sheets.find((s) => s.id === stageId) ?? sheets[0];
   const sheet = own ? parseTeeSheet(own.teeSheet) : null;
-  if (!sheet || sheet.groups.length === 0) return null;
-  const listed = new Set(players.map((p) => p.id));
-  const groups = sheet.groups
-    .map((g) => ({ label: [g.time, g.name].filter(Boolean).join(" · "), ids: g.playerIds.filter((id) => listed.has(id)) }))
-    .filter((g) => g.ids.length > 0);
-  return groups.length > 0 ? groups : null;
+  return sheet && sheet.groups.length > 0 ? sheet.groups : null;
 }
 
-async function matchGroups(
-  stageId: string,
+/**
+ * THE GROUPS A SCORER PICKS FROM (2026-11-04) — see `play-groups.ts`. A round
+ * that draws matches, announced: each match, with its tee time where there is
+ * a sheet. Otherwise the published sheet's groups. Otherwise none, and the
+ * page keeps the names. A cup lineup the organizer has not announced is never
+ * shown as matches: that is who is drawn against whom.
+ */
+async function playGroups(
+  stage: { id: string; eventId: string; type: string; format: string; scoreInput: string | null; matchKeptBy: string | null; lineupPublished: boolean | null },
   players: Array<{ id: string; name: string }>,
-): Promise<Array<{ label: string; ids: string[] }>> {
-  const matches = await prisma.match.findMany({
-    where: { stageId },
-    orderBy: [{ round: "asc" }, { id: "asc" }],
-    select: { playerAId: true, playerBId: true, teamAId: true, teamBId: true },
-  });
-  if (matches.length === 0) return [];
-  const teamIds = matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id !== "");
-  const members = teamIds.length
-    ? await prisma.teamMember.findMany({
-        where: { teamId: { in: teamIds } },
-        orderBy: { position: "asc" },
-        select: { teamId: true, playerId: true },
-      })
-    : [];
-  const listed = new Map(players.map((p) => [p.id, p.name]));
-  const side = (playerId: string, teamId: string) =>
-    (playerId !== "" ? [playerId] : members.filter((m) => m.teamId === teamId).map((m) => m.playerId)).filter((id) =>
-      listed.has(id),
-    );
-  const groups = matches
-    .map((m) => {
-      const a = side(m.playerAId, m.teamAId);
-      const b = side(m.playerBId, m.teamBId);
-      const names = (ids: string[]) => ids.map((id) => listed.get(id)!).join(" & ");
-      return { label: `${names(a)} v ${names(b)}`, ids: [...a, ...b] };
-    })
-    .filter((g) => g.ids.length > 0);
-  // A round robin draws one player into several matches: grouped, each name
-  // would be listed over and over, which is longer than the field. That round
-  // keeps the plain list.
-  const all = groups.flatMap((g) => g.ids);
-  return new Set(all).size === all.length ? groups : [];
+): Promise<PlayGroup[]> {
+  const names = new Map(players.map((p) => [p.id, p.name]));
+  const sheet = await publishedSheet(stage.id, stage.eventId);
+  if (!lineupHidden(stage)) {
+    const matches = await prisma.match.findMany({
+      where: { stageId: stage.id },
+      orderBy: [{ round: "asc" }, { id: "asc" }],
+      select: { id: true, playerAId: true, playerBId: true, teamAId: true, teamBId: true },
+    });
+    if (matches.length > 0) {
+      const teamIds = matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id !== "");
+      const members = teamIds.length
+        ? await prisma.teamMember.findMany({
+            where: { teamId: { in: teamIds } },
+            orderBy: { position: "asc" },
+            select: { teamId: true, playerId: true },
+          })
+        : [];
+      const side = (playerId: string, teamId: string) =>
+        playerId !== "" ? [playerId] : members.filter((m) => m.teamId === teamId).map((m) => m.playerId);
+      const grouped = matchPlayGroups({
+        matches: matches.map((m) => ({ id: m.id, a: side(m.playerAId, m.teamAId), b: side(m.playerBId, m.teamBId) })),
+        names,
+        sheet,
+        // A match kept on stroke cards is four people's own cards; one kept by
+        // tapping is one card, the same whoever opens it.
+        oneMatch: matchKeptBy(stage) !== "cards",
+      });
+      // A round robin (null) keeps the names.
+      if (grouped) return grouped;
+      return [];
+    }
+  }
+  return sheet ? sheetPlayGroups(sheet, names) : [];
 }
 
 export interface ClaimResult {
@@ -294,9 +281,45 @@ export async function redeemRoundCodeForm(_before: RedeemFormState | null, form:
   return { ...res, code: res.ok ? normalizeAccessCode(typed) : typed };
 }
 
-/** A name tapped before the script arrived: the session starts and the card is drawn, or the refusal is. */
-export async function claimPlayerSlotForm(_before: ClaimResult | null, form: FormData): Promise<ClaimResult> {
-  const res = await claimPlayerSlot(String(form.get("code") ?? "").slice(0, 64), String(form.get("playerId") ?? "").slice(0, 64));
+/**
+ * A group or a name tapped with no script: the steps the page takes, drawn by
+ * the server instead (2026-11-04). The one confirmation first ("You're keeping
+ * Group 3 …" — `keepingSentence`), then, in a group of somebody's own cards,
+ * whose card; then the session starts and the card is drawn, or the refusal is.
+ * The same groups the page draws (`redeemRoundCode`), so the same answer.
+ */
+export interface ClaimFormState extends ClaimResult {
+  /** The step to draw next: the confirmation, or whose card in the group. */
+  step?: { kind: "confirm"; target: PlayTarget } | { kind: "pick"; group: PlayGroup };
+  code?: string;
+  stageId?: string;
+  eventName?: string;
+  roundLabel?: string;
+}
+
+export async function claimPlayerSlotForm(_before: ClaimFormState | null, form: FormData): Promise<ClaimFormState> {
+  const code = String(form.get("code") ?? "").slice(0, 64);
+  const playerId = String(form.get("playerId") ?? "").slice(0, 64);
+  const groupKey = String(form.get("group") ?? "").slice(0, 128);
+  const confirmed = form.get("confirmed") === "yes";
+  let res: ClaimResult;
+  if (!confirmed || (groupKey && !playerId)) {
+    const round = await redeemRoundCode(code);
+    if (!round.ok) return { ok: false, error: round.error };
+    const context = { code: normalizeAccessCode(code), stageId: round.stageId, eventName: round.eventName, roundLabel: round.roundLabel };
+    const group = groupKey ? round.groups?.find((g) => g.key === groupKey) : undefined;
+    const player = playerId ? round.players?.find((p) => p.id === playerId) : undefined;
+    if (!group && !player) return { ok: false, error: "That code isn't valid.", ...context };
+    if (!confirmed) {
+      const target: PlayTarget = group ? { kind: "group", group } : { kind: "player", id: player!.id, name: player!.name };
+      return { ok: false, step: { kind: "confirm", target }, ...context };
+    }
+    // Confirmed, a group: its one match, or whose card in it.
+    if (group!.oneMatch || group!.players.length === 1) res = await claimPlayerSlot(code, group!.players[0]?.id ?? "");
+    else return { ok: false, step: { kind: "pick", group: group! }, ...context };
+  } else {
+    res = await claimPlayerSlot(code, playerId);
+  }
   // Outside any try: `redirect` works by throwing.
   if (res.ok) redirect("/play");
   return res;

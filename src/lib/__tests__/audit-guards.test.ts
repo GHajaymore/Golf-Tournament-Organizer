@@ -2508,7 +2508,8 @@ describe("a round's card is narrowed in exactly one place", () => {
     const card = stripComments(
       readFileSync(join(process.cwd(), "src", "lib", "services", "match-card.ts"), "utf8"),
     );
-    expect(page).toMatch(/matchCardFor\(\{ match,/);
+    // `{ match }` alone since 2026-11-04: the card is no longer told who holds it.
+    expect(page).toMatch(/matchCardFor\(\{ match \}\)/);
     expect(card).toMatch(/courseForMatch\(matchVenue, stageVenue, event\)/);
     expect(card).toMatch(/cardForMatch\(resolved, match, stage\)/);
     // The round's hole count travels explicitly, so the grid never has to

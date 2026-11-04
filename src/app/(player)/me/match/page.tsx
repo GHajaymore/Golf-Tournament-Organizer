@@ -131,7 +131,8 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
   }
 
   const holderSides = sides;
-  const card = await matchCardFor({ match, holderId: me.playerId, holderSides });
+  // Side A first, as drawn: the card does not turn to face the player holding it.
+  const card = await matchCardFor({ match });
   const stage = stageById.get(match.stageId);
 
   // The other matches, named by opponent — a round robin, or the cup's two sessions.

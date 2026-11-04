@@ -95,7 +95,10 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     href: "/me/match",
     steps: [
       "On Today, tap [[Score this match]].",
-      "After each hole, tap who won it, or [[Halved]].",
+      "After each hole, tap the side that won it, or [[Halved]].",
+      "Each answer names a side: “CVC won”, or “Rakesh & Snehal won”.",
+      "The card never turns round. Your side may be on the right.",
+      "Keeping it with a round code? Tap your group, then confirm it once.",
       "If your {organizer} chose stroke cards, enter your own strokes instead. The app works out who won each hole.",
       "It saves as you go. Each hole says On your phone or Sent.",
       "The board shows your match as you play.",
