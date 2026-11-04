@@ -228,15 +228,9 @@ export async function teamsForStage(
       disqualified: m.player.status === "disqualified",
       };
     });
-    // Priced off the players who ACTUALLY PLAY — the same set `teamProblems`
-    // sizes the side by. Including a withdrawn player anchors a single-ball
-    // side (scramble/foursomes/greensomes) to strokes from somebody who never
-    // hit a shot, so the net on the board disagreed with the "X has withdrawn"
-    // warning beside it. If the whole side withdrew there is no card to score
-    // anyway, so fall back to the full set rather than handicap off nobody.
-    const playing = members.filter((m) => !m.withdrawn);
+    // Priced off the players who ACTUALLY PLAY — see `partnersWhoPlay`.
     // The UNROUNDED figures: a side's handicap is rounded once, at the end.
-    const forHandicap = (playing.length > 0 ? playing : members).map((m) => m.handicapExact);
+    const forHandicap = partnersWhoPlay(members).map((m) => m.handicapExact);
     return {
       id: t.id,
       name: t.name,
@@ -246,6 +240,24 @@ export async function teamsForStage(
       playingHandicap: sidePlayingHandicap(forHandicap, format, allowanceOverride, weightsOverride),
     };
   });
+}
+
+/**
+ * WHO A SIDE'S HANDICAP IS TAKEN FROM: the partners who actually play — the
+ * same set `teamProblems` sizes the side by.
+ *
+ * Including a withdrawn player anchors a single-ball side (scramble,
+ * foursomes, greensomes) to strokes from somebody who never hit a shot, so the
+ * net on the board disagreed with the "X has withdrawn" warning beside it. If
+ * the whole side withdrew there is no card to score anyway, so it falls back
+ * to the full set rather than handicap off nobody.
+ *
+ * One answer for the Teams screen (`teamsForStage`) and the league table
+ * (`leagueSideBalls`), so the two cannot price one side two ways.
+ */
+export function partnersWhoPlay<T extends { withdrawn: boolean }>(members: readonly T[]): T[] {
+  const playing = members.filter((m) => !m.withdrawn);
+  return playing.length > 0 ? playing : [...members];
 }
 
 /**
