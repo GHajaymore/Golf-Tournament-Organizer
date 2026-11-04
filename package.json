@@ -32,8 +32,7 @@
     "mutation": "node scripts/mutation.mjs",
     "qa:changed": "node scripts/qa/what-changed.mjs",
     "qa:round": "node scripts/qa/round.mjs",
-    "qa:status": "node scripts/qa/status.mjs",
-    "qa:reader": "node scripts/qa/reader.mjs"
+    "qa:status": "node scripts/qa/status.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
