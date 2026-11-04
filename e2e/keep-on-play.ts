@@ -48,6 +48,15 @@ async function remembered(page: Page): Promise<string[]> {
  * of own cards — their card. On a round with no groups, their name, confirmed.
  */
 export async function keepCardOf(page: Page, name: string): Promise<void> {
+  await pickAndConfirm(page, name);
+  // Gone past the question: its heading says the name too, so a caller waiting
+  // for a heading with the name would otherwise be answered by the question.
+  await expect(page.getByRole("heading", { name: /^You're keeping |^Whose card are you keeping\?$/ }), "the card never opened after the confirmation").toHaveCount(0, {
+    timeout: 30_000,
+  });
+}
+
+async function pickAndConfirm(page: Page, name: string): Promise<void> {
   const group = groupWith(page, name);
   const byName = page.getByRole("button", { name, exact: true });
   await expect(group.or(byName).first(), `"${name}" is in no group and on no list after the code`).toBeVisible({ timeout: 20_000 });
