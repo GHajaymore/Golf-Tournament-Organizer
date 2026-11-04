@@ -463,6 +463,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+      # To say the verdict on the commit it tested (the last step).
+      statuses: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -529,3 +531,12 @@ jobs:
           include-hidden-files: true
           retention-days: 30
           overwrite: true
+      - name: Say the verdict on the commit
+        # `round-verdict`, a commit status on the head this round tested: one read of the
+        # commit answers "what did the round say" (scripts/qa/reader.mjs), so nobody polls
+        # the run. The ruleset does not require it. A missing verdict.json posts `error`.
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/qa/reader.mjs --post ".qa/rounds/${{ needs.plan.outputs.tag }}/verdict.json" "${{ github.repository }}" "${{ github.sha }}" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
