@@ -44,6 +44,13 @@ jobs:
   round:
     name: Round
     uses: ./.github/workflows/round.yml
+    # round.yml's Verdict job posts its verdict on the commit (statuses: write). A called
+    # workflow gets no more than its caller grants: without this line GitHub refuses to
+    # start the run at all (startup_failure, run 41809332472, 2026-11-04).
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
     with:
       round: "1"
       schedule: nightly
