@@ -228,24 +228,69 @@ export async function teamsForStage(
       disqualified: m.player.status === "disqualified",
       };
     });
-    // Priced off the players who ACTUALLY PLAY — the same set `teamProblems`
-    // sizes the side by. Including a withdrawn player anchors a single-ball
-    // side (scramble/foursomes/greensomes) to strokes from somebody who never
-    // hit a shot, so the net on the board disagreed with the "X has withdrawn"
-    // warning beside it. If the whole side withdrew there is no card to score
-    // anyway, so fall back to the full set rather than handicap off nobody.
-    const playing = members.filter((m) => !m.withdrawn);
-    // The UNROUNDED figures: a side's handicap is rounded once, at the end.
-    const forHandicap = (playing.length > 0 ? playing : members).map((m) => m.handicapExact);
+    // Priced off the players who ACTUALLY PLAY, at their UNROUNDED figures —
+    // see `sideHandicapFromPartners`, the one place a side is priced.
     return {
       id: t.id,
       name: t.name,
       seed: t.seed,
       stageId: t.stageId,
       members,
-      playingHandicap: sidePlayingHandicap(forHandicap, format, allowanceOverride, weightsOverride),
+      playingHandicap: sideHandicapFromPartners(
+        members.map((m) => ({ exact: m.handicapExact, withdrawn: m.withdrawn })),
+        { format, handicapAllowance: allowanceOverride, allowanceWeights: weightsOverride },
+      ),
     };
   });
+}
+
+/**
+ * WHO A SIDE'S HANDICAP IS TAKEN FROM: the partners who actually play — the
+ * same set `teamProblems` sizes the side by.
+ *
+ * Including a withdrawn player anchors a single-ball side (scramble,
+ * foursomes, greensomes) to strokes from somebody who never hit a shot, so the
+ * net on the board disagreed with the "X has withdrawn" warning beside it. If
+ * the whole side withdrew there is no card to score anyway, so it falls back
+ * to the full set rather than handicap off nobody.
+ *
+ * Asked through `sideHandicapFromPartners`, so the Teams screen, the league
+ * table and the stored match cannot price one side two ways.
+ */
+export function partnersWhoPlay<T extends { withdrawn: boolean }>(members: readonly T[]): T[] {
+  const playing = members.filter((m) => !m.withdrawn);
+  return playing.length > 0 ? playing : [...members];
+}
+
+/**
+ * A SIDE'S PLAYING HANDICAP FROM ITS PARTNERS — the one place a side is priced.
+ *
+ * Rules of Handicapping, Appendix C (through `sidePlayingHandicap`), taken of
+ * the partners who ACTUALLY PLAY (`partnersWhoPlay`), each at the figure BEFORE
+ * any allowance (Rule 6.2a: the allowance is the last step, rounded once).
+ *
+ * `withdrawn` is REQUIRED of every partner, so a caller cannot hand over a list
+ * that forgot who left. That is how the stored match came to disagree with the
+ * Teams screen and the league table until 2026-11-04: `recomputeTeamMatch`
+ * passed every member's figure straight to `sidePlayingHandicap`, so a scramble
+ * of three with one partner withdrawn was priced as a three (30/20/10) on the
+ * match and as a two (35/15) on the screen beside it.
+ *
+ * Callers: `teamsForStage` (the Teams screen and the board), `leagueSideBalls`
+ * (the league table), `recomputeTeamMatch` (the stored match). A sweep in
+ * `a-withdrawn-partner-is-not-in-the-stored-match.test.ts` refuses any other
+ * call of `sidePlayingHandicap` in the app.
+ */
+export function sideHandicapFromPartners(
+  partners: readonly { exact: number; withdrawn: boolean }[],
+  round: { format: string; handicapAllowance: number; allowanceWeights?: number[] | null },
+): number {
+  return sidePlayingHandicap(
+    partnersWhoPlay(partners).map((p) => p.exact),
+    round.format,
+    round.handicapAllowance,
+    round.allowanceWeights,
+  );
 }
 
 /**

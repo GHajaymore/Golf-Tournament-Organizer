@@ -18,7 +18,8 @@ import { roundCourseHandicaps, flightTeeByPlayer, confirmedField, FIELD_PLAYER }
 import { roundHandicapRows } from "@/lib/services/round-handicap";
 import { roundHandicapExactOf } from "@/lib/domain/round-handicap";
 import { playingHandicapInRound } from "@/lib/round-allowance";
-import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
+import { sideHandicapFromPartners, effectiveCountBest } from "@/lib/services/teams";
+import { hasLeftTheField } from "@/lib/domain/left-the-field";
 import { findFormat } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { matchHolesOffTheLow } from "@/lib/domain/team";
@@ -307,7 +308,8 @@ export async function recomputeTeamMatch(
       prisma.teamMember.findMany({
         where: { teamId },
         include: {
-          player: { select: FIELD_PLAYER },
+          // And who has left the field: a side is priced off the partners who play.
+          player: { select: { ...FIELD_PLAYER, status: true } },
         },
       }),
     ]);
@@ -355,14 +357,22 @@ export async function recomputeTeamMatch(
      * A shared ball is ONE ball at the side's own playing handicap, which is
      * the same figure `singleBallTeamCard` scores it on — so foursomes match
      * play comes off the low side rather than the low player, correctly.
+     *
+     * Of the partners who PLAY. This handed every member's figure to
+     * `sidePlayingHandicap`, withdrawn or not, while the Teams screen and the
+     * league table priced the same side off `partnersWhoPlay`: a scramble of
+     * three with one partner withdrawn was a three (30/20/10) in the stored
+     * match and a two (35/15) on the screen beside it (2026-11-04).
      */
     if (format.ball === "single") {
       const one = cards.find((c) => c.playerId === "");
-      const hcp = sidePlayingHandicap(
-        members.map((m) => playsOffExact(m.player)),
-        formatName,
-        stage?.handicapAllowance ?? 0,
-        stage?.allowanceWeights,
+      const hcp = sideHandicapFromPartners(
+        members.map((m) => ({ exact: playsOffExact(m.player), withdrawn: hasLeftTheField(m.player.status) })),
+        {
+          format: formatName,
+          handicapAllowance: stage?.handicapAllowance ?? 0,
+          allowanceWeights: stage?.allowanceWeights,
+        },
       );
       return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: hcp, pickedUp: picks(one?.pickedUp) }];
     }

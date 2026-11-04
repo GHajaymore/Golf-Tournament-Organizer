@@ -112,3 +112,25 @@ like impatience is read from the page it kept, not from its message** — and
 where an action is handed a list, the list's order is the caller's:
 `a-pair-is-named-in-the-order-it-was-picked.audit.test.ts` sends each pair both
 ways round, because whichever way the database prefers, one of them differs.
+
+**A LEAGUE WEEK ON ONE BALL IS PRICED BY ITS SIDE, NOT ITS PLAYER** (J22,
+2026-11-03). A league week takes any pairs format, foursomes and a scramble
+included, and `leagueMeetings` priced every card by the player it is filed
+under. A shared ball's card is filed under NO player, so its handicap fell
+through `?? 0` to scratch: every foursomes side in a league week played off
+nought, while its card, the Teams screen and the stored match gave it strokes.
+`leagueSideBalls` now prices a shared ball as ONE ball at `sidePlayingHandicap`
+(Appendix C, or the committee's own figure), off `partnersWhoPlay` — the same
+function and the same partners as the Teams screen. A lookup that falls back to
+nought is a price of nought; ask what the row IS before asking whose it is.
+`a-league-week-on-one-ball-is-priced-by-appendix-c.test.ts` works it from the
+Rules in whole numbers; `league-shared-ball.audit.test.ts` reads it off the table;
+`e2e/interclub-league.spec.ts` plays a foursomes week through the screens and
+holds the card's "Plays off", the meeting and the table to Appendix C, against
+scratch and against each partner rounded first.
+
+And the same day, the stored match: `recomputeTeamMatch` priced the same side
+off EVERY member, a withdrawn partner included, while the screen and the league
+left them out. All three now ask `sideHandicapFromPartners` (teams.ts), which
+requires `withdrawn` of every partner; a sweep refuses a fourth pricer
+(`a-withdrawn-partner-is-not-in-the-stored-match.test.ts`).
