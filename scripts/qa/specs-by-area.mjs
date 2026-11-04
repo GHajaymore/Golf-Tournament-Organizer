@@ -125,11 +125,13 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx"],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
       // The timeline and its side panel, behind `?view=timeline` (the rehaul's step 1 guards).
       "e2e/rounds-panel.spec.ts",
+      // Step 2, "Course day": the guided "Needs you", the four sections, the docked panel.
+      "e2e/rounds-timeline.spec.ts",
       "e2e/rounds-and-formats.spec.ts",
       "e2e/round-date-and-viewing-as.spec.ts",
       "e2e/round-day.spec.ts",
@@ -217,6 +219,17 @@ export const AREAS = {
     specs: ["e2e/messages.spec.ts", "e2e/messages-to-a-flight.spec.ts", "e2e/announcements.spec.ts", "e2e/organizer-announcements.spec.ts"],
     scenarios: [],
     dateSensitive: false,
+    actions: [],
+  },
+  "setup-questions": {
+    name: "The setup questionnaire (/new — a few questions to a reviewed draft)",
+    // Its pure rules (`domain/setup-questions.ts`) and its writer (`createTournament` in actions/tournament.ts)
+    // are shared ground, read by the create action, so a change there is a full round.
+    paths: ["src/app/new/", "src/components/SetupQuestions.tsx"],
+    specs: ["e2e/setup-questions.spec.ts"],
+    scenarios: [],
+    // The first day is the club's next Saturday, counted on the club's clock.
+    dateSensitive: true,
     actions: [],
   },
   guide: {

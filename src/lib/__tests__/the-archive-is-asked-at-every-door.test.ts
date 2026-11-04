@@ -73,7 +73,7 @@ const NOT_A_DOOR: Record<string, string> = {
   setAccountsOpen: "business", setClubPlan: "business", saveTierPrices: "business", saveTierLimits: "business",
   createDiscountCode: "business", setDiscountCodeActive: "business", sendEarlyListCodes: "business", refreshDemoClub: "business",
   // new
-  createEvent: "new", cloneEvent: "new", createMatch: "new",
+  createEvent: "new", createEventFromAnswers: "new", cloneEvent: "new", createMatch: "new",
   // own data
   deleteEvent: "own data",
   // reads
