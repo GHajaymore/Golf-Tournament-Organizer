@@ -103,9 +103,9 @@ RED, on an end-to-end test, and had been for twenty minutes. Running five of six
 It seeds a real fixture through `e2e/fixture.mjs` and tears it down afterwards, so it needs a
 database it may write to. Never point it at anything but the development one.
 
-**CI's browser legs are SHARDS (2026-11-04).** `ci.yml`'s `e2e` job is six jobs: desktop cut in
-three and phone in two by `--shard=i/n` within the project (the cut a round makes, `SHARDS` in
-`scripts/qa/layers.mjs`), and small-phone whole. Each is its own machine with its own Postgres, seed
+**CI's browser legs are SHARDS (2026-11-04).** `ci.yml`'s `e2e` job is seven jobs: desktop cut in
+three, phone and small-phone in two each, by `--shard=i/n` within the project (desktop and phone are
+the cut a round makes, `SHARDS` in `scripts/qa/layers.mjs`). Each is its own machine with its own Postgres, seed
 and build, so `workers: 1` and one fixture per process still hold. They read as
 `End-to-end (desktop 2/3)`; a red one names its shard, and its trace is
 `playwright-report-desktop-2of3`. To run one shard here exactly as CI does:

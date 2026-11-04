@@ -324,6 +324,10 @@ jobs:
     # scripts/qa/layers.mjs: `suite:desktop` 3, `suite:phone` 2), which has run
     # those shards each on its own machine since 2026-10-13.
     #
+    # And the small phone in TWO as well, the same day. With the other two cut,
+    # it was the critical path on this PR's own first run: desktop 22:40 at its
+    # longest shard, phone 24:40, small-phone whole 29:27.
+    #
     # Each shard is a job of its own, so everything said above still holds per
     # shard: its own PostgreSQL service, its own `globalSetup` seed and
     # teardown, its own build, `workers: 1`. Two shards never share a database.
@@ -352,7 +356,8 @@ jobs:
           - { project: desktop, shard: 3, shards: 3 }
           - { project: phone, shard: 1, shards: 2 }
           - { project: phone, shard: 2, shards: 2 }
-          - { project: small-phone, shard: 1, shards: 1 }
+          - { project: small-phone, shard: 1, shards: 2 }
+          - { project: small-phone, shard: 2, shards: 2 }
 
     services:
       postgres:
@@ -507,7 +512,7 @@ jobs:
   # `needs` fails this job if ANY of the three fails or is cancelled, which is
   # the behaviour the old single job had for free.
   #
-  # Made EXPLICIT on 2026-11-04, when `e2e` became six shards and `e2e-cover`
+  # Made EXPLICIT on 2026-11-04, when `e2e` became seven shards and `e2e-cover`
   # joined the list. A job whose `needs` failed is not failed but SKIPPED, and
   # GitHub's documentation says a skipped job reports success and does not
   # block a merge even as a required check — so "a red shard fails `verify`"

@@ -3,7 +3,7 @@ import { readVerbatim } from "./source";
 
 /**
  * CI runs end-to-end jobs per viewport — since 2026-11-04 per SHARD of a
- * viewport (desktop in three, phone in two) — and the list of viewports is
+ * viewport (desktop in three, phone and small-phone in two) — and the list of viewports is
  * written down twice.
  *
  * `playwright.config.ts` declares the projects; `ci.yml` fans out over a
@@ -138,9 +138,11 @@ describe("every viewport CI claims to test is actually tested", () => {
         `${project}: shards are not exactly 1..${totals[0]}`,
       ).toEqual(Array.from({ length: totals[0] }, (_, i) => i + 1));
     }
-    // The cut Security agreed to: the laptop in three, the phone in two.
+    // The cut Security agreed to: the laptop in three, the phone in two — and the small phone in two
+    // once the first two cuts left it the critical path (29:27 whole, 2026-11-04).
     expect(byProject.get("desktop")?.length, "the desktop leg is no longer three shards").toBe(3);
     expect(byProject.get("phone")?.length, "the phone leg is no longer two shards").toBe(2);
+    expect(byProject.get("small-phone")?.length, "the small-phone leg is no longer two shards").toBe(2);
   });
 
   it("does not let verify pass unless every shard and the shard cover succeeded", () => {
