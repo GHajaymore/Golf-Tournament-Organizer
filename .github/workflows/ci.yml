@@ -263,7 +263,7 @@ jobs:
 
   # ── The slowest one, and the only net that sees a laid-out page ───────────
   e2e:
-    name: End-to-end (${{ matrix.project }})
+    name: End-to-end (${{ matrix.project }} ${{ matrix.shard }}/${{ matrix.shards }})
     runs-on: ubuntu-latest
     # It installs a browser and builds a bundle of its own before it runs a
     # single test.
@@ -282,6 +282,10 @@ jobs:
     # 2,203s against 2,021s — every one a little slower, none stuck — plus the
     # specs `main` had gained since. The cure is to split the desktop leg in
     # two, not to keep moving this line.
+    #
+    # Kept at 60 after that cure (2026-11-04, below: SHARDS). A shard now runs
+    # in about a third or a half of the old leg, so 60 is far above any of them
+    # — it is still here for a hang, and a hang still fails at the same point.
     timeout-minutes: 60
 
     # ── ONE VIEWPORT PER JOB ────────────────────────────────────────────────
@@ -309,10 +313,46 @@ jobs:
     # `fail-fast: false` because the whole point of three viewports is the
     # difference between them: a phone failure that cancels the desktop leg
     # hides half of what the run was for.
+    #
+    # ── SHARDS (2026-11-04) ─────────────────────────────────────────────────
+    #
+    # The desktop leg had become the whole critical path: 44:31 on `main` the
+    # night before (643 passed, 117 skipped, 42.9 minutes of tests), against
+    # 35:59 for the phone and 31:16 for the small phone. So the desktop leg is
+    # cut in THREE and the phone leg in TWO by Playwright's `--shard=i/n`
+    # WITHIN one project — the same cut a round makes (`SHARDS` in
+    # scripts/qa/layers.mjs: `suite:desktop` 3, `suite:phone` 2), which has run
+    # those shards each on its own machine since 2026-10-13.
+    #
+    # Each shard is a job of its own, so everything said above still holds per
+    # shard: its own PostgreSQL service, its own `globalSetup` seed and
+    # teardown, its own build, `workers: 1`. Two shards never share a database.
+    # A shard runs a contiguous run of whole spec files (with `fullyParallel`
+    # off, Playwright cuts at file boundaries, balancing by test COUNT), so the
+    # files inside a shard still run in the order they always did.
+    #
+    # What a cut can lose is a test — a shard that never started, a matrix line
+    # deleted, a count changed here and not there — and every remaining job
+    # would stay green. Security's condition for the split was proof that a
+    # pull request into `main` still runs EVERY browser test, so every shard
+    # hands in what it ran and the whole project's list, and `e2e-cover` below
+    # fails `verify` unless the union of a project's shards is exactly
+    # `playwright test --list --project=<p>`, each test in one shard.
+    #
+    # `include` rather than a `project: [...]` list, because the number of
+    # shards differs by project. `ci-e2e-matrix.test.ts` holds this list to the
+    # projects `playwright.config.ts` declares, with every shard 1..n present.
+    # Desktop first, so its three start first when machines are short.
     strategy:
       fail-fast: false
       matrix:
-        project: [phone, small-phone, desktop]
+        include:
+          - { project: desktop, shard: 1, shards: 3 }
+          - { project: desktop, shard: 2, shards: 3 }
+          - { project: desktop, shard: 3, shards: 3 }
+          - { project: phone, shard: 1, shards: 2 }
+          - { project: phone, shard: 2, shards: 2 }
+          - { project: small-phone, shard: 1, shards: 1 }
 
     services:
       postgres:
@@ -376,22 +416,86 @@ jobs:
         #
         # It builds its own bundle into .next-e2e (see playwright.config.ts),
         # which is why this job does not run `npm run build` first.
+        #
+        # `--reporter` names the config's CI pair (github, list) and adds
+        # `json`, written to shard-proof/ran.json: what THIS shard actually ran,
+        # for `e2e-cover`. A `--reporter` on the command line replaces the
+        # config's list rather than adding to it, hence all three.
         env:
           AUTH_SECRET: ci-e2e-secret
-        run: npx playwright test --project=${{ matrix.project }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: shard-proof/ran.json
+        run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} --reporter=github,list,json
+
+      - name: List the whole project, for the proof that the shards cover it
+        # WITHOUT `--shard`: every test of the project as the config and the
+        # specs declare it. Listing launches no browser and starts no server.
+        # It runs after the tests on purpose: the specs read `.e2e/data.json`
+        # (the seeded fixture's ids) as they load, which `globalSetup` writes
+        # and teardown leaves behind. Runs on a red shard too, so the proof can
+        # say which tests the failure kept from running.
+        if: ${{ !cancelled() }}
+        env:
+          AUTH_SECRET: ci-e2e-secret
+          PLAYWRIGHT_JSON_OUTPUT_FILE: shard-proof/list.json
+        run: |
+          mkdir -p shard-proof
+          echo '{"project":"${{ matrix.project }}","shard":${{ matrix.shard }},"shards":${{ matrix.shards }}}' > shard-proof/shard.json
+          npx playwright test --list --project=${{ matrix.project }} --reporter=json > /dev/null
+
+      - name: Hand in what this shard ran
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          # Not a hidden folder: upload-artifact leaves dot-files out.
+          name: e2e-tests-${{ matrix.project }}-${{ matrix.shard }}of${{ matrix.shards }}
+          path: shard-proof/
+          retention-days: 7
 
       - name: Keep the trace of a failed run
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          # Named per viewport: three legs uploading one name is an upload
+          # Named per shard: two jobs uploading one name is an upload
           # collision, and the survivor is whichever finished last rather than
           # the one that failed.
-          name: playwright-report-${{ matrix.project }}
+          name: playwright-report-${{ matrix.project }}-${{ matrix.shard }}of${{ matrix.shards }}
           path: |
             playwright-report/
             test-results/
           retention-days: 7
+
+  # ── Did the shards, together, run every browser test? ─────────────────────
+  #
+  # Security's condition for cutting the legs into shards (2026-11-04): a pull
+  # request into `main` must still run EVERY browser test. For each project the
+  # Playwright config declares, scripts/qa/shards-cover.mjs holds the union of
+  # what its shards ran to the whole project's `--list`: shards 1..n each
+  # handed in once, every listed test run (passed, failed or skipped at run
+  # time) in exactly one shard, nothing run that the list does not have, and
+  # the list not empty. The table goes on the run's summary page.
+  #
+  # `!cancelled()` so it still reports when a shard went red — which tests the
+  # failure kept from running is worth reading — while `verify` fails on the
+  # red shard itself either way.
+  e2e-cover:
+    name: End-to-end shards cover the suite
+    runs-on: ubuntu-latest
+    needs: e2e
+    if: ${{ !cancelled() }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      # Node and the script only: it reads JSON and imports nothing outside node:*.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Fetch what every shard handed in
+        uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-tests-*
+          path: shards
+      - name: Every test ran in exactly one shard
+        run: node scripts/qa/shards-cover.mjs shards
 
   # ── The gate ─────────────────────────────────────────────────────────────
   #
@@ -402,14 +506,33 @@ jobs:
   #
   # `needs` fails this job if ANY of the three fails or is cancelled, which is
   # the behaviour the old single job had for free.
+  #
+  # Made EXPLICIT on 2026-11-04, when `e2e` became six shards and `e2e-cover`
+  # joined the list. A job whose `needs` failed is not failed but SKIPPED, and
+  # GitHub's documentation says a skipped job reports success and does not
+  # block a merge even as a required check — so "a red shard fails `verify`"
+  # was weaker than it read. Now `verify` runs whenever the run was not
+  # cancelled and goes RED unless every job it needs — `e2e` is every shard of
+  # the matrix — ended in success. A cancelled RUN (a newer push to the
+  # branch) still skips it. `deploy` below is unchanged: it needs `verify`.
   verify:
     name: verify
     runs-on: ubuntu-latest
-    needs: [unit, build, e2e]
+    needs: [unit, build, e2e, e2e-cover]
+    if: ${{ !cancelled() }}
     timeout-minutes: 5
     steps:
       - name: Everything passed
-        run: echo "unit, build and e2e are green."
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$RESULTS" | jq -e 'length > 0 and all(.[]; .result == "success")' > /dev/null; then
+            echo "unit, build, every e2e shard and the shard cover are green."
+          else
+            echo "::error::verify is red: a job it needs did not succeed (above)."
+            exit 1
+          fi
 
   # Production ships from HERE, and only after `verify` has gone green.
   #

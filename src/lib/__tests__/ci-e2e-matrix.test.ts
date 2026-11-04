@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { readVerbatim } from "./source";
 
 /**
- * CI runs one end-to-end job per viewport, and the list of viewports is
+ * CI runs end-to-end jobs per viewport — since 2026-11-04 per SHARD of a
+ * viewport (desktop in three, phone in two) — and the list of viewports is
  * written down twice.
  *
  * `playwright.config.ts` declares the projects; `ci.yml` fans out over a
@@ -59,15 +60,24 @@ function declaredProjects(): string[] {
   return [...block.matchAll(/^\s*name:\s*"([a-z0-9-]+)"/gm)].map((m) => m[1]).sort();
 }
 
+/**
+ * The shards the CI matrix fans out over, `{ project, shard, shards }` per job (2026-11-04: the
+ * desktop leg is three shards and the phone leg two, so the matrix is an `include` list, one line a
+ * job). Read from the code with comments blanked, anchored to the flow-mapping syntax the file uses.
+ */
+function matrixShards(): { project: string; shard: number; shards: number }[] {
+  return [...yamlCode(WORKFLOW).matchAll(/^\s*-\s*\{\s*project:\s*([a-z0-9-]+)\s*,\s*shard:\s*(\d+)\s*,\s*shards:\s*(\d+)\s*\}\s*$/gm)].map((m) => ({
+    project: m[1],
+    shard: Number(m[2]),
+    shards: Number(m[3]),
+  }));
+}
+
 /** Project names the CI matrix fans out over. */
 function matrixProjects(): string[] {
-  const line = WORKFLOW.match(/^\s*project:\s*\[([^\]]+)\]/m);
-  if (!line) throw new Error("ci.yml no longer declares an e2e project matrix");
-  return line[1]
-    .split(",")
-    .map((s) => s.trim().replace(/^["']|["']$/g, ""))
-    .filter(Boolean)
-    .sort();
+  const shards = matrixShards();
+  if (!shards.length) throw new Error("ci.yml no longer declares an e2e project matrix");
+  return [...new Set(shards.map((s) => s.project))].sort();
 }
 
 describe("every viewport CI claims to test is actually tested", () => {
@@ -94,8 +104,8 @@ describe("every viewport CI claims to test is actually tested", () => {
   it("keeps each viewport in its own invocation", () => {
     expect(
       yamlCode(WORKFLOW),
-      "the e2e job no longer passes --project, so one leg runs every viewport in one process",
-    ).toMatch(/playwright test --project=\$\{\{\s*matrix\.project\s*\}\}/);
+      "the e2e job no longer passes --project and --shard, so one job runs more than its cut of one viewport",
+    ).toMatch(/playwright test --project=\$\{\{\s*matrix\.project\s*\}\} --shard=\$\{\{\s*matrix\.shard\s*\}\}\/\$\{\{\s*matrix\.shards\s*\}\}/);
     expect(
       CONFIG,
       "workers is no longer 1; parallel workers inside one run share the seeded fixture",
@@ -109,5 +119,43 @@ describe("every viewport CI claims to test is actually tested", () => {
    */
   it("lets every viewport finish even when one fails", () => {
     expect(yamlCode(WORKFLOW)).toMatch(/^\s*fail-fast:\s*false\s*$/m);
+  });
+
+  /**
+   * THE SHARDS OF A PROJECT ARE THE PROJECT (2026-11-04). A shard line deleted, or a count changed
+   * on one line and not its siblings, leaves part of a viewport's suite in no job, and every job
+   * that is left stays green. The run proves it too (`e2e-cover`, scripts/qa/shards-cover.mjs);
+   * this says so before a machine is spent.
+   */
+  it("cuts each project into shards 1..n, each once, agreeing about n", () => {
+    const byProject = new Map<string, { shard: number; shards: number }[]>();
+    for (const s of matrixShards()) byProject.set(s.project, [...(byProject.get(s.project) ?? []), s]);
+    for (const [project, shards] of byProject) {
+      const totals = [...new Set(shards.map((s) => s.shards))];
+      expect(totals, `${project}: its shards disagree about how many there are`).toHaveLength(1);
+      expect(
+        shards.map((s) => s.shard).sort((a, b) => a - b),
+        `${project}: shards are not exactly 1..${totals[0]}`,
+      ).toEqual(Array.from({ length: totals[0] }, (_, i) => i + 1));
+    }
+    // The cut Security agreed to: the laptop in three, the phone in two.
+    expect(byProject.get("desktop")?.length, "the desktop leg is no longer three shards").toBe(3);
+    expect(byProject.get("phone")?.length, "the phone leg is no longer two shards").toBe(2);
+  });
+
+  it("does not let verify pass unless every shard and the shard cover succeeded", () => {
+    const code = yamlCode(WORKFLOW);
+    const verify = code.slice(code.indexOf("\n  verify:"), code.indexOf("\n  deploy:"));
+    expect(verify, "verify no longer needs every e2e shard and the cover").toMatch(/needs:\s*\[unit, build, e2e, e2e-cover\]/);
+    // Runs on a red need, and fails on anything but success: a skipped required check reads as passing.
+    expect(verify).toMatch(/if:\s*\$\{\{\s*!cancelled\(\)\s*\}\}/);
+    expect(verify).toContain('all(.[]; .result == "success")');
+    const cover = code.slice(code.indexOf("\n  e2e-cover:"), code.indexOf("\n  verify:"));
+    expect(cover, "e2e-cover no longer runs the proof").toContain("node scripts/qa/shards-cover.mjs shards");
+    expect(cover).toMatch(/needs:\s*e2e\b/);
+    // Each shard hands in what it ran and the whole project's list, under one name per shard.
+    expect(code).toContain("PLAYWRIGHT_JSON_OUTPUT_FILE: shard-proof/ran.json");
+    expect(code).toMatch(/playwright test --list --project=\$\{\{\s*matrix\.project\s*\}\} --reporter=json/);
+    expect(code).toContain("name: e2e-tests-${{ matrix.project }}-${{ matrix.shard }}of${{ matrix.shards }}");
   });
 });

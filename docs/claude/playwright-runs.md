@@ -102,3 +102,20 @@ RED, on an end-to-end test, and had been for twenty minutes. Running five of six
 
 It seeds a real fixture through `e2e/fixture.mjs` and tears it down afterwards, so it needs a
 database it may write to. Never point it at anything but the development one.
+
+**CI's browser legs are SHARDS (2026-11-04).** `ci.yml`'s `e2e` job is six jobs: desktop cut in
+three and phone in two by `--shard=i/n` within the project (the cut a round makes, `SHARDS` in
+`scripts/qa/layers.mjs`), and small-phone whole. Each is its own machine with its own Postgres, seed
+and build, so `workers: 1` and one fixture per process still hold. They read as
+`End-to-end (desktop 2/3)`; a red one names its shard, and its trace is
+`playwright-report-desktop-2of3`. To run one shard here exactly as CI does:
+`AUTH_SECRET=local-e2e-secret npx playwright test --project=desktop --shard=2/3` (a fixture turn,
+as above). With `fullyParallel` off Playwright cuts at file boundaries by test COUNT, so the shards
+are not equal in time; before the split the desktop leg was 44:31 (42.9 min of tests).
+
+Every shard hands in what it ran (`shard-proof/ran.json`) and the whole project's
+`--list` (`shard-proof/list.json`), and the `e2e-cover` job — `node scripts/qa/shards-cover.mjs` —
+fails `verify` unless, for every project the config declares, the union of its shards is exactly
+the list, each test in one shard (Security's condition for the split). Its table is on the run's
+summary page. `verify` itself now RUNS when a job it needs is red and goes red, rather than being
+skipped: a skipped required check reads as passing.

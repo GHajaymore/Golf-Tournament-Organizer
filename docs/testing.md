@@ -33,6 +33,9 @@ whether it can be read and used.
 
 `ci.yml` is not on this list because nobody runs it: it runs itself on every push, on one browser,
 and answers "did this change break something that was working". A round is a different question.
+Since 2026-11-04 its browser legs are shards (desktop in three, phone in two, small-phone whole),
+and its `e2e-cover` job (`scripts/qa/shards-cover.mjs`) fails `verify` unless the shards together
+ran every test of every project — see `docs/claude/playwright-runs.md`.
 Nor are the **Nightly round**, the **Weekly round**, the hourly **Deploy** and the **Production
 canary**: they run themselves on main (see "Rounds, nights and weeks" and "Deploys").
 
