@@ -1,4 +1,6 @@
 import { playedOnBy } from "@/lib/services/courses";
+// The timeline's own styles, sent with this route alone, never in the sheet every page downloads.
+import "./rounds-timeline.css";
 import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
@@ -21,7 +23,7 @@ import { resolveThirdPlace } from "@/lib/domain/third-place";
 import type { ThirdPlaceView } from "@/components/StagesClient";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
-import { roundsMissingCards } from "@/lib/services/round-card-lines";
+import { roundCardLines, roundsMissingCards } from "@/lib/services/round-card-lines";
 import { missingCardsRefusal } from "@/lib/domain/round-card-status";
 import { PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
 import { CardTrustNote } from "@/components/CardTrustNote";
@@ -38,6 +40,12 @@ import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
 import { individualAllowanceFor } from "@/lib/round-allowance";
 import { drawBrackets, isBracketMode } from "@/lib/domain/bracket";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { TimelineHero } from "@/components/RoundsTimeline";
+import { parsPlayed, roundNeeds, sheetFacts, type NeedItem, type NeedsInput, type RoundFacts } from "@/lib/rounds-timeline";
+import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { roundLabel } from "@/lib/domain/round-label";
+import { shortDate } from "@/lib/domain/round-dates";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
  * What a team round costs its sides in strokes, or null where the question
@@ -303,11 +311,53 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
   const describeTournament =
     locked || !(await entitlementForEvent(session.eventId, "aiAssist")).allowed ? null : <DescribeTournament available />;
 
+  // ── STEP 2, "COURSE DAY" (behind `?view=timeline`; Ajay, 2 Nov: "Yes, go") ──
+  // Worked out only when the switch is on, so today's screen reads nothing new.
+  const timeline = sp.view === "timeline";
+  const step2 = timeline ? await courseDayFor(session.eventId, state, venueRows) : null;
+
+  // The words above the rounds, the same on either screen.
+  const subtitle =
+    state.confirmed.length > 0 ? (
+      <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+        <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>{state.confirmed.length} entered</Link>
+        {state.stages.length === 0
+          ? ` — ${formatsThatSuit(state.confirmed.length)}.`
+          : PRE_LAUNCH_STATUSES.includes(state.event.status)
+            ? " so far."
+            : "."}
+      </p>
+    ) : state.stages.length === 0 ? (
+      <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+        Waiting to see how many sign up?{" "}
+        <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>Take entries first</Link> — the entry form says &ldquo;Format to be confirmed&rdquo; until you choose.
+      </p>
+    ) : null;
+
   return (
     <>
       <SetupFlowRail flow={flow} href="/stages" />
-      {/* The title alone (2026-10-16, "redundancies"): "Set up" is the strip above
-          and the sidebar's heading, and the subtitle described the list below it. */}
+      {step2 ? (
+        <TimelineHero
+          club={step2.club}
+          event={state.event.name}
+          title={<h1 className="page-title">Rounds &amp; formats</h1>}
+          line={
+            <>
+              <p className="rt-hero-line">Each round sets its course, its format and how scores count; what one settles carries into the next.</p>
+              {subtitle}
+            </>
+          }
+          facts={step2.headline}
+          photo={{
+            src: "/console/course-mist.w1200.webp",
+            srcSet: "/console/course-mist.w640.webp 640w, /console/course-mist.w1200.webp 1200w",
+            alt: "A golf course in morning mist (illustrative)",
+          }}
+        />
+      ) : (
+      /* The title alone (2026-10-16, "redundancies"): "Set up" is the strip above
+          and the sidebar's heading, and the subtitle described the list below it. */
       <div style={{ marginBottom: 20 }}>
         <h1 className="page-title">Rounds &amp; formats</h1>
         {/* A SOCIETY OFTEN CHOOSES THE FORMAT ONCE IT KNOWS THE NUMBERS (Ajay,
@@ -315,22 +365,9 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
             know how many signed up"). So the way round is offered before a round
             exists, and the number is in front of them once people have entered. The
             entry form already says "Format to be confirmed" with no round. */}
-        {state.confirmed.length > 0 ? (
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
-            <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>{state.confirmed.length} entered</Link>
-            {state.stages.length === 0
-              ? ` — ${formatsThatSuit(state.confirmed.length)}.`
-              : PRE_LAUNCH_STATUSES.includes(state.event.status)
-                ? " so far."
-                : "."}
-          </p>
-        ) : state.stages.length === 0 ? (
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
-            Waiting to see how many sign up?{" "}
-            <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>Take entries first</Link> — the entry form says &ldquo;Format to be confirmed&rdquo; until you choose.
-          </p>
-        ) : null}
+        {subtitle}
       </div>
+      )}
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
       {/* A way IN to the builder rather than an alternative to it — whatever
           it proposes lands as ordinary rounds on the cards below, editable
@@ -398,7 +435,10 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
                 ),
               }]
             : []),
-          ...(seasonUndated > 0 && playingCount >= 2 && !dated
+          // SAID ONCE (2 Nov): on the timeline each undated round is already a "Needs you" line
+          // with what it costs the players ("Round 3 has no date — players cannot see when they
+          // play"), so this notice would say it a second time. Today's screen keeps it.
+          ...(seasonUndated > 0 && playingCount >= 2 && !dated && !timeline
             ? [{
                 key: "dates",
                 tone: "note" as const,
@@ -451,7 +491,10 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
       <StagesClient
         stages={stages}
         // The redesign's preview, off unless asked for (2026-10-30; go/no-go Tue 17 Nov).
-        timeline={sp.view === "timeline"}
+        timeline={timeline}
+        // Step 2's facts and its "Needs you" list, from what is stored (timeline only).
+        roundFacts={step2?.facts ?? null}
+        needs={step2?.needs ?? []}
         // A link straight to one round opens it (checked against this tournament's rounds there).
         linkedRound={typeof sp.round === "string" ? sp.round : null}
         // Today AT THE CLUB, from the server, so the browser's render asks the
@@ -512,9 +555,85 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
       {/* The other half of the placement decision above: offered after the
           rounds once there are rounds, so it stays available without leading. */}
       {!locked && stages.length > 0 && describeTournament}
-      <SetupFlowFooter flow={flow} href="/stages" />
+      <SetupFlowFooter flow={flow} href="/stages" quiet={(step2?.needs.length ?? 0) > 0} />
     </>
   );
+}
+
+/**
+ * STEP 2, "COURSE DAY" (`?view=timeline`): each round's golf facts and the one list of what is
+ * missing, read from what is STORED — the round, its course card and tees, and its saved tee sheet
+ * (never the tee sheet's preview, which reshuffles on every visit). One pass, for the timeline
+ * only; today's screen does not call it.
+ */
+async function courseDayFor(
+  eventId: string,
+  state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>,
+  venueRows: Array<{ id: string; name: string; pars: string }>,
+): Promise<{ club: string; headline: string[]; facts: Record<string, RoundFacts>; needs: NeedItem[] }> {
+  // WHICH CARD A ROUND IS SCORED AGAINST is `roundCardLines`' question, the same reader launch
+  // refuses with — never a second reading here (one rule, one place).
+  const [owner, teeRows, { locale }, cardLines] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId }, select: { organization: { select: { name: true } } } }),
+    prisma.tee.findMany({
+      where: { course: playedOnBy(eventId) },
+      select: { courseId: true, name: true, par: true, courseRating: true, slopeRating: true },
+      orderBy: [{ courseRating: "desc" }, { name: "asc" }],
+    }),
+    formattingForEvent(eventId),
+    roundCardLines(eventId),
+  ]);
+  const venueById = new Map(venueRows.map((v) => [v.id, v]));
+  const lineFor = new Map(cardLines.map((l) => [l.stageId, l]));
+  const homeId = state.event.courseId ?? null;
+  const entered = state.confirmed.length;
+  const facts: Record<string, RoundFacts> = {};
+  const inputs: NeedsInput[] = [];
+  for (const s of state.stages) {
+    const courseId = s.courseId ?? homeId;
+    const venue = courseId ? venueById.get(courseId) : undefined;
+    const line = lineFor.get(s.id);
+    const courseName = line?.course || venue?.name || (s.courseId ? "" : state.event.course?.trim() || "");
+    // The pars drawn on the strip come from the card the round is scored against: its venue's,
+    // or the card typed onto the tournament when the round names no venue of its own.
+    const parsStored = venue && parseIndex(venue.pars).length ? venue.pars : !s.courseId ? state.event.customPars : "";
+    const pars = line?.status === "missing" ? [] : parsPlayed(parseIndex(parsStored), holesPlayed(s.holes), s.nine);
+    const seen = new Set<string>();
+    const tees = teeRows
+      .filter((t) => t.courseId === courseId && !seen.has(t.name) && Boolean(seen.add(t.name)))
+      .map((t) => ({ name: t.name, par: t.par, rating: t.courseRating, slope: t.slopeRating }));
+    facts[s.id] = {
+      courseName,
+      pars,
+      tees,
+      players: entered,
+      ...sheetFacts(parseTeeSheet(s.teeSheet ?? "")),
+    };
+    inputs.push({
+      id: s.id,
+      label: roundLabel(state.stages, s.id) || s.type,
+      playing: isPlayingRound(s.type),
+      done: s.closedAt !== null || state.roundsWithResults.has(s.id),
+      playedOn: cleanIsoDate(s.playedOn ?? ""),
+      courseName,
+      hasCard: line ? line.status !== "missing" : pars.length > 0,
+      hasSheet: facts[s.id].hasSheet,
+    });
+  }
+  const playing = playingStages(state.stages);
+  const days = playing.map((s) => cleanIsoDate(s.playedOn ?? "")).filter(Boolean).sort();
+  const courses = [...new Set(playing.map((s) => facts[s.id]?.courseName).filter(Boolean))];
+  const headline = [
+    playing.length ? `${playing.length} ${playing.length === 1 ? "round" : "rounds"}` : "",
+    entered ? `${entered} entered` : "",
+    days.length
+      ? days[0] === days[days.length - 1]
+        ? shortDate(days[0], locale)
+        : `${shortDate(days[0], locale)} – ${shortDate(days[days.length - 1], locale)}`
+      : "",
+    courses.length === 1 ? courses[0] : courses.length > 1 ? `${courses.length} courses` : "",
+  ].filter(Boolean);
+  return { club: owner?.organization?.name ?? "", headline, facts, needs: roundNeeds(inputs, entered) };
 }
 
 /**
