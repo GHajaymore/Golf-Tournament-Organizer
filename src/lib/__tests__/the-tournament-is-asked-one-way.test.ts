@@ -80,14 +80,17 @@ export function strays(src: string): string[] {
 /**
  * TODAY'S IMPORTERS, 3 Nov 2026 (origin/main at e933a3b5). Cut a line in the
  * same PR that frees its file; never add one.
+ *
+ * PR 3 (4 Nov) cut four: the dashboard, Prizes & payouts (its rail is
+ * `setupRailFor` now), `LifecycleBar` and `TournamentJourney` — they read
+ * `tournamentStatus(facts)`. The rest keep `isSetupLocked` / `assertUnlocked`
+ * until the scoped locks (PR 5) or the actions (PR 4).
  */
 export const KNOWN_STRAYS: readonly string[] = [
   "src/app/(app)/bracket/page.tsx",
-  "src/app/(app)/dashboard/page.tsx",
   "src/app/(app)/entry/page.tsx",
   "src/app/(app)/event/page.tsx",
   "src/app/(app)/grouping/page.tsx",
-  "src/app/(app)/prizes/page.tsx",
   "src/app/(app)/registration/page.tsx",
   "src/app/(app)/roster/page.tsx",
   "src/app/(app)/stages/page.tsx",
@@ -97,8 +100,6 @@ export const KNOWN_STRAYS: readonly string[] = [
   "src/app/actions/setup-suggest.ts",
   "src/app/actions/teams.ts",
   "src/app/actions/tournament.ts",
-  "src/components/LifecycleBar.tsx",
-  "src/components/TournamentJourney.tsx",
 ];
 
 function swept(): string[] {

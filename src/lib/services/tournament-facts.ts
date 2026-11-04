@@ -19,6 +19,7 @@ import {
   type TournamentFacts,
 } from "../domain/tournament-status";
 import { isMatch } from "../tournament-shape";
+import { isAttendanceMode, tracksPerRound } from "../domain/attendance";
 import { generatesPairings, isKnockoutRound, isPlayingRound } from "../stage-types";
 import { TEAM_FORMAT_NAMES } from "../formats";
 import { roundsMissingCards } from "./round-card-lines";
@@ -112,6 +113,15 @@ export async function setupFactsFor(eventId: string): Promise<{ facts: SetupFact
   return { facts: setupFactsOf(c.facts), match: isMatch(c.facts.shape) };
 }
 
+/**
+ * THE SETUP SIDE OF THE FACTS — what a set-up screen's rail is drawn from
+ * (`setupFlowOf`, PR 3). The same request-cached batch as `setupFactsFor`, so
+ * a screen asking both reads the tournament once. Null when it does not exist.
+ */
+export async function setupSideFactsFor(eventId: string): Promise<SetupSideFacts | null> {
+  return (await readOne(eventId))?.facts ?? null;
+}
+
 /** Rows grouped by tournament, in the order they came. */
 function byEvent<T extends { eventId: string }>(rows: readonly T[]): Map<string, T[]> {
   const out = new Map<string, T[]>();
@@ -150,6 +160,10 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
       flightsConfirmed: true,
       playSuspendedAt: true,
       organizationId: true,
+      // A league by its KIND (PR 3): what it is called, its league table, its weekly sign-up.
+      playKind: true,
+      leaguePoints: true,
+      attendanceMode: true,
     },
   });
   if (events.length === 0) return out;
@@ -273,6 +287,10 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
         configUnlocked: event.configUnlocked,
         correction: null,
         shape: event.shape,
+        league:
+          event.playKind === "league" ||
+          event.leaguePoints.trim() !== "" ||
+          (isAttendanceMode(event.attendanceMode) && tracksPerRound(event.attendanceMode)),
         named: !isUnnamed(event.name),
         dated: !!event.dates.trim(),
         venued: !!event.course.trim() || venuesIn(id) > 0,

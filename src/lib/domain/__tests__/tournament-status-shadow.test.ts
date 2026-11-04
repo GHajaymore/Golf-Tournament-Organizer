@@ -79,6 +79,7 @@ export const DISAGREEMENTS = {
   P3: "A round robin with a player in no flight: today unchecked at launch. Machine: refused — no flight, no fixtures.",
   P4: "A cup with a player on neither team: today a rail step only. Machine: refused (8.2 table).",
   P5: "A league whose next week has no day and no deadline: today a rail step only. Machine: refused (Golf Pro Q4, J08).",
+  J08: "A league whose next week is dated and later weeks are not (PR 3): today's rail holds on Rounds & formats until EVERY week has a day. Machine: the step is done; the later weeks are named in the launch dialog (Golf Pro Q4).",
   N1: "The fourth step: the chip says \"Play over\" where STATUS_META says \"Live\" (2d). Only the switcher's note and the home's job say it today.",
   N2: "Live, a round owes its draw (a cut-fed round robin, a league week): today the button is Complete. Machine: the draw is the next action (2e).",
 } as const;
@@ -236,6 +237,11 @@ const SHAPES: Shape[] = [
   { name: "P3: a round robin with a player in no flight", facts: { ...F.roundRobinFlights(), unplacedInFlights: 1 }, differs: { launchRefusal: "P3", setupCurrent: "P3", journey: "P3" } },
   { name: "P4: a cup with a player on neither team", facts: { ...F.teamCup(), cup: { flights: 2, unplaced: 1 } }, differs: { launchRefusal: "P4" } },
   { name: "P5: a league whose first week is undated", facts: { ...F.league(), rounds: F.league().rounds.map((r, i) => ({ ...r, scheduled: i !== 0 })) }, differs: { launchRefusal: "P5" } },
+  {
+    name: "J08: a league whose next week is dated, its later weeks not",
+    facts: { ...F.league(), rounds: F.league().rounds.map((r, i) => ({ ...r, scheduled: i === 0 })) },
+    differs: { setupCurrent: "J08", journey: "J08" },
+  },
   {
     name: "N2: live, a cut-fed round robin owes its draw",
     facts: launched(

@@ -9,7 +9,7 @@ import { GroupingControls } from "@/components/GroupingControls";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupRailFor } from "@/lib/services/tournament-status";
 import { FlightBoard } from "@/components/FlightBoard";
 import { FlightTeeSelect } from "@/components/FlightTeeSelect";
 import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
@@ -26,7 +26,7 @@ export default async function GroupingPage() {
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
   // Where this screen sits in setting the tournament up. Null for a match.
-  const flow = await setupFlowFor(session.eventId);
+  const flow = await setupRailFor(session.eventId);
   const manual = state.event.formationRule === "manual";
   // A handicap-balanced draw is balanced on Course Handicaps, so unrated tees
   // make it quietly uneven. The scoring warning on Rounds & format is about a

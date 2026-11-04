@@ -16,7 +16,7 @@ import { bodyInProse, bodyShortLabel } from "@/lib/domain/handicap-body";
 import { phoneRequiredFor } from "@/lib/plans";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupRailFor } from "@/lib/services/tournament-status";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
@@ -30,7 +30,7 @@ export default async function RegistrationPage() {
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
   // Where this screen sits in setting the tournament up. Null for a match.
-  const flow = await setupFlowFor(session.eventId);
+  const flow = await setupRailFor(session.eventId);
   const brand = await brandForEvent(session.eventId);
   const roster = await rosterForEvent(session.eventId);
   // The club's handicap body — GHIN, England Golf, Golf Ireland … — for the

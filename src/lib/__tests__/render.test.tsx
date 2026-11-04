@@ -10,6 +10,27 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlow } from "@/lib/domain/setup-flow";
 import { screenName } from "@/lib/nav";
 import { FactCard } from "@/components/PageHeader";
+import { statusCardOf } from "@/lib/domain/tournament-status";
+import {
+  facts as statusFacts,
+  round as statusRound,
+  launched as launchedFacts,
+  completed as completedFacts,
+} from "../domain/__tests__/tournament-facts-fixtures";
+
+/**
+ * The status card the dashboard hands `LifecycleBar` (state machine PR 3): the
+ * machine's answer for a stored status, with `played` rounds that have results.
+ * A tournament with rounds played is launched (or completed) the ordinary way;
+ * a setting-up one with results is being played before launch.
+ */
+function cardFor(status: string, played = 0, confirmed = 33) {
+  const rounds = [0, 1, 2, 3].map((i) =>
+    statusRound({ id: `r${i + 1}`, position: i, hasResult: i < played, closed: status === "completed" }),
+  );
+  const base = statusFacts({ status, confirmed, rounds });
+  return statusCardOf(status === "completed" ? completedFacts(base) : status === "live" ? launchedFacts(base) : base);
+}
 
 /**
  * Do these screens actually render?
@@ -384,8 +405,7 @@ describe("the journey card counts phases, not steps", () => {
           complete: true,
           doneHrefs: ["/event", "/stages", "/registration", "/grouping", "/prizes"],
         }}
-        status="draft"
-        scored={false}
+        journey="launch"
         hasBracket
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {...(props as any)}
@@ -457,79 +477,63 @@ describe("the journey card counts phases, not steps", () => {
     });
   });
 
-  it("says phase, not step", async () => {
+  /**
+   * THE COUNTER IS RETIRED (state machine PR 3; UI/UX, panel 8.3 Q4). "You are
+   * on phase N of 4" sat on /event below the rail's "N of 6 done" — two
+   * counters with two denominators, exactly the shape of D1. The chip is the
+   * step and the rail is the only counter during setup; this card keeps its
+   * phases and marks where the tournament is with "You are here".
+   */
+  it("has no counter of its own — the rail is the only one", async () => {
+    for (const setup of [
+      { doneCount: 2, total: 5, complete: false, doneHrefs: ["/event", "/stages"] },
+      { doneCount: 5, total: 5, complete: true, doneHrefs: ["/event"] },
+    ]) {
+      const html = await journey({ setup, journey: "setup" });
+      expect(html).not.toContain("You are on phase");
+      expect(html).not.toMatch(/of 4\b/);
+      expect(html, "the setup phase counting steps beside the rail").not.toMatch(/\d of \d done/);
+    }
+  });
+
+  it("still draws the four phases of running a tournament", async () => {
     const html = await journey();
-    expect(html).toContain("You are on phase");
-    expect(html, "two counters on one screen both calling themselves steps").not.toContain(
-      "You are on step",
-    );
-  });
-
-  it("counts the four phases of running a tournament", async () => {
-    // Not the five setup steps, which are the rail's business and are
-    // reported separately inside this card's own first phase.
-    expect(await journey()).toContain("of 4.");
-  });
-
-  it("moves through them as the tournament does", async () => {
-    expect(
-      await journey({ setup: { doneCount: 2, total: 5, complete: false } }),
-    ).toContain("phase 1 of 4");
-    expect(await journey()).toContain("phase 2 of 4");
-    expect(await journey({ status: "live" })).toContain("phase 3 of 4");
-    expect(await journey({ status: "completed" })).toContain("phase 4 of 4");
+    for (const title of ["Set up", "Launch", "Play", "Finish"]) expect(html).toContain(title);
   });
 
   /**
-   * A RETURNED CARD MEANS THEY ARE PLAYING, NOT THAT THEY HAVE FINISHED.
-   *
-   * The line above this used to read `launched + scored` → "phase 4 of 4",
-   * which is a
-   * test asserting what the code did rather than what is true — the failure
-   * CLAUDE.md names, found here on 2026-09-14 by somebody reading the screen
-   * rather than the suite.
-   *
-   * What they were looking at was Demo Cup: four rounds, cards on the second
-   * one, and a card telling them they were on "Finish — settle the money,
-   * then send everyone the result". Two rounds of that tournament have not
-   * been played.
+   * "YOU ARE HERE" IS THE MACHINE'S `journey`, handed in — never worked out by
+   * the card. What a returned card means (Play, never Finish; a draft with
+   * cards is being played) is the machine's rule now and is pinned in
+   * `tournament-status.test.ts`.
    */
-  it("does not call a tournament finished because a card came in", async () => {
-    expect(
-      await journey({ status: "live", scored: true }),
-      "one card in round two of four is not 'settle the money'",
-    ).toContain("phase 3 of 4");
+  it("marks the phase the machine names, and only that one", async () => {
+    const titles = { setup: "Set up", launch: "Launch", play: "Play", results: "Finish" } as const;
+    for (const [phase, title] of Object.entries(titles)) {
+      const html = await journey({ journey: phase });
+      expect(html.match(/You are here/g)?.length ?? 0, phase).toBe(1);
+      const here = html.indexOf("You are here");
+      const at = html.lastIndexOf(`>${title}<`, here);
+      expect(at, `${phase}: "You are here" is not on ${title}`).toBeGreaterThan(-1);
+      for (const other of Object.values(titles).filter((t) => t !== title)) {
+        const otherAt = html.indexOf(`>${other}<`);
+        expect(otherAt < at || otherAt > here, `${phase}: ${other} sits between ${title} and its marker`).toBe(true);
+      }
+    }
   });
 
   /**
-   * AND THE CASE AS IT WAS ACTUALLY FOUND, which is worse than the one above.
-   *
-   * Demo Cup's status is "draft", so it had not launched — and because
-   * `scored` was tested first, the card skipped Launch and Play entirely and
-   * reported a tournament finished that had never started. Both phases showed
-   * a tick.
-   *
-   * The evidence route stays: a card that has come in means somebody is out
-   * there whatever the status says. It just moves to Play, which is the only
-   * thing a card count can be right about.
-   */
-  it("reads a card on an unlaunched tournament as play, not as finished", async () => {
-    const html = await journey({ status: "draft", scored: true });
-    expect(html, "a draft with cards is being played, not over").toContain("phase 3 of 4");
-  });
-
-  /**
-   * The control on both: a "completed" status must actually reach phase 4, or
-   * the two assertions above pass on a component that has simply stopped
-   * reaching it at all.
-   *
-   * `scored: true` alongside it deliberately — the pair that used to produce
-   * the wrong answer now produces the right one for the right reason.
+   * The control: a completed tournament's journey must actually reach Finish,
+   * or the assertions above pass on a component that has simply stopped
+   * reaching it. Asked of the machine, as the page asks it — completed, with
+   * every round played — so the card and the rule are walked together.
    */
   it("still reaches Finish when the organizer says it is over", async () => {
-    expect(await journey({ status: "completed", scored: true })).toContain(
-      "phase 4 of 4",
-    );
+    const { tournamentStatus } = await import("@/lib/domain/tournament-status");
+    const phase = tournamentStatus(completedFacts(statusFacts())).journey;
+    expect(phase).toBe("results");
+    const html = await journey({ journey: phase });
+    expect(html.indexOf("You are here")).toBeGreaterThan(html.indexOf(">Finish<"));
   });
 });
 
@@ -7757,15 +7761,14 @@ describe("the lifecycle button names the phase, not the link", () => {
     name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play", overall: "Match play",
     players: 33, flights: 8, rounds: 4,
   };
-  const bar = async (status: string, resultsIn = 0) => {
+  const bar = async (status: string) => {
     const { LifecycleBar } = await import("@/components/LifecycleBar");
     return render(
       <LifecycleBar
-        status={status}
+        status={cardFor(status)}
         isAdmin
         configUnlocked={false}
         summary={summary}
-        resultsIn={resultsIn}
       />,
     );
   };
@@ -7839,11 +7842,10 @@ describe("a Par tournament is offered the upgrade before it is deleted", () => {
     const { LifecycleBar } = await import("@/components/LifecycleBar");
     return render(
       <LifecycleBar
-        status={status}
+        status={cardFor(status, 3, 8)}
         isAdmin
         configUnlocked={false}
         summary={summary}
-        resultsIn={3}
         deletesOnComplete={deletes}
         keepOffer={deletes ? offer : undefined}
         closesOn={closesOn}
@@ -7881,26 +7883,28 @@ describe("a draft that is already being played", () => {
     name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play", overall: "Match play",
     players: 33, flights: 8, rounds: 4,
   };
-  const bar = async (status: string, resultsIn: number, isAdmin = true) => {
+  // `played`: how many of its four rounds have results in (each round's
+  // `hasResult`, the machine's one definition — PR 3 moved this card off the
+  // count of results, `resultsIn`).
+  const bar = async (status: string, played: number, isAdmin = true) => {
     const { LifecycleBar } = await import("@/components/LifecycleBar");
     return render(
       <LifecycleBar
-        status={status}
+        status={cardFor(status, played)}
         isAdmin={isAdmin}
         configUnlocked={false}
         summary={summary}
-        resultsIn={resultsIn}
       />,
     );
   };
 
   it("does not leave “Setting up” standing on its own", async () => {
     // The chip that started the complaint ("Draft", until G1 made the three
-    // setting-up statuses one). It is still shown — the organizer's — but it
-    // no longer has the card to itself.
-    const html = await bar("draft", 47);
+    // setting-up statuses one). Since PR 3 the machine's chip says both in
+    // one: "Setting up · results in" (D5), where it was two chips.
+    const html = await bar("draft", 2);
     expect(html).toContain("Setting up");
-    expect(html, "the observed state is not beside the stored one").toContain("Being played");
+    expect(html, "the observed state is not said beside the stored one").toContain("Setting up · results in");
   });
 
   it("offers launching, not entries, once results are in", async () => {
@@ -7910,18 +7914,22 @@ describe("a draft that is already being played", () => {
      * because the ladder only ever asked what the status was. Launching is the
      * step that reconciles the disagreement.
      */
-    const html = await bar("draft", 47);
+    // The button keeps its name in every state (PM/UX ruling, PR 3): "Launch
+    // tournament". That it is being played is the card's text, not the button's.
+    const html = await bar("draft", 2);
     expect(html).toContain("Launch tournament");
+    expect(html, "the button was renamed by the state").not.toContain("Launch it —");
+    expect(html, "the card no longer says it is being played").toContain("results in, but this tournament hasn’t been launched");
     expect(html, "still offering to take entries mid-play").not.toContain("Start taking entries");
   });
 
   it("offers Launch on a draft nobody has played, and does not call it played", async () => {
     // The regression half: since G1 the ordinary case is Launch too, and the
-    // "being played" chip stays for a draft with results only.
+    // "results in" chip stays for a draft with results only.
     const html = await bar("draft", 0);
     expect(html).toContain("Launch tournament");
     expect(html).not.toContain("Start taking entries");
-    expect(html).not.toContain("Being played");
+    expect(html).not.toContain("results in");
   });
 
   it("offers launching exactly once", async () => {
@@ -7933,8 +7941,9 @@ describe("a draft that is already being played", () => {
      * The dialog is not rendered until the button is pressed, so every
      * occurrence in this markup is a control on the card.
      */
-    const html = await bar("draft", 47);
+    const html = await bar("draft", 2);
     expect(html.match(/Launch tournament/g) ?? []).toHaveLength(1);
+    expect(html.match(/Launch it/g) ?? []).toHaveLength(0);
   });
 
   it("keeps the warning to the disagreement and its cost", async () => {
@@ -7947,8 +7956,9 @@ describe("a draft that is already being played", () => {
      * DOES moved to the dialog that launching opens — asserted by absence
      * here, and by presence in the dialog's own test below.
      */
-    const html = await bar("draft", 47);
-    expect(html).toContain("47 results are in");
+    const html = await bar("draft", 2);
+    // Which rounds, from each round's `hasResult` (PR 3) — not a count of rows.
+    expect(html).toContain("Round 1 and Round 2 have results in, but this tournament hasn’t been launched");
     expect(html).toContain("already open the board and their card");
     expect(html, "the card is explaining config locking again").not.toContain(
       "locks the configuration",
@@ -7961,8 +7971,9 @@ describe("a draft that is already being played", () => {
   it("says nothing extra to somebody who cannot act on it", async () => {
     // A non-admin gets the state and the reason, and no button they are not
     // allowed to press.
-    const html = await bar("draft", 47, false);
-    expect(html).toContain("Being played");
+    const html = await bar("draft", 2, false);
+    expect(html).toContain("results in");
+    expect(html).not.toContain("Launch it");
     expect(html).not.toContain("Launch tournament");
   });
 });

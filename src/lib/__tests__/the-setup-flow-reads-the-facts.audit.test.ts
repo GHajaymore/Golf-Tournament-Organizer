@@ -30,7 +30,20 @@ import { PrismaClient } from "@prisma/client";
 vi.mock("@/lib/auth", () => ({ getSession: async () => null }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { setupFlowFor, launchCheckFor } = await import("@/lib/services/setup-flow");
+const { launchCheckFor } = await import("@/lib/services/setup-flow");
+/**
+ * THE RAIL IS THE STATE MACHINE'S SINCE PR 3 (`setupRailFor`, which replaced
+ * `setupFlowFor`). The expectations below held across PR 2's switch unchanged;
+ * PR 3 changes exactly the lines marked with the D-shape that changed them:
+ *
+ *   D1  flights are optional for a medal and a Stableford (Golf Pro 8.2), and
+ *       a step nothing waits for — the money answer too — never holds the
+ *       guide open: the rail is "complete" when nothing holds launch.
+ *   D4  the details step needs the dates the launch gate needs.
+ *
+ * `launchCheckFor` is the launch ACTION's gate and is unchanged until PR 4.
+ */
+const { setupRailFor: setupFlowFor } = await import("@/lib/services/tournament-status");
 
 const prisma = new PrismaClient();
 const TAG = "zz-setup-wrap";
@@ -129,6 +142,17 @@ beforeAll(async () => {
   await prisma.stage.create({ data: { eventId: live, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } });
   await field(live, 3);
 
+  // H and I (PR 3): three weekly-type rounds, only the first dated; money "none".
+  // H is a LEAGUE by its kind — a weekly sign-up (attendance "opt-out"). I is the
+  // same rounds with everyone playing every round: a three-round medal, not a league.
+  for (const [name, attendanceMode] of [["league", "opt-out"], ["three-round-medal", "everyone"]] as const) {
+    const id = await event(org.id, name, { moneyMode: "none", attendanceMode, startOn: "2026-11-14", endOn: "2026-11-28" });
+    for (const [i, playedOn] of ["2026-11-14", "", ""].entries()) {
+      await prisma.stage.create({ data: { eventId: id, position: i, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn } });
+    }
+    await field(id, 4);
+  }
+
   // G: a casual round — two people on the first tee.
   const casual = await event(org.id, "casual", { shape: "match", status: "live", configUnlocked: true });
   await prisma.stage.create({ data: { eventId: casual, position: 0, type: "Single Match Stage", format: "Match Play", holes: 18 } });
@@ -158,15 +182,20 @@ async function read(name: string) {
 }
 
 describe("the setup flow and the launch gate, worked by hand", () => {
-  it("a one-round medal with no flights: Flights and Money open, and nothing refuses launch (D1 as it stands)", async () => {
+  it("a one-round medal with no flights: Flights and Money open and optional, and nothing refuses launch (D1, ruled)", async () => {
     expect(await read("medal")).toEqual({
       steps: "event+ stages+ registration+ grouping- money-",
-      current: "grouping",
-      complete: false,
-      readyToLaunch: false,
+      current: null, // D1: was "grouping" — the rail held a one-field medal at Flights while Launch worked.
+      complete: true, // D1: was false.
+      readyToLaunch: true, // D1: was false.
       refused: false,
       stepsOpen: 2,
     });
+    const flow = await setupFlowFor(ids.medal);
+    const flights = flow!.steps.find((s) => s.key === "grouping")!;
+    // D1: it never says "No flights yet." as a thing undone (Golf Pro, 8.2).
+    expect(flights.missing).toBe("Optional — one field.");
+    expect(flights.optional).toBe(true);
   });
 
   it("a round robin with Round 2 undrawn: Flights holds, and launch is refused", async () => {
@@ -193,16 +222,46 @@ describe("the setup flow and the launch gate, worked by hand", () => {
     expect(r.current).toBe("cup");
   });
 
-  it("a knockout with a venue and no dates: the rail is complete and launch is refused (D4a)", async () => {
+  it("a knockout with a venue and no dates: the details step holds, and launch is refused (D4a)", async () => {
     expect(await read("knockout")).toEqual({
-      steps: "event+ stages+ registration+ money+",
+      steps: "event- stages+ registration+ money+", // D4: was "event+" — ticked with a venue while launch refused "no dates".
+      current: "event", // D4: was null.
+      complete: false, // D4: was true.
+      readyToLaunch: false, // D4: was true.
+      refused: true,
+      stepsOpen: 0, // the launch action's own gate (PR 4), unchanged.
+    });
+    expect((await launchCheckFor(ids.knockout)).refusal).toMatch(/no dates/i);
+    expect((await setupFlowFor(ids.knockout))!.current!.missing).toMatch(/needs its dates/);
+  });
+
+  it("a league whose next week is dated: Rounds & formats is done, and its later weeks only warn (J08, PR 3)", async () => {
+    // Golf Pro Q4: only the next unplayed week needs a day or a deadline.
+    expect(await read("league")).toEqual({
+      steps: "event+ stages+ registration+ grouping- money+",
       current: null,
       complete: true,
       readyToLaunch: true,
-      refused: true,
-      stepsOpen: 0,
+      refused: false,
+      stepsOpen: 2, // the launch action's gate (PR 4) still counts the old Rounds step open.
     });
-    expect((await launchCheckFor(ids.knockout)).refusal).toMatch(/no dates/i);
+    const warned = (await setupFlowFor(ids.league))!.launch.warnings.map((w) => w.says).join(" ");
+    expect(warned).toMatch(/Round 2 and Round 3 have no day or deadline yet\. Only the next week needs one now/);
+  });
+
+  it("the same rounds without a league's kind are a three-round medal: every round still needs its day (league by kind, PR 3)", async () => {
+    // A 36- or 54-hole championship is one stroke-play competition (Rule 3.3;
+    // its Terms set the rounds, Committee Procedures 5A) — not a league, so the
+    // league's relaxation never reaches it. Its undated rounds are open on the
+    // rail, and only warn (D1b, ruled 8.2).
+    expect(await read("three-round-medal")).toEqual({
+      steps: "event+ stages- registration+ grouping- money+",
+      current: null,
+      complete: true,
+      readyToLaunch: true,
+      refused: false,
+      stepsOpen: 2,
+    });
   });
 
   it("launched, the rail no longer offers launching", async () => {

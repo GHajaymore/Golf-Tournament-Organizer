@@ -2,19 +2,23 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { setEventStatus, launchTournament, setConfigUnlocked } from "@/app/actions/tournament";
-import { STATUS_META } from "@/lib/format";
-import {
-  lifecycleMismatch,
-  nextLifecycleAction,
-  configurationLocked,
-  isLaunched,
-  LAUNCH_DOES,
-  VISIBILITY_IS_ELSEWHERE,
-} from "@/lib/domain/lifecycle-state";
+import { LAUNCH_DOES, VISIBILITY_IS_ELSEWHERE } from "@/lib/domain/lifecycle-state";
 import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
 import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-check";
+import type { StatusCard } from "@/lib/domain/tournament-status";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
+import { RefusedAction } from "./RefusedAction";
+
+/**
+ * WHAT THE STATE MACHINE SAYS ABOUT THIS TOURNAMENT, as this card draws it
+ * (PR 3) — `statusCardOf(facts)`, worked out on the server and handed down as
+ * plain values. This card used to hold its own answers: the chip from
+ * `STATUS_META`, the button from `nextLifecycleAction`, the lock from
+ * `configurationLocked`, the "being played" notice from `lifecycleMismatch` —
+ * four readers, each of which the machine now answers once.
+ */
+export type LifecycleStatus = StatusCard;
 
 export interface LifecycleSummary {
   name: string;
@@ -33,9 +37,6 @@ export function LifecycleBar({
   isAdmin,
   configUnlocked,
   summary,
-  resultsIn = 0,
-  blockedReason,
-  unplayedAsk,
   launchOpen,
   deletesOnComplete = false,
   keepOffer,
@@ -63,34 +64,23 @@ export function LifecycleBar({
    * way to Reports in front of the organizer.
    */
   deletesOnComplete?: boolean;
-  status: string;
+  /**
+   * THE MACHINE'S ANSWER — step, chip, lock, the one next action and its
+   * refusal (see `LifecycleStatus`). The refusal is the machine's
+   * `nextAction.disabledBecause`, and its way out comes with it: the button is
+   * drawn refused, in place, by `RefusedAction`. The action refuses anyway — a
+   * `"use server"` export is a public endpoint — but an organizer should not
+   * have to press a thing to find out it will not work.
+   *
+   * The question completing must ask first, when some rounds have no scores, is
+   * `nextAction.asks` (`completingCheckFor`, the action's own check). Asked
+   * before the free plan's notice — one topic per dialog — and the server asks
+   * it too, for a page that has sat open while a round's cards went in or out.
+   */
+  status: LifecycleStatus;
   isAdmin: boolean;
   configUnlocked: boolean;
   summary: LifecycleSummary;
-  /**
-   * Results recorded so far, so the status can be checked against reality.
-   *
-   * Every round and both sources — `state.resultsIn`, not `matchProgress`,
-   * which counts the active stage's matches alone and so left a stroke-play
-   * tournament played entirely in draft with no warning at all.
-   */
-  resultsIn?: number;
-  /**
-   * Why the next phase cannot be entered yet, or undefined when it can.
-   *
-   * Computed on the server from `phase-gate.ts`, so the button and the action
-   * refuse for the same reason in the same words. The action refuses anyway —
-   * a disabled button stops nobody, and a `"use server"` export is a public
-   * HTTP endpoint — but an organizer should not have to press a thing to find
-   * out it will not work.
-   */
-  blockedReason?: string;
-  /**
-   * The question completing must ask first, when some rounds have no scores (`completingCheckFor`,
-   * the action's own check). Asked before the free plan's notice — one topic per dialog — and the
-   * server asks it too, for a page that has sat open while a round's cards went in or came out.
-   */
-  unplayedAsk?: string;
   /**
    * What setup still has open that does not stop a launch — no tee sheet, no
    * money answer, no flights (`launchCheck`, the setup flow's own steps). Said
@@ -132,15 +122,14 @@ export function LifecycleBar({
     } else if (res?.needsDeleteConfirm) setConfirmingDelete(true);
     else if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
   };
-  const meta = STATUS_META[status] ?? STATUS_META.draft;
-  // The same answer the server gives — `configurationLocked` is what
-  // `isSetupLocked` and `assertUnlocked` both call. This component could not
-  // reach the old copy: it lived in a `server-only` module.
-  const locked = configurationLocked({ status, configUnlocked });
-  const mismatch = lifecycleMismatch({ status, resultsIn, playersEntered: summary.players });
+  // The machine's lock, the same one the server's actions ask.
+  const locked = status.locked;
+  const mismatch = status.underWay;
+  const launched = status.step !== "setting-up";
+  const completed = status.step === "completed";
 
   /**
-   * The one next step, decided in `domain/lifecycle-state.ts`.
+   * The one next step, decided by the state machine (`tournamentStatus`).
    *
    * It was a ladder of `if`s here, and being local is what let it be wrong:
    * on a draft tournament with results in it, it offered "Start taking
@@ -149,7 +138,10 @@ export function LifecycleBar({
    * inches. One function answers it now, and the dashboard reads the same one
    * to decide whether its own header still deserves a primary button.
    */
-  const action = nextLifecycleAction({ status, resultsIn });
+  const action = status.nextAction;
+  /** What pressing it moves the status to — only Complete and Reopen move it here; Launch has its dialog. */
+  const to = action?.kind === "complete" ? "completed" : action?.kind === "reopen" ? "live" : null;
+  const unplayedAsk = action?.asks ?? undefined;
 
   return (
     <>
@@ -177,20 +169,17 @@ export function LifecycleBar({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span className="card-kicker">Tournament status</span>
-          <span className={`tag ${meta.tag}`} style={{ fontSize: 13 }}>
-            {status === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 13, marginRight: 5 }} />}
-            {meta.label}
+          {/* THE MACHINE'S CHIP (PR 3): the step, and what qualifies it —
+              "Setting up · results in" where this card used to print "Setting
+              up" beside a second "Being played" chip (D5), and "Play over" for
+              the window between the last card and the result (2d). */}
+          <span className={`tag ${status.tag}`} style={{ fontSize: 13 }}>
+            {status.step === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 13, marginRight: 5 }} />}
+            {status.chip}
           </span>
-          {/* The observed state, beside the stored one rather than instead of
-              it. "Draft" is a true fact about a column the organizer owns;
-              "Being played" is a true fact about the golf. Printing only the
-              first is what made this screen read as nonsense, and printing
-              only the second would be this file correcting a status it has
-              said all along it must only report. See LifecycleWarning.chip. */}
-          {mismatch && (
-            <span className="tag tag-accent" style={{ fontSize: 13 }}>
-              <Icon name="golf" style={{ marginRight: 5 }} />
-              {mismatch.chip}
+          {status.chipDetail && (
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              {status.chipDetail}
             </span>
           )}
           {locked && (
@@ -199,21 +188,24 @@ export function LifecycleBar({
             </span>
           )}
           <div style={{ flex: 1 }} />
-          {isAdmin && action && (
+          {isAdmin && action && action.enabled && (action.kind === "draw" || action.kind === "schedule") && (
+            // A round owes its draw, or the league's next week its day (2e): the
+            // way there, not a status change.
+            <Link href={action.href} className="btn btn-primary">
+              {action.label} <Icon name="arrow-right" />
+            </Link>
+          )}
+          {isAdmin && action && action.enabled && action.kind !== "draw" && action.kind !== "schedule" && (
             <button
               type="button"
-              className={action.to === "live" ? "btn btn-secondary" : "btn btn-primary"}
-              disabled={pending || !!blockedReason}
-              // The reason travels with the control, so a disabled button is
-              // never a dead end somebody has to guess at.
-              title={blockedReason}
+              className={action.kind === "reopen" ? "btn btn-secondary" : "btn btn-primary"}
+              disabled={pending}
               onClick={() => {
                 setRefused("");
                 if (action.kind === "launch") {
                   setConfirming(true);
                   return;
                 }
-                const to = action.to;
                 if (!to) return;
                 if (to === "completed" && unplayedAsk) {
                   setUnplayedConfirmed(false);
@@ -224,7 +216,7 @@ export function LifecycleBar({
                   setConfirmingDelete(true);
                   return;
                 }
-                if (to === "completed" || (to === "live" && status === "completed")) {
+                if (to === "completed" || (to === "live" && completed)) {
                   setConfirmingStatus(to);
                   return;
                 }
@@ -239,6 +231,19 @@ export function LifecycleBar({
           )}
         </div>
 
+        {/* REFUSED IN PLACE (PR 3, `RefusedAction`): the button the machine
+            refuses, its reason directly under it, ending in the way out. It
+            was a disabled button with the reason in a tooltip and a second
+            card below — "Not yet — launch tournament" — saying it again. */}
+        {isAdmin && action && !action.enabled && (
+          <RefusedAction
+            label={action.label}
+            icon={action.kind === "launch" ? "rocket-launch" : action.kind === "complete" ? "check-circle" : undefined}
+            reason={action.disabledBecause ?? ""}
+            wayOut={action.wayOut}
+          />
+        )}
+
         {/* The disagreement, in the card that shows the status it disagrees
             with. One idea and one sentence: what launching DOES is on the
             dialog that launching opens, which is where somebody deciding
@@ -251,7 +256,7 @@ export function LifecycleBar({
         {/* THE ALERT, from the start rather than at the last click: the free
             plan deletes this tournament when it is completed, and the time to
             decide to keep it is before then. */}
-        {deletesOnComplete && status !== "completed" && (
+        {deletesOnComplete && !completed && (
           <p role="note" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             <Icon name="warning-circle" style={{ color: "var(--color-danger)" }} />{" "}
             <span style={{ fontWeight: 600 }}>
@@ -267,7 +272,7 @@ export function LifecycleBar({
         {/* AND AFTER: completed on the free plan, it is read-only until the
             day it goes (2026-10-21) — said here, where the organizer lands,
             with the two ways to keep it. */}
-        {deletesOnComplete && status === "completed" && (
+        {deletesOnComplete && completed && (
           <p role="note" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             <Icon name="warning-circle" style={{ color: "var(--color-danger)" }} />{" "}
             <span style={{ fontWeight: 600 }}>
@@ -279,7 +284,7 @@ export function LifecycleBar({
         )}
         {/* Not offered on a lapsed club's read-only archive: there is nothing
             to unlock it FOR, and the banner above every screen says why. */}
-        {isAdmin && isLaunched(status) && !archived && (
+        {isAdmin && launched && !archived && (
           <button
             type="button"
             className="btn btn-secondary"
@@ -300,10 +305,12 @@ export function LifecycleBar({
        * Both messages name the screen that fixes it, because a refusal that
        * does not say what to do next makes the app the obstacle.
        *
-       * `refused` takes precedence: if the server said no, that is the newer
-       * and more specific answer.
+       * Only the SERVER'S answer now (PR 3): a refusal known before the press
+       * is drawn in place by `RefusedAction`, under the button it refuses. This
+       * card is for the press the page could not foresee — a card submitted
+       * while it sat open.
        */}
-      {isAdmin && (refused || blockedReason) && (
+      {isAdmin && refused && (
         <div
           className="card elev-sm"
           style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 6 }}
@@ -316,7 +323,7 @@ export function LifecycleBar({
               dashboard's "Needs you now" and this card do not both spell out
               the same dispute in full. */}
           {(() => {
-            const reason = refused || blockedReason || "";
+            const reason = refused;
             const cut = reason.indexOf(". ");
             return cut < 0 ? (
               <p className="text-muted" style={{ fontSize: 14, margin: 0, lineHeight: 1.55 }}>

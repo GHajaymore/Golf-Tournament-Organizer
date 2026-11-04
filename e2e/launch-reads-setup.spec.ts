@@ -81,8 +81,11 @@ test("launch is refused in place for a scramble with no sides, and warns about t
     const launch = page.getByRole("button", { name: "Launch tournament" }).first();
     await expect(launch, "Launch tournament is not offered").toBeVisible({ timeout: 30_000 });
     await expect(launch, "Launch went through over a scramble with no sides").toBeDisabled();
-    await expect(launch).toHaveAttribute("title", `${NO_SIDES} Make the sides on Teams & pairs, then launch.`);
-    await expect(page.getByText(NO_SIDES).first()).toBeVisible();
+    // The reason under the button, ending in the way out (`RefusedAction`, state machine PR 3).
+    await expect(launch).toHaveAttribute("aria-disabled", "true");
+    const reason = page.locator(`#${await launch.getAttribute("aria-describedby")}`);
+    await expect(reason).toContainText(`${NO_SIDES} Make the sides on Teams & pairs, then launch.`);
+    await expect(reason.getByRole("link", { name: "Open Teams & pairs" })).toHaveAttribute("href", "/teams");
     expect(await status(), "refusing changed the tournament").toBe("ready");
 
     // The sides are made: Launch opens, and the dialog lists what is still open, first.

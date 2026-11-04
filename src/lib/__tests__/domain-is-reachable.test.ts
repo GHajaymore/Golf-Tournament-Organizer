@@ -179,7 +179,6 @@ const KNOWN_DEAD: string[] = [
   // render tests (render.test.tsx, back-nine-hole-numbers.test.tsx) still pin the old full-page card;
   // moving them to the new card and deleting this is the Print kit's slice 2.
   "components/TeeSheetPrint.tsx:TeeSheetPrint",
-  "lib/domain/attendance.ts:isAttendanceMode",
   "lib/domain/attest.ts:enterableBy",
   "lib/domain/bracket.ts:pickQualifiers",
   "lib/domain/bracket.ts:splitBrackets",
@@ -214,12 +213,14 @@ const KNOWN_DEAD: string[] = [
   "lib/services/identity-repair.ts:loadRepair",
   "lib/services/league-nomination.ts:clubsIn",
   "lib/services/tournament.ts:expectedRrTotal",
-  // The state machine, PR 1 of 9 (proposal 3 Nov): built beside the readers it
-  // replaces and held to them by tournament-status-shadow.test.ts. PR 2 put the
-  // setup flow on the facts read's batch; PR 3 gives these two their first
-  // callers, and the two lines come off then.
-  "lib/domain/tournament-status.ts:tournamentStatus",
-  "lib/services/tournament-facts.ts:tournamentFactsFor",
+  // The state machine, PR 3 of 9 (proposal 3 Nov): the dashboard's status card
+  // read these two until the card read `tournamentStatus(facts)`. They are kept,
+  // uncalled by any screen, as the record `tournament-status-shadow.test.ts`
+  // holds the machine to — "today's readers beside the machine" — and PR 9
+  // deletes the dead twins with the shadow ("a dead twin is a second copy
+  // waiting to be used").
+  "lib/domain/lifecycle-state.ts:lifecycleMismatch",
+  "lib/domain/lifecycle-state.ts:nextLifecycleAction",
 ];
 
 const dead: Dead[] = [];

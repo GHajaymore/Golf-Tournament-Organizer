@@ -259,6 +259,12 @@ export interface SetupStep {
   missing: string;
   done: boolean;
   state: SetupStepState;
+  /**
+   * Open, and nothing waits for it — set by the state machine's rail
+   * (`flowFromStatus`, PR 3): a medal's flights, the money answer. Absent on
+   * this file's own flow, which has no such idea.
+   */
+  optional?: boolean;
 }
 
 export interface SetupFlow {

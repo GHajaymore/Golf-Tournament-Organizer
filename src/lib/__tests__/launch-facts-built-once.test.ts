@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readSource, stripComments } from "./source";
+import { setupFlow } from "../domain/setup-flow";
+import { setupFactsOf, tournamentStatus } from "../domain/tournament-status";
+import { screenName } from "../nav";
+import { FAMILY_FIXTURES, FAMILIES } from "../domain/__tests__/tournament-facts-fixtures";
 
 /**
  * THE LAUNCH FACTS ARE BUILT ONCE (gap G3, 2026-10-31).
@@ -58,11 +62,31 @@ describe("one builder of the launch facts", () => {
   });
 
   it("the dashboard and the action ask the setup flow's verdict", () => {
-    expect(readSource("src/app/(app)/dashboard/page.tsx")).toMatch(/await launchCheckFor\(session\.eventId\)/);
+    /**
+     * Since the state machine's PR 3 the dashboard's button asks the machine
+     * (`tournamentStatusFor`), and the machine's launch refusal IS the flow's
+     * verdict first — `todayLaunch.refusal`, from the same builder — then the
+     * panel's added holds. So the button is never live where the action, which
+     * still asks `launchCheckFor` until PR 4, would refuse: the guarantee this
+     * test exists for. Pinned in source here and in behaviour below.
+     */
+    expect(readSource("src/app/(app)/dashboard/page.tsx")).toMatch(/await tournamentStatusFor\(session\.eventId, state\.today\)/);
+    expect(readSource("src/lib/domain/tournament-status.ts")).toMatch(/const todayLaunch = flow\?\.launch \?\? null;/);
+    expect(readSource("src/lib/domain/tournament-status.ts")).toMatch(/:\s*\(todayLaunch\?\.refusal \?\? /);
     expect(readSource("src/app/actions/tournament.ts")).toMatch(/const \{ refusal \} = await launchCheckFor\(eventId\)/);
     // And the flow's verdict is the builder's, so the rail asks it too.
     expect(readSource("src/lib/domain/setup-flow.ts")).toMatch(/launchCheck\(/);
     expect(readSource("src/lib/domain/launch-check.ts")).toMatch(/launchRefusal\(launchFactsFrom\(f\)\)/);
+  });
+
+  it("the machine refuses everything the action's gate refuses, in the gate's own words (PR 3)", () => {
+    for (const family of FAMILIES.filter((f) => f !== "casual")) {
+      for (const over of [{}, { dated: false }, { confirmed: 0 }, { rounds: [] }, { missingCards: [{ label: "Round 1", course: "Invented Links" }] }]) {
+        const f = { ...FAMILY_FIXTURES[family](), ...over };
+        const gate = setupFlow(setupFactsOf(f), (h) => screenName(h)).launch.refusal;
+        if (gate) expect(tournamentStatus(f).refusals.launch, `${family} ${JSON.stringify(over)}`).toBe(gate);
+      }
+    }
   });
 
   it("SECURITY: the action reads setup only after the organizer gate, for the event it resolved", () => {

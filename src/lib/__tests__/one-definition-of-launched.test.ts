@@ -122,12 +122,18 @@ describe("what locked means is written once", () => {
       "src/lib/services/action-shared.ts",
       "src/app/actions/roster.ts",
       "src/app/(app)/roster/page.tsx",
-      "src/components/LifecycleBar.tsx",
+      // The state machine (PR 3): its locks ask the shared predicate…
+      "src/lib/domain/tournament-status.ts",
     ];
     for (const file of readers) {
       expect(readSource(file), `${file} no longer asks the shared question`).toMatch(
         /configurationLocked\(|isSetupLocked\(/,
       );
     }
+    // …and `LifecycleBar`, the fifth copy, reads the machine's lock rather than
+    // asking it again: the card is handed `statusCardOf(facts).locked`, which is
+    // `locks.details.locked`. Neither a copy nor a lost check.
+    expect(readSource("src/components/LifecycleBar.tsx")).toMatch(/const locked = status\.locked;/);
+    expect(readSource("src/lib/domain/tournament-status.ts")).toMatch(/locked: st\.locks\.details\.locked,/);
   });
 });

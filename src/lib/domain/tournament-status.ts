@@ -29,8 +29,9 @@
  * ruling of 3 Nov (section 8): which steps HOLD launch per format family, when
  * a family's play is over, and the lock's reason and way out.
  */
-import { isFinished, isLaunched } from "./lifecycle-state";
-import { setupFlow, type SetupFacts, type SetupFlow } from "./setup-flow";
+import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
+import { setupFlow, type SetupFacts, type SetupFlow, type SetupStep } from "./setup-flow";
+import type { LaunchCheck } from "./launch-check";
 import { completingCheckFor, finishRefusal, playRefusal } from "./phase-gate";
 import type { BracketView } from "./bracket";
 import { screenName } from "@/lib/nav";
@@ -105,6 +106,15 @@ export interface TournamentFacts {
   correction: { scope: LockScope; by: string; reason: string; until: string } | null;
   /** "match" is a casual round. */
   shape: string;
+  /**
+   * THE ORGANIZER MADE IT A LEAGUE — its KIND, never its round count (Golf
+   * Pro, PR 3: "a 36-hole medal is not a league"). True when the tournament is
+   * called a league (`playKind`), keeps a league table of clubs
+   * (`leaguePoints`), or asks a weekly sign-up (`attendanceMode` other than
+   * everyone — "weekly-league attendance", domain/attendance.ts). Read by
+   * `tournamentFamily`, and only together with a weekly round.
+   */
+  league: boolean;
   named: boolean;
   /** `Event.dates` is not empty — the launch gate's own `dated`. */
   dated: boolean;
@@ -181,6 +191,13 @@ export interface StatusStep {
   done: boolean;
   /** While this step is open, launch is refused. Optional steps never hold. */
   holds: boolean;
+  /**
+   * OPEN, AND NOTHING WAITS FOR IT (panel 8.2, "Shown, optional"): a medal's
+   * flights ("Optional — one field"), the money answer, a second round's day,
+   * a league's later weeks. Shown unticked with its words; never the guide's
+   * current step and never a refusal. Exactly `!done && !holds`.
+   */
+  optional: boolean;
 }
 
 export type NextKind = "launch" | "complete" | "reopen" | "draw" | "schedule";
@@ -202,6 +219,8 @@ export interface StatusWarning {
   says: string;
   fix: string;
   href: string;
+  /** What the sidebar calls the screen it is fixed on — the launch dialog names it. */
+  screen: string;
   afterLaunch: "open" | "unlock";
 }
 
@@ -233,15 +252,22 @@ const isWeekly = (t: string) => t === "Round Robin" || t === "Stroke Play Round"
 /**
  * WHICH FAMILY — first match wins, in the proposal's order (section 2e).
  *
- * League is the sidebar's own test (`navForRole`'s `isLeague`: more than one
- * weekly round), so the family and the menu cannot disagree about what a
- * league is. See the report on PR 1 for what that does to a 36-hole medal.
+ * A LEAGUE BY ITS KIND, NOT BY ITS ROUND COUNT (Golf Pro, PR 3). PR 1 took the
+ * sidebar's test — more than one weekly round — and that test calls a 36-hole
+ * medal a league: two Stroke Play Rounds are two "weekly" rounds. A
+ * championship over two days is one stroke-play competition (Rule 3.3; its
+ * Terms set the number of rounds, Committee Procedures 5A), and the league's
+ * one relaxation — only the next unplayed week needs a day (J08) — must never
+ * reach it. So a league is a tournament the organizer MADE one (`league`: its
+ * kind, its league table, its weekly sign-up) with a weekly round in it. The
+ * sidebar's "This week" door keeps its own question ("is there more than one
+ * round to show a week of?"), which is a door and not a ruling about golf.
  */
-export function tournamentFamily(f: Pick<TournamentFacts, "shape" | "rounds" | "bracketMode">): Family {
+export function tournamentFamily(f: Pick<TournamentFacts, "shape" | "rounds" | "bracketMode" | "league">): Family {
   const types = f.rounds.map((r) => r.type);
   if (f.shape === "match") return "casual";
   if (types.includes("Team Session")) return "teamCup";
-  if (types.filter(isWeekly).length > 1) return "league";
+  if (f.league && types.some(isWeekly)) return "league";
   if (hasKnockoutStage(f.rounds)) return f.bracketMode === "flights" ? "flightedKnockout" : "knockout";
   if (types.includes("Round Robin")) return "roundRobinFlights";
   if (types.includes("Single Match Stage")) return "match";
@@ -471,12 +497,28 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
     let done = s.done;
     let missing = s.missing;
     if (s.key === "event") {
+      // D4: the details step asks for the DATES the launch gate asks for — a
+      // venue alone no longer ticks it while Launch refuses "no dates".
       done = f.named && f.dated;
       missing = !f.dated ? "It needs its dates — mark them tentative if they are not fixed." : s.missing;
     } else if (s.key === "stages") {
-      done = !holdsNow && (f.rounds.length === 1 || f.rounds.every((r) => r.scheduled));
+      /**
+       * J08: A LEAGUE NEEDS ONLY ITS NEXT WEEK DATED (Golf Pro Q4). Inter-club
+       * weeks are arranged within a window, so a day or a deadline for the
+       * next unplayed week is a complete answer; later weeks are warned in the
+       * launch dialog and, once live, offered as the next action ("Set Week
+       * 3's day"). Every other family keeps "every round has a day or a
+       * deadline": a 36-hole championship with an undated Round 2 is not set up.
+       */
+      done =
+        !holdsNow && (family === "league" || f.rounds.length === 1 || f.rounds.every((r) => r.scheduled));
       if (holdsNow && f.missingCards.length > 0 && playing.length > 0 && f.rounds.every((r) => r.scorable)) {
         missing = `${andList(f.missingCards.map((c) => c.label))} ${f.missingCards.length === 1 ? "has" : "have"} no course card to score against.`;
+      } else if (holdsNow && family === "league") {
+        const week = nextUnplayedWeek(f);
+        if (week && !week.scheduled && f.rounds.every((r) => r.scorable) && f.missingCards.length === 0) {
+          missing = `${week.label || "The next week"} has no day and no deadline — only the next week needs one.`;
+        }
       }
     } else if (s.key === "grouping") {
       done = !holdsNow && f.groups > 0 && f.unplacedInFlights === 0;
@@ -487,8 +529,15 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
     }
     // A step that holds launch is never done.
     if (holdsNow) done = false;
-    return { key: s.key, href: s.href, label: s.label, question: s.question, missing, done, holds: holdsNow };
+    return { key: s.key, href: s.href, label: s.label, question: s.question, missing, done, holds: holdsNow, optional: !done && !holdsNow };
   });
+}
+
+/** A league's playing weeks after the next unplayed one that have neither a day nor a deadline (J08). */
+function laterUndatedWeeks(f: TournamentFacts): RoundFacts[] {
+  const next = nextUnplayedWeek(f);
+  if (!next) return [];
+  return f.rounds.filter((r) => r.playing && isWeekly(r.type) && r.position > next.position && !r.scheduled && !r.closed && !r.hasResult);
 }
 
 const DASHBOARD = "/dashboard";
@@ -510,7 +559,8 @@ function locksOf(f: TournamentFacts, family: Family): Record<LockScope, Lock> {
   const open: Lock = { locked: false };
   const out = Object.fromEntries(LOCK_SCOPES.map((s) => [s, open])) as Record<LockScope, Lock>;
   const finished = isFinished(f.status);
-  const blanket = isLaunched(f.status) && !f.configUnlocked;
+  // The shared predicate, not a second spelling of it (one-definition-of-launched.test.ts).
+  const blanket = configurationLocked(f);
   for (const scope of BLANKET) {
     if (!blanket) continue;
     out[scope] = finished
@@ -597,7 +647,10 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
       const enabled = refusals.launch === null;
       nextAction = {
         kind: "launch",
-        label: underWayUnlaunched ? "Launch it — it’s being played" : "Launch tournament",
+        // A control is not renamed by the state it is pressed in (PM/UX ruling, PR 3): the button is
+        // "Launch tournament" whether or not results are in. "It's being played" is said by the
+        // chip ("Setting up · results in") and the card's notice (`underWay`), never by the button.
+        label: "Launch tournament",
         href: DASHBOARD,
         enabled,
         disabledBecause: enabled ? null : refusals.launch,
@@ -647,20 +700,40 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
       // A hold is a refusal, not a warning; and a step not shown warns about nothing.
       if (steps.some((s) => s.holds && s.href === w.href)) continue;
       if (w.href !== "/foursomes" && !steps.some((s) => s.href === w.href)) continue;
-      warnings.push({ says: w.says, fix: w.fix, href: w.href, afterLaunch: w.afterLaunch });
+      if (family === "league" && w.href === "/stages") {
+        // J08: the later weeks, by name — never "some rounds", and never a hold.
+        const later = laterUndatedWeeks(f);
+        if (later.length === 0) continue;
+        warnings.push({
+          says: `${andList(later.map((r) => r.label || "A week"))} ${later.length === 1 ? "has" : "have"} no day or deadline yet. Only the next week needs one now; give the others theirs as the season goes.`,
+          fix: w.fix,
+          href: w.href,
+          screen: w.screen,
+          afterLaunch: w.afterLaunch,
+        });
+        continue;
+      }
+      warnings.push({ says: w.says, fix: w.fix, href: w.href, screen: w.screen, afterLaunch: w.afterLaunch });
     }
     if ((family === "stroke" || family === "stableford") && f.groups > 0 && f.unplacedInFlights > 0) {
       warnings.push({
         says: `${playersAre(f.unplacedInFlights)} in the field but in no flight.`,
-        fix: "Put them in one on Flights",
+        fix: `Put them in one on ${screenName("/grouping")}`,
         href: "/grouping",
+        screen: screenName("/grouping"),
         afterLaunch: "unlock",
       });
     }
   }
   const last = f.endOn || f.startOn;
   if (!launched && /^\d{4}-\d{2}-\d{2}$/.test(last) && last < f.today) {
-    warnings.push({ says: "Its dates have passed and it was never launched.", fix: "Launch it or change its dates on Tournament details", href: "/event", afterLaunch: "open" });
+    warnings.push({
+      says: "Its dates have passed and it was never launched.",
+      fix: `Launch it or change its dates on ${screenName("/event")}`,
+      href: "/event",
+      screen: screenName("/event"),
+      afterLaunch: "open",
+    });
   }
 
   const chip =
@@ -687,5 +760,139 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
     locks: locksOf(f, family),
     refusals,
     warnings,
+  };
+}
+
+/* ---------------------------------------------- what the screens draw (PR 3) */
+
+/**
+ * THE CHIP'S TONE, per step — one table, so the context bar and the dashboard's
+ * status card cannot colour the same step two ways. "Play over" takes the
+ * accent: it is the one step that is waiting on the organizer.
+ */
+export const STEP_TAG: Record<Step, string> = {
+  "setting-up": "tag-neutral",
+  live: "tag-accent-2",
+  "play-over": "tag-accent",
+  completed: "tag-neutral",
+};
+
+/**
+ * THE SETUP RAIL, AS THE MACHINE SEES IT (PR 3) — the rail, its footer, the
+ * journey card and the checklist all draw this, so a step cannot be "still to
+ * do" on one of them while Launch is allowed on another (D1, D4).
+ *
+ * The guide's current step is the machine's: the first step that HOLDS
+ * launch. A step that is open and holds nothing — a medal's flights, the money
+ * answer, a second round's day — is `optional`: shown unticked, in its own
+ * words, and never where the guide points. So `complete` is exactly "nothing
+ * holds launch", which is what the panel ruled (8.2): optional steps never
+ * hold the guide open.
+ */
+export function flowFromStatus(st: TournamentStatus, launched: boolean): SetupFlow | null {
+  if (st.family === "casual") return null;
+  const current = st.setup.current;
+  const steps: SetupStep[] = st.setup.steps.map((s) => ({
+    key: s.key,
+    href: s.href,
+    label: s.label,
+    question: s.question,
+    missing: s.missing,
+    done: s.done,
+    optional: s.optional,
+    state: s.done ? "done" : current && s.key === current.key ? "current" : "todo",
+  }));
+  const complete = current === null;
+  const readyToLaunch = complete && !launched;
+  return {
+    steps,
+    current: current ? (steps.find((s) => s.key === current.key) ?? null) : null,
+    doneCount: st.setup.done,
+    complete,
+    readyToLaunch,
+    launched,
+    launchBlocked: readyToLaunch ? st.refusals.launch : null,
+    launch: launchDialogOf(st, launched),
+  };
+}
+
+/**
+ * WHAT THE LAUNCH DIALOG SAYS — the machine's refusal and its warnings, and the
+ * rail's own count of what is open. Built from the status, so the dialog, the
+ * button and the rail are one verdict.
+ */
+export function launchDialogOf(st: TournamentStatus, launched: boolean): LaunchCheck {
+  return {
+    refusal: launched ? null : st.refusals.launch,
+    warnings: st.warnings.map((w) => ({ says: w.says, fix: w.fix, href: w.href, screen: w.screen, afterLaunch: w.afterLaunch })),
+    stepsOpen: st.setup.steps.filter((s) => !s.done).length,
+    steps: st.setup.of,
+  };
+}
+
+/**
+ * THE RAIL FOR A SET-UP SCREEN, from the setup side of the facts alone.
+ *
+ * The rail, its footer and the setup checklist ask only setup questions, so
+ * they do not pay for the three facts a live tournament's whole state knows (a
+ * knockout's draws, a cup's verdict, the review queue) — those decide play
+ * over and Complete, which nothing here returns. "Today" is not asked either:
+ * it only dates the "its dates have passed" warning, which the dashboard's
+ * launch dialog says from the whole status.
+ */
+export function setupFlowOf(f: SetupSideFacts): SetupFlow | null {
+  const st = tournamentStatus({ ...f, today: "", knockout: null, cupDecided: null, review: { pendingConfirmations: 0, disputed: 0 } });
+  return flowFromStatus(st, isLaunched(f.status));
+}
+
+/**
+ * WHAT THE DASHBOARD'S STATUS CARD DRAWS (`LifecycleBar`), as plain values a
+ * client component can be handed: the chip and its tone, the lock, the one
+ * next action with its refusal and way out, and the results-before-launch
+ * notice. One builder, so the card cannot pick a second answer to any of them.
+ */
+export interface StatusCard {
+  step: Step;
+  /** "Setting up", "Setting up · results in", "Live · Suspended", "Play over", "Completed". */
+  chip: string;
+  /** The tone — `STEP_TAG[step]`. */
+  tag: string;
+  /** Under "Play over": what ended play, and that results are not released. */
+  chipDetail: string;
+  /** The blanket lock as the machine states it (`locks.details`) — scoped locks are PR 5. */
+  locked: boolean;
+  /** THE one button, with its refusal in place. */
+  nextAction: NextAction | null;
+  /** Results in on a tournament never launched (`underWayNotice`). */
+  underWay: { title: string; detail: string } | null;
+}
+
+export function statusCardOf(f: TournamentFacts, st: TournamentStatus = tournamentStatus(f)): StatusCard {
+  return {
+    step: st.step,
+    chip: st.chip,
+    tag: STEP_TAG[st.step],
+    chipDetail: st.chipDetail,
+    locked: st.locks.details.locked,
+    nextAction: st.nextAction,
+    underWay: underWayNotice(f, st),
+  };
+}
+
+/**
+ * RESULTS ARE IN AND IT WAS NEVER LAUNCHED — the notice on the dashboard's
+ * status card (it absorbs `lifecycleMismatch`'s words). Counted from each
+ * round's `hasResult`, the one definition — so a knockout's recorded ties
+ * count here, as they always did on the scoring gate (D2).
+ */
+export function underWayNotice(f: TournamentFacts, st: TournamentStatus): { title: string; detail: string } | null {
+  if (!st.underWayUnlaunched) return null;
+  const played = f.rounds.filter((r) => r.hasResult).map((r) => r.label || "A round");
+  return {
+    title: `${andList(played)} ${played.length === 1 ? "has" : "have"} results in, but this tournament hasn’t been launched`,
+    detail:
+      `Scoring works either way, so nothing is stuck — but ` +
+      `${f.confirmed > 0 ? `the ${f.confirmed} in the field can` : "anyone in the field can"} ` +
+      `already open the board and their card, on a tournament that still says it is setting up.`,
   };
 }
