@@ -38,11 +38,50 @@ import { PrismaClient } from "@prisma/client";
 let queries = 0;
 /** Each statement of the run in progress, its parameters blanked, so two runs can be compared. */
 let statements: string[] = [];
+/** The marked statement `settle()` sends (below), and how many of its reports have arrived. */
+const SETTLE_MARK = "zz-facts-cost-settle";
+let settled = 0;
 const counted = new PrismaClient({ log: [{ emit: "event", level: "query" }] });
 counted.$on("query", (e) => {
+  if (e.query.includes(SETTLE_MARK)) {
+    settled += 1;
+    return;
+  }
+  // The pool checking a connection it has held idle — no read sends it, and a slow run gives
+  // it the time to (seen 1, 7 and 8 times in one run with the reports held back 60 ms).
+  if (e.query.trim() === "SELECT 1") return;
   queries += 1;
   statements.push(e.query.replace(/\$\d+/g, "?"));
 });
+
+/**
+ * WAIT FOR THE LAST QUERY'S REPORT, NOT FOR THE CLOCK (2026-11-04).
+ *
+ * Prisma reports a statement to `$on("query")` a moment AFTER the statement's
+ * result has come back. A read's last query can therefore be reported after the
+ * read has returned — on a slow runner it was, and was counted in the NEXT run:
+ * CI saw 16, 18, 17, 17, 17 (the round-card check's event read, 0 then 2 then 1)
+ * and 33, 35, 34, 34, 34 (the knockout reports' read) where this machine sees 17
+ * and 34 every time. The total was right; the run it was charged to was not.
+ *
+ * So a run is bounded by one marked statement before it and one after, and is
+ * counted only once the closing one's report has arrived. Reports arrive in the
+ * order the statements ran, so every query of the run — and none of anybody
+ * else's — has been counted by then. No sleep, no guess. Proved by delaying every
+ * report 20 ms in order (as CI does, more): without the marks the counts read
+ * 30, 23, 32, 34, 34; with the closing mark only, 67, 34, 34, 34, 34 (the first
+ * run took the reports of what came before it); with both, and the pool's own
+ * `SELECT 1` left out, every run of every read the same at 20 and at 60 ms.
+ */
+async function settle(): Promise<void> {
+  const want = settled + 1;
+  await counted.$queryRawUnsafe(`SELECT '${SETTLE_MARK}' AS settle`);
+  const until = Date.now() + 10_000;
+  while (settled < want) {
+    if (Date.now() > until) throw new Error("the settle statement was never reported: the count cannot be trusted");
+    await new Promise((r) => setTimeout(r, 1));
+  }
+}
 // `src/lib/db.ts` takes the client already on `globalThis`, as it does across hot reloads.
 (globalThis as unknown as { prisma?: PrismaClient }).prisma = counted;
 
@@ -106,18 +145,21 @@ async function request(fn: () => Promise<unknown>, runs = 5): Promise<Cost> {
   const sent: string[][] = [];
   for (let i = 0; i < runs; i += 1) {
     generation += 1;
+    // Settled at both ends: before, so nothing sent earlier is charged to this run; after (below),
+    // so nothing of this run is charged to the next.
+    await settle();
     const q0 = queries;
     statements = [];
     const t0 = performance.now();
     await fn();
     times.push(performance.now() - t0);
+    await settle();
     counts.add(queries - q0);
     sent.push(statements);
   }
   times.sort((a, b) => a - b);
   // A read whose query count changes between identical runs is not measuring what it says.
-  // Said with what changed, statement by statement: on 2026-11-04 CI saw three different
-  // counts for the medal's facts read where this machine, slowed or not, saw 34 every time.
+  // Said with what changed, statement by statement — which is how the late report above was found.
   expect(counts.size, `the same read sent a different number of queries on two runs: ${sent.map((s) => s.length).join(", ")}${differences(sent)}`).toBe(1);
   return { ms: Math.round(times[Math.floor(runs / 2)] * 10) / 10, queries: [...counts][0] };
 }
