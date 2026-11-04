@@ -256,7 +256,10 @@ async function controlResult(page: Page): Promise<{ caught: number; falsePositiv
   };
 }
 
-const CONSOLE = [...consoleScreens(), ...standaloneScreens()].sort();
+// Plus Rounds & formats as a timeline (`?view=timeline`, step 2 of the rehaul, behind its switch):
+// its hero, chips, tiles and "Needs you" strip are new colour on both grounds, and the switch being
+// off must not mean nobody measures them before it is turned on.
+const CONSOLE = [...consoleScreens(), ...standaloneScreens(), "/stages?view=timeline"].sort();
 const PLAYER = playerScreens();
 
 /**

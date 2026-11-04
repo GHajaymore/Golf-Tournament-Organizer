@@ -12,8 +12,10 @@ import { prisma, makeClub, dropClub, makeEvent, signIn, centre, returnCard, said
  *   the switch      off by default: no panel, the round unfolds inline as it always has
  *   the panel       a named modal; focus moves in; nothing wider than the screen; its last
  *                   control can be reached AND pressed (nothing lies over it); the page behind
- *                   does not scroll
+ *                   does not scroll. Docked at 1280 it is a named region instead, not modal, and
+ *                   the page is not locked
  *   closing         Escape closes it and gives focus back to the round; a press outside closes it
+ *                   (below 1280); docked, a press on another round switches to it in one press
  *   over the panel  an alertdialog opened over it takes Escape first; the panel stays open
  *   one at a time   opening another round leaves exactly one panel showing
  *   one copy        no id is in the page twice, with the switch off or on (a round's controls
@@ -46,7 +48,11 @@ async function open(page: Page, timeline: boolean) {
   await expect(page.locator("main h1")).toBeVisible();
 }
 const head = (page: Page, stageId: string) => page.locator(`[id="round-${stageId}"] button[aria-expanded]`).first();
-const visibleDialogs = (page: Page) => page.locator('[role="dialog"]:visible');
+// The round's panel, either way it is drawn: a modal dialog below 1280, a named region docked
+// beside the list from 1280 (`SidePanel`'s `dock`, 2 Nov: docked, the list must take presses).
+const visibleDialogs = (page: Page) => page.locator(".side-panel:visible");
+const isDocked = (page: Page) => page.viewportSize()!.width >= 1280;
+const panelRole = (page: Page) => (isDocked(page) ? "region" : "dialog");
 const duplicateIds = (page: Page) =>
   page.evaluate(() => {
     const seen = new Map<string, number>();
@@ -78,22 +84,25 @@ test("the timeline opens one round at a time in a named panel that fits the scre
     await expect(visibleDialogs(page)).toHaveCount(0);
     await centre(head(page, r1.id));
     await head(page, r1.id).click();
-    const panel = page.getByRole("dialog", { name: "Round 1" });
+    const docked = isDocked(page);
+    const panel = page.getByRole(panelRole(page), { name: "Round 1" });
     await expect(panel).toBeVisible();
-    await expect(panel).toHaveAttribute("aria-modal", "true");
+    if (docked) await expect(panel, "the docked panel still says it is modal").not.toHaveAttribute("aria-modal", /.*/);
+    else await expect(panel).toHaveAttribute("aria-modal", "true");
     await expect(visibleDialogs(page)).toHaveCount(1);
     expect(await panel.evaluate((p) => p.contains(document.activeElement)), "focus did not move into the panel").toBe(true);
 
     // ── it fits: nothing wider than the screen, the panel inside it, its last control reachable ──
     const fit = await page.evaluate(() => {
-      const p = [...document.querySelectorAll('[role="dialog"]')].find((d) => d.getClientRects().length > 0);
+      const p = [...document.querySelectorAll(".side-panel")].find((d) => d.getClientRects().length > 0);
       const box = p!.getBoundingClientRect();
       return { overflow: document.documentElement.scrollWidth - innerWidth, left: box.left, right: box.right, width: innerWidth, bodyScroll: getComputedStyle(document.body).overflow };
     });
     expect(fit.overflow, "the page scrolls sideways with the panel open").toBeLessThanOrEqual(0);
     expect(fit.left, "the panel starts off the screen").toBeGreaterThanOrEqual(-0.5);
     expect(fit.right, "the panel runs off the screen").toBeLessThanOrEqual(fit.width + 0.5);
-    expect(fit.bodyScroll, "the page behind the panel still scrolls").toBe("hidden");
+    if (docked) expect(fit.bodyScroll, "the docked panel locks the list beside it").not.toBe("hidden");
+    else expect(fit.bodyScroll, "the page behind the panel still scrolls").toBe("hidden");
     // The last control a person can SEE: the panel also holds the closed "Customize this round"
     // section's controls, hidden, as the inline card always did.
     const last = panel.locator(".side-panel-body").locator("button, select, input, a[href]").filter({ visible: true }).last();
@@ -108,7 +117,7 @@ test("the timeline opens one round at a time in a named panel that fits the scre
 
     // ── an alertdialog over the panel takes Escape first, and lies over it ──
     const over = await page.evaluate(() => {
-      const host = [...document.querySelectorAll('[role="dialog"]')].find((d) => d.getClientRects().length > 0)!.querySelector(".side-panel-body")!;
+      const host = [...document.querySelectorAll(".side-panel")].find((d) => d.getClientRects().length > 0)!.querySelector(".side-panel-body")!;
       const back = document.createElement("div");
       back.className = "dialog-backdrop";
       back.dataset.standIn = "";
@@ -153,7 +162,17 @@ test("the timeline opens one round at a time in a named panel that fits the scre
     await head(page, r1.id).click();
     await expect(panel).toBeVisible();
     const viewport = page.viewportSize()!;
-    if (viewport.width > 600) {
+    if (docked) {
+      // Docked there is no modal "outside": the list takes the press. Another round is ONE press
+      // (it used to take two: the first only closed the panel).
+      await head(page, r2.id).click();
+      await expect(page.getByRole("region", { name: "Round 2" }), "a press on another round did not switch the docked panel").toBeVisible();
+      await expect(panel, "Round 1's panel stayed open beside Round 2's").toBeHidden();
+      await expect(visibleDialogs(page)).toHaveCount(1);
+      await page.keyboard.press("Escape");
+      await expect(visibleDialogs(page)).toHaveCount(0);
+      testInfo.annotations.push({ type: "not walked", description: "press outside: docked at this width the panel is not modal, so a press on the list is a press on the list; walked as one-press switching instead" });
+    } else if (viewport.width > 600) {
       await page.mouse.click(12, Math.round(viewport.height / 2));
       await expect(visibleDialogs(page), "a press outside did not close the panel").toHaveCount(0);
     } else {
@@ -164,7 +183,7 @@ test("the timeline opens one round at a time in a named panel that fits the scre
 
     // ── one at a time ──
     await head(page, r2.id).click();
-    await expect(page.getByRole("dialog", { name: "Round 2" })).toBeVisible();
+    await expect(page.getByRole(panelRole(page), { name: "Round 2" })).toBeVisible();
     await expect(visibleDialogs(page), "more than one panel showing").toHaveCount(1);
     await page.keyboard.press("Escape");
 
@@ -175,7 +194,7 @@ test("the timeline opens one round at a time in a named panel that fits the scre
     await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: r1.id } })).holes, { message: "nine holes was not stored" }).toBe(9);
     await open(page, true);
     await head(page, r1.id).click();
-    await expect(page.getByRole("dialog", { name: "Round 1" }).getByRole("radiogroup", { name: "Holes for Round 1" }).getByRole("radio").nth(1)).toBeChecked();
+    await expect(page.getByRole(panelRole(page), { name: "Round 1" }).getByRole("radiogroup", { name: "Holes for Round 1" }).getByRole("radio").nth(1)).toBeChecked();
   } finally {
     await dropClub(mark);
   }
@@ -196,7 +215,7 @@ test("deleting a round with a card in it is refused in the panel, and the refusa
     await open(page, true);
     await centre(head(page, r1.id));
     await head(page, r1.id).click();
-    const panel = page.getByRole("dialog", { name: "Round 1" });
+    const panel = page.getByRole(panelRole(page), { name: "Round 1" });
     await expect(panel).toBeVisible();
     const del = panel.getByRole("button", { name: "Delete Round 1", exact: true });
     await centre(del);
