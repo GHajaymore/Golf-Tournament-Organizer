@@ -325,8 +325,24 @@ function playOverWords(f: TournamentFacts, family: Family): string {
   return `Every round closed${tail}`;
 }
 
-/** The facts the setup flow takes — the same values, so its steps are its own. */
-function setupFactsOf(f: TournamentFacts): SetupFacts {
+/**
+ * The part of the facts a tournament being SET UP is judged on — everything
+ * but the day and the three facts only a live tournament's whole state knows.
+ * The setup rail and the launch gate read this much (PR 2), on every set-up
+ * screen, without paying for the rest.
+ */
+export type SetupSideFacts = Omit<TournamentFacts, "today" | "knockout" | "cupDecided" | "review">;
+
+/**
+ * THE FACTS THE SETUP FLOW TAKES — the same values, so its steps are its own.
+ *
+ * Since PR 2 this is the ONLY builder of `SetupFacts`: `setupFlowFor` and
+ * `launchCheckFor` (services/setup-flow.ts) read the tournament through
+ * `tournamentFactsFor`'s batch and come here, where they had a read of their
+ * own (`the-setup-flow-reads-the-facts.audit.test.ts` held every answer across
+ * the switch).
+ */
+export function setupFactsOf(f: SetupSideFacts): SetupFacts {
   const playing = f.rounds.filter((r) => r.playing);
   return {
     confirmed: f.confirmed,

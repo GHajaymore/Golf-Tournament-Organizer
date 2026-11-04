@@ -1,24 +1,24 @@
 import "server-only";
-import { prisma } from "../db";
 import { screenName } from "../nav";
-import { setupFlow, roundIsScheduled, type SetupFlow, type SetupFacts } from "../domain/setup-flow";
-import { isMatch } from "../tournament-shape";
-import { generatesPairings, isKnockoutRound, isPlayingRound } from "../stage-types";
-import { roundLabel } from "../domain/round-label";
-import { roundShapeMismatch } from "../domain/round-shape";
-import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
-import { isMoneyMode } from "../domain/money-mode";
-import { TEAM_FORMAT_NAMES } from "../formats";
-import { roundsMissingCards } from "./round-card-lines";
+import { setupFlow, type SetupFlow } from "../domain/setup-flow";
 import type { LaunchCheck } from "../domain/launch-check";
-import { isUnnamed } from "../domain/tournament-name";
+import { setupFactsFor } from "./tournament-facts";
 
 /**
  * The setup flow for one tournament, read once per screen.
  *
- * One query rather than four counts: the rail appears on every Set-up screen,
- * and a screen that already loads the whole event state should not pay for a
- * second round trip to draw a progress bar.
+ * THROUGH THE STATE MACHINE'S ONE READER (proposal 3 Nov, PR 2). This file had
+ * its own read of the tournament (`setupFactsFor`, eight counts and a list),
+ * beside `tournamentFactsFor`'s, each spelling "confirmed", "dated", "a saved
+ * tee sheet" for itself. It now takes the setup side of that batch
+ * (`setupFactsFor` in services/tournament-facts.ts, through `setupFactsOf`),
+ * which is request-cached, so the dashboard asking both the flow and the gate
+ * reads the tournament once. `the-setup-flow-reads-the-facts.audit.test.ts`
+ * was run against the old read first and held every answer across the switch.
+ *
+ * One round of queries rather than a screen's worth: the rail appears on every
+ * Set-up screen, and a screen that already loads the whole event state should
+ * not pay for a second build of it to draw a progress bar.
  *
  * Returns NULL for a match. Two people playing each other have no tournament
  * to set up — the match screen created the whole thing in one step — so
@@ -43,151 +43,4 @@ export async function launchCheckFor(eventId: string): Promise<LaunchCheck> {
   const read = await setupFactsFor(eventId);
   if (!read) return { refusal: "This tournament could not be found.", warnings: [], stepsOpen: 0, steps: 0 };
   return setupFlow(read.facts, screenName).launch;
-}
-
-/** The ONE reader of a tournament's setup facts, for the flow and for launch. */
-async function setupFactsFor(eventId: string): Promise<{ facts: SetupFacts; match: boolean } | null> {
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: {
-      name: true,
-      dates: true,
-      course: true,
-      shape: true,
-      status: true,
-      moneyMode: true,
-      organizationId: true,
-    },
-  });
-  if (!event) return null;
-
-  const [confirmed, stageRows, groups, venues, org, teamRounds, sides, unsided] = await Promise.all([
-    prisma.player.count({ where: { eventId, status: "confirmed" } }),
-    /**
-     * THE ROUNDS THEMSELVES, not a count of them.
-     *
-     * Two steps now ask a question of each round — "when is it?" and, where
-     * the scheduler draws them, "has it got fixtures?" — and neither can be
-     * answered by a number. It was `select: { type: true }` and a separate
-     * `match.count` across the whole event, which is how a round with no day
-     * and no draw sat inside a step reading DONE. See `SetupRound`.
-     *
-     * Ordered, because `roundLabel` numbers a round by where it sits among
-     * the others and an unordered list would number them by whatever the
-     * database happened to return.
-     */
-    prisma.stage.findMany({
-      where: { eventId },
-      select: {
-        id: true,
-        type: true,
-        format: true,
-        playedOn: true,
-        deadline: true,
-        cutEnabled: true,
-        teeSheet: true,
-        _count: { select: { matches: true } },
-      },
-      orderBy: { position: "asc" },
-    }),
-    /**
-     * FLIGHTS, not every Group row.
-     *
-     * Disclosed as a hole when the `rounds` work shipped and closed here: the
-     * flights step asks `groups > 0`, and that count included match carriers —
-     * player-less rows a play-off creates to hold its fixture. So a tournament
-     * whose only Group was a carrier passed the first half of the step on a
-     * phantom. Narrow, and real. Second time this column would have prevented
-     * something.
-     */
-    prisma.group.count({ where: { eventId, isCarrier: false } }),
-    prisma.eventCourse.count({ where: { eventId } }),
-    // The club's default, which the tournament inherits unless it says
-    // otherwise. Read so the guide does not ask a question the club has
-    // already answered — see `moneyAnswered`.
-    prisma.organization.findUnique({
-      where: { id: event.organizationId },
-      select: { moneyMode: true },
-    }),
-    /**
-     * THE SIDES — see `teams` on SetupFacts. `teamRounds` is the SAME test the
-     * sidebar uses to show Teams & pairs (layout.tsx counts stages whose format
-     * is in `TEAM_FORMAT_NAMES`), so the step and the menu entry cannot appear
-     * apart.
-     */
-    prisma.stage.count({ where: { eventId, format: { in: TEAM_FORMAT_NAMES } } }),
-    prisma.team.count({ where: { eventId } }),
-    prisma.player.count({ where: { eventId, status: "confirmed", teamMemberships: { none: {} } } }),
-  ]);
-  const facts: SetupFacts = {
-    confirmed,
-    groups,
-    rounds: stageRows.map((s) => ({
-      // The whole list, so the number is the one every other screen shows —
-      // see `round-number-source.test.ts` for what counting it here costs.
-      label: roundLabel(stageRows, s.id),
-      drawsPairings: generatesPairings(s.type),
-      scheduled: roundIsScheduled(s.playedOn, s.deadline),
-      scorable: roundShapeMismatch(s.type, s.format) === null,
-      cutFed: s.cutEnabled,
-      matches: s._count.matches,
-      // Asked only of a round the field turns up for together: a stroke round.
-      // A round robin, a knockout and a cup session draw their own fixtures.
-      ...(isPlayingRound(s.type) && !generatesPairings(s.type) && !isKnockoutRound(s.type) && s.type !== "Team Session" && !s.cutEnabled
-        ? { teeSheetSaved: !!s.teeSheet.trim() }
-        : {}),
-    })),
-    /**
-     * "New Tournament" is what `createEvent` falls back to when the name field
-     * is submitted blank, so it is the one string that means "not named yet"
-     * rather than a name somebody chose. Compared case-insensitively and
-     * trimmed, because it is a placeholder being recognised, not a value being
-     * validated.
-     */
-    // Since 2026-11-01 the placeholder may carry a year or "(2)" to keep it free (`isUnnamed`).
-    named: !isUnnamed(event.name),
-    dated: !!event.dates.trim(),
-    // The launch gate's own count, so the guide's "what is left" is its answer.
-    playingRounds: stageRows.filter((s) => isPlayingRound(s.type)).length,
-    // And its card fact, from the same reader the launch action refuses on.
-    missingCards: await roundsMissingCards(eventId),
-    // The same test `loadEventState` draws the whole field on.
-    straightKnockout: stageRows.length > 0 && isKnockoutRound(stageRows[0].type),
-    // Either the event's own course or a venue attached to it. A tournament
-    // that rotates venues names none on the event itself and is not therefore
-    // venue-less.
-    venued: !!event.course.trim() || venues > 0,
-    /**
-     * Answered here, or answered by the club and inherited.
-     *
-     * `isMoneyMode` rather than a truthiness test, for the reason the money
-     * screens already give of a stored mode: it is free text in the database,
-     * and a value nothing recognises is not an answer — it resolves through
-     * the same fallback an empty string does. Treating it as one would tick
-     * the step off on a typo.
-     */
-    moneyAnswered: isMoneyMode(event.moneyMode.trim()) || isMoneyMode((org?.moneyMode ?? "").trim()),
-    /**
-     * Launched, read through the same list `lifecycleMismatch` uses rather
-     * than by comparing to "live" here.
-     *
-     * That list is the definition of "the field can see this" — draft,
-     * registration and ready all mean they cannot — and writing a second
-     * version of it is how the guide would come to disagree with the warning
-     * that fires a day later about the very same thing.
-     */
-    launched: !PRE_LAUNCH_STATUSES.includes(event.status),
-    teams: { needed: teamRounds > 0, sides, unsided },
-    // A team cup: its two teams are its flights — see `cup` on SetupFacts.
-    ...(stageRows.some((s) => s.type === "Team Session")
-      ? {
-          cup: {
-            flights: groups,
-            unplaced: await prisma.player.count({ where: { eventId, status: "confirmed", groupId: null } }),
-          },
-        }
-      : {}),
-  };
-
-  return { facts, match: isMatch(event.shape) };
 }

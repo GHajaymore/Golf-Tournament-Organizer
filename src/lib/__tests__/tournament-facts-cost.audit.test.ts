@@ -65,7 +65,7 @@ vi.mock("react", async (importOriginal) => {
 vi.mock("@/lib/auth", () => ({ getSession: async () => null }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { tournamentFactsFor } = await import("@/lib/services/tournament-facts");
+const { tournamentFactsFor, tournamentFactsForMany } = await import("@/lib/services/tournament-facts");
 const { loadEventState } = await import("@/lib/services/tournament");
 const { setupFlowFor, launchCheckFor } = await import("@/lib/services/setup-flow");
 const { secretaryHomeFor } = await import("@/lib/services/whats-next");
@@ -204,7 +204,6 @@ afterAll(async () => {
   try {
     await clean();
   } finally {
-    // eslint-disable-next-line no-console
     console.log(`\nTHE FACTS READ, MEASURED (${TODAY}; median of 5, ms move with the machine, queries do not)\n${report.join("\n")}\n`);
     await prisma.$disconnect();
     await counted.$disconnect();
@@ -231,6 +230,13 @@ describe("the cost of the one read, per family", () => {
       line(`${which}: launchCheckFor`, launch);
       line(`${which}: loadEventState then the facts (one request)`, dashboard);
       line(`${which}:   so the facts add, on the dashboard`, { ms: Math.round((dashboard.ms - state.ms) * 10) / 10, queries: dashboard.queries - state.queries });
+      // A set-up dashboard asks the rail AND the gate in one request: one read since PR 2.
+      const both = await request(async () => {
+        await setupFlowFor(ids[which]);
+        await launchCheckFor(ids[which]);
+      });
+      line(`${which}: setupFlowFor + launchCheckFor (one request)`, both);
+      expect(both.queries, "the rail and the gate share the request's one read").toBe(flow.queries);
       expect(facts.queries, "a read that sends no query read nothing").toBeGreaterThan(0);
       // The machine reads it as what it is: live, and its family.
       const st = tournamentStatus((await tournamentFactsFor(ids[which], TODAY))!);
@@ -279,13 +285,22 @@ describe("the secretary's home on the seeded club", () => {
     const factsOnly = await request(async () => {
       for (const e of open) await tournamentFactsFor(e.id, TODAY);
     }, 3);
+    // The grouped read (PR 2): the whole club's facts in one batch.
+    const grouped = await request(async () => {
+      await secretaryHomeFor(session);
+      await tournamentFactsForMany(open.map((e) => e.id), TODAY);
+    }, 3);
     const n = open.length;
     report.push(`home: the seeded club, ${running.length} tournaments, ${n} running`);
     line(`home: today (secretaryHomeFor)`, home);
     line(`home: today + tournamentFactsFor × ${n} (one request)`, withFacts);
     line(`home: tournamentFactsFor × ${n}, with no home beside it`, factsOnly);
-    const ratio = withFacts.ms / home.ms;
-    report.push(`home: with the facts it takes ${Math.round(ratio * 100)}% of today's time (the panel's line is 120%)`);
+    line(`home: today + tournamentFactsForMany(${n}) (one request)`, grouped);
+    report.push(`home: one read per tournament takes ${Math.round((withFacts.ms / home.ms) * 100)}% of today's time; the grouped read ${Math.round((grouped.ms / home.ms) * 100)}% (the panel's line is 120%)`);
     expect(withFacts.queries).toBeGreaterThan(home.queries);
+    // The grouped read's own batch does not grow with the club: a fixed set of
+    // queries plus the card check per tournament (`roundsMissingCards`, four
+    // reads), not the batch per tournament.
+    expect(grouped.queries - home.queries).toBeLessThan(withFacts.queries - home.queries);
   });
 });

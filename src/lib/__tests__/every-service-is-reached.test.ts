@@ -63,7 +63,7 @@ const UNREACHED: Record<string, string> = {
 
   // ── Built ahead of its callers, on purpose ──
   "tournament-facts.ts:tournamentFactsFor":
-    "The state machine's one reader (proposal 3 Nov, PR 1). Nothing calls it until PR 2 makes setupFlowFor/launchCheckFor wrappers of it and PR 3 switches the dashboard; held to roundsWithResults meanwhile by tournament-facts.audit.test.ts.",
+    "The state machine's one reader (proposal 3 Nov). PR 2 put setupFlowFor/launchCheckFor on its batch (setupFactsFor, reached); this entry point and its grouped twin tournamentFactsForMany get their callers in PR 3 (the dashboard) and PR 6 (the secretary's home). Held to roundsWithResults and to the bracket screen meanwhile by tournament-facts.audit.test.ts.",
 };
 
 /** Every `.ts` under services. */
