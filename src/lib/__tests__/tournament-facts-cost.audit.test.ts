@@ -61,9 +61,13 @@ counted.$on("query", (e) => {
  * and 33, 35, 34, 34, 34 (the knockout reports' read) where this machine sees 17
  * and 34 every time. The total was right; the run it was charged to was not.
  *
- * So after each run one marked statement is sent, and the run is counted only
- * once ITS report has arrived. Reports arrive in the order the statements ran,
- * so every query of the run has been counted by then. No sleep, no guess.
+ * So a run is bounded by one marked statement before it and one after, and is
+ * counted only once the closing one's report has arrived. Reports arrive in the
+ * order the statements ran, so every query of the run — and none of anybody
+ * else's — has been counted by then. No sleep, no guess. Proved by delaying every
+ * report 20 ms in order (as CI does, more): without the marks the counts read
+ * 30, 23, 32, 34, 34; with the closing mark only, 67, 34, 34, 34, 34 (the first
+ * run took the reports of what came before it); with both, steady.
  */
 async function settle(): Promise<void> {
   const want = settled + 1;
@@ -137,6 +141,9 @@ async function request(fn: () => Promise<unknown>, runs = 5): Promise<Cost> {
   const sent: string[][] = [];
   for (let i = 0; i < runs; i += 1) {
     generation += 1;
+    // Settled at both ends: before, so nothing sent earlier is charged to this run; after (below),
+    // so nothing of this run is charged to the next.
+    await settle();
     const q0 = queries;
     statements = [];
     const t0 = performance.now();
