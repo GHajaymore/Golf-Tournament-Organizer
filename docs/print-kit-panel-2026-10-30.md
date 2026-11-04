@@ -353,7 +353,7 @@ Only these. Each one is **a larger card that folds to the normal card**, never s
   - the Reports door;
   - the overflow spec;
   - the guide, the PDF and the a pilot club cheat sheet.
-- **If it misses 13 Nov:** a pilot club uses today's main. That means Round codes' round signs (full page), plus the club's own scorecards as the paper backup. Nothing goes in during the freeze (19 Nov – 1 Dec).
+- **If it misses 13 Nov:** a pilot club uses today's main. That means Round codes' round signs (full page), plus the club's own scorecards as the paper backup. Nothing goes in during the freeze (19 Nov – 1 Dec). *(Superseded 4 Nov: the delivery plan's hold is 14 Nov – 1 Dec; see `docs/operations/runbook.md`.)*
 
 **Slice 2: December, after the freeze and after G1/G2.**
 - The dashboard's on-the-day line.
