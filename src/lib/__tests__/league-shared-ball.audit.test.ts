@@ -16,14 +16,19 @@ import { PrismaClient } from "@prisma/client";
  * the match turns entirely on the strokes. Worked from the Rules, by hand:
  *
  *   Rule 6.1    8.6 x 125/113 =  9.513     10.3 x 125/113 = 11.394
- *               20.4 x 125/113 = 22.566    25.7 x 125/113 = 28.429
+ *               20.4 x 125/113 = 22.566    24.0 x 125/113 = 26.549
  *   App. C      foursomes: 50% of the side's combined, UNROUNDED (Rule 6.2a)
- *               club A: 20.907 / 2 = 10.45 -> 10
- *               club B: 50.995 / 2 = 25.50 -> 25   (25.497...; rounding each
- *                                                 partner first says 26)
+ *               club A: 20.907 / 2 = 10.45 -> 10   (rounding each partner
+ *                                                 first: 21 / 2 = 10.5 -> 11)
+ *               club B: 49.115 / 2 = 24.56 -> 25   (rounding first: 50 / 2 = 25)
  *   match play  off the low SIDE: club B receives 25 - 10 = 15 strokes, on the
  *               holes of stroke index 1-15 (here, holes 1-15). Level gross, so
  *               B's net 3 beats A's 4 on each of them and 16-18 are halved.
+ *
+ * Chosen so that rounding each partner first moves ONE side only (A to 11,
+ * B stays 25), which gives B fourteen and halves the 15th. A first draft had
+ * both sides move up by one, kept the difference at fifteen, and let that
+ * mutation through.
  *
  *   npx vitest run --config vitest.audit.config.ts league-shared-ball
  */
@@ -128,7 +133,7 @@ beforeAll(async () => {
 
   const sideSpecs = [
     { club: clubA.id, tag: "A", indexes: [8.6, 10.3] },
-    { club: clubB.id, tag: "B", indexes: [20.4, 25.7] },
+    { club: clubB.id, tag: "B", indexes: [20.4, 24.0] },
   ];
   const sideId: string[] = [];
   for (const spec of sideSpecs) {
@@ -197,7 +202,7 @@ describe("a league week on foursomes is priced by Appendix C", () => {
     const { holes, b } = await thePairing();
     // Holes 1-15 are stroke index 1-15: B's net 3 against A's net 4.
     expect(holes.slice(0, 15), "the fifteen holes B receives a stroke on").toEqual(new Array(15).fill(b));
-    // Hole 16 is where 26 (each partner rounded first) would give one more.
+    // Hole 15 is the stroke A playing off 11 (each partner rounded first) would take back.
     expect(holes.slice(15), "level on the three holes nobody receives a stroke").toEqual(["H", "H", "H"]);
   });
 
@@ -211,7 +216,7 @@ describe("a league week on foursomes is priced by Appendix C", () => {
   });
 
   it("the committee's own allowance wins: at 40%, A plays off 8 and B off 20, so twelve holes", async () => {
-    // 40% of 20.907 = 8.36 -> 8; 40% of 50.995 = 20.40 -> 20; difference 12.
+    // 40% of 20.907 = 8.36 -> 8; 40% of 49.115 = 19.65 -> 20; difference 12.
     await prisma.stage.update({ where: { id: stageId }, data: { handicapAllowance: 40 } });
     try {
       const { holes, b } = await thePairing();
