@@ -288,6 +288,15 @@ workflow* on the **Round** workflow and give the plan by hand. The verdict and t
 run's summary, and the summary says which kind of round it was and what it leaves to the nightly or
 the weekly.
 
+**Watching it: one reader, never a loop.** `npm run qa:reader -- --watch <sha>` asks GitHub once
+every ten minutes and writes `.qa/reader.txt` in the main checkout; everybody else, every agent
+included, reads that file. Nobody runs `gh run watch` or polls: in the week of 2026-10-28 watchers
+hit GitHub's burst limit and called a round with 4 of its 36 parts done "finished". The reader
+says "finished" only when the Verdict job finished with every planned part done, says "unknown —
+re-ask" when GitHub would not answer (and then reads the run's public page), and the Verdict job
+posts the verdict on the commit it tested as the `round-verdict` status, so one read of a commit
+answers "what did the round say". The ruleset does not require that status.
+
 **A round the machine did not finish is re-run, not read.** When a verdict is INCOMPLETE, the
 **Round waiter** workflow re-runs its failed jobs — exactly the parts the machine stopped — up to
 the third attempt. Nothing else is re-run: NOT CLEAN is a finding.

@@ -10,7 +10,8 @@
  * GitHub every few seconds, hit its burst limit, and then called a round that had
  * run 4 of its 36 parts "finished". So there is ONE reader. It asks GitHub once
  * every ten minutes and writes what it learned to `.qa/reader.json` and
- * `.qa/reader.txt`; the main session and every agent read that file and never ask
+ * `.qa/reader.txt` in the MAIN checkout (whichever worktree runs it), and the main
+ * session and every agent read that file and never ask
  * GitHub themselves (no `gh run watch`, no polling loop — their briefs say so).
  *
  * Three rules, each with a test (`src/lib/__tests__/status-reader.test.ts`):
@@ -27,6 +28,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const STATUS_CONTEXT = "round-verdict";
@@ -89,6 +91,12 @@ export function line(r) {
 const REPO = process.env.GITHUB_REPOSITORY || "GHajaymore/Golf-Tournament-Organizer";
 const TEN_MINUTES = 10 * 60_000;
 
+/** The main checkout's `.qa/`, so every worktree reads the one file rather than one each. */
+function sharedDir() {
+  const r = spawnSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8" });
+  return r.status === 0 ? join(dirname(r.stdout.trim()), ".qa") : ".qa";
+}
+
 function gh(...a) {
   const r = spawnSync("gh", a, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (r.status !== 0) return { error: (r.stderr || "gh failed").trim().split("\n")[0] };
@@ -136,14 +144,15 @@ async function reading(shas) {
 }
 
 function write(r) {
-  mkdirSync(".qa", { recursive: true });
-  writeFileSync(".qa/reader.json", JSON.stringify(r, null, 1));
+  const dir = sharedDir();
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "reader.json"), JSON.stringify(r, null, 1));
   const text = [
     `Read ${r.at}${r.refused ? ` — GitHub refused: ${r.refused}; next reading later, not sooner` : ""}`,
     ...r.runs.map((x) => line(x) + (x.page ? ` (the run's page says: ${x.page})` : "")),
     ...r.heads.map((h) => `head ${h.sha.slice(0, 8)}: verify ${h.verify}`),
   ].join("\n");
-  writeFileSync(".qa/reader.txt", text + "\n");
+  writeFileSync(join(dir, "reader.txt"), text + "\n");
   console.log(text);
 }
 
