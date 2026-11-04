@@ -81,6 +81,12 @@ env:
   ADMIN_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
   # Keeps the build from trying to phone home during static generation.
   NEXT_TELEMETRY_DISABLED: "1"
+  # The build's heap, said rather than left to Node's default (2026-11-04). Every browser
+  # shard builds its own bundle, and the build had grown to Node's default ceiling of about
+  # 2 GB: three shards on the state-machine branch and one on a dependabot branch never
+  # started their server ("Next.js build worker exited with … SIGABRT", the heap at 2,040 MB
+  # when it gave up), so a run went red with no test run at all. A runner has 16 GB.
+  NODE_OPTIONS: --max-old-space-size=6144
 
 jobs:
   # ── Fast feedback: the things that fail most often and cost the least ─────

@@ -119,6 +119,9 @@ env:
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
   PRISMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
   NEXT_TELEMETRY_DISABLED: "1"
+  # The build's heap, said rather than left to Node's default of about 2 GB, which the build
+  # had grown to (ci.yml says the evidence, 2026-11-04). A runner has 16 GB.
+  NODE_OPTIONS: --max-old-space-size=6144
 
 jobs:
   plan:
