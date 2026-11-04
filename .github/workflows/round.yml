@@ -33,7 +33,7 @@ name: Round
 #
 # THREE KINDS OF ROUND (the panel, 2026-10-23 — docs/testing-panel-2026-10-23.md):
 #   pr        a pushed round/** branch: the round a change asks for before it merges
-#   nightly   nightly.yml calls this file on main (scheduled 02:00 UTC; it has been
+#   nightly   nightly.yml calls this file on main (scheduled 02:17 UTC; it has been
 #             starting 07:30–08:15 UTC, when GitHub has room): every pr layer, all
 #             six countries, the console crawl in full, the Android tablet and the
 #             libraries' published holes. A core change reaches production only

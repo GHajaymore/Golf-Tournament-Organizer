@@ -109,7 +109,7 @@ Not every layer runs in every round (the panel, 2026-10-23). Each layer says whe
 | | Runs | Layers |
 |---|---|---|
 | **A change's round** (`pr`) | when a change pushes `round/<name>-N` | the whole suite (Chromium at its three sizes), somewhere else, the American club, abroad, the iPhone, Safari (Mac and iPhone SE), the eleven tournaments — and the console crawl when the change touches input screens |
-| **The nightly** | scheduled 02:00 UTC on main (`nightly.yml`) — but GitHub starts a scheduled run when it has room, and the last eight (to 31 Oct) started **07:30–08:15 UTC** | every `pr` layer, all six countries, the console crawl in full, **plus the other browsers: the iPad, Firefox at three sizes, Chrome as installed**, the Android tablet, the libraries' holes and the quarantine's dates. When clean, it deploys what it cleared |
+| **The nightly** | scheduled 02:17 UTC on main (`nightly.yml`) — but GitHub starts a scheduled run when it has room, and the last eight (to 31 Oct) started **07:30–08:15 UTC** | every `pr` layer, all six countries, the console crawl in full, **plus the other browsers: the iPad, Firefox at three sizes, Chrome as installed**, the Android tablet, the libraries' holes and the quarantine's dates. When clean, it deploys what it cleared |
 | **The weekly** | Sunday 03:00 UTC (`weekly.yml`) | Edge as installed (and Chrome as installed again), the front door with its animation on |
 
 **Which browser runs where (the browser split, testing panel, 1 Nov 2026).** Core browsers per

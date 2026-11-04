@@ -109,9 +109,9 @@ export const ABROAD = [
 export const SCHEDULES = {
   all: "every layer, one after another (a round on one machine)",
   pr: "the round a change asks for before it merges",
-  // Scheduled for 02:00 UTC; GitHub starts a scheduled run when it has room, and the last eight
+  // Scheduled for 02:17 UTC; GitHub starts a scheduled run when it has room, and the last eight
   // nights (to 2026-10-31) it started between 07:30 and 08:15 UTC.
-  nightly: "the full round on main, every night (scheduled 02:00 UTC; it has been starting 07:30–08:15 UTC), with all six countries and the console crawl in full",
+  nightly: "the full round on main, every night (scheduled 02:17 UTC; it has been starting 07:30–08:15 UTC), with all six countries and the console crawl in full",
   weekly: "Chrome and Edge as installed, and the front door with its animation on, every Sunday",
 };
 
