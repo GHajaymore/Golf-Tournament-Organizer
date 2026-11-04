@@ -1,7 +1,7 @@
 /**
  * The unit suite as the MUTATION run sees it (`npm run mutation`, Stryker).
  *
- * The whole of `vitest.config.ts`, less three files that cannot pass under
+ * The whole of `vitest.config.ts`, less four files that cannot pass under
  * Stryker — measured 2026-10-23: the first two by running the suite inside an
  * instrumented sandbox (570 files, these the only failures), the third by
  * Stryker's own first run:
@@ -15,6 +15,13 @@
  *                                            Stryker's runner (one worker, kept
  *                                            alive) does not hand to Intl — its
  *                                            control then fails, as it should
+ *   icon-sprite                              holds that `IconSprite.tsx` OPENS with
+ *                                            "use client"; Stryker's sandbox puts
+ *                                            `// @ts-nocheck` above the first line of
+ *                                            every TypeScript file (its default
+ *                                            `disableTypeChecks`). Added 2026-11-04,
+ *                                            when the first nightly after #960 found
+ *                                            it in Stryker's first run
  *
  * Every other sweep that reads source passes on the instrumented copies, and
  * can never kill a mutant falsely: Stryker turns a mutant on at run time, not
@@ -28,6 +35,7 @@ export const CANNOT_RUN_IN_THE_SANDBOX = [
   "src/lib/__tests__/allowance-is-taken-of-the-exact-figure.test.ts",
   "src/lib/__tests__/no-secret-is-committed.test.ts",
   "src/lib/__tests__/dates-hydrate-at-midnight.test.ts",
+  "src/lib/__tests__/icon-sprite.test.ts",
 ];
 
 // Spread, not `mergeConfig`: that CONCATENATES arrays, and the base's exclude

@@ -86,6 +86,13 @@ const OLD_DEVICE = randomBytes(24).toString("base64url");
 test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async () => {
+  // A zone chosen at 07:59 is at 08:00 by the time the new device asserts it: CI on 2026-11-04 picked
+  // one at 12:59:5x UTC and failed at 13:00:02. Inside the last three minutes of an hour, wait for it to turn.
+  const left = 3_600_000 - (Date.now() % 3_600_000);
+  if (left < 180_000) {
+    test.setTimeout(left + 60_000);
+    await new Promise((r) => setTimeout(r, left + 2_000));
+  }
   zone = sevenAmZone();
   const org = await prisma.organization.create({ data: { name: `${MARK} Golf Club`, kind: "club", timeZone: zone } });
   ids.org = org.id;
