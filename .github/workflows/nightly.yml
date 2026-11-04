@@ -4,7 +4,7 @@ name: Nightly round
 # docs/testing-panel-2026-10-23.md).
 #
 # A change's round (round.yml, `round/**`) runs what that change can reach. This
-# runs everything a round can, every night, on whatever `main` is at 02:00 UTC:
+# runs everything a round can, every night, on whatever `main` is at 02:17 UTC:
 #
 #   every layer of a change's round, with ALL SIX countries in it
 #   the console crawl in full (every dropdown, choice and tick-box, four shares)
@@ -20,16 +20,16 @@ name: Nightly round
 # later one containing it — is clean. When this round is clean it calls the
 # deploy itself, so the change goes out the same night, outside the freeze.
 #
-# 02:00 UTC is the middle of the night in Europe, evening in the Americas and
+# 02:17 UTC (off the hour, when GitHub queues every schedule at once) is the middle of the night in Europe, evening in the Americas and
 # morning in Asia and Australia; the deploy that follows is still held by the
 # freeze wherever a club is playing (src/lib/domain/deploy-window.ts).
 #
 # Runs on main only (a schedule always does). "Run workflow" runs it by hand —
-# the emergency path for a core fix that cannot wait for 02:00.
+# the emergency path for a core fix that cannot wait for 02:17.
 
 on:
   schedule:
-    - cron: "0 2 * * *"
+    - cron: "17 2 * * *"
   workflow_dispatch:
 
 concurrency:

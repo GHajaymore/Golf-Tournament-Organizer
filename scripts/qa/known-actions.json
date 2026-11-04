@@ -1,0 +1,396 @@
+{
+ "measuredOn": "main at 4c4430f5 (2026-11-04), whose nightly reach was held to reach-baseline.json: every action here was performed by a screen test or is on that list",
+ "note": "Every exported server action the reach was last measured against. A NEW action fails src/lib/__tests__/every-new-action-has-a-spec.test.ts in the unit job until it is named in newSince with the spec that presses it; the round then proves the spec does. See docs/testing.md.",
+ "actions": {
+  "app/actions/account.ts": [
+   "deleteMyAccount"
+  ],
+  "app/actions/attendance.ts": [
+   "setAttendance",
+   "setOwnAttendance",
+   "setStageOptDeadline",
+   "setFlightCaptain"
+  ],
+  "app/actions/auth.ts": [
+   "signInWithPassword",
+   "claimPassword",
+   "verifyEmailCode",
+   "resendEmailCode",
+   "requestPasswordReset",
+   "resetPassword",
+   "signUp",
+   "enterTournament",
+   "signOutAction",
+   "signOutEverywhereAction",
+   "setPreviewAction"
+  ],
+  "app/actions/bet-name.ts": [
+   "renameBet"
+  ],
+  "app/actions/billing.ts": [
+   "checkDiscountCode",
+   "startCheckout",
+   "openBillingPortal"
+  ],
+  "app/actions/card-photo.ts": [
+   "readScorecardPhoto",
+   "readGroupCardPhoto",
+   "readCourseCardPhoto"
+  ],
+  "app/actions/club-deletion.ts": [
+   "deleteClub"
+  ],
+  "app/actions/commentary.ts": [
+   "postCommentary",
+   "deleteCommentary",
+   "suggestCommentary"
+  ],
+  "app/actions/contests.ts": [
+   "addContest",
+   "setContestEntrants",
+   "setContestWinners",
+   "requestContestEntry",
+   "confirmContestEntry",
+   "setContestSponsor",
+   "removeContest"
+  ],
+  "app/actions/courses.ts": [
+   "saveClubCourse",
+   "deleteClubCourse",
+   "setHomeCourse",
+   "setEventCourses",
+   "setStageCourse",
+   "setMatchCourse",
+   "saveTee",
+   "deleteTee",
+   "setEventDefaultTee",
+   "setFlightTee",
+   "setPlayerTee",
+   "verifyCourseCard",
+   "unverifyCourseCard",
+   "importClubCourseCard",
+   "searchCourseDirectory",
+   "importCourseFromDirectory",
+   "checkCourseAgainstSource",
+   "applySourceCard",
+   "nameMatchVenue"
+  ],
+  "app/actions/cup.ts": [
+   "createCupTeams",
+   "renameCupTeam",
+   "nameCupSession",
+   "setCupPlayerTeam",
+   "setCupSettings",
+   "addCupMatch",
+   "publishCupLineup",
+   "hideCupLineup",
+   "removeCupMatch",
+   "addCupPoint",
+   "awardCupPoint",
+   "removeCupPoint",
+   "saveReportRecap"
+  ],
+  "app/actions/disqualify.ts": [
+   "disqualifyPlayer",
+   "reinstatePlayer"
+  ],
+  "app/actions/draft-message.ts": [
+   "draftMessage"
+  ],
+  "app/actions/enter.ts": [
+   "enterThisTournament",
+   "withdrawMyEntry"
+  ],
+  "app/actions/expenses.ts": [
+   "addExpense",
+   "updateExpense",
+   "removeExpense",
+   "recordSettlement",
+   "removeSettlement"
+  ],
+  "app/actions/handicap-policy.ts": [
+   "saveHandicapPolicy",
+   "saveScoreReporting"
+  ],
+  "app/actions/interest.ts": [
+   "registerInterest"
+  ],
+  "app/actions/join.ts": [
+   "askToJoinNamesake",
+   "approveJoinRequest",
+   "declineJoinRequest"
+  ],
+  "app/actions/league.ts": [
+   "nominatePair",
+   "withdrawPair",
+   "setLeagueSettings",
+   "drawLeagueWeek",
+   "setPlayoffHoleWinner"
+  ],
+  "app/actions/match-setup.ts": [
+   "createMatch"
+  ],
+  "app/actions/messaging.ts": [
+   "readThread",
+   "sendMessage",
+   "markThreadRead",
+   "startDirectThread",
+   "broadcastToScope",
+   "setMyMessagesOptOut",
+   "previewSmsBroadcast",
+   "broadcastWithText",
+   "setMySmsOptIn"
+  ],
+  "app/actions/money-setup.ts": [
+   "setEventMoneyMode",
+   "setExpenseEntry",
+   "setOrgMoneyMode",
+   "setPotEntryMode",
+   "setPotExcluded",
+   "addFundLine",
+   "removeFundLine"
+  ],
+  "app/actions/organization.ts": [
+   "addOrganizationMember",
+   "setOrganizationMemberRole",
+   "removeOrganizationMember",
+   "saveOrganizationBranding",
+   "saveOrganizationTheme",
+   "saveOrganizationCurrency",
+   "saveOrganizationSeason",
+   "saveOrganizationLocale",
+   "saveOrganizationTimeZone",
+   "adoptClubTimeZone",
+   "saveOrganizationKind",
+   "saveOrganizationNoun",
+   "saveOrganizationGolfTerms",
+   "leaveOrganization"
+  ],
+  "app/actions/owner.ts": [
+   "setAccountsOpen",
+   "refreshDemoClub",
+   "sendEarlyListCodes",
+   "setClubPlan",
+   "saveTierPrices",
+   "saveTierLimits",
+   "createDiscountCode",
+   "setDiscountCodeActive"
+  ],
+  "app/actions/pairing.ts": [
+   "setPairingRequest",
+   "setMyPlayWith"
+  ],
+  "app/actions/play-status.ts": [
+   "currentPlayStatus",
+   "suspendPlay",
+   "resumePlay"
+  ],
+  "app/actions/play.ts": [
+   "redeemRoundCode",
+   "claimPlayerSlot",
+   "redeemRoundCodeForm",
+   "claimPlayerSlotForm",
+   "leavePlay",
+   "savePlayMatchHoles",
+   "savePlayMatchResult",
+   "savePlayCard",
+   "certifyPlayCard",
+   "savePlayMatchCard"
+  ],
+  "app/actions/player-index.ts": [
+   "indexChangeFacts",
+   "setPlayerIndex"
+  ],
+  "app/actions/print-kit.ts": [
+   "recordPrinted"
+  ],
+  "app/actions/push.ts": [
+   "getVapidPublicKey",
+   "savePushSubscription",
+   "removePushSubscription"
+  ],
+  "app/actions/register.ts": [
+   "registerForEvent"
+  ],
+  "app/actions/report-settings.ts": [
+   "setReportSettings",
+   "setNameWithheld"
+  ],
+  "app/actions/roster.ts": [
+   "addMember",
+   "importCsvMembers",
+   "updateMember",
+   "setMemberStatus",
+   "deleteMember",
+   "addFieldToRoster",
+   "addMembersToEvent",
+   "memberHandicapSuggestion",
+   "acceptClubHandicap",
+   "confirmChampion",
+   "removeFromHonours"
+  ],
+  "app/actions/round-day.ts": [
+   "setPinSheet",
+   "setPaceMinutes"
+  ],
+  "app/actions/round-expiry.ts": [
+   "keepRound"
+  ],
+  "app/actions/series.ts": [
+   "createSeries",
+   "updateSeries",
+   "deleteSeries",
+   "setEventSeries"
+  ],
+  "app/actions/settings.ts": [
+   "saveTournamentSettings",
+   "regenerateRoundCode",
+   "saveOrganizationDefaults"
+  ],
+  "app/actions/setup-suggest.ts": [
+   "suggestSetup",
+   "applySetupProposal"
+  ],
+  "app/actions/side-games.ts": [
+   "saveSideGame",
+   "setSideGameEntrants",
+   "requestSideGameEntry",
+   "confirmSideGameEntry",
+   "removeSideGame"
+  ],
+  "app/actions/skins.ts": [
+   "saveSkinsPot",
+   "setSkinsEntrants",
+   "removeSkinsPot",
+   "requestSkinsEntry",
+   "confirmSkinsEntry"
+  ],
+  "app/actions/teams.ts": [
+   "createTeam",
+   "renameTeam",
+   "deleteTeam",
+   "addTeamMember",
+   "removeTeamMember",
+   "generateTeamMatches",
+   "autoDrawTeams",
+   "setStageAllowance",
+   "setStageCountBest",
+   "setStageAllowanceWeights"
+  ],
+  "app/actions/tee-sheet.ts": [
+   "saveTeeSheet",
+   "setTeeSheetPublished"
+  ],
+  "app/actions/tournament.ts": [
+   "addSignup",
+   "updateSignup",
+   "removeSignup",
+   "removeSignups",
+   "importCsvSignups",
+   "setInviteMessage",
+   "saveEvent",
+   "applyManualCount",
+   "movePlayerToGroup",
+   "regenGroups",
+   "generateNextRound",
+   "saveScoring",
+   "setQualifyPerGroup",
+   "setStageDeadline",
+   "setTournamentDates",
+   "setStagePlayedOn",
+   "dateUndatedRounds",
+   "setStageCarry",
+   "setStageCut",
+   "setStageScoringBasis",
+   "setStageScoreInput",
+   "setStageMatchKeptBy",
+   "setStageFormat",
+   "setStageHoles",
+   "setRoundHandicapOverride",
+   "applyRoundHandicapToRest",
+   "saveTiebreakers",
+   "setQualifyMode",
+   "addStage",
+   "removeStage",
+   "saveMatchHoles",
+   "applyMatchResult",
+   "keepMyMatchHoles",
+   "keepMyMatchResult",
+   "keepMyMatchCard",
+   "forfeitMatch",
+   "clearMatch",
+   "saveCustomCourse",
+   "saveScorecard",
+   "saveScorecards",
+   "saveMatchScorecard",
+   "saveTeamScorecard",
+   "saveTeamScorecards",
+   "confirmMatch",
+   "confirmMatches",
+   "disputeMatch",
+   "reopenMatch",
+   "setBracketWinner",
+   "setBracketResult",
+   "recordTieResult",
+   "setKnockoutPlayBy",
+   "reportBracketResult",
+   "approveBracketReport",
+   "rejectBracketReport",
+   "addAccount",
+   "setAccountRole",
+   "removeAccount",
+   "switchEvent",
+   "cloneEvent",
+   "createEvent",
+   "createEventFromAnswers",
+   "deleteEvent",
+   "setEventStatus",
+   "launchTournament",
+   "setConfigUnlocked",
+   "addPrize",
+   "updatePrize",
+   "setPrizeWinner",
+   "setOnePrizePerPlayer",
+   "setPrizeCounts",
+   "removePrize",
+   "applyPrizeStructure",
+   "addAnnouncement",
+   "toggleAnnouncementPin",
+   "removeAnnouncement",
+   "setBracketMode",
+   "divideIntoFlights",
+   "clearFlights",
+   "moveFlightPlayer",
+   "reseedFlight",
+   "renameFlight",
+   "renameGroup",
+   "setFlightsConfirmed",
+   "setMatchTiebreakers",
+   "setRegistrationOverride",
+   "setRegistrationOpen",
+   "setRegistrationApproval",
+   "approveSignup",
+   "setStageCutScope",
+   "setStageCutTies",
+   "settleCutTie",
+   "setStageDeadlineOverride",
+   "importScores",
+   "importTeamScores",
+   "clearRoundScores",
+   "certifyScorecard",
+   "disputeScorecard",
+   "approveScorecard",
+   "approveRound",
+   "reopenScorecard",
+   "setRequirePhone",
+   "rotatePublicToken",
+   "setSingleMatchRule",
+   "createSingleMatch",
+   "setThirdPlace",
+   "setRoundClosed",
+   "createThirdPlaceMatch",
+   "setEventFormatting"
+  ]
+ },
+ "newSince": {}
+}
