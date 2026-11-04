@@ -480,6 +480,12 @@ export function CoursePicker({
         readOnly={addingName !== ""}
         placeholder={chosenExtra?.label ?? chosen?.name ?? noneLabel ?? "Type to find a course"}
         onFocus={() => {
+          // The box left and taken again inside the blur's 120 ms — a choice,
+          // then a quick tap back — kept the old close coming: the list opened
+          // and shut under the finger, and the box sat focused with nothing to
+          // choose from until it was left and tapped again. Caught by the
+          // nightly of 2026-11-04 (club-course.spec, on a fast runner).
+          if (blurTimer.current) clearTimeout(blurTimer.current);
           setOpen(true);
           setQuery("");
         }}
