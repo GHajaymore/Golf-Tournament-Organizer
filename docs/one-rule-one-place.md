@@ -114,6 +114,17 @@ handicap readers became one (counted off the diff, not the inventory). The four
   away off the home course's tees, 22.0 where the Rule gives 13.4
   (`a-differential-is-from-the-tees-of-the-round.audit.test.ts`). Live
   2026-10-14.
+- **A side's playing handicap** (step 4, 2026-11-04): `sideHandicapFromPartners`
+  in `services/teams.ts` — Appendix C of the partners who play
+  (`partnersWhoPlay`), each at the exact figure, with `withdrawn` REQUIRED of
+  every partner. Three pricers called `sidePlayingHandicap` for themselves, and
+  the stored match (`recomputeTeamMatch`) left out the `partnersWhoPlay` step the
+  Teams screen and the league table took: a scramble of three with a partner
+  withdrawn was a three (30/20/10) in the filed match and a two (35/15) on the
+  screen beside it — B received two strokes where the Rule gives five.
+  `a-withdrawn-partner-is-not-in-the-stored-match.test.ts` works it in whole
+  numbers and sweeps for any other call of `sidePlayingHandicap` (with a
+  control); its `.audit` twin files the match on real rows.
 - **What a stroke can be** (step 5): `isStroke` in `domain/score-payload.ts`,
   a whole number from 1 to `MAX_STROKES_PER_HOLE`; every writer of a card asks
   it, and `a-stroke-is-one-test.test.ts` refuses the range written by hand (a

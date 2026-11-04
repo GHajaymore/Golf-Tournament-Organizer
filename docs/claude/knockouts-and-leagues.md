@@ -124,4 +124,13 @@ nought, while its card, the Teams screen and the stored match gave it strokes.
 function and the same partners as the Teams screen. A lookup that falls back to
 nought is a price of nought; ask what the row IS before asking whose it is.
 `a-league-week-on-one-ball-is-priced-by-appendix-c.test.ts` works it from the
-Rules in whole numbers; `league-shared-ball.audit.test.ts` reads it off the table.
+Rules in whole numbers; `league-shared-ball.audit.test.ts` reads it off the table;
+`e2e/interclub-league.spec.ts` plays a foursomes week through the screens and
+holds the card's "Plays off", the meeting and the table to Appendix C, against
+scratch and against each partner rounded first.
+
+And the same day, the stored match: `recomputeTeamMatch` priced the same side
+off EVERY member, a withdrawn partner included, while the screen and the league
+left them out. All three now ask `sideHandicapFromPartners` (teams.ts), which
+requires `withdrawn` of every partner; a sweep refuses a fourth pricer
+(`a-withdrawn-partner-is-not-in-the-stored-match.test.ts`).
