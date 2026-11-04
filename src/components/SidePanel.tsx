@@ -23,7 +23,11 @@ import { Icon } from "./Icon";
  * Saving is the caller's: most organizer controls save as they change (`SaveState`), so the
  * footer is optional and usually just says it is saved.
  */
-/** The width the panel docks from. design-system.css's `@media (min-width: 1280px)` is the same number. */
+/**
+ * The width the panel docks from. The docked styles' `@media (min-width: 1280px)` is the same
+ * number; they live in `src/app/(app)/stages/rounds-timeline.css`, sent only with the Rounds screen,
+ * the one caller that docks. A second caller that docks imports that sheet's rules or moves them.
+ */
 export const SIDE_PANEL_DOCK_FROM = 1280;
 
 /** Whether the screen is wide enough to dock. False on the server and the first render (a dialog). */

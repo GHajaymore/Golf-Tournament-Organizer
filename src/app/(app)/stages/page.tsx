@@ -1,4 +1,6 @@
 import { playedOnBy } from "@/lib/services/courses";
+// The timeline's own styles, sent with this route alone, never in the sheet every page downloads.
+import "./rounds-timeline.css";
 import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";

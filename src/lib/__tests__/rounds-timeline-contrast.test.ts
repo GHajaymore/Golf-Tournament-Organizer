@@ -10,7 +10,7 @@ import { DARK_GROUND, LIGHT_GROUND, SUNLIGHT_RATIO, THEME_PAIRS, contrastRatio, 
  * line, the link between rounds. Each is a fill mixed from the club's tokens with words on it, and
  * a fill mixed at 70% over a card is not a colour anybody checked by eye.
  *
- * So this reads the RULES THEMSELVES out of design-system.css — the `background` and `color` each
+ * So this reads the RULES THEMSELVES out of the stylesheets — the `background` and `color` each
  * one declares — resolves them against the club's real tokens (`themeVarsFor`) on four schemes
  * (Tournament and Desert on the dark ground, Championship and Coastal on the light), composites
  * every translucent mix over each ground it can sit on (page, card, the card one step up), and
@@ -21,7 +21,9 @@ import { DARK_GROUND, LIGHT_GROUND, SUNLIGHT_RATIO, THEME_PAIRS, contrastRatio, 
  * srgb, …)` is defined, then WCAG's ratio (`contrastRatio`).
  */
 
-const CSS = readSource("src", "app", "design-system.css");
+// The shared rules (`.tag-*`, `.round-link-chip`) are design-system.css's; the timeline's own are in
+// the Rounds screen's sheet, which only that route loads. Shared first, so an override reads after it.
+const CSS = readSource("src", "app", "design-system.css") + "\n" + readSource("src", "app", "(app)", "stages", "rounds-timeline.css");
 // Built from parts so the token sweeps do not read the control as a real reference.
 const UNDECLARED = ["--color", "nope"].join("-");
 
@@ -49,7 +51,7 @@ function declarationsOf(css: string, mark: string): Record<string, string> {
   for (const selector of mark.split(" | ")) {
     const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => m[1].trim() === selector);
     // A misspelt override would otherwise be measured as the shared rule and pass.
-    if (rules.length === 0) throw new Error(`${selector} has no rule in design-system.css`);
+    if (rules.length === 0) throw new Error(`${selector} has no rule in design-system.css or rounds-timeline.css`);
     for (const m of rules) {
       for (const d of m[2].split(";")) {
         const at = d.indexOf(":");
@@ -120,7 +122,7 @@ const over = (top: Rgba, under: Rgba): Rgba => ({
 /** The ratio each mark's words reach on the worst ground under it, for one theme. */
 function markContrast(css: string, selector: string, vars: Record<string, string>): { ratio: number; on: string } {
   const d = declarationsOf(css, selector);
-  if (!d.background && !d.color) throw new Error(`${selector} has no rule in design-system.css`);
+  if (!d.background && !d.color) throw new Error(`${selector} has no rule in design-system.css or rounds-timeline.css`);
   // A mark that only changes its words sits on what its base rule draws (`.rt-hole[data-par]` on
   // `.rt-hole`'s own fill would be overridden by its own `background` when it has one).
   const fill = d.background ?? "transparent";
