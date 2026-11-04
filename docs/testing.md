@@ -109,7 +109,7 @@ Not every layer runs in every round (the panel, 2026-10-23). Each layer says whe
 | | Runs | Layers |
 |---|---|---|
 | **A change's round** (`pr`) | when a change pushes `round/<name>-N` | the whole suite (Chromium at its three sizes), somewhere else, the American club, abroad, the iPhone, Safari (Mac and iPhone SE), the eleven tournaments — and the console crawl when the change touches input screens |
-| **The nightly** | scheduled 02:00 UTC on main (`nightly.yml`) — but GitHub starts a scheduled run when it has room, and the last eight (to 31 Oct) started **07:30–08:15 UTC** | every `pr` layer, all six countries, the console crawl in full, **plus the other browsers: the iPad, Firefox at three sizes, Chrome as installed**, the Android tablet, the libraries' holes and the quarantine's dates. When clean, it deploys what it cleared |
+| **The nightly** | scheduled 02:17 UTC on main (`nightly.yml`) — but GitHub starts a scheduled run when it has room, and the last eight (to 31 Oct) started **07:30–08:15 UTC** | every `pr` layer, all six countries, the console crawl in full, **plus the other browsers: the iPad, Firefox at three sizes, Chrome as installed**, the Android tablet, the libraries' holes and the quarantine's dates. When clean, it deploys what it cleared |
 | **The weekly** | Sunday 03:00 UTC (`weekly.yml`) | Edge as installed (and Chrome as installed again), the front door with its animation on |
 
 **Which browser runs where (the browser split, testing panel, 1 Nov 2026).** Core browsers per
@@ -287,6 +287,15 @@ job reads the changed files against main and decides the countries and the crawl
 workflow* on the **Round** workflow and give the plan by hand. The verdict and the table are the
 run's summary, and the summary says which kind of round it was and what it leaves to the nightly or
 the weekly.
+
+**Watching it: one reader, never a loop.** `node scripts/qa/reader.mjs --watch <sha>` asks GitHub once
+every ten minutes and writes `.qa/reader.txt` in the main checkout; everybody else, every agent
+included, reads that file. Nobody runs `gh run watch` or polls: in the week of 2026-10-28 watchers
+hit GitHub's burst limit and called a round with 4 of its 36 parts done "finished". The reader
+says "finished" only when the Verdict job finished with every planned part done, says "unknown —
+re-ask" when GitHub would not answer (and then reads the run's public page), and the Verdict job
+posts the verdict on the commit it tested as the `round-verdict` status, so one read of a commit
+answers "what did the round say". The ruleset does not require that status.
 
 **A round the machine did not finish is re-run, not read.** When a verdict is INCOMPLETE, the
 **Round waiter** workflow re-runs its failed jobs — exactly the parts the machine stopped — up to
@@ -574,7 +583,7 @@ A change is not finished until the tests know about it. What to add, by what was
 | You added | Add |
 |---|---|
 | A screen | Nothing for the walk or the layout sweep — they read the screens from the filesystem. Its guide and Help lines (`CLAUDE.md`, "Help and docs travel with the change"). |
-| An action, a form, a flow | A spec in `e2e/` that **does** it as the person who would, and reads the result back. Prove it can fail: break the code, watch it go red, put it back. Until it exists the next round reports the action as *no screen test calls it* — a finding, not a note. |
+| An action, a form, a flow | A spec in `e2e/` that **does** it as the person who would, and reads the result back. Prove it can fail: break the code, watch it go red, put it back. Until it exists the next round reports the action as *no screen test calls it* — a finding, not a note. A new server action also gets its line in `newSince` in `scripts/qa/known-actions.json` (`"app/actions/<file>.ts:<name>": "e2e/<spec>.spec.ts"`): the unit job's `every-new-action-has-a-spec.test.ts` is red until it does, so a forgotten spec costs six minutes, not a round. |
 | A format, a draw, a cut, a money rule | A scenario in `e2e/scenarios/`, or a phase in one: a tournament of that kind played by a full field, with a check against the Rules rather than against the app. List it in `SCENARIOS`. And the cell in `src/lib/__tests__/matrix.test.ts`. And its property in `src/lib/domain/__tests__/properties-*.test.ts`, worked by a route the code does not take — and for a money rule, its row in `SIDE_GAME_PAYS` (when its amount may be reported) and a case worked by hand in `side-games-by-their-own-rules.test.ts`. |
 | A country, a currency, a language | A language's dates are the app's own: add its tag to `TAGS` in `scripts/build-date-words.mjs`, run it, **read the new line by eye** (it is what a club will see), and only then offer it in `LOCALES` — `date-words.test.ts` refuses a tag the picker offers and the table does not hold. The row in `LOCALES` / `CURRENCIES` is then swept by `formats-agree`. A place for the seeded club is a line in `scripts/seed-club.mjs` and in `ABROAD`. |
 | A date or a time on a screen | Nothing new: write it with `formatDay` / `formatDayAt` / `formatMonthDayAt` / `formatDayRange` / `formatClock` / `shortDate`. A screen that asks the platform to word one itself is refused by `date-words.test.ts`, because two browsers word it two ways. |

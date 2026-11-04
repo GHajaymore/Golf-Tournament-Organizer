@@ -228,7 +228,7 @@ manual is `docs/testing.md`). In one paragraph, so nobody acts on the old rules:
   money or handicap arithmetic keeps THREE until property-based tests and the mutation ratchet are
   on main (`ARITHMETIC_KEEPS_THREE_ROUNDS` in `layers.mjs` is the switch). `npm run qa:changed`
   prints the exact branches; the Round workflow plans a pushed branch with the same function.
-- **The nightly** (scheduled 02:00 UTC, but it has been starting 07:30–08:15 UTC; `nightly.yml`) runs every per-PR layer with all six countries, the
+- **The nightly** (scheduled 02:17 UTC, but it has been starting 07:30–08:15 UTC; `nightly.yml`) runs every per-PR layer with all six countries, the
   console crawl in full, the Android tablet and the libraries' holes, and deploys what it cleared.
   **The weekly** (`weekly.yml`) runs Chrome, Edge and the front door's motion. A change's round
   runs the console crawl only when it touches input screens (`crawlNeeded`).
