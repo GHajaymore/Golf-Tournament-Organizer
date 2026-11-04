@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync } from "node:fs";
 import { NOT_PARTS, STATUS_CONTEXT, line, pageStatus, runState, statusForVerdict } from "../../../scripts/qa/reader.mjs";
 import { readVerbatim } from "./source";
 
@@ -85,5 +86,40 @@ describe("when the API refuses, the public page", () => {
   });
   it("CONTROL: a page that does not say gives nothing, not a guess", () => {
     expect(pageStatus("<html>rate limited</html>")).toBeNull();
+  });
+});
+
+/**
+ * A CALLED WORKFLOW GETS NO MORE THAN ITS CALLER GRANTS (2026-11-04). The Verdict job's
+ * `statuses: write` went into round.yml while nightly.yml and weekly.yml granted the round
+ * read access only, and GitHub refused to start the nightly at all (startup_failure, run
+ * 41809332472) — nothing red in any test, because nothing here read the callers.
+ */
+describe("every workflow that calls the round grants what the round asks for", () => {
+  const asked = (yml: string) => new Set([...yml.matchAll(/^\s+([a-z-]+): write\s*$/gm)].map((m) => m[1]));
+  /** The `permissions` a caller gives its job that `uses:` round.yml (its own block, else the file's). */
+  const granted = (yml: string) => {
+    const job = /\n  [\w-]+:\n(?:    .*\n)*?    uses: \.\/\.github\/workflows\/round\.yml\n((?:    .*\n|\s*\n)*)/.exec(yml);
+    const own = job ? /    permissions:\n((?:      .*\n)+)/.exec(job[1]) : null;
+    const block = own ? own[1] : /\npermissions:\n((?:  .*\n)+)/.exec(yml)?.[1] ?? "";
+    return asked(block);
+  };
+  const callers = readdirSync(".github/workflows").filter((f) => f !== "round.yml" && readVerbatim(".github/workflows", f).includes("uses: ./.github/workflows/round.yml"));
+
+  it("each caller grants every write the round's jobs ask for", () => {
+    const needs = asked(readVerbatim(".github/workflows/round.yml"));
+    expect([...needs]).toContain("statuses");
+    expect(callers.length, "the nightly and the weekly call the round").toBeGreaterThanOrEqual(2);
+    for (const f of callers) {
+      const has = granted(readVerbatim(".github/workflows", f));
+      for (const p of needs) expect(has.has(p), `${f} calls round.yml without granting ${p}: write — GitHub will not start it`).toBe(true);
+    }
+  });
+
+  it("CONTROL: a caller that grants read only is seen", () => {
+    const yml = "permissions:\n  contents: read\n  actions: read\n\njobs:\n  round:\n    name: Round\n    uses: ./.github/workflows/round.yml\n    with:\n      round: \"1\"\n";
+    expect(granted(yml).has("statuses")).toBe(false);
+    const fixed = yml.replace("    with:", "    permissions:\n      statuses: write\n    with:");
+    expect(granted(fixed).has("statuses")).toBe(true);
   });
 });
