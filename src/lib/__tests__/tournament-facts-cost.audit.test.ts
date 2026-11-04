@@ -36,9 +36,12 @@ import { PrismaClient } from "@prisma/client";
 /* ------------------------------------------------- counting, and the request */
 
 let queries = 0;
+/** Each statement of the run in progress, its parameters blanked, so two runs can be compared. */
+let statements: string[] = [];
 const counted = new PrismaClient({ log: [{ emit: "event", level: "query" }] });
-counted.$on("query", () => {
+counted.$on("query", (e) => {
   queries += 1;
+  statements.push(e.query.replace(/\$\d+/g, "?"));
 });
 // `src/lib/db.ts` takes the client already on `globalThis`, as it does across hot reloads.
 (globalThis as unknown as { prisma?: PrismaClient }).prisma = counted;
@@ -82,21 +85,40 @@ interface Cost {
   queries: number;
 }
 
+/** The statements whose count differs from the first run's, with both counts; "" when none do. */
+function differences(sent: string[][]): string {
+  const tally = (run: string[]) => run.reduce((m, q) => m.set(q, (m.get(q) ?? 0) + 1), new Map<string, number>());
+  const first = tally(sent[0] ?? []);
+  const out = new Set<string>();
+  for (const run of sent.slice(1)) {
+    const t = tally(run);
+    for (const q of new Set([...first.keys(), ...t.keys()])) {
+      if (first.get(q) !== t.get(q)) out.add(`\n  ${first.get(q) ?? 0} then ${t.get(q) ?? 0}: ${q.slice(0, 200)}`);
+    }
+  }
+  return [...out].join("");
+}
+
 /** One request: an empty cache, the reads, the median of `runs` timings and the (constant) query count. */
 async function request(fn: () => Promise<unknown>, runs = 5): Promise<Cost> {
   const times: number[] = [];
   const counts = new Set<number>();
+  const sent: string[][] = [];
   for (let i = 0; i < runs; i += 1) {
     generation += 1;
     const q0 = queries;
+    statements = [];
     const t0 = performance.now();
     await fn();
     times.push(performance.now() - t0);
     counts.add(queries - q0);
+    sent.push(statements);
   }
   times.sort((a, b) => a - b);
   // A read whose query count changes between identical runs is not measuring what it says.
-  expect(counts.size, "the same read sent a different number of queries on two runs").toBe(1);
+  // Said with what changed, statement by statement: on 2026-11-04 CI saw three different
+  // counts for the medal's facts read where this machine, slowed or not, saw 34 every time.
+  expect(counts.size, `the same read sent a different number of queries on two runs: ${sent.map((s) => s.length).join(", ")}${differences(sent)}`).toBe(1);
   return { ms: Math.round(times[Math.floor(runs / 2)] * 10) / 10, queries: [...counts][0] };
 }
 
