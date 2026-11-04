@@ -34,6 +34,7 @@ import { setupFlow, type SetupFacts, type SetupFlow } from "./setup-flow";
 import { completingCheckFor, finishRefusal, playRefusal } from "./phase-gate";
 import type { BracketView } from "./bracket";
 import { screenName } from "@/lib/nav";
+import { hasKnockoutStage, isKnockoutRound, isStraightKnockout } from "@/lib/stage-types";
 
 /* ------------------------------------------------------------------ facts */
 
@@ -241,7 +242,7 @@ export function tournamentFamily(f: Pick<TournamentFacts, "shape" | "rounds" | "
   if (f.shape === "match") return "casual";
   if (types.includes("Team Session")) return "teamCup";
   if (types.filter(isWeekly).length > 1) return "league";
-  if (types.includes("Bracket Stage")) return f.bracketMode === "flights" ? "flightedKnockout" : "knockout";
+  if (hasKnockoutStage(f.rounds)) return f.bracketMode === "flights" ? "flightedKnockout" : "knockout";
   if (types.includes("Round Robin")) return "roundRobinFlights";
   if (types.includes("Single Match Stage")) return "match";
   const playing = f.rounds.filter((r) => r.playing);
@@ -344,7 +345,7 @@ function setupFactsOf(f: TournamentFacts): SetupFacts {
     venued: f.venued,
     playingRounds: playing.length,
     missingCards: f.missingCards,
-    straightKnockout: f.rounds.length > 0 && f.rounds[0].type === "Bracket Stage",
+    straightKnockout: isStraightKnockout(f.rounds),
     moneyAnswered: f.moneyAnswered,
     launched: isLaunched(f.status),
     teams: f.teams,
@@ -509,7 +510,7 @@ function locksOf(f: TournamentFacts, family: Family): Record<LockScope, Lock> {
    * and closes at the first result (`flightsOpenForChange`; knockouts doc; J07).
    */
   if (family === "flightedKnockout") {
-    const results = f.rounds.some((r) => r.type === "Bracket Stage" && r.hasResult);
+    const results = f.rounds.some((r) => isKnockoutRound(r.type) && r.hasResult);
     out.draw = finished
       ? lock("completed", "Locked because the tournament is completed.", { says: "Reopen it on the dashboard", href: DASHBOARD })
       : results

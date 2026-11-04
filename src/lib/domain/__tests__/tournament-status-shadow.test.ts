@@ -14,6 +14,7 @@ import { completingCheckFor, finishRefusal, playRefusal } from "../phase-gate";
 import { playOverOf } from "../tournament-switcher";
 import { STATUS_META } from "@/lib/format";
 import { screenName } from "@/lib/nav";
+import { isKnockoutRound, isStraightKnockout } from "@/lib/stage-types";
 import { FAMILY_FIXTURES, FAMILIES, facts, round, launched, playedOut, completed } from "./tournament-facts-fixtures";
 
 /**
@@ -101,7 +102,7 @@ function setupFactsOf(f: TournamentFacts): SetupFacts {
     venued: f.venued,
     playingRounds: f.rounds.filter((r) => r.playing).length,
     missingCards: f.missingCards,
-    straightKnockout: f.rounds.length > 0 && f.rounds[0].type === "Bracket Stage",
+    straightKnockout: isStraightKnockout(f.rounds),
     moneyAnswered: f.moneyAnswered,
     launched: isLaunched(f.status),
     teams: f.teams,
@@ -118,7 +119,7 @@ function compare(f: TournamentFacts): Array<{ reader: Reader; today: unknown; ma
   const stages = f.rounds.map((r) => ({ id: r.id, type: r.type, position: r.position, closedAt: r.closed ? new Date(0) : null }));
   const playOver = playOverOf(stages);
   const anyResult = f.rounds.some((r) => r.hasResult);
-  const todayResultsIn = resultsIn({ matches: [], cards: f.rounds.filter((r) => r.hasResult && r.type !== "Bracket Stage") });
+  const todayResultsIn = resultsIn({ matches: [], cards: f.rounds.filter((r) => r.hasResult && !isKnockoutRound(r.type)) });
 
   const out: Array<{ reader: Reader; today: unknown; machine: unknown }> = [];
   const add = (reader: Reader, today: unknown, machine: unknown) => out.push({ reader, today, machine });
@@ -146,7 +147,7 @@ function compare(f: TournamentFacts): Array<{ reader: Reader; today: unknown; ma
   }
   const blanket = configurationLocked(f);
   const flighted = tournamentFamily(f) === "flightedKnockout";
-  const bracketWon = f.rounds.some((r) => r.type === "Bracket Stage" && r.hasResult);
+  const bracketWon = f.rounds.some((r) => isKnockoutRound(r.type) && r.hasResult);
   const todayLock: Record<(typeof LOCK_SCOPES)[number], boolean> = {
     details: blanket,
     rounds: blanket,
