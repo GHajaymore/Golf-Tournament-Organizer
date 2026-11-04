@@ -174,7 +174,12 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     expect(recompute).toMatch(
       /roundHandicapExactOf\(teamRound\.get\(p\.id\), teamHcp\.get\(p\.id\) \?\? p\.handicap, teamHcp\.exact\(p\.id\)/,
     );
-    expect(recompute).toMatch(/members\.map\(\(m\) => playsOffExact\(m\.player\)\)/);
+    // A shared ball: each member's EXACT figure, and whether they left the
+    // field, through the one function that prices a side (2026-11-04: this
+    // handed every member to `sidePlayingHandicap`, withdrawn or not).
+    expect(recompute).toMatch(
+      /sideHandicapFromPartners\(\s*members\.map\(\(m\) => \(\{ exact: playsOffExact\(m\.player\), withdrawn: hasLeftTheField\(m\.player\.status\) \}\)\)/,
+    );
     /**
      * THE GUARANTEE, NOT THE SHAPE. This pinned `courseHandicap:
      * playsOff(m.player)` — the field of a `TeamMemberCard`, because the match

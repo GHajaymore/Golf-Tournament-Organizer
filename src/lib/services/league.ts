@@ -4,7 +4,7 @@ import { COURSE_REF, roundCard } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { matchHolesOffTheLow, type MatchBall } from "../domain/team";
 import { NO_PAR_STROKES } from "../domain/handicap";
-import { effectiveCountBest, partnersWhoPlay, sidePlayingHandicap } from "./teams";
+import { effectiveCountBest, sideHandicapFromPartners } from "./teams";
 import { playingHandicapInRound } from "../round-allowance";
 import { roundCourseHandicaps, flightTeeByPlayer, confirmedField, FIELD_PLAYER } from "./handicaps";
 import { roundHandicapRows } from "./round-handicap";
@@ -125,9 +125,9 @@ export interface LeagueMeeting {
  * Chapman 60% of the lower and 40% of the higher, a scramble 35/15, 30/20/10
  * or 25/20/15/10 by the side's size, each taken of the UNROUNDED figures and
  * rounded once; the committee's own allowance or split, where the round has
- * one, in place of the Rule's. That is `sidePlayingHandicap`, the one function
- * the Teams screen, the board and the stored result (`recomputeTeamMatch`)
- * already price such a side with.
+ * one, in place of the Rule's, of the partners who play. That is
+ * `sideHandicapFromPartners`, the one function the Teams screen, the board and
+ * the stored result (`recomputeTeamMatch`) price such a side with.
  *
  * Until 2026-11-03 this priced the shared card the way it prices a four-ball
  * card — by its player — and a shared card has no player, so every side in a
@@ -155,18 +155,7 @@ export function leagueSideBalls(
   };
   if (sharedBallRound(round.format)) {
     const one = cards.find((c) => c.playerId === "");
-    const partnersExact = partnersWhoPlay(partners).map((p) => p.exact);
-    return [
-      {
-        strokes: one ? parse(one.strokes) : [],
-        playingHandicap: sidePlayingHandicap(
-          partnersExact,
-          round.format,
-          round.handicapAllowance,
-          round.allowanceWeights,
-        ),
-      },
-    ];
+    return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: sideHandicapFromPartners(partners, round) }];
   }
   return cards.map((c) => ({ strokes: parse(c.strokes), playingHandicap: playsOff(c.playerId) }));
 }
