@@ -39,7 +39,7 @@ data opens it. We have not touched anything."
 - Open the health page (check 2 above). If it fails on mobile data too, tell the Operations Lead now.
 - Players with the scoring screen already open can carry on. Tell them **not to reload.**
 - If groups cannot get scores in and the Operations Lead has not given a fix within **10 minutes**
-  (proposed; the Owner confirms), **start the paper fallback** below. The scoreboard may be out of date
+  (the Owner's ruling, 4 Nov 2026), **start the paper fallback** below. The scoreboard may be out of date
   until scores are entered; tell the field the standings are delayed.
 
 **3. Somebody cannot get in.**

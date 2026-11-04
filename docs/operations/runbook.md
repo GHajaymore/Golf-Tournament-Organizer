@@ -51,14 +51,13 @@ Check in this order. The first three take under two minutes.
 | Site loads but is slow for everybody | Cold functions, database load, or the provider | Time `/api/health` a few times. Slow and 200: watch, do not deploy. |
 | Only some people, only at the course | The course's signal, not the app | Compare a phone on mobile data with one on the course network. See section 5. |
 
-**Gaps (To confirm:)**
-- No external uptime monitor is referenced anywhere in the code or docs. `/api/health` was written for one
-  ("for an uptime monitor to ask every minute") but nothing says one is set up. Is there one, and who does
-  it page? If not, add one before 14 Nov.
+**Monitoring and on call (Owner's rulings, 4 Nov 2026)**
+- An external uptime monitor checks the home page every 5 minutes and emails the Owner. A second monitor on
+  `/api/health` (keyword `"ok":true`, so it fails when the database does) is added before launch.
 - Sentry alert rules: `docs/release-strategy.md` lists "Sentry alerts to [the Owner's] email" as planned.
-  Are any in place, and where do they go?
-- Who is the named on-call person for 29-30 Nov, and by what channel (phone, group chat) can the
-  Tournament Director reach them?
+  To confirm: that a rule exists and a test notification reaches the Owner (not yet tested, 4 Nov).
+- On call for 29-30 Nov: the **Owner**, with the **Operations Lead** working through the Owner's Claude
+  session. The Tournament Director reaches them by the phone number written on the incident sheet.
 
 ## 2. What is production running?
 
@@ -154,8 +153,10 @@ CLI equivalent: `vercel rollback <deployment-url-or-id>`.
 
 **During an event or a freeze.** A rollback is an incident response, not a deploy, but it still changes
 what members are running mid-round. Operations Lead decides, tells the Owner and the Tournament Director
-first if time allows ("about a minute, pages may reload"), and does it only to stop active harm. To confirm:
-that the Owner agrees emergency rollback is allowed inside the freeze.
+first if time allows ("about a minute, pages may reload"), and does it only to stop active harm. The Owner
+ruled on 4 Nov 2026: the Operations Lead **may** roll back inside a freeze or on an event day **without asking
+first**, because a rollback returns to the version that was running before and never touches data. The Owner
+is told straight after.
 
 **After a rollback, three things are now different:**
 1. **Merges stop.** Tell whoever merges to `main` to hold. The hourly `deploy.yml` run will happily ship
@@ -208,12 +209,14 @@ into the repository (Hard rule 2).
 
 ## To confirm (questions for the Owner or Operations Lead)
 
-1. Is there an uptime monitor on `/api/health`, and who does it alert? If not, will one be added before 14 Nov?
-2. Are Sentry alert rules in place, and to whom?
-3. Who is on call for 29-30 Nov, and what is the contact channel for the Tournament Director?
-4. May the Operations Lead roll back inside a freeze or an event day without asking first?
+1. ~~Uptime monitor on `/api/health`~~ Settled 4 Nov: added before launch (section 1).
+2. Are Sentry alert rules in place, and does a test notification reach the Owner? (Not yet tested, 4 Nov.)
+3. ~~On call for 29-30 Nov~~ Settled 4 Nov: the Owner, with the Operations Lead (section 1).
+4. ~~Rollback without asking~~ Settled 4 Nov: yes, Owner told straight after (section 3).
 5. Does the freeze know about the Florida event once dated (check `/api/deploy-window` after setup)?
-6. What are the dates of the program's hold on changes around the event (`docs/print-kit-panel-2026-10-30.md` says 19 Nov to 1 Dec), and does it also stop the hourly deploy?
+6. The program's hold on changes is **14 Nov – 1 Dec** (delivery plan approved 4 Nov; the older
+   `docs/print-kit-panel-2026-10-30.md` said 19 Nov). To confirm: whether it also stops the hourly deploy,
+   or only merges of app changes.
 7. Do Vercel deployments made by the CLI from Actions carry `VERCEL_GIT_COMMIT_SHA`?
 8. After an Instant Rollback, does the Vercel project stop auto-assigning new production deployments?
 9. How will pilot players and the Organizer sign in while production sign-ins are held (`src/lib/sign-in-gate.ts`: only owners and `SIGNIN_ALLOW_EMAILS`; players may use `/play`)? Is the Organizer on the allow list, or will sign-ins open before 14 Nov?
