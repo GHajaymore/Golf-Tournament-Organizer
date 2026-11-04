@@ -36,6 +36,10 @@ test.describe("/new, the site rehaul's preview", () => {
 
   for (const size of WIDTHS) {
     test(`renders whole at ${size.width}px, with nothing sideways and every picture in`, async ({ page }) => {
+      // Design F is a long page (about 18,000px at 1440 and far more at 393): walking it a window at a
+      // time and decoding every picture took past the default 30s on the phone width in CI. A budget
+      // for the walk, not a retry: a page that never finishes still fails.
+      test.setTimeout(90_000);
       await page.setViewportSize(size);
       const res = await page.goto("/new");
       expect(res?.status()).toBe(200);
