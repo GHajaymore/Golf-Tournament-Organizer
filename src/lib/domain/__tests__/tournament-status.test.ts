@@ -255,7 +255,8 @@ describe("a knockout", () => {
     expect(st.underWayUnlaunched).toBe(true);
     expect(st.journey).toBe("play");
     expect(st.chip).toBe("Setting up · results in");
-    expect(st.nextAction?.label).toBe("Launch it — it’s being played");
+    // The control keeps its name in every state; the chip and the notice say it is being played.
+    expect(st.nextAction?.label).toBe("Launch tournament");
     // The scoring gate stays out of the way of a tie already played.
     expect(st.refusals.play).toBeNull();
   });
@@ -412,7 +413,7 @@ describe("the rail, the checklist and the journey read the machine (PR 3)", () =
     const f = facts({ confirmed: 12, rounds: [round({ id: "r1", position: 0, hasResult: true }), round({ id: "r2", position: 1 })] });
     const card = statusCardOf(f);
     expect(card.chip).toBe("Setting up · results in");
-    expect(card.nextAction).toMatchObject({ kind: "launch", label: "Launch it — it’s being played", enabled: true });
+    expect(card.nextAction).toMatchObject({ kind: "launch", label: "Launch tournament", enabled: true });
     expect(card.underWay?.title).toBe("Round 1 has results in, but this tournament hasn’t been launched");
     expect(card.underWay?.detail).toContain("the 12 in the field can");
     // The control: nothing played, no notice.

@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import type { Browser, BrowserContext, TestInfo } from "@playwright/test";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { isHeadToHead } from "../src/lib/stage-types";
 
 /**
  * A THROWAWAY CLUB AND ONE TOURNAMENT FOR THE STATE MACHINE'S FAMILY SPECS
@@ -66,6 +67,14 @@ export async function statusFixture(
       status: "draft", shareToken: `${mark}-${Date.now()}`, configUnlocked: true,
       customPars: JSON.stringify(PARS), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
       customYards: JSON.stringify(new Array(18).fill(400)),
+      /**
+       * THE OVERALL RESULT, AS THE APP SETS IT FROM THE ROUNDS. The column defaults to "match",
+       * and the app never leaves a medal on it: a template derives it from its rounds and the
+       * first stroke round added sets "stroke" (`tournament.ts`, the same `isHeadToHead` rule).
+       * Rows written past those doors kept the default, so a "Saturday medal" read
+       * "Overall result: Match play" on Tournament details — a state the app cannot reach.
+       */
+      format: opts.rounds.some((r) => isHeadToHead(r.type)) ? "match" : "stroke",
       ...opts.event,
     },
   });

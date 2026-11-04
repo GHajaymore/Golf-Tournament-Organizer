@@ -93,7 +93,10 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
       journey: "Play",
     });
 
-    // Complete it (the free plan's keeping notice answered if the club is on it).
+    // Complete it (the free plan's keeping notice answered if the club is on it). On the
+    // dashboard, where the status card draws the button: `setup: null` ended the helper on
+    // Tournament details, which has no lifecycle button.
+    await page.goto(`/dashboard?bust=${Date.now()}`);
     await page.getByRole("button", { name: "Complete tournament" }).first().click();
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");

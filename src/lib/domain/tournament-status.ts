@@ -647,7 +647,10 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
       const enabled = refusals.launch === null;
       nextAction = {
         kind: "launch",
-        label: underWayUnlaunched ? "Launch it — it’s being played" : "Launch tournament",
+        // A control is not renamed by the state it is pressed in (PM/UX ruling, PR 3): the button is
+        // "Launch tournament" whether or not results are in. "It's being played" is said by the
+        // chip ("Setting up · results in") and the card's notice (`underWay`), never by the button.
+        label: "Launch tournament",
         href: DASHBOARD,
         enabled,
         disabledBecause: enabled ? null : refusals.launch,

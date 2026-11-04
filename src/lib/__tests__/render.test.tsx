@@ -7914,9 +7914,12 @@ describe("a draft that is already being played", () => {
      * because the ladder only ever asked what the status was. Launching is the
      * step that reconciles the disagreement.
      */
-    // The machine's words for it (TD, panel 8.1 Q5): "Launch it — it's being played".
+    // The button keeps its name in every state (PM/UX ruling, PR 3): "Launch
+    // tournament". That it is being played is the card's text, not the button's.
     const html = await bar("draft", 2);
-    expect(html).toContain("Launch it — it’s being played");
+    expect(html).toContain("Launch tournament");
+    expect(html, "the button was renamed by the state").not.toContain("Launch it —");
+    expect(html, "the card no longer says it is being played").toContain("results in, but this tournament hasn’t been launched");
     expect(html, "still offering to take entries mid-play").not.toContain("Start taking entries");
   });
 
@@ -7939,8 +7942,8 @@ describe("a draft that is already being played", () => {
      * occurrence in this markup is a control on the card.
      */
     const html = await bar("draft", 2);
-    expect(html.match(/Launch it/g) ?? []).toHaveLength(1);
-    expect(html.match(/Launch tournament/g) ?? []).toHaveLength(0);
+    expect(html.match(/Launch tournament/g) ?? []).toHaveLength(1);
+    expect(html.match(/Launch it/g) ?? []).toHaveLength(0);
   });
 
   it("keeps the warning to the disagreement and its cost", async () => {
