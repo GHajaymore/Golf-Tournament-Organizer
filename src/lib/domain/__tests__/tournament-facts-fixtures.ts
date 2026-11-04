@@ -33,6 +33,7 @@ export function facts(over: Partial<TournamentFacts> = {}): TournamentFacts {
     configUnlocked: false,
     correction: null,
     shape: "single",
+    league: false,
     named: true,
     dated: true,
     venued: true,
@@ -100,6 +101,8 @@ export const FAMILY_FIXTURES: Record<Family, () => TournamentFacts> = {
     }),
   league: () =>
     facts({
+      // A league by its KIND (PR 3) — the organizer made it one; never by its round count.
+      league: true,
       confirmed: 16,
       groups: 4,
       startOn: "2026-11-10",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tournamentStatus, tournamentFamily, LOCK_SCOPES, type TournamentFacts } from "../tournament-status";
+import { tournamentStatus, tournamentFamily, setupFlowOf, statusCardOf, LOCK_SCOPES, type TournamentFacts } from "../tournament-status";
 import { FAMILY_FIXTURES, FAMILIES, facts, round, launched, playedOut, completed } from "./tournament-facts-fixtures";
 
 /**
@@ -21,11 +21,31 @@ describe("the family is the tournament's shape, first match wins", () => {
     });
   }
 
-  it("a 36-hole medal is a league by the sidebar's own rule (more than one weekly round)", () => {
-    // Recorded, not endorsed: `navForRole`'s isLeague is the definition today,
-    // and one rule is better than two. The panel is asked about it in the PR.
+  /**
+   * A LEAGUE BY ITS KIND, NOT BY ITS ROUND COUNT (Golf Pro, PR 3). PR 1
+   * recorded the sidebar's rule — more than one weekly round — and it made a
+   * 36-hole medal a league. Worked from the Rules, not from the code: a
+   * stroke-play competition over two rounds is ONE competition whose Terms
+   * set the number of rounds (Rule 3.3; Committee Procedures 5A); its result
+   * is the total of both rounds. Nothing about it is a season of weeks.
+   */
+  it("a 36-hole medal is stroke play, not a league — two rounds are not a season (Rule 3.3; CP 5A)", () => {
     const two = facts({ rounds: [round({ id: "r1", position: 0 }), round({ id: "r2", position: 1 })] });
-    expect(tournamentFamily(two)).toBe("league");
+    expect(tournamentFamily(two)).toBe("stroke");
+    // And a 54-hole Stableford is a Stableford.
+    const three = facts({ rounds: [0, 1, 2].map((i) => round({ id: `r${i}`, position: i, format: "Stableford", stableford: true })) });
+    expect(tournamentFamily(three)).toBe("stableford");
+  });
+
+  it("a league is one because the organizer made it one — and only with a weekly round in it", () => {
+    const weeks = [0, 1, 2].map((i) => round({ id: `w${i}`, position: i }));
+    expect(tournamentFamily(facts({ league: true, rounds: weeks }))).toBe("league");
+    // ONE week is still a league when the organizer says so: the count was never the test.
+    expect(tournamentFamily(facts({ league: true, rounds: weeks.slice(0, 1) }))).toBe("league");
+    // The CONTROL: the kind alone, with no weekly round to play, is not a league —
+    // a knockout called a league is still a draw.
+    const ko = facts({ league: true, rounds: [round({ id: "k", position: 0, type: "Bracket Stage", format: "Match Play", teeSheetSaved: null })] });
+    expect(tournamentFamily(ko)).toBe("knockout");
   });
 });
 
@@ -290,6 +310,114 @@ describe("a league", () => {
     const f = launched(FAMILY_FIXTURES.league());
     f.rounds = f.rounds.map((r, i) => ({ ...r, hasResult: i === 0, closed: i === 0, scheduled: i === 0 }));
     expect(s(f).nextAction).toMatchObject({ kind: "schedule", label: "Set Round 2’s day" });
+  });
+
+  /**
+   * J08 ON THE RAIL (PR 3). Before, the Rounds step stayed open until EVERY
+   * week had a day or a deadline. Inter-club weeks are arranged by captains
+   * within a window, so the next week's day or deadline is a complete answer
+   * (Golf Pro Q4): the step ticks, and the later weeks are named in the launch
+   * dialog — never "some rounds", never a hold.
+   */
+  it("ticks Rounds & formats once the next week is dated, and names the later weeks in the launch dialog (J08)", () => {
+    const f = FAMILY_FIXTURES.league();
+    f.rounds = f.rounds.map((r, i) => ({ ...r, scheduled: i === 0 }));
+    const st = s(f);
+    expect(st.setup.steps.find((x) => x.key === "stages")).toMatchObject({ done: true, holds: false, optional: false });
+    expect(st.setup.current).toBeNull();
+    expect(st.warnings.find((w) => w.href === "/stages")?.says).toBe(
+      "Round 2 and Round 3 have no day or deadline yet. Only the next week needs one now; give the others theirs as the season goes.",
+    );
+  });
+
+  it("asks the NEXT unplayed week, not the first — a played week needs no day (J08)", () => {
+    const f = FAMILY_FIXTURES.league();
+    f.rounds = f.rounds.map((r, i) => ({ ...r, scheduled: i === 1, hasResult: i === 0 }));
+    expect(s(f).refusals.launch).toBeNull();
+    f.rounds[1] = { ...f.rounds[1], scheduled: false };
+    expect(s(f).setup.current?.key).toBe("stages");
+    expect(s(f).setup.current?.missing).toBe("Round 2 has no day and no deadline — only the next week needs one.");
+  });
+
+  it("CONTROL: a medal of the same three rounds keeps every round's day (Golf Pro Q4: a 36-hole championship with an undated Round 2 is not set up)", () => {
+    const f = { ...FAMILY_FIXTURES.league(), league: false };
+    f.rounds = f.rounds.map((r, i) => ({ ...r, type: "Stroke Play Round", format: "Stroke Play", drawsPairings: false, matches: 0, scheduled: i === 0 }));
+    const st = s(f);
+    expect(st.family).toBe("stroke");
+    // Open, and optional: it never refuses launch (8.2 table), and it never ticks.
+    expect(st.setup.steps.find((x) => x.key === "stages")).toMatchObject({ done: false, holds: false, optional: true });
+  });
+});
+
+describe("the rail, the checklist and the journey read the machine (PR 3)", () => {
+  it("D1: a medal with no flights — the rail is complete, Flights is open and optional, and Launch is allowed", () => {
+    for (const base of [FAMILY_FIXTURES.stroke(), FAMILY_FIXTURES.stableford()]) {
+      const flow = setupFlowOf({ ...base, groups: 0 })!;
+      expect(flow.current).toBeNull();
+      expect(flow.complete).toBe(true);
+      expect(flow.readyToLaunch).toBe(true);
+      expect(flow.launchBlocked).toBeNull();
+      const flights = flow.steps.find((x) => x.key === "grouping")!;
+      expect(flights).toMatchObject({ done: false, optional: true, state: "todo", missing: "Optional — one field." });
+      expect(flights.missing).not.toBe("No flights yet.");
+    }
+  });
+
+  it("D1 CONTROL: flights stay required where they are the structure — a round robin and a cup", () => {
+    const rr = setupFlowOf({ ...FAMILY_FIXTURES.roundRobinFlights(), groups: 0 })!;
+    expect(rr.current?.key).toBe("grouping");
+    expect(rr.complete).toBe(false);
+    const cup = setupFlowOf({ ...FAMILY_FIXTURES.teamCup(), cup: { flights: 0, unplaced: 16 } })!;
+    expect(cup.current?.key).toBe("cup");
+  });
+
+  it("D1 CONTROL: once flights are made, a player left out of them is said — and still never holds (J04)", () => {
+    const flow = setupFlowOf({ ...FAMILY_FIXTURES.stroke(), groups: 2, unplacedInFlights: 1 })!;
+    expect(flow.steps.find((x) => x.key === "grouping")).toMatchObject({ done: false, optional: true, missing: "1 player is in no flight." });
+    expect(flow.launch.warnings.some((w) => w.says === "1 player is in the field but in no flight.")).toBe(true);
+  });
+
+  it("D4: a venue and no dates — the details step holds, the rail points at it, and nothing is 'ready to launch'", () => {
+    const flow = setupFlowOf({ ...FAMILY_FIXTURES.stroke(), dated: false, venued: true })!;
+    expect(flow.current?.key).toBe("event");
+    expect(flow.steps[0]).toMatchObject({ done: false, state: "current", missing: "It needs its dates — mark them tentative if they are not fixed." });
+    expect(flow.readyToLaunch).toBe(false);
+  });
+
+  it("a step is never both current and optional, and the rail is complete exactly when launch is allowed", () => {
+    for (const fam of FAMILIES.filter((x) => x !== "casual")) {
+      for (const over of [{}, { groups: 0 }, { dated: false }, { moneyAnswered: false }, { confirmed: 0 }, { named: false }]) {
+        const f = { ...FAMILY_FIXTURES[fam](), ...over };
+        const flow = setupFlowOf(f)!;
+        for (const st of flow.steps) expect(st.state === "current" && st.optional, `${fam} ${JSON.stringify(over)} ${st.key}`).toBe(false);
+        expect(flow.complete, `${fam} ${JSON.stringify(over)}`).toBe(s(f).refusals.launch === null);
+      }
+    }
+  });
+
+  it("a casual round has no rail", () => {
+    expect(setupFlowOf(FAMILY_FIXTURES.casual())).toBeNull();
+  });
+
+  it("the journey: a returned card moves it to Play, never to Finish; Finish is a decision (TD; D2)", () => {
+    // A card in round two of four is not "settle the money".
+    const live = launched(facts({ rounds: [0, 1, 2, 3].map((i) => round({ id: `r${i}`, position: i, hasResult: i < 2 })) }));
+    expect(s(live).journey).toBe("play");
+    // A draft with cards in it is being played, not over.
+    expect(s(facts({ rounds: [round({ id: "r1", position: 0, hasResult: true })] })).journey).toBe("play");
+    expect(s(completed(facts())).journey).toBe("results");
+  });
+
+  it("the status card: one chip for the step, and the results-before-launch notice names the rounds (D5)", () => {
+    const f = facts({ confirmed: 12, rounds: [round({ id: "r1", position: 0, hasResult: true }), round({ id: "r2", position: 1 })] });
+    const card = statusCardOf(f);
+    expect(card.chip).toBe("Setting up · results in");
+    expect(card.nextAction).toMatchObject({ kind: "launch", label: "Launch it — it’s being played", enabled: true });
+    expect(card.underWay?.title).toBe("Round 1 has results in, but this tournament hasn’t been launched");
+    expect(card.underWay?.detail).toContain("the 12 in the field can");
+    // The control: nothing played, no notice.
+    expect(statusCardOf(facts()).underWay).toBeNull();
+    expect(statusCardOf(facts()).chip).toBe("Setting up");
   });
 });
 

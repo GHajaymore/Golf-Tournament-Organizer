@@ -58,6 +58,8 @@ function randomFacts(next: () => number): TournamentFacts {
   return {
     ...base,
     status,
+    // The kind (PR 3): a league stays one; anything else is sometimes CALLED one.
+    league: base.league || bool(0.1),
     configUnlocked: bool(0.2),
     named: bool(0.85),
     dated: bool(0.85),

@@ -8,6 +8,8 @@ vi.mock("@/app/actions/tournament", () => ({
 }));
 
 const { LifecycleBar } = await import("@/components/LifecycleBar");
+const { statusCardOf } = await import("@/lib/domain/tournament-status");
+const { facts, round, launched, completed } = await import("@/lib/domain/__tests__/tournament-facts-fixtures");
 
 /**
  * A FINISHED TOURNAMENT CAN BE REOPENED (2026-10-10). Completing finalizes the
@@ -20,8 +22,17 @@ const summary = {
   name: "zz Cup", dates: "May 14–16", course: "zz Links", format: "Stroke Play", overall: "Stroke play",
   players: 4, flights: 0, rounds: 1,
 };
-const bar = (status: string) =>
-  renderToStaticMarkup(<LifecycleBar status={status} isAdmin configUnlocked={false} summary={summary} resultsIn={4} />);
+// The machine's answer (PR 3) for a medal with its round played: live, or completed.
+const played = facts({ rounds: [round({ id: "r1", position: 0, hasResult: true })] });
+const bar = (status: "live" | "completed") =>
+  renderToStaticMarkup(
+    <LifecycleBar
+      status={statusCardOf(status === "completed" ? completed(played) : launched(played))}
+      isAdmin
+      configUnlocked={false}
+      summary={summary}
+    />,
+  );
 
 describe("the lifecycle bar of a finished tournament", () => {
   it("offers Reopen, as a secondary button", () => {

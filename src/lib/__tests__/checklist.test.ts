@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { setupChecklist, isUnstarted, clubBrandingState, type ChecklistState } from "../services/checklist";
+import { setupChecklist, statusChecklist, clubBrandingState, type ChecklistState } from "../services/checklist";
+import { tournamentStatus } from "../domain/tournament-status";
+import { FAMILY_FIXTURES } from "../domain/__tests__/tournament-facts-fixtures";
 import { NAV, screenName } from "../nav";
 import { DEFAULT_THEME, DEFAULT_SECONDARY } from "../themes";
 import { readVerbatim, readSource } from "./source";
@@ -32,21 +34,39 @@ const ready: ChecklistState = {
   accounts: [{}, {}],
 };
 
-describe("is this tournament built yet", () => {
-  it("calls a tournament with no field unstarted", () => {
-    expect(isUnstarted(empty)).toBe(true);
+/**
+ * THE ROWS ARE THE STATE MACHINE'S STEPS (PR 3). "Is this tournament built
+ * yet" was `isUnstarted` here; the dashboard asks the machine's facts now
+ * (`facts.confirmed === 0`), and the rows take their tick, words and
+ * "optional" from `tournamentStatus(facts).setup.steps` — so a medal with no
+ * flights reads "Optional — one field" here exactly as on the rail (D1).
+ */
+describe("the checklist reads the machine's steps", () => {
+  const medal = statusChecklist(
+    tournamentStatus({ ...FAMILY_FIXTURES.stroke(), groups: 0, moneyAnswered: false }).setup.steps,
+    { ...ready, groups: [] },
+  );
+
+  it("D1: a medal's Flights row is optional, in the machine's words — never 'No flights yet'", () => {
+    const flights = medal.find((i) => i.href === "/grouping")!;
+    expect(flights).toMatchObject({ done: false, optional: true, detail: "Optional — one field." });
   });
 
-  it("stops calling it unstarted the moment a field exists", () => {
-    // The field is the first real step: rounds, flights and scores all need
-    // it, so it is the honest test for "there is something to show".
-    expect(isUnstarted({ ...empty, confirmed: [{}] })).toBe(false);
+  it("the money answer nothing waits for is optional too, on the list as on the rail", () => {
+    expect(medal.find((i) => i.href === "/prizes")).toMatchObject({ done: false, optional: true });
   });
 
-  it("does not treat a configured-but-empty tournament as started", () => {
-    // Rounds exist from creation — the create action makes the opening one —
-    // so rounds alone must not count as progress.
-    expect(isUnstarted({ ...empty, stages: [{}] })).toBe(true);
+  it("D4: the details row is ticked only with dates, and says so", () => {
+    expect(medal.find((i) => i.href === "/event")).toMatchObject({ done: true, detail: "Named, and it has its dates." });
+    const venueOnly = statusChecklist(tournamentStatus({ ...FAMILY_FIXTURES.stroke(), dated: false, venued: true }).setup.steps, ready);
+    expect(venueOnly.find((i) => i.href === "/event")).toMatchObject({ done: false });
+    expect(venueOnly.find((i) => i.href === "/event")?.optional).toBeUndefined();
+  });
+
+  it("CONTROL: a round robin's Flights row is required — never optional", () => {
+    const rr = statusChecklist(tournamentStatus({ ...FAMILY_FIXTURES.roundRobinFlights(), groups: 0 }).setup.steps, ready);
+    expect(rr.find((i) => i.href === "/grouping")).toMatchObject({ done: false });
+    expect(rr.find((i) => i.href === "/grouping")?.optional).toBeUndefined();
   });
 });
 

@@ -14,6 +14,8 @@ import { EventContextBar } from "@/components/EventContextBar";
 import { BackToTheRound } from "@/components/BackToTheRound";
 import { navForRole } from "@/lib/nav";
 import { loadEventState } from "@/lib/services/tournament";
+import { tournamentStatusFor } from "@/lib/services/tournament-status";
+import { STEP_TAG } from "@/lib/domain/tournament-status";
 import { roundNameFor } from "@/lib/domain/round-label";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
@@ -151,6 +153,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * which trades a small honest imprecision for a large useless one.
    */
   const roundState = event ? await loadEventState(event.id) : null;
+  /**
+   * THE CHIP ON EVERY CONSOLE SCREEN — the state machine's step (PR 3), on the
+   * club's day (`state.today`). Request-cached: the dashboard, Tournament
+   * details and Rounds & formats ask the same question under it for nothing.
+   */
+  const told = event && roundState ? await tournamentStatusFor(event.id, roundState.today) : null;
   const boardRound = roundState?.boardStage ?? null;
   const roundName = boardRound
     ? roundNameFor(roundState!.playRounds, boardRound)
@@ -286,7 +294,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             dates={event.dates}
             course={event.course}
             city={event.city}
-            status={event.status}
+            status={
+              told
+                ? { step: told.status.step, chip: told.status.chip, tag: STEP_TAG[told.status.step], detail: told.status.chipDetail }
+                : { step: "setting-up", chip: "Setting up", tag: STEP_TAG["setting-up"], detail: "" }
+            }
             canSwitch={session.viewRole === "admin"}
             compact={casualShell}
           />

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { STATUS_META } from "@/lib/format";
+import type { Step } from "@/lib/domain/tournament-status";
 import { Icon } from "./Icon";
 
 /**
@@ -27,10 +27,16 @@ export function EventContextBar({
   dates: string;
   course: string;
   city: string;
-  status: string;
+  /**
+   * THE STATE MACHINE'S CHIP (PR 3): `tournamentStatus(facts)`'s step, its
+   * words and their tone — "Setting up · results in", "Live · Suspended",
+   * "Play over" — never the stored status read through `STATUS_META`, which
+   * said "Setting up" over a tournament being played (D5) and "Live" over one
+   * whose play was over (2d). `detail` is the line under "Play over".
+   */
+  status: { step: Step; chip: string; tag: string; detail: string };
   canSwitch: boolean;
 }) {
-  const meta = STATUS_META[status] ?? STATUS_META.draft;
   const location = [course, city].filter(Boolean).join(", ");
 
   return (
@@ -61,10 +67,18 @@ export function EventContextBar({
           {[dates, location].filter(Boolean).join(" · ")}
         </span>
       )}
-      <span className={`tag ${meta.tag}`} style={{ fontSize: 13, flex: "none" }}>
-        {status === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 13, marginRight: 4 }} />}
-        {meta.label}
+      <span className={`tag ${status.tag}`} style={{ fontSize: 13, flex: "none" }}>
+        {status.step === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 13, marginRight: 4 }} />}
+        {status.chip}
       </span>
+      {/* "Every round closed · results not released" — the second line the
+          UI/UX panel asked for under "Play over" (8.3 Q5), in the secondary
+          style, never a second chip. */}
+      {!compact && status.detail && (
+        <span className="text-muted" style={{ fontSize: 13 }}>
+          {status.detail}
+        </span>
+      )}
       <div style={{ flex: 1 }} />
       {canSwitch && (
         <Link

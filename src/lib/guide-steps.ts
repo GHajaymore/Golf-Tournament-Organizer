@@ -334,6 +334,7 @@ export const GUIDE_STEPS: GuideSection[] = [
     blocks: [
       { kind: "h", text: "Flights" },
       { kind: "where", text: "Set up → Flights" },
+      { kind: "tip", text: "A medal or a Stableford needs no flights: one field is a complete setup, and the step reads **Optional — one field**. A round robin is played inside its flights and a team cup's flights are its two teams, so those two need them before they can launch. On a round robin with no flights the Dashboard's Matches tile says so, with the link to make them." },
       {
         kind: "steps",
         items: [
@@ -395,13 +396,14 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Until it is launched, a tournament's status is **Setting up** — one step, however far you are. Entries are not a status: players can sign up once you publish the sign-up link on **Entries**.",
-          "Finish the setup steps the **How a tournament runs** panel on Tournament details shows — including name and dates. Until you launch, the Dashboard keeps the same list under **Still to set up**, even once your players are in.",
+          "Until it is launched, a tournament's status is **Setting up** — one step, however far you are. Entries are not a status: players can sign up once you publish the sign-up link on **Entries**. With results already in, it reads **Setting up · results in**, and the button reads **Launch it — it's being played**.",
+          "Work through the setup steps on the bar across the top of each Set-up screen — it is the one count of how far you are (for example **3 of 6 done**); the **How a tournament runs** panel on Tournament details marks where you are without a second count. The tournament needs a name and its **dates**; a venue alone is not enough, because players cannot plan around a tournament with no day. Until you launch, the Dashboard keeps the steps still to do under **Still to set up**, even once your players are in.",
+          "Some steps are **Optional** and never stop you: flights for a medal or a Stableford (one field is a complete setup, and the step reads **Optional — one field**), the answer on how money works, and a day for every round of a tournament played over several rounds. Once nothing stops a launch the bar reads **Ready to launch** and says how many parts are done, the rest optional.",
           "Press the launch button on the status bar. **Launch “‹name›”?** first lists what setup still has open — no flights, no tee sheet, no answer on how money works — each with a link to the screen that fixes it and whether you can still do it after launch. Then it summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
           "Press [[Launch tournament]]. Setup locks; Part 3 lists what you can still change.",
         ],
       },
-      { kind: "warn", text: "Launch is refused, with the reason under the button, when a round could not be scored: a round played in sides with no sides made (make them on Teams & pairs), a team cup without its two teams (Team cup), or a round robin with no pairings (generate them on Rounds & formats). Anything else still open is only listed — you can launch without it." },
+      { kind: "warn", text: "Launch is refused, with the reason under the button and a link to the screen that puts it right, when the tournament has no dates or a round could not be scored or played: a round played in sides with a player on no side (Teams & pairs), a team cup without its two teams or with a player on neither (Team cup), a round robin with no flights, a player in no flight or no pairings (Flights, then Rounds & formats), a match or a knockout with fewer than two players, or a league whose next week has no day and no deadline (Rounds & formats). Anything else still open is only listed — you can launch without it." },
     ],
   },
   {
@@ -530,6 +532,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Add the season's rounds at once with **How many?** and **Then** (weekly).",
+          "Only the next week to be played needs a day or a deadline before you launch; later weeks can be dated as the season goes. The launch dialog names the weeks still without one, and once the tournament is live the Dashboard's button offers to set it (for example **Set Round 4's day**) when the next week has neither. A tournament counts as a league because you made it one — called a league, a league of clubs, or a weekly sign-up — never because it has several rounds: a two-day medal still needs a day for each round.",
           "**This week** shows the week's results, standings and skins.",
           "The standings under a week of strokes or points are the leaderboard's own table after that week: the total over every round played so far, in the leaderboard's places. A player who missed a cut holds no place in it, and nor, on strokes, does one with no card for a week you have closed; a total over fewer holes than the rest says “thru” beside it.",
           "Close each week once it is played. With members away a week is never “all in”, so the Dashboard asks to close it as soon as next week's draw is out and every card that was started is back — it says how many did not play. Closing moves everybody on to the new week.",
@@ -641,7 +644,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "recipes",
         items: [
-          { title: "Monthly medal or Stableford", for: "One day, individual, net.", steps: ["Template Stableford or Stroke Play.", "Dates and course; publish the sign-up link.", "Flights: Handicap divisions, Auto.", "Tee sheet: balanced; publish.", "Players score on phones; approve clean cards.", "Prizes per division; complete and export."] },
+          { title: "Monthly medal or Stableford", for: "One day, individual, net.", steps: ["Template Stableford or Stroke Play.", "Dates and course; publish the sign-up link.", "Flights, if you want divisions: Handicap divisions, Auto. One field needs none.", "Tee sheet: balanced; publish.", "Players score on phones; approve clean cards.", "Prizes per division; complete and export."] },
           { title: "Club championship with a cut", for: "Several rounds; leaders play on.", steps: ["Template Stroke Play; add rounds with How many?.", "Cut the field: Top N, and how a tie for the last place is settled (ties go through, play-off or countback).", "Leaderboard for organizers only if you want it blind.", "Mark each round over; the cut happens then.", "Draw the next tee sheet By position."] },
           { title: "Match play league", for: "Everyone plays everyone in their flight.", steps: ["Template Match Play — round robin.", "All the season's rounds at once: How many? + Then weekly.", "Flights: Balanced skills; Generate.", "Players enter and confirm matches; approve the rest.", "Follow This week and Season standings."] },
           { title: "Knockout with qualifying", for: "A medal round seeds a bracket.", steps: ["Round 1 Stroke play round; Round 2 Bracket.", "Qualification cut: Overall top 8 or 16, or per flight.", "Optional Third and fourth.", "Enter winners on Bracket."] },

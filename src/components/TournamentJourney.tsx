@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Icon } from "./Icon";
 import { screenName } from "@/lib/nav";
 import { setupScreens } from "@/lib/domain/setup-flow";
-import { tournamentPhase } from "@/lib/domain/lifecycle-state";
 
 /**
  * THE WHOLE OF RUNNING A TOURNAMENT, ON ONE CARD.
@@ -66,28 +65,18 @@ export interface TournamentJourneyProps {
     currentHref?: string;
   } | null;
   /**
-   * THE TOURNAMENT'S STATUS, not conclusions drawn from it.
+   * WHERE THE TOURNAMENT IS — the state machine's `journey`
+   * (`tournamentStatus(facts).journey`, PR 3), never worked out here.
    *
-   * This was two booleans, `launched` and `finished`, each computed in
-   * `/event/page.tsx` and passed down through `EventSetupClient` — which used
-   * neither and forwarded both. Three components carrying a rule that belongs
-   * to one, and the page was the one stating it: `status === "live" ||
-   * status === "completed"`.
-   *
-   * `tournamentPhase` derives both itself now, from `PRE_LAUNCH_STATUSES`,
-   * which is the list that actually defines what launched means. See its note
-   * for why the hand-written pair was not merely a copy but an INVERSE that
-   * would diverge the day a sixth status is added.
+   * This card took the status and "any card returned" and derived the phase
+   * itself (`tournamentPhase`), from a setup rail that held a medal with no
+   * flights at Flights — so on one screen the Launch button said go while this
+   * card said "Set up" (D1). The machine answers it once: Finish when the
+   * tournament is completed; Play once it is launched or any round has a
+   * result (a knockout's recorded ties included, D2); Launch once nothing
+   * holds launch; Set up before that.
    */
-  status: string;
-  /**
-   * Whether any card has been returned.
-   *
-   * This said "which is what 'finishing' needs", and the code below believed
-   * it. A returned card is evidence that play has STARTED — it is what the
-   * first phase of scoring looks like, not the last.
-   */
-  scored: boolean;
+  journey: JourneyPhase;
   /** Knockout tournaments only — see the bracket gate in EventSetupClient. */
   hasBracket: boolean;
 }
@@ -103,8 +92,7 @@ interface Phase {
 
 export function TournamentJourney({
   setup,
-  status,
-  scored,
+  journey,
   hasBracket,
 }: TournamentJourneyProps) {
   const phases: Phase[] = [
@@ -157,70 +145,27 @@ export function TournamentJourney({
   ];
 
   /**
-   * Where the tournament actually is — `tournamentPhase`, not an expression.
+   * Where the tournament actually is — the machine's `journey`, handed in.
    *
-   * Read from what has happened rather than from a stored stage, so it cannot
-   * disagree with the screens either side of it: setting up is finished when
-   * the rail says so, playing has started when a card has been returned.
-   *
-   * THE RULE HAS MOVED TO `domain/lifecycle-state.ts`, unchanged, because this
-   * card was not the only screen answering the question. `/dashboard`'s status
-   * chip answered it separately and got a different answer on the same
-   * tournament — this card said Play and the chip said Draft. Fixing the
-   * expression here and leaving the chip to be fixed later is precisely how
-   * the two came to disagree, so there is now one function and two readers.
-   * The reasoning below is kept where the rule is.
-   *
-   * THE FIRST TEST USED TO BE `scored`, AND IT ANSWERED THE WRONG QUESTION.
-   * One returned card sent the whole card to "Finish", so it ticked Launch and
-   * Play as done and told the organizer to settle the money and send everyone
-   * the result — on a tournament whose second round was in progress.
-   *
-   * Demo Cup on 2026-09-14 is the case it was reported from, and it is worse
-   * than it looks: `status` is "draft", so `launched` is FALSE. The card
-   * claimed a tournament had finished that had never started. `scored` was
-   * tested first, so the two phases it skipped were never consulted.
-   *
-   * The order is the fix, and so is what each test now means:
-   *
-   *   finished           a decision somebody made — `status === "completed"`.
-   *                      Nothing derived, because nothing derived can know:
-   *                      four rounds with one played and four rounds with
-   *                      four played both have cards.
-   *   launched || scored play has started. `launched` is the ordinary route;
-   *                      `scored` is the evidence route, kept because it was
-   *                      the sound half of the original idea — a card that has
-   *                      come in means somebody is out there whatever the
-   *                      status says.
-   *
-   * So a card count can now only ever move this FORWARD to Play, never to
-   * Finish, which is the direction it is capable of being right about.
+   * The reasoning that used to live here (`finished` is a decision, `launched
+   * || scored` is play having started, a card count only ever moves this
+   * FORWARD to Play) is the machine's now: `tournamentStatus` answers it for
+   * this card, the dashboard and the public event page alike.
    */
-  const current: JourneyPhase = tournamentPhase({
-    status,
-    scored,
-    setupComplete: !!setup?.complete,
-  });
   const order: JourneyPhase[] = ["setup", "launch", "play", "results"];
-  const currentIndex = order.indexOf(current);
+  const currentIndex = order.indexOf(journey);
 
   return (
     <div className="card elev-sm">
       <span className="card-title" style={{ fontSize: 15 }}>
         How a tournament runs
       </span>
-      <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 2px" }}>
-        {/* PHASE, NOT STEP — this card counts something else.
-            On /event this sentence sits about two thousand pixels below the
-            rail's "Setup is done — all 5 parts", and the rail's own progress
-            line reads "N of 5 done". Two counters, two denominators, and this
-            one was the only thing on the screen calling its four PHASES
-            "steps" — which is also what this file's own type calls them
-            (`JourneyPhase`) and what every comment in it says. So a reader
-            met "step 4 of 4" under a banner saying five and had no way to
-            tell they were different questions. */}
-        You are on phase {currentIndex + 1} of {order.length}.
-      </p>
+      {/* NO COUNTER HERE ANY MORE (state machine PR 3; UI/UX, panel 8.3 Q4).
+          "You are on phase N of 4" sat on /event below the rail's "N of 6
+          done": two counters with two denominators on one screen is exactly
+          the shape of D1. The chip is the step, the rail is the only counter
+          during setup, and this card keeps its pictures and links — "You are
+          here" marks the phase. */}
 
       <ol style={{ listStyle: "none", margin: "4px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
         {phases.map((phase, i) => {
@@ -266,14 +211,9 @@ export function TournamentJourney({
                       You are here
                     </span>
                   )}
-                  {/* The one phase that can report progress does. The rail at
-                      the top of this screen owns the detail; this owns the
-                      fact that there IS detail, and how much is left. */}
-                  {phase.key === "setup" && setup && !setup.complete && (
-                    <span className="text-muted" style={{ fontSize: 13 }}>
-                      {setup.doneCount} of {setup.total} done
-                    </span>
-                  )}
+                  {/* "N of M done" is the rail's, and only the rail's (PR 3):
+                      the chips below say which parts are done and which is
+                      next, without a second count. */}
                 </div>
                 <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0", lineHeight: 1.5 }}>
                   {phase.blurb}

@@ -12,7 +12,7 @@ import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { StickySave } from "./StickySave";
-import { TournamentJourney } from "./TournamentJourney";
+import { TournamentJourney, type JourneyPhase } from "./TournamentJourney";
 import { overallResultLabel } from "@/lib/domain/overall-result";
 import { TITLE_MAX } from "@/lib/domain/typed-limits";
 import { bringIntoView } from "@/lib/bring-into-view";
@@ -78,8 +78,7 @@ export function EventSetupClient({
   hasBracket = true,
   roundFormats = [],
   setup = null,
-  status = "draft",
-  scored = false,
+  journey = "setup",
   locale = DEFAULT_LOCALE,
   locked = false,
   fieldCap = null,
@@ -145,20 +144,15 @@ export function EventSetupClient({
     currentHref?: string;
   } | null;
   /**
-   * The tournament's status, passed through to the journey card.
+   * Where the tournament is, for the journey card — the state machine's
+   * `journey` (PR 3), passed through untouched.
    *
-   * This was `launched` and `finished`, two booleans this component never
-   * read — it forwarded both and nothing else. Passing the status instead
-   * means the rule about what launched MEANS lives with the list that defines
-   * it rather than in the page above.
-   *
-   * Defaults to "draft", the quietest answer: a caller that forgets it gets a
-   * journey card at the start of the journey, which understates. The value it
-   * replaced derived "finished" from a card count and OVERSTATED — it told an
+   * Defaults to "setup", the quietest answer: a caller that forgets it gets a
+   * journey card at the start of the journey, which understates. An earlier
+   * value derived "finished" from a card count and OVERSTATED — it told an
    * organizer to settle the money mid-round.
    */
-  status?: string;
-  scored?: boolean;
+  journey?: JourneyPhase;
 }) {
   const [f, setF] = useState<EventForm>(initial);
   // The club's golf words — "a league or golf group", "a league or society".
@@ -941,8 +935,7 @@ export function EventSetupClient({
         {!isMatch && (
         <TournamentJourney
           setup={setup}
-          status={status}
-          scored={scored}
+          journey={journey}
           hasBracket={hasBracket}
         />
         )}

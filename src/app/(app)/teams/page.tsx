@@ -12,7 +12,7 @@ import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupRailFor } from "@/lib/services/tournament-status";
 
 /**
  * Drawing sides for the team formats.
@@ -66,7 +66,7 @@ export default async function TeamsPage({
   // A setup step in a team event (2026-09-26) — so it carries the same rail and
   // "next" footer as every other step, rather than being the one screen in the
   // guide that does not say where it sits.
-  const flow = await setupFlowFor(session.eventId);
+  const flow = await setupRailFor(session.eventId);
   // The lock every other setup screen reads; the actions here refuse it.
   const lockState = await prisma.event.findUnique({
     where: { id: session.eventId },

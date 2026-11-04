@@ -339,6 +339,11 @@ export const FULL_ONLY = [
   "e2e/skins-pot.spec.ts",
   "e2e/slow-signal-scoring.spec.ts",
   "e2e/staff-kept-cards.spec.ts",
+  // The state machine's family walks (PR 3): the core lifecycle every tournament goes through.
+  "e2e/status-league.spec.ts",
+  "e2e/status-round-robin-flights.spec.ts",
+  "e2e/status-stableford.spec.ts",
+  "e2e/status-stroke.spec.ts",
   "e2e/team-cup.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",

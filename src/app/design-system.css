@@ -274,6 +274,9 @@ figcaption {
 }
 .btn svg { display: block; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* A refused main action (`RefusedAction`): looks refused, stays focusable so a
+   screen reader reaches its reason through aria-describedby (panel 8.3 Q2). */
+.btn[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
 .btn:active:not(:disabled) { transform: translateY(0.5px); }
 
 /* The primary action is filled. It was outlined, which left every screen

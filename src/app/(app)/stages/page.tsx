@@ -25,14 +25,13 @@ import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
 import { roundCardLines, roundsMissingCards } from "@/lib/services/round-card-lines";
 import { missingCardsRefusal } from "@/lib/domain/round-card-status";
-import { PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { cardTrustNote, parseIndex } from "@/lib/domain/card-trust";
 import { pickedCardNote } from "@/lib/domain/picked-card";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { DescribeTournament } from "@/components/DescribeTournament";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupFlowFor } from "@/lib/services/setup-flow";
+import { setupRailFor, tournamentStatusFor } from "@/lib/services/tournament-status";
 import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
 import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason } from "@/lib/domain/team-entry";
 import { effectiveAllowance, effectiveCountBest, recommendedAllowance, snakeDraw } from "@/lib/services/teams";
@@ -128,7 +127,14 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
       .map((s) => ({ type: s.type, headToHead: isHeadToHead(s.type) })),
   );
   // Where this screen sits in setting the tournament up. Null for a match.
-  const flow = await setupFlowFor(session.eventId);
+  const flow = await setupRailFor(session.eventId);
+  /**
+   * HAS IT BEEN LAUNCHED — the state machine's step (J16, PR 3), never the
+   * stored status read against `PRE_LAUNCH_STATUSES` here. The timeline's
+   * "launched", the missing-cards note and the "so far" in the subtitle all
+   * ask this one answer.
+   */
+  const settingUp = (await tournamentStatusFor(session.eventId, state.today))?.status.step === "setting-up";
 
   // League sign-up, resolved per round for the counts on each card. Declared
   // before the map that reads them — they used to sit below it, so every
@@ -261,7 +267,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
   // Before launch only: the sentence is about launching, and once a
   // tournament is live score entry's own prompt says the same thing where
   // the card is needed.
-  const missingCardsNote = PRE_LAUNCH_STATUSES.includes(state.event.status)
+  const missingCardsNote = settingUp
     ? missingCardsRefusal(await roundsMissingCards(session.eventId))
     : null;
   const venueRows = await prisma.course.findMany({
@@ -323,7 +329,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>{state.confirmed.length} entered</Link>
         {state.stages.length === 0
           ? ` — ${formatsThatSuit(state.confirmed.length)}.`
-          : PRE_LAUNCH_STATUSES.includes(state.event.status)
+          : settingUp
             ? " so far."
             : "."}
       </p>
@@ -504,7 +510,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         // refuse it by throwing, so the controls have to know it too.
         locked={locked}
         // Whether play has begun at all: the controls about PLAY wait for it.
-        launched={!PRE_LAUNCH_STATUSES.includes(state.event.status)}
+        launched={!settingUp}
         // The knockout's arrangement, chosen on the round that is the knockout —
         // the same reading of the stored mode the Bracket screen makes.
         arrangement={(() => {
