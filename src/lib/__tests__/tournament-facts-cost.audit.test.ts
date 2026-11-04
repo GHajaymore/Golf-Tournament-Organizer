@@ -70,7 +70,8 @@ counted.$on("query", (e) => {
  * else's — has been counted by then. No sleep, no guess. Proved by delaying every
  * report 20 ms in order (as CI does, more): without the marks the counts read
  * 30, 23, 32, 34, 34; with the closing mark only, 67, 34, 34, 34, 34 (the first
- * run took the reports of what came before it); with both, steady.
+ * run took the reports of what came before it); with both, and the pool's own
+ * `SELECT 1` left out, every run of every read the same at 20 and at 60 ms.
  */
 async function settle(): Promise<void> {
   const want = settled + 1;
