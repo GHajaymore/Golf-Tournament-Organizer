@@ -589,7 +589,8 @@ function PlayScreens(props: Props) {
       const player = players?.find((p) => p.id === held.value);
       if (player) choose({ kind: "player", id: player.id, name: player.name });
     }
-    // Once, on arrival.
+    // Once, on arrival: the groups and names are those the page arrived with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.stage]);
 
   if (props.stage === "code") {
@@ -826,7 +827,7 @@ function PlayScreens(props: Props) {
                 >
                   <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-neutral-400)" }}>
                     {[g.title, g.tee].filter(Boolean).join(" · ")}
-                  </span>
+                  </span>{" "}
                   <span style={{ display: "block", fontSize: 17, fontWeight: 600, marginTop: 3, lineHeight: 1.35 }}>{g.names}</span>
                 </button>
               ))}

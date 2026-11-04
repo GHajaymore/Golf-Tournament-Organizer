@@ -163,3 +163,15 @@ So: append a throwaway query (`?bust=1`) when navigating to check a change, or a
 no-store `fetch`. And note the failure is not symmetrical — a stale read can also show a string
 you have just DELETED, which is the direction that ends with "already fixed" written on something
 that is not.
+
+**AFTER THE ROUND CODE, A SPEC PICKS A GROUP AND CONFIRMS IT (2026-11-04).** `/play` no longer lists
+every player: a match round lists each match as one group (with its tee time off a published tee
+sheet), a stroke round with a published sheet lists the sheet's groups, and only a stroke round with
+no sheet still lists names. Whatever is tapped is said back once — "You're keeping Group 3: …" with
+"Yes, that's my group" (a name: "Yes, that's right") and "No, go back" — and in a group of somebody's
+own cards the scorer then picks whose. A phone that confirmed a group for a round is not asked again
+(`thq-play-kept:<round>` in its storage), so a spec that re-enters on the same context sees no
+question. Press it through `keepCardOf(page, name)` in `e2e/keep-on-play.ts`, which reads which list
+the round drew rather than assuming it. A match opened by its group signs the phone in as the
+match's first player, so a spec reads the card's heading as the match ("A vs B", side A first,
+whoever holds it), never as the player whose name it typed.

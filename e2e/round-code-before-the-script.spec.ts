@@ -158,17 +158,21 @@ test.describe("a round code before the page's script", () => {
       await expect(page.getByRole("heading", { name: `${MARK} Autumn Medal` })).toBeVisible();
       for (const name of NAMES) await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 
-      // A name: the session starts and the card is drawn, for that player.
+      // A name: said back first, drawn by the server (2026-11-04) — nothing starts on one tap.
       const documents: string[] = [];
       page.on("response", (r) => {
         if (r.request().resourceType() === "document" && r.frame() === page.mainFrame()) documents.push(`${r.request().method()} ${r.status()}`);
       });
       await page.getByRole("button", { name: NAMES[0], exact: true }).click();
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(`You're keeping ${NAMES[0]}'s card`);
+      expect((await context.cookies()).some((c) => c.name.toLowerCase().includes("play")), "a tap nobody confirmed started a session").toBe(false);
+      // Yes: the session starts and the card is drawn, for that player.
+      await page.getByRole("button", { name: "Yes, that's right" }).click();
       await expect(page.getByLabel("Strokes on hole 1")).toBeVisible();
       await expect(page.getByText(NAMES[0]).first()).toBeVisible();
-      // …and it is a page of its own: the post answered with a redirect, so the card is a GET and a
-      // reload of it reopens the card rather than posting the name again.
-      expect(documents, "the card is the answer to the post itself, so a reload would post the name again").toEqual(["POST 303", "GET 200"]);
+      // …and it is a page of its own: the confirmed post answered with a redirect, so the card is a
+      // GET and a reload of it reopens the card rather than posting the name again.
+      expect(documents, "the card is the answer to the post itself, so a reload would post the name again").toEqual(["POST 200", "POST 303", "GET 200"]);
       expect((await context.cookies()).some((c) => c.name.toLowerCase().includes("play")), "no play session cookie was set").toBe(true);
     } finally {
       await context.close();
@@ -202,6 +206,8 @@ test.describe("a round code before the page's script", () => {
       await expect(me).toBeVisible({ timeout: 15_000 });
       expect(await page.evaluate(() => (window as unknown as { __zzSamePage?: boolean }).__zzSamePage), "the held press became a new page").toBe(true);
       await me.click();
+      // The one confirmation (2026-11-04), then the card.
+      await page.getByRole("button", { name: "Yes, that's right" }).click();
       const pad = page.getByRole("button", { name: /Par$/ }).first();
       await expect(pad).toBeEnabled({ timeout: 30_000 });
       await pad.click();
@@ -232,6 +238,10 @@ test.describe("a round code before the page's script", () => {
       expect(waited, "the held press went before its ten seconds were up").toBeGreaterThan(9_000);
       expect(await isLive(page)).toBe(false);
       await me.click();
+      // The one confirmation, drawn by the server with no script (2026-11-04), then the card.
+      const yes = page.getByRole("button", { name: "Yes, that's right" });
+      await expect(yes).toBeVisible({ timeout: 25_000 });
+      await yes.click();
       await expect(page.getByLabel("Strokes on hole 1")).toBeVisible({ timeout: 25_000 });
       await expect(page.getByText(NAMES[2]).first()).toBeVisible();
       // A pad drawn before its script is a picture of one, and says so by being disabled.

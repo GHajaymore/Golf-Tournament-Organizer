@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { keepCardOf } from "./keep-on-play";
 
 /**
  * A ROUND'S PRINTED SIGN, FROM THE ORGANIZER'S SCREEN TO A PLAYER'S THUMB (2026-10-17).
@@ -94,8 +95,9 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
     await expect(player.getByLabel("Round code"), "the scanned phone was still asked to type the code").toHaveCount(0);
     expect(new URL(player.url()).hash, "the code was left on the address").toBe("");
 
-    // Tapping a name is the player's own act; the sign never does it.
-    await player.getByRole("button", { name: somebody }).click();
+    // Tapping a group (or a name, on a round with none) and confirming it is the scorer's own act;
+    // the sign never does it (2026-11-04).
+    await keepCardOf(player, somebody);
     // Scoring as them: their own screen, headed by their name. Waited for, or the next step leaves
     // before the sign-in lands and walks a phone with no session (Firefox, 2026-10-17).
     const scoring = player.getByRole("heading", { level: 1, name: somebody });

@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Browser } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { keepCardOf } from "./keep-on-play";
 
 /**
  * A ROUND-CODE PLAYER SIGNS THEIR CARD, AND PHONES IN A MATCH RESULT (2026-10-21).
@@ -94,8 +95,9 @@ test.beforeAll(async () => {
   );
   ids.thea = thea.id;
   ids.wren = wren.id;
-  // Thea is A and Wren is B, so the holder of the phone is the SECOND player and every
-  // answer the screen gives "from her side" has to be turned round before it is stored.
+  // Thea is A and Wren is B, so the holder of the phone is the SECOND player. The card
+  // used to turn round to face her and flip every answer; since 2026-11-04 it is drawn
+  // Thea first, as drawn, and "Wren won" is stored as B because it IS B.
   ids.match = (
     await prisma.match.create({
       data: { eventId: event.id, stageId: ids.matchStage, groupId: flight.id, round: 1, playerAId: thea.id, playerBId: wren.id, holes: JSON.stringify(new Array(18).fill(null)) },
@@ -137,7 +139,8 @@ async function enter(page: Page, roundCode: string, name: string) {
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.getByLabel("Round code").fill(roundCode);
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name, exact: true }).click();
+  // Their group, or their name where the round has none, confirmed once (2026-11-04).
+  await keepCardOf(page, name);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(name, { timeout: 30_000 });
 }
 
@@ -253,7 +256,8 @@ test("a match result phoned in by code is stored as the holes it means, and read
     const page = await ctx.newPage();
     watchPageErrors(page, errors, "Wren, by the code");
     await enter(page, MATCH, WREN);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/Wren Calloway\s*vs\s*Thea Brightwater/);
+    // Side A first, as drawn, though the phone is Wren's (side B): the card never turns round.
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/Thea Brightwater\s*vs\s*Wren Calloway/);
 
     await page.getByText("Final result", { exact: true }).click();
     await page.getByLabel("Wren won", { exact: true }).check();

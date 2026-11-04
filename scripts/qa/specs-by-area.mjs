@@ -322,6 +322,8 @@ export const FULL_ONLY = [
   "e2e/round-code-certify-and-result.spec.ts",
   "e2e/round-code-decided-match.spec.ts",
   "e2e/round-code-four-ball-side.spec.ts",
+  // The cup's wrong card (18 Oct), pressed the new way: code, group, one confirmation, side B credited.
+  "e2e/round-code-keeps-a-group.spec.ts",
   "e2e/round-code-on-3g.spec.ts",
   "e2e/round-code-reissued.spec.ts",
   "e2e/round-code-sign.spec.ts",

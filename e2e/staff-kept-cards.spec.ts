@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Browser } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { keepCardOf } from "./keep-on-play";
 
 /**
  * A ROUND CODE ON A TOURNAMENT WHOSE CARDS THE CLUB KEEPS (2026-10-24).
@@ -134,7 +135,8 @@ async function enter(page: Page, roundCode: string, name: string) {
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.getByLabel("Round code").fill(roundCode);
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name, exact: true }).click();
+  // Their group, or their name where the round has none, confirmed once (2026-11-04).
+  await keepCardOf(page, name);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(name, { timeout: 30_000 });
 }
 
