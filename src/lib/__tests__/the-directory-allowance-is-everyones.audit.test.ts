@@ -47,9 +47,28 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
+/**
+ * ONE WINDOW FOR THE WHOLE FILE, WHATEVER THE CLOCK SAYS. A budget is counted in
+ * fixed hourly windows (`windowFor`), and this file spends four of them. Run at
+ * 15:58 and 21:58 on 2026-11-03, the hour turned mid-file and handed back a
+ * fresh budget — 130 imports where the limit is 120 — a red round with the rule
+ * working. Waiting for a fresh hour instead cost up to eight minutes and pushed
+ * CI's unit job past its limit. What this file proves is WHO spends WHICH
+ * budget, not when a window turns over (`rate-limit.test.ts` holds that), so
+ * the window is pinned here and the clock plays no part.
+ */
+vi.mock("@/lib/domain/rate-limit", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/domain/rate-limit")>();
+  return {
+    ...real,
+    bucketKeyFor: (kind: string, hashedIdentifier: string) => `${kind}:${hashedIdentifier}:one-window`,
+    windowFor: (_policy: unknown, now: number) => ({ bucket: 0, startsAt: now - 60_000, endsAt: now + 60 * 60_000 }),
+  };
+});
+
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { importCourseFromDirectory, searchCourseDirectory } from "@/app/actions/courses";
-import { RATE_LIMITS } from "@/lib/domain/rate-limit";
+import { RATE_LIMITS, bucketKeyFor } from "@/lib/domain/rate-limit";
 import { clearRateLimit } from "@/lib/rate-limit";
 
 const prisma = new PrismaClient();
@@ -106,25 +125,7 @@ async function person(key: keyof typeof people, role: "admin" | "player"): Promi
   people[key] = { user: user.id, email, event: event.id };
 }
 
-/**
- * NOT ACROSS THE HOUR. A budget is counted in fixed windows (`windowFor`: an
- * hour, from the top of the hour), and this file spends four of them in about
- * four minutes. Started at 15:58 and 21:58 on 2026-11-03, the window turned
- * over halfway through and handed a fresh budget back: 130 imports where 120
- * is the limit, and a search that should have stayed at home — a red round
- * twice in a day, with the rule working. So it starts in a window with room
- * to finish, waiting for the next one if it must. The clock is not faked: the
- * sessions and the stored hits read the same clock the app does.
- */
-const ROOM_MS = 8 * 60_000;
-async function startWithRoomInTheWindow(): Promise<void> {
-  const windowMs = RATE_LIMITS["course-search"].windowMs;
-  const left = windowMs - (Date.now() % windowMs);
-  if (left < ROOM_MS) await new Promise((done) => setTimeout(done, left + 1_000));
-}
-
 beforeAll(async () => {
-  await startWithRoomInTheWindow();
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("opengolfapi")) {
@@ -150,7 +151,7 @@ beforeAll(async () => {
       strokeIndex: JSON.stringify([7, 11, 15, 1, 9, 5, 17, 13, 3, 8, 12, 16, 2, 10, 6, 18, 14, 4]),
     },
   });
-}, 60_000 + 9 * 60_000); // the wait above, at most, and the seeding
+}, 60_000);
 
 afterAll(async () => {
   globalThis.fetch = realFetch;
@@ -225,6 +226,17 @@ describe("one account cannot spend the app's day at the course directory", () =>
     expect(r.ok, `a stored course could not be added: ${r.error ?? ""}`).toBe(true);
     expect(asked, "the stored catalogue was bypassed").toEqual([]);
   }, 120_000);
+
+  it("CONTROL: the window is pinned here, so the hour turning over cannot hand back a budget", async () => {
+    // Two moments two hours apart: the real rule gives them different windows,
+    // and this file must give them one — otherwise a run that straddles the hour
+    // counts against a fresh budget and fails with the rule working.
+    const real = await vi.importActual<typeof import("@/lib/domain/rate-limit")>("@/lib/domain/rate-limit");
+    const t = Date.UTC(2026, 10, 3, 21, 58, 6);
+    const later = t + 2 * 60 * 60_000;
+    expect(real.bucketKeyFor("course-search", "h", t)).not.toBe(real.bucketKeyFor("course-search", "h", later));
+    expect(bucketKeyFor("course-search", "h", t)).toBe(bucketKeyFor("course-search", "h", later));
+  });
 
   it("and over budget, the answer says so rather than blaming the directory", async () => {
     await as(people.spent);
