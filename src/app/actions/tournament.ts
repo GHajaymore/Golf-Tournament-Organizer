@@ -3463,7 +3463,7 @@ export async function saveTeamScorecard(
   // Team match play: recompute the match from both sides' cards, so the same
   // resolveMatch that decides singles decides this too.
   if (match) {
-    await recomputeTeamMatch(eventId, match, stage.format, holesPlayed(stage.holes));
+    await recomputeTeamMatch(eventId, match, stage.format, holesPlayed(stage.holes), { name: session.name, playerId: await authorPlayerId(eventId, session) });
   }
 
   await refresh();
@@ -6559,7 +6559,8 @@ export async function importTeamScores(
   }
 
   if (returned) await freezeRoundHandicaps(eventId, stageId);
-  for (const m of touched.values()) await recomputeTeamMatch(eventId, m, stage.format, holes);
+  const importer = (await getSession())?.name ?? "";
+  for (const m of touched.values()) await recomputeTeamMatch(eventId, m, stage.format, holes, { name: `${importer || "The committee"} (from a file)`, playerId: "" });
 
   await refresh();
   return { ok: written > 0, written, problems: problems.length ? problems : undefined };

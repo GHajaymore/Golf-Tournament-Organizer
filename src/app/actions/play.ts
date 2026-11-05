@@ -961,7 +961,7 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
       });
       stored = storedCard(row.strokes, holeCount);
       if (isReturnedCard(clean)) await freezeRoundHandicaps(session.eventId, match.stageId);
-      await recomputeTeamMatch(session.eventId, match, stage.format, holeCount);
+      await recomputeTeamMatch(session.eventId, match, stage.format, holeCount, { name: session.playerName, playerId: session.playerId });
     }
   } catch (e) {
     // A net round with no course card, said by the deriver in words.

@@ -206,12 +206,22 @@ export async function deriveMatchFromItsCards(
   });
 }
 
-/** Rebuild a team match's hole results from the two sides' cards. */
+/**
+ * Rebuild a team match's hole results from the two sides' cards.
+ *
+ * `enteredBy` is WHO SAVED THE CARD that changed the result — REQUIRED, as on
+ * `deriveMatchFromItsCards` (2026-11-05, sprint 2 part B). This wrote neither
+ * an author nor cleared the signatures, so a four-ball derived from its cards
+ * had no `enteredById`: the end-of-round check could not tell the scorer from
+ * the other side (`attestMatch` keeps the author from confirming their own
+ * result), and a signature given for an earlier scoreline stood on a new one.
+ */
 export async function recomputeTeamMatch(
   eventId: string,
   match: { id: string; stageId: string; teamAId: string; teamBId: string },
   formatName: string,
   holeCount: number,
+  enteredBy: { name: string; playerId: string },
 ): Promise<void> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return;
@@ -427,6 +437,11 @@ export async function recomputeTeamMatch(
       scoreStatus: "pending",
       scoredAt: complete ? new Date() : null,
       confirmedById: null,
+      confirmedBy: "",
+      // Who wrote it, and no signature carried over from a different scoreline.
+      enteredBy: enteredBy.name,
+      enteredById: enteredBy.playerId,
+      attestedBy: "[]",
     },
   });
 }

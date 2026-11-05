@@ -145,6 +145,12 @@ describe("a lineup is hidden until it is announced", () => {
     expect(await saveTeamScorecard(m.teamAId, p.a1, m.id, card({ 0: 4 }))).toEqual({ ok: true });
     const after = await cupBoard(eventId);
     expect(after.ok && after.board.sessions[0].matches.length).toBe(1);
+    // THE MATCH RECORDS WHO WROTE IT (2026-11-05): the end-of-round check keeps
+    // the author from confirming their own result, so a four-ball derived from
+    // its cards must name the player whose card moved it.
+    const row = await prisma.match.findUniqueOrThrow({ where: { id: m.id }, select: { enteredById: true, enteredBy: true, attestedBy: true } });
+    expect(row.enteredById, "recomputeTeamMatch recorded no author").toBe(p.a1);
+    expect(row.attestedBy).toBe("[]");
   });
 
   it("CONTROL: staff may score a draft — entering the committee's cards is the job", async () => {
