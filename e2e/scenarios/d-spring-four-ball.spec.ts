@@ -1,7 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { seed, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
+import { seed, memberSession, eventFacts, eachKeepsTheirOwn, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament D: the Eagle club's Spring Four-Ball. The
@@ -48,6 +48,8 @@ test("five D", async ({ page, context, baseURL }, testInfo) => {
   page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
   const s = await seed();
   await as(context, baseURL!, s.club);
+  // Cards kept three ways, "each member their own" among them (`eachKeepsTheirOwn`).
+  await eachKeepsTheirOwn(D_NAME);
   // The active tournament is a cookie, and a fresh browser has none — so a
   // phase picks THIS run's tournament itself rather than trusting a fallback.
   if (await eventFacts(D_NAME)) {

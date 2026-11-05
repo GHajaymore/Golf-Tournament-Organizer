@@ -128,6 +128,7 @@ export const AREAS = {
     paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
+      "e2e/stages-scoring-setup.spec.ts",
       // The timeline and its side panel, behind `?view=timeline` (the rehaul's step 1 guards).
       "e2e/rounds-panel.spec.ts",
       // Step 2, "Course day": the guided "Needs you", the four sections, the docked panel.
@@ -312,6 +313,8 @@ export const FULL_ONLY = [
   "e2e/organizer-stableford.spec.ts",
   "e2e/organizer-tees.spec.ts",
   "e2e/organizer.spec.ts",
+  // The round-code holder's board (2026-11-05): all three visibility settings; /live stays the privacy line.
+  "e2e/play-board.spec.ts",
   "e2e/play-suspended.spec.ts",
   "e2e/pot-on-the-scores.spec.ts",
   "e2e/prizes.spec.ts",
@@ -321,10 +324,20 @@ export const FULL_ONLY = [
   "e2e/round-code-box-starts-empty.spec.ts",
   "e2e/round-code-certify-and-result.spec.ts",
   "e2e/round-code-decided-match.spec.ts",
+  // The doors into a group (2026-11-05): a group link, and the group a phone remembers across a tournament.
+  "e2e/round-code-doors.spec.ts",
   "e2e/round-code-four-ball-side.spec.ts",
+  // The cup's wrong card (18 Oct), pressed the new way: code, group, one confirmation, side B credited.
+  "e2e/round-code-keeps-a-group.spec.ts",
   "e2e/round-code-on-3g.spec.ts",
   "e2e/round-code-reissued.spec.ts",
   "e2e/round-code-sign.spec.ts",
+  // Share beside Copy on the Round Codes section: the sheet, and the clipboard fallback.
+  "e2e/round-code-share.spec.ts",
+  // One scorer per group and the other side's check, pressed through the actions' own endpoints until phase 2's /play buttons (2026-11-04).
+  "e2e/scoring-by-group-server.spec.ts",
+  // The same, PRESSED on two phones (2026-11-05, phase 2): keep, follow, take over, a stale phone refused in words, hand back, the other side confirms, a dispute held off the board.
+  "e2e/scoring-by-group-phones.spec.ts",
   "e2e/seasons.spec.ts",
   "e2e/secretary-back-after-a-week.spec.ts",
   "e2e/secretary-copy-last-event.spec.ts",
@@ -340,10 +353,15 @@ export const FULL_ONLY = [
   "e2e/slow-signal-scoring.spec.ts",
   "e2e/staff-kept-cards.spec.ts",
   // The state machine's family walks (PR 3): the core lifecycle every tournament goes through.
+  "e2e/status-casual.spec.ts",
+  "e2e/status-knockout-flights.spec.ts",
+  "e2e/status-knockout.spec.ts",
   "e2e/status-league.spec.ts",
+  "e2e/status-match.spec.ts",
   "e2e/status-round-robin-flights.spec.ts",
   "e2e/status-stableford.spec.ts",
   "e2e/status-stroke.spec.ts",
+  "e2e/status-team-cup.spec.ts",
   "e2e/team-cup.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",

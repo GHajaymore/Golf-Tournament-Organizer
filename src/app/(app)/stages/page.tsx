@@ -45,6 +45,7 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { roundLabel } from "@/lib/domain/round-label";
 import { shortDate } from "@/lib/domain/round-dates";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { groupsArePublished } from "@/lib/domain/group-keeping";
 
 /**
  * What a team round costs its sides in strokes, or null where the question
@@ -211,6 +212,11 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
     scoreInput: s.scoreInput,
     // How players keep the round's matches — read through `matchKeptBy`.
     matchKeptBy: s.matchKeptBy,
+    // Who enters the round's scores and the end-of-round check — read through `roundScoring`.
+    scoreKeeping: s.scoreKeeping,
+    endCheck: s.endCheck,
+    // Whether one scorer per group has groups to keep yet: they come from THIS round's published tee sheet.
+    groupsPublished: groupsArePublished(s),
     // Whether the organizer has declared the round over. A boolean across the
     // wire because the screen only asks whether, not when — the timestamp is
     // kept for the record and read where that matters.

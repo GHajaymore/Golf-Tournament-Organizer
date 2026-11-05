@@ -11,7 +11,7 @@ import { readSource } from "./source";
  * nothing in the future tense.
  */
 describe("the board for a round scored by hand", () => {
-  const live = () => readSource("src", "app", "live", "[token]", "page.tsx");
+  const live = () => readSource("src", "components", "PublicBoard.tsx");
   const player = () => readSource("src", "app", "(player)", "me", "board", "page.tsx");
 
   it("on the public board", () => {

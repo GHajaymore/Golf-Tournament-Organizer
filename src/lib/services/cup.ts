@@ -25,6 +25,7 @@ import { holesPlayed } from "../domain/handicap";
 import { roundKicker } from "../domain/round-label";
 import { loadEventState } from "./tournament";
 import { teamsForStage } from "./teams";
+import { onBoard } from "../domain/board-hold";
 
 /**
  * THE TEAM CUP BOARD — every session, every match, the running score.
@@ -268,11 +269,15 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
   if (flights.length !== 2) return { ok: false, reason: "teams" };
   const [ta, tb] = flights;
 
-  const matches = await prisma.match.findMany({
-    where: { eventId, stageId: { in: stages.map((s) => s.id) } },
-    orderBy: [{ round: "asc" }, { id: "asc" }],
-    select: { id: true, stageId: true, holes: true, forfeitedBy: true, playerAId: true, playerBId: true, teamAId: true, teamBId: true },
-  });
+  // A result in dispute earns no cup point until the committee settles it:
+  // read as not yet played (`onBoard`, domain/board-hold.ts).
+  const matches = (
+    await prisma.match.findMany({
+      where: { eventId, stageId: { in: stages.map((s) => s.id) } },
+      orderBy: [{ round: "asc" }, { id: "asc" }],
+      select: { id: true, stageId: true, holes: true, forfeitedBy: true, scoreStatus: true, playerAId: true, playerBId: true, teamAId: true, teamBId: true },
+    })
+  ).map(onBoard);
   const teamIds = matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id): id is string => !!id);
   const playerIds = matches.flatMap((m) => [m.playerAId, m.playerBId]).filter((id): id is string => !!id);
   const [sides, players] = await Promise.all([

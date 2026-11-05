@@ -7,7 +7,8 @@ import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundIsStroke } from "@/lib/stage-types";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
-import { canEnterScores, mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
+import { mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
+import { entryRefusalFor, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
 import { strokesOnHole } from "@/lib/domain/figure-working";
 import { meFor } from "@/lib/services/me";
 import { cardBrand, golfTermsForEvent } from "@/lib/services/organization";
@@ -207,13 +208,18 @@ export default async function PlayCardPage() {
     );
   }
 
-  if (!canEnterScores(settings, session.viewRole)) {
+  // The one gate (`entryRefusalFor`): the tournament's "staff" setting, and a
+  // round the organizer keeps from paper cards (2026-11-04).
+  const entryRefused = entryRefusalFor(settings, session.viewRole, state.stages.find((s) => s.id === me.round?.stageId) ?? null);
+  if (entryRefused) {
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          Scores for this tournament are entered by the {terms.organizer}. Your card will appear on the board once
-          it is in.
+          {entryRefused === ORGANIZER_KEEPS_THIS_ROUND
+            ? `The ${terms.organizer} enters this round's scores from paper cards.`
+            : `Scores for this tournament are entered by the ${terms.organizer}.`}{" "}
+          Your card will appear on the board once it is in.
         </p>
         <WayForward
           links={[

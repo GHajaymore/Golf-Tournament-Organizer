@@ -63,6 +63,7 @@ const UNREACHED: Record<string, string> = {
   // `tournament-facts.ts:tournamentFactsFor` came off in the state machine's
   // PR 3: the dashboard, Tournament details, Rounds & formats and every
   // console screen's context bar call it through `tournamentStatusFor`.
+  // `group-keeping.ts:keeperFor` came off 2026-11-05: /play asks it (phase 2).
 };
 
 /** Every `.ts` under services. */

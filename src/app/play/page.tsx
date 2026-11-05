@@ -2,7 +2,14 @@ import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf, loadEventState } from "@/lib/services/tournament";
-import { allowsAutoConfirm, isLeaderboardPublic, canEnterScores } from "@/lib/tournament-settings";
+import { allowsAutoConfirm, isLeaderboardPublic, mayOpenBoard } from "@/lib/tournament-settings";
+import { playerEntryRefusal, roundScoring, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
+import { keeperFor, groupTitleFor } from "@/lib/services/group-keeping";
+import { effectiveScoreStatus } from "@/lib/services/tournament";
+import { matchIsOver } from "@/lib/domain/match";
+import { sidesAgree, matchSidesOf, endCheckRule } from "@/lib/services/attestation";
+import type { GroupKeepingView, EndCheckView } from "@/components/PlayGroupKeeping";
+import type { GroupPartner } from "@/components/GroupScoring";
 import { courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { brandForEvent, golfTermsForEvent } from "@/lib/services/organization";
@@ -81,16 +88,54 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       },
       orderBy: { id: "asc" },
     }),
-    prisma.stage.findUnique({ where: { id: session.stageId }, select: { type: true, lineupPublished: true, accessCode: true, format: true, scoreInput: true, scoringBasis: true, matchKeptBy: true } }),
+    prisma.stage.findUnique({ where: { id: session.stageId }, select: { type: true, lineupPublished: true, accessCode: true, format: true, scoreInput: true, scoringBasis: true, matchKeptBy: true, scoreKeeping: true, endCheck: true } }),
   ]);
+  /**
+   * WHO KEEPS THIS PLAYER'S GROUP (2026-11-05, sprint 2 part B, phase 2) — on
+   * a round kept by ONE SCORER PER GROUP; null on a round where each player
+   * keeps their own, and on a tournament round whose draw is not published yet
+   * (`groupKeyFor`: no published draw, no groups). The phone that keeps it
+   * enters the group's scores; every other phone follows it read-only.
+   */
+  const keeping = codeStage && roundScoring(codeStage).scoreKeeping === "group" ? await keeperFor(session.eventId, session.stageId, session.playerId) : null;
+  const iKeep = keeping?.keeper?.playerId === session.playerId;
+  /**
+   * THE SCORER KEEPS EVERY MATCH IN THE GROUP, not only their own: a tee group
+   * of four singles players is two matches on one phone (`keeperGate` lets
+   * the scorer write each). Offered beside their own, as a round robin's are.
+   */
+  const groupMates = iKeep && keeping ? keeping.members.filter((id) => id !== session.playerId) : [];
+  const mateSides = groupMates.length
+    ? (await prisma.teamMember.findMany({ where: { playerId: { in: groupMates }, team: { stageId: session.stageId } }, select: { teamId: true } })).map((t) => t.teamId)
+    : [];
+  const groupDrawn = groupMates.length
+    ? await prisma.match.findMany({
+        where: {
+          stageId: session.stageId,
+          NOT: { id: { in: drawn.map((m) => m.id) } },
+          OR: [
+            { playerAId: { in: groupMates } },
+            { playerBId: { in: groupMates } },
+            ...(mateSides.length ? [{ teamAId: { in: mateSides } }, { teamBId: { in: mateSides } }] : []),
+          ],
+        },
+        orderBy: { id: "asc" },
+      })
+    : [];
   // A cup lineup the organizer has not announced is nobody's match yet.
-  const myMatches = codeStage && lineupHidden(codeStage) ? [] : drawn;
+  const myMatches = codeStage && lineupHidden(codeStage) ? [] : [...drawn, ...groupDrawn];
   const match = myMatches.find((x) => x.id === pickedMatch) ?? myMatches[0] ?? null;
   if (!event) return <PlayClient stage="code" />;
 
   const settings = settingsOf(event);
-  // The board a code holder may open: only one the organizer has made public.
-  const boardHref = isLeaderboardPublic(settings) && event.shareToken ? `/live/${event.shareToken}` : undefined;
+  // The board a code holder may open: the public one where the organizer made it public, and otherwise
+  // `/play/board` — their own door, behind this session — unless the board is kept to staff.
+  const boardHref =
+    isLeaderboardPublic(settings) && event.shareToken
+      ? `/live/${event.shareToken}`
+      : mayOpenBoard(settings, "code-holder")
+        ? "/play/board"
+        : undefined;
   const brand = await brandForEvent(event.id);
   /**
    * That this round is temporary, worded for somebody who cannot keep it.
@@ -114,15 +159,21 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
    * (2026-10-24).
    *
    * Under "Who enters scores: Organizers and assistants only" every save this
-   * surface makes is refused — `canEnterScores(settings, "player")` in each
+   * surface makes is refused — the one gate, `playerEntryRefusal`, in each
    * writer of actions/play.ts — and this page drew the card and the match
    * buttons anyway. A player tapped a hole and was told afterwards that the
    * card would not save. A refusal is said where the press was; better still,
    * the press is never offered. The same function the server refuses by, asked
-   * before any card or match is drawn, so the two cannot disagree.
+   * before any card or match is drawn, so the two cannot disagree — and since
+   * 2026-11-05 it asks the ROUND too: "Organizer only (paper cards)" on this
+   * round alone draws the same screen, worded for the round.
    */
-  if (!canEnterScores(settings, "player")) {
+  const refused = playerEntryRefusal(settings, codeStage);
+  if (refused) {
     const terms = await golfTermsForEvent(event.id);
+    // A match is opened as its group, by either side: headed by the match, as
+    // drawn, never by whichever of its players the session happens to hold.
+    const kept = match ? (await matchCardFor({ match })).match : null;
     return (
       <PlayClient
         boardHref={boardHref}
@@ -130,14 +181,43 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         expiryNotice={expiry}
         expiryShort={expiryLine}
         stage="staff-kept"
+        staffKeptRound={refused === ORGANIZER_KEEPS_THIS_ROUND}
         organizer={terms.organizer}
         brand={brand}
-        playerName={session.playerName}
+        playerName={kept ? `${kept.aName} v ${kept.bName}` : session.playerName}
         eventName={event.name}
         roundLabel={session.roundLabel}
       />
     );
   }
+
+  /**
+   * THE GROUP, NAMED, for the line above the card (`KeepingBar`): who is in
+   * it, who keeps it, and — on this phone, when it is the keeper — the epoch
+   * every save carries, so a phone that was taken over is refused in words.
+   */
+  const memberNames = keeping
+    ? new Map(
+        (await prisma.player.findMany({ where: { eventId: event.id, id: { in: keeping.members } }, select: { id: true, name: true } })).map(
+          (p) => [p.id, p.name] as const,
+        ),
+      )
+    : new Map<string, string>();
+  const groupTitle = keeping ? await groupTitleFor(event.id, session.stageId, keeping.groupKey) : "";
+  const groupView = (cards?: Record<string, (number | null)[]>): GroupKeepingView | undefined =>
+    keeping
+      ? {
+          title: groupTitle,
+          me: session.playerId,
+          members: keeping.members.map((id) => ({ id, name: memberNames.get(id) ?? "" })),
+          keeperId: keeping.keeper?.playerId ?? null,
+          keeperName: keeping.keeper?.name ?? "",
+          epoch: iKeep ? keeping.keeper?.epoch ?? null : null,
+          ...(cards ? { cards } : {}),
+        }
+      : undefined;
+  // The end-of-round check (`Stage.endCheck`): the other side confirms a match, each player their own card.
+  const checkOn = codeStage ? roundScoring(codeStage).endCheck === "on" : false;
 
   if (!match) {
     /**
@@ -243,6 +323,52 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
           )
         : [];
 
+      /**
+       * THE GROUP'S CARDS (2026-11-05, phase 2): the scorer keeps every card
+       * in the group on this one phone (`GroupScoring`, each partner's shots
+       * resolved here as the holder's are), and a following phone reads them.
+       */
+      const mates = keeping && keeping.members.length > 1 ? keeping.members : [];
+      const mateCards = mates.length
+        ? await prisma.scorecard.findMany({
+            where: { eventId: event.id, stageId: cardStage.id, playerId: { in: mates } },
+            select: { playerId: true, strokes: true, status: true },
+          })
+        : [];
+      const strokesOf = (raw: string | undefined): (number | null)[] => {
+        try {
+          const v = JSON.parse(raw ?? "[]") as unknown;
+          return Array.isArray(v) ? v.map((x) => (typeof x === "number" ? x : null)) : [];
+        } catch {
+          return [];
+        }
+      };
+      const cardsByPlayer: Record<string, (number | null)[]> = Object.fromEntries(
+        mates.map((id) => [id, strokesOf(mateCards.find((c) => c.playerId === id)?.strokes)]),
+      );
+      const partners: GroupPartner[] = iKeep
+        ? mates
+            .filter((id) => id !== session.playerId)
+            .map((id) => {
+              const theirs = cardState?.strokeHandicapFor(id, cardStage.id) ?? 0;
+              return {
+                id,
+                name: memberNames.get(id) ?? "",
+                strokes: cardsByPlayer[id] ?? [],
+                revision: "",
+                status: mateCards.find((c) => c.playerId === id)?.status,
+                shots: roundCard
+                  ? Array.from({ length: holeCount }, (_, h) => holeStrokesReceived(theirs, roundCard.strokeIndex[h] ?? 18, holeCount))
+                  : [],
+              };
+            })
+        : [];
+      const ownComplete = entered.filter((h) => typeof h === "number" && h > 0).length >= holeCount;
+      const signsHere = signsCards(event.shape);
+      const cardCheck: EndCheckView | undefined = signsHere
+        ? { kind: "card", complete: ownComplete, status: existing?.status ?? "entered", disputable: checkOn }
+        : undefined;
+
       return (
         // This card's distances in its own course's unit.
         <DistanceUnitProvider unit={await distanceUnitFor(resolved, event.organizationId)}>
@@ -278,8 +404,11 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
              set to player confirmation because there is not one. */
           staffApproves={!allowsAutoConfirm(settings)}
           // A casual card is never signed — `signsCards`.
-          signs={signsCards(event.shape)}
+          signs={signsHere}
           voiceEntry={settings.voiceEntry}
+          group={groupView(mates.length ? cardsByPlayer : undefined)}
+          partners={partners}
+          endCheck={cardCheck}
         />
         </DistanceUnitProvider>
       );
@@ -301,7 +430,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
   }
 
   // The card, built where the player app builds it too — see `matchCardFor`.
-  const card = await matchCardFor({ match, holderId: session.playerId, holderSides: mySides });
+  // Side A first, as drawn: nothing on it depends on whose name opened it.
+  const card = await matchCardFor({ match });
   // How the organizer has this round kept (`matchKeptBy`): a tap card, or the
   // holder's own stroke card — never both on one round.
   const strokeCard =
@@ -312,6 +442,33 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
           data: card,
           oneBallPerSide: oneCardPerSide(codeStage.format, codeStage.scoreInput, codeStage.scoringBasis),
         })
+      : undefined;
+
+  /**
+   * EVERY BALL IN THE MATCH, FOR THE GROUP'S SCORER (PM and Golf Pro, 2026-11-05).
+   * On a round kept on stroke cards the holder keeps their own ball — and on a
+   * round kept by one scorer per group nobody else in the group may write, so
+   * the scorer keeps every ball: each player's card, or each side's one card
+   * where a side plays one ball. The same reader as the holder's own card
+   * (`matchStrokeCardFor`), and each save names the ball (`playerId`).
+   */
+  const strokeBalls =
+    strokeCard && iKeep && codeStage
+      ? await (async () => {
+          const sides = await matchSidesOf(match);
+          const oneBall = oneCardPerSide(codeStage.format, codeStage.scoreInput, codeStage.scoringBasis);
+          const ballIds = oneBall ? [sides.sideA[0], sides.sideB[0]].filter((id): id is string => !!id) : [...sides.sideA, ...sides.sideB];
+          const names = new Map(
+            (await prisma.player.findMany({ where: { eventId: event.id, id: { in: ballIds } }, select: { id: true, name: true } })).map((p) => [p.id, p.name] as const),
+          );
+          return Promise.all(
+            ballIds.map(async (id) => ({
+              id,
+              name: names.get(id) ?? "",
+              card: id === session.playerId ? strokeCard : await matchStrokeCardFor({ match, holderId: id, data: card, oneBallPerSide: oneBall }),
+            })),
+          );
+        })()
       : undefined;
 
   // The other matches, named by opponent, for the picker above the card.
@@ -331,10 +488,47 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         ),
       ])
     : new Map<string, string>();
+  // A groupmate's match the scorer keeps is named by both sides, as drawn.
+  const mateMatchNames = new Map(
+    await Promise.all(
+      others
+        .filter((x) => groupDrawn.some((g) => g.id === x.id))
+        .map(async (x) => {
+          const c = (await matchCardFor({ match: x })).match;
+          return [x.id, `${c.aName} v ${c.bName}`] as const;
+        }),
+    ),
+  );
   const otherMatches = others.map((x, i) => ({
     id: x.id,
-    label: `v ${otherNames.get(otherIds[i]) ?? "opponent"}`,
+    label: mateMatchNames.get(x.id) ?? `v ${otherNames.get(otherIds[i]) ?? "opponent"}`,
   }));
+
+  /**
+   * THE END-OF-ROUND CHECK for this match (`Stage.endCheck` on): once it is
+   * decided, the side that did not enter it confirms it or says it is not
+   * right. The facts are the server's own — `effectiveScoreStatus`, the
+   * author, `sidesAgree` under the check's rule — so the buttons offered are
+   * the ones the actions will take.
+   */
+  let matchHoles: unknown = [];
+  try {
+    matchHoles = JSON.parse(match.holes || "[]");
+  } catch {
+    matchHoles = [];
+  }
+  const status = effectiveScoreStatus(match, allowsAutoConfirm(settings));
+  const matchCheck: EndCheckView | undefined = checkOn
+    ? {
+        kind: "match",
+        matchId: match.id,
+        over: matchIsOver(Array.isArray(matchHoles) ? matchHoles : []),
+        status: status === "disputed" ? "disputed" : status === "pending" ? "pending" : "confirmed",
+        author: match.enteredById !== "" && match.enteredById === session.playerId,
+        inMatch: drawn.some((d) => d.id === match.id),
+        agreed: sidesAgree(await matchSidesOf(match), match, endCheckRule(settings.attestBy)),
+      }
+    : undefined;
 
   return (
     // This match's card in its own course's unit — a match can have a venue
@@ -364,7 +558,10 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       netMode={card.netMode}
       matchShots={card.matchShots}
       strokeCard={strokeCard}
+      strokeBalls={strokeBalls}
       voiceEntry={settings.voiceEntry}
+      group={groupView()}
+      endCheck={matchCheck}
     />
     </DistanceUnitProvider>
   );

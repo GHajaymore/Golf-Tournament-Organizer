@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
-import { canEnterScores } from "@/lib/tournament-settings";
+import { entryRefusalFor, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
 import { meFor } from "@/lib/services/me";
 import { prisma } from "@/lib/db";
 import { matchCardFor, matchStrokeCardFor } from "@/lib/services/match-card";
@@ -77,6 +77,9 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
         scoreInput: true,
         scoringBasis: true,
         matchKeptBy: true,
+        // Who enters this round's scores (`roundScoring`).
+        scoreKeeping: true,
+        endCheck: true,
       },
     }),
   ]);
@@ -118,12 +121,18 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
     );
   }
 
-  if (!canEnterScores(settings, session.role)) {
+  // The one gate (`entryRefusalFor`): the tournament's "staff" setting, and a
+  // round the organizer keeps from paper cards (2026-11-04).
+  const entryRefused = entryRefusalFor(settings, session.role, stageById.get(match.stageId) ?? null);
+  if (entryRefused) {
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My match</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          The organizer enters the scores in this tournament. Your match appears on the board as they go in.
+          {entryRefused === ORGANIZER_KEEPS_THIS_ROUND
+            ? "The organizer enters this round's scores from paper cards."
+            : "The organizer enters the scores in this tournament."}{" "}
+          Your match appears on the board as they go in.
         </p>
         <WayForward links={[{ href: "/me/board", label: "See the board", icon: "ranking" }]} />
       </div>
@@ -131,7 +140,8 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
   }
 
   const holderSides = sides;
-  const card = await matchCardFor({ match, holderId: me.playerId, holderSides });
+  // Side A first, as drawn: the card does not turn to face the player holding it.
+  const card = await matchCardFor({ match });
   const stage = stageById.get(match.stageId);
 
   // The other matches, named by opponent — a round robin, or the cup's two sessions.

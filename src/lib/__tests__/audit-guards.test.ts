@@ -589,12 +589,22 @@ describe("a four-ball partner may score their own match", () => {
     // teamAId/teamBId. Checking only the player columns refused every partner
     // in a four-ball their own match, while the comment above the guard still
     // claimed "a match this player is actually in".
-    const src = read("play.ts");
-    const guard = src.slice(src.indexOf("savePlayMatchHoles"));
-    expect(guard).toMatch(/teamMember\.findFirst/);
-    expect(guard).toMatch(/teamId: \{ in: teamIds \}/);
+    //
+    // Since 2026-11-04 the rule is ONE function, `isInMatch` in
+    // services/match-membership.ts, which the round-code saves reach through
+    // `mayWriteMatch` (one scorer per group widens "their own" to the group's).
+    const src = stripComments(read("play.ts"));
+    for (const fn of ["savePlayMatchHoles", "savePlayMatchResult", "savePlayMatchCard"]) {
+      const body = actions("play.ts").find((a) => a.name === fn)!.body;
+      expect(body, fn).toMatch(/mayWriteMatch\(\{ eventId: session\.eventId, match, actorIds: \[session\.playerId\]/);
+    }
+    expect(src).toMatch(/from "@\/lib\/services\/match-membership"/);
+    const membership = readSource("src", "lib", "services", "match-membership.ts");
+    const isIn = membership.slice(membership.indexOf("export async function isInMatch"));
+    expect(isIn).toMatch(/teamMember\.findFirst/);
+    expect(isIn).toMatch(/teamId: \{ in: teamIds \}/);
     // And the refusal still exists for genuine outsiders.
-    expect(guard).toMatch(/You can only enter scores for your own match/);
+    expect(membership).toMatch(/You can only enter scores for your own match/);
   });
 });
 
@@ -681,8 +691,17 @@ describe("a player writes their own scores and nobody else's", () => {
   });
 
   it("recognises team membership as being in the match", () => {
-    const guard = src.slice(src.indexOf("async function assertOwnMatch"));
-    expect(guard.slice(0, 900)).toMatch(/teamMember\.findFirst/);
+    // `assertOwnMatch` moved to services/match-membership.ts (2026-11-04), one
+    // rule with the round-code saves: it asks `mayWriteMatch`, which asks
+    // `isInMatch` — the team membership — on any round not kept by one scorer.
+    expect(src).toMatch(/import \{[^}]*assertOwnMatch[^}]*\} from "@\/lib\/services\/match-membership"/);
+    const membership = readSource("src", "lib", "services", "match-membership.ts");
+    const own = membership.slice(membership.indexOf("export async function assertOwnMatch"));
+    expect(own).toMatch(/mayWriteMatch\(\{ eventId, match, actorIds: \[\.\.\.own\], epoch \}\)/);
+    const may = membership.slice(membership.indexOf("export async function mayWriteMatch"));
+    expect(may.slice(0, may.indexOf("\n}\n"))).toMatch(/isInMatch\(input\.match, input\.actorIds\)/);
+    const isIn = membership.slice(membership.indexOf("export async function isInMatch"));
+    expect(isIn.slice(0, 900)).toMatch(/teamMember\.findFirst/);
   });
 
   it("scopes the entry screen with the same rule it enforces", () => {
@@ -796,8 +815,13 @@ describe("a round code obeys the tournament's score-entry setting", () => {
    */
   // And a match's own cards (2026-10-19): a round kept on stroke cards takes
   // each ball's strokes from a code, written to the match's card rows.
+  // And (2026-11-04) the end-of-round check: a confirmation or a dispute moves
+  // a result's status, a statement about it like a signature.
   const writers = actions("play.ts").filter(
-    (a) => /prisma\.match\.update\(|writeScorecard\(|certifyCard\(|matchScorecard\.upsert\(|teamScorecard\.upsert\(/.test(a.body),
+    (a) =>
+      /prisma\.match\.update(Many)?\(|writeScorecard\(|certifyCard\(|matchScorecard\.upsert\(|teamScorecard\.upsert\(|scorecard\.updateMany\(/.test(
+        a.body,
+      ),
   );
 
   it("finds the write actions it is about to assert on", () => {
@@ -805,6 +829,9 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // caught twice.
     expect(writers.map((a) => a.name).sort()).toEqual([
       "certifyPlayCard",
+      "confirmPlayMatch",
+      "disputePlayCard",
+      "disputePlayMatch",
       "savePlayCard",
       "savePlayMatchCard",
       "savePlayMatchHoles",
@@ -812,28 +839,32 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     ]);
   });
 
-  it("gates every write action on canEnterScores, as every other path does", () => {
+  it("gates every write action on the one score-entry gate, as every other path does", () => {
     // Neither one asked. A tournament set to `scoreEntryBy: "staff"` that
     // hands out round codes purely for sign-in believed the committee held
     // the cards, while any code holder could write a full result — and since
     // a score edit resets approval, un-confirm a card the committee had
     // already signed off, leaving no sign on any screen that it happened.
+    //
+    // The gate since 2026-11-04 is `playerEntryRefusal` (domain/round-scoring.ts),
+    // asked of the session's round by `entryRefusal`: the tournament's "staff"
+    // setting, then a round the organizer keeps from paper cards.
     for (const { name, body } of writers) {
-      expect(body, name).toMatch(/canEnterScores\(/);
-      expect(body, name).toMatch(/entered by the organizer/);
+      expect(body, name).toMatch(/const refused = await entryRefusal\(session, settings(Of\(event\))?\);\s*if \(refused\) return \{ ok: false, error: refused/);
     }
+    const helper = play.slice(play.indexOf("async function entryRefusal("));
+    expect(helper.slice(0, helper.indexOf("\n}\n"))).toMatch(/return playerEntryRefusal\(settings, stage\)/);
   });
 
   it("asks as a player, because a code is never a staff credential", () => {
     // A play session carries no role: the holder typed a code that was read
     // out to the field. Passing anything staff-shaped here would pass every
-    // check by definition.
-    //
+    // check by definition — so this file asks the gate that HAS no role
+    // (`playerEntryRefusal`), never the role-taking forms.
+    expect(play).not.toMatch(/canEnterScores\(|entryRefusalFor\(/);
     // Counted against the writers rather than a number written here, so a
-    // fourth door cannot be added without one.
-    expect(play.match(/canEnterScores\(\s*settings(Of\(event\))?,\s*"player"\)/g)?.length).toBe(
-      writers.length,
-    );
+    // further door cannot be added without one.
+    expect(play.match(/await entryRefusal\(session, settings(Of\(event\))?\)/g)?.length).toBeGreaterThanOrEqual(writers.length);
   });
 
   it("refuses by returning, not by throwing", () => {
@@ -855,7 +886,7 @@ describe("a round code obeys the tournament's score-entry setting", () => {
   it("checks before it writes anything", () => {
     for (const fn of ["savePlayMatchHoles", "savePlayMatchResult"]) {
       const body = actions("play.ts").find((a) => a.name === fn)!.body;
-      const gate = body.indexOf("canEnterScores(");
+      const gate = body.indexOf("await entryRefusal(");
       expect(gate, fn).toBeGreaterThan(-1);
       // `logAudit(` rather than `auditLog.create`: the write moved behind one
       // shared helper on 2026-09-12. The ORDER is what this guard is about —
@@ -882,7 +913,7 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // precisely the tournament this whole guard exists to protect.
     for (const fn of ["redeemRoundCode", "claimPlayerSlot", "redeemRoundCodeForm", "claimPlayerSlotForm", "leavePlay"]) {
       const body = actions("play.ts").find((a) => a.name === fn)!.body;
-      expect(body, fn).not.toMatch(/canEnterScores\(/);
+      expect(body, fn).not.toMatch(/canEnterScores\(|entryRefusal\(/);
     }
   });
 });
@@ -1410,11 +1441,18 @@ describe("every screen that shows results makes the same branch", () => {
     // has no reading of its own at all: it checks the share token and asks
     // `liveBoard` for everything else. Re-adding `standingRows` here would
     // recreate a fourth opinion, which is the shape that caused the audit.
-    const page = stripComments(
-      readFileSync(join(process.cwd(), "src", "app", "live", "[token]", "page.tsx"), "utf8"),
-    );
-    expect(page, "the live page must not rank the field itself").not.toMatch(/standingRows\(/);
-    expect(page, "it should be asking the cached reader instead").toMatch(/liveBoard\(/);
+    // Since 2026-11-05 the board is drawn once (`PublicBoard`) for both its doors, `/live` and
+    // `/play/board`, so the reading lives there and neither page may grow one.
+    const read = (...p: string[]) => stripComments(readFileSync(join(process.cwd(), ...p), "utf8"));
+    const board = read("src", "components", "PublicBoard.tsx");
+    for (const [name, src] of [
+      ["the board", board],
+      ["the live page", read("src", "app", "live", "[token]", "page.tsx")],
+      ["the play board page", read("src", "app", "play", "board", "page.tsx")],
+    ] as const) {
+      expect(src, `${name} must not rank the field itself`).not.toMatch(/standingRows\(/);
+    }
+    expect(board, "it should be asking the cached reader instead").toMatch(/liveBoard\(/);
   });
 
   it("no other screen ranks the field without asking", () => {
@@ -2336,13 +2374,21 @@ describe("a round's card is narrowed in exactly one place", () => {
    * include it or the two screens read the same round and disagree about it.
    */
   it("ownCard consults whether players may report at all", () => {
+    // Since 2026-11-04 the question has a round half ("Organizer only (paper
+    // cards)"), so both ask the one gate in domain/round-scoring.ts — `ownCard`
+    // as a player, `/me/card` with the viewer's role — of the SAME round.
     const me = stripComments(readFileSync(join(process.cwd(), "src", "lib", "services", "me.ts"), "utf8"));
-    expect(me).toMatch(/ownCard:[\s\S]{0,300}canEnterScores\(/);
-    // The same function /me/card gates on, so the two cannot drift.
+    expect(me).toMatch(/ownCard:[\s\S]{0,300}playersMayEnter\(settingsOf\(state\.event\), stage\)/);
+    // The same gate /me/card asks, so the two cannot drift.
     const card = stripComments(
       readFileSync(join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"), "utf8"),
     );
-    expect(card).toMatch(/canEnterScores\(/);
+    expect(card).toMatch(/entryRefusalFor\(settings, session\.viewRole, state\.stages\.find\(\(s\) => s\.id === me\.round\?\.stageId\)/);
+    // And the two are one rule: `playersMayEnter` is `playerEntryRefusal` === null,
+    // and `entryRefusalFor` asks `playerEntryRefusal` for anybody who is not staff.
+    const rule = stripComments(readFileSync(join(process.cwd(), "src", "lib", "domain", "round-scoring.ts"), "utf8"));
+    expect(rule).toMatch(/return playerEntryRefusal\(settings, stage\) === null;/);
+    expect(rule).toMatch(/return playerEntryRefusal\(settings, stage\);\s*\}/);
   });
 
   /**
@@ -2508,7 +2554,8 @@ describe("a round's card is narrowed in exactly one place", () => {
     const card = stripComments(
       readFileSync(join(process.cwd(), "src", "lib", "services", "match-card.ts"), "utf8"),
     );
-    expect(page).toMatch(/matchCardFor\(\{ match,/);
+    // `{ match }` alone since 2026-11-04: the card is no longer told who holds it.
+    expect(page).toMatch(/matchCardFor\(\{ match \}\)/);
     expect(card).toMatch(/courseForMatch\(matchVenue, stageVenue, event\)/);
     expect(card).toMatch(/cardForMatch\(resolved, match, stage\)/);
     // The round's hole count travels explicitly, so the grid never has to

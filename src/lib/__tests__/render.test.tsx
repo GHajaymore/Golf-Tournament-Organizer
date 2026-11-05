@@ -8555,9 +8555,12 @@ describe("a net match on the round code shows the shots", () => {
     aHandicap: 12,
     bHandicap: 8,
     holes: new Array(18).fill(null),
-    flipped: false,
+    aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
   };
-  const play = (matchShots: { mine: number[]; theirs: number[] } | null) =>
+  const play = (matchShots: { a: number[]; b: number[] } | null) =>
     renderToStaticMarkup(
       <PlayClient
         stage="score"
@@ -8574,11 +8577,11 @@ describe("a net match on the round code shows the shots", () => {
       />,
     );
 
-  it("puts the holder's shot on their own answer for the hole on screen", () => {
-    // The card opens on hole 1, SI 1: Bea receives there.
-    const html = play({ mine: [1, ...new Array(17).fill(0)], theirs: new Array(18).fill(0) });
-    // Each answer names the player it gives the hole to (2026-10-18) — the
-    // holder by name, never "you", which means whoever's name was tapped.
+  it("puts side A's shot on side A's answer for the hole on screen", () => {
+    // The card opens on hole 1, SI 1: Bea, side A as drawn, receives there.
+    const html = play({ a: [1, ...new Array(17).fill(0)], b: new Array(18).fill(0) });
+    // Each answer names the player it gives the hole to (2026-10-18) — by
+    // name, never "you", which means whoever's name was tapped.
     expect(html).toContain("Hole 1 to zz-Bea Zed, who gets a shot");
     expect(html).not.toContain("Hole 1 to zz-Ann Zed, who gets");
   });
@@ -8611,7 +8614,10 @@ describe("the round-code card is drawn for the round's own holes", () => {
           aHandicap: 8,
           bHandicap: 12,
           holes: new Array(9).fill(null),
-          flipped: false,
+          aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
         }}
         holes={9}
         pars={NINE_PARS}
@@ -8659,7 +8665,10 @@ describe("the round-code card is drawn for the round's own holes", () => {
         aHandicap: 8,
         bHandicap: 12,
         holes: new Array(18).fill(null),
-        flipped: false,
+        aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
       },
       pars: new Array(18).fill(4),
       yards: new Array(18).fill(400),
@@ -8689,7 +8698,10 @@ describe("the round-code card is drawn for the round's own holes", () => {
         aHandicap: 8,
         bHandicap: 12,
         holes: ["A", "A", "A", "A", "H", "H", null, null, null],
-        flipped: false,
+        aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
       },
     });
     expect(decided).not.toContain("Fill in each hole until the match is decided");
@@ -8704,7 +8716,10 @@ describe("the round-code card is drawn for the round's own holes", () => {
         aHandicap: 8,
         bHandicap: 12,
         holes: ["A", "A", "A", "H", "H", "H", null, null, null],
-        flipped: false,
+        aPlayers: [],
+        bPlayers: [],
+        aTeam: "",
+        bTeam: "",
       },
     });
     expect(live).toContain("Fill in each hole until the match is decided");

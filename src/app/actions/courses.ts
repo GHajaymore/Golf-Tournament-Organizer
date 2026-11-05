@@ -9,7 +9,8 @@ import { getSession } from "@/lib/auth";
 import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { settingsOf } from "@/lib/services/tournament";
-import { canEnterScores, playerTeeCounts } from "@/lib/tournament-settings";
+import { playerTeeCounts } from "@/lib/tournament-settings";
+import { entryRefusalFor } from "@/lib/domain/round-scoring";
 import { playsInMatch } from "@/lib/services/match-access";
 import { parseHoleArray } from "@/lib/courses";
 import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
@@ -653,9 +654,14 @@ export async function setMatchCourse(
   if (!event || !match || match.eventId !== session.eventId) {
     return { ok: false, error: "Match not found." };
   }
-  if (!canEnterScores(settingsOf(event), session.role)) {
-    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
-  }
+  // The one gate (`entryRefusalFor`): the tournament's "staff" setting, and a
+  // round the organizer keeps from paper cards (2026-11-04).
+  const entryRefused = entryRefusalFor(
+    settingsOf(event),
+    session.role,
+    await prisma.stage.findFirst({ where: { id: match.stageId, eventId: session.eventId }, select: { scoreKeeping: true, endCheck: true } }),
+  );
+  if (entryRefused) return { ok: false, error: entryRefused };
   const archived = await archiveRefusalFor(session.eventId, session.role === "player" ? "player" : "organizer");
   if (archived) return { ok: false, error: archived };
   // S5. This writes the same fields as nameMatchVenue and had none of its
@@ -1447,9 +1453,14 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
   }
   // Same gate as entering the score itself. An organizer-scored tournament
   // does not let a player name the venue either.
-  if (!canEnterScores(settingsOf(event), session.role)) {
-    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
-  }
+  // The one gate (`entryRefusalFor`): the tournament's "staff" setting, and a
+  // round the organizer keeps from paper cards (2026-11-04).
+  const entryRefused = entryRefusalFor(
+    settingsOf(event),
+    session.role,
+    await prisma.stage.findFirst({ where: { id: match.stageId, eventId: session.eventId }, select: { scoreKeeping: true, endCheck: true } }),
+  );
+  if (entryRefused) return { ok: false, error: entryRefused };
   const archived = await archiveRefusalFor(session.eventId, session.role === "player" ? "player" : "organizer");
   if (archived) return { ok: false, error: archived };
   // A player may only speak for a match they are actually in. Without this,

@@ -8,6 +8,13 @@ const usable = (name: string) =>
   !name.startsWith("[") && !name.startsWith("_") && !name.startsWith("(");
 
 /**
+ * Standalone screens that open only for somebody holding a PLAY SESSION (a round code):
+ * a walk with no session is sent to `/play`, which would be measured in their place. They are
+ * driven signed in by their own spec (`play-board.spec.ts`) and kept out of the walks here.
+ */
+const NEEDS_A_PLAY_SESSION = new Set(["/play/board"]);
+
+/**
  * Every CONSOLE screen, read off the filesystem rather than listed by hand.
  *
  * The hand-written list this replaced held fourteen of the twenty-two routes
@@ -117,6 +124,7 @@ export function standaloneScreens(cwd: string = process.cwd()): string[] {
       }
       return paths;
     })
+    .filter((path) => !NEEDS_A_PLAY_SESSION.has(path))
     .sort();
 }
 

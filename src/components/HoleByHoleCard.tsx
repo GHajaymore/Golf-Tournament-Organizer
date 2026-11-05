@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useDistanceWords } from "./DistanceUnitProvider";
 import { useSeenOnce } from "./useSeenOnce";
 import { usePageIsLive } from "./usePageIsLive";
@@ -808,6 +808,13 @@ function SoloPad({
   /** False until the page's script is running: a tap before then is lost. */
   live: boolean;
 }) {
+  /**
+   * ONE ID PER CARD (2026-11-05): "hbh-other" was a constant, so a page holding
+   * two cards — the group's scorer keeping every ball of a match on stroke
+   * cards — carried two inputs with one id, and the label could land on the
+   * hidden one. Prefixed, so a test can still find the box by its kind.
+   */
+  const otherId = `hbh-other-${useId()}`;
   const shots = player.shotsOn?.(hole) ?? 0;
   // The dot's sentence, when one was handed down — `strokesOnHole`'s.
   const why = shots !== 0 ? (player.shotsWhy?.(hole) ?? null) : null;
@@ -878,9 +885,9 @@ function SoloPad({
         })}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
-        <label htmlFor="hbh-other" style={{ fontSize: 14, color: "var(--color-neutral-400)" }}>Other</label>
+        <label htmlFor={otherId} style={{ fontSize: 14, color: "var(--color-neutral-400)" }}>Other</label>
         <input
-          id="hbh-other"
+          id={otherId}
           className={`input sc-score${scoreMark(value, par)}`}
           inputMode="numeric"
           value={value ?? ""}

@@ -251,6 +251,8 @@ export const CLONE_IGNORED_RELATIONS = [
   // Weekly in/out answers are the record of who played which week — a copy
   // for next season starts with nobody asked.
   "attendance",
+  // Who kept each group's card last time: people, on a day that is over.
+  "scoringKeepers",
   /**
    * A skins pot is cash: real people who really paid, and a carry someone is
    * owed. Copying last season's pots forward WHOLE would enter players who have
@@ -368,6 +370,11 @@ export const CLONED_STAGE_FIELDS = [
   // And how players keep the round's matches — a cup run again next year is
   // kept the way the club chose for it.
   "matchKeptBy",
+  // Who enters the round's scores and whether the other side checks them
+  // (2026-11-04): the club's way of running that round, kept as it chose it
+  // rather than reset to `scoringDefaults`.
+  "scoreKeeping",
+  "endCheck",
   /**
    * Carried, but TRANSLATED — the one field on this list that cannot be copied
    * as it stands. See `cloneSingleMatchRule`.
@@ -449,6 +456,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
     "the Group rows holding this round's matches — and the matches are not copied, so there is nothing for one to carry. A carrier is created on demand by matchCarrierGroup the first time the copy generates that round",
   teams: "made from the field, which is not copied",
   attendance: "who turned up last year",
+  keepers: "who kept each group's card on last year's day — a copy's groups have not met yet",
   skinsPots: "money — see the Event policy",
   playoffHoles:
     "who came through a level play-off meeting, and the committee decisions behind it — last season’s adjudications, on rounds this copy has not played",

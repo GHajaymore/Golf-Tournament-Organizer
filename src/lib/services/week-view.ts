@@ -30,6 +30,7 @@ import {
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { formattingForEvent } from "./organization";
 import { standingsThroughRound } from "./standings-through";
+import { cardsOnBoard } from "../domain/board-hold";
 
 /**
  * One week of a league, gathered in the order a member reads it.
@@ -257,7 +258,8 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   // adding them up would produce a ranking the club never played for.
   const manual = isManualFormat(stage.format);
 
-  const thisWeek = manual ? [] : parseStrokeCards(cards.filter((c) => c.stageId === stage.id));
+  // A card held in dispute is not ranked (`cardsOnBoard`, domain/board-hold.ts).
+  const thisWeek = manual ? [] : parseStrokeCards(cardsOnBoard(cards.filter((c) => c.stageId === stage.id)));
   const agg = aggregateStroke(thisWeek, {
     courseFor,
     handicapFor,

@@ -61,6 +61,14 @@ export interface ReviewQueue {
    * handed to the finish gate by name.
    */
   disputed: number;
+  /**
+   * Of `matches`, the results BOTH SIDES AGREE (2026-11-04, sprint 2 part B).
+   * Where the committee approves, the end-of-round check still asks the other
+   * side, and records their agreement without approving anything: these are
+   * the results the committee can sign off knowing nobody in the match
+   * questions them. Part of `matches`, never added to `total` twice.
+   */
+  agreed?: number;
 }
 
 /**
@@ -114,6 +122,8 @@ export function reviewQueue(input: {
      * block finishing a tournament for ever, with a remedy no organizer has.
      */
     unreadable?: boolean;
+    /** The sides have agreed this result through the end-of-round check (`sidesAgree`). */
+    agreed?: boolean;
   }>;
   cards: ReadonlyArray<{ status: string }>;
   /** Whether a committee signs things off in this tournament at all. */
@@ -133,7 +143,9 @@ export function reviewQueue(input: {
    * a single hole is a trap this codebase already records against the money
    * screens.
    */
-  const matches = input.matches.filter((m) => m.complete && m.status === "pending").length;
+  const waiting = input.matches.filter((m) => m.complete && m.status === "pending");
+  const matches = waiting.length;
+  const agreed = waiting.filter((m) => m.agreed === true).length;
   const cards = input.cards.filter((c) => cardAwaitsReview(c.status, input.staffApproves)).length;
   // Whether or not this tournament has a reviewer: a dispute is a claim that a
   // result is wrong, and that is true with or without a committee queue.
@@ -141,7 +153,7 @@ export function reviewQueue(input: {
     input.cards.filter((c) => c.status === "disputed").length +
     input.matches.filter((m) => m.status === "disputed" && !m.unreadable).length;
   const knockouts = Math.max(0, Math.floor(input.knockoutReports));
-  return { matches, cards, knockouts, total: matches + cards + knockouts, disputed };
+  return { matches, cards, knockouts, total: matches + cards + knockouts, disputed, agreed };
 }
 
 // The words for the queue — cards and match results named apart, never

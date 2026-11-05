@@ -36,6 +36,8 @@ const SCORE_ACTIONS = [
   // A conceded match IS its result. Found filed under "Other" by
   // `every-change-has-a-heading.test.ts`, 2026-09-28.
   "match.forfeit", "match.forfeit.undo",
+  // Who keeps a group's card, moved by a take-over or a hand-over (2026-11-04).
+  "keeper.takeover", "keeper.handover",
 ];
 const ROUND_ACTIONS = [
   "round-closed", "cut-applied", "regenerate-flights", "play-suspended", "play-resumed",
@@ -43,6 +45,8 @@ const ROUND_ACTIONS = [
   "cut-tie-settled",
   // Round-day set-up: where the holes are cut, and the time allowed.
   "pin-sheet", "pace-set",
+  // Who enters a round's scores, and its end-of-round check (2026-11-04).
+  "round.scoring",
 ];
 const SETTINGS_ACTIONS = [
   "rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on",

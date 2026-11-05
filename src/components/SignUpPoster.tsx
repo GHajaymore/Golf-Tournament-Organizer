@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
 import { qrModules, qrPath, type QrEncoder } from "@/lib/qr";
+import { QrLogoMark } from "./QrLogoMark";
 
 /**
  * "SCAN TO SIGN UP" — A POSTER FOR THE TOURNAMENT'S SIGN-UP LINK (2026-10-17).
@@ -28,7 +29,7 @@ export function SignUpPoster({ url, name, when, where }: { url: string; name: st
   }, [open, encode]);
 
   const short = url.replace(/^https?:\/\//, "");
-  const drawn = encode ? qrPath(qrModules(encode, url)) : null;
+  const drawn = encode ? qrPath(qrModules(encode, url, { logo: true }), 4, { logo: true }) : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -63,6 +64,7 @@ export function SignUpPoster({ url, name, when, where }: { url: string; name: st
             .signup-poster .sp-name { font-size: 24px; font-weight: 700; line-height: 1.2; text-wrap: balance; }
             .signup-poster .sp-line { font-size: 15px; }
             .signup-poster svg { width: min(80mm, 72vw); height: auto; display: block; }
+            .signup-poster .sp-link { display: block; color: inherit; text-decoration: none; }
             .signup-poster .sp-scan { font-size: 22px; font-weight: 700; }
             .signup-poster .sp-url { font-size: 13px; overflow-wrap: anywhere; max-width: 60ch; }
             @media print {
@@ -79,10 +81,15 @@ export function SignUpPoster({ url, name, when, where }: { url: string; name: st
               <section className="signup-poster" aria-label={`Sign-up poster for ${name}`} data-link={url}>
                 <div className="sp-name">{name}</div>
                 {(when || where) && <div className="sp-line">{[when, where].filter(Boolean).join(" · ")}</div>}
-                <svg viewBox={`0 0 ${drawn.size} ${drawn.size}`} role="img" aria-label={`QR code for the sign-up link of ${name}`} shapeRendering="crispEdges">
-                  <rect width={drawn.size} height={drawn.size} fill="#fff" />
-                  <path d={drawn.d} fill="#000" />
-                </svg>
+                {/* Tappable (2026-11-05): the code is a link to its own address, so a phone showing the
+                    poster can open what a camera would. On paper it is only ink. */}
+                <a href={url} target="_blank" rel="noopener noreferrer" className="sp-link" aria-label={`Open the sign-up link of ${name}`}>
+                  <svg viewBox={`0 0 ${drawn.size} ${drawn.size}`} role="img" aria-label={`QR code for the sign-up link of ${name}`} shapeRendering="crispEdges">
+                    <rect width={drawn.size} height={drawn.size} fill="#fff" />
+                    <path d={drawn.d} fill="#000" />
+                    {drawn.logo && <QrLogoMark logo={drawn.logo} />}
+                  </svg>
+                </a>
                 <div className="sp-scan">Scan to sign up</div>
                 <div className="sp-url">No camera? Go to {short}</div>
               </section>

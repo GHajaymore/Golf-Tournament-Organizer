@@ -6,7 +6,14 @@ import { prisma } from "@/lib/db";
 import { normalizeAccessCode, looksLikeAccessCode } from "@/lib/code-format";
 import { createPlaySession, destroyPlaySession, getPlaySession } from "@/lib/play-auth";
 import { settingsOf } from "@/lib/services/tournament";
-import { usesAccessCodes, canPlayerSavePartial, canEnterScores } from "@/lib/tournament-settings";
+import { usesAccessCodes, canPlayerSavePartial, allowsAutoConfirm } from "@/lib/tournament-settings";
+import { playerEntryRefusal, roundScoring } from "@/lib/domain/round-scoring";
+import { isInMatch, mayWriteMatch, playersInMatch } from "@/lib/services/match-membership";
+import { keeperGate, claimGroup, handOverKeeping, roundTeeSheet, otherRoundsTeeGroups } from "@/lib/services/group-keeping";
+import { attestMatch, matchSidesOf, endCheckRule } from "@/lib/services/attestation";
+import { effectiveScoreStatus } from "@/lib/services/tournament";
+import { isCardLocked, isPartnerCardSigned, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
+import { assertSignsCards } from "@/lib/services/scorecard-write";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { playRefusalFor } from "@/lib/services/action-shared";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
@@ -17,13 +24,15 @@ import { marginRefusal, marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard, assertRoundOpen, storedCard } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit } from "@/lib/services/action-shared";
-import { isCupSession, lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
+import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { deriveMatchFromItsCards, recomputeTeamMatch } from "@/lib/services/match-from-cards";
 import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
 import { isReturnedCard } from "@/lib/domain/round-handicap";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
-import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { type TeeSheetGroup } from "@/lib/domain/tee-sheet";
+import { groupNeedsName, groupsOfRound, withBorrowedTeeTimes, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
+import { matchKeptBy } from "@/lib/domain/match-kept-by";
 
 /**
  * Redeeming a Round Code.
@@ -42,20 +51,32 @@ export interface RedeemResult {
   ok: boolean;
   error?: string;
   /**
-   * The field for that round, for the player to pick themselves from. In a
-   * cup session each carries their team's name (`side`), so a foursome is
-   * shown as its two pairs, each under its team.
+   * The field for that round: the list a scorer picks from where the round has
+   * no groups, and what "find your group by a name" searches.
    */
-  players?: Array<{ id: string; name: string; side?: string }>;
+  players?: Array<{ id: string; name: string }>;
   /**
-   * The round's matches, each with the players in it, when the round draws
-   * matches and their lineup is public — so a player finds their own group
-   * rather than their name in the whole field. Empty otherwise.
+   * The round's GROUPS, which the scorer picks from instead of a name
+   * (`play-groups.ts`): its matches, when it draws them and their lineup is
+   * public, or its published tee sheet's groups. Empty for a round with
+   * neither, which keeps the list of names.
    */
-  groups?: Array<{ label: string; ids: string[] }>;
+  groups?: PlayGroup[];
   stageId?: string;
+  /**
+   * The tournament, so a phone can remember its group across the rounds of it
+   * (`rememberedGroup`). An id, not a name or a secret: it is what the page's
+   * own session already carries.
+   */
+  eventId?: string;
   eventName?: string;
   roundLabel?: string;
+  /**
+   * The round is kept by ONE SCORER PER GROUP (2026-11-05, phase 2): the phone
+   * keeps the whole group's card, so "whose card" in a group of stroke cards is
+   * asked as "which one are you".
+   */
+  keepsGroups?: boolean;
 }
 
 export async function redeemRoundCode(input: string): Promise<RedeemResult> {
@@ -81,22 +102,11 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     return { ok: false, error: "That code isn't valid. Check it with your organizer." };
   }
 
-  /**
-   * WHICH TEAM, IN A CUP (2026-10-18). A foursome was four names in one block,
-   * two to a row with nothing between the pairs, and at the first real cup a
-   * scorer tapped an opponent's name and kept the whole four-ball from the
-   * other pair's side. So a cup session's names carry their team, and the
-   * list shows each pair under it. Only a cup's: a club's flights are not two
-   * sides of a match, and nobody else's list should change.
-   */
-  const cup = isCupSession(stage);
-  const players = (
-    await prisma.player.findMany({
-      where: { eventId: stage.eventId, status: "confirmed" },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, group: { select: { name: true } } },
-    })
-  ).map(({ group, ...p }) => (cup && group?.name ? { ...p, side: group.name } : p));
+  const players = await prisma.player.findMany({
+    where: { eventId: stage.eventId, status: "confirmed" },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   // `type` as well as `id` — see play-auth: the number counts rounds, not rows,
   // and a cut is a row that is not a round.
@@ -110,12 +120,14 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
   return {
     ok: true,
     players,
-    groups: (await teeSheetGroups(stage.id, stage.eventId, players)) ?? (lineupHidden(stage) ? [] : await matchGroups(stage.id, players)),
+    groups: await playGroups(stage, players),
     stageId: stage.id,
+    eventId: stage.eventId,
     eventName: stage.event.name,
     // Which round and which holes, so the wrong nine's code shows on the
     // first screen after it is typed.
     roundLabel: roundCodeName(stages, stages.find((s) => s.id === stage.id) ?? stage),
+    keepsGroups: roundScoring(stage).scoreKeeping === "group",
   };
 }
 
@@ -124,50 +136,45 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
  *
  * Ajay, setting up a real cup: one code for the whole round, then a name to
  * tap out of twenty — "can you keep it to the foursome?". The code stays one
- * per round; what changes is the list, which is now the round's matches, each
- * with its players, in draw order. A four-ball match IS the foursome. Only the
- * players the code already lists are named, so it reveals nothing the flat
- * list did not, beyond who is drawn against whom — which is why a cup lineup
- * the organizer has not announced is never grouped (the caller checks).
+ * per round; what changes is the list, which is the round's matches, in draw
+ * order. A four-ball match IS the foursome. Only the players the code already
+ * lists are named, so it reveals nothing the flat list did not, beyond who is
+ * drawn against whom.
+ *
+ * THE TEE SHEET: the round's OWN published one (`roundTeeSheet`), the same
+ * reader the keeper takes its groups from, so the list and the keeper cannot
+ * disagree. It once fell back to the tournament's other published sheet ("a
+ * cup's second nine is the same four"); the Golf Pro ruled on 2026-11-05 that
+ * a round's groups come from that round's sheet only — a four-ball session
+ * with no sheet of its own lists its matches, each its own group. Null when
+ * there is none.
  */
-/**
- * THE FOURSOMES, FIRST: the round's published tee sheet, or — for a round
- * with no sheet of its own — the tournament's other published sheet, because
- * a group plays its eighteen together and a cup's second nine is the same
- * four (Ajay: "we already have foursome for this tournament"). Each tee time
- * is a block of its players. Only a PUBLISHED sheet: a draft is the
- * organizer's. Null when there is none, so the matches are asked instead.
- */
-async function teeSheetGroups(
-  stageId: string,
-  eventId: string,
-  players: Array<{ id: string; name: string }>,
-): Promise<Array<{ label: string; ids: string[] }> | null> {
-  const sheets = await prisma.stage.findMany({
-    where: { eventId, teeSheetPublished: true, NOT: { teeSheet: "" } },
-    orderBy: { position: "asc" },
-    select: { id: true, teeSheet: true },
-  });
-  const own = sheets.find((s) => s.id === stageId) ?? sheets[0];
-  const sheet = own ? parseTeeSheet(own.teeSheet) : null;
-  if (!sheet || sheet.groups.length === 0) return null;
-  const listed = new Set(players.map((p) => p.id));
-  const groups = sheet.groups
-    .map((g) => ({ label: [g.time, g.name].filter(Boolean).join(" · "), ids: g.playerIds.filter((id) => listed.has(id)) }))
-    .filter((g) => g.ids.length > 0);
-  return groups.length > 0 ? groups : null;
+async function publishedSheet(stageId: string, eventId: string): Promise<TeeSheetGroup[] | null> {
+  const sheet = await roundTeeSheet(eventId, stageId);
+  return sheet && sheet.groups.length > 0 ? sheet.groups : null;
 }
 
-async function matchGroups(
-  stageId: string,
+/**
+ * THE GROUPS A SCORER PICKS FROM (2026-11-04) — see `play-groups.ts`. A round
+ * that draws matches, announced: each match, with its tee time where there is
+ * a sheet. Otherwise the published sheet's groups. Otherwise none, and the
+ * page keeps the names. A cup lineup the organizer has not announced is never
+ * shown as matches: that is who is drawn against whom.
+ */
+async function playGroups(
+  stage: { id: string; eventId: string; type: string; format: string; scoreInput: string | null; matchKeptBy: string | null; lineupPublished: boolean | null },
   players: Array<{ id: string; name: string }>,
-): Promise<Array<{ label: string; ids: string[] }>> {
-  const matches = await prisma.match.findMany({
-    where: { stageId },
-    orderBy: [{ round: "asc" }, { id: "asc" }],
-    select: { playerAId: true, playerBId: true, teamAId: true, teamBId: true },
-  });
-  if (matches.length === 0) return [];
+): Promise<PlayGroup[]> {
+  const names = new Map(players.map((p) => [p.id, p.name]));
+  const sheet = await publishedSheet(stage.id, stage.eventId);
+  const hidden = lineupHidden(stage);
+  const matches = hidden
+    ? []
+    : await prisma.match.findMany({
+        where: { stageId: stage.id },
+        orderBy: [{ round: "asc" }, { id: "asc" }],
+        select: { id: true, playerAId: true, playerBId: true, teamAId: true, teamBId: true },
+      });
   const teamIds = matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id !== "");
   const members = teamIds.length
     ? await prisma.teamMember.findMany({
@@ -176,24 +183,28 @@ async function matchGroups(
         select: { teamId: true, playerId: true },
       })
     : [];
-  const listed = new Map(players.map((p) => [p.id, p.name]));
   const side = (playerId: string, teamId: string) =>
-    (playerId !== "" ? [playerId] : members.filter((m) => m.teamId === teamId).map((m) => m.playerId)).filter((id) =>
-      listed.has(id),
-    );
-  const groups = matches
-    .map((m) => {
-      const a = side(m.playerAId, m.teamAId);
-      const b = side(m.playerBId, m.teamBId);
-      const names = (ids: string[]) => ids.map((id) => listed.get(id)!).join(" & ");
-      return { label: `${names(a)} v ${names(b)}`, ids: [...a, ...b] };
-    })
-    .filter((g) => g.ids.length > 0);
-  // A round robin draws one player into several matches: grouped, each name
-  // would be listed over and over, which is longer than the field. That round
-  // keeps the plain list.
-  const all = groups.flatMap((g) => g.ids);
-  return new Set(all).size === all.length ? groups : [];
+    playerId !== "" ? [playerId] : members.filter((m) => m.teamId === teamId).map((m) => m.playerId);
+  // The one answer, shared with the print kit's signs (`groupsOfRound`).
+  const groups = groupsOfRound({
+    lineupHidden: hidden,
+    matches: matches.map((m) => ({ id: m.id, a: side(m.playerAId, m.teamAId), b: side(m.playerBId, m.teamBId) })),
+    names,
+    sheet,
+    // A match kept on stroke cards is four people's own cards; one kept by
+    // tapping is one card, the same whoever opens it.
+    oneMatch: matchKeptBy(stage) !== "cards",
+  });
+  if (sheet) return groups;
+  /**
+   * A ROUND WITH NO SHEET OF ITS OWN MAY STILL HAVE A TEE TIME (Ajay,
+   * 2026-10-16: "we already have foursome for this tournament" — a cup's second
+   * nine is the same four). Borrowed from another round's published group, the
+   * TIME ONLY and only when that group is exactly this match's players
+   * (`withBorrowedTeeTimes` / `samePlayers`); never its grouping or its name,
+   * which come from this round alone (`roundTeeSheet`).
+   */
+  return withBorrowedTeeTimes(groups, await otherRoundsTeeGroups(stage.eventId, stage.id), new Set(names.keys()));
 }
 
 export interface ClaimResult {
@@ -207,6 +218,53 @@ export interface ClaimResult {
    */
   card?: (number | null)[];
   holes?: Array<"A" | "B" | "H" | null>;
+  /**
+   * On a round kept by ONE SCORER PER GROUP: the epoch this phone now holds
+   * as its group's scorer, to send with its next save (`keeperGate`). Absent
+   * on a round where each player keeps their own.
+   */
+  epoch?: number;
+  /**
+   * A save REFUSED because the group's card is kept on another phone: whose
+   * (2026-11-05, phase 2). The screen then stops claiming progress — the pad
+   * read "18/18 holes" under the refusal — and follows the group instead.
+   */
+  keptBy?: string;
+}
+
+/**
+ * What a save from the round-code surface may carry beyond the score itself
+ * (2026-11-04, sprint 2 part B). Optional, so a screen written before it goes
+ * on working: it sends neither, and is held to its own card or match.
+ *
+ *   epoch     the epoch the phone holds as its group's scorer; a stale one is
+ *             refused in words (the card moved to another phone).
+ *   playerId  WHOSE card or ball, when the scorer keeps a groupmate's. Only on
+ *             a round kept by one scorer per group, and only for somebody in
+ *             the group whose card this phone keeps.
+ */
+export interface PlaySaveOptions {
+  epoch?: number;
+  playerId?: string;
+}
+
+/** The epoch as sent, or undefined — a `"use server"` argument is whatever was posted. */
+function sentEpoch(opts: PlaySaveOptions | undefined): number | undefined {
+  const e = opts?.epoch;
+  return typeof e === "number" && Number.isInteger(e) && e > 0 ? e : undefined;
+}
+
+/**
+ * MAY A PLAYER ENTER SCORES ON THE ROUND THIS CODE OPENED — the one gate
+ * (`playerEntryRefusal`): the tournament's "staff" setting wins, and a round
+ * the organizer keeps from paper cards refuses players on its own.
+ */
+async function entryRefusal(session: { eventId: string; stageId: string }, settings: { scoreEntryBy: string }): Promise<string | null> {
+  const stage = await prisma.stage.findFirst({
+    where: { id: session.stageId, eventId: session.eventId },
+    select: { scoreKeeping: true, endCheck: true },
+  });
+  return playerEntryRefusal(settings, stage);
 }
 
 /** A match's stored holes, read back: A-relative, one per hole of the round. */
@@ -249,7 +307,7 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
 
   const player = await prisma.player.findFirst({
     where: { id: playerId, eventId: stage.eventId, status: "confirmed" },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   // Same message as a bad code. Saying "pick your name from the list" here
   // would confirm that the code was real — turning a failed claim into a
@@ -262,6 +320,19 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
   // The stored code, not the typed one, so the session is bound to the row a
   // reissue will overwrite.
   await createPlaySession(stage.id, player.id, stage.accessCode);
+  /**
+   * THE ONE CONFIRMATION IS THE CLAIM (2026-11-05, phase 2). "You're keeping
+   * Group 3: …" was said and answered yes, so on a round kept by one scorer per
+   * group this phone keeps the group's card — unless somebody already does, in
+   * which case nothing moves and the card opens following theirs ("Group 3 is
+   * being kept on Ann's phone"), with Take over one press away. Never a
+   * take-over: a second phone confirming the same group must not cut the first
+   * one off. An upsert (`claimGroup`), so two phones confirming at once leave
+   * one scorer. Only where a player may enter at all.
+   */
+  if (roundScoring(stage).scoreKeeping === "group" && playerEntryRefusal(settingsOf(stage.event), stage) === null) {
+    await claimGroup({ eventId: stage.eventId, stageId: stage.id, actorId: player.id, actorName: player.name, takeOver: false });
+  }
   revalidatePath("/play");
   return { ok: true };
 }
@@ -294,9 +365,55 @@ export async function redeemRoundCodeForm(_before: RedeemFormState | null, form:
   return { ...res, code: res.ok ? normalizeAccessCode(typed) : typed };
 }
 
-/** A name tapped before the script arrived: the session starts and the card is drawn, or the refusal is. */
-export async function claimPlayerSlotForm(_before: ClaimResult | null, form: FormData): Promise<ClaimResult> {
-  const res = await claimPlayerSlot(String(form.get("code") ?? "").slice(0, 64), String(form.get("playerId") ?? "").slice(0, 64));
+/**
+ * A group or a name tapped with no script: the steps the page takes, drawn by
+ * the server instead (2026-11-04). The one confirmation first ("You're keeping
+ * Group 3 …" — `keepingSentence`), then, in a group of somebody's own cards,
+ * whose card; then the session starts and the card is drawn, or the refusal is.
+ * The same groups the page draws (`redeemRoundCode`), so the same answer.
+ */
+export interface ClaimFormState extends ClaimResult {
+  /** The step to draw next: the confirmation, or whose card in the group. */
+  step?: { kind: "confirm"; target: PlayTarget } | { kind: "pick"; group: PlayGroup };
+  code?: string;
+  stageId?: string;
+  eventId?: string;
+  eventName?: string;
+  roundLabel?: string;
+  keepsGroups?: boolean;
+}
+
+export async function claimPlayerSlotForm(_before: ClaimFormState | null, form: FormData): Promise<ClaimFormState> {
+  const code = String(form.get("code") ?? "").slice(0, 64);
+  const playerId = String(form.get("playerId") ?? "").slice(0, 64);
+  const groupKey = String(form.get("group") ?? "").slice(0, 128);
+  const confirmed = form.get("confirmed") === "yes";
+  let res: ClaimResult;
+  if (!confirmed || (groupKey && !playerId)) {
+    const round = await redeemRoundCode(code);
+    if (!round.ok) return { ok: false, error: round.error };
+    const context = {
+      code: normalizeAccessCode(code),
+      stageId: round.stageId,
+      eventId: round.eventId,
+      eventName: round.eventName,
+      roundLabel: round.roundLabel,
+      keepsGroups: round.keepsGroups,
+    };
+    const group = groupKey ? round.groups?.find((g) => g.key === groupKey) : undefined;
+    const player = playerId ? round.players?.find((p) => p.id === playerId) : undefined;
+    if (!group && !player) return { ok: false, error: "That code isn't valid.", ...context };
+    if (!confirmed) {
+      const target: PlayTarget = group ? { kind: "group", group } : { kind: "player", id: player!.id, name: player!.name };
+      return { ok: false, step: { kind: "confirm", target }, ...context };
+    }
+    // Confirmed, a group: its one match, or whose card in it.
+    // One scorer per group: the phone says which one it is (`groupNeedsName`).
+    if (!groupNeedsName(group!, round.keepsGroups ?? false)) res = await claimPlayerSlot(code, group!.players[0]?.id ?? "");
+    else return { ok: false, step: { kind: "pick", group: group! }, ...context };
+  } else {
+    res = await claimPlayerSlot(code, playerId);
+  }
   // Outside any try: `redirect` works by throwing.
   if (res.ok) redirect("/play");
   return res;
@@ -318,6 +435,7 @@ export async function leavePlay(): Promise<void> {
 export async function savePlayMatchHoles(
   matchId: string,
   holes: Array<"A" | "B" | "H" | null>,
+  opts?: PlaySaveOptions,
 ): Promise<ClaimResult> {
   const session = await getPlaySession();
   if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
@@ -342,9 +460,9 @@ export async function savePlayMatchHoles(
   // committee could touch a result, while any code holder could overwrite a
   // card and — because a score edit always resets approval — send one the
   // committee had already confirmed back to pending with nobody told.
-  if (!canEnterScores(settings, "player")) {
-    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
-  }
+  // And a round the organizer keeps from paper cards refuses it too.
+  const refused = await entryRefusal(session, settings);
+  if (refused) return { ok: false, error: refused };
 
   // AND THE TOURNAMENT HAS TO HAVE STARTED. Launch is the transition from
   // setting up to playing and it gated nothing, so a tournament left in draft
@@ -354,31 +472,18 @@ export async function savePlayMatchHoles(
   if (notStarted) return { ok: false, error: notStarted };
 
   // Scoped three ways: the right tournament, the right round, and a match this
-  // player is actually in.
+  // player may write.
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
     return { ok: false, error: "That match isn't in your round." };
   }
   // Not on a round kept on stroke cards (`matchKeptBy`).
   const keptOnCards = await keptByRefusal(match.stageId, "holes");
   if (keptOnCards) return { ok: false, error: keptOnCards };
-  // Being "in" a match means being on one of its sides. In an individual
-  // format the sides are the two player columns; in a team format those are
-  // empty by design and the sides are teams — so checking the player columns
-  // alone refused every four-ball partner their own match. Same scoring-group
-  // rule as domain/attest.ts: the match decides who belongs, and membership of
-  // either side qualifies.
-  let inMatch = match.playerAId === session.playerId || match.playerBId === session.playerId;
-  if (!inMatch && (match.teamAId || match.teamBId)) {
-    const teamIds = [match.teamAId, match.teamBId].filter((id) => id !== "");
-    const membership = await prisma.teamMember.findFirst({
-      where: { playerId: session.playerId, teamId: { in: teamIds } },
-      select: { id: true },
-    });
-    inMatch = membership !== null;
-  }
-  if (!inMatch) {
-    return { ok: false, error: "You can only enter scores for your own match." };
-  }
+  // Their own match — on either side, a four-ball partner included — or, on a
+  // round kept by one scorer per group, a match in the group whose card this
+  // phone keeps (`mayWriteMatch`, services/match-membership.ts).
+  const may = await mayWriteMatch({ eventId: session.eventId, match, actorIds: [session.playerId], epoch: sentEpoch(opts) });
+  if (!may.ok) return { ok: false, error: may.error, ...(may.keeperName !== undefined ? { keptBy: may.keeperName } : {}) };
 
   // The payload itself, which nothing checked until now. The signature says
   // Array<"A"|"B"|"H"|null> and that type is erased at runtime, so what
@@ -430,7 +535,7 @@ export async function savePlayMatchHoles(
   // see it now rather than when its sixty-second backstop expires.
   boardChanged(session.eventId);
   revalidatePath("/", "layout");
-  return { ok: true, holes: storedHoles(written.holes) };
+  return { ok: true, holes: storedHoles(written.holes), ...(may.epoch !== null ? { epoch: may.epoch } : {}) };
 }
 
 /**
@@ -463,6 +568,7 @@ export async function savePlayMatchResult(
   matchId: string,
   winner: "A" | "B" | "H",
   margin: string,
+  opts?: PlaySaveOptions,
 ): Promise<ClaimResult> {
   const session = await getPlaySession();
   if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
@@ -479,9 +585,8 @@ export async function savePlayMatchResult(
   // Same entry gate as savePlayMatchHoles. Both write a result, so a guard on
   // only one of them protects nothing: phoning in "3&2" overwrites the card
   // just as completely as tapping eighteen holes.
-  if (!canEnterScores(settingsOf(event), "player")) {
-    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
-  }
+  const refused = await entryRefusal(session, settingsOf(event));
+  if (refused) return { ok: false, error: refused };
 
   // AND THE TOURNAMENT HAS TO HAVE STARTED. Launch is the transition from
   // setting up to playing and it gated nothing, so a tournament left in draft
@@ -497,18 +602,10 @@ export async function savePlayMatchResult(
   const keptOnCards = await keptByRefusal(match.stageId, "holes");
   if (keptOnCards) return { ok: false, error: keptOnCards };
 
-  // Same membership rule as savePlayMatchHoles: player columns in an
-  // individual format, team membership in a team format.
-  let inMatch = match.playerAId === session.playerId || match.playerBId === session.playerId;
-  if (!inMatch && (match.teamAId || match.teamBId)) {
-    const teamIds = [match.teamAId, match.teamBId].filter((id) => id !== "");
-    const membership = await prisma.teamMember.findFirst({
-      where: { playerId: session.playerId, teamId: { in: teamIds } },
-      select: { id: true },
-    });
-    inMatch = membership !== null;
-  }
-  if (!inMatch) return { ok: false, error: "You can only enter scores for your own match." };
+  // Same rule as savePlayMatchHoles (`mayWriteMatch`): their own match, or on
+  // a round kept by one scorer per group, a match whose card this phone keeps.
+  const may = await mayWriteMatch({ eventId: session.eventId, match, actorIds: [session.playerId], epoch: sentEpoch(opts) });
+  if (!may.ok) return { ok: false, error: may.error, ...(may.keeperName !== undefined ? { keptBy: may.keeperName } : {}) };
 
   const resultStage = await prisma.stage.findUnique({
     where: { id: match.stageId },
@@ -535,10 +632,22 @@ export async function savePlayMatchResult(
       scoreStatus: "pending",
       scoredAt: new Date(),
       confirmedById: null,
+      /**
+       * WHO PHONED IT IN, and a clean slate of signatures (2026-11-04). The
+       * hole-by-hole save beside this has set both since it was written; this
+       * one set neither, so a phoned-in "3&2" had no author — its author could
+       * confirm it — and a signature collected on the OLD scoreline survived
+       * the new one. `attestation.audit.test.ts` holds both.
+       */
+      enteredBy: session.playerName,
+      enteredById: session.playerId,
+      attestedBy: "[]",
     },
   });
   await logAudit(session.eventId, "score", `Result entered via round code: ${winner === "H" ? "halved" : margin || "1 UP"}`, { matchId, actor: session.playerName });
-  return { ok: true };
+  boardChanged(session.eventId);
+  revalidatePath("/", "layout");
+  return { ok: true, ...(may.epoch !== null ? { epoch: may.epoch } : {}) };
 }
 
 /**
@@ -564,7 +673,7 @@ export async function savePlayMatchResult(
  * players report at all, and is this round the one the code opened — and adds
  * nothing about roles, because there is no role here to add.
  */
-export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimResult> {
+export async function savePlayCard(strokes: (number | null)[], opts?: PlaySaveOptions): Promise<ClaimResult> {
   const session = await getPlaySession();
   if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
   // Paused in a lapsed club's read-only archive (2026-10-21), said beside the press.
@@ -590,10 +699,10 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
    * only the committee could touch a result, while any code holder could
    * overwrite a card — and a score edit always resets approval, so one the
    * committee had already confirmed would go back to pending with nobody told.
+   * And a round the organizer keeps from paper cards refuses it too.
    */
-  if (!canEnterScores(settings, "player")) {
-    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
-  }
+  const refused = await entryRefusal(session, settings);
+  if (refused) return { ok: false, error: refused };
 
   // AND THE TOURNAMENT HAS TO HAVE STARTED. Launch is the transition from
   // setting up to playing and it gated nothing, so a tournament left in draft
@@ -610,17 +719,43 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
   }
 
   /**
-   * The card is written for the player the SESSION names, never one the
-   * caller sends. There is no playerId argument for the same reason the match
-   * path checks membership: a round code is a shared secret announced to a
-   * field, so anybody holding it could otherwise write anybody's card.
+   * The card is written for the player the SESSION names — or, on a round
+   * kept by ONE SCORER PER GROUP, for a groupmate whose card this phone keeps
+   * (2026-11-04). Never for anybody else: a round code is a shared secret
+   * announced to a field, so anybody holding it could otherwise write
+   * anybody's card. `keeperGate` decides the second case, and refuses a phone
+   * that is not the group's scorer — its own card included.
    */
+  const asked = typeof opts?.playerId === "string" && opts.playerId ? opts.playerId : session.playerId;
+  const kept = await keeperGate({
+    eventId: session.eventId,
+    stageId: session.stageId,
+    actorIds: [session.playerId],
+    targetIds: [asked],
+    epoch: sentEpoch(opts),
+  });
+  if (kept.applies && !kept.ok) return { ok: false, error: kept.error, ...(kept.keeperName !== undefined ? { keptBy: kept.keeperName } : {}) };
+  if (asked !== session.playerId) {
+    if (!kept.applies) return { ok: false, error: "You can only enter your own card." };
+    const target = await prisma.player.findFirst({
+      where: { id: asked, eventId: session.eventId, status: "confirmed" },
+      select: { name: true },
+    });
+    if (!target) return { ok: false, error: "That player isn't in this round." };
+    // A card its player has signed is the committee's to correct (Rule 3.3b) —
+    // the scorer may not step it, as a marker may not on the console.
+    const theirs = await prisma.scorecard.findFirst({
+      where: { eventId: session.eventId, stageId: session.stageId, playerId: asked },
+      select: { status: true },
+    });
+    if (theirs && isPartnerCardSigned(theirs.status)) return { ok: false, error: SIGNED_PARTNER_REFUSAL(target.name) };
+  }
   let stored: (number | null)[] = [];
   try {
     const result = await writeScorecard({
       eventId: session.eventId,
       stageId: session.stageId,
-      playerId: session.playerId,
+      playerId: asked,
       strokes,
       settings,
       role: "player",
@@ -641,11 +776,16 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
     return { ok: false, error: e instanceof Error ? e.message : "Couldn't save that card." };
   }
 
-  await logAudit(session.eventId, "score", "Card entered via round code", { actor: session.playerName });
+  await logAudit(
+    session.eventId,
+    "score",
+    asked === session.playerId ? "Card entered via round code" : `${asked}'s card entered via round code by the group's scorer`,
+    { actor: session.playerName },
+  );
   boardChanged(session.eventId);
   revalidatePath("/", "layout");
   // The card as the row holds it, so the phone's "Sent" is the record's word.
-  return { ok: true, card: stored };
+  return { ok: true, card: stored, ...(kept.applies && kept.ok ? { epoch: kept.epoch } : {}) };
 }
 
 /**
@@ -683,9 +823,8 @@ export async function certifyPlayCard(): Promise<ClaimResult> {
   const settings = settingsOf(event);
   // The same question the write asks, and for the same reason: a tournament
   // the committee scores must not have its cards signed by a code holder.
-  if (!canEnterScores(settings, "player")) {
-    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
-  }
+  const refused = await entryRefusal(session, settings);
+  if (refused) return { ok: false, error: refused };
 
   // AND THE TOURNAMENT HAS TO HAVE STARTED. Launch is the transition from
   // setting up to playing and it gated nothing, so a tournament left in draft
@@ -729,7 +868,7 @@ export async function certifyPlayCard(): Promise<ClaimResult> {
  * write anybody's card. The same gates as the tap card, plus the round's own:
  * open, and kept on cards.
  */
-export async function savePlayMatchCard(matchId: string, strokes: (number | null)[]): Promise<ClaimResult> {
+export async function savePlayMatchCard(matchId: string, strokes: (number | null)[], opts?: PlaySaveOptions): Promise<ClaimResult> {
   const session = await getPlaySession();
   if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
   // Paused in a lapsed club's read-only archive (2026-10-21), said beside the press.
@@ -742,9 +881,8 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
   ]);
   if (!event || !match) return { ok: false, error: "Match not found." };
   const settings = settingsOf(event);
-  if (!canEnterScores(settings, "player")) {
-    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
-  }
+  const refused = await entryRefusal(session, settings);
+  if (refused) return { ok: false, error: refused };
   const notStarted = await playRefusalFor(session.eventId);
   if (notStarted) return { ok: false, error: notStarted };
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
@@ -765,15 +903,24 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
   if (!stage) return { ok: false, error: "Round not found." };
   if (lineupHidden(stage)) return { ok: false, error: LINEUP_HIDDEN };
 
-  // Whose ball this card is, from the session — never from the caller.
+  // May this phone write this match at all: its own, or on a round kept by one
+  // scorer per group, one in the group whose card it keeps (`mayWriteMatch`).
+  const may = await mayWriteMatch({ eventId: session.eventId, match, actorIds: [session.playerId], epoch: sentEpoch(opts) });
+  if (!may.ok) return { ok: false, error: may.error, ...(may.keeperName !== undefined ? { keptBy: may.keeperName } : {}) };
+  // Whose ball this card is: the session's — or, for the group's scorer, the
+  // player they name in the match. Never anybody outside it.
+  const asked = typeof opts?.playerId === "string" && opts.playerId ? opts.playerId : session.playerId;
+  if (asked !== session.playerId && may.epoch === null) return { ok: false, error: "You can only enter your own card." };
+  if (!(await playersInMatch(match)).includes(asked)) return { ok: false, error: "You can only enter scores for your own match." };
+  const ballOf = asked;
   const sideMatch = match.teamAId !== "" && match.teamBId !== "" && match.playerAId === "" && match.playerBId === "";
   let slot: "A" | "B" | null = null;
   let teamId = "";
   if (!sideMatch) {
-    slot = match.playerAId === session.playerId ? "A" : match.playerBId === session.playerId ? "B" : null;
+    slot = match.playerAId === ballOf ? "A" : match.playerBId === ballOf ? "B" : null;
   } else {
     const mine = await prisma.teamMember.findFirst({
-      where: { playerId: session.playerId, teamId: { in: [match.teamAId, match.teamBId] } },
+      where: { playerId: ballOf, teamId: { in: [match.teamAId, match.teamBId] } },
       select: { teamId: true },
     });
     teamId = mine?.teamId ?? "";
@@ -804,7 +951,7 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
     } else {
       // A side playing one ball keeps one card between them; otherwise each
       // partner keeps their own — the committee's shape for this round.
-      const playerId = oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis) ? "" : session.playerId;
+      const playerId = oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis) ? "" : ballOf;
       const row = await prisma.teamScorecard.upsert({
         where: { stageId_matchId_teamId_playerId: { stageId: match.stageId, matchId: match.id, teamId, playerId } },
         update: { strokes: JSON.stringify(clean) },
@@ -821,7 +968,7 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
       });
       stored = storedCard(row.strokes, holeCount);
       if (isReturnedCard(clean)) await freezeRoundHandicaps(session.eventId, match.stageId);
-      await recomputeTeamMatch(session.eventId, match, stage.format, holeCount);
+      await recomputeTeamMatch(session.eventId, match, stage.format, holeCount, { name: session.playerName, playerId: session.playerId });
     }
   } catch (e) {
     // A net round with no course card, said by the deriver in words.
@@ -831,5 +978,247 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
   await logAudit(session.eventId, "score", "Card entered via round code", { matchId: match.id, actor: session.playerName });
   boardChanged(session.eventId);
   revalidatePath("/", "layout");
-  return { ok: true, card: stored };
+  return { ok: true, card: stored, ...(may.epoch !== null ? { epoch: may.epoch } : {}) };
+}
+
+/* ── Who keeps the card, and who checks it (2026-11-04, sprint 2 part B) ── */
+
+export interface KeepGroupResult {
+  ok: boolean;
+  error?: string;
+  /** The epoch this phone now holds as its group's scorer — send it with every save. */
+  epoch?: number;
+  /** Who keeps the card now (this phone's player when ok). */
+  keeperId?: string;
+  /** When refused because somebody else keeps it: their name, for "Take over from …?". */
+  keeperName?: string;
+  /** Everyone in the group, as player ids. */
+  members?: string[];
+}
+
+/**
+ * "I'LL KEEP SCORE" — this phone keeps its group's card on a round kept by ONE
+ * SCORER PER GROUP (`Stage.scoreKeeping: "group"`).
+ *
+ * Without `takeOver`, it claims a group nobody keeps, or confirms the phone
+ * already keeps it; a group somebody else keeps is refused with their name, so
+ * the screen can ask "Take over from Ann?". With `takeOver`, the card moves to
+ * this phone: the epoch moves on, so the phone that had it is refused from its
+ * next save, and the take-over is logged by both names. A claim is an upsert,
+ * never a read-then-write (`services/group-keeping.ts`).
+ *
+ * The group is the session's — the player the round code named — never one
+ * the caller sends.
+ */
+export async function keepGroup(input?: { takeOver?: boolean }): Promise<KeepGroupResult> {
+  const session = await getPlaySession();
+  if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
+  const event = await prisma.event.findUnique({ where: { id: session.eventId } });
+  if (!event) return { ok: false, error: "Round not found." };
+  const refused = await entryRefusal(session, settingsOf(event));
+  if (refused) return { ok: false, error: refused };
+  const notStarted = await playRefusalFor(session.eventId);
+  if (notStarted) return { ok: false, error: notStarted };
+  const res = await claimGroup({
+    eventId: session.eventId,
+    stageId: session.stageId,
+    actorId: session.playerId,
+    actorName: session.playerName,
+    takeOver: input?.takeOver === true,
+  });
+  if (!res.ok) return { ok: false, error: res.error, keeperId: res.keeperId, keeperName: res.keeperName };
+  revalidatePath("/play");
+  return { ok: true, epoch: res.epoch, keeperId: res.keeperId, members: res.members };
+}
+
+/**
+ * The scorer hands the group's card to somebody else in the group. Only the
+ * phone that keeps it may, and only to a player in the group; the epoch moves
+ * on, so this phone is refused from its next save. Logged.
+ */
+export async function handOverGroup(toPlayerId: string): Promise<KeepGroupResult> {
+  const session = await getPlaySession();
+  if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
+  const res = await handOverKeeping({
+    eventId: session.eventId,
+    stageId: session.stageId,
+    fromId: session.playerId,
+    fromName: session.playerName,
+    toId: String(toPlayerId ?? "").slice(0, 64),
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+  revalidatePath("/play");
+  return { ok: true, epoch: res.epoch, keeperId: res.keeperId, members: res.members };
+}
+
+export type PlayCheckResult =
+  | { ok: true; status: "confirmed" | "pending" | "disputed"; outstanding: number; agreed: boolean }
+  | { ok: false; error: string };
+
+/** The round the session's code opened, with its end-of-round check — or the refusal. */
+async function endCheckRound(session: { eventId: string; stageId: string }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const stage = await prisma.stage.findFirst({
+    where: { id: session.stageId, eventId: session.eventId },
+    select: { scoreKeeping: true, endCheck: true },
+  });
+  if (!stage) return { ok: false, error: "Round not found." };
+  if (roundScoring(stage).endCheck !== "on") {
+    return { ok: false, error: "This round has no end-of-round check. The organizer approves the results." };
+  }
+  return { ok: true };
+}
+
+/**
+ * THE OTHER SIDE CONFIRMS — the end-of-round check for a match, from a round
+ * code (sprint 2 part B). A play-session twin of `confirmMatch`: a code holder
+ * has no account and no email, so the player is the one the SESSION names.
+ *
+ * The rule is `attestMatch`'s (services/attestation.ts): the author of the
+ * result never confirms it, and a scorer outside the match leaves its sides
+ * to confirm. "The other side" is the check's promise, so a club's looser
+ * "one playing partner" is read as the other side here; "everyone in the
+ * match" stays everyone.
+ *
+ * WHERE THE COMMITTEE APPROVES (`scoreApproval: "staff"`) the agreement is
+ * RECORDED and the result stays pending: the committee's queue then says both
+ * sides agree. A player's signature never approves a result the committee was
+ * given to approve.
+ */
+export async function confirmPlayMatch(matchId: string): Promise<PlayCheckResult> {
+  const session = await getPlaySession();
+  if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
+  const [event, match] = await Promise.all([
+    prisma.event.findUnique({ where: { id: session.eventId } }),
+    prisma.match.findFirst({ where: { id: String(matchId ?? ""), eventId: session.eventId } }),
+  ]);
+  if (!event || !match || match.stageId !== session.stageId) return { ok: false, error: "That match isn't in your round." };
+  // The same gate as every save: a confirmation is a statement about a result.
+  const refused = await entryRefusal(session, settingsOf(event));
+  if (refused) return { ok: false, error: refused };
+  const round = await endCheckRound(session);
+  if (!round.ok) return round;
+  if (!(await isInMatch(match, [session.playerId]))) return { ok: false, error: "You can only confirm a match you played in." };
+  let holes: unknown = [];
+  try {
+    holes = JSON.parse(match.holes || "[]");
+  } catch {
+    holes = [];
+  }
+  if (!matchIsOver(Array.isArray(holes) ? holes : [])) return { ok: false, error: "This match isn't finished yet, so there's no result to confirm." };
+
+  const settings = settingsOf(event);
+  const status = effectiveScoreStatus(match, allowsAutoConfirm(settings));
+  if (status === "disputed") return { ok: false, error: "This result is disputed. The organizer will settle it." };
+  if (status === "confirmed" || status === "auto-confirmed") return { ok: true, status: "confirmed", outstanding: 0, agreed: true };
+
+  const mode = settings.scoreApproval === "staff" ? "record" : "confirm";
+  const outcome = attestMatch(await matchSidesOf(match), match, session.playerId, endCheckRule(settings.attestBy), mode);
+  if (!outcome.ok) return { ok: false, error: outcome.error };
+
+  await prisma.match.updateMany({
+    where: { id: match.id, eventId: session.eventId },
+    data: {
+      scoreStatus: outcome.status,
+      attestedBy: JSON.stringify(outcome.attestedBy),
+      ...(outcome.status === "confirmed" ? { confirmedById: null, confirmedBy: session.playerName } : {}),
+    },
+  });
+  await logAudit(
+    session.eventId,
+    "confirm",
+    outcome.status === "confirmed"
+      ? `Confirmed by ${session.playerName} via round code`
+      : outcome.agreed
+        ? `Agreed by ${session.playerName} via round code; waiting for the committee`
+        : `Signed by ${session.playerName} via round code; ${outcome.outstanding.length} still to sign`,
+    { matchId: match.id, actor: session.playerName },
+  );
+  boardChanged(session.eventId);
+  revalidatePath("/", "layout");
+  return { ok: true, status: outcome.status, outstanding: outcome.outstanding.length, agreed: outcome.agreed };
+}
+
+/**
+ * "THAT'S NOT RIGHT" — a player in the match disputes its result, from a round
+ * code. The result is then held off every board (`heldFromBoard`) until the
+ * committee settles it (Rule 20.1b: a result is the two sides' business, then
+ * the committee's). A confirmed result is not disputed from a phone: the
+ * player asks the committee to reopen it, as `disputeMatch` says.
+ */
+export async function disputePlayMatch(matchId: string): Promise<PlayCheckResult> {
+  const session = await getPlaySession();
+  if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
+  const [event, match] = await Promise.all([
+    prisma.event.findUnique({ where: { id: session.eventId } }),
+    prisma.match.findFirst({ where: { id: String(matchId ?? ""), eventId: session.eventId } }),
+  ]);
+  if (!event || !match || match.stageId !== session.stageId) return { ok: false, error: "That match isn't in your round." };
+  const refused = await entryRefusal(session, settingsOf(event));
+  if (refused) return { ok: false, error: refused };
+  const round = await endCheckRound(session);
+  if (!round.ok) return round;
+  if (!(await isInMatch(match, [session.playerId]))) {
+    return { ok: false, error: "Only the players in a match, or the committee, can dispute its result." };
+  }
+  if (match.enteredById !== "" && match.enteredById === session.playerId) {
+    return { ok: false, error: "You entered this result, so correct it rather than dispute it." };
+  }
+  const status = effectiveScoreStatus(match, allowsAutoConfirm(settingsOf(event)));
+  if (status === "confirmed" || status === "auto-confirmed") {
+    return { ok: false, error: "That result has been confirmed. Ask the organizer to reopen it." };
+  }
+  if (status === "disputed") return { ok: true, status: "disputed", outstanding: 0, agreed: false };
+  const moved = await prisma.match.updateMany({ where: { id: match.id, eventId: session.eventId }, data: { scoreStatus: "disputed" } });
+  if (moved.count === 0) return { ok: false, error: "That match isn't in your round." };
+  await logAudit(session.eventId, "dispute", `Result disputed by ${session.playerName} via round code`, { matchId: match.id, actor: session.playerName });
+  boardChanged(session.eventId);
+  revalidatePath("/", "layout");
+  return { ok: true, status: "disputed", outstanding: 0, agreed: false };
+}
+
+/**
+ * "MY CARD IS WRONG" — on a stroke round with the end-of-round check, each
+ * player confirms their OWN card (`certifyPlayCard`, Rule 3.3b) or disputes
+ * it. Their own only: the player the session names, never one the caller
+ * sends. A disputed card is held off every board (`heldFromBoard`) until the
+ * committee settles it.
+ */
+export async function disputePlayCard(): Promise<ClaimResult> {
+  const session = await getPlaySession();
+  if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+  const archived = await archiveRefusalFor(session.eventId, "player");
+  if (archived) return { ok: false, error: archived };
+  const event = await prisma.event.findUnique({ where: { id: session.eventId } });
+  if (!event) return { ok: false, error: "Round not found." };
+  const refused = await entryRefusal(session, settingsOf(event));
+  if (refused) return { ok: false, error: refused };
+  const round = await endCheckRound(session);
+  if (!round.ok) return { ok: false, error: round.error };
+  try {
+    // Nobody accepts a casual card, so nobody can be asked not to.
+    await assertSignsCards(session.eventId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "This round's cards aren't signed." };
+  }
+  const card = await prisma.scorecard.findFirst({
+    where: { eventId: session.eventId, stageId: session.stageId, playerId: session.playerId },
+    select: { id: true, status: true },
+  });
+  if (!card) return { ok: false, error: "There's no card to dispute yet." };
+  if (isCardLocked(card.status)) return { ok: false, error: LOCKED_CARD_REFUSAL };
+  if (card.status !== "disputed") {
+    await prisma.scorecard.updateMany({ where: { id: card.id, eventId: session.eventId }, data: { status: "disputed" } });
+    await logAudit(session.eventId, "card.dispute", `${session.playerId}'s card disputed via round code`, { actor: session.playerName });
+    boardChanged(session.eventId);
+    revalidatePath("/", "layout");
+  }
+  return { ok: true };
 }

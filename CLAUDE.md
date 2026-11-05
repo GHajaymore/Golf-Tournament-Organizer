@@ -474,6 +474,7 @@ believing a screen is wrong about you (`docs/claude/sweeps-and-screen-walks.md`)
 | card validation, the catalogue, `--revalidate` | `docs/claude/course-cards.md` | measure a guard before shipping it |
 | any Prisma schema change | `docs/claude/migrations.md` | datasource split, `A0NN` naming, stale-client trap |
 | themes, colour tokens, contrast, overflow | `docs/claude/design.md` | grounds, one club theme, outdoor legibility |
+| the logo, wordmark, brand colours, type, the QR mark, pictures, voice | `docs/brand-guide.md` | the one-page brand guide: files, sizes, grounds, contrast, what never to do |
 | editing files via PowerShell, Git Bash or `node -e`; a refusing rebase | `docs/claude/shell-traps.md` | encoding corruption, CRLF, eaten backslashes |
 | building a sweep/audit, walking screens, browser sessions | `docs/claude/sweeps-and-screen-walks.md` | controls, checks that pass on nothing, which session |
 | scoring, draw, cut, bracket, handicap changes | `docs/claude/combination-sweep.md` | `matrix.test.ts`, invariants, constant-offset errors |

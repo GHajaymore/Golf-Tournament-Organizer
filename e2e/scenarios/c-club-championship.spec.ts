@@ -2,7 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { seed, setPlanFor, names, indexes, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
+import { seed, setPlanFor, names, indexes, memberSession, eventFacts, eachKeepsTheirOwn, roundCards, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament C: a 36-hole Club Championship at an Eagle
@@ -52,6 +52,9 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
   test.setTimeout(Number(process.env.PHASE_TIMEOUT ?? 900_000));
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  // Faye keeps her own card and Delphine her fourball's beside it — each member
+  // their own, as the club chose (`eachKeepsTheirOwn`).
+  await eachKeepsTheirOwn(C_NAME);
 
   if (PHASE === "C1") {
     const s = await seed();

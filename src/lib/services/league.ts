@@ -19,6 +19,7 @@ import {
 } from "../domain/league-meeting";
 import type { HoleResult } from "../domain/types";
 import { matchIsOver } from "../domain/match";
+import { heldFromBoard } from "../domain/board-hold";
 import { needsTeams } from "../formats";
 import { scoringFrom } from "./tournament";
 import { tiebreakerLabel } from "../domain/types";
@@ -308,13 +309,18 @@ export async function leagueMeetings(
       // net — see `matchHolesOffTheLow`. This decides the match and the league
       // points, and nothing else: the week sheet's own figures come from
       // `week-view.ts`, which still reads `aggregateTeamCard`.
-      holes: matchHolesOffTheLow(
-        ballsFor(a.id),
-        ballsFor(b.id),
-        card.strokeIndex,
-        card.pars.length,
-        countBest,
-      ),
+      //
+      // A result in dispute is held: no holes, so no league points, until the
+      // committee settles it (`heldFromBoard`, domain/board-hold.ts).
+      holes: heldFromBoard(m.scoreStatus)
+        ? []
+        : matchHolesOffTheLow(
+            ballsFor(a.id),
+            ballsFor(b.id),
+            card.strokeIndex,
+            card.pars.length,
+            countBest,
+          ),
     });
   }
 
