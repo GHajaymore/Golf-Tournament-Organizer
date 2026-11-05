@@ -9,7 +9,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { usesAccessCodes, canPlayerSavePartial, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { playerEntryRefusal, roundScoring } from "@/lib/domain/round-scoring";
 import { isInMatch, mayWriteMatch, playersInMatch } from "@/lib/services/match-membership";
-import { keeperGate, claimGroup, handOverKeeping } from "@/lib/services/group-keeping";
+import { keeperGate, claimGroup, handOverKeeping, roundTeeSheet } from "@/lib/services/group-keeping";
 import { attestMatch, matchSidesOf, endCheckRule } from "@/lib/services/attestation";
 import { effectiveScoreStatus } from "@/lib/services/tournament";
 import { isCardLocked, isPartnerCardSigned, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
@@ -30,7 +30,7 @@ import { deriveMatchFromItsCards, recomputeTeamMatch } from "@/lib/services/matc
 import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
 import { isReturnedCard } from "@/lib/domain/round-handicap";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
-import { parseTeeSheet, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
+import { type TeeSheetGroup } from "@/lib/domain/tee-sheet";
 import { groupsOfRound, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 
@@ -141,20 +141,16 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
  * lists are named, so it reveals nothing the flat list did not, beyond who is
  * drawn against whom.
  *
- * THE TEE SHEET: the round's published one, or — for a round with no sheet of
- * its own — the tournament's other published sheet, because a group plays its
- * eighteen together and a cup's second nine is the same four (Ajay: "we
- * already have foursome for this tournament"). Only a PUBLISHED sheet: a draft
- * is the organizer's. Null when there is none.
+ * THE TEE SHEET: the round's OWN published one (`roundTeeSheet`), the same
+ * reader the keeper takes its groups from, so the list and the keeper cannot
+ * disagree. It once fell back to the tournament's other published sheet ("a
+ * cup's second nine is the same four"); the Golf Pro ruled on 2026-11-05 that
+ * a round's groups come from that round's sheet only — a four-ball session
+ * with no sheet of its own lists its matches, each its own group. Null when
+ * there is none.
  */
 async function publishedSheet(stageId: string, eventId: string): Promise<TeeSheetGroup[] | null> {
-  const sheets = await prisma.stage.findMany({
-    where: { eventId, teeSheetPublished: true, NOT: { teeSheet: "" } },
-    orderBy: { position: "asc" },
-    select: { id: true, teeSheet: true },
-  });
-  const own = sheets.find((s) => s.id === stageId) ?? sheets[0];
-  const sheet = own ? parseTeeSheet(own.teeSheet) : null;
+  const sheet = await roundTeeSheet(eventId, stageId);
   return sheet && sheet.groups.length > 0 ? sheet.groups : null;
 }
 

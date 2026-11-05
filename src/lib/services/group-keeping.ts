@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { publishedFoursomes } from "@/lib/domain/group-entry";
 import { roundScoring } from "@/lib/domain/round-scoring";
 import { isMatch } from "@/lib/tournament-shape";
@@ -9,6 +9,7 @@ import {
   groupMembers,
   mayKeep,
   NO_GROUPS_YET,
+  groupsArePublished,
   NOT_YOUR_GROUP,
   HAND_OVER_NOT_YOURS,
   HAND_OVER_OUTSIDE,
@@ -38,15 +39,28 @@ import { logAudit } from "@/lib/services/action-shared";
  * score" button) needs to go on working.
  */
 
+/**
+ * THE ROUND'S OWN PUBLISHED TEE SHEET — never another round's (Golf Pro ruling,
+ * 2026-11-05). A cup's four-ball session with no sheet of its own borrowed the
+ * medal's, so its "group" was the medal's four and its title "Group 1", while
+ * the match itself is the group the four-ball plays in. A round with no sheet
+ * of its own has none: a match is then its own group (`groupKeyFor`).
+ *
+ * The one reader for who walked off together on a round: the keeper
+ * (`keepingContextFor`, `groupTitleFor`) and the round-code screen's group list
+ * (`playGroups` in actions/play.ts), so the list and the keeper cannot disagree.
+ * Only a PUBLISHED sheet (`groupsArePublished`): a draft is the organizer's.
+ */
+export async function roundTeeSheet(eventId: string, stageId: string): Promise<TeeSheet | null> {
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { teeSheet: true, teeSheetPublished: true } });
+  return stage && groupsArePublished(stage) ? parseTeeSheet(stage.teeSheet) : null;
+}
+
 /** Who walked off together, and this round's matches — what the group is read from. */
 export async function keepingContextFor(eventId: string, stageId: string): Promise<{ ctx: KeepingContext; field: string[] }> {
-  const [event, sheets, confirmed, matches] = await Promise.all([
+  const [event, sheet, confirmed, matches] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } }),
-    prisma.stage.findMany({
-      where: { eventId, teeSheetPublished: true, NOT: { teeSheet: "" } },
-      orderBy: { position: "asc" },
-      select: { id: true, teeSheet: true },
-    }),
+    roundTeeSheet(eventId, stageId),
     prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } }),
     prisma.match.findMany({
       where: { eventId, stageId },
@@ -55,11 +69,8 @@ export async function keepingContextFor(eventId: string, stageId: string): Promi
     }),
   ]);
   const field = confirmed.map((p) => p.id);
-  // The round's own published sheet, else the tournament's — a group plays its
-  // eighteen together, and a cup's second nine is the same four (the rule the
-  // round-code screen's group list follows).
-  const own = sheets.find((s) => s.id === stageId) ?? sheets[0];
-  const teeGroups = own ? publishedFoursomes(parseTeeSheet(own.teeSheet), true, new Set(field)) : [];
+  // The round's OWN published sheet only (`roundTeeSheet`) — never another round's.
+  const teeGroups = sheet ? publishedFoursomes(sheet, true, new Set(field)) : [];
   const sides = await Promise.all(matches.map((m) => matchSidesOf(m)));
   // Only a casual round makes its whole field one group when nothing was drawn
   // (`groupKeyFor`): groups come from the published draw.
@@ -265,13 +276,7 @@ export async function groupTitleFor(eventId: string, stageId: string, groupKey: 
   if (groupKey.startsWith("match:")) return "Your match";
   if (!groupKey.startsWith("tee:")) return "Your group";
   const members = new Set(groupKey.slice(4).split(",").filter(Boolean));
-  const sheets = await prisma.stage.findMany({
-    where: { eventId, teeSheetPublished: true, NOT: { teeSheet: "" } },
-    orderBy: { position: "asc" },
-    select: { id: true, teeSheet: true },
-  });
-  const own = sheets.find((s) => s.id === stageId) ?? sheets[0];
-  const groups = own ? parseTeeSheet(own.teeSheet)?.groups ?? [] : [];
+  const groups = (await roundTeeSheet(eventId, stageId))?.groups ?? [];
   // The sheet's group holding exactly these people, once withdrawn names are
   // left out — the narrowing `publishedFoursomes` makes.
   const named = groups.find((g) => {

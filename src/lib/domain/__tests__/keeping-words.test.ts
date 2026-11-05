@@ -66,10 +66,10 @@ describe("the casual round's one line", () => {
 });
 
 describe("groupsArePublished — the organizer's warning reads the same sheet the groups do", () => {
-  it("a published, non-empty sheet on any round; never an unpublished or empty one", () => {
-    expect(groupsArePublished([{ teeSheetPublished: true, teeSheet: '{"groups":[]}' }])).toBe(true);
-    expect(groupsArePublished([{ teeSheetPublished: false, teeSheet: '{"groups":[]}' }])).toBe(false);
-    expect(groupsArePublished([{ teeSheetPublished: true, teeSheet: "  " }])).toBe(false);
-    expect(groupsArePublished([])).toBe(false);
+  it("the round's own published, non-empty sheet; never an unpublished or empty one", () => {
+    expect(groupsArePublished({ teeSheetPublished: true, teeSheet: '{"groups":[]}' })).toBe(true);
+    expect(groupsArePublished({ teeSheetPublished: false, teeSheet: '{"groups":[]}' })).toBe(false);
+    expect(groupsArePublished({ teeSheetPublished: true, teeSheet: "  " })).toBe(false);
+    expect(groupsArePublished({ teeSheetPublished: true, teeSheet: null })).toBe(false);
   });
 });

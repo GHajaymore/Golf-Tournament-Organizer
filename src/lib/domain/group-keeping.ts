@@ -77,13 +77,13 @@ export function groupKeyFor(playerId: string, ctx: KeepingContext): string | nul
 }
 
 /**
- * Whether a tournament has a published tee sheet to take its groups from —
- * the round's own, or else the tournament's first (`keepingContextFor` reads
- * the same rows the same way). False means: until one is published, each
+ * Whether THIS ROUND has a published tee sheet to take its groups from — its
+ * own, never another round's (Golf Pro ruling, 2026-11-05; `roundTeeSheet`
+ * asks the same of the same row). False means: until it is published, each
  * player keeps their own card (a match is its own group).
  */
-export function groupsArePublished(stages: ReadonlyArray<{ teeSheetPublished: boolean; teeSheet: string | null }>): boolean {
-  return stages.some((s) => s.teeSheetPublished && (s.teeSheet ?? "").trim() !== "");
+export function groupsArePublished(stage: { teeSheetPublished: boolean; teeSheet: string | null }): boolean {
+  return stage.teeSheetPublished && (stage.teeSheet ?? "").trim() !== "";
 }
 
 /** Said when "I'll keep score" is pressed on a round with no groups yet. */
