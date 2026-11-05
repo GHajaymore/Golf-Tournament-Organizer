@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
-import { seedCasual, teardownCasual, keepEachOwnCard } from "./casual-fixture.mjs";
+import { seedCasual, teardownCasual } from "./casual-fixture.mjs";
 import { keepCardOf } from "./keep-on-play";
 
 /**
@@ -70,6 +70,8 @@ async function setUp(
   money?: { game: string; stake: string },
   /** Each player's handicap on a net round, in the order typed; 10 for all if not given. */
   handicaps?: Array<number | string>,
+  /** "Who enters scores?": each player their own, pressed on the setup's one line (2026-11-05). */
+  eachKeepsOwn = false,
 ) {
   const errors: string[] = [];
   // With the page it came from: "a screen threw" is no use without which one.
@@ -78,6 +80,9 @@ async function setUp(
   await page.goto("/match/new");
   await page.getByRole("button", { name: new RegExp(`^${format}\\b`) }).click();
   await page.getByRole("button", { name: net ? /off handicaps \(net\)/ : /play level \(gross\)/ }).click();
+  // One line, one phone for the group by default.
+  await expect(page.getByRole("button", { name: "One phone for the group" })).toHaveAttribute("aria-pressed", "true");
+  if (eachKeepsOwn) await page.getByRole("button", { name: "Each player their own" }).click();
 
   if (money) {
     await page.getByRole("button", { name: money.game, exact: true }).click();
@@ -681,10 +686,10 @@ test.describe("a casual round at the course", () => {
      * with one scorer per group, where Ann's first save makes her the keeper and
      * Bea's phone is told "Ann Zed is keeping score for your group" — which is
      * what this walk found on its first run under it. The friends here keep a
-     * card each, so the round is set that way (`keepEachOwnCard`).
+     * card each, so the host says so on the setup's one line, "Who enters
+     * scores?" → Each player their own (2026-11-05).
      */
-    await setUp(page, "Stroke Play", false, [ANN, BEA]);
-    await keepEachOwnCard();
+    await setUp(page, "Stroke Play", false, [ANN, BEA], undefined, undefined, true);
     // First in the round screen's More, named there (2026-10-06): most groups
     // keep one card on one phone, so the code is not on the screen all round.
     await page.goto(`/entry?bust=${Date.now()}`);
