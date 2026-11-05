@@ -92,6 +92,29 @@ export async function keepingContextFor(eventId: string, stageId: string): Promi
   return { ctx: { teeGroups, matches: sides, casual: isMatch(event?.shape) }, field };
 }
 
+/**
+ * A CLAIM THAT LOSES THE RACE IS RETRIED, NEVER THROWN (2026-11-05).
+ *
+ * Prisma's `upsert` on Postgres is a read, then an INSERT or an UPDATE — not
+ * one statement. Two phones confirming the same group in the same instant both
+ * read "nobody keeps it" and both INSERT; the unique key on (stageId, groupKey)
+ * keeps ONE row, and the slower phone got a P2002 crash instead of "Ann is
+ * keeping score for your group" (a round's database suite, run 42026558151).
+ * Retried, the row exists, so the upsert takes its UPDATE branch and answers
+ * with the winner — which is exactly the one-scorer rule. Anything else throws.
+ */
+async function claimRow<T>(write: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await write();
+    } catch (e) {
+      const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+      if (code === "P2002" && attempt < 3) continue;
+      throw e;
+    }
+  }
+}
+
 async function namesIn(eventId: string, ids: string[]): Promise<Map<string, string>> {
   const rows = await prisma.player.findMany({ where: { eventId, id: { in: ids } }, select: { id: true, name: true } });
   return new Map(rows.map((r) => [r.id, r.name]));
@@ -142,12 +165,14 @@ export async function keeperGate(input: {
   if (!actorId) return { applies: true, ok: false, error: NOT_YOUR_GROUP };
 
   // The claim: a row for this group, made by this phone if nobody keeps it yet.
-  const keeper = await prisma.scoringKeeper.upsert({
-    where: { stageId_groupKey: { stageId: input.stageId, groupKey: key } },
-    create: { eventId: input.eventId, stageId: input.stageId, groupKey: key, playerId: actorId },
-    update: {},
-    select: { playerId: true, epoch: true, eventId: true },
-  });
+  const keeper = await claimRow(() =>
+    prisma.scoringKeeper.upsert({
+      where: { stageId_groupKey: { stageId: input.stageId, groupKey: key } },
+      create: { eventId: input.eventId, stageId: input.stageId, groupKey: key, playerId: actorId },
+      update: {},
+      select: { playerId: true, epoch: true, eventId: true },
+    }),
+  );
   // A row of another tournament under this round's id cannot exist (the
   // stage is this event's, checked above); asked anyway, as every write here.
   if (keeper.eventId !== input.eventId) return { applies: true, ok: false, error: NOT_YOUR_GROUP };
@@ -193,7 +218,7 @@ export async function claimGroup(input: {
     select: { playerId: true },
   });
   if (!input.takeOver) {
-    const row = await prisma.scoringKeeper.upsert({ where, create, update: {}, select: { playerId: true, epoch: true } });
+    const row = await claimRow(() => prisma.scoringKeeper.upsert({ where, create, update: {}, select: { playerId: true, epoch: true } }));
     if (row.playerId !== input.actorId) {
       const names = await namesIn(input.eventId, [row.playerId]);
       const name = names.get(row.playerId) ?? "Someone else";
@@ -201,12 +226,14 @@ export async function claimGroup(input: {
     }
     return { ok: true, epoch: row.epoch, keeperId: row.playerId, groupKey: key, members };
   }
-  const row = await prisma.scoringKeeper.upsert({
-    where,
-    create,
-    update: { playerId: input.actorId, epoch: { increment: 1 }, claimedAt: new Date() },
-    select: { playerId: true, epoch: true },
-  });
+  const row = await claimRow(() =>
+    prisma.scoringKeeper.upsert({
+      where,
+      create,
+      update: { playerId: input.actorId, epoch: { increment: 1 }, claimedAt: new Date() },
+      select: { playerId: true, epoch: true },
+    }),
+  );
   if (before && before.playerId !== input.actorId) {
     const names = await namesIn(input.eventId, [before.playerId]);
     await logAudit(input.eventId, "keeper.takeover", `${input.actorName} took over keeping score from ${names.get(before.playerId) ?? "another player"}`, {

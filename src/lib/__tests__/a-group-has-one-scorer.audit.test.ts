@@ -205,6 +205,25 @@ describe("one scorer per group, from the round-code phones", () => {
     expect((await handOverGroup(p.ann)).ok).toBe(false);
   });
 
+  /**
+   * A CLAIM THAT LOSES THE RACE IS ANSWERED, NEVER THROWN (2026-11-05). Prisma's
+   * `upsert` is a read then a write on Postgres, so two phones confirming in
+   * the same instant both read "nobody" and the slower INSERT hit the unique
+   * key (P2002) — a crash on the second phone. Found by a round's database
+   * suite (run 42026558151); pressed here as hard as a field of phones could.
+   */
+  it("phones confirming in the same instant, again and again: one scorer each time, and nobody's claim throws", async () => {
+    for (let n = 0; n < 15; n++) {
+      await prisma.scoringKeeper.deleteMany({ where: { eventId, stageId } });
+      const all = await Promise.allSettled(
+        ["ann", "bea", "ann", "bea", "ann", "bea"].map((who) => claimGroup({ eventId, stageId, actorId: p[who], actorName: who, takeOver: false })),
+      );
+      const thrown = all.filter((r) => r.status === "rejected");
+      expect(thrown.map((r) => String((r as PromiseRejectedResult).reason).slice(0, 120)), `try ${n}: a claim threw`).toEqual([]);
+      expect(await keeperRow(), `try ${n}`).toHaveLength(1);
+    }
+  });
+
   it("two phones claiming at once leave ONE scorer (an upsert, not a read-then-write)", async () => {
     await prisma.scoringKeeper.deleteMany({ where: { eventId, stageId } });
     const both = await Promise.all([
