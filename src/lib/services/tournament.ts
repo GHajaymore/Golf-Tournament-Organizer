@@ -99,6 +99,7 @@ import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
 import { isMatch, reviewsScores } from "../tournament-shape";
 import { flightLabel } from "../domain/flight-label";
+import { cardsOnBoard, heldFromBoard, onBoard } from "../domain/board-hold";
 
 export type HoleResultArr = DomainMatch["holes"];
 
@@ -929,7 +930,8 @@ export function chainRoundStandings(
   const perStage: RankedPlayer[][] = [];
   for (let i = 0; i < rrStages.length; i += 1) {
     const stage = rrStages[i];
-    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
+    // A result in dispute is held off the standings (`onBoard`, domain/board-hold.ts).
+    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(onBoard).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
     const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
     perStage.push(overall);
@@ -1465,7 +1467,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
 
   for (let i = 0; i <= chainTo; i += 1) {
     const stage = rrStages[i];
-    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
+    // A result in dispute is held off the standings (`onBoard`, domain/board-hold.ts).
+    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(onBoard).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
 
     overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
@@ -2042,7 +2045,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * shared-ball format there is one card for two people. Crediting it to either
    * of them would put a round on the board that neither played.
    */
-  const joinedMatchCards = matchStrokeCards(matchCards, matches).filter((c) =>
+  // A match in dispute takes its cards off the board with it (`heldFromBoard`).
+  const joinedMatchCards = matchStrokeCards(matchCards, matches.filter((m) => !heldFromBoard(m.scoreStatus))).filter((c) =>
     strokeRoundIds.has(c.stageId),
   );
   const strokeAgg = aggregateStroke(
@@ -2054,7 +2058,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       // doubles a gross and reports 36 holes owed for an eighteen-hole round.
       // See `withoutSupersededStrokeCards` for why the match cards win.
       ...withoutSupersededStrokeCards(
-        scorecards.filter((c) => strokeRoundIds.has(c.stageId)),
+        // A card held in dispute is not ranked (`cardsOnBoard`); the review
+        // queue below still counts it, from `scorecards` itself.
+        cardsOnBoard(scorecards.filter((c) => strokeRoundIds.has(c.stageId))),
         joinedMatchCards,
       ),
       ...joinedMatchCards,

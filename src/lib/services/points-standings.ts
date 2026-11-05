@@ -11,6 +11,7 @@ import { countbackCompare } from "../domain/stroke-countback";
 import { strokeHandicapResolver } from "./tournament";
 import { roundHandicapRows } from "./round-handicap";
 import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "./handicaps";
+import { cardsOnBoard, onBoard } from "../domain/board-hold";
 
 /**
  * Standings for the formats that read an ordinary card a different way.
@@ -147,7 +148,8 @@ export async function skinsBoard(
     }),
     playingHandicapFor(eventId, stageId),
   ]);
-  const byPlayer = new Map(cards.map((c) => [c.playerId, parse(c.strokes)]));
+  // A card held in dispute scores nothing here (`cardsOnBoard`, domain/board-hold.ts).
+  const byPlayer = new Map(cardsOnBoard(cards).map((c) => [c.playerId, parse(c.strokes)]));
   // Only players who have returned something take part — including everyone
   // would make every hole "fewer than two scores" and score nothing at all.
   const entrants = players
@@ -186,7 +188,8 @@ export async function nassauBoard(eventId: string, stageId: string): Promise<Nas
     matchId: m.id,
     aName: nameById.get(m.playerAId) ?? "—",
     bName: nameById.get(m.playerBId) ?? "—",
-    outcome: playNassau(parse(m.holes) as HoleResult[]),
+    // A match in dispute is held, as on every board (`onBoard`).
+    outcome: playNassau(parse(onBoard(m).holes) as HoleResult[]),
   }));
 }
 
@@ -226,7 +229,8 @@ export async function modifiedStablefordBoard(
     }),
     playingHandicapFor(eventId, stageId),
   ]);
-  const byPlayer = new Map(cards.map((c) => [c.playerId, parse(c.strokes)]));
+  // A card held in dispute scores nothing here (`cardsOnBoard`, domain/board-hold.ts).
+  const byPlayer = new Map(cardsOnBoard(cards).map((c) => [c.playerId, parse(c.strokes)]));
 
   const rows = players.map((p) => {
     const strokes = byPlayer.get(p.id) ?? [];

@@ -16,6 +16,7 @@ import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from ".
 import { holesPlayed } from "../domain/handicap";
 import { roundCard } from "./course-resolution";
 import { teamStandings } from "./teams";
+import { cardsOnBoard, onBoard } from "../domain/board-hold";
 
 /**
  * WHAT HAPPENED, ROUND BY ROUND — the day's result for any kind of play.
@@ -159,6 +160,8 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
     if (isHeadToHead(stage.type)) {
       const played = state.matches
         .filter((m) => m.stageId === stage.id)
+        // A match result in dispute is held, as it is on the board.
+        .map(onBoard)
         .map((m) => {
           let holes: ("A" | "B" | "H" | null)[] = [];
           try {
@@ -296,9 +299,9 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
      * index for a year — see `courseForRound`, which exists for exactly that.
      */
     const holes = holesPlayed(stage.holes);
-    const cards = parseStrokeCards(
-      cardRows.filter((c) => c.stageId === stage.id && c.status !== "disputed"),
-    );
+    // A card held in dispute is not a result yet — the same rule as the live
+    // board (`cardsOnBoard`, domain/board-hold.ts).
+    const cards = parseStrokeCards(cardsOnBoard(cardRows.filter((c) => c.stageId === stage.id)));
     if (cards.length === 0) return { kind: "pending", label };
 
     const agg = aggregateStroke(cards, {
