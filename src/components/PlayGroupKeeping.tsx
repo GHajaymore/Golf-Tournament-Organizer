@@ -60,12 +60,20 @@ export interface GroupKeepingView {
 const FOLLOW_EVERY_MS = 20_000;
 
 /**
+ * Mounted only on a phone that follows (`<FollowRefresh />`), so a page with no
+ * group to follow never asks for the router at all.
+ *
  * A FOLLOWING PHONE STAYS CURRENT: the page is drawn again every twenty
  * seconds while it is on screen, and at once when the phone comes back to it.
  * `router.refresh` keeps the page's own state; nothing here is a second source
  * of the card.
  */
-export function useFollowRefresh(on: boolean): void {
+export function FollowRefresh() {
+  useFollowRefresh(true);
+  return null;
+}
+
+function useFollowRefresh(on: boolean): void {
   const router = useRouter();
   useEffect(() => {
     if (!on) return;

@@ -7,7 +7,7 @@ import {
   KeepingBar,
   MatchFollow,
   forgetUnsent,
-  useFollowRefresh,
+  FollowRefresh,
   type EndCheckView,
   type GroupKeepingView,
 } from "./PlayGroupKeeping";
@@ -496,7 +496,7 @@ function PlayScreens(props: Props) {
   const role = props.group ? keepingRole({ me: props.group.me, keeperId: keeperNow, refusedBy }) : null;
   const following = role === "follower";
   // A following phone is drawn again as the scores go in.
-  useFollowRefresh(following);
+  // A following phone is drawn again as the scores go in: <FollowRefresh /> in its view.
   /** What a save carries: the epoch, when this phone keeps the group. */
   const keeperOpts = () => (epochNow.current !== null ? { epoch: epochNow.current } : undefined);
   /** A save's answer, read for the keeper's half: a new epoch, or the card kept elsewhere. */
@@ -1352,6 +1352,7 @@ function PlayScreens(props: Props) {
         <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
           {header}
           {bar}
+          <FollowRefresh />
           <GroupCardFollow view={props.group} holes={holeCount} firstHole={props.firstHole ?? 1} pars={pars} />
           {/* Each player confirms their OWN card, whoever kept it (Rule 3.3b). */}
           {props.endCheck && <EndCheckPanel check={props.endCheck} />}
@@ -1702,6 +1703,7 @@ function PlayScreens(props: Props) {
           <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
         </div>
         {matchBar}
+        <FollowRefresh />
         <MatchFollow match={props.match} holes={props.holes || props.match.holes.length || 18} firstHole={props.firstHole ?? 1} />
         {matchCheck}
         {footer}
