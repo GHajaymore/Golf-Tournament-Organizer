@@ -374,10 +374,16 @@ test("the card links to the public leaderboard, and only when the board is publi
   const ctx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
   const page = await ctx.newPage();
   try {
-    await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: "participants" } });
+    // Kept to staff: no door at all. (Since 2026-11-05 "participants" is not that: a code holder is a
+    // participant, and is offered `/play/board`, their own door behind the play session.)
+    await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: "staff" } });
     await enter(page, "Zz Finn");
     await expect(page.getByRole("heading", { name: /Zz Ailsa & Zz Bram\s*vs\s*Zz Edda & Zz Finn/ })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole("link", { name: "Leaderboard" }), "a board only players may see is offered to a code").toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Leaderboard" }), "a board kept to staff is offered to a code").toHaveCount(0);
+
+    await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: "participants" } });
+    await page.goto(`/play?bust=${Date.now()}`);
+    await expect(page.getByRole("link", { name: "Leaderboard" }), "a board for participants is not offered to a code holder").toHaveAttribute("href", "/play/board", { timeout: 20_000 });
 
     await prisma.event.update({ where: { id: ids.event }, data: { leaderboardVisibility: "public" } });
     await page.goto(`/play?bust=${Date.now()}`);

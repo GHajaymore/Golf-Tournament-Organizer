@@ -20,8 +20,18 @@ import { certifyPrompt } from "@/lib/domain/card-approval";
 import { MatchKeeper } from "./MatchKeeper";
 import { MatchStrokeKeeper } from "./MatchStrokeKeeper";
 import type { KeptMatch, MatchStrokeCard } from "@/lib/services/match-card";
-import { codeFromLink, formatAccessCode } from "@/lib/code-format";
-import { keepingSentence, keepingYes, targetKey, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
+import { linkFromHash, formatAccessCode } from "@/lib/code-format";
+import {
+  keepingSentence,
+  keepingYes,
+  lastTimeSentence,
+  parseRemembered,
+  rememberGroup,
+  rememberedGroup,
+  targetKey,
+  type PlayGroup,
+  type PlayTarget,
+} from "@/lib/domain/play-groups";
 import type { ClaimFormState } from "@/app/actions/play";
 
 /** A match as its holder keeps it — built by `matchCardFor`, one type for both pages. */
@@ -291,13 +301,13 @@ function ScannedSign({ sessionCode, roundLabel }: { sessionCode: string; roundLa
   const [other, setOther] = useState("");
   const [pending, startTransition] = useTransition();
   useEffect(() => {
-    const fromSign = codeFromLink(window.location.hash);
-    if (!fromSign) return;
-    if (fromSign === sessionCode) {
+    const fromSign = linkFromHash(window.location.hash);
+    if (!fromSign.code) return;
+    if (fromSign.code === sessionCode) {
       history.replaceState(null, "", window.location.pathname + window.location.search);
       return;
     }
-    setOther(fromSign);
+    setOther(fromSign.code);
   }, [sessionCode]);
   if (!other) return null;
   return (
@@ -342,6 +352,19 @@ function ScannedSign({ sessionCode, roundLabel }: { sessionCode: string; roundLa
   );
 }
 
+/**
+ * THE GROUP THIS PHONE KEPT LAST TIME IN A TOURNAMENT, if it is still a group of this round
+ * (`rememberedGroup`) — null when storage is blocked, empty, or holds a group that has changed.
+ */
+function rememberedIn(eventId: string, groups: readonly PlayGroup[]): PlayGroup | null {
+  if (!eventId || groups.length === 0) return null;
+  try {
+    return rememberedGroup(parseRemembered(window.localStorage.getItem(`thq-play-last:${eventId}`)), groups);
+  } catch {
+    return null;
+  }
+}
+
 export function PlayClient(props: Props) {
   return (
     <>
@@ -383,11 +406,11 @@ function PlayScreens(props: Props) {
     posted?.ok ? posted.players ?? [] : null,
   );
   const [groups, setGroups] = useState<PlayGroup[]>(() => (posted?.ok ? posted.groups ?? [] : []));
-  const [context, setContext] = useState<{ eventName: string; roundLabel: string; stageId: string } | null>(() =>
+  const [context, setContext] = useState<{ eventName: string; roundLabel: string; stageId: string; eventId: string } | null>(() =>
     posted?.ok
-      ? { eventName: posted.eventName ?? "", roundLabel: posted.roundLabel ?? "", stageId: posted.stageId ?? "" }
+      ? { eventName: posted.eventName ?? "", roundLabel: posted.roundLabel ?? "", stageId: posted.stageId ?? "", eventId: posted.eventId ?? "" }
       : claimPosted?.step
-        ? { eventName: claimPosted.eventName ?? "", roundLabel: claimPosted.roundLabel ?? "", stageId: claimPosted.stageId ?? "" }
+        ? { eventName: claimPosted.eventName ?? "", roundLabel: claimPosted.roundLabel ?? "", stageId: claimPosted.stageId ?? "", eventId: claimPosted.eventId ?? "" }
         : null,
   );
   /**
@@ -397,6 +420,24 @@ function PlayScreens(props: Props) {
    */
   const [step, setStep] = useState<ClaimFormState["step"] | null>(() => claimPosted?.step ?? null);
   const [pending, startTransition] = useTransition();
+
+  /**
+   * THE GROUP THIS PHONE KEPT LAST TIME IN THIS TOURNAMENT (2026-11-05).
+   * Read after the page is live (storage is the phone's, not the server's, so the
+   * page the server drew can never differ from it), per event, through
+   * `rememberedGroup` — which is null when that group has gone or changed. "Not my
+   * group" (`showAll`) opens the full list. Blocked storage is simply no memory.
+   */
+  const [last, setLast] = useState<PlayGroup | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const rememberEventId = context?.eventId ?? "";
+  useEffect(() => {
+    if (!rememberEventId || groups.length === 0) {
+      setLast(null);
+      return;
+    }
+    setLast(rememberedIn(rememberEventId, groups));
+  }, [rememberEventId, groups]);
 
   // Set as the card saves; nothing reads it.
   const [, setSaved] = useState(false);
@@ -487,21 +528,6 @@ function PlayScreens(props: Props) {
       if (!res.ok) setError(res.error ?? "Couldn't start your session.");
     });
 
-  const openCode = (typed: string) => {
-    setError("");
-    startTransition(async () => {
-      const res = await redeemRoundCode(typed);
-      if (!res.ok) {
-        setError(res.error ?? "That code isn't valid.");
-        return;
-      }
-      setPlayers(res.players ?? []);
-      setGroups(res.groups ?? []);
-      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "", stageId: res.stageId ?? "" });
-      setStep(null);
-    });
-  };
-
   /**
    * ONE CONFIRMATION, ONCE PER PHONE (2026-11-04).
    *
@@ -513,35 +539,78 @@ function PlayScreens(props: Props) {
    * through. A DIFFERENT group is a different decision and is asked about.
    * Never per hole. Kept on the phone, never on the server: it is this phone's
    * answer, and storage that is blocked simply asks again.
+   *
+   * `at` is where the phone is when the round has only just been opened (a
+   * scanned group, `openCode`): the state this closure was made with is older
+   * than the round, so what the round is comes in with the call.
+   *
+   * AND ACROSS THE TOURNAMENT (2026-11-05): the group kept is also written per
+   * EVENT (`thq-play-last:<event>`), with the people in it, so the next round
+   * of the same tournament offers it first ("Last time: Group 3 — …") — read
+   * back by `rememberedGroup`, which says nothing if that group has changed.
    */
-  const keptKey = context?.stageId ? `thq-play-kept:${context.stageId}` : "";
-  const confirmedBefore = (target: PlayTarget) => {
+  type At = { code: string; stageId: string; eventId: string };
+  const confirmedBefore = (target: PlayTarget, at?: At) => {
+    const stageId = at?.stageId ?? context?.stageId ?? "";
     try {
-      return !!keptKey && window.localStorage.getItem(keptKey) === targetKey(target);
+      return !!stageId && window.localStorage.getItem(`thq-play-kept:${stageId}`) === targetKey(target);
     } catch {
       return false;
     }
   };
-  const keep = (target: PlayTarget) => {
+  const keep = (target: PlayTarget, at?: At) => {
+    const stageId = at?.stageId ?? context?.stageId ?? "";
+    const eventId = at?.eventId ?? context?.eventId ?? "";
     try {
-      if (keptKey) window.localStorage.setItem(keptKey, targetKey(target));
+      if (stageId) window.localStorage.setItem(`thq-play-kept:${stageId}`, targetKey(target));
+      if (eventId && target.kind === "group") window.localStorage.setItem(`thq-play-last:${eventId}`, JSON.stringify(rememberGroup(target.group)));
     } catch {
       // Blocked storage: the phone asks again next time, which is safe.
     }
-    if (target.kind === "player") return claimName(target.id);
+    const withCode = at?.code ?? code;
+    if (target.kind === "player") return claimName(target.id, withCode);
     const g = target.group;
     // A match kept by tapping is one card whoever opens it; any of its players opens it.
-    if (g.oneMatch || g.players.length === 1) return claimName(g.players[0]?.id ?? "");
+    if (g.oneMatch || g.players.length === 1) return claimName(g.players[0]?.id ?? "", withCode);
     setStep({ kind: "pick", group: g });
   };
-  const choose = (target: PlayTarget) => {
+  const choose = (target: PlayTarget, at?: At) => {
     setError("");
-    if (confirmedBefore(target)) keep(target);
+    if (confirmedBefore(target, at)) keep(target, at);
     else setStep({ kind: "confirm", target });
   };
+  /**
+   * `wantGroup` is the group a scanned sign names (`linkFromHash`): once the round's
+   * groups are in, a group that is one of them goes straight to the confirmation —
+   * the list is skipped, never the question. A key the round no longer lists (a sign
+   * printed before the draw changed) simply leaves the list on screen.
+   */
+  const openCode = (typed: string, wantGroup?: string | null) => {
+    setError("");
+    startTransition(async () => {
+      const res = await redeemRoundCode(typed);
+      if (!res.ok) {
+        setError(res.error ?? "That code isn't valid.");
+        return;
+      }
+      const at = { code: typed, stageId: res.stageId ?? "", eventId: res.eventId ?? "" };
+      setPlayers(res.players ?? []);
+      setGroups(res.groups ?? []);
+      // In the same render as the list, so the full list is never drawn for a moment before "Last time".
+      setLast(rememberedIn(at.eventId, res.groups ?? []));
+      setShowAll(false);
+      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "", stageId: at.stageId, eventId: at.eventId });
+      setStep(null);
+      const want = wantGroup ? res.groups?.find((g) => g.key === wantGroup) : undefined;
+      if (want) choose({ kind: "group", group: want }, at);
+    });
+  };
+
   const backToList = () => {
     setStep(null);
     setError("");
+    // "No" to the group offered first means it is not theirs: the whole list.
+    setShowAll(true);
     // Drawn by the server with no list behind it: ask for the list again.
     if (!players) openCode(code);
   };
@@ -550,22 +619,25 @@ function PlayScreens(props: Props) {
    * A SCANNED SIGN OPENS ITS ROUND (2026-10-17).
    *
    * The sign's address carries the code after a `#` (`roundCodeLink`), so this
-   * runs in the browser only: a link preview or a prefetch never redeems. It
-   * goes straight to the groups — the group tapped is then confirmed
-   * (`choose`), so a scan can never pick a group or a player. The `#`
-   * is cleared at once so a reload does not open the round again. Somebody who
-   * typed into the box before the page woke keeps what they typed.
+   * runs in the browser only: a link preview or a prefetch never redeems. A
+   * code alone goes to the round's groups; a code with a group
+   * (`#ABCD-EFGH.t3`, 2026-11-05) goes straight to the confirmation of that
+   * group (`openCode`), skipping the list and never the question — so a scan
+   * can never pick a group or a player without a yes. The `#` is cleared at
+   * once so a reload does not open the round again. Somebody who typed into
+   * the box before the page woke keeps what they typed.
    */
   useEffect(() => {
     if (props.stage !== "code") return;
-    const fromSign = codeFromLink(window.location.hash);
-    if (!fromSign) return;
+    const fromSign = linkFromHash(window.location.hash);
+    if (!fromSign.code) return;
     history.replaceState(null, "", window.location.pathname + window.location.search);
     const box = document.getElementById("play-round-code") as HTMLInputElement | null;
     if (box && box.value.trim()) return;
-    setCode(formatAccessCode(fromSign));
-    openCode(fromSign);
+    setCode(formatAccessCode(fromSign.code));
+    openCode(fromSign.code, fromSign.group);
     // Once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.stage]);
 
   /**
@@ -605,6 +677,9 @@ function PlayScreens(props: Props) {
     // Anybody the groups leave out (a late entry nobody has put in one) is still reachable, by name.
     const grouped = new Set(groups.flatMap((g) => g.players.map((p) => p.id)));
     const ungrouped = groups.length > 0 ? shownPlayers.filter((p) => !grouped.has(p.id)) : [];
+    // The group this phone kept last time in this tournament, still a group of this round, is offered first;
+    // the full list sits behind "Not my group" (2026-11-05).
+    const lastMode = !!last && groups.length > 0 && !showAll;
 
     /* ── The one confirmation: what this phone is about to keep ───────── */
     if (step?.kind === "confirm" && context) {
@@ -765,7 +840,7 @@ function PlayScreens(props: Props) {
 
               It filters and never reorders: a player scanning alphabetically
               for their name must not have it move while they type. */}
-          {showsNameFilter(players.length) && (
+          {!lastMode && showsNameFilter(players.length) && (
             <div className="field" style={{ marginBottom: 10 }}>
               <label htmlFor="play-name-filter">{groups.length > 0 ? "Find your group by a name" : "Find the name"}</label>
               <input
@@ -795,7 +870,43 @@ function PlayScreens(props: Props) {
               still goes on: held until the page is live (`HeldBeforeLoad`), or
               with no script a plain post — the tapped button carries the group,
               the hidden box the code (`claimPlayerSlotForm`). */}
-          {groups.length > 0 ? (
+          {/* THE GROUP THIS PHONE KEPT LAST TIME, FIRST (2026-11-05): one large button for the group
+              it kept earlier in this tournament, if that is still a group of this round, and the
+              rest of the list behind "Not my group". Tapping it is still confirmed (`choose`) —
+              once per round, like any group. */}
+          {lastMode && last && (
+            <div data-last-group="" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                type="button"
+                className="card elev-sm"
+                disabled={pending}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "12px 14px",
+                  minHeight: 64,
+                  cursor: "pointer",
+                  color: "var(--color-text)",
+                  font: "inherit",
+                  overflowWrap: "anywhere",
+                }}
+                onClick={() => choose({ kind: "group", group: last })}
+              >
+                {last.tee && (
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-neutral-400)" }}>{last.tee}</span>
+                )}
+                <span style={{ display: "block", fontSize: 17, fontWeight: 600, marginTop: last.tee ? 3 : 0, lineHeight: 1.35 }}>
+                  {lastTimeSentence(last)}
+                </span>
+              </button>
+              <button type="button" className="btn btn-secondary btn-block" style={{ minHeight: 48 }} disabled={pending} onClick={() => setShowAll(true)}>
+                Not my group
+              </button>
+            </div>
+          )}
+
+          {groups.length > 0 && !lastMode ? (
             <form action={postName} data-held-until-live="group" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <input type="hidden" name="code" value={code} />
               {shownGroups.length === 0 && (
@@ -843,7 +954,7 @@ function PlayScreens(props: Props) {
               hidden box the code (`claimPlayerSlotForm`). The names are the
               list only where the round has no groups; otherwise only anybody
               the groups leave out. Either way the name is confirmed (`choose`). */}
-          {(groups.length === 0 || ungrouped.length > 0) && (
+          {!lastMode && (groups.length === 0 || ungrouped.length > 0) && (
           <form action={postName} data-held-until-live="name" style={{ marginTop: groups.length > 0 ? 14 : 0 }}>
           <input type="hidden" name="code" value={code} />
           {groups.length > 0 && (

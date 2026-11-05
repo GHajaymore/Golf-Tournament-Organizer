@@ -273,6 +273,9 @@ describe("colour comes from the theme, not from the component", () => {
     // The Print kit's pages (2026-10-23), for the same reason: black ink on white
     // paper, and the club's theme colour kept off paper on purpose (decision E).
     "src/components/print/PrintPages.tsx",
+    // The mark in the centre of a printed QR (2026-11-05): ink on a white square, for paper, and passed
+    // to `<Logo>` as explicit colours because the print-kit test rasterises the SVG with no stylesheet.
+    "src/components/QrLogoMark.tsx",
   ];
 
   it("has no hard-coded hex colours outside the places that own one", () => {

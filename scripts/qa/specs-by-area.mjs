@@ -312,6 +312,8 @@ export const FULL_ONLY = [
   "e2e/organizer-stableford.spec.ts",
   "e2e/organizer-tees.spec.ts",
   "e2e/organizer.spec.ts",
+  // The round-code holder's board (2026-11-05): all three visibility settings; /live stays the privacy line.
+  "e2e/play-board.spec.ts",
   "e2e/play-suspended.spec.ts",
   "e2e/pot-on-the-scores.spec.ts",
   "e2e/prizes.spec.ts",
@@ -321,12 +323,16 @@ export const FULL_ONLY = [
   "e2e/round-code-box-starts-empty.spec.ts",
   "e2e/round-code-certify-and-result.spec.ts",
   "e2e/round-code-decided-match.spec.ts",
+  // The doors into a group (2026-11-05): a group link, and the group a phone remembers across a tournament.
+  "e2e/round-code-doors.spec.ts",
   "e2e/round-code-four-ball-side.spec.ts",
   // The cup's wrong card (18 Oct), pressed the new way: code, group, one confirmation, side B credited.
   "e2e/round-code-keeps-a-group.spec.ts",
   "e2e/round-code-on-3g.spec.ts",
   "e2e/round-code-reissued.spec.ts",
   "e2e/round-code-sign.spec.ts",
+  // Share beside Copy on the Round Codes section: the sheet, and the clipboard fallback.
+  "e2e/round-code-share.spec.ts",
   "e2e/seasons.spec.ts",
   "e2e/secretary-back-after-a-week.spec.ts",
   "e2e/secretary-copy-last-event.spec.ts",

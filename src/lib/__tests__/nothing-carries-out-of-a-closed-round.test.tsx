@@ -67,7 +67,7 @@ describe("the skins board over a closed round", () => {
     const drawers = walk("src").filter((f) => tags.some((t) => readSource(f).includes(t)));
     // The control: the sweep finds the screens it was written for, and the
     // one that was missed, or it is measuring nothing.
-    for (const known of ["src/app/live/[token]/page.tsx", "src/components/WeekClient.tsx"]) {
+    for (const known of ["src/components/PublicBoard.tsx", "src/components/WeekClient.tsx"]) {
       expect(drawers, `the sweep did not find ${known}`).toContain(known);
     }
     for (const f of drawers) {

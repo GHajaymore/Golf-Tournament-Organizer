@@ -24,7 +24,7 @@ import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
 import { isReturnedCard } from "@/lib/domain/round-handicap";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { parseTeeSheet, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
-import { matchPlayGroups, sheetPlayGroups, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
+import { groupsOfRound, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 
 /**
@@ -56,6 +56,12 @@ export interface RedeemResult {
    */
   groups?: PlayGroup[];
   stageId?: string;
+  /**
+   * The tournament, so a phone can remember its group across the rounds of it
+   * (`rememberedGroup`). An id, not a name or a secret: it is what the page's
+   * own session already carries.
+   */
+  eventId?: string;
   eventName?: string;
   roundLabel?: string;
 }
@@ -103,6 +109,7 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     players,
     groups: await playGroups(stage, players),
     stageId: stage.id,
+    eventId: stage.eventId,
     eventName: stage.event.name,
     // Which round and which holes, so the wrong nine's code shows on the
     // first screen after it is typed.
@@ -150,37 +157,34 @@ async function playGroups(
 ): Promise<PlayGroup[]> {
   const names = new Map(players.map((p) => [p.id, p.name]));
   const sheet = await publishedSheet(stage.id, stage.eventId);
-  if (!lineupHidden(stage)) {
-    const matches = await prisma.match.findMany({
-      where: { stageId: stage.id },
-      orderBy: [{ round: "asc" }, { id: "asc" }],
-      select: { id: true, playerAId: true, playerBId: true, teamAId: true, teamBId: true },
-    });
-    if (matches.length > 0) {
-      const teamIds = matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id !== "");
-      const members = teamIds.length
-        ? await prisma.teamMember.findMany({
-            where: { teamId: { in: teamIds } },
-            orderBy: { position: "asc" },
-            select: { teamId: true, playerId: true },
-          })
-        : [];
-      const side = (playerId: string, teamId: string) =>
-        playerId !== "" ? [playerId] : members.filter((m) => m.teamId === teamId).map((m) => m.playerId);
-      const grouped = matchPlayGroups({
-        matches: matches.map((m) => ({ id: m.id, a: side(m.playerAId, m.teamAId), b: side(m.playerBId, m.teamBId) })),
-        names,
-        sheet,
-        // A match kept on stroke cards is four people's own cards; one kept by
-        // tapping is one card, the same whoever opens it.
-        oneMatch: matchKeptBy(stage) !== "cards",
+  const hidden = lineupHidden(stage);
+  const matches = hidden
+    ? []
+    : await prisma.match.findMany({
+        where: { stageId: stage.id },
+        orderBy: [{ round: "asc" }, { id: "asc" }],
+        select: { id: true, playerAId: true, playerBId: true, teamAId: true, teamBId: true },
       });
-      // A round robin (null) keeps the names.
-      if (grouped) return grouped;
-      return [];
-    }
-  }
-  return sheet ? sheetPlayGroups(sheet, names) : [];
+  const teamIds = matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id !== "");
+  const members = teamIds.length
+    ? await prisma.teamMember.findMany({
+        where: { teamId: { in: teamIds } },
+        orderBy: { position: "asc" },
+        select: { teamId: true, playerId: true },
+      })
+    : [];
+  const side = (playerId: string, teamId: string) =>
+    playerId !== "" ? [playerId] : members.filter((m) => m.teamId === teamId).map((m) => m.playerId);
+  // The one answer, shared with the print kit's signs (`groupsOfRound`).
+  return groupsOfRound({
+    lineupHidden: hidden,
+    matches: matches.map((m) => ({ id: m.id, a: side(m.playerAId, m.teamAId), b: side(m.playerBId, m.teamBId) })),
+    names,
+    sheet,
+    // A match kept on stroke cards is four people's own cards; one kept by
+    // tapping is one card, the same whoever opens it.
+    oneMatch: matchKeptBy(stage) !== "cards",
+  });
 }
 
 export interface ClaimResult {
@@ -293,6 +297,7 @@ export interface ClaimFormState extends ClaimResult {
   step?: { kind: "confirm"; target: PlayTarget } | { kind: "pick"; group: PlayGroup };
   code?: string;
   stageId?: string;
+  eventId?: string;
   eventName?: string;
   roundLabel?: string;
 }
@@ -306,7 +311,7 @@ export async function claimPlayerSlotForm(_before: ClaimFormState | null, form: 
   if (!confirmed || (groupKey && !playerId)) {
     const round = await redeemRoundCode(code);
     if (!round.ok) return { ok: false, error: round.error };
-    const context = { code: normalizeAccessCode(code), stageId: round.stageId, eventName: round.eventName, roundLabel: round.roundLabel };
+    const context = { code: normalizeAccessCode(code), stageId: round.stageId, eventId: round.eventId, eventName: round.eventName, roundLabel: round.roundLabel };
     const group = groupKey ? round.groups?.find((g) => g.key === groupKey) : undefined;
     const player = playerId ? round.players?.find((p) => p.id === playerId) : undefined;
     if (!group && !player) return { ok: false, error: "That code isn't valid.", ...context };
