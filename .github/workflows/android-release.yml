@@ -33,6 +33,11 @@ on:
         type: boolean
         default: false
 
+# The token only checks the code out. The Play Console upload uses its own
+# service-account secret, and artifacts use the runner's own token.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

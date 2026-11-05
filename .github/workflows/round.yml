@@ -114,6 +114,13 @@ concurrency:
   group: round-${{ github.ref }}-${{ inputs.schedule || 'pr' }}
   cancel-in-progress: true
 
+# What a job gets unless it says otherwise: check out, and read the run's own jobs.
+# `plan` and `verdict` state their own (verdict also writes the commit status). When
+# this workflow is called (nightly.yml, weekly.yml), the caller's block caps these.
+permissions:
+  contents: read
+  actions: read
+
 env:
   # Local to each runner and destroyed with it — never a real credential.
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
