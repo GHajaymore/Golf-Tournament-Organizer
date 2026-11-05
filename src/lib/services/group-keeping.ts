@@ -3,10 +3,12 @@ import { prisma } from "@/lib/db";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { publishedFoursomes } from "@/lib/domain/group-entry";
 import { roundScoring } from "@/lib/domain/round-scoring";
+import { isMatch } from "@/lib/tournament-shape";
 import {
   groupKeyFor,
   groupMembers,
   mayKeep,
+  NO_GROUPS_YET,
   NOT_YOUR_GROUP,
   HAND_OVER_NOT_YOURS,
   HAND_OVER_OUTSIDE,
@@ -38,7 +40,8 @@ import { logAudit } from "@/lib/services/action-shared";
 
 /** Who walked off together, and this round's matches — what the group is read from. */
 export async function keepingContextFor(eventId: string, stageId: string): Promise<{ ctx: KeepingContext; field: string[] }> {
-  const [sheets, confirmed, matches] = await Promise.all([
+  const [event, sheets, confirmed, matches] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } }),
     prisma.stage.findMany({
       where: { eventId, teeSheetPublished: true, NOT: { teeSheet: "" } },
       orderBy: { position: "asc" },
@@ -58,7 +61,9 @@ export async function keepingContextFor(eventId: string, stageId: string): Promi
   const own = sheets.find((s) => s.id === stageId) ?? sheets[0];
   const teeGroups = own ? publishedFoursomes(parseTeeSheet(own.teeSheet), true, new Set(field)) : [];
   const sides = await Promise.all(matches.map((m) => matchSidesOf(m)));
-  return { ctx: { teeGroups, matches: sides }, field };
+  // Only a casual round makes its whole field one group when nothing was drawn
+  // (`groupKeyFor`): groups come from the published draw.
+  return { ctx: { teeGroups, matches: sides, casual: isMatch(event?.shape) }, field };
 }
 
 async function namesIn(eventId: string, ids: string[]): Promise<Map<string, string>> {
@@ -74,7 +79,12 @@ async function scoringOf(eventId: string, stageId: string) {
 export type GateResult =
   | { applies: false }
   | { applies: true; ok: true; epoch: number; groupKey: string; actorId: string }
-  | { applies: true; ok: false; error: string };
+  /**
+   * `keeperName` when the refusal is that the card is kept on another phone —
+   * somebody else's, or this player's own on a phone that took it over — so
+   * the screen can stop claiming progress and follow the group instead.
+   */
+  | { applies: true; ok: false; error: string; keeperName?: string };
 
 /**
  * MAY THIS WRITE GO IN — asked before any player-side save on a round.
@@ -99,6 +109,9 @@ export async function keeperGate(input: {
   const target = input.targetIds.find(Boolean);
   if (!target) return { applies: true, ok: false, error: NOT_YOUR_GROUP };
   const key = groupKeyFor(target, ctx);
+  // No group (a tournament round before its draw is published): each player
+  // keeps their own card, and the caller's own-card rule decides.
+  if (key === null) return { applies: false };
   const actorId = input.actorIds.find((id) => groupKeyFor(id, ctx) === key);
   if (!actorId) return { applies: true, ok: false, error: NOT_YOUR_GROUP };
 
@@ -114,7 +127,7 @@ export async function keeperGate(input: {
   if (keeper.eventId !== input.eventId) return { applies: true, ok: false, error: NOT_YOUR_GROUP };
   const names = await namesIn(input.eventId, [keeper.playerId]);
   const decision = mayKeep({ actorId, keeper, epoch: input.epoch, nameOf: (id) => names.get(id) ?? "" });
-  if (!decision.ok) return { applies: true, ok: false, error: decision.error };
+  if (!decision.ok) return { applies: true, ok: false, error: decision.error, keeperName: names.get(keeper.playerId) ?? "" };
   return { applies: true, ok: true, epoch: decision.epoch, groupKey: key, actorId };
 }
 
@@ -142,6 +155,7 @@ export async function claimGroup(input: {
   const { ctx, field } = await keepingContextFor(input.eventId, input.stageId);
   if (!field.includes(input.actorId)) return { ok: false, error: NOT_YOUR_GROUP };
   const key = groupKeyFor(input.actorId, ctx);
+  if (key === null) return { ok: false, error: NO_GROUPS_YET };
   const members = groupMembers(key, ctx, field);
 
   const where = { stageId_groupKey: { stageId: input.stageId, groupKey: key } };
@@ -191,6 +205,7 @@ export async function handOverKeeping(input: {
   }
   const { ctx, field } = await keepingContextFor(input.eventId, input.stageId);
   const key = groupKeyFor(input.fromId, ctx);
+  if (key === null) return { ok: false, error: NO_GROUPS_YET };
   const members = groupMembers(key, ctx, field);
   if (input.toId === input.fromId || !members.includes(input.toId) || !field.includes(input.toId)) {
     return { ok: false, error: HAND_OVER_OUTSIDE };
@@ -213,7 +228,11 @@ export async function handOverKeeping(input: {
   return { ok: true, epoch: row.epoch, keeperId: row.playerId, groupKey: key, members };
 }
 
-/** Who keeps this player's group on this round, for a screen to say so. Null on a round kept "each". */
+/**
+ * Who keeps this player's group on this round, for a screen to say so. Null on
+ * a round kept "each", and on a round with no groups yet (a tournament round
+ * before its draw is published) — where each player keeps their own card.
+ */
 export async function keeperFor(
   eventId: string,
   stageId: string,
@@ -223,6 +242,7 @@ export async function keeperFor(
   if (!scoring || scoring.scoreKeeping !== "group") return null;
   const { ctx, field } = await keepingContextFor(eventId, stageId);
   const key = groupKeyFor(playerId, ctx);
+  if (key === null) return null;
   const row = await prisma.scoringKeeper.findFirst({
     where: { eventId, stageId, groupKey: key },
     select: { playerId: true, epoch: true },

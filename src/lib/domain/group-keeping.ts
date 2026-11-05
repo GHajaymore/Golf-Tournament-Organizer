@@ -15,8 +15,16 @@
  *      together, the people who can see each other's card;
  *   2. else the match the player is in, on this round — a four-ball is its own
  *      group when nobody published a sheet;
- *   3. else the whole round — a casual four with no sheet and no draw.
+ *   3. else, on a CASUAL round only, the whole round — four friends with no
+ *      sheet and no draw are one group;
+ *   4. else NO GROUP: each player keeps their own card.
  * `groupKeyFor` is the only place that order is written.
+ *
+ * GROUPS COME FROM THE PUBLISHED DRAW (PM, Golf Pro and Tournament Director,
+ * 2026-11-05). Step 3 was once every round's: on a tournament medal with no
+ * published sheet the whole field was one group, so the first player to save
+ * kept every card in the tournament and everybody else was refused their own
+ * on /me/card. A tournament round with no published draw has no groups.
  *
  * Pure: the caller loads the sheet, the matches and the keeper row
  * (`services/group-keeping.ts`).
@@ -34,6 +42,12 @@ export interface KeepingContext {
   teeGroups: string[][];
   /** This round's matches. */
   matches: KeepingMatch[];
+  /**
+   * Whether the round is CASUAL (`isMatch(event.shape)`) — the only kind whose
+   * whole field is one group when nothing was drawn. REQUIRED: a reader that
+   * forgot it would make a tournament's field one group again.
+   */
+  casual: boolean;
 }
 
 /** The whole round, as one group. */
@@ -48,15 +62,23 @@ export const WHOLE_ROUND = "round";
  * card nobody has kept yet.
  *
  * A player in more than one of this round's matches (a round robin) is not
- * narrowed to one of them: their group is the round.
+ * narrowed to one of them.
+ *
+ * NULL means NO GROUP: the player keeps their own card, exactly as on a round
+ * kept "each" — a tournament round before its draw is published, or a player
+ * the draw left out. Never the whole field, outside a casual round.
  */
-export function groupKeyFor(playerId: string, ctx: KeepingContext): string {
+export function groupKeyFor(playerId: string, ctx: KeepingContext): string | null {
   const tee = ctx.teeGroups.find((g) => g.includes(playerId));
   if (tee) return `tee:${[...tee].sort().join(",")}`;
   const mine = ctx.matches.filter((m) => m.sideA.includes(playerId) || m.sideB.includes(playerId));
   if (mine.length === 1) return `match:${mine[0].id}`;
-  return WHOLE_ROUND;
+  return ctx.casual ? WHOLE_ROUND : null;
 }
+
+/** Said when "I'll keep score" is pressed on a round with no groups yet. */
+export const NO_GROUPS_YET =
+  "Groups come from the tee sheet, and it isn't published yet, so each player keeps their own card for now.";
 
 /** Everyone in a group, given its key and the round's confirmed field. */
 export function groupMembers(key: string, ctx: KeepingContext, field: readonly string[]): string[] {

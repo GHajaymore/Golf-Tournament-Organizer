@@ -226,6 +226,47 @@ describe("the signed-in player's door asks the same lock", () => {
   });
 });
 
+describe("groups come from the published draw (2026-11-05)", () => {
+  /**
+   * With no published tee sheet a TOURNAMENT round has no groups: each player
+   * keeps their own card. The old rule made the field one group, so the first
+   * save kept every card in the tournament and every other player was refused
+   * their own on /me/card.
+   */
+  it("before the sheet is published, the first save keeps nobody else's card, and each player saves their own", async () => {
+    await prisma.stage.update({ where: { id: stageId }, data: { teeSheetPublished: false } });
+    await prisma.scoringKeeper.deleteMany({ where: { eventId, stageId } });
+    try {
+      await phoneOf("ann");
+      const first = await savePlayCard(CARD);
+      expect(first.ok, first.error).toBe(true);
+      expect(first.epoch, "a round with no groups handed out a scorer's epoch").toBeUndefined();
+      // Ann is nobody's scorer: Cat's card is not hers to keep.
+      const cat = await savePlayCard(CARD, { playerId: p.cat });
+      expect(cat.ok).toBe(false);
+
+      await phoneOf("cat");
+      const own = await savePlayCard(CARD);
+      expect(own.ok, own.error).toBe(true);
+
+      // Bea, signed in, keeps her own card on /me/card.
+      session = { userId: "", accountId: "", eventId, name: `${TAG} bea`, email: at("bea"), role: "player", viewRole: "player" };
+      await expect(saveScorecard(stageId, p.bea, CARD)).resolves.toBeTruthy();
+      expect(await keeperRow(), "a scorer row was written for a round with no groups").toHaveLength(0);
+
+      // "I'll keep score" has no group to keep, and says why.
+      await phoneOf("ann");
+      const claim = await keepGroup({});
+      expect(claim.ok).toBe(false);
+      expect(claim.error).toMatch(/tee sheet/);
+    } finally {
+      session = null;
+      await prisma.stage.update({ where: { id: stageId }, data: { teeSheetPublished: true } });
+      await prisma.scoringKeeper.deleteMany({ where: { eventId, stageId } });
+    }
+  });
+});
+
 describe("the other two ways a round is kept", () => {
   it("each player enters their own: exactly as before — your own card, nobody's else", async () => {
     await prisma.stage.update({ where: { id: stageId }, data: { scoreKeeping: "each" } });
