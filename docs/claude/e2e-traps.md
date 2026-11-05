@@ -76,6 +76,14 @@ page was slow; the button simply had to wait for everything. Three things were f
   (the spec's control was vacuous until it had to say yes once the script landed); and a held press
   must keep the form's contents from the moment of the press — read when the page woke, while
   `TypedBeforeLoadSync` hands the box to React, the box was EMPTY and an empty code was sent.
+  **On WebKit a page whose scripts never come is never PAINTED** (Safari shows the old page until
+  the new one finishes loading or has enough content), and Playwright's click then waits in
+  "stable" for ever with the button plainly in the snapshot. So a let-go press leaves a mark and the
+  next page stops loading (`window.stop()`); a press from a stopped page passes the mark on, so the
+  code → names → "You're keeping …" walk is painted at every step (round scoring-by-group-1-2 hung
+  on the confirmation's Yes). A new `/play` form that posts without script carries
+  `data-held-until-live` or `data-plain-post`, or its page is never stopped — `held-press-let-go.test.ts`
+  sweeps for it. The card has neither on purpose: its pad needs its scripts, which may yet come.
 - **The icon sprite went down twice in every document**: drawn by a server component, it was the
   page AND, again, the page's data for React — 37 KB of `/play`'s 44. `IconSprite` is a client
   component now whose symbols exist only in the server's copy (`typeof window` is fixed at build
