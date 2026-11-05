@@ -48,7 +48,7 @@ export function HoleResultCard({
   showVoice = true,
   shotsOn,
   noteFor,
-  wonLost = false,
+  marks,
   shownStrokeIndex,
   onPick,
   onSay,
@@ -65,11 +65,12 @@ export function HoleResultCard({
   /** The club card's stroke index to PRINT, where `strokeIndex` is re-ranked for a nine. */
   shownStrokeIndex?: number[];
   /**
-   * Mark each played hole on the strip W / ½ / L. Only where side A is the
-   * person holding the phone (the round-code card): on the console's entry
-   * screen A is just the first name, and "won" would be nobody's.
+   * Mark each played hole on the strip with the winner's initials, A's and B's
+   * (`sideMarks`), and ½ for a half — on the match card (`MatchKeeper`). It
+   * was W / L, won and lost from the holder's side, which only meant anything
+   * while the card turned round to face whoever held it; it no longer does.
    */
-  wonLost?: boolean;
+  marks?: [string, string];
   /**
    * A line under the hole's par, for what two rows of dots cannot say — a
    * four-ball's shots, player by player ("Shots here: Ann, Cat"). Empty for
@@ -240,16 +241,16 @@ export function HoleResultCard({
               border: i === hole ? "2px solid var(--color-accent)" : "1px solid var(--color-divider)",
               background: tint(holes[i] ?? null),
               color: "var(--color-text)",
-              ...(wonLost ? { height: 48, minWidth: 40, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", lineHeight: 1.1 } : {}),
+              ...(marks ? { height: 48, minWidth: 40, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", lineHeight: 1.1 } : {}),
             }}
           >
             {holeNumber(i, firstHole)}
-            {/* A letter as well as a colour, from the holder's side, so the
-                strip reads in sunlight and without knowing which tint is which
-                (the cup's UI review, 2026-10-17). */}
-            {wonLost && holes[i] && (
+            {/* Letters as well as a colour — whose hole it was — so the strip
+                reads in sunlight and without knowing which tint is which (the
+                cup's UI review, 2026-10-17). */}
+            {marks && holes[i] && (
               <span aria-hidden="true" style={{ fontSize: 13, fontWeight: 700 }}>
-                {holes[i] === "A" ? "W" : holes[i] === "B" ? "L" : "½"}
+                {holes[i] === "A" ? marks[0] : holes[i] === "B" ? marks[1] : "½"}
               </span>
             )}
             {sync && <HoleSyncMark sync={sync[i] ?? "none"} />}
@@ -314,6 +315,8 @@ export function HoleResultCard({
               key={a.v}
               type="button"
               className={a.cls}
+              // What this answer records, as stored: A, H or B in draw order.
+              data-result={a.v}
               aria-pressed={value === a.v}
               aria-label={a.aria}
               disabled={!live}

@@ -21,6 +21,8 @@ import { MatchKeeper } from "./MatchKeeper";
 import { MatchStrokeKeeper } from "./MatchStrokeKeeper";
 import type { KeptMatch, MatchStrokeCard } from "@/lib/services/match-card";
 import { codeFromLink, formatAccessCode } from "@/lib/code-format";
+import { keepingSentence, keepingYes, targetKey, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
+import type { ClaimFormState } from "@/app/actions/play";
 
 /** A match as its holder keeps it — built by `matchCardFor`, one type for both pages. */
 type PlayMatch = KeptMatch;
@@ -83,11 +85,11 @@ interface Props {
   /** The organizer's "Voice entry" setting — off, the card offers no microphone. */
   voiceEntry?: boolean;
   /**
-   * A net match's shots per hole, from the holder's side — `mine` and the
-   * opponent's — resolved on the server exactly as the console's card does.
-   * Null for a gross match, or a card with no stroke index.
+   * A net match's shots per hole, side A's and side B's as drawn, resolved on
+   * the server exactly as the console's card does. Null for a gross match, or
+   * a card with no stroke index.
    */
-  matchShots?: { mine: number[]; theirs: number[] } | null;
+  matchShots?: { a: number[]; b: number[] } | null;
   /** The holder's own stroke card, where the round keeps its matches on cards (`matchKeptBy`). */
   strokeCard?: MatchStrokeCard;
   /**
@@ -374,16 +376,26 @@ function PlayScreens(props: Props) {
   const [posted, postCode] = useActionState(redeemRoundCodeForm, null);
   const [claimPosted, postName] = useActionState(claimPlayerSlotForm, null);
   const live = usePageIsLive();
-  const [code, setCode] = useState(() => posted?.code ?? "");
+  const [code, setCode] = useState(() => posted?.code ?? claimPosted?.code ?? "");
   const [error, setError] = useState(() => (posted && !posted.ok ? posted.error ?? "" : claimPosted?.error ?? ""));
   const [nameFilter, setNameFilter] = useState("");
-  const [players, setPlayers] = useState<Array<{ id: string; name: string; side?: string }> | null>(() =>
+  const [players, setPlayers] = useState<Array<{ id: string; name: string }> | null>(() =>
     posted?.ok ? posted.players ?? [] : null,
   );
-  const [groups, setGroups] = useState<Array<{ label: string; ids: string[] }>>(() => (posted?.ok ? posted.groups ?? [] : []));
-  const [context, setContext] = useState<{ eventName: string; roundLabel: string } | null>(() =>
-    posted?.ok ? { eventName: posted.eventName ?? "", roundLabel: posted.roundLabel ?? "" } : null,
+  const [groups, setGroups] = useState<PlayGroup[]>(() => (posted?.ok ? posted.groups ?? [] : []));
+  const [context, setContext] = useState<{ eventName: string; roundLabel: string; stageId: string } | null>(() =>
+    posted?.ok
+      ? { eventName: posted.eventName ?? "", roundLabel: posted.roundLabel ?? "", stageId: posted.stageId ?? "" }
+      : claimPosted?.step
+        ? { eventName: claimPosted.eventName ?? "", roundLabel: claimPosted.roundLabel ?? "", stageId: claimPosted.stageId ?? "" }
+        : null,
   );
+  /**
+   * After a group is tapped: the one confirmation, then — in a group of
+   * somebody's own cards — whose card. Seeded from the server's answer when the
+   * tap was a plain post (`claimPlayerSlotForm`), so both ways draw one screen.
+   */
+  const [step, setStep] = useState<ClaimFormState["step"] | null>(() => claimPosted?.step ?? null);
   const [pending, startTransition] = useTransition();
 
   // Set as the card saves; nothing reads it.
@@ -485,8 +497,53 @@ function PlayScreens(props: Props) {
       }
       setPlayers(res.players ?? []);
       setGroups(res.groups ?? []);
-      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "" });
+      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "", stageId: res.stageId ?? "" });
+      setStep(null);
     });
+  };
+
+  /**
+   * ONE CONFIRMATION, ONCE PER PHONE (2026-11-04).
+   *
+   * A group tapped is said back in full before anything is kept — "You're
+   * keeping Group 3: Rakesh & Snehal v Subhas & Prashant · 12:54 off the 10th"
+   * — because the cup's wrong card began with one wrong tap and nothing after it
+   * said whose match it was. Asked once: the phone remembers the group it
+   * confirmed for the round, and the same group tapped again goes straight
+   * through. A DIFFERENT group is a different decision and is asked about.
+   * Never per hole. Kept on the phone, never on the server: it is this phone's
+   * answer, and storage that is blocked simply asks again.
+   */
+  const keptKey = context?.stageId ? `thq-play-kept:${context.stageId}` : "";
+  const confirmedBefore = (target: PlayTarget) => {
+    try {
+      return !!keptKey && window.localStorage.getItem(keptKey) === targetKey(target);
+    } catch {
+      return false;
+    }
+  };
+  const keep = (target: PlayTarget) => {
+    try {
+      if (keptKey) window.localStorage.setItem(keptKey, targetKey(target));
+    } catch {
+      // Blocked storage: the phone asks again next time, which is safe.
+    }
+    if (target.kind === "player") return claimName(target.id);
+    const g = target.group;
+    // A match kept by tapping is one card whoever opens it; any of its players opens it.
+    if (g.oneMatch || g.players.length === 1) return claimName(g.players[0]?.id ?? "");
+    setStep({ kind: "pick", group: g });
+  };
+  const choose = (target: PlayTarget) => {
+    setError("");
+    if (confirmedBefore(target)) keep(target);
+    else setStep({ kind: "confirm", target });
+  };
+  const backToList = () => {
+    setStep(null);
+    setError("");
+    // Drawn by the server with no list behind it: ask for the list again.
+    if (!players) openCode(code);
   };
 
   /**
@@ -494,8 +551,8 @@ function PlayScreens(props: Props) {
    *
    * The sign's address carries the code after a `#` (`roundCodeLink`), so this
    * runs in the browser only: a link preview or a prefetch never redeems. It
-   * goes straight to the names — tapping your own name is the confirmation,
-   * and the name step is unchanged, so a scan can never pick a player. The `#`
+   * goes straight to the groups — the group tapped is then confirmed
+   * (`choose`), so a scan can never pick a group or a player. The `#`
    * is cleared at once so a reload does not open the round again. Somebody who
    * typed into the box before the page woke keeps what they typed.
    */
@@ -514,7 +571,8 @@ function PlayScreens(props: Props) {
   /**
    * A PRESS MADE BEFORE THE PAGE WAS LIVE, TAKEN UP NOW IT IS (2026-10-25).
    * `HeldBeforeLoad` kept it, and the button has been marked busy since. Once,
-   * on arrival: Continue with what is in the box, or the name that was tapped.
+   * on arrival: Continue with what is in the box, or the group or name that
+   * was tapped — which is then confirmed like any tap (`choose`).
    */
   useEffect(() => {
     if (props.stage !== "code") return;
@@ -524,10 +582,15 @@ function PlayScreens(props: Props) {
       const typed = String(held.data.get("code") ?? "");
       setCode(typed);
       openCode(typed);
+    } else if (held.kind === "group" && held.value) {
+      const group = groups.find((g) => g.key === held.value);
+      if (group) choose({ kind: "group", group });
     } else if (held.kind === "name" && held.value) {
-      claimName(held.value, String(held.data.get("code") ?? ""));
+      const player = players?.find((p) => p.id === held.value);
+      if (player) choose({ kind: "player", id: player.id, name: player.name });
     }
-    // Once, on arrival.
+    // Once, on arrival: the groups and names are those the page arrived with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.stage]);
 
   if (props.stage === "code") {
@@ -536,6 +599,133 @@ function PlayScreens(props: Props) {
     // Filtered, never reordered — see name-filter.ts for why, and for the
     // threshold below.
     const shownPlayers = filterNames(players ?? [], nameFilter);
+    // A group stays listed while any name in it matches: the scorer finds
+    // their GROUP by a name they know, and still taps the group.
+    const shownGroups = nameFilter.trim() ? groups.filter((g) => filterNames(g.players, nameFilter).length > 0) : groups;
+    // Anybody the groups leave out (a late entry nobody has put in one) is still reachable, by name.
+    const grouped = new Set(groups.flatMap((g) => g.players.map((p) => p.id)));
+    const ungrouped = groups.length > 0 ? shownPlayers.filter((p) => !grouped.has(p.id)) : [];
+
+    /* ── The one confirmation: what this phone is about to keep ───────── */
+    if (step?.kind === "confirm" && context) {
+      const target = step.target;
+      return (
+        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+          <section aria-label="Check it's yours" style={{ display: "flex", flexDirection: "column", gap: 18, paddingTop: 12 }}>
+            <div>
+              <div className="page-kicker">{[context.roundLabel, context.eventName].filter(Boolean).join(" · ")}</div>
+              <h1 style={{ fontSize: 24, lineHeight: 1.3, margin: "8px 0 0", fontFamily: "var(--font-heading)", overflowWrap: "anywhere" }}>
+                {keepingSentence(target)}
+              </h1>
+              {target.kind === "group" && !target.group.oneMatch && target.group.players.length > 1 && (
+                <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 15 }}>Next you pick whose card you&rsquo;re keeping.</p>
+              )}
+            </div>
+            {error && (
+              <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+                <Icon name="warning-circle" /> {error}
+              </p>
+            )}
+            {/* Plain forms, so the same two answers work with no script: yes is
+                posted as confirmed (`claimPlayerSlotForm`), no asks for the list
+                again (`redeemRoundCodeForm`). With a script, both are taken here.
+                `data-plain-post` tells `HeldBeforeLoad` this page works without
+                script, so on a walk whose scripts never came it is stopped and
+                painted (Safari) rather than left waiting for them. */}
+            <form action={postName} data-plain-post="">
+              <input type="hidden" name="code" value={code} />
+              {target.kind === "group" ? (
+                <input type="hidden" name="group" value={target.group.key} />
+              ) : (
+                <input type="hidden" name="playerId" value={target.id} />
+              )}
+              <input type="hidden" name="confirmed" value="yes" />
+              <button
+                type="submit"
+                className="btn btn-primary btn-block"
+                style={{ minHeight: 52, fontSize: 17 }}
+                disabled={pending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  keep(target);
+                }}
+              >
+                {pending ? "Opening…" : keepingYes(target)}
+              </button>
+            </form>
+            <form action={postCode} data-plain-post="">
+              <input type="hidden" name="code" value={code} />
+              <button
+                type="submit"
+                className="btn btn-secondary btn-block"
+                style={{ minHeight: 48 }}
+                disabled={pending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  backToList();
+                }}
+              >
+                No, go back
+              </button>
+            </form>
+          </section>
+        </Shell>
+      );
+    }
+
+    /* ── A group of somebody's own cards: whose card ──────────────────── */
+    if (step?.kind === "pick" && context) {
+      const group = step.group;
+      return (
+        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+          <div style={{ marginBottom: 16 }}>
+            <div className="page-kicker">{[group.title, group.tee].filter(Boolean).join(" · ")}</div>
+            <h1 style={{ fontSize: 24, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>Whose card are you keeping?</h1>
+          </div>
+          {error && (
+            <p style={{ fontSize: 13, color: "var(--color-danger)" }}>
+              <Icon name="warning-circle" /> {error}
+            </p>
+          )}
+          <form action={postName} data-plain-post="" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input type="hidden" name="code" value={code} />
+            <input type="hidden" name="group" value={group.key} />
+            <input type="hidden" name="confirmed" value="yes" />
+            {group.players.map((p) => (
+              <button
+                key={p.id}
+                type="submit"
+                name="playerId"
+                value={p.id}
+                className="btn btn-secondary btn-block"
+                disabled={pending}
+                style={{ minHeight: 52, fontSize: 16, justifyContent: "flex-start", overflowWrap: "anywhere" }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  claimName(p.id);
+                }}
+              >
+                {p.name}
+              </button>
+            ))}
+          </form>
+          <form action={postCode} data-plain-post="">
+            <input type="hidden" name="code" value={code} />
+            <button
+              type="submit"
+              className="btn"
+              style={{ marginTop: 12 }}
+              onClick={(e) => {
+                e.preventDefault();
+                backToList();
+              }}
+            >
+              Back to the groups
+            </button>
+          </form>
+        </Shell>
+      );
+    }
 
     if (players && context) {
       return (
@@ -546,7 +736,7 @@ function PlayScreens(props: Props) {
               {context.eventName}
             </h1>
             <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-              Tap your name to start entering your score.
+              {groups.length > 0 ? "Tap your group to start scoring." : "Tap the name on the card you're keeping."}
             </p>
           </div>
 
@@ -577,7 +767,7 @@ function PlayScreens(props: Props) {
               for their name must not have it move while they type. */}
           {showsNameFilter(players.length) && (
             <div className="field" style={{ marginBottom: 10 }}>
-              <label htmlFor="play-name-filter">Find your name</label>
+              <label htmlFor="play-name-filter">{groups.length > 0 ? "Find your group by a name" : "Find the name"}</label>
               <input
                 id="play-name-filter"
                 className="input"
@@ -594,89 +784,79 @@ function PlayScreens(props: Props) {
             </div>
           )}
 
-          {/* THE ROUND'S MATCHES, when it draws them and nobody is searching:
-              a player looks for their group, as on a tee sheet, not their
-              name in the whole field. Typing in the box goes back to the
-              plain filtered list. */}
-          {/* A FORM, so a name tapped before the page's script has arrived still
-              opens the card: held until the page is live (`HeldBeforeLoad`), or
-              with no script a plain post — the tapped button carries the player,
-              the hidden box the code (`claimPlayerSlotForm`). Once the page is
-              live, the tap is taken in the page (`claimName`). */}
-          <form action={postName} data-held-until-live="name">
-          <input type="hidden" name="code" value={code} />
-          {groups.length > 0 && nameFilter.trim() === "" ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                ...groups,
-                ...(() => {
-                  const drawn = new Set(groups.flatMap((g) => g.ids));
-                  const rest = (players ?? []).filter((p) => !drawn.has(p.id)).map((p) => p.id);
-                  return rest.length ? [{ label: "Everyone else", ids: rest }] : [];
-                })(),
-              ].map((g, gi) => (
-                <section key={gi} className="card elev-sm" style={{ padding: "10px 12px" }} aria-label={g.label}>
-                  <h2 className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>{g.label}</h2>
-                  {/* In a cup, the foursome as its two pairs, each under its
-                      team — four names in one block is how a scorer came to
-                      tap an opponent's name (`redeemRoundCode`). Otherwise
-                      one block, as before. */}
-                  {(() => {
-                    const bySide = new Map<string, string[]>();
-                    for (const id of g.ids) {
-                      const s = (players ?? []).find((x) => x.id === id)?.side ?? "";
-                      bySide.set(s, [...(bySide.get(s) ?? []), id]);
-                    }
-                    const rows = [...bySide.entries()];
-                    const split = rows.length > 1 && rows.every(([s]) => s !== "");
-                    return (split ? rows : [["", g.ids] as [string, string[]]]).map(([s, ids]) => (
-                      <div key={s || "all"} style={{ marginTop: split && s !== rows[0][0] ? 10 : 0 }}>
-                        {split && (
-                          <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 6px", color: "var(--color-neutral-400)" }}>
-                            {s}
-                          </h3>
-                        )}
-                  {/* Two to a row on a phone too (`keep-grid`): a foursome is
-                      two rows of thumb-sized names, not four. */}
-                  <div className="keep-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-                    {ids.map((id) => {
-                      const p = (players ?? []).find((x) => x.id === id);
-                      if (!p) return null;
-                      return (
-                        <button
-                          key={id}
-                          type="submit"
-                          name="playerId"
-                          value={p.id}
-                          className="btn btn-secondary"
-                          disabled={pending}
-                          style={{ minHeight: 48, fontSize: 15, justifyContent: "center", overflowWrap: "anywhere" }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            dropHeldPress(e.currentTarget.form);
-                            claimName(p.id);
-                          }}
-                        >
-                          {p.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                      </div>
-                    ));
-                  })()}
-                </section>
+          {/* THE ROUND'S GROUPS, not its names (2026-11-04): each match, or each
+              group off the tee sheet, as ONE large button — a scorer knows
+              their group ("the 12:54 off the 10th") and finds it among five,
+              where a name was a small target among twenty, and the cup's wrong
+              card began with an opponent's name tapped. The group is then
+              confirmed once (`choose`).
+
+              A FORM, so a group tapped before the page's script has arrived
+              still goes on: held until the page is live (`HeldBeforeLoad`), or
+              with no script a plain post — the tapped button carries the group,
+              the hidden box the code (`claimPlayerSlotForm`). */}
+          {groups.length > 0 ? (
+            <form action={postName} data-held-until-live="group" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <input type="hidden" name="code" value={code} />
+              {shownGroups.length === 0 && (
+                <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+                  No group has a name like “{nameFilter.trim()}”. Check the spelling, or clear the box to see every group.
+                </p>
+              )}
+              {shownGroups.map((g) => (
+                <button
+                  key={g.key}
+                  type="submit"
+                  name="group"
+                  value={g.key}
+                  className="card elev-sm"
+                  disabled={pending}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "12px 14px",
+                    minHeight: 64,
+                    cursor: "pointer",
+                    color: "var(--color-text)",
+                    font: "inherit",
+                    overflowWrap: "anywhere",
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    dropHeldPress(e.currentTarget.form);
+                    choose({ kind: "group", group: g });
+                  }}
+                >
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-neutral-400)" }}>
+                    {[g.title, g.tee].filter(Boolean).join(" · ")}
+                  </span>{" "}
+                  <span style={{ display: "block", fontSize: 17, fontWeight: 600, marginTop: 3, lineHeight: 1.35 }}>{g.names}</span>
+                </button>
               ))}
-            </div>
-          ) : (
+            </form>
+          ) : null}
+
+          {/* A FORM, so a name tapped before the page's script has arrived still
+              goes on: held until the page is live (`HeldBeforeLoad`), or with
+              no script a plain post — the tapped button carries the player, the
+              hidden box the code (`claimPlayerSlotForm`). The names are the
+              list only where the round has no groups; otherwise only anybody
+              the groups leave out. Either way the name is confirmed (`choose`). */}
+          {(groups.length === 0 || ungrouped.length > 0) && (
+          <form action={postName} data-held-until-live="name" style={{ marginTop: groups.length > 0 ? 14 : 0 }}>
+          <input type="hidden" name="code" value={code} />
+          {groups.length > 0 && (
+            <h2 className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", fontWeight: 600 }}>Not in a group</h2>
+          )}
           <div className="card elev-sm" style={{ padding: 0, overflow: "hidden" }}>
-            {shownPlayers.length === 0 && (
+            {groups.length === 0 && shownPlayers.length === 0 && (
               <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "13px 14px", lineHeight: 1.5 }}>
                 No name matches “{nameFilter.trim()}”. Check the spelling, or clear the box to see
                 everyone in the round.
               </p>
             )}
-            {shownPlayers.map((p) => (
+            {(groups.length > 0 ? ungrouped : shownPlayers).map((p) => (
               <button
                 key={p.id}
                 type="submit"
@@ -686,7 +866,7 @@ function PlayScreens(props: Props) {
                 onClick={(e) => {
                   e.preventDefault();
                   dropHeldPress(e.currentTarget.form);
-                  claimName(p.id);
+                  choose({ kind: "player", id: p.id, name: p.name });
                 }}
                 style={{
                   display: "block",
@@ -705,8 +885,8 @@ function PlayScreens(props: Props) {
               </button>
             ))}
           </div>
-          )}
           </form>
+          )}
 
           {/* Its own plain form too: before the script, the way back to an empty
               box is to open the code page afresh. */}
@@ -1160,7 +1340,12 @@ function PlayScreens(props: Props) {
   );
   const footer = (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
-      <span className="text-muted" style={{ fontSize: 13 }}>Playing as {props.playerName}</span>
+      {/* Never "playing as" whoever's name opened a tapped match: that card
+          is the match, the same for both sides (`matchCardFor`). A stroke
+          card is one player's, and says whose. */}
+      <span className="text-muted" style={{ fontSize: 13 }}>
+        {props.strokeCard ? `Keeping ${props.playerName}'s card` : "Keeping this match for both sides"}
+      </span>
       <button
         type="button"
         className="btn"

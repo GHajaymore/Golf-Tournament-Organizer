@@ -657,8 +657,9 @@ async function roundKit(
     let unavailable = "";
     const cupGroups = cupDoc?.signGroups ?? null;
     const scorerJob = matchRound
-      ? "Keeping the match: one of you opens the round with the code and taps who won each hole. The board has the result as soon as the last hole is in."
-      : "Keeping the score: one of you opens the round with the code, taps your own name and enters everybody's score in this group after each hole. At the end each player checks their own card.";
+      ? // The group, never a name (2026-11-04): the card is the match, the same for both sides.
+        "Keeping the match: one of you opens the round with the code, taps this match and taps who won each hole, by name. The board has the result as soon as the last hole is in."
+      : "Keeping the score: open the round with the code, tap this group, then the card you're keeping, and enter its score after each hole. At the end each player checks their own card.";
     /**
      * ONE SIGN PER {CART} (the ruling's B; Ajay's original ask): the group split in
      * pairs in tee-sheet order — a three gives a two and a one — each sign naming

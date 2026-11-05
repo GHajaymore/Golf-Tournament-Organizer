@@ -123,6 +123,9 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
    */
   if (!canEnterScores(settings, "player")) {
     const terms = await golfTermsForEvent(event.id);
+    // A match is opened as its group, by either side: headed by the match, as
+    // drawn, never by whichever of its players the session happens to hold.
+    const kept = match ? (await matchCardFor({ match })).match : null;
     return (
       <PlayClient
         boardHref={boardHref}
@@ -132,7 +135,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         stage="staff-kept"
         organizer={terms.organizer}
         brand={brand}
-        playerName={session.playerName}
+        playerName={kept ? `${kept.aName} v ${kept.bName}` : session.playerName}
         eventName={event.name}
         roundLabel={session.roundLabel}
       />
@@ -301,7 +304,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
   }
 
   // The card, built where the player app builds it too — see `matchCardFor`.
-  const card = await matchCardFor({ match, holderId: session.playerId, holderSides: mySides });
+  // Side A first, as drawn: nothing on it depends on whose name opened it.
+  const card = await matchCardFor({ match });
   // How the organizer has this round kept (`matchKeptBy`): a tap card, or the
   // holder's own stroke card — never both on one round.
   const strokeCard =
