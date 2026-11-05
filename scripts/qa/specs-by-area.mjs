@@ -336,6 +336,8 @@ export const FULL_ONLY = [
   "e2e/round-code-share.spec.ts",
   // One scorer per group and the other side's check, pressed through the actions' own endpoints until phase 2's /play buttons (2026-11-04).
   "e2e/scoring-by-group-server.spec.ts",
+  // The same, PRESSED on two phones (2026-11-05, phase 2): keep, follow, take over, a stale phone refused in words, hand back, the other side confirms, a dispute held off the board.
+  "e2e/scoring-by-group-phones.spec.ts",
   "e2e/seasons.spec.ts",
   "e2e/secretary-back-after-a-week.spec.ts",
   "e2e/secretary-copy-last-event.spec.ts",

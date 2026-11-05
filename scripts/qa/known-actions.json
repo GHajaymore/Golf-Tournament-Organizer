@@ -394,10 +394,10 @@
  },
  "newSince": {
   "app/actions/tournament.ts:setStageScoring": "e2e/stages-scoring-setup.spec.ts",
-  "app/actions/play.ts:keepGroup": "e2e/scoring-by-group-server.spec.ts",
-  "app/actions/play.ts:handOverGroup": "e2e/scoring-by-group-server.spec.ts",
-  "app/actions/play.ts:confirmPlayMatch": "e2e/scoring-by-group-server.spec.ts",
-  "app/actions/play.ts:disputePlayMatch": "e2e/scoring-by-group-server.spec.ts",
-  "app/actions/play.ts:disputePlayCard": "e2e/scoring-by-group-server.spec.ts"
+  "app/actions/play.ts:keepGroup": "e2e/scoring-by-group-phones.spec.ts",
+  "app/actions/play.ts:handOverGroup": "e2e/scoring-by-group-phones.spec.ts",
+  "app/actions/play.ts:confirmPlayMatch": "e2e/scoring-by-group-phones.spec.ts",
+  "app/actions/play.ts:disputePlayMatch": "e2e/scoring-by-group-phones.spec.ts",
+  "app/actions/play.ts:disputePlayCard": "e2e/scoring-by-group-phones.spec.ts"
  }
 }
