@@ -444,6 +444,33 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         })
       : undefined;
 
+  /**
+   * EVERY BALL IN THE MATCH, FOR THE GROUP'S SCORER (PM and Golf Pro, 2026-11-05).
+   * On a round kept on stroke cards the holder keeps their own ball — and on a
+   * round kept by one scorer per group nobody else in the group may write, so
+   * the scorer keeps every ball: each player's card, or each side's one card
+   * where a side plays one ball. The same reader as the holder's own card
+   * (`matchStrokeCardFor`), and each save names the ball (`playerId`).
+   */
+  const strokeBalls =
+    strokeCard && iKeep && codeStage
+      ? await (async () => {
+          const sides = await matchSidesOf(match);
+          const oneBall = oneCardPerSide(codeStage.format, codeStage.scoreInput, codeStage.scoringBasis);
+          const ballIds = oneBall ? [sides.sideA[0], sides.sideB[0]].filter((id): id is string => !!id) : [...sides.sideA, ...sides.sideB];
+          const names = new Map(
+            (await prisma.player.findMany({ where: { eventId: event.id, id: { in: ballIds } }, select: { id: true, name: true } })).map((p) => [p.id, p.name] as const),
+          );
+          return Promise.all(
+            ballIds.map(async (id) => ({
+              id,
+              name: names.get(id) ?? "",
+              card: id === session.playerId ? strokeCard : await matchStrokeCardFor({ match, holderId: id, data: card, oneBallPerSide: oneBall }),
+            })),
+          );
+        })()
+      : undefined;
+
   // The other matches, named by opponent, for the picker above the card.
   const others = myMatches.filter((x) => x.id !== match.id);
   const otherIds = others.map((x) =>
@@ -531,6 +558,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       netMode={card.netMode}
       matchShots={card.matchShots}
       strokeCard={strokeCard}
+      strokeBalls={strokeBalls}
       voiceEntry={settings.voiceEntry}
       group={groupView()}
       endCheck={matchCheck}

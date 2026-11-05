@@ -130,6 +130,12 @@ interface Props {
   /** The holder's own stroke card, where the round keeps its matches on cards (`matchKeptBy`). */
   strokeCard?: MatchStrokeCard;
   /**
+   * EVERY BALL IN THE MATCH, when this phone is the group's scorer on a round
+   * kept on stroke cards (2026-11-05): each player's card, or each side's one
+   * card. The scorer picks a ball; each save names it (`playerId`).
+   */
+  strokeBalls?: Array<{ id: string; name: string; card: MatchStrokeCard }>;
+  /**
    * The format, when the code is for a round played by SIDES — a four-ball or
    * foursomes, kept on one phone. This surface keeps a player's own card or
    * match and never a side's, so it says that instead of "no match for you".
@@ -494,6 +500,8 @@ function PlayScreens(props: Props) {
     setRefusedBy(null);
   }, [keeperNow, epochDrawn]);
   const role = props.group ? keepingRole({ me: props.group.me, keeperId: keeperNow, refusedBy }) : null;
+  /** The ball on screen, when the scorer keeps every ball of a match on stroke cards (`strokeBalls`). */
+  const [ball, setBall] = useState(props.playerId ?? "");
   const following = role === "follower";
   // A following phone is drawn again as the scores go in.
   // A following phone is drawn again as the scores go in: <FollowRefresh /> in its view.
@@ -597,6 +605,8 @@ function PlayScreens(props: Props) {
       props.playerId ?? "code",
       ...(props.partners ?? []).map((p) => p.id),
       ...(props.match ? [`match-a:${props.match.id}`, `${props.playerId ?? "code"}:${props.match.id}`] : []),
+      // Every ball the scorer kept on a match kept on stroke cards.
+      ...(props.match ? (props.strokeBalls ?? []).map((b) => `${b.id}:${props.match!.id}`) : []),
     ]);
     // Once, when the refusal arrives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1713,6 +1723,65 @@ function PlayScreens(props: Props) {
 
   // A round the organizer keeps on stroke cards (`matchKeptBy`): the holder's
   // own ball, and the app works the match out. Never both cards on one round.
+  /**
+   * THE SCORER KEEPS EVERY BALL (2026-11-05): one card a ball, picked by name.
+   * Every card stays mounted — hidden when not picked — so each keeps its own
+   * queue running (`usePendingCard`), and a hole tapped just before switching
+   * is still sent. Each save names its ball and carries the epoch.
+   */
+  const balls = role === "keeper" && props.strokeBalls && props.strokeBalls.length > 1 ? props.strokeBalls : null;
+  if (props.strokeCard && balls) {
+    const shown = balls.some((b) => b.id === ball) ? ball : balls[0].id;
+    return (
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+        {matchBar}
+        <div role="group" aria-label="Whose card" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          {balls.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className={b.id === shown ? "btn btn-primary" : "btn btn-secondary"}
+              aria-pressed={b.id === shown}
+              style={{ minHeight: 44 }}
+              onClick={() => setBall(b.id)}
+            >
+              {b.name}
+            </button>
+          ))}
+        </div>
+        {balls.map((b) => (
+          <div key={b.id} hidden={b.id !== shown} data-ball={b.id}>
+            <MatchStrokeKeeper
+              match={props.match!}
+              card={b.card}
+              holes={props.holes ?? 18}
+              pars={props.pars ?? []}
+              yards={props.yards ?? []}
+              strokeIndex={props.strokeIndex ?? []}
+              firstHole={props.firstHole ?? 1}
+              voiceEntry={props.voiceEntry}
+              submitWhole={props.submitWhole}
+              stageId={props.stageId ?? "play"}
+              holderId={b.id}
+              holderName={b.name}
+              roundLabel={props.roundLabel}
+              eventName={props.eventName}
+              otherMatches={otherMatches}
+              save={async (matchId, strokes) => {
+                const res = await savePlayMatchCard(matchId, strokes, { ...keeperOpts(), playerId: b.id });
+                heardKeeper(res);
+                return res;
+              }}
+              next={next}
+              footer={footer}
+            />
+          </div>
+        ))}
+        {matchCheck}
+      </Shell>
+    );
+  }
+
   if (props.strokeCard) {
     return (
       <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>

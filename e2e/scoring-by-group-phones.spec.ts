@@ -37,9 +37,10 @@ const ALPHABET = "ABCDEFGHJKMNPQRTWXYZ2346789";
 const code = () => "ZZ" + Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
 const MATCH_CODE = code();
 const CARD_CODE = code();
+const BALLS_CODE = code();
 const AILSA = "Ailsa Zzphones";
 const BRAM = "Bram Zzphones";
-const ids = { org: "", event: "", matchStage: "", cardStage: "", match: "", ailsa: "", bram: "" };
+const ids = { org: "", event: "", matchStage: "", cardStage: "", ballsStage: "", match: "", ballsMatch: "", ailsa: "", bram: "" };
 
 test.beforeAll(async () => {
   const org = await prisma.organization.create({ data: { name: `${MARK} society`, kind: "society" } });
@@ -129,6 +130,38 @@ test.beforeAll(async () => {
           startType: "tee",
           groups: [{ name: "Group 1", startHole: 1, time: "8:00 AM", playerIds: [ids.ailsa, ids.bram] }],
         }),
+      },
+    })
+  ).id;
+  // A match round kept on STROKE CARDS, with no sheet of its own: the match is the group.
+  ids.ballsStage = (
+    await prisma.stage.create({
+      data: {
+        eventId: event.id,
+        position: 2,
+        type: "Single Match Stage",
+        format: "Match Play",
+        description: "Zz singles on cards",
+        holes: 9,
+        nine: "front",
+        scoringBasis: "gross",
+        accessCode: BALLS_CODE,
+        matchKeptBy: "cards",
+        scoreKeeping: "group",
+        endCheck: "on",
+      },
+    })
+  ).id;
+  ids.ballsMatch = (
+    await prisma.match.create({
+      data: {
+        eventId: event.id,
+        stageId: ids.ballsStage,
+        groupId: group.id,
+        round: 1,
+        playerAId: ids.ailsa,
+        playerBId: ids.bram,
+        holes: JSON.stringify(new Array(9).fill(null)),
       },
     })
   ).id;
@@ -300,6 +333,43 @@ test("a stroke round: the scorer keeps the group's cards; the other player follo
   } finally {
     await ailsa.ctx.close();
     await bram.ctx.close();
+  }
+  expect(errors).toEqual([]);
+});
+
+test("a match kept on stroke cards: the scorer keeps both balls, picked by name", async ({ browser, baseURL }) => {
+  test.setTimeout(150_000);
+  const errors: string[] = [];
+  const ailsa = await newPhone(browser, baseURL!, errors, "Ailsa's phone, cards");
+  const slotCard = async (slot: "A" | "B") =>
+    JSON.parse((await prisma.matchScorecard.findFirst({ where: { matchId: ids.ballsMatch, slot }, select: { strokes: true } }))?.strokes ?? "[]") as (number | null)[];
+  try {
+    await test.step("Ailsa keeps the match: the round has no sheet of its own, so the match is the group", async () => {
+      await openRound(ailsa.page, BALLS_CODE, AILSA);
+      await expect(keeping(ailsa.page)).toHaveAttribute("data-keeping", "keeper", { timeout: 30_000 });
+      await expect(keeping(ailsa.page)).toContainText("You're keeping score for your match.");
+    });
+
+    await test.step("she picks Bram's ball by name, and his card is the one written", async () => {
+      const whose = ailsa.page.getByRole("group", { name: "Whose card" });
+      await expect(whose.getByRole("button")).toHaveText([AILSA, BRAM]);
+      await whose.getByRole("button", { name: BRAM }).click();
+      await expect(whose.getByRole("button", { name: BRAM })).toHaveAttribute("aria-pressed", "true");
+      await expect(ailsa.page.getByLabel("Strokes on hole 1")).toBeVisible();
+      await ailsa.page.getByRole("button", { name: /Par$/ }).click();
+      await expect.poll(async () => (await slotCard("B"))[0], { timeout: 15_000, message: "Bram's ball never reached his card" }).toBe(4);
+      expect((await slotCard("A"))[0] ?? null, "Ailsa's own card took Bram's ball").toBeNull();
+    });
+
+    await test.step("and back to her own ball", async () => {
+      const whose = ailsa.page.getByRole("group", { name: "Whose card" });
+      await whose.getByRole("button", { name: AILSA }).click();
+      await ailsa.page.getByRole("button", { name: /Birdie$/ }).click();
+      await expect.poll(async () => (await slotCard("A"))[0], { timeout: 15_000 }).toBe(3);
+      expect((await slotCard("B"))[0]).toBe(4);
+    });
+  } finally {
+    await ailsa.ctx.close();
   }
   expect(errors).toEqual([]);
 });
