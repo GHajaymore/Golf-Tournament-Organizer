@@ -91,7 +91,7 @@ const WEEK: Array<{ when: string; tab: string; who: string; h: string; p: string
     p: "Drawn from who's in, then yours to adjust. Every player has their group and tee time on their phone.",
     shot: "org-teesheet", alt: "The organizer's tee sheet: two pairing requests above the published draw." },
   { when: "Sat 08:05", tab: "The code", who: "Players", h: "They scan the sign.",
-    p: "Each round's printed sign carries a QR code and its eight-character code. Scan or type it, tap your name, and you're on your round. No account and no password.",
+    p: "Each round's printed sign carries a QR code and its eight-character code. Scan or type it, pick your group, and you're on your round. No account and no password.",
     shot: "club-today", alt: "A player's Today screen: the round, a pinned notice, their card so far and their position." },
   { when: "10:50", tab: "The card", who: "Players", h: "They tap the score, or say it.",
     p: "The card saves as they go, and keeps saving when there is no signal. In a match the organizer chooses how it is kept: one tap for who won each hole, or stroke cards with gross and net.",
@@ -166,7 +166,7 @@ const AUDIENCES: Array<{ id: string; who: string; h: string; p: string; href: st
  */
 const ANSWERS: Array<{ q: string; a: string; href: string }> = [
   { q: "Do players need an app?",
-    a: "No. They scan the round's sign or open a link, tap their name, and score in the browser. It saves to the home screen if they want it there.",
+    a: "No. They scan the round's sign or open a link, pick their group, and score in the browser. It saves to the home screen if they want it there.",
     href: "/faq#q-app" },
   { q: "Does it take entry fees?",
     a: "No, and that is a choice. Your club takes its entry fees the way it does today, and TourneyHQ keeps the record: every amount worked out, nothing held or moved.",
