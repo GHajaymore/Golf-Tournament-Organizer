@@ -5,6 +5,9 @@
       "mcp__plugin_gitkraken_gitkraken__git_stash"
     ]
   },
+  "worktree": {
+    "symlinkDirectories": ["node_modules"]
+  },
   "hooks": {
     "PreToolUse": [
       {
