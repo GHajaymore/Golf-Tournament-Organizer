@@ -241,8 +241,15 @@ test.describe("a round code before the page's script", () => {
       // The one confirmation, drawn by the server with no script (2026-11-04), then the card.
       const yes = page.getByRole("button", { name: "Yes, that's right" });
       await expect(yes).toBeVisible({ timeout: 25_000 });
-      await yes.click();
-      await expect(page.getByLabel("Strokes on hole 1")).toBeVisible({ timeout: 25_000 });
+      expect(await isLive(page), "the confirmation went live, so this did not test it without script").toBe(false);
+      // BOUNDED: on the iPhone's engine this page was in the document but never painted — it waited
+      // for scripts that had already failed once — and the press never left Playwright's "stable"
+      // check, for 108 s (round scoring-by-group-1-2). Stopped and painted, it takes the press
+      // within its 1.5 s grace; fifteen seconds is generous, and a hang is named here, not at 120.
+      const yesAt = Date.now();
+      await yes.click({ timeout: 15_000 });
+      await expect(page.getByLabel("Strokes on hole 1"), "Yes, that's right, posted without script, did not open the card").toBeVisible({ timeout: 15_000 });
+      expect(Date.now() - yesAt, "Yes, that's right took too long to open the card without script").toBeLessThan(20_000);
       await expect(page.getByText(NAMES[2]).first()).toBeVisible();
       // A pad drawn before its script is a picture of one, and says so by being disabled.
       await expect(page.getByRole("button", { name: /Par$/ }).first()).toBeDisabled();

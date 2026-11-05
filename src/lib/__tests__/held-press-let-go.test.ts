@@ -20,12 +20,21 @@ const script = (() => {
 
 type Listener = (e: unknown) => void;
 
-function aPage(store: Map<string, string>, live = false) {
+/**
+ * What the page's form is: "held" (the code box, the names — `data-held-until-live`), "plain" (the
+ * confirmation and whose-card forms — `data-plain-post`), or "card": a page whose form, if any, is
+ * neither, and works only with its script.
+ */
+type PageKind = "held" | "plain" | "card";
+const MARKS: Record<PageKind, string[]> = { held: ["data-held-until-live"], plain: ["data-plain-post"], card: [] };
+
+function aPage(store: Map<string, string>, live = false, kind: PageKind = "held") {
   const timers: Array<() => void> = [];
   const listeners: Record<string, Listener[]> = {};
   const calls = { stop: 0, requestSubmit: 0, prevented: 0 };
+  const marks = MARKS[kind];
   const form: Record<string, unknown> = {
-    hasAttribute: (n: string) => n === "data-held-until-live",
+    hasAttribute: (n: string) => marks.includes(n),
     getAttribute: () => "name",
     requestSubmit: () => (calls.requestSubmit += 1),
   };
@@ -34,7 +43,8 @@ function aPage(store: Map<string, string>, live = false) {
   const document = {
     readyState: "loading",
     addEventListener: (type: string, fn: Listener) => (listeners[type] ??= []).push(fn),
-    querySelector: () => form,
+    // Answers the selector it is asked, as the browser does: a page with no such form has none.
+    querySelector: (sel: string) => (marks.some((m) => sel.includes(`[${m}]`)) ? form : null),
   };
   const context: Record<string, unknown> = {
     document,
@@ -77,11 +87,58 @@ describe("a held press that had to be let go", () => {
     expect(next.calls.stop, "the page the plain post opened kept waiting for scripts that had already failed once").toBe(1);
     next.press();
     expect(next.calls.prevented, "a press on a stopped page was held for scripts that will not come").toBe(0);
-    // The mark is spent: a third page waits for its scripts as usual.
-    const third = aPage(store);
-    third.fire("DOMContentLoaded");
-    third.runTimers();
-    expect(third.calls.stop).toBe(0);
+  });
+
+  it("a page stopped and left without a press spends the mark: the next page waits for its scripts as usual", () => {
+    const store = new Map([["thqLetGoAt", String(Date.now())]]);
+    const stopped = aPage(store);
+    stopped.fire("DOMContentLoaded");
+    stopped.runTimers();
+    expect(stopped.calls.stop).toBe(1);
+    // Left by a link, not a press on its form: nothing passes the mark on.
+    const after = aPage(store);
+    after.fire("DOMContentLoaded");
+    after.runTimers();
+    expect(after.calls.stop).toBe(0);
+  });
+
+  /**
+   * THE WALK IS THREE PAGES WITHOUT SCRIPT SINCE THE ONE CONFIRMATION (2026-11-05). Round
+   * scoring-by-group-1-2, iPhone's engine: the code was let go, the names page was stopped and the
+   * name went at once — and the confirmation it opened waited for its scripts again, never painted,
+   * and "Yes, that's right" never took a press. A press from a stopped page passes the mark on.
+   */
+  it("a press from a stopped page passes the mark on: the confirmation is stopped too, and the card never is", () => {
+    const store = new Map([["thqLetGoAt", String(Date.now())]]);
+    const names = aPage(store, false, "held");
+    names.fire("DOMContentLoaded");
+    names.runTimers();
+    expect(names.calls.stop).toBe(1);
+    names.press();
+    expect(names.calls.prevented, "the name was held on a page whose scripts had stopped").toBe(0);
+
+    const confirm = aPage(store, false, "plain");
+    confirm.fire("DOMContentLoaded");
+    confirm.runTimers();
+    expect(confirm.calls.stop, "the confirmation kept waiting for scripts that had failed once (unpainted on Safari)").toBe(1);
+    confirm.press();
+    expect(confirm.calls.prevented, "Yes, that's right was held on a stopped page").toBe(0);
+
+    // The card: its pad needs its script, which may yet come — it is never stopped.
+    const card = aPage(store, false, "card");
+    card.fire("DOMContentLoaded");
+    card.runTimers();
+    expect(card.calls.stop, "the card was stopped, and its pad can never wake").toBe(0);
+  });
+
+  it("CONTROL: a plain form on a page that was NOT stopped neither is held nor passes a mark on", () => {
+    const store = new Map<string, string>();
+    const confirm = aPage(store, false, "plain");
+    confirm.fire("DOMContentLoaded");
+    confirm.runTimers();
+    confirm.press();
+    expect(confirm.calls.prevented, "a plain form was held").toBe(0);
+    expect(store.size, "a plain post from a page with its scripts coming left a mark").toBe(0);
   });
 
   it("CONTROL: with no let-go, or once the page is live, nothing is stopped", () => {

@@ -628,8 +628,11 @@ function PlayScreens(props: Props) {
             )}
             {/* Plain forms, so the same two answers work with no script: yes is
                 posted as confirmed (`claimPlayerSlotForm`), no asks for the list
-                again (`redeemRoundCodeForm`). With a script, both are taken here. */}
-            <form action={postName}>
+                again (`redeemRoundCodeForm`). With a script, both are taken here.
+                `data-plain-post` tells `HeldBeforeLoad` this page works without
+                script, so on a walk whose scripts never came it is stopped and
+                painted (Safari) rather than left waiting for them. */}
+            <form action={postName} data-plain-post="">
               <input type="hidden" name="code" value={code} />
               {target.kind === "group" ? (
                 <input type="hidden" name="group" value={target.group.key} />
@@ -650,7 +653,7 @@ function PlayScreens(props: Props) {
                 {pending ? "Opening…" : keepingYes(target)}
               </button>
             </form>
-            <form action={postCode}>
+            <form action={postCode} data-plain-post="">
               <input type="hidden" name="code" value={code} />
               <button
                 type="submit"
@@ -684,7 +687,7 @@ function PlayScreens(props: Props) {
               <Icon name="warning-circle" /> {error}
             </p>
           )}
-          <form action={postName} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <form action={postName} data-plain-post="" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <input type="hidden" name="code" value={code} />
             <input type="hidden" name="group" value={group.key} />
             <input type="hidden" name="confirmed" value="yes" />
@@ -706,7 +709,7 @@ function PlayScreens(props: Props) {
               </button>
             ))}
           </form>
-          <form action={postCode}>
+          <form action={postCode} data-plain-post="">
             <input type="hidden" name="code" value={code} />
             <button
               type="submit"
