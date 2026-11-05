@@ -23,9 +23,6 @@ import { entryRefusalFor, playerEntryRefusal, playersMayEnter, ORGANIZER_KEEPS_T
  * With a control that proves the sweep sees a bare call.
  */
 
-/** Waiting for phase 2, by name: sprint 1 holds the file until it merges. */
-const PHASE_2 = new Set(["src/app/play/page.tsx"]);
-
 function filesUnder(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name).replace(/\\/g, "/");
@@ -45,13 +42,13 @@ const ROUND_DOORS = [
   "src/app/(player)/me/card/page.tsx",
   "src/app/(player)/me/match/page.tsx",
   "src/lib/services/me.ts",
+  // The round-code screen, moved onto the one gate by phase 2 (2026-11-05).
+  "src/app/play/page.tsx",
 ];
 
 describe("every gate on a player's scores asks the round", () => {
-  it("nothing asks the tournament-only question as a player (bar the one file phase 2 owns)", () => {
-    const offenders = filesUnder("src")
-      .filter((f) => !PHASE_2.has(f))
-      .filter((f) => asksTheTournamentAsAPlayer(readSource(f)));
+  it("nothing asks the tournament-only question as a player", () => {
+    const offenders = filesUnder("src").filter((f) => asksTheTournamentAsAPlayer(readSource(f)));
     expect(offenders, "ask playersMayEnter / playerEntryRefusal(settings, stage) instead").toEqual([]);
   });
 
@@ -61,9 +58,6 @@ describe("every gate on a player's scores asks the round", () => {
     expect(src).toMatch(/\b(playersMayEnter|playerEntryRefusal|entryRefusalFor|entryRefusal|playerRoundRefusal)\(/);
   });
 
-  it("the phase-2 file is still the one exception, and it still asks as a player (so this entry comes off with it)", () => {
-    for (const f of PHASE_2) expect(asksTheTournamentAsAPlayer(readSource(f)), f).toBe(true);
-  });
 
   it("CONTROL: the sweep sees a bare call, in either spelling, and not one in a comment", () => {
     expect(asksTheTournamentAsAPlayer(`if (!canEnterScores(settings, "player")) return;`)).toBe(true);

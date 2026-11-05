@@ -76,6 +76,16 @@ export function groupKeyFor(playerId: string, ctx: KeepingContext): string | nul
   return ctx.casual ? WHOLE_ROUND : null;
 }
 
+/**
+ * Whether a tournament has a published tee sheet to take its groups from —
+ * the round's own, or else the tournament's first (`keepingContextFor` reads
+ * the same rows the same way). False means: until one is published, each
+ * player keeps their own card (a match is its own group).
+ */
+export function groupsArePublished(stages: ReadonlyArray<{ teeSheetPublished: boolean; teeSheet: string | null }>): boolean {
+  return stages.some((s) => s.teeSheetPublished && (s.teeSheet ?? "").trim() !== "");
+}
+
 /** Said when "I'll keep score" is pressed on a round with no groups yet. */
 export const NO_GROUPS_YET =
   "Groups come from the tee sheet, and it isn't published yet, so each player keeps their own card for now.";

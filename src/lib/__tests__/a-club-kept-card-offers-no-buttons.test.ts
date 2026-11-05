@@ -66,9 +66,8 @@ describe("the server refuses by that predicate", () => {
    * one gate that holds both — `playerEntryRefusal` (domain/round-scoring.ts),
    * through play.ts's `entryRefusal`, which loads the session's round — and
    * every writer returns its sentence before it writes. The TOURNAMENT half is
-   * still `canEnterScores`' answer exactly, pinned below, so the page (which
-   * asks `canEnterScores` until phase 2 teaches it the round) and the server
-   * cannot disagree about a club-kept tournament.
+   * still `canEnterScores`' answer exactly, pinned below; the page asks the same
+   * gate of the same round (phase 2, 2026-11-05), so the two cannot disagree.
    */
   it("every writer on /play refuses a player through the one gate, asked of the session's round", () => {
     expect(play).toMatch(/import \{[^}]*playerEntryRefusal[^}]*\} from "@\/lib\/domain\/round-scoring"/);
@@ -99,13 +98,20 @@ describe("the server refuses by that predicate", () => {
   });
 });
 
+/**
+ * Since 2026-11-05 (phase 2) the page asks the server's ONE gate itself —
+ * `playerEntryRefusal(settings, round)` — so a round the organizer keeps from
+ * paper cards draws the club-kept screen too, not only a club-kept tournament.
+ */
+const PAGE_GATE = /const refused = playerEntryRefusal\(settings, codeStage\);\s*if \(refused\) \{/;
+
 describe("the page asks the same predicate before it offers a button", () => {
-  it("imports canEnterScores from the module the server does", () => {
-    expect(page).toMatch(/import \{[^}]*canEnterScores[^}]*\} from "@\/lib\/tournament-settings"/);
+  it("imports the one gate from the module the server does", () => {
+    expect(page).toMatch(/import \{[^}]*playerEntryRefusal[^}]*\} from "@\/lib\/domain\/round-scoring"/);
   });
 
-  it("asks it as a player, and draws the club-kept screen when it says no", () => {
-    const gate = page.indexOf('if (!canEnterScores(settings, "player")) {');
+  it("asks it of the round, and draws the club-kept screen when it says no", () => {
+    const gate = page.search(PAGE_GATE);
     expect(gate, "the page does not ask the server's question").toBeGreaterThan(-1);
     const kept = page.indexOf('stage="staff-kept"', gate);
     expect(kept, "the answer does not draw the club-kept screen").toBeGreaterThan(gate);
@@ -115,7 +121,7 @@ describe("the page asks the same predicate before it offers a button", () => {
   });
 
   it("asks it before ANY screen with score buttons is drawn", () => {
-    const gate = page.indexOf('if (!canEnterScores(settings, "player")) {');
+    const gate = page.indexOf("const refused = playerEntryRefusal(settings, codeStage);");
     for (const stage of ['stage="card"', 'stage="score"']) {
       const at = page.indexOf(stage);
       expect(at, `${stage} is not on the page`).toBeGreaterThan(-1);

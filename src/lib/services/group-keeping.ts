@@ -255,6 +255,32 @@ export async function keeperFor(
   };
 }
 
+/**
+ * What a group is CALLED on the screen that says who keeps it: the published
+ * tee sheet's own name for it ("Group 3"), else "your match" or "your group".
+ * The same sheet `keepingContextFor` reads the group from, so the name and the
+ * people cannot come from two different sheets.
+ */
+export async function groupTitleFor(eventId: string, stageId: string, groupKey: string): Promise<string> {
+  if (groupKey.startsWith("match:")) return "Your match";
+  if (!groupKey.startsWith("tee:")) return "Your group";
+  const members = new Set(groupKey.slice(4).split(",").filter(Boolean));
+  const sheets = await prisma.stage.findMany({
+    where: { eventId, teeSheetPublished: true, NOT: { teeSheet: "" } },
+    orderBy: { position: "asc" },
+    select: { id: true, teeSheet: true },
+  });
+  const own = sheets.find((s) => s.id === stageId) ?? sheets[0];
+  const groups = own ? parseTeeSheet(own.teeSheet)?.groups ?? [] : [];
+  // The sheet's group holding exactly these people, once withdrawn names are
+  // left out — the narrowing `publishedFoursomes` makes.
+  const named = groups.find((g) => {
+    const here = g.playerIds.filter((id) => members.has(id));
+    return here.length === members.size && here.length > 0;
+  });
+  return named?.name?.trim() || "Your group";
+}
+
 /** How many DIFFERENT players have entered a score on this round — for refusing a late switch to one scorer. */
 export async function playersWhoEntered(eventId: string, stageId: string): Promise<number> {
   const [matches, cards] = await Promise.all([

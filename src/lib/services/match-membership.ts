@@ -65,7 +65,7 @@ export async function mayWriteMatch(input: {
   match: MatchSidesRow & { stageId: string };
   actorIds: readonly string[];
   epoch: number | undefined;
-}): Promise<{ ok: true; epoch: number | null } | { ok: false; error: string }> {
+}): Promise<{ ok: true; epoch: number | null } | { ok: false; error: string; keeperName?: string }> {
   const kept = await keeperGate({
     eventId: input.eventId,
     stageId: input.match.stageId,
@@ -73,7 +73,9 @@ export async function mayWriteMatch(input: {
     targetIds: await playersInMatch(input.match),
     epoch: input.epoch,
   });
-  if (kept.applies) return kept.ok ? { ok: true, epoch: kept.epoch } : { ok: false, error: kept.error };
+  if (kept.applies) {
+    return kept.ok ? { ok: true, epoch: kept.epoch } : { ok: false, error: kept.error, keeperName: kept.keeperName };
+  }
   return (await isInMatch(input.match, input.actorIds))
     ? { ok: true, epoch: null }
     : { ok: false, error: "You can only enter scores for your own match." };

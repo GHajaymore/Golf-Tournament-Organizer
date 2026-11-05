@@ -71,6 +71,12 @@ export interface RedeemResult {
   eventId?: string;
   eventName?: string;
   roundLabel?: string;
+  /**
+   * The round is kept by ONE SCORER PER GROUP (2026-11-05, phase 2): the phone
+   * keeps the whole group's card, so "whose card" in a group of stroke cards is
+   * asked as "which one are you".
+   */
+  keepsGroups?: boolean;
 }
 
 export async function redeemRoundCode(input: string): Promise<RedeemResult> {
@@ -121,6 +127,7 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     // Which round and which holes, so the wrong nine's code shows on the
     // first screen after it is typed.
     roundLabel: roundCodeName(stages, stages.find((s) => s.id === stage.id) ?? stage),
+    keepsGroups: roundScoring(stage).scoreKeeping === "group",
   };
 }
 
@@ -211,6 +218,12 @@ export interface ClaimResult {
    * on a round where each player keeps their own.
    */
   epoch?: number;
+  /**
+   * A save REFUSED because the group's card is kept on another phone: whose
+   * (2026-11-05, phase 2). The screen then stops claiming progress — the pad
+   * read "18/18 holes" under the refusal — and follows the group instead.
+   */
+  keptBy?: string;
 }
 
 /**
@@ -288,7 +301,7 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
 
   const player = await prisma.player.findFirst({
     where: { id: playerId, eventId: stage.eventId, status: "confirmed" },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   // Same message as a bad code. Saying "pick your name from the list" here
   // would confirm that the code was real — turning a failed claim into a
@@ -301,6 +314,19 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
   // The stored code, not the typed one, so the session is bound to the row a
   // reissue will overwrite.
   await createPlaySession(stage.id, player.id, stage.accessCode);
+  /**
+   * THE ONE CONFIRMATION IS THE CLAIM (2026-11-05, phase 2). "You're keeping
+   * Group 3: …" was said and answered yes, so on a round kept by one scorer per
+   * group this phone keeps the group's card — unless somebody already does, in
+   * which case nothing moves and the card opens following theirs ("Group 3 is
+   * being kept on Ann's phone"), with Take over one press away. Never a
+   * take-over: a second phone confirming the same group must not cut the first
+   * one off. An upsert (`claimGroup`), so two phones confirming at once leave
+   * one scorer. Only where a player may enter at all.
+   */
+  if (roundScoring(stage).scoreKeeping === "group" && playerEntryRefusal(settingsOf(stage.event), stage) === null) {
+    await claimGroup({ eventId: stage.eventId, stageId: stage.id, actorId: player.id, actorName: player.name, takeOver: false });
+  }
   revalidatePath("/play");
   return { ok: true };
 }
@@ -348,6 +374,7 @@ export interface ClaimFormState extends ClaimResult {
   eventId?: string;
   eventName?: string;
   roundLabel?: string;
+  keepsGroups?: boolean;
 }
 
 export async function claimPlayerSlotForm(_before: ClaimFormState | null, form: FormData): Promise<ClaimFormState> {
@@ -359,7 +386,14 @@ export async function claimPlayerSlotForm(_before: ClaimFormState | null, form: 
   if (!confirmed || (groupKey && !playerId)) {
     const round = await redeemRoundCode(code);
     if (!round.ok) return { ok: false, error: round.error };
-    const context = { code: normalizeAccessCode(code), stageId: round.stageId, eventId: round.eventId, eventName: round.eventName, roundLabel: round.roundLabel };
+    const context = {
+      code: normalizeAccessCode(code),
+      stageId: round.stageId,
+      eventId: round.eventId,
+      eventName: round.eventName,
+      roundLabel: round.roundLabel,
+      keepsGroups: round.keepsGroups,
+    };
     const group = groupKey ? round.groups?.find((g) => g.key === groupKey) : undefined;
     const player = playerId ? round.players?.find((p) => p.id === playerId) : undefined;
     if (!group && !player) return { ok: false, error: "That code isn't valid.", ...context };
@@ -442,7 +476,7 @@ export async function savePlayMatchHoles(
   // round kept by one scorer per group, a match in the group whose card this
   // phone keeps (`mayWriteMatch`, services/match-membership.ts).
   const may = await mayWriteMatch({ eventId: session.eventId, match, actorIds: [session.playerId], epoch: sentEpoch(opts) });
-  if (!may.ok) return { ok: false, error: may.error };
+  if (!may.ok) return { ok: false, error: may.error, ...(may.keeperName !== undefined ? { keptBy: may.keeperName } : {}) };
 
   // The payload itself, which nothing checked until now. The signature says
   // Array<"A"|"B"|"H"|null> and that type is erased at runtime, so what
@@ -564,7 +598,7 @@ export async function savePlayMatchResult(
   // Same rule as savePlayMatchHoles (`mayWriteMatch`): their own match, or on
   // a round kept by one scorer per group, a match whose card this phone keeps.
   const may = await mayWriteMatch({ eventId: session.eventId, match, actorIds: [session.playerId], epoch: sentEpoch(opts) });
-  if (!may.ok) return { ok: false, error: may.error };
+  if (!may.ok) return { ok: false, error: may.error, ...(may.keeperName !== undefined ? { keptBy: may.keeperName } : {}) };
 
   const resultStage = await prisma.stage.findUnique({
     where: { id: match.stageId },
@@ -693,7 +727,7 @@ export async function savePlayCard(strokes: (number | null)[], opts?: PlaySaveOp
     targetIds: [asked],
     epoch: sentEpoch(opts),
   });
-  if (kept.applies && !kept.ok) return { ok: false, error: kept.error };
+  if (kept.applies && !kept.ok) return { ok: false, error: kept.error, ...(kept.keeperName !== undefined ? { keptBy: kept.keeperName } : {}) };
   if (asked !== session.playerId) {
     if (!kept.applies) return { ok: false, error: "You can only enter your own card." };
     const target = await prisma.player.findFirst({
@@ -865,7 +899,7 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
   // May this phone write this match at all: its own, or on a round kept by one
   // scorer per group, one in the group whose card it keeps (`mayWriteMatch`).
   const may = await mayWriteMatch({ eventId: session.eventId, match, actorIds: [session.playerId], epoch: sentEpoch(opts) });
-  if (!may.ok) return { ok: false, error: may.error };
+  if (!may.ok) return { ok: false, error: may.error, ...(may.keeperName !== undefined ? { keptBy: may.keeperName } : {}) };
   // Whose ball this card is: the session's — or, for the group's scorer, the
   // player they name in the match. Never anybody outside it.
   const asked = typeof opts?.playerId === "string" && opts.playerId ? opts.playerId : session.playerId;

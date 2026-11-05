@@ -78,19 +78,9 @@ const NO_CALLER_YET: Record<string, string> = {
    * capability is built and nobody can use it, which is the state that
    * produced every one of those four.
    */
-  /**
-   * One scorer per group and the end-of-round check, from a round code
-   * (2026-11-04, sprint 2 part B). Phase 1 shipped the server rules while
-   * sprint 1 rebuilt the /play screens (PlayClient, app/play/page.tsx); phase 2
-   * draws the buttons — "I'll keep score", "Take over", "Hand over", "Confirm
-   * result", "That's not right" — and these come off then, due Wed 11 Nov. Until
-   * then e2e/scoring-by-group-server.spec.ts presses each through its endpoint.
-   */
-  keepGroup: "phase 2 of sprint 2 part B: /play's \"I'll keep score\" and \"Take over\"",
-  handOverGroup: "phase 2 of sprint 2 part B: /play's \"Hand over the card\" to someone in the group",
-  confirmPlayMatch: "phase 2 of sprint 2 part B: /play's end-of-round \"Confirm result\" for the other side",
-  disputePlayMatch: "phase 2 of sprint 2 part B: /play's end-of-round \"That's not right\" for the other side",
-  disputePlayCard: "phase 2 of sprint 2 part B: /play's \"My card is wrong\" at the end-of-round check",
+  // The five round-code actions of sprint 2 part B (keepGroup, handOverGroup,
+  // confirmPlayMatch, disputePlayMatch, disputePlayCard) came off on
+  // 2026-11-05: phase 2 draws their buttons on /play (`PlayGroupKeeping.tsx`).
 };
 
 describe("no server action is unreachable", () => {

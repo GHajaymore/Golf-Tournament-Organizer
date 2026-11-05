@@ -22,6 +22,17 @@ export interface GroupPartner {
   status?: string;
 }
 
+/** Saves one partner's card: the stored card and its revision, or the card a conflict found. Throw to refuse. */
+export type PartnerSave = (
+  stageId: string,
+  partnerId: string,
+  strokes: (number | null)[],
+  revision: string,
+) => Promise<
+  | { ok: true; revision: string; stored: (number | null)[] }
+  | { ok: false; conflict: { revision: string; strokes: (number | null)[] } }
+>;
+
 /**
  * ONE PHONE, THE WHOLE FOURSOME — the marker system on a screen.
  *
@@ -61,7 +72,14 @@ export function GroupScoring({
   firstHole = 1,
   dense = false,
   offerPickUp = false,
+  savePartner,
 }: {
+  /**
+   * How a partner's card is saved. The signed-in card's `saveScorecard` by
+   * default; the round-code card passes its own (`savePlayCard` with the
+   * group's epoch, 2026-11-05) — the same answer shape, so the same queue.
+   */
+  savePartner?: PartnerSave;
   /**
    * A STANDARD STABLEFORD round: every row on the hole may pick up (Rule
    * 21.1b), recorded as that player's own net double bogey — zero points, the
@@ -142,6 +160,7 @@ export function GroupScoring({
           partner={p}
           strokes={cards[p.id]}
           holding={holding(cards[p.id] ?? [])}
+          save={savePartner}
           onStatus={report}
           onTheirs={takeTheirs}
         />
@@ -221,6 +240,7 @@ function PartnerQueue({
   partner,
   strokes,
   holding,
+  save,
   onStatus,
   onTheirs,
 }: {
@@ -228,6 +248,8 @@ function PartnerQueue({
   partner: GroupPartner;
   strokes: (number | null)[] | undefined;
   holding: boolean;
+  /** Absent: the signed-in card's own `saveScorecard`, looked up only when a card is sent. */
+  save?: PartnerSave;
   onStatus: (id: string, s: SyncStatus, holes: HoleSync[]) => void;
   onTheirs: (id: string, name: string, strokes: (number | null)[]) => void;
 }) {
@@ -251,7 +273,7 @@ function PartnerQueue({
     drawnFrom: drawn,
     cells: (v) => v,
     send: async (value) => {
-      const res = await saveScorecard(stageId, partner.id, value, revision.current);
+      const res = await (save ?? saveScorecard)(stageId, partner.id, value, revision.current);
       if (!res.ok) {
         // Theirs wins. Answering with their card empties the queue, which is
         // the point: a retry would overwrite the partner's own entry the moment

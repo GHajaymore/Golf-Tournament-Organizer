@@ -26,6 +26,7 @@ import { GOLF_FORMATS, declaredInput, inputChoices, entryModeFor, formatTagline,
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { MATCH_KEPT_BY, keptByScoreInput, matchKeptBy, type MatchKeptBy } from "@/lib/domain/match-kept-by";
 import { SCORE_KEEPING, endCheckLabel, roundScoring, scoringSummary, type EndCheck, type ScoreKeeping } from "@/lib/domain/round-scoring";
+import { noSheetWarning } from "@/lib/domain/keeping-words";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
 import { SaveState, useSaveStatus } from "./SaveState";
@@ -116,6 +117,12 @@ export interface StageView {
   scoreKeeping?: string;
   /** The end-of-round check, as stored. Read through `roundScoring`. */
   endCheck?: string;
+  /**
+   * The tournament has a published tee sheet to take groups from
+   * (`groupsArePublished`). Without one, a round kept by one scorer per group
+   * has no groups yet and each player keeps their own card — said on the card.
+   */
+  groupsPublished?: boolean;
   /** The organizer has declared this round over. See `RoundClosedControl`. */
   closed: boolean;
   carryEnabled: boolean;
@@ -2338,6 +2345,14 @@ function StageCard({
                           </div>
                         </fieldset>
                       </div>
+                    )}
+                    {/* GROUPS COME FROM THE TEE SHEET (2026-11-05): before it is published a
+                        round kept by one scorer per group has no groups, so each player keeps
+                        their own card (a match is its own group). Said here, where it is chosen. */}
+                    {scoringNow.scoreKeeping === "group" && stage.groupsPublished === false && (
+                      <p data-testid={`round-scoring-no-sheet-${stage.id}`} style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.5 }}>
+                        <Icon name="info" /> {noSheetWarning(matchPlay)}
+                      </p>
                     )}
                     {scoringRefusal && (
                       <p role="alert" style={{ margin: "6px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
