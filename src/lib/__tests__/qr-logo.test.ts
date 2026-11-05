@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import qrcode from "qrcode-generator";
 import jsQR from "jsqr";
 import { roundCodeLink } from "../code-format";
-import { LOGO_AREA, logoBox, qrModules, qrPath, type QrEncoder } from "../qr";
+import { LOGO_AREA, QR_WORDMARK_MIN_MM, logoBox, qrModules, qrPath, showsWordmark, type QrEncoder } from "../qr";
+import { readSource } from "./source";
 
 /**
  * THE TOURNEYHQ MARK IN THE CENTRE OF A PRINTED QR (2026-11-05).
@@ -148,5 +149,22 @@ describe("a code with the mark in it still reads", () => {
     const to = (14 + 7 + 4) * px;
     for (let y = from; y < to; y++) for (let x = from; x < to; x++) data.fill(255, (y * side + x) * 4, (y * side + x) * 4 + 3);
     expect(jsQR(data, side, side)?.data ?? null).toBe(link);
+  });
+});
+
+describe("the name under the code (Ajay, 2026-11-05)", () => {
+  it("goes under the signs' codes and is left off the scorecard's small corner code", () => {
+    // The print kit's sizes: a cart sign 40 mm (32 mm with two codes), the spare sign 60 mm, the card corner 16 mm.
+    for (const mm of [32, 40, 60]) expect(showsWordmark(mm), `${mm} mm`).toBe(true);
+    expect(showsWordmark(16)).toBe(false);
+    expect(QR_WORDMARK_MIN_MM).toBeGreaterThan(16);
+  });
+
+  it("is drawn outside the code's own drawing, never inside the centre box", () => {
+    const src = readSource("src/components/print/PrintPages.tsx");
+    const qr = src.slice(src.indexOf("function Qr("), src.indexOf("function CartSign("));
+    expect(qr).toContain("showsWordmark(mm)");
+    // The name follows the closing </svg>: a word inside the code would cover modules the reader needs.
+    expect(qr.indexOf("pk-qrword")).toBeGreaterThan(qr.indexOf("</svg>"));
   });
 });

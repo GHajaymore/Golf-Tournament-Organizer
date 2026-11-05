@@ -25,6 +25,19 @@ export interface QrEncoder {
  */
 export const LOGO_AREA = 0.15;
 
+/**
+ * The name under a printed code (Ajay, 2026-11-05: "add the TourneyHQ right below the logo").
+ * It goes UNDER the code, never inside it: a word in the centre box would have to grow the box
+ * past `LOGO_AREA` and would still be too small to read. Below this width it is left off — on a
+ * scorecard's small corner code it would print as a smudge, not a name.
+ */
+export const QR_WORDMARK_MIN_MM = 30;
+
+/** Whether a code printed `mm` wide carries the name under it. */
+export function showsWordmark(mm: number): boolean {
+  return mm >= QR_WORDMARK_MIN_MM;
+}
+
 /** The modules of `text` as rows of dark (true) and light (false). */
 export function qrModules(encode: QrEncoder, text: string, opts: { logo?: boolean } = {}): boolean[][] {
   // M: a sign in a cart gets scuffed and rained on, and M survives about 15%

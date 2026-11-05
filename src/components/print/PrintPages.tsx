@@ -3,6 +3,8 @@ import { Fragment } from "react";
 import type React from "react";
 import { PrintStamp } from "./PrintStamp";
 import { QrLogoMark } from "../QrLogoMark";
+import { BrandMark } from "../BrandMark";
+import { showsWordmark } from "@/lib/qr";
 import { holeNumber, startHoleNumber } from "@/lib/domain/hole-number";
 import { indexFigure } from "@/lib/domain/handicap-label";
 import {
@@ -620,6 +622,12 @@ function Qr({ code, mm }: { code: KitCode; mm: number }) {
         <path d={code.qr.d} fill="#000" />
         {code.qr.logo && <QrLogoMark logo={code.qr.logo} />}
       </svg>
+      {/* The name under the code, outside it (`showsWordmark`): never in the centre box. */}
+      {code.qr.logo && showsWordmark(mm) && (
+        <span className="pk-qrword" data-qr-word="">
+          <BrandMark size={0} style={{ fontSize: "9pt", color: "#000" }} />
+        </span>
+      )}
     </a>
   );
 }
@@ -869,6 +877,9 @@ const PAPER_RULES = `
 .pk-qr { display: block; flex: none; }
 /* A QR is a link on screen and only ink on paper: no underline, no colour, no focus ring left in a print. */
 .pk-qrlink { display: block; color: inherit; text-decoration: none; flex: none; }
+/* The name under a printed code (2026-11-05), centred on it: one 9 pt line, ink on paper. */
+.pk-qrword { display: block; text-align: center; line-height: 1.2; margin-top: 0.6mm; }
+.pk-qrword .brand-hq, .pk-qrword .brand-mark { color: #000; }
 /* The scorecard's corner (2026-11-05): a ${CARD_QR_MM} mm QR and its typed code, bottom right, beside the signature
    lines, the note and the foot, which stop 23 mm short of the right edge to leave it. With four players the grid ends
    about 22 mm above the bottom; the block is ${CARD_QR_MM} + one 8 pt line (4.2 mm) = about 20 mm. */
