@@ -889,10 +889,13 @@ const PAPER_RULES = `
 .pk-qrword .brand-mark, .pk-qrword .brand-hq { line-height: 1.4; }
 /* The scorecard's corner (2026-11-05): a ${CARD_QR_MM} mm QR and its typed code, bottom right, beside the signature
    lines, the note and the foot, which stop 23 mm short of the right edge to leave it. With four players the grid ends
-   about 22 mm above the bottom; the block is ${CARD_QR_MM} + one 8 pt line (4.2 mm) = about 20 mm. */
+   about 21 mm above the bottom; the block is ${CARD_QR_MM} + one 7 pt line (3.5 mm) = about 19.5 mm. It was 8 pt
+   and 20.2 mm and the fit test found the QR's top touching the grid of a card with four players (CI 41952562815);
+   the 0.8 mm the grid keeps above itself is given back on a card that has the corner. */
+.pk-hasqr .pk-grid { margin-top: 0; }
 .pk-hasqr .pk-sigs, .pk-hasqr .pk-note, .pk-hasqr .pk-foot { margin-right: 23mm; }
 .pk-cardcode { position: absolute; right: 0; bottom: 0; width: 20mm; display: flex; flex-direction: column; align-items: center; }
-.pk-cardcode-text { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 8pt; font-weight: 700; line-height: ${LINE}; white-space: nowrap; }
+.pk-cardcode-text { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 7pt; font-weight: 700; line-height: 1.4; white-space: nowrap; }
 .pk-code { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 40pt; font-weight: 700; line-height: 1.35; letter-spacing: 0.02em; white-space: nowrap; margin-top: 0.5mm; }
 .pk-code-split { text-align: center; }
 .pk-code-big { font-size: 48pt; }
