@@ -2,7 +2,7 @@ import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf, loadEventState } from "@/lib/services/tournament";
-import { allowsAutoConfirm, isLeaderboardPublic, canEnterScores } from "@/lib/tournament-settings";
+import { allowsAutoConfirm, isLeaderboardPublic, canEnterScores, mayOpenBoard } from "@/lib/tournament-settings";
 import { courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { brandForEvent, golfTermsForEvent } from "@/lib/services/organization";
@@ -89,8 +89,14 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
   if (!event) return <PlayClient stage="code" />;
 
   const settings = settingsOf(event);
-  // The board a code holder may open: only one the organizer has made public.
-  const boardHref = isLeaderboardPublic(settings) && event.shareToken ? `/live/${event.shareToken}` : undefined;
+  // The board a code holder may open: the public one where the organizer made it public, and otherwise
+  // `/play/board` — their own door, behind this session — unless the board is kept to staff.
+  const boardHref =
+    isLeaderboardPublic(settings) && event.shareToken
+      ? `/live/${event.shareToken}`
+      : mayOpenBoard(settings, "code-holder")
+        ? "/play/board"
+        : undefined;
   const brand = await brandForEvent(event.id);
   /**
    * That this round is temporary, worded for somebody who cannot keep it.

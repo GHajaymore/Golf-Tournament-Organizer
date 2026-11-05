@@ -26,7 +26,7 @@ describe("the knockout draw on member-facing screens", () => {
 
   it("the public board carries the draw in its cached view and renders it", () => {
     expect(readSource("src/lib/services/live-board.ts")).toMatch(/drawnDraws\(state\.brackets\)/);
-    const page = readSource("src/app/live/[token]/page.tsx");
+    const page = readSource("src/components/PublicBoard.tsx");
     expect(page).toMatch(/<TheDraw draws=\{board\.draws\}/);
     expect(page.indexOf("board.straightKnockout ?")).toBeGreaterThan(0);
     expect(page.indexOf("board.straightKnockout ?")).toBeLessThan(page.indexOf("<PlayerLeaderboard"));

@@ -19,7 +19,7 @@ import { readSource } from "./source";
  * the source. The console's Leaderboard is the one screen these ARE the
  * page for, and is not swept here.
  */
-const EMBEDDERS = ["src/app/(app)/reports/page.tsx", "src/app/live/[token]/page.tsx"];
+const EMBEDDERS = ["src/app/(app)/reports/page.tsx", "src/components/PublicBoard.tsx"];
 
 describe.each(EMBEDDERS)("%s", (file) => {
   const src = readSource(file);

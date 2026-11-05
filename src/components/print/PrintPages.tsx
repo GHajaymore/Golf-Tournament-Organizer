@@ -2,6 +2,7 @@
 import { Fragment } from "react";
 import type React from "react";
 import { PrintStamp } from "./PrintStamp";
+import { QrLogoMark } from "../QrLogoMark";
 import { holeNumber, startHoleNumber } from "@/lib/domain/hole-number";
 import { indexFigure } from "@/lib/domain/handicap-label";
 import {
@@ -335,17 +336,34 @@ function Scorecard({ p, kit, card, foot }: { p: ScorecardPage; kit: PrintKit; ca
       )}
     </>
   );
+  /**
+   * THE GROUP'S QR ON EVERY SCORECARD (2026-11-05): bottom right, over the room the
+   * signature lines, their note and the foot leave beside them (`.pk-hasqr` keeps those
+   * three out of its way). Scanning it opens this card's group on `/play`; its code is
+   * typed underneath for a phone with no camera. Sized to the room a card with four
+   * players leaves (80.5 of 87.25 mm, `CARD_PLAYER_ROWS`), the worst case, so the same
+   * corner serves a card with one.
+   */
+  const corner = p.code ? (
+    <div className="pk-cardcode">
+      <Qr code={p.code} mm={CARD_QR_MM} />
+      <div className="pk-cardcode-text" data-code="">
+        {p.code.code}
+      </div>
+    </div>
+  ) : null;
   if (!fold) {
     return (
-      <div className="pk-safe">
+      <div className={p.code ? "pk-safe pk-hasqr" : "pk-safe"}>
         {head}
         {panel(panels[0], true)}
         {foot}
+        {corner}
       </div>
     );
   }
   return (
-    <div className="pk-safe">
+    <div className={p.code ? "pk-safe pk-hasqr" : "pk-safe"}>
       <div className="pk-panel">
         {head}
         {panel(panels[0], false)}
@@ -356,6 +374,7 @@ function Scorecard({ p, kit, card, foot }: { p: ScorecardPage; kit: PrintKit; ca
         {panel(panels[1], true)}
         {foot}
       </div>
+      {corner}
     </div>
   );
 }
@@ -576,22 +595,34 @@ function ResultSlip({ p, kit, card, foot }: { p: SlipPage; kit: PrintKit; card: 
 
 /* ── B. The {cart} sign ────────────────────────────────────────────────── */
 
+/**
+ * A ROUND'S QR, drawn (level H, with the TourneyHQ mark in the centre — `qrModules`,
+ * `logoBox`) and TAPPABLE (2026-11-05): wrapped in a link to its own address, so
+ * the organizer checking the sheet on a phone or a laptop opens what a player's
+ * camera would. On paper a link is only ink, so it is styled as nothing.
+ */
 function Qr({ code, mm }: { code: KitCode; mm: number }) {
   return (
-    <svg
-      viewBox={`0 0 ${code.qr.size} ${code.qr.size}`}
-      role="img"
-      aria-label={`QR code for ${code.label}`}
-      shapeRendering="crispEdges"
-      className="pk-qr"
-      data-link={code.link}
-      style={{ width: `${mm}mm`, height: `${mm}mm` }}
-    >
-      <rect width={code.qr.size} height={code.qr.size} fill="#fff" />
-      <path d={code.qr.d} fill="#000" />
-    </svg>
+    <a href={code.link} target="_blank" rel="noopener noreferrer" className="pk-qrlink" aria-label={`Open ${code.label}`}>
+      <svg
+        viewBox={`0 0 ${code.qr.size} ${code.qr.size}`}
+        role="img"
+        aria-label={`QR code for ${code.label}`}
+        shapeRendering="crispEdges"
+        className="pk-qr"
+        data-link={code.link}
+        style={{ width: `${mm}mm`, height: `${mm}mm` }}
+      >
+        <rect width={code.qr.size} height={code.qr.size} fill="#fff" />
+        <path d={code.qr.d} fill="#000" />
+        {code.qr.logo && <QrLogoMark logo={code.qr.logo} />}
+      </svg>
+    </a>
   );
 }
+
+/** The scorecard's QR, in mm: what its corner holds with four players on the card (see `.pk-cardcode`). */
+const CARD_QR_MM = 16;
 
 function CartSign({ p, kit, card, foot }: { p: SignPage; kit: PrintKit; card: KitCard; foot: React.ReactNode }) {
   const s = p.sign;
@@ -836,6 +867,14 @@ const PAPER_RULES = `
 .pk-signright.pk-two { flex-direction: row; justify-content: space-between; align-items: flex-start; }
 .pk-codeblock { display: flex; flex-direction: column; align-items: center; min-width: 0; }
 .pk-qr { display: block; flex: none; }
+/* A QR is a link on screen and only ink on paper: no underline, no colour, no focus ring left in a print. */
+.pk-qrlink { display: block; color: inherit; text-decoration: none; flex: none; }
+/* The scorecard's corner (2026-11-05): a ${CARD_QR_MM} mm QR and its typed code, bottom right, beside the signature
+   lines, the note and the foot, which stop 23 mm short of the right edge to leave it. With four players the grid ends
+   about 22 mm above the bottom; the block is ${CARD_QR_MM} + one 8 pt line (4.2 mm) = about 20 mm. */
+.pk-hasqr .pk-sigs, .pk-hasqr .pk-note, .pk-hasqr .pk-foot { margin-right: 23mm; }
+.pk-cardcode { position: absolute; right: 0; bottom: 0; width: 20mm; display: flex; flex-direction: column; align-items: center; }
+.pk-cardcode-text { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 8pt; font-weight: 700; line-height: ${LINE}; white-space: nowrap; }
 .pk-code { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 40pt; font-weight: 700; line-height: 1.35; letter-spacing: 0.02em; white-space: nowrap; margin-top: 0.5mm; }
 .pk-code-split { text-align: center; }
 .pk-code-big { font-size: 48pt; }
