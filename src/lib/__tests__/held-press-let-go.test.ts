@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { runInNewContext } from "node:vm";
 import { HeldBeforeLoad } from "@/components/HeldBeforeLoad";
+import { readSource } from "./source";
 
 /**
  * THE PAGE A LET-GO PRESS OPENS STOPS WAITING FOR ITS SCRIPTS (2026-11-03).
@@ -129,6 +130,16 @@ describe("a held press that had to be let go", () => {
     card.fire("DOMContentLoaded");
     card.runTimers();
     expect(card.calls.stop, "the card was stopped, and its pad can never wake").toBe(0);
+  });
+
+  it("every form /play posts the plain way says so: held, or data-plain-post — or the page it is on is never stopped", () => {
+    const src = readSource("src/components/PlayClient.tsx");
+    const forms = src.match(/<form\s+action=\{post(?:Name|Code)\}[^>]*>/g) ?? [];
+    // CONTROL: the sweep sees the forms at all — the code, the groups, the names, the
+    // confirmation's two answers and whose card with its way back.
+    expect(forms.length, "the sweep found too few of /play's forms to mean anything").toBeGreaterThanOrEqual(6);
+    const unmarked = forms.filter((f) => !/data-held-until-live=|data-plain-post=/.test(f));
+    expect(unmarked, "a /play form that posts without script is unmarked, so its page waits unpainted on Safari").toEqual([]);
   });
 
   it("CONTROL: a plain form on a page that was NOT stopped neither is held nor passes a mark on", () => {
