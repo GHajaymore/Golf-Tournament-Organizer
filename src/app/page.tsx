@@ -91,7 +91,7 @@ const WEEK: Array<{ when: string; tab: string; who: string; h: string; p: string
     p: "Drawn from who's in, then yours to adjust. Every player has their group and tee time on their phone.",
     shot: "org-teesheet", alt: "The organizer's tee sheet: two pairing requests above the published draw." },
   { when: "Sat 08:05", tab: "The code", who: "Players", h: "They scan the sign.",
-    p: "Each round's printed sign carries a QR code and its eight-character code. Scan or type it, pick your group, and you're on your round. No account and no password.",
+    p: "Each round's printed sign carries a QR code and its eight-character code. Scan or type it, pick your group, and you're on your round. No account and no password. One phone keeps each group's card, and the other side confirms the result.",
     shot: "club-today", alt: "A player's Today screen: the round, a pinned notice, their card so far and their position." },
   { when: "10:50", tab: "The card", who: "Players", h: "They tap the score, or say it.",
     p: "The card saves as they go, and keeps saving when there is no signal. In a match the organizer chooses how it is kept: one tap for who won each hole, or stroke cards with gross and net.",
