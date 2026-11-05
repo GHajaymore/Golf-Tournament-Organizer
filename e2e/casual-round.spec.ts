@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
-import { seedCasual, teardownCasual } from "./casual-fixture.mjs";
+import { seedCasual, teardownCasual, keepEachOwnCard } from "./casual-fixture.mjs";
 
 /**
  * A CASUAL ROUND, PLAYED THE WAY IT IS PLAYED: at the course, on a phone.
@@ -675,8 +675,15 @@ test.describe("a casual round at the course", () => {
      * shot on the host's own screen, gross. A card that never reached the
      * server, a score filed under the other friend, or a hole the pad skipped
      * past prints something else.
+     *
+     * EACH ON THEIR OWN CARD is a choice now (2026-11-04): a new round starts
+     * with one scorer per group, where Ann's first save makes her the keeper and
+     * Bea's phone is told "Ann Zed is keeping score for your group" — which is
+     * what this walk found on its first run under it. The friends here keep a
+     * card each, so the round is set that way (`keepEachOwnCard`).
      */
     await setUp(page, "Stroke Play", false, [ANN, BEA]);
+    await keepEachOwnCard();
     // First in the round screen's More, named there (2026-10-06): most groups
     // keep one card on one phone, so the code is not on the screen all round.
     await page.goto(`/entry?bust=${Date.now()}`);

@@ -107,11 +107,16 @@ async function signIn(page: Page, baseURL: string) {
 async function roundCard(page: Page) {
   await page.goto(`/stages?bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
+  // By the heading the card draws ("Round 1 · Stroke Play Round"; the
+  // tournament has one round): a round's
+  // description sits behind the format's ⓘ, not on the card, so the first
+  // draft's filter on it matched nothing and waited out the test.
   const card = page
     .locator("div.card")
-    .filter({ hasText: "Zz Saturday medal" })
+    .filter({ hasText: /Round 1\b/ })
     .filter({ has: page.getByRole("button", { name: /^Customize this round/ }) })
     .last();
+  await expect(card, "Rounds & formats has no card for Round 1").toBeVisible({ timeout: 20_000 });
   const head = card.locator("button[aria-expanded]").first();
   if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
   const customize = card.getByRole("button", { name: /^Customize this round/ });

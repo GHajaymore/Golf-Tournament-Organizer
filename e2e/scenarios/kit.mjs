@@ -296,6 +296,30 @@ export async function roundCards(stageId) {
   }
 }
 
+/**
+ * THIS TOURNAMENT'S MEMBERS KEEP THEIR OWN CARDS (2026-11-04).
+ *
+ * A round made today starts with one scorer per group (`scoringDefaults`): the
+ * first phone to save a group's card keeps it, and every other member of the
+ * group is refused in words — and with no published sheet the group is the
+ * whole round. These tournaments were written walking members who each keep
+ * their own card, a partner's beside it, as the club chose before the setting
+ * existed, so they say that choice: every round "each". Safe to call before the
+ * tournament exists (it does nothing) and at every phase (it sets what is set).
+ * One scorer per group is walked by the round-code screens' own specs.
+ */
+export async function eachKeepsTheirOwn(eventName) {
+  const prisma = new PrismaClient();
+  try {
+    const e = await prisma.event.findFirst({ where: { name: eventName }, select: { id: true } });
+    if (!e) return 0;
+    const { count } = await prisma.stage.updateMany({ where: { eventId: e.id, NOT: { scoreKeeping: "each" } }, data: { scoreKeeping: "each" } });
+    return count;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 export async function eventFacts(eventName) {
   const prisma = new PrismaClient();
   try {

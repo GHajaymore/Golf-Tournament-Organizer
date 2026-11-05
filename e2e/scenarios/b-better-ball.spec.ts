@@ -1,7 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { seed, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
+import { seed, memberSession, eventFacts, eachKeepsTheirOwn, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament B: the Eagle club's Autumn Better-Ball. The
@@ -48,6 +48,8 @@ test("five B", async ({ page, context, baseURL }, testInfo) => {
   page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
   const s = await seed();
   await as(context, baseURL!, s.club);
+  // Every member keeps their own card here, as the club chose (`eachKeepsTheirOwn`).
+  await eachKeepsTheirOwn(B_NAME);
 
   if (PHASE === "B1") {
     await test.step("the secretary creates the Autumn Better-Ball", async () => {

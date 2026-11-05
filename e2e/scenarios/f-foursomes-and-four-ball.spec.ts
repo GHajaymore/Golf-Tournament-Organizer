@@ -3,7 +3,7 @@ import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { seed, memberSession, eventFacts, rng, MARK, COURSE, COURSE_CITY, PARS, createTournament, becomesEnabled } from "./kit.mjs";
+import { seed, memberSession, eventFacts, eachKeepsTheirOwn, rng, MARK, COURSE, COURSE_CITY, PARS, createTournament, becomesEnabled } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament F: the Eagle club's Foursomes & Four-Ball Day. The
@@ -93,6 +93,9 @@ test("five F", async ({ page, context, baseURL }, testInfo) => {
   page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
   const s = await seed();
   await as(context, baseURL!, s.club);
+  // Three sides each keep their one card on a member's phone, with no tee sheet
+  // published — under one scorer per group that is one group (`eachKeepsTheirOwn`).
+  await eachKeepsTheirOwn(F_NAME);
   // The console works on the ACTIVE tournament, an HttpOnly cookie a fresh
   // context does not have — choose this one, as a secretary would.
   if (await eventFacts(F_NAME)) {
