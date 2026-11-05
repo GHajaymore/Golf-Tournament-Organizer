@@ -5,6 +5,7 @@ import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { E2E_OWNER_EMAIL } from "./owner-email.mjs";
 import { interestWords, type LaunchState } from "../src/lib/go-live";
+import { pressRadio } from "./press-radio";
 
 /**
  * SOMEBODY REGISTERS INTEREST BEFORE WE OPEN, AND THE OWNER SEES IT (2026-10-21).
@@ -73,7 +74,7 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
   await test.step("sent with no club: refused beside the club box, nothing kept", async () => {
     await page.getByLabel("Your name").fill("Zz Pat");
     await page.getByLabel("Email").fill(email);
-    await page.getByRole("radio", { name: "Club secretary or manager" }).check();
+    await pressRadio(page.getByRole("radio", { name: "Club secretary or manager" }));
     await page.getByRole("button", { name: "Register my interest" }).click();
     // In US words: a request with no country header is the US edition (golf-terms.ts).
     const refused = page.getByText(/Tell us your club or golf group/);
@@ -90,7 +91,7 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
     await page.getByRole("button", { name: "Register my interest" }).click();
     await expect(page.getByText(/That phone number doesn.t look right/)).toBeVisible({ timeout: 20_000 });
     await page.getByLabel(/^Phone/).fill("+1 (513) 555-0142");
-    await page.getByRole("radio", { name: "50 to 150" }).check();
+    await pressRadio(page.getByRole("radio", { name: "50 to 150" }));
     await page.getByLabel(/Anything you.d like us to know/).fill("We run a Thursday draw.");
     await page.getByRole("button", { name: "Register my interest" }).click();
     await expect(page.getByText(words.sent("Zz Pat", email))).toBeVisible({ timeout: 20_000 });
@@ -107,7 +108,7 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
       await p.getByLabel("Your name").fill("Zz Lee");
       await p.getByLabel("Email").fill(`${MARK}-player-${testInfo.project.name}-${RUN}@example.invalid`);
       await p.getByLabel("Club or golf group").fill("Zz Oakmere Golf Club");
-      await p.getByRole("radio", { name: "Player" }).check();
+      await pressRadio(p.getByRole("radio", { name: "Player" }));
       await p.getByRole("button", { name: "Register my interest" }).click();
       await expect(p.getByText(/Tell your secretary or organizer, and they can register here too/)).toBeVisible({ timeout: 20_000 });
       await expect(p.getByRole("button", { name: "Copy the link" })).toHaveCount(0);

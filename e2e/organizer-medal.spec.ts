@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE, organizerEvent, setRoundFormat } from "./organizer-fixture.mjs";
+import { pressRadio } from "./press-radio";
 
 /**
  * A CLUB MEDAL, RUN FROM NOTHING BY SOMEBODY WHO HAS NEVER USED THE APP.
@@ -108,7 +109,7 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
 
     // The link the club sends its members — off until somebody says so.
     await open(page, "/event");
-    await page.getByRole("radio", { name: /Anyone with the link/ }).check();
+    await pressRadio(page.getByRole("radio", { name: /Anyone with the link/ }));
     const saveSettings = page.getByRole("button", { name: "Save settings" });
     await saveSettings.click();
     await expect(saveSettings).toHaveCount(0, { timeout: 20_000 });
