@@ -455,7 +455,10 @@ test("a signed-in player keeps their four-ball in the player app on the same car
     // card asks first, and the match is stored as side B's, five holes up.
     await page.goto(`/me/match?bust=${Date.now()}`);
     await page.getByText("Final result", { exact: true }).click();
-    await page.getByLabel(/^Whites won$/).check();
+    // Pressed by its words: the radio is drawn invisible (`.seg-opt`), so `check()`
+    // waits for ever. Finn's pair is side B, the third answer, not the first.
+    await page.getByText("Whites won", { exact: true }).click();
+    await expect(page.getByLabel(/^Whites won$/), "pressing Whites won did not choose it").toBeChecked();
     await page.getByPlaceholder(/3&2/).fill("5&4");
     page.once("dialog", (d) => void d.accept());
     await page.getByRole("button", { name: "Save result" }).click();
@@ -470,7 +473,9 @@ test("a signed-in player keeps their four-ball in the player app on the same car
   } finally {
     await app.close().catch(() => {});
     await code.close().catch(() => {});
-    await prisma.match.update({ where: { id: ids.match }, data: { holes: before.holes } });
+    // updateMany: a test that timed out reaches here after afterAll has already
+    // deleted the fixture, and update() then throws over the real failure.
+    await prisma.match.updateMany({ where: { id: ids.match }, data: { holes: before.holes } });
     await prisma.account.deleteMany({ where: { id: account.id } });
     await prisma.user.deleteMany({ where: { id: user.id } });
   }

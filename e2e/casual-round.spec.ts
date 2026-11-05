@@ -872,7 +872,8 @@ test.describe("a casual round at the course", () => {
       await p.goto("/play");
       await p.getByLabel("Round code").fill(code);
       await p.getByRole("button", { name: "Continue" }).click();
-      await p.getByRole("button", { name: BEA, exact: true }).click();
+      // The match is the group: tapped, then confirmed once (2026-11-04).
+      await keepCardOf(p, BEA);
       // Hole 1 (SI 7): nobody gets a shot. Exact names — a substring match
       // would accept ", who gets a shot" on the end and prove nothing.
       await expect(p.getByRole("button", { name: `Hole 1 to ${BEA}`, exact: true })).toBeVisible({ timeout: 30_000 });

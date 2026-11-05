@@ -260,7 +260,12 @@ test("a match result phoned in by code is stored as the holes it means, and read
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/Thea Brightwater\s*vs\s*Wren Calloway/);
 
     await page.getByText("Final result", { exact: true }).click();
-    await page.getByLabel("Wren won", { exact: true }).check();
+    // Pressed by its words, as a person does: the radio inside the label is drawn
+    // invisible (`.seg-opt`), and `check()` waits for ever for it to show. It
+    // used to pass only because "Wren won" was the holder's answer, first and
+    // already chosen; drawn as the match is, it is the third.
+    await page.getByText("Wren won", { exact: true }).click();
+    await expect(page.getByLabel("Wren won", { exact: true }), "pressing Wren won did not choose it").toBeChecked();
     const margin = page.getByPlaceholder(/3&2/);
     const save = page.getByRole("button", { name: "Save result" });
 
