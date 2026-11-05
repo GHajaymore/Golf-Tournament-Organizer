@@ -35,6 +35,10 @@ concurrency:
   group: breaks-${{ github.ref }}
   cancel-in-progress: true
 
+# Check out, and nothing else: it gates nothing and posts nothing.
+permissions:
+  contents: read
+
 env:
   # Local to each runner and destroyed with it — never a real credential.
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
