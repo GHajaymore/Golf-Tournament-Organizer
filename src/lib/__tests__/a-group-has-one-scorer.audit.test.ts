@@ -216,6 +216,24 @@ describe("one scorer per group, from the round-code phones", () => {
   });
 });
 
+describe("the one confirmation is the claim (phase 2, 2026-11-05)", () => {
+  it("the first phone to confirm the group keeps it; a second phone confirming follows, and its save says whose phone has it", async () => {
+    await prisma.scoringKeeper.deleteMany({ where: { eventId, stageId } });
+    await phoneOf("bea");
+    const rows = await keeperRow();
+    expect(rows.map((r) => r.playerId), "confirming the group did not make this phone its scorer").toEqual([p.bea]);
+
+    // Ann confirms the same group on her phone: nothing moves — never a take-over.
+    await phoneOf("ann");
+    const after = await keeperRow();
+    expect(after.map((r) => [r.playerId, r.epoch])).toEqual([[p.bea, rows[0].epoch]]);
+    const refused = await savePlayCard(CARD);
+    expect(refused.ok).toBe(false);
+    // The screen is told whose phone keeps it, so it can follow instead of claiming progress.
+    expect(refused.keptBy).toBe(`${TAG} bea`);
+  });
+});
+
 describe("the signed-in player's door asks the same lock", () => {
   it("Bea, signed in, cannot write her card beside the group's scorer", async () => {
     await prisma.scoringKeeper.deleteMany({ where: { eventId, stageId } });
