@@ -6,7 +6,7 @@ import { useGolfTerms } from "./GolfTermsProvider";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
 import { roundLabel as roundLabelOf, roundNumber as roundNumberOf } from "@/lib/domain/round-label";
-import { formatChoicesFor, naturalFormatFor } from "@/lib/domain/round-choices";
+import { addFormatFor, formatChoicesFor, naturalFormatFor } from "@/lib/domain/round-choices";
 import {
   setStageDeadline,
   setStageCarry,
@@ -3092,6 +3092,9 @@ export function StagesClient({
    * then Stroke play round chosen — is replaced rather than carried into the
    * next Add, which is what the walk found.
    */
+  // What the select shows and Add sends: asked of the kind each render, never read back from
+  // `bulkFormat` alone, so a chosen kind cannot be left with a format that is not among its options.
+  const addFormat = addFormatFor(newType, bulkFormat);
   const pickType = (t: StageTypeKey) => {
     setNewType(t);
     setBulkFormat((cur) => (cur && formatChoicesFor(t).some((c) => c.name === cur) ? cur : naturalFormatFor(t)));
@@ -3399,7 +3402,7 @@ export function StagesClient({
             <span className="text-muted">Format</span>
             <select
               className="input"
-              value={bulkFormat}
+              value={addFormat}
               disabled={pending}
               onChange={(e) => setBulkFormat(e.target.value)}
               style={{ minWidth: 150 }}
@@ -3485,15 +3488,15 @@ export function StagesClient({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending || !newType || !bulkFormat}
+            disabled={pending || !newType || !addFormat}
             onClick={() =>
               newType &&
-              bulkFormat &&
+              addFormat &&
               startTransition(async () => {
                 setAddRefused("");
                 const res = await addStage(newType, {
                   count: howMany,
-                  format: bulkFormat || undefined,
+                  format: addFormat,
                   holes: bulkHoles,
                   startDate: startDate || undefined,
                   intervalDays: interval,
@@ -3547,7 +3550,7 @@ export function StagesClient({
               organizer had asked for. */}
           {!newType
             ? "Pick one above — the type decides what gets drawn."
-            : !bulkFormat
+            : !addFormat
               ? `${addRoundConsequence(newType)} Now choose the format it is scored by.`
               : addRoundConsequence(newType)}
         </p>
