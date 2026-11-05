@@ -34,6 +34,7 @@ import { MatchStrokeKeeper } from "./MatchStrokeKeeper";
 import type { KeptMatch, MatchStrokeCard } from "@/lib/services/match-card";
 import { linkFromHash, formatAccessCode } from "@/lib/code-format";
 import {
+  groupNeedsName,
   keepingSentence,
   keepingYes,
   lastTimeSentence,
@@ -652,7 +653,7 @@ function PlayScreens(props: Props) {
    * of the same tournament offers it first ("Last time: Group 3 — …") — read
    * back by `rememberedGroup`, which says nothing if that group has changed.
    */
-  type At = { code: string; stageId: string; eventId: string };
+  type At = { code: string; stageId: string; eventId: string; keepsGroups?: boolean };
   const confirmedBefore = (target: PlayTarget, at?: At) => {
     const stageId = at?.stageId ?? context?.stageId ?? "";
     try {
@@ -673,8 +674,10 @@ function PlayScreens(props: Props) {
     const withCode = at?.code ?? code;
     if (target.kind === "player") return claimName(target.id, withCode);
     const g = target.group;
-    // A match kept by tapping is one card whoever opens it; any of its players opens it.
-    if (g.oneMatch || g.players.length === 1) return claimName(g.players[0]?.id ?? "", withCode);
+    // A match kept by tapping is one card whoever opens it; any of its players
+    // opens it — except where one phone keeps the group's card, when the phone
+    // says which one it is (`groupNeedsName`), or every phone is side A's player.
+    if (!groupNeedsName(g, at?.keepsGroups ?? context?.keepsGroups ?? false)) return claimName(g.players[0]?.id ?? "", withCode);
     setStep({ kind: "pick", group: g });
   };
   const choose = (target: PlayTarget, at?: At) => {
@@ -696,7 +699,7 @@ function PlayScreens(props: Props) {
         setError(res.error ?? "That code isn't valid.");
         return;
       }
-      const at = { code: typed, stageId: res.stageId ?? "", eventId: res.eventId ?? "" };
+      const at = { code: typed, stageId: res.stageId ?? "", eventId: res.eventId ?? "", keepsGroups: res.keepsGroups };
       setPlayers(res.players ?? []);
       setGroups(res.groups ?? []);
       // In the same render as the list, so the full list is never drawn for a moment before "Last time".
@@ -795,7 +798,7 @@ function PlayScreens(props: Props) {
               <h1 style={{ fontSize: 24, lineHeight: 1.3, margin: "8px 0 0", fontFamily: "var(--font-heading)", overflowWrap: "anywhere" }}>
                 {keepingSentence(target)}
               </h1>
-              {target.kind === "group" && !target.group.oneMatch && target.group.players.length > 1 && (
+              {target.kind === "group" && groupNeedsName(target.group, context.keepsGroups ?? false) && (
                 <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 15 }}>
                   {context.keepsGroups
                     ? "This phone keeps the whole group's card. Next you pick your own name."

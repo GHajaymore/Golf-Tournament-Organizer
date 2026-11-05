@@ -204,6 +204,25 @@ export function matchPlayGroups(input: {
 }
 
 /**
+ * WHETHER A CONFIRMED GROUP STILL ASKS FOR A NAME — the one answer, for the
+ * scripted tap (`PlayClient`), the no-script form (`claimPlayerSlotForm`) and
+ * the confirmation's "Next you pick …" line.
+ *
+ * A group of somebody's own cards asks whose card. A match kept by tapping is
+ * one card whoever opens it, so it opened as its first player — side A's —
+ * whoever held the phone. That is fine where each phone keeps its own match,
+ * and wrong on a round kept by ONE SCORER PER GROUP (`keepsGroups`): every
+ * phone in the match became the same player, so the second phone to confirm
+ * was the keeper too (the rounds on 60bf2912, 2026-11-05). There the phone
+ * says which one it is, and the second phone follows the first. A group of one
+ * never asks.
+ */
+export function groupNeedsName(group: Pick<PlayGroup, "oneMatch" | "players">, keepsGroups: boolean): boolean {
+  if (group.players.length <= 1) return false;
+  return !group.oneMatch || keepsGroups;
+}
+
+/**
  * THE SAME PLAYERS — the one test for borrowing another round's tee time
  * (2026-11-05). Exactly the same people, as sets: the same four for a
  * four-ball, the same two for a singles. Nobody extra, nobody missing, and

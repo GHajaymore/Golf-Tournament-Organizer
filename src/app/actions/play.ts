@@ -31,7 +31,7 @@ import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
 import { isReturnedCard } from "@/lib/domain/round-handicap";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { type TeeSheetGroup } from "@/lib/domain/tee-sheet";
-import { groupsOfRound, withBorrowedTeeTimes, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
+import { groupNeedsName, groupsOfRound, withBorrowedTeeTimes, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 
 /**
@@ -408,7 +408,8 @@ export async function claimPlayerSlotForm(_before: ClaimFormState | null, form: 
       return { ok: false, step: { kind: "confirm", target }, ...context };
     }
     // Confirmed, a group: its one match, or whose card in it.
-    if (group!.oneMatch || group!.players.length === 1) res = await claimPlayerSlot(code, group!.players[0]?.id ?? "");
+    // One scorer per group: the phone says which one it is (`groupNeedsName`).
+    if (!groupNeedsName(group!, round.keepsGroups ?? false)) res = await claimPlayerSlot(code, group!.players[0]?.id ?? "");
     else return { ok: false, step: { kind: "pick", group: group! }, ...context };
   } else {
     res = await claimPlayerSlot(code, playerId);

@@ -11,6 +11,7 @@ import {
 } from "@/lib/domain/keeping-words";
 import { casualScoreKeeping } from "@/lib/domain/quick-match";
 import { groupsArePublished } from "@/lib/domain/group-keeping";
+import { groupNeedsName } from "@/lib/domain/play-groups";
 
 /**
  * WHO KEEPS THE GROUP'S CARD, ON THE PHONES (2026-11-05, phase 2). One phone
@@ -65,7 +66,22 @@ describe("the casual round's one line", () => {
   });
 });
 
-describe("groupsArePublished — the organizer's warning reads the same sheet the groups do", () => {
+describe("groupNeedsName — each phone in a group is its own player where one phone keeps the card", () => {
+  const two = [
+    { id: "a", name: "A" },
+    { id: "b", name: "B" },
+  ];
+  it("a tapped match opens as its first player where each phone keeps its own; asks the name under one scorer per group", () => {
+    expect(groupNeedsName({ oneMatch: true, players: two }, false)).toBe(false);
+    expect(groupNeedsName({ oneMatch: true, players: two }, true)).toBe(true);
+  });
+  it("a group of own cards always asks; a group of one never does", () => {
+    expect(groupNeedsName({ oneMatch: false, players: two }, false)).toBe(true);
+    expect(groupNeedsName({ oneMatch: true, players: two.slice(0, 1) }, true)).toBe(false);
+  });
+});
+
+describe("groupsArePublished —the organizer's warning reads the same sheet the groups do", () => {
   it("the round's own published, non-empty sheet; never an unpublished or empty one", () => {
     expect(groupsArePublished({ teeSheetPublished: true, teeSheet: '{"groups":[]}' })).toBe(true);
     expect(groupsArePublished({ teeSheetPublished: false, teeSheet: '{"groups":[]}' })).toBe(false);
