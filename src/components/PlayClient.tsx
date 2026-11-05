@@ -1,5 +1,17 @@
 "use client";
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { GroupScoring, type GroupPartner, type PartnerSave } from "./GroupScoring";
+import {
+  EndCheckPanel,
+  GroupCardFollow,
+  KeepingBar,
+  MatchFollow,
+  forgetUnsent,
+  FollowRefresh,
+  type EndCheckView,
+  type GroupKeepingView,
+} from "./PlayGroupKeeping";
+import { keepingRole } from "@/lib/domain/keeping-words";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { usePageIsLive } from "./usePageIsLive";
 import { HeldBeforeLoad, takeHeldPress, dropHeldPress } from "./HeldBeforeLoad";
@@ -22,6 +34,7 @@ import { MatchStrokeKeeper } from "./MatchStrokeKeeper";
 import type { KeptMatch, MatchStrokeCard } from "@/lib/services/match-card";
 import { linkFromHash, formatAccessCode } from "@/lib/code-format";
 import {
+  groupNeedsName,
   keepingSentence,
   keepingYes,
   lastTimeSentence,
@@ -46,6 +59,21 @@ interface Props {
   stage: "code" | "score" | "no-match" | "card" | "staff-kept";
   /** The club's word for its organizer ("organizer" / "organiser"), for `staff-kept`. */
   organizer?: string;
+  /**
+   * `staff-kept` because THIS ROUND is "Organizer only (paper cards)", not the
+   * whole tournament (`playerEntryRefusal`, 2026-11-05): said of the round.
+   */
+  staffKeptRound?: boolean;
+  /**
+   * ONE SCORER PER GROUP (2026-11-05, phase 2): who keeps this player's group
+   * and who is in it (`keeperFor`). Absent where each player keeps their own —
+   * a round kept "each", or a tournament round whose draw is not published.
+   */
+  group?: GroupKeepingView;
+  /** The rest of the group, whose cards this phone keeps when it is the scorer on a stroke round. */
+  partners?: GroupPartner[];
+  /** The end-of-round check, for this phone's match or own card (`EndCheckPanel`). */
+  endCheck?: EndCheckView;
   /**
    * THE LEADERBOARD, ONE TAP AWAY (2026-10-18). At the first real cup every
    * player scored by the code, and this page was score entry and nothing
@@ -102,6 +130,12 @@ interface Props {
   matchShots?: { a: number[]; b: number[] } | null;
   /** The holder's own stroke card, where the round keeps its matches on cards (`matchKeptBy`). */
   strokeCard?: MatchStrokeCard;
+  /**
+   * EVERY BALL IN THE MATCH, when this phone is the group's scorer on a round
+   * kept on stroke cards (2026-11-05): each player's card, or each side's one
+   * card. The scorer picks a ball; each save names it (`playerId`).
+   */
+  strokeBalls?: Array<{ id: string; name: string; card: MatchStrokeCard }>;
   /**
    * The format, when the code is for a round played by SIDES — a four-ball or
    * foursomes, kept on one phone. This surface keeps a player's own card or
@@ -406,11 +440,18 @@ function PlayScreens(props: Props) {
     posted?.ok ? posted.players ?? [] : null,
   );
   const [groups, setGroups] = useState<PlayGroup[]>(() => (posted?.ok ? posted.groups ?? [] : []));
-  const [context, setContext] = useState<{ eventName: string; roundLabel: string; stageId: string; eventId: string } | null>(() =>
+  // `keepsGroups`: the round is kept by one scorer per group, so the phone keeps the whole group's card.
+  const [context, setContext] = useState<{ eventName: string; roundLabel: string; stageId: string; eventId: string; keepsGroups?: boolean } | null>(() =>
     posted?.ok
-      ? { eventName: posted.eventName ?? "", roundLabel: posted.roundLabel ?? "", stageId: posted.stageId ?? "", eventId: posted.eventId ?? "" }
+      ? { eventName: posted.eventName ?? "", roundLabel: posted.roundLabel ?? "", stageId: posted.stageId ?? "", eventId: posted.eventId ?? "", keepsGroups: posted.keepsGroups }
       : claimPosted?.step
-        ? { eventName: claimPosted.eventName ?? "", roundLabel: claimPosted.roundLabel ?? "", stageId: claimPosted.stageId ?? "", eventId: claimPosted.eventId ?? "" }
+        ? {
+            eventName: claimPosted.eventName ?? "",
+            roundLabel: claimPosted.roundLabel ?? "",
+            stageId: claimPosted.stageId ?? "",
+            eventId: claimPosted.eventId ?? "",
+            keepsGroups: claimPosted.keepsGroups,
+          }
         : null,
   );
   /**
@@ -438,6 +479,40 @@ function PlayScreens(props: Props) {
     }
     setLast(rememberedIn(rememberEventId, groups));
   }, [rememberEventId, groups]);
+
+  /**
+   * WHO KEEPS THE GROUP'S CARD ON THIS PHONE (2026-11-05, phase 2).
+   *
+   * `epoch` is the one this phone holds as the group's scorer, sent with every
+   * save (`keeperGate`); a take-over on another phone moves it on, and this
+   * phone's next save is refused in words. `refusedBy` is that refusal's
+   * keeper: from then on the phone FOLLOWS — the pad and its "n/18 holes" go,
+   * because nothing it holds was saved — until the page is drawn again with
+   * the new keeper. Reset whenever the server says who keeps it.
+   */
+  const [epoch, setEpoch] = useState<number | null>(props.group?.epoch ?? null);
+  const epochNow = useRef(epoch);
+  epochNow.current = epoch;
+  const [refusedBy, setRefusedBy] = useState<string | null>(null);
+  const keeperNow = props.group?.keeperId ?? null;
+  const epochDrawn = props.group?.epoch ?? null;
+  useEffect(() => {
+    setEpoch(epochDrawn);
+    setRefusedBy(null);
+  }, [keeperNow, epochDrawn]);
+  const role = props.group ? keepingRole({ me: props.group.me, keeperId: keeperNow, refusedBy }) : null;
+  /** The ball on screen, when the scorer keeps every ball of a match on stroke cards (`strokeBalls`). */
+  const [ball, setBall] = useState(props.playerId ?? "");
+  const following = role === "follower";
+  // A following phone is drawn again as the scores go in.
+  // A following phone is drawn again as the scores go in: <FollowRefresh /> in its view.
+  /** What a save carries: the epoch, when this phone keeps the group. */
+  const keeperOpts = () => (epochNow.current !== null ? { epoch: epochNow.current } : undefined);
+  /** A save's answer, read for the keeper's half: a new epoch, or the card kept elsewhere. */
+  const heardKeeper = (res: { ok: boolean; epoch?: number; keptBy?: string }) => {
+    if (res.ok && res.epoch !== undefined) setEpoch(res.epoch);
+    if (!res.ok && res.keptBy !== undefined) setRefusedBy(res.keptBy);
+  };
 
   // Set as the card saves; nothing reads it.
   const [, setSaved] = useState(false);
@@ -476,14 +551,16 @@ function PlayScreens(props: Props) {
   const cardQueue = usePendingCard<(number | null)[]>({
     stageId: props.stageId ?? "play",
     playerId: props.playerId ?? "code",
-    enabled: props.stage === "card",
+    // Not on a phone following the group: it keeps no card to send.
+    enabled: props.stage === "card" && !following,
     drawnFrom: drawnCard,
     cells: (v) => v,
     // A tournament that takes whole cards: kept on the phone until the last
     // hole is in, then sent on its own.
     holding: !!props.submitWhole && card.filter((h) => typeof h === "number" && h > 0).length < holeCount0,
     send: async (value) => {
-      const res = await savePlayCard(value);
+      const res = await savePlayCard(value, keeperOpts());
+      heardKeeper(res);
       if (!res.ok) throw new Error(res.error ?? "Couldn't save that card.");
       setSaved(true);
       // READ BACK: the card as the row now holds it, so "Sent" is the record's word.
@@ -500,14 +577,41 @@ function PlayScreens(props: Props) {
    * scorer's version to choose between: the Round Code save is the holder's
    * own card, written whole. So it is simply picked up where it was left.
    */
-  const { recovered: cardRecovered, clearRecovered: clearCardRecovered, push: pushCard } = cardQueue;
+  const { recovered: cardRecovered, clearRecovered: clearCardRecovered, push: pushCard, settle: settleCard } = cardQueue;
   useEffect(() => {
     if (props.stage !== "card" || !cardRecovered) return;
+    // A phone following the group keeps nothing to send: what it had left was
+    // never saved, and sending it now would write over the scorer's card.
+    if (following) {
+      clearCardRecovered();
+      return;
+    }
     const back = Array.from({ length: holeCount0 }, (_, i) => cardRecovered[i] ?? null);
     setCard(back);
     clearCardRecovered();
     pushCard(back);
-  }, [props.stage, cardRecovered, clearCardRecovered, pushCard, holeCount0]);
+  }, [props.stage, cardRecovered, clearCardRecovered, pushCard, holeCount0, following]);
+
+  /**
+   * THE CARD MOVED TO ANOTHER PHONE: this one's unsent holes are forgotten —
+   * its own card's queue, each partner's, and the match's — because they can
+   * never be sent now, and a copy left behind would go out the day this phone
+   * took the card back, over everything entered since. Said in words on the
+   * line above the card (`refusedSentence`).
+   */
+  useEffect(() => {
+    if (refusedBy === null) return;
+    settleCard(drawnCard ?? []);
+    forgetUnsent(props.stageId ?? "play", [
+      props.playerId ?? "code",
+      ...(props.partners ?? []).map((p) => p.id),
+      ...(props.match ? [`match-a:${props.match.id}`, `${props.playerId ?? "code"}:${props.match.id}`] : []),
+      // Every ball the scorer kept on a match kept on stroke cards.
+      ...(props.match ? (props.strokeBalls ?? []).map((b) => `${b.id}:${props.match!.id}`) : []),
+    ]);
+    // Once, when the refusal arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refusedBy]);
 
   /* ── Step 1: enter the code ───────────────────────────────────────── */
 
@@ -549,7 +653,7 @@ function PlayScreens(props: Props) {
    * of the same tournament offers it first ("Last time: Group 3 — …") — read
    * back by `rememberedGroup`, which says nothing if that group has changed.
    */
-  type At = { code: string; stageId: string; eventId: string };
+  type At = { code: string; stageId: string; eventId: string; keepsGroups?: boolean };
   const confirmedBefore = (target: PlayTarget, at?: At) => {
     const stageId = at?.stageId ?? context?.stageId ?? "";
     try {
@@ -570,8 +674,10 @@ function PlayScreens(props: Props) {
     const withCode = at?.code ?? code;
     if (target.kind === "player") return claimName(target.id, withCode);
     const g = target.group;
-    // A match kept by tapping is one card whoever opens it; any of its players opens it.
-    if (g.oneMatch || g.players.length === 1) return claimName(g.players[0]?.id ?? "", withCode);
+    // A match kept by tapping is one card whoever opens it; any of its players
+    // opens it — except where one phone keeps the group's card, when the phone
+    // says which one it is (`groupNeedsName`), or every phone is side A's player.
+    if (!groupNeedsName(g, at?.keepsGroups ?? context?.keepsGroups ?? false)) return claimName(g.players[0]?.id ?? "", withCode);
     setStep({ kind: "pick", group: g });
   };
   const choose = (target: PlayTarget, at?: At) => {
@@ -593,13 +699,13 @@ function PlayScreens(props: Props) {
         setError(res.error ?? "That code isn't valid.");
         return;
       }
-      const at = { code: typed, stageId: res.stageId ?? "", eventId: res.eventId ?? "" };
+      const at = { code: typed, stageId: res.stageId ?? "", eventId: res.eventId ?? "", keepsGroups: res.keepsGroups };
       setPlayers(res.players ?? []);
       setGroups(res.groups ?? []);
       // In the same render as the list, so the full list is never drawn for a moment before "Last time".
       setLast(rememberedIn(at.eventId, res.groups ?? []));
       setShowAll(false);
-      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "", stageId: at.stageId, eventId: at.eventId });
+      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "", stageId: at.stageId, eventId: at.eventId, keepsGroups: res.keepsGroups });
       setStep(null);
       const want = wantGroup ? res.groups?.find((g) => g.key === wantGroup) : undefined;
       if (want) choose({ kind: "group", group: want }, at);
@@ -692,8 +798,12 @@ function PlayScreens(props: Props) {
               <h1 style={{ fontSize: 24, lineHeight: 1.3, margin: "8px 0 0", fontFamily: "var(--font-heading)", overflowWrap: "anywhere" }}>
                 {keepingSentence(target)}
               </h1>
-              {target.kind === "group" && !target.group.oneMatch && target.group.players.length > 1 && (
-                <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 15 }}>Next you pick whose card you&rsquo;re keeping.</p>
+              {target.kind === "group" && groupNeedsName(target.group, context.keepsGroups ?? false) && (
+                <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 15 }}>
+                  {context.keepsGroups
+                    ? "This phone keeps the whole group's card. Next you pick your own name."
+                    : "Next you pick whose card you’re keeping."}
+                </p>
               )}
             </div>
             {error && (
@@ -755,7 +865,10 @@ function PlayScreens(props: Props) {
         <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
           <div style={{ marginBottom: 16 }}>
             <div className="page-kicker">{[group.title, group.tee].filter(Boolean).join(" · ")}</div>
-            <h1 style={{ fontSize: 24, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>Whose card are you keeping?</h1>
+            <h1 style={{ fontSize: 24, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
+              {/* One scorer per group: the phone keeps everyone's card, so the name is who holds it. */}
+              {context.keepsGroups ? "Which one are you?" : "Whose card are you keeping?"}
+            </h1>
           </div>
           {error && (
             <p style={{ fontSize: 13, color: "var(--color-danger)" }}>
@@ -1153,7 +1266,8 @@ function PlayScreens(props: Props) {
         // Save first: signing a card the server has not seen would certify
         // numbers nobody stored. Same order as the console's own card.
         const sent = card;
-        const wrote = await savePlayCard(sent);
+        const wrote = await savePlayCard(sent, keeperOpts());
+        heardKeeper(wrote);
         if (!wrote.ok) {
           setError(wrote.error ?? "Couldn't save that card.");
           return;
@@ -1181,22 +1295,89 @@ function PlayScreens(props: Props) {
       cardQueue.push(card);
     };
 
-    return (
-      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
-        <div style={{ marginBottom: 14 }}>
-          <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
-          <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
-            {props.playerName}
-          </h1>
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
-            {/* Says which kind of round this is, because the surface used to
-                claim every round was a match. */}
-            Your own card, hole by hole.{" "}
-            {props.submitWhole
+    /** One hole of this phone's own card, onto the phone now and to the server a moment later. */
+    const setMine = (hole: number, value: number | null) => {
+      const next = Array.from({ length: holeCount }, (_, i) => card[i] ?? null);
+      next[hole] = value;
+      setCard(next);
+      setSaved(false);
+      cardQueue.push(next);
+    };
+
+    /**
+     * A GROUPMATE'S CARD, kept by this phone as the group's scorer
+     * (2026-11-05): through the round code's own save, carrying the epoch and
+     * whose card it is (`savePlayCard`'s `playerId`). Refused in words when
+     * the card has moved to another phone, like the scorer's own.
+     */
+    const savePartnerByCode: PartnerSave = async (_stage, partnerId, strokes) => {
+      const res = await savePlayCard(strokes, { ...keeperOpts(), playerId: partnerId });
+      heardKeeper(res);
+      if (!res.ok) throw new Error(res.error ?? "Couldn't save that card.");
+      return { ok: true, revision: "", stored: res.card ?? strokes };
+    };
+    const keepsTheGroup = role === "keeper" && (props.partners?.length ?? 0) > 0;
+    const bar =
+      props.group && role ? (
+        <KeepingBar
+          view={props.group}
+          role={role}
+          refusedBy={refusedBy}
+          boardHref={props.boardHref}
+          onKept={(e) => {
+            setEpoch(e);
+            setRefusedBy(null);
+          }}
+        />
+      ) : null;
+    const header = (
+      <div style={{ marginBottom: 14 }}>
+        <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
+        <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
+          {props.playerName}
+        </h1>
+        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+          {/* Says which kind of round this is, because the surface used to
+              claim every round was a match. */}
+          {following ? "Your group's card, as it is kept." : keepsTheGroup ? "Your group's cards, hole by hole." : "Your own card, hole by hole."}{" "}
+          {following
+            ? ""
+            : props.submitWhole
               ? "Your organizer wants the full round submitted at the end."
               : "Saves as you go."}
-          </p>
-        </div>
+        </p>
+      </div>
+    );
+    const signOut = (
+      <button
+        type="button"
+        className="btn btn-ghost"
+        style={{ alignSelf: "flex-start", marginTop: 12 }}
+        onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+      >
+        Sign out
+      </button>
+    );
+
+    /* ── Another phone keeps the group's card: follow it, read-only ── */
+    if (following && props.group) {
+      return (
+        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+          {header}
+          {bar}
+          <FollowRefresh />
+          <GroupCardFollow view={props.group} holes={holeCount} firstHole={props.firstHole ?? 1} pars={pars} />
+          {/* Each player confirms their OWN card, whoever kept it (Rule 3.3b). */}
+          {props.endCheck && <EndCheckPanel check={props.endCheck} />}
+          {signOut}
+        </Shell>
+      );
+    }
+
+    return (
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+        {header}
+        {bar}
 
         <div className="card elev-sm" style={{ gap: 10 }}>
           <div style={{ display: "flex", gap: 14, fontSize: 15, flexWrap: "wrap" }}>
@@ -1208,11 +1389,33 @@ function PlayScreens(props: Props) {
                 <b>{figure(t)}</b> {TOTAL_LABEL[t].toLowerCase()}
               </span>
             ))}
+            {/* Never progress the server refused: under a refusal the holes are on this phone only. */}
             <span className="text-muted" style={{ marginLeft: "auto" }}>
-              {filledHoles}/{holeCount} holes
+              {filledHoles}/{holeCount} holes{cardQueue.status.tone === "warn" ? " · not saved" : ""}
             </span>
           </div>
 
+          {keepsTheGroup ? (
+            <GroupScoring
+              stageId={props.stageId ?? "play"}
+              holes={holeCount}
+              pars={pars}
+              yards={props.yards ?? []}
+              strokeIndex={props.strokeIndex ?? []}
+              me={{ id: props.playerId ?? "me", name: props.playerName ?? "You", shotsOn: (h: number) => props.shots?.[h] ?? 0 }}
+              myStrokes={card}
+              onSetMine={setMine}
+              mySync={cardQueue.holes}
+              myRefusal={cardQueue.refusal}
+              partners={props.partners ?? []}
+              holding={(s) => !!props.submitWhole && s.filter((v) => typeof v === "number" && v > 0).length < holeCount}
+              firstHole={props.firstHole ?? 1}
+              showVoice={props.voiceEntry ?? true}
+              dense
+              offerPickUp={isStablefordRound(props.scoringBasis, props.roundFormat) && boardKind(props.roundFormat ?? "") !== "modified-stableford"}
+              savePartner={savePartnerByCode}
+            />
+          ) : (
           <HoleByHoleCard
             /* WITH THE SHOTS (2026-10-04). The totals above came off
                `props.shots` and the hole never showed them, so a partner
@@ -1263,6 +1466,7 @@ function PlayScreens(props: Props) {
                 }
               : {})}
           />
+          )}
 
           {/* Where the card is — the same words the signed-in card uses, and the
               same words as the marks on each hole above. */}
@@ -1339,14 +1543,7 @@ function PlayScreens(props: Props) {
           )}
         </div>
 
-        <button
-          type="button"
-          className="btn btn-ghost"
-          style={{ alignSelf: "flex-start", marginTop: 12 }}
-          onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
-        >
-          Sign out
-        </button>
+        {signOut}
       </Shell>
     );
   }
@@ -1365,7 +1562,9 @@ function PlayScreens(props: Props) {
           </span>
           <span className="card-title" style={{ marginTop: 12 }}>Your club is keeping the cards</span>
           <p className="text-muted" style={{ fontSize: 14, lineHeight: 1.55, margin: "8px 0 0" }}>
-            Scores for this tournament are entered by the {organizer}, so there is nothing to enter on this phone.{" "}
+            {props.staffKeptRound
+              ? `The ${organizer} enters this round's scores from paper cards, so there is nothing to enter on this phone. `
+              : `Scores for this tournament are entered by the ${organizer}, so there is nothing to enter on this phone. `}
             {props.boardHref
               ? "Follow the round on the board: the scores appear there as they go in."
               : `The scores go on the board as they are entered. Ask your ${organizer} for its link.`}
@@ -1455,7 +1654,11 @@ function PlayScreens(props: Props) {
           is the match, the same for both sides (`matchCardFor`). A stroke
           card is one player's, and says whose. */}
       <span className="text-muted" style={{ fontSize: 13 }}>
-        {props.strokeCard ? `Keeping ${props.playerName}'s card` : "Keeping this match for both sides"}
+        {following
+          ? "Following this match"
+          : props.strokeCard
+            ? `Keeping ${props.playerName}'s card`
+            : "Keeping this match for both sides"}
       </span>
       <button
         type="button"
@@ -1469,11 +1672,132 @@ function PlayScreens(props: Props) {
   );
   const otherMatches = props.otherMatches?.map((o) => ({ href: `/play?m=${encodeURIComponent(o.id)}`, label: o.label }));
 
+  /**
+   * THE MATCH, ON A ROUND KEPT BY ONE SCORER PER GROUP (2026-11-05, phase 2):
+   * the line above says who keeps it; the keeper's saves carry the epoch and
+   * a refusal because the card moved flips this phone to following; a phone
+   * that follows sees the match read-only; and every phone sees the end-of-
+   * round check once the match is decided.
+   */
+  const matchBar =
+    props.group && role ? (
+      <KeepingBar
+        view={props.group}
+        role={role}
+        refusedBy={refusedBy}
+        boardHref={props.boardHref}
+        onKept={(e) => {
+          setEpoch(e);
+          setRefusedBy(null);
+        }}
+      />
+    ) : null;
+  const matchCheck = props.endCheck ? <EndCheckPanel check={props.endCheck} /> : null;
+  const keptHoles = async (matchId: string, holes: Array<"A" | "B" | "H" | null>) => {
+    const res = await savePlayMatchHoles(matchId, holes, keeperOpts());
+    heardKeeper(res);
+    return res;
+  };
+  const keptResult = async (matchId: string, winner: "A" | "B" | "H", margin: string) => {
+    const res = await savePlayMatchResult(matchId, winner, margin, keeperOpts());
+    heardKeeper(res);
+    return res;
+  };
+  const keptCard = async (matchId: string, strokes: (number | null)[]) => {
+    const res = await savePlayMatchCard(matchId, strokes, keeperOpts());
+    heardKeeper(res);
+    return res;
+  };
+
+  if (following && props.match) {
+    return (
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+        <div style={{ marginBottom: 14 }}>
+          <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
+        </div>
+        {matchBar}
+        <FollowRefresh />
+        <MatchFollow match={props.match} holes={props.holes || props.match.holes.length || 18} firstHole={props.firstHole ?? 1} />
+        {matchCheck}
+        {footer}
+      </Shell>
+    );
+  }
+
   // A round the organizer keeps on stroke cards (`matchKeptBy`): the holder's
   // own ball, and the app works the match out. Never both cards on one round.
+  /**
+   * THE SCORER KEEPS EVERY BALL (2026-11-05): one card a ball, picked by name.
+   * Every card stays mounted — hidden when not picked — so each keeps its own
+   * queue running (`usePendingCard`), and a hole tapped just before switching
+   * is still sent. Each save names its ball and carries the epoch.
+   */
+  const balls = role === "keeper" && props.strokeBalls && props.strokeBalls.length > 1 ? props.strokeBalls : null;
+  if (props.strokeCard && balls) {
+    const shown = balls.some((b) => b.id === ball) ? ball : balls[0].id;
+    return (
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+        {matchBar}
+        <div role="group" aria-label="Whose card" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          {balls.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className={b.id === shown ? "btn btn-primary" : "btn btn-secondary"}
+              aria-pressed={b.id === shown}
+              style={{ minHeight: 44 }}
+              onClick={() => setBall(b.id)}
+            >
+              {b.name}
+            </button>
+          ))}
+        </div>
+        {balls.map((b) => (
+          // A region named for the ball; the others hidden AND inert — out of
+          // the accessibility tree and out of reach of a tap or a label — yet
+          // mounted, so each ball's offline queue keeps running.
+          <section
+            key={b.id}
+            aria-label={`${b.name}'s card`}
+            hidden={b.id !== shown}
+            inert={b.id !== shown}
+            data-ball={b.id}
+          >
+            <MatchStrokeKeeper
+              match={props.match!}
+              card={b.card}
+              holes={props.holes ?? 18}
+              pars={props.pars ?? []}
+              yards={props.yards ?? []}
+              strokeIndex={props.strokeIndex ?? []}
+              firstHole={props.firstHole ?? 1}
+              voiceEntry={props.voiceEntry}
+              submitWhole={props.submitWhole}
+              stageId={props.stageId ?? "play"}
+              holderId={b.id}
+              holderName={b.name}
+              roundLabel={props.roundLabel}
+              eventName={props.eventName}
+              otherMatches={otherMatches}
+              save={async (matchId, strokes) => {
+                const res = await savePlayMatchCard(matchId, strokes, { ...keeperOpts(), playerId: b.id });
+                heardKeeper(res);
+                return res;
+              }}
+              next={next}
+              footer={footer}
+            />
+          </section>
+        ))}
+        {matchCheck}
+      </Shell>
+    );
+  }
+
   if (props.strokeCard) {
     return (
       <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+        {matchBar}
         <MatchStrokeKeeper
           match={props.match!}
           card={props.strokeCard}
@@ -1490,10 +1814,11 @@ function PlayScreens(props: Props) {
           roundLabel={props.roundLabel}
           eventName={props.eventName}
           otherMatches={otherMatches}
-          save={savePlayMatchCard}
+          save={keptCard}
           next={next}
           footer={footer}
         />
+        {matchCheck}
       </Shell>
     );
   }
@@ -1501,6 +1826,7 @@ function PlayScreens(props: Props) {
   // The one match card, shared with the player app — see `MatchKeeper`.
   return (
     <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort} boardHref={props.boardHref}>
+      {matchBar}
       <MatchKeeper
         match={props.match!}
         holes={props.holes}
@@ -1516,11 +1842,12 @@ function PlayScreens(props: Props) {
         roundLabel={props.roundLabel}
         eventName={props.eventName}
         otherMatches={otherMatches}
-        saveHoles={savePlayMatchHoles}
-        saveResult={savePlayMatchResult}
+        saveHoles={keptHoles}
+        saveResult={keptResult}
         next={next}
         footer={footer}
       />
+      {matchCheck}
     </Shell>
   );
 }

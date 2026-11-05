@@ -31,10 +31,33 @@ const at = (who: string) => `${TAG}.${who}@example.invalid`.toLowerCase();
 let session: { eventId: string; email: string; name: string; role: string; viewRole: string } | null =
   null;
 
-vi.mock("@/lib/auth", () => ({ getSession: async () => session }));
+// Only the console's session is replaced: a round code signs its own cookie
+// with the module's real `sign`.
+vi.mock("@/lib/auth", async (original) => ({
+  ...(await original<typeof import("@/lib/auth")>()),
+  getSession: async () => session,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
+/** One phone's cookie jar, so a round-code session round-trips for real. */
+const jar = vi.hoisted(() => new Map<string, string>());
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) => {
+      const value = jar.get(name);
+      return value === undefined ? undefined : { name, value };
+    },
+    set: (name: string, value: string) => void jar.set(name, value),
+    delete: (name: string) => void jar.delete(name),
+  }),
+}));
+
 const { confirmMatch } = await import("@/app/actions/tournament");
+const { claimPlayerSlot, savePlayMatchResult } = await import("@/app/actions/play");
+const { attestMatch } = await import("@/lib/services/attestation");
+const { clearRateLimit } = await import("@/lib/rate-limit");
+const { generateAccessCode } = await import("@/lib/codes");
+const CODE = generateAccessCode();
 
 let eventId = "";
 let matchId = "";
@@ -86,15 +109,17 @@ beforeAll(async () => {
   });
   eventId = event.id;
 
+  // A round code, for the phoned-in result below.
   const stage = await prisma.stage.create({
-    data: { eventId, format: "Four-ball", type: "Single Match Stage", holes: 18, position: 0 },
+    data: { eventId, format: "Four-ball", type: "Single Match Stage", holes: 18, position: 0, accessCode: CODE },
   });
   const group = await prisma.group.create({
     data: { eventId, name: "Flight A", position: 0 },
   });
 
   let seed = 0;
-  for (const who of ["ann", "bob", "cat", "dan"]) {
+  // Eve is in the group and NOT in this match: the group's scorer.
+  for (const who of ["ann", "bob", "cat", "dan", "eve"]) {
     const p = await prisma.player.create({
       data: { eventId, name: who, email: at(who), seed: (seed += 1), status: "confirmed" },
     });
@@ -131,6 +156,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
+    await clearRateLimit("round-code", CODE);
     /**
      * BY THE MARK, not by walking from the event.
      *
@@ -251,5 +277,104 @@ describe("confirmMatch applies the club's attestation rule", () => {
     };
     await confirmMatch(matchId);
     expect(await statusOf()).toBe("confirmed");
+  });
+});
+
+/**
+ * THE TWO DEFECTS THE END-OF-ROUND CHECK STANDS ON (2026-11-04, sprint 2 part B).
+ *
+ * The check is "the other side confirms", and both of these broke it before a
+ * single new line was written:
+ *
+ *   1. A result PHONED IN from a round code ("3&2") stored no author and kept
+ *      the signatures of the result it replaced. `savePlayMatchHoles` set both;
+ *      `savePlayMatchResult`, beside it, set neither — so whoever phoned it in
+ *      could confirm it, and a confirmation of an old scoreline survived a new one.
+ *   2. A scorer keeping a group's card for a match they are NOT playing in is
+ *      on neither side, and `attestMatch` took the author as the card's owner —
+ *      so it read the match as having "nobody else in it to confirm".
+ */
+describe("a phoned-in result has an author, and supersedes old signatures", () => {
+  beforeAll(async () => {
+    await prisma.event.update({
+      where: { id: eventId },
+      data: { status: "live", playerAccess: "code", scoreEntryBy: "players", scoreApproval: "players", attestBy: "marker" },
+    });
+  });
+
+  it("records who phoned it in, and clears the signatures of the result it replaced", async () => {
+    await resetMatch("marker");
+    // Cat had signed the OLD scoreline.
+    await prisma.match.update({ where: { id: matchId }, data: { attestedBy: JSON.stringify([player.cat]), enteredById: "", enteredBy: "" } });
+    jar.clear();
+    expect((await claimPlayerSlot(CODE, player.ann)).ok).toBe(true);
+    const res = await savePlayMatchResult(matchId, "A", "2&1");
+    expect(res.ok, res.error).toBe(true);
+    const row = await prisma.match.findUniqueOrThrow({ where: { id: matchId } });
+    expect(row.enteredById, "a phoned-in result has no author").toBe(player.ann);
+    expect(row.enteredBy).toBe("ann");
+    expect(JSON.parse(row.attestedBy), "a signature of the old scoreline survived the new one").toEqual([]);
+  });
+
+  it("and so its author cannot confirm it — somebody else in the match must", async () => {
+    signIn("ann");
+    const own = await confirmMatch(matchId);
+    expect(own.ok).toBe(false);
+    expect(!own.ok && own.error).toMatch(/somebody else/i);
+    signIn("cat");
+    expect((await confirmMatch(matchId)).ok).toBe(true);
+    expect(await statusOf()).toBe("confirmed");
+  });
+});
+
+describe("a scorer keeping a match they are not playing in", () => {
+  /** Eve kept the card: she is in the group, not in the match. */
+  async function enteredByEve(attestBy: string) {
+    await resetMatch(attestBy);
+    await prisma.match.update({ where: { id: matchId }, data: { enteredById: player.eve, enteredBy: "eve" } });
+  }
+
+  it("under 'opponent', either side may confirm — nobody in the match wrote it down", async () => {
+    await enteredByEve("opponent");
+    signIn("cat");
+    const res = await confirmMatch(matchId);
+    expect(res.ok, !res.ok ? res.error : "").toBe(true);
+    expect(await statusOf()).toBe("confirmed");
+
+    await enteredByEve("opponent");
+    signIn("bob");
+    expect((await confirmMatch(matchId)).ok).toBe(true);
+    expect(await statusOf()).toBe("confirmed");
+  });
+
+  it("under 'all', everyone in the match signs — and the scorer is not one of them", async () => {
+    await enteredByEve("all");
+    for (const who of ["ann", "bob", "cat"]) {
+      signIn(who);
+      expect((await confirmMatch(matchId)).ok).toBe(true);
+    }
+    expect(await statusOf(), "three of four is not everyone").toBe("pending");
+    signIn("dan");
+    await confirmMatch(matchId);
+    expect(await statusOf()).toBe("confirmed");
+  });
+
+  it("the requirement is the match's sides, with the scorer as the author (pure)", () => {
+    const sides = { id: matchId, sideA: [player.ann, player.bob], sideB: [player.cat, player.dan] };
+    const out = attestMatch(sides, { enteredById: player.eve, attestedBy: "[]" }, player.cat, "opponent", "confirm");
+    expect(out.ok && out.status).toBe("confirmed");
+    const eve = attestMatch(sides, { enteredById: player.eve, attestedBy: "[]" }, player.eve, "opponent", "confirm");
+    expect(eve.ok).toBe(false);
+  });
+});
+
+describe("where the committee approves, the check records agreement and approves nothing", () => {
+  it("attestMatch in 'record' mode leaves the result pending, and says the sides agree", () => {
+    const sides = { id: matchId, sideA: [player.ann, player.bob], sideB: [player.cat, player.dan] };
+    const out = attestMatch(sides, { enteredById: player.ann, attestedBy: "[]" }, player.cat, "opponent", "record");
+    expect(out.ok).toBe(true);
+    expect(out.ok && out.status, "a player's signature approved a result the committee approves").toBe("pending");
+    expect(out.ok && out.agreed).toBe(true);
+    expect(out.ok && out.attestedBy).toEqual([player.cat]);
   });
 });

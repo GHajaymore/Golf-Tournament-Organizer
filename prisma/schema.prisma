@@ -1542,6 +1542,7 @@ model Event {
   matches         Match[]
   attendance      RoundAttendance[]
   skinsPots       SkinsPot[]
+  scoringKeepers  ScoringKeeper[]
   playoffHoles    LeaguePlayoffHole[]
   bracketWinners  BracketWinner[]
   bracketReports  BracketReport[]
@@ -1668,6 +1669,7 @@ model Player {
   tee             Tee?              @relation(fields: [teeId], references: [id], onDelete: SetNull)
   teamMemberships TeamMember[]
   attendance      RoundAttendance[]
+  keeping         ScoringKeeper[]
   captainOf       Group[]           @relation("FlightCaptain")
   viceCaptainOf   Group[]           @relation("FlightViceCaptain")
   skinsEntries    SkinsEntry[]
@@ -2108,6 +2110,23 @@ model Stage {
    * which is every round that existed before this field.
    */
   printLog          String  @default("")
+  /**
+   * WHO ENTERS THIS ROUND'S SCORES (2026-11-04, sprint 2 part B): one of
+   *   group      one scorer per group keeps the group's card (`ScoringKeeper`)
+   *   each       each player enters their own — every round before this field
+   *   organizer  the committee enters them from paper cards; players may not
+   * Read only through `roundScoring` (lib/domain/round-scoring.ts), which reads
+   * an unknown value as "each". A new round gets `scoringDefaults(shape)`.
+   * The tournament's own "staff" setting (`Event.scoreEntryBy`) always wins.
+   */
+  scoreKeeping      String  @default("each")
+  /**
+   * THE END-OF-ROUND CHECK: "on" | "off". On, the other side confirms a match
+   * result (each player confirms their own card in stroke play) before it is
+   * final, and a disputed one is held off the board (`heldFromBoard`). Read
+   * through `roundScoring`; unknown reads as "off".
+   */
+  endCheck          String  @default("off")
 
   event      Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   course     Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
@@ -2115,6 +2134,7 @@ model Stage {
   teams      Team[]
   attendance RoundAttendance[]
   skinsPots  SkinsPot[]
+  keepers    ScoringKeeper[]
   playoffHoles LeaguePlayoffHole[]
   /// The player-less Group rows that exist only to hold this round's matches —
   /// see `Group.stageId`. Never a flight; a flight has no round.
@@ -2135,6 +2155,40 @@ model Stage {
  * organizer flip a forty-player league to opt-out without writing forty
  * rows, and lets "by default you're in" be literally true.
  */
+/**
+ * THE ONE PHONE THAT KEEPS A GROUP'S CARD (2026-11-04, sprint 2 part B).
+ *
+ * At a real team cup (2026-10-18) every phone in a four-ball could write the
+ * match, and two did. On a round whose `Stage.scoreKeeping` is "group", one
+ * player per group holds the card: this row says who. `groupKey` is the
+ * published tee-sheet group, else the match, else the whole round — decided by
+ * `groupKeyFor` in lib/domain/group-keeping.ts and nowhere else.
+ *
+ * `epoch` counts hand-overs. A phone keeps the epoch it was given; a save
+ * carrying an older one is refused in words, so a scorer who was taken over
+ * cannot write beside the new one from a phone left in a pocket.
+ *
+ * A claim is an UPSERT on (stageId, groupKey), never a read-then-write: two
+ * phones pressing "I'll keep score" together leave one row, and the second
+ * press is told who has it.
+ */
+model ScoringKeeper {
+  id        String   @id @default(cuid())
+  eventId   String
+  stageId   String
+  groupKey  String
+  playerId  String
+  epoch     Int      @default(1)
+  claimedAt DateTime @default(now())
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stage  Stage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, groupKey])
+  @@index([eventId])
+}
+
 model RoundAttendance {
   id        String   @id @default(cuid())
   eventId   String

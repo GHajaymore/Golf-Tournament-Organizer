@@ -13,6 +13,7 @@ import { countbackCompare } from "../domain/stroke-countback";
 import { oneCardPerSide } from "../domain/team-entry";
 import { teamMatchStandings, type TeamMatchStanding } from "../domain/team-match-standings";
 import { isLeaguePointsSystem } from "../domain/league-meeting";
+import { onBoard } from "../domain/board-hold";
 import type { HoleResult } from "../domain/types";
 import {
   sideHandicap,
@@ -692,7 +693,7 @@ export async function teamMatchBoard(
     teamsForStage(eventId, stageId, format, allowanceOverride, holes, weightsOverride),
     prisma.match.findMany({
       where: { eventId, stageId, NOT: { teamAId: "" } },
-      select: { teamAId: true, teamBId: true, holes: true },
+      select: { teamAId: true, teamBId: true, holes: true, scoreStatus: true },
     }),
     prisma.event.findUnique({ where: { id: eventId }, select: { leaguePoints: true } }),
   ]);
@@ -700,7 +701,8 @@ export async function teamMatchBoard(
   const pairings = matches.map((m) => {
     let holeResults: HoleResult[] = [];
     try {
-      holeResults = JSON.parse(m.holes) as HoleResult[];
+      // A result in dispute is held off the board (`onBoard`, domain/board-hold.ts).
+      holeResults = JSON.parse(onBoard(m).holes) as HoleResult[];
     } catch {
       // An unreadable card is not a finished match, and a throw here would
       // take the whole board down over one row.

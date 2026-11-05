@@ -215,6 +215,8 @@ function unscopedParams(a: Action): string[] {
  * `file:action` where the whole action is pre-authorization.
  */
 const EXEMPT: Record<string, string> = {
+  "play.ts:handOverGroup:toPlayerId":
+    "handed to `handOverGroup` in services/group-keeping.ts, which refuses any id not in the caller's own group — `groupMembers` of the session's round, and the confirmed field read with { eventId, status: 'confirmed' } — before its one write, an updateMany scoped { eventId, stageId, groupKey, playerId: fromId }; the scope check is one frame down (a-group-has-one-scorer.audit.test.ts hands to a player outside the group and is refused)",
   "messaging.ts:readThread:threadId":
     "threadView(ctx, threadId) selects with { id, organizationId, scopeKey: { in: visibleScopes(ctx) } } in ONE where clause — the id narrows within the caller's derived scope set rather than authorising anything, and a thread outside it returns null; the scope check is one frame down",
   "messaging.ts:markThreadRead:threadId":

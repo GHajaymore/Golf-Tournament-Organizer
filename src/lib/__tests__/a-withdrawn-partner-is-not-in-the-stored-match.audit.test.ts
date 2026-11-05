@@ -174,7 +174,7 @@ afterAll(async () => {
 });
 
 async function storedHoles(): Promise<("A" | "B" | "H" | null)[]> {
-  await recomputeTeamMatch(eventId, match, "Scramble", 18);
+  await recomputeTeamMatch(eventId, match, "Scramble", 18, { name: "The committee", playerId: "" });
   const row = await prisma.match.findUniqueOrThrow({ where: { id: match.id }, select: { holes: true } });
   return JSON.parse(row.holes);
 }

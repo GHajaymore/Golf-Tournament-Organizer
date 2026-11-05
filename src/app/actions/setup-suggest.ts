@@ -15,6 +15,7 @@ import { parseSetupProposal, setupPrompt, type SetupProposal } from "@/lib/domai
 import { assertUnlocked } from "@/lib/services/action-shared";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { askClaude } from "@/lib/services/claude";
+import { scoringDefaults } from "@/lib/domain/round-scoring";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -176,6 +177,8 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const from = (agg._max.position ?? -1) + 1;
   const flightsBefore = await flightDefaultFor(eventId);
+  // Who keeps each new round's card and who checks it (`scoringDefaults`).
+  const shape = (await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } }))?.shape ?? "";
 
   await prisma.stage.createMany({
     data: checked.rounds.map((r, i) => ({
@@ -187,6 +190,7 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
       // A Stableford round is net — `basisFor` (2026-09-28).
       scoringBasis: basisFor(r.format, r.scoringBasis),
       description: r.description,
+      ...scoringDefaults(shape),
     })),
   });
   await followFlightDefault(eventId, flightsBefore);

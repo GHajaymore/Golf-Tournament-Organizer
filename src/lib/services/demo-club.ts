@@ -21,6 +21,7 @@ import { writeScorecard } from "@/lib/services/scorecard-write";
 import { settingsOf } from "@/lib/services/tournament";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { boardChanged } from "@/lib/services/board-refresh";
+import { scoringDefaults } from "@/lib/domain/round-scoring";
 import { addCourseToLibrary } from "@/lib/services/course-library";
 
 /**
@@ -294,6 +295,7 @@ async function buildFinished(orgId: string, courseId: string, teeId: string, tok
         playedOn: day,
         teeSheet: teeSheet(players),
         teeSheetPublished: true,
+        ...scoringDefaults(event.shape),
       },
     });
     for (const [i, p] of players.entries()) {
@@ -337,6 +339,7 @@ async function buildToday(orgId: string, courseId: string, teeId: string, token:
       playedOn: today,
       teeSheet: teeSheet(players),
       teeSheetPublished: true,
+      ...scoringDefaults(event.shape),
     },
   });
   await ensureRoundCodes(event.id);

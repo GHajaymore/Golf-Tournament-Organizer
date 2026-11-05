@@ -63,6 +63,31 @@ export async function teardownCasual(prisma = new PrismaClient()) {
   }
 }
 
+/**
+ * THE ROUND JUST SET UP IS KEPT BY EACH PLAYER ON THEIR OWN PHONE.
+ *
+ * A new casual round starts with one scorer per group (`scoringDefaults`,
+ * 2026-11-04): the first phone to save keeps the whole four's card, and a
+ * friend's own phone is told who has it. A spec that walks two friends each
+ * keeping their own card is walking the other setting, so it says so here —
+ * the casual one-screen has no control for it yet. Returns the round's id.
+ */
+export async function keepEachOwnCard() {
+  const prisma = new PrismaClient();
+  try {
+    const event = await prisma.event.findFirst({
+      where: { organization: { name: CASUAL_ORG } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, stages: { select: { id: true } } },
+    });
+    if (!event || event.stages.length !== 1) throw new Error(`the casual round just set up was not found (${event ? `${event.stages.length} rounds` : "no event"})`);
+    await prisma.stage.update({ where: { id: event.stages[0].id }, data: { scoreKeeping: "each" } });
+    return event.stages[0].id;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 /** Seed from clean, and return the signed session cookie for the user. */
 export async function seedCasual() {
   await teardownCasual();

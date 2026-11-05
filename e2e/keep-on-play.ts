@@ -17,6 +17,13 @@ import { expect, type Locator, type Page } from "@playwright/test";
  * round draws: the page says, by drawing it.
  */
 
+/**
+ * The name step's heading: "Whose card are you keeping?" where each player keeps
+ * their own, "Which one are you?" where one phone keeps the group's card
+ * (2026-11-05, phase 2).
+ */
+const PICK_HEADING = /^Whose card are you keeping\?$|^Which one are you\?$/;
+
 /** The group buttons, as `/play` draws them after the code. */
 export function playGroups(page: Page): Locator {
   return page.locator('form[data-held-until-live="group"] button[name="group"]');
@@ -51,7 +58,7 @@ export async function keepCardOf(page: Page, name: string): Promise<void> {
   await pickAndConfirm(page, name);
   // Gone past the question: its heading says the name too, so a caller waiting
   // for a heading with the name would otherwise be answered by the question.
-  await expect(page.getByRole("heading", { name: /^You're keeping |^Whose card are you keeping\?$/ }), "the card never opened after the confirmation").toHaveCount(0, {
+  await expect(page.getByRole("heading", { name: /^You're keeping |^Whose card are you keeping\?$|^Which one are you\?$/ }), "the card never opened after the confirmation").toHaveCount(0, {
     timeout: 30_000,
   });
 }
@@ -80,17 +87,17 @@ async function pickAndConfirm(page: Page, name: string): Promise<void> {
     await group.first().click();
     if (askedBefore) {
       // Confirmed on this phone already: straight through, or to whose card.
-      const pick = page.getByRole("heading", { name: "Whose card are you keeping?" });
+      const pick = page.getByRole("heading", { name: PICK_HEADING });
       if (await pick.isVisible().catch(() => false)) await page.getByRole("button", { name, exact: true }).click();
       return;
     }
     const yes = page.getByRole("button", { name: "Yes, that's my group" });
     await expect(yes, "a group was tapped and nothing asked whether it was the right one").toBeVisible();
     // Said on the same screen as the question, so it is known before the answer.
-    const picksNext = (await page.getByText(/^Next you pick whose card you.re keeping\.$/).count()) > 0;
+    const picksNext = (await page.getByText(/^Next you pick whose card you.re keeping\.$|Next you pick your own name\.$/).count()) > 0;
     await yes.click();
     if (picksNext) {
-      await expect(page.getByRole("heading", { name: "Whose card are you keeping?" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: PICK_HEADING })).toBeVisible();
       await page.getByRole("button", { name, exact: true }).click();
     }
     return;

@@ -34,6 +34,13 @@ const LABEL_SOURCE: Record<string, string> = {
   "Score this match": "src/app/(player)/me/page.tsx",
   "Halved": "src/components/HoleResultCard.tsx",
   "Not my group": "src/components/PlayClient.tsx",
+  // One scorer per group and the end-of-round check on /play (2026-11-05).
+  "Take over the card": "src/components/PlayGroupKeeping.tsx",
+  "Hand the card to someone else": "src/components/PlayGroupKeeping.tsx",
+  "Confirm the result": "src/components/PlayGroupKeeping.tsx",
+  "That’s not right": "src/components/PlayGroupKeeping.tsx",
+  "Confirm my card": "src/components/PlayGroupKeeping.tsx",
+  "Something’s wrong": "src/components/PlayGroupKeeping.tsx",
   "Leaderboard": "src/components/PlayClient.tsx",
 };
 
