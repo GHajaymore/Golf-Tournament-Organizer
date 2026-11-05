@@ -3559,6 +3559,8 @@ export async function confirmMatch(matchId: string): Promise<ConfirmResult> {
       match,
       me!.id,
       ruleFrom(settings.attestBy),
+      // Players approve here (staff approval returned above).
+      "confirm",
     );
     if (!outcome.ok) return { ok: false, error: outcome.error };
 

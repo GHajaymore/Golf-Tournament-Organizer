@@ -535,9 +535,21 @@ export async function savePlayMatchResult(
       scoreStatus: "pending",
       scoredAt: new Date(),
       confirmedById: null,
+      /**
+       * WHO PHONED IT IN, and a clean slate of signatures (2026-11-04). The
+       * hole-by-hole save beside this has set both since it was written; this
+       * one set neither, so a phoned-in "3&2" had no author — its author could
+       * confirm it — and a signature collected on the OLD scoreline survived
+       * the new one. `attestation.audit.test.ts` holds both.
+       */
+      enteredBy: session.playerName,
+      enteredById: session.playerId,
+      attestedBy: "[]",
     },
   });
   await logAudit(session.eventId, "score", `Result entered via round code: ${winner === "H" ? "halved" : margin || "1 UP"}`, { matchId, actor: session.playerName });
+  boardChanged(session.eventId);
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
