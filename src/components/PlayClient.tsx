@@ -352,6 +352,19 @@ function ScannedSign({ sessionCode, roundLabel }: { sessionCode: string; roundLa
   );
 }
 
+/**
+ * THE GROUP THIS PHONE KEPT LAST TIME IN A TOURNAMENT, if it is still a group of this round
+ * (`rememberedGroup`) — null when storage is blocked, empty, or holds a group that has changed.
+ */
+function rememberedIn(eventId: string, groups: readonly PlayGroup[]): PlayGroup | null {
+  if (!eventId || groups.length === 0) return null;
+  try {
+    return rememberedGroup(parseRemembered(window.localStorage.getItem(`thq-play-last:${eventId}`)), groups);
+  } catch {
+    return null;
+  }
+}
+
 export function PlayClient(props: Props) {
   return (
     <>
@@ -423,11 +436,7 @@ function PlayScreens(props: Props) {
       setLast(null);
       return;
     }
-    try {
-      setLast(rememberedGroup(parseRemembered(window.localStorage.getItem(`thq-play-last:${rememberEventId}`)), groups));
-    } catch {
-      setLast(null);
-    }
+    setLast(rememberedIn(rememberEventId, groups));
   }, [rememberEventId, groups]);
 
   // Set as the card saves; nothing reads it.
@@ -520,30 +529,6 @@ function PlayScreens(props: Props) {
     });
 
   /**
-   * `wantGroup` is the group a scanned sign names (`linkFromHash`): once the round's
-   * groups are in, a group that is one of them goes straight to the confirmation —
-   * the list is skipped, never the question. A key the round no longer lists (a sign
-   * printed before the draw changed) simply leaves the list on screen.
-   */
-  const openCode = (typed: string, wantGroup?: string | null) => {
-    setError("");
-    startTransition(async () => {
-      const res = await redeemRoundCode(typed);
-      if (!res.ok) {
-        setError(res.error ?? "That code isn't valid.");
-        return;
-      }
-      const at = { code: typed, stageId: res.stageId ?? "", eventId: res.eventId ?? "" };
-      setPlayers(res.players ?? []);
-      setGroups(res.groups ?? []);
-      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "", stageId: at.stageId, eventId: at.eventId });
-      setStep(null);
-      const want = wantGroup ? res.groups?.find((g) => g.key === wantGroup) : undefined;
-      if (want) choose({ kind: "group", group: want }, at);
-    });
-  };
-
-  /**
    * ONE CONFIRMATION, ONCE PER PHONE (2026-11-04).
    *
    * A group tapped is said back in full before anything is kept — "You're
@@ -594,6 +579,33 @@ function PlayScreens(props: Props) {
     if (confirmedBefore(target, at)) keep(target, at);
     else setStep({ kind: "confirm", target });
   };
+  /**
+   * `wantGroup` is the group a scanned sign names (`linkFromHash`): once the round's
+   * groups are in, a group that is one of them goes straight to the confirmation —
+   * the list is skipped, never the question. A key the round no longer lists (a sign
+   * printed before the draw changed) simply leaves the list on screen.
+   */
+  const openCode = (typed: string, wantGroup?: string | null) => {
+    setError("");
+    startTransition(async () => {
+      const res = await redeemRoundCode(typed);
+      if (!res.ok) {
+        setError(res.error ?? "That code isn't valid.");
+        return;
+      }
+      const at = { code: typed, stageId: res.stageId ?? "", eventId: res.eventId ?? "" };
+      setPlayers(res.players ?? []);
+      setGroups(res.groups ?? []);
+      // In the same render as the list, so the full list is never drawn for a moment before "Last time".
+      setLast(rememberedIn(at.eventId, res.groups ?? []));
+      setShowAll(false);
+      setContext({ eventName: res.eventName ?? "", roundLabel: res.roundLabel ?? "", stageId: at.stageId, eventId: at.eventId });
+      setStep(null);
+      const want = wantGroup ? res.groups?.find((g) => g.key === wantGroup) : undefined;
+      if (want) choose({ kind: "group", group: want }, at);
+    });
+  };
+
   const backToList = () => {
     setStep(null);
     setError("");
@@ -625,6 +637,7 @@ function PlayScreens(props: Props) {
     setCode(formatAccessCode(fromSign.code));
     openCode(fromSign.code, fromSign.group);
     // Once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.stage]);
 
   /**

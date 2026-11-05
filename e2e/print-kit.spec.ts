@@ -20,7 +20,8 @@ import { formatDayAt } from "../src/lib/domain/locale";
  *                              button, at A4 and at US Letter
  *   a 59-character name        on its card (as its initial and surname), its
  *                              sign and the starting sheet, inside every box
- *   every QR                   read back by a decoder, to exactly /play#CODE
+ *   every QR                   read back by a decoder, WITH the TourneyHQ mark in its centre, to its
+ *                              own group: /play#CODE.t<n> (a match: .m<id>); the spares to /play#CODE
  *   never on paper             no email, phone number, amount or sale word in
  *                              any text on any card (with a control)
  *   the stamp                  the press records the cards, each foot says when
@@ -123,12 +124,12 @@ const QR_PX = 400;
  *
  * `damage` paints over the top-left finder pattern first: the CONTROL that a broken code does not read.
  */
-async function decodeQrs(page: Page, opts: { only?: number; damage?: boolean } = {}): Promise<Array<{ drawn: string; read: string | null }>> {
+async function decodeQrs(page: Page, opts: { only?: number; damage?: boolean } = {}): Promise<Array<{ drawn: string; read: string | null; doc: string; key: string }>> {
   const count = await page.locator("#pk-pages svg.pk-qr").count();
   const which = opts.only === undefined ? [...Array(count).keys()] : [opts.only];
-  const out: Array<{ drawn: string; read: string | null }> = [];
+  const out: Array<{ drawn: string; read: string | null; doc: string; key: string }> = [];
   for (const i of which) {
-    const { drawn, b64 } = await page.evaluate(
+    const { drawn, b64, doc, key } = await page.evaluate(
       async ({ i, size, damage }) => {
         const svg = document.querySelectorAll<SVGSVGElement>("#pk-pages svg.pk-qr")[i];
         const img = new Image();
@@ -145,14 +146,15 @@ async function decodeQrs(page: Page, opts: { only?: number; damage?: boolean } =
         const bytes = ctx.getImageData(0, 0, size, size).data;
         let bin = "";
         for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode(...bytes.subarray(k, k + 0x8000));
-        return { drawn: svg.dataset.link ?? "", b64: btoa(bin) };
+        const card = svg.closest<HTMLElement>("[data-card]");
+        return { drawn: svg.dataset.link ?? "", b64: btoa(bin), doc: card?.dataset.doc ?? "", key: card?.dataset.key ?? "" };
       },
       { i, size: QR_PX, damage: opts.damage ?? false },
     );
     const bytes = Buffer.from(b64, "base64");
     expect(bytes.length, "CONTROL: a whole raster crossed").toBe(QR_PX * QR_PX * 4);
     const pixels = new Uint8ClampedArray(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    out.push({ drawn, read: jsQR(pixels, QR_PX, QR_PX)?.data ?? null });
+    out.push({ drawn, read: jsQR(pixels, QR_PX, QR_PX)?.data ?? null, doc, key });
   }
   return out;
 }
@@ -223,15 +225,36 @@ test("the Stableford's paper: the normal card two to a sheet, readable, nothing 
   expect(await brand.count()).toBe(cards.length);
   await expect(brand.first()).toHaveText(/Scored live with TourneyHQ · .+\/play$/);
 
-  // Every QR reads back to exactly the round's /play#CODE.
+  // Every QR reads back to exactly the link it was drawn from, with the TourneyHQ mark in its centre
+  // (level H — the decoder reads it WITH the mark, which is the point): the round's /play#CODE on the
+  // two spare signs, and its OWN GROUP's — /play#CODE.t<n>, n the group's place in the tee sheet — on
+  // every buggy sign and every scorecard (2026-11-05).
   const origin = new URL(baseURL!).origin;
   const code = `${f.sf.code.slice(0, 4)}-${f.sf.code.slice(4)}`;
   const qrs = await decodeQrs(page);
-  expect(qrs.length, "one per buggy sign and the two spares").toBe(signs + 2);
+  expect(qrs.length, "one per scorecard, one per buggy sign and the two spares").toBe(n + signs + 2);
+  const groupOf = (key: string, doc: string) => {
+    if (doc === "signs") return Number(/^signs:Group (\d+)/.exec(key)![1]) - 1;
+    // Three to a group, in the order the fixture lists its players.
+    const at = f.sf.players.findIndex((p) => key === `cards:${p.id}`);
+    expect(at, `${key} is no player of the fixture`).toBeGreaterThanOrEqual(0);
+    return Math.floor(at / 3);
+  };
   for (const q of qrs) {
-    expect(q.read, "a QR did not decode").toBe(`${origin}/play#${code}`);
-    expect(q.drawn).toBe(q.read);
+    expect(q.read, "a QR did not decode").toBe(q.drawn);
+    const want = q.doc === "spare" ? `${origin}/play#${code}` : `${origin}/play#${code}.t${groupOf(q.key, q.doc)}`;
+    expect(q.read, `${q.doc} ${q.key}: the QR does not open its own group`).toBe(want);
   }
+  expect(qrs.filter((q) => q.doc === "cards"), "every scorecard carries its group's QR").toHaveLength(n);
+  // The mark is drawn in each: the app's own, through the one component that draws it.
+  await expect(page.locator("#pk-pages svg.pk-qr [data-qr-logo]")).toHaveCount(n + signs + 2);
+  // Each QR is a link to its own address (tappable on screen, only ink on paper).
+  const links = await page.locator("#pk-pages a.pk-qrlink").evaluateAll((as) => as.map((a) => [(a as HTMLAnchorElement).href, a.querySelector("svg")?.getAttribute("data-link")]));
+  expect(links).toHaveLength(n + signs + 2);
+  for (const [href, drawn] of links) expect(href).toBe(drawn);
+  // The card's code is typed under its QR, for a phone with no camera.
+  const first = page.locator(`#pk-pages [data-card][data-doc="cards"]`).first();
+  await expect(first.locator(".pk-cardcode-text")).toHaveText(code);
 
   // The PDF: the sheets on the button, cards on their side and the starting sheet upright — at A4…
   const a4 = await pdfPages(page);
@@ -307,11 +330,11 @@ test("printing stamps the cards; a moved group and a reissued code ask for just 
   await expect(page.getByRole("status").filter({ hasText: "out of date" })).toHaveCount(0);
   expect((await visible(page)).cards.length).toBe(ticked);
 
-  // A reissued code: every sheet carrying it is flagged — each buggy's sign and both spares.
+  // A reissued code: every sheet carrying it is flagged — each buggy's sign, both spares and, since 2026-11-05, every scorecard (each carries its group's QR).
   await prisma.stage.update({ where: { id: f.sf.stageId }, data: { accessCode: "ZZPW2346" } });
   try {
     await open(page, `/print?round=${f.sf.stageId}`);
-    await expect(page.getByRole("status").filter({ hasText: "out of date" })).toContainText(staleSentence(f.sf.groups * buggiesPerGroup + 2));
+    await expect(page.getByRole("status").filter({ hasText: "out of date" })).toContainText(staleSentence(f.sf.groups * buggiesPerGroup + 2 + f.sf.players.length));
     await expect(page.getByRole("status").filter({ hasText: "out of date" })).toContainText("spare sign");
   } finally {
     await prisma.stage.update({ where: { id: f.sf.stageId }, data: { accessCode: f.sf.code } });
@@ -347,16 +370,28 @@ test("the team cup: one fold-out card per match with both nines on it, and a sig
 
   // Both codes on every sign, each QR read back to its own round.
   const origin = new URL(baseURL!).origin;
-  const want = new Set(f.cup.codes.map((c) => `${origin}/play#${c.slice(0, 4)}-${c.slice(4)}`));
+  const plain = new Set(f.cup.codes.map((c) => `${origin}/play#${c.slice(0, 4)}-${c.slice(4)}`));
   const qrs = await decodeQrs(page);
   expect(qrs.length).toBe(10 * 2 + 2);
+  // A sign's code names the MATCH in the round it opens (2026-11-05): /play#CODE.m<match id>, the
+  // match belonging to the round whose code it is. A code with no single match to name (the singles
+  // round has two matches inside one four-ball) opens the round's list, plain.
+  const withMatch: string[] = [];
   for (const q of qrs) {
-    expect(want.has(q.read ?? ""), `${q.read} is not one of the cup's rounds`).toBe(true);
-    expect(q.drawn).toBe(q.read);
+    expect(q.read, "a QR did not decode, with the mark in its centre").toBe(q.drawn);
+    const m = /^(.*\/play#[A-Z0-9]{4}-[A-Z0-9]{4})(?:\.m([A-Za-z0-9_-]+))?$/.exec(q.read ?? "");
+    expect(m, `${q.read} is not a link to one of the cup's rounds`).not.toBeNull();
+    expect(plain.has(m![1]), `${q.read} is not one of the cup's rounds`).toBe(true);
+    if (m![2]) {
+      const match = await prisma.match.findUniqueOrThrow({ where: { id: m![2] }, select: { stageId: true, stage: { select: { accessCode: true } } } });
+      expect(`${m![1].split("#")[1]}`.replace("-", ""), `${q.read}: the match is in another round`).toBe(match.stage.accessCode);
+      withMatch.push(q.read!);
+    }
   }
+  expect(withMatch.length, "no sign's QR opens its match").toBeGreaterThanOrEqual(10);
   // CONTROL: the same decoder, handed a code with a finder pattern painted out, reads nothing it should.
   const [broken] = await decodeQrs(page, { only: 0, damage: true });
-  expect(want.has(broken.read ?? ""), "a damaged QR still decoded: the decoder is not reading the drawing").toBe(false);
+  expect(broken.read === broken.drawn, "a damaged QR still decoded: the decoder is not reading the drawing").toBe(false);
   expect(paperRefusals(await printedTexts(page))).toEqual([]);
   expect((await pdfPages(page)).length).toBe((await visible(page)).sheets);
 

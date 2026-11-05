@@ -56,7 +56,21 @@ export async function keepCardOf(page: Page, name: string): Promise<void> {
   });
 }
 
+/**
+ * THE FULL LIST, WHERE THE PAGE OFFERS ONE GROUP FIRST (2026-11-05). A phone that confirmed a group earlier in
+ * this tournament is offered it as "Last time: …" with the list behind **Not my group**; a scorer who wants
+ * another group (or a spec that wants the list) opens it. A round with no remembered group draws the list
+ * at once, and nothing is pressed.
+ */
+export async function openFullList(page: Page): Promise<void> {
+  const notMine = page.getByRole("button", { name: "Not my group" });
+  // The page says which list it drew, the group list or the names, in the same render as the list itself.
+  await expect(page.getByText(/^Tap your group to start scoring.$|^Tap the name on the card you.re keeping.$/)).toBeVisible({ timeout: 20_000 });
+  if (await notMine.isVisible().catch(() => false)) await notMine.click();
+}
+
 async function pickAndConfirm(page: Page, name: string): Promise<void> {
+  await openFullList(page);
   const group = groupWith(page, name);
   const byName = page.getByRole("button", { name, exact: true });
   await expect(group.or(byName).first(), `"${name}" is in no group and on no list after the code`).toBeVisible({ timeout: 20_000 });

@@ -57,6 +57,10 @@ export function targetKey(t: PlayTarget): string {
 export const matchGroupKey = (matchId: string): string => `match:${matchId}`;
 export const teeGroupKey = (index: number): string => `tee:${index}`;
 
+// A cuid is 25 letters and figures; the bounds leave room for a different id scheme without admitting anything odd.
+const MATCH_ID = /^[A-Za-z0-9_-]{4,40}$/;
+const TEE_INDEX = /^(0|[1-9]\d{0,2})$/;
+
 /**
  * A GROUP IN A LINK (2026-11-05): `m<match id>` or `t<n>` — the key with its
  * word cut to one letter, because a printed QR grows with every character
@@ -76,10 +80,6 @@ export function groupKeyFromFragment(fragment: string): string | null {
   if (fragment.startsWith("t") && TEE_INDEX.test(fragment.slice(1))) return teeGroupKey(Number(fragment.slice(1)));
   return null;
 }
-
-// A cuid is 25 letters and figures; the bounds leave room for a different id scheme without admitting anything odd.
-const MATCH_ID = /^[A-Za-z0-9_-]{4,40}$/;
-const TEE_INDEX = /^(0|[1-9]\d{0,2})$/;
 
 /**
  * WHAT A PHONE REMEMBERS OF ITS GROUP, ACROSS A TOURNAMENT (2026-11-05).

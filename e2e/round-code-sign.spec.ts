@@ -74,7 +74,9 @@ test("a round's sign opens its names on a fresh phone, and asks before moving a 
   const signs = page.locator("#pk-pages .pk-sparecard").filter({ hasText: shown });
   await expect(signs, "no sign carries the round's code").toHaveCount(2, { timeout: 20_000 });
   const sign = signs.first();
-  await expect(sign.locator("svg path"), "the sign has no QR drawn").toHaveCount(1);
+  // The code's modules are the one path directly under the svg; the TourneyHQ mark in its centre (2026-11-05) has paths of its own.
+  await expect(sign.locator("svg.pk-qr > path"), "the sign has no QR drawn").toHaveCount(1);
+  await expect(sign.locator("svg.pk-qr [data-qr-logo]"), "the sign's QR has no mark in its centre").toHaveCount(1);
   await expect(sign).toContainText("Scan to enter your score");
   await expect(page.getByRole("button", { name: /^Print 1 sheet$/ })).toBeVisible();
   const link = await sign.getAttribute("data-link");

@@ -250,6 +250,9 @@ const subOf = (card: KitCard, extra = "") => [card.roundLabel, card.dates, card.
 
 /* ── A. The scorecard ──────────────────────────────────────────────────── */
 
+/** The scorecard's QR, in mm: what its corner holds with four players on the card (see `.pk-cardcode`). */
+const CARD_QR_MM = 16;
+
 type Col = { kind: "hole"; i: number } | { kind: "total"; label: "Out" | "In" | "Tot"; idx: number[] } | { kind: "last"; label: "Net" | "Pts" };
 
 /** The columns of a real card: 1–9, Out, 10–18, In, Tot, then Net or Pts. A nine has no "In" to fill. */
@@ -620,9 +623,6 @@ function Qr({ code, mm }: { code: KitCode; mm: number }) {
     </a>
   );
 }
-
-/** The scorecard's QR, in mm: what its corner holds with four players on the card (see `.pk-cardcode`). */
-const CARD_QR_MM = 16;
 
 function CartSign({ p, kit, card, foot }: { p: SignPage; kit: PrintKit; card: KitCard; foot: React.ReactNode }) {
   const s = p.sign;

@@ -1,7 +1,7 @@
 import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
-import { playGroups } from "./keep-on-play";
+import { playGroups, openFullList } from "./keep-on-play";
 
 /**
  * THE CUP'S WRONG CARD, PRESSED THE NEW WAY (2026-11-04).
@@ -184,6 +184,8 @@ test("a scorer on side B: the code, the group, one confirmation, a hole to their
     await expect(page.getByLabel("Round code")).toBeVisible({ timeout: 20_000 });
     await page.getByLabel("Round code").fill(CODE);
     await page.getByRole("button", { name: "Continue" }).click();
+    // The phone confirmed this group a moment ago, so the page offers it first (2026-11-05): the list is behind "Not my group".
+    await openFullList(page);
     await playGroups(page).first().click();
     await expect(page.getByRole("group", { name: /^Who won hole/ }), "the confirmed group did not open its card").toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Yes, that's my group" }), "the same phone was asked again").toHaveCount(0);

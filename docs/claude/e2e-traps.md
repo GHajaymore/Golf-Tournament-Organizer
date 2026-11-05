@@ -175,3 +175,14 @@ question. Press it through `keepCardOf(page, name)` in `e2e/keep-on-play.ts`, wh
 the round drew rather than assuming it. A match opened by its group signs the phone in as the
 match's first player, so a spec reads the card's heading as the match ("A vs B", side A first,
 whoever holds it), never as the player whose name it typed.
+
+THE DOORS (sprint 2A, 2026-11-05). A sign's link can name its group: `/play#ABCD-EFGH.t3` (a tee-sheet group) or
+`.m<match id>`, read by `linkFromHash` (`code-format.ts`), and opens the CONFIRMATION of that group, not the
+list, so a spec that scans a group link looks for the "You're keeping …" heading first and `playGroups` at count
+0. A phone also remembers the group it confirmed in a tournament (`thq-play-last:<event>`, the people in it):
+in the next round it is offered first as "Last time: …" with the list behind **Not my group**, so a spec that
+re-enters a LATER round on the same context meets that button before the list — `e2e/round-code-doors.spec.ts`
+presses both, with `e2e/doors-fixture.ts` for its club. `/play/board` is the code holder's board
+(`e2e/play-board.spec.ts`, all three visibility settings). A QR in the Print kit is now an `<a>` around the
+`svg.pk-qr`, and its modules are the one `svg.pk-qr > path`; the mark in its centre has paths of its own, so
+count modules with the child combinator, never `svg path`.
