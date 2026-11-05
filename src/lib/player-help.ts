@@ -113,6 +113,39 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     ],
   },
   {
+    // ONE SCORER PER GROUP (2026-11-05, sprint 2 part B): who keeps the card on /play.
+    id: "who-keeps",
+    question: "Who keeps our group's score?",
+    href: "/me/card",
+    steps: [
+      "Your {organizer} may ask for one scorer per group.",
+      "Then one phone enters everyone's scores.",
+      "The first phone to confirm the group keeps it.",
+      "On every other phone it says whose phone has the card.",
+      "Those phones follow the card as the scores go in.",
+      "Battery flat? Tap [[Take over the card]] on your phone.",
+      "Confirm it once. The other phone stops saving.",
+      "Its last scores weren't saved. Its screen says so.",
+      "Handing it on? Tap [[Hand the card to someone else]], then a name.",
+      "No groups until the tee sheet is out. Until then, keep your own card.",
+    ],
+  },
+  {
+    // THE END-OF-ROUND CHECK (2026-11-05): the other side confirms, each player confirms their card.
+    id: "end-check",
+    question: "How do we check the result at the end?",
+    href: "/me/match",
+    steps: [
+      "Your {organizer} may turn on an end-of-round check.",
+      "In a match, the other side checks the result.",
+      "Tap [[Confirm the result]], or [[That’s not right]].",
+      "In stroke play, each player checks their own card.",
+      "Tap [[Confirm my card]], or [[Something’s wrong]].",
+      "A disputed result stays off the leaderboard.",
+      "The committee settles it, then it goes up.",
+    ],
+  },
+  {
     id: "strokes",
     question: "How many strokes do I get?",
     href: "/me/card",

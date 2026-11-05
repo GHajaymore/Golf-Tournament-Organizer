@@ -275,10 +275,14 @@ day and will drift: search for the expression.
   organizer) and `Stage.endCheck` are read only through `roundScoring` (`domain/round-scoring.ts`); a player's gate is
   `playerEntryRefusal(settings, stage)` — the tournament's "staff" setting wins, then a round kept from paper cards —
   and `canEnterScores(settings, "player")`, which asked the tournament alone, is refused by
-  `every-score-gate-asks-the-round.test.ts` (one named exception, `app/play/page.tsx`, phase 2). One scorer per group
+  `every-score-gate-asks-the-round.test.ts` (no exception since phase 2, 2026-11-05: `app/play/page.tsx` asks it too). One scorer per group
   is `mayKeep` (`domain/group-keeping.ts`) behind `keeperGate` (`services/group-keeping.ts`), asked by the round-code
   saves and the signed-in player's saves alike; membership of a match is `isInMatch` (`services/match-membership.ts`),
   which replaced three copies. Every new round spreads `scoringDefaults(shape)` (`every-stage-create-says-its-scoring.test.ts`).
+  **Which group** is `groupKeyFor` alone: the published tee sheet's group, else the player's one match, else — on a
+  CASUAL round only — the whole round; otherwise NO group (null) and each player keeps their own card (2026-11-05: a
+  tournament medal with no published sheet had made the field one group, so the first save kept every card). The
+  round card's warning reads the same sheets through `groupsArePublished`; the /play words are `keeping-words.ts`.
 - Match "confirmed or auto-confirmed": actions/tournament.ts:2556, 3628, 3581; match-filter.ts:39; ScoreEntryClient.tsx:2051; beside `effectiveScoreStatus`.
   **Done** (2026-10-14): `disputeMatch` read the stored column, so a player could dispute a result that had auto-confirmed; it reads `effectiveScoreStatus` now, as `clearMatch` does (`an-auto-confirmed-result-is-not-disputed-by-a-player.audit.test.ts`), and `auto-confirmed-is-never-stored.test.ts` refuses the column being compared with that word. The rest are handed the effective status already.
 
