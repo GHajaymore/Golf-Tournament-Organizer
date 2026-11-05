@@ -64,6 +64,8 @@ describe("the writer and the reader agree on the tag", () => {
 describe("what the cache must never swallow", () => {
   const board = readSource("src", "lib", "services", "live-board.ts");
   const page = readSource("src", "app", "live", "[token]", "page.tsx");
+  // What is drawn, and so what is stamped on each response, lives in the one component both doors use.
+  const drawn = readSource("src", "components", "PublicBoard.tsx");
 
   it("keeps the timestamp OUT of the cached payload", () => {
     /**
@@ -76,7 +78,7 @@ describe("what the cache must never swallow", () => {
      * built to prevent, and nothing would look wrong.
      */
     expect(board).not.toMatch(/renderedAt/);
-    expect(page).toMatch(/renderedAt=\{new Date\(\)\.toISOString\(\)\}/);
+    expect(drawn).toMatch(/renderedAt=\{new Date\(\)\.toISOString\(\)\}/);
   });
 
   it("checks the share token on every request, never from cache", () => {

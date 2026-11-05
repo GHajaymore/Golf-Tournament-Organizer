@@ -1,6 +1,7 @@
 import { test, expect, type Page, type BrowserContext, type Browser } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { keepCardOf } from "./keep-on-play";
 
 /**
  * THE HONEST CARD (2026-10-25): every hole says where its score is, and the words are true.
@@ -123,7 +124,8 @@ async function enter(page: Page, name: string) {
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.getByLabel("Round code").fill(CODE);
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name, exact: true }).click();
+  // Their group, or their name where the round has none, confirmed once (2026-11-04).
+  await keepCardOf(page, name);
   await expect(page.getByLabel("Strokes on hole 1")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("button", { name: /Par$/ }).first()).toBeEnabled({ timeout: 30_000 });
 }

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { usePendingCard } from "./usePendingCard";
 import { HoleByHoleCard } from "./HoleByHoleCard";
 import { matchStandingText, resolveMatch } from "@/lib/domain/match";
-import { matchSideLabels } from "./MatchKeeper";
+import { matchSideLabels } from "@/lib/domain/match-sides";
 import type { KeptMatch, MatchStrokeCard } from "@/lib/services/match-card";
 
 /**

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedCasual, teardownCasual, keepEachOwnCard } from "./casual-fixture.mjs";
+import { keepCardOf } from "./keep-on-play";
 
 /**
  * A CASUAL ROUND, PLAYED THE WAY IT IS PLAYED: at the course, on a phone.
@@ -700,7 +701,8 @@ test.describe("a casual round at the course", () => {
         await p.goto("/play");
         await p.getByLabel("Round code").fill(code);
         await p.getByRole("button", { name: "Continue" }).click();
-        await p.getByRole("button", { name, exact: true }).click();
+        // A round with no tee sheet lists the names; the name is confirmed once.
+        await keepCardOf(p, name);
         await expect(p.getByRole("heading", { level: 1, name })).toBeVisible({ timeout: 30_000 });
         // BOGEY ON THE FIRST SCREEN (2026-10-07). The pad's second row — the
         // commonest score in the amateur game — sat below the fold at 393x727
@@ -744,13 +746,13 @@ test.describe("a casual round at the course", () => {
   test("a friend keeps a gross match on their own phone by the round code", async ({ page, browser, baseURL }, testInfo) => {
     /**
      * Bea joins Ann's match by the code and keeps the match herself, one hole
-     * at a time, from HER side: one answer is Bea and the other is Ann, each
-     * by name (2026-10-07 — it was eighteen tiles of 28px "Me / ½ / Opp"
-     * buttons; "Me" itself went on 2026-10-18, see PlayClient).
-     * Bea is the second player, so every result she taps is flipped before it
-     * is stored. Ann wins the 2nd and 4th, Bea the 11th, 13th and 15th:
-     * Bea wins 1 up on the HOST's screen. A flip that went the wrong way
-     * prints Ann.
+     * at a time: one answer is Ann and the other is Bea, each by name
+     * (2026-10-07 — it was eighteen tiles of 28px "Me / ½ / Opp" buttons; "Me"
+     * itself went on 2026-10-18, see PlayClient). She taps the MATCH, not her
+     * name, and the card is the match as drawn, Ann first, whoever holds it
+     * (2026-11-04 — it used to turn round to face her and flip what she
+     * tapped). Ann wins the 2nd and 4th, Bea the 11th, 13th and 15th: Bea wins
+     * 1 up on the HOST's screen. A card the wrong way round prints Ann.
      */
     await setUp(page, "Match Play", false, [ANN, BEA]);
     await page.goto(`/entry?bust=${Date.now()}`);
@@ -763,7 +765,7 @@ test.describe("a casual round at the course", () => {
       await p.goto("/play");
       await p.getByLabel("Round code").fill(code);
       await p.getByRole("button", { name: "Continue" }).click();
-      await p.getByRole("button", { name: BEA, exact: true }).click();
+      await keepCardOf(p, BEA);
       const mine = p.getByRole("button", { name: `Hole 1 to ${BEA}` });
       await expect(mine, "the friend's match card did not open on hole 1").toBeVisible({ timeout: 30_000 });
       const box = (await mine.boundingBox())!;
@@ -817,13 +819,11 @@ test.describe("a casual round at the course", () => {
       await p.goto("/play");
       await p.getByLabel("Round code").fill(code);
       await p.getByRole("button", { name: "Continue" }).click();
-      const bea = p.getByRole("button", { name: BEA, exact: true });
-      await expect(bea).toBeEnabled();
-      // Picking the name now draws the card in the same trip, with no reload
+      // Picking the match now draws the card in the same trip, with no reload
       // (`claimName`, 2026-10-25). The card is still drawn by the server ahead
       // of its script whenever the page is opened again — the player's link
       // reopened, the phone woken — so that is the page held back here.
-      await bea.click();
+      await keepCardOf(p, BEA);
       const halved = p.getByRole("button", { name: "Hole 1 halved" });
       await expect(halved, "picking the name did not open the card").toBeVisible({ timeout: 30_000 });
       // From here every script arrives four seconds late (a route also turns
@@ -879,7 +879,8 @@ test.describe("a casual round at the course", () => {
       await p.goto("/play");
       await p.getByLabel("Round code").fill(code);
       await p.getByRole("button", { name: "Continue" }).click();
-      await p.getByRole("button", { name: BEA, exact: true }).click();
+      // The match is the group: tapped, then confirmed once (2026-11-04).
+      await keepCardOf(p, BEA);
       // Hole 1 (SI 7): nobody gets a shot. Exact names — a substring match
       // would accept ", who gets a shot" on the end and prove nothing.
       await expect(p.getByRole("button", { name: `Hole 1 to ${BEA}`, exact: true })).toBeVisible({ timeout: 30_000 });

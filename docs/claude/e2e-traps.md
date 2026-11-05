@@ -76,6 +76,14 @@ page was slow; the button simply had to wait for everything. Three things were f
   (the spec's control was vacuous until it had to say yes once the script landed); and a held press
   must keep the form's contents from the moment of the press — read when the page woke, while
   `TypedBeforeLoadSync` hands the box to React, the box was EMPTY and an empty code was sent.
+  **On WebKit a page whose scripts never come is never PAINTED** (Safari shows the old page until
+  the new one finishes loading or has enough content), and Playwright's click then waits in
+  "stable" for ever with the button plainly in the snapshot. So a let-go press leaves a mark and the
+  next page stops loading (`window.stop()`); a press from a stopped page passes the mark on, so the
+  code → names → "You're keeping …" walk is painted at every step (round scoring-by-group-1-2 hung
+  on the confirmation's Yes). A new `/play` form that posts without script carries
+  `data-held-until-live` or `data-plain-post`, or its page is never stopped — `held-press-let-go.test.ts`
+  sweeps for it. The card has neither on purpose: its pad needs its scripts, which may yet come.
 - **The icon sprite went down twice in every document**: drawn by a server component, it was the
   page AND, again, the page's data for React — 37 KB of `/play`'s 44. `IconSprite` is a client
   component now whose symbols exist only in the server's copy (`typeof window` is fixed at build
@@ -163,3 +171,26 @@ So: append a throwaway query (`?bust=1`) when navigating to check a change, or a
 no-store `fetch`. And note the failure is not symmetrical — a stale read can also show a string
 you have just DELETED, which is the direction that ends with "already fixed" written on something
 that is not.
+
+**AFTER THE ROUND CODE, A SPEC PICKS A GROUP AND CONFIRMS IT (2026-11-04).** `/play` no longer lists
+every player: a match round lists each match as one group (with its tee time off a published tee
+sheet), a stroke round with a published sheet lists the sheet's groups, and only a stroke round with
+no sheet still lists names. Whatever is tapped is said back once — "You're keeping Group 3: …" with
+"Yes, that's my group" (a name: "Yes, that's right") and "No, go back" — and in a group of somebody's
+own cards the scorer then picks whose. A phone that confirmed a group for a round is not asked again
+(`thq-play-kept:<round>` in its storage), so a spec that re-enters on the same context sees no
+question. Press it through `keepCardOf(page, name)` in `e2e/keep-on-play.ts`, which reads which list
+the round drew rather than assuming it. A match opened by its group signs the phone in as the
+match's first player, so a spec reads the card's heading as the match ("A vs B", side A first,
+whoever holds it), never as the player whose name it typed.
+
+THE DOORS (sprint 2A, 2026-11-05). A sign's link can name its group: `/play#ABCD-EFGH.t3` (a tee-sheet group) or
+`.m<match id>`, read by `linkFromHash` (`code-format.ts`), and opens the CONFIRMATION of that group, not the
+list, so a spec that scans a group link looks for the "You're keeping …" heading first and `playGroups` at count
+0. A phone also remembers the group it confirmed in a tournament (`thq-play-last:<event>`, the people in it):
+in the next round it is offered first as "Last time: …" with the list behind **Not my group**, so a spec that
+re-enters a LATER round on the same context meets that button before the list — `e2e/round-code-doors.spec.ts`
+presses both, with `e2e/doors-fixture.ts` for its club. `/play/board` is the code holder's board
+(`e2e/play-board.spec.ts`, all three visibility settings). A QR in the Print kit is now an `<a>` around the
+`svg.pk-qr`, and its modules are the one `svg.pk-qr > path`; the mark in its centre has paths of its own, so
+count modules with the child combinator, never `svg path`.

@@ -8,24 +8,34 @@ import { isNetBasis } from "@/lib/domain/match-entry";
 import { matchStrokesGiven } from "@/lib/domain/match";
 import { matchStrokesPerHole } from "@/lib/domain/team";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { isCupSession } from "@/lib/domain/cup-lineup";
 import type { HoleResult } from "@/lib/domain";
 import type { DistanceUnit } from "@/lib/domain/distance-unit";
 
-/** One match as the person keeping it sees it: their own side is always A. */
+/**
+ * One match as its card shows it: side A is the match's A side in draw order,
+ * whoever is holding the phone (`matchSideLabels` has the cup it came from).
+ */
 export interface KeptMatch {
   id: string;
   aId: string;
   bId: string;
+  /** Full names, A first: a player, or a side's own name. */
   aName: string;
   bName: string;
+  /** Each side's players, full names — what the answers are named from. */
+  aPlayers: string[];
+  bPlayers: string[];
+  /** In a team cup, the cup team each side plays for ("CVC", "CDG"). Empty elsewhere. */
+  aTeam: string;
+  bTeam: string;
   aHandicap: number;
   bHandicap: number;
+  /** Who won each hole, A-relative, exactly as stored. */
   holes: HoleResult[];
-  /** True when the holder is stored as side B — results are flipped back before saving. */
-  flipped: boolean;
-  /** A match between two sides (a four-ball pair): the holder keeps it for their side. */
+  /** A match between two sides (a four-ball or foursomes pair). */
   side?: boolean;
-  /** A net side match: each of the four players and their shots per hole (index 0 = the card's first hole). */
+  /** A net side match: each of the four players and their shots per hole (index 0 = the card's first hole), side A's first. */
   sideShots?: Array<{ name: string; perHole: number[]; playerId?: string }> | null;
 }
 
@@ -39,34 +49,41 @@ export interface MatchCardData {
   cardStrokeIndex?: number[];
   firstHole: number;
   netMode: boolean;
-  matchShots: { mine: number[]; theirs: number[] } | null;
+  /** A net singles match's shots per hole, side A's and side B's. */
+  matchShots: { a: number[]; b: number[] } | null;
   /** The card's distances in its own course's unit. */
   unit: DistanceUnit;
 }
 
 /**
- * ONE MATCH CARD, WHOEVER IS HOLDING THE PHONE (2026-10-18).
+ * ONE MATCH CARD, AND IT IS THE SAME WHOEVER IS HOLDING THE PHONE.
  *
  * The card a round-code holder keeps their match on — one hole at a time, who
  * won it — was praised at the first real cup, and Ajay asked for the same card
  * in the player app ("keep it in player app … it was very simple today and I
- * want to keep it that way"). Both pages build it here, from the same reads,
- * so the two cannot drift: the round-code page (`/play`) and a signed-in
- * player's own match (`/me/match`). Lifted unchanged out of `/play`.
+ * want to keep it that way"). Every page builds it here, from the same reads,
+ * so they cannot drift: the round-code page (`/play`), a signed-in player's own
+ * match (`/me/match`) and the desk's Score entry.
  *
- * `holderId` is the player keeping the match, `holderSides` the sides (four-ball
- * pairs) they are on in this match's round. Side A on the card is always
- * theirs. The tournament is loaded HERE, with the course it points at joined
+ * It used to be told who held it and put THEIR side first, flipping the stored
+ * holes for a holder on side B. At the same cup two scorers tapped an opposing
+ * player's name, the card turned round to face the other pair, and they pressed
+ * the place their own side's button had been: the board took every hole they
+ * won as the other side's (2026-11-04). So it is no longer told. Side A is the
+ * match's A side in draw order, the holes are shown exactly as stored, and the
+ * answers name the sides (`matchSideLabels`). One orientation, so nothing is
+ * flipped anywhere and nothing has to be flipped back.
+ *
+ * The tournament is loaded HERE, with the course it points at joined
  * (`COURSE_REF`), rather than taken from the caller: a card resolved from an
  * event read without its course scores against the name beside it
  * (`course-by-id.test.ts`).
  */
-export async function matchCardFor(input: { match: Match; holderId: string; holderSides: string[] }): Promise<MatchCardData> {
-  const { match, holderId, holderSides } = input;
+export async function matchCardFor(input: { match: Match }): Promise<MatchCardData> {
+  const { match } = input;
   const event = await prisma.event.findUniqueOrThrow({ where: { id: match.eventId }, include: COURSE_REF });
-  // A match between two sides: the holder's side is A when they are on it.
+  // A match between two sides (a four-ball or foursomes pair), rather than two players.
   const sideMatch = match.teamAId !== "" && match.teamBId !== "" && match.playerAId === "" && match.playerBId === "";
-  const iAmA = sideMatch ? holderSides.includes(match.teamAId) : match.playerAId === holderId;
   const sideNames = sideMatch
     ? new Map(
         (
@@ -78,18 +95,42 @@ export async function matchCardFor(input: { match: Match; holderId: string; hold
       )
     : null;
 
-  const [opponent, stage] = await Promise.all([
+  const [singles, members, stage] = await Promise.all([
     sideMatch
-      ? null
-      : prisma.player.findUnique({
-          where: { id: match.playerAId === holderId ? match.playerBId : match.playerAId },
-          select: { name: true, handicap: true },
+      ? []
+      : prisma.player.findMany({
+          where: { id: { in: [match.playerAId, match.playerBId].filter((id) => id !== "") }, eventId: event.id },
+          select: { id: true, name: true, handicap: true, group: { select: { name: true } } },
         }),
+    sideMatch
+      ? prisma.teamMember.findMany({
+          where: { teamId: { in: [match.teamAId, match.teamBId] } },
+          orderBy: [{ teamId: "asc" }, { position: "asc" }],
+          select: { teamId: true, playerId: true, player: { select: { name: true, group: { select: { name: true } } } } },
+        })
+      : [],
     prisma.stage.findUnique({
       where: { id: match.stageId },
-      select: { holes: true, scoringBasis: true, nine: true, courseId: true },
+      select: { type: true, holes: true, scoringBasis: true, nine: true, courseId: true },
     }),
   ]);
+  const playerA = singles.find((p) => p.id === match.playerAId) ?? null;
+  const playerB = singles.find((p) => p.id === match.playerBId) ?? null;
+  // Each side's players in the side's own order, side A's first: draw order, end to end.
+  const membersA = members.filter((x) => x.teamId === match.teamAId);
+  const membersB = members.filter((x) => x.teamId === match.teamBId);
+  /**
+   * The cup team a side plays for, in a team cup: the one team all its players
+   * are on (`Player.group`, which is what a cup's two teams are). The answers
+   * are then "CVC won" and "CDG won" — the words a scorer at a cup uses.
+   */
+  const cupTeam = (groups: Array<string | undefined>) => {
+    if (!stage || !isCupSession(stage)) return "";
+    const named = new Set(groups.map((g) => (g ?? "").trim()));
+    return named.size === 1 ? [...named][0] : "";
+  };
+  const aTeam = sideMatch ? cupTeam(membersA.map((x) => x.player.group?.name)) : cupTeam([playerA?.group?.name]);
+  const bTeam = sideMatch ? cupTeam(membersB.map((x) => x.player.group?.name)) : cupTeam([playerB?.group?.name]);
 
   const holeCount = holesPlayed(stage?.holes);
 
@@ -120,11 +161,6 @@ export async function matchCardFor(input: { match: Match; holderId: string; hold
     holes = new Array(holeCount).fill(null);
   }
 
-  const me = await prisma.player.findUnique({
-    where: { id: holderId },
-    select: { name: true, handicap: true },
-  });
-
   /**
    * WHO GETS A SHOT WHERE, in a net match (2026-10-07).
    *
@@ -133,23 +169,22 @@ export async function matchCardFor(input: { match: Match; holderId: string; hold
    * not, leaving the allocation to be done in somebody's head on the 14th tee.
    * Through the console's own two readers, so the two screens cannot disagree:
    * `matchHandicapFor` (the PLAYING handicap for this match, not the roster
-   * index `me.handicap` carries) and `matchStrokesGiven`, over the card this
-   * screen already shows. From the holder's side: "mine" first.
+   * index a player row carries) and `matchStrokesGiven`, over the card this
+   * screen already shows. Side A's first, as drawn.
    */
   const netMatch = isNetBasis(stage?.scoringBasis ?? "");
-  let matchShots: { mine: number[]; theirs: number[] } | null = null;
+  let matchShots: { a: number[]; b: number[] } | null = null;
   // One player against one: a side of two has four players' shots, which two
   // rows of dots cannot say, so a side's card shows none rather than one
   // player's as if it were the side's.
   if (!sideMatch && netMatch && card?.strokeIndex?.length) {
     const state = await loadEventState(event.id);
-    const opponentId = iAmA ? match.playerBId : match.playerAId;
     const given = matchStrokesGiven(
-      state?.matchHandicapFor(holderId, match.id) ?? 0,
-      state?.matchHandicapFor(opponentId, match.id) ?? 0,
+      state?.matchHandicapFor(match.playerAId, match.id) ?? 0,
+      state?.matchHandicapFor(match.playerBId, match.id) ?? 0,
       card.strokeIndex,
     );
-    matchShots = { mine: given.toA, theirs: given.toB };
+    matchShots = { a: given.toA, b: given.toB };
   }
 
   /**
@@ -161,15 +196,7 @@ export async function matchCardFor(input: { match: Match; holderId: string; hold
   let sideShots: Array<{ name: string; perHole: number[]; playerId?: string }> | null = null;
   if (sideMatch && netMatch && card?.strokeIndex?.length) {
     const state = await loadEventState(event.id);
-    const members = await prisma.teamMember.findMany({
-      where: { teamId: { in: [match.teamAId, match.teamBId] } },
-      orderBy: [{ teamId: "asc" }, { position: "asc" }],
-      select: { teamId: true, playerId: true, player: { select: { name: true } } },
-    });
-    const ordered = [
-      ...members.filter((x) => x.teamId === (iAmA ? match.teamAId : match.teamBId)),
-      ...members.filter((x) => x.teamId === (iAmA ? match.teamBId : match.teamAId)),
-    ];
+    const ordered = [...membersA, ...membersB];
     const playing = ordered.map((x) => state?.matchHandicapFor(x.playerId, match.id) ?? 0);
     const low = playing.length ? Math.min(...playing) : 0;
     const index = card.strokeIndex;
@@ -179,20 +206,20 @@ export async function matchCardFor(input: { match: Match; holderId: string; hold
   return {
     match: {
       id: match.id,
-      // Slot A is always the holder, so the card reads from their point of
-      // view rather than from the database's ordering.
-      aId: iAmA ? match.playerAId : match.playerBId,
-      bId: iAmA ? match.playerBId : match.playerAId,
-      aName: sideNames?.get(iAmA ? match.teamAId : match.teamBId) ?? me?.name ?? "You",
-      bName: sideNames?.get(iAmA ? match.teamBId : match.teamAId) ?? opponent?.name ?? "Opponent",
+      aId: match.playerAId,
+      bId: match.playerBId,
+      aName: sideNames?.get(match.teamAId) ?? playerA?.name ?? "Side A",
+      bName: sideNames?.get(match.teamBId) ?? playerB?.name ?? "Side B",
+      aPlayers: sideMatch ? membersA.map((x) => x.player.name) : playerA ? [playerA.name] : [],
+      bPlayers: sideMatch ? membersB.map((x) => x.player.name) : playerB ? [playerB.name] : [],
+      aTeam,
+      bTeam,
       side: sideMatch,
       sideShots,
-      aHandicap: me?.handicap ?? 0,
-      bHandicap: opponent?.handicap ?? 0,
-      // Results are stored A-relative; flip them when the holder is B so
-      // "you won this hole" means the same thing on screen and in the data.
-      holes: iAmA ? holes : holes.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h)),
-      flipped: !iAmA,
+      aHandicap: playerA?.handicap ?? 0,
+      bHandicap: playerB?.handicap ?? 0,
+      // Exactly as stored: A-relative, and A is the match's A side.
+      holes,
     },
     // The round's own hole count, sent explicitly rather than inferred from
     // the length of the card. A card can be absent, or a different length
@@ -251,7 +278,8 @@ export async function matchStrokeCardFor(input: {
   if (!data.match.side) {
     const slot = match.playerAId === holderId ? "A" : "B";
     const row = await prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId: match.id, slot } } });
-    return { strokes: parse(row?.strokes), shots: data.matchShots?.mine ?? [], sideBall: false };
+    // The ball being kept is this slot's, so its shots are this slot's: the card itself is never turned.
+    return { strokes: parse(row?.strokes), shots: (slot === "A" ? data.matchShots?.a : data.matchShots?.b) ?? [], sideBall: false };
   }
   const mine = await prisma.teamMember.findFirst({
     where: { playerId: holderId, teamId: { in: [match.teamAId, match.teamBId] } },

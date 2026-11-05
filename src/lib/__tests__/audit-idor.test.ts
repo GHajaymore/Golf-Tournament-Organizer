@@ -372,7 +372,7 @@ describe("the club theme cannot inject CSS", () => {
    * satisfy the assertion on its own.
    */
   const playerShell = readSource("src", "app", "(player)", "layout.tsx");
-  const publicBoard = readSource("src", "app", "live", "[token]", "page.tsx");
+  const publicBoard = readSource("src", "components", "PublicBoard.tsx");
   const boardService = readSource("src", "lib", "services", "live-board.ts");
 
   it("holds for the player shell too", () => {

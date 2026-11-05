@@ -312,7 +312,7 @@ describe("stamped, and reprinted only where it changed (decision D)", () => {
     expect(after.statuses.find((s) => s.key === "signs:Group 2:A")?.nextVersion).toBe(2);
   });
 
-  it("a reissued round code makes the printed signs out of date", async () => {
+  it("a reissued round code makes the printed signs and cards out of date", async () => {
     const kit = await printKit(eventId, { stageId: round.stableford, origin: ORIGIN });
     expect(kit.sheets.some((s) => s.doc === "spare"), "CONTROL: no code, no sign").toBe(false);
     await prisma.stage.update({ where: { id: round.stableford }, data: { accessCode: "ZZPQ2346" } });
@@ -322,7 +322,9 @@ describe("stamped, and reprinted only where it changed (decision D)", () => {
       await prisma.stage.update({ where: { id: round.stableford }, data: { accessCode: "ZZPQ2347" } });
       const reissued = await printKit(eventId, { stageId: round.stableford, origin: ORIGIN });
       const stale = new Set(reissued.statuses.filter((s) => s.state === "stale").map((s) => s.doc));
-      expect([...stale].sort()).toEqual(["signs", "spare"]);
+      // Each card carries its group's own QR of the round code (sprint 2A), so a
+      // reissued code leaves the printed cards pointing at a dead code too.
+      expect([...stale].sort()).toEqual(["cards", "signs", "spare"]);
     } finally {
       await prisma.stage.update({ where: { id: round.stableford }, data: { accessCode: "" } });
     }

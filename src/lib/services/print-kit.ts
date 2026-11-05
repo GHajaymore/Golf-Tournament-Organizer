@@ -18,7 +18,9 @@ import { parsePinSheet, pinShort } from "@/lib/domain/pin-sheet";
 import { firstHoleOf, holeNumber, startHoleNumber } from "@/lib/domain/hole-number";
 import { formatDay, formatClock, formatDayAt } from "@/lib/domain/locale";
 import { formatAccessCode, roundCodeLink } from "@/lib/code-format";
-import { qrModules, qrPath, type QrEncoder } from "@/lib/qr";
+import { qrModules, qrPath, type QrDrawing, type QrEncoder } from "@/lib/qr";
+import { groupKeyForPlayers, groupsOfRound, matchGroupKey } from "@/lib/domain/play-groups";
+import { lineupHidden } from "@/lib/domain/cup-lineup";
 import { indexFigure } from "@/lib/domain/handicap-label";
 import { isLeaderboardPublic, usesAccessCodes } from "@/lib/tournament-settings";
 import { TEAM_SESSION } from "@/lib/services/cup";
@@ -85,7 +87,19 @@ export interface KitCode {
   label: string;
   code: string;
   link: string;
-  qr: { d: string; size: number };
+  qr: QrDrawing;
+}
+
+/**
+ * A ROUND'S CODE AS PRINTED (2026-11-05): its address — which names the GROUP
+ * when the sign or card is one group's (`roundCodeLink`) — and the square that
+ * carries it, with the TourneyHQ mark in the centre (level H, `qrModules`). The
+ * one place a printed code is built; the signs, the cup's signs and the
+ * scorecards all come here.
+ */
+function kitCode(encode: QrEncoder, origin: string, accessCode: string, label: string, group?: string): KitCode {
+  const link = roundCodeLink(origin, accessCode, group);
+  return { label, code: formatAccessCode(accessCode), link, qr: qrPath(qrModules(encode, link, { logo: true }), 4, { logo: true }) };
 }
 
 /**
@@ -109,6 +123,12 @@ export interface ScorecardPage extends Paper {
   unit: "player" | "side" | "group";
   /** Signature words under the grid, which differ by format (Rule 3.3b, 23.6, 22.1). */
   signNote: string;
+  /**
+   * The group's QR and its typed code, in the corner (2026-11-05): scanning it opens THIS card's group.
+   * Null when the tournament does not use round codes or the round has none yet. Part of what is
+   * fingerprinted, so a reissued code marks the cards already printed out of date.
+   */
+  code: KitCode | null;
 }
 
 export interface SlipPage extends Paper {
@@ -483,6 +503,55 @@ async function roundKit(
   const noSheet = "Save the round's groups on the Tee sheet first — these are printed from it.";
   const notPublished = "Publish the Tee sheet first — these go to the players, so they are printed from the published groups.";
 
+  /* ── The round's matches, and the groups /play will list for them ──── */
+  const stageMatches = state.matches.filter((m) => m.stageId === stage.id);
+  const sideById = new Map(priced.teams.map((t) => [t.id, t]));
+  const matchSides = (m: (typeof stageMatches)[number]) => {
+    if (m.teamAId && m.teamBId) {
+      const a = sideById.get(m.teamAId);
+      const b = sideById.get(m.teamBId);
+      if (!a || !b) return null;
+      return [a, b].map((t) => ({ name: t.name, ids: t.members.map((x) => x.playerId) }));
+    }
+    if (m.playerAId && m.playerBId) {
+      return [m.playerAId, m.playerBId].map((id) => ({ name: kitPlayers.get(id)?.name ?? "", ids: [id] }));
+    }
+    return null;
+  };
+
+  /**
+   * THE CODE ON A SIGN OR A CARD NAMES ITS GROUP (2026-11-05). The group is the
+   * entry `/play` will list for the people on it — asked of the same rule that
+   * draws that list (`groupsOfRound`), so a printed QR can only open a group
+   * that exists. A tee group whose people sit in two entries (a foursome playing
+   * two singles matches) has no one group, and its code opens the round's list.
+   */
+  const encode = (await import("qrcode-generator")).default as unknown as QrEncoder;
+  const codeOf = (s: Stage, label: string, group?: string): KitCode | null => {
+    if (!ctx.codesOn || !s.accessCode) return null;
+    return kitCode(encode, ctx.origin, s.accessCode, label, group);
+  };
+  const thisCode = codeOf(stage, ctx.roundName(stage));
+  const listed = groupsOfRound({
+    lineupHidden: lineupHidden(stage),
+    matches: stageMatches.flatMap((m) => {
+      const s = matchSides(m);
+      return s ? [{ id: m.id, a: s[0].ids, b: s[1].ids }] : [];
+    }),
+    names: new Map([...kitPlayers.values()].map((p) => [p.id, p.name] as const)),
+    sheet: published && savedSheet ? savedSheet.groups : null,
+    // The keys do not depend on how a match is kept.
+    oneMatch: true,
+  });
+  const groupCodes = new Map<string, KitCode | null>();
+  /** The code for the tee group these people are in: its own QR, built once however many cards and signs share it. */
+  const groupCode = (ids: readonly string[]): KitCode | null => {
+    const key = groupKeyForPlayers(listed, ids);
+    const memo = key ?? "";
+    if (!groupCodes.has(memo)) groupCodes.set(memo, codeOf(stage, ctx.roundName(stage), key));
+    return groupCodes.get(memo) ?? null;
+  };
+
   /* ── Scorecards: one per player or side, or one per group ─────────── */
   {
     const pages: KitPage[] = [];
@@ -522,6 +591,7 @@ async function roundKit(
               group: groupFrom(g, ids),
               unit: "group" as const,
               signNote: "",
+              code: groupCode(g.playerIds),
               format: f.format,
               formatWhy: f.reason,
             }),
@@ -555,6 +625,7 @@ async function roundKit(
               group: groupFrom(g, u.ids),
               unit: u.unit,
               signNote: signOf,
+              code: groupCode(g.playerIds),
               format: f.format,
               formatWhy: f.reason,
             }),
@@ -568,20 +639,6 @@ async function roundKit(
   }
 
   /* ── Match result slips ───────────────────────────────────────────── */
-  const stageMatches = state.matches.filter((m) => m.stageId === stage.id);
-  const sideById = new Map(priced.teams.map((t) => [t.id, t]));
-  const matchSides = (m: (typeof stageMatches)[number]) => {
-    if (m.teamAId && m.teamBId) {
-      const a = sideById.get(m.teamAId);
-      const b = sideById.get(m.teamBId);
-      if (!a || !b) return null;
-      return [a, b].map((t) => ({ name: t.name, ids: t.members.map((x) => x.playerId) }));
-    }
-    if (m.playerAId && m.playerBId) {
-      return [m.playerAId, m.playerBId].map((id) => ({ name: kitPlayers.get(id)?.name ?? "", ids: [id] }));
-    }
-    return null;
-  };
   const groupOfPlayer = new Map<string, TeeSheetGroup>();
   for (const { g } of fieldGroups) for (const id of g.playerIds) groupOfPlayer.set(id, g);
   {
@@ -641,15 +698,8 @@ async function roundKit(
   );
 
   /* ── Codes ────────────────────────────────────────────────────────── */
-  const encode = (await import("qrcode-generator")).default as unknown as QrEncoder;
-  const codeOf = (s: Stage, label: string): KitCode | null => {
-    if (!ctx.codesOn || !s.accessCode) return null;
-    const link = roundCodeLink(ctx.origin, s.accessCode);
-    return { label, code: formatAccessCode(s.accessCode), link, qr: qrPath(qrModules(encode, link)) };
-  };
   const shareToken = state.event.shareToken;
   const liveLine = ctx.publicBoard && shareToken ? `${ctx.host}/live/${shareToken}` : "";
-  const thisCode = codeOf(stage, ctx.roundName(stage));
 
   /* ── {Cart} signs: one per {cart}, or one per group for a walking field ── */
   {
@@ -657,8 +707,9 @@ async function roundKit(
     let unavailable = "";
     const cupGroups = cupDoc?.signGroups ?? null;
     const scorerJob = matchRound
-      ? "Keeping the match: one of you opens the round with the code and taps who won each hole. The board has the result as soon as the last hole is in."
-      : "Keeping the score: one of you opens the round with the code, taps your own name and enters everybody's score in this group after each hole. At the end each player checks their own card.";
+      ? // The group, never a name (2026-11-04): the card is the match, the same for both sides.
+        "Keeping the match: one of you opens the round with the code, taps this match and taps who won each hole, by name. The board has the result as soon as the last hole is in."
+      : "Keeping the score: open the round with the code, tap this group, then the card you're keeping, and enter its score after each hole. At the end each player checks their own card.";
     /**
      * ONE SIGN PER {CART} (the ruling's B; Ajay's original ask): the group split in
      * pairs in tee-sheet order — a three gives a two and a one — each sign naming
@@ -700,6 +751,7 @@ async function roundKit(
       for (const { g, players } of publishedGroups) {
         if (players.length === 0) continue;
         n += 1;
+        const signCode = groupCode(g.playerIds);
         push(n, g.name, g.name, {
           groupName: g.name,
           time: g.time,
@@ -714,7 +766,7 @@ async function roundKit(
             note: matchRound && p.matchStrokes !== null ? "in the match" : "",
           })),
           scorerJob,
-          codes: thisCode ? [thisCode] : [],
+          codes: signCode ? [signCode] : [],
           liveLine,
           host: ctx.host,
         });
@@ -1095,20 +1147,33 @@ async function cupCards(
   const columnsOf = (...ps: Array<typeof priced>) => [...new Set(ps.flatMap(sectionHoles))].sort((a, b) => a - b);
   const pick = (arr: number[], holes: number[]) => Object.fromEntries(holes.map((h) => [h, arr[h - 1] ?? 0]));
 
+
+  /**
+   * THIS MATCH'S CODES (2026-11-05): one per round it is on, each opening the match
+   * in THAT round's list — the front nine's match in this session, the back nine's in
+   * the companion's. A lineup not yet announced is not listed as matches, so its code
+   * opens the round (`groupsOfRound`); so does a companion with no single matching tie.
+   */
   const encode = (await import("qrcode-generator")).default as unknown as QrEncoder;
-  const codeOf = (s: Stage, label: string): KitCode | null => {
+  const codeOf = (s: Stage, label: string, group?: string): KitCode | null => {
     if (!ctx.codesOn || !s.accessCode) return null;
-    const link = roundCodeLink(ctx.origin, s.accessCode);
-    return { label, code: formatAccessCode(s.accessCode), link, qr: qrPath(qrModules(encode, link)) };
+    return kitCode(encode, ctx.origin, s.accessCode, label, group);
   };
-  // In the order the holes are played: the front nine's code first.
-  const codes = [
-    { first: priced.firstHole, code: codeOf(stage, titleOf(stage, priced)) },
-    { first: other?.firstHole ?? 99, code: companion && other ? codeOf(companion, titleOf(companion, other)) : null },
-  ]
-    .sort((a, b) => a.first - b.first)
-    .map((c) => c.code)
-    .filter((c): c is KitCode => !!c);
+  const codesFor = (matchId: string, companions: Array<{ id: string }>): KitCode[] =>
+    // In the order the holes are played: the front nine's code first.
+    [
+      { first: priced.firstHole, code: codeOf(stage, titleOf(stage, priced), lineupHidden(stage) ? undefined : matchGroupKey(matchId)) },
+      {
+        first: other?.firstHole ?? 99,
+        code:
+          companion && other
+            ? codeOf(companion, titleOf(companion, other), companions.length === 1 && !lineupHidden(companion) ? matchGroupKey(companions[0].id) : undefined)
+            : null,
+      },
+    ]
+      .sort((a, b) => a.first - b.first)
+      .map((c) => c.code)
+      .filter((c): c is KitCode => !!c);
 
   const pages: KitPage[] = [];
   const signGroups: Array<{ key: string; name: string; sign: Omit<SignPage["sign"], "scorerJob" | "liveLine" | "host" | "cartName" | "riders"> }> = [];
@@ -1168,7 +1233,7 @@ async function cupCards(
     signGroups.push({
       key: m.id,
       name: g?.name ?? `Match ${i + 1}`,
-      sign: { groupName: `${g?.name ? `${g.name} · ` : ""}${m.label}`, time: g?.time ?? "", start: g ? cupStart(g) : "", startLarge: false, players, codes },
+      sign: { groupName: `${g?.name ? `${g.name} · ` : ""}${m.label}`, time: g?.time ?? "", start: g ? cupStart(g) : "", startLarge: false, players, codes: codesFor(m.id, companions) },
     });
   }
   return { kind: "cup", unavailable: "", what: "one per match", pages, signGroups };

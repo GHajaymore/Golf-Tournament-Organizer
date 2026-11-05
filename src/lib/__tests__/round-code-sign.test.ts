@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import qrcode from "qrcode-generator";
-import { codeFromLink, roundCodeLink } from "../code-format";
+import { linkFromHash, roundCodeLink } from "../code-format";
 import { qrModules, qrPath, type QrEncoder } from "../qr";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -21,13 +21,61 @@ describe("the address on a sign", () => {
   });
 
   it("reads a code back off the address, however it was written", () => {
-    for (const hash of ["#ABCD-EFGH", "#abcd-efgh", "ABCDEFGH", "#ABCD EFGH"]) expect(codeFromLink(hash), hash).toBe("ABCDEFGH");
+    for (const hash of ["#ABCD-EFGH", "#abcd-efgh", "ABCDEFGH", "#ABCD EFGH"]) {
+      expect(linkFromHash(hash), hash).toEqual({ code: "ABCDEFGH", group: null });
+    }
   });
 
   it("reads nothing that is not exactly a code", () => {
     // O and 1 are outside the alphabet; a longer fragment is some other page's anchor.
     for (const hash of ["", "#", "#scores", "#ABCD-EFG", "#ABCD-EFGHJ", "#ABCD-EFGO", "#ABCD-EFG1"]) {
-      expect(codeFromLink(hash), hash).toBe("");
+      expect(linkFromHash(hash), hash).toEqual({ code: "", group: null });
+    }
+  });
+});
+
+describe("the address on a sign that names a group (2026-11-05)", () => {
+  const origin = "https://tourneyhq.club";
+  const matchKey = "match:cmhk3x9a20001abcdefghijklm";
+
+  it("carries a tee-sheet group as `.t<n>` and a match as `.m<id>`", () => {
+    expect(roundCodeLink(origin, "ABCDEFGH", "tee:3")).toBe("https://tourneyhq.club/play#ABCD-EFGH.t3");
+    expect(roundCodeLink(origin, "ABCDEFGH", matchKey)).toBe("https://tourneyhq.club/play#ABCD-EFGH.mcmhk3x9a20001abcdefghijklm");
+  });
+
+  it("is read back to the same group key, the id's case kept", () => {
+    expect(linkFromHash("#ABCD-EFGH.t3")).toEqual({ code: "ABCDEFGH", group: "tee:3" });
+    expect(linkFromHash("#abcd-efgh.t0")).toEqual({ code: "ABCDEFGH", group: "tee:0" });
+    expect(linkFromHash("#ABCD-EFGH.mcmhk3x9a20001abcdefghijklm")).toEqual({ code: "ABCDEFGH", group: matchKey });
+    for (const key of ["tee:0", "tee:17", matchKey]) {
+      expect(linkFromHash(new URL(roundCodeLink(origin, "ABCDEFGH", key)).hash), key).toEqual({ code: "ABCDEFGH", group: key });
+    }
+  });
+
+  it("is a link to the whole round when the key is not a group's", () => {
+    for (const key of ["", "tee:", "tee:-1", "tee:01", "tee:1234", "match:", "match:a b", "bracket:7", "player:x"]) {
+      expect(roundCodeLink(origin, "ABCDEFGH", key), key).toBe("https://tourneyhq.club/play#ABCD-EFGH");
+    }
+  });
+
+  it("refuses a malformed fragment whole: the code is not honoured beside a group part it cannot read", () => {
+    // CONTROL pair: the same code with a good group part reads; every one of these must not.
+    expect(linkFromHash("#ABCD-EFGH.t3").code).toBe("ABCDEFGH");
+    for (const hash of [
+      "#ABCD-EFGH.",
+      "#ABCD-EFGH.x3",
+      "#ABCD-EFGH.t",
+      "#ABCD-EFGH.t-1",
+      "#ABCD-EFGH.t03",
+      "#ABCD-EFGH.t1234",
+      "#ABCD-EFGH.m",
+      "#ABCD-EFGH.mab",
+      "#ABCD-EFGH.m<script>",
+      "#ABCD-EFGH.t3.t4",
+      "#ABCD-EFGH.mcmhk3x9a20001abcdefghijklmnopqrstuvwxyz0123456789",
+      "#ABCD-EFGO.t3",
+    ]) {
+      expect(linkFromHash(hash), hash).toEqual({ code: "", group: null });
     }
   });
 });

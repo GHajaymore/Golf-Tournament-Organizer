@@ -1441,11 +1441,18 @@ describe("every screen that shows results makes the same branch", () => {
     // has no reading of its own at all: it checks the share token and asks
     // `liveBoard` for everything else. Re-adding `standingRows` here would
     // recreate a fourth opinion, which is the shape that caused the audit.
-    const page = stripComments(
-      readFileSync(join(process.cwd(), "src", "app", "live", "[token]", "page.tsx"), "utf8"),
-    );
-    expect(page, "the live page must not rank the field itself").not.toMatch(/standingRows\(/);
-    expect(page, "it should be asking the cached reader instead").toMatch(/liveBoard\(/);
+    // Since 2026-11-05 the board is drawn once (`PublicBoard`) for both its doors, `/live` and
+    // `/play/board`, so the reading lives there and neither page may grow one.
+    const read = (...p: string[]) => stripComments(readFileSync(join(process.cwd(), ...p), "utf8"));
+    const board = read("src", "components", "PublicBoard.tsx");
+    for (const [name, src] of [
+      ["the board", board],
+      ["the live page", read("src", "app", "live", "[token]", "page.tsx")],
+      ["the play board page", read("src", "app", "play", "board", "page.tsx")],
+    ] as const) {
+      expect(src, `${name} must not rank the field itself`).not.toMatch(/standingRows\(/);
+    }
+    expect(board, "it should be asking the cached reader instead").toMatch(/liveBoard\(/);
   });
 
   it("no other screen ranks the field without asking", () => {
@@ -2547,7 +2554,8 @@ describe("a round's card is narrowed in exactly one place", () => {
     const card = stripComments(
       readFileSync(join(process.cwd(), "src", "lib", "services", "match-card.ts"), "utf8"),
     );
-    expect(page).toMatch(/matchCardFor\(\{ match,/);
+    // `{ match }` alone since 2026-11-04: the card is no longer told who holds it.
+    expect(page).toMatch(/matchCardFor\(\{ match \}\)/);
     expect(card).toMatch(/courseForMatch\(matchVenue, stageVenue, event\)/);
     expect(card).toMatch(/cardForMatch\(resolved, match, stage\)/);
     // The round's hole count travels explicitly, so the grid never has to

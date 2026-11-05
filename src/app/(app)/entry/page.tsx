@@ -238,14 +238,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         })
       : [];
     const row = rows.find((r) => r.id === pickedMatchId) ?? rows[0] ?? null;
-    // A side's match is held from side A; a singles match from player A.
-    const tapCard = row
-      ? await matchCardFor(
-          row.teamAId
-            ? { match: row, holderId: "", holderSides: [row.teamAId] }
-            : { match: row, holderId: row.playerAId, holderSides: [] },
-        )
-      : null;
+    // Side A first, as drawn — the same card every phone keeps it on.
+    const tapCard = row ? await matchCardFor({ match: row }) : null;
     /**
      * WHAT IS WAITING TO BE SIGNED OFF (2026-10-20) — by the review queue's
      * own rule: a FINISHED match whose effective status is pending. The
