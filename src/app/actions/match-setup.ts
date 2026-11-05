@@ -11,7 +11,7 @@ import { money } from "@/lib/domain/money-format";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { memberGender } from "@/lib/services/roster";
 import { boardChanged } from "@/lib/services/board-refresh";
-import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
+import { planMatch, casualScoreKeeping, type MatchSetupInput } from "@/lib/domain/quick-match";
 import { expiryFrom } from "@/lib/domain/round-expiry";
 import { generateAccessCode } from "@/lib/codes";
 import { scoringDefaults } from "@/lib/domain/round-scoring";
@@ -349,8 +349,11 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        */
       accessCode: await issueCode(),
       // Who keeps the card and who checks it — a casual round signs nothing,
-      // so its check starts off (`scoringDefaults`).
+      // so its check starts off (`scoringDefaults`). Who enters scores is the
+      // setup's one line: one phone for the group unless they each keep their
+      // own (`casualScoreKeeping`, 2026-11-05).
       ...scoringDefaults(event.shape),
+      scoreKeeping: casualScoreKeeping(input),
     },
   });
 

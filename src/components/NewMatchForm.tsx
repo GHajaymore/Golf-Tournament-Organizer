@@ -18,6 +18,7 @@ import { currencySymbol, DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { stakeMinorUnits } from "@/lib/domain/local-currency";
 import { entryModesFor } from "@/lib/domain/match-entry";
 import { sharedBallRound } from "@/lib/domain/shared-ball";
+import { CASUAL_KEEPING } from "@/lib/domain/keeping-words";
 import { Icon } from "./Icon";
 
 /**
@@ -209,6 +210,8 @@ export function NewMatchForm({
   const [holes, setHoles] = useState(18);
   const [nine, setNine] = useState("front");
   const [useHandicaps, setUseHandicaps] = useState(false);
+  /** Who enters scores: one phone for the group (the default), or each player their own. */
+  const [keeping, setKeeping] = useState<"group" | "each">("group");
   /** Says who has an empty handicap box — on a net round they play off scratch. */
   const scratchByDefault = scratchNote(playersOnScratchByDefault(players));
   const [courseId, setCourseId] = useState("");
@@ -437,6 +440,7 @@ export function NewMatchForm({
         courseId,
         money: moneyChoice,
         currency,
+        scoreKeeping: keeping,
       });
       if (!res.ok) {
         setError(res.error ?? "Couldn't set that round up.");
@@ -582,6 +586,23 @@ export function NewMatchForm({
             this can be scored. Playing level needs nothing.
           </p>
         )}
+      </div>
+
+      {/* WHO ENTERS SCORES, ONE LINE (2026-11-05). A new round keeps the group's
+          card on one phone (`scoringDefaults`), and two friends on two phones had no
+          way to say they each keep their own — the second phone was told the
+          first was keeping it. One line, the same two pills as the line above,
+          one phone first because that is the default. Not a section: the casual
+          round stays one screen. */}
+      <div className="field">
+        <label>Who enters scores?</label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+          {CASUAL_KEEPING.map((k) => (
+            <button key={k.key} type="button" {...pill(keeping === k.key)} onClick={() => setKeeping(k.key)}>
+              {k.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div>
