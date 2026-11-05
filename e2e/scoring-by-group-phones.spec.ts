@@ -153,7 +153,8 @@ test.beforeAll(async () => {
         nine: "front",
         scoringBasis: "gross",
         accessCode: BALLS_CODE,
-        matchKeptBy: "cards",
+        // Match Play is kept on cards through "How scores are recorded" (`keptByScoreInput`); it ignores `matchKeptBy`.
+        scoreInput: "gross-cards",
         scoreKeeping: "group",
         endCheck: "on",
       },

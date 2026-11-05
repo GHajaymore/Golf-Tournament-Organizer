@@ -30,7 +30,15 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {} }),
+}));
+
 const { claimPlayerSlot, savePlayMatchCard } = await import("@/app/actions/play");
+const { matchKeptBy, matchKeptByChosen } = await import("@/lib/domain/match-kept-by");
+const { renderToStaticMarkup } = await import("react-dom/server");
+const { default: PlayPage } = await import("@/app/play/page");
 const { clearRateLimit } = await import("@/lib/rate-limit");
 const { generateAccessCode } = await import("@/lib/codes");
 
@@ -97,7 +105,11 @@ beforeAll(async () => {
         nine: "front",
         scoringBasis: "gross",
         accessCode: CODE,
-        matchKeptBy: "cards",
+        // Match Play says how it is kept through "How scores are recorded"
+        // (`keptByScoreInput`), not `matchKeptBy` — which it ignores. A first
+        // version set only `matchKeptBy: "cards"`, so the round was never kept
+        // on cards at all (the browser spec drew the tap card).
+        scoreInput: "gross-cards",
         scoreKeeping: "group",
         endCheck: "on",
       },
@@ -122,6 +134,19 @@ afterAll(async () => {
 const nine = (first: number) => [first, ...new Array(8).fill(null)];
 
 describe("a match kept on stroke cards, one scorer per group", () => {
+  it("the fixture IS a round kept on stroke cards, by stated choice — or nothing below means anything", async () => {
+    const stage = await prisma.stage.findUniqueOrThrow({ where: { id: ids.stage } });
+    expect(matchKeptBy(stage)).toBe("cards");
+    expect(matchKeptByChosen(stage)).toBe("cards");
+  });
+
+  it("CONTROL: the /play page draws a picker of every ball for the scorer", async () => {
+    await phoneOf(ids.ann);
+    const html = renderToStaticMarkup(await PlayPage({ searchParams: Promise.resolve({}) }));
+    expect(html).toContain('aria-label="Whose card"');
+    expect(html).toContain(`${TAG} bea`);
+  });
+
   it("the scorer enters the other player's ball, named — and it lands on that ball's card, not hers", async () => {
     await phoneOf(ids.ann); // the confirmation makes Ann's phone the scorer
     const own = await savePlayMatchCard(ids.match, nine(4));
