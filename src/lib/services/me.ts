@@ -11,7 +11,7 @@ import { bracketResults } from "@/lib/services/bracket-results";
 import { strokeCutField, cutFeederName } from "@/lib/services/stroke-cut";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, settingsOf, type EventState } from "@/lib/services/tournament";
-import { canEnterScores } from "@/lib/tournament-settings";
+import { playersMayEnter } from "@/lib/domain/round-scoring";
 import { cardIsFinished, filledHoles } from "@/lib/domain/card-approval";
 import { positionLabel } from "@/lib/domain/shared-position";
 import { placesWithin } from "@/lib/domain/flight-places";
@@ -704,7 +704,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
         !outThisWeek &&
         !needsTeams(stage.format) &&
         roundIsStroke(stage.type, stage.format) &&
-        canEnterScores(settingsOf(state.event), "player"),
+        playersMayEnter(settingsOf(state.event), stage),
       cutOut,
       closedWithout,
       outThisWeek,

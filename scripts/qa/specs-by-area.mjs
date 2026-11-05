@@ -128,6 +128,7 @@ export const AREAS = {
     paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
+      "e2e/stages-scoring-setup.spec.ts",
       // The timeline and its side panel, behind `?view=timeline` (the rehaul's step 1 guards).
       "e2e/rounds-panel.spec.ts",
       // Step 2, "Course day": the guided "Needs you", the four sections, the docked panel.
@@ -325,6 +326,8 @@ export const FULL_ONLY = [
   "e2e/round-code-on-3g.spec.ts",
   "e2e/round-code-reissued.spec.ts",
   "e2e/round-code-sign.spec.ts",
+  // One scorer per group and the other side's check, pressed through the actions' own endpoints until phase 2's /play buttons (2026-11-04).
+  "e2e/scoring-by-group-server.spec.ts",
   "e2e/seasons.spec.ts",
   "e2e/secretary-back-after-a-week.spec.ts",
   "e2e/secretary-copy-last-event.spec.ts",

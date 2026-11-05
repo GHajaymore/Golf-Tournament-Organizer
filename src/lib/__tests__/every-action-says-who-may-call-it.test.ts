@@ -76,7 +76,11 @@ const WHO: Record<string, string> = {
   // ignores it for anybody who is not an admin.
   setPreviewAction: "anyone",
   // round code
-  savePlayMatchHoles: "round code", savePlayMatchResult: "round code", savePlayCard: "round code", certifyPlayCard: "round code", savePlayMatchCard: "round code",  // themselves
+  savePlayMatchHoles: "round code", savePlayMatchResult: "round code", savePlayCard: "round code", certifyPlayCard: "round code", savePlayMatchCard: "round code",
+  // One scorer per group and the end-of-round check (2026-11-04): the phone's own
+  // group, its own match, its own card — the session decides, never an argument.
+  keepGroup: "round code", handOverGroup: "round code", confirmPlayMatch: "round code", disputePlayMatch: "round code", disputePlayCard: "round code",
+  // themselves
   deleteMyAccount: "themselves", signOutEverywhereAction: "themselves", leaveOrganization: "themselves", setOwnAttendance: "themselves", enterTournament: "themselves", switchEvent: "themselves",
   enterThisTournament: "themselves", withdrawMyEntry: "themselves", askToJoinNamesake: "themselves",
   requestContestEntry: "themselves", requestSideGameEntry: "themselves", requestSkinsEntry: "themselves",

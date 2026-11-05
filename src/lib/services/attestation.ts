@@ -46,6 +46,15 @@ export function ruleFrom(attestBy: string): AttestRule {
   return isAttestRule(attestBy) ? attestBy : "marker";
 }
 
+/**
+ * THE RULE THE END-OF-ROUND CHECK ASKS (2026-11-04): "the other side
+ * confirms" is the check's promise, so a club's looser "one playing partner"
+ * is read as the other side; "everyone in the match" stays everyone.
+ */
+export function endCheckRule(attestBy: string): AttestRule {
+  return ruleFrom(attestBy) === "all" ? "all" : "opponent";
+}
+
 interface MatchRow {
   id: string;
   playerAId: string;

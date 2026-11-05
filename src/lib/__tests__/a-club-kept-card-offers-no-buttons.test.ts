@@ -60,13 +60,42 @@ describe("the server refuses by that predicate", () => {
     for (const name of WRITERS) expect(bodies.has(name), name).toBe(true);
   });
 
-  it("every writer on /play refuses a player through canEnterScores, imported from the one module", () => {
-    expect(play).toContain('canEnterScores } from "@/lib/tournament-settings"');
+  /**
+   * Since 2026-11-04 the predicate has a ROUND half: "Organizer only (paper
+   * cards)" on one round refuses players there alone. So the server asks the
+   * one gate that holds both — `playerEntryRefusal` (domain/round-scoring.ts),
+   * through play.ts's `entryRefusal`, which loads the session's round — and
+   * every writer returns its sentence before it writes. The TOURNAMENT half is
+   * still `canEnterScores`' answer exactly, pinned below, so the page (which
+   * asks `canEnterScores` until phase 2 teaches it the round) and the server
+   * cannot disagree about a club-kept tournament.
+   */
+  it("every writer on /play refuses a player through the one gate, asked of the session's round", () => {
+    expect(play).toMatch(/import \{[^}]*playerEntryRefusal[^}]*\} from "@\/lib\/domain\/round-scoring"/);
+    const helper = play.slice(play.indexOf("async function entryRefusal("));
+    expect(helper.slice(0, helper.indexOf("\n}\n")), "entryRefusal does not ask the one gate").toMatch(/return playerEntryRefusal\(settings, stage\)/);
     for (const name of WRITERS) {
       const body = bodies.get(name)!;
-      expect(body, name).toMatch(/if \(!canEnterScores\(settings(Of\(event\))?, "player"\)\) \{/);
-      expect(body, name).toContain("entered by the organizer");
+      const gate = body.indexOf("await entryRefusal(session, settings");
+      expect(gate, `${name} does not ask the gate`).toBeGreaterThan(-1);
+      expect(body.slice(gate), name).toMatch(/^await entryRefusal\(session, settings(Of\(event\))?\);\s*if \(refused\) return \{ ok: false, error: refused \};/);
+      // Before anything is written.
+      for (const write of [".update(", ".upsert(", ".create(", "writeScorecard(", "certifyCard("]) {
+        const at = body.indexOf(write);
+        if (at > -1) expect(at, `${name} writes before it asks`).toBeGreaterThan(gate);
+      }
     }
+  });
+
+  it("the gate's tournament half is canEnterScores' answer, for every value of the setting", async () => {
+    const { playerEntryRefusal } = await import("../domain/round-scoring");
+    for (const by of SCORE_ENTRY_BY) {
+      expect(playerEntryRefusal(settings(by), null) === null, by).toBe(canEnterScores(settings(by), "player"));
+      expect(playerEntryRefusal(settings(by), { scoreKeeping: "each", endCheck: "off" }) === null, by).toBe(canEnterScores(settings(by), "player"));
+    }
+    // The round half: paper cards refuse a player even where players enter.
+    expect(playerEntryRefusal(settings("players"), { scoreKeeping: "organizer", endCheck: "off" })).not.toBeNull();
+    expect(playerEntryRefusal(settings("staff"), null)).toContain("entered by the organizer");
   });
 });
 

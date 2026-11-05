@@ -175,6 +175,9 @@ interface Dead {
  * boundary stopped needing, formatters replaced by the `Formatting` versions.
  */
 const KNOWN_DEAD: string[] = [
+  // WAITING FOR ITS SCREEN (2026-11-04): /play's "who keeps score" line, sprint 2 part B phase 2 —
+  // sprint 1 holds app/play/page.tsx until it merges. Comes off with phase 2 (due Wed 11 Nov).
+  "lib/services/group-keeping.ts:keeperFor",
   // SUPERSEDED 2026-10-31 by the Print kit's own normal-size card (components/print/PrintPages.tsx). Its
   // render tests (render.test.tsx, back-nine-hole-numbers.test.tsx) still pin the old full-page card;
   // moving them to the new card and deleting this is the Print kit's slice 2.

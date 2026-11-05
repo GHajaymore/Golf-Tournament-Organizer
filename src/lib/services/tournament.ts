@@ -100,6 +100,7 @@ import { isStablefordRound } from "../domain/week-basis";
 import { isMatch, reviewsScores } from "../tournament-shape";
 import { flightLabel } from "../domain/flight-label";
 import { cardsOnBoard, heldFromBoard, onBoard } from "../domain/board-hold";
+import { endCheckRule, matchSidesOf, sidesAgree } from "./attestation";
 
 export type HoleResultArr = DomainMatch["holes"];
 
@@ -2717,6 +2718,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const staffApproves = !autoConfirm;
   // Assembled here, counted once the draw exists below — a knockout report is
   // only waiting while the draw still holds its tie (`openTieReport`).
+  /**
+   * BOTH SIDES AGREE (2026-11-04): a result still pending that carries
+   * signatures is one the end-of-round check asked about. Asked only of those
+   * rows — the ordinary pending result has none — so this costs nothing on a
+   * tournament that does not use the check.
+   */
+  const signed = matches.filter((m) => m.scoreStatus === "pending" && m.attestedBy !== "[]" && m.attestedBy !== "");
+  const agreedIds = new Set<string>();
+  if (signed.length > 0) {
+    const rule = endCheckRule(settingsOf(event).attestBy);
+    for (const m of signed) if (sidesAgree(await matchSidesOf(m), m, rule)) agreedIds.add(m.id);
+  }
   const reviewInput = {
     matches: matches.map((m) => {
       let holes: HoleResultArr;
@@ -2732,6 +2745,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         // no result anybody can sign off.
         complete: matchIsOver(holes),
         status: effectiveScoreStatus(m, autoConfirm),
+        agreed: agreedIds.has(m.id),
       };
     }),
     cards: scorecards,

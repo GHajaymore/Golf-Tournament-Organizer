@@ -13,6 +13,7 @@ import {
   setStageScoringBasis,
   setStageScoreInput,
   setStageMatchKeptBy,
+  setStageScoring,
   setStageFormat,
   setStageHoles,
   setStagePlayedOn,
@@ -24,6 +25,7 @@ import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS, declaredInput, inputChoices, entryModeFor, formatTagline, isManualFormat } from "@/lib/formats";
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { MATCH_KEPT_BY, keptByScoreInput, matchKeptBy, type MatchKeptBy } from "@/lib/domain/match-kept-by";
+import { SCORE_KEEPING, endCheckLabel, roundScoring, scoringSummary, type EndCheck, type ScoreKeeping } from "@/lib/domain/round-scoring";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
 import { SaveState, useSaveStatus } from "./SaveState";
@@ -110,6 +112,10 @@ export interface StageView {
   scoreInput: string;
   /** How players keep this round's matches, or "" for the round's default. See `matchKeptBy`. */
   matchKeptBy: string;
+  /** Who enters this round's scores, as stored. Read through `roundScoring`. */
+  scoreKeeping?: string;
+  /** The end-of-round check, as stored. Read through `roundScoring`. */
+  endCheck?: string;
   /** The organizer has declared this round over. See `RoundClosedControl`. */
   closed: boolean;
   carryEnabled: boolean;
@@ -991,6 +997,27 @@ function StageCard({
       if (!res.ok) {
         setKeptBy(before);
         setKeptByRefusal(res.error ?? "Couldn't change that.");
+      }
+    });
+  };
+
+  // WHO KEEPS THE CARD, AND WHO CHECKS IT (2026-11-04, `roundScoring`). A
+  // refusal — a late switch to one scorer — is said beside the choice and the
+  // radio goes back, as "How players keep their matches" does.
+  const [scoringNow, setScoringNow] = useState(() =>
+    roundScoring({ scoreKeeping: stage.scoreKeeping ?? null, endCheck: stage.endCheck ?? null }),
+  );
+  const [scoringOpen, setScoringOpen] = useState(false);
+  const [scoringRefusal, setScoringRefusal] = useState("");
+  const commitScoring = (next: { scoreKeeping?: ScoreKeeping; endCheck?: EndCheck }) => {
+    const before = scoringNow;
+    setScoringNow({ ...scoringNow, ...next });
+    setScoringRefusal("");
+    startTransition(async () => {
+      const res = await setStageScoring(stage.id, next);
+      if (!res.ok) {
+        setScoringNow(before);
+        setScoringRefusal(res.error ?? "Couldn't change that.");
       }
     });
   };
@@ -2230,6 +2257,96 @@ function StageCard({
                 </div>
               );
             })()}
+
+            {/* WHO KEEPS THE CARD, AND WHO CHECKS IT (2026-11-04, sprint 2 part B).
+                One line that says how the round is kept, the choices behind
+                Customize — a knockout's draw files a winner per tie, so it has
+                no card to keep. */}
+            {!isKnockoutRound(stage.type) &&
+              (() => {
+                const matchPlay = matchKeptBy({ type: stage.type, format, scoreInput, matchKeptBy: keptBy }) !== null;
+                return (
+                  <div className="field" style={{ maxWidth: 420, width: "100%" }} data-testid={`round-scoring-${stage.id}`}>
+                    <span className="field-caption">
+                      Who keeps score
+                      <FieldInfo label="who keeps score">
+                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                          {SCORE_KEEPING.map((s) => (
+                            <li key={s.key}>
+                              <b>{s.label}</b> — {s.detail}
+                            </li>
+                          ))}
+                        </ul>
+                        <p>
+                          <b>End-of-round check</b> —{" "}
+                          {matchPlay
+                            ? "when a match is over, someone from the other side confirms the result on their phone. A disputed result stays off the leaderboard until you settle it."
+                            : "each player confirms their own card when the round is over. A disputed card stays off the leaderboard until you settle it."}
+                        </p>
+                        <p>Choose one scorer per group before anyone scores: once players have entered their own, the round stays that way.</p>
+                      </FieldInfo>
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
+                      <span style={{ fontSize: 13, minWidth: 0 }}>{scoringSummary(scoringNow, matchPlay)}</span>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        aria-expanded={scoringOpen}
+                        aria-label="Customize who keeps score"
+                        onClick={() => setScoringOpen((o) => !o)}
+                        style={{ fontSize: 13 }}
+                      >
+                        Customize
+                      </button>
+                    </div>
+                    {scoringOpen && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
+                        <fieldset style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+                          <legend style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Who enters scores</legend>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {SCORE_KEEPING.map((s) => (
+                              <label key={s.key} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}>
+                                <input
+                                  type="radio"
+                                  name={`score-keeping-${stage.id}`}
+                                  checked={scoringNow.scoreKeeping === s.key}
+                                  disabled={pending}
+                                  onChange={() => commitScoring({ scoreKeeping: s.key })}
+                                  style={{ marginTop: 3 }}
+                                />
+                                <span>{s.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                        <fieldset style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+                          <legend style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>End-of-round check</legend>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {(["on", "off"] as const).map((key) => (
+                              <label key={key} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}>
+                                <input
+                                  type="radio"
+                                  name={`end-check-${stage.id}`}
+                                  checked={scoringNow.endCheck === key}
+                                  disabled={pending}
+                                  onChange={() => commitScoring({ endCheck: key })}
+                                  style={{ marginTop: 3 }}
+                                />
+                                <span>{endCheckLabel(key, matchPlay)}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      </div>
+                    )}
+                    {scoringRefusal && (
+                      <p role="alert" style={{ margin: "6px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
+                        {scoringRefusal}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
             {/* Was two headings for one thing: a group titled "On the day"
                 blurbed "whether scores can still go in", holding one control

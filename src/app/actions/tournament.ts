@@ -53,7 +53,6 @@ async function authorPlayerId(eventId: string, session: Session | null): Promise
   return first ?? "";
 }
 import {
-  canEnterScores,
   mayReportPartialCard,
   allowsAutoConfirm,
   entryNeedsEmail,
@@ -94,6 +93,9 @@ import {
 } from "@/lib/domain/round-handicap";
 import { overridesAfterFormatChange, playingHandicapInRound } from "@/lib/round-allowance";
 import { isTournamentShape, isMatch, type TournamentShape } from "@/lib/tournament-shape";
+import { scoringDefaults, roundScoring, isScoreKeeping, isEndCheck, entryRefusalFor } from "@/lib/domain/round-scoring";
+import { assertOwnMatch, playerRoundRefusal } from "@/lib/services/match-membership";
+import { keeperGate, playersWhoEntered } from "@/lib/services/group-keeping";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
@@ -242,9 +244,11 @@ async function requireScoreEntry(
   const event = await prisma.event.findUnique({ where: { id: session.eventId } });
   if (!event) throw new Error("Event not found");
   const settings = settingsOf(event);
-  if (!canEnterScores(settings, session.role)) {
-    throw new Error("Scores for this tournament are entered by the organizer.");
-  }
+  // The one gate (`entryRefusalFor`), asked of the tournament here; a round
+  // the organizer keeps from paper cards is refused where the round is known
+  // (`assertOwnMatch`, `assertMayKeepCard`).
+  const entryRefused = entryRefusalFor(settings, session.role, null);
+  if (entryRefused) throw new Error(entryRefused);
   /**
    * AND THE TOURNAMENT HAS TO HAVE STARTED.
    *
@@ -331,42 +335,12 @@ async function requireScoreEntryForStage(
  */
 const ownPlayerIds = myPlayerIds;
 
-/**
- * A player may write scores for their own match and nobody else's.
- *
- * requireScoreEntry answers "may this role enter scores at all"; it never
- * asked "for whom". With the answer missing, any signed-in player could
- * overwrite any match or any card in the event — the round-code path had
- * this check from day one, and the console path did not. Staff pass through
- * untouched: entering the whole field's cards is their job.
- *
- * Membership means being on one of the match's sides — the player columns in
- * an individual format, team membership in a team format. Same scoring-group
- * rule as domain/attest.ts and savePlayMatchHoles.
+/*
+ * A player may write scores for their own match and nobody else's — and on a
+ * round kept by one scorer per group, only that group's scorer may.
+ * `assertOwnMatch` lives in services/match-membership.ts (2026-11-04), one
+ * membership rule with the round-code saves in actions/play.ts.
  */
-async function assertOwnMatch(session: Session, eventId: string, matchId: string): Promise<void> {
-  if (session.role !== "player") return;
-  const match = await prisma.match.findFirst({
-    where: { id: matchId, eventId },
-    include: { stage: { select: { type: true, lineupPublished: true } } },
-  });
-  if (!match) throw new Error("Match not found.");
-  // A cup match in a lineup nobody has announced: not playable yet. Every
-  // match write a player can reach comes through here, so one check covers
-  // the hole-by-hole, the result and the card paths alike.
-  if (match.stage && lineupHidden(match.stage)) throw new Error(LINEUP_HIDDEN);
-  const own = await ownPlayerIds(eventId, session.email);
-  if (own.has(match.playerAId) || own.has(match.playerBId)) return;
-  const teamIds = [match.teamAId, match.teamBId].filter((id) => id !== "");
-  if (teamIds.length) {
-    const member = await prisma.teamMember.findFirst({
-      where: { teamId: { in: teamIds }, playerId: { in: [...own] } },
-      select: { id: true },
-    });
-    if (member) return;
-  }
-  throw new Error("You can only enter scores for your own match.");
-}
 
 /** Same rule for a stroke card: your own, or you are staff. */
 async function assertOwnCard(session: Session, eventId: string, playerId: string): Promise<void> {
@@ -405,8 +379,26 @@ async function assertMayKeepCard(
     throw new Error("Only the players who made the cut have a card for this round.");
   }
   await assertRoundOpen(eventId, stageId);
+  // A round the organizer keeps from paper cards takes nothing from a player.
+  const refused = await playerRoundRefusal(eventId, stageId);
+  if (refused) throw new Error(refused);
   const own = await ownPlayerIds(eventId, session.email);
+  /**
+   * ONE SCORER PER GROUP (2026-11-04). On a round kept by one scorer per group,
+   * only the group's scorer writes its cards — their own included — so a
+   * signed-in player cannot write beside the phone keeping the card. On any
+   * other round this answers `applies: false` and the marker rule below
+   * stands as it was.
+   */
+  const kept = await keeperGate({ eventId, stageId, actorIds: [...own], targetIds: [playerId], epoch: undefined });
+  if (kept.applies && !kept.ok) throw new Error(kept.error);
   if (own.has(playerId)) return;
+  if (!kept.applies) await assertInPublishedFoursome(eventId, stageId, own, playerId);
+  await assertPartnerCardUnsigned(eventId, stageId, playerId);
+}
+
+/** The marker rule: a partner's card, only in the foursome this round's published sheet drew. */
+async function assertInPublishedFoursome(eventId: string, stageId: string, own: Set<string>, playerId: string): Promise<void> {
   const [stage, confirmed] = await Promise.all([
     prisma.stage.findFirst({
       where: { id: stageId, eventId },
@@ -422,6 +414,9 @@ async function assertMayKeepCard(
   if (!mayWriteCard(own, playerId, foursomes)) {
     throw new Error("You can only keep score for yourself and the group you were drawn with.");
   }
+}
+
+async function assertPartnerCardUnsigned(eventId: string, stageId: string, playerId: string): Promise<void> {
   /**
    * AND NOT A CARD ITS PLAYER HAS RETURNED (2026-10-09). A marker could step
    * a partner's certified card: the save de-certifies a card whose numbers
@@ -2080,6 +2075,61 @@ export async function setStageMatchKeptBy(stageId: string, kept: string): Promis
   return { ok: true };
 }
 
+/**
+ * WHO KEEPS THE ROUND'S CARD, AND WHO CHECKS IT (2026-11-04, sprint 2 part B)
+ * — "Who enters scores" and "End-of-round check" on the round's card.
+ *
+ * Staff only. NOT behind the setup lock, unlike the round's format and
+ * scoring: this changes who may PRESS, never what a score means, and the
+ * committee needs it most once the round is under way — a group whose
+ * scorer's phone has died is rescued by switching the round to each player or
+ * to the organizer. Either field may be sent alone; what is sent must be one
+ * of the values `roundScoring` reads, or it is refused in words rather than
+ * stored to be read back as the default.
+ *
+ * AND NOT A LATE SWITCH TO ONE SCORER PER GROUP. Once two different players
+ * have entered scores on the round, each of them is keeping their own — and
+ * the first save after the switch would hand the group's card to whichever of
+ * them pressed first, locking the other out mid-round. Switching AWAY from one
+ * scorer (to each player, or to the organizer) is always allowed: it is how a
+ * committee rescues a group whose scorer's phone has died.
+ */
+export async function setStageScoring(
+  stageId: string,
+  input: { scoreKeeping?: string; endCheck?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const stage = await prisma.stage.findFirst({
+    where: { id: String(stageId), eventId },
+    select: { id: true, scoreKeeping: true, endCheck: true },
+  });
+  if (!stage) return { ok: false, error: "Round not found." };
+  const keeping = input?.scoreKeeping === undefined ? undefined : String(input.scoreKeeping).trim();
+  const check = input?.endCheck === undefined ? undefined : String(input.endCheck).trim();
+  if (keeping !== undefined && !isScoreKeeping(keeping)) {
+    return { ok: false, error: "Choose one scorer per group, each player, or the organizer." };
+  }
+  if (check !== undefined && !isEndCheck(check)) return { ok: false, error: "Turn the end-of-round check on or off." };
+  const now = roundScoring(stage);
+  if (keeping === "group" && now.scoreKeeping !== "group" && (await playersWhoEntered(eventId, stage.id)) >= 2) {
+    return {
+      ok: false,
+      error:
+        "Players have already entered their own scores on this round, so it stays that way. Choose one scorer per group before anyone scores.",
+    };
+  }
+  const data = { ...(keeping !== undefined ? { scoreKeeping: keeping } : {}), ...(check !== undefined ? { endCheck: check } : {}) };
+  if (Object.keys(data).length === 0) return { ok: true };
+  await prisma.stage.updateMany({ where: { id: stage.id, eventId }, data });
+  await logAudit(
+    eventId,
+    "round.scoring",
+    `${await roundWordsFor(eventId, stage.id)}: ${[keeping ? `who enters scores ${keeping}` : "", check ? `end-of-round check ${check}` : ""].filter(Boolean).join(", ")}`,
+  );
+  await refresh();
+  return { ok: true };
+}
+
 /** Whether any match in this round holds a hole, a result or a card. */
 async function roundHoldsAScore(stageId: string): Promise<boolean> {
   const [matches, teamCards, matchCards] = await Promise.all([
@@ -2550,7 +2600,8 @@ export async function addStage(
   let firstId: string | undefined;
   for (let i = 0; i < howMany; i += 1) {
     const created = await prisma.stage.create({
-      data: { ...common, scoringBasis, position: position + i, playedOn: dates[i] ?? "" },
+      // Who keeps the card and who checks it, for a new round (`scoringDefaults`).
+      data: { ...common, scoringBasis, position: position + i, playedOn: dates[i] ?? "", ...scoringDefaults(ev?.shape) },
     });
     if (i === 0) firstId = created.id;
   }
@@ -2687,6 +2738,13 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
       scoreStatus: "pending",
       scoredAt: complete ? new Date() : null,
       confirmedById: null,
+      // Who wrote it, and a clean slate of signatures — as `applyMatchResult`
+      // and the round-code saves record them (2026-11-04): the end-of-round
+      // check refuses the author, and a signature of an older scoreline is
+      // not a signature of this one.
+      enteredBy: session.name,
+      enteredById: await authorPlayerId(eventId, session),
+      attestedBy: "[]",
     },
   });
   await refresh();
@@ -4852,6 +4910,8 @@ async function createTournament(
         holes: r.holes,
         playedOn: cleanIsoDate(r.playedOn),
         scoringBasis: basisFor(r.format, r.scoringBasis),
+        // Who keeps the card and who checks it, for a new round (`scoringDefaults`).
+        ...scoringDefaults(event.shape),
         // How the template keeps its matches, where it says (`TemplateRound.kept`).
         ...(r.kept
           ? keptByScoreInput(r.format)

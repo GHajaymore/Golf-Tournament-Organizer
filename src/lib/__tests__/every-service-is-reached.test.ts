@@ -63,6 +63,10 @@ const UNREACHED: Record<string, string> = {
   // `tournament-facts.ts:tournamentFactsFor` came off in the state machine's
   // PR 3: the dashboard, Tournament details, Rounds & formats and every
   // console screen's context bar call it through `tournamentStatusFor`.
+
+  // ── Waiting for its screen, by date ───────────────────────────────────
+  "group-keeping.ts:keeperFor":
+    "Who keeps a player's group on a round kept by one scorer per group — the read behind /play's \"Ann is keeping score · Take over\". Sprint 2 part B phase 2 (the /play screens) calls it; phase 1 (2026-11-04) shipped the rules while sprint 1 held app/play/page.tsx. Comes off when phase 2 merges (due Wed 11 Nov).",
 };
 
 /** Every `.ts` under services. */
