@@ -29,7 +29,14 @@ import { keepCardOf } from "./keep-on-play";
  * suite's own pages.
  */
 
-test.describe.configure({ mode: "serial" });
+/**
+ * NOT SERIAL (2026-11-05). The three tests share one tournament but never one
+ * round: each has its own round, code and match (`matchStage`, `cardStage`,
+ * `ballsStage`), and none reads what another wrote. So a failure in one must
+ * not hide the next — in serial mode the first test's failure skipped the
+ * other two on every device in three rounds. A failed test restarts the
+ * worker, which seeds a fresh tournament (new codes) for the tests after it.
+ */
 
 const prisma = new PrismaClient();
 const MARK = "zz-scoring-by-group-phones";
@@ -289,14 +296,15 @@ test("two phones in one match: one keeps, one follows, take over, hand back, and
       await prisma.match.update({ where: { id: ids.match }, data: { scoreStatus: "pending", attestedBy: "[]" } });
       await bram.page.reload();
       const check = bram.page.getByRole("region", { name: "Check the result" });
-      await check.getByRole("button", { name: "That's not right" }).click();
-      await check.getByRole("button", { name: "Yes, it's not right" }).click();
-      await expect(check).toContainText("Disputed. It's held off the leaderboard until the committee settles it.", { timeout: 20_000 });
+      await check.getByRole("button", { name: "That’s not right" }).click();
+      await check.getByRole("button", { name: "Yes, it’s not right" }).click();
+      await expect(check).toContainText("Disputed. It’s held off the leaderboard until the committee settles it.", { timeout: 20_000 });
       expect((await matchRow()).scoreStatus).toBe("disputed");
     });
   } finally {
-    await ailsa.ctx.close();
-    await bram.ctx.close();
+    // A context Playwright already closed (a timed-out test) is not a second failure.
+    await ailsa.ctx.close().catch(() => {});
+    await bram.ctx.close().catch(() => {});
   }
   expect(errors).toEqual([]);
 });
@@ -324,15 +332,16 @@ test("a stroke round: the scorer keeps the group's cards; the other player follo
       await expect(keeping(bram.page)).toContainText("Group 1 is being kept on Ailsa's phone.");
       await expect(bram.page.getByRole("region", { name: "The group's card" })).toContainText(BRAM);
       const check = bram.page.getByRole("region", { name: "Check your card" });
-      await check.getByRole("button", { name: "Something's wrong" }).click();
-      await check.getByRole("button", { name: "Yes, something's wrong" }).click();
-      await expect(check).toContainText("Disputed. It's held off the leaderboard until the committee settles it.", { timeout: 20_000 });
+      await check.getByRole("button", { name: "Something’s wrong" }).click();
+      await check.getByRole("button", { name: "Yes, something’s wrong" }).click();
+      await expect(check).toContainText("Disputed. It’s held off the leaderboard until the committee settles it.", { timeout: 20_000 });
       const card = await prisma.scorecard.findFirstOrThrow({ where: { eventId: ids.event, stageId: ids.cardStage, playerId: ids.bram } });
       expect(card.status).toBe("disputed");
     });
   } finally {
-    await ailsa.ctx.close();
-    await bram.ctx.close();
+    // A context Playwright already closed (a timed-out test) is not a second failure.
+    await ailsa.ctx.close().catch(() => {});
+    await bram.ctx.close().catch(() => {});
   }
   expect(errors).toEqual([]);
 });
@@ -369,7 +378,7 @@ test("a match kept on stroke cards: the scorer keeps both balls, picked by name"
       expect((await slotCard("B"))[0]).toBe(4);
     });
   } finally {
-    await ailsa.ctx.close();
+    await ailsa.ctx.close().catch(() => {});
   }
   expect(errors).toEqual([]);
 });
