@@ -147,6 +147,26 @@ describe("a match kept on stroke cards, one scorer per group", () => {
     expect(html).toContain(`${TAG} bea`);
   });
 
+  /**
+   * TWO BALLS, ONE PAGE, NO SHARED ID (2026-11-05). Every ball's card stays
+   * mounted so its offline queue runs, and the pad's "Other" box had a
+   * constant id: two inputs with one id, a label that could land on the hidden
+   * card (found by the rounds on 99ac3be1). Each id once; the card not on
+   * screen hidden AND inert.
+   */
+  it("the scorer's page with two balls carries every id once, and the card not picked is hidden and inert", async () => {
+    await phoneOf(ids.ann);
+    const html = renderToStaticMarkup(await PlayPage({ searchParams: Promise.resolve({}) }));
+    const idsOnPage = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+    const twice = idsOnPage.filter((id, i) => idsOnPage.indexOf(id) !== i);
+    expect(idsOnPage.some((id) => id.startsWith("hbh-other")), "CONTROL: the sweep sees the pad's box").toBe(true);
+    expect(idsOnPage.filter((id) => id.startsWith("hbh-other")).length, "one box per ball").toBe(2);
+    expect(twice, "an id used twice on the page").toEqual([]);
+    const cards = [...html.matchAll(/<section([^>]*)data-ball="[^"]+"/g)].map((m) => m[1]);
+    expect(cards).toHaveLength(2);
+    expect(cards.filter((attrs) => /\shidden=""/.test(attrs) && /\sinert=""/.test(attrs)), "the card not picked is in reach").toHaveLength(1);
+  });
+
   it("the scorer enters the other player's ball, named — and it lands on that ball's card, not hers", async () => {
     await phoneOf(ids.ann); // the confirmation makes Ann's phone the scorer
     const own = await savePlayMatchCard(ids.match, nine(4));

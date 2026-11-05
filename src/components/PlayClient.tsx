@@ -1753,7 +1753,16 @@ function PlayScreens(props: Props) {
           ))}
         </div>
         {balls.map((b) => (
-          <div key={b.id} hidden={b.id !== shown} data-ball={b.id}>
+          // A region named for the ball; the others hidden AND inert — out of
+          // the accessibility tree and out of reach of a tap or a label — yet
+          // mounted, so each ball's offline queue keeps running.
+          <section
+            key={b.id}
+            aria-label={`${b.name}'s card`}
+            hidden={b.id !== shown}
+            inert={b.id !== shown}
+            data-ball={b.id}
+          >
             <MatchStrokeKeeper
               match={props.match!}
               card={b.card}
@@ -1778,7 +1787,7 @@ function PlayScreens(props: Props) {
               next={next}
               footer={footer}
             />
-          </div>
+          </section>
         ))}
         {matchCheck}
       </Shell>

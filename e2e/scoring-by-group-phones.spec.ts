@@ -365,8 +365,11 @@ test("a match kept on stroke cards: the scorer keeps both balls, picked by name"
       await expect(whose.getByRole("button")).toHaveText([AILSA, BRAM]);
       await whose.getByRole("button", { name: BRAM }).click();
       await expect(whose.getByRole("button", { name: BRAM })).toHaveAttribute("aria-pressed", "true");
-      await expect(ailsa.page.getByLabel("Strokes on hole 1")).toBeVisible();
-      await ailsa.page.getByRole("button", { name: /Par$/ }).click();
+      // Only the picked ball's card is in reach: the other is hidden and inert.
+      const bramsCard = ailsa.page.getByRole("region", { name: `${BRAM}'s card` });
+      await expect(bramsCard.getByLabel("Strokes on hole 1")).toBeVisible();
+      await expect(ailsa.page.getByRole("region", { name: `${AILSA}'s card` }), "the hidden ball is still in reach").toHaveCount(0);
+      await bramsCard.getByRole("button", { name: /Par$/ }).click();
       await expect.poll(async () => (await slotCard("B"))[0], { timeout: 15_000, message: "Bram's ball never reached his card" }).toBe(4);
       expect((await slotCard("A"))[0] ?? null, "Ailsa's own card took Bram's ball").toBeNull();
     });
@@ -374,7 +377,7 @@ test("a match kept on stroke cards: the scorer keeps both balls, picked by name"
     await test.step("and back to her own ball", async () => {
       const whose = ailsa.page.getByRole("group", { name: "Whose card" });
       await whose.getByRole("button", { name: AILSA }).click();
-      await ailsa.page.getByRole("button", { name: /Birdie$/ }).click();
+      await ailsa.page.getByRole("region", { name: `${AILSA}'s card` }).getByRole("button", { name: /Birdie$/ }).click();
       await expect.poll(async () => (await slotCard("A"))[0], { timeout: 15_000 }).toBe(3);
       expect((await slotCard("B"))[0]).toBe(4);
     });
