@@ -33,6 +33,8 @@ const LABEL_SOURCE: Record<string, string> = {
   "Print the draw": "src/components/BracketClient.tsx",
   "Score this match": "src/app/(player)/me/page.tsx",
   "Halved": "src/components/HoleResultCard.tsx",
+  "Not my group": "src/components/PlayClient.tsx",
+  "Leaderboard": "src/components/PlayClient.tsx",
 };
 
 /** JSX writes an apostrophe as an entity; read the screen the way it renders. */

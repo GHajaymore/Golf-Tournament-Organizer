@@ -29,10 +29,22 @@
  * runs on — if it is still not live a moment after it is read — stops waiting for its scripts
  * (`window.stop()`): it finishes loading, Safari paints it, and it works as the page without script
  * does, its presses posted at once. The scripts had already failed to arrive once in ten seconds.
+ *
+ * AND THE MARK IS PASSED ON WHILE THE SCRIPTS ARE STILL NOT COMING (2026-11-05). Since the one
+ * confirmation the walk is THREE pages without script — the code, the names, "You're keeping …" —
+ * and the mark was spent on the second: the name went at once from the stopped list, and the
+ * confirmation it opened waited for its scripts again, unpainted on the iPhone's engine, so "Yes,
+ * that's right" never took a press (round scoring-by-group-1-2: the click never left "stable" for
+ * 108 s). So a press posted from a STOPPED page leaves the mark again, and the next page stops too
+ * — but only a page that works without script: one with a held form (`data-held-until-live`) or a
+ * plain one (`data-plain-post`, the confirmation and whose-card forms). The card itself has
+ * neither, so it is never stopped: its scripts are what make the pad work, and they may yet come.
  */
 const LET_GO_AT = "thqLetGoAt";
 const GRACE_AFTER_LET_GO_MS = 1_500;
-const HOLD = `(function(){var k="__thqHeld";if(window[k]!==undefined)return;window[k]=null;function live(el){var ks=Object.keys(el);for(var i=0;i<ks.length;i++){if(ks[i].indexOf("__reactFiber$")===0)return true;}return false;}var S="${LET_GO_AT}",stopped=false;try{var t=+(sessionStorage.getItem(S)||0);sessionStorage.removeItem(S);if(t&&Date.now()-t<${60_000}){var go=function(){setTimeout(function(){var f=document.querySelector("form[data-held-until-live]");if(!f||live(f))return;stopped=true;window.stop();},${GRACE_AFTER_LET_GO_MS});};if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();}}catch(x){}document.addEventListener("submit",function(e){var f=e.target;if(!f||!f.hasAttribute||!f.hasAttribute("data-held-until-live")||live(f))return;if(window.__thqLetGo===f){window.__thqLetGo=null;return;}if(stopped)return;e.preventDefault();if(window[k])return;var s=e.submitter||null;var b=s||f;window[k]={form:f,submitter:s,data:new FormData(f),value:s?s.value:""};b.setAttribute("data-held","");b.setAttribute("aria-busy","true");b.style.opacity="0.6";setTimeout(function(){var h=window[k];if(!h||h.form!==f||live(f))return;window[k]=null;window.__thqLetGo=f;try{sessionStorage.setItem(S,String(Date.now()));}catch(x){}if(f.requestSubmit){f.requestSubmit(s||undefined);}else{if(s&&s.name){var i=document.createElement("input");i.type="hidden";i.name=s.name;i.value=s.value;f.appendChild(i);}f.submit();}},${10_000});},true);})();`;
+/** The forms that post the plain way and work without script: a page holding one may be stopped. */
+const WORKS_WITHOUT_SCRIPT = "form[data-held-until-live],form[data-plain-post]";
+const HOLD = `(function(){var k="__thqHeld";if(window[k]!==undefined)return;window[k]=null;function live(el){var ks=Object.keys(el);for(var i=0;i<ks.length;i++){if(ks[i].indexOf("__reactFiber$")===0)return true;}return false;}var S="${LET_GO_AT}",P="${WORKS_WITHOUT_SCRIPT}",stopped=false;function mark(){try{sessionStorage.setItem(S,String(Date.now()));}catch(x){}}try{var t=+(sessionStorage.getItem(S)||0);sessionStorage.removeItem(S);if(t&&Date.now()-t<${60_000}){var go=function(){setTimeout(function(){var f=document.querySelector(P);if(!f||live(f))return;stopped=true;window.stop();},${GRACE_AFTER_LET_GO_MS});};if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();}}catch(x){}document.addEventListener("submit",function(e){var f=e.target;if(!f||!f.hasAttribute||live(f))return;if(stopped){if(f.hasAttribute("data-held-until-live")||f.hasAttribute("data-plain-post"))mark();return;}if(!f.hasAttribute("data-held-until-live"))return;if(window.__thqLetGo===f){window.__thqLetGo=null;return;}e.preventDefault();if(window[k])return;var s=e.submitter||null;var b=s||f;window[k]={form:f,submitter:s,data:new FormData(f),value:s?s.value:""};b.setAttribute("data-held","");b.setAttribute("aria-busy","true");b.style.opacity="0.6";setTimeout(function(){var h=window[k];if(!h||h.form!==f||live(f))return;window[k]=null;window.__thqLetGo=f;try{sessionStorage.setItem(S,String(Date.now()));}catch(x){}if(f.requestSubmit){f.requestSubmit(s||undefined);}else{if(s&&s.name){var i=document.createElement("input");i.type="hidden";i.name=s.name;i.value=s.value;f.appendChild(i);}f.submit();}},${10_000});},true);})();`;
 
 /** The holder, drawn above the forms it holds for. */
 export function HeldBeforeLoad() {

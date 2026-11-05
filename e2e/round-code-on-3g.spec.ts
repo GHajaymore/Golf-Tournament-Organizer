@@ -198,6 +198,8 @@ test.describe("a round code on slow 3G", () => {
       const names = Date.now() - opened;
 
       await me.click();
+      // The one confirmation (2026-11-04): drawn on the phone, no trip to the server.
+      await page.getByRole("button", { name: "Yes, that's right" }).click();
       await expect(page.getByLabel("Strokes on hole 1")).toBeVisible({ timeout: 60_000 });
       const card = Date.now() - opened;
       const pad = page.getByRole("button", { name: /Par$/ }).first();
@@ -246,6 +248,7 @@ test.describe("a round code on slow 3G", () => {
       await page.waitForTimeout(1_500);
       const tapped = Date.now() - opened;
       await me.click();
+      await page.getByRole("button", { name: "Yes, that's right" }).click();
       await expect(page.getByLabel("Strokes on hole 1")).toBeVisible({ timeout: 60_000 });
       const card = Date.now() - opened;
       await expect(page.getByRole("button", { name: /Par$/ }).first()).toBeEnabled({ timeout: 60_000 });
@@ -286,10 +289,14 @@ test.describe("a round code on slow 3G", () => {
       await expect(me).toBeVisible({ timeout: 60_000 });
       const namesShown = Date.now() - t;
 
-      // THE PROMISE: from the tap on their own name to a pad that takes a score.
+      // The name is said back first, on the phone (2026-11-04); the trip starts at the yes.
+      await me.click();
+      const yes = page.getByRole("button", { name: "Yes, that's right" });
+      await expect(yes).toBeVisible();
+      // THE PROMISE: from the confirmed name to a pad that takes a score.
       net.reset();
       t = Date.now();
-      await me.click();
+      await yes.click();
       await expect(page.getByLabel("Strokes on hole 1")).toBeVisible({ timeout: 60_000 });
       const cardDrawn = Date.now() - t;
       const pad = page.getByRole("button", { name: /Par$/ }).first();

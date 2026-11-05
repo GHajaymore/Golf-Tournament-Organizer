@@ -1,6 +1,7 @@
 import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { keepCardOf } from "./keep-on-play";
 
 /**
  * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES.
@@ -94,7 +95,8 @@ test("a match decided 5&4 on a round code is handed in at the fourteenth, not he
     await page.waitForLoadState("networkidle").catch(() => {});
     await page.getByLabel("Round code").fill(CODE);
     await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByRole("button", { name: "Zz Decider" }).click();
+    // The match is the group (2026-11-04): tapped, then confirmed once.
+    await keepCardOf(page, "Zz Decider");
 
     const ask = page.getByText("Fill in each hole until the match is decided");
     await expect(ask, "the whole-round screen says what it is waiting for").toBeVisible({ timeout: 20_000 });
@@ -105,7 +107,7 @@ test("a match decided 5&4 on a round code is handed in at the fourteenth, not he
       await expect(group).toBeVisible({ timeout: 10_000 });
       await group.getByRole("button", { name: who }).click();
     };
-    // Each answer names its player — the holder is Zz Decider (2026-10-18).
+    // Each answer names its player (2026-10-18); Zz Decider is side A as drawn.
     for (let n = 1; n <= 5; n += 1) await press(n, new RegExp(`^Hole ${n} to Zz Decider`));
     for (let n = 6; n <= 13; n += 1) await press(n, new RegExp(`^Hole ${n} halved`));
 

@@ -104,7 +104,10 @@ test("a member enters from the link, signs in, and scores their own card", async
       const poster = page.locator("#signup-poster section.signup-poster");
       await expect(poster, "the sign-up poster was not drawn").toBeVisible({ timeout: 20_000 });
       expect(await poster.getAttribute("data-link"), "the poster's QR is not the sign-up link").toBe(link);
-      await expect(poster.locator("svg path"), "the poster has no QR drawn").toHaveCount(1);
+      await expect(poster.locator("svg[role=img] > path"), "the poster has no QR drawn").toHaveCount(1);
+      // The TourneyHQ mark in its centre, and the code a link to its own address (2026-11-05).
+      await expect(poster.locator("svg [data-qr-logo]"), "the poster's QR has no mark in its centre").toHaveCount(1);
+      await expect(poster.locator("a.sp-link"), "the poster's QR is not tappable").toHaveAttribute("href", link);
       await expect(poster).toContainText("Scan to sign up");
       await poster.screenshot({ path: test.info().outputPath("poster.png") });
       await expect(page.getByRole("button", { name: "Print poster" })).toBeVisible();

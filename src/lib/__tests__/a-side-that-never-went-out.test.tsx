@@ -46,7 +46,7 @@ describe("the sides board over a closed round", () => {
       "src/app/(app)/leaderboard/page.tsx",
       "src/app/(app)/reports/page.tsx",
       "src/app/(player)/me/board/page.tsx",
-      "src/app/live/[token]/page.tsx",
+      "src/components/PublicBoard.tsx",
     ]) {
       expect(readSource(f), f).toMatch(/\sroundClosed=\{/);
     }

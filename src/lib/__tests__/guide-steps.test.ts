@@ -39,6 +39,7 @@ const PINNED: [label: string, file: string][] = [
   // The Print kit (2026-10-23) and its doors.
   ["Reprint these", "src/components/print/PrintKitClient.tsx"],
   ["Print the signs", "src/components/PlaySettings.tsx"],
+  ["Share", "src/components/PlaySettings.tsx"],
   ["Print…", "src/app/(app)/foursomes/page.tsx"],
   ["Print…", "src/app/(app)/cup/page.tsx"],
 ];
