@@ -883,6 +883,10 @@ const PAPER_RULES = `
    to print those colours rather than drop them as "background graphics". */
 .pk-qrword { display: block; text-align: center; line-height: 1.2; margin-top: 0.6mm; color-scheme: light;
   -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/* The wordmark's two parts keep a line as tall as their letters (Oswald's descender in "Tourney", the chip's
+   own face in "HQ"): the lockup's own line-height of 1 is shorter than either face, and the kit's fit
+   measure (print-kit-fits) reads a line shorter than its letters as a cut. */
+.pk-qrword .brand-mark, .pk-qrword .brand-hq { line-height: 1.4; }
 /* The scorecard's corner (2026-11-05): a ${CARD_QR_MM} mm QR and its typed code, bottom right, beside the signature
    lines, the note and the foot, which stop 23 mm short of the right edge to leave it. With four players the grid ends
    about 22 mm above the bottom; the block is ${CARD_QR_MM} + one 8 pt line (4.2 mm) = about 20 mm. */

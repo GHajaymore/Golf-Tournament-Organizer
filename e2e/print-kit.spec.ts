@@ -335,7 +335,9 @@ test("printing stamps the cards; a moved group and a reissued code ask for just 
   try {
     await open(page, `/print?round=${f.sf.stageId}`);
     await expect(page.getByRole("status").filter({ hasText: "out of date" })).toContainText(staleSentence(f.sf.groups * buggiesPerGroup + 2 + f.sf.players.length));
-    await expect(page.getByRole("status").filter({ hasText: "out of date" })).toContainText("spare sign");
+    // The banner names twelve sheets and then "and N more", and the scorecards come first, so the
+    // spares are in the count above, not in the names; the audit test pins which docs go stale.
+    await expect(page.getByRole("status").filter({ hasText: "out of date" })).toContainText("scorecard");
   } finally {
     await prisma.stage.update({ where: { id: f.sf.stageId }, data: { accessCode: f.sf.code } });
   }
