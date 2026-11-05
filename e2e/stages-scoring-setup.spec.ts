@@ -3,6 +3,7 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { pressRadio } from "./press-radio";
 
 /**
  * WHO KEEPS THE CARD, AND WHO CHECKS IT — chosen per round on Rounds & formats
@@ -144,10 +145,10 @@ test("the organizer says who keeps score on a round, and a late switch to one sc
     const { scoring } = await roundCard(page);
     await scoring.getByRole("button", { name: "Customize who keeps score" }).click();
     await expect(scoring.getByRole("radio", { name: "One scorer per group" })).toBeChecked();
-    await scoring.getByRole("radio", { name: "Organizer only (paper cards)" }).check();
+    await pressRadio(scoring.getByRole("radio", { name: "Organizer only (paper cards)" }));
     await expect.poll(async () => (await stored()).scoreKeeping, { timeout: 15_000, message: "who enters scores was not saved" }).toBe("organizer");
     await expect(scoring.getByRole("radio", { name: "Each player confirms their own card" })).toBeChecked();
-    await scoring.getByRole("radio", { name: "Off", exact: true }).check();
+    await pressRadio(scoring.getByRole("radio", { name: "Off", exact: true }));
     await expect.poll(async () => (await stored()).endCheck, { timeout: 15_000, message: "the end-of-round check was not saved" }).toBe("off");
     // Kept after a reload, and said on the one line.
     const again = await roundCard(page);
