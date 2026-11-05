@@ -134,7 +134,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Type a name under **Create a new tournament**.",
           "Choose **How is it played?** — a single round, a series of rounds, or a knockout.",
-          "Choose **Start from**: a template, or one of your past tournaments to copy (settings carry over, scores never do).",
+          "Choose **Start from**: a template, or one of your past tournaments to copy (settings carry over, scores never do). Choosing a past tournament asks for its **First day** (and **Last day**), exactly as **Copy last event** below does, and the entry window and rounds move with it.",
           "Press [[Create tournament]], then [[Manage]] to open it.",
         ],
       },
@@ -181,7 +181,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "**Tournament name** and **Tournament dates** are required to launch; the name cannot be one another of your tournaments in play is using. Tick **These dates are tentative** if they may move; dates have their own [[Save dates]].",
-          "**Overall result** — Match play or Stroke play — decides how season standings are worked out, not each round's format.",
+          "**Overall result** — Match play or Stroke play — decides how season standings are worked out, not each round's format. It is asked once the tournament has a round; until then your first round decides it (a medal or Stableford round makes it stroke play), and a choice you make after that stays.",
           "**Golf course**: pick a course, **Other (enter manually)**, or **No fixed course — players choose**.",
           "Registration: **Entries open**, **Registration deadline** and **Field capacity** (a fixed number, or open). The deadline day itself is open, until midnight at the club. Press [[Save event]].",
         ],
@@ -410,6 +410,18 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "tip", text: "Paper never carries an email, a phone number or an amount of money. If one has been typed into a name, the Print kit says so before you print." },
+      { kind: "h", text: "Money and the prize list" },
+      { kind: "where", text: "Set up → Prizes & payouts — money setup at the foot of the page" },
+      {
+        kind: "list",
+        items: [
+          "Answer **how money works** before you launch, and write the prize list the players will be told about. Paying out is Part 9, afterwards. TourneyHQ works money out and writes it down; it never moves it.",
+          "**Costs handled outside the app** — fees and prizes happen elsewhere; skins and side games are still worked out.",
+          "**Tournament kitty** — one pot: record money in and out. Nobody owes anybody, so no settle-up.",
+          "**Split shared costs** — record who paid for what; the app works out who pays whom in the fewest payments, with side-game winnings folded in. Choose **Who adds a shared cost**.",
+          "Under [[Add a prize]], start from a structure (such as flight winners) or enter Category, Detail and Amount, then [[Add]]. The winners are named later, once results are in (Part 9).",
+        ],
+      },
     ],
   },
   {
@@ -423,7 +435,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Until it is launched, a tournament's status is **Setting up** — one step, however far you are. Entries are not a status: players can sign up once you publish the sign-up link on **Entries**. With results already in, it reads **Setting up · results in** and the card says which round has results; the button is still **Launch tournament**.",
           "Work through the setup steps on the bar across the top of each Set-up screen — it is the one count of how far you are (for example **3 of 6 done**); the **How a tournament runs** panel on Tournament details marks where you are without a second count. The tournament needs a name and its **dates**; a venue alone is not enough, because players cannot plan around a tournament with no day. Until you launch, the Dashboard keeps the steps still to do under **Still to set up**, even once your players are in.",
           "Some steps are **Optional** and never stop you: flights for a medal or a Stableford (one field is a complete setup, and the step reads **Optional — one field**), the answer on how money works, and a day for every round of a tournament played over several rounds. Once nothing stops a launch the bar reads **Ready to launch** and says how many parts are done, the rest optional.",
-          "Press the launch button on the status bar. **Launch “‹name›”?** first lists what setup still has open — no flights, no tee sheet, no answer on how money works — each with a link to the screen that fixes it and whether you can still do it after launch. Then it summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
+          "Press the launch button on the status bar. **Launch “‹name›”?** first lists what setup still has open — no flights, no tee sheet, no answer on how money works, a tee with no Course Rating and Slope under a round that scores net or Stableford (its players are then scored on their raw Handicap Index) — each with a link to the screen that fixes it and whether you can still do it after launch. Then it summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
           "Press [[Launch tournament]]. Setup locks; Part 3 lists what you can still change.",
         ],
       },
@@ -587,20 +599,12 @@ export const GUIDE_STEPS: GuideSection[] = [
     title: "Money",
     blocks: [
       { kind: "warn", text: "**TourneyHQ works the money out and writes it down. It never moves it.** Marking something settled records that a payment happened elsewhere." },
-      { kind: "where", text: "Afterwards → Prizes & payouts — money setup at the foot of the page" },
-      {
-        kind: "list",
-        items: [
-          "**Costs handled outside the app** — fees and prizes happen elsewhere; skins and side games are still worked out.",
-          "**Tournament kitty** — one pot: record money in and out. Nobody owes anybody, so no settle-up.",
-          "**Split shared costs** — record who paid for what; the app works out who pays whom in the fewest payments, with side-game winnings folded in. Choose **Who adds a shared cost**.",
-        ],
-      },
+      { kind: "where", text: "Set up → Prizes & payouts (the same screen you set money up on in Part 5, before launch)" },
+      { kind: "tip", text: "How money works and the prize list are set up BEFORE you launch, in Part 5. This part is what you do with them once play has begun: naming winners, skins, side games and settling up." },
       { kind: "h", text: "Prizes" },
       {
         kind: "steps",
         items: [
-          "Under [[Add a prize]], start from a structure (such as flight winners) or enter Category, Detail and Amount, then [[Add]].",
           "Once results are in, pick each prize's **Winner** — the list shows finishing places to help. A prize for best gross or best net lists the field on that figure, with ties broken by countback (last nine, six, three, then the last hole) as the leaderboard breaks them.",
           "If nobody may take home two placing prizes, tick **One prize per player** above the list. The lines are then shown gross first: award the gross prizes first, and a player who wins one is skipped for the net. Each winner list puts anybody who already holds a prize last, saying which, and marks the next in line; choosing them anyway is refused beside the list. Skill prizes such as nearest the pin and longest drive don't count, so the same player can win one — each line has a **Counts** tick to say which kind it is. If somebody already holds two prizes, the tick is refused until you clear one.",
         ],

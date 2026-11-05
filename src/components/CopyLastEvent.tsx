@@ -3,6 +3,7 @@ import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cloneEvent } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
+import { CopyDayFields } from "./CopyDayFields";
 
 /**
  * "COPY LAST EVENT" — the secretary's home (the panel's item 4, 2026-10-24).
@@ -83,28 +84,7 @@ export function CopyLastEvent({
             onChange={(e) => setName(e.target.value)}
           />
         </div>
-        <div className="field">
-          <label htmlFor={`${fid}-start`}>First day</label>
-          <input
-            id={`${fid}-start`}
-            className="input"
-            type="date"
-            min={today}
-            value={startOn}
-            onChange={(e) => setStartOn(e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor={`${fid}-end`}>Last day (if more than one)</label>
-          <input
-            id={`${fid}-end`}
-            className="input"
-            type="date"
-            min={startOn || today}
-            value={endOn}
-            onChange={(e) => setEndOn(e.target.value)}
-          />
-        </div>
+        <CopyDayFields startOn={startOn} endOn={endOn} onStartOn={setStartOn} onEndOn={setEndOn} today={today} />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <button
