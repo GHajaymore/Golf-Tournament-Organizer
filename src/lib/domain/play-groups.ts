@@ -204,6 +204,40 @@ export function matchPlayGroups(input: {
 }
 
 /**
+ * THE SAME PLAYERS — the one test for borrowing another round's tee time
+ * (2026-11-05). Exactly the same people, as sets: the same four for a
+ * four-ball, the same two for a singles. Nobody extra, nobody missing, and
+ * never nobody.
+ */
+export function samePlayers(a: readonly string[], b: readonly string[]): boolean {
+  const x = new Set(a);
+  const y = new Set(b);
+  return x.size > 0 && x.size === y.size && [...x].every((id) => y.has(id));
+}
+
+/**
+ * A TEE TIME FOR A ROUND WITH NO SHEET OF ITS OWN (Ajay, 2026-10-16: a cup's
+ * second nine is the same four, "we already have foursome for this
+ * tournament"). Each group takes the time — and only the time — of another
+ * round's published group whose players are exactly its own (`samePlayers`),
+ * counting only players the round lists (`listed`: a withdrawal is not a
+ * difference). Otherwise no time. Never the other round's GROUPING or its name:
+ * who is in a group, and what it is called, come from this round alone.
+ */
+export function withBorrowedTeeTimes(
+  groups: readonly PlayGroup[],
+  otherRounds: readonly TeeSheetGroup[],
+  listed: ReadonlySet<string>,
+): PlayGroup[] {
+  return groups.map((g) => {
+    if (g.tee) return g;
+    const players = g.players.map((p) => p.id);
+    const same = otherRounds.find((o) => samePlayers(o.playerIds.filter((id) => listed.has(id)), players));
+    return same ? { ...g, tee: teeWords(same) } : g;
+  });
+}
+
+/**
  * WHICH GROUPS A ROUND LISTS — the one answer (2026-11-05), asked by `/play`
  * when the code is typed and by the print kit when it draws a sign's QR, so a
  * sign can only name a group the list will draw. A round that draws matches,

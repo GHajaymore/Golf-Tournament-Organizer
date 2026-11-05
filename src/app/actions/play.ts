@@ -9,7 +9,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { usesAccessCodes, canPlayerSavePartial, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { playerEntryRefusal, roundScoring } from "@/lib/domain/round-scoring";
 import { isInMatch, mayWriteMatch, playersInMatch } from "@/lib/services/match-membership";
-import { keeperGate, claimGroup, handOverKeeping, roundTeeSheet } from "@/lib/services/group-keeping";
+import { keeperGate, claimGroup, handOverKeeping, roundTeeSheet, otherRoundsTeeGroups } from "@/lib/services/group-keeping";
 import { attestMatch, matchSidesOf, endCheckRule } from "@/lib/services/attestation";
 import { effectiveScoreStatus } from "@/lib/services/tournament";
 import { isCardLocked, isPartnerCardSigned, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
@@ -31,7 +31,7 @@ import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
 import { isReturnedCard } from "@/lib/domain/round-handicap";
 import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { type TeeSheetGroup } from "@/lib/domain/tee-sheet";
-import { groupsOfRound, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
+import { groupsOfRound, withBorrowedTeeTimes, type PlayGroup, type PlayTarget } from "@/lib/domain/play-groups";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 
 /**
@@ -186,7 +186,7 @@ async function playGroups(
   const side = (playerId: string, teamId: string) =>
     playerId !== "" ? [playerId] : members.filter((m) => m.teamId === teamId).map((m) => m.playerId);
   // The one answer, shared with the print kit's signs (`groupsOfRound`).
-  return groupsOfRound({
+  const groups = groupsOfRound({
     lineupHidden: hidden,
     matches: matches.map((m) => ({ id: m.id, a: side(m.playerAId, m.teamAId), b: side(m.playerBId, m.teamBId) })),
     names,
@@ -195,6 +195,16 @@ async function playGroups(
     // tapping is one card, the same whoever opens it.
     oneMatch: matchKeptBy(stage) !== "cards",
   });
+  if (sheet) return groups;
+  /**
+   * A ROUND WITH NO SHEET OF ITS OWN MAY STILL HAVE A TEE TIME (Ajay,
+   * 2026-10-16: "we already have foursome for this tournament" — a cup's second
+   * nine is the same four). Borrowed from another round's published group, the
+   * TIME ONLY and only when that group is exactly this match's players
+   * (`withBorrowedTeeTimes` / `samePlayers`); never its grouping or its name,
+   * which come from this round alone (`roundTeeSheet`).
+   */
+  return withBorrowedTeeTimes(groups, await otherRoundsTeeGroups(stage.eventId, stage.id), new Set(names.keys()));
 }
 
 export interface ClaimResult {

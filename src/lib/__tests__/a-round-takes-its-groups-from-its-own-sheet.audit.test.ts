@@ -32,6 +32,7 @@ const prisma = new PrismaClient();
 const TAG = "zz-own-sheet";
 const MEDAL_CODE = generateAccessCode();
 const FOURBALL_CODE = generateAccessCode();
+const SINGLES_CODE = generateAccessCode();
 const ids = { event: "", medal: "", fourball: "", match: "" };
 const p: Record<string, string> = {};
 
@@ -141,12 +142,31 @@ beforeAll(async () => {
       },
     })
   ).id;
+  // A singles round with no sheet of its own: a1 v b1, two of the medal group's four.
+  const singles = await prisma.stage.create({
+    data: {
+      eventId: event.id,
+      position: 2,
+      type: "Single Match Stage",
+      format: "Match Play",
+      holes: 18,
+      scoringBasis: "gross",
+      accessCode: SINGLES_CODE,
+      matchKeptBy: "holes",
+      scoreKeeping: "group",
+      endCheck: "on",
+    },
+  });
+  await prisma.match.create({
+    data: { eventId: event.id, stageId: singles.id, groupId: reds.id, round: 1, playerAId: p.a1, playerBId: p.b1, holes: JSON.stringify(new Array(18).fill(null)) },
+  });
 });
 
 afterAll(async () => {
   try {
     await clearRateLimit("round-code", MEDAL_CODE);
     await clearRateLimit("round-code", FOURBALL_CODE);
+    await clearRateLimit("round-code", SINGLES_CODE);
     await cleanup();
   } finally {
     await prisma.$disconnect();
@@ -167,10 +187,30 @@ describe("the four-ball with no sheet of its own: its group is the match", () =>
     expect(await groupTitleFor(ids.event, ids.fourball, k!.groupKey)).toBe("Your match");
   });
 
-  it("the round-code list agrees: one match, with no tee time borrowed from the medal", async () => {
+  it("the round-code list agrees on the grouping: one match, named as a match, never the medal's Group 1", async () => {
     const res = await redeemRoundCode(FOURBALL_CODE);
     expect(res.ok, res.error).toBe(true);
-    expect(res.groups?.map((g) => [g.title, g.tee, g.oneMatch])).toEqual([["Match 1", "", true]]);
+    expect(res.groups?.map((g) => [g.title, g.oneMatch, g.players.length])).toEqual([["Match 1", true, 4]]);
+  });
+});
+
+/**
+ * THE TEE TIME, AND ONLY THE TIME, MAY BE BORROWED (Ajay, 2026-10-16; the
+ * coordinator's correction, 2026-11-05). In Ajay's cup the back nine is the
+ * same four, so a round with no sheet of its own shows the other round's tee
+ * time — but only for a match whose players are EXACTLY that group's
+ * (`samePlayers`), and never its grouping or its name.
+ */
+describe("a tee time borrowed only for the same players", () => {
+  it("the cup's four-ball, the same four as the medal's Group 1, shows that tee time — under its own name", async () => {
+    const res = await redeemRoundCode(FOURBALL_CODE);
+    expect(res.groups?.map((g) => [g.title, g.tee])).toEqual([["Match 1", "8:00 AM off the 1st"]]);
+  });
+
+  it("a match whose players differ from every sheet group shows no tee time", async () => {
+    const res = await redeemRoundCode(SINGLES_CODE);
+    expect(res.ok, res.error).toBe(true);
+    expect(res.groups?.map((g) => [g.title, g.tee])).toEqual([["Match 1", ""]]);
   });
 });
 

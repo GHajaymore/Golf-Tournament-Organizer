@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { parseTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, type TeeSheet, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
 import { publishedFoursomes } from "@/lib/domain/group-entry";
 import { roundScoring } from "@/lib/domain/round-scoring";
 import { isMatch } from "@/lib/tournament-shape";
@@ -54,6 +54,21 @@ import { logAudit } from "@/lib/services/action-shared";
 export async function roundTeeSheet(eventId: string, stageId: string): Promise<TeeSheet | null> {
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { teeSheet: true, teeSheetPublished: true } });
   return stage && groupsArePublished(stage) ? parseTeeSheet(stage.teeSheet) : null;
+}
+
+/**
+ * The OTHER rounds' published tee-sheet groups, in round order — read ONLY for
+ * a tee TIME, never a grouping: the /play list borrows a time from a group
+ * whose players are exactly a match's (`withBorrowedTeeTimes`). The keeper
+ * never reads this.
+ */
+export async function otherRoundsTeeGroups(eventId: string, stageId: string): Promise<TeeSheetGroup[]> {
+  const stages = await prisma.stage.findMany({
+    where: { eventId, NOT: { id: stageId }, teeSheetPublished: true },
+    orderBy: { position: "asc" },
+    select: { teeSheet: true, teeSheetPublished: true },
+  });
+  return stages.filter(groupsArePublished).flatMap((s) => parseTeeSheet(s.teeSheet)?.groups ?? []);
 }
 
 /** Who walked off together, and this round's matches — what the group is read from. */
