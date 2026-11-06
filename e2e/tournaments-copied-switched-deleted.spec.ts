@@ -76,6 +76,8 @@ test("last year's medal is copied without its field, cards or money, and Manage 
     const from = page.getByLabel("Start from", { exact: true });
     await from.selectOption({ label: springName });
     await expect(page.getByText(/Copies the settings, rounds, courses and side games from .*Spring Medal — never its players, scores, money or access codes\./)).toBeVisible();
+    // Every door to a copy asks the first day (setup audit item 8): the entry window and rounds move with it.
+    await page.getByLabel("First day", { exact: true }).fill("2099-06-12");
     const create = page.getByRole("button", { name: "Create tournament" });
     await centre(create);
     await create.click();
@@ -95,9 +97,9 @@ test("last year's medal is copied without its field, cards or money, and Manage 
     // The skins GAME comes across (2026-10-24: "keep … side games"); the money in it never does.
     expect(await prisma.skinsPot.count({ where: { eventId: copy!.id } }), "the copy lost the skins game").toBe(1);
     expect(await prisma.skinsEntry.count({ where: { pot: { eventId: copy!.id } } }), "the copy carried the skins money").toBe(0);
-    expect({ status: copy!.status, dates: copy!.dates, sameLink: copy!.shareToken === spring.event.shareToken }).toEqual({
+    expect({ status: copy!.status, startOn: copy!.startOn, sameLink: copy!.shareToken === spring.event.shareToken }).toEqual({
       status: "draft",
-      dates: "",
+      startOn: "2099-06-12",
       sameLink: false,
     });
     // The medal itself is untouched.
@@ -140,6 +142,7 @@ test("on the free plan a second tournament is refused beside Create, and nothing
     await openTournaments(page);
     await page.getByLabel("Create a new tournament", { exact: true }).fill(`${mark} Championship again`);
     await page.getByLabel("Start from", { exact: true }).selectOption({ label: event.name });
+    await page.getByLabel("First day", { exact: true }).fill("2099-06-12");
     const create = page.getByRole("button", { name: "Create tournament" });
     await centre(create);
     await create.click();

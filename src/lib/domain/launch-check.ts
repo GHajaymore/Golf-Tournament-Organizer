@@ -26,6 +26,7 @@
  */
 import { launchRefusal, type LaunchFacts } from "./phase-gate";
 import type { SetupFacts, SetupStep } from "./setup-flow";
+import { isRated } from "./handicap";
 
 /**
  * The facts, with the two that `SetupFacts` leaves optional made REQUIRED: a
@@ -35,6 +36,8 @@ import type { SetupFacts, SetupStep } from "./setup-flow";
 export type LaunchSource = SetupFacts & {
   playingRounds: number;
   missingCards: readonly { label: string; course: string }[];
+  /** Tees with no rating under a round that needs a handicap — `unratedTeesFact`; null when nothing is wrong. */
+  unratedTees: UnratedTees | null;
 };
 
 /** THE ONE BUILDER of `LaunchFacts`. */
@@ -161,6 +164,85 @@ function teeSheetWarning(f: LaunchSource, teeSheetLabel: string): LaunchWarning 
   };
 }
 
+/**
+ * THE TEES THAT CANNOT GIVE A COURSE HANDICAP, and the rounds that need one.
+ * `null` when nothing is wrong: every round is gross (no handicap is used), or
+ * every tee has its Course Rating and Slope.
+ *
+ * Pure, so the one reader that builds it (`tournament-facts.ts`) hands it the
+ * rounds and the tees and the rule stays here. Any basis but "gross" uses a
+ * handicap, Stableford included (`unratedWarning` explains why it is not
+ * `isNetBasis`).
+ */
+export interface UnratedTees {
+  /** Labels of the rounds that score off a handicap. */
+  rounds: string[];
+  /** Tees with no Slope: `courseHandicapExact` falls back to the raw Handicap Index. */
+  noSlope: string[];
+  /** Tees with a Slope but no Course Rating: scaled by Slope, without the Course Rating minus Par term. */
+  noRating: string[];
+  /** The course has no tees at all, so nothing can be rated. */
+  noTees: boolean;
+}
+
+export function unratedTeesFact(input: {
+  rounds: readonly { label: string; scoringBasis: string }[];
+  /** The tees the field actually plays (`teesInPlayFor`), not every set on the course. */
+  tees: readonly { name: string; slopeRating: number; courseRating: number }[];
+  /**
+   * Whether there is a fixed course. Without one (players choose, or none is
+   * named yet) "no tees are set up" would be false, so nothing is said.
+   * Defaults to true: a caller that has a course says nothing extra.
+   */
+  fixedCourse?: boolean;
+}): UnratedTees | null {
+  const rounds = input.rounds.filter((r) => r.scoringBasis !== "gross").map((r) => r.label);
+  if (rounds.length === 0) return null;
+  if (input.tees.length === 0) {
+    return input.fixedCourse === false ? null : { rounds, noSlope: [], noRating: [], noTees: true };
+  }
+  // The app's own test for a Slope (`isRated`), the one `courseHandicapExact` falls back on.
+  const noSlope = input.tees.filter((t) => !isRated(t)).map((t) => t.name);
+  const noRating = input.tees.filter((t) => isRated(t) && !(t.courseRating > 0)).map((t) => t.name);
+  return noSlope.length === 0 && noRating.length === 0 ? null : { rounds, noSlope, noRating, noTees: false };
+}
+
+const joined = (names: readonly string[]) =>
+  names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+/**
+ * A WARNING, NEVER A REFUSAL (the panel's ruling stands: unrated tees never stop
+ * a launch). Under the World Handicap System a Course Handicap is made from the
+ * tee's Slope and Course Rating, so without them the app has only the raw
+ * Handicap Index to score with.
+ */
+function unratedTeesWarning(u: UnratedTees | null | undefined, screen: string): LaunchWarning | null {
+  if (!u) return null;
+  const rounds = joined(u.rounds);
+  const rawIndex = "usually understates strokes on a hard course and overstates them on an easy one";
+  const parts: string[] = [];
+  if (u.noTees) {
+    parts.push(
+      `No tees are set up for the course, so there is no Slope or Course Rating to work out a Course Handicap for ${rounds}: players are scored on their raw Handicap Index, which ${rawIndex}.`,
+    );
+  } else {
+    if (u.noSlope.length > 0) {
+      const one = u.noSlope.length === 1;
+      parts.push(
+        `${joined(u.noSlope)} ${one ? "has" : "have"} no Slope, so ${rounds} score players on ${one ? "it" : "them"} off their raw Handicap Index, which ${rawIndex}.`,
+      );
+    }
+    if (u.noRating.length > 0) {
+      const one = u.noRating.length === 1;
+      parts.push(
+        `${joined(u.noRating)} ${one ? "has" : "have"} a Slope but no Course Rating, so ${rounds} score players on ${one ? "it" : "them"} on the Slope alone, without the Course Rating minus Par adjustment, which can leave their strokes a little off.`,
+      );
+    }
+  }
+  const says = parts.join(" ");
+  return { says, fix: `Add the Course Rating and Slope on ${screen}`, href: "/event", screen, afterLaunch: "open" };
+}
+
 export function launchCheck(
   f: LaunchSource,
   steps: readonly SetupStep[],
@@ -172,6 +254,8 @@ export function launchCheck(
     .filter((w): w is LaunchWarning => !!w);
   const tee = teeSheetWarning(f, labelFor("/foursomes"));
   if (tee) warnings.push(tee);
+  const unrated = unratedTeesWarning(f.unratedTees, labelFor("/event"));
+  if (unrated) warnings.push(unrated);
   return {
     refusal: launchRefusal(launchFactsFrom(f)),
     warnings,

@@ -69,6 +69,19 @@ export function naturalFormatFor(type: string): string {
   }
 }
 
+/**
+ * The format the round builder offers and sends for the kind of round chosen:
+ * the one it already holds where that kind can be scored in it, otherwise the
+ * kind's natural one. Asked each render rather than kept beside the kind, so a
+ * chosen kind can never be without a format that fits it (CI run 41950657167:
+ * the select read "" for 247 s after Round robin, Add, Bracket pressed fast).
+ * Empty only while no kind is chosen.
+ */
+export function addFormatFor(type: string, held: string): string {
+  if (!type) return "";
+  return held && formatChoicesFor(type).some((c) => c.name === held) ? held : naturalFormatFor(type);
+}
+
 /** Played as a side when the catalogue's own family says so — not the screen's styling helper. */
 function groupOf(format: string): "own" | "side" {
   return (lookupFormat(format)?.sideSize ?? 1) > 1 ? "side" : "own";
