@@ -263,3 +263,25 @@ So an error in `next/font` after that date is NOT this fault; read it as a real 
 
 Same family as the `Client Manifest` fault two sections up and read the same way: the file it
 names is noise, and what settles it is whether another build of the same SHA succeeded.
+
+## "Install Playwright browsers timed out after 10 minutes" (2026-11-06)
+
+```
+##[error]The action 'Install Playwright browsers' has timed out after 10 minutes.
+```
+
+A MACHINE fault, not the app: **re-run the failed job** (`gh run rerun <id> --failed`) and do not edit
+application code. Three times in two days (runs 42077298791 small-phone 2/2, 42131594077 desktop 3/3,
+42189739131 desktop 3/3), each leaving the shard with nothing handed in and `verify` red.
+
+Where the time went (run 42131594077): not the browser download (cached) and not the apt lock, but
+the Azure Ubuntu mirror behind `--with-deps`. The 21.9 MB of fonts is nine `Get:` lines, and each
+stalled for about two minutes (`fonts-ipafont-gothic` 23:46:13, `Ign:` 23:48:25; `fonts-wqy-zenhei`
+23:51:51, next `Get:` 23:54:48) until the ten-minute limit cut it off at 23:56:19. The other two
+runs' logs were no longer available to read.
+
+Since 2026-11-06 the step is `bash scripts/ci/install-browsers.sh chromium`: apt gives up on a stalled
+connection after 30 s and retries, and the install is two attempts of four minutes under the step's
+unchanged ten-minute limit, so a real hang still fails, loudly, in the same step. A red here now means
+BOTH attempts failed (the log says "could not be installed in 2 attempts"): the mirror is down, so
+re-run later. `browser-install-is-bounded.test.ts` refuses a bare `playwright install --with-deps`.
