@@ -6872,7 +6872,10 @@ describe("registration and field", () => {
     expect(html).toContain("Only an organizer can change the entry terms. You can still open and close entries.");
     expect(html).toContain("Open entries");
     // CONTROL: an admin is not told it.
-    expect(await reg()).not.toContain("Only an organizer can change the entry terms");
+    expect(html, "the dates can be typed into").toMatch(/<input[^>]*type="date"[^>]*disabled/);
+    const asAdmin = await reg();
+    expect(asAdmin).not.toContain("Only an organizer can change the entry terms");
+    expect(asAdmin).not.toMatch(/<input[^>]*type="date"[^>]*disabled/);
   });
 
   it("shows no way back to Tournament details for the entry terms", async () => {
