@@ -4261,6 +4261,7 @@ export async function cloneEvent(
   const calendar = copiedCalendar({
     source: {
       startOn: source.startOn,
+      endOn: source.endOn,
       regDeadline: source.regDeadline,
       regOpens: source.regOpens,
       rounds: source.stages.map((s) => ({ id: s.id, playedOn: s.playedOn })),

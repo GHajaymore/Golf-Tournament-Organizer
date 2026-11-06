@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { navForRole } from "../nav";
-import { setupFlow, type SetupFacts } from "../domain/setup-flow";
+import { setupFlow, SETUP_ORDER, type SetupFacts } from "../domain/setup-flow";
 
 /**
  * THE SIDEBAR LISTS THE SET-UP SCREENS IN THE ORDER THE GUIDE WALKS THEM.
@@ -39,8 +39,8 @@ const NOTHING_DONE: SetupFacts = {
 const flowHrefs = () => setupFlow(NOTHING_DONE, (href) => href).steps.map((s) => s.href);
 
 /** Every Set-up item the sidebar shows an organizer, in the order shown. */
-const sidebarSetupHrefs = () => {
-  const nav = navForRole("admin");
+const sidebarSetupHrefs = (opts: { hasTeamRound?: boolean } = {}) => {
+  const nav = navForRole("admin", undefined, opts);
   const section = nav.find((s) => s.label === "Set up");
   expect(section, "the Set up section is gone from the sidebar").toBeTruthy();
   return section!.items.map((i) => i.href);
@@ -88,5 +88,21 @@ describe("the sidebar and the setup guide agree about order", () => {
     // nothing else — `setup-flow.ts` says so of its own first step.
     expect(flowHrefs()[0]).toBe("/event");
     expect(sidebarSetupHrefs()[0]).toBe("/event");
+  });
+});
+
+describe("the sidebar and the strip share ONE order, including the conditional steps", () => {
+  it("lists Teams before Flights, as SETUP_ORDER does", () => {
+    /**
+     * The audit's item 17 (5 Nov): the rail put Flights before Teams while the
+     * strip put Teams first. `setupFlow` leaves Teams out of a plain medal, so
+     * the subsequence test above could never see it. This one reads SETUP_ORDER
+     * itself, which holds every screen the strip can ever walk.
+     */
+    const sidebar = sidebarSetupHrefs({ hasTeamRound: true });
+    const shared = sidebar.filter((h) => SETUP_ORDER.includes(h));
+    expect(shared, `sidebar: ${sidebar.join(" -> ")}`).toEqual(SETUP_ORDER.filter((h) => sidebar.includes(h)));
+    expect(sidebar.indexOf("/teams")).toBeGreaterThan(-1);
+    expect(sidebar.indexOf("/teams")).toBeLessThan(sidebar.indexOf("/grouping"));
   });
 });
