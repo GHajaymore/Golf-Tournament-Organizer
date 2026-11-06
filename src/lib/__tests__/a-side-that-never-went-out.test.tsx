@@ -18,6 +18,7 @@ const side = (teamId: string, played: number): TeamStanding => ({
   name: `zz-side ${teamId}`,
   members: [],
   memberIds: [],
+  memberPlaying: [],
   playingHandicap: 26,
   gross: played ? 71 : 0,
   net: played ? 62 : 0,

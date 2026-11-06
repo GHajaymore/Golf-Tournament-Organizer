@@ -7,6 +7,7 @@ import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { Icon } from "@/components/Icon";
 import { useSaveBeforeLeaving } from "@/components/useSaveBeforeLeaving";
 import { holeNumber } from "@/lib/domain/hole-number";
+import { playsOffWords } from "@/lib/round-allowance";
 
 /**
  * The cards scored together on the hole view: everybody in one MATCH (both
@@ -40,6 +41,10 @@ export interface TeamCardRow {
   /** ghin | manual | none. 'none' is no claimed figure — see indexLabel. */
   handicapSource?: string | null;
   handicapType?: string | null;
+  /** What this player's own ball plays off (`TeamMemberView.playing`); absent on a side's one card. */
+  playing?: number | null;
+  /** In a match: the strokes this card receives off the lowest handicap in it (`matchStrokesCount`). */
+  received?: number | null;
   /**
    * Handicap strokes this card receives, hole by hole.
    *
@@ -61,6 +66,8 @@ export interface TeamEntryRow {
   matchId: string;
   opponentName?: string;
   playingHandicap: number;
+  /** The lowest handicap in the match the strokes come off; absent on a medal round. */
+  matchLow?: number | null;
   cards: TeamCardRow[];
   /** Running side score, computed server-side from the saved cards. */
   grossTotal: number;
@@ -530,10 +537,29 @@ export function TeamEntryClient({
                 four-ball each player plays off their own strokes, shown on
                 their own row, and a side figure beside them — "Plays off 37"
                 over a 17 and a 24 — is a number nothing on the card uses. */}
+            {/* IN A MATCH the strokes come off the lowest handicap in it, and
+                the dots below are `playing - low`: so the tag says what the
+                dots show ("Gets 0 · 4 (off the low of 5)"), not the playing
+                handicaps they are measured from. */}
+            {/* A SHARED ball keeps the side's own figure in a tag of its own — it
+                is the side's handicap, whatever the match then takes off it —
+                and a match adds the strokes the dots show beside it. */}
             {t.cards.some((c) => c.playerId === "") && (
               <span className="tag tag-neutral">
                 Plays off {t.playingHandicap}
               </span>
+            )}
+            {t.matchLow != null ? (
+              (() => {
+                const got = playsOffWords(t.cards.map((c) => c.received));
+                return got ? <span className="tag tag-neutral">Gets {got} (off the low of {t.matchLow})</span> : null;
+              })()
+            ) : t.cards.some((c) => c.playerId === "") ? null : (
+              /* Where everyone plays their own ball, each partner's own
+                 figure in the order the cards are listed (J23). */
+              playsOffWords(t.cards.map((c) => c.playing)) && (
+                <span className="tag tag-neutral">Plays off {playsOffWords(t.cards.map((c) => c.playing))}</span>
+              )
             )}
             <span className="text-muted" style={{ fontSize: 13, marginLeft: "auto" }}>
               {t.played > 0

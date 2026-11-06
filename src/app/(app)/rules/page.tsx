@@ -51,6 +51,7 @@ export default async function RulesPage() {
           holes: holesPlayed(stage.holes),
           scoringBasis: stage.scoringBasis,
           handicapAllowance: stage.handicapAllowance,
+          allowanceWeights: stage.allowanceWeights,
           countBest: stage.countBest,
           tiebreakers,
           cutAfter: cutAfterRound(state.playRounds, stage.id),
