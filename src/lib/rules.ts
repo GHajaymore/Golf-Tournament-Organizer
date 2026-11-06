@@ -3,7 +3,7 @@ import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
 import { roundIsStroke, lookupStageType } from "@/lib/stage-types";
 import { cutRuleWords, type CutTieRule } from "@/lib/domain/cut-ready";
 import { cutTieRuleWords, type CutRule } from "@/lib/domain/cut";
-import { individualAllowanceFor } from "@/lib/round-allowance";
+import { individualAllowanceFor, teamAllowanceWords } from "@/lib/round-allowance";
 
 /**
  * The rules a competition actually runs under, in the three tiers a golfer
@@ -193,6 +193,8 @@ export interface TermsInput {
   holes: number;
   scoringBasis: string;
   handicapAllowance: number;
+  /** The committee's own split for a team round (`Stage.allowanceWeights`), none when empty. */
+  allowanceWeights?: number[];
   countBest: number;
   tiebreakers: TiebreakerKey[];
   /** The cut made after this round (`cutAfterRound`), or null for none. */
@@ -283,12 +285,16 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
    * handicap — the one figure a player works out for themselves on the tee.
    */
   const individual = individualAllowanceFor(input);
+  const teamSaid = teamAllowanceWords({ ...input, allowanceWeights: input.allowanceWeights ?? [] });
   if (individual) {
     out.push({
       label: "Handicap allowance",
       value: `${individual.allowance}% of course handicap${individual.overridden ? ", set by the committee" : ""}`,
       rule: "handicapAllowance",
     });
+  } else if (teamSaid) {
+    // A TEAM round always says what it plays off, and whose figure it is (J21).
+    out.push({ label: "Handicap allowance", value: teamSaid, rule: "handicapAllowance" });
   } else if (input.handicapAllowance > 0) {
     out.push({
       label: "Handicap allowance",

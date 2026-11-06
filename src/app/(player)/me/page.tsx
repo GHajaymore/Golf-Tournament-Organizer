@@ -12,7 +12,7 @@ import { meFor } from "@/lib/services/me";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { Icon } from "@/components/Icon";
-import { teamStandings } from "@/lib/services/teams";
+import { teamStandings, teamMatchBoard } from "@/lib/services/teams";
 import { placeLabel } from "@/lib/domain/flight-places";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
@@ -26,12 +26,11 @@ import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
 import { notInItWords, signsCards } from "@/lib/tournament-shape";
-import { isStraightKnockout } from "@/lib/stage-types";
+import { boardKindForRound, isStraightKnockout } from "@/lib/stage-types";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 import { standingRows } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
-import { boardKind } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
 import { boardNames, positionLabel, thruTile, leadersWithYou, tileMark, heroHeadline } from "@/lib/domain/scoreboard";
@@ -237,7 +236,7 @@ export default async function PlayTodayPage() {
   const boardRows =
     canSeeLeaderboard(settingsOf(state.event), session.viewRole) &&
     boardStage &&
-    boardKind(boardStage.format) === "standard" &&
+    boardKindForRound(boardStage.format, boardStage.type) === "standard" &&
     // A straight knockout ranks nobody — the draw is the standings, and Board
     // shows it. See `isStraightKnockout`.
     !isStraightKnockout(state.stages)
@@ -258,7 +257,7 @@ export default async function PlayTodayPage() {
    * else's. See `TeamStanding.memberIds`.
    */
   const sidesThisRound =
-    me.playerId && roundStage && boardKind(roundStage.format) === "team"
+    me.playerId && roundStage && boardKindForRound(roundStage.format, roundStage.type) === "team"
       ? await teamStandings(
           state.event.id,
           roundStage.id,
@@ -271,6 +270,25 @@ export default async function PlayTodayPage() {
           roundStage.countBest,
         )
       : [];
+  /**
+   * A ROUND OF TEAM MATCHES (a four-ball round robin) is decided on the matches,
+   * so its player is told how their SIDE's matches stand, not a stroke place
+   * ("finished seventh") the board does not rank on. Found by id; a match in
+   * dispute is held off (`teamMatchBoard`).
+   */
+  const myMatchSide =
+    me.playerId && roundStage && boardKindForRound(roundStage.format, roundStage.type) === "team-match"
+      ? ((
+          await teamMatchBoard(
+            state.event.id,
+            roundStage.id,
+            roundStage.format,
+            roundStage.handicapAllowance,
+            holes,
+            roundStage.allowanceWeights,
+          )
+        ).find((r) => r.memberIds.includes(me.playerId ?? "")) ?? null)
+      : null;
   const myIdx = sidesThisRound.findIndex((s) => s.memberIds.includes(me.playerId ?? ""));
   const mySide = myIdx >= 0 ? sidesThisRound[myIdx] : null;
   /** My side's players, with me as "You" — matched by id, never by name. */
@@ -681,6 +699,17 @@ export default async function PlayTodayPage() {
               Above the "not started" panel and in place of it: a player whose
               side has a card has started, whatever the individual table says,
               and this screen used to tell them otherwise. */}
+          {myMatchSide && (
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
+              <span className="card-kicker">Your side&rsquo;s match{myMatchSide.played === 1 ? "" : "es"}</span>
+              <div style={{ marginTop: 6, fontSize: 15, fontWeight: 600 }}>{myMatchSide.name}</div>
+              <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.5 }}>
+                {myMatchSide.played === 0
+                  ? "No match has finished yet."
+                  : `Won ${myMatchSide.wins}, halved ${myMatchSide.halved}, lost ${myMatchSide.losses}.`}
+              </p>
+            </section>
+          )}
           {mySide && (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">
@@ -739,7 +768,7 @@ export default async function PlayTodayPage() {
               (grid cell T48). */}
           {/* Nor for somebody the cut left out: no first hole is coming for
               them either, and "Missed the cut" below says why (2026-10-09). */}
-          {!standing && !mySide && !round?.matches.length && !round?.tie && !round?.closedWithout && !round?.cutOut && (
+          {!standing && !mySide && !myMatchSide && !round?.matches.length && !round?.tie && !round?.closedWithout && !round?.cutOut && (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">Not started</span>
               <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }} className="text-muted">

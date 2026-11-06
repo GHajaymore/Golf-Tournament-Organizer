@@ -160,6 +160,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Tap a hole's dot, or your Net, to see how.",
       "Your index is the one your club entered.",
       "A live link to your handicap body is coming.",
+      "In a four-ball the board lists each player's own playing handicap.",
     ],
   },
   {
@@ -264,6 +265,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     steps: [
       "Open Rules from Board or My card.",
       "It shows the format, handicaps and how ties are settled.",
+      "It says the allowance you play off, and whose it is.",
       "Local rules are your club's own words.",
     ],
   },

@@ -10,7 +10,7 @@ import { isManualFormat, needsTeams, boardKind } from "../formats";
 import { skinsBoard, nassauBoard } from "./points-standings";
 import { roundUnit } from "../domain/round-unit";
 import { isHeadToHead } from "../stage-types";
-import { resolveMatch } from "../domain/match";
+import { resolveMatch, matchIsOver } from "../domain/match";
 import { aggregateStroke } from "../domain/stroke-agg";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "../domain";
 import { holesPlayed } from "../domain/handicap";
@@ -169,9 +169,12 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
           } catch {
             holes = [];
           }
-          return { match: m, result: resolveMatch(holes) };
+          return { match: m, result: resolveMatch(holes), over: matchIsOver(holes) };
         })
-        .filter((m) => m.result.complete);
+        // ARRANGED IS NOT HAPPENED: a match drawn and not begun has no holes and
+        // `resolveMatch([]).complete` is true, "halved". `matchIsOver` also asks
+        // whether a hole was played.
+        .filter((m) => m.over);
       if (played.length === 0) return { kind: "pending", label };
       /**
        * ONE MATCH IS A MATCH; SEVERAL ARE A ROUND OF THEM. A single match

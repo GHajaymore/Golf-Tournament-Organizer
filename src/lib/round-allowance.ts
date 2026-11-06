@@ -1,6 +1,7 @@
 import { findFormat, isManualFormat, needsTeams } from "./formats";
 import { isHeadToHead, isIndividualStrokeRound } from "./stage-types";
 import { NO_PAR_STROKES, roundPlayingHandicap } from "./domain/handicap";
+import { committeeWeights } from "./domain/team";
 import { resolveRoundHandicap, roundParStrokesOf, type ResolvedRoundHandicap, type RoundHandicapRow } from "./domain/round-handicap";
 
 /** Appendix C: four-ball stroke play. The format's own figure, 90, is four-ball match play. */
@@ -207,6 +208,82 @@ export function overridesAfterFormatChange(
     handicapAllowance: allowanceMeans(before) === allowanceMeans(after) ? before.handicapAllowance : 0,
     allowanceWeights: sameFormat ? before.allowanceWeights : [],
   };
+}
+
+/**
+ * A COMMITTEE'S OWN SPLIT, WHERE THE FORMAT USES ONE: only a side that shares a
+ * ball is priced as a side. A four-ball prices each player's own ball
+ * (`aggregateTeamCard`) and ignores a stored split, so neither the side figure
+ * nor the rules sheet may state one there. `sidePlayingHandicap` and
+ * `teamAllowanceWords` both read this, so the precedence is held once.
+ */
+export function committeeSplitInForce(format: string, weights: number[] | undefined | null, sideSize: number): number[] | null {
+  return findFormat(format).ball === "single" ? committeeWeights(weights, sideSize) : null;
+}
+
+/**
+ * THE WORDS AFTER "Plays off" FOR A SIDE OF PLAYERS WHO EACH PLAY THEIR OWN BALL
+ * ("7 · 9", in the order the names are listed), or null when nobody has a
+ * figure of their own — a shared-ball side, whose figure is the side's, or a
+ * side with nobody in it. `TeamMemberView.playing` is null exactly there, so
+ * this takes those and does no arithmetic and no deciding of its own.
+ */
+export function playsOffWords(figures: ReadonlyArray<number | null | undefined>): string | null {
+  const own = figures.filter((n): n is number => typeof n === "number");
+  return own.length > 0 ? own.join(" · ") : null;
+}
+
+/**
+ * WHAT A TEAM ROUND'S PLAYERS ARE TOLD THEY PLAY OFF, for the rules sheet (J21).
+ *
+ * Always a sentence, whether or not a committee has set anything: the sheet
+ * used to say a team round's allowance only after somebody changed it (and then
+ * as "60% of course handicap", whatever the format), so a four-ball's players
+ * were never told the 85% their own playing handicap is.
+ *
+ * It states what `sidePlayingHandicap` / `aggregateTeamCard` actually apply, in
+ * the order they apply it: a committee's own split, then a committee's flat
+ * figure, then the format's declared split (greensomes, a scramble), then
+ * `recommendedAllowance(format, type)` — the same function the Rounds screen and
+ * the board ask — and says whose it is: the Rules' recommendation, the club
+ * convention the Rules do not give, or the committee's.
+ *
+ * Null for a round that is not a team round.
+ */
+export function teamAllowanceWords(s: { format: string; type: string; handicapAllowance: number; allowanceWeights: number[] }): string | null {
+  if (!needsTeams(s.format)) return null;
+  const f = findFormat(s.format);
+  const ownBall = f.ball !== "single";
+  // SHORT ON PURPOSE: this is read on a player's phone, where no sentence may run to
+  // 12 words (`e2e/player-words.spec.ts`), so each is a figure and whose it is.
+  const flatOf = ownBall ? "of each player's handicap" : "of the side's combined handicaps";
+  const splitWords = (w: number[]) =>
+    w.length === 2 ? `${w[0]}% lower, ${w[1]}% higher handicap` : `${w.join("% / ")}% of the players' handicaps, lowest first`;
+
+  const committeeSplit = committeeSplitInForce(s.format, s.allowanceWeights, s.allowanceWeights.length);
+  if (committeeSplit) return `${splitWords(committeeSplit)}, set by the committee`;
+
+  const recommended = recommendedAllowance(s.format, s.type);
+  const declared = f.weightsBySideSize;
+  if (s.handicapAllowance > 0) {
+    const flat = `${s.handicapAllowance}% ${flatOf}`;
+    if (declared || s.handicapAllowance !== recommended) return `${flat}, set by the committee`;
+    return `${flat}: the committee's, same as the Rules`;
+  }
+  if (declared) {
+    const sizes = Object.keys(declared).map(Number).sort((a, b) => a - b);
+    if (sizes.length === 1) return `${splitWords(declared[sizes[0]])}, the Rules' figure`;
+    const names = ["", "One", "Two", "Three", "Four"];
+    const parts = sizes.map((n) => `${names[n] ?? n}: ${declared[n].join(" / ")}.`);
+    return `Lowest handicap first. ${parts.join(" ")} The Rules' figure.`;
+  }
+  // Best Ball plays 85% whatever the size of the side or the balls that count;
+  // Appendix C gives 85% only for a pair at stroke play (90% in a match, 75% for
+  // best 1 of 4, 100% for best 3 of 4 — J20, not done). Said truthfully.
+  if (f.name === "Best Ball") return `${recommended}% ${flatOf}. The app's default; the Rules' for a pair at stroke play.`;
+  return f.allowanceIsConvention
+    ? `${recommended}% ${flatOf}, club convention, not the Rules`
+    : `${recommended}% ${flatOf}, the Rules' figure`;
 }
 
 /** What an individual net round's card says about its allowance. */
