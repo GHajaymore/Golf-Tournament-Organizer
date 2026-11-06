@@ -1,3 +1,6 @@
+import { isPlayingRound } from "../stage-types";
+import { cleanIsoDate, daysBetween } from "./round-dates";
+
 /**
  * Who was promoted off the waitlist, and who has not been heard from since.
  *
@@ -18,11 +21,68 @@
 /**
  * How long to leave somebody before the prompt turns into a nudge.
  *
- * Two days is what the email asks for ("tell the organizer within 48 hours if
- * you can't play"), so the screen agrees with the message rather than inventing
- * a different deadline for the same thing.
+ * Two days is what the email asks for when the first round is three or more
+ * days away ("tell the organizer within 48 hours if you can't play"; nearer
+ * rounds ask for it sooner, `promotionReplyLine`), so the screen agrees with
+ * the message rather than inventing a different deadline for the same thing.
  */
 export const PROMOTION_FOLLOW_UP_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * THE REPLY LINE OF THE PROMOTION EMAIL, worded by how near the first round is.
+ *
+ * "Within 48 hours" was written when a place could only open days ahead. Since
+ * day-of field changes a place can open on the morning of play, and an answer
+ * "within 48 hours" to a round that tees off in three is no help to anybody.
+ * Nothing here is a deadline the app enforces (the place is the player's either
+ * way): the line says what the organizer actually needs, which is to hear early
+ * enough to offer the place on.
+ *
+ * `daysToFirstRound` is whole days from the CLUB's today to the first round's
+ * day (`daysBetween(clubToday(zone), day)`), or null when the round has no day.
+ * Three or more days out, and an undated round, keep the 48 hours the
+ * organizer's badge already uses; two days or fewer is "as soon as you can",
+ * "today" and "tomorrow" are said as such; a round already under way is said so.
+ * The text is plain; the email bolds `strong`.
+ */
+export interface PromotionReplyLine {
+  before: string;
+  strong: string;
+  after: string;
+}
+
+/**
+ * Whole days from `today` (the CLUB's day, told by the caller) to the first
+ * playing round's day: its own `playedOn`, else the tournament's first day (the
+ * reading `lastTeeFor` in `services/field-change.ts` makes). Null when neither
+ * is dated.
+ */
+export function daysToFirstRoundFrom(
+  event: { startOn: string; stages: readonly { type: string; playedOn: string }[] },
+  today: string,
+): number | null {
+  const first = event.stages.find((s) => isPlayingRound(s.type));
+  const day = cleanIsoDate(first?.playedOn) || cleanIsoDate(event.startOn);
+  return day ? daysBetween(today, day) : null;
+}
+
+export function promotionReplyLine(daysToFirstRound: number | null): PromotionReplyLine {
+  const after = " so the place can go to the next person on the list.";
+  const ask = "If you can no longer play, please tell the organizer ";
+  if (daysToFirstRound === null || daysToFirstRound >= 3) {
+    return { before: ask, strong: "within 48 hours", after };
+  }
+  if (daysToFirstRound < 0) {
+    return { before: `The tournament has already started. ${ask}`, strong: "straight away", after };
+  }
+  if (daysToFirstRound === 0) {
+    return { before: `The first round is today. ${ask}`, strong: "straight away", after };
+  }
+  if (daysToFirstRound === 1) {
+    return { before: `The first round is tomorrow. ${ask}`, strong: "straight away", after };
+  }
+  return { before: `The first round is in two days. ${ask}`, strong: "as soon as you can", after };
+}
 
 /** How long the badge stays on screen once it stops being urgent. */
 const PROMOTION_VISIBLE_MS = 14 * 24 * 60 * 60 * 1000;

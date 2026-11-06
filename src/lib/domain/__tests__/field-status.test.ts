@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readSource } from "@/lib/__tests__/source";
 import { summariseEmailTrouble, type EmailFailureRow } from "@/lib/domain/email-trouble";
+import { promotionReplyLine } from "@/lib/domain/promotion";
 
 const src = (...parts: string[]) => readSource(...parts);
 
@@ -142,7 +143,10 @@ describe("a promotion is recorded so it can be followed up", () => {
   it("asks for a reply in the same window the badge uses", () => {
     // The email and the screen must agree about what 48 hours means, or the
     // organizer chases somebody the software never asked to reply.
-    expect(email).toContain("within 48 hours");
+    // The far-out wording keeps the 48 hours (`promotionReplyLine`, tested in
+    // promotion-reply-line.test.ts); the email takes its line from there.
+    expect(email).toContain("promotionReplyLine(");
+    expect(promotionReplyLine(5).strong).toBe("within 48 hours");
   });
 
   it("does not claim the place is conditional", () => {
