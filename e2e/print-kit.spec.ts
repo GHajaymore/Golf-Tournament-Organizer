@@ -5,6 +5,7 @@ import { watchPageErrors } from "./page-errors";
 import { seedPrint, teardownPrint, LONG_NAME } from "./print-kit-fixture.mjs";
 import { paperRefusals, staleSentence } from "../src/lib/domain/print-kit";
 import { formatDayAt } from "../src/lib/domain/locale";
+import { pressRadio } from "./press-radio";
 
 /**
  * THE PRINT KIT, AS THE SECRETARY USES IT ON THE MORNING (2026-10-23; the normal
@@ -262,13 +263,13 @@ test("the Stableford's paper: the normal card two to a sheet, readable, nothing 
   expect(a4.filter((p) => p.w === 842 && p.h === 595)).toHaveLength(sheets - 1);
   expect(a4.filter((p) => p.w === 595 && p.h === 842)).toHaveLength(1);
   // …and at US Letter.
-  await page.getByRole("radio", { name: "US Letter" }).check();
+  await pressRadio(page.getByRole("radio", { name: "US Letter" }));
   expect(await overflows(page), "something runs off a Letter card").toEqual([]);
   const letter = await pdfPages(page);
   expect(letter).toHaveLength(sheets);
   expect(letter.filter((p) => p.w === 792 && p.h === 612)).toHaveLength(sheets - 1);
   expect(letter.filter((p) => p.w === 612 && p.h === 792)).toHaveLength(1);
-  await page.getByRole("radio", { name: "A4" }).check();
+  await pressRadio(page.getByRole("radio", { name: "A4" }));
 
   expect(errors, "a screen threw").toEqual([]);
 });
