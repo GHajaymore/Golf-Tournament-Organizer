@@ -77,6 +77,15 @@ describe("the days are the CLUB's, not the server's", () => {
     expect([out("2026-11-14"), out("2026-11-13"), out("2026-11-12"), out("2026-11-11")]).toEqual([3, 2, 1, 0]);
   });
 
+  it("skips a stage the field does not play, even when it comes first by position", () => {
+    const today = "2026-11-11";
+    const stages = [
+      { type: "not a playing stage", playedOn: "2026-11-11" },
+      { type: "Stroke Play Round", playedOn: "2026-11-15" },
+    ];
+    expect(daysToFirstRoundFrom({ startOn: "", stages }, today)).toBe(4);
+  });
+
   it("takes the first PLAYING round's own day, else the tournament's first day", () => {
     const today = "2026-11-11";
     expect(daysToFirstRoundFrom({ startOn: "2026-11-20", stages: [{ type: "Stroke Play Round", playedOn: "" }] }, today)).toBe(9);
@@ -90,5 +99,10 @@ describe("the wiring", () => {
     const notify = readSource("src", "lib", "services", "field-notify.ts");
     expect(notify).toContain("todayForEvent(eventId)");
     expect(notify).not.toContain("new Date()");
+  });
+
+  it("a round's day is read by ONE function in both places", () => {
+    expect(readSource("src", "lib", "domain", "promotion.ts")).toContain("roundDayOf(");
+    expect(readSource("src", "lib", "services", "field-change.ts")).toContain("roundDayOf(");
   });
 });

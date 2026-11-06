@@ -1,5 +1,5 @@
 import { isPlayingRound } from "../stage-types";
-import { cleanIsoDate, daysBetween } from "./round-dates";
+import { roundDayOf, daysBetween } from "./round-dates";
 
 /**
  * Who was promoted off the waitlist, and who has not been heard from since.
@@ -33,7 +33,7 @@ export const PROMOTION_FOLLOW_UP_MS = 48 * 60 * 60 * 1000;
  *
  * "Within 48 hours" was written when a place could only open days ahead. Since
  * day-of field changes a place can open on the morning of play, and an answer
- * "within 48 hours" to a round that tees off in three is no help to anybody.
+ * "within 48 hours" to a round that tees off in three hours is no help to anybody.
  * Nothing here is a deadline the app enforces (the place is the player's either
  * way): the line says what the organizer actually needs, which is to hear early
  * enough to offer the place on.
@@ -62,7 +62,7 @@ export function daysToFirstRoundFrom(
   today: string,
 ): number | null {
   const first = event.stages.find((s) => isPlayingRound(s.type));
-  const day = cleanIsoDate(first?.playedOn) || cleanIsoDate(event.startOn);
+  const day = roundDayOf(first?.playedOn, event.startOn);
   return day ? daysBetween(today, day) : null;
 }
 

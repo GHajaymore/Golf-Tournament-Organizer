@@ -870,7 +870,7 @@ export async function sendFieldStatusEmail(
   const eventName = escapeHtml(opts.eventName);
   const heading = where ? `<p>${where}</p>` : "";
 
-  const replyLine = promotionReplyLine(opts.daysToFirstRound ?? null);
+  const replyLine = opts.change === "promoted" ? promotionReplyLine(opts.daysToFirstRound ?? null) : null;
 
   const subject =
     opts.change === "promoted"
@@ -882,13 +882,14 @@ export async function sendFieldStatusEmail(
       ? `<p>A place has opened in <strong>${eventName}</strong> and you have moved off the waitlist.</p>` +
         heading +
         `<p><strong>You are now confirmed in the field.</strong> Your place is held - there is nothing you need to do to accept it.</p>` +
-        // Asks for a reply within the same window the organizer's screen uses
-        // to decide who to chase, so the message and the badge agree. It is a
-        // request, not a deadline: the place is theirs either way, and saying
-        // otherwise would be a threat the software does not carry out.
-        // The wording follows how near the first round is (`promotionReplyLine`),
-        // told the club's day by `field-notify`; none given keeps the 48 hours.
-        `<p>${replyLine.before}<strong>${replyLine.strong}</strong>${replyLine.after}</p>`
+        // Asks for a reply: with the first round three or more days away (or
+        // undated) in the same 48 hours the organizer's badge turns into a
+        // nudge; nearer than that, sooner ("as soon as you can", "straight
+        // away"), worded by `promotionReplyLine` from the club's day that
+        // `field-notify` tells it. A request, not a deadline: the place is
+        // theirs either way, and saying otherwise would be a threat the
+        // software does not carry out.
+        (replyLine ? `<p>${replyLine.before}<strong>${replyLine.strong}</strong>${replyLine.after}</p>` : "")
       : `<p>The field for <strong>${eventName}</strong> has been resized, and you have been moved to the waitlist.</p>` +
         heading +
         `<p><strong>You are not currently in the field, so please do not travel to the course expecting to play.</strong></p>` +

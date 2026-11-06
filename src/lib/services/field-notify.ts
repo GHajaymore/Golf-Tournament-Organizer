@@ -48,15 +48,21 @@ export async function notifyFieldChange(
         dates: true,
         course: true,
         organizationId: true,
-        startOn: true,
-        stages: { orderBy: { position: "asc" }, select: { type: true, playedOn: true } },
       },
     });
     if (!event) return;
 
     // How near the first round is, by the CLUB's day, so a place that opens
-    // on the morning of play is worded for that.
-    const daysToFirstRound = daysToFirstRoundFrom(event, await todayForEvent(eventId));
+    // on the morning of play is worded for that. Only the promoted email
+    // carries a reply line, so only it reads the rounds.
+    let daysToFirstRound: number | null = null;
+    if (change === "promoted") {
+      const dated = await prisma.event.findUnique({
+        where: { id: eventId },
+        select: { startOn: true, stages: { orderBy: { position: "asc" }, select: { type: true, playedOn: true } } },
+      });
+      if (dated) daysToFirstRound = daysToFirstRoundFrom(dated, await todayForEvent(eventId));
+    }
 
     /**
      * Concurrently, but each send already swallows its own failure, so one bad
