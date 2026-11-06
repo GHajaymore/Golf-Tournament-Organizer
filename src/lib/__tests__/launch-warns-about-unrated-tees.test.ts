@@ -57,8 +57,18 @@ describe("the pure fact", () => {
     ).toEqual({ rounds: ["Round 1", "Round 2"], noSlope: ["White"], noRating: ["Red"], noTees: false });
   });
 
-  it("says so when there are no tees at all", () => {
-    expect(unratedTeesFact({ rounds: net, tees: [] })).toEqual({ rounds: ["Round 1"], noSlope: [], noRating: [], noTees: true });
+  it("says so when a FIXED course has no tees at all", () => {
+    expect(unratedTeesFact({ rounds: net, tees: [], fixedCourse: true })).toEqual({ rounds: ["Round 1"], noSlope: [], noRating: [], noTees: true });
+  });
+
+  it("says nothing about missing tees when players choose their own course, or there is none yet", () => {
+    // "No tees are set up" would be false: the scorer names the tees they played off.
+    expect(unratedTeesFact({ rounds: net, tees: [], fixedCourse: false })).toBeNull();
+  });
+
+  it("uses the app's own test for a Slope, not a copy of it", () => {
+    // isRated: a Slope above zero. A negative or NaN slope is no slope.
+    expect(unratedTeesFact({ rounds: net, tees: [tee("Odd", -5, 70), tee("Nan", Number.NaN, 70), tee("Inf", Infinity, 70)] })?.noSlope).toEqual(["Odd", "Nan", "Inf"]);
   });
 });
 

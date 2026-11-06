@@ -139,6 +139,33 @@ describe("launch reads setup", () => {
     expect(await statusOf(eventId)).toBe("live");
   });
 
+  it("warns only about tees the field is actually on, and says nothing about missing tees when players choose their course", async () => {
+    const { eventId, players } = await tournament("inplay", "Stroke Play");
+    await prisma.stage.updateMany({ where: { eventId }, data: { scoringBasis: "net" } });
+    const course = await prisma.course.create({
+      data: { organizationId: orgId, name: `${TAG} two-tee course`, city: "", pars: PARS, yards: JSON.stringify(new Array(18).fill(400)), strokeIndex: SI },
+    });
+    await prisma.eventCourse.create({ data: { eventId, courseId: course.id } });
+    const blue = await prisma.tee.create({ data: { courseId: course.id, name: "Zz Blue", courseRating: 71.2, slopeRating: 128, par: 72, position: 0 } });
+    await prisma.tee.create({ data: { courseId: course.id, name: "Zz Unused", courseRating: 0, slopeRating: 0, par: 72, position: 1 } });
+    await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: blue.id } });
+    await setActiveEvent(eventId);
+    const quiet = await launchCheckFor(eventId);
+    expect(quiet.warnings.some((x) => /Slope/.test(x.says)), "an unrated tee nobody plays off was warned about").toBe(false);
+
+    // Put one player on the unrated set (policy "own") and it is now in play.
+    await prisma.player.update({ where: { id: players[0] }, data: { teeId: (await prisma.tee.findFirstOrThrow({ where: { courseId: course.id, name: "Zz Unused" } })).id } });
+    const loud = await launchCheckFor(eventId);
+    expect(loud.warnings.find((x) => /Slope/.test(x.says))?.says).toContain("Zz Unused");
+
+    // Players choose their course: nothing about missing tees (there are none to set up).
+    await prisma.eventCourse.deleteMany({ where: { eventId } });
+    await prisma.course.delete({ where: { id: course.id } });
+    await prisma.event.update({ where: { id: eventId }, data: { courseMode: "open", course: "" } });
+    const open = await launchCheckFor(eventId);
+    expect(open.warnings.some((x) => /no tees/i.test(x.says)), "told a choose-your-own-course event that no tees are set up").toBe(false);
+  });
+
   it("warns, and still launches, a net medal on a tee with no rating (setup audit item 5)", async () => {
     const { eventId } = await tournament("unrated", "Stroke Play");
     await prisma.stage.updateMany({ where: { eventId }, data: { scoringBasis: "net" } });

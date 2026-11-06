@@ -26,6 +26,7 @@
  */
 import { launchRefusal, type LaunchFacts } from "./phase-gate";
 import type { SetupFacts, SetupStep } from "./setup-flow";
+import { isRated } from "./handicap";
 
 /**
  * The facts, with the two that `SetupFacts` leaves optional made REQUIRED: a
@@ -186,14 +187,23 @@ export interface UnratedTees {
 
 export function unratedTeesFact(input: {
   rounds: readonly { label: string; scoringBasis: string }[];
+  /** The tees the field actually plays (`teesInPlayFor`), not every set on the course. */
   tees: readonly { name: string; slopeRating: number; courseRating: number }[];
+  /**
+   * Whether there is a fixed course. Without one (players choose, or none is
+   * named yet) "no tees are set up" would be false, so nothing is said.
+   * Defaults to true: a caller that has a course says nothing extra.
+   */
+  fixedCourse?: boolean;
 }): UnratedTees | null {
   const rounds = input.rounds.filter((r) => r.scoringBasis !== "gross").map((r) => r.label);
   if (rounds.length === 0) return null;
-  if (input.tees.length === 0) return { rounds, noSlope: [], noRating: [], noTees: true };
-  // The same test as `courseHandicapExact` / `isRated`: a Slope above zero.
-  const noSlope = input.tees.filter((t) => !(t.slopeRating > 0)).map((t) => t.name);
-  const noRating = input.tees.filter((t) => t.slopeRating > 0 && !(t.courseRating > 0)).map((t) => t.name);
+  if (input.tees.length === 0) {
+    return input.fixedCourse === false ? null : { rounds, noSlope: [], noRating: [], noTees: true };
+  }
+  // The app's own test for a Slope (`isRated`), the one `courseHandicapExact` falls back on.
+  const noSlope = input.tees.filter((t) => !isRated(t)).map((t) => t.name);
+  const noRating = input.tees.filter((t) => isRated(t) && !(t.courseRating > 0)).map((t) => t.name);
   return noSlope.length === 0 && noRating.length === 0 ? null : { rounds, noSlope, noRating, noTees: false };
 }
 

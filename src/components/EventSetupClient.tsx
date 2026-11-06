@@ -611,8 +611,8 @@ export function EventSetupClient({
                 choice made with rounds in place is never overwritten. */}
             {roundFormats.length === 0 ? (
               <p className="muted" style={{ margin: 0 }}>
-                Decided by your first round: a medal or Stableford round makes this stroke play, head-to-head
-                rounds keep it match play. Add rounds on Rounds &amp; formats; you can change it here afterwards.
+                Decided by your first round: a medal or Stableford round makes this stroke play; a head-to-head
+                first round leaves it as it is, match play to begin with. Add rounds on Rounds &amp; formats; you can change it here afterwards.
               </p>
             ) : (
               <div className="seg">

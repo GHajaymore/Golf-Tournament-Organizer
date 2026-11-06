@@ -77,9 +77,26 @@ describe("a copy's dates are set from the day the secretary picks", () => {
     expect(c.ok && c.regDeadline).toBe("2027-06-09");
   });
 
-  it("a one-day copy ends on its first day; an end before the start is a one-day copy", () => {
-    expect(copiedCalendar({ source: LAST_YEAR, startOn: "2027-06-12", endOn: "", today: "2027-01-05" })).toMatchObject({ endOn: "2027-06-12" });
+  it("a one-day original gives a one-day copy; an end before the start is a one-day copy", () => {
+    const oneDay = { ...LAST_YEAR, rounds: [{ id: "r1", playedOn: "2026-06-13" }] };
+    expect(copiedCalendar({ source: oneDay, startOn: "2027-06-12", endOn: "", today: "2027-01-05" })).toMatchObject({ endOn: "2027-06-12" });
     expect(copiedCalendar({ source: LAST_YEAR, startOn: "2027-06-12", endOn: "2027-06-01", today: "2027-01-05" })).toMatchObject({ endOn: "2027-06-12" });
+  });
+
+  it("a copy given only a first day keeps the original's length, so its rounds stay inside its own dates", () => {
+    // Last year ran Sat 13 to Mon 15 Jun (its own end day). Copied to Sat 12 Jun 2027 with no last day:
+    // it runs 12 to 14 Jun, and Round 2 (the day after Round 1) is on the 13th, inside it.
+    const source = { ...LAST_YEAR, endOn: "2026-06-15" };
+    const c = copiedCalendar({ source, startOn: "2027-06-12", endOn: "", today: "2027-01-05" });
+    expect(c).toMatchObject({ ok: true, startOn: "2027-06-12", endOn: "2027-06-14" });
+    if (!c.ok) return;
+    for (const day of Object.values(c.playedOn).filter(Boolean)) {
+      expect(day >= c.startOn && day <= c.endOn, `${day} is outside ${c.startOn} to ${c.endOn}`).toBe(true);
+    }
+    // Without a stored end day, the last dated round gives the length.
+    expect(copiedCalendar({ source: LAST_YEAR, startOn: "2027-06-12", endOn: "", today: "2027-01-05" })).toMatchObject({ endOn: "2027-06-13" });
+    // A last day the secretary DID pick is never overridden.
+    expect(copiedCalendar({ source, startOn: "2027-06-12", endOn: "2027-06-12", today: "2027-01-05" })).toMatchObject({ endOn: "2027-06-12" });
   });
 
   it("with no day picked, the copy starts undated — the older doors' behaviour, unchanged", () => {
