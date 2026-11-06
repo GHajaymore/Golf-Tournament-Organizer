@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readSource } from "./source";
-import { OPEN_DOORS, liveDoors } from "./field-doors";
+import { NO_SHEET, OPEN_DOORS, liveDoors } from "./field-doors";
 import { fieldBanner } from "@/lib/domain/field-change";
 
 vi.mock("next/navigation", () => ({
@@ -71,7 +71,7 @@ const isDisabled = (tag: string) => /\sdisabled=""/.test(tag);
 
 describe("Entries under way in a stroke field: the day-of doors are open", () => {
   const doors = liveDoors("stroke");
-  const underWay = fieldBanner({ status: "live", configUnlocked: false, family: "stroke", playedRound: null, flightsConfirmed: false });
+  const underWay = fieldBanner({ status: "live", configUnlocked: false, family: "stroke", playedRound: null, flightsConfirmed: false, ...NO_SHEET });
 
   it("says it is under way and what is still open, not 'Setup locked'", async () => {
     const html = await reg({ locked: true, doors, underWay });

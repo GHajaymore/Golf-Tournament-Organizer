@@ -4,11 +4,12 @@ import { assertEventWritable } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
-import { parseTeeSheet, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, placeInGroup, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { roundLabel } from "@/lib/domain/round-label";
 import { notifyTeeTimesPublished } from "@/lib/services/tee-time-notify";
 import { firstHoleForRound } from "@/lib/domain/hole-number";
 import { strokeCutField } from "@/lib/services/stroke-cut";
+import { fieldRefusal } from "@/lib/services/field-change";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -181,4 +182,100 @@ export async function setTeeSheetPublished(stageId: string, published: boolean):
 
   await refresh();
   return { ok: true };
+}
+
+/**
+ * PUT ONE NAMED PLAYER INTO A GROUP WITH ROOM (day-of field changes, PR B).
+ *
+ * The tee sheet stays open after launch, but the only way to give a late entry
+ * or a reserve a tee time was to re-draw the whole sheet — which moves
+ * everybody, and republishing it sends every moved player a notice on the
+ * morning. This writes ONE undrawn player into ONE group that has room
+ * (`placeInGroup`): nobody else moves, nobody's time changes, and the sheet
+ * keeps its published state. Moving a player already drawn stays a re-draw.
+ *
+ * WHO MAY CALL IT: staff of the tournament (`requireStaffSession`), an
+ * Assistant as much as the Organizer — it is the desk's job on the morning —
+ * and only while the one field rule allows it (`fieldRefusal`, change
+ * "place-in-group": open until the tournament is completed). Every argument is
+ * checked here, because a `"use server"` export is called with whatever the
+ * caller sends.
+ *
+ * A published sheet tells the placed player their time, and nobody else: the
+ * notice is the diff between the sheet before and after (`notifyTeeTimesPublished`).
+ */
+export async function placeInTeeGroup(
+  stageId: string,
+  playerId: string,
+  groupIndex: number,
+): Promise<TeeSheetResult & { said?: string }> {
+  const session = await requireStaffSession();
+  if (typeof stageId !== "string" || !stageId || typeof playerId !== "string" || !playerId) {
+    return { ok: false, error: "Choose a player and a group." };
+  }
+  if (typeof groupIndex !== "number" || !Number.isInteger(groupIndex) || groupIndex < 0) {
+    return { ok: false, error: "Choose a group." };
+  }
+  const refused = await fieldRefusal(session.eventId, "place-in-group");
+  if (refused) return { ok: false, error: refused };
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId: session.eventId },
+    select: { id: true, teeSheet: true, teeSheetPublished: true },
+  });
+  if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+  const sheet = parseTeeSheet(stage.teeSheet ?? "");
+  if (!sheet) return { ok: false, error: "Save a sheet for this round first." };
+
+  const player = await prisma.player.findFirst({
+    where: { id: playerId, eventId: session.eventId, status: "confirmed" },
+    select: { id: true, name: true },
+  });
+  if (!player) return { ok: false, error: "That player isn't in the field." };
+
+  // The round's field, as `saveTeeSheet` reads it: everyone confirmed, or those
+  // who made the cut into this round once one has been made.
+  const confirmed = await prisma.player.findMany({
+    where: { eventId: session.eventId, status: "confirmed" },
+    select: { id: true },
+  });
+  const cutField = await strokeCutField(session.eventId, stageId);
+  const field = new Set(confirmed.map((p) => p.id).filter((id) => !cutField || cutField.has(id)));
+
+  const placed = placeInGroup(sheet, player.id, groupIndex, field);
+  if (!placed.ok) return { ok: false, error: placed.says };
+  const next: TeeSheet = { ...placed.sheet, savedAt: new Date().toISOString() };
+
+  // Only if the stored sheet is still the one read above: two desks placing
+  // into the same last place must not both succeed.
+  const written = await prisma.stage.updateMany({
+    where: { id: stageId, eventId: session.eventId, teeSheet: stage.teeSheet },
+    data: { teeSheet: JSON.stringify(next) },
+  });
+  if (written.count === 0) return { ok: false, error: "The sheet changed while you were choosing. Look again and choose." };
+
+  if (stage.teeSheetPublished) {
+    const [event, stages] = await Promise.all([
+      prisma.event.findUnique({ where: { id: session.eventId }, select: { name: true } }),
+      prisma.stage.findMany({
+        where: { eventId: session.eventId },
+        select: { id: true, type: true, holes: true, nine: true },
+        orderBy: { position: "asc" },
+      }),
+    ]);
+    await notifyTeeTimesPublished({
+      eventId: session.eventId,
+      stageId,
+      previous: sheet,
+      next,
+      firstPublish: false,
+      roundLabel: roundLabel(stages, stageId),
+      eventName: event?.name ?? "",
+      firstHole: firstHoleForRound(stages.find((s) => s.id === stageId)),
+    });
+  }
+
+  await refresh();
+  const when = placed.group.time ? `, off at ${placed.group.time}` : "";
+  return { ok: true, said: `${player.name} is in ${placed.group.name || "the group"}${when}.` };
 }

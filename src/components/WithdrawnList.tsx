@@ -55,7 +55,7 @@ export function WithdrawnList({
       <span className="card-title">Withdrawn ({withdrawn.length})</span>
       <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
         Out of the field. Their scores and side-game entries stay on the record; a player who had begun shows as WD at
-        the foot of the board. Put back undoes a withdrawal made by mistake.
+        the foot of the board, and one who had not as DNS on the results. Put back undoes a withdrawal made by mistake.
       </p>
       <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
         {withdrawn.map((p) => (

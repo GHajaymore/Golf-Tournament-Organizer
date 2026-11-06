@@ -30,10 +30,11 @@ import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
 import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
-import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
+import { settingsOf, effectiveScoreStatus, hasAnyHole, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
-import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { groupLeftShort, parseTeeSheet, shortGroupLine } from "@/lib/domain/tee-sheet";
+import { resultsLine } from "@/lib/domain/field-change";
 import { publishedFoursomes, mayWriteCard } from "@/lib/domain/group-entry";
 
 /**
@@ -59,7 +60,7 @@ import {
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Session } from "@/lib/auth";
-import { clubNameClash, organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
+import { clubNameClash, golfTermsForEvent, organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
@@ -958,6 +959,41 @@ export async function removeSignup(playerId: string): Promise<RemoveResult> {
 }
 
 /**
+ * THE RESULTS LINE AND THE SHORT GROUP, after a withdrawal once launched
+ * (day-of field changes, PR B). "WD" for a player who had begun, "DNS" for one
+ * who had not — the office's codes, as the results sheet lists them
+ * (`resultsSheetRows`). And where they were drawn on a published sheet for a
+ * round they have not begun: the group goes out short at its time (Rule 5.3a),
+ * said as the club says it — "Group 3 goes out as a twosome".
+ */
+async function sheetWords(eventId: string, player: { id: string; name: string }): Promise<string[]> {
+  const [cards, stages, terms] = await Promise.all([
+    prisma.scorecard.findMany({ where: { eventId, playerId: player.id }, select: { stageId: true, strokes: true } }),
+    prisma.stage.findMany({
+      where: { eventId },
+      orderBy: { position: "asc" },
+      select: { id: true, type: true, holes: true, nine: true, position: true, teeSheet: true, teeSheetPublished: true, closedAt: true },
+    }),
+    golfTermsForEvent(eventId),
+  ]);
+  const begunIn = new Set(cards.filter((c) => hasAnyHole(c.strokes)).map((c) => c.stageId));
+  // Only where the results ARE a stroke sheet: a drawn field's result is its matches, recorded as walkovers.
+  const family = (await fieldFactsFor(eventId))?.family;
+  const out = family === "stroke" || family === "stableford" ? [resultsLine(player.name, begunIn.size > 0)] : [];
+
+  const round = stages.find((s) => s.teeSheetPublished && !s.closedAt && !begunIn.has(s.id) && parseTeeSheet(s.teeSheet)?.groups.some((g) => g.playerIds.includes(player.id)));
+  const sheet = round ? parseTeeSheet(round.teeSheet) : null;
+  if (round && sheet) {
+    const field = new Set((await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } })).map((p) => p.id));
+    const short = groupLeftShort(sheet, player.id, field);
+    // A group still four strong (it had five) is not short; `shortGroupLine` says nothing then.
+    const line = short ? shortGroupLine(roundLabel(stages, round.id), short, terms) : null;
+    if (line) out.push(line);
+  }
+  return out;
+}
+
+/**
  * WHAT THE ORGANIZER IS TOLD AFTER TAKING SOMEBODY OUT (day-of field changes,
  * PR A, words section 5.3). Their scores and side-game entries stay on the
  * record and nothing moves money (Hard rule 7); a reserve who moved in has no
@@ -976,6 +1012,8 @@ async function withdrawalWords(
   if (player.status === "waitlisted") return `${name} is off the waiting list.`;
   if (!kept) return movedIn.length ? `${name} is out. ${movedInWords(movedIn)} moved in from the waiting list.` : `${name} is out.`;
   const parts = [`${name} is out.`];
+  // PR B: how the results list them, and the group they leave short on a published sheet.
+  if (launched) parts.push(...(await sheetWords(eventId, player)));
   if (movedIn.length) {
     parts.push(`${movedInWords(movedIn)} moved in from the waiting list.`);
     if (launched) parts.push(`${movedInWords(movedIn)} ${movedIn.length === 1 ? "has" : "have"} no tee time yet: put them in a group on the Tee sheet.`);

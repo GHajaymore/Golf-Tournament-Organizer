@@ -1,6 +1,11 @@
 import "server-only";
-import { fieldChangeAllowed, fieldFactsOf, type FieldChange, type FieldFacts } from "../domain/field-change";
-import { todayForEvent } from "./club-clock";
+import { prisma } from "../db";
+import { clubToday, clubWallClock } from "../domain/club-clock";
+import { fieldChangeAllowed, fieldFactsOf, lateEntryRound, type FieldChange, type FieldFacts, type LastTeeTime } from "../domain/field-change";
+import { cleanIsoDate } from "../domain/round-dates";
+import { lastTeeTime, parseTeeSheet } from "../domain/tee-sheet";
+import type { TournamentFacts } from "../domain/tournament-status";
+import { zoneOfEvent } from "./club-clock";
 import { tournamentFactsFor } from "./tournament-facts";
 
 /**
@@ -25,8 +30,35 @@ import { tournamentFactsFor } from "./tournament-facts";
  * the club's day, never the server's.
  */
 export async function fieldFactsFor(eventId: string): Promise<FieldFacts | null> {
-  const facts = await tournamentFactsFor(eventId, await todayForEvent(eventId));
-  return facts ? fieldFactsOf(facts) : null;
+  // ONE instant, read in the club's zone for both the day and the wall clock,
+  // so "today" and "now" cannot straddle midnight between two reads.
+  const zone = await zoneOfEvent(eventId);
+  const at = new Date();
+  const facts = await tournamentFactsFor(eventId, clubToday(zone, at));
+  if (!facts) return null;
+  return fieldFactsOf(facts, { lastTee: await lastTeeFor(facts), now: clubWallClock(zone, at) });
+}
+
+/**
+ * THE LAST PUBLISHED STARTING TIME OF THE ROUND A LATE ENTRANT WOULD START IN
+ * (`lateEntryRound`), or null. Only a PUBLISHED sheet counts — a draft is the
+ * organizer's, not a time anybody has been given (Rule 5.3a). The round's day
+ * is its own `playedOn`, or the tournament's first day for the first round
+ * when the round was never dated on its own.
+ */
+async function lastTeeFor(facts: TournamentFacts): Promise<LastTeeTime | null> {
+  const round = lateEntryRound(facts);
+  if (!round) return null;
+  const stage = await prisma.stage.findUnique({
+    where: { id: round.id },
+    select: { teeSheet: true, teeSheetPublished: true, playedOn: true },
+  });
+  if (!stage?.teeSheetPublished) return null;
+  const sheet = parseTeeSheet(stage.teeSheet ?? "");
+  const time = sheet ? lastTeeTime(sheet) : null;
+  const day = cleanIsoDate(stage.playedOn) || cleanIsoDate(facts.startOn);
+  // The round's own label, the same one `playedRound` is read by, so the two compare.
+  return time && day ? { round: round.label, day, time } : null;
 }
 
 /** The refusal in a sentence, or null when the change may be made. */
