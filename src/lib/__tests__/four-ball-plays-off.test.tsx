@@ -18,7 +18,7 @@ vi.mock("@/app/actions/tournament", actionModule);
 import { TeamsClient } from "@/components/TeamsClient";
 import { TeamEntryClient } from "@/components/TeamEntryClient";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
-import { TEAM_MATCH_BOARD_NOTE } from "@/components/TeamMatchLeaderboard";
+import { TeamMatchLeaderboard, TEAM_MATCH_BOARD_NOTE } from "@/components/TeamMatchLeaderboard";
 import { readSource } from "./source";
 
 /**
@@ -237,6 +237,32 @@ describe("the words this change puts on a player's screen are short", () => {
       expect(words(line)).toBeLessThan(25);
     });
   }
+  /**
+   * THE BLOCK THE SPEC MEASURES, and the type it is set in. Moving a four-ball
+   * round robin onto the match table put that table's footnote on a player's
+   * phone at 13px: a sentence is held to 14 (`e2e/player-words.spec.ts`). Every
+   * paragraph of the table is read as the spec reads a block.
+   */
+  it("every paragraph of the match table meets the player-words rule: short, and 14px when it is a sentence", () => {
+    const html = renderToStaticMarkup(
+      <TeamMatchLeaderboard format="Four-Ball" system="match" rows={[{
+        teamId: "t1", name: "Side A", members: ["Ann", "Bob"], memberIds: ["p1", "p2"],
+        played: 1, wins: 1, halved: 0, losses: 0, holesDiff: 3, points: 2, rank: 1,
+      }]} />,
+    );
+    const paragraphs = [...html.matchAll(/<p[^>]*?(?:style="([^"]*)")?[^>]*>(.*?)<\/p>/gs)];
+    expect(paragraphs.length, "the table has paragraphs to read").toBeGreaterThan(0);
+    const words = (s: string) => s.split(" ").filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+    for (const [, style, inner] of paragraphs) {
+      const text = textOf(inner).replace(/\s+/g, " ").trim();
+      expect(words(text), `block: ${text}`).toBeLessThan(25);
+      expect(longest(text), `sentence: ${text}`).toBeLessThan(12);
+      if (words(text) >= 5 && /[.!?]$/.test(text)) {
+        const px = Number(/font-size:\s*(\d+(?:\.\d+)?)px/.exec(style ?? "")?.[1] ?? 16);
+        expect(px, `a sentence is set at 14px or more: ${text}`).toBeGreaterThanOrEqual(14);
+      }
+    }
+  });
   it("the board uses the constant, not a literal of its own", () => {
     expect(readSource("src/app/(player)/me/board/page.tsx")).toContain("TEAM_MATCH_BOARD_NOTE");
   });

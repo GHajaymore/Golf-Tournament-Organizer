@@ -32,7 +32,9 @@ export function TeamMatchLeaderboard({
       <p className="text-muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
         {/* The board says what it is ordered on, in its own words — the rule
             `verify-public-boards.mjs` reads a board by. */}
-        {format} · {rows.length} {rows.length === 1 ? "side" : "sides"} ·{" "}
+        {format} · {rows.length} {rows.length === 1 ? "side" : "sides"}.{" "}
+        {/* Two short sentences: "Four-Ball · 4 sides · Match play — 1 point a
+            win, ½ a half" ran to 12 words, the limit on a player's screen. */}
         {LEAGUE_POINTS_LABEL[system]}
       </p>
       <div style={{ overflowX: "auto" }}>
@@ -76,7 +78,7 @@ export function TeamMatchLeaderboard({
           </tbody>
         </table>
       </div>
-      <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
+      <p className="text-muted" style={{ fontSize: 14, marginTop: 8 }}>
         Columns: P played, W won, ½ halved, L lost. A pairing nobody has started
         yet counts for neither side.
       </p>
