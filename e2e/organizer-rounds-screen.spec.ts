@@ -198,9 +198,15 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     expect(forGroups.some((o) => o.startsWith("Stroke Play")), "a round robin is offered Stroke Play").toBe(false);
     await page.getByLabel("How many rounds to add").fill("2");
     await page.getByRole("button", { name: /^Add 2 round robins/ }).click();
-    await expect(page.getByRole("button", { name: /^Round 2 · Round Robin/ })).toBeVisible({ timeout: 20_000 });
+    // THE NEXT PRESS COMES AT ONCE, as a quick organizer's does: Bracket right after Add, not after
+    // looking at the new rounds. CI run 41950657167 read the format as "" for 247s here. Bounded, so a
+    // repeat fails in ten seconds with the value, not after four minutes.
     await page.getByRole("button", { name: /^Bracket/ }).click();
-    await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play");
+    await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play", { timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /^Round 2 · Round Robin/ })).toBeVisible({ timeout: 20_000 });
+    // And after the refresh has landed, the choice is still held and still sendable.
+    await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play", { timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /^Add bracket/ })).toBeEnabled({ timeout: 10_000 });
     await page.getByRole("button", { name: /^Add bracket/ }).click();
     await expect(page.getByRole("button", { name: /^Round 3 · Bracket Stage/ })).toBeVisible({ timeout: 20_000 });
   });
