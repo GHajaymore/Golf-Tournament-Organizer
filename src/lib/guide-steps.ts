@@ -311,7 +311,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "h", text: "What locks after launch" },
-      { kind: "p", text: "Structure locks: format, holes, course, scoring basis, cuts, tiebreakers, deleting rounds and editing the field. An {organizer} can [[Unlock setup]] to correct something. Running the event stays open: changing a round's date, marking a round over, handicap adjustments, adding a round, drawing the next round and deadlines." },
+      { kind: "p", text: "Structure locks: format, holes, course, scoring basis, cuts, tiebreakers, deleting rounds, moving a player between flights, players' details and importing a list. An {organizer} can [[Unlock setup]] to correct something. Running the event stays open: changing a round's date, marking a round over, handicap adjustments, adding a round, drawing the next round and deadlines." },
+      { kind: "p", text: "The day's changes to the field stay open too, for an {organizer} or an assistant, without unlocking anything: [[Withdraw]] a player, [[Put back]] one withdrawn by mistake, and — in stroke play, Stableford and a league — add a late entry until the first card of the competition comes in. In match play, a round robin, a knockout or a team cup the draw is the field, so nobody can be added once it is launched; a withdrawal there leaves their matches to be recorded as walkovers." },
     ],
   },
   {
@@ -354,6 +355,20 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "list",
         items: [
           "Remove someone with × (or select several and [[Delete N selected]]). A player who has already played is withdrawn instead, and their results are kept.",
+        ],
+      },
+      { kind: "h", text: "On the day: withdrawals and late entries" },
+      { kind: "where", text: "Set up → Entries, once the tournament is launched" },
+      {
+        kind: "steps",
+        items: [
+          "The banner reads **Under way** and says what is still open. An assistant can do all of this as well as the {organizer}; nothing needs unlocking.",
+          "To take somebody out, press × on their row, then [[Withdraw]]. They come off the tee sheet and the board; their scores and side-game entries stay on the record. After launch nobody is deleted: they move to **Withdrawn**.",
+          "If somebody is waiting, the first on the **Waitlist** moves into the place by themselves and the screen names them. They have no tee time yet: put them in a group on the Tee sheet.",
+          "Withdrawn by mistake? Press [[Put back]] beside their name under **Withdrawn**. If the place has been filled in the meantime, they go back on the Waitlist, where they first queued.",
+          "To take a late entry in a stroke play or Stableford competition, use **Add someone new** ([[Add late entry]]) or the roster picker, until the first card of the competition comes in. The screen then reminds you to put them in a group on the Tee sheet, and, where the field is flighted, offers **Choose a flight** in their row.",
+          "In match play, a round robin, a knockout or a team cup the draw is the field: Add is refused once launched. A withdrawal there leaves their matches to be recorded as walkovers (Score entry, or the Bracket for a knockout); the app does not award them by itself.",
+          "Still locked after launch: importing a list, removing several at once, a player's name, email and 9- or 18-hole index, and moving a player who is already in a flight. Those need [[Unlock setup]].",
         ],
       },
     ],
@@ -702,7 +717,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "faq",
         items: [
           { q: "A button is greyed out", a: "The reason is written next to it — an empty field, locked setup, a missing course. Fix that and the button wakes up." },
-          { q: "“Configuration is locked”", a: "The tournament has launched. An {organizer} can Unlock setup on the banner to change structure; running the day doesn't need it." },
+          { q: "“Configuration is locked”", a: "The tournament has launched. An {organizer} can Unlock setup on the banner to change structure; running the day doesn't need it — withdrawing a player, putting one back and (in stroke play, Stableford and a league, before the first card) a late entry stay open on Entries." },
+          { q: "I withdrew the wrong player", a: "Entries → Withdrawn → Put back. They return to the field, or to the Waitlist if their place has been filled since. Their cards were never deleted." },
           { q: "“This round cannot be scored as set”", a: "The format and round type don't match: match play needs a head-to-head round, stroke formats need a stroke play round." },
           { q: "A player can't find their card", a: "Check they're Confirmed (not Pending or Waitlist), the round is published, and — with a round code — that it hasn't been reissued." },
           { q: "No money is showing", a: "Result money appears only once the round is final. Approve the remaining cards or mark the round over." },

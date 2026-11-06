@@ -89,7 +89,7 @@ const entryOf = (sideGameId: string) => prisma.sideGameEntry.findFirst({ where: 
 
 describe("a player who leaves keeps the stake they were in by default", () => {
   it("is kept in every everyone-in pot on a round they played", async () => {
-    expect(await removeSignup(ids.cat)).toBe("withdrawn");
+    expect(await removeSignup(ids.cat)).toMatchObject({ ok: true, outcome: "withdrawn" });
     expect(await entryOf(ids.birdies1)).toMatchObject({ confirmed: true, excluded: false });
     expect(await entryOf(ids.lowGross1)).toMatchObject({ confirmed: true, excluded: false });
   });

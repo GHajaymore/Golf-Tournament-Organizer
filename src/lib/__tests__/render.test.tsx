@@ -124,6 +124,7 @@ import { SideBetStart } from "@/components/SideBetStart";
 import { RoundMoney } from "@/components/RoundMoney";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import type { HoleResult } from "@/lib/domain/types";
+import { OPEN_DOORS } from "./field-doors";
 
 /**
  * React reports missing keys, invalid nesting and bad props by writing to
@@ -2305,7 +2306,7 @@ describe("roster CSV import", () => {
 
   it("offers both ways of adding someone", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("Add member");
@@ -2320,7 +2321,7 @@ describe("roster CSV import", () => {
     // right edge. The one sentence a new club needs was the one being cut in
     // half. No rows, no table.
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("No members yet.");
@@ -2331,7 +2332,7 @@ describe("roster CSV import", () => {
 
   it("renders a populated roster", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null}
         fieldSize={2} unlinkedCount={0}
         members={[row(), row({ id: "m2", name: "Rob Ferris", status: "inactive" })]} />,
     );
@@ -6473,7 +6474,7 @@ describe("the roster and the tournament in front of it", () => {
   const roster = async (members: RosterRow[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6523,7 +6524,7 @@ describe("members", () => {
   const roster = async (members: ReturnType<typeof member>[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6797,7 +6798,7 @@ describe("registration and field", () => {
   const reg = async (over: Record<string, unknown> = {}) => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     return render(
-      <RegistrationClient
+      <RegistrationClient doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
           name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
@@ -6860,7 +6861,7 @@ describe("registration and field", () => {
   it("tells staff who are not admins why the entry terms are read-only, instead of letting the server refuse", async () => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     const html = render(
-      <RegistrationClient
+      <RegistrationClient doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin={false} roster={[]}
         event={{
           name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",

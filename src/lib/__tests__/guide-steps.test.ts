@@ -30,6 +30,10 @@ const PINNED: [label: string, file: string][] = [
   ["Start this game", "src/components/ContestsClient.tsx"],
   ["Everyone with a card", "src/components/SkinsPotClient.tsx"],
   ["Unlock setup", "src/components/SetupLockBanner.tsx"],
+  // Day-of field changes (PR A): the under-way Entries screen.
+  ["Withdraw", "src/components/RegistrationClient.tsx"],
+  ["Put back", "src/components/WithdrawnList.tsx"],
+  ["Add late entry", "src/components/RegistrationClient.tsx"],
   ["Save scorecard", "src/components/StrokePlayEntry.tsx"],
   ["Certify my card", "src/components/PlayerCard.tsx"],
   ["Draw sides automatically", "src/components/TeamsClient.tsx"],

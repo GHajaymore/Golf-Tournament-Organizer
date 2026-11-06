@@ -398,6 +398,8 @@
   "app/actions/play.ts:handOverGroup": "e2e/scoring-by-group-phones.spec.ts",
   "app/actions/play.ts:confirmPlayMatch": "e2e/scoring-by-group-phones.spec.ts",
   "app/actions/play.ts:disputePlayMatch": "e2e/scoring-by-group-phones.spec.ts",
-  "app/actions/play.ts:disputePlayCard": "e2e/scoring-by-group-phones.spec.ts"
+  "app/actions/play.ts:disputePlayCard": "e2e/scoring-by-group-phones.spec.ts",
+  "app/actions/tournament.ts:reinstateWithdrawn": "e2e/day-of-field-changes.spec.ts",
+  "app/actions/tournament.ts:placeInFlight": "e2e/day-of-field-changes.spec.ts"
  }
 }

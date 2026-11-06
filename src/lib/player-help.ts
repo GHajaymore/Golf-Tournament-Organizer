@@ -273,6 +273,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Open Events and find the tournament.",
       "Tap [[Can’t make it? Withdraw]].",
       "After entries close, tell your {organizer} instead.",
+      "They can take you out on the day. They can put you back too.",
+      "Started, then withdrew? The board shows WD, with no place.",
     ],
   },
   {

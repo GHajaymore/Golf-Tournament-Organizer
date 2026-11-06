@@ -7,7 +7,8 @@ import { promotionState } from "@/lib/domain/promotion";
 import { setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
 import { Fragment, useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
 import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
-import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
+import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, placeInFlight, type CsvImportResult } from "@/app/actions/tournament";
+import type { FieldChange } from "@/lib/domain/field-change";
 import { setNameWithheld } from "@/app/actions/report-settings";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -27,6 +28,9 @@ import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { EMAIL_MAX, PERSON_NAME_MAX, PHONE_MAX, PLACE_MAX } from "@/lib/domain/typed-limits";
 import { HANDICAP_BODIES, bodyInProse, bodyShortLabel, handicapBody as bodyById } from "@/lib/domain/handicap-body";
+
+/** Each field change's refusal, or null where it is open (`fieldDoors`). */
+export type FieldDoors = Record<FieldChange, string | null>;
 
 /** The page's origin never changes while it is open, so nothing to subscribe to. */
 const noSubscription = () => () => {};
@@ -106,6 +110,9 @@ export function RegistrationClient({
   waitlist,
   pendingEntries,
   locked,
+  doors,
+  underWay = null,
+  flights = [],
   isAdmin,
   roster,
   tees = [],
@@ -149,7 +156,20 @@ export function RegistrationClient({
   waitlist: Signup[];
   /** Self-service entries awaiting the organizer's approval (approve mode). */
   pendingEntries: Signup[];
+  /** The SETUP lock — the per-player tees, the entry terms. The field has its own doors below. */
   locked: boolean;
+  /**
+   * THE FIELD'S DOORS (day-of field changes, PR A): each field change's refusal
+   * in a sentence, or null where it is open — `fieldDoors` of the one rule the
+   * actions ask (`domain/field-change.ts`). After launch Withdraw, Put back and
+   * (in stroke play, Stableford and a league, before play) Add stay open while
+   * setup is locked; the CSV import, bulk delete and details stay shut.
+   */
+  doors: FieldDoors;
+  /** The under-way banner (`fieldBanner`), shown in place of "Setup locked"; null when not under way. */
+  underWay?: string | null;
+  /** The flights a late entrant may be placed in, labelled as the field table labels them. */
+  flights?: Array<{ id: string; label: string }>;
   isAdmin: boolean;
   /** The club's members, for filling the field without retyping anyone. */
   roster: RosterCandidate[];
@@ -356,6 +376,10 @@ export function RegistrationClient({
     }
     startTransition(async () => {
       const res = await removeSignups(ids);
+      if (res.error) {
+        setRowError(res.error);
+        return;
+      }
       setRowError(
         res.withdrawn
           ? `${res.withdrawn} ${res.withdrawn === 1 ? "player has" : "players have"} played, so ${res.withdrawn === 1 ? "that entry was" : "those entries were"} withdrawn rather than deleted — their results are kept.`
@@ -368,6 +392,31 @@ export function RegistrationClient({
       return next;
     });
   };
+
+  /**
+   * WHAT A FIELD CHANGE LEFT TO DO, said where the field is (day-of field
+   * changes, PR A): "Pat moved in from the waiting list. Pat has no tee time
+   * yet", "Sam is in no flight". A refusal is said the same way, in the rule's words.
+   */
+  const [fieldSaid, setFieldSaid] = useState("");
+  const withdraw = (p: Signup) =>
+    startTransition(async () => {
+      const res = await removeSignup(p.id);
+      if (!res.ok) {
+        // Under the row in the field or the waiting list; at the head for an entry awaiting approval.
+        const inATable = confirmed.some((r) => r.id === p.id) || waitlist.some((r) => r.id === p.id);
+        setRowError(`${p.name}: ${res.error}`, inATable ? p.id : "");
+        return;
+      }
+      setRowError("");
+      setFieldSaid(res.said);
+    });
+  const place = (p: Signup, groupId: string) =>
+    startTransition(async () => {
+      const res = await placeInFlight(p.id, groupId);
+      setRowError(res.ok ? "" : `${p.name}: ${res.error ?? "That did not save."}`, p.id);
+      if (res.ok) setFieldSaid("");
+    });
 
   const submitAdd = () => {
     /**
@@ -416,6 +465,7 @@ export function RegistrationClient({
         setAddError(result.error ?? "Couldn't add that signup.");
         return;
       }
+      setFieldSaid(result.said ?? "");
       setName("");
       setHandicap("");
       setEmail("");
@@ -547,9 +597,13 @@ export function RegistrationClient({
               self-saving controls do. Failures already say so (`rowError`). */}
           <SaveState status={tableSaveStatus} />
           {anySelected && (
-            <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: "4px 10px" }} disabled={pending || locked} onClick={() => deleteSelected(rows)}>
+            <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: "4px 10px" }} disabled={pending || !!doors.bulk} onClick={() => deleteSelected(rows)}>
               <Icon name="trash" /> Delete {rows.filter((r) => selected.has(r.id)).length} selected
             </button>
+          )}
+          {/* Why it is dead, beside it: after launch players leave one at a time. */}
+          {anySelected && doors.bulk && (
+            <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%" }}>{doors.bulk}</span>
           )}
         </div>
         <div className="table-scroll">
@@ -678,7 +732,7 @@ export function RegistrationClient({
                       <select
                         className="input"
                         value={p.handicapType === "9" ? "9" : "18"}
-                        disabled={pending || locked}
+                        disabled={pending || !!doors.edit}
                         style={{ width: 46, padding: "3px 2px", fontSize: 13 }}
                         onChange={(e) => commitUpdate(p.id, { handicapType: e.target.value })}
                         // The one static tooltip on this screen that was
@@ -703,7 +757,7 @@ export function RegistrationClient({
                       type="email"
                       maxLength={EMAIL_MAX}
                       defaultValue={p.email ?? ""}
-                      disabled={pending || locked}
+                      disabled={pending || !!doors.edit}
                       placeholder="Required for sign-in"
                       style={{
                         padding: "3px 6px",
@@ -730,19 +784,53 @@ export function RegistrationClient({
                     />
                   </td>
                   <td className="text-muted" style={{ fontSize: 13 }}>{p.phone || "—"}</td>
-                  {showFlight && <td>{p.flight || "—"}</td>}
+                  {showFlight && (
+                    <td>
+                      {/* A LATE ENTRANT IN NO FLIGHT is offered one here (day-of field
+                          changes, PR A) — offered, not forced. Only an unplaced
+                          player: moving a placed one is the Flights board's act. */}
+                      {!p.flight && flights.length > 0 && !doors["place-in-flight"] ? (
+                        <select
+                          className="input"
+                          aria-label={`Flight for ${p.name}`}
+                          value=""
+                          disabled={pending}
+                          style={{ width: 130, padding: "3px 4px", fontSize: 13 }}
+                          onChange={(e) => e.target.value && place(p, e.target.value)}
+                        >
+                          <option value="">Choose a flight</option>
+                          {flights.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        p.flight || "—"
+                      )}
+                    </td>
+                  )}
                   <td style={{ textAlign: "right" }}>
                     {/* An unlabelled × at the end of a row of EDITABLE fields:
                         a thumb aiming at the phone cell lands on it. The bulk
                         Remove above already asks in a dialog, because it has a
                         sentence to say about withdrawals; this per-row one had
-                        nothing at all. */}
+                        nothing at all.
+
+                        UNDER WAY IT IS "WITHDRAW" (day-of field changes, PR A):
+                        open to an Assistant too, never a delete, and undone by
+                        Put back under Withdrawn. The note says so before the tap. */}
                     <ConfirmButton
                       icon="x"
-                      title={`Remove ${p.name} from the field`}
-                      confirmLabel="Remove"
-                      disabled={pending || locked}
-                      onConfirm={() => startTransition(() => void removeSignup(p.id))}
+                      title={underWay ? `Withdraw ${p.name}` : `Remove ${p.name} from the field`}
+                      confirmLabel={underWay ? "Withdraw" : "Remove"}
+                      note={
+                        underWay
+                          ? `Withdraw ${p.name}? They come off the tee sheet and the board. Their scores and side-game entries stay on the record. You can put them back.`
+                          : undefined
+                      }
+                      disabled={pending || !!doors.withdraw}
+                      onConfirm={() => withdraw(p)}
                     />
                   </td>
                 </tr>
@@ -805,7 +893,15 @@ export function RegistrationClient({
         )}
       </div>
 
-      <SetupLockBanner locked={locked} isAdmin={isAdmin} />
+      {/* UNDER WAY, THIS SCREEN SAYS WHAT IS STILL OPEN (day-of field changes,
+          PR A) in place of "Setup locked" — the banner's words come from the one
+          field rule, so it never promises an add the server refuses. */}
+      <SetupLockBanner locked={locked} isAdmin={isAdmin} underWay={underWay} />
+      {fieldSaid && (
+        <p role="status" className="card elev-sm" style={{ margin: "0 0 16px", fontSize: 14 }}>
+          <Icon name="info" /> {fieldSaid}
+        </p>
+      )}
 
       {gaps.lines.length > 0 && (
         <div
@@ -880,6 +976,7 @@ export function RegistrationClient({
         approveMode={approveMode}
         showApproval={showApproval}
         locked={locked}
+        canAdd={!doors.add}
         isAdmin={isAdmin}
         locale={event.locale}
       />
@@ -1144,7 +1241,7 @@ export function RegistrationClient({
 
       <div className="page-split" style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <RosterPicker candidates={roster} eventName={event.name} locked={locked} />
+        <RosterPicker candidates={roster} eventName={event.name} locked={!!doors.add} />
         <div className="card elev-sm" style={{ gap: 10 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Add someone new</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "-4px 0 0" }}>
@@ -1215,16 +1312,16 @@ export function RegistrationClient({
             </div>
           </div>
           <div className="field"><label htmlFor={`${fid}-club`}>Home club</label><input id={`${fid}-club`} className="input" value={homeClub} maxLength={PLACE_MAX} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
-          {/* Gated on the lock like every other control here and like the
-              roster picker above — `addSignup` refuses a locked tournament, and
-              this was the one button on the screen that still offered it. */}
-          <button type="button" className="btn btn-primary btn-block" disabled={pending || locked || !name.trim() || (needsEmail && !email.trim()) || (phoneRequired && !phone.trim())} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
-          {/* Said HERE, where the dead button is — the lock banner is a
-              screen and a half above a form somebody has just filled in. */}
-          {locked && (
+          {/* Gated on the field's add door like the roster picker above —
+              `addSignup` asks the same rule — and this was once the one button
+              on the screen that still offered a refused add. */}
+          <button type="button" className="btn btn-primary btn-block" disabled={pending || !!doors.add || !name.trim() || (needsEmail && !email.trim()) || (phoneRequired && !phone.trim())} onClick={submitAdd}><Icon name="plus" /> {underWay ? "Add late entry" : "Add to field"}</button>
+          {/* Said HERE, where the dead button is — the banner is a screen and a
+              half above a form somebody has just filled in. The rule's own words. */}
+          {doors.add && (
             <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              Setup is locked, so nobody can be added.{" "}
-              {isAdmin ? "Unlock setup at the top of this page first." : "Ask the Organizer to unlock setup."}
+              {doors.add}
+              {isAdmin ? "" : " Ask the Organizer to unlock setup."}
             </p>
           )}
           {addError && (
@@ -1238,16 +1335,21 @@ export function RegistrationClient({
               : "Auto-confirms while under capacity; overflow goes to the waitlist."}
           </p>
           <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
-            {/* Gated on the lock as the Add button above is: `importCsvSignups`
-                refuses a locked tournament too. */}
+            {/* Gated on the field's bulk door: `importCsvSignups` asks the same
+                rule, and a list is not a day-of act, so it stays shut after launch. */}
             <label
               className="btn btn-secondary btn-block"
-              aria-disabled={locked || undefined}
-              style={{ cursor: locked ? "not-allowed" : "pointer", justifyContent: "center", opacity: locked ? 0.5 : undefined }}
+              aria-disabled={!!doors.bulk || undefined}
+              style={{ cursor: doors.bulk ? "not-allowed" : "pointer", justifyContent: "center", opacity: doors.bulk ? 0.5 : undefined }}
             >
               <Icon name="upload-simple" /> Import CSV
-              <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} disabled={pending || locked} style={{ display: "none" }} />
+              <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} disabled={pending || !!doors.bulk} style={{ display: "none" }} />
             </label>
+            {doors.bulk && (
+              <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
+                {doors.bulk}
+              </p>
+            )}
             {/* Says what this tournament actually requires, rather than what
                 every tournament used to. Built as a list rather than a third
                 nested ternary: two independent switches (email, phone) make
@@ -1315,6 +1417,12 @@ export function RegistrationClient({
               <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 2px" }}>
                 Self-service entries waiting for you. Accepting one puts it in the field (or the waitlist if full).
               </p>
+              {/* Why Accept is dead, on the page (never a tooltip): the field rule's own words. */}
+              {doors.approve && (
+                <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                  <Icon name="lock-simple" /> {doors.approve}
+                </p>
+              )}
               <div className="table-scroll">
                 <table className="table" style={{ fontSize: 13 }}>
                   <thead>
@@ -1342,8 +1450,13 @@ export function RegistrationClient({
                             type="button"
                             className="btn btn-primary"
                             style={{ fontSize: 13, padding: "4px 10px", marginRight: 6 }}
-                            disabled={pending || locked}
-                            onClick={() => startTransition(() => void approveSignup(p.id))}
+                            disabled={pending || !!doors.approve}
+                            onClick={() =>
+                              startTransition(async () => {
+                                const res = await approveSignup(p.id);
+                                setRowError(res.ok ? "" : `${p.name}: ${res.error ?? "That did not save."}`);
+                              })
+                            }
                           >
                             <Icon name="check" /> Accept
                           </button>
@@ -1351,8 +1464,8 @@ export function RegistrationClient({
                             type="button"
                             className="btn btn-secondary"
                             style={{ fontSize: 13, padding: "4px 10px" }}
-                            disabled={pending || locked}
-                            onClick={() => startTransition(() => void removeSignup(p.id))}
+                            disabled={pending || !!doors.withdraw}
+                            onClick={() => withdraw(p)}
                           >
                             Decline
                           </button>

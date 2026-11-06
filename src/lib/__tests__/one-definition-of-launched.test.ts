@@ -120,16 +120,20 @@ describe("what locked means is written once", () => {
     const readers = [
       "src/lib/page-helpers.ts",
       "src/lib/services/action-shared.ts",
-      "src/app/actions/roster.ts",
-      "src/app/(app)/roster/page.tsx",
       // The state machine (PR 3): its locks ask the shared predicate…
       "src/lib/domain/tournament-status.ts",
+      // …and so does the one field rule (day-of field changes, PR A), which the roster
+      // action and the roster screen now ask instead of the predicate itself (below).
+      "src/lib/domain/field-change.ts",
     ];
     for (const file of readers) {
       expect(readSource(file), `${file} no longer asks the shared question`).toMatch(
         /configurationLocked\(|isSetupLocked\(/,
       );
     }
+    // The roster's two copies read the field rule: neither a copy nor a lost check.
+    expect(readSource("src/app/actions/roster.ts")).toMatch(/await fieldRefusal\(eventId, "add"\)/);
+    expect(readSource("src/app/(app)/roster/page.tsx")).toMatch(/await fieldRefusal\(session\.eventId, "add"\)/);
     // …and `LifecycleBar`, the fifth copy, reads the machine's lock rather than
     // asking it again: the card is handed `statusCardOf(facts).locked`, which is
     // `locks.details.locked`. Neither a copy nor a lost check.

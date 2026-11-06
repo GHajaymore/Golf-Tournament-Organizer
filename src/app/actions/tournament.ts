@@ -100,7 +100,9 @@ import { keeperGate, playersWhoEntered } from "@/lib/services/group-keeping";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
-import { drainWaitlist, fieldLimitFor } from "@/lib/services/waitlist";
+import { drainWaitlist, fieldLimitFor, promoteFromWaitlist } from "@/lib/services/waitlist";
+import { fieldFactsFor, fieldRefusal } from "@/lib/services/field-change";
+import { storedMatchIsOver } from "@/lib/domain/match";
 import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
 import { cloneSingleMatchRule, parseSingleMatchRule, singleMatchRuleRefusal } from "@/lib/domain/single-match";
@@ -182,7 +184,7 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, lockedRefusal, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
 import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
-import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
+import { configurationLocked, isFinished, isLaunched } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
@@ -502,6 +504,8 @@ export interface SignupInput {
 export interface SignupResult {
   ok: boolean;
   error?: string;
+  /** After launch: what is left to do for the new entry (a tee time, a flight). */
+  said?: string;
 }
 
 /**
@@ -519,6 +523,8 @@ async function casualRoundFull(event: { id: string; shape: string }, adding: num
 
 export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const eventId = await requireStaffEvent();
+  // A public endpoint: whatever arrives is checked here, not trusted to the form.
+  if (!input || typeof input !== "object") return { ok: false, error: "Enter a player name." };
   const clean = String(input.name ?? "").trim();
   const badName = nameRefusal(clean, PERSON_NAME_MAX, "Enter a player name.");
   if (badName) return { ok: false, error: badName };
@@ -540,10 +546,13 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
    * organizer filled it in, pressed Add, and got the whole-page "Application
    * error" (walked 2026-09-27). The form is gated now too; this is for any
    * client still out of step, who is a person and should be told something.
+   *
+   * THE ONE FIELD RULE now (day-of field changes, PR A): after launch a late
+   * entry is open in stroke play, Stableford and a league until play has
+   * begun, and refused in a drawn field — see `domain/field-change.ts`.
    */
-  if (configurationLocked(event)) {
-    return { ok: false, error: "Configuration is locked. Unlock the tournament to change the field." };
-  }
+  const refused = await fieldRefusal(eventId, "add");
+  if (refused) return { ok: false, error: refused };
   const casualFull = await casualRoundFull(event, 1);
   if (casualFull) return { ok: false, error: casualFull };
   /**
@@ -628,7 +637,9 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
       ok: false,
       error:
         duplicate.status === "withdrawn"
-          ? `${duplicate.name} is already entered ${how} but has withdrawn — re-enter them from the roster rather than adding a second entry.`
+          ? // "Re-enter them from the roster" sent the organizer to a picker that skips
+            // anybody already entered; Put back is the door (day-of field changes, PR A).
+            `${duplicate.name} is already entered ${how} but has withdrawn — press Put back beside their name under Withdrawn rather than adding a second entry.`
           : duplicate.status === "disqualified"
             ? // "Already in the field" is the one thing they are not, and a
               // second entry beside the ruling would quietly undo it.
@@ -681,7 +692,23 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // On the record ("Recent changes to the field"), whoever added them.
   await logAudit(eventId, "added", `${clean} was added to the field (${status}).`);
   await refresh();
-  return { ok: true };
+  return { ok: true, said: await lateEntryWords(eventId, event.status, clean, status) };
+}
+
+/**
+ * WHAT THE ORGANIZER IS TOLD AFTER A LATE ENTRY (day-of field changes, PR A):
+ * where the new name still has to go. Only once launched — before it, the tee
+ * sheet and the flights are still being made and the screen says so itself.
+ * A flight is offered, not forced (a late entrant in no flight plays for no
+ * flight prize, which the committee may intend).
+ */
+async function lateEntryWords(eventId: string, eventStatus: string, name: string, status: string): Promise<string | undefined> {
+  if (!isLaunched(eventStatus)) return undefined;
+  if (status === "waitlisted") return `${name} is on the waiting list: the field is full.`;
+  const flights = await prisma.group.count({ where: { eventId, isCarrier: false } });
+  const facts = flights > 0 ? await fieldFactsFor(eventId) : null;
+  const flighted = !!facts && (facts.family === "stroke" || facts.family === "stableford");
+  return `${name} is in the field. Put them in a group on the Tee sheet.${flighted ? ` ${name} is in no flight. Choose one in the Flight column.` : ""}`;
 }
 
 export interface SignupPatch {
@@ -695,7 +722,11 @@ export interface SignupPatch {
 /** Edit an existing player's details in place — e.g. correcting a handicap after import. */
 export async function updateSignup(playerId: string, patch: SignupPatch): Promise<SignupResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  // The one field rule: a player's details stay locked after launch (their
+  // index has its own door, `setPlayerIndex`). Returned, not thrown.
+  const refused = await fieldRefusal(eventId, "edit");
+  if (refused) return { ok: false, error: refused };
+  if (typeof playerId !== "string" || !patch || typeof patch !== "object") return { ok: false, error: "Player not found." };
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player || player.eventId !== eventId) return { ok: false, error: "Player not found." };
   const data: Record<string, string | number> = {};
@@ -840,15 +871,37 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
 // `hasPlayingHistory` — whether removing this person would DESTROY something —
 // lives in services/playing-history.ts, shared with the member's own
 // `withdrawMyEntry` so both doors keep a player with history the same way.
-export async function removeSignup(playerId: string): Promise<"deleted" | "withdrawn" | "missing"> {
+//
+// AFTER LAUNCH, A WITHDRAWAL IS NEVER A DELETE (day-of field changes, PR A).
+// On the morning of play nearly everybody drawn has no card yet, so "no
+// history, delete" made a drawn player who never teed off vanish, leaving only
+// an audit line — no WD, no DNS, nobody to put back. Once launched, a confirmed
+// player in a tournament is kept as `withdrawn`; before launch an entry with no
+// history is still deleted (a typo, a list cleared to re-import), and a casual
+// round keeps its own rule. Open to an Assistant as well as the Organizer, at
+// every stage before completed, in every family (`fieldChangeAllowed`); "Put
+// back" (`reinstateWithdrawn`) undoes a mistaken tap.
+//
+// RETURNED, NEVER THROWN: this threw "Configuration is locked" through
+// `assertUnlocked`, which a production build blanks into "Application error".
+export type RemoveResult =
+  | { ok: true; outcome: "deleted" | "withdrawn" | "missing"; said: string }
+  | { ok: false; error: string };
+
+export async function removeSignup(playerId: string): Promise<RemoveResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  if (typeof playerId !== "string" || !playerId) return { ok: false, error: "Choose a player." };
+  const refused = await fieldRefusal(eventId, "withdraw");
+  if (refused) return { ok: false, error: refused };
   const player = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!player || player.eventId !== eventId) return "missing";
+  if (!player || player.eventId !== eventId) return { ok: true, outcome: "missing", said: "" };
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, shape: true } });
+  const launched = !!event && isLaunched(event.status) && !isMatch(event.shape);
 
   const played = await hasPlayingHistory(eventId, playerId);
+  const keep = played || (launched && player.status === "confirmed");
 
-  if (played) {
+  if (keep) {
     await prisma.player.update({ where: { id: playerId }, data: { status: "withdrawn" } });
     await keepDefaultStakes(eventId, playerId);
   } else {
@@ -870,7 +923,9 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
         ? `${player.name} was taken off the waiting list.`
         : played
           ? `${player.name} was withdrawn from the field (their results are kept).`
-          : `${player.name} was removed from the field.`,
+          : keep
+            ? `${player.name} was withdrawn from the field.`
+            : `${player.name} was removed from the field.`,
   );
 
   /**
@@ -888,13 +943,66 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
    * than inline also means the limit is read from `playerCountMode` rather than
    * from `capacity`, which goes stale the moment an organizer sets a manual
    * field size.
+   *
+   * `promoteFromWaitlist` is that rule, answering WHO moved in, so the
+   * organizer is told the reserve has no tee time yet.
    */
-  if (player.status === "confirmed") {
-    await drainWaitlist(eventId);
-  }
+  const movedIn = player.status === "confirmed" ? await promoteFromWaitlist(eventId) : [];
 
   await refresh();
-  return played ? "withdrawn" : "deleted";
+  return {
+    ok: true,
+    outcome: keep ? "withdrawn" : "deleted",
+    said: await withdrawalWords(eventId, player, keep, launched, movedIn),
+  };
+}
+
+/**
+ * WHAT THE ORGANIZER IS TOLD AFTER TAKING SOMEBODY OUT (day-of field changes,
+ * PR A, words section 5.3). Their scores and side-game entries stay on the
+ * record and nothing moves money (Hard rule 7); a reserve who moved in has no
+ * tee time yet; in a drawn field the matches they will not play are recorded
+ * as walkovers by the committee, never awarded by the app.
+ */
+async function withdrawalWords(
+  eventId: string,
+  player: { id: string; name: string; status: string },
+  kept: boolean,
+  launched: boolean,
+  movedIn: string[],
+): Promise<string> {
+  const name = player.name;
+  if (player.status === "pending") return `${name}’s entry was declined.`;
+  if (player.status === "waitlisted") return `${name} is off the waiting list.`;
+  if (!kept) return movedIn.length ? `${name} is out. ${movedInWords(movedIn)} moved in from the waiting list.` : `${name} is out.`;
+  const parts = [`${name} is out.`];
+  if (movedIn.length) {
+    parts.push(`${movedInWords(movedIn)} moved in from the waiting list.`);
+    if (launched) parts.push(`${movedInWords(movedIn)} ${movedIn.length === 1 ? "has" : "have"} no tee time yet: put them in a group on the Tee sheet.`);
+  }
+  if (launched) {
+    const facts = await fieldFactsFor(eventId);
+    const family = facts?.family;
+    if (family === "knockout" || family === "flightedKnockout") {
+      parts.push("If their tie is still to play, record it as a walkover on the Bracket.");
+    } else if (family === "match" || family === "roundRobinFlights" || family === "league") {
+      const theirs = await prisma.match.findMany({
+        where: { eventId, OR: [{ playerAId: player.id }, { playerBId: player.id }] },
+        select: { holes: true, forfeitedBy: true },
+      });
+      const unplayed = theirs.filter((m) => !storedMatchIsOver(m)).length;
+      if (unplayed > 0) {
+        parts.push(`${unplayed} unplayed ${unplayed === 1 ? "match" : "matches"}: record ${unplayed === 1 ? "it" : "them"} as ${unplayed === 1 ? "a walkover" : "walkovers"} on Score entry.`);
+      }
+    }
+  }
+  parts.push("Their scores and side-game entries stay on the record. The app records who owes what; you settle outside it.");
+  return parts.join(" ");
+}
+
+/** "Pat", "Pat and Lee", "Pat, Lee and Kim". */
+function movedInWords(names: string[]): string {
+  return names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /**
@@ -905,14 +1013,69 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
  */
 export async function removeSignups(
   playerIds: string[],
-): Promise<{ deleted: number; withdrawn: number; missing: number }> {
+): Promise<{ deleted: number; withdrawn: number; missing: number; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
   const tally = { deleted: 0, withdrawn: 0, missing: 0 };
+  // Not a day-of act: after launch players are withdrawn one at a time (the one field rule).
+  const refused = await fieldRefusal(eventId, "bulk");
+  if (refused) return { ...tally, error: refused };
+  if (!Array.isArray(playerIds)) return { ...tally, error: "Choose the players to remove." };
   for (const id of playerIds) {
-    tally[await removeSignup(id)] += 1;
+    const res = await removeSignup(id);
+    tally[res.ok ? res.outcome : "missing"] += 1;
   }
   return tally;
+}
+
+/**
+ * PUT BACK — undo a withdrawal (day-of field changes, PR A).
+ *
+ * A mistaken tap on the morning is the case it is for: before this only a
+ * disqualification could be undone, and a withdrawn player could not even be
+ * re-entered (`addSignup` refuses them as a duplicate, rightly). Open whenever
+ * a withdrawal is — every family, every stage before completed, an Assistant
+ * as well as the Organizer — through the one field rule.
+ *
+ * Back into the field when there is room, and onto the waiting list when the
+ * place they left has been taken by a reserve in the meantime: nobody already
+ * told "you're in" is put out by an undo. Their seed is unchanged, so on the
+ * waiting list they are where they always queued. Their cards were never
+ * deleted, so whatever they had played is theirs again.
+ */
+export async function reinstateWithdrawn(playerId: string): Promise<{ ok: true; said: string } | { ok: false; error: string }> {
+  const eventId = await requireStaffEvent();
+  if (typeof playerId !== "string" || !playerId) return { ok: false, error: "Choose a player." };
+  const refused = await fieldRefusal(eventId, "reinstate");
+  if (refused) return { ok: false, error: refused };
+  // Looked up WITHIN this tournament, so an id from another one finds nothing.
+  const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
+  if (!player) return { ok: false, error: "That player isn't in this tournament." };
+  if (player.status !== "withdrawn") return { ok: false, error: `${player.name} hasn’t withdrawn.` };
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
+  if (!event) return { ok: false, error: "Event not found." };
+  const casualFull = await casualRoundFull(event, 1);
+  if (casualFull) return { ok: false, error: casualFull };
+
+  const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
+  const place = placementOnApproval(await fieldLimitFor(event), confirmedCount);
+  await prisma.player.update({ where: { id: player.id }, data: { status: place } });
+  // `removeSignup` took their sign-in away with the place; it comes back with it.
+  if (player.email.trim()) await syncPlayerAccount(eventId, player.name, player.email);
+  await logAudit(
+    eventId,
+    "put-back",
+    place === "confirmed"
+      ? `${player.name} was put back in the field.`
+      : `${player.name} was put back on the waiting list: the field is full.`,
+  );
+  await refresh();
+  return {
+    ok: true,
+    said:
+      place === "confirmed"
+        ? `${player.name} is back in the field.${isLaunched(event.status) ? " Check they still have a group on the Tee sheet." : ""}`
+        : `The field is full, so ${player.name} is back on the waiting list.`,
+  };
 }
 
 /* CSV parsing lives in src/lib/csv.ts, shared with the roster importer. The
@@ -933,16 +1096,12 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   const eventId = await requireStaffEvent();
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "Event not found." };
-  // A sentence, not a throw — the same reasoning and words as `addSignup`:
-  // the import sat beside the Add form, ungated, on a locked tournament.
-  if (configurationLocked(event)) {
-    return {
-      imported: 0,
-      skippedDuplicates: 0,
-      skippedInvalid: 0,
-      error: "Configuration is locked. Unlock the tournament to change the field.",
-    };
-  }
+  // A sentence, not a throw — the same reasoning as `addSignup`: the import sat
+  // beside the Add form, ungated, on a locked tournament. A list is not a
+  // day-of act, so after launch it stays locked (the one field rule, "bulk").
+  const refused = await fieldRefusal(eventId, "bulk");
+  if (refused) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: refused };
+  if (typeof csv !== "string") return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "The file is empty." };
 
   /**
    * Parsed with the shared reader, the same one the roster import uses.
@@ -1513,15 +1672,12 @@ export async function movePlayerToGroup(
   force = false,
 ): Promise<MovePlayerResult> {
   const eventId = await requireStaffEvent();
-  // Returned, not thrown: the board can be open in a tab while the tournament is launched in
-  // another, and a throw made the whole screen "This screen didn't load" (2026-10-21).
-  const locked = await lockedRefusal(eventId, "change the flights");
-  if (locked) return { ok: false, error: locked };
-  // A confirmed draw is moved by nobody until it is reopened — checked here, not only hidden on the
-  // board, because a server action is a public endpoint.
-  const confirmedDraw = await prisma.event.findUnique({ where: { id: eventId }, select: { flightsConfirmed: true } });
-  if (confirmedDraw?.flightsConfirmed) return { ok: false, error: "Draw confirmed. Reopen it to move anyone." };
+  if (typeof playerId !== "string" || typeof groupId !== "string") return { ok: false, error: "Player not found in this tournament." };
+  return intoFlight(eventId, playerId, groupId, force === true);
+}
 
+/** The move itself, once the caller is known to be staff. Not exported: two doors (this and `placeInFlight`), one body. */
+async function intoFlight(eventId: string, playerId: string, groupId: string, force: boolean): Promise<MovePlayerResult> {
   // Both ends scoped to the caller's tournament. Either one unscoped would let
   // an organizer of any event move a stranger's player into a stranger's
   // flight by posting two ids.
@@ -1538,6 +1694,17 @@ export async function movePlayerToGroup(
   if (!player) return { ok: false, error: "Player not found in this tournament." };
   if (!group) return { ok: false, error: "Flight not found in this tournament." };
   if (player.groupId === groupId) return { ok: true };
+  /**
+   * THE ONE FIELD RULE (day-of field changes, PR A) — in place of the setup
+   * lock (`lockedRefusal`) and the confirmed-draw check that were asked here
+   * in turn. Returned, not thrown: the board can be open in a tab while the
+   * tournament is launched in another, and a throw made the whole screen
+   * "This screen didn't load" (2026-10-21). A confirmed draw moves nobody
+   * until it is reopened; after launch a placed player stays where they are,
+   * and an unplaced one may be placed while the rule allows.
+   */
+  const refused = await fieldRefusal(eventId, player.groupId ? "move-flight" : "place-in-flight");
+  if (refused) return { ok: false, error: refused };
 
   const scored = await scoredMatchCount(eventId);
   if (scored > 0 && !force) {
@@ -1575,6 +1742,29 @@ export async function movePlayerToGroup(
   await repairPlayerPairings(eventId, playerId);
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/**
+ * PLACE AN UNPLACED PLAYER IN A FLIGHT — a late entrant, from Entries
+ * (day-of field changes, PR A). Only somebody in no flight: moving a placed
+ * player is the Flights board's act and stays locked after launch. After
+ * launch it is open in stroke play and Stableford until play has begun, and it
+ * moves nobody else (the one field rule, "place-in-flight", asked in `intoFlight`).
+ */
+export async function placeInFlight(playerId: string, groupId: string): Promise<MovePlayerResult> {
+  const eventId = await requireStaffEvent();
+  if (typeof playerId !== "string" || typeof groupId !== "string") return { ok: false, error: "Choose a player and a flight." };
+  const player = await prisma.player.findFirst({ where: { id: playerId, eventId }, select: { groupId: true, status: true, name: true } });
+  if (!player) return { ok: false, error: "Player not found in this tournament." };
+  if (player.status !== "confirmed") return { ok: false, error: `${player.name} isn’t in the field.` };
+  if (player.groupId) return { ok: false, error: `${player.name} is in a flight already. Moving a player between flights is done on Flights.` };
+  // A flight of THIS tournament, named for the record ("Flight 2", as the field table names it).
+  const flight = await prisma.group.findFirst({ where: { id: groupId, eventId, isCarrier: false }, select: { name: true } });
+  if (!flight) return { ok: false, error: "Flight not found in this tournament." };
+  const res = await intoFlight(eventId, playerId, groupId, false);
+  if (res.needsConfirm) return { ok: false, error: "Matches have been scored. Place them on Flights, where the move asks first." };
+  if (res.ok) await logAudit(eventId, "placed", `${player.name} was placed in ${flight.name.trim() || "a flight"}.`);
+  return res;
 }
 
 export async function regenGroups(
@@ -5967,7 +6157,10 @@ export async function setRegistrationApproval(mode: string): Promise<{ ok: boole
  */
 export async function approveSignup(playerId: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  if (typeof playerId !== "string" || !playerId) return { ok: false, error: "Entry not found." };
+  // A late entry by another door: the one field rule, returned (it threw "Configuration is locked").
+  const refused = await fieldRefusal(eventId, "approve");
+  if (refused) return { ok: false, error: refused };
   const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
   if (!player) return { ok: false, error: "Entry not found." };
   if (player.status !== "pending") return { ok: true };
