@@ -122,3 +122,18 @@ secrets and `ios-testflight.yml` seven; the repository holds NONE of them. (`gh 
 is no longer empty — it has held `VERCEL_TOKEN` since 2026-09-04 — so read the names rather
 than the count.) Both are `workflow_dispatch` only, so nothing goes red on a push, but "Run
 workflow" fails at signing. That is a missing certificate, not a broken file.
+
+**6 Nov: Ajay — before launch the freeze guards only pilot clubs.** "We can't waste time waiting
+this long. this kind of real tournament [freeze] we should do at the last when we have all other
+foundations and basic issues fixed." The same night: "let's turn off that freez until Nov 20th".
+So `deployWindowFor` (`src/lib/domain/deploy-window.ts`) answers in three periods. Until
+`FREEZE_RESUMES` (20 Nov 2026 00:00 in UTC+14, which is 19 Nov 10:00 UTC, so it is back before the
+20th begins anywhere): never frozen, "the freeze is off until 20 Nov 2026 (the owner's ruling of 6
+Nov)". From then while sign-ins are held (`launchState()`): frozen only while a pilot club (a real
+club where somebody on `SIGNIN_ALLOW_EMAILS`, and not on `OWNER_EMAILS`, is Commissioner, Admin,
+Organizer or helper) has a tournament on today, never on a weekend morning, and the reason begins
+"sign-ins are held: only pilot clubs count". Once live: the 2026-10-23 rule unchanged, the reason
+beginning "accounts are live: every club counts". Why: a held production signs in nobody but the
+owners and the allow-list, so before launch a deploy lands on test tournaments. The exceptions
+were the Florida pilot club (setting up from 20 Nov, playing 29–30 Nov) and the public boards of
+real events (the CDG/CVC cup is completed, and a completed tournament never freezes).

@@ -96,7 +96,10 @@ credentials.
 
 **The freeze** is a tournament on today, by the club's own clock (a round dated today, or a tournament
 of at most a week whose dates take in today), or **Saturday or Sunday 05:00-14:00 in any club's time zone**
-(`src/lib/domain/deploy-window.ts`). Demo clubs are left out. The app answers the question itself at
+(`src/lib/domain/deploy-window.ts`). Demo clubs are left out. **That is the rule once accounts are
+live (Ajay, 2026-11-06):** until 20 Nov 2026 (`FREEZE_RESUMES`) the freeze is off, and from then while
+sign-ins are held only a pilot club (somebody on `SIGNIN_ALLOW_EMAILS` is its staff) playing today
+freezes, never a weekend morning. The `reason` says which rule applied. The app answers the question itself at
 `/api/deploy-window`, returning only `{frozen, reason}`:
 
 ```bash

@@ -20,12 +20,29 @@
  * for the reason that file gives. A club that has not said where it is keeps
  * the server's day, as everywhere else in the app.
  *
+ * THAT IS THE RULE ONCE ACCOUNTS ARE LIVE. BEFORE LAUNCH IT GUARDS ONLY PILOT
+ * CLUBS (Ajay, 2026-11-06: "we can't waste time waiting this long. this kind of
+ * real tournament [freeze] we should do at the last when we have all other
+ * foundations and basic issues fixed"). While production holds sign-ins, no
+ * member can be signed in, so a deploy lands on nobody but the owners and the
+ * people let in by name on `SIGNIN_ALLOW_EMAILS` — a pilot club's organizer.
+ * So, held (`deployWindowFor`):
+ *   FROZEN only while a PILOT club — one at which somebody on the allow-list is
+ *     staff — has a tournament on today, by the same `onToday`;
+ *   NOT frozen on a weekend morning, and not for the owners' own clubs, the
+ *     demo club or any other club: their tournaments are test tournaments.
+ * Live, it is exactly the rule above. The launch state is asked of the one
+ * answer every held page asks (`launchState()`), never worked out again here.
+ * And until 20 November 2026 (`FREEZE_RESUMES`, Ajay's ruling the same night)
+ * the freeze is off altogether, held or live.
+ *
  * Pure: no clock of its own and no database. The service reads the rows, the
  * route `/api/deploy-window` answers the deploy job, and the deploy job never
  * touches the database — it may not hold production credentials.
  */
 import { clubToday, isTimeZone } from "./club-clock";
 import { fieldsAt } from "./date-words";
+import type { LaunchState } from "@/lib/go-live";
 
 /** The weekend morning, by the club's clock: from this hour, up to (not including) that one. */
 export const WEEKEND_MORNING = { from: 5, to: 14 } as const;
@@ -76,13 +93,7 @@ export function onToday(t: TournamentOnTheBooks, at: Date): boolean {
  */
 export function deployWindow(at: Date, zones: string[], tournaments: TournamentOnTheBooks[]): DeployWindow {
   const playing = tournaments.filter((t) => onToday(t, at));
-  if (playing.length) {
-    const where = [...new Set(playing.map((t) => t.timeZone || "the server's own zone"))].sort();
-    return {
-      frozen: true,
-      reason: `${playing.length} tournament${playing.length === 1 ? " is" : "s are"} being played today in the club's own time (${where.slice(0, 4).join(", ")}${where.length > 4 ? ` and ${where.length - 4} more` : ""})`,
-    };
-  }
+  if (playing.length) return { frozen: true, reason: beingPlayed(playing) };
   const distinct = [...new Set(zones.length ? zones : [""])];
   for (const zone of distinct.sort()) {
     const { weekday, hour, minute } = clockIn(zone, at);
@@ -94,4 +105,66 @@ export function deployWindow(at: Date, zones: string[], tournaments: TournamentO
     }
   }
   return { frozen: false, reason: `no tournament is on today at any club, and it is not a weekend morning in any of ${distinct.length} club time zone(s)` };
+}
+
+/** "2 tournaments are being played today in the club's own time (…zones…)" — counts and zones, never a name. */
+function beingPlayed(playing: TournamentOnTheBooks[]): string {
+  const where = [...new Set(playing.map((t) => t.timeZone || "the server's own zone"))].sort();
+  return `${playing.length} tournament${playing.length === 1 ? " is" : "s are"} being played today in the club's own time (${where.slice(0, 4).join(", ")}${where.length > 4 ? ` and ${where.length - 4} more` : ""})`;
+}
+
+/** A tournament and the club it is at. The id is used only to ask "is this a pilot club" — never said. */
+export interface ClubTournament extends TournamentOnTheBooks {
+  clubId: string;
+}
+
+/**
+ * THE FREEZE IS OFF UNTIL 20 NOVEMBER 2026 (Ajay, 2026-11-06: "let's turn off that freez until Nov
+ * 20th"). Before this instant no deploy waits, held or live: no event day, no weekend morning.
+ *
+ * The instant is 20 November 00:00 in the EARLIEST zone on Earth (UTC+14, Pacific/Kiritimati) —
+ * 19 November 10:00 UTC — so the freeze is back before 20 November has begun at any club anywhere.
+ * Midnight UTC would leave a club east of Greenwich (Auckland is UTC+13 then) the first hours of its
+ * 20th unguarded. It matters from that day: the Florida pilot club's organizer starts setting up on
+ * 20 November, and the outing is 29–30 November.
+ */
+export const FREEZE_RESUMES = new Date("2026-11-20T00:00:00+14:00");
+/** The answer before `FREEZE_RESUMES`. */
+export const FREEZE_OFF = "the freeze is off until 20 Nov 2026 (the owner's ruling of 6 Nov)";
+
+/** The first words of every answer before launch, so the deploy summary says which rule applied. */
+export const HELD_RULE = "sign-ins are held: only pilot clubs count";
+/** And after it. */
+export const LIVE_RULE = "accounts are live: every club counts";
+
+/**
+ * WHETHER A DEPLOY MAY GO NOW — the answer the deploy job is given, held or live.
+ *
+ * Before `FREEZE_RESUMES` nothing freezes, held or live. From then, `launch` decides:
+ * `launch` is `launchState()`, the one answer every held page asks; `pilotClubs` is the clubs at
+ * which somebody on `SIGNIN_ALLOW_EMAILS` (and not an owner) is staff. Live, `pilotClubs` is not
+ * read and the answer is `deployWindow`'s, unchanged but for the words saying which rule it was.
+ */
+export function deployWindowFor(
+  launch: LaunchState,
+  at: Date,
+  zones: string[],
+  tournaments: ClubTournament[],
+  pilotClubs: ReadonlySet<string>,
+): DeployWindow {
+  if (at.getTime() < FREEZE_RESUMES.getTime()) return { frozen: false, reason: FREEZE_OFF };
+  if (launch === "live") {
+    const live = deployWindow(at, zones, tournaments);
+    return { frozen: live.frozen, reason: `${LIVE_RULE} — ${live.reason}` };
+  }
+  const playing = tournaments.filter((t) => pilotClubs.has(t.clubId) && onToday(t, at));
+  if (playing.length) return { frozen: true, reason: `${HELD_RULE}, and ${beingPlayed(playing)} at a pilot club` };
+  const weekend = "weekend mornings are not frozen before launch";
+  if (!pilotClubs.size) {
+    return { frozen: false, reason: `${HELD_RULE}, and there is none (nobody on the sign-in allow-list is staff at a club); ${weekend}` };
+  }
+  return {
+    frozen: false,
+    reason: `${HELD_RULE}, and none is playing today (${pilotClubs.size} pilot club${pilotClubs.size === 1 ? "" : "s"}); ${weekend}`,
+  };
 }

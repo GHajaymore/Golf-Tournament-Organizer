@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/db";
-import { deployWindow, type DeployWindow } from "@/lib/domain/deploy-window";
+import { deployWindowFor, type DeployWindow } from "@/lib/domain/deploy-window";
 import { clubToday } from "@/lib/domain/club-clock";
+import { launchState } from "@/lib/services/signins-switch";
+import { signInAllowList } from "@/lib/sign-in-gate";
+import { isOwner } from "@/lib/owner";
 
 /**
- * The deploy window, read from the database: every club's zone, and the
- * tournaments that might be on today somewhere — a round dated within a day
- * either side of the server's, or dates that take that in. The rule itself is
- * `domain/deploy-window.ts`. READ-ONLY: two `findMany`s, no write.
+ * The deploy window, read from the database: whether accounts are live, every club's zone, the
+ * tournaments that might be on today somewhere — a round dated within a day either side of the
+ * server's, or dates that take that in — and, before launch, which clubs are pilot clubs. The rule
+ * itself is `domain/deploy-window.ts`. READ-ONLY: `findMany`s and the launch switch's row, no write.
  *
  * Statuses: only a completed tournament is over. The three setting-up statuses
  * read as one (G1), and every one not completed is counted.
@@ -15,9 +18,11 @@ export async function currentDeployWindow(at: Date = new Date()): Promise<Deploy
   // The UTC day either side: every club's own day falls inside it (no zone is more than 14 hours from UTC).
   const day = (offset: number) => clubToday("UTC", new Date(at.getTime() + offset * 24 * 60 * 60 * 1000));
   const days = [day(-1), day(0), day(1)];
+  // The one answer every held page asks; a switch row that cannot be read keeps the hold.
+  const launch = await launchState();
   // REAL CLUBS ONLY (2026-10-24). The demo club has a tournament "on today" every day of the year,
   // and a freeze that counted it would never lift: it is in neither query (docs/claude/demo-club.md).
-  const [clubs, events] = await Promise.all([
+  const [clubs, events, pilots] = await Promise.all([
     prisma.organization.findMany({ where: { isDemo: false }, select: { timeZone: true }, distinct: ["timeZone"] }),
     prisma.event.findMany({
       where: {
@@ -33,16 +38,54 @@ export async function currentDeployWindow(at: Date = new Date()): Promise<Deploy
         ],
       },
       select: {
+        organizationId: true,
         startOn: true,
         endOn: true,
         organization: { select: { timeZone: true } },
         stages: { where: { playedOn: { in: days } }, select: { playedOn: true } },
       },
     }),
+    launch === "held" ? pilotClubIds() : Promise.resolve(new Set<string>()),
   ]);
-  return deployWindow(
+  return deployWindowFor(
+    launch,
     at,
     clubs.map((c) => c.timeZone),
-    events.map((e) => ({ timeZone: e.organization.timeZone, startOn: e.startOn, endOn: e.endOn, playedOn: e.stages.map((s) => s.playedOn) })),
+    events.map((e) => ({
+      clubId: e.organizationId,
+      timeZone: e.organization.timeZone,
+      startOn: e.startOn,
+      endOn: e.endOn,
+      playedOn: e.stages.map((s) => s.playedOn),
+    })),
+    pilots,
   );
+}
+
+/**
+ * THE PILOT CLUBS (Ajay, 2026-11-06): every real club at which somebody let in by name
+ * (`SIGNIN_ALLOW_EMAILS`, through `signInAllowList` — never parsed again here) is STAFF. An owner on
+ * `OWNER_EMAILS` is taken off that list first: the owners' own clubs hold test tournaments, and an
+ * owner who also put their address on the allow-list must not freeze every deploy with them.
+ *
+ * Staff is the app's own reading of it, as the staff-seat count has it (`holdsSeat` in
+ * `services/limits.ts`): a Commissioner or Admin of the club (`OrganizationMember` owner | admin), or
+ * an Organizer or helper on one of its tournaments (`Account` admin | assistant). Ids only; the
+ * answer never names a club or a person.
+ */
+export async function pilotClubIds(): Promise<Set<string>> {
+  const people = signInAllowList().filter((email) => !isOwner(email));
+  if (!people.length) return new Set();
+  const byEmail = people.map((email) => ({ email: { equals: email, mode: "insensitive" as const } }));
+  const [members, accounts] = await Promise.all([
+    prisma.organizationMember.findMany({
+      where: { role: { in: ["owner", "admin"] }, organization: { isDemo: false }, user: { OR: byEmail } },
+      select: { organizationId: true },
+    }),
+    prisma.account.findMany({
+      where: { role: { in: ["admin", "assistant"] }, event: { organization: { isDemo: false } }, OR: byEmail },
+      select: { event: { select: { organizationId: true } } },
+    }),
+  ]);
+  return new Set([...members.map((m) => m.organizationId), ...accounts.map((a) => a.event.organizationId)]);
 }
