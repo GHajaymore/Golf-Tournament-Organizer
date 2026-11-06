@@ -240,7 +240,7 @@ export function TeamStandingsTable({
             : basis === "gross"
               ? "This round is decided on gross: the handicap column is shown for reference and takes no part in the order. "
               : ownBall
-                ? "Net takes each player's strokes off their own ball, from their own playing handicap, before the side's score is counted. "
+                ? "Net takes each player's own strokes off their own ball. "
                 : "Net is the side's gross minus the handicap strokes it receives. "}
           Sides that haven&apos;t returned a card yet are unranked rather than shown level with the
           field.

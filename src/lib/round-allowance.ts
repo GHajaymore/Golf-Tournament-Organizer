@@ -242,11 +242,11 @@ export function teamAllowanceWords(s: { format: string; type: string; handicapAl
   if (!needsTeams(s.format)) return null;
   const f = findFormat(s.format);
   const ownBall = f.ball !== "single";
-  const flatOf = ownBall ? "of each player's course handicap" : "of the side's combined course handicaps";
+  // SHORT ON PURPOSE: this is read on a player's phone, where no sentence may run to
+  // 12 words (`e2e/player-words.spec.ts`), so each is a figure and whose it is.
+  const flatOf = ownBall ? "of each player's handicap" : "of the side's combined handicaps";
   const splitWords = (w: number[]) =>
-    w.length === 2
-      ? `${w[0]}% of the lower course handicap and ${w[1]}% of the higher`
-      : `${w.join("% / ")}% of the players' course handicaps, lowest first`;
+    w.length === 2 ? `${w[0]}% lower, ${w[1]}% higher handicap` : `${w.join("% / ")}% of the players' handicaps, lowest first`;
 
   const committeeSplit = committeeSplitInForce(s.format, s.allowanceWeights, s.allowanceWeights.length);
   if (committeeSplit) return `${splitWords(committeeSplit)}, set by the committee`;
@@ -255,24 +255,23 @@ export function teamAllowanceWords(s: { format: string; type: string; handicapAl
   const declared = f.weightsBySideSize;
   if (s.handicapAllowance > 0) {
     const flat = `${s.handicapAllowance}% ${flatOf}`;
-    if (declared) return `${flat}, set by the committee in place of the Rules' split`;
-    if (s.handicapAllowance === recommended) return `${flat}, set by the committee (also the Rules' figure)`;
-    return `${flat}, set by the committee in place of the Rules' ${recommended}%`;
+    if (declared || s.handicapAllowance !== recommended) return `${flat}, set by the committee`;
+    return `${flat}: the committee's, same as the Rules`;
   }
   if (declared) {
     const sizes = Object.keys(declared).map(Number).sort((a, b) => a - b);
-    if (sizes.length === 1) return `${splitWords(declared[sizes[0]])}, the Rules' recommendation`;
-    const names = ["", "one", "two", "three", "four"];
-    const parts = sizes.map((n) => `${declared[n].join(" / ")} for ${names[n] ?? n}`);
-    return `Of the players' course handicaps, lowest first: ${parts.join(", ")}, the Rules' recommendation`;
+    if (sizes.length === 1) return `${splitWords(declared[sizes[0]])}, the Rules' figure`;
+    const names = ["", "One", "Two", "Three", "Four"];
+    const parts = sizes.map((n) => `${names[n] ?? n}: ${declared[n].join(" / ")}.`);
+    return `Lowest handicap first. ${parts.join(" ")} The Rules' figure.`;
   }
   // Best Ball plays 85% whatever the size of the side or the balls that count;
   // Appendix C gives 85% only for a pair at stroke play (90% in a match, 75% for
   // best 1 of 4, 100% for best 3 of 4 — J20, not done). Said truthfully.
-  if (f.name === "Best Ball") return `${recommended}% ${flatOf}, the app's default; the Rules' figure for a pair at stroke play`;
+  if (f.name === "Best Ball") return `${recommended}% ${flatOf}. The app's default; the Rules' for a pair at stroke play.`;
   return f.allowanceIsConvention
-    ? `${recommended}% ${flatOf}, club convention (the Rules give none)`
-    : `${recommended}% ${flatOf}, the Rules' recommendation`;
+    ? `${recommended}% ${flatOf}, club convention, not the Rules`
+    : `${recommended}% ${flatOf}, the Rules' figure`;
 }
 
 /** What an individual net round's card says about its allowance. */
