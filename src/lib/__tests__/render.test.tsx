@@ -644,10 +644,12 @@ describe("team screens", () => {
   it("says what the side's handicap number is", () => {
     // It rendered as a bare "14" beside the side's name with its meaning in a
     // `title` — an unlabelled number on a screen about handicaps, explained
-    // only to a mouse.
+    // only to a mouse. A SHARED-BALL side (J23): on a four-ball nobody plays
+    // off the side's figure, so that round says each partner's own instead —
+    // pinned in four-ball-plays-off.test.tsx.
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
-        format={format}
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Foursomes" }]} activeRoundId="r1"
+        format={{ ...format, name: "Foursomes", sharesOneCard: true }}
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
         problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
