@@ -124,6 +124,7 @@ import { SideBetStart } from "@/components/SideBetStart";
 import { RoundMoney } from "@/components/RoundMoney";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import type { HoleResult } from "@/lib/domain/types";
+import { OPEN_DOORS } from "./field-doors";
 
 /**
  * React reports missing keys, invalid nesting and bad props by writing to
@@ -2308,7 +2309,7 @@ describe("roster CSV import", () => {
 
   it("offers both ways of adding someone", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("Add member");
@@ -2323,7 +2324,7 @@ describe("roster CSV import", () => {
     // right edge. The one sentence a new club needs was the one being cut in
     // half. No rows, no table.
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("No members yet.");
@@ -2334,7 +2335,7 @@ describe("roster CSV import", () => {
 
   it("renders a populated roster", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null}
         fieldSize={2} unlinkedCount={0}
         members={[row(), row({ id: "m2", name: "Rob Ferris", status: "inactive" })]} />,
     );
@@ -6476,7 +6477,7 @@ describe("the roster and the tournament in front of it", () => {
   const roster = async (members: RosterRow[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6526,7 +6527,7 @@ describe("members", () => {
   const roster = async (members: ReturnType<typeof member>[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6800,7 +6801,7 @@ describe("registration and field", () => {
   const reg = async (over: Record<string, unknown> = {}) => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     return render(
-      <RegistrationClient
+      <RegistrationClient doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
           name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
@@ -6815,48 +6816,76 @@ describe("registration and field", () => {
   it("keeps every control on the registration screen", async () => {
     const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
     for (const control of [
-      "Confirmed", "Waitlisted", "Registration closes", "Status",
-      "Public sign-up link", "Take the link down", "When someone registers",
+      "Confirmed", "Waitlisted", "Entry terms", "Entries open", "Entries close", "Places",
+      "Public sign-up link", "When someone enters",
       "Auto-confirm to capacity", "Approve each entry", "Require a mobile number",
       "Invite players", "Message", "Add someone new", "Player name",
-      "Close registration",
+      "Close entries",
     ]) {
       expect(html, `missing control: ${control}`).toContain(control);
     }
   });
 
-  it("does not give two different switches the same name", async () => {
-    // The banner's "Close registration" is registrationOverride — whether this
-    // tournament takes entries at all. The card's switch is registrationOpen —
-    // whether the public link exists. They are not opposites, and both used to
-    // say "registration": the card was titled "Open registration" and its
-    // button read "Open registration" / "Close sign-ups", inches under a button
-    // reading "Close registration".
-    /**
-     * Rendered with the link PUBLISHED, because that is now the state in which
-     * these two switches are on screen together.
-     *
-     * The self-service panels sit behind a disclosure that opens itself when a
-     * public link exists and stays shut when none does — so with
-     * `registrationOpen: false` the card's switch is one click away and cannot
-     * be confused with the banner's, and with it true both are visible at once,
-     * which is exactly the case this test was written for. Asserting the open
-     * state is therefore asserting the collision that could actually happen.
-     */
-    const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
-    expect(html).toContain("Take the link down");
-    expect(html).not.toContain(">Open registration<");
+  it("has ONE switch for whether entries are open, and it is named for what it does", async () => {
+    // Five controls used to answer this: the banner's "Close registration" /
+    // "Reopen registration" / "Follow the deadline again" (the organizer's
+    // override) and the link panel's "Publish the link" / "Take the link down".
+    // Two switches, one word, and they were not opposites. There is now one
+    // state line and one button, worded by `entriesOpen`.
+    const live = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(live).toContain("Close entries");
+    expect(live).not.toContain(">Open entries<");
+    for (const gone of ["Take the link down", "Publish the link", "Close registration", "Reopen registration", "Follow the deadline again", "Keep taking entries"]) {
+      expect(live, gone).not.toContain(gone);
+    }
 
-    // And with no link, the disclosure carries the state in its own summary
-    // rather than hiding it — an organizer must be able to tell whether people
-    // can sign themselves up without opening anything.
+    // And with no link: the same one button, the other way round — and the
+    // state is said in words, not left to a chip.
     const shut = await reg({ registrationOpen: false });
+    expect(shut).toContain("Open entries");
+    expect(shut).not.toContain("Close entries");
+    expect(shut).toContain("Not open");
     expect(shut).toContain("Let players sign themselves up");
     expect(shut).toContain("No public link yet");
-    // The word this test exists to police. The collapsed header must not
-    // become a third control that says "registration" and means a fourth
-    // thing.
-    expect(shut).not.toContain(">Open registration<");
+    for (const gone of ["Take the link down", "Publish the link", "Close registration", "Reopen registration"]) {
+      expect(shut, gone).not.toContain(gone);
+    }
+  });
+
+  it("says Reopen entries when the dates or the organizer have shut the door", async () => {
+    const closedByHand = await reg({ registrationOpen: true, registrationToken: "zztok", registrationOverride: true });
+    expect(closedByHand).toContain("Reopen entries");
+    const pastDeadline = await reg({ registrationOpen: true, registrationToken: "zztok", regDeadline: "2026-05-01" });
+    expect(pastDeadline).toContain("Reopen entries");
+    const notYet = await reg({ registrationOpen: true, registrationToken: "zztok", regOpens: "2026-06-10" });
+    expect(notYet).toContain("Open entries now");
+  });
+
+  it("tells staff who are not admins why the entry terms are read-only, instead of letting the server refuse", async () => {
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    const html = render(
+      <RegistrationClient doors={OPEN_DOORS}
+        confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin={false} roster={[]}
+        event={{
+          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          registrationOverride: null, inviteMessage: "", organizationName: "zz-Club",
+          dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+          requirePhone: false, registrationToken: "",
+        }} />,
+    );
+    expect(html).toContain("Only an organizer can change the entry terms. You can still open and close entries.");
+    expect(html).toContain("Open entries");
+    // CONTROL: an admin is not told it.
+    expect(html, "the dates can be typed into").toMatch(/<input[^>]*type="date"[^>]*disabled/);
+    const asAdmin = await reg();
+    expect(asAdmin).not.toContain("Only an organizer can change the entry terms");
+    expect(asAdmin).not.toMatch(/<input[^>]*type="date"[^>]*disabled/);
+  });
+
+  it("shows no way back to Tournament details for the entry terms", async () => {
+    const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(html).not.toContain("change on Tournament details");
+    expect(html).not.toContain("set it on Tournament details");
   });
 
   it("keeps the sign-up link and its invites behind one disclosure", async () => {
@@ -6873,7 +6902,7 @@ describe("registration and field", () => {
     expect(shut).not.toContain("Invite players");
     // The refusal that lives inside it goes with it — it is advice about a
     // panel that is not on screen.
-    expect(shut).not.toContain("Publish the sign-up link first");
+    expect(shut).not.toContain("Open entries first");
 
     const open = await reg({ registrationOpen: true, registrationToken: "zztok" });
     expect(open).toContain("Invite players");
@@ -6896,7 +6925,7 @@ describe("registration and field", () => {
   it("does not tell an organizer that closing is cosmetic", async () => {
     // "closing only changes what this says" was false. registrationStatus
     // returning acceptingEntries:false makes decideIntake refuse the entry.
-    const html = await reg({ registrationOverride: true });
+    const html = await reg({ registrationOverride: true, registrationOpen: true, registrationToken: "zztok" });
     expect(html).not.toContain("only changes what this says");
     // The specific sentence, not just the words "sign-up link" — those also
     // appear in the invite card's refusal, which would pass this vacuously.
@@ -6986,7 +7015,6 @@ describe("tournament details", () => {
       "Tournament identity", "Tournament name", "Tournament dates",
       "How the tournament is decided", "Overall result", "Match play", "Stroke play",
       "Venue", "Golf course", "City", "Address",
-      "Registration", "Registration deadline", "Field capacity",
       "Where the field size comes from", "Player count", "From registrations",
       "Target player count", "Apply",
       // The save button reads "Saved" until something is dirty, which on a
@@ -7100,19 +7128,37 @@ describe("tournament details", () => {
     // of this card wore the same name, and the Recommended flow card below it
     // told organizers to go to "Entries" — meaning the screen.
     const html = await setup();
-    // Once, in the Recommended flow list, where it means the screen.
-    // As a NAME (a whole text node), not the "Entries open" date label.
-    expect(html.match(/>Entries</g)?.length ?? 0).toBe(1);
+    // In the Recommended flow list and in the line that says where the entry
+    // terms went, where it means the screen. Never as a SECTION heading.
+    expect(html.match(/>Entries</g)?.length ?? 0).toBe(2);
+    expect(html).not.toMatch(/card-kicker[^>]*>Entries</);
+    expect(html).not.toMatch(/card-kicker[^>]*>Registration</);
   });
 
   it("separates the field-resizing tool from the registration rules", async () => {
     // The deadline and the capacity decide whether the public form takes an
     // entry. "Player count" → Manual → Apply waitlists confirmed players,
     // invents placeholder rows and deletes scored matches. One heading held
-    // all three.
+    // all three; now the first two are not on this screen at all.
     const html = await setup({ playerCountMode: "manual" });
-    expect(html.indexOf("Field capacity")).toBeLessThan(html.indexOf("Where the field size comes from"));
+    expect(html.indexOf("are set on")).toBeLessThan(html.indexOf("Where the field size comes from"));
     expect(html.indexOf("Where the field size comes from")).toBeLessThan(html.indexOf("Player count"));
+  });
+
+  it("keeps the entry terms off Tournament details: they are set on Entries", async () => {
+    /**
+     * The entries cleanup (5 Nov, setup audit items 1 and 2). When entries
+     * open and close and how many places there are were set here while
+     * approval and the sign-up link were on Entries; Entries showed the
+     * deadline read-only and sent the organizer back to this page.
+     */
+    const html = await setup({ capacity: 32, regDeadline: "2026-06-14", regOpens: "2026-06-01" });
+    for (const gone of ["Registration deadline", "Field capacity", "Entries open", "reg-opens", "capmode"]) {
+      expect(html, gone).not.toContain(gone);
+    }
+    expect(html).toContain("are set on");
+    expect(html).toContain('href="/registration"');
+    // CONTROL: the Entries screen has them (see "registration and field").
   });
 
   it("names real screens in the recommended flow", async () => {

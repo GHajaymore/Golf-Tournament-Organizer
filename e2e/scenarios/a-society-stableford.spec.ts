@@ -160,11 +160,10 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
 
     await test.step("the secretary publishes the sign-up link", async () => {
       await open(page, "/registration");
-      await page.getByRole("button", { name: /Let players sign themselves up/ }).click();
-      const publish = page.getByRole("button", { name: /Publish the link/ });
+      const publish = page.getByRole("button", { name: /^Open entries/ });
       if (await publish.count()) {
         await publish.click();
-        await expect(page.getByRole("button", { name: /Take the link down/ })).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
       }
       await read(page, "/registration", "registration-link", 2500);
     });

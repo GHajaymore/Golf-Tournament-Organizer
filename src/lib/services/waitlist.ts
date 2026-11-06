@@ -89,11 +89,20 @@ export async function fieldLimitFor(event: FieldLimitColumns & { organizationId:
  * Returns how many were promoted, so a caller can say so.
  */
 export async function drainWaitlist(eventId: string): Promise<number> {
+  return (await promoteFromWaitlist(eventId)).length;
+}
+
+/**
+ * The same promotion, answering WHO moved in, in queue order — so the organizer
+ * who withdrew somebody on the morning is told the reserve has no tee time yet
+ * (day-of field changes, PR A). `drainWaitlist` is this, counted: one rule.
+ */
+export async function promoteFromWaitlist(eventId: string): Promise<string[]> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { capacity: true, playerCountMode: true, manualPlayerCount: true, organizationId: true },
   });
-  if (!event) return 0;
+  if (!event) return [];
 
   /**
    * AND NEVER PAST THE PLAN'S FIELD CAP. This is where waiting players become
@@ -108,7 +117,7 @@ export async function drainWaitlist(eventId: string): Promise<number> {
   const confirmed = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   // An open field takes everyone waiting; a limited one takes what fits.
   const room = limit === null ? Number.MAX_SAFE_INTEGER : limit - confirmed;
-  if (room <= 0) return 0;
+  if (room <= 0) return [];
 
   /**
    * In seed order, which is the order they signed up.
@@ -123,7 +132,7 @@ export async function drainWaitlist(eventId: string): Promise<number> {
     take: room === Number.MAX_SAFE_INTEGER ? undefined : room,
     select: { id: true, email: true, name: true },
   });
-  if (waiting.length === 0) return 0;
+  if (waiting.length === 0) return [];
 
   await prisma.player.updateMany({
     where: { id: { in: waiting.map((p) => p.id) } },
@@ -156,5 +165,5 @@ export async function drainWaitlist(eventId: string): Promise<number> {
     "promoted",
   );
 
-  return waiting.length;
+  return waiting.map((p) => p.name);
 }

@@ -366,8 +366,6 @@
    "renameGroup",
    "setFlightsConfirmed",
    "setMatchTiebreakers",
-   "setRegistrationOverride",
-   "setRegistrationOpen",
    "setRegistrationApproval",
    "approveSignup",
    "setStageCutScope",
@@ -394,10 +392,14 @@
  },
  "newSince": {
   "app/actions/tournament.ts:setStageScoring": "e2e/stages-scoring-setup.spec.ts",
+  "app/actions/tournament.ts:setEntriesOpen": "e2e/entry-terms.spec.ts",
+  "app/actions/tournament.ts:saveEntryTerms": "e2e/entry-terms.spec.ts",
   "app/actions/play.ts:keepGroup": "e2e/scoring-by-group-phones.spec.ts",
   "app/actions/play.ts:handOverGroup": "e2e/scoring-by-group-phones.spec.ts",
   "app/actions/play.ts:confirmPlayMatch": "e2e/scoring-by-group-phones.spec.ts",
   "app/actions/play.ts:disputePlayMatch": "e2e/scoring-by-group-phones.spec.ts",
-  "app/actions/play.ts:disputePlayCard": "e2e/scoring-by-group-phones.spec.ts"
+  "app/actions/play.ts:disputePlayCard": "e2e/scoring-by-group-phones.spec.ts",
+  "app/actions/tournament.ts:reinstateWithdrawn": "e2e/day-of-field-changes.spec.ts",
+  "app/actions/tournament.ts:placeInFlight": "e2e/day-of-field-changes.spec.ts"
  }
 }

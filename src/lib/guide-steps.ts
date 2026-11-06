@@ -183,7 +183,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "**Tournament name** and **Tournament dates** are required to launch; the name cannot be one another of your tournaments in play is using. Tick **These dates are tentative** if they may move; dates have their own [[Save dates]].",
           "**Overall result** — Match play or Stroke play — decides how season standings are worked out, not each round's format. It is asked once the tournament has a round; until then your first round decides it (a medal or Stableford round makes it stroke play), and a choice you make after that stays.",
           "**Golf course**: pick a course, **Other (enter manually)**, or **No fixed course — players choose**.",
-          "Registration: **Entries open**, **Registration deadline** and **Field capacity** (a fixed number, or open). The deadline day itself is open, until midnight at the club. Press [[Save event]].",
+          "Press [[Save event]]. When entries open and close, and how many places there are, are not set here: they are on **Entries**, with the switch that opens them.",
         ],
       },
       { kind: "h", text: "Players & scoring" },
@@ -311,7 +311,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "h", text: "What locks after launch" },
-      { kind: "p", text: "Structure locks: format, holes, course, scoring basis, cuts, tiebreakers, deleting rounds and editing the field. An {organizer} can [[Unlock setup]] to correct something. Running the event stays open: changing a round's date, marking a round over, handicap adjustments, adding a round, drawing the next round and deadlines." },
+      { kind: "p", text: "Structure locks: format, holes, course, scoring basis, cuts, tiebreakers, deleting rounds, moving a player between flights, players' details and importing a list. An {organizer} can [[Unlock setup]] to correct something. Running the event stays open: changing a round's date, marking a round over, handicap adjustments, adding a round, drawing the next round and deadlines." },
+      { kind: "p", text: "The day's changes to the field stay open too, for an {organizer} or an assistant, without unlocking anything: [[Withdraw]] a player, [[Put back]] one withdrawn by mistake, and — in stroke play, Stableford and a league — add a late entry until the first card of the round is in (after that, a walk-in needs an {organizer} to unlock the tournament: Unlock it on the dashboard). In match play, a round robin, a knockout or a team cup the draw is the field, so nobody can be added once it is launched; a withdrawal there leaves their matches to be recorded as walkovers." },
     ],
   },
   {
@@ -321,6 +322,15 @@ export const GUIDE_STEPS: GuideSection[] = [
     blocks: [
       { kind: "where", text: "Set up → Entries" },
       { kind: "p", text: "Waiting to see how many sign up before choosing the format? Take entries first — the entry form says “Format to be confirmed” until you add a round, and Rounds & formats shows how many have entered when you come back to choose." },
+      { kind: "h", text: "Open entries" },
+      {
+        kind: "steps",
+        items: [
+          "At the top of Entries, one card says whether entries are **Not open**, **Open** or **Closed** (and, before the opening day, when they open), and has one button. Set **Entries open**, **Entries close** and **Places** (a fixed number, or open) first, and press [[Save entry terms]]. The closing day itself is open, until midnight at the club. After launch the entry terms are read-only; to take entries past the closing day, use [[Reopen entries]].",
+          "Press [[Open entries]] when you are ready to send the notice: it publishes the sign-up link. [[Close entries]] stops sign-ups, and [[Reopen entries]] takes them again, past the closing day if you want. They control the public sign-up only — staff can always add players by hand.",
+          "Choose **When someone enters**: **Auto-confirm to capacity** or **Approve each entry**.",
+        ],
+      },
       { kind: "h", text: "Add players yourself" },
       {
         kind: "steps",
@@ -334,9 +344,9 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Open **Let players sign themselves up** and press [[Publish the link]].",
+          "Once entries are open, **Let players sign themselves up** shows the sign-up link, with [[Copy link]].",
           "For the noticeboard or the pro shop, [[Show QR code]] draws a poster — the tournament, its date and course, and a QR code to the sign-up link — and [[Print poster]] prints it on a page of its own. [[New link]] makes printed posters stop working, so print them again after one.",
-          "Choose **When someone registers**: **Auto-confirm to capacity** or **Approve each entry**. Tick **Require a mobile number** if you want one.",
+          "Tick **Require a mobile number** if you want one.",
           "Share it from **Invite players**: edit the message, then [[WhatsApp]], [[SMS]], [[Share…]], [[Copy message]] or [[Copy link]].",
           "Under **Pending approval**, press [[Accept]] or [[Decline]]. Beyond capacity, entries go to the **Waitlist** and are promoted automatically when a place frees up.",
         ],
@@ -344,8 +354,22 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
-          "[[Close registration]], [[Reopen registration]] and [[Follow the deadline again]] control the public sign-up only — staff can always add players by hand.",
           "Remove someone with × (or select several and [[Delete N selected]]). A player who has already played is withdrawn instead, and their results are kept.",
+        ],
+      },
+      { kind: "h", text: "On the day: withdrawals and late entries" },
+      { kind: "where", text: "Set up → Entries, once the tournament is launched" },
+      {
+        kind: "steps",
+        items: [
+          "The banner reads **Under way** and says what is still open. An assistant can do all of this as well as the {organizer}; nothing needs unlocking.",
+          "To take somebody out, press × on their row, then [[Withdraw]]. They come off the tee sheet and the board; their scores and side-game entries stay on the record. After launch nobody is deleted: they move to **Withdrawn**.",
+          "If somebody is waiting, the first on the **Waitlist** moves into the place by themselves and the screen names them. They have no tee time yet: put them in a group on the Tee sheet.",
+          "Withdrawn by mistake? Press [[Put back]] beside their name under **Withdrawn**. If the place has been filled in the meantime, they go back on the Waitlist, where they first queued. If a walkover has already been recorded against them, Put back leaves it as it is: whether the match is replayed is the committee's ruling, made on Score entry or the Bracket.",
+          "To take a late entry in a stroke play or Stableford competition, use **Add someone new** ([[Add late entry]]) or the roster picker. The screen then reminds you to put them in a group on the Tee sheet, and, where the field is flighted, offers **Choose a flight** in their row — even when the draw is confirmed, because placing a late entrant moves nobody else.",
+          "Late entries close when the FIRST CARD of the round is in, even if later groups have not teed off. A walk-in after that needs an {organizer} to unlock the tournament: Unlock it on the dashboard (an assistant cannot).",
+          "In match play, a round robin, a knockout or a team cup the draw is the field: Add is refused once launched. A withdrawal there leaves their matches to be recorded as walkovers (Score entry, or the Bracket for a knockout); the app does not award them by itself.",
+          "Still locked after launch: importing a list, removing several at once, a player's name, email and 9- or 18-hole index, and moving a player who is already in a flight. Those need an {organizer} to unlock the tournament: Unlock it on the dashboard, or [[Unlock setup]] on this screen's banner. Before launch, a confirmed draw is changed the same way it always was: Reopen the draw on Flights.",
         ],
       },
     ],
@@ -694,7 +718,9 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "faq",
         items: [
           { q: "A button is greyed out", a: "The reason is written next to it — an empty field, locked setup, a missing course. Fix that and the button wakes up." },
-          { q: "“Configuration is locked”", a: "The tournament has launched. An {organizer} can Unlock setup on the banner to change structure; running the day doesn't need it." },
+          { q: "“Configuration is locked”", a: "The tournament has launched. An {organizer} can Unlock setup on the banner to change structure; running the day doesn't need it — withdrawing a player, putting one back and (in stroke play, Stableford and a league, before the first card) a late entry stay open on Entries." },
+          { q: "I withdrew the wrong player", a: "Entries → Withdrawn → Put back. They return to the field, or to the Waitlist if their place has been filled since. Their cards were never deleted. A walkover already recorded against them stays until the committee changes it." },
+          { q: "A walk-in arrived after the first card", a: "Late entries close when the first card of the round is in. An {organizer} can unlock the tournament to add them: Unlock it on the dashboard. An assistant cannot unlock." },
           { q: "“This round cannot be scored as set”", a: "The format and round type don't match: match play needs a head-to-head round, stroke formats need a stroke play round." },
           { q: "A player can't find their card", a: "Check they're Confirmed (not Pending or Waitlist), the round is published, and — with a round code — that it hasn't been reissued." },
           { q: "No money is showing", a: "Result money appears only once the round is final. Approve the remaining cards or mark the round over." },

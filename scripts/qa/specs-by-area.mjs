@@ -151,13 +151,18 @@ export const AREAS = {
       "src/app/(app)/registration/",
       "src/app/register/",
       "src/components/RegistrationClient.tsx",
+      "src/components/EntryTermsCard.tsx",
       "src/components/RegisterClient.tsx",
       "src/components/DisqualifyPanel.tsx",
+      "src/components/WithdrawnList.tsx",
       "src/app/actions/register.ts",
       "src/app/actions/disqualify.ts",
     ],
     specs: [
+      // Day-of field changes (PR A): withdraw, put back, a late entry and its flight, after launch.
+      "e2e/day-of-field-changes.spec.ts",
       "e2e/entry-needs-approval.spec.ts",
+      "e2e/entry-terms.spec.ts",
       "e2e/disqualified-and-reinstated.spec.ts",
       "e2e/organizer-requires-a-phone.spec.ts",
       "e2e/enter-from-the-club-list.spec.ts",

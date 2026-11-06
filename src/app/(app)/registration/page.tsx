@@ -15,12 +15,16 @@ import { handicapBodyForEvent } from "@/lib/services/integrations";
 import { bodyInProse, bodyShortLabel } from "@/lib/domain/handicap-body";
 import { phoneRequiredFor } from "@/lib/plans";
 import { fieldLimitFor } from "@/lib/services/waitlist";
+import { fieldCapFor } from "@/lib/services/limits";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor } from "@/lib/services/tournament-status";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { awaitingApproval } from "@/lib/registration";
+import { fieldFactsFor } from "@/lib/services/field-change";
+import { FIELD_CHANGES, fieldBanner, fieldDoors } from "@/lib/domain/field-change";
+import { WithdrawnList } from "@/components/WithdrawnList";
 
 export const metadata = screenMetadata("/registration");
 
@@ -29,6 +33,17 @@ export default async function RegistrationPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
+  /**
+   * THE FIELD'S DOORS — the one field rule (day-of field changes, PR A), from
+   * the same facts the actions ask (`fieldFactsFor` → `fieldChangeAllowed`), so
+   * no control is offered that its action refuses. Null facts (no tournament)
+   * is redirected above; a missing read refuses everything rather than nothing.
+   */
+  const fieldFacts = await fieldFactsFor(session.eventId);
+  const doors = fieldFacts
+    ? fieldDoors(fieldFacts)
+    : (Object.fromEntries(FIELD_CHANGES.map((c) => [c, "This tournament could not be read."])) as ReturnType<typeof fieldDoors>);
+  const underWay = fieldFacts ? fieldBanner(fieldFacts) : null;
   // Where this screen sits in setting the tournament up. Null for a match.
   const flow = await setupRailFor(session.eventId);
   const brand = await brandForEvent(session.eventId);
@@ -45,7 +60,8 @@ export default async function RegistrationPage() {
 
   const eventTees = await teesForEvent(state.event.id);
   const roundTee = roundTeeId(eventTees, state.event.defaultTeeId);
-  // Kept rows only — a withdrawal with no history is deleted, not kept.
+  // Kept rows only — before launch a withdrawal with no history is deleted, not
+  // kept; after launch a confirmed player is always kept (day-of field changes).
   const withdrawn = state.players.filter((p) => p.status === "withdrawn").map((p) => ({ id: p.id, name: p.name }));
 
   /**
@@ -122,6 +138,9 @@ export default async function RegistrationPage() {
         // the stored number — so "Confirmed 10 of 10 · Full" here matches what
         // an eleventh entrant is actually told (walked 2026-09-30).
         capacity: await fieldLimitFor(state.event),
+        // The terms form edits what the organizer set, not what the plan lets in.
+        storedCapacity: state.event.capacity,
+        planLimit: await fieldCapFor(state.event.organizationId),
         status: state.event.status,
         regDeadline: state.event.regDeadline,
         regOpens: state.event.regOpens,
@@ -144,6 +163,9 @@ export default async function RegistrationPage() {
       waitlist={state.waitlist.map(asRow)}
       pendingEntries={awaitingApproval(state.players).map(asRow)}
       locked={locked}
+      doors={doors}
+      underWay={underWay}
+      flights={state.groups.map((g, i) => ({ id: g.id, label: flightLabel(g.name, i) }))}
       isAdmin={session.viewRole === "admin"}
       roster={roster}
     />
@@ -164,25 +186,9 @@ export default async function RegistrationPage() {
           already played keeps them as withdrawn — "their results are kept" —
           and then they were on no list on this page: not the field, not the
           waitlist, nowhere. A disqualification has its own line above; a
-          withdrawal had none. Their scores and any money still stand. */}
-      {withdrawn.length > 0 && (
-        <section
-          aria-label="Withdrawn"
-          className="card elev-sm"
-          style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}
-        >
-          <span className="card-title">Withdrawn ({withdrawn.length})</span>
-          <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
-            Out of the field. Their scores and any money they owe or are owed stay on the record; they show as WD
-            at the foot of the board.
-          </p>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
-            {withdrawn.map((p) => (
-              <li key={p.id}>{p.name}</li>
-            ))}
-          </ul>
-        </section>
-      )}
+          withdrawal had none. Their scores and any money still stand.
+          And since day-of field changes (PR A), each has Put back. */}
+      <WithdrawnList withdrawn={withdrawn} door={doors.reinstate} />
       {/* WHO CAME AND WENT — the field's lines from the audit log (Ajay,
           2026-09-27). A member who withdraws themselves took the confirmed
           count from 19 to 18 with nothing here saying who or when. */}

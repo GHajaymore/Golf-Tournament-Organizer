@@ -41,7 +41,7 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 import { createSession, setActiveEvent, getSession } from "@/lib/auth";
-import { cloneEvent, setRegistrationOpen } from "@/app/actions/tournament";
+import { cloneEvent, setEntriesOpen } from "@/app/actions/tournament";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS, CLONED_CONTEST_FIELDS, CLONED_SIDE_GAME_FIELDS, CLONED_SKINS_POT_FIELDS } from "@/lib/services/clone";
 import { secretaryHomeFor } from "@/lib/services/whats-next";
 import { clubToday } from "@/lib/domain/club-clock";
@@ -369,7 +369,7 @@ describe("the copy, held to the source row", () => {
 
   it("opened for entries, its sign-up link is a NEW address", async () => {
     // cloneEvent opened the copy; publishing the link mints its token.
-    const res = await setRegistrationOpen(true);
+    const res = await setEntriesOpen(true);
     expect(res.ok).toBe(true);
     const copy = await prisma.event.findUniqueOrThrow({ where: { id: ids.copy } });
     const source = await prisma.event.findUniqueOrThrow({ where: { id: ids.source } });

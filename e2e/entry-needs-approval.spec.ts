@@ -13,7 +13,7 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
  * Some tournaments take anybody who puts their name down; an invitational
  * takes who the committee says. There, pressing Enter is an ASK, and what the
  * member is told in the days between asking and hearing is the whole of the
- * experience. `approveSignup` and `setRegistrationOverride` were performed by
+ * experience. `approveSignup` and the close/reopen switch (`setEntriesOpen`, once `setRegistrationOverride`) were performed by
  * no browser test (round 1 on the frozen app, 2026-10-13); declining was, in
  * passing, and never read from the member's side.
  *
@@ -181,13 +181,13 @@ test("an entry the committee must accept is asked, accepted and declined, and th
 
     // ── shut, and opened ────────────────────────────────────────────────────
     await entries();
-    await desk.getByRole("button", { name: "Close registration" }).click();
+    await desk.getByRole("button", { name: "Close entries" }).click();
     await expect.poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { registrationOverride: true } })).registrationOverride, { timeout: 20_000, message: "closing registration was not stored" }).toBe(true);
     d = await card(theirs);
     await expect(d.getByRole("button", { name: /^Enter this tournament|^Join the waiting list/ }), "a closed tournament still offers a way in").toHaveCount(0);
     await expect(d, "a member is not told the organizer closed it").toContainText(/Closed by the/i);
     await entries();
-    await desk.getByRole("button", { name: "Reopen registration" }).click();
+    await desk.getByRole("button", { name: "Reopen entries" }).click();
     await expect.poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { registrationOverride: true } })).registrationOverride, { timeout: 20_000, message: "reopening registration was not stored" }).toBeNull();
     d = await card(theirs);
     await expect(d.getByRole("button", { name: /^Enter this tournament/ }), "a reopened tournament does not offer Enter").toBeVisible();

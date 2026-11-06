@@ -79,7 +79,7 @@ const screen = (props: Record<string, unknown>) =>
   renderToStaticMarkup(
     <OrgProfileProvider kind="club">
       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <RosterClient clubName="Heathland" eventName="" fieldLocked={false} fieldSize={0} unlinkedCount={0} {...(props as any)} />
+      <RosterClient clubName="Heathland" eventName="" fieldLocked={null} fieldSize={0} unlinkedCount={0} {...(props as any)} />
     </OrgProfileProvider>,
   )
     .replace(/<!--[^>]*-->/g, "")

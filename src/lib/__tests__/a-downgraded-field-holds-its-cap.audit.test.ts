@@ -180,6 +180,7 @@ describe("a Par field moved up a tier", () => {
     // Created open; saved and copied as the organizer set it.
     expect(src).toMatch(/capacity: 0,\s*status: "draft"/);
     expect(src).not.toMatch(/capacityUnderCap\(/);
-    expect(src).toMatch(/capacity: data\.capacity <= 0 \? 0 : Math\.max\(1, Math\.round\(data\.capacity\)\)/);
+    // Since the entries cleanup the number is saved from Entries (`saveEntryTerms`), as set.
+    expect(src).toMatch(/capacity: asked <= 0 \? 0 : Math\.max\(1, Math\.round\(asked\)\)/);
   });
 });

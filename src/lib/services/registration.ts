@@ -2,7 +2,7 @@ import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
 import { brandForEvent, type EventBrand } from "./organization";
-import { registrationStatus } from "../registration";
+import { entriesOpen } from "../registration";
 import { clubDay } from "../domain/club-clock";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
 import { fieldLimitFor } from "./waitlist";
@@ -159,7 +159,8 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
    * waitlist (walked 2026-09-30).
    */
   const capacity = await fieldLimitFor(event);
-  const status = registrationStatus({
+  const entries = entriesOpen({
+    registrationOpen: event.registrationOpen,
     eventStatus: event.status,
     deadline: event.regDeadline,
     opens: event.regOpens,
@@ -168,7 +169,8 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     override: event.registrationOverride,
     now: clubDay(event.organization?.timeZone),
   });
-  if (!status.acceptingEntries) return null;
+  if (!entries.open) return null;
+  const status = entries.status;
 
   const brand = await brandForEvent(event.id);
   const unlimited = capacity <= 0;

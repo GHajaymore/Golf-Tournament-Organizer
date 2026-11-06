@@ -176,11 +176,10 @@ test("what's next opens the right tournament on the right screen, and copy last 
     let link = "";
     await test.step("published, the copy's sign-up link is a new address", async () => {
       await open(page, "/registration");
-      await page.getByRole("button", { name: /Let players sign themselves up/ }).click();
-      const publish = page.getByRole("button", { name: "Publish the link" });
+      const publish = page.getByRole("button", { name: /^Open entries/ });
       await centre(publish);
       await publish.click();
-      await expect(page.getByRole("button", { name: "Take the link down" })).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
       link = await page.locator("input").evaluateAll((els) => (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "");
       expect(link, "no sign-up link is shown").toMatch(/\/register\//);
       const token = new URL(link).pathname.split("/").pop();

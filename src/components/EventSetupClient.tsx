@@ -4,7 +4,6 @@ import { useId, useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
 import { PLAY_KINDS, playNoun, resultHeading } from "@/lib/domain/play-kind";
-import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
@@ -229,11 +228,6 @@ export function EventSetupClient({
    */
   const [startDate, setStartDate] = useState(initial.startOn);
   const [endDate, setEndDate] = useState(initial.endOn);
-  // The deadline is the exception: it is stored as the ISO date it is, so the
-  // picker can be filled from it and — the reason any of this matters —
-  // deadlinePassed can read it. Legacy free text parses to "" and leaves the
-  // picker empty, exactly as before.
-  const [deadlineDate, setDeadlineDate] = useState(() => parseDeadlineIso(initial.regDeadline));
 
   const onStartDate = (v: string) => {
     setStartDate(v);
@@ -247,17 +241,6 @@ export function EventSetupClient({
     if (!startDate) setStartDate(v);
     setF((prev) => ({ ...prev, startOn: start, endOn: v, dates: v ? formatDayRange(start, v, locale) : prev.dates }));
   };
-  const onDeadlineDate = (v: string) => {
-    setDeadlineDate(v);
-    // Stored as ISO, NOT as the display string. Running the picker's value
-    // through fmtDate here is the whole of D1: `deadlinePassed` requires ISO
-    // and returns false for anything else, so every deadline set on this
-    // screen was decorative — the public form stayed open indefinitely while
-    // printing the date it was ignoring. The screen formats for display below;
-    // the column keeps the date.
-    if (v) set("regDeadline", v);
-  };
-
   /**
    * One choice writes both fields.
    *
@@ -730,68 +713,16 @@ export function EventSetupClient({
           <div className="field"><label htmlFor={`${fid}-address`}>Address</label><input id={`${fid}-address`} className="input" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state zip" /></div>
         </div>
 
-        {/* Was one heading, "Entries", over three unrelated
-            things — and it collided by name with the SCREEN called Registration
-            & field at /registration, which the "Recommended flow" card on this
-            very page then told organizers to go to. Two different things
-            wearing one name is how somebody ends up on the wrong one.
-
-            What actually sat under it: the deadline and the capacity, which
-            together decide whether the public form takes an entry
-            (`registrationState` reads exactly those two) — and then a control
-            called "Player count" whose Apply button waitlists confirmed
-            players, invents placeholder rows named "Player N", DELETES SCORED
-            MATCHES and rebuilds the schedule. That is not a registration
-            setting; it is a tool that rewrites the field. Filed under its own
-            heading below. */}
-        <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Registration</span>
-        <div className="pair-grid">
-          {/* Members see both dates on their list of the club's tournaments,
-              and entries are refused before this one — see
-              `registrationStatus`. Empty means "as soon as self sign-up is on",
-              which is how every tournament behaved before it existed. */}
-          <div className="field">
-            <label htmlFor="reg-opens">Entries open</label>
-            <input
-              id="reg-opens"
-              className="input"
-              type="date"
-              value={parseDeadlineIso(f.regOpens)}
-              max={parseDeadlineIso(f.regDeadline) || undefined}
-              onChange={(e) => set("regOpens", e.target.value)}
-            />
-            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-              {f.regOpens ? formatDeadline(f.regOpens, locale) : "Leave empty to open as soon as sign-up is on"}
-            </p>
-          </div>
-          <div className="field">
-            <label htmlFor={`${fid}-deadline`}>Registration deadline</label>
-            <input id={`${fid}-deadline`} className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />
-            {f.regDeadline && (
-              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-                {formatDeadline(f.regDeadline, locale)}
-              </p>
-            )}
-          </div>
-          <div className="field">
-            <label>Field capacity</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <div className="seg">
-                <label className="seg-opt"><input type="radio" name="capmode" checked={f.capacity > 0} onChange={() => set("capacity", f.capacity > 0 ? f.capacity : 32)} />Fixed</label>
-                <label className="seg-opt"><input type="radio" name="capmode" checked={f.capacity <= 0} onChange={() => set("capacity", 0)} />Open</label>
-              </div>
-              {f.capacity > 0 && (
-                <input aria-label="Field capacity (players)" className="input" type="number" value={f.capacity} max={fieldCap ?? undefined} onChange={(e) => set("capacity", figureOr(readWhole(e.target.value), 0))} style={{ width: 90 }} />
-              )}
-            </div>
-            {fieldCap !== null && (
-              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-                Your plan holds up to {fieldCap} players, so an open field or anything larger takes {fieldCap} while
-                you are on it.
-              </p>
-            )}
-          </div>
-        </div>
+        {/* THE ENTRY TERMS LIVE ON ENTRIES (the entries cleanup, 2026-11-05).
+            When entries open and close, how many places, and approval were set
+            here while the sign-up link was on Entries, which showed the deadline
+            read-only and sent the organizer back to this page. A tournament
+            office decides them together, so they are one card on Entries; this
+            page keeps the event's facts and says where the rest went. */}
+        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
+          When entries open and close, how many places there are, and whether you approve each one are set on{" "}
+          <a href="/registration">Entries</a>.
+        </p>
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Where the field size comes from</span>
         <div className="field">
           <label>Player count</label>
@@ -907,7 +838,7 @@ export function EventSetupClient({
                   // The calendar dates with their label — see `saveEvent`.
                   startOn: sent.startOn, endOn: sent.endOn,
                   format: sent.format, course: sent.course, courseId: sent.courseId, city: sent.city,
-                  address: sent.address, regDeadline: sent.regDeadline, regOpens: sent.regOpens, capacity: sent.capacity, playerCountMode: sent.playerCountMode,
+                  address: sent.address, playerCountMode: sent.playerCountMode,
                   courseMode: sent.courseMode,
                 });
                 if (!result.ok) {

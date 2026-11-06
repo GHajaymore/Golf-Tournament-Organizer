@@ -243,7 +243,7 @@ describe("the organizer can always reach the switch", () => {
     return src.slice(start, next === -1 ? undefined : next);
   };
 
-  for (const name of ["setRegistrationOpen", "setRegistrationOverride"]) {
+  for (const name of ["setEntriesOpen"]) {
     it(`${name} is staff-gated but not lock-gated`, () => {
       expect(fn(name).length, `${name} not found`).toBeGreaterThan(100);
       expect(fn(name)).toMatch(/requireStaffEvent\(\)/);
@@ -257,10 +257,11 @@ describe("the deadline the picker writes is the deadline the rule reads", () => 
   // functions cannot see a screen that formats before it stores, so this reads
   // the screen.
   it("stores the picker's ISO value, not a display string", () => {
-    const src = readSource("src/components/EventSetupClient.tsx");
-    const onDeadline = src.slice(src.indexOf("const onDeadlineDate"), src.indexOf("const onSelectCourse"));
-    expect(onDeadline).toMatch(/set\("regDeadline", v\)/);
-    expect(onDeadline, "fmtDate here is the whole defect").not.toMatch(/set\("regDeadline", fmtDate/);
+    // Now written from Entries: the picker's value goes to `saveEntryTerms` as it is.
+    const src = readSource("src/components/EntryTermsCard.tsx");
+    expect(src).toMatch(/onChange=\{\(e\) => setCloses\(e\.target\.value\)\}/);
+    expect(src).toMatch(/saveEntryTerms\(\{ regOpens: opens, regDeadline: closes/);
+    expect(src, "fmtDate here is the whole defect").not.toMatch(/setCloses\(fmtDate/);
   });
 });
 
