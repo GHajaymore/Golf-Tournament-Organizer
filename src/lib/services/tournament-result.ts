@@ -2,6 +2,7 @@ import { hasLeftTheField } from "../domain/left-the-field";
 import "server-only";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
+import { sideNamesOf } from "./side-names";
 import type { EventState } from "./tournament";
 import { parseStrokeCards, playingStages } from "./tournament";
 import { tournamentResult, type OutingLine, type RoundOutcome } from "../domain/tournament-result";
@@ -66,8 +67,9 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
    * (`matchCardFor`): by the team's own name, which for a pair is the pair's
    * names ("Third & Fourth").
    */
-  const teamNameOf = new Map(
-    (await prisma.team.findMany({ where: { eventId: state.event.id }, select: { id: true, name: true } })).map((t) => [t.id, t.name]),
+  const teamNameOf = await sideNamesOf(
+    state.event.id,
+    state.matches.flatMap((m) => [m.teamAId, m.teamBId]),
   );
   const sideOf = (m: { playerAId: string | null; playerBId: string | null; teamAId: string; teamBId: string }, side: "A" | "B") => {
     const playerId = (side === "A" ? m.playerAId : m.playerBId) ?? "";
