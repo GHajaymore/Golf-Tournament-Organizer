@@ -2,6 +2,7 @@ import { test, expect, type Page, type Browser, type TestInfo } from "./coverage
 import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession } from "./organizer-fixture.mjs";
+import { pressRadio } from "./press-radio";
 
 /**
  * A PLAYER REPORTS THEIR OWN KNOCKOUT TIE, AND THE COMMITTEE APPROVES IT.
@@ -107,7 +108,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
       await open(dune, "/me");
       await expect(dune.getByText("Semi-final v Alder Quayle")).toBeVisible({ timeout: 20_000 });
       await dune.getByRole("button", { name: "Report the result" }).click();
-      await dune.getByRole("radio", { name: "I won" }).check();
+      await pressRadio(dune.getByRole("radio", { name: "I won" }));
       await dune.getByLabel("By how much (optional)").fill("2&1");
       await dune.getByRole("button", { name: /^Send to the organi[sz]er/ }).click();
       await expect(dune.getByText(/You won 2&1 — you reported it\. Waiting for the organi[sz]er to approve it\./)).toBeVisible({ timeout: 20_000 });

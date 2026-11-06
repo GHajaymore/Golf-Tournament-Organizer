@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { keepCardOf } from "./keep-on-play";
+import { pressRadio } from "./press-radio";
 
 /**
  * THE ORGANIZER CHOOSES HOW PLAYERS KEEP A ROUND'S MATCHES (Ajay, 2026-10-19:
@@ -199,7 +200,7 @@ test("the organizer chooses stroke cards, and each player keeps their own ball w
     const { card } = await roundCard(page, ids.cards);
     await expect(card.getByText("How players keep their matches", { exact: false }).first()).toBeVisible();
     await expect(card.getByRole("radio", { name: "Tap who won each hole" })).toBeChecked();
-    await card.getByRole("radio", { name: "Stroke cards" }).check();
+    await pressRadio(card.getByRole("radio", { name: "Stroke cards" }));
     await expect
       .poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: ids.cards }, select: { matchKeptBy: true } })).matchKeptBy, {
         timeout: 15_000,

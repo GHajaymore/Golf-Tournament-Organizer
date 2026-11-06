@@ -3,6 +3,7 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { pressRadio } from "./press-radio";
 
 /**
  * A MATCH RESULT, FROM BEING TYPED TO BEING CLEARED, AS THE COMMITTEE HANDLES
@@ -149,7 +150,7 @@ test("the committee types a result, has it disputed, confirms it, reopens it and
     await openEntry(page);
     await page.getByRole("button", { name: /Enter it a different way/ }).click();
     await page.getByRole("button", { name: /Final result only/ }).click();
-    await page.getByRole("radio", { name: "Zz Ailsa" }).check();
+    await pressRadio(page.getByRole("radio", { name: "Zz Ailsa" }));
     await expect(page.getByRole("button", { name: /Apply result/ })).toBeDisabled();
     expect((await row()).played, "a refused result stored holes").toBe(0);
   });

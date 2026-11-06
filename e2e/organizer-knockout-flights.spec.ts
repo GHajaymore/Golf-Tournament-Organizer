@@ -2,6 +2,7 @@ import { test, expect, type Page, type Browser, type TestInfo } from "./coverage
 import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession } from "./organizer-fixture.mjs";
+import { pressRadio } from "./press-radio";
 
 /**
  * A CLUB MATCH PLAY IN FLIGHTS, RUN FROM NOTHING BY A NEW ORGANIZER.
@@ -156,7 +157,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
 
   await test.step("divided by handicap into the organizer's own sizes", async () => {
     await open(page, "/bracket?view=draw");
-    await page.getByRole("radio", { name: "Your own sizes" }).check();
+    await pressRadio(page.getByRole("radio", { name: "Your own sizes" }));
     const own = page.getByLabel("Players in each flight, top flight first, separated by commas");
     // Sizes that do not hold the field are answered before the button is.
     await own.fill("4, 3, 2");

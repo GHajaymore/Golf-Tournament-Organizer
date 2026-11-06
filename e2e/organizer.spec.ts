@@ -2,6 +2,7 @@ import { test, expect } from "./coverage";
 import { openSettingsTab } from "./settings-tabs";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pressRadio } from "./press-radio";
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
 
@@ -295,7 +296,7 @@ test("the settings save follows you once there is something to save", async ({ p
 
   // Change the first thing in the block, which is the furthest from the save.
   const blind = scoring.getByRole("radio", { name: /organizers only/i }).first();
-  await blind.check();
+  await pressRadio(blind);
 
   await expect(page.getByText("Unsaved changes to players & scoring")).toBeVisible();
   await expect(save.locator("xpath=..")).toHaveCSS("position", "sticky");
