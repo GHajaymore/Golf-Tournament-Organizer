@@ -347,11 +347,11 @@ describe("late entries close at Round 1's last published tee time, by the club's
   it("the refusal names the round and the time, and who can unlock", () => {
     const v = fieldChangeAllowed(facts("stroke", "liveWithResult", WHEN[3]), "add");
     expect(v.ok ? "" : v.says).toBe(
-      "Round 1’s last tee time, 10:40 AM, has passed, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.",
+      "Late entries are closed. Round 1’s last tee time (10:40 AM) has passed. To add someone, an Organizer can unlock it on the dashboard.",
     );
     const p = fieldChangeAllowed(facts("stroke", "live", WHEN[5]), "place-in-flight");
     expect(p.ok ? "" : p.says).toBe(
-      "Round 1’s last tee time, 10:40 AM, has passed, so the flights are fixed. To place a player, an Organizer can unlock the tournament on the dashboard.",
+      "Flights are fixed. Round 1’s last tee time (10:40 AM) has passed. To place someone, an Organizer can unlock it on the dashboard.",
     );
   });
 
@@ -392,7 +392,7 @@ describe("late entries close at Round 1's last published tee time, by the club's
     ]);
     const after = fieldBanner(facts("stroke", "liveWithResult", WHEN[4])) ?? [];
     expect(after[0]).toBe("You can withdraw a player or put one back.");
-    expect(after[1]).toMatch(/^Round 1’s last tee time, 10:40 AM, has passed/);
+    expect(after[1]).toMatch(/^Late entries are closed\. Round 1’s last tee time \(10:40 AM\) has passed\./);
     expect(after.join(" ")).not.toMatch(/Late entries close at/);
   });
 

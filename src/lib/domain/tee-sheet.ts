@@ -310,6 +310,58 @@ export interface GroupWithRoom {
   half?: "A" | "B";
   /** Players in it who are still in the field. */
   players: number;
+  /** Its starting time has come at the club (`markTeedOff`): the group is out on the course. */
+  teedOff?: boolean;
+}
+
+/**
+ * WHICH GROUPS ARE ALREADY OUT (panel review of #1029, must-fix 1). A group
+ * whose starting time has come on the round's day, by the club's wall clock,
+ * has teed off (Rule 5.3a); on a later day every group has. They stay
+ * selectable — whether a late arrival may join a group on the course is the
+ * Committee's call, not the app's — but are marked and listed LAST, so the
+ * groups still to go come first. `roundDay` "" (no day) marks nobody.
+ */
+export function markTeedOff(groups: readonly GroupWithRoom[], roundDay: string, now: { day: string; minutes: number }): GroupWithRoom[] {
+  const out = (g: GroupWithRoom) => {
+    if (!roundDay) return false;
+    if (now.day !== roundDay) return now.day > roundDay;
+    const at = minutesOfTeeTime(g.time);
+    return at !== null && now.minutes >= at;
+  };
+  const marked = groups.map((g) => ({ ...g, teedOff: out(g) }));
+  return [...marked.filter((g) => !g.teedOff), ...marked.filter((g) => g.teedOff)];
+}
+
+/**
+ * WHAT A WITHDRAWAL LEAVES OF A GROUP, in the club's golf words: "Group 3 goes
+ * out as a twosome. Leave it, or put someone in on the Tee sheet." Null when
+ * the group is still four strong. `round` is "" on a one-round tournament.
+ */
+export function shortGroupLine(
+  round: string,
+  short: { name: string; left: number },
+  terms: { groupOfTwo: string; groupOfThree: string },
+): string | null {
+  if (short.left >= GROUP_MOST) return null;
+  const how =
+    short.left === 3
+      ? `goes out as a ${terms.groupOfThree}`
+      : short.left === 2
+        ? `goes out as a ${terms.groupOfTwo}`
+        : short.left === 1
+          ? "goes out with one player"
+          : "has nobody left in it";
+  return `${round ? `${round}, ${short.name}` : short.name} ${how}. Leave it, or put someone in on the Tee sheet.`;
+}
+
+/** Said after the drift banner when the sheet leaves players with no tee time, pointing at "Put in a group". */
+export const DRIFT_PLACE_LINE = "Players with no tee time can go in a group below.";
+
+/** The one caution under a chosen group that is already out: two short sentences. */
+export function teedOffCaution(g: Pick<GroupWithRoom, "name" | "time">): string {
+  const when = g.time ? ` at ${g.time}` : "";
+  return `${g.name} teed off${when}. The Committee decides if a late arrival may join.`;
 }
 
 /**

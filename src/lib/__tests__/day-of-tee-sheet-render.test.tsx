@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { groupsWithRoom, type TeeSheet } from "@/lib/domain/tee-sheet";
+import { groupsWithRoom, markTeedOff, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { fieldBanner } from "@/lib/domain/field-change";
 import { exportStatus } from "@/lib/domain/csv-export";
 import { liveDoors, NO_SHEET } from "./field-doors";
@@ -36,10 +36,17 @@ const sheet: TeeSheet = {
 };
 const field = new Set(["a", "b", "c", "d", "e", "f", "g", "h", "i", "late"]);
 
-async function placer(door: string | null) {
+/** 8:05 on the round's day at the club: Group 3 (8:00) is out, Group 2 (8:10) is still to go. */
+const MORNING = { day: "2026-11-29", minutes: 8 * 60 + 5 };
+async function placer(door: string | null, now = MORNING) {
   const { PlaceInGroup } = await import("@/components/PlaceInGroup");
   return renderToStaticMarkup(
-    <PlaceInGroup stageId="s1" undrawn={[{ id: "late", name: "zz-Isolde Ravensworth" }]} groups={groupsWithRoom(sheet, field)} door={door} />,
+    <PlaceInGroup
+      stageId="s1"
+      undrawn={[{ id: "late", name: "zz-Isolde Ravensworth" }]}
+      groups={markTeedOff(groupsWithRoom(sheet, field), "2026-11-29", now)}
+      door={door}
+    />,
   );
 }
 const tagOf = (html: string, marker: string, tag: string) => {
@@ -55,18 +62,32 @@ describe("the tee sheet's Put in a group", () => {
     expect(html).toContain("Not in a group yet (1)");
     expect(html).toContain('aria-label="Group for zz-Isolde Ravensworth"');
     expect(html).toContain("Group 2 · 8:10 AM · hole 1 · 2 players");
-    expect(html).toContain("Group 3 · 8:00 AM · hole 10 · 3 players");
     // Group 1 is full: not offered.
     expect(html).not.toContain("Group 1 ·");
-    const button = tagOf(html, "Put in group", "button");
-    expect(button).not.toMatch(/\sdisabled=""/);
   });
 
-  it("once completed, the button is shut and the rule's sentence is beside it", async () => {
+  it("a group already out is still offered, marked teed off, and listed after the groups still to go", async () => {
+    const html = await placer(null);
+    expect(html).toContain("Group 3 · 8:00 AM · hole 10 · 3 players · teed off");
+    expect(html).not.toContain("Group 2 · 8:10 AM · hole 1 · 2 players · teed off");
+    expect(html.indexOf("Group 2 ·"), "the group still to go comes first").toBeLessThan(html.indexOf("Group 3 ·"));
+    // The day before, nobody is out.
+    expect(await placer(null, { day: "2026-11-28", minutes: 23 * 60 })).not.toContain("teed off");
+  });
+
+  it("nothing is chosen for the desk: the select opens on Choose a group and the button waits", async () => {
+    const html = await placer(null);
+    expect(html).toMatch(/<option value="" selected="">Choose a group<\/option>/);
+    expect(tagOf(html, "Put in group", "button")).toMatch(/\sdisabled=""/);
+  });
+
+  it("once completed, there is no press to make: no choice, no button, the rule's sentence instead", async () => {
     const says = "The tournament is completed, so its field is as it finished. An Organizer can reopen it on the dashboard.";
     const html = await placer(says);
-    expect(tagOf(html, "Put in group", "button")).toMatch(/\sdisabled=""/);
+    expect(html).not.toContain("Put in group");
+    expect(html).not.toContain("<select");
     expect(html).toContain(says);
+    expect(html).toContain("zz-Isolde Ravensworth");
   });
 
   it("with every group full, it says to re-draw", async () => {
@@ -116,6 +137,6 @@ describe("the Entries banner says when late entries close", () => {
     expect(banner).toContain("Late entries close at Round 1’s last tee time, 10:40 AM.");
     // The doors agree: Add is open though Round 1's first card is in.
     expect(liveDoors("stroke", "Round 1", false, { lastTee }).add).toBeNull();
-    expect(liveDoors("stroke", "Round 1", false, { lastTee, minutes: 10 * 60 + 40 }).add).toMatch(/^Round 1’s last tee time, 10:40 AM, has passed/);
+    expect(liveDoors("stroke", "Round 1", false, { lastTee, minutes: 10 * 60 + 40 }).add).toMatch(/^Late entries are closed\. Round 1’s last tee time \(10:40 AM\) has passed\./);
   });
 });

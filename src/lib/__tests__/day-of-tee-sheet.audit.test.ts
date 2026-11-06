@@ -249,7 +249,7 @@ describe("a drawn player withdrawn before teeing off is DNS", () => {
 
 describe("late entries close at Round 1's last published tee time, by the club's clock", () => {
   const closedByTee =
-    "Round 1’s last tee time, 8:10 AM, has passed, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.";
+    "Late entries are closed. Round 1’s last tee time (8:10 AM) has passed. To add someone, an Organizer can unlock it on the dashboard.";
 
   it("the round's day passed at the club: closed, naming the time", async () => {
     await as(assistantId, medal);

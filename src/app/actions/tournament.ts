@@ -33,7 +33,8 @@ import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } 
 import { settingsOf, effectiveScoreStatus, hasAnyHole, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
-import { groupLeftShort, parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { groupLeftShort, parseTeeSheet, shortGroupLine } from "@/lib/domain/tee-sheet";
+import { resultsLine } from "@/lib/domain/field-change";
 import { publishedFoursomes, mayWriteCard } from "@/lib/domain/group-entry";
 
 /**
@@ -978,30 +979,16 @@ async function sheetWords(eventId: string, player: { id: string; name: string })
   const begunIn = new Set(cards.filter((c) => hasAnyHole(c.strokes)).map((c) => c.stageId));
   // Only where the results ARE a stroke sheet: a drawn field's result is its matches, recorded as walkovers.
   const family = (await fieldFactsFor(eventId))?.family;
-  const out =
-    family === "stroke" || family === "stableford"
-      ? [begunIn.size > 0 ? `The results list ${player.name} as WD.` : `The results list ${player.name} as DNS: they had not teed off.`]
-      : [];
+  const out = family === "stroke" || family === "stableford" ? [resultsLine(player.name, begunIn.size > 0)] : [];
 
   const round = stages.find((s) => s.teeSheetPublished && !s.closedAt && !begunIn.has(s.id) && parseTeeSheet(s.teeSheet)?.groups.some((g) => g.playerIds.includes(player.id)));
   const sheet = round ? parseTeeSheet(round.teeSheet) : null;
   if (round && sheet) {
     const field = new Set((await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } })).map((p) => p.id));
     const short = groupLeftShort(sheet, player.id, field);
-    if (short) {
-      const label = roundLabel(stages, round.id);
-      const group = label ? `${label}, ${short.name}` : short.name;
-      const how =
-        short.left === 3
-          ? `goes out as a ${terms.groupOfThree}`
-          : short.left === 2
-            ? `goes out as a ${terms.groupOfTwo}`
-            : short.left === 1
-              ? "goes out with one player"
-              : "has nobody left in it";
-      // A group still four strong (it had five) is not short; say nothing.
-      if (short.left < 4) out.push(`${group} ${how}. Leave it, or put someone in on the Tee sheet.`);
-    }
+    // A group still four strong (it had five) is not short; `shortGroupLine` says nothing then.
+    const line = short ? shortGroupLine(roundLabel(stages, round.id), short, terms) : null;
+    if (line) out.push(line);
   }
   return out;
 }

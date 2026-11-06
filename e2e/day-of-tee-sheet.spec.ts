@@ -120,10 +120,15 @@ test("the assistant puts a late entry in a group with room, withdraws a drawn pl
     const card = desk.locator('section[aria-label="Put in a group"]');
     await expect(card).toContainText("Not in a group yet (1)");
     const choose = card.getByLabel(`Group for ${LATE}`);
-    await expect(choose.locator("option")).toHaveCount(1);
-    await expect(choose.locator("option").first()).toContainText("Group 2 · 8:10 AM");
+    // Nothing chosen for the desk: "Choose a group", then the one group with room (Group 1 is full).
+    await expect(choose.locator("option")).toHaveCount(2);
+    await expect(choose).toHaveValue("");
+    await expect(choose.locator("option").nth(1)).toContainText("Group 2 · 8:10 AM");
+    const put = card.getByRole("button", { name: "Put in group" });
+    await expect(put, "the button pressed before a group was chosen").toBeDisabled();
+    await choose.selectOption({ index: 1 });
     const before = await sheetGroups();
-    await card.getByRole("button", { name: "Put in group" }).click();
+    await put.click();
     await expect
       .poll(async () => (await sheetGroups())[1]?.playerIds ?? [], { timeout: 20_000, message: "the late entrant was not put in Group 2" })
       .toEqual([...ids.slice(4, 6), lateId]);
@@ -139,7 +144,7 @@ test("the assistant puts a late entry in a group with room, withdraws a drawn pl
     await open(desk, "/registration", "Entries");
     const row = desk.locator("tr", { hasText: gone }).first();
     await row.getByRole("button", { name: `Withdraw ${gone}` }).click();
-    await expect(desk.getByText("The results list them as WD if they have begun, DNS if not.", { exact: false })).toBeVisible();
+    await expect(desk.getByText("The results show WD if they began, DNS if not.", { exact: false })).toBeVisible();
     await row.getByRole("button", { name: "Withdraw", exact: true }).click();
     await expect
       .poll(async () => (await prisma.player.findUnique({ where: { id: ids[4] }, select: { status: true } }))?.status, { timeout: 20_000 })
@@ -159,7 +164,7 @@ test("the assistant puts a late entry in a group with room, withdraws a drawn pl
     await open(desk, "/registration", "Entries");
     await expect(desk.getByRole("button", { name: "Add late entry" })).toBeDisabled();
     await expect(
-      desk.getByText("Round 1’s last tee time, 8:10 AM, has passed, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.", { exact: false }).first(),
+      desk.getByText("Late entries are closed. Round 1’s last tee time (8:10 AM) has passed. To add someone, an Organizer can unlock it on the dashboard.", { exact: false }).first(),
     ).toBeVisible();
 
     expect(errors, "the page threw").toEqual([]);

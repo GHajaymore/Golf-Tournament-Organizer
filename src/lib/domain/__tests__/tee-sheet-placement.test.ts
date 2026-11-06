@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { GROUP_MOST, groupLeftShort, groupsWithRoom, lastTeeTime, placeInGroup, undrawnOn, type TeeSheet } from "../tee-sheet";
+import { GROUP_MOST, groupLeftShort, groupsWithRoom, lastTeeTime, markTeedOff, placeInGroup, shortGroupLine, teedOffCaution, undrawnOn, type TeeSheet } from "../tee-sheet";
 import { clubToday, clubWallClock } from "../club-clock";
 import { teeTimeNotices } from "../tee-time-notice";
 
@@ -122,6 +122,46 @@ describe("groupLeftShort", () => {
     expect(groupLeftShort(sheet(), "e", after)).toEqual({ name: "Group 2", left: 2 });
     expect(groupLeftShort(sheet(), "a", new Set(FIELD.filter((id) => id !== "a")))).toEqual({ name: "Group 1", left: 3 });
     expect(groupLeftShort(sheet(), "late", new Set(FIELD))).toBeNull();
+  });
+});
+
+/**
+ * WHICH GROUPS ARE ALREADY OUT (panel review of #1029, must-fix 1), worked by
+ * hand from the sheet's times: at 8:10 on the round's day the 8:00 group and
+ * the 8:10 group are on the course (a group goes at its time, Rule 5.3a) and
+ * the 8:20 group is not; the day before nobody is; the day after everybody is.
+ */
+describe("markTeedOff", () => {
+  const rooms = () => groupsWithRoom(sheet(), new Set(FIELD.filter((id) => !["d", "j"].includes(id))));
+  const out = (now: { day: string; minutes: number }, day = "2026-11-29") =>
+    markTeedOff(rooms(), day, now).map((g) => `${g.name}${g.teedOff ? " (out)" : ""}`);
+
+  it("marks the groups whose time has come on the round's day, and lists them last", () => {
+    expect(out({ day: "2026-11-29", minutes: 8 * 60 + 10 })).toEqual(["Group 3", "Group 1 (out)", "Group 2 (out)"]);
+    expect(out({ day: "2026-11-29", minutes: 8 * 60 + 9 })).toEqual(["Group 2", "Group 3", "Group 1 (out)"]);
+  });
+
+  it("the day before nobody is out; the day after everybody is; no day marks nobody", () => {
+    expect(out({ day: "2026-11-28", minutes: 23 * 60 })).toEqual(["Group 1", "Group 2", "Group 3"]);
+    expect(out({ day: "2026-11-30", minutes: 0 })).toEqual(["Group 1 (out)", "Group 2 (out)", "Group 3 (out)"]);
+    expect(out({ day: "2026-11-29", minutes: 23 * 60 }, "")).toEqual(["Group 1", "Group 2", "Group 3"]);
+  });
+
+  it("a group already out says so in one caution, and the Committee decides", () => {
+    expect(teedOffCaution({ name: "Group 2", time: "8:10 AM" })).toBe("Group 2 teed off at 8:10 AM. The Committee decides if a late arrival may join.");
+  });
+});
+
+describe("shortGroupLine", () => {
+  const us = { groupOfTwo: "twosome", groupOfThree: "threesome" };
+  it("says what a withdrawal leaves, in the club's words, and nothing for a group still four strong", () => {
+    expect(shortGroupLine("", { name: "Group 3", left: 2 }, us)).toBe("Group 3 goes out as a twosome. Leave it, or put someone in on the Tee sheet.");
+    expect(shortGroupLine("Round 2", { name: "Group 3", left: 3 }, { groupOfTwo: "two-ball", groupOfThree: "three-ball" })).toBe(
+      "Round 2, Group 3 goes out as a three-ball. Leave it, or put someone in on the Tee sheet.",
+    );
+    expect(shortGroupLine("", { name: "Group 3", left: 1 }, us)).toBe("Group 3 goes out with one player. Leave it, or put someone in on the Tee sheet.");
+    expect(shortGroupLine("", { name: "Group 3", left: 0 }, us)).toBe("Group 3 has nobody left in it. Leave it, or put someone in on the Tee sheet.");
+    expect(shortGroupLine("", { name: "Group 3", left: 4 }, us)).toBeNull();
   });
 });
 

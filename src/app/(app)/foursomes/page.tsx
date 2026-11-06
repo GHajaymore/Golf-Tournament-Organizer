@@ -18,7 +18,9 @@ import { sidesByMatch, type Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
-import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, undrawnOn } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn, DRIFT_PLACE_LINE } from "@/lib/domain/tee-sheet";
+import { clubWallClock } from "@/lib/domain/club-clock";
+import { cleanIsoDate } from "@/lib/domain/round-dates";
 import { PlaceInGroup } from "@/components/PlaceInGroup";
 import { fieldRefusal } from "@/lib/services/field-change";
 import { strokeCutField, strokeCutOutcomeOf, cutTieRefusal } from "@/lib/services/stroke-cut";
@@ -250,6 +252,9 @@ export default async function FoursomesPage({
   const undrawn = savedSheet && isStaff ? undrawnOn(savedSheet, fieldIds) : [];
   const placeDoor = undrawn.length > 0 ? await fieldRefusal(session.eventId, "place-in-group") : null;
   const nameOf = new Map(field.map((p) => [p.id, p.name]));
+  // The round's day at the club — its own, or the tournament's first day for
+  // the first round (as the late-entry cutoff reads it) — for which groups are out.
+  const roundDay = stage ? cleanIsoDate(stage.playedOn) || (stage.id === rounds[0]?.id ? cleanIsoDate(state.event.startOn) : "") : "";
   /**
    * The card THIS ROUND is played on, narrowed to the nine it uses.
    *
@@ -386,7 +391,7 @@ export default async function FoursomesPage({
             )}{" "}
             Re-pair and publish again to put it right — the printed sheet leaves out anyone who has gone, so
             it is correct but shorter than you drew it.
-            {drift.undrawn.length > 0 && " Or put each player with no tee time in a group with room, below."}
+            {drift.undrawn.length > 0 && ` ${DRIFT_PLACE_LINE}`}
           </p>
         </div>
       )}
@@ -394,7 +399,7 @@ export default async function FoursomesPage({
         <PlaceInGroup
           stageId={stage.id}
           undrawn={undrawn.map((id) => ({ id, name: nameOf.get(id) ?? "" }))}
-          groups={groupsWithRoom(savedSheet, new Set(fieldIds))}
+          groups={markTeedOff(groupsWithRoom(savedSheet, new Set(fieldIds)), roundDay, clubWallClock(state.timeZone))}
           door={placeDoor}
           firstHole={firstHole}
         />

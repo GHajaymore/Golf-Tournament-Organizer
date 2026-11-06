@@ -162,14 +162,32 @@ export function lateEntryRound(f: TournamentFacts): RoundFacts | null {
  * A wall-clock time is compared with the club's wall clock on the same day,
  * never an instant with a day.
  */
-export function lateEntryClosed(f: FieldFacts): string | null {
+export function lateEntryClosed(f: FieldFacts): { tee: LastTeeTime } | { card: string } | null {
   const t = f.lastTee;
   const at = t ? minutesOfTeeTime(t.time) : null;
   if (t && at !== null && (f.playedRound === null || f.playedRound === t.round)) {
     const passed = f.now.day > t.day || (f.now.day === t.day && f.now.minutes >= at);
-    return passed ? `${t.round}’s last tee time, ${t.time}, has passed` : null;
+    return passed ? { tee: t } : null;
   }
-  return f.playedRound ? `The first card of ${f.playedRound} is in` : null;
+  return f.playedRound ? { card: f.playedRound } : null;
+}
+
+/**
+ * THE CLOSED WINDOW IN WORDS, for a late entry ("add") or a flight for one
+ * ("place"). The tee-time refusal is three short sentences, each read at a
+ * glance (panel review of #1029, must-fix 4): what is closed, why, and who can
+ * open it. The first-card refusal keeps PR A's words.
+ */
+function closedWords(c: { tee: LastTeeTime } | { card: string }, what: "add" | "place"): string {
+  if ("tee" in c) {
+    const why = `${c.tee.round}’s last tee time (${c.tee.time}) has passed.`;
+    return what === "add"
+      ? `Late entries are closed. ${why} To add someone, an Organizer can unlock it on the dashboard.`
+      : `Flights are fixed. ${why} To place someone, an Organizer can unlock it on the dashboard.`;
+  }
+  return what === "add"
+    ? `The first card of ${c.card} is in, so late entries are closed. ${byOrganizer("add someone anyway")}`
+    : `The first card of ${c.card} is in, so the flights are fixed. ${byOrganizer("place a player")}`;
 }
 
 /**
@@ -213,16 +231,14 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
           ? no(`The sides are picked, so the field is fixed. ${byOrganizer("change it")}`, UNLOCK)
           : no(`The draw is made, so the field is fixed. ${byOrganizer("change it")}`, UNLOCK);
       }
-      if (closed && !LIVE_BY_NATURE.includes(facts.family)) {
-        return no(`${closed}, so late entries are closed. ${byOrganizer("add someone anyway")}`, UNLOCK);
-      }
+      if (closed && !LIVE_BY_NATURE.includes(facts.family)) return no(closedWords(closed, "add"), UNLOCK);
       return OPEN;
     case "place-in-flight":
       if (!PRIZE_DIVISIONS.includes(facts.family)) {
         return no(`Flights are fixed once the tournament is launched. ${byOrganizer("place a player")}`, UNLOCK);
       }
       // The same window as a late entry: a walk-in taken before the last tee time is placed in one.
-      if (closed) return no(`${closed}, so the flights are fixed. ${byOrganizer("place a player")}`, UNLOCK);
+      if (closed) return no(closedWords(closed, "place"), UNLOCK);
       return OPEN;
     case "move-flight":
       return no(`Flights are fixed once the tournament is launched. ${byOrganizer("move a player")}`, UNLOCK);
@@ -245,6 +261,19 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
  */
 function byOrganizer(act: string): string {
   return `To ${act}, an Organizer can unlock the tournament on the dashboard.`;
+}
+
+/**
+ * HOW THE RESULTS LIST A WITHDRAWN PLAYER (PR B), said after the withdrawal:
+ * WD for one who had begun, DNS for one who had not. Office codes, not Rules terms.
+ */
+export function resultsLine(name: string, begun: boolean): string {
+  return begun ? `The results list ${name} as WD.` : `The results list ${name} as DNS: they had not teed off.`;
+}
+
+/** The question before a withdrawal under way, in short sentences (panel review of #1029, must-fix 4). */
+export function withdrawConfirmation(name: string): string {
+  return `Withdraw ${name}? They come off the tee sheet and the board. The results show WD if they began, DNS if not. Their scores and side-game entries stay on the record. You can put them back.`;
 }
 
 /** Every change's refusal as a sentence, or null where it is open — what the Entries screen draws from. */

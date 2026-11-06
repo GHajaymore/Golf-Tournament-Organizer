@@ -8,7 +8,7 @@ import { setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions
 import { Fragment, useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
 import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, placeInFlight, type CsvImportResult } from "@/app/actions/tournament";
-import type { FieldChange } from "@/lib/domain/field-change";
+import { withdrawConfirmation, type FieldChange } from "@/lib/domain/field-change";
 import { setNameWithheld } from "@/app/actions/report-settings";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -826,7 +826,7 @@ export function RegistrationClient({
                       confirmLabel={underWay ? "Withdraw" : "Remove"}
                       note={
                         underWay
-                          ? `Withdraw ${p.name}? They come off the tee sheet and the board. The results list them as WD if they have begun, DNS if not. Their scores and side-game entries stay on the record. You can put them back.`
+                          ? withdrawConfirmation(p.name)
                           : undefined
                       }
                       disabled={pending || !!doors.withdraw}
