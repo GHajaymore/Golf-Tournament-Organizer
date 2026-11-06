@@ -196,7 +196,7 @@ describe("a player who has played is withdrawn, not deleted", () => {
     // The orphan: Match.playerAId is a plain String with no relation and no
     // cascade. Deleting Ainsley leaves a confirmed result between a name and a
     // gap, and no screen can render it or explain it.
-    expect(await removeSignup(player.ainsley)).toBe("withdrawn");
+    expect(await removeSignup(player.ainsley)).toMatchObject({ ok: true, outcome: "withdrawn" });
 
     const row = await prisma.player.findUnique({ where: { id: player.ainsley } });
     expect(row, "the row must survive").not.toBeNull();
@@ -224,7 +224,7 @@ describe("a player who has played is withdrawn, not deleted", () => {
     // a withdrawn row for it would put a person in the record who never
     // entered.
     await addPlayer("typo", "confirmed", 9);
-    expect(await removeSignup(player.typo)).toBe("deleted");
+    expect(await removeSignup(player.typo)).toMatchObject({ ok: true, outcome: "deleted" });
     expect(await prisma.player.findUnique({ where: { id: player.typo } })).toBeNull();
   });
 
@@ -237,7 +237,7 @@ describe("a player who has played is withdrawn, not deleted", () => {
       data: { eventId, stageId, playerId: player.gale, strokes: JSON.stringify(new Array(18).fill(5)) },
     });
 
-    expect(await removeSignup(player.gale)).toBe("withdrawn");
+    expect(await removeSignup(player.gale)).toMatchObject({ ok: true, outcome: "withdrawn" });
     expect((await prisma.player.findUnique({ where: { id: player.hana } }))?.status).toBe("confirmed");
   });
 

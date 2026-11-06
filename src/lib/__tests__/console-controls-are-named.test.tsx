@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { unnamedControls } from "./unnamed-controls";
+import { OPEN_DOORS } from "./field-doors";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -105,7 +106,7 @@ describe("console form controls are named", () => {
   it("Entries, with players in both lists", async () => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     const html = render(
-      <RegistrationClient
+      <RegistrationClient doors={OPEN_DOORS}
         confirmed={[player("p1", "zz-Ann Doyle", 8), player("p2", "zz-Rob Ferris", 14)]}
         waitlist={[player("p3", "zz-Cleo Green", 20)]}
         pendingEntries={[]} locked={false} isAdmin roster={[]}
@@ -131,11 +132,11 @@ describe("console form controls are named", () => {
       dates: "", course: "", city: "", registrationOpen: true, registrationApproval: "auto",
       requirePhone: false, registrationToken: "",
     };
-    const empty = render(<RegistrationClient noFormatYet confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
+    const empty = render(<RegistrationClient doors={OPEN_DOORS} noFormatYet confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
     expect(empty).toContain("No format yet");
     expect(empty).toContain("Format to be confirmed");
     // CONTROL: not once a format is chosen or somebody has entered.
-    const later = render(<RegistrationClient confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
+    const later = render(<RegistrationClient doors={OPEN_DOORS} confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
     expect(later).not.toContain("No format yet");
     expect(unnamedControls(empty)).toEqual([]);
   });

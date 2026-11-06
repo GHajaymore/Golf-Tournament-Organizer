@@ -29,6 +29,7 @@ export function EntryTermsCard({
   approveMode,
   showApproval,
   locked,
+  canAdd,
   isAdmin = true,
   locale,
 }: {
@@ -44,6 +45,12 @@ export function EntryTermsCard({
   showApproval: (mode: string) => void;
   /** The setup lock: the terms and the approval mode are part of the shape; the open/close button is not. */
   locked: boolean;
+  /**
+   * Whether the organizer can still add players by hand — the field's add door
+   * (`fieldDoors`), not the setup lock: after launch a stroke field still takes
+   * a late entry while setup is locked (day-of field changes, PR A).
+   */
+  canAdd: boolean;
   /** Only an admin saves the terms (`saveEntryTerms` is admin-only); everyone on staff can press the open/close button. */
   isAdmin?: boolean;
   locale?: string;
@@ -107,7 +114,7 @@ export function EntryTermsCard({
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, color: tone }}>{entries.label}</div>
           <div className="text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
             {entries.line}
-            {closed && entries.state !== "closed-finished" && !entries.linkPublished && !locked && (
+            {closed && entries.state !== "closed-finished" && !entries.linkPublished && canAdd && (
               <>
                 {" "}
                 <strong>You can still add players below.</strong>
@@ -116,8 +123,8 @@ export function EntryTermsCard({
             {closed && entries.state !== "closed-finished" && entries.linkPublished && (
               <>
                 {" "}
-                {/* Adding by hand is never blocked by the dates; not while setup is locked, then it is refused too. */}
-                {locked ? (
+                {/* Adding by hand is never blocked by the dates; only by the field's add door. */}
+                {!canAdd ? (
                   <>While it is closed the sign-up link turns everyone away.</>
                 ) : (
                   <>

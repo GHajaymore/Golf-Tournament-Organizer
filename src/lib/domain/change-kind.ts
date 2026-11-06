@@ -27,6 +27,8 @@ export const FIELD_ACTIONS = [
   "pairing-request",
   // The committee's ruling, and its undoing (2026-10-08).
   "disqualified", "reinstated",
+  // A withdrawal undone, and a late entrant placed in a flight (day-of field changes, PR A).
+  "put-back", "placed",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];

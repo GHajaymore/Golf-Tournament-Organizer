@@ -98,7 +98,8 @@ interface Props {
    * `fieldSize` and `unlinkedCount` are 0 and their cards already fall away.
    */
   eventName: string;
-  fieldLocked: boolean;
+  /** Why the field takes nobody now (`fieldRefusal(…, "add")`), or null when it does. */
+  fieldLocked: string | null;
   members: RosterRow[];
   /**
    * The FIELD of the open tournament — confirmed entries.
@@ -775,7 +776,7 @@ export function RosterClient({
                 type="button"
                 className="btn btn-primary"
                 style={{ marginLeft: "auto" }}
-                disabled={pending || fieldLocked || addable.length === 0}
+                disabled={pending || !!fieldLocked || addable.length === 0}
                 onClick={addSelectedToEvent}
               >
                 <Icon name="user-plus" /> Add {addable.length} to {eventName}
@@ -786,8 +787,7 @@ export function RosterClient({
               // announced to a screen reader — the exact weak pattern called
               // out when the draw button was fixed.
               <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%" }}>
-                <Icon name="lock-simple" /> The tournament is locked — unlock it on Tournament
-                details to change the field.
+                <Icon name="lock-simple" /> {fieldLocked}
               </span>
             )}
           </div>

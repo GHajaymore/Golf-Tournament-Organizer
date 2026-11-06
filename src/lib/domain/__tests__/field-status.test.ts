@@ -35,7 +35,12 @@ describe("a player is told when their place in the field changes", () => {
      * WHERE the code lived, not what it did.
      */
     const waitlist = src("src", "lib", "services", "waitlist.ts");
-    expect(tournament).toMatch(/await drainWaitlist\(eventId\);/);
+    // IN THE WITHDRAWAL ITSELF (day-of field changes, PR A): `removeSignup` now asks
+    // `promoteFromWaitlist`, the same rule answering WHO moved in; `drainWaitlist` is it, counted.
+    // Pinned to that body — the file-wide match this was passed on other callers alone.
+    const remove = tournament.slice(tournament.indexOf("export async function removeSignup("), tournament.indexOf("export async function removeSignups("));
+    expect(remove).toMatch(/await promoteFromWaitlist\(eventId\)/);
+    expect(waitlist).toMatch(/export async function drainWaitlist\([^)]*\)[^{]*\{\s*return \(await promoteFromWaitlist\(eventId\)\)\.length;/);
     expect(waitlist).toMatch(/notifyFieldChange\(/);
     expect(waitlist).toMatch(/"promoted"/);
   });

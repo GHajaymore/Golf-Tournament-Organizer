@@ -1,5 +1,5 @@
 "use server";
-import { configurationLocked } from "@/lib/domain/lifecycle-state";
+import { fieldRefusal } from "@/lib/services/field-change";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
@@ -538,11 +538,13 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   if (!event) return { ok: false, error: "Event not found.", added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
   const archived = await archiveRefusalFor(eventId);
   if (archived) return { ok: false, error: archived, added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
-  // One definition of "locked" — see domain/lifecycle-state.
-  if (configurationLocked(event)) {
+  // The one field rule (domain/field-change.ts): a late entry from the roster
+  // is the same act as typing one in, and opens and shuts with it.
+  const refused = await fieldRefusal(eventId, "add");
+  if (refused || !Array.isArray(memberIds)) {
     return {
       ok: false,
-      error: "Configuration is locked. Unlock the tournament to change the field.",
+      error: refused ?? "Choose the members to enter.",
       added: 0,
       waitlisted: 0,
       skipped: 0,
