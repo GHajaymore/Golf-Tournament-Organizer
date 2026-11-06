@@ -371,14 +371,16 @@ export async function roundCloseFactsFor(eventId: string, stageId: string): Prom
     prisma.match.count({ where: { eventId, stageId, scoreStatus: "disputed" } }),
   ]);
   const names = new Map(field.map((p) => [p.id, p.name]));
+  const staffApproves = !allowsAutoConfirm(settingsOf(event));
   const split = cardsNotFinal(
     cards.filter((c) => names.has(c.playerId)),
-    !allowsAutoConfirm(settingsOf(event)),
+    staffApproves,
   );
   return {
     label: roundKicker(stage.description, roundLabel(stages, stage.id) || "This round"),
-    // Nobody signs a casual round's card (`reviewsScores`), so nothing in one is "not signed off".
+    // Nobody signs a casual round's card (`reviewsScores`), so nothing in one waits on a signature.
     unsigned: reviewsScores(event.shape) ? split.pending.map((c) => names.get(c.playerId) ?? "A player") : [],
+    staffApproves,
     disputed: split.disputed.length + disputedMatches,
   };
 }

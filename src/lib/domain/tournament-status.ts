@@ -612,8 +612,8 @@ const COMPLETE_WAY_OUT: WayOut = { says: "Open Score entry", href: SCORE_ENTRY }
  * tournament is never Launch — but the actions now return them to a second
  * tab, a double press or a caller that is not a screen.
  */
-export const ALREADY_LAUNCHED = "This tournament is already live, so there is nothing to launch.";
-export const ALREADY_COMPLETED = "This tournament is already completed. To change a result, reopen it on the dashboard first.";
+export const ALREADY_LAUNCHED = "This tournament has already been launched, so there is nothing to launch.";
+export const ALREADY_COMPLETED = "This tournament is already completed. To change a result, reopen it on the dashboard.";
 export const NOT_LAUNCHED_TO_COMPLETE = "This tournament hasn’t been launched yet, so there is nothing to complete. Launch it from the dashboard first.";
 export const NOT_COMPLETED_TO_REOPEN = "This tournament isn’t completed, so there is nothing to reopen.";
 
@@ -843,6 +843,12 @@ export interface RoundCloseFacts {
    * committee accepts cards — not yet accepted. By name, in card order.
    */
   unsigned: readonly string[];
+  /**
+   * The committee accepts cards (`!allowsAutoConfirm`): a card waits on its
+   * APPROVAL. Otherwise players sign, and it waits on a SIGNATURE. Said in
+   * those words, as `cutBlockedSentence` says them.
+   */
+  staffApproves: boolean;
   /** Cards and match results in this round somebody has said are wrong. */
   disputed: number;
 }
@@ -855,13 +861,21 @@ function possessives(names: readonly string[]): string {
 /**
  * CLOSING A ROUND WITH CARDS OUTSTANDING (panel 8.1, TD Q4; PR 4).
  *
- *   disputed   REFUSED until the committee rules on it. A dispute is a ruling
- *              the Committee owes (Rule 20.1c(3), Rule 20.2b); closing over it
- *              fixes a contested score into the round and turns on Play over
- *              with a result that is not final.
- *   unsigned   ASKED, naming who. A player who left without certifying is
- *              ordinary (Rule 3.3b(2)), and the committee may close and chase
- *              the card: a late card still counts the moment it is final.
+ *   disputed   REFUSED until the committee rules on it. A doubt about a score
+ *              is the Committee's to decide (Rule 20.1c(4), Rule 20.2b);
+ *              closing over it fixes a contested score into the round and
+ *              turns on Play over with a result that is not final.
+ *   unsigned   ASKED, naming who. A card not certified is the player's breach
+ *              of Rule 3.3b(2), whose penalty — disqualification — is the
+ *              COMMITTEE's to decide, not the app's: so the app asks rather
+ *              than refuses, and the committee may close and chase the card.
+ *
+ * WHAT CLOSING DOES TO THAT CARD, said truly: nothing. The board does not
+ * filter a card by its status, so an unapproved or unsigned card already
+ * counts, and it can still be approved (`approveScorecard`) or signed
+ * (`certifyPlayCard`) after the round is closed. The question says so in the
+ * club's own terms — approved where the committee accepts cards, signed where
+ * players do.
  *
  * Asked after the cut's own refusal (`strokeCutRefusal`), which stays: a round
  * a cut is made from waits for every card to be final, because closing it IS
@@ -871,15 +885,17 @@ export function roundCloseCheck(r: RoundCloseFacts): { refuse: string } | { ask:
   if (r.disputed > 0) {
     const one = r.disputed === 1;
     return {
-      refuse: `${r.disputed} result${one ? "" : "s"} in ${r.label} ${one ? "is" : "are"} disputed, so it can’t be closed yet. Settle ${one ? "it" : "them"} on Score entry, then close the round.`,
+      refuse: `${r.disputed} result${one ? "" : "s"} in ${r.label} ${one ? "is" : "are"} disputed, so the round can’t be closed yet. Settle ${one ? "it" : "them"} on Score entry, then close the round.`,
     };
   }
   const n = r.unsigned.length;
   if (n === 0) return null;
-  const who = n <= 3 ? `${possessives(r.unsigned)} ${n === 1 ? "card is" : "cards are"}` : `${n} cards are`;
-  return {
-    ask: `${who} not signed off yet. Close ${r.label} anyway? ${n === 1 ? "It counts" : "They count"} once ${n === 1 ? "it is" : "they are"} signed.`,
-  };
+  const one = n === 1;
+  const who = n <= 3 ? `${possessives(r.unsigned)} ${one ? "card isn’t" : "cards aren’t"}` : `${n} cards aren’t`;
+  const after = r.staffApproves
+    ? `You can still approve ${one ? "it" : "them"} afterwards.`
+    : `${one ? "It" : "They"} can still be signed afterwards.`;
+  return { ask: `${who} ${r.staffApproves ? "approved" : "signed"} yet. Close ${r.label} anyway? ${after}` };
 }
 
 /* ---------------------------------------------- what the screens draw (PR 3) */

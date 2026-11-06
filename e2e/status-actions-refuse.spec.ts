@@ -16,17 +16,26 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
  *                   gate (`launchCheckFor`) let a knockout of one go live.
  *                   Complete, the same way — a card disputed since the page was
  *                   drawn: refused (`setEventStatus`, `refusals.complete`).
- *                   Closing a round (TD Q4): over a card not signed off, ASKED,
- *                   naming whose — Keep it open, then Close anyway; over a
- *                   disputed card, REFUSED.
+ *                   Closing a round (TD Q4): over a card not approved yet,
+ *                   ASKED, naming whose — Keep it open, then Close anyway; over
+ *                   a disputed card, REFUSED.
  *   a player        every door into scoring on the course, on a tournament
  *                   nobody launched: the five round-code saves, keeping the
  *                   group's card and reporting a knockout tie — refused, in
- *                   the machine's words (`refusals.play`). Then a WALKOVER is
- *                   recorded, and play goes on: a forfeit is a result on the
+ *                   the machine's words (`refusals.play`).
+ *   the organizer   score entry in the console on the same tournament: refused,
+ *                   and nothing written. That door THROWS its refusal
+ *                   (`requireScoreEntry`) and production blanks a thrown
+ *                   message, so its words cannot be read off the wire; what
+ *                   proves the refusal is the play one is the CONTROL below.
+ *   then            a WALKOVER is recorded, nothing else changes, and play goes
+ *                   on: the player's card saves and the organizer's same
+ *                   console press saves. A forfeit is a result on the
  *                   machine's one definition (`hasResult`), where the retired
- *                   `playRefusalFor` called it "not started" (D2).
- *   the organizer   score entry in the console on the same tournament: refused.
+ *                   `playRefusalFor` called it "not started" (D2) — and the
+ *                   console press changing from refused to saved with only
+ *                   that result between them is the proof its refusal was
+ *                   `refusals.play` and not some other gate.
  *
  * The phones press through each action's own endpoint (the build's action
  * manifest, `.next-e2e`), as `scoring-by-group-server.spec.ts` does: the round
@@ -122,19 +131,20 @@ test("the organizer's presses are refused or asked in the machine's words", asyn
       // ASKED, naming whose card — and Keep it open leaves it open.
       await box.click();
       const ask = page.getByRole("group", { name: "Close the round anyway?" });
-      await expect(ask).toContainText("Ostin Pell’s card is not signed off yet. Close Round 1 anyway? It counts once it is signed.", { timeout: 20_000 });
+      // The committee accepts cards here (the default), so the card waits on an approval.
+      await expect(ask).toContainText("Ostin Pell’s card isn’t approved yet. Close Round 1 anyway? You can still approve it afterwards.", { timeout: 20_000 });
       await ask.getByRole("button", { name: "Keep it open" }).click();
       await expect(ask).toHaveCount(0);
       expect(await closedAt(), "Keep it open closed the round").toBeNull();
 
-      // REFUSED while it is disputed: the committee owes a ruling first (Rule 20.1c(3)).
+      // REFUSED while it is disputed: the committee owes a ruling first (Rule 20.1c(4), Rule 20.2b).
       await prisma.scorecard.update({ where: { id: ostin.id }, data: { status: "disputed" } });
       await box.click();
-      await expect(page.getByText("1 result in Round 1 is disputed, so it can’t be closed yet. Settle it on Score entry, then close the round.")).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText("1 result in Round 1 is disputed, so the round can’t be closed yet. Settle it on Score entry, then close the round.")).toBeVisible({ timeout: 20_000 });
       await expect(ask).toHaveCount(0);
       expect(await closedAt(), "a round closed over a disputed card").toBeNull();
 
-      // Ruled on and back to waiting for a signature: Close anyway closes it.
+      // Ruled on and back to waiting for an approval: Close anyway closes it, the card as it stands.
       await prisma.scorecard.update({ where: { id: ostin.id }, data: { status: "entered" } });
       await box.click();
       await expect(ask).toBeVisible({ timeout: 20_000 });
@@ -269,19 +279,38 @@ test("every door into scoring is refused before launch, and a walkover lets play
       expect(r.error).toContain(NOT_LAUNCHED);
     });
 
+    // The organizer is the club's owner as well as the tournament's Organizer, so no
+    // other gate (membership, role, entry rights — staff always pass) can be what refuses.
+    const organizer = await signedIn(`${MARK}-org@example.invalid`, "Zz Organizer", "admin");
+    const organizerUser = await prisma.user.findUniqueOrThrow({ where: { email: `${MARK}-org@example.invalid` } });
+    await prisma.organizationMember.create({ data: { organizationId: org.id, userId: organizerUser.id, role: "owner" } });
+    const bramCards = () => prisma.scorecard.count({ where: { eventId: event.id, stageId: cardStage.id, playerId: bram.id } });
+
     await test.step("the organizer's score entry in the console: refused, nothing written", async () => {
-      const organizer = await signedIn(`${MARK}-org@example.invalid`, "Zz Organizer", "admin");
       const r = await press(organizer, "saveScorecard", "tournament.ts", [cardStage.id, bram.id, strokes]);
-      // A refused console save is thrown (`requireScoreEntry`), and production blanks a thrown
-      // message: what can be held is that nothing was saved.
+      // A refused console save is THROWN (`requireScoreEntry`) and production blanks a thrown
+      // message, so the words are not on the wire. The control in the next step is what shows
+      // this refusal was the play one: the same press, with only a result recorded between, saves.
       expect(r.ok, `the console saved a card on a tournament nobody launched: ${r.body.slice(0, 200)}`).toBe(false);
       expect(await prisma.scorecard.count({ where: { eventId: event.id } })).toBe(0);
     });
 
-    await test.step("D2: a walkover is a result, so the tournament is under way and play goes on", async () => {
+    await test.step("D2: a walkover is a result, so the tournament is under way and play goes on — on the course and in the console", async () => {
+      // Nothing changes but this: still a draft, the same people, the same presses.
       await prisma.match.update({ where: { id: match.id }, data: { forfeitedBy: bram.id } });
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).status).toBe("draft");
+
       const r = await press(onCard, "savePlayCard", "play.ts", [strokes]);
       expect(r.error, "a walkover was not a result: the old four-table rule is back").not.toContain(NOT_LAUNCHED);
+      expect(r.ok, `the player's card was not saved once play was under way: ${r.error || r.body.slice(0, 200)}`).toBe(true);
+      const card = await prisma.scorecard.findFirst({ where: { eventId: event.id, stageId: cardStage.id, playerId: ailsa.id } });
+      expect(JSON.parse(card?.strokes ?? "[]")[0], "the saved card does not hold the hole").toBe(4);
+
+      // THE CONTROL for the console step: the organizer's identical press now saves, so what
+      // refused it before was `refusals.play` — nothing else differs.
+      const console_ = await press(organizer, "saveScorecard", "tournament.ts", [cardStage.id, bram.id, strokes]);
+      expect(console_.ok, `the console's save was refused for a reason other than launch: ${console_.body.slice(0, 200)}`).toBe(true);
+      expect(await bramCards(), "the console's save wrote no card").toBe(1);
     });
     expect(errors).toEqual([]);
   } finally {

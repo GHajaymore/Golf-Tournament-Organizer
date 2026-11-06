@@ -4,14 +4,15 @@ import { Icon } from "./Icon";
 
 /**
  * THE SERVER'S QUESTION BEFORE A ROUND IS CLOSED (state machine PR 4; the
- * Tournament Director's ruling, panel 8.1 Q4): a card is not signed off yet.
- * A player who left without certifying is ordinary, so the committee may close
- * and chase the card — it counts once it is signed. Asked in the server's own
- * words, which name whose card ("Sam Reed’s card is not signed off yet. Close
- * Round 2 anyway?"), where the close was pressed.
+ * Tournament Director's ruling, panel 8.1 Q4): a card is not approved (or, where
+ * players sign, not signed) yet. Closing leaves it as it stands — it can still
+ * be approved or signed afterwards. Asked in the server's own words, which name
+ * whose card ("Sam Reed’s card isn’t approved yet. Close Round 2 anyway? You
+ * can still approve it afterwards."), where the close was pressed.
  *
- * One component for both doors that close a round — the dashboard's card and
- * Rounds & formats — so the question reads and answers the same on each.
+ * One component for all three doors that close a round — the dashboard's ready
+ * card, its cut card and Rounds & formats — so the question reads and answers
+ * the same on each.
  */
 export function RoundCloseAsk({
   question,

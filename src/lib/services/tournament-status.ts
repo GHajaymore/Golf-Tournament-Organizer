@@ -46,6 +46,18 @@ export async function tournamentStatusNow(eventId: string): Promise<{ facts: Tou
  * COSTS ONE READ ONCE LAUNCHED, which is every save on the course: a launched
  * tournament is never refused, so the rounds are not read for one. Before
  * launch — the rare case — the rounds come from the facts' own batch.
+ *
+ * WHAT THAT RARE CASE COSTS, said plainly: a tournament under way but never
+ * launched (the D2 population — play let through because it had begun) pays
+ * the WHOLE setup-side batch (`readCore`: about fourteen grouped queries, the
+ * card check and, with a round off a handicap, the tee read) on EVERY save,
+ * where `playRefusalFor` paid four `findFirst`s. Accepted rather than given a
+ * narrower read of its own, because a second read of "has anybody played" is
+ * exactly the copy D2 was; the population only shrinks (every tournament
+ * begun since the gate must launch before its first score), and launching it
+ * takes every save back to the one read above. If a club ever plays a whole
+ * day unlaunched and the saves slow, the fix is to launch it, or to give
+ * `readCore` a rounds-only mode — not a private rule here.
  */
 export async function playRefusedBecause(eventId: string): Promise<string | null> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true } });

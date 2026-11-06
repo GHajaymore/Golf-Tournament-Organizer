@@ -7430,7 +7430,7 @@ export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok:
 export async function setRoundClosed(
   stageId: string,
   closed: boolean,
-  /** Must be true to close over a card not signed off yet (`roundCloseCheck` asks first). */
+  /** Must be true to close over a card not yet approved or signed (`roundCloseCheck` asks first). */
   confirmUnsigned = false,
 ): Promise<{ ok: boolean; error?: string; needsUnsignedConfirm?: boolean }> {
   const eventId = await requireStaffEvent();
@@ -7450,9 +7450,11 @@ export async function setRoundClosed(
     /**
      * AND ANY ROUND, OVER CARDS STILL OUTSTANDING (panel 8.1, TD Q4; state
      * machine PR 4). A disputed card or result is REFUSED until the committee
-     * rules on it; a card not signed off yet is ASKED about, naming whose. A
-     * public endpoint, so a caller that did not ask is answered with the
-     * question, as completing answers `confirmUnplayed`.
+     * rules on it; a card not yet approved (or, where players sign, not yet
+     * signed) is ASKED about, naming whose — closing leaves that card as it
+     * stands, and it can still be approved or signed afterwards. A public
+     * endpoint, so a caller that did not ask is answered with the question, as
+     * completing answers `confirmUnplayed`.
      */
     const facts = await roundCloseFactsFor(eventId, stage.id);
     const check = facts ? roundCloseCheck(facts) : null;

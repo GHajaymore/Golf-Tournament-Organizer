@@ -123,7 +123,7 @@ describe("the move is asked of the state machine, as the dashboard's button is (
     await prisma.event.update({ where: { id }, data: { configUnlocked: true } });
     const res = await launchTournament();
     expect(res.ok).toBe(false);
-    expect(res.error).toBe("This tournament is already live, so there is nothing to launch.");
+    expect(res.error).toBe("This tournament has already been launched, so there is nothing to launch.");
     expect((await read(id))?.configUnlocked, "a second launch locked setup again").toBe(true);
   });
 
@@ -136,7 +136,7 @@ describe("the move is asked of the state machine, as the dashboard's button is (
 
   it("a completed tournament is not completed twice, and 'live' on a live one is not a reopen", async () => {
     await tournament("complete-twice", "completed", true);
-    expect((await setEventStatus("completed")).error).toBe("This tournament is already completed. To change a result, reopen it on the dashboard first.");
+    expect((await setEventStatus("completed")).error).toBe("This tournament is already completed. To change a result, reopen it on the dashboard.");
     const live = await tournament("reopen-a-live-one", "live", true);
     expect((await setEventStatus("live")).error).toBe("This tournament isn’t completed, so there is nothing to reopen.");
     expect((await read(live))?.status).toBe("live");

@@ -11,9 +11,11 @@ import { PrismaClient } from "@prisma/client";
  * read Final. Now, against real rows:
  *
  *   a disputed card or match result   REFUSED until the committee rules on it
- *                                      (Rule 20.1c(3), Rule 20.2b) — even when
+ *                                      (Rule 20.1c(4), Rule 20.2b) — even when
  *                                      the caller says it has asked
- *   a card not signed off             ASKED, naming whose (Rule 3.3b(2)); a
+ *   a card not approved yet            ASKED, naming whose — the penalty under
+ *                                      Rule 3.3b(2) is the Committee's to
+ *                                      decide, not the app's; a
  *                                      caller that did not ask is answered with
  *                                      the question, as completing answers
  *                                      `confirmUnplayed`
@@ -88,14 +90,15 @@ describe("closing a round asks over an unsigned card and refuses over a disputed
     expect(await setRoundClosed(ids.r1, true)).toEqual({
       ok: false,
       needsUnsignedConfirm: true,
-      error: "Zz Bram Ellery’s card is not signed off yet. Close Round 1 anyway? It counts once it is signed.",
+      // The committee accepts cards here (`scoreApproval: "staff"`), so it waits on an approval.
+      error: "Zz Bram Ellery’s card isn’t approved yet. Close Round 1 anyway? You can still approve it afterwards.",
     });
     expect(await closedAt(ids.r1), "asked, and closed anyway").toBeNull();
   });
 
   it("REFUSES over a disputed card, even from a caller that says it asked", async () => {
     await prisma.scorecard.update({ where: { id: ids.cardBram }, data: { status: "disputed" } });
-    const words = "1 result in Round 1 is disputed, so it can’t be closed yet. Settle it on Score entry, then close the round.";
+    const words = "1 result in Round 1 is disputed, so the round can’t be closed yet. Settle it on Score entry, then close the round.";
     expect(await setRoundClosed(ids.r1, true)).toEqual({ ok: false, error: words });
     expect(await setRoundClosed(ids.r1, true, true)).toEqual({ ok: false, error: words });
     expect(await closedAt(ids.r1)).toBeNull();
@@ -116,6 +119,23 @@ describe("closing a round asks over an unsigned card and refuses over a disputed
     expect(logged?.detail).toMatch(/^Closed Round 1\./);
     expect(await setRoundClosed(ids.r1, false)).toEqual({ ok: true });
     expect(await closedAt(ids.r1)).toBeNull();
+  });
+
+  it("where players sign their own cards, it asks about the SIGNATURE, in the club's own terms", async () => {
+    await prisma.event.update({ where: { id: ids.event }, data: { scoreApproval: "players" } });
+    try {
+      expect(await setRoundClosed(ids.r1, true)).toEqual({
+        ok: false,
+        needsUnsignedConfirm: true,
+        error: "Zz Bram Ellery’s card isn’t signed yet. Close Round 1 anyway? It can still be signed afterwards.",
+      });
+      // Signed, it is final where players sign: nothing to ask.
+      await prisma.scorecard.update({ where: { id: ids.cardBram }, data: { status: "certified" } });
+      expect(await setRoundClosed(ids.r1, true)).toEqual({ ok: true });
+      expect(await setRoundClosed(ids.r1, false)).toEqual({ ok: true });
+    } finally {
+      await prisma.event.update({ where: { id: ids.event }, data: { scoreApproval: "staff" } });
+    }
   });
 
   it("CONTROL: every card final and nothing disputed — it closes on the first press", async () => {

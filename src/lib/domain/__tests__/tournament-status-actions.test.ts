@@ -142,34 +142,54 @@ describe("play is refused before launch, unless play has begun — on the one de
   });
 });
 
-describe("closing a round with cards outstanding (TD Q4, Rule 3.3b, Rule 20.1c(3))", () => {
-  it("a card not signed off is ASKED about, naming whose — the TD's own sentence", () => {
-    expect(roundCloseCheck({ label: "Round 2", unsigned: ["Sam Reed"], disputed: 0 })).toEqual({
-      ask: "Sam Reed’s card is not signed off yet. Close Round 2 anyway? It counts once it is signed.",
+describe("closing a round with cards outstanding (TD Q4, Rule 3.3b, Rule 20.1c(4), Rule 20.2b)", () => {
+  /**
+   * The question says what closing does, which is nothing to the card: the
+   * board does not filter a card by its status, and `approveScorecard` and
+   * `certifyPlayCard` both still work once the round is closed. So it never
+   * promises the card "counts once it is signed" — it already counts.
+   */
+  it("where the committee accepts cards: ASKED that it isn't approved, and that it can still be", () => {
+    const staff = { staffApproves: true, disputed: 0 };
+    expect(roundCloseCheck({ ...staff, label: "Round 2", unsigned: ["Sam Reed"] })).toEqual({
+      ask: "Sam Reed’s card isn’t approved yet. Close Round 2 anyway? You can still approve it afterwards.",
     });
-    expect(roundCloseCheck({ label: "Round 2", unsigned: ["Sam Reed", "Ida Moss"], disputed: 0 })).toEqual({
-      ask: "Sam Reed’s and Ida Moss’s cards are not signed off yet. Close Round 2 anyway? They count once they are signed.",
+    expect(roundCloseCheck({ ...staff, label: "Round 2", unsigned: ["Sam Reed", "Ida Moss"] })).toEqual({
+      ask: "Sam Reed’s and Ida Moss’s cards aren’t approved yet. Close Round 2 anyway? You can still approve them afterwards.",
     });
-    expect(roundCloseCheck({ label: "Round 1", unsigned: ["A", "B", "C"], disputed: 0 })).toEqual({
-      ask: "A’s, B’s and C’s cards are not signed off yet. Close Round 1 anyway? They count once they are signed.",
+    expect(roundCloseCheck({ ...staff, label: "Round 1", unsigned: ["A", "B", "C"] })).toEqual({
+      ask: "A’s, B’s and C’s cards aren’t approved yet. Close Round 1 anyway? You can still approve them afterwards.",
     });
     // Past three names a count, so the question stays one line on a phone.
-    expect(roundCloseCheck({ label: "Round 1", unsigned: ["A", "B", "C", "D"], disputed: 0 })).toEqual({
-      ask: "4 cards are not signed off yet. Close Round 1 anyway? They count once they are signed.",
+    expect(roundCloseCheck({ ...staff, label: "Round 1", unsigned: ["A", "B", "C", "D"] })).toEqual({
+      ask: "4 cards aren’t approved yet. Close Round 1 anyway? You can still approve them afterwards.",
+    });
+  });
+
+  it("where players sign: ASKED that it isn't signed, and that it can still be", () => {
+    const players = { staffApproves: false, disputed: 0 };
+    expect(roundCloseCheck({ ...players, label: "Round 2", unsigned: ["Sam Reed"] })).toEqual({
+      ask: "Sam Reed’s card isn’t signed yet. Close Round 2 anyway? It can still be signed afterwards.",
+    });
+    expect(roundCloseCheck({ ...players, label: "Round 2", unsigned: ["Sam Reed", "Ida Moss"] })).toEqual({
+      ask: "Sam Reed’s and Ida Moss’s cards aren’t signed yet. Close Round 2 anyway? They can still be signed afterwards.",
+    });
+    expect(roundCloseCheck({ ...players, label: "Round 1", unsigned: ["A", "B", "C", "D"] })).toEqual({
+      ask: "4 cards aren’t signed yet. Close Round 1 anyway? They can still be signed afterwards.",
     });
   });
 
   it("a disputed card or result is REFUSED until it is ruled on — and outranks an unsigned one", () => {
-    expect(roundCloseCheck({ label: "Round 2", unsigned: ["Sam Reed"], disputed: 1 })).toEqual({
-      refuse: "1 result in Round 2 is disputed, so it can’t be closed yet. Settle it on Score entry, then close the round.",
+    expect(roundCloseCheck({ label: "Round 2", unsigned: ["Sam Reed"], staffApproves: true, disputed: 1 })).toEqual({
+      refuse: "1 result in Round 2 is disputed, so the round can’t be closed yet. Settle it on Score entry, then close the round.",
     });
-    expect(roundCloseCheck({ label: "Round 2", unsigned: [], disputed: 2 })).toEqual({
-      refuse: "2 results in Round 2 are disputed, so it can’t be closed yet. Settle them on Score entry, then close the round.",
+    expect(roundCloseCheck({ label: "Round 2", unsigned: [], staffApproves: false, disputed: 2 })).toEqual({
+      refuse: "2 results in Round 2 are disputed, so the round can’t be closed yet. Settle them on Score entry, then close the round.",
     });
   });
 
   it("CONTROL: every card final, nothing disputed — closing is not interrupted", () => {
-    expect(roundCloseCheck({ label: "Round 1", unsigned: [], disputed: 0 })).toBeNull();
+    expect(roundCloseCheck({ label: "Round 1", unsigned: [], staffApproves: true, disputed: 0 })).toBeNull();
   });
 
   it("which card is final is the cut's own split, so the cut and the close cannot disagree", () => {

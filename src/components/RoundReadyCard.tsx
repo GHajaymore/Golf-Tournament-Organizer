@@ -30,7 +30,7 @@ export function RoundReadyCard({
   missing?: number;
 }) {
   const { pending, error, setError, startTransition } = useAction();
-  /** The server's question — a card not signed off yet (`roundCloseCheck`) — while it is open. */
+  /** The server's question — a card not yet approved or signed (`roundCloseCheck`) — while it is open. */
   const [asking, setAsking] = useState("");
   const close = (confirmUnsigned = false) =>
     startTransition(async () => {
