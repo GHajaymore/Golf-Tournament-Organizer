@@ -91,8 +91,8 @@ describe("a team match's result line", () => {
 
   it("counts a foursomes round per pair, not per (empty) player column", async () => {
     const l = (await lines())[1];
-    expect(l.result).toContain("Eve & Fay");
-    expect(l.result).not.toMatch(/Side [AB]|halved/i);
+    // Eve & Fay won both matches, once as side A and once as side B.
+    expect(l.result).toBe("Eve & Fay · 2 wins");
   });
 
   it("CONTROL: a match whose teams are gone still reads, as it always did, 'Side A'/'Side B'", async () => {

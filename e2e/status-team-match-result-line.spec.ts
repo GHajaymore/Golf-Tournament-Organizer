@@ -62,6 +62,8 @@ test("a player's board names the pairs that won, never Side A or Side B (#1034)"
     await match(0, "zz Reds", "zz Blues", tenWon("A"));
     await match(1, "zz Greens", "zz Golds", tenWon("B"));
 
+    // A leftover from a killed run would make the create below refuse.
+    await prisma.user.deleteMany({ where: { email: playerEmail } });
     const user = await prisma.user.create({ data: { email: playerEmail, name: "Wren Halloway", password: "x:unusable", emailVerifiedAt: new Date() } });
     playerUserId = user.id;
     await prisma.account.create({ data: { eventId: f.eventId, email: playerEmail, name: "Wren Halloway", role: "player" } });
@@ -83,8 +85,11 @@ test("a player's board names the pairs that won, never Side A or Side B (#1034)"
     }
     expect(errors, errors.join("\n")).toEqual([]);
   } finally {
-    await f.done();
-    if (playerUserId) await prisma.user.deleteMany({ where: { id: playerUserId } });
-    await prisma.$disconnect();
+    try {
+      await f.done();
+    } finally {
+      if (playerUserId) await prisma.user.deleteMany({ where: { id: playerUserId } });
+      await prisma.$disconnect();
+    }
   }
 });
