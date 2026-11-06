@@ -46,41 +46,41 @@ const sheet = (over: Partial<Parameters<typeof tournamentTerms>[0]> = {}) =>
 
 describe("J21: the rules sheet always states a team round's allowance", () => {
   it("a four-ball medal says 85% of each player's course handicap, the Rules' figure", () => {
-    expect(sheet()).toBe("85% of each player's course handicap, the Rules' recommendation");
+    expect(sheet()).toBe("85% of each player's handicap, the Rules' figure");
   });
 
   it("a four-ball MATCH says 90% (Appendix C), asked of the round's type", () => {
-    expect(sheet({ type: "Round Robin" })).toBe("90% of each player's course handicap, the Rules' recommendation");
+    expect(sheet({ type: "Round Robin" })).toBe("90% of each player's handicap, the Rules' figure");
   });
 
   it("foursomes says 50% of the pair's combined handicaps", () => {
-    expect(sheet({ format: "Foursomes" })).toBe("50% of the side's combined course handicaps, the Rules' recommendation");
+    expect(sheet({ format: "Foursomes" })).toBe("50% of the side's combined handicaps, the Rules' figure");
   });
 
   it("greensomes and scrambles say their split, not a flat percentage", () => {
     expect(sheet({ format: "Greensomes" })).toBe(
-      "60% of the lower course handicap and 40% of the higher, the Rules' recommendation",
+      "60% lower, 40% higher handicap, the Rules' figure",
     );
     expect(sheet({ format: "Scramble" })).toBe(
-      "Of the players' course handicaps, lowest first: 35 / 15 for two, 30 / 20 / 10 for three, 25 / 20 / 15 / 10 for four, the Rules' recommendation",
+      "Lowest handicap first. Two: 35 / 15. Three: 30 / 20 / 10. Four: 25 / 20 / 15 / 10. The Rules' figure.",
     );
   });
 
   it("a club convention is said to be one", () => {
-    expect(sheet({ format: "Shamble" })).toBe("85% of each player's course handicap, club convention (the Rules give none)");
+    expect(sheet({ format: "Shamble" })).toBe("85% of each player's handicap, club convention, not the Rules");
   });
 
   it("a committee's flat figure is said to be the committee's, and what it replaced", () => {
-    expect(sheet({ handicapAllowance: 80 })).toBe("80% of each player's course handicap, set by the committee in place of the Rules' 85%");
-    expect(sheet({ handicapAllowance: 85 })).toBe("85% of each player's course handicap, set by the committee (also the Rules' figure)");
+    expect(sheet({ handicapAllowance: 80 })).toBe("80% of each player's handicap, set by the committee");
+    expect(sheet({ handicapAllowance: 85 })).toBe("85% of each player's handicap: the committee's, same as the Rules");
     expect(sheet({ format: "Foursomes", handicapAllowance: 60 })).toBe(
-      "60% of the side's combined course handicaps, set by the committee in place of the Rules' 50%",
+      "60% of the side's combined handicaps, set by the committee",
     );
   });
 
   it("a committee's own split is said to be the committee's", () => {
     expect(sheet({ format: "Greensomes", allowanceWeights: [55, 45] })).toBe(
-      "55% of the lower course handicap and 45% of the higher, set by the committee",
+      "55% lower, 45% higher handicap, set by the committee",
     );
   });
 
@@ -101,16 +101,35 @@ describe("J21: the rules sheet always states a team round's allowance", () => {
 
   it("Best Ball does not claim the Rules for a figure they give only to a pair at stroke play", () => {
     expect(sheet({ format: "Best Ball" })).toBe(
-      "85% of each player's course handicap, the app's default; the Rules' figure for a pair at stroke play",
+      "85% of each player's handicap. The app's default; the Rules' for a pair at stroke play.",
     );
-    expect(sheet({ format: "Best Ball" })).not.toContain("the Rules' recommendation");
+    expect(sheet({ format: "Best Ball" })).not.toContain("the Rules' figure");
   });
 
   it("a split stored on a four-ball is not stated: the scoring ignores it", () => {
-    expect(sheet({ allowanceWeights: [55, 45] })).toBe("85% of each player's course handicap, the Rules' recommendation");
+    expect(sheet({ allowanceWeights: [55, 45] })).toBe("85% of each player's handicap, the Rules' figure");
     expect(sheet({ handicapAllowance: 80, allowanceWeights: [55, 45] })).toBe(
-      "80% of each player's course handicap, set by the committee in place of the Rules' 85%",
+      "80% of each player's handicap, set by the committee",
     );
+  });
+
+  it("a PLAYER'S screen allows no sentence of 12 words or more and no block of 25 (e2e/player-words.spec.ts)", () => {
+    // The first draft of these words failed that spec on a league member's Rules screen.
+    const words = (s: string) => s.split(" ").filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+    let looked = 0;
+    for (const format of FORMAT_NAMES) {
+      if (!needsTeams(format)) continue;
+      for (const type of STAGE_TYPES) {
+        for (const over of [{}, { handicapAllowance: 80 }, { handicapAllowance: 85 }, { allowanceWeights: [55, 45] }]) {
+          const value = sheet({ format, type, ...over })!;
+          const longest = Math.max(...value.split(/(?<=[.!?])\s+/).map(words));
+          expect(longest, `"${value}" has a sentence of ${longest} words`).toBeLessThan(12);
+          expect(words(value), `"${value}" is a block of ${words(value)} words`).toBeLessThan(25);
+          looked++;
+        }
+      }
+    }
+    expect(looked).toBeGreaterThan(80);
   });
 
   it("an individual round still says its own line, unchanged", () => {
@@ -182,7 +201,7 @@ describe("J23: a team board prints a handicap somebody plays off", () => {
   it("the help under an own-ball board does not talk about a side's handicap", () => {
     const html = board([side({})]);
     expect(html).not.toContain("the side&#x27;s gross minus the handicap strokes it receives");
-    expect(html).toContain("own playing handicap");
+    expect(html).toContain("own strokes off their own ball");
   });
 
 });

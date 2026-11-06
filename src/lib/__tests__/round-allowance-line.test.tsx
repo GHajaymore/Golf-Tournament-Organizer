@@ -218,9 +218,9 @@ describe("what a player is told on the rules sheet", () => {
   });
 
   it("a team round ALWAYS says its figure, and whose it is (J21: it used to say it only after a change)", () => {
-    expect(terms({ format: "Foursomes" })).toBe("50% of the side's combined course handicaps, the Rules' recommendation");
+    expect(terms({ format: "Foursomes" })).toBe("50% of the side's combined handicaps, the Rules' figure");
     expect(terms({ format: "Foursomes", handicapAllowance: 60 })).toBe(
-      "60% of the side's combined course handicaps, set by the committee in place of the Rules' 50%",
+      "60% of the side's combined handicaps, set by the committee",
     );
   });
 });
