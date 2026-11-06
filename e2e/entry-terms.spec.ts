@@ -171,8 +171,9 @@ test("the secretary sets the entry terms and opens, closes and reopens entries f
       expect(row.regDeadline, "opening early dropped the closing day").toBe(closes);
       expect(row.registrationOverride, "opening early must not set the extend-past-the-deadline override").toBeNull();
       await expect(card.getByLabel("Entries close")).toHaveValue(closes);
-      const link = await page.locator("input").evaluateAll((els) => (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "");
-      expect(link, "the sign-up link is not shown once entries are open").toContain(row.registrationToken);
+      // The link panel opens itself a moment after entries open; read it once it is drawn.
+      const readLink = () => page.locator("input").evaluateAll((els) => (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "");
+      await expect.poll(readLink, { timeout: 20_000, message: "the sign-up link is not shown once entries are open" }).toContain(row.registrationToken);
     });
 
     await test.step("Close entries closes; the link is kept; Reopen entries opens again", async () => {
