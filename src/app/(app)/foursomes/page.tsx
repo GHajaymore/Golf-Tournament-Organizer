@@ -395,7 +395,11 @@ export default async function FoursomesPage({
           </p>
         </div>
       )}
-      {stage && savedSheet && undrawn.length > 0 && (
+      {/* Mounted whenever staff have a saved sheet, though nobody is undrawn: the
+          refresh after placing the LAST player must not take away the line that
+          says where they went (round day-of-field-b-3, phone). The card draws
+          nothing when it has nothing to show. */}
+      {stage && savedSheet && isStaff && (
         <PlaceInGroup
           stageId={stage.id}
           undrawn={undrawn.map((id) => ({ id, name: nameOf.get(id) ?? "" }))}
