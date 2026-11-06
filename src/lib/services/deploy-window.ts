@@ -18,7 +18,9 @@ export async function currentDeployWindow(at: Date = new Date()): Promise<Deploy
   // The UTC day either side: every club's own day falls inside it (no zone is more than 14 hours from UTC).
   const day = (offset: number) => clubToday("UTC", new Date(at.getTime() + offset * 24 * 60 * 60 * 1000));
   const days = [day(-1), day(0), day(1)];
-  // The one answer every held page asks; a switch row that cannot be read keeps the hold.
+  // The one answer every held page asks. A switch row that cannot be read keeps "held" — the safe
+  // reading for the front door, but here, after launch, it LOWERS the freeze to pilot clubs only
+  // until the row can be read again (the reason then begins "sign-ins are held").
   const launch = await launchState();
   // REAL CLUBS ONLY (2026-10-24). The demo club has a tournament "on today" every day of the year,
   // and a freeze that counted it would never lift: it is in neither query (docs/claude/demo-club.md).
@@ -65,12 +67,13 @@ export async function currentDeployWindow(at: Date = new Date()): Promise<Deploy
 /**
  * THE PILOT CLUBS (Ajay, 2026-11-06): every real club at which somebody let in by name
  * (`SIGNIN_ALLOW_EMAILS`, through `signInAllowList` — never parsed again here) is STAFF. An owner on
- * `OWNER_EMAILS` is taken off that list first: the owners' own clubs hold test tournaments, and an
+ * `OWNER_EMAILS` is taken off that list first: by the ruling the owners' own clubs do not count before
+ * launch — a test, or a real event played by round code — and an
  * owner who also put their address on the allow-list must not freeze every deploy with them.
  *
  * Staff is the app's own reading of it, as the staff-seat count has it (`holdsSeat` in
  * `services/limits.ts`): a Commissioner or Admin of the club (`OrganizationMember` owner | admin), or
- * an Organizer or helper on one of its tournaments (`Account` admin | assistant). Ids only; the
+ * an Organizer or helper on one of its tournaments not archived (`Account` admin | assistant). Ids only; the
  * answer never names a club or a person.
  */
 export async function pilotClubIds(): Promise<Set<string>> {
@@ -83,7 +86,8 @@ export async function pilotClubIds(): Promise<Set<string>> {
       select: { organizationId: true },
     }),
     prisma.account.findMany({
-      where: { role: { in: ["admin", "assistant"] }, event: { organization: { isDemo: false } }, OR: byEmail },
+      // Not on an archived tournament, as `holdsSeat` counts it: a club somebody once ran is not one they run.
+      where: { role: { in: ["admin", "assistant"] }, event: { archivedAt: null, organization: { isDemo: false } }, OR: byEmail },
       select: { event: { select: { organizationId: true } } },
     }),
   ]);

@@ -23,14 +23,18 @@
  * THAT IS THE RULE ONCE ACCOUNTS ARE LIVE. BEFORE LAUNCH IT GUARDS ONLY PILOT
  * CLUBS (Ajay, 2026-11-06: "we can't waste time waiting this long. this kind of
  * real tournament [freeze] we should do at the last when we have all other
- * foundations and basic issues fixed"). While production holds sign-ins, no
- * member can be signed in, so a deploy lands on nobody but the owners and the
- * people let in by name on `SIGNIN_ALLOW_EMAILS` — a pilot club's organizer.
+ * foundations and basic issues fixed"). While production holds sign-ins, only
+ * the owners and the people let in by name on `SIGNIN_ALLOW_EMAILS` can sign
+ * in — but a round code (`/play`) and every public board still work
+ * (`sign-in-gate.ts`), which is how the cup was played. So a real event an
+ * owner runs with round-code players can be on today, and by the owner's
+ * ruling it does NOT hold a deploy: before launch only pilot clubs count.
  * So, held (`deployWindowFor`):
  *   FROZEN only while a PILOT club — one at which somebody on the allow-list is
  *     staff — has a tournament on today, by the same `onToday`;
  *   NOT frozen on a weekend morning, and not for the owners' own clubs, the
- *     demo club or any other club: their tournaments are test tournaments.
+ *     demo club or any other club, whether their tournaments are tests or a
+ *     real event played by round code.
  * Live, it is exactly the rule above. The launch state is asked of the one
  * answer every held page asks (`launchState()`), never worked out again here.
  * And until 20 November 2026 (`FREEZE_RESUMES`, Ajay's ruling the same night)
@@ -125,8 +129,7 @@ export interface ClubTournament extends TournamentOnTheBooks {
  * The instant is 20 November 00:00 in the EARLIEST zone on Earth (UTC+14, Pacific/Kiritimati) —
  * 19 November 10:00 UTC — so the freeze is back before 20 November has begun at any club anywhere.
  * Midnight UTC would leave a club east of Greenwich (Auckland is UTC+13 then) the first hours of its
- * 20th unguarded. It matters from that day: the Florida pilot club's organizer starts setting up on
- * 20 November, and the outing is 29–30 November.
+ * 20th unguarded. It matters from that day: the first pilot club's organizer starts setting up then.
  */
 export const FREEZE_RESUMES = new Date("2026-11-20T00:00:00+14:00");
 /** The answer before `FREEZE_RESUMES`. */
@@ -158,10 +161,16 @@ export function deployWindowFor(
     return { frozen: live.frozen, reason: `${LIVE_RULE} — ${live.reason}` };
   }
   const playing = tournaments.filter((t) => pilotClubs.has(t.clubId) && onToday(t, at));
-  if (playing.length) return { frozen: true, reason: `${HELD_RULE}, and ${beingPlayed(playing)} at a pilot club` };
+  if (playing.length) {
+    const clubs = new Set(playing.map((t) => t.clubId)).size;
+    return { frozen: true, reason: `${HELD_RULE}, and ${clubs} pilot club${clubs === 1 ? " is" : "s are"} playing: ${beingPlayed(playing)}` };
+  }
   const weekend = "weekend mornings are not frozen before launch";
   if (!pilotClubs.size) {
-    return { frozen: false, reason: `${HELD_RULE}, and there is none (nobody on the sign-in allow-list is staff at a club); ${weekend}` };
+    return {
+      frozen: false,
+      reason: `${HELD_RULE}, and there is none (nobody let in by name, other than an owner, is staff at a real club); ${weekend}`,
+    };
   }
   return {
     frozen: false,

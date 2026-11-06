@@ -79,7 +79,9 @@ after a clean round, every hour (to pick up a held deploy), and by hand. It depl
    *Changed by Ajay, 2026-11-06:* that is now the rule once accounts are live. Until 20 Nov 2026
    (`FREEZE_RESUMES`, 00:00 in UTC+14) the freeze is off; from then while sign-ins are held, only a
    pilot club (somebody on `SIGNIN_ALLOW_EMAILS` is its staff) playing today freezes, and weekend
-   mornings do not — a held production signs in nobody else, so a deploy lands on test tournaments.
+   mornings do not. A held production signs in only the owners and the allow-list, but round codes
+   and public boards still work, so a real event an owner runs by round code does not hold a deploy
+   before launch either: that is the owner's ruling.
 
 *Tournament director:* the freeze is about the secretary running a shotgun and 144 players saving
 after every hole; a deploy at 09:00 on a Saturday lands on all of them at once.

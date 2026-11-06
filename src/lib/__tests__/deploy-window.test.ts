@@ -75,8 +75,9 @@ describe("whether a deploy may go now", () => {
 
 /**
  * BEFORE LAUNCH THE FREEZE GUARDS ONLY PILOT CLUBS (Ajay, 2026-11-06). While production holds
- * sign-ins nobody but the owners and the people let in by name can be signed in, so a deploy lands
- * on a pilot club's organizer or on nobody. Held: only a pilot club playing today freezes, and the
+ * sign-ins only the owners and the people let in by name can sign in, though round codes and public
+ * boards still work — so a real event an owner runs by round code can be on today, and by the
+ * owner's ruling it does not hold a deploy. Held: only a pilot club playing today freezes, and the
  * weekend morning is off. Live: exactly the rule above, the answer saying which rule it was.
  * And before 20 November 2026 (`FREEZE_RESUMES`) nothing freezes at all, held or live.
  *
@@ -134,9 +135,17 @@ describe("held or live: which clubs freeze a deploy", () => {
     const w = deployWindowFor("held", TUESDAY_NOON_UTC, ["Europe/London"], [at(PILOT, { timeZone: "America/New_York", playedOn: ["2026-12-01"] })], pilots);
     expect(w.frozen).toBe(true);
     expect(w.reason.startsWith(HELD_RULE)).toBe(true);
-    expect(w.reason).toContain("1 tournament is being played today");
-    expect(w.reason).toContain("America/New_York");
+    expect(w.reason).toBe(`${HELD_RULE}, and 1 pilot club is playing: 1 tournament is being played today in the club's own time (America/New_York)`);
     expect(w.reason).not.toContain(PILOT);
+  });
+
+  it("held: the count of pilot clubs playing reads right with more than one", () => {
+    const two = new Set([PILOT, "zz-club-pilot-2"]);
+    const rows = [at(PILOT, { playedOn: ["2026-12-01"] }), at(PILOT, { playedOn: ["2026-12-01"] }), at("zz-club-pilot-2", { timeZone: "America/New_York", playedOn: ["2026-12-01"] })];
+    expect(deployWindowFor("held", TUESDAY_NOON_UTC, [], rows, two).reason).toBe(
+      `${HELD_RULE}, and 2 pilot clubs are playing: 3 tournaments are being played today in the club's own time (America/New_York, Europe/London)`,
+    );
+    expect(deployWindowFor("held", TUESDAY_NOON_UTC, [], rows, pilots).reason).toContain("1 pilot club is playing: 2 tournaments are");
   });
 
   it("held: the owners' own club playing today does NOT freeze; live, the same tournament does", () => {
@@ -166,7 +175,10 @@ describe("held or live: which clubs freeze a deploy", () => {
 
   it("held with no pilot club at all: nothing freezes, and the answer says there is none", () => {
     const w = deployWindowFor("held", SAT_EVENING_UTC, ["Pacific/Auckland"], [at(OWNERS, { timeZone: "Pacific/Auckland", playedOn: ["2026-12-06"] })], new Set());
-    expect(w).toEqual({ frozen: false, reason: `${HELD_RULE}, and there is none (nobody on the sign-in allow-list is staff at a club); weekend mornings are not frozen before launch` });
+    expect(w).toEqual({
+      frozen: false,
+      reason: `${HELD_RULE}, and there is none (nobody let in by name, other than an owner, is staff at a real club); weekend mornings are not frozen before launch`,
+    });
   });
 
   it("live is the live rule word for word, after the words that name it", () => {

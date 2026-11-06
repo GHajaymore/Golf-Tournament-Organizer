@@ -11,7 +11,7 @@ import { PrismaClient } from "@prisma/client";
  * clubs the way the app knows staff: somebody on `SIGNIN_ALLOW_EMAILS` who is a club's
  * Commissioner (`OrganizationMember` owner) or an Organizer on one of its tournaments (`Account`
  * admin) makes that club a pilot; an owner on `OWNER_EMAILS` does not, even when they are on the
- * allow-list too. Three invented clubs, `zz-` marked, deleted in `finally`. Read-only of everything
+ * allow-list too, nor does an Organizer's archived tournament. Four invented clubs, `zz-` marked, deleted in `finally`. Read-only of everything
  * else: the service only reads, and the instant is a Saturday morning years ahead, so no real
  * tournament is on it.
  *
@@ -41,6 +41,7 @@ const LATER = "2030-06-20";
 const saved: Record<string, string | undefined> = {};
 const ids = { commissioner: "", organizer: "", owners: "" };
 const stage = { commissioner: "", organizer: "", owners: "" };
+let archivedClub = "";
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -87,6 +88,17 @@ beforeAll(async () => {
   const c = await club("owners");
   const owner = await prisma.user.create({ data: { email: OWNER, name: `${TAG} Owner`, password: "x" } });
   await prisma.organizationMember.create({ data: { organizationId: c.org, userId: owner.id, role: "owner" } });
+
+  // A club where the same allow-listed Organizer ran a tournament that is now ARCHIVED, and nothing else.
+  const org = await prisma.organization.create({ data: { name: `${TAG} archived club`, kind: "club", timeZone: "UTC" } });
+  archivedClub = org.id;
+  const old = await prisma.event.create({
+    data: {
+      name: `${TAG} archived medal`, organizationId: org.id, status: "completed", dates: "", course: "", city: "", address: "",
+      regDeadline: "", shareToken: `${TAG}-archived`, archivedAt: new Date("2026-01-01T00:00:00Z"),
+    },
+  });
+  await prisma.account.create({ data: { eventId: old.id, name: `${TAG} Organizer`, email: ORGANIZER, role: "admin" } });
 });
 
 afterAll(async () => {
@@ -108,6 +120,7 @@ describe("the deploy freeze before launch, against real rows", () => {
     expect(pilots.has(ids.commissioner), "a Commissioner on the allow-list does not make a pilot club").toBe(true);
     expect(pilots.has(ids.organizer), "an Organizer on the allow-list does not make a pilot club").toBe(true);
     expect(pilots.has(ids.owners), "an owner's own club counted as a pilot club").toBe(false);
+    expect(pilots.has(archivedClub), "an Organizer of an ARCHIVED tournament only made a pilot club").toBe(false);
   });
 
   it("held, nothing on today: not frozen, though it is Saturday 10:00 at three clubs", async () => {
@@ -131,7 +144,7 @@ describe("the deploy freeze before launch, against real rows", () => {
       await playToday(pilot);
       const w = await currentDeployWindow(AT);
       expect(w.frozen, `${pilot}: ${w.reason}`).toBe(true);
-      expect(w.reason).toBe(`${HELD_RULE}, and 1 tournament is being played today in the club's own time (UTC) at a pilot club`);
+      expect(w.reason).toBe(`${HELD_RULE}, and 1 pilot club is playing: 1 tournament is being played today in the club's own time (UTC)`);
     }
   });
 
@@ -141,6 +154,9 @@ describe("the deploy freeze before launch, against real rows", () => {
     const w = await currentDeployWindow(AT);
     expect(w.frozen).toBe(true);
     expect(w.reason.startsWith(LIVE_RULE)).toBe(true);
+    // Frozen by the round, not only by the weekend morning: AT is Saturday 10:00 UTC, which alone
+    // would freeze live too, so the reason must name the tournament being played.
+    expect(w.reason).toContain("being played today");
   });
 
   it("before 20 November 2026 nothing freezes, held or live — a pilot club playing included", async () => {
