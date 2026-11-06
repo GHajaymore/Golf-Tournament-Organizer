@@ -53,7 +53,7 @@ function claims(s: Source): { says: string; re: RegExp; want: string[] }[] {
     },
     {
       says: "light ground",
-      re: new RegExp(`Light, \`LIGHT_GROUND\`: page ${h}[^,]*, card ${h}, text ${h}`),
+      re: new RegExp(`Light, \`LIGHT_GROUND\`: page ${h}(?: \\([^)]*\\))?, card ${h}, text ${h}`),
       want: [s.light.bg, s.light.surface, s.light.text],
     },
     { says: "the banned leaf green", re: new RegExp(`India-flag green ${h}`), want: s.prose },
