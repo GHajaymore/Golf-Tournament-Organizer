@@ -78,7 +78,7 @@ jobs:
         # The same ten-minute limit ci.yml gives this step, for the same reason:
         # the apt step behind `--with-deps` has hung for half an hour before.
         timeout-minutes: 10
-        run: npx playwright install --with-deps ${{ matrix.engine }}
+        run: bash scripts/ci/install-browsers.sh ${{ matrix.engine }}
 
       - name: The standing suite on ${{ matrix.engine }}
         env:

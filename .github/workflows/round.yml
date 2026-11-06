@@ -288,7 +288,7 @@ jobs:
         run: |
           # apt-get keeps what it downloads in its cache unless told not to;
           # say so, so the runner's own settings cannot empty it.
-          printf 'APT::Keep-Downloaded-Packages "true";\nBinary::apt-get::APT::Keep-Downloaded-Packages "true";\nAcquire::Retries "5";\n' | sudo tee /etc/apt/apt.conf.d/80-round-keep
+          printf 'APT::Keep-Downloaded-Packages "true";\nBinary::apt-get::APT::Keep-Downloaded-Packages "true";\nAcquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-round-keep
           npx playwright install-deps chromium firefox webkit
           mkdir -p browser-packages
           cp /var/cache/apt/archives/*.deb browser-packages/ 2>/dev/null || true
@@ -382,7 +382,7 @@ jobs:
         # these retries in a second each: the next attempt now WAITS for it.
         timeout-minutes: 14
         run: |
-          printf 'DPkg::Lock::Timeout "300";\nAcquire::Retries "3";\n' | sudo tee /etc/apt/apt.conf.d/80-round-wait
+          printf 'DPkg::Lock::Timeout "300";\nAcquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-round-wait
           if ls browser-packages/*.deb >/dev/null 2>&1; then
             sudo cp browser-packages/*.deb /var/cache/apt/archives/
             echo "Took $(ls browser-packages/*.deb | wc -l) packages from this round's packages job."
