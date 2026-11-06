@@ -217,8 +217,10 @@ describe("what a player is told on the rules sheet", () => {
     expect(terms({ scoringBasis: "gross" })).toBeUndefined();
   });
 
-  it("a team round says its figure when a committee has set one, as before", () => {
-    expect(terms({ format: "Foursomes" })).toBeUndefined();
-    expect(terms({ format: "Foursomes", handicapAllowance: 60 })).toBe("60% of course handicap");
+  it("a team round ALWAYS says its figure, and whose it is (J21: it used to say it only after a change)", () => {
+    expect(terms({ format: "Foursomes" })).toBe("50% of the side's combined course handicaps, the Rules' recommendation");
+    expect(terms({ format: "Foursomes", handicapAllowance: 60 })).toBe(
+      "60% of the side's combined course handicaps, set by the committee in place of the Rules' 50%",
+    );
   });
 });

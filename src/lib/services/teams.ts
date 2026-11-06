@@ -444,6 +444,16 @@ export interface TeamStanding {
    * result on their phone.
    */
   memberIds: string[];
+  /**
+   * WHAT EACH MEMBER PLAYS OFF, in `members` order, where every player plays
+   * their own ball (four-ball, best ball, a shamble): `TeamMemberView.playing`,
+   * the round's allowance of the exact course handicap, rounded once. Null for a
+   * member of a side that shares one ball, and empty when the side has nobody.
+   * The board prints these and not `playingHandicap` for such a round, because
+   * no side plays off a combined figure there (backlog J23).
+   */
+  memberPlaying: (number | null)[];
+  /** The side's own handicap. A real figure only for a SHARED ball; on a two-ball round nobody plays off it. */
   playingHandicap: number;
   gross: number;
   net: number;
@@ -569,6 +579,7 @@ export async function teamStandingsWithCards(
       name: t.name,
       members: t.members.map((m) => m.name),
       memberIds: t.members.map((m) => m.playerId),
+      memberPlaying: t.members.map((m) => m.playing),
       playingHandicap: t.playingHandicap,
       gross: card.grossTotal,
       net: card.netTotal,

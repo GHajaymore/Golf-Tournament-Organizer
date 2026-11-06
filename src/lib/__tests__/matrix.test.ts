@@ -1,3 +1,8 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TeamStandingsTable } from "@/components/TeamLeaderboard";
+import { tournamentTerms } from "@/lib/rules";
+import { recommendedAllowance } from "@/lib/round-allowance";
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_INPUT,
@@ -2475,4 +2480,75 @@ describe("a knockout is over when every draw's Final is decided, in every mode",
     expect(three.map((d) => d.players.length)).toEqual([10, 10, 8]);
     expect(new Set(three.map((d) => d.view.kind)).size).toBe(3);
   });
+});
+
+/**
+ * WHAT A TEAM BOARD PRINTS FOR HANDICAP, ON EVERY TEAM FORMAT, SIDE SIZE AND KIND
+ * OF ROUND (backlog J21, J23).
+ *
+ * Invariants, not features:
+ *   - where every player plays their own ball the column holds one figure PER
+ *     PLAYER and never the side's combined figure (nobody plays off it);
+ *   - where the side shares a ball it holds the side's figure and no other;
+ *   - the rules sheet states an allowance, and it is the resolver's
+ *     (`recommendedAllowance`) unless the format is scored by a split.
+ */
+describe("what a team board and the rules sheet say about handicap, on every team format", () => {
+  const TEAM_FORMATS = GOLF_FORMATS.filter((f) => f.sideSize > 1);
+  const HANDICAPS = [4, 11, 19, 28];
+  // Distinct from every player's own figure, so a board that printed the side's by mistake is seen.
+  const SIDE = 777;
+
+  it("has team formats to sweep", () => {
+    expect(TEAM_FORMATS.length, "no team formats found").toBeGreaterThan(4);
+  });
+
+  for (const format of TEAM_FORMATS) {
+    const { min, max } = sideSizeRange(format.name);
+    for (let size = min; size <= max; size += 1) {
+      for (const type of STAGE_TYPES) {
+        it(`${format.name}, side of ${size}, ${type}`, () => {
+          const ownBall = format.ball !== "single";
+          const members = HANDICAPS.slice(0, size);
+          const row = {
+            teamId: "t1",
+            name: "zz-side",
+            members: members.map((_, i) => `zz-p${i}`),
+            memberIds: members.map((_, i) => `p${i}`),
+            memberPlaying: members.map((h) => (ownBall ? h : null)),
+            playingHandicap: SIDE,
+            gross: 70,
+            net: 60,
+            points: 0,
+            played: 18,
+            toPar: -2,
+            place: 1,
+          };
+          const html = renderToStaticMarkup(createElement(TeamStandingsTable, { basis: "net", rows: [row] }));
+          const cell = [...html.match(/<tbody>.*?<\/tr>/s)![0].matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => m[1].replace(/<[^>]+>/g, ""))[2];
+          if (ownBall) {
+            expect(cell, "a two-ball board must list each player's own figure").toBe(members.join(" · "));
+            expect(html).not.toContain(`>${SIDE}<`);
+          } else {
+            expect(cell, "a shared-ball board prints the side's figure").toBe(String(SIDE));
+          }
+
+          const words = tournamentTerms({
+            format: format.name,
+            type,
+            holes: 18,
+            scoringBasis: "net",
+            handicapAllowance: 0,
+            countBest: 0,
+            tiebreakers: [],
+            cutAfter: null,
+            carryForwardEnabled: false,
+            carryForwardPct: 0,
+          }).find((t) => t.label === "Handicap allowance")?.value;
+          expect(words, "the rules sheet states no allowance").toBeTruthy();
+          if (!format.weightsBySideSize) expect(words).toContain(`${recommendedAllowance(format.name, type)}%`);
+        });
+      }
+    }
+  }
 });

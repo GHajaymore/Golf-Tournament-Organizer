@@ -111,6 +111,22 @@ export function TeamStandingsTable({
   // "T1" for a shared place, as every other board prints it — see `placeTexts`.
   // The place `teamStandings` decided, countback and all; never re-numbered here.
   const places = placeTexts(rows.map((r) => r.place));
+  /**
+   * ON A ROUND WHERE EVERY PLAYER PLAYS THEIR OWN BALL there is no side
+   * handicap to print (backlog J23, 2026-11-05). The column showed
+   * `TeamStanding.playingHandicap` — 90% of the pair's combined handicaps — for
+   * a four-ball, a figure no player takes a stroke from: each plays off their own
+   * playing handicap (Rules of Handicapping, Appendix C) and the better ball
+   * counts. So such a board prints each player's own figure, in the order the
+   * names are listed, and a shared-ball board (foursomes, a scramble) keeps the
+   * side's, because there the side is the player.
+   */
+  const ownBall = rows.some((r) => r.memberPlaying.some((p) => p !== null));
+  const handicapOf = (r: TeamStanding): string => {
+    if (!ownBall) return String(r.playingHandicap);
+    const own = r.memberPlaying.filter((p): p is number => p !== null);
+    return own.length > 0 ? own.join(" · ") : "—";
+  };
 
   return (
     <>
@@ -126,7 +142,7 @@ export function TeamStandingsTable({
                 <tr>
                   <th style={{ width: 40 }}>#</th>
                   <th>Side</th>
-                  <th style={{ textAlign: "right" }}>H/cap</th>
+                  <th style={{ textAlign: "right" }}>{ownBall ? "Plays off" : "H/cap"}</th>
                   <th style={{ textAlign: "right" }}>Holes</th>
                   <th style={{ textAlign: "right" }}>Gross</th>
                   {stableford ? (
@@ -161,7 +177,7 @@ export function TeamStandingsTable({
                       )}
                     </td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                      {r.playingHandicap}
+                      {handicapOf(r)}
                     </td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {r.played}
@@ -218,10 +234,14 @@ export function TeamStandingsTable({
           }
         >
           {stableford
-            ? "Points are Stableford against the side's playing handicap. "
+            ? ownBall
+              ? "Points are Stableford against each player's own playing handicap. "
+              : "Points are Stableford against the side's playing handicap. "
             : basis === "gross"
               ? "This round is decided on gross: the handicap column is shown for reference and takes no part in the order. "
-              : "Net is the side's gross minus the handicap strokes it receives. "}
+              : ownBall
+                ? "Net takes each player's strokes off their own ball, from their own playing handicap, before the side's score is counted. "
+                : "Net is the side's gross minus the handicap strokes it receives. "}
           Sides that haven&apos;t returned a card yet are unranked rather than shown level with the
           field.
         </MoreInfo>

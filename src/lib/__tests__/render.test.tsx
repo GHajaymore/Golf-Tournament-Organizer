@@ -905,9 +905,9 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Scramble" basis="net"
         rows={[
-          { teamId: "t1", name: "Side A", members: ["Ann", "Bob"], memberIds: ["p1", "p2"], playingHandicap: 7,
+          { teamId: "t1", name: "Side A", members: ["Ann", "Bob"], memberIds: ["p1", "p2"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: 0, place: 1 },
-          { teamId: "t2", name: "Side B", members: [], memberIds: [], playingHandicap: 0,
+          { teamId: "t2", name: "Side B", members: [], memberIds: [], memberPlaying: [], playingHandicap: 0,
             gross: 0, net: 0, points: 0, played: 0, toPar: 0, place: null },
         ]} />,
     );
@@ -1041,11 +1041,11 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Four-Ball" basis="net"
         rows={[
-          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
+          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
-          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], playingHandicap: 9,
+          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], memberPlaying: [], playingHandicap: 9,
             gross: 74, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
-          { teamId: "t3", name: "Cats", members: ["Cal"], memberIds: ["p3"], playingHandicap: 4,
+          { teamId: "t3", name: "Cats", members: ["Cal"], memberIds: ["p3"], memberPlaying: [], playingHandicap: 4,
             gross: 71, net: 67, points: 0, played: 18, toPar: -5, place: 3 },
         ]} />,
     );
@@ -1063,9 +1063,9 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Four-Ball" basis="stableford"
         rows={[
-          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
+          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 38, played: 18, toPar: 0, place: 1 },
-          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], playingHandicap: 9,
+          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], memberPlaying: [], playingHandicap: 9,
             gross: 80, net: 71, points: 38, played: 18, toPar: 0, place: 1 },
         ]} />,
     );
@@ -1108,6 +1108,7 @@ describe("leaderboards for every format", () => {
         rows={[{
           teamId: "t1", name: "Ants", members: ["Ann", "Bob", "Cal", "Dee"],
           memberIds: ["p1", "p2", "p3", "p4"],
+          memberPlaying: [],
           playingHandicap: 0,
           gross: card.grossTotal, net: card.netTotal, points: card.pointsTotal,
           played: card.played, toPar: card.toPar, place: 1,
@@ -1121,9 +1122,9 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Scramble" basis="net"
         rows={[
-          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
+          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
-          { teamId: "t2", name: "Bees", members: [], memberIds: [], playingHandicap: 0,
+          { teamId: "t2", name: "Bees", members: [], memberIds: [], memberPlaying: [], playingHandicap: 0,
             gross: 0, net: 0, points: 0, played: 0, toPar: 0, place: null },
         ]} />,
     );

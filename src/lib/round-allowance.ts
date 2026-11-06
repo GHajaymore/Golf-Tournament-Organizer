@@ -1,6 +1,7 @@
 import { findFormat, isManualFormat, needsTeams } from "./formats";
 import { isHeadToHead, isIndividualStrokeRound } from "./stage-types";
 import { NO_PAR_STROKES, roundPlayingHandicap } from "./domain/handicap";
+import { committeeWeights } from "./domain/team";
 import { resolveRoundHandicap, roundParStrokesOf, type ResolvedRoundHandicap, type RoundHandicapRow } from "./domain/round-handicap";
 
 /** Appendix C: four-ball stroke play. The format's own figure, 90, is four-ball match play. */
@@ -207,6 +208,56 @@ export function overridesAfterFormatChange(
     handicapAllowance: allowanceMeans(before) === allowanceMeans(after) ? before.handicapAllowance : 0,
     allowanceWeights: sameFormat ? before.allowanceWeights : [],
   };
+}
+
+/**
+ * WHAT A TEAM ROUND'S PLAYERS ARE TOLD THEY PLAY OFF, for the rules sheet (J21).
+ *
+ * Always a sentence, whether or not a committee has set anything: the sheet
+ * used to say a team round's allowance only after somebody changed it (and then
+ * as "60% of course handicap", whatever the format), so a four-ball's players
+ * were never told the 85% their own playing handicap is.
+ *
+ * It states what `sidePlayingHandicap` / `aggregateTeamCard` actually apply, in
+ * the order they apply it: a committee's own split, then a committee's flat
+ * figure, then the format's declared split (greensomes, a scramble), then
+ * `recommendedAllowance(format, type)` — the same function the Rounds screen and
+ * the board ask — and says whose it is: the Rules' recommendation, the club
+ * convention the Rules do not give, or the committee's.
+ *
+ * Null for a round that is not a team round.
+ */
+export function teamAllowanceWords(s: { format: string; type: string; handicapAllowance: number; allowanceWeights: number[] }): string | null {
+  if (!needsTeams(s.format)) return null;
+  const f = findFormat(s.format);
+  const ownBall = f.ball !== "single";
+  const flatOf = ownBall ? "of each player's course handicap" : "of the side's combined course handicaps";
+  const splitWords = (w: number[]) =>
+    w.length === 2
+      ? `${w[0]}% of the lower course handicap and ${w[1]}% of the higher`
+      : `${w.join("% / ")}% of the players' course handicaps, lowest first`;
+
+  const committeeSplit = committeeWeights(s.allowanceWeights, s.allowanceWeights.length);
+  if (committeeSplit) return `${splitWords(committeeSplit)}, set by the committee`;
+
+  const recommended = recommendedAllowance(s.format, s.type);
+  const declared = f.weightsBySideSize;
+  if (s.handicapAllowance > 0) {
+    const flat = `${s.handicapAllowance}% ${flatOf}`;
+    if (declared) return `${flat}, set by the committee in place of the Rules' split`;
+    if (s.handicapAllowance === recommended) return `${flat}, set by the committee (also the Rules' figure)`;
+    return `${flat}, set by the committee in place of the Rules' ${recommended}%`;
+  }
+  if (declared) {
+    const sizes = Object.keys(declared).map(Number).sort((a, b) => a - b);
+    if (sizes.length === 1) return `${splitWords(declared[sizes[0]])}, the Rules' recommendation`;
+    const names = ["", "one", "two", "three", "four"];
+    const parts = sizes.map((n) => `${declared[n].join(" / ")} for ${names[n] ?? n}`);
+    return `Of the players' course handicaps, lowest first: ${parts.join(", ")}, the Rules' recommendation`;
+  }
+  return f.allowanceIsConvention
+    ? `${recommended}% ${flatOf}, club convention (the Rules give none)`
+    : `${recommended}% ${flatOf}, the Rules' recommendation`;
 }
 
 /** What an individual net round's card says about its allowance. */
