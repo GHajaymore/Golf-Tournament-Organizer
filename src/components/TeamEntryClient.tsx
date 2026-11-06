@@ -541,16 +541,20 @@ export function TeamEntryClient({
                 the dots below are `playing - low`: so the tag says what the
                 dots show ("Gets 0 · 4 (off the low of 5)"), not the playing
                 handicaps they are measured from. */}
+            {/* A SHARED ball keeps the side's own figure in a tag of its own — it
+                is the side's handicap, whatever the match then takes off it —
+                and a match adds the strokes the dots show beside it. */}
+            {t.cards.some((c) => c.playerId === "") && (
+              <span className="tag tag-neutral">
+                Plays off {t.playingHandicap}
+              </span>
+            )}
             {t.matchLow != null ? (
               (() => {
                 const got = playsOffWords(t.cards.map((c) => c.received));
                 return got ? <span className="tag tag-neutral">Gets {got} (off the low of {t.matchLow})</span> : null;
               })()
-            ) : t.cards.some((c) => c.playerId === "") ? (
-              <span className="tag tag-neutral">
-                Plays off {t.playingHandicap}
-              </span>
-            ) : (
+            ) : t.cards.some((c) => c.playerId === "") ? null : (
               /* Where everyone plays their own ball, each partner's own
                  figure in the order the cards are listed (J23). */
               playsOffWords(t.cards.map((c) => c.playing)) && (

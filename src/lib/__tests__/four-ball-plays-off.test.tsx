@@ -154,10 +154,12 @@ describe("Team score entry in a MATCH says what the dots show", () => {
     expect(text).toContain("Gets 0 · 4 (off the low of 5)");
     expect(text).not.toContain("Plays off");
   });
-  it("a shared-ball match: the side's strokes received, off the low", () => {
+  it("a shared-ball match keeps the side's own figure (Appendix C) in a tag of its own, and adds what the dots show", () => {
     const text = matchEntry(false);
+    // The league spec reads "Plays off N" as a whole element, so the figure must not be merged into the other words.
+    expect(text).toContain("Plays off 12");
     expect(text).toContain("Gets 7 (off the low of 5)");
-    expect(text).not.toContain("Plays off");
+    expect(text).not.toContain("Plays off 12 ·");
   });
 });
 
