@@ -47,7 +47,47 @@ describe("addFormatFor — the format the builder offers for the kind chosen", (
   });
 });
 
+/**
+ * THE PRESSES THEMSELVES: Round robin, Add, Bracket (and the other orders). There is no DOM in this
+ * suite (no jsdom), so the builder's two states are driven through the same two functions the
+ * component uses on each press (`pickType` = `addFormatFor(t, cur)`, the select = `formatChoicesFor`)
+ * and what the select would render is read back: its value must be one of its own options.
+ */
+describe("pressing through the kinds leaves the select on a valid format", () => {
+  const press = (st: { type: string; held: string }, t: string) => ({ type: t, held: addFormatFor(t, st.held) });
+  const shown = (st: { type: string; held: string }) => {
+    const options = formatChoicesFor(st.type).map((c) => c.name);
+    const value = addFormatFor(st.type, st.held);
+    return { options, value };
+  };
+  it("Round robin, Add, Bracket reads Match Play", () => {
+    let st = press({ type: "", held: "" }, "Round Robin");
+    expect(shown(st).value).toBe("Match Play");
+    // Add changes neither the kind nor the format held (it resets the count and date only).
+    st = press(st, "Bracket Stage");
+    const { options, value } = shown(st);
+    expect(value).toBe("Match Play");
+    expect(options).toContain(value);
+  });
+  it("every ordered pair and triple of kinds ends on a format among its own options", () => {
+    for (const a of STAGE_TYPES) for (const b of STAGE_TYPES) for (const c of STAGE_TYPES) {
+      let st = { type: "", held: "" };
+      for (const t of [a, b, c]) {
+        st = press(st, t);
+        const { options, value } = shown(st);
+        expect(value, `${a} ${b} ${c}`).not.toBe("");
+        expect(options, `${a} ${b} ${c}`).toContain(value);
+      }
+    }
+  });
+});
+
 describe("the builder uses it everywhere the format is shown or sent", () => {
+  it("pickType holds no copy of the fit rule, and Choose… is offered only before a kind", () => {
+    const s = readSource("src/components/StagesClient.tsx");
+    expect(s).toContain("setBulkFormat((cur) => addFormatFor(t, cur))");
+    expect(s).toContain('{!newType && <option value="">Choose…</option>}');
+  });
   const src = readSource("src/components/StagesClient.tsx");
   it("the select, the Add button and the server call read the asked-for format, not the held one", () => {
     expect(src).toContain("const addFormat = addFormatFor(newType, bulkFormat)");

@@ -6,7 +6,7 @@ import { useGolfTerms } from "./GolfTermsProvider";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
 import { roundLabel as roundLabelOf, roundNumber as roundNumberOf } from "@/lib/domain/round-label";
-import { addFormatFor, formatChoicesFor, naturalFormatFor } from "@/lib/domain/round-choices";
+import { addFormatFor, formatChoicesFor } from "@/lib/domain/round-choices";
 import {
   setStageDeadline,
   setStageCarry,
@@ -3097,7 +3097,7 @@ export function StagesClient({
   const addFormat = addFormatFor(newType, bulkFormat);
   const pickType = (t: StageTypeKey) => {
     setNewType(t);
-    setBulkFormat((cur) => (cur && formatChoicesFor(t).some((c) => c.name === cur) ? cur : naturalFormatFor(t)));
+    setBulkFormat((cur) => addFormatFor(t, cur));
   };
 
   /**
@@ -3419,7 +3419,7 @@ export function StagesClient({
                   The format is HALF of what a round is — the type decides what
                   is drawn, the format decides how a score becomes a result —
                   so it is asked, like the type above it. */}
-              <option value="">Choose…</option>
+              {!newType && <option value="">Choose…</option>}
               {/* What the chosen type can be scored in — `formatChoicesFor`, the
                   list `addStage` also holds to. Before a type is picked, the
                   formats a stroke round can take, which is most of them; the
