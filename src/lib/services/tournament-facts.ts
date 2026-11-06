@@ -23,7 +23,7 @@ import { isAttendanceMode, tracksPerRound } from "../domain/attendance";
 import { generatesPairings, isKnockoutRound, isPlayingRound } from "../stage-types";
 import { TEAM_FORMAT_NAMES } from "../formats";
 import { roundsMissingCards } from "./round-card-lines";
-import { teesForEvent } from "./handicaps";
+import { teesInPlayFor } from "./handicaps";
 import { unratedTeesFact } from "../domain/launch-check";
 import { loadEventState } from "./tournament";
 import { cupBoard } from "./cup";
@@ -162,6 +162,10 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
       flightsConfirmed: true,
       playSuspendedAt: true,
       organizationId: true,
+      teePolicy: true,
+      defaultTeeId: true,
+      courseId: true,
+      courseMode: true,
       // A league by its KIND (PR 3): what it is called, its league table, its weekly sign-up.
       playKind: true,
       leaguePoints: true,
@@ -232,15 +236,19 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
    * handicap and which tees cannot give one. Tees are read only for a
    * tournament with such a round — a gross medal needs no rating.
    */
+  const roundsOf = (id: string) => {
+    const all = stagesOf.get(id) ?? [];
+    return all.filter((s) => isPlayingRound(s.type)).map((s) => ({ label: roundLabel(all, s.id), scoringBasis: s.scoringBasis }));
+  };
+  // ONE batch of tee reads for every tournament that has a round off a handicap
+  // (not one query per tournament), resolved by the one tee resolver.
+  const needTees = events.filter((e) => roundsOf(e.id).some((r) => r.scoringBasis !== "gross"));
+  const inPlay = await teesInPlayFor(needTees);
   const unratedOf = new Map(
-    await Promise.all(
-      found.map(async (id) => {
-        const playing = (stagesOf.get(id) ?? []).filter((s) => isPlayingRound(s.type));
-        const rounds = playing.map((s) => ({ label: roundLabel(stagesOf.get(id) ?? [], s.id), scoringBasis: s.scoringBasis }));
-        if (!rounds.some((r) => r.scoringBasis !== "gross")) return [id, null] as const;
-        return [id, unratedTeesFact({ rounds, tees: (await teesForEvent(id)).map((t) => ({ name: t.name, slopeRating: t.slopeRating, courseRating: t.courseRating })) })] as const;
-      }),
-    ),
+    needTees.map((e) => {
+      const p = inPlay.get(e.id);
+      return [e.id, unratedTeesFact({ rounds: roundsOf(e.id), tees: p?.tees ?? [], fixedCourse: !!p?.hasCourse && !p?.open })] as const;
+    }),
   );
   const cardsOf = byEvent([...cardRows, ...teamCardRows]);
   const matchesOf = byEvent(matchRows);

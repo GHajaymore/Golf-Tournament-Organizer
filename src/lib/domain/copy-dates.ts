@@ -28,6 +28,8 @@ import { parseDeadlineIso } from "../deadline";
 export interface CopyCalendarSource {
   /** The original's first day, `yyyy-mm-dd`, or "". */
   startOn: string;
+  /** Its last day, `yyyy-mm-dd`, or "" — with `startOn`, the length a copy keeps when given no last day. */
+  endOn?: string;
   /** Its sign-up deadline as stored — ISO, or the app's older "Jun 1, 2026". */
   regDeadline: string;
   /** The first day it took entries, or "". */
@@ -67,8 +69,6 @@ export function copiedCalendar(input: {
   }
   if (start < input.today) return { ok: false, error: COPY_DAY_GONE };
   const end = cleanIsoDate(input.endOn);
-  // An end before the start is a one-day tournament — the rule `setTournamentDates` keeps.
-  const endOn = end && end >= start ? end : start;
 
   /**
    * WHERE THE ORIGINAL STARTED, so every other day can keep its distance from
@@ -78,6 +78,18 @@ export function copiedCalendar(input: {
   const roundDays = input.source.rounds.map((r) => cleanIsoDate(r.playedOn)).filter(Boolean).sort();
   const was = cleanIsoDate(input.source.startOn) || roundDays[0] || "";
   const shift = was ? daysBetween(was, start) : null;
+
+  /**
+   * A COPY GIVEN ONLY A FIRST DAY KEEPS THE ORIGINAL'S LENGTH. Its rounds move
+   * by the same distance as its first day, so a three-day original copied with
+   * no last day would otherwise be a one-day event holding rounds on days two
+   * and three, outside its own dates. The length is the original's own last
+   * day, or else its latest dated round.
+   */
+  const wasEnd = cleanIsoDate(input.source.endOn ?? "") || roundDays[roundDays.length - 1] || "";
+  const length = was && wasEnd && wasEnd > was ? (daysBetween(was, wasEnd) ?? 0) : 0;
+  // An end before the start is a one-day tournament — the rule `setTournamentDates` keeps.
+  const endOn = end ? (end >= start ? end : start) : addDays(start, length);
 
   const moved = (day: string): string => {
     if (shift === null || !day) return "";
