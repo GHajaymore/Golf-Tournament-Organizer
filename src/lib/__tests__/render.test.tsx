@@ -6857,6 +6857,24 @@ describe("registration and field", () => {
     expect(notYet).toContain("Open entries now");
   });
 
+  it("tells staff who are not admins why the entry terms are read-only, instead of letting the server refuse", async () => {
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    const html = render(
+      <RegistrationClient
+        confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin={false} roster={[]}
+        event={{
+          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          registrationOverride: null, inviteMessage: "", organizationName: "zz-Club",
+          dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+          requirePhone: false, registrationToken: "",
+        }} />,
+    );
+    expect(html).toContain("Only an organizer can change the entry terms. You can still open and close entries.");
+    expect(html).toContain("Open entries");
+    // CONTROL: an admin is not told it.
+    expect(await reg()).not.toContain("Only an organizer can change the entry terms");
+  });
+
   it("shows no way back to Tournament details for the entry terms", async () => {
     const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
     expect(html).not.toContain("change on Tournament details");

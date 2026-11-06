@@ -29,6 +29,7 @@ export function EntryTermsCard({
   approveMode,
   showApproval,
   locked,
+  isAdmin = true,
   locale,
 }: {
   entries: EntriesOpen;
@@ -43,6 +44,8 @@ export function EntryTermsCard({
   showApproval: (mode: string) => void;
   /** The setup lock: the terms and the approval mode are part of the shape; the open/close button is not. */
   locked: boolean;
+  /** Only an admin saves the terms (`saveEntryTerms` is admin-only); everyone on staff can press the open/close button. */
+  isAdmin?: boolean;
   locale?: string;
 }) {
   const fid = useId();
@@ -56,6 +59,8 @@ export function EntryTermsCard({
   const [saidSaved, setSaidSaved] = useState(false);
   const dirty = opens !== saved.opens || closes !== saved.closes || cap !== saved.cap;
   const closed = !entries.open;
+  // The terms are read-only for the setup lock and for anyone who is not an admin.
+  const termsLocked = locked || !isAdmin;
 
   const press = (open: boolean) =>
     startTransition(async () => {
@@ -147,7 +152,7 @@ export function EntryTermsCard({
             type="date"
             value={opens}
             max={parseDeadlineIso(closes) || undefined}
-            disabled={pending || locked}
+            disabled={pending || termsLocked}
             onChange={(e) => setOpens(e.target.value)}
           />
           <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
@@ -162,7 +167,7 @@ export function EntryTermsCard({
             type="date"
             value={parseDeadlineIso(closes)}
             min={opens || undefined}
-            disabled={pending || locked}
+            disabled={pending || termsLocked}
             onChange={(e) => setCloses(e.target.value)}
           />
           <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
@@ -176,11 +181,11 @@ export function EntryTermsCard({
           <div style={{ display: "flex", gap: 8 }}>
             <div className="seg">
               <label className="seg-opt">
-                <input type="radio" name={`${fid}-capmode`} checked={cap > 0} disabled={pending || locked} onChange={() => setCap(cap > 0 ? cap : 32)} />
+                <input type="radio" name={`${fid}-capmode`} checked={cap > 0} disabled={pending || termsLocked} onChange={() => setCap(cap > 0 ? cap : 32)} />
                 Fixed
               </label>
               <label className="seg-opt">
-                <input type="radio" name={`${fid}-capmode`} checked={cap <= 0} disabled={pending || locked} onChange={() => setCap(0)} />
+                <input type="radio" name={`${fid}-capmode`} checked={cap <= 0} disabled={pending || termsLocked} onChange={() => setCap(0)} />
                 Open
               </label>
             </div>
@@ -191,7 +196,7 @@ export function EntryTermsCard({
                 type="number"
                 value={cap}
                 max={planLimit ?? undefined}
-                disabled={pending || locked}
+                disabled={pending || termsLocked}
                 onChange={(e) => setCap(figureOr(readWhole(e.target.value), 0))}
                 style={{ width: 90 }}
               />
@@ -206,13 +211,19 @@ export function EntryTermsCard({
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-primary" disabled={pending || locked || !dirty} onClick={save}>
+        <button type="button" className="btn btn-primary" disabled={pending || termsLocked || !dirty} onClick={save}>
           <Icon name="check" /> {dirty ? "Save entry terms" : "Saved"}
         </button>
-        {locked && (
+        {locked ? (
           <span className="text-muted" style={{ fontSize: 13 }}>
             Setup is locked, so the terms are read-only. Unlock it at the top to change them.
           </span>
+        ) : (
+          !isAdmin && (
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              Only an organizer can change the entry terms. You can still open and close entries.
+            </span>
+          )
         )}
         {saidSaved && !dirty && <span className="text-muted" style={{ fontSize: 13 }}>Saved.</span>}
       </div>

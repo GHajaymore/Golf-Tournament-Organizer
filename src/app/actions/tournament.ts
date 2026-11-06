@@ -5861,13 +5861,16 @@ export async function setMatchTiebreakers(keys: string[]): Promise<{ ok: boolean
  * adding a player by hand — that is how a closed event still takes a late entry.
  */
 export async function setEntriesOpen(open: boolean): Promise<{ ok: boolean; error?: string }> {
+  // A "use server" export is a public endpoint and types are erased: anything but a real
+  // boolean used to read as "close". Refused in words instead.
+  if (typeof open !== "boolean") return { ok: false, error: "That was not a clear open or close. Reload the page and try again." };
   const eventId = await requireStaffEvent();
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { status: true, regDeadline: true, regOpens: true, registrationToken: true },
+    select: { status: true, regDeadline: true, regOpens: true, registrationToken: true, registrationOpen: true },
   });
   if (!event) return { ok: false, error: "Event not found." };
-  const change = entriesChange(open === true, {
+  const change = entriesChange(open, {
     eventStatus: event.status,
     deadline: event.regDeadline,
     opens: event.regOpens,
@@ -5876,11 +5879,12 @@ export async function setEntriesOpen(open: boolean): Promise<{ ok: boolean; erro
     override: null,
     // The club's day, told — a deadline is a day at the club that set it.
     now: await clubDayForEvent(eventId),
-  });
+  }, event.registrationOpen);
   if (!change.ok) return { ok: false, error: change.error };
-  const data: { registrationOpen?: boolean; registrationOverride: boolean | null; registrationToken?: string } = {
+  const data: { registrationOpen?: boolean; registrationOverride: boolean | null; registrationToken?: string; regOpens?: string } = {
     registrationOverride: change.registrationOverride,
   };
+  if (change.clearOpens) data.regOpens = "";
   if (change.registrationOpen) {
     data.registrationOpen = true;
     if (!event.registrationToken) data.registrationToken = generateShareToken();

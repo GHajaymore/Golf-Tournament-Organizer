@@ -871,6 +871,7 @@ export function RegistrationClient({
       {/* ARE ENTRIES OPEN, UNTIL WHEN, HOW MANY, WITH APPROVAL OR NOT — one card,
           one state line, one button (the entries cleanup, 2026-11-05). */}
       <EntryTermsCard
+        key={`${event.regOpens}|${event.regDeadline}|${event.storedCapacity ?? event.capacity}`}
         entries={entries}
         regOpens={event.regOpens}
         regDeadline={event.regDeadline}
@@ -879,6 +880,7 @@ export function RegistrationClient({
         approveMode={approveMode}
         showApproval={showApproval}
         locked={locked}
+        isAdmin={isAdmin}
         locale={event.locale}
       />
 

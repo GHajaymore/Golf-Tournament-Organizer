@@ -92,20 +92,34 @@ describe("entriesOpen: one state, one button", () => {
 });
 
 describe("entriesChange: what the one button writes", () => {
-  it("opening inside the window publishes the link and leaves the dates their say", () => {
-    expect(entriesChange(true, reg())).toEqual({ ok: true, registrationOpen: true, registrationOverride: null });
+  const ok = (r: ReturnType<typeof entriesChange>) => {
+    if (!r.ok) throw new Error(r.error);
+    return r;
+  };
+  it("the first Open entries publishes the link and leaves the dates their say", () => {
+    expect(entriesChange(true, reg(), false)).toEqual({ ok: true, registrationOpen: true, registrationOverride: null, clearOpens: false });
+    // Even before the opening day: the dates rule, so it reads Opens soon and the closing day still holds.
+    expect(entriesChange(true, reg({ opens: "2026-06-10" }), false)).toEqual({ ok: true, registrationOpen: true, registrationOverride: null, clearOpens: false });
+    expect(entriesOpen({ ...reg({ opens: "2026-06-10" }), registrationOpen: true }).state).toBe("not-open-yet");
   });
-  it("opening before the opening day takes entries now", () => {
-    expect(entriesChange(true, reg({ opens: "2026-06-10" }))).toEqual({ ok: true, registrationOpen: true, registrationOverride: false });
+  it("Open entries now, before the opening day, clears the opening day and keeps the closing day", () => {
+    expect(entriesChange(true, reg({ opens: "2026-06-10" }), true)).toEqual({ ok: true, registrationOpen: true, registrationOverride: null, clearOpens: true });
   });
-  it("reopening past the deadline keeps it open", () => {
-    expect(entriesChange(true, reg({ now: at("2026-06-20"), override: true }))).toEqual({ ok: true, registrationOpen: true, registrationOverride: false });
+  it("opening early does NOT switch the closing day off (the review's bug)", () => {
+    const c = ok(entriesChange(true, reg({ opens: "2026-06-10" }), true));
+    const after = { ...reg({ opens: c.clearOpens ? "" : "2026-06-10", override: c.registrationOverride }), registrationOpen: true };
+    expect(entriesOpen(after).open, "open now").toBe(true);
+    expect(entriesOpen({ ...after, now: at("2026-06-15") }).open, "the day after the closing day").toBe(false);
+    expect(entriesOpen({ ...after, now: at("2026-06-15") }).state).toBe("closed-deadline");
+  });
+  it("reopening a published link past the closing day keeps it open", () => {
+    expect(entriesChange(true, reg({ now: at("2026-06-20"), override: true }), true)).toEqual({ ok: true, registrationOpen: true, registrationOverride: false, clearOpens: false });
   });
   it("reopening something the organizer closed hands it back to the dates", () => {
-    expect(entriesChange(true, reg({ override: true }))).toEqual({ ok: true, registrationOpen: true, registrationOverride: null });
+    expect(entriesChange(true, reg({ override: true }), true)).toEqual({ ok: true, registrationOpen: true, registrationOverride: null, clearOpens: false });
   });
   it("closing keeps the link and says closed by the organizer, so a visitor is told", () => {
-    expect(entriesChange(false, reg({ override: false }))).toEqual({ ok: true, registrationOpen: null, registrationOverride: true });
+    expect(entriesChange(false, reg({ override: false }), true)).toEqual({ ok: true, registrationOpen: null, registrationOverride: true, clearOpens: false });
     const e = entriesOpen({ ...reg({ override: true }), registrationOpen: true });
     expect(e.open).toBe(false);
     expect(e.state).toBe("closed-manual");
@@ -115,15 +129,18 @@ describe("entriesChange: what the one button writes", () => {
     expect(late.line, "the two closed states read the same").not.toBe(e.line);
   });
   it("a finished tournament cannot be opened", () => {
-    const res = entriesChange(true, reg({ eventStatus: "completed" }));
-    expect(res.ok).toBe(false);
+    expect(entriesChange(true, reg({ eventStatus: "completed" }), true).ok).toBe(false);
   });
-  it("what it writes is what entriesOpen then reads as open", () => {
-    for (const over of [{}, { opens: "2026-06-10" }, { now: at("2026-06-20") }, { override: true }, { capacity: 1, confirmedCount: 1 }]) {
-      const c = entriesChange(true, reg(over));
-      if (!c.ok) throw new Error("refused");
-      const e = entriesOpen({ ...reg(over), override: c.registrationOverride, registrationOpen: c.registrationOpen ?? true });
-      expect(e.open, JSON.stringify(over)).toBe(true);
+  it("pressing the button's own action ends up open (the first press before the opening day reads Opens soon)", () => {
+    const cases: Array<[Partial<RegistrationInput>, boolean]> = [
+      [{}, false], [{ opens: "2026-06-10" }, false], [{ opens: "2026-06-10" }, true],
+      [{ now: at("2026-06-20") }, true], [{ override: true }, true], [{ capacity: 1, confirmedCount: 1 }, true],
+    ];
+    for (const [over, published] of cases) {
+      const c = ok(entriesChange(true, reg(over), published));
+      const e = entriesOpen({ ...reg(over), opens: c.clearOpens ? "" : (over.opens ?? ""), override: c.registrationOverride, registrationOpen: c.registrationOpen ?? true });
+      const expected = !(!published && over.opens);
+      expect(e.open, JSON.stringify([over, published])).toBe(expected);
     }
   });
 });
@@ -190,6 +207,16 @@ describe("the entry terms are saved from Entries, together", () => {
     expect(body).toMatch(/clubDayForEvent\(/);
     expect(body).not.toMatch(/new Date\(/);
     expect(body).toMatch(/entriesChange\(/);
+  });
+
+  it("refuses a payload that is not a boolean, in words, rather than closing entries", () => {
+    const body = fn("setEntriesOpen");
+    expect(body).toMatch(/typeof open !== "boolean"/);
+    expect(body).not.toMatch(/open === true/);
+  });
+
+  it("the report reads the real link column, not a hard-coded true", () => {
+    expect(readSource("src/lib/services/event-report-sections.ts")).not.toMatch(/registrationOpen: true,\s*\n\s*eventStatus/);
   });
 
   it("the two switches it replaced are gone", () => {

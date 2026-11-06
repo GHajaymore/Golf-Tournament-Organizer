@@ -149,16 +149,28 @@ test("the secretary sets the entry terms and opens, closes and reopens entries f
       await expect(again.getByLabel("Places in the field (players)")).toHaveValue("12");
     });
 
-    await test.step("opening before the opening day takes entries now, and shows the sign-up link", async () => {
+    await test.step("the first Open entries publishes the link and the dates still rule: Opens soon, the closing day kept", async () => {
       const card = page.getByRole("region", { name: "Entry terms" });
-      // The window opens tomorrow: the dates alone would keep the door shut.
-      await expect(card.getByRole("button", { name: "Open entries" })).toBeVisible();
+      // The window opens tomorrow.
       await card.getByRole("button", { name: "Open entries" }).click();
-      await expect(card.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
+      await expect(card.getByRole("button", { name: "Open entries now" })).toBeVisible({ timeout: 20_000 });
+      await expect(card).toContainText("Opens soon");
       const row = await stored();
       expect(row.registrationOpen, "the sign-up link was not published").toBe(true);
       expect(row.registrationToken.length, "the link has no address").toBeGreaterThan(10);
-      expect(row.registrationOverride, "opening ahead of the opening day should take entries now").toBe(false);
+      expect(row.registrationOverride, "publishing must not switch the dates off").toBeNull();
+      expect([row.regOpens, row.regDeadline], "publishing changed the window").toEqual([opens, closes]);
+    });
+
+    await test.step("Open entries now clears the opening day and KEEPS the closing day", async () => {
+      const card = page.getByRole("region", { name: "Entry terms" });
+      await card.getByRole("button", { name: "Open entries now" }).click();
+      await expect(card.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
+      const row = await stored();
+      expect(row.regOpens, "the opening day was not cleared").toBe("");
+      expect(row.regDeadline, "opening early dropped the closing day").toBe(closes);
+      expect(row.registrationOverride, "opening early must not set the extend-past-the-deadline override").toBeNull();
+      await expect(card.getByLabel("Entries close")).toHaveValue(closes);
       const link = await page.locator("input").evaluateAll((els) => (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "");
       expect(link, "the sign-up link is not shown once entries are open").toContain(row.registrationToken);
     });

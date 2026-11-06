@@ -333,11 +333,13 @@ export function entriesOpen(input: RegistrationInput & { registrationOpen: boole
 }
 
 /**
- * WHAT PRESSING THE ONE BUTTON WRITES. Opening publishes the link (once; it is
- * never taken down, so an address already in fifty inboxes keeps working) and,
- * when the dates alone would keep the door shut (before the opening day, or
- * past the deadline), says "take entries now" with the override that already
- * means it. Closing leaves the link where it is and says "closed by the
+ * WHAT PRESSING THE ONE BUTTON WRITES. The first Open entries publishes the link
+ * (once; it is never taken down, so an address already in fifty inboxes keeps
+ * working) and leaves the DATES their say: before the opening day it reads
+ * "Opens soon", and the closing day still closes. Pressing again ("Open entries
+ * now") clears the opening day and nothing else, so the closing day still holds;
+ * the override `false` ("ignore the dates") is written only to reopen a
+ * published link the closing day has shut. Closing leaves the link where it is and says "closed by the
  * organizer", so the member who follows it is told so rather than finding
  * nothing. A finished tournament opens nothing. `registrationOpen: null` is
  * "leave the link alone". Pure: the action reads the event and the club's day
@@ -346,14 +348,16 @@ export function entriesOpen(input: RegistrationInput & { registrationOpen: boole
 export function entriesChange(
   open: boolean,
   input: RegistrationInput,
-): { ok: true; registrationOpen: true | null; registrationOverride: boolean | null } | { ok: false; error: string } {
-  if (!open) return { ok: true, registrationOpen: null, registrationOverride: true };
+  linkPublished: boolean,
+): { ok: true; registrationOpen: true | null; registrationOverride: boolean | null; clearOpens: boolean } | { ok: false; error: string } {
+  if (!open) return { ok: true, registrationOpen: null, registrationOverride: true, clearOpens: false };
   const dates = registrationStatus({ ...input, override: null });
   if (dates.state === "closed-finished") {
     return { ok: false, error: "This tournament has finished, so it cannot take entries." };
   }
-  const datesShutIt = dates.state === "not-open-yet" || dates.state === "closed-deadline";
-  return { ok: true, registrationOpen: true, registrationOverride: datesShutIt ? false : null };
+  if (!linkPublished) return { ok: true, registrationOpen: true, registrationOverride: null, clearOpens: false };
+  if (dates.state === "not-open-yet") return { ok: true, registrationOpen: true, registrationOverride: null, clearOpens: true };
+  return { ok: true, registrationOpen: true, registrationOverride: dates.state === "closed-deadline" ? false : null, clearOpens: false };
 }
 
 /**

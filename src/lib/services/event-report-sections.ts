@@ -587,6 +587,7 @@ export async function comingUpFor(state: EventState, audience: ReportAudience): 
         regOpens: true,
         capacity: true,
         registrationOverride: true,
+        registrationOpen: true,
         startOn: true,
         organization: { select: { timeZone: true } },
         _count: { select: { players: { where: { status: "confirmed" } } } },
@@ -594,7 +595,7 @@ export async function comingUpFor(state: EventState, audience: ReportAudience): 
     });
     for (const e of others) {
       const status = entriesOpen({
-        registrationOpen: true,
+        registrationOpen: e.registrationOpen,
         eventStatus: e.status,
         deadline: e.regDeadline,
         opens: e.regOpens,
