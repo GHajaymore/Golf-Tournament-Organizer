@@ -325,7 +325,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "At the top of Entries, one card says whether entries are **Not open**, **Open** or **Closed** (and, before the opening day, when they open), and has one button. Set **Entries open**, **Entries close** and **Places** (a fixed number, or open) first, and press [[Save entry terms]]. The closing day itself is open, until midnight at the club.",
+          "At the top of Entries, one card says whether entries are **Not open**, **Open** or **Closed** (and, before the opening day, when they open), and has one button. Set **Entries open**, **Entries close** and **Places** (a fixed number, or open) first, and press [[Save entry terms]]. The closing day itself is open, until midnight at the club. After launch the entry terms are read-only; to take entries past the closing day, use [[Reopen entries]].",
           "Press [[Open entries]] when you are ready to send the notice: it publishes the sign-up link. [[Close entries]] stops sign-ups, and [[Reopen entries]] takes them again, past the closing day if you want. They control the public sign-up only — staff can always add players by hand.",
           "Choose **When someone enters**: **Auto-confirm to capacity** or **Approve each entry**.",
         ],

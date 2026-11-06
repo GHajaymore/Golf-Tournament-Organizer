@@ -318,7 +318,13 @@ export function entriesOpen(input: RegistrationInput & { registrationOpen: boole
   }
   const open = status.acceptingEntries;
   const until = parseDeadlineIso(reg.deadline) ? ` until ${formatDeadline(reg.deadline, reg.locale)}` : "";
-  const line = status.detail || `Entries are open${until}.`;
+  // Two ways to be Closed, said apart: the organizer's own press, or the closing day gone by.
+  const line =
+    status.state === "closed-manual"
+      ? "Closed by you. Reopen entries to take more."
+      : status.state === "closed-deadline"
+        ? `Closed after ${formatDeadline(reg.deadline, reg.locale)}, the closing day. Reopen entries to take more.`
+        : status.detail || `Entries are open${until}.`;
   if (open) {
     return { ...base, open, state: status.state, label: status.label, line, action: { do: "close", label: "Close entries" } };
   }

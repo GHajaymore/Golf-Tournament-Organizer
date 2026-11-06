@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
-import { entriesChange, entriesOpen, type RegistrationInput } from "../registration";
+import { entriesChange, entriesOpen, formatDeadline, type RegistrationInput } from "../registration";
 import { decideIntake } from "../domain/registration-intake";
 
 /**
@@ -109,7 +109,10 @@ describe("entriesChange: what the one button writes", () => {
     const e = entriesOpen({ ...reg({ override: true }), registrationOpen: true });
     expect(e.open).toBe(false);
     expect(e.state).toBe("closed-manual");
-    expect(e.line).toContain("Closed by the organizer");
+    expect(e.line).toBe("Closed by you. Reopen entries to take more.");
+    const late = entriesOpen({ ...reg({ now: at("2026-06-15") }), registrationOpen: true });
+    expect(late.line).toBe(`Closed after ${formatDeadline("2026-06-14")}, the closing day. Reopen entries to take more.`);
+    expect(late.line, "the two closed states read the same").not.toBe(e.line);
   });
   it("a finished tournament cannot be opened", () => {
     const res = entriesChange(true, reg({ eventStatus: "completed" }));
