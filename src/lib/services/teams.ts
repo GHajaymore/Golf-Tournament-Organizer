@@ -3,7 +3,7 @@ import { roundCourseHandicaps, flightTeeByPlayer, confirmedField } from "./handi
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
-import { effectiveAllowance, playingHandicapPartsInRound, recommendedAllowance } from "../round-allowance";
+import { committeeSplitInForce, effectiveAllowance, playingHandicapPartsInRound, recommendedAllowance } from "../round-allowance";
 import { holesPlayed } from "../domain/handicap";
 import { hasLeftTheField } from "../domain/left-the-field";
 import { roundHandicapRows } from "./round-handicap";
@@ -17,7 +17,6 @@ import { onBoard } from "../domain/board-hold";
 import type { HoleResult } from "../domain/types";
 import {
   sideHandicap,
-  committeeWeights,
   aggregateTeamCard,
   singleBallTeamCard,
   SCRAMBLE_WEIGHTS_2,
@@ -314,7 +313,7 @@ export function sidePlayingHandicap(
   // A committee's own split is the most specific thing they can say, so it
   // wins: it is only ever settable on formats that use one, and a club that
   // has typed "55 / 45" has said something a single percentage cannot.
-  const committee = committeeWeights(weightsOverride, courseHandicaps.length);
+  const committee = committeeSplitInForce(format, weightsOverride, courseHandicaps.length);
   if (committee) return sideHandicap(courseHandicaps, 0, committee);
   // A flat override replaces the whole scheme, including the scramble
   // weights: a committee that says "40%" means 40% of the combined handicaps,

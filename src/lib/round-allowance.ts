@@ -211,6 +211,17 @@ export function overridesAfterFormatChange(
 }
 
 /**
+ * A COMMITTEE'S OWN SPLIT, WHERE THE FORMAT USES ONE: only a side that shares a
+ * ball is priced as a side. A four-ball prices each player's own ball
+ * (`aggregateTeamCard`) and ignores a stored split, so neither the side figure
+ * nor the rules sheet may state one there. `sidePlayingHandicap` and
+ * `teamAllowanceWords` both read this, so the precedence is held once.
+ */
+export function committeeSplitInForce(format: string, weights: number[] | undefined | null, sideSize: number): number[] | null {
+  return findFormat(format).ball === "single" ? committeeWeights(weights, sideSize) : null;
+}
+
+/**
  * WHAT A TEAM ROUND'S PLAYERS ARE TOLD THEY PLAY OFF, for the rules sheet (J21).
  *
  * Always a sentence, whether or not a committee has set anything: the sheet
@@ -237,7 +248,7 @@ export function teamAllowanceWords(s: { format: string; type: string; handicapAl
       ? `${w[0]}% of the lower course handicap and ${w[1]}% of the higher`
       : `${w.join("% / ")}% of the players' course handicaps, lowest first`;
 
-  const committeeSplit = committeeWeights(s.allowanceWeights, s.allowanceWeights.length);
+  const committeeSplit = committeeSplitInForce(s.format, s.allowanceWeights, s.allowanceWeights.length);
   if (committeeSplit) return `${splitWords(committeeSplit)}, set by the committee`;
 
   const recommended = recommendedAllowance(s.format, s.type);
@@ -255,6 +266,10 @@ export function teamAllowanceWords(s: { format: string; type: string; handicapAl
     const parts = sizes.map((n) => `${declared[n].join(" / ")} for ${names[n] ?? n}`);
     return `Of the players' course handicaps, lowest first: ${parts.join(", ")}, the Rules' recommendation`;
   }
+  // Best Ball plays 85% whatever the size of the side or the balls that count;
+  // Appendix C gives 85% only for a pair at stroke play (90% in a match, 75% for
+  // best 1 of 4, 100% for best 3 of 4 — J20, not done). Said truthfully.
+  if (f.name === "Best Ball") return `${recommended}% ${flatOf}, the app's default; the Rules' figure for a pair at stroke play`;
   return f.allowanceIsConvention
     ? `${recommended}% ${flatOf}, club convention (the Rules give none)`
     : `${recommended}% ${flatOf}, the Rules' recommendation`;

@@ -2503,6 +2503,31 @@ describe("what a team board and the rules sheet say about handicap, on every tea
     expect(TEAM_FORMATS.length, "no team formats found").toBeGreaterThan(4);
   });
 
+  const textOf = (s: string): string => {
+    let out = "";
+    let inTag = false;
+    for (const ch of s) {
+      if (ch === "<") inTag = true;
+      else if (ch === ">") inTag = false;
+      else if (!inTag) out += ch;
+    }
+    return out;
+  };
+
+  // Pinned to the RULES, not to the resolver the sweep below reads.
+  // Rules of Handicapping, Appendix C: four-ball stroke play 85%, four-ball match play 90%.
+  const stated = (format: string, type: string) =>
+    tournamentTerms({
+      format, type, holes: 18, scoringBasis: "net", handicapAllowance: 0, countBest: 0,
+      tiebreakers: [], cutAfter: null, carryForwardEnabled: false, carryForwardPct: 0,
+    }).find((t) => t.label === "Handicap allowance")?.value;
+  it("Appendix C: a four-ball stroke round states 85%", () => {
+    expect(stated("Four-Ball", "Stroke Play Round")).toContain("85%");
+  });
+  it("Appendix C: a four-ball match round states 90%", () => {
+    expect(stated("Four-Ball", "Round Robin")).toContain("90%");
+  });
+
   for (const format of TEAM_FORMATS) {
     const { min, max } = sideSizeRange(format.name);
     for (let size = min; size <= max; size += 1) {
@@ -2525,7 +2550,7 @@ describe("what a team board and the rules sheet say about handicap, on every tea
             place: 1,
           };
           const html = renderToStaticMarkup(createElement(TeamStandingsTable, { basis: "net", rows: [row] }));
-          const cell = [...html.match(/<tbody>.*?<\/tr>/s)![0].matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => m[1].replace(/<[^>]+>/g, ""))[2];
+          const cell = [...html.match(/<tbody>.*?<\/tr>/s)![0].matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => textOf(m[1]))[2];
           if (ownBall) {
             expect(cell, "a two-ball board must list each player's own figure").toBe(members.join(" · "));
             expect(html).not.toContain(`>${SIDE}<`);

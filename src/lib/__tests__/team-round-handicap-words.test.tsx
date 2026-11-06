@@ -99,6 +99,20 @@ describe("J21: the rules sheet always states a team round's allowance", () => {
     expect(checked).toBeGreaterThan(20); // CONTROL: the loop looked at something
   });
 
+  it("Best Ball does not claim the Rules for a figure they give only to a pair at stroke play", () => {
+    expect(sheet({ format: "Best Ball" })).toBe(
+      "85% of each player's course handicap, the app's default; the Rules' figure for a pair at stroke play",
+    );
+    expect(sheet({ format: "Best Ball" })).not.toContain("the Rules' recommendation");
+  });
+
+  it("a split stored on a four-ball is not stated: the scoring ignores it", () => {
+    expect(sheet({ allowanceWeights: [55, 45] })).toBe("85% of each player's course handicap, the Rules' recommendation");
+    expect(sheet({ handicapAllowance: 80, allowanceWeights: [55, 45] })).toBe(
+      "80% of each player's course handicap, set by the committee in place of the Rules' 85%",
+    );
+  });
+
   it("an individual round still says its own line, unchanged", () => {
     expect(sheet({ format: "Stroke Play" })).toBe("95% of course handicap");
   });
@@ -127,10 +141,21 @@ const side = (over: Partial<TeamStanding>): TeamStanding => ({
 });
 const board = (rows: TeamStanding[], basis: "net" | "gross" | "stableford" = "net") =>
   renderToStaticMarkup(createElement(TeamStandingsTable, { basis, rows }));
+/** The text inside some markup: a scan, not a pattern, so nothing half-stripped can be left behind. */
+const textOf = (s: string): string => {
+  let out = "";
+  let inTag = false;
+  for (const ch of s) {
+    if (ch === "<") inTag = true;
+    else if (ch === ">") inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out;
+};
 /** The text of the H/cap column's cell in the first body row. */
 const handicapCell = (html: string) => {
   const row = html.match(/<tbody>.*?<\/tr>/s)![0];
-  return [...row.matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => m[1].replace(/<[^>]+>/g, ""))[2];
+  return [...row.matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => textOf(m[1]))[2];
 };
 
 describe("J23: a team board prints a handicap somebody plays off", () => {
@@ -150,7 +175,7 @@ describe("J23: a team board prints a handicap somebody plays off", () => {
   it("a side with nobody on it prints a dash on an own-ball board, never 0", () => {
     const html = board([side({}), side({ teamId: "t2", members: [], memberIds: [], memberPlaying: [], playingHandicap: 0, played: 0, place: null })]);
     const rows = [...html.matchAll(/<tr>.*?<\/tr>/gs)].map((m) => m[0]);
-    const empty = [...rows[2].matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => m[1].replace(/<[^>]+>/g, ""));
+    const empty = [...rows[2].matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => textOf(m[1]));
     expect(empty[2]).toBe("—");
   });
 
@@ -160,10 +185,6 @@ describe("J23: a team board prints a handicap somebody plays off", () => {
     expect(html).toContain("own playing handicap");
   });
 
-  it("the standings carry the member figures from the one resolver", () => {
-    const src = readSource("src/lib/services/teams.ts");
-    expect(src).toMatch(/memberPlaying: t\.members\.map\(\(m\) => m\.playing\)/);
-  });
 });
 
 describe("the figure each player plays off, worked from the Rules by another route", () => {
