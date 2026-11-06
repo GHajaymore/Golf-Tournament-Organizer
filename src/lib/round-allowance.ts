@@ -222,6 +222,18 @@ export function committeeSplitInForce(format: string, weights: number[] | undefi
 }
 
 /**
+ * THE WORDS AFTER "Plays off" FOR A SIDE OF PLAYERS WHO EACH PLAY THEIR OWN BALL
+ * ("7 · 9", in the order the names are listed), or null when nobody has a
+ * figure of their own — a shared-ball side, whose figure is the side's, or a
+ * side with nobody in it. `TeamMemberView.playing` is null exactly there, so
+ * this takes those and does no arithmetic and no deciding of its own.
+ */
+export function playsOffWords(figures: ReadonlyArray<number | null | undefined>): string | null {
+  const own = figures.filter((n): n is number => typeof n === "number");
+  return own.length > 0 ? own.join(" · ") : null;
+}
+
+/**
  * WHAT A TEAM ROUND'S PLAYERS ARE TOLD THEY PLAY OFF, for the rules sheet (J21).
  *
  * Always a sentence, whether or not a committee has set anything: the sheet

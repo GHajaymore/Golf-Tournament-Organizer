@@ -514,6 +514,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               playerId: m.playerId,
               playerName: m.name,
               handicap: m.handicap,
+              playing: m.playing,
               shots: matchStrokesPerHole(m.playing ?? 0, low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, m.playerId),
               pickedUp: picksOf(teamId, matchId, m.playerId),

@@ -7,6 +7,7 @@ import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { Icon } from "@/components/Icon";
 import { useSaveBeforeLeaving } from "@/components/useSaveBeforeLeaving";
 import { holeNumber } from "@/lib/domain/hole-number";
+import { playsOffWords } from "@/lib/round-allowance";
 
 /**
  * The cards scored together on the hole view: everybody in one MATCH (both
@@ -40,6 +41,8 @@ export interface TeamCardRow {
   /** ghin | manual | none. 'none' is no claimed figure — see indexLabel. */
   handicapSource?: string | null;
   handicapType?: string | null;
+  /** What this player's own ball plays off (`TeamMemberView.playing`); absent on a side's one card. */
+  playing?: number | null;
   /**
    * Handicap strokes this card receives, hole by hole.
    *
@@ -530,10 +533,16 @@ export function TeamEntryClient({
                 four-ball each player plays off their own strokes, shown on
                 their own row, and a side figure beside them — "Plays off 37"
                 over a 17 and a 24 — is a number nothing on the card uses. */}
-            {t.cards.some((c) => c.playerId === "") && (
+            {t.cards.some((c) => c.playerId === "") ? (
               <span className="tag tag-neutral">
                 Plays off {t.playingHandicap}
               </span>
+            ) : (
+              /* Where everyone plays their own ball, each partner's own
+                 figure in the order the cards are listed (J23). */
+              playsOffWords(t.cards.map((c) => c.playing)) && (
+                <span className="tag tag-neutral">Plays off {playsOffWords(t.cards.map((c) => c.playing))}</span>
+              )
             )}
             <span className="text-muted" style={{ fontSize: 13, marginLeft: "auto" }}>
               {t.played > 0

@@ -21,7 +21,7 @@ import {
 } from "@/lib/formats";
 import { sideHandicap, aggregateTeamCard, matchHolesOffTheLow } from "@/lib/domain/team";
 import { leagueSideBalls } from "@/lib/services/league";
-import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo, roundIsStroke, isHeadToHead } from "@/lib/stage-types";
+import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo, roundIsStroke, isHeadToHead, boardKindForRound } from "@/lib/stage-types";
 import {
   LEADERBOARD_VISIBILITY,
   SCORE_ENTRY_BY,
@@ -2549,13 +2549,22 @@ describe("what a team board and the rules sheet say about handicap, on every tea
             toPar: -2,
             place: 1,
           };
-          const html = renderToStaticMarkup(createElement(TeamStandingsTable, { basis: "net", rows: [row] }));
-          const cell = [...html.match(/<tbody>.*?<\/tr>/s)![0].matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => textOf(m[1]))[2];
-          if (ownBall) {
-            expect(cell, "a two-ball board must list each player's own figure").toBe(members.join(" · "));
-            expect(html).not.toContain(`>${SIDE}<`);
+          if (isHeadToHead(type)) {
+            // A round of MATCHES is not ranked on the team stroke table at all:
+            // every board asks `boardKindForRound` and draws the matches
+            // (`TeamMatchLeaderboard`), which has no handicap column. The
+            // handicap-column invariant below belongs to the stroke board only.
+            expect(boardKindForRound(format.name, type), "a head-to-head team round has the matches' board").toBe("team-match");
           } else {
-            expect(cell, "a shared-ball board prints the side's figure").toBe(String(SIDE));
+            expect(boardKindForRound(format.name, type), "a stroke team round has the team stroke board").toBe("team");
+            const html = renderToStaticMarkup(createElement(TeamStandingsTable, { basis: "net", rows: [row] }));
+            const cell = [...html.match(/<tbody>.*?<\/tr>/s)![0].matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => textOf(m[1]))[2];
+            if (ownBall) {
+              expect(cell, "a two-ball board must list each player's own figure").toBe(members.join(" · "));
+              expect(html).not.toContain(`>${SIDE}<`);
+            } else {
+              expect(cell, "a shared-ball board prints the side's figure").toBe(String(SIDE));
+            }
           }
 
           const words = tournamentTerms({

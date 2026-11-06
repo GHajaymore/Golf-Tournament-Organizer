@@ -12,7 +12,9 @@ import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
 import { RoundPicker } from "@/components/RoundPicker";
 import { canSeeLeaderboard, isLeaderboardPublic } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
-import { boardKind } from "@/lib/formats";
+import { teamMatchBoard } from "@/lib/services/teams";
+import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
+import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { resultLinesFor } from "@/lib/services/tournament-result";
@@ -31,7 +33,7 @@ import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services
 import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { ResultLines } from "@/components/ResultLines";
 import { TheDraw } from "@/components/TheDraw";
-import { isKnockoutRound } from "@/lib/stage-types";
+import { boardKindForRound, isKnockoutRound } from "@/lib/stage-types";
 import { drawnDraws } from "@/lib/domain/my-tie";
 import { seededDraws } from "@/lib/domain/draw-seeding";
 import { parsePlayBy, roundPlayBy, myTieCard } from "@/lib/domain/knockout-play-by";
@@ -205,7 +207,10 @@ export default async function PlayBoardPage({
   // player looking at their own board is the last person who should be shown a
   // ranking the app cannot actually compute for this round — they will read it
   // as where they stand.
-  const kind = boardKind(stage?.format);
+  // THE ROUND, not only the format (J23): `boardKind` alone sent a four-ball
+  // MATCH (a round robin) to the stroke standings table, which the console
+  // leaderboard, Reports and /live do not.
+  const kind = boardKindForRound(stage?.format, stage?.type);
   if (kind !== "standard") {
     /**
      * A TEAM ROUND HAS A BOARD; IT IS JUST NOT A BOARD OF PLAYERS.
@@ -277,6 +282,19 @@ export default async function PlayBoardPage({
             stage.countBest,
           )
         : null;
+    // A round robin of team matches is decided on the matches, not the cards:
+    // the same table the console leaderboard and /live draw.
+    const matchRows =
+      kind === "team-match" && stage
+        ? await teamMatchBoard(
+            state.event.id,
+            stage.id,
+            stage.format,
+            stage.handicapAllowance,
+            holes,
+            stage.allowanceWeights,
+          )
+        : null;
     // The pairs' total over the event's team rounds — the board the organizer
     // and the public link show above the round, so a member reads it too.
     const pairs = sides ? await eventPairTotals(state) : null;
@@ -293,7 +311,9 @@ export default async function PlayBoardPage({
           </MoreInfo>
         ) : (
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          {kind === "team"
+          {kind === "team-match"
+            ? "This round is decided on the matches between sides, not on the cards."
+            : kind === "team"
               ? `This round ranks sides rather than players. ${teamBoardNote(
                   stage?.format ?? "",
                   sides?.length ?? 0,
@@ -317,6 +337,15 @@ export default async function PlayBoardPage({
             ) : (
               <ModifiedStablefordTable rows={points.rows} />
             )}
+          </div>
+        )}
+        {matchRows && (
+          <div style={{ marginTop: 14 }}>
+            <TeamMatchLeaderboard
+              format={stage?.format ?? ""}
+              rows={matchRows}
+              system={isLeaguePointsSystem(state.event.leaguePoints) ? state.event.leaguePoints : "match"}
+            />
           </div>
         )}
         {sides && (

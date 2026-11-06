@@ -20,6 +20,7 @@ import {
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { SIDE_NAME_MAX } from "@/lib/domain/typed-limits";
+import { playsOffWords } from "@/lib/round-allowance";
 
 export interface TeamMemberRow {
   playerId: string;
@@ -29,6 +30,8 @@ export interface TeamMemberRow {
   handicapSource?: string | null;
   handicapType?: string | null;
   position: number;
+  /** What this player's own ball plays off; null where the side shares one ball. */
+  playing?: number | null;
 }
 
 export interface TeamRow {
@@ -454,7 +457,17 @@ export function TeamsClient({
                     the side's name with its meaning in a `title` — a number
                     with no label, on a screen whose whole subject is handicaps,
                     explained only to a mouse. */}
-                <span className="tag tag-neutral">Plays off {t.playingHandicap}</span>
+                {/* WHAT A PLAYER TAKES STROKES FROM (J23). A side that shares one
+                    ball plays off the side's figure; where everyone plays their
+                    own ball there is no side figure to play off, so each
+                    partner's own is said, in the order the names are listed. */}
+                {format.sharesOneCard ? (
+                  <span className="tag tag-neutral">Plays off {t.playingHandicap}</span>
+                ) : (
+                  playsOffWords(t.members.map((m) => m.playing)) && (
+                    <span className="tag tag-neutral">Plays off {playsOffWords(t.members.map((m) => m.playing))}</span>
+                  )
+                )}
                 {/* The side and its whole membership. Removing one PLAYER from
                     a side, below, is left on one tap — that is re-added in a
                     tap too, and a confirmation on it would be noise. */}
