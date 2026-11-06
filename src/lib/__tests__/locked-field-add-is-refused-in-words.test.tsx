@@ -87,8 +87,9 @@ describe("Entries under way in a stroke field: the day-of doors are open", () =>
     expect(add).toContain("disabled");
     expect(html).not.toContain(doors.add ?? "THE ADD DOOR IS OPEN");
     // Withdraw: the per-row button, named for the act, enabled.
-    const withdraw = html.slice(html.lastIndexOf("<button", html.indexOf('title="Withdraw zz-Ann Doyle"')), html.indexOf('title="Withdraw zz-Ann Doyle"'));
-    expect(withdraw.length).toBeGreaterThan(0);
+    // The WHOLE opening tag: `disabled` may come after the title (a slice up to the title missed it).
+    const withdraw = tagBefore(html, 'title="Withdraw zz-Ann Doyle"');
+    expect(withdraw).toMatch(/^<button[^>]*>$/);
     expect(isDisabled(withdraw)).toBe(false);
     // The CSV import: shut, and why.
     expect(html).toMatch(/type="file"[^>]*disabled=""/);
@@ -120,8 +121,7 @@ describe("Entries under way in a knockout: the draw is the field", () => {
     expect(html).not.toContain("You can still add players below");
     expect(html).toContain("While it is closed the sign-up link turns everyone away.");
     // Withdraw is still open: a withdrawal never reopens anything.
-    const at = html.indexOf('title="Withdraw zz-Ann Doyle"');
-    expect(isDisabled(html.slice(html.lastIndexOf("<button", at), at))).toBe(false);
+    expect(isDisabled(tagBefore(html, 'title="Withdraw zz-Ann Doyle"'))).toBe(false);
   });
 
   it("after play has begun a stroke field refuses Add naming the round", async () => {
