@@ -180,8 +180,11 @@ test("what's next opens the right tournament on the right screen, and copy last 
       await centre(publish);
       await publish.click();
       await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
-      link = await page.locator("input").evaluateAll((els) => (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "");
-      expect(link, "no sign-up link is shown").toMatch(/\/register\//);
+      // The link panel opens itself a moment after the button turns; read it once it is drawn
+      // (on the iPhone engine the first read came back empty — round day-of-field-b-6).
+      const readLink = () => page.locator("input").evaluateAll((els) => (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "");
+      await expect.poll(readLink, { timeout: 20_000, message: "no sign-up link is shown" }).toMatch(/\/register\//);
+      link = await readLink();
       const token = new URL(link).pathname.split("/").pop();
       expect(token, "the copy answers last year's address").not.toBe(source.registrationToken);
       expect((await prisma.event.findUniqueOrThrow({ where: { id: copy.id } })).registrationToken).toBe(token);
