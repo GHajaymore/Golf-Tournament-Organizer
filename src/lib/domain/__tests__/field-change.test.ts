@@ -152,47 +152,108 @@ describe("the words", () => {
     return v.ok ? "" : v.says;
   };
 
-  it("a late entry after play has begun names the round that began", () => {
+  it("a late entry after the first card names the round, and who can unlock", () => {
     expect(says("stroke", "liveWithResult", "add")).toBe(
-      "Round 1 has begun, so a new entry would have no score for it. To add someone anyway, unlock the tournament.",
+      "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.",
     );
   });
 
   it("a late entry into a drawn field says the draw is made", () => {
     for (const family of ["match", "roundRobinFlights", "knockout", "flightedKnockout"] as Family[]) {
-      expect(says(family, "live", "add")).toBe("The draw is made, so the field is fixed. To change it, unlock the tournament.");
+      expect(says(family, "live", "add")).toBe(
+        "The draw is made, so the field is fixed. To change it, an Organizer can unlock the tournament on the dashboard.",
+      );
     }
-    expect(says("teamCup", "live", "add")).toBe("The sides are picked, so the field is fixed. To change it, unlock the tournament.");
+    expect(says("teamCup", "live", "add")).toBe(
+      "The sides are picked, so the field is fixed. To change it, an Organizer can unlock the tournament on the dashboard.",
+    );
   });
 
   it("details and bulk say what stays open instead", () => {
     expect(says("stroke", "live", "edit")).toBe(
-      "A player’s details are locked once the tournament is launched. To correct one, unlock the tournament.",
+      "A player’s details are locked once the tournament is launched. To correct one, an Organizer can unlock the tournament on the dashboard.",
     );
     expect(says("stroke", "live", "bulk")).toBe(
-      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or unlock the tournament.",
+      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to unlock the tournament on the dashboard.",
     );
   });
 
-  it("completed sends you to reopen it", () => {
+  it("completed sends you to reopen it, and says who can", () => {
     const v = fieldChangeAllowed(fieldFactsOf(at("stroke", "completed")), "withdraw");
     expect(v.ok).toBe(false);
-    if (!v.ok) expect(v.wayOut).toEqual({ says: "Reopen it on the dashboard", href: "/dashboard" });
+    if (!v.ok) {
+      expect(v.says).toBe("The tournament is completed, so its field is as it finished. An Organizer can reopen it on the dashboard.");
+      expect(v.wayOut).toEqual({ says: "Reopen it on the dashboard", href: "/dashboard" });
+    }
   });
 
-  it("a confirmed draw keeps its own words before launch, and the unlock words after", () => {
-    const draft = { ...fieldFactsOf(at("stroke", "draft")), flightsConfirmed: true };
-    const live = { ...fieldFactsOf(at("stroke", "live")), flightsConfirmed: true };
-    const d = fieldChangeAllowed(draft, "move-flight");
-    expect(d.ok ? "" : d.says).toBe("Draw confirmed. Reopen it to move anyone.");
-    const p = fieldChangeAllowed(live, "place-in-flight");
-    expect(p.ok ? "" : p.says).toBe("The draw is confirmed, so the flights are fixed. To change them, unlock the tournament.");
-    // Unlocked does not open a confirmed draw: that is the draw's own lock (`movePlayerToGroup`).
-    const u = { ...fieldFactsOf(at("stroke", "unlocked")), flightsConfirmed: true };
-    expect(fieldChangeAllowed(u, "move-flight").ok).toBe(false);
-    // Withdrawing and adding never asked the draw.
-    expect(fieldChangeAllowed(live, "withdraw").ok).toBe(true);
-    expect(fieldChangeAllowed(live, "add").ok).toBe(true);
+  /**
+   * AN ASSISTANT CANNOT UNLOCK (`setConfigUnlocked` is admin-only; held against
+   * real rows in `a-late-changes-after-launch.audit.test.ts`). The rule's words
+   * reach either reader, so every refusal whose way out is Unlock must name WHO
+   * can — a bare "unlock the tournament" leaves an Assistant on the morning with
+   * a door they hold no key to (panel review of #1028, must-fix 2).
+   */
+  it("every refusal whose way out is Unlock names an Organizer, for the Assistant who cannot", () => {
+    let seen = 0;
+    for (const family of FAMILIES) {
+      for (const stage of STAGES) {
+        for (const confirmed of [false, true]) {
+          const facts = { ...fieldFactsOf(at(family, stage)), flightsConfirmed: confirmed };
+          for (const change of FIELD_CHANGES) {
+            const v = fieldChangeAllowed(facts, change);
+            if (v.ok || !/unlock/i.test(v.says + v.wayOut.says)) continue;
+            seen += 1;
+            expect(v.says, `${family} ${stage} ${change}`).toMatch(/\ban Organizer\b/i);
+            expect(v.says, `${family} ${stage} ${change}: a bare "unlock the tournament."`).not.toMatch(/(^|[.,] )unlock the tournament\./i);
+          }
+        }
+      }
+    }
+    expect(seen, "CONTROL: the sweep met refusals ending in Unlock").toBeGreaterThan(50);
+  });
+});
+
+/**
+ * A CONFIRMED DRAW AND A LATE ENTRANT (panel review of #1028, must-fix 1).
+ * Placing an UNPLACED player in a prize division moves nobody, so in stroke
+ * play and Stableford the confirmed draw does not hold it (only the first card
+ * does). Moving a PLACED player is still the draw's to refuse; and where
+ * flights make the pairings (a round robin, a cup) placing somebody changes who
+ * plays whom, so the draw still holds the placement too.
+ */
+describe("a confirmed draw holds moves, not a late entrant's placement in a prize division", () => {
+  const withDraw = (family: Family, stage: Stage) => ({ ...fieldFactsOf(at(family, stage)), flightsConfirmed: true });
+
+  for (const family of ["stroke", "stableford"] as Family[]) {
+    it(`${family}: placement open before and after launch, shut by the first card; a move refused`, () => {
+      expect(fieldChangeAllowed(withDraw(family, "draft"), "place-in-flight").ok).toBe(true);
+      expect(fieldChangeAllowed(withDraw(family, "live"), "place-in-flight").ok).toBe(true);
+      const begun = fieldChangeAllowed(withDraw(family, "liveWithResult"), "place-in-flight");
+      expect(begun.ok ? "" : begun.says).toBe(
+        "The first card of Round 1 is in, so the flights are fixed. To place a player, an Organizer can unlock the tournament on the dashboard.",
+      );
+      const move = fieldChangeAllowed(withDraw(family, "live"), "move-flight");
+      expect(move.ok ? "" : move.says).toBe(
+        "The draw is confirmed, so the flights are fixed. To change them, an Organizer can unlock the tournament on the dashboard.",
+      );
+      const draftMove = fieldChangeAllowed(withDraw(family, "draft"), "move-flight");
+      expect(draftMove.ok ? "" : draftMove.says).toBe("Draw confirmed. Reopen it to move anyone.");
+    });
+  }
+
+  it("where flights make the pairings, the confirmed draw still holds a placement", () => {
+    for (const family of ["roundRobinFlights", "teamCup"] as Family[]) {
+      const d = fieldChangeAllowed(withDraw(family, "draft"), "place-in-flight");
+      expect(d.ok ? "" : d.says, family).toBe("Draw confirmed. Reopen it to move anyone.");
+    }
+  });
+
+  it("unlocked does not open a confirmed draw's moves (the draw's own lock), and withdraw and add never asked it", () => {
+    expect(fieldChangeAllowed(withDraw("stroke", "unlocked"), "move-flight").ok).toBe(false);
+    expect(fieldChangeAllowed(withDraw("stroke", "unlocked"), "place-in-flight").ok).toBe(true);
+    expect(fieldChangeAllowed(withDraw("stroke", "live"), "withdraw").ok).toBe(true);
+    expect(fieldChangeAllowed(withDraw("stroke", "live"), "add").ok).toBe(true);
   });
 });
 
@@ -210,18 +271,23 @@ describe("the screen's doors and banner come from the same rule", () => {
     }
   });
 
-  it("the banner shows only while under way, and never promises an add the rule refuses", () => {
+  it("the banner is two short lines while under way, and never promises an add the rule refuses", () => {
     expect(fieldBanner(fieldFactsOf(at("stroke", "draft")))).toBeNull();
     expect(fieldBanner(fieldFactsOf(at("stroke", "unlocked")))).toBeNull();
     expect(fieldBanner(fieldFactsOf(at("stroke", "completed")))).toBeNull();
-    expect(fieldBanner(fieldFactsOf(at("stroke", "live")))).toBe(
-      "The tournament is under way. You can withdraw a player, put one back or add a late entry; the waiting list moves up by itself. The format, rounds and players’ details stay locked.",
-    );
-    const knockout = fieldBanner(fieldFactsOf(at("knockout", "live"))) ?? "";
-    expect(knockout).toMatch(/^The tournament is under way\. You can withdraw a player or put one back\./);
-    expect(knockout).toContain("The draw is made, so the field is fixed.");
-    expect(knockout).not.toMatch(/late entry/);
-    const begun = fieldBanner(fieldFactsOf(at("stroke", "liveWithResult"))) ?? "";
-    expect(begun).toContain("Round 1 has begun");
+    expect(fieldBanner(fieldFactsOf(at("stroke", "live")))).toEqual([
+      "You can withdraw a player, put one back or add a late entry.",
+      "The format, rounds and players’ details stay locked.",
+    ]);
+    const knockout = fieldBanner(fieldFactsOf(at("knockout", "live"))) ?? [];
+    expect(knockout[0]).toBe("You can withdraw a player or put one back.");
+    expect(knockout[1]).toContain("The draw is made, so the field is fixed.");
+    expect(knockout.join(" ")).not.toMatch(/late entry/);
+    const begun = fieldBanner(fieldFactsOf(at("stroke", "liveWithResult"))) ?? [];
+    expect(begun[1]).toContain("The first card of Round 1 is in");
+    // Short: no line of the banner runs past twenty words.
+    for (const lines of [fieldBanner(fieldFactsOf(at("stroke", "live"))) ?? []]) {
+      for (const l of lines) expect(l.split(/\s+/).length, l).toBeLessThanOrEqual(20);
+    }
   });
 });

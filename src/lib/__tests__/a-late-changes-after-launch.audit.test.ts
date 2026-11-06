@@ -52,6 +52,7 @@ import {
   reinstateWithdrawn,
   removeSignup,
   removeSignups,
+  setConfigUnlocked,
   setStageFormat,
   updateSignup,
 } from "@/app/actions/tournament";
@@ -202,7 +203,14 @@ describe("a launched stroke medal, before anybody has played", () => {
 
   it("the late entrant is placed in a flight, and nobody else moves", async () => {
     const before = await prisma.player.findMany({ where: { eventId: medal, id: { not: ids.lee } }, select: { id: true, groupId: true }, orderBy: { id: "asc" } });
-    expect(await placeInFlight(ids.lee, flightB)).toEqual({ ok: true });
+    // With the draw CONFIRMED (panel review of #1028, must-fix 1): placing an unplaced player in a
+    // prize division moves nobody, so the confirmed draw does not hold it in a stroke medal.
+    await prisma.event.update({ where: { id: medal }, data: { flightsConfirmed: true } });
+    try {
+      expect(await placeInFlight(ids.lee, flightB)).toEqual({ ok: true });
+    } finally {
+      await prisma.event.update({ where: { id: medal }, data: { flightsConfirmed: false } });
+    }
     expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.lee } })).groupId).toBe(flightB);
     const after = await prisma.player.findMany({ where: { eventId: medal, id: { not: ids.lee } }, select: { id: true, groupId: true }, orderBy: { id: "asc" } });
     expect(after).toEqual(before);
@@ -215,17 +223,17 @@ describe("a launched stroke medal, before anybody has played", () => {
   it("what stays locked refuses in words, and changes nothing", async () => {
     expect(await updateSignup(ids.cat, { name: `${TAG} renamed` })).toEqual({
       ok: false,
-      error: "A player’s details are locked once the tournament is launched. To correct one, unlock the tournament.",
+      error: "A player’s details are locked once the tournament is launched. To correct one, an Organizer can unlock the tournament on the dashboard.",
     });
     expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.cat } })).name).toBe(`${TAG} cat`);
     const bulk =
-      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or unlock the tournament.";
+      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to unlock the tournament on the dashboard.";
     expect((await importCsvSignups(`name,email\n${TAG} csv,${at("csv")}\n`)).error).toBe(bulk);
     expect(await removeSignups([ids.cat])).toEqual({ deleted: 0, withdrawn: 0, missing: 0, error: bulk });
     expect(await statusOf("cat")).toBe("confirmed");
     expect(await movePlayerToGroup(ids.cat, flightA)).toEqual({
       ok: false,
-      error: "Flights are fixed once the tournament is launched. To move a player, unlock the tournament.",
+      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can unlock the tournament on the dashboard.",
     });
     expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.cat } })).groupId).toBe(flightB);
     // The format is setup, and setup stays locked (thrown by `assertUnlocked`, as before).
@@ -253,11 +261,32 @@ describe("once Round 1 has a card", () => {
   });
 
   it("a late entry and an approval are refused, naming the round", async () => {
-    const begun = "Round 1 has begun, so a new entry would have no score for it. To add someone anyway, unlock the tournament.";
+    const begun = "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.";
     expect(await addSignup({ name: `${TAG} too-late`, email: at("too-late"), handicap: 9 })).toEqual({ ok: false, error: begun });
     expect(await prisma.player.count({ where: { eventId: medal, email: at("too-late") } })).toBe(0);
     expect(await approveSignup(ids.pam)).toEqual({ ok: false, error: begun });
     expect(await statusOf("pam")).toBe("pending");
+  });
+
+  /**
+   * THE ASSISTANT ON THE DESK (panel review of #1028, must-fix 2): they cannot
+   * unlock (`setConfigUnlocked` is the Organizer's), so the refusal they are
+   * handed must name who can — not end on "unlock the tournament".
+   */
+  it("an Assistant refused a walk-in is told an Organizer can unlock it, because they cannot", async () => {
+    await as(assistantId, medal);
+    try {
+      const res = await addSignup({ name: `${TAG} walk-in`, email: at("walk-in"), handicap: 20 });
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe(
+        "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.",
+      );
+      // The reason the words matter: the Assistant has no Unlock of their own.
+      await expect(setConfigUnlocked(true)).rejects.toThrow();
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: medal } })).configUnlocked).toBe(false);
+    } finally {
+      await as(organizerId, medal);
+    }
   });
 
   it("a withdrawal still goes through: it reopens nothing", async () => {
@@ -269,7 +298,7 @@ describe("once Round 1 has a card", () => {
     await reinstateWithdrawn(ids.lee);
     await prisma.player.update({ where: { id: ids.lee }, data: { groupId: null } });
     const res = await placeInFlight(ids.lee, flightA);
-    expect(res).toEqual({ ok: false, error: "Round 1 has begun, so the flights are fixed. To place a player, unlock the tournament." });
+    expect(res).toEqual({ ok: false, error: "The first card of Round 1 is in, so the flights are fixed. To place a player, an Organizer can unlock the tournament on the dashboard." });
   });
 });
 
@@ -282,7 +311,7 @@ describe("other families and stages", () => {
     try {
       expect(await addSignup({ name: `${TAG} ko-late`, email: at("ko-late"), handicap: 9 })).toEqual({
         ok: false,
-        error: "The draw is made, so the field is fixed. To change it, unlock the tournament.",
+        error: "The draw is made, so the field is fixed. To change it, an Organizer can unlock the tournament on the dashboard.",
       });
       const res = await removeSignup(ids.kay);
       expect(res).toMatchObject({ ok: true, outcome: "withdrawn" });
@@ -300,7 +329,7 @@ describe("other families and stages", () => {
     try {
       expect(await removeSignup(ids.cob)).toEqual({
         ok: false,
-        error: "The tournament is completed, so its field is as it finished. Reopen it to change the field.",
+        error: "The tournament is completed, so its field is as it finished. An Organizer can reopen it on the dashboard.",
       });
       expect(await statusOf("cob")).toBe("confirmed");
     } finally {

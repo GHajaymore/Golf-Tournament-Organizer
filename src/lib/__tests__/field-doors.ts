@@ -13,9 +13,9 @@ export const OPEN_DOORS: Record<FieldChange, string | null> = fieldDoors({
   flightsConfirmed: false,
 });
 
-/** A launched tournament of the given family, with or without a round begun. */
-export function liveDoors(family: Parameters<typeof fieldDoors>[0]["family"], playedRound: string | null = null) {
-  return fieldDoors({ status: "live", configUnlocked: false, family, playedRound, flightsConfirmed: false });
+/** A launched tournament of the given family, with or without a round begun or a confirmed draw. */
+export function liveDoors(family: Parameters<typeof fieldDoors>[0]["family"], playedRound: string | null = null, flightsConfirmed = false) {
+  return fieldDoors({ status: "live", configUnlocked: false, family, playedRound, flightsConfirmed });
 }
 
 // Every change has a door: the control a fixture that forgot one would fail.

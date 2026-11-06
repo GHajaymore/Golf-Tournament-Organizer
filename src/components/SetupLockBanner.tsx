@@ -14,7 +14,7 @@ import { MoreInfo } from "./MoreInfo";
  * rule allows — a late entry. The banner then says what is open rather than
  * "Setup locked", in `fieldBanner`'s words; Unlock stays for the rest.
  */
-export function SetupLockBanner({ locked, isAdmin, underWay = null }: { locked: boolean; isAdmin: boolean; underWay?: string | null }) {
+export function SetupLockBanner({ locked, isAdmin, underWay = null }: { locked: boolean; isAdmin: boolean; underWay?: string[] | null }) {
   const [pending, startTransition] = useTransition();
   if (!locked) return null;
   return (
@@ -33,9 +33,12 @@ export function SetupLockBanner({ locked, isAdmin, underWay = null }: { locked: 
       <Icon name="lock-simple" style={{ fontSize: 18, color: "var(--color-accent-200)" }} />
       <div style={{ flex: 1, minWidth: 180 }}>
         <div style={{ fontWeight: 500, fontSize: 15 }}>{underWay ? "Under way" : "Setup locked"}</div>
-        {underWay && (
-          <p style={{ margin: "2px 0 0", fontSize: 14 }}>{underWay}</p>
-        )}
+        {/* Two short lines, each its own (panel review of #1028): what is open, then what is not. */}
+        {underWay?.map((line) => (
+          <p key={line} style={{ margin: "2px 0 0", fontSize: 14 }}>
+            {line}
+          </p>
+        ))}
         {/* One line, the reason an ⓘ away (Ajay, 2026-10-05). */}
         <MoreInfo short={underWay ? "Anything else needs Unlock setup." : "Read-only, to protect the field and results."}>
           {/* "Launched", not "live": the lock holds after the tournament is

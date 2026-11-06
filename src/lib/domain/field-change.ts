@@ -24,15 +24,23 @@
  *     (withdrew after starting; did not start).
  *   - PUTTING ONE BACK undoes a mistaken tap, on the same terms: an office
  *     error corrected, not a ruling (the spirit of Rule 20.2d), and refused
- *     once the competition is completed (Rule 20.2e: results are final).
+ *     once the competition is completed (Rule 20.2e: results are final). Put
+ *     back after a walkover has been awarded against the player is the
+ *     COMMITTEE'S CALL: the app returns them to the field and leaves the
+ *     recorded walkover exactly as it stands; whether the match is replayed or
+ *     the walkover kept is a ruling, made and recorded on Score entry or the
+ *     Bracket by the committee, never by Put back.
  *   - A LATE ENTRY in stroke play or Stableford is a term of the competition
- *     (Committee Procedures, Section 5A); this rule closes it once any card is
- *     in, so that no new name lacks a score for a round already under way. In
+ *     (Committee Procedures, Section 5A); this rule closes it once the FIRST
+ *     CARD is in (kept for now by the panel, 6 Nov; a cutoff at the round's
+ *     last starting time comes with PR B and the tee sheet). A walk-in after
+ *     the first card needs an Organizer to unlock the tournament. In
  *     match play, a round robin, a knockout or a cup the draw IS the field, so
  *     nobody is added after launch. A league's field changes week to week by
  *     nature, so it keeps taking entries between weeks.
  *   - An UNPLACED player (a late entrant) may be placed in a prize division —
- *     stroke or Stableford, before play — without moving anybody else.
+ *     stroke or Stableford, before the first card, confirmed draw or not —
+ *     without moving anybody else.
  *   - Moving a PLACED player between flights, editing a player's details and
  *     bulk imports or deletions are not day-of acts: they stay locked.
  *
@@ -91,19 +99,28 @@ export function fieldFactsOf(f: TournamentFacts): FieldFacts {
 
 /**
  * MAY THIS CHANGE BE MADE TO THE FIELD NOW. Questions in order: completed
- * refuses everything; a confirmed draw refuses a flight change; not launched,
+ * refuses everything; a confirmed draw refuses a move (and a placement where
+ * flights make the pairings); not launched,
  * or unlocked, allows (exactly the behaviour before this rule); otherwise the
  * day-of table above.
  */
 export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): FieldVerdict {
   if (isFinished(facts.status)) {
-    return no("The tournament is completed, so its field is as it finished. Reopen it to change the field.", REOPEN);
+    return no("The tournament is completed, so its field is as it finished. An Organizer can reopen it on the dashboard.", REOPEN);
   }
   const locked = configurationLocked(facts);
-  const flightChange = change === "place-in-flight" || change === "move-flight";
-  if (flightChange && facts.flightsConfirmed) {
+  /**
+   * A CONFIRMED DRAW MOVES NOBODY — and placing an UNPLACED player in a prize
+   * division moves nobody either (panel review of #1028, must-fix 1). So in
+   * stroke play and Stableford the confirmed draw is asked of a move only;
+   * refusing the placement would send the desk back to the blanket Unlock this
+   * rule exists to retire. Where flights decide who plays whom (a round robin,
+   * a cup), placing someone changes the pairings, so the draw still holds it.
+   */
+  const drawHolds = change === "move-flight" || (change === "place-in-flight" && !PRIZE_DIVISIONS.includes(facts.family));
+  if (drawHolds && facts.flightsConfirmed) {
     return locked
-      ? no("The draw is confirmed, so the flights are fixed. To change them, unlock the tournament.", UNLOCK)
+      ? no(`The draw is confirmed, so the flights are fixed. ${byOrganizer("change them")}`, UNLOCK)
       : no("Draw confirmed. Reopen it to move anyone.", REOPEN_DRAW);
   }
   if (!locked) return OPEN;
@@ -117,29 +134,40 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
     case "approve":
       if (!LATE_ENTRY_FAMILIES.includes(facts.family)) {
         return facts.family === "teamCup"
-          ? no("The sides are picked, so the field is fixed. To change it, unlock the tournament.", UNLOCK)
-          : no("The draw is made, so the field is fixed. To change it, unlock the tournament.", UNLOCK);
+          ? no(`The sides are picked, so the field is fixed. ${byOrganizer("change it")}`, UNLOCK)
+          : no(`The draw is made, so the field is fixed. ${byOrganizer("change it")}`, UNLOCK);
       }
       if (begun && !LIVE_BY_NATURE.includes(facts.family)) {
-        return no(`${begun} has begun, so a new entry would have no score for it. To add someone anyway, unlock the tournament.`, UNLOCK);
+        return no(`The first card of ${begun} is in, so late entries are closed. ${byOrganizer("add someone anyway")}`, UNLOCK);
       }
       return OPEN;
     case "place-in-flight":
       if (!PRIZE_DIVISIONS.includes(facts.family)) {
-        return no("Flights are fixed once the tournament is launched. To place a player, unlock the tournament.", UNLOCK);
+        return no(`Flights are fixed once the tournament is launched. ${byOrganizer("place a player")}`, UNLOCK);
       }
-      if (begun) return no(`${begun} has begun, so the flights are fixed. To place a player, unlock the tournament.`, UNLOCK);
+      if (begun) return no(`The first card of ${begun} is in, so the flights are fixed. ${byOrganizer("place a player")}`, UNLOCK);
       return OPEN;
     case "move-flight":
-      return no("Flights are fixed once the tournament is launched. To move a player, unlock the tournament.", UNLOCK);
+      return no(`Flights are fixed once the tournament is launched. ${byOrganizer("move a player")}`, UNLOCK);
     case "edit":
-      return no("A player’s details are locked once the tournament is launched. To correct one, unlock the tournament.", UNLOCK);
+      return no(`A player’s details are locked once the tournament is launched. ${byOrganizer("correct one")}`, UNLOCK);
     case "bulk":
       return no(
-        "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or unlock the tournament.",
+        "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to unlock the tournament on the dashboard.",
         ONE_AT_A_TIME,
       );
   }
+}
+
+/**
+ * WHO CAN UNLOCK, AND WHERE (panel review of #1028, must-fix 2). Only the
+ * primary Organizer can unlock (`setConfigUnlocked` is admin-only), and on the
+ * morning the person reading a refusal is as likely to be an Assistant — so
+ * every refusal that ends in Unlock names who can, in words true for both
+ * readers, and the place the guide names ("Unlock it on the dashboard").
+ */
+function byOrganizer(act: string): string {
+  return `To ${act}, an Organizer can unlock the tournament on the dashboard.`;
 }
 
 /** Every change's refusal as a sentence, or null where it is open — what the Entries screen draws from. */
@@ -157,10 +185,11 @@ export function fieldDoors(facts: FieldFacts): Record<FieldChange, string | null
  * completed), in place of "Setup locked"; null otherwise. Built from the
  * verdicts, so it never promises an add the rule refuses.
  */
-export function fieldBanner(facts: FieldFacts): string | null {
+export function fieldBanner(facts: FieldFacts): string[] | null {
   if (!isLaunched(facts.status) || isFinished(facts.status) || !configurationLocked(facts)) return null;
   const add = fieldChangeAllowed(facts, "add");
+  // Two short lines under the title "Under way" (panel review of #1028): what is open, then what is not.
   return add.ok
-    ? "The tournament is under way. You can withdraw a player, put one back or add a late entry; the waiting list moves up by itself. The format, rounds and players’ details stay locked."
-    : `The tournament is under way. You can withdraw a player or put one back. ${add.says}`;
+    ? ["You can withdraw a player, put one back or add a late entry.", "The format, rounds and players’ details stay locked."]
+    : ["You can withdraw a player or put one back.", add.says];
 }

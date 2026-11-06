@@ -167,7 +167,7 @@ export function RegistrationClient({
    */
   doors: FieldDoors;
   /** The under-way banner (`fieldBanner`), shown in place of "Setup locked"; null when not under way. */
-  underWay?: string | null;
+  underWay?: string[] | null;
   /** The flights a late entrant may be placed in, labelled as the field table labels them. */
   flights?: Array<{ id: string; label: string }>;
   isAdmin: boolean;
@@ -1320,8 +1320,8 @@ export function RegistrationClient({
               half above a form somebody has just filled in. The rule's own words. */}
           {doors.add && (
             <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+              {/* The rule's words already say who can unlock (an Organizer), true for either reader. */}
               {doors.add}
-              {isAdmin ? "" : " Ask the Organizer to unlock setup."}
             </p>
           )}
           {addError && (

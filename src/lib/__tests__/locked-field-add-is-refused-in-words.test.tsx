@@ -42,13 +42,13 @@ const row = (id: string, name: string) => ({
   id, name, handicap: 10, handicapType: "18", handicapSource: "manual", seed: 1, email: `${id}@example.invalid`, phone: "",
 });
 
-const reg = async (opts: { locked: boolean; doors: typeof OPEN_DOORS; underWay?: string | null }) => {
+const reg = async (opts: { locked: boolean; doors: typeof OPEN_DOORS; underWay?: string[] | null; flights?: Array<{ id: string; label: string }> }) => {
   const { RegistrationClient } = await import("@/components/RegistrationClient");
   return renderToStaticMarkup(
     <RegistrationClient
       confirmed={[row("p1", "zz-Ann Doyle")]} waitlist={[]} pendingEntries={[]} isAdmin
       roster={[{ id: "m1", name: "zz-Cleo Green", email: "m1@example.invalid", phone: "", handicap: 12, entered: false } as never]}
-      locked={opts.locked} doors={opts.doors} underWay={opts.underWay ?? null}
+      locked={opts.locked} doors={opts.doors} underWay={opts.underWay ?? null} flights={opts.flights ?? []}
       event={{
         name: "zz-April Medal", capacity: 32, status: "live", regDeadline: "", regOpens: "", today: "2026-06-01",
         // Closed by hand (true is "closed"), with the link published: the state
@@ -115,18 +115,46 @@ describe("Entries under way in a knockout: the draw is the field", () => {
   const doors = liveDoors("knockout");
 
   it("refuses Add in the rule's words where the button is, and promises nothing", async () => {
-    const html = await reg({ locked: true, doors, underWay: "x" });
+    const html = await reg({ locked: true, doors, underWay: ["x"] });
     expect(isDisabled(tagBefore(html, "Add late entry"))).toBe(true);
-    expect(html).toContain("The draw is made, so the field is fixed. To change it, unlock the tournament.");
+    expect(html).toContain("The draw is made, so the field is fixed. To change it, an Organizer can unlock the tournament on the dashboard.");
     expect(html).not.toContain("You can still add players below");
     expect(html).toContain("While it is closed the sign-up link turns everyone away.");
     // Withdraw is still open: a withdrawal never reopens anything.
     expect(isDisabled(tagBefore(html, 'title="Withdraw zz-Ann Doyle"'))).toBe(false);
   });
 
-  it("after play has begun a stroke field refuses Add naming the round", async () => {
-    const html = await reg({ locked: true, doors: liveDoors("stroke", "Round 1"), underWay: "x" });
-    expect(html).toContain("Round 1 has begun, so a new entry would have no score for it.");
+  it("after the first card a stroke field refuses Add, naming the round and who can unlock", async () => {
+    const html = await reg({ locked: true, doors: liveDoors("stroke", "Round 1"), underWay: ["x"] });
+    expect(html).toContain(
+      "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.",
+    );
+  });
+});
+
+/**
+ * A CONFIRMED DRAW DOES NOT SHUT "CHOOSE A FLIGHT" FOR A LATE ENTRANT in stroke
+ * play or Stableford (panel review of #1028, must-fix 1): placing an unplaced
+ * player moves nobody. The control: where flights make the pairings (a round
+ * robin) the confirmed draw does shut it, and so does the first card.
+ */
+describe("Entries under way with a confirmed draw: a late entrant can still be given a flight", () => {
+  const flights = [{ id: "g1", label: "Flight A" }, { id: "g2", label: "Flight B" }];
+  const chooser = 'aria-label="Flight for zz-Ann Doyle"';
+
+  for (const family of ["stroke", "stableford"] as const) {
+    it(`${family}: "Choose a flight" is offered and live`, async () => {
+      const html = await reg({ locked: true, doors: liveDoors(family, null, true), underWay: ["x"], flights });
+      expect(isDisabled(tagBefore(html, chooser, "select"))).toBe(false);
+      expect(html).toContain("Choose a flight");
+    });
+  }
+
+  it("CONTROL: a round robin's confirmed draw, or a first card, shuts it", async () => {
+    const robin = await reg({ locked: true, doors: liveDoors("roundRobinFlights", null, true), underWay: ["x"], flights });
+    expect(robin).not.toContain(chooser);
+    const begun = await reg({ locked: true, doors: liveDoors("stroke", "Round 1", true), underWay: ["x"], flights });
+    expect(begun).not.toContain(chooser);
   });
 });
 

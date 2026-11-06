@@ -103,7 +103,7 @@ describe("adding a player while setup is locked", () => {
   it("is refused with a reason, and writes nobody", async () => {
     const res = await addSignup(entrant("Late"));
     expect(res.ok).toBe(false);
-    expect(res.error).toBe("The draw is made, so the field is fixed. To change it, unlock the tournament.");
+    expect(res.error).toBe("The draw is made, so the field is fixed. To change it, an Organizer can unlock the tournament on the dashboard.");
     expect(await prisma.player.count({ where: { eventId } })).toBe(0);
   });
 
@@ -111,7 +111,7 @@ describe("adding a player while setup is locked", () => {
     const csv = `name,email,phone,handicap\n${TAG} Csv,${at("csv")},07700 900657,10\n`;
     const res = await importCsvSignups(csv);
     expect(res.error).toBe(
-      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or unlock the tournament.",
+      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to unlock the tournament on the dashboard.",
     );
     expect(res.imported).toBe(0);
     expect(await prisma.player.count({ where: { eventId } })).toBe(0);

@@ -18,8 +18,8 @@ import { watchPageErrors } from "./page-errors";
  *   Put back                  → back in the field, the same row
  *   Add late entry            → in the field; told to give them a tee time and offered
  *                               a flight in their row
- *   Choose a flight           → placed (nobody else moves)
- *   a card comes in           → Add is refused, naming the round, where the button is
+ *   Choose a flight           → placed (nobody else moves), though the draw is confirmed
+ *   a card comes in           → Add is refused, naming the round and that an Organizer can unlock
  *   the CSV import            → shut throughout, with the reason beside it
  *
  * The card is written as a row, not typed: it stands for a scorer's card, and
@@ -45,7 +45,16 @@ let assistantSession = "";
 test.beforeAll(async () => {
   await dropClub(MARK);
   club = await makeClub(MARK);
-  const made = await makeEvent(club, "Monthly Medal", { status: "live", configUnlocked: false, stages: [{}], players: 4, flights: 2 });
+  // The draw was CONFIRMED before launch, as a careful secretary leaves it: placing a late entrant
+  // must still be offered (panel review of #1028, must-fix 1) — it moves nobody else.
+  const made = await makeEvent(club, "Monthly Medal", {
+    status: "live",
+    configUnlocked: false,
+    stages: [{}],
+    players: 4,
+    flights: 2,
+    event: { flightsConfirmed: true },
+  });
   eventId = made.event.id;
   stageId = made.stages[0].id;
   // Read from the fixture, never assumed: the first entrant, drawn into Flight A, with no card.
@@ -131,7 +140,12 @@ test("the assistant withdraws, puts back and takes a late entry on a launched me
     await returnCard(eventId, stageId, withdrawnId);
     await entries(desk);
     await expect(desk.getByRole("button", { name: "Add late entry" })).toBeDisabled();
-    await expect(desk.getByText("Round 1 has begun, so a new entry would have no score for it.", { exact: false }).first()).toBeVisible();
+    // Said to the Assistant, who cannot unlock, with who can (panel review of #1028, must-fix 2).
+    await expect(
+      desk
+        .getByText("The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.", { exact: false })
+        .first(),
+    ).toBeVisible();
     // Withdrawing is still open: it never reopens anything.
     await expect(desk.locator("tr", { hasText: NAMES[1] }).first().getByRole("button", { name: `Withdraw ${NAMES[1]}` })).toBeEnabled();
 
