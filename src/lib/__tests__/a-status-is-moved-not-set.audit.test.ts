@@ -33,7 +33,7 @@ const session = { email: EMAIL, name: `${TAG} secretary`, eventId: "", role: "ad
 vi.mock("@/lib/auth", () => ({ getSession: async () => session, setActiveEvent: async () => {} }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { setEventStatus } = await import("@/app/actions/tournament");
+const { setEventStatus, launchTournament } = await import("@/app/actions/tournament");
 
 let orgId = "";
 
@@ -42,8 +42,13 @@ async function scrub() {
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
 }
 
-/** A tournament at `status`, with the secretary on it; `ready` says whether it could be launched. */
-async function tournament(name: string, status: string, ready = false) {
+/**
+ * A tournament at `status`, with the secretary on it; `ready` says whether it
+ * could be launched. `players` is how many are entered when it is ready: a
+ * knockout needs two (Golf Pro, panel 8.2), which the action asks since the
+ * state machine's PR 4.
+ */
+async function tournament(name: string, status: string, ready = false, players = 2) {
   const event = await prisma.event.create({
     data: {
       organizationId: orgId, name: `${TAG} ${name}`, status, dates: ready ? "Saturday" : "", course: "", city: "", address: "",
@@ -56,7 +61,9 @@ async function tournament(name: string, status: string, ready = false) {
     // round, somebody in the field and a date. A knockout, since an undrawn
     // round robin has no matches to score and launch refuses it (gap G3).
     await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Bracket Stage", format: "Match Play", holes: 18 } });
-    await prisma.player.create({ data: { eventId: event.id, name: `${TAG} player`, email: `${TAG}.p@example.invalid`.toLowerCase(), handicap: 10, seed: 1, status: "confirmed" } });
+    for (let i = 0; i < players; i += 1) {
+      await prisma.player.create({ data: { eventId: event.id, name: `${TAG} player ${i + 1}`, email: `${TAG}.p${i}@example.invalid`.toLowerCase(), handicap: 10, seed: i + 1, status: "confirmed" } });
+    }
   }
   session.eventId = event.id;
   return event.id;
@@ -99,6 +106,40 @@ describe("going live is launching, whichever door asks", () => {
     const id = await tournament("finished", "completed");
     expect(await setEventStatus("live")).toEqual({ ok: true });
     expect((await read(id))?.status).toBe("live");
+  });
+});
+
+describe("the move is asked of the state machine, as the dashboard's button is (PR 4)", () => {
+  it("a knockout of ONE is refused at both doors, in the button's words — the old gate let it go live", async () => {
+    const id = await tournament("knockout-of-one", "draft", true, 1);
+    const words = "A knockout needs at least two players, and only one is entered. Add more on Entries, then launch.";
+    expect(await setEventStatus("live")).toEqual({ ok: false, error: words });
+    expect(await launchTournament()).toEqual({ ok: false, error: words });
+    expect((await read(id))?.status).toBe("draft");
+  });
+
+  it("a launched tournament is not launched again — which re-stamped it and locked setup an organizer had unlocked", async () => {
+    const id = await tournament("launched-twice", "live", true);
+    await prisma.event.update({ where: { id }, data: { configUnlocked: true } });
+    const res = await launchTournament();
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe("This tournament is already live, so there is nothing to launch.");
+    expect((await read(id))?.configUnlocked, "a second launch locked setup again").toBe(true);
+  });
+
+  it("a draft is not completed by this door — there is nothing to complete until it is launched", async () => {
+    const id = await tournament("complete-a-draft", "draft", true);
+    const res = await setEventStatus("completed");
+    expect(res).toEqual({ ok: false, error: "This tournament hasn’t been launched yet, so there is nothing to complete. Launch it from the dashboard first." });
+    expect((await read(id))?.status).toBe("draft");
+  });
+
+  it("a completed tournament is not completed twice, and 'live' on a live one is not a reopen", async () => {
+    await tournament("complete-twice", "completed", true);
+    expect((await setEventStatus("completed")).error).toBe("This tournament is already completed. To change a result, reopen it on the dashboard first.");
+    const live = await tournament("reopen-a-live-one", "live", true);
+    expect((await setEventStatus("live")).error).toBe("This tournament isn’t completed, so there is nothing to reopen.");
+    expect((await read(live))?.status).toBe("live");
   });
 });
 

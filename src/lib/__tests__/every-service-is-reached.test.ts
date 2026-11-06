@@ -64,6 +64,10 @@ const UNREACHED: Record<string, string> = {
   // PR 3: the dashboard, Tournament details, Rounds & formats and every
   // console screen's context bar call it through `tournamentStatusFor`.
   // `group-keeping.ts:keeperFor` came off 2026-11-05: /play asks it (phase 2).
+
+  // ── The state machine's retired readers, kept until PR 9 deletes the dead twins ──
+  "setup-flow.ts:launchCheckFor":
+    "The launch action's own gate until the state machine's PR 4, which made `launchTournament` ask `refusals.launch` — the same flow's verdict first, then the panel's holds per family. Three audit tests still hold the flow's launch verdict to its facts through it; PR 9 deletes it.",
 };
 
 /** Every `.ts` under services. */

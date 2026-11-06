@@ -161,16 +161,34 @@ export function cutBlockers(
   cards: ReadonlyArray<{ status: string; strokes: string }>,
   staffApproves: boolean,
 ): { awaitingApproval: number; notReturned: number; disputed: number; total: number } {
-  const played = cards.filter((c) => hasAnyStroke(c.strokes));
-  const disputed = played.filter((c) => c.status === "disputed").length;
+  const split = cardsNotFinal(cards, staffApproves);
+  const disputed = split.disputed.length;
   // Where a committee reviews, any card it has not approved is waiting on IT —
   // a card the organizer typed in from the paper one is "entered", and telling
   // them it "hasn't been returned" would be false. Where players confirm, an
   // unsigned card is waiting on its player.
-  const pending = played.filter((c) => c.status !== "disputed" && !cardIsFinal(c.status, staffApproves));
+  const pending = split.pending;
   const awaitingApproval = staffApproves ? pending.length : 0;
   const notReturned = staffApproves ? 0 : pending.length;
   return { awaitingApproval, notReturned, disputed, total: awaitingApproval + notReturned + disputed };
+}
+
+/**
+ * THE CARDS IN A ROUND THAT ARE NOT YET A RESULT, kept as cards — `cutBlockers`
+ * counts them; closing a round names them (`roundCloseCheck`, state machine
+ * PR 4). One split, so the cut and the close cannot disagree about which card
+ * is final: a card with no score on it is nobody's card yet, a disputed one
+ * waits on a ruling, and any other card not `cardIsFinal` waits on a signature.
+ */
+export function cardsNotFinal<C extends { status: string; strokes: string }>(
+  cards: readonly C[],
+  staffApproves: boolean,
+): { pending: C[]; disputed: C[] } {
+  const played = cards.filter((c) => hasAnyStroke(c.strokes));
+  return {
+    disputed: played.filter((c) => c.status === "disputed"),
+    pending: played.filter((c) => c.status !== "disputed" && !cardIsFinal(c.status, staffApproves)),
+  };
 }
 
 /**

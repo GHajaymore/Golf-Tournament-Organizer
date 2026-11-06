@@ -13,7 +13,13 @@ import { setupFactsFor } from "./tournament-facts";
  * the machine's steps. It was deleted rather than left beside it: a dead twin
  * is a second copy waiting to be used.
  *
- * What is left here is the launch ACTION's gate, which PR 4 moves.
+ * What is left here was the launch ACTION's gate, and PR 4 moved it: the
+ * action asks the machine's `refusals.launch` (`tournamentStatusNow`), whose
+ * first answer is this same flow's verdict. No screen or action calls this any
+ * more; the audit tests that hold the flow's launch verdict to its facts still
+ * do, so it is deleted with the other old readers in PR 9. The sweep keeps it
+ * out of `src/app` and `src/components` (`OLD_READERS`), and
+ * `the-actions-ask-the-machine.test.ts` keeps it out of the actions.
  */
 
 /**
