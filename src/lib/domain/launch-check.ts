@@ -176,21 +176,25 @@ function teeSheetWarning(f: LaunchSource, teeSheetLabel: string): LaunchWarning 
 export interface UnratedTees {
   /** Labels of the rounds that score off a handicap. */
   rounds: string[];
-  /** Names of the tees with no Course Rating or Slope. */
-  tees: string[];
+  /** Tees with no Slope: `courseHandicapExact` falls back to the raw Handicap Index. */
+  noSlope: string[];
+  /** Tees with a Slope but no Course Rating: scaled by Slope, without the Course Rating minus Par term. */
+  noRating: string[];
   /** The course has no tees at all, so nothing can be rated. */
   noTees: boolean;
 }
 
 export function unratedTeesFact(input: {
   rounds: readonly { label: string; scoringBasis: string }[];
-  tees: readonly { name: string; rated: boolean }[];
+  tees: readonly { name: string; slopeRating: number; courseRating: number }[];
 }): UnratedTees | null {
   const rounds = input.rounds.filter((r) => r.scoringBasis !== "gross").map((r) => r.label);
   if (rounds.length === 0) return null;
-  if (input.tees.length === 0) return { rounds, tees: [], noTees: true };
-  const tees = input.tees.filter((t) => !t.rated).map((t) => t.name);
-  return tees.length === 0 ? null : { rounds, tees, noTees: false };
+  if (input.tees.length === 0) return { rounds, noSlope: [], noRating: [], noTees: true };
+  // The same test as `courseHandicapExact` / `isRated`: a Slope above zero.
+  const noSlope = input.tees.filter((t) => !(t.slopeRating > 0)).map((t) => t.name);
+  const noRating = input.tees.filter((t) => t.slopeRating > 0 && !(t.courseRating > 0)).map((t) => t.name);
+  return noSlope.length === 0 && noRating.length === 0 ? null : { rounds, noSlope, noRating, noTees: false };
 }
 
 const joined = (names: readonly string[]) =>
@@ -205,11 +209,27 @@ const joined = (names: readonly string[]) =>
 function unratedTeesWarning(u: UnratedTees | null | undefined, screen: string): LaunchWarning | null {
   if (!u) return null;
   const rounds = joined(u.rounds);
-  const consequence =
-    "players on it are scored on their raw Handicap Index, which understates strokes on a hard course and overstates them on an easy one.";
-  const says = u.noTees
-    ? `No tees are set up for the course, so there is no Course Rating and Slope to work out a Course Handicap for ${rounds}: players are scored on their raw Handicap Index, which understates strokes on a hard course and overstates them on an easy one.`
-    : `${joined(u.tees)} ${u.tees.length === 1 ? "has" : "have"} no Course Rating and Slope, so ${rounds} cannot work out a Course Handicap for ${u.tees.length === 1 ? "it" : "them"}: ${u.tees.length === 1 ? consequence : consequence.replace("players on it", "players on them")}`;
+  const rawIndex = "usually understates strokes on a hard course and overstates them on an easy one";
+  const parts: string[] = [];
+  if (u.noTees) {
+    parts.push(
+      `No tees are set up for the course, so there is no Slope or Course Rating to work out a Course Handicap for ${rounds}: players are scored on their raw Handicap Index, which ${rawIndex}.`,
+    );
+  } else {
+    if (u.noSlope.length > 0) {
+      const one = u.noSlope.length === 1;
+      parts.push(
+        `${joined(u.noSlope)} ${one ? "has" : "have"} no Slope, so ${rounds} score players on ${one ? "it" : "them"} off their raw Handicap Index, which ${rawIndex}.`,
+      );
+    }
+    if (u.noRating.length > 0) {
+      const one = u.noRating.length === 1;
+      parts.push(
+        `${joined(u.noRating)} ${one ? "has" : "have"} a Slope but no Course Rating, so ${rounds} score players on ${one ? "it" : "them"} on the Slope alone, without the Course Rating minus Par adjustment, which can leave their strokes a little off.`,
+      );
+    }
+  }
+  const says = parts.join(" ");
   return { says, fix: `Add the Course Rating and Slope on ${screen}`, href: "/event", screen, afterLaunch: "open" };
 }
 

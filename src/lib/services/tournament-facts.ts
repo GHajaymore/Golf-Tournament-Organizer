@@ -238,7 +238,7 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
         const playing = (stagesOf.get(id) ?? []).filter((s) => isPlayingRound(s.type));
         const rounds = playing.map((s) => ({ label: roundLabel(stagesOf.get(id) ?? [], s.id), scoringBasis: s.scoringBasis }));
         if (!rounds.some((r) => r.scoringBasis !== "gross")) return [id, null] as const;
-        return [id, unratedTeesFact({ rounds, tees: await teesForEvent(id) })] as const;
+        return [id, unratedTeesFact({ rounds, tees: (await teesForEvent(id)).map((t) => ({ name: t.name, slopeRating: t.slopeRating, courseRating: t.courseRating })) })] as const;
       }),
     ),
   );
