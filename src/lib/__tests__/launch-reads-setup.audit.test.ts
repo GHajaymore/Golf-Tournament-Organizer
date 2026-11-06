@@ -150,14 +150,14 @@ describe("launch reads setup", () => {
     await setActiveEvent(eventId);
     const check = await launchCheckFor(eventId);
     expect(check.refusal, "an unrated tee must never refuse a launch").toBeNull();
-    const w = check.warnings.find((x) => /Course Rating and Slope/.test(x.says));
+    const w = check.warnings.find((x) => /Slope/.test(x.says));
     expect(w?.says, "launch said nothing about the unrated tee").toContain("Zz White");
     expect(w?.says).toContain("Round 1");
 
     // CONTROL: rate the tee and the warning goes.
     await prisma.tee.updateMany({ where: { courseId: course.id }, data: { courseRating: 71.2, slopeRating: 128 } });
     const rated = await launchCheckFor(eventId);
-    expect(rated.warnings.some((x) => /Course Rating and Slope/.test(x.says))).toBe(false);
+    expect(rated.warnings.some((x) => /Slope/.test(x.says))).toBe(false);
 
     await prisma.tee.updateMany({ where: { courseId: course.id }, data: { courseRating: 0, slopeRating: 0 } });
     expect(await launchTournament()).toEqual({ ok: true });
