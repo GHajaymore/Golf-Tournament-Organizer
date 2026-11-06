@@ -239,9 +239,9 @@ a.card:active, button.card:active, .card-hover:active {
   color: transparent;
 }
 
-/* "HQ" badge chip that pairs with .brand-mark to complete the "FlightHQ"
+/* "HQ" badge chip that pairs with .brand-mark to complete the "TourneyHQ"
    lockup — a crisp solid tag deliberately contrasting the gradient-foil
-   serif of the "Flight" half, so the mark reads as two considered parts
+   serif of the "Tourney" half, so the mark reads as two considered parts
    rather than one flat rename. Sized in em so it scales with its parent
    font-size wherever the lockup is dropped (12px footer credit through
    30px hero). */
