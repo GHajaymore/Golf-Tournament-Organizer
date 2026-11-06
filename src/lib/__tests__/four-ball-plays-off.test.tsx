@@ -250,10 +250,11 @@ describe("the words this change puts on a player's screen are short", () => {
         played: 1, wins: 1, halved: 0, losses: 0, holesDiff: 3, points: 2, rank: 1,
       }]} />,
     );
-    const paragraphs = [...html.matchAll(/<p[^>]*?(?:style="([^"]*)")?[^>]*>(.*?)<\/p>/gs)];
+    const paragraphs = [...html.matchAll(/<p([^>]*)>(.*?)<\/p>/gs)].map(([, attrs, inner]) => [attrs, /style="([^"]*)"/.exec(attrs)?.[1], inner] as const);
     expect(paragraphs.length, "the table has paragraphs to read").toBeGreaterThan(0);
     const words = (s: string) => s.split(" ").filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
     for (const [, style, inner] of paragraphs) {
+      expect(inner).toBeTruthy();
       const text = textOf(inner).replace(/\s+/g, " ").trim();
       expect(words(text), `block: ${text}`).toBeLessThan(25);
       expect(longest(text), `sentence: ${text}`).toBeLessThan(12);
