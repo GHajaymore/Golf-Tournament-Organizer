@@ -90,9 +90,9 @@ test("a member enters from the link, signs in, and scores their own card", async
       await playScratch(page, "Round 1");
 
       await open(page, "/registration");
-      await page.getByRole("button", { name: /Let players sign themselves up/ }).click();
-      await page.getByRole("button", { name: "Publish the link" }).click();
-      await expect(page.getByRole("button", { name: "Take the link down" })).toBeVisible({ timeout: 20_000 });
+      // One button opens entries, and the sign-up link it publishes shows itself.
+      await page.getByRole("button", { name: /^Open entries/ }).click();
+      await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
       // The read-only box beside "Copy link" holds the address to send round.
       link = await page.locator("input").evaluateAll((els) =>
         (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "",

@@ -42,10 +42,10 @@ const reg = async (locked: boolean) => {
       confirmed={[]} waitlist={[]} pendingEntries={[]} locked={locked} isAdmin roster={[]}
       event={{
         name: "zz-April Medal", capacity: 32, status: "live", regDeadline: "", regOpens: "", today: "2026-06-01",
-        // Closed by hand (true is "closed" — `setRegistrationOverride(true)` is
-        // the Close button), the state in which the banner offers "add below".
+        // Closed by hand (true is "closed"), with the link published: the state
+        // in which the card offers "add below" (and, locked, says it cannot).
         registrationOverride: true, inviteMessage: "", organizationName: "zz-Club",
-        dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+        dates: "", course: "", city: "", registrationOpen: true, registrationApproval: "auto",
         requirePhone: false, registrationToken: "",
       }} />,
   );

@@ -151,6 +151,7 @@ export const AREAS = {
       "src/app/(app)/registration/",
       "src/app/register/",
       "src/components/RegistrationClient.tsx",
+      "src/components/EntryTermsCard.tsx",
       "src/components/RegisterClient.tsx",
       "src/components/DisqualifyPanel.tsx",
       "src/app/actions/register.ts",
@@ -158,6 +159,7 @@ export const AREAS = {
     ],
     specs: [
       "e2e/entry-needs-approval.spec.ts",
+      "e2e/entry-terms.spec.ts",
       "e2e/disqualified-and-reinstated.spec.ts",
       "e2e/organizer-requires-a-phone.spec.ts",
       "e2e/enter-from-the-club-list.spec.ts",

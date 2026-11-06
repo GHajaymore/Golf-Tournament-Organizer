@@ -422,7 +422,7 @@ const STEPS: ReadonlyArray<{
     key: "registration",
     href: "/registration",
     question: "Who is playing?",
-    missing: () => "Nobody is entered yet.",
+    missing: () => "Nobody is entered yet. Open entries, or add players, on Entries.",
     /**
      * ONE ENTRY, AND THAT IS GENUINELY THE BAR — checked 2026-09-15 rather
      * than left as the "at least one" shape the two steps either side of it

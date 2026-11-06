@@ -13,7 +13,10 @@ import { GUIDE_STEPS } from "../guide-steps";
  */
 
 const PINNED: [label: string, file: string][] = [
-  ["Publish the link", "src/components/RegistrationClient.tsx"],
+  ["Open entries", "src/lib/registration.ts"],
+  ["Close entries", "src/lib/registration.ts"],
+  ["Reopen entries", "src/lib/registration.ts"],
+  ["Save entry terms", "src/components/EntryTermsCard.tsx"],
   ["Keep their money as it is", "src/components/OrgKindPicker.tsx"],
   ["Switch anyway", "src/components/OrgKindPicker.tsx"],
   ["Generate flights", "src/components/GroupingControls.tsx"],

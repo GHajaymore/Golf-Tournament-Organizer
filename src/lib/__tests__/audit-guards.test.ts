@@ -479,7 +479,7 @@ describe("flight naming and sign-off", () => {
 });
 
 describe("registration close / extend", () => {
-  const body = actions("tournament.ts").find((a) => a.name === "setRegistrationOverride")!.body;
+  const body = actions("tournament.ts").find((a) => a.name === "setEntriesOpen")!.body;
 
   it("is staff-only, and deliberately NOT lock-gated", () => {
     // This asserted assertUnlocked until D2 of the 2026-08-12 audit showed
@@ -509,7 +509,7 @@ describe("registration close / extend", () => {
   it("the screen derives status from the deadline rather than capacity alone", () => {
     // The bug: a tournament whose deadline passed still read "Open · unlimited".
     const client = readSource("src", "components", "RegistrationClient.tsx");
-    expect(client).toMatch(/registrationStatus\(\{/);
+    expect(client).toMatch(/entriesOpen\(\{/);
     expect(client).toMatch(/deadline: event\.regDeadline/);
     expect(client).not.toMatch(/const status = unlimited \? "Open · unlimited"/);
   });

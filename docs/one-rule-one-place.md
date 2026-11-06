@@ -211,6 +211,7 @@ typed number. What was found, each read by hand before it was counted:
 | a pot multiplied out by hand | 6 (one of them wrong: the report) | `potCents`; `money-is-worked-out-in-one-place.test.ts` |
 | a countback worded twice (`tie-words.ts`, the Stages screen) | 2 | left: two questions (a match's tiebreak, a stroke card's countback), each read off its own rule |
 | an inline `status: "confirmed"` | 2 | left: the one spelling (step 2) |
+| are entries open: the sign-up link joined with the dates by hand (`acceptingEntries && registrationOpen`) | 5 (the intake, the member's list, the public form, the report's coming-up line, the Entries screen) | `entriesOpen` in `registration.ts`; `entries-open-is-asked-once.test.ts` (2026-11-05, the entries cleanup) |
 | birdies counted again (the report's highlights) | 1 | left: a highlight counts birdies exactly; the pot counts one under or better, by its own rule |
 
 And a property test (step 6) found a typed margin accepted that no match can

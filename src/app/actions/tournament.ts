@@ -66,7 +66,8 @@ import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor, fieldCapFor, seatRefusalFor } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
 import { WIPE_ON_CLOSE, roundWindowRefusal, closesAtOnComplete, reopenRefusal, wipesOnClose } from "@/lib/domain/close-terms";
-import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { dayAtClubForEvent, clubDayForEvent } from "@/lib/services/club-clock";
+import { entriesChange } from "@/lib/registration";
 import { parseSetupAnswers, draftFromAnswers } from "@/lib/domain/setup-questions";
 import { markCourseCardChecked } from "@/lib/services/course-card-checked";
 import { tournamentNameRefusal, nameOrFree, withNameBackstop } from "@/lib/services/tournament-name";
@@ -1197,10 +1198,7 @@ export async function saveEvent(data: {
   courseId: string;
   city: string;
   address: string;
-  regDeadline: string;
-  /** First day entries are taken. Optional so an older caller leaves it alone. */
-  regOpens?: string;
-  capacity: number;
+  // The entry terms (opens, closes, how many) are saved on Entries: `saveEntryTerms`.
   playerCountMode: string;
   courseMode: string;
 }): Promise<{ ok: boolean; error?: string }> {
@@ -1302,24 +1300,8 @@ export async function saveEvent(data: {
       // Only ever the two known values — an unrecognised mode would decide
       // whether every match asks where it was played.
       courseMode: data.courseMode === "open" ? "open" : "fixed",
-      regDeadline: data.regDeadline,
-      // A real date or nothing. This is a public endpoint, and free text here
-      // would be displayed as a date while opening nothing — see
-      // `parseDeadlineIso`. Left out entirely, the stored value is kept.
-      ...(data.regOpens === undefined
-        ? {}
-        : { regOpens: parseDeadlineIso(String(data.regOpens)) }),
-      // 0 is the deliberate "open / unlimited field" sentinel (see the Fixed/Open
-      // toggle in EventSetupClient) — only clamp upward when the organizer has
-      // actually set a positive fixed capacity, otherwise every save was
-      // silently converting "open" into "capacity 1" the moment anyone hit Save.
-      //
-      // STORED AS THE ORGANIZER SET IT, and held to the plan's cap where it is
-      // READ (2026-10-09). This stored the cap — "open" on Par became ten — so
-      // a club that later moved up a tier kept a ten-player field it never
-      // chose. Every intake, promotion and waitlist path reads through
-      // `fieldLimitFor` / `fieldCapFor`; see `createTournament`.
-      capacity: data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
+      // The entry terms (opens, closes, how many) are not this form's:
+      // `saveEntryTerms` writes them from Entries.
       playerCountMode: data.playerCountMode === "manual" ? "manual" : "registration",
       // `sideStyle` is no longer written. Tournament details stopped asking
       // "how do people play?" — see the note where that field stood — and the
@@ -5860,67 +5842,102 @@ export async function setMatchTiebreakers(keys: string[]): Promise<{ ok: boolean
 }
 
 /**
- * Close registration early, or keep it open past the deadline.
+ * ENTRIES: OPEN THEM, OR CLOSE THEM — THE ONE SWITCH (the entries cleanup,
+ * 2026-11-05).
  *
- * `null` hands control back to the deadline. `true` closes now. `false` keeps
- * entries open after the date has passed — the common case, because a deadline
- * gets extended by a word at the bar long before anyone edits it in software.
+ * This replaces two: `setRegistrationOpen` (publish or take down the link) and
+ * `setRegistrationOverride` (close now, keep open past the deadline, follow the
+ * deadline). An organizer wanting to stop sign-ups had two plausible buttons and
+ * no way to tell them apart. What each wrote is now decided in one place,
+ * `entriesChange` (`registration.ts`), against the CLUB'S day: opening publishes
+ * the link (minting its token the first time, and keeping it for good, so a link
+ * already in fifty inboxes survives a close and reopen) and, when the dates alone
+ * would keep the door shut, takes entries now; closing keeps the link and says
+ * "closed by the organizer" to anyone who follows it.
  *
- * Note what this deliberately does NOT do: stop an organizer adding a player.
- * `addSignup` is staff-only and stays available whatever this says. Closing
- * registration is a statement about what members may do, and the organizer
- * adding a late entry by hand is the normal way a closed event still takes one.
- * When a self-service signup flow exists, it is this flag it should read.
+ * Deliberately no assertUnlocked, for the reason the two old actions gave: the
+ * lock stops a live tournament being RESHAPED, and this decides whether the door
+ * is open. Requiring it locked the organizer out of the one control that stops
+ * entries at exactly the moment they need it. And it does not stop an organizer
+ * adding a player by hand — that is how a closed event still takes a late entry.
  */
-export async function setRegistrationOverride(
-  override: boolean | null,
-): Promise<{ ok: boolean; error?: string }> {
-  // Deliberately no assertUnlocked, and the same reasoning as saveCustomCourse:
-  // the lock exists to stop a live tournament being RESHAPED, and this changes
-  // nothing about the field, the draw or the schedule — it decides whether the
-  // door is open. Requiring it locked the organizer out of the one control that
-  // stops entries at exactly the moment they need it: assertUnlocked throws for
-  // status live|completed, so a running tournament kept taking public entries
-  // and the only escape was unlocking the whole configuration of a live event.
+export async function setEntriesOpen(open: boolean): Promise<{ ok: boolean; error?: string }> {
+  // A "use server" export is a public endpoint and types are erased: anything but a real
+  // boolean used to read as "close". Refused in words instead.
+  if (typeof open !== "boolean") return { ok: false, error: "That was not a clear open or close. Reload the page and try again." };
   const eventId = await requireStaffEvent();
-  await prisma.event.update({
+  const event = await prisma.event.findUnique({
     where: { id: eventId },
-    data: { registrationOverride: override },
+    select: { status: true, regDeadline: true, regOpens: true, registrationToken: true, registrationOpen: true },
   });
+  if (!event) return { ok: false, error: "Event not found." };
+  const change = entriesChange(open, {
+    eventStatus: event.status,
+    deadline: event.regDeadline,
+    opens: event.regOpens,
+    capacity: 0,
+    confirmedCount: 0,
+    override: null,
+    // The club's day, told — a deadline is a day at the club that set it.
+    now: await clubDayForEvent(eventId),
+  }, event.registrationOpen);
+  if (!change.ok) return { ok: false, error: change.error };
+  const data: { registrationOpen?: boolean; registrationOverride: boolean | null; registrationToken?: string; regOpens?: string } = {
+    registrationOverride: change.registrationOverride,
+  };
+  if (change.clearOpens) data.regOpens = "";
+  if (change.registrationOpen) {
+    data.registrationOpen = true;
+    if (!event.registrationToken) data.registrationToken = generateShareToken();
+  }
+  await prisma.event.update({ where: { id: eventId }, data });
   await refresh();
   return { ok: true };
 }
 
-/* ── Open (self-service) registration ─────────────────────────────────────
- *
- * The switch, the mode, and the two actions that clear a pending queue. The
- * public sign-up flow (src/app/actions/register.ts) reads the state these set;
- * these are the organizer's side of the same feature and are staff-only.
- */
-
 /**
- * Turn the public registration link on or off.
+ * THE ENTRY TERMS, TOGETHER: when entries open, when they close, how many.
  *
- * Minting the token lazily — on first open, never before — is deliberate. Every
- * event that predates this feature has an empty token and no public page; only
- * an organizer choosing to open registration brings one into existence. The
- * token is then kept forever, so a link already shared keeps working across an
- * off/on cycle: closing registration must not silently invalidate a URL that's
- * already in fifty inboxes.
+ * They were set on Tournament details while approval and the sign-up link were
+ * on Entries, and Entries showed the deadline read-only and sent the organizer
+ * back to step one to change it. A tournament office decides these together,
+ * before the notice goes out, so they are saved together, on Entries, beside
+ * the switch they govern. Tournament details keeps the event's facts.
+ *
+ * Admin and lock-gated exactly as `saveEvent` was when it carried them. Each
+ * date is a real day or nothing (a public endpoint: free text here would print
+ * as a date while opening nothing — `parseDeadlineIso`), and a window that
+ * closes before it opens is refused in words.
  */
-export async function setRegistrationOpen(open: boolean): Promise<{ ok: boolean; error?: string }> {
-  // No assertUnlocked, for the reason given on setRegistrationOverride: turning
-  // the public link off is how an organizer stops entries, and a lock that
-  // fires on `live` made that impossible precisely when it was needed.
-  const eventId = await requireStaffEvent();
-  const event = await prisma.event.findUnique({
+export async function saveEntryTerms(data: {
+  regOpens: string;
+  regDeadline: string;
+  capacity: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  await assertUnlocked(eventId);
+  const opens = parseDeadlineIso(String(data.regOpens ?? ""));
+  const closes = parseDeadlineIso(String(data.regDeadline ?? ""));
+  if (opens && closes && closes < opens) {
+    return { ok: false, error: "Entries cannot close before they open. Move the closing day to the opening day or later." };
+  }
+  const asked = Number(data.capacity);
+  if (!Number.isFinite(asked)) return { ok: false, error: "Enter the number of places as a whole number, or choose Open." };
+  await prisma.event.update({
     where: { id: eventId },
-    select: { registrationToken: true },
+    data: {
+      regOpens: opens,
+      // Stored as sent, as `saveEvent` always did: a deadline saved before the
+      // date picker existed is free text, and `parseDeadlineIso` reads it as none.
+      regDeadline: String(data.regDeadline ?? "").slice(0, 80),
+      // 0 is the deliberate "open / unlimited field" sentinel; stored as set and
+      // held to the plan's cap where it is READ (`fieldLimitFor`).
+      capacity: asked <= 0 ? 0 : Math.max(1, Math.round(asked)),
+    },
   });
-  if (!event) return { ok: false, error: "Event not found." };
-  const data: { registrationOpen: boolean; registrationToken?: string } = { registrationOpen: open };
-  if (open && !event.registrationToken) data.registrationToken = generateShareToken();
-  await prisma.event.update({ where: { id: eventId }, data });
+  // A bigger field takes the people already queuing for it (see `saveEvent`'s
+  // history): never demotes, promotes nobody when there is no room.
+  await drainWaitlist(eventId);
   await refresh();
   return { ok: true };
 }
