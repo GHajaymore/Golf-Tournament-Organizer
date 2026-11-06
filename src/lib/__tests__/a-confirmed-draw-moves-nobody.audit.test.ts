@@ -84,7 +84,12 @@ describe("a launched tournament's flights board", () => {
   it("answers each press with a sentence rather than an error, and changes nothing", async () => {
     await prisma.event.update({ where: { id: ids.event }, data: { status: "live" } });
     const want = { ok: false, error: "Configuration is locked. Unlock the tournament to change the flights." };
-    await expect(movePlayerToGroup(ids.ann, ids.b, true)).resolves.toMatchObject(want);
+    // Moving a player asks the one field rule since day-of field changes (PR A): the draw is
+    // still confirmed from the case above, so it says the draw, then the unlock.
+    await expect(movePlayerToGroup(ids.ann, ids.b, true)).resolves.toMatchObject({
+      ok: false,
+      error: "The draw is confirmed, so the flights are fixed. To change them, unlock the tournament.",
+    });
     await expect(renameGroup(ids.a, "Renamed")).resolves.toMatchObject(want);
     await expect(setFlightsConfirmed(true)).resolves.toMatchObject(want);
     expect(await annIn()).toBe(ids.a);
