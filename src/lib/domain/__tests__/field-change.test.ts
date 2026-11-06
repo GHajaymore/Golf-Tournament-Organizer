@@ -9,6 +9,7 @@ import {
 } from "../field-change";
 import type { Family, TournamentFacts } from "../tournament-status";
 import { FAMILIES, FAMILY_FIXTURES, launched } from "./tournament-facts-fixtures";
+import { NO_SHEET } from "../../__tests__/field-doors";
 
 /**
  * WHO MAY CHANGE THE FIELD AFTER LAUNCH — the one rule (day-of field changes,
@@ -77,6 +78,7 @@ function expected(family: Family, stage: Stage, change: FieldChange): boolean {
   switch (change) {
     case "withdraw":
     case "reinstate":
+    case "place-in-group": // an undrawn player written into a tee-sheet group with room moves nobody (PR B)
       return true;
     case "add":
     case "approve":
@@ -96,7 +98,7 @@ describe("fieldChangeAllowed: every family × stage × change", () => {
   for (const family of FAMILIES) {
     for (const stage of STAGES) {
       it(`${family} · ${stage}`, () => {
-        const facts = fieldFactsOf(at(family, stage));
+        const facts = fieldFactsOf(at(family, stage), NO_SHEET);
         const got = Object.fromEntries(FIELD_CHANGES.map((c) => [c, fieldChangeAllowed(facts, c).ok]));
         const want = Object.fromEntries(FIELD_CHANGES.map((c) => [c, expected(family, stage, c)]));
         expect(got).toEqual(want);
@@ -104,13 +106,13 @@ describe("fieldChangeAllowed: every family × stage × change", () => {
     }
   }
 
-  it("covers all nine families and all eight changes", () => {
+  it("covers all nine families and all nine changes", () => {
     expect(FAMILIES).toHaveLength(9);
-    expect([...FIELD_CHANGES].sort()).toEqual(["add", "approve", "bulk", "edit", "move-flight", "place-in-flight", "reinstate", "withdraw"]);
+    expect([...FIELD_CHANGES].sort()).toEqual(["add", "approve", "bulk", "edit", "move-flight", "place-in-flight", "place-in-group", "reinstate", "withdraw"]);
   });
 
   it("the facts name the family the machine names, not a second reading of it", () => {
-    for (const family of FAMILIES) expect(fieldFactsOf(at(family, "live")).family).toBe(family);
+    for (const family of FAMILIES) expect(fieldFactsOf(at(family, "live"), NO_SHEET).family).toBe(family);
   });
 });
 
@@ -120,7 +122,7 @@ describe("every refusal says why and where to put it right", () => {
     for (const family of FAMILIES) {
       for (const stage of STAGES) {
         for (const change of FIELD_CHANGES) {
-          const v = fieldChangeAllowed(fieldFactsOf(at(family, stage)), change);
+          const v = fieldChangeAllowed(fieldFactsOf(at(family, stage), NO_SHEET), change);
           if (v.ok) continue;
           refused += 1;
           expect(v.says.trim().length, `${family} ${stage} ${change}`).toBeGreaterThan(10);
@@ -138,17 +140,17 @@ describe("every refusal says why and where to put it right", () => {
   it("withdraw is open in all nine families while live, with or without a result, and refused only when completed", () => {
     for (const family of FAMILIES) {
       for (const stage of ["live", "liveWithResult", "draft", "unlocked"] as Stage[]) {
-        expect(fieldChangeAllowed(fieldFactsOf(at(family, stage)), "withdraw").ok, `${family} ${stage}`).toBe(true);
-        expect(fieldChangeAllowed(fieldFactsOf(at(family, stage)), "reinstate").ok, `${family} ${stage}`).toBe(true);
+        expect(fieldChangeAllowed(fieldFactsOf(at(family, stage), NO_SHEET), "withdraw").ok, `${family} ${stage}`).toBe(true);
+        expect(fieldChangeAllowed(fieldFactsOf(at(family, stage), NO_SHEET), "reinstate").ok, `${family} ${stage}`).toBe(true);
       }
-      expect(fieldChangeAllowed(fieldFactsOf(at(family, "completed")), "withdraw").ok).toBe(false);
+      expect(fieldChangeAllowed(fieldFactsOf(at(family, "completed"), NO_SHEET), "withdraw").ok).toBe(false);
     }
   });
 });
 
 describe("the words", () => {
   const says = (family: Family, stage: Stage, change: FieldChange) => {
-    const v = fieldChangeAllowed(fieldFactsOf(at(family, stage)), change);
+    const v = fieldChangeAllowed(fieldFactsOf(at(family, stage), NO_SHEET), change);
     return v.ok ? "" : v.says;
   };
 
@@ -179,7 +181,7 @@ describe("the words", () => {
   });
 
   it("completed sends you to reopen it, and says who can", () => {
-    const v = fieldChangeAllowed(fieldFactsOf(at("stroke", "completed")), "withdraw");
+    const v = fieldChangeAllowed(fieldFactsOf(at("stroke", "completed"), NO_SHEET), "withdraw");
     expect(v.ok).toBe(false);
     if (!v.ok) {
       expect(v.says).toBe("The tournament is completed, so its field is as it finished. An Organizer can reopen it on the dashboard.");
@@ -199,7 +201,7 @@ describe("the words", () => {
     for (const family of FAMILIES) {
       for (const stage of STAGES) {
         for (const confirmed of [false, true]) {
-          const facts = { ...fieldFactsOf(at(family, stage)), flightsConfirmed: confirmed };
+          const facts = { ...fieldFactsOf(at(family, stage), NO_SHEET), flightsConfirmed: confirmed };
           for (const change of FIELD_CHANGES) {
             const v = fieldChangeAllowed(facts, change);
             if (v.ok || !/unlock/i.test(v.says + v.wayOut.says)) continue;
@@ -223,7 +225,7 @@ describe("the words", () => {
  * plays whom, so the draw still holds the placement too.
  */
 describe("a confirmed draw holds moves, not a late entrant's placement in a prize division", () => {
-  const withDraw = (family: Family, stage: Stage) => ({ ...fieldFactsOf(at(family, stage)), flightsConfirmed: true });
+  const withDraw = (family: Family, stage: Stage) => ({ ...fieldFactsOf(at(family, stage), NO_SHEET), flightsConfirmed: true });
 
   for (const family of ["stroke", "stableford"] as Family[]) {
     it(`${family}: placement open before and after launch, shut by the first card; a move refused`, () => {
@@ -261,7 +263,7 @@ describe("the screen's doors and banner come from the same rule", () => {
   it("fieldDoors is the verdict per change, as a sentence or null", () => {
     for (const family of FAMILIES) {
       for (const stage of STAGES) {
-        const facts = fieldFactsOf(at(family, stage));
+        const facts = fieldFactsOf(at(family, stage), NO_SHEET);
         const doors = fieldDoors(facts);
         for (const c of FIELD_CHANGES) {
           const v = fieldChangeAllowed(facts, c);
@@ -272,22 +274,134 @@ describe("the screen's doors and banner come from the same rule", () => {
   });
 
   it("the banner is two short lines while under way, and never promises an add the rule refuses", () => {
-    expect(fieldBanner(fieldFactsOf(at("stroke", "draft")))).toBeNull();
-    expect(fieldBanner(fieldFactsOf(at("stroke", "unlocked")))).toBeNull();
-    expect(fieldBanner(fieldFactsOf(at("stroke", "completed")))).toBeNull();
-    expect(fieldBanner(fieldFactsOf(at("stroke", "live")))).toEqual([
+    expect(fieldBanner(fieldFactsOf(at("stroke", "draft"), NO_SHEET))).toBeNull();
+    expect(fieldBanner(fieldFactsOf(at("stroke", "unlocked"), NO_SHEET))).toBeNull();
+    expect(fieldBanner(fieldFactsOf(at("stroke", "completed"), NO_SHEET))).toBeNull();
+    expect(fieldBanner(fieldFactsOf(at("stroke", "live"), NO_SHEET))).toEqual([
       "You can withdraw a player, put one back or add a late entry.",
       "The format, rounds and players’ details stay locked.",
     ]);
-    const knockout = fieldBanner(fieldFactsOf(at("knockout", "live"))) ?? [];
+    const knockout = fieldBanner(fieldFactsOf(at("knockout", "live"), NO_SHEET)) ?? [];
     expect(knockout[0]).toBe("You can withdraw a player or put one back.");
     expect(knockout[1]).toContain("The draw is made, so the field is fixed.");
     expect(knockout.join(" ")).not.toMatch(/late entry/);
-    const begun = fieldBanner(fieldFactsOf(at("stroke", "liveWithResult"))) ?? [];
+    const begun = fieldBanner(fieldFactsOf(at("stroke", "liveWithResult"), NO_SHEET)) ?? [];
     expect(begun[1]).toContain("The first card of Round 1 is in");
     // Short: no line of the banner runs past twenty words.
-    for (const lines of [fieldBanner(fieldFactsOf(at("stroke", "live"))) ?? []]) {
+    for (const lines of [fieldBanner(fieldFactsOf(at("stroke", "live"), NO_SHEET)) ?? []]) {
       for (const l of lines) expect(l.split(/\s+/).length, l).toBeLessThanOrEqual(20);
+    }
+  });
+});
+
+/**
+ * THE LATE-ENTRY CUTOFF (the panel's request, PR B), worked from the desk:
+ *
+ *   A walk-in may be taken while they can still play every round — that is,
+ *   while a group of Round 1 is still to go off. The Committee sets the
+ *   starting times (Rule 5.3a) and publishes them on the tee sheet, so the
+ *   last of them is the cutoff, on Round 1's day, by the club's own clock. At
+ *   10:40 sharp the last group is on the tee and the door is shut; at 10:39 it
+ *   is open, though the 8:00 group's cards are already coming in.
+ *
+ *   No published sheet: there is no time anybody was given, so PR A's rule
+ *   stands — the first card closes it.
+ *
+ * Worked by hand, here, never read off the function: the club's clock is told
+ * as a day and minutes past midnight, and the expected answer is written per
+ * cell from the times above.
+ */
+describe("late entries close at Round 1's last published tee time, by the club's clock", () => {
+  const SHEET = { round: "Round 1", day: "2026-11-29", time: "10:40 AM" };
+  const LAST = 10 * 60 + 40;
+  type When = { label: string; day: string; minutes: number; open: boolean };
+  const WHEN: When[] = [
+    { label: "the day before", day: "2026-11-28", minutes: 23 * 60 + 59, open: true },
+    { label: "first light on the day", day: "2026-11-29", minutes: 6 * 60, open: true },
+    { label: "a minute before the last tee time", day: "2026-11-29", minutes: LAST - 1, open: true },
+    { label: "the last tee time itself", day: "2026-11-29", minutes: LAST, open: false },
+    { label: "the afternoon", day: "2026-11-29", minutes: 15 * 60, open: false },
+    { label: "the day after", day: "2026-11-30", minutes: 7 * 60, open: false },
+  ];
+  const facts = (family: Family, stage: Stage, w: When, lastTee: typeof SHEET | null = SHEET) =>
+    fieldFactsOf(at(family, stage), { lastTee, now: { day: w.day, minutes: w.minutes } });
+
+  for (const family of ["stroke", "stableford"] as Family[]) {
+    for (const stage of ["live", "liveWithResult"] as Stage[]) {
+      for (const w of WHEN) {
+        it(`${family} · ${stage} · ${w.label}: ${w.open ? "open" : "closed"}`, () => {
+          const f = facts(family, stage, w);
+          // The first card does not shut it while a published group is still to go off.
+          expect(fieldChangeAllowed(f, "add").ok).toBe(w.open);
+          expect(fieldChangeAllowed(f, "approve").ok).toBe(w.open);
+          // A walk-in taken in the window can be placed in a flight in the same window.
+          expect(fieldChangeAllowed(f, "place-in-flight").ok).toBe(w.open);
+          // Neither withdrawing nor writing someone into a group ever waits on the clock.
+          expect(fieldChangeAllowed(f, "withdraw").ok).toBe(true);
+          expect(fieldChangeAllowed(f, "place-in-group").ok).toBe(true);
+        });
+      }
+    }
+  }
+
+  it("the refusal names the round and the time, and who can unlock", () => {
+    const v = fieldChangeAllowed(facts("stroke", "liveWithResult", WHEN[3]), "add");
+    expect(v.ok ? "" : v.says).toBe(
+      "Round 1’s last tee time, 10:40 AM, has passed, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.",
+    );
+    const p = fieldChangeAllowed(facts("stroke", "live", WHEN[5]), "place-in-flight");
+    expect(p.ok ? "" : p.says).toBe(
+      "Round 1’s last tee time, 10:40 AM, has passed, so the flights are fixed. To place a player, an Organizer can unlock the tournament on the dashboard.",
+    );
+  });
+
+  it("no published sheet: the first card closes it, whatever the clock says (PR A)", () => {
+    const morning = WHEN[1];
+    expect(fieldChangeAllowed(facts("stroke", "live", morning, null), "add").ok).toBe(true);
+    expect(fieldChangeAllowed(facts("stroke", "liveWithResult", morning, null), "add").ok).toBe(false);
+    // Without a sheet the clock alone closes nothing: no card, still open in the afternoon.
+    expect(fieldChangeAllowed(facts("stroke", "live", WHEN[4], null), "add").ok).toBe(true);
+  });
+
+  it("a result in a LATER round shuts it whatever Round 1's sheet says (no score for a round already played)", () => {
+    const f = { ...facts("stroke", "live", WHEN[1]), playedRound: "Round 2" };
+    const v = fieldChangeAllowed(f, "add");
+    expect(v.ok ? "" : v.says).toMatch(/^The first card of Round 2 is in, so late entries are closed\./);
+  });
+
+  it("a league or a casual round is not held to a tee time; a drawn field stays shut before it", () => {
+    for (const family of ["league", "casual"] as Family[]) {
+      expect(fieldChangeAllowed(facts(family, "liveWithResult", WHEN[5]), "add").ok, family).toBe(true);
+    }
+    for (const family of DRAW_IS_THE_FIELD) {
+      expect(fieldChangeAllowed(facts(family, "live", WHEN[0]), "add").ok, family).toBe(false);
+    }
+  });
+
+  it("draft and unlocked never ask the clock (the behaviour before the rule)", () => {
+    for (const stage of ["draft", "unlocked", "unlockedWithResult"] as Stage[]) {
+      expect(fieldChangeAllowed(facts("stroke", stage, WHEN[5]), "add").ok, stage).toBe(true);
+    }
+  });
+
+  it("the banner says when late entries close, and drops it once they have", () => {
+    expect(fieldBanner(facts("stroke", "liveWithResult", WHEN[1]))).toEqual([
+      "You can withdraw a player, put one back or add a late entry.",
+      "Late entries close at Round 1’s last tee time, 10:40 AM.",
+      "The format, rounds and players’ details stay locked.",
+    ]);
+    const after = fieldBanner(facts("stroke", "liveWithResult", WHEN[4])) ?? [];
+    expect(after[0]).toBe("You can withdraw a player or put one back.");
+    expect(after[1]).toMatch(/^Round 1’s last tee time, 10:40 AM, has passed/);
+    expect(after.join(" ")).not.toMatch(/Late entries close at/);
+  });
+
+  it("place-in-group is refused only once the tournament is completed", () => {
+    for (const family of FAMILIES) {
+      for (const stage of STAGES) {
+        const v = fieldChangeAllowed(facts(family, stage, WHEN[5]), "place-in-group");
+        expect(v.ok, `${family} ${stage}`).toBe(stage !== "completed");
+      }
     }
   });
 });

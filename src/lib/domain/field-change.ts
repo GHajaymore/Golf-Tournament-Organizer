@@ -31,32 +31,69 @@
  *     the walkover kept is a ruling, made and recorded on Score entry or the
  *     Bracket by the committee, never by Put back.
  *   - A LATE ENTRY in stroke play or Stableford is a term of the competition
- *     (Committee Procedures, Section 5A); this rule closes it once the FIRST
- *     CARD is in (kept for now by the panel, 6 Nov; a cutoff at the round's
- *     last starting time comes with PR B and the tee sheet). A walk-in after
- *     the first card needs an Organizer to unlock the tournament. In
+ *     (Committee Procedures, Section 5A). It closes when the late entrant could
+ *     no longer play every round: at the LAST PUBLISHED STARTING TIME of the
+ *     round they would start in — Round 1, the field's first round — on that
+ *     round's day, by the club's own clock (the panel, PR B; `lateEntryClosed`).
+ *     Until then a walk-in can still be written into a group that has room,
+ *     even with the early groups' cards coming in. With no published sheet
+ *     there is no starting time to hold it to, and it closes at the FIRST CARD
+ *     of any round (PR A's rule). After either, a walk-in needs an Organizer to
+ *     unlock the tournament. In
  *     match play, a round robin, a knockout or a cup the draw IS the field, so
  *     nobody is added after launch. A league's field changes week to week by
  *     nature, so it keeps taking entries between weeks.
  *   - An UNPLACED player (a late entrant) may be placed in a prize division —
- *     stroke or Stableford, before the first card, confirmed draw or not —
- *     without moving anybody else.
+ *     stroke or Stableford, while late entries are open, confirmed draw or
+ *     not — without moving anybody else.
+ *   - PUTTING ONE UNDRAWN PLAYER IN A TEE-SHEET GROUP with room (PR B) moves
+ *     nobody and changes no one's time: the office writes a late entry or a
+ *     reserve into a group (Rule 5.3a, the starting time is the group's). Open
+ *     in every family until the competition is completed; the room in the
+ *     group is `placeInGroup`'s (domain/tee-sheet.ts).
  *   - Moving a PLACED player between flights, editing a player's details and
  *     bulk imports or deletions are not day-of acts: they stay locked.
  *
  * Pure: no prisma, no clock. The facts are a subset of `TournamentFacts`
  * (`fieldFactsOf`), read by `tournamentFactsFor`, so the state machine's PR 5
  * can make `locks.field` the body of this function without a caller changing.
+ * The club's wall clock arrives in the facts (`clubWallClock`, read once by the
+ * server's door), never from this machine.
  * The server's door is `fieldRefusal` (services/field-change.ts); every field
  * action asks it, and the Entries screen draws its controls from `fieldDoors`.
  */
 import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
-import { tournamentFamily, type Family, type TournamentFacts, type WayOut } from "./tournament-status";
+import { minutesOfTeeTime } from "./tee-sheet";
+import { tournamentFamily, type Family, type RoundFacts, type TournamentFacts, type WayOut } from "./tournament-status";
 
-export const FIELD_CHANGES = ["withdraw", "reinstate", "add", "approve", "place-in-flight", "edit", "bulk", "move-flight"] as const;
+export const FIELD_CHANGES = ["withdraw", "reinstate", "add", "approve", "place-in-flight", "place-in-group", "edit", "bulk", "move-flight"] as const;
 export type FieldChange = (typeof FIELD_CHANGES)[number];
 
-export interface FieldFacts {
+/**
+ * THE LAST PUBLISHED STARTING TIME of the round a late entrant would start in
+ * (`lateEntryRound`): its label, its day (yyyy-mm-dd, a calendar day at the
+ * club) and the time as the sheet writes it ("10:40 AM"). Null when that round
+ * has no published sheet, no day, or no time that can be read.
+ */
+export interface LastTeeTime {
+  round: string;
+  day: string;
+  time: string;
+}
+
+/** The club's wall clock now (`clubWallClock`): its day and the minutes past midnight there. */
+export interface ClubWallClock {
+  day: string;
+  minutes: number;
+}
+
+/** What the server's door reads beside the tournament's facts: the sheet's last time and the club's clock. */
+export interface FieldClock {
+  lastTee: LastTeeTime | null;
+  now: ClubWallClock;
+}
+
+export interface FieldFacts extends FieldClock {
   /** Stored status: draft | registration | ready | live | completed. */
   status: string;
   /** Today's blanket Unlock. */
@@ -86,15 +123,53 @@ const ONE_AT_A_TIME: WayOut = { says: "Withdraw players one at a time on Entries
 const OPEN: FieldVerdict = { ok: true };
 const no = (says: string, wayOut: WayOut): FieldVerdict => ({ ok: false, says, wayOut });
 
-/** The field facts of a tournament's facts — what `tournamentFactsFor` already reads. */
-export function fieldFactsOf(f: TournamentFacts): FieldFacts {
+/**
+ * The field facts of a tournament's facts — what `tournamentFactsFor` already
+ * reads — and the clock beside them. The clock is REQUIRED, so every caller is
+ * listed by the compiler the day the rule asks the time.
+ */
+export function fieldFactsOf(f: TournamentFacts, clock: FieldClock): FieldFacts {
   return {
     status: f.status,
     configUnlocked: f.configUnlocked,
     family: tournamentFamily(f),
     playedRound: f.rounds.find((r) => r.hasResult)?.label ?? null,
     flightsConfirmed: f.flightsConfirmed,
+    lastTee: clock.lastTee,
+    now: clock.now,
   };
+}
+
+/**
+ * THE ROUND A LATE ENTRANT WOULD START IN: the field's first round. In a
+ * multi-round stroke competition a name added after it would have no score for
+ * a round already played (design of 6 Nov, section 1), so it is the round whose
+ * last starting time closes late entries — never a later one.
+ */
+export function lateEntryRound(f: TournamentFacts): RoundFacts | null {
+  return f.rounds.find((r) => r.playing) ?? null;
+}
+
+/**
+ * WHY LATE ENTRIES ARE CLOSED, as the start of a sentence, or null while they
+ * are open (the panel's cutoff, PR B):
+ *
+ *   - with a published sheet for the first round: closed once the club's clock
+ *     reaches its last starting time on its day (a later day, closed);
+ *   - a result in any OTHER round closes it whatever the sheet says;
+ *   - with no published sheet: closed at the first card (PR A).
+ *
+ * A wall-clock time is compared with the club's wall clock on the same day,
+ * never an instant with a day.
+ */
+export function lateEntryClosed(f: FieldFacts): string | null {
+  const t = f.lastTee;
+  const at = t ? minutesOfTeeTime(t.time) : null;
+  if (t && at !== null && (f.playedRound === null || f.playedRound === t.round)) {
+    const passed = f.now.day > t.day || (f.now.day === t.day && f.now.minutes >= at);
+    return passed ? `${t.round}’s last tee time, ${t.time}, has passed` : null;
+  }
+  return f.playedRound ? `The first card of ${f.playedRound} is in` : null;
 }
 
 /**
@@ -125,10 +200,11 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
   }
   if (!locked) return OPEN;
 
-  const begun = facts.playedRound;
+  const closed = lateEntryClosed(facts);
   switch (change) {
     case "withdraw":
     case "reinstate":
+    case "place-in-group": // into a group with room on the tee sheet: nobody moves, no time changes
       return OPEN;
     case "add":
     case "approve":
@@ -137,15 +213,16 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
           ? no(`The sides are picked, so the field is fixed. ${byOrganizer("change it")}`, UNLOCK)
           : no(`The draw is made, so the field is fixed. ${byOrganizer("change it")}`, UNLOCK);
       }
-      if (begun && !LIVE_BY_NATURE.includes(facts.family)) {
-        return no(`The first card of ${begun} is in, so late entries are closed. ${byOrganizer("add someone anyway")}`, UNLOCK);
+      if (closed && !LIVE_BY_NATURE.includes(facts.family)) {
+        return no(`${closed}, so late entries are closed. ${byOrganizer("add someone anyway")}`, UNLOCK);
       }
       return OPEN;
     case "place-in-flight":
       if (!PRIZE_DIVISIONS.includes(facts.family)) {
         return no(`Flights are fixed once the tournament is launched. ${byOrganizer("place a player")}`, UNLOCK);
       }
-      if (begun) return no(`The first card of ${begun} is in, so the flights are fixed. ${byOrganizer("place a player")}`, UNLOCK);
+      // The same window as a late entry: a walk-in taken before the last tee time is placed in one.
+      if (closed) return no(`${closed}, so the flights are fixed. ${byOrganizer("place a player")}`, UNLOCK);
       return OPEN;
     case "move-flight":
       return no(`Flights are fixed once the tournament is launched. ${byOrganizer("move a player")}`, UNLOCK);
@@ -189,7 +266,10 @@ export function fieldBanner(facts: FieldFacts): string[] | null {
   if (!isLaunched(facts.status) || isFinished(facts.status) || !configurationLocked(facts)) return null;
   const add = fieldChangeAllowed(facts, "add");
   // Two short lines under the title "Under way" (panel review of #1028): what is open, then what is not.
+  // And, where a published sheet sets it, when late entries close (PR B) — the time the desk works to.
+  const t = facts.lastTee;
+  const closes = t && !LIVE_BY_NATURE.includes(facts.family) ? [`Late entries close at ${t.round}’s last tee time, ${t.time}.`] : [];
   return add.ok
-    ? ["You can withdraw a player, put one back or add a late entry.", "The format, rounds and players’ details stay locked."]
+    ? ["You can withdraw a player, put one back or add a late entry.", ...closes, "The format, rounds and players’ details stay locked."]
     : ["You can withdraw a player or put one back.", add.says];
 }

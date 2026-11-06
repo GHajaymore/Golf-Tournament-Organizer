@@ -57,7 +57,7 @@ import {
 import { reviewQueue, type ReviewQueue } from "../domain/review-queue";
 import { bracketDraws, openTieReport } from "../domain/my-tie";
 import { parseFlightPlan, planAgainstField, type FlightPlan } from "../domain/bracket-flights";
-import { resultsIn } from "../domain/lifecycle-state";
+import { isLaunched, resultsIn } from "../domain/lifecycle-state";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
 import { clubDay, clubToday } from "../domain/club-clock";
@@ -454,6 +454,8 @@ export interface StrokeStanding {
   missedCut?: string;
   /** Withdrew after beginning — WD on the sheet. See `withdrawnStandings`. */
   withdrew?: boolean;
+  /** Withdrew before teeing off, once launched — DNS on the results sheet. See `didNotStartStandings`. */
+  didNotStart?: boolean;
   /** Disqualified by the committee — DQ, the last line. See actions/disqualify.ts. */
   disqualified?: boolean;
   /**
@@ -685,6 +687,12 @@ export interface EventState {
    * so not in `strokeStandings`. Only the printed sheet adds them.
    */
   withdrawnStandings: StrokeStanding[];
+  /**
+   * Players withdrawn BEFORE they teed off, once the tournament was launched —
+   * DNS rows, no figures and no place. Only the results sheet adds them
+   * (`resultsSheetRows`); the live boards do not.
+   */
+  didNotStartStandings: StrokeStanding[];
   /**
    * What `strokeStandings` measures, and which rounds went into it.
    *
@@ -2389,6 +2397,24 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     .sort((x, y) => Number(!!x.disqualified) - Number(!!y.disqualified) || compareOnBasis(x, y, rankingBasis));
 
   /**
+   * THE PLAYERS WHO DID NOT START (day-of field changes, PR B): withdrawn, with
+   * no hole on any card, in a tournament that has been launched — on the
+   * morning, out of a draw that was made. A scoring office lists them DNS
+   * beneath WD and above DQ, with no figures and no place. "WD" and "DNS" are
+   * not Rules terms; they are the office's codes for withdrew after starting
+   * and did not start, and the Golf Pro confirmed this usage (PR B). Before
+   * launch a withdrawal is not a non-starter, so nothing is listed then. In
+   * name order: there is no score to order them by.
+   */
+  const launchedEvent = !!event && isLaunched(event.status);
+  const didNotStartStandings: StrokeStanding[] = launchedEvent
+    ? players
+        .filter((p) => p.status === "withdrawn" && !withdrawnPlayed.some((w) => w.id === p.id))
+        .map((p) => ({ ...standingOf(p), ranked: false, rank: 0, missedCut: "", missedRound: "", didNotStart: true }))
+        .sort((x, y) => x.player.name.localeCompare(y.player.name))
+    : [];
+
+  /**
    * THE FIELD IN ORDER ON ONE BASIS, with its places: the board's own sort and
    * rank pass, handed the basis rather than reading it. The board is this on
    * `rankingBasis`; a prize named for gross or for net asks it on that basis
@@ -3088,6 +3114,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     strokeRankingBasis: rankingBasis,
     countbackBetween,
     withdrawnStandings,
+    didNotStartStandings,
     strokeUnit,
     // Only "strokes" is ambiguous; points name themselves. Derived once above,
     // so `boardIsNet` and this caption cannot disagree.
@@ -3234,7 +3261,24 @@ export function withBoardRound(state: EventState, stageId: string | undefined): 
   };
 }
 
+/** The board's rows: the field, then WD, then DQ. Every board and screen reads this one. */
 export function standingRows(state: EventState): StandingRow[] {
+  return boardRows(state, false);
+}
+
+/**
+ * THE RESULTS SHEET'S ROWS (day-of field changes, PR B): the board's, with a
+ * DNS line for each player withdrawn before teeing off, beneath WD and above DQ
+ * (`didNotStartStandings`). Read by the ORGANIZER's Leaderboard and by Reports,
+ * whose table is the printed results sheet and whose rows are the CSV. The live
+ * boards — the public one and a player's — keep `standingRows`: a player who
+ * never started has nothing to show there, and the calm board stays calm.
+ */
+export function resultsSheetRows(state: EventState): StandingRow[] {
+  return boardRows(state, true);
+}
+
+function boardRows(state: EventState, withDidNotStart: boolean): StandingRow[] {
   if (isManualFormat(state.activeStage?.format ?? "")) return [];
 
   /**
@@ -3345,8 +3389,17 @@ export function standingRows(state: EventState): StandingRow[] {
   // weekly sign-up keeps `absent` undefined on every row (see live-board.ts).
   const outHere = state.boardStage && state.outOn ? state.outOn(state.boardStage.id) : new Set<string>();
   if (state.boardIsStroke) {
-    // The field, then anybody who withdrew after beginning — WD, at the foot.
-    return [...state.strokeStandings, ...(state.withdrawnStandings ?? [])].map((s) => ({
+    // The field, then anybody who withdrew after beginning — WD, at the foot —
+    // then, on the results sheet only, who withdrew before teeing off (DNS),
+    // and the disqualified last of all.
+    const left = state.withdrawnStandings ?? [];
+    const sheet = [
+      ...state.strokeStandings,
+      ...left.filter((s) => !s.disqualified),
+      ...(withDidNotStart ? (state.didNotStartStandings ?? []) : []),
+      ...left.filter((s) => s.disqualified),
+    ];
+    return sheet.map((s) => ({
       // Out, and no card THIS week (the aggregate `thru` counts earlier weeks).
       ...(outHere.size > 0
         ? { absent: outHere.has(s.player.id) && state.roundThru(s.player.id, state.boardStage!.id) === 0 }
@@ -3387,6 +3440,7 @@ export function standingRows(state: EventState): StandingRow[] {
       missedCut: s.missedCut ?? "",
       withdrew: !!s.withdrew,
       disqualified: !!s.disqualified,
+      ...(s.didNotStart ? { didNotStart: true } : {}),
     }));
   }
   /**

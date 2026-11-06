@@ -277,6 +277,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "After entries close, tell your {organizer} instead.",
       "They can take you out on the day. They can put you back too.",
       "Started, then withdrew? The board shows WD, with no place.",
+      "Out before teeing off? The results show DNS: did not start.",
     ],
   },
   {

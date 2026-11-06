@@ -178,8 +178,13 @@ export const AREAS = {
   },
   "tee-sheet": {
     name: "The tee sheet",
-    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/app/actions/tee-sheet.ts"],
-    specs: ["e2e/organizer-teesheet.spec.ts", "e2e/play-with.spec.ts"],
+    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts"],
+    specs: [
+      "e2e/organizer-teesheet.spec.ts",
+      "e2e/play-with.spec.ts",
+      // Day-of field changes (PR B): put one late entry in a group with room, DNS, the late-entry cutoff.
+      "e2e/day-of-tee-sheet.spec.ts",
+    ],
     scenarios: [],
     // Tee times are read on the club's clock.
     dateSensitive: true,

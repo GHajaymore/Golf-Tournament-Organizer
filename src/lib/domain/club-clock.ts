@@ -86,6 +86,22 @@ export function clubDay(timeZone: string | null | undefined, at: Date = new Date
 }
 
 /**
+ * THE CLOCK ON THE CLUB'S WALL AT AN INSTANT: the club's day (as `clubToday`
+ * gives it) and the minutes past midnight there. For a question asked of a
+ * time the committee WROTE on the club's own clock — a tee time, "8:10 AM" —
+ * which is a wall-clock time at the club, not an instant (Rule 5.3a: the
+ * starting time the Committee sets). Compare it with another wall-clock time on
+ * the same day; never with a stored timestamp. A club that has not said where
+ * it is keeps this machine's clock, as `clubToday` does.
+ */
+export function clubWallClock(timeZone: string | null | undefined, at: Date = new Date()): { day: string; minutes: number } {
+  const day = clubToday(timeZone, at);
+  const fields = isTimeZone(timeZone) ? fieldsAt(at, timeZone) : null;
+  const minutes = fields ? fields.hour * 60 + fields.minute : at.getHours() * 60 + at.getMinutes();
+  return { day, minutes };
+}
+
+/**
  * The day an INSTANT fell on at a club, in that club's words: "3 Apr 2026". For a timestamp somebody
  * will read as a date — when a card was checked, when money changed hands — where there is a club in
  * hand and no tournament (`dayAtClubForEvent` in services is the same answer from a tournament's id).

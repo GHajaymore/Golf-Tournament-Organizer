@@ -826,7 +826,7 @@ export function RegistrationClient({
                       confirmLabel={underWay ? "Withdraw" : "Remove"}
                       note={
                         underWay
-                          ? `Withdraw ${p.name}? They come off the tee sheet and the board. Their scores and side-game entries stay on the record. You can put them back.`
+                          ? `Withdraw ${p.name}? They come off the tee sheet and the board. The results list them as WD if they have begun, DNS if not. Their scores and side-game entries stay on the record. You can put them back.`
                           : undefined
                       }
                       disabled={pending || !!doors.withdraw}
