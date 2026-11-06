@@ -23,7 +23,7 @@ import { boardKind } from "../formats";
 import { sharedBallRound } from "../domain/shared-ball";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { parseDeadlineIso } from "../deadline";
-import { registrationStatus } from "../registration";
+import { entriesOpen } from "../registration";
 import { clubDay } from "../domain/club-clock";
 import { isManualFormat, needsTeams } from "../formats";
 import { roundIsStroke } from "../stage-types";
@@ -593,7 +593,8 @@ export async function comingUpFor(state: EventState, audience: ReportAudience): 
       },
     });
     for (const e of others) {
-      const status = registrationStatus({
+      const status = entriesOpen({
+        registrationOpen: true,
         eventStatus: e.status,
         deadline: e.regDeadline,
         opens: e.regOpens,
@@ -605,7 +606,7 @@ export async function comingUpFor(state: EventState, audience: ReportAudience): 
       });
       // One line a tournament: the day entries close, and the day it is played.
       const closes = parseDeadlineIso(e.regDeadline);
-      if (status.acceptingEntries && closes && closes >= today) {
+      if (status.open && closes && closes >= today) {
         const starts = cleanIsoDate(e.startOn);
         const played = starts && starts >= closes ? `; it is played on ${shortDate(starts, locale) || formatDay(starts, locale)}` : "";
         dated.push({ iso: closes, text: `Entries close for ${e.name}${played}.` });

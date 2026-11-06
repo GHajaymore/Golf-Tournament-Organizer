@@ -93,10 +93,15 @@ describe("the screen prints the full sentence once", () => {
    * count on their own. That is the trap `source-guard.test.ts` exists for.
    */
   const client = () => readSource("src", "components", "RegistrationClient.tsx");
+  // Since the entries cleanup (5 Nov) the one place is the Entry terms card,
+  // which prints `entries.line` — the sentence `entriesOpen` words from
+  // `RegistrationStatus.detail`. The Status stat card and the banner are gone.
+  const card = () => readSource("src", "components", "EntryTermsCard.tsx");
 
-  it("renders reg.detail in exactly one place", () => {
-    const src = client();
-    expect(src.split("reg.detail").length - 1, "the sentence is back in more than one place").toBe(1);
+  it("renders the sentence in exactly one place", () => {
+    expect(card().split("entries.line").length - 1, "the sentence is back in more than one place").toBe(1);
+    expect(client(), "the screen prints the whole sentence a second time").not.toContain("reg.detail");
+    expect(client()).not.toContain("entries.line");
   });
 
   it("uses the short form at both sites that used to repeat it", () => {
@@ -111,9 +116,7 @@ describe("the screen prints the full sentence once", () => {
      * wrong reason; this catches that.
      */
     const src = client();
-    const statCard = src.slice(src.indexOf("spots remaining:"), src.indexOf("spots remaining:") + 200);
-    expect(statCard, "the Status card is printing the whole sentence again").toContain("reg.short");
-    expect(statCard).not.toContain("reg.detail");
+    expect(src, "the Status stat card is back, beside the card that says it").not.toContain("spots remaining:");
 
     const linkWarning = src.slice(src.indexOf("anyone who follows it is turned away"));
     expect(linkWarning.slice(0, 200)).toContain("reg.short");

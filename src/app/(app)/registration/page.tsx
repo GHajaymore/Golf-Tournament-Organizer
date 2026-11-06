@@ -15,6 +15,7 @@ import { handicapBodyForEvent } from "@/lib/services/integrations";
 import { bodyInProse, bodyShortLabel } from "@/lib/domain/handicap-body";
 import { phoneRequiredFor } from "@/lib/plans";
 import { fieldLimitFor } from "@/lib/services/waitlist";
+import { fieldCapFor } from "@/lib/services/limits";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor } from "@/lib/services/tournament-status";
 import { recentChanges } from "@/lib/services/recent-changes";
@@ -122,6 +123,9 @@ export default async function RegistrationPage() {
         // the stored number — so "Confirmed 10 of 10 · Full" here matches what
         // an eleventh entrant is actually told (walked 2026-09-30).
         capacity: await fieldLimitFor(state.event),
+        // The terms form edits what the organizer set, not what the plan lets in.
+        storedCapacity: state.event.capacity,
+        planLimit: await fieldCapFor(state.event.organizationId),
         status: state.event.status,
         regDeadline: state.event.regDeadline,
         regOpens: state.event.regOpens,

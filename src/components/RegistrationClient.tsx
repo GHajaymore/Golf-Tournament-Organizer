@@ -1,10 +1,10 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
-import { registrationStatus, formatDeadline, overCapacity, suggestedInvite } from "@/lib/registration";
+import { entriesOpen, overCapacity, suggestedInvite } from "@/lib/registration";
 import { dayAsDate } from "@/lib/deadline";
 import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
-import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
+import { setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
 import { Fragment, useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
 import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
@@ -21,6 +21,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { indexLabel, indexFigure } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 import { SignUpPoster } from "./SignUpPoster";
+import { EntryTermsCard } from "./EntryTermsCard";
 import { MoreInfo } from "./MoreInfo";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
@@ -58,7 +59,12 @@ interface Signup {
 }
 interface EventInfo {
   name: string;
+  /** The places this tournament really holds: the stored number under the plan's field cap. */
   capacity: number;
+  /** The number the organizer set (0 = open), for the terms form — not capped by the plan. */
+  storedCapacity?: number;
+  /** The plan's field limit where one is enforced, else null. */
+  planLimit?: number | null;
   /** draft | registration | ready | live | completed — a finished tournament
    *  takes no more entries, whatever the switch and the deadline say. */
   status: string;
@@ -160,6 +166,10 @@ export function RegistrationClient({
    * who has never published a link never scrolls past them.
    */
   const [selfServeOpen, setSelfServeOpen] = useState(event.registrationOpen);
+  // Opening entries publishes the link: show it where it appears, without a second press to find it.
+  useEffect(() => {
+    if (event.registrationOpen) setSelfServeOpen(true);
+  }, [event.registrationOpen]);
   const [name, setName] = useState("");
   // The "Add someone new" captions are real <label>s for their controls.
   const fid = useId();
@@ -283,13 +293,13 @@ export function RegistrationClient({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const unlimited = event.capacity <= 0;
-  const spotsLeft = unlimited ? Infinity : Math.max(0, event.capacity - confirmed.length);
   // And the other side of that clamp — see `overCapacity`.
   const over = overCapacity(event.capacity, confirmed.length);
   // Was computed from capacity alone, so a tournament whose deadline passed a
   // week ago still read "Open · unlimited" — the screen stating something
   // false about the organizer's own event.
-  const reg = registrationStatus({
+  const entries = entriesOpen({
+    registrationOpen: event.registrationOpen,
     eventStatus: event.status,
     deadline: event.regDeadline,
     opens: event.regOpens,
@@ -299,7 +309,7 @@ export function RegistrationClient({
     now: dayAsDate(event.today),
     locale: event.locale,
   });
-  const status = reg.label;
+  const reg = entries.status;
   // Both halves of the same rule, reported together — see contactGaps for why
   // the phone line is conditional, and why it says outright that the existing
   // entries are not a mistake.
@@ -849,8 +859,6 @@ export function RegistrationClient({
                 <span style={{ color: "var(--color-danger)" }}>{over} over</span>
               </>
             )}
-            {" · "}
-            <a href="/event">change on Tournament details</a>
           </div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
@@ -858,133 +866,21 @@ export function RegistrationClient({
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{waitlist.length}</div>
           <div className="text-muted" style={{ fontSize: 13 }}>bumped in if a spot opens</div>
         </div>
-        <div className="card elev-sm" style={{ gap: 2 }}>
-          <span className="card-kicker">Registration closes</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{formatDeadline(event.regDeadline, event.locale) || "—"}</div>
-          {/* Both this and the capacity above are SET on Tournament details and
-              only shown here — on the screen called Entries, which
-              is where an organizer goes to change them. Read-only with no way
-              onward, an unset deadline renders as "—" and the screen offers
-              nothing to do about it. Says where instead. */}
-          <div className="text-muted" style={{ fontSize: 13 }}>
-            groups lock after this date · <a href="/event">set it on Tournament details</a>
-          </div>
-        </div>
-        <div className="card elev-sm" style={{ gap: 2 }}>
-          <span className="card-kicker">Status</span>
-          <div
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: 18,
-              color: reg.acceptingEntries ? "var(--color-accent-200)" : "var(--color-danger)",
-            }}
-          >
-            {status}
-          </div>
-          {/* The reason, not the remedy. This card sits an inch above a banner
-              that carries the full sentence, and printing it in both was the
-              same words twice on one screen — see `RegistrationStatus.short`. */}
-          <div className="text-muted" style={{ fontSize: 13 }}>
-            {reg.acceptingEntries ? `spots remaining: ${unlimited ? "∞" : spotsLeft}` : reg.short}
-          </div>
-        </div>
       </div>
 
-      {/* The organizer's own decision about the deadline, in both directions.
-          Adding a player by hand is never blocked by this — that is how a
-          closed event still takes a late entry, and it is the organizer's job.
-          What this governs is what the screen tells everyone else. */}
-      <div
-        className="card elev-sm"
-        style={{
-          marginBottom: 16,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-          background: reg.acceptingEntries
-            ? "color-mix(in srgb, var(--color-text) 3%, transparent)"
-            : "var(--color-danger-bg)",
-          boxShadow: reg.acceptingEntries
-            ? "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)"
-            : "inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 30%, transparent)",
-        }}
-      >
-        <Icon name={reg.acceptingEntries ? "ph ph-door-open" : "ph ph-lock-simple"}
-          style={{
-            fontSize: 16,
-            color: reg.acceptingEntries ? "var(--color-accent-200)" : "var(--color-danger)",
-          }}
-        />
-        <span style={{ fontSize: 13, flex: 1, minWidth: 220, lineHeight: 1.5 }}>
-          {reg.detail || `Entries are open${event.regDeadline ? ` until ${formatDeadline(event.regDeadline, event.locale)}` : ""}.`}
-          {!reg.acceptingEntries && (
-            <>
-              {" "}
-              {/* Was "closing only changes what this says", which is not true
-                  and understates the control by a long way. `decideIntake`
-                  refuses an entry the moment `registrationStatus` stops
-                  accepting — so a closed tournament turns every visitor to the
-                  sign-up link away, whether it was closed by the deadline or by
-                  hand. Adding somebody yourself is the part that is unaffected,
-                  and that is worth saying; telling an organizer the switch is
-                  cosmetic is how they close it and wonder why nobody signed up. */}
-              {/* Not while setup is locked: then adding by hand is refused too,
-                  and the banner at the top says how to unlock it. */}
-              {locked ? (
-                <>While it is closed the sign-up link turns everyone away.</>
-              ) : (
-                <>
-                  <strong>You can still add players below</strong> — while it is closed the sign-up
-                  link turns everyone else away.
-                </>
-              )}
-            </>
-          )}
-        </span>
-
-        {reg.state === "closed-deadline" && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={pending || locked}
-            onClick={() => startTransition(() => void setRegistrationOverride(false))}
-          >
-            <Icon name="calendar-plus" /> Keep taking entries
-          </button>
-        )}
-        {reg.state === "open-extended" && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={pending || locked}
-            onClick={() => startTransition(() => void setRegistrationOverride(null))}
-          >
-            <Icon name="arrow-counter-clockwise" /> Follow the deadline again
-          </button>
-        )}
-        {reg.state === "closed-manual" ? (
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={pending || locked}
-            onClick={() => startTransition(() => void setRegistrationOverride(null))}
-          >
-            <Icon name="door-open" /> Reopen registration
-          </button>
-        ) : (
-          reg.acceptingEntries && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={pending || locked}
-              onClick={() => startTransition(() => void setRegistrationOverride(true))}
-            >
-              <Icon name="lock-simple" /> Close registration
-            </button>
-          )
-        )}
-      </div>
+      {/* ARE ENTRIES OPEN, UNTIL WHEN, HOW MANY, WITH APPROVAL OR NOT — one card,
+          one state line, one button (the entries cleanup, 2026-11-05). */}
+      <EntryTermsCard
+        entries={entries}
+        regOpens={event.regOpens}
+        regDeadline={event.regDeadline}
+        capacity={event.storedCapacity ?? event.capacity}
+        planLimit={event.planLimit ?? null}
+        approveMode={approveMode}
+        showApproval={showApproval}
+        locked={locked}
+        locale={event.locale}
+      />
 
       {/* THE TWO SELF-SERVICE PANELS, BEHIND ONE DISCLOSURE.
           ─────────────────────────────────────────────────
@@ -1037,7 +933,7 @@ export function RegistrationClient({
               one that used to cost a scroll through both panels to find. */}
           <span className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 2, lineHeight: 1.45 }}>
             {/* Short — it sits in the panel's own heading (2026-10-05). */}
-            {event.registrationOpen ? "The public sign-up link is live." : "No public link yet."}
+            {event.registrationOpen ? "The public sign-up link is live." : "No public link yet — open entries above."}
           </span>
         </span>
         <Icon
@@ -1068,15 +964,6 @@ export function RegistrationClient({
               Share a link and people sign themselves up — no account needed. Entries appear in the field below.
             </p>
           </div>
-          <button
-            type="button"
-            className={event.registrationOpen ? "btn btn-secondary" : "btn btn-primary"}
-            disabled={pending || locked}
-            onClick={() => startTransition(() => void setRegistrationOpen(!event.registrationOpen))}
-          >
-            <Icon name={event.registrationOpen ? "ph ph-lock-simple" : "ph ph-door-open"} />
-            {event.registrationOpen ? "Take the link down" : "Publish the link"}
-          </button>
         </div>
 
         {/* Both switches on, and off. A published link on a tournament that is
@@ -1084,7 +971,7 @@ export function RegistrationClient({
             who follows it — `decideIntake` checks `registrationOpen` AND
             `registrationStatus`. The organizer could see a working link and a
             "Closed" chip four inches apart and had nothing joining the two. */}
-        {event.registrationOpen && !reg.acceptingEntries && (
+        {entries.linkPublished && !entries.open && (
           <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
             {/* The reason in a few words. The full sentence lives on the
                 banner above; a third copy of it down here was the one that
@@ -1145,46 +1032,6 @@ export function RegistrationClient({
                 where={[event.course.trim(), event.city.trim()].filter(Boolean).join(", ")}
               />
             )}
-
-            {/* Auto-confirm vs approve-each-entry. */}
-            <div className="field" style={{ marginTop: 2 }}>
-              <label>When someone registers</label>
-              <div className="seg" style={{ width: "100%" }}>
-                {[
-                  ["auto", "Auto-confirm to capacity"],
-                  ["approve", "Approve each entry"],
-                ].map(([v, l]) => (
-                  <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
-                    <input
-                      type="radio"
-                      name="regapproval"
-                      checked={approveMode ? v === "approve" : v === "auto"}
-                      disabled={pending || locked}
-                      onChange={() =>
-                        startTransition(async () => {
-                          setSwitchRefused("");
-                          showApproval(v);
-                          // Caught: these actions THROW on a refusal, and inside an async
-                          // transition that goes to the error screen (the QA manager on
-                          // the review panel). The box falls back by itself.
-                          try {
-                            await setRegistrationApproval(v);
-                          } catch {
-                            setSwitchRefused("That change was not saved. Check the connection, and that setup is unlocked.");
-                          }
-                        })
-                      }
-                    />
-                    {l}
-                  </label>
-                ))}
-              </div>
-              <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-                {approveMode
-                  ? "Every entry lands in “Pending approval” below for you to accept — nobody joins the field until you do."
-                  : "Entries fill the field up to capacity and confirm automatically; once full, further entries go to the waitlist."}
-              </p>
-            </div>
 
             {/* Per tournament, on every plan (decisions review A7, 2026-10-21).
                 The free plan used to force this on and lock the switch. A phone
@@ -1277,7 +1124,7 @@ export function RegistrationClient({
             {/* Names the control by the words now on it. A refusal that tells
                 somebody to press a button that no longer exists is worse than
                 no refusal at all. */}
-            <Icon name="warning-circle" /> Publish the sign-up link first — it doesn&rsquo;t exist
+            <Icon name="warning-circle" /> Open entries first — the sign-up link doesn&rsquo;t exist
             until you do, so there is nothing to invite anyone to yet.
           </p>
         )}

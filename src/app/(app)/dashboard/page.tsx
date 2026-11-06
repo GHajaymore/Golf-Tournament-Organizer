@@ -984,8 +984,8 @@ export default async function DashboardPage() {
           being set up that takes entries and has not published its link. */}
       {isStaff && step === "setting-up" && event.playerCountMode !== "manual" && !event.registrationOpen && (
         <p className="text-muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
-          Players can&rsquo;t sign up themselves until the link is published —{" "}
-          <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>publish it on Entries</Link>.
+          Entries are not open yet, so players can&rsquo;t sign themselves up —{" "}
+          <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>open them on Entries</Link>.
         </p>
       )}
       {isStaff && state.stages.length === 0 && state.confirmed.length > 0 && (

@@ -183,7 +183,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "**Tournament name** and **Tournament dates** are required to launch; the name cannot be one another of your tournaments in play is using. Tick **These dates are tentative** if they may move; dates have their own [[Save dates]].",
           "**Overall result** — Match play or Stroke play — decides how season standings are worked out, not each round's format. It is asked once the tournament has a round; until then your first round decides it (a medal or Stableford round makes it stroke play), and a choice you make after that stays.",
           "**Golf course**: pick a course, **Other (enter manually)**, or **No fixed course — players choose**.",
-          "Registration: **Entries open**, **Registration deadline** and **Field capacity** (a fixed number, or open). The deadline day itself is open, until midnight at the club. Press [[Save event]].",
+          "Press [[Save event]]. When entries open and close, and how many places there are, are not set here: they are on **Entries**, with the switch that opens them.",
         ],
       },
       { kind: "h", text: "Players & scoring" },
@@ -321,6 +321,15 @@ export const GUIDE_STEPS: GuideSection[] = [
     blocks: [
       { kind: "where", text: "Set up → Entries" },
       { kind: "p", text: "Waiting to see how many sign up before choosing the format? Take entries first — the entry form says “Format to be confirmed” until you add a round, and Rounds & formats shows how many have entered when you come back to choose." },
+      { kind: "h", text: "Open entries" },
+      {
+        kind: "steps",
+        items: [
+          "At the top of Entries, one card says whether entries are **Not open**, **Open** or **Closed** (and, before the opening day, when they open), and has one button. Set **Entries open**, **Entries close** and **Places** (a fixed number, or open) first, and press [[Save entry terms]]. The closing day itself is open, until midnight at the club.",
+          "Press [[Open entries]] when you are ready to send the notice: it publishes the sign-up link. [[Close entries]] stops sign-ups, and [[Reopen entries]] takes them again, past the closing day if you want. They control the public sign-up only — staff can always add players by hand.",
+          "Choose **When someone enters**: **Auto-confirm to capacity** or **Approve each entry**.",
+        ],
+      },
       { kind: "h", text: "Add players yourself" },
       {
         kind: "steps",
@@ -334,9 +343,9 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Open **Let players sign themselves up** and press [[Publish the link]].",
+          "Once entries are open, **Let players sign themselves up** shows the sign-up link, with [[Copy link]].",
           "For the noticeboard or the pro shop, [[Show QR code]] draws a poster — the tournament, its date and course, and a QR code to the sign-up link — and [[Print poster]] prints it on a page of its own. [[New link]] makes printed posters stop working, so print them again after one.",
-          "Choose **When someone registers**: **Auto-confirm to capacity** or **Approve each entry**. Tick **Require a mobile number** if you want one.",
+          "Tick **Require a mobile number** if you want one.",
           "Share it from **Invite players**: edit the message, then [[WhatsApp]], [[SMS]], [[Share…]], [[Copy message]] or [[Copy link]].",
           "Under **Pending approval**, press [[Accept]] or [[Decline]]. Beyond capacity, entries go to the **Waitlist** and are promoted automatically when a place frees up.",
         ],
@@ -344,7 +353,6 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
-          "[[Close registration]], [[Reopen registration]] and [[Follow the deadline again]] control the public sign-up only — staff can always add players by hand.",
           "Remove someone with × (or select several and [[Delete N selected]]). A player who has already played is withdrawn instead, and their results are kept.",
         ],
       },

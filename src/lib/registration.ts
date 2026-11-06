@@ -259,6 +259,98 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
 }
 
 /**
+ * ARE ENTRIES OPEN? — THE ONE ANSWER (the entries cleanup, 2026-11-05).
+ *
+ * Five controls used to answer this: the window and capacity on Tournament
+ * details, "Close registration" / "Reopen registration" / "Follow the deadline
+ * again" (the organizer's override) and "Publish the link" / "Take the link
+ * down" (whether a link exists) on Entries. Two switches, one word, and an
+ * organizer wanting to stop sign-ups had two plausible buttons.
+ *
+ * There are two FACTS underneath, and they stay two columns: whether the
+ * sign-up link has been published (`registrationOpen`), and what the dates,
+ * capacity and the organizer's override say (`registrationStatus`). What was
+ * wrong was that every reader joined them by hand. This joins them once:
+ * entries are open when the link is published AND the status is accepting.
+ * The decision a stranger on the link meets (`decideIntake`), a member's list
+ * of the club's tournaments, the Entries screen and the one button it draws
+ * all read this, and `entries-open-is-asked-once.test.ts` refuses a file that
+ * joins the two itself.
+ *
+ * The day is TOLD (`now`), like every deadline: the club's day, never the
+ * server's.
+ */
+export type EntriesState = "not-published" | RegistrationState;
+
+export interface EntriesOpen {
+  /** A stranger who follows the sign-up link would be let in (confirmed, waitlisted or pending). */
+  open: boolean;
+  /** Whether the public link is published. */
+  linkPublished: boolean;
+  state: EntriesState;
+  /** A few words for a chip: "Open", "Not open", "Closed", "Opens soon"… */
+  label: string;
+  /** The one sentence the Entries screen prints beside its button. */
+  line: string;
+  /** The dates / capacity / override half, for a caller that words the window. */
+  status: RegistrationStatus;
+  /** The ONE button: what pressing it does, in the words on it. Null once the tournament has finished. */
+  action: { do: "open" | "close"; label: string } | null;
+}
+
+export function entriesOpen(input: RegistrationInput & { registrationOpen: boolean }): EntriesOpen {
+  const { registrationOpen: linkPublished, ...reg } = input;
+  const status = registrationStatus(reg);
+  const base = { linkPublished, status };
+
+  if (status.state === "closed-finished") {
+    return { ...base, open: false, state: status.state, label: status.label, line: status.detail, action: null };
+  }
+  if (!linkPublished) {
+    return {
+      ...base,
+      open: false,
+      state: "not-published",
+      label: "Not open",
+      line: "Entries are not open yet. Open them when you are ready to send the notice, and the sign-up link goes live.",
+      action: { do: "open", label: "Open entries" },
+    };
+  }
+  const open = status.acceptingEntries;
+  const until = parseDeadlineIso(reg.deadline) ? ` until ${formatDeadline(reg.deadline, reg.locale)}` : "";
+  const line = status.detail || `Entries are open${until}.`;
+  if (open) {
+    return { ...base, open, state: status.state, label: status.label, line, action: { do: "close", label: "Close entries" } };
+  }
+  const label = status.state === "not-open-yet" ? "Open entries now" : "Reopen entries";
+  return { ...base, open, state: status.state, label: status.label, line, action: { do: "open", label } };
+}
+
+/**
+ * WHAT PRESSING THE ONE BUTTON WRITES. Opening publishes the link (once; it is
+ * never taken down, so an address already in fifty inboxes keeps working) and,
+ * when the dates alone would keep the door shut (before the opening day, or
+ * past the deadline), says "take entries now" with the override that already
+ * means it. Closing leaves the link where it is and says "closed by the
+ * organizer", so the member who follows it is told so rather than finding
+ * nothing. A finished tournament opens nothing. `registrationOpen: null` is
+ * "leave the link alone". Pure: the action reads the event and the club's day
+ * and writes what this returns.
+ */
+export function entriesChange(
+  open: boolean,
+  input: RegistrationInput,
+): { ok: true; registrationOpen: true | null; registrationOverride: boolean | null } | { ok: false; error: string } {
+  if (!open) return { ok: true, registrationOpen: null, registrationOverride: true };
+  const dates = registrationStatus({ ...input, override: null });
+  if (dates.state === "closed-finished") {
+    return { ok: false, error: "This tournament has finished, so it cannot take entries." };
+  }
+  const datesShutIt = dates.state === "not-open-yet" || dates.state === "closed-deadline";
+  return { ok: true, registrationOpen: true, registrationOverride: datesShutIt ? false : null };
+}
+
+/**
  * CAN A MEMBER TAKE THEIR OWN NAME OFF? Until entries close — Ajay, 2026-09-26.
  *
  * "Enter this tournament" enters in one tap, and nothing let a member undo it:
@@ -277,8 +369,9 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
  * early can still say they cannot make it.
  */
 export function ownWithdrawalOpen(input: RegistrationInput & { registrationOpen: boolean }): boolean {
-  if (!input.registrationOpen) return false;
-  const { state } = registrationStatus(input);
+  const entries = entriesOpen(input);
+  if (!entries.linkPublished) return false;
+  const { state } = entries;
   return state !== "closed-deadline" && state !== "closed-manual" && state !== "closed-finished";
 }
 

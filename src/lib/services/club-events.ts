@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "../db";
 import { accessibleEvents } from "./access";
-import { registrationStatus, entryDatesOf, ownWithdrawalOpen } from "../registration";
+import { entriesOpen, entryDatesOf, ownWithdrawalOpen } from "../registration";
 import { todayIso } from "../deadline";
 import { clubDay } from "../domain/club-clock";
 import { resolveLocale } from "../domain/locale";
@@ -383,7 +383,8 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     // Each tournament's own club's day — a member's list can span clubs in two
     // zones, and a deadline is a day at the club that set it.
     const clubNow = clubDay(event.organization?.timeZone);
-    const status = registrationStatus({
+    const entries = entriesOpen({
+      registrationOpen: event.registrationOpen,
       eventStatus: event.status,
       deadline: event.regDeadline,
       opens: event.regOpens,
@@ -393,6 +394,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       now: clubNow,
       locale,
     });
+    const status = entries.status;
 
     const entered = enteredIn.has(event.id);
     /**
@@ -402,7 +404,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
      */
     const waiting = !entered && waitingIn.has(event.id);
     const disqualified = !entered && ruledOutIn.has(event.id);
-    const canEnter = !entered && !waiting && !disqualified && status.acceptingEntries && event.registrationOpen;
+    const canEnter = !entered && !waiting && !disqualified && entries.open;
     // `waiting` was computed above and used only to decide `canEnter`; not
     // passing it here is what made a waiting-list place read as "Closed".
     const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered, waiting });
