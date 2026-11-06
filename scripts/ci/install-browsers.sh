@@ -15,11 +15,13 @@
 # connection was the whole fault; waiting two minutes on each of nine packages was how ten
 # minutes went), and the install is TWO attempts of four minutes each. A real hang still
 # fails, in the same words, before any test runs: the step's own `timeout-minutes` stays the
-# outer limit (two attempts of 240 s and one 15 s pause is under nine minutes).
+# outer limit (two attempts of 240 s, each given 15 s more to die, and one 15 s pause: 2x(240+15)+15 = 525 s, 8 min 45 s).
 #
-# `timeout -k 15` sends KILL 15 s after TERM if npx or apt ignores it. apt's lock wait
-# (DPkg::Lock::Timeout 120) is set in the conf file below, which every apt run Playwright
-# starts reads; this script runs no apt of its own to pass `-o` to.
+# `timeout -k 15` sends KILL 15 s after TERM if npx ignores it, but it cannot reach apt, which
+# Playwright runs as root under sudo: a first attempt's apt may outlive its timeout and still
+# hold the dpkg lock when the second begins. That is what `DPkg::Lock::Timeout 120`, set in the
+# conf file below (which every apt run reads; this script runs no apt of its own to pass `-o`
+# to), waits out.
 #
 # round.yml carries its own three-attempt loop beside the packages job it uses; this is the
 # same shape for every job that has no such job.

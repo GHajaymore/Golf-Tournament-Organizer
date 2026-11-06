@@ -6,5 +6,6 @@ scripts/**/*.mjs text eol=lf
 scripts/**/*.js text eol=lf
 # The workflows too: qa-pipeline.test.ts reads deploy.yml's steps split on "\n".
 .github/**/*.yml text eol=lf
-# Shell scripts run on Linux runners; a CRLF shebang line is "bad interpreter".
+# Shell scripts: run locally in Git Bash on Windows, a CRLF checkout turns `set -u` into
+# `set -u\r` ("invalid option"). CI is Linux and unaffected.
 scripts/**/*.sh text eol=lf

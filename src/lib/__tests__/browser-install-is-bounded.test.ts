@@ -49,17 +49,17 @@ describe("the browser install is bounded and retried", () => {
     for (const f of WORKFLOWS) {
       const lines = readVerbatim(`.github/workflows/${f}`).split(/\r?\n/);
       lines.forEach((l, i) => {
-        if (!/bash scripts\/ci\/install-browsers\.sh/.test(l)) return;
+        if (/^\s*#/.test(l) || !/bash scripts\/ci\/install-browsers\.sh/.test(l)) return;
         calls++;
-        // The step's own limit sits above its `run:`, back to the step's own `- name:` line
-        // and no further, so a neighbouring step's limit is never read as this one's.
+        // The step's own limit sits above its `run:`, back to the step's first key (`- name:`,
+        // `- uses:`, ...) and no further, so a neighbouring step's limit is never read as this one's.
         let start = i;
-        while (start > 0 && !/^\s*-\s+name:/.test(lines[start])) start--;
+        while (start > 0 && !/^\s*-\s+[\w-]+:/.test(lines[start])) start--;
         const above = lines.slice(start, i).join("\n");
         const limits = [...above.matchAll(/timeout-minutes:\s*(\d+)/g)];
         expect(limits.length, `${f}:${i + 1} has no timeout-minutes`).toBeGreaterThan(0);
         const minutes = Number(limits[limits.length - 1][1]);
-        // two attempts of four minutes and a pause is just over eight
+        // two attempts of 240 s, a KILL grace of 15 s each and one 15 s pause: up to 8 min 45 s
         expect(minutes, `${f}:${i + 1}`).toBeGreaterThanOrEqual(9);
         expect(minutes, `${f}:${i + 1}`).toBeLessThanOrEqual(15);
       });
@@ -70,11 +70,13 @@ describe("the browser install is bounded and retried", () => {
   it("the script retries, bounds each attempt, and still fails in the end", () => {
     expect(script).toMatch(/attempts=2/);
     expect(script).toMatch(/timeout -k 15 240 npx playwright install --with-deps/);
-    expect(script).toMatch(/DPkg::Lock::Timeout/);
-    // no pause after the last attempt
-    expect(script).toMatch(/if \[ "\$attempt" -lt "\$attempts" \]; then[\s\S]*?sleep 15/);
-    expect(script).toMatch(/Acquire::http::Timeout/);
-    expect(script).toMatch(/Acquire::Retries/);
-    expect(script).toMatch(/exit 1/);
+    // The written conf text and the code, never the comments that talk about them.
+    const code = script.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join("\n");
+    expect(code).toMatch(/DPkg::Lock::Timeout "\d+";/);
+    expect(code).toMatch(/Acquire::http::Timeout "\d+";/);
+    expect(code).toMatch(/Acquire::Retries "\d+";/);
+    // no pause after the last attempt: the sleep sits INSIDE the `if attempt < attempts` block
+    expect(code).toMatch(/if \[ "\$attempt" -lt "\$attempts" \]; then\n(?:(?!\bfi\b)[\s\S])*?sleep 15\n\s*fi\ndone/);
+    expect(code).toMatch(/exit 1/);
   });
 });
