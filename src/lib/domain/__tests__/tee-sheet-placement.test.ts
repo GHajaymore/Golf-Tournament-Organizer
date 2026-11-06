@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { GROUP_MOST, groupLeftShort, groupsWithRoom, lastTeeTime, placeInGroup, undrawnOn, type TeeSheet } from "../tee-sheet";
 import { clubToday, clubWallClock } from "../club-clock";
+import { teeTimeNotices } from "../tee-time-notice";
 
 /**
  * PUTTING ONE NAMED PLAYER INTO A GROUP WITH ROOM (day-of field changes, PR B).
@@ -53,6 +54,14 @@ describe("placeInGroup", () => {
     expect(r.sheet.savedAt).toBe(before.savedAt);
     // The sheet it was given is left as it was.
     expect(before.groups[1].playerIds).toEqual(["e", "f", "g"]);
+  });
+
+  it("on a published sheet only the placed player is told their time (the guide says so)", () => {
+    const before = sheet();
+    const r = placeInGroup(before, "late", 1, new Set(FIELD));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(teeTimeNotices(before, r.sheet, false)).toEqual([{ playerId: "late", kind: "new", time: "8:10 AM", startHole: 1 }]);
   });
 
   it("into the place a withdrawal left", () => {

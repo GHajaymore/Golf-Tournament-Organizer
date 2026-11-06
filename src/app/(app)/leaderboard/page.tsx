@@ -269,8 +269,8 @@ export default async function LeaderboardPage({
    * player withdrawn before teeing off is listed DNS beneath WD — staff only;
    * an organizer previewing as a player sees the player's board.
    */
-  const staffView = session.viewRole === "admin" || session.viewRole === "assistant";
-  const rows = staffView ? resultsSheetRows(state) : standingRows(state);
+  const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  const rows = isStaff ? resultsSheetRows(state) : standingRows(state);
   /**
    * Whether the event's Scoring can rank what its rounds produce.
    *
@@ -287,7 +287,6 @@ export default async function LeaderboardPage({
       .map((s) => ({ type: s.type, headToHead: isHeadToHead(s.type) })),
   );
   const highlights = computeHighlights(state);
-  const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
   /**
    * A quick round rather than a tournament. Same question `/entry` and
    * `/dashboard` already ask, under the same name.
