@@ -6,3 +6,5 @@ scripts/**/*.mjs text eol=lf
 scripts/**/*.js text eol=lf
 # The workflows too: qa-pipeline.test.ts reads deploy.yml's steps split on "\n".
 .github/**/*.yml text eol=lf
+# Shell scripts run on Linux runners; a CRLF shebang line is "bad interpreter".
+scripts/**/*.sh text eol=lf

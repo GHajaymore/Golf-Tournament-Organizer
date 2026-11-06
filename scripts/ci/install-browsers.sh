@@ -17,6 +17,10 @@
 # fails, in the same words, before any test runs: the step's own `timeout-minutes` stays the
 # outer limit (two attempts of 240 s and one 15 s pause is under nine minutes).
 #
+# `timeout -k 15` sends KILL 15 s after TERM if npx or apt ignores it. apt's lock wait
+# (DPkg::Lock::Timeout 120) is set in the conf file below, which every apt run Playwright
+# starts reads; this script runs no apt of its own to pass `-o` to.
+#
 # round.yml carries its own three-attempt loop beside the packages job it uses; this is the
 # same shape for every job that has no such job.
 set -u
@@ -32,11 +36,14 @@ printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Tim
 
 attempts=2
 for attempt in $(seq 1 "$attempts"); do
-  if timeout 240 npx playwright install --with-deps "$@"; then
+  if timeout -k 15 240 npx playwright install --with-deps "$@"; then
     exit 0
   fi
-  echo "::warning::Installing the browser did not finish (attempt $attempt of $attempts); trying again."
-  sleep 15
+  # No pause after the last attempt: nothing follows it but the failure.
+  if [ "$attempt" -lt "$attempts" ]; then
+    echo "::warning::Installing the browser did not finish (attempt $attempt of $attempts); trying again."
+    sleep 15
+  fi
 done
 
 echo "::error::The browser could not be installed in $attempts attempts of four minutes (the package mirror is slow or down: a machine fault, re-run the job; do not edit the app)."
