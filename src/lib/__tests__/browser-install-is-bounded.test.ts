@@ -76,7 +76,14 @@ describe("the browser install is bounded and retried", () => {
     expect(code).toMatch(/Acquire::http::Timeout "\d+";/);
     expect(code).toMatch(/Acquire::Retries "\d+";/);
     // no pause after the last attempt: the sleep sits INSIDE the `if attempt < attempts` block
-    expect(code).toMatch(/if \[ "\$attempt" -lt "\$attempts" \]; then\n(?:(?!\bfi\b)[\s\S])*?sleep 15\n\s*fi\ndone/);
+    expect(code).toMatch(/if \[ "\$attempt" -lt "\$attempts" \]; then\n(?:(?!\bfi\b)[\s\S])*?sleep 5\n\s*fi\ndone/);
+    // Before a retry the first attempt's root apt/dpkg (which `timeout` cannot reach) is killed,
+    // waited for (bounded) and dpkg is let finish: else attempt 2 dies on the dpkg frontend lock
+    // (runs 42307709158 and 42308035657). The clean-up runs inside the retry block, before the pause.
+    expect(code).toMatch(/sudo pkill -KILL -f "\$leftovers"/);
+    expect(code).toMatch(/seq 1 20\)[\s\S]*?pgrep -f "\$leftovers"[\s\S]*?break/);
+    expect(code).toMatch(/dpkg --configure -a/);
+    expect(code).toMatch(/then\n(?:(?!\bfi\b)[\s\S])*?\n\s*clear_leftovers\n\s*sleep 5\n\s*fi\ndone/);
     expect(code).toMatch(/exit 1/);
   });
 });
