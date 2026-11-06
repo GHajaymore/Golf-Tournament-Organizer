@@ -23,6 +23,8 @@ import { isAttendanceMode, tracksPerRound } from "../domain/attendance";
 import { generatesPairings, isKnockoutRound, isPlayingRound } from "../stage-types";
 import { TEAM_FORMAT_NAMES } from "../formats";
 import { roundsMissingCards } from "./round-card-lines";
+import { teesInPlayFor } from "./handicaps";
+import { unratedTeesFact } from "../domain/launch-check";
 import { loadEventState } from "./tournament";
 import { cupBoard } from "./cup";
 
@@ -160,6 +162,10 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
       flightsConfirmed: true,
       playSuspendedAt: true,
       organizationId: true,
+      teePolicy: true,
+      defaultTeeId: true,
+      courseId: true,
+      courseMode: true,
       // A league by its KIND (PR 3): what it is called, its league table, its weekly sign-up.
       playKind: true,
       leaguePoints: true,
@@ -225,6 +231,25 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
     ]);
 
   const stagesOf = byEvent(stageRows);
+  /**
+   * THE LAUNCH DIALOG'S TEE FACT (setup audit item 5): which rounds score off a
+   * handicap and which tees cannot give one. Tees are read only for a
+   * tournament with such a round — a gross medal needs no rating.
+   */
+  const roundsOf = (id: string) => {
+    const all = stagesOf.get(id) ?? [];
+    return all.filter((s) => isPlayingRound(s.type)).map((s) => ({ label: roundLabel(all, s.id), scoringBasis: s.scoringBasis }));
+  };
+  // ONE batch of tee reads for every tournament that has a round off a handicap
+  // (not one query per tournament), resolved by the one tee resolver.
+  const needTees = events.filter((e) => roundsOf(e.id).some((r) => r.scoringBasis !== "gross"));
+  const inPlay = await teesInPlayFor(needTees);
+  const unratedOf = new Map(
+    needTees.map((e) => {
+      const p = inPlay.get(e.id);
+      return [e.id, unratedTeesFact({ rounds: roundsOf(e.id), tees: p?.tees ?? [], fixedCourse: !!p?.hasCourse && !p?.open })] as const;
+    }),
+  );
   const cardsOf = byEvent([...cardRows, ...teamCardRows]);
   const matchesOf = byEvent(matchRows);
   const matchCardsOf = byEvent(matchCardRows);
@@ -307,6 +332,7 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
         cup: hasCup ? { flights: groups, unplaced } : null,
         rounds,
         missingCards: missing.get(id) ?? [],
+        unratedTees: unratedOf.get(id) ?? null,
       },
       thirdPlace: { on: !!thirdStage, decided: !!thirdMatch && storedMatchIsOver(thirdMatch) },
       hasBracket: stages.some((s) => isKnockoutRound(s.type)),

@@ -604,10 +604,22 @@ export function EventSetupClient({
                 </p>
               </FieldInfo>
             </span>
-            <div className="seg">
-              <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "match"} onChange={() => set("format", "match")} />Match play</label>
-              <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "stroke"} onChange={() => set("format", "stroke")} />Stroke play</label>
-            </div>
+            {/* ASKED ONLY ONCE THERE IS A ROUND (setup audit item 6, 5 Nov).
+                With no rounds the answer was overwritten by the first one
+                (`addStage` decides a round with no opponents on strokes), so
+                the secretary watched their choice change underneath them. A
+                choice made with rounds in place is never overwritten. */}
+            {roundFormats.length === 0 ? (
+              <p className="muted" style={{ margin: 0 }}>
+                Decided by your first round: a medal or Stableford round makes this stroke play; a head-to-head
+                first round leaves it as it is, match play to begin with. Add rounds on Rounds &amp; formats; you can change it here afterwards.
+              </p>
+            ) : (
+              <div className="seg">
+                <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "match"} onChange={() => set("format", "match")} />Match play</label>
+                <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "stroke"} onChange={() => set("format", "stroke")} />Stroke play</label>
+              </div>
+            )}
           </div>
         </div>
 

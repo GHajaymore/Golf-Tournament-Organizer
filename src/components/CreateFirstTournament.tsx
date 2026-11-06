@@ -8,6 +8,7 @@ import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape"
 import { retentionNotice, planFor } from "@/lib/plans";
 import { askToJoinNamesake } from "@/app/actions/join";
 import { Icon } from "./Icon";
+import { CopyDayFields } from "./CopyDayFields";
 import { ORG_KINDS, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
@@ -182,6 +183,10 @@ export function CreateFirstTournament({
    * template key from an event id. Declared here because it reads `template`.
    */
   const copyFrom = copyable.find((e) => e.id === copiedEventId(template));
+  /** A copy is given its first day, as "Copy last event" gives one (`CopyDayFields`). */
+  const [startOn, setStartOn] = useState("");
+  const [endOn, setEndOn] = useState("");
+  const copyNeedsDay = !!copyFrom && !startOn;
 
   /**
    * THE PLAN OF THE ORGANIZATION THIS IS ACTUALLY FOR.
@@ -208,10 +213,10 @@ export function CreateFirstTournament({
   const submit = (confirmedClubName = false) => {
     // A COPY NEEDS NO SHAPE. It is played the way its source was, and asking
     // would let the two disagree — the same rule `EventSwitcher` states.
-    if (!name.trim() || (!copyFrom && !shape)) return;
+    if (!name.trim() || (!copyFrom && !shape) || copyNeedsDay) return;
     startTransition(async () => {
       if (copyFrom) {
-        const copied = await cloneEvent(copyFrom.id, name);
+        const copied = await cloneEvent(copyFrom.id, name, { startOn, endOn });
         if (copied?.ok) router.push("/dashboard");
         else setRefusal(copied?.error ?? "That could not be copied.");
         return;
@@ -429,9 +434,14 @@ export function CreateFirstTournament({
         </select>
         <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           {copyFrom
-            ? `Copies the settings, rounds, courses and side games from ${copyFrom.name.trim() || "that tournament"} — never its players, scores, money or access codes. Dates start empty and everything stays editable.`
+            ? `Copies the settings, rounds, courses and side games from ${copyFrom.name.trim() || "that tournament"} — never its players, scores, money or access codes. Its entry window and rounds move with the day you pick, and everything stays editable.`
             : `${templateFor(template).blurb} A starting point only — every setting, format and round stays editable afterwards.`}
         </p>
+        {copyFrom && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginTop: 10 }}>
+            <CopyDayFields startOn={startOn} endOn={endOn} onStartOn={setStartOn} onEndOn={setEndOn} />
+          </div>
+        )}
       </div>
       {/* Names the organization created for this organizer's first tournament,
           so a club's events read under the club rather than under a person.
@@ -674,6 +684,7 @@ export function CreateFirstTournament({
             !name.trim() ||
             /* A copy needs no shape: it is played the way its source was. */
             (!copyFrom && !shape) ||
+            copyNeedsDay ||
             (clubNameRequired && !orgName.trim()) ||
             /* Steps with their own screen — the member list, today. Not
                answerable here, so the button waits rather than pretending. */
@@ -705,7 +716,7 @@ export function CreateFirstTournament({
           screen as a new society secretary — with a name and a shape chosen
           and the club still unnamed, the button was dead and said nothing. */}
       {!pending &&
-        (!name.trim() || (!copyFrom && !shape) || (clubNameRequired && !orgName.trim())) &&
+        (!name.trim() || (!copyFrom && !shape) || copyNeedsDay || (clubNameRequired && !orgName.trim())) &&
         elsewhere.length === 0 && (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {!name.trim()
@@ -714,7 +725,9 @@ export function CreateFirstTournament({
                 : "Give it a name, then say how it's played."
               : !copyFrom && !shape
                 ? "Say how it's played — that decides what the rest of setup asks."
-                : `Name your ${outfit.noun} above — it is set once, for every tournament you will ever run.`}
+                : copyNeedsDay
+                  ? "Pick the day it is played — the entry window and rounds move with it."
+                  : `Name your ${outfit.noun} above — it is set once, for every tournament you will ever run.`}
           </p>
         )}
 

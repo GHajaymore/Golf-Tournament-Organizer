@@ -6913,6 +6913,8 @@ describe("tournament details", () => {
       <EventSetupClient
         playersCount={24}
         courses={[{ id: "c1", name: "Bushwood", city: "Chicago", address: "" }]}
+        // A tournament with a round: the Overall result is only asked then.
+        roundFormats={["Stroke Play"]}
         {...props}
         initial={{
           name: "zz-Club Championship", playKind: "tournament", startOn: "", endOn: "", dates: "", datesTentative: false,
@@ -6923,6 +6925,24 @@ describe("tournament details", () => {
         }} />,
     );
   };
+
+  it("does not ask the Overall result before there is a round to ask it about", async () => {
+    /**
+     * Setup sequencing audit, item 6 (5 Nov). Details asked "Match play or
+     * Stroke play?" of a tournament with no rounds, and the FIRST round then
+     * overwrote the answer (`addStage`: a round with no opponents decides the
+     * tournament on strokes). Two controls for one rule, the later one winning
+     * quietly. Now the question is asked only once there are rounds, where an
+     * answer sticks: before that the screen says the first round decides it.
+     */
+    const html = await setup({}, { roundFormats: [] });
+    expect(html).not.toContain('name="fmt"');
+    expect(html).toContain("Decided by your first round");
+    // CONTROL: with a round on the tournament the choice is the organizer's.
+    const withRound = await setup({}, { roundFormats: ["Stroke Play"] });
+    expect(withRound).toContain('name="fmt"');
+    expect(withRound).not.toContain("Decided by your first round");
+  });
 
   it("says when more are confirmed than the field holds", async () => {
     /**

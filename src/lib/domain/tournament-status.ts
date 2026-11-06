@@ -31,7 +31,7 @@
  */
 import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
 import { setupFlow, type SetupFacts, type SetupFlow, type SetupStep } from "./setup-flow";
-import type { LaunchCheck } from "./launch-check";
+import type { LaunchCheck, UnratedTees } from "./launch-check";
 import { completingCheckFor, finishRefusal, playRefusal } from "./phase-gate";
 import type { BracketView } from "./bracket";
 import { screenName } from "@/lib/nav";
@@ -139,6 +139,8 @@ export interface TournamentFacts {
   rounds: RoundFacts[];
   /** Playing rounds whose format needs a course card they lack (`roundsMissingCards`). */
   missingCards: { label: string; course: string }[];
+  /** Tees with no rating under a round that scores off a handicap (`unratedTeesFact`); a launch warning only. */
+  unratedTees?: UnratedTees | null;
   /** A knockout's draws and its play-off for third; null when there is no Bracket Stage. */
   knockout: { draws: DrawFacts[]; thirdPlace: { on: boolean; decided: boolean } } | null;
   /** A cup's verdict is no longer "open"; null when not a cup or not read. */
@@ -387,6 +389,7 @@ export function setupFactsOf(f: SetupSideFacts): SetupFacts {
     venued: f.venued,
     playingRounds: playing.length,
     missingCards: f.missingCards,
+    unratedTees: f.unratedTees ?? null,
     straightKnockout: isStraightKnockout(f.rounds),
     moneyAnswered: f.moneyAnswered,
     launched: isLaunched(f.status),

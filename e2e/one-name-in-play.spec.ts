@@ -89,6 +89,7 @@ test("a name in play is the club's once: create, copy, rename and reopen are ref
       await box.fill(held);
       const from = page.getByLabel("Start from", { exact: true });
       await from.selectOption(`copy:${last.event.id}`);
+      await page.getByLabel("First day", { exact: true }).fill("2099-06-12");
       await centre(create);
       await create.click();
       await expect(refused, "a copy under a held name was not refused").toBeVisible({ timeout: 20_000 });
@@ -98,6 +99,7 @@ test("a name in play is the club's once: create, copy, rename and reopen are ref
       expect(await spring(), "the refused copy was made anyway").toBe(2);
       await box.fill(free);
       await from.selectOption(`copy:${last.event.id}`);
+      await page.getByLabel("First day", { exact: true }).fill("2099-06-12");
       await create.click();
       await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
       expect(await prisma.event.count({ where: { organizationId: club.orgId, name: free, status: "draft" } }), "the free name was not taken").toBe(1);

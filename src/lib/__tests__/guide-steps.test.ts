@@ -84,3 +84,26 @@ describe("the step-by-step guide names buttons the app really has", () => {
     expect(new Set(GUIDE_STEPS.map((s) => s.id)).size).toBe(GUIDE_STEPS.length);
   });
 });
+
+describe("the guide teaches money in the order a tournament office does", () => {
+  const text = (s: (typeof GUIDE_STEPS)[number]) => JSON.stringify(s.blocks);
+  const index = (id: string) => GUIDE_STEPS.findIndex((s) => s.id === id);
+
+  it("sets money and the prize list up BEFORE the Launch part (setup audit item 16)", () => {
+    const setup = GUIDE_STEPS.findIndex((s) => text(s).includes("[[Add a prize]]"));
+    expect(setup, "the guide never says how to write the prize list").toBeGreaterThan(-1);
+    expect(setup, "the prize list is taught after launch").toBeLessThan(index("launch"));
+    const modes = GUIDE_STEPS.findIndex((s) => text(s).includes("Tournament kitty"));
+    expect(modes, "the money modes are taught after launch").toBeLessThan(index("launch"));
+  });
+
+  it("points at the menu Prizes & payouts is actually in", () => {
+    const where = GUIDE_STEPS.flatMap((s) => s.blocks)
+      .filter((b): b is { kind: "where"; text: string } => b.kind === "where" && b.text.includes("Prizes & payouts"));
+    expect(where.length, "no part says where Prizes & payouts is").toBeGreaterThan(0);
+    for (const w of where) {
+      expect(w.text, "Prizes & payouts is in Set up, not Afterwards").not.toMatch(/Afterwards\s*→\s*Prizes/);
+      expect(w.text).toMatch(/Set up\s*→\s*Prizes/);
+    }
+  });
+});

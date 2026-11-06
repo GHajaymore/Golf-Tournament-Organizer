@@ -6,6 +6,7 @@ import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { startFromGroups, copiedEventId } from "@/lib/domain/start-from";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { Icon } from "./Icon";
+import { CopyDayFields } from "./CopyDayFields";
 import { useOrgProfile } from "./OrgProfileProvider";
 import { STATUS_META } from "@/lib/format";
 import { bringIntoView } from "@/lib/bring-into-view";
@@ -160,6 +161,8 @@ export function EventSwitcher({
   const tournaments = events.filter((e) => !e.isCasual);
   const casual = events.filter((e) => e.isCasual);
   const copyFrom = copyable.find((e) => e.id === copiedEventId(source));
+  const [startOn, setStartOn] = useState("");
+  const [endOn, setEndOn] = useState("");
   /**
    * WHOSE GOLF THE LIST SHOULD LEAD WITH — see `startFromGroups`.
    *
@@ -171,7 +174,7 @@ export function EventSwitcher({
    */
   const listFor = organizations.find((o) => o.id === organizationId)?.kind ?? consoleOutfit.kind;
   const blurb = copyFrom
-    ? `Copies the settings, rounds, courses and side games from ${copyFrom.name || "that tournament"} — never its players, scores, money or access codes. Dates start empty and everything stays editable.`
+    ? `Copies the settings, rounds, courses and side games from ${copyFrom.name || "that tournament"} — never its players, scores, money or access codes. Its entry window and rounds move with the day you pick, and everything stays editable.`
     : templateFor(source).blurb + " Every setting stays editable afterwards.";
 
   return (
@@ -389,6 +392,9 @@ export function EventSwitcher({
             })}
           </select>
         </div>
+        {/* A COPY IS GIVEN ITS FIRST DAY, as "Copy last event" gives one — one rule
+            for every door to a copy (`CopyDayFields`, setup audit item 8). */}
+        {copyFrom && <CopyDayFields startOn={startOn} endOn={endOn} onStartOn={setStartOn} onEndOn={setEndOn} />}
         {/* WHOSE, when this person runs more than one outfit.
 
             A copy keeps its source's organization, so the question only
@@ -430,13 +436,13 @@ export function EventSwitcher({
         <button
           type="button"
           className="btn btn-primary"
-          disabled={pending || !name.trim() || (!copyFrom && !shape)}
+          disabled={pending || !name.trim() || (!copyFrom && !shape) || (!!copyFrom && !startOn)}
           onClick={() => {
             const copyId = copiedEventId(source);
             setError("");
             startTransition(async () => {
               const res = copyId
-                ? await cloneEvent(copyId, name)
+                ? await cloneEvent(copyId, name, { startOn, endOn })
                 : await createEvent(name, source, shape, undefined, organizationId || undefined);
               // A refused name stays in the box (2026-11-01): the refusal offers a free one, and
               // the organizer edits what they typed rather than typing it all again.
@@ -455,11 +461,13 @@ export function EventSwitcher({
       {/* Why the button is dead, naming the step that is actually outstanding.
           Create used to be enabled with an empty name and silently made
           "New Tournament"; now it says what it wants. */}
-      {!pending && (!name.trim() || (!copyFrom && !shape)) && (
+      {!pending && (!name.trim() || (!copyFrom && !shape) || (!!copyFrom && !startOn)) && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {!name.trim()
             ? "Name it first."
-            : "Say how it's played — that decides what the rest of setup asks."}
+            : copyFrom
+              ? "Pick the day it is played — the entry window and rounds move with it."
+              : "Say how it's played — that decides what the rest of setup asks."}
         </p>
       )}
       <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{blurb}</p>
