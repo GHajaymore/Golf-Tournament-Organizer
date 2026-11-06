@@ -18,6 +18,7 @@ vi.mock("@/app/actions/tournament", actionModule);
 import { TeamsClient } from "@/components/TeamsClient";
 import { TeamEntryClient } from "@/components/TeamEntryClient";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
+import { TEAM_MATCH_BOARD_NOTE } from "@/components/TeamMatchLeaderboard";
 import { readSource } from "./source";
 
 /**
@@ -211,6 +212,33 @@ describe("Today (/me) asks the ROUND which board it is", () => {
   it("gives a match player their side's match record, not a stroke place", () => {
     expect(src).toContain('"team-match"');
     expect(src).toContain("teamMatchBoard");
+  });
+});
+
+/**
+ * THE WORDS A PLAYER READS (e2e/player-words.spec.ts): no sentence of 12 words
+ * or more, no block of 25. Counted as that spec counts them.
+ */
+describe("the words this change puts on a player's screen are short", () => {
+  const words = (s: string) => s.split(" ").filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+  const longest = (text: string) => Math.max(0, ...text.split(/(?<=[.!?])\s+/).map(words));
+  const lines = [
+    TEAM_MATCH_BOARD_NOTE,
+    "Your side's match",
+    "No match has finished yet.",
+    "Won 10, halved 10, lost 10.",
+    "Gets 10 · 10 (off the low of 10)",
+    "Plays off 10 · 10",
+  ];
+  for (const line of lines) {
+    it(`"${line}" is under 12 words`, () => {
+      expect(line, "the line is missing").toBeTruthy();
+      expect(longest(line)).toBeLessThan(12);
+      expect(words(line)).toBeLessThan(25);
+    });
+  }
+  it("the board uses the constant, not a literal of its own", () => {
+    expect(readSource("src/app/(player)/me/board/page.tsx")).toContain("TEAM_MATCH_BOARD_NOTE");
   });
 });
 

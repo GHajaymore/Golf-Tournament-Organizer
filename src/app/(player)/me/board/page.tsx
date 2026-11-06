@@ -13,7 +13,7 @@ import { RoundPicker } from "@/components/RoundPicker";
 import { canSeeLeaderboard, isLeaderboardPublic } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { teamMatchBoard } from "@/lib/services/teams";
-import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
+import { TeamMatchLeaderboard, TEAM_MATCH_BOARD_NOTE } from "@/components/TeamMatchLeaderboard";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -312,7 +312,7 @@ export default async function PlayBoardPage({
         ) : (
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           {kind === "team-match"
-            ? "This round is decided on the matches between sides, not on the cards."
+            ? TEAM_MATCH_BOARD_NOTE
             : kind === "team"
               ? `This round ranks sides rather than players. ${teamBoardNote(
                   stage?.format ?? "",

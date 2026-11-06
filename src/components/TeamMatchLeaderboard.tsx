@@ -15,6 +15,9 @@ import { namedAfterPlayers } from "@/lib/domain/side-name";
  * produced, and the points. Deliberately the same shape, because a club
  * running both should not have to learn two boards.
  */
+/** What a player's board says above a round of team matches. Under 12 words: `e2e/player-words.spec.ts`. */
+export const TEAM_MATCH_BOARD_NOTE = "Decided on the matches between sides, not the cards.";
+
 export function TeamMatchLeaderboard({
   format,
   rows,
