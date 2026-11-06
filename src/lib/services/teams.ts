@@ -578,7 +578,9 @@ export async function teamStandingsWithCards(
       name: t.name,
       members: t.members.map((m) => m.name),
       memberIds: t.members.map((m) => m.playerId),
-      memberPlaying: t.members.map((m) => m.playing),
+      // A partner who has left the field (withdrawn, or disqualified) plays off
+      // nothing: the board lists the figures of who actually plays.
+      memberPlaying: t.members.map((m) => (m.withdrawn ? null : m.playing)),
       playingHandicap: t.playingHandicap,
       gross: card.grossTotal,
       net: card.netTotal,
@@ -689,6 +691,8 @@ export async function teamStandingsWithCards(
 export interface TeamMatchRow extends TeamMatchStanding {
   name: string;
   members: string[];
+  /** Who is on the side, by id, in `members` order — a screen finds its own side by id, never by name. */
+  memberIds: string[];
 }
 
 export async function teamMatchBoard(
@@ -732,6 +736,7 @@ export async function teamMatchBoard(
     ...r,
     name: byId.get(r.teamId)?.name ?? "",
     members: byId.get(r.teamId)?.members.map((m) => m.name) ?? [],
+    memberIds: byId.get(r.teamId)?.members.map((m) => m.playerId) ?? [],
   }));
 }
 

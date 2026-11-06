@@ -43,6 +43,8 @@ export interface TeamCardRow {
   handicapType?: string | null;
   /** What this player's own ball plays off (`TeamMemberView.playing`); absent on a side's one card. */
   playing?: number | null;
+  /** In a match: the strokes this card receives off the lowest handicap in it (`matchStrokesCount`). */
+  received?: number | null;
   /**
    * Handicap strokes this card receives, hole by hole.
    *
@@ -64,6 +66,8 @@ export interface TeamEntryRow {
   matchId: string;
   opponentName?: string;
   playingHandicap: number;
+  /** The lowest handicap in the match the strokes come off; absent on a medal round. */
+  matchLow?: number | null;
   cards: TeamCardRow[];
   /** Running side score, computed server-side from the saved cards. */
   grossTotal: number;
@@ -533,7 +537,16 @@ export function TeamEntryClient({
                 four-ball each player plays off their own strokes, shown on
                 their own row, and a side figure beside them — "Plays off 37"
                 over a 17 and a 24 — is a number nothing on the card uses. */}
-            {t.cards.some((c) => c.playerId === "") ? (
+            {/* IN A MATCH the strokes come off the lowest handicap in it, and
+                the dots below are `playing - low`: so the tag says what the
+                dots show ("Gets 0 · 4 (off the low of 5)"), not the playing
+                handicaps they are measured from. */}
+            {t.matchLow != null ? (
+              (() => {
+                const got = playsOffWords(t.cards.map((c) => c.received));
+                return got ? <span className="tag tag-neutral">Gets {got} (off the low of {t.matchLow})</span> : null;
+              })()
+            ) : t.cards.some((c) => c.playerId === "") ? (
               <span className="tag tag-neutral">
                 Plays off {t.playingHandicap}
               </span>

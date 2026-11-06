@@ -97,6 +97,14 @@ describe("a pair's standing carries what each partner plays off", () => {
     expect(row.memberPlaying).toEqual([rulesPlaying(86, 85), rulesPlaying(103, 85)]);
   });
 
+  it("a partner who has left the field is listed as playing off nothing", async () => {
+    // The pair is cut to who is still playing; the figure of the partner who withdrew is not printed.
+    await prisma.player.updateMany({ where: { eventId, name: { endsWith: "Bob" } }, data: { status: "withdrawn" } });
+    const [row] = await teamStandings(eventId, fourBallStage, "Four-Ball", PARS, SI, "net");
+    expect(row.memberPlaying.filter((n) => n !== null)).toEqual([rulesPlaying(86, 85)]);
+    await prisma.player.updateMany({ where: { eventId, name: { endsWith: "Bob" } }, data: { status: "confirmed" } });
+  });
+
   it("a foursomes lists nobody's own figure: the side shares one ball", async () => {
     const [row] = await teamStandings(eventId, foursomesStage, "Foursomes", PARS, SI, "net");
     expect(row.memberPlaying).toEqual([null, null]);

@@ -32,6 +32,8 @@ export interface TeamMemberRow {
   position: number;
   /** What this player's own ball plays off; null where the side shares one ball. */
   playing?: number | null;
+  /** Withdrawn or disqualified after the sides were drawn: plays off nothing. */
+  withdrawn?: boolean;
 }
 
 export interface TeamRow {
@@ -250,6 +252,13 @@ export function TeamsClient({
           {" — set on "}
           <a href="/stages">Rounds &amp; formats</a>.
         </p>
+        {/* A match, where everyone plays their own ball: the strokes are the
+            difference from the lowest of the four (Rules of Handicapping 6.2). */}
+        {drawsMatches && !format.sharesOneCard && (
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            In a match, strokes come off the lowest of the four.
+          </p>
+        )}
       </div>
 
       {problems.length > 0 && (
@@ -464,8 +473,10 @@ export function TeamsClient({
                 {format.sharesOneCard ? (
                   <span className="tag tag-neutral">Plays off {t.playingHandicap}</span>
                 ) : (
-                  playsOffWords(t.members.map((m) => m.playing)) && (
-                    <span className="tag tag-neutral">Plays off {playsOffWords(t.members.map((m) => m.playing))}</span>
+                  playsOffWords(t.members.map((m) => (m.withdrawn ? null : m.playing))) && (
+                    <span className="tag tag-neutral">
+                      Plays off {playsOffWords(t.members.map((m) => (m.withdrawn ? null : m.playing)))}
+                    </span>
                   )
                 )}
                 {/* The side and its whole membership. Removing one PLAYER from

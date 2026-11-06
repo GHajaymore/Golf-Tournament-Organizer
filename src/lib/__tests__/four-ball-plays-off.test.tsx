@@ -125,6 +125,93 @@ describe("Printed tee-sheet card: the side's figure", () => {
   });
 });
 
+/**
+ * IN A MATCH THE STROKES COME OFF THE LOWEST HANDICAP IN IT (Rules of
+ * Handicapping 6.2, Appendix C). The dots on the card are `playing - low`, so the
+ * words must say what the dots show: "Plays off 5 · 9" over a card where the 5
+ * gets nothing and the 9 gets four contradicts itself.
+ */
+const matchEntry = (own: boolean) =>
+  textOf(
+    renderToStaticMarkup(
+      <TeamEntryClient
+        round="x" note="" holes={18} pars={PARS} strokeIndex={SI}
+        teams={[{
+          teamId: "t1", teamName: "Side A", matchId: "m1", opponentName: "Side B", playingHandicap: 12, matchLow: 5,
+          grossTotal: 0, netTotal: 0, played: 0,
+          cards: own
+            ? [
+                { playerId: "p1", playerName: "zz-Ann", handicap: 5, playing: 5, received: 0, strokes: Array(18).fill(null) },
+                { playerId: "p2", playerName: "zz-Bob", handicap: 9, playing: 9, received: 4, strokes: Array(18).fill(null) },
+              ]
+            : [{ playerId: "", playerName: "", handicap: 0, received: 7, strokes: Array(18).fill(null) }],
+        }]} />,
+    ),
+  );
+describe("Team score entry in a MATCH says what the dots show", () => {
+  it("a four-ball match: strokes received, off the low", () => {
+    const text = matchEntry(true);
+    expect(text).toContain("Gets 0 · 4 (off the low of 5)");
+    expect(text).not.toContain("Plays off");
+  });
+  it("a shared-ball match: the side's strokes received, off the low", () => {
+    const text = matchEntry(false);
+    expect(text).toContain("Gets 7 (off the low of 5)");
+    expect(text).not.toContain("Plays off");
+  });
+});
+
+describe("a partner who has left the field plays off nothing", () => {
+  it("the Teams screen lists only who is still playing", () => {
+    const text = textOf(
+      renderToStaticMarkup(
+        <TeamsClient
+          rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+          format={formatOf("Four-Ball", false)}
+          teams={[{
+            id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: SIDE,
+            members: [
+              { playerId: "p1", name: "zz-Ann", handicap: 8, position: 0, playing: 7 },
+              { playerId: "p2", name: "zz-Bob", handicap: 10, position: 1, playing: 9, withdrawn: true },
+            ],
+          }]}
+          problems={[]} unassigned={[]} matchCount={0} drawsMatches={false} />,
+      ),
+    );
+    expect(text).toContain("Plays off 7");
+    expect(text).not.toContain("7 · 9");
+  });
+});
+
+describe("Teams screen: how a match is stroked", () => {
+  const screen = (name: string, sharesOneCard: boolean, drawsMatches: boolean) =>
+    textOf(
+      renderToStaticMarkup(
+        <TeamsClient
+          rounds={[{ id: "r1", label: "R1", format: name }]} activeRoundId="r1"
+          format={formatOf(name, sharesOneCard)} teams={[]} problems={[]} unassigned={[]} matchCount={0}
+          drawsMatches={drawsMatches} />,
+      ),
+    );
+  const LINE = "In a match, strokes come off the lowest of the four.";
+  it("a four-ball match round says it", () => expect(screen("Four-Ball", false, true)).toContain(LINE));
+  it("CONTROL: a medal four-ball does not", () => expect(screen("Four-Ball", false, false)).not.toContain(LINE));
+  it("CONTROL: a shared-ball match round does not (sides, not four players)", () =>
+    expect(screen("Foursomes", true, true)).not.toContain(LINE));
+});
+
+describe("Today (/me) asks the ROUND which board it is", () => {
+  const src = readSource("src/app/(player)/me/page.tsx");
+  it("uses boardKindForRound and never boardKind of the format", () => {
+    expect(src).toMatch(/boardKindForRound\(/);
+    expect(src).not.toMatch(/\bboardKind\(/);
+  });
+  it("gives a match player their side's match record, not a stroke place", () => {
+    expect(src).toContain('"team-match"');
+    expect(src).toContain("teamMatchBoard");
+  });
+});
+
 describe("The player's board asks the ROUND which board it is", () => {
   const src = readSource("src/app/(player)/me/board/page.tsx");
   it("uses boardKindForRound, not boardKind of the format", () => {

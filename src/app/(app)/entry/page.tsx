@@ -29,7 +29,7 @@ import { generatesPairings, isHeadToHead, isKnockoutRound } from "@/lib/stage-ty
 import { isMatch } from "@/lib/tournament-shape";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
-import { aggregateTeamCard, singleBallTeamCard, matchStrokesPerHole } from "@/lib/domain/team";
+import { aggregateTeamCard, singleBallTeamCard, matchStrokesPerHole, matchStrokesCount } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 import { TeamScoreImport } from "@/components/TeamScoreImport";
 import { isNetBasis } from "@/lib/domain/match-entry";
@@ -506,6 +506,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               playerId: "",
               playerName: "",
               handicap: 0,
+              received: teamMatchPlay ? matchStrokesCount(t.playingHandicap, low) : null,
               shots: matchStrokesPerHole(t.playingHandicap, low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, ""),
               pickedUp: picksOf(teamId, matchId, ""),
@@ -514,7 +515,10 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               playerId: m.playerId,
               playerName: m.name,
               handicap: m.handicap,
-              playing: m.playing,
+              // Said, not scored on: a partner who has left the field plays off
+              // nothing, and the words list who actually plays.
+              playing: m.withdrawn ? null : m.playing,
+              received: teamMatchPlay && !m.withdrawn ? matchStrokesCount(m.playing ?? 0, low) : null,
               shots: matchStrokesPerHole(m.playing ?? 0, low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, m.playerId),
               pickedUp: picksOf(teamId, matchId, m.playerId),
@@ -549,6 +553,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         matchId,
         opponentName,
         playingHandicap: t.playingHandicap,
+        matchLow: teamMatchPlay && matchId ? low : null,
         cards: cardRows,
         grossTotal: card.grossTotal,
         netTotal: card.netTotal,
