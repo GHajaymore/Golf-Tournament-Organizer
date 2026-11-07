@@ -134,3 +134,14 @@ off EVERY member, a withdrawn partner included, while the screen and the league
 left them out. All three now ask `sideHandicapFromPartners` (teams.ts), which
 requires `withdrawn` of every partner; a sweep refuses a fourth pricer
 (`a-withdrawn-partner-is-not-in-the-stored-match.test.ts`).
+
+**AN AWAY WEEK'S HALVED MATCH IS DECIDED ON THE AWAY CARD** (J26, 2026-11-06). A
+committee that settles a halve on "the toughest N holes" ranks holes by stroke
+index, and the index is the PLAYED course's. The standings, the week view, the
+head-to-head record and the cut out of a match-play round all read the
+tournament's index for every match, so an interclub week at another club was
+decided on the home club's hardest holes — four readers agreeing with each other
+and all wrong. `matchCountbackIndex` (`course-resolution.ts`) is the one answer,
+taking the venue as a required argument; readers get it through
+`countbackCardsFor` / `state.countbackCardFor`. The long form is in
+`combination-sweep.md`, point 7.

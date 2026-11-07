@@ -1,6 +1,5 @@
 import "server-only";
 import { prisma } from "../db";
-import { resolveCourse } from "../courses";
 import { holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles } from "../domain";
 import { aggregateStroke, emptyAgg, netOf } from "../domain/stroke-agg";
 import { skinsPotFor, type SkinsPotView } from "./skins-pot";
@@ -235,11 +234,12 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     where: { eventId },
     select: { stageId: true },
   });
-  const course = await resolveCourse(state.event);
-  // Event level on purpose, and the only thing still resolved that way here:
-  // this orders MATCH tiebreaks across a whole season's chain, not one round's
-  // card. Anything that scores a card goes through `state.strokeCourseFor`.
-  const holeDifficulty = course.strokeIndex ?? [];
+  // No card is resolved at the tournament's level here any more. The MATCH
+  // tiebreaks across a season's chain were (J26, 2026-11-06): "event level on
+  // purpose", which decided an away week's halved match on the home club's
+  // toughest holes. Each match now ranks its own card (`state.countbackCardFor`,
+  // in `standingsWithMovement`); anything that scores a card goes through
+  // `state.strokeCourseFor`.
 
   // The resolvers loadEventState built, not copies of them. Rebuilding either
   // here is exactly the drift handicap-wiring.test.ts exists to stop: both
@@ -522,7 +522,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   // as though this one had been counted.
   const standings = manual
     ? []
-    : await standingsWithMovement(state, weeks, idx, { holeDifficulty });
+    : await standingsWithMovement(state, weeks, idx);
   /**
    * Does this week's result reach the season table?
    *
@@ -636,11 +636,6 @@ async function standingsWithMovement(
   state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>,
   weeks: Array<{ id: string }>,
   idx: number,
-  opts: {
-    // The match-play tiebreak order, which is an event-level chain. A stroke
-    // season's cards are the board's business, per round.
-    holeDifficulty: number[];
-  },
 ): Promise<WeekRow[]> {
   const nameOf = new Map(state.confirmed.map((p) => [p.id, p.name]));
 
@@ -652,7 +647,9 @@ async function standingsWithMovement(
       state.matches,
       state.domainPlayers,
       state.scoring,
-      opts.holeDifficulty,
+      // Each match decided on its OWN venue's toughest holes — an away week
+      // on the away card (J26), exactly as the leaderboard decides it.
+      state.countbackCardFor,
       parseMatchTiebreakers(state.event.matchTiebreakers),
     );
     /**
