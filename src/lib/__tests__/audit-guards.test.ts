@@ -3125,7 +3125,8 @@ describe("every field action asks the one field rule", () => {
     // open/close, capacity"). It moves players only by the waiting list's own order, asked first.
     applyManualCount: "the field limit, an entry term, never a lock",
   };
-  const FIELD_WRITE = /prisma\.player\.(create|createMany|delete|deleteMany)\(|prisma\.player\.update(Many)?\(\{[^;]*data: \{ (status|groupId)\b|\bremoveSignup\(|\bintoFlight\(/;
+  // `tx` as well as `prisma` since J46: addSignup creates under the intake lock, on the transaction client.
+  const FIELD_WRITE = /(?:prisma|tx)\.player\.(create|createMany|delete|deleteMany)\(|prisma\.player\.update(Many)?\(\{[^;]*data: \{ (status|groupId)\b|\bremoveSignup\(|\bintoFlight\(/;
   const fieldActions = [...actions("tournament.ts"), ...actions("roster.ts")].filter((a) => FIELD_WRITE.test(a.body));
   const MUST = ["addSignup", "removeSignup", "removeSignups", "reinstateWithdrawn", "approveSignup", "movePlayerToGroup", "placeInFlight", "importCsvSignups", "addMembersToEvent"];
 
