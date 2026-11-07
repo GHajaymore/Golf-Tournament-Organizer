@@ -31,7 +31,7 @@
  */
 import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
 import { setupFlow, type SetupFacts, type SetupFlow, type SetupStep } from "./setup-flow";
-import type { LaunchCheck, UnratedTees } from "./launch-check";
+import { unratedTeesTodo, type LaunchCheck, type UnratedTees } from "./launch-check";
 import { completingCheckFor, finishRefusal, playRefusal } from "./phase-gate";
 import type { BracketView } from "./bracket";
 import { screenName } from "@/lib/nav";
@@ -504,6 +504,13 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
       // venue alone no longer ticks it while Launch refuses "no dates".
       done = f.named && f.dated;
       missing = !f.dated ? "It needs its dates — mark them tentative if they are not fixed." : s.missing;
+      // J27: tees that cannot give a Course Handicap are a to-do on this step, never a hold
+      // (the launch dialog warns of the same fact, `unratedTeesWarning`, on this same screen).
+      const teesTodo = unratedTeesTodo(f.unratedTees);
+      if (done && !holdsNow && teesTodo && !isFinished(f.status)) {
+        done = false;
+        missing = teesTodo;
+      }
     } else if (s.key === "stages") {
       /**
        * J08: A LEAGUE NEEDS ONLY ITS NEXT WEEK DATED (Golf Pro Q4). Inter-club
