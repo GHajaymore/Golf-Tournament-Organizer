@@ -118,14 +118,14 @@ handicap readers became one (counted off the diff, not the inventory). The four
   play-off (`settleCutTie` → `roundRobinCutAfter`) and the board ask it; swept
   shape by shape in `matrix.test.ts`, and round robin → medal → cut round on
   real rows in `a-round-robin-cut-past-a-medal.audit.test.ts`. The rules sheet
-  (`cutAfterRound`) and the round's card summary ask `cutDecidedBy`, its
-  reverse: a cut prints on the sheet of the round that DECIDES it, naming the
-  round it feeds when that is not the next one, and a cut no engine makes
-  prints nowhere. `cutLineKindOf` is private to `cut-ready.ts`;
+  (`cutAfterRound`), the round's card summary, and the board's "advancing"
+  and the dashboard's cut card (`currentRoundCutOf`) ask `cutDecidedBy`, its
+  reverse: a cut belongs to the round that DECIDES it, naming the round it
+  feeds when that is not the next one, and a cut no engine makes is shown
+  nowhere. `cutLineKindOf` is private to `cut-ready.ts`;
   `one-reading-of-a-cut.test.ts` refuses a round read off its neighbour by
-  index and then asked for its cut, with the right ones listed by reason —
-  and `currentRoundCutRule` (the board's and dashboard's cut) listed as a
-  KNOWN second reading awaiting a ruling.
+  index and then asked for its cut, with only the card cut's own readings
+  (adjacent by definition) listed, each by reason.
 - **Leaving the field** (step 2): three inline copies of "withdrawn or
   disqualified" ask `hasLeftTheField` / `LEFT_THE_FIELD`;
   `left-the-field-is-asked-one-way.test.ts` refuses a fourth. Places that say

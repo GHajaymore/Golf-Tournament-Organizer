@@ -44,6 +44,8 @@ import { createSession, setActiveEvent } from "@/lib/auth";
 import { generateNextRound, settleCutTie, setStageCutTies } from "@/app/actions/tournament";
 import { roundRobinCutOf } from "@/lib/services/regroup";
 import { loadEventState } from "@/lib/services/tournament";
+import { currentRoundCut, currentRoundCutRule } from "@/lib/domain/cut";
+import { cutAfterRound } from "@/lib/domain/cut-ready";
 
 const prisma = new PrismaClient();
 const TAG = "zz-rr-cut-past-medal";
@@ -155,13 +157,24 @@ describe("a round robin's cut taken past a medal: the tie card, the record and t
     expect(made!.outcome.undecided.map((t) => [[...t.playerIds].sort(), t.places, t.by])).toEqual([[[id.bea, id.cat].sort(), 1, "playoff"]]);
   });
 
-  it("the board does not light the table's order across a tie nobody has settled", async () => {
-    // Round 1 is the round being played; the round after it (the medal) has no
-    // cut of its own, so the board marks nobody through on Round 1's table —
-    // least of all Bea, whom the table lists second only on head-to-head.
+  it("the board and the dashboard say what Round 1's sheet says: the cut into Round 3, and the tie", async () => {
+    // Round 1 is the round being played, and its table decides the cut into
+    // Round 3 (`cutDecidedBy`, 2026-11-07) — not the medal beside it. So the
+    // board lights Ann alone, marks Bea and Cat tied by play-off, and never
+    // lights Bea, whom the table lists second only on head-to-head.
     const state = (await loadEventState(eventId))!;
-    expect(state.advancingIds.has(id.bea), "Bea is in a tie, not through").toBe(false);
-    expect(state.advancingIds.has(id.cat), "nor Cat").toBe(false);
+    expect(state.qualifying, "a cut is being played for").toBe(true);
+    expect([...state.advancingIds]).toEqual([id.ann]);
+    expect(state.cutTiesUndecided.map((t) => [[...t.playerIds].sort(), t.places, t.by])).toEqual([[[id.bea, id.cat].sort(), 1, "playoff"]]);
+    // The dashboard's card, from the rounds the dashboard hands it.
+    const at = state.playRounds.findIndex((s) => s.id === state.activeStage?.id);
+    expect(state.activeStage?.id, "Round 1 is the round being played").toBe(r1);
+    const card = currentRoundCut(state.playRounds, at, 1)!;
+    expect(card.label).toBe("Round 1 → Round 3 · top 2 advance");
+    // And Round 1's rules sheet, the same cut into the same round.
+    const sheet = cutAfterRound(state.playRounds, r1)!;
+    expect(sheet.into).toBe("Round 3");
+    expect(sheet.rule).toEqual(currentRoundCutRule(state.playRounds, at));
   });
 
   it("the draw refuses, the play-off is recorded against Round 1, and Round 3 is drawn with its winner", async () => {

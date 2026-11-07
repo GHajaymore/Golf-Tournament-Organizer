@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
 import { playedOnBy } from "./courses";
-import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound, isStructuralStage } from "../stage-types";
+import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isStructuralStage } from "../stage-types";
 import {
   roundHandicapKey,
   type RoundHandicapRow,
@@ -19,13 +19,13 @@ import {
   cutLineRows,
   cutTieRuleOf,
   cutTieDecisionsOf,
-  currentRoundCutRule,
+  currentRoundCutOf,
   fieldEnteringRound,
   type CutCandidate,
   type CutTie,
 } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
-import { roundReadyForCut, cutProgress, cutHasBeenMade, cutFeederOf } from "../domain/cut-ready";
+import { roundReadyForCut, cutProgress, cutHasBeenMade } from "../domain/cut-ready";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
@@ -2665,9 +2665,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     advancingIds = qualifierIds;
   } else {
     const activePlayIdx = activeStage ? playRounds.findIndex((s) => s.id === activeStage.id) : -1;
-    const cutRule = currentRoundCutRule(playRounds, activePlayIdx);
+    // The cut the active round DECIDES and the round it feeds (`currentRoundCutOf`
+    // → `cutDecidedBy`), the answer the rules sheet prints — past a medal too.
+    const cut = currentRoundCutOf(playRounds, activePlayIdx);
+    const cutRule = cut?.rule ?? null;
     qualifying = !!cutRule;
-    if (!cutRule) {
+    if (!cut || !cutRule) {
       advancingIds = new Set<string>();
     } else {
       // Ranked in finishing order, which survivors() takes the front of — per
@@ -2713,13 +2716,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
        * records the play-off or the draw — `strokeCutOutcome`, the one answer
        * `applyStrokeCut` makes the cut with. Never a provisional pick.
        */
-      const activeRound = playRounds[activePlayIdx];
-      const nextRound = playRounds[activePlayIdx + 1];
-      const strokeCut =
-        isStroke && !!activeRound && !!nextRound &&
-        isIndividualStrokeRound(activeRound) && isIndividualStrokeRound(nextRound);
-      // What the cut into the next round is taken out of, and on what (`cutFeederOf`).
-      const line = nextRound ? cutFeederOf(playRounds, nextRound.id) : null;
+      // The round the cut feeds; a stroke cut is the round just played's cards
+      // (`cut.kind`, from `cutFeederOf` — both rounds individual stroke play).
+      const nextRound = cut.next;
+      const strokeCut = isStroke && cut.kind === "card";
       if (strokeCut) {
         const outcome = strokeCutOutcome(
           cutLineRows(strokeStandings, rankingBasis),
@@ -2729,7 +2729,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         );
         advancingIds = outcome.through;
         cutTiesUndecided = outcome.undecided;
-      } else if (!isStroke && line?.kind === "table" && line.feeder.id === activeRound?.id && !!nextRound && tableHasResults(stillIn)) {
+      } else if (!isStroke && cut.kind === "table" && tableHasResults(stillIn)) {
         /**
          * A ROUND ROBIN'S CUT IS LIT THE WAY IT IS MADE (J31, 2026-11-06):
          * `roundRobinCutOutcome`, which `generateCutRound` draws the next round
@@ -2741,8 +2741,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * level on nought, and a tie of the whole field is nobody's play-off.
          *
          * And only where the cut is taken out of THIS table — the round robin
-         * the board holds — asked of `cutFeederOf`, the function the tie card
-         * and `settleCutTie` ask, so the three cannot name different rounds.
+         * the board holds — which `cutDecidedBy` guarantees: it is the cut
+         * whose feeder (`cutFeederOf`, the function the tie card and
+         * `settleCutTie` ask) is the active round.
          */
         const outcome = roundRobinCutOutcome(stillIn, nextRound);
         advancingIds = outcome.through;

@@ -12,7 +12,7 @@
  */
 
 import { formGroups } from "./grouping";
-import { cutRuleOf, cutTieRuleOf, type CutTieRule } from "./cut-ready";
+import { cutRuleOf, cutTieRuleOf, cutDecidedBy, type CutTieRule } from "./cut-ready";
 import { scoreOnBasis, type BasisScore, type RankingBasis } from "./stroke-countback";
 import type { Player } from "./types";
 
@@ -567,20 +567,37 @@ export interface RoundCutLine {
  * card labels it (via `currentRoundCut`). A knockout uses event-level
  * qualification instead, which is why the caller only asks here when there is
  * no bracket/qualification stage to advance into.
+ *
+ * AND IT IS THE CUT THE ACTIVE ROUND DECIDES (2026-11-07, ruled on the J31
+ * review): `cutDecidedBy`, the function the rules sheet prints from — not
+ * simply the round beside it. For round robin → medal → cut round, while
+ * Round 1 is played its table decides the cut into Round 3, and the board and
+ * the dashboard say so, as Round 1's sheet does; the medal's scores decide
+ * nothing of it. A cut no engine makes (no table, no card before it) is no
+ * cut here either.
  */
-export function currentRoundCutRule(
-  rounds: RoundCutFields[],
+export function currentRoundCutOf<R extends RoundCutFields & { id: string; type: string; format: string }>(
+  rounds: readonly R[],
+  activeIndex: number,
+): { rule: CutRule; next: R; nextIndex: number; kind: CutLineKind } | null {
+  const active = activeIndex >= 0 ? rounds[activeIndex] : undefined;
+  if (!active) return null;
+  const decided = cutDecidedBy(rounds, active.id);
+  if (!decided) return null;
+  return { rule: cutRuleOf(decided.next), next: decided.next, nextIndex: rounds.indexOf(decided.next), kind: decided.kind };
+}
+
+/** Only the rule of `currentRoundCutOf`. */
+export function currentRoundCutRule<R extends RoundCutFields & { id: string; type: string; format: string }>(
+  rounds: readonly R[],
   activeIndex: number,
 ): CutRule | null {
-  if (activeIndex < 0) return null;
-  const next = rounds[activeIndex + 1];
-  if (!next || !next.cutEnabled) return null;
-  return cutRuleOf(next);
+  return currentRoundCutOf(rounds, activeIndex)?.rule ?? null;
 }
 
 /** The current round's cut as a one-line dashboard label, or null. */
-export function currentRoundCut(
-  rounds: RoundCutFields[],
+export function currentRoundCut<R extends RoundCutFields & { id: string; type: string; format: string }>(
+  rounds: readonly R[],
   activeIndex: number,
   /**
    * The round the BOARD is showing, 1-based, or 0 when nothing has been
@@ -589,14 +606,16 @@ export function currentRoundCut(
    */
   playedThrough = 0,
 ): RoundCutLine | null {
-  const rule = currentRoundCutRule(rounds, activeIndex);
-  if (!rule) return null;
+  const cut = currentRoundCutOf(rounds, activeIndex);
+  if (!cut) return null;
+  const { rule } = cut;
 
   const perFlight = rule.scope === "perFlight";
   const amount = rule.mode === "percent" ? `${rule.percent}%` : `${rule.count}`;
   const advance = `top ${amount}${perFlight ? " per flight" : ""} advance`;
   const fromRound = activeIndex + 1;
-  const toRound = activeIndex + 2;
+  // The round the cut FEEDS, which past a medal is not the next one.
+  const toRound = cut.nextIndex + 1;
 
   /**
    * THREE STATES, AND THE CARD SHOULD READ DIFFERENTLY IN EACH.

@@ -85,7 +85,8 @@ function adjacentCutReadings(src: string): string[] {
 }
 
 /**
- * THE READINGS BY ADJACENCY THAT ARE RIGHT, OR KNOWN — each with why.
+ * THE READINGS BY ADJACENCY THAT ARE RIGHT — each with why. A card cut's
+ * feeder IS the round beside it; nothing else is listed.
  * A new one fails this test until somebody writes its line here.
  */
 const ALLOWED: Record<string, string> = {
@@ -94,12 +95,8 @@ const ALLOWED: Record<string, string> = {
   "src/lib/domain/cut-ready.ts:before": "cutFeederOf itself — the card clause, the one place the round beside a cut is asked",
   "src/lib/domain/cut-ready.ts:next": "cutRoundAfter — a stroke cut's readiness: the card clause of cutFeederOf",
   "src/lib/services/stroke-cut.ts:next": "the stroke-cut engine: a card cut is out of the round just played",
-  "src/lib/services/tournament.ts:nextRound": "the board's stroke branch (card, adjacent by definition); its round-robin branch asks cutFeederOf",
-  // KNOWN SECOND READING, reported on #1049 (2026-11-07) for a ruling: the
-  // board's "is anybody advancing" and the dashboard's cut label take the cut
-  // of the round beside the active one, so for round robin → medal → cut round
-  // they say nothing while Round 1 is played, where the sheet prints the cut.
-  "src/lib/domain/cut.ts:next": "currentRoundCutRule — KNOWN: adjacent; awaiting a ruling to ask cutDecidedBy",
+  // No second readings. The board's "advancing" and the dashboard's cut label
+  // (`currentRoundCutOf`) ask `cutDecidedBy` since 2026-11-07.
 };
 
 describe("one reading of which round decides a cut", () => {
