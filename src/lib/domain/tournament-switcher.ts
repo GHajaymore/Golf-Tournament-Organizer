@@ -1,5 +1,6 @@
 import { byBand, type EventBand } from "./club-event-card";
 import { isPlayingRound } from "../stage-types";
+import type { TournamentStep } from "./tournament-step";
 
 /**
  * WHICH TOURNAMENT THE PLAY SHELL IS SHOWING, AND WHERE ELSE A MEMBER CAN GO.
@@ -36,13 +37,17 @@ export interface SwitchableRow {
   awaiting?: boolean;
   canView: boolean;
   /**
-   * The organizer’s lifecycle word — "live" is how the switcher tells a
-   * player which of their tournaments is being played now. Optional so a
-   * caller without it behaves as before.
+   * WHERE THE TOURNAMENT IS, AS THE MACHINE SAYS IT (`tournamentStatus`, through
+   * `tournamentStepsFor`; state machine PR 6) — how the switcher tells a player
+   * which of their tournaments is being played now, and which is over. Read
+   * for the rows the note words it on (the member's own, `band: "entered"`);
+   * null or absent elsewhere, and then nothing is said about it.
+   *
+   * It was the stored word ("live") and `playOverOf` (every round closed), so a
+   * knockout whose Final was decided read "Playing now" until somebody pressed
+   * Complete (D3), and a draft with cards on it said nothing at all (D5).
    */
-  eventStatus?: string;
-  /** Every round closed by the committee — see `playOverOf`. Optional, as above. */
-  playOver?: boolean;
+  step?: Pick<TournamentStep, "step" | "journey"> | null;
   /**
    * The member's own stroke card in this tournament that still needs them —
    * see `openCardOf`. Optional so a caller without it behaves as before.
@@ -99,6 +104,13 @@ export function openCardOf(strokesJson: string, holes: number, roundClosed: bool
  * not marked it completed yet. The header said "You’re in · Playing now" over
  * a board reading FINAL, for as long as nobody pressed Complete. A tournament
  * with no rounds has not been played, so it is not over.
+ *
+ * RETIRED AS A READER (state machine PR 6): the switcher and the secretary's
+ * home ask the machine's step, whose play over is this for a medal and the
+ * Final decided for a knockout — which this could never see. Kept only as the
+ * shadow test's record of what was asked before (`tournament-status-shadow`),
+ * until PR 9 deletes the dead twins; `the-tournament-is-asked-one-way` refuses
+ * it to every screen.
  */
 export function playOverOf(stages: readonly { type: string; closedAt: Date | null }[]): boolean {
   const rounds = stages.filter((s) => isPlayingRound(s.type));
@@ -153,6 +165,15 @@ export function isWaiting(
   return !!row && !row.entered && !!row.waiting && !isStaff;
 }
 
+/**
+ * BEING PLAYED: the machine's journey is at Play — launched and not completed,
+ * or not launched with results already in (D5: a draft being played is being
+ * played, whatever its status column says).
+ */
+function beingPlayed(row: SwitchableRow): boolean {
+  return row.step?.journey === "play";
+}
+
 function noteOf(row: SwitchableRow, isStaff: boolean): string {
   // The "entered" band's label IS "You’re in", so it is not said twice. A
   // finished band says "Finished" whether they played or not, so who they
@@ -179,13 +200,13 @@ function noteOf(row: SwitchableRow, isStaff: boolean): string {
       ? "Your card · to sign"
       : `Your card · thru ${card.thru}`
     : row.band === "entered"
-      ? row.eventStatus === "live"
-        ? row.playOver
-          ? "Play complete"
-          : row.cutOut
+      ? row.step?.step === "play-over"
+        ? "Play complete"
+        : beingPlayed(row)
+          ? row.cutOut
             ? "Missed the cut"
             : "Playing now"
-        : ""
+          : ""
       : row.bandLabel;
   return [who, what].filter(Boolean).join(" · ");
 }
@@ -227,7 +248,7 @@ export function switcherFor(rows: readonly SwitchableRow[], activeId: string | n
  * to get back to.
  */
 function playingFirst<T extends SwitchableRow>(rows: T[]): T[] {
-  const now = (r: T) => (r.band !== "entered" ? 2 : r.openCard ? 0 : r.eventStatus === "live" ? 1 : 2);
+  const now = (r: T) => (r.band !== "entered" ? 2 : r.openCard ? 0 : r.step?.journey === "play" ? 1 : 2);
   return rows.map((r, i) => ({ r, i })).sort((a, b) => {
     if (a.r.band === "entered" && b.r.band === "entered") return now(a.r) - now(b.r) || a.i - b.i;
     return a.i - b.i;

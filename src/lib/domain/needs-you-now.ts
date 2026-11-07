@@ -1,4 +1,5 @@
 import type { ReviewQueue } from "./review-queue";
+import type { TournamentStatus } from "./tournament-status";
 import { addDays, shortDate } from "./round-dates";
 
 /**
@@ -80,8 +81,10 @@ export function needsYouNow(input: {
  *
  *   entries    "Entries close Fri 24 Oct · 3 entries awaiting approval"
  *   tee sheet  "Round 1 tee sheet for Sat 25 Oct is not published"
+ *   launch     "Starts Sat 25 Oct · ready to launch"
+ *   draw       "Round 2 is not drawn yet"              (the next action, once live)
  *   cards      "Round 2: 4 cards not returned"
- *   results    "Every round is closed · results not released"
+ *   results    "Every round closed · results not released"
  *
  * — each with the one button that goes to the screen that does it.
  *
@@ -90,13 +93,24 @@ export function needsYouNow(input: {
  * the screens they point to ask: entries awaiting approval as Entries lists
  * them (`awaitingApproval`), the round the tee-sheet screen opens on
  * (`nextUnplayedRound`) and its `teeSheetPublished`, the board's round and its
- * `boardProgress`, and `playOverOf` for a tournament whose golf is finished.
- * This function only words and orders them, so the home cannot disagree with
- * the screen it sends the secretary to.
+ * `boardProgress`. This function only words and orders them, so the home
+ * cannot disagree with the screen it sends the secretary to.
+ *
+ * THE TOURNAMENT'S OWN JOB IS THE MACHINE'S (state machine PR 6, J15): the one
+ * next action of `tournamentStatus(facts)` — launch it, draw the next round,
+ * date the next week, complete it — WITH ITS REFUSAL. So the home never says
+ * "Complete the tournament" over a card the dashboard then refuses to complete
+ * on (D3): it says the refusal and offers its way out. And a knockout whose
+ * Final is decided reaches the home at all, which "every round closed" never
+ * let it do — nobody closes a Bracket Stage (D3k).
  */
 
-/** The screens a job may send somebody to — and so the only ones `enterTournament` will open with one. */
-export const JOB_SCREENS = ["/registration", "/foursomes", "/entry", "/dashboard"] as const;
+/**
+ * The screens a job may send somebody to — and so the only ones `enterTournament` will open with one.
+ * Rounds & formats joined with the machine's next actions (PR 6): a live tournament's next round is
+ * drawn there, and a league's next week is dated there.
+ */
+export const JOB_SCREENS = ["/registration", "/foursomes", "/stages", "/entry", "/dashboard"] as const;
 export type JobScreen = (typeof JOB_SCREENS)[number];
 export const isJobScreen = (v: unknown): v is JobScreen =>
   typeof v === "string" && (JOB_SCREENS as readonly string[]).includes(v);
@@ -126,11 +140,18 @@ export interface TournamentJobFacts {
     certified: number;
     total: number;
   } | null;
-  /** Launched, not completed, and every round closed (`playOverOf`). */
-  resultsWaiting: boolean;
+  /**
+   * THE MACHINE'S ANSWER for this tournament (`tournamentStatus(facts)`): its
+   * step, the line under "Play over", whether results are in unlaunched, and
+   * THE one next action with its refusal and way out. Never worked out here.
+   */
+  status: Pick<TournamentStatus, "step" | "chipDetail" | "underWayUnlaunched" | "nextAction">;
+  /** Its first and last day, `yyyy-mm-dd` or "" — when a launch falls due. */
+  startOn: string;
+  endOn: string;
 }
 
-export type ClubJobKey = "entries" | "tee-sheet" | "cards" | "results";
+export type ClubJobKey = "entries" | "tee-sheet" | "launch" | "schedule" | "draw" | "cards" | "results";
 
 export interface ClubJob {
   key: ClubJobKey;
@@ -143,7 +164,74 @@ export interface ClubJob {
   due: string;
 }
 
-const JOB_ORDER: Record<ClubJobKey, number> = { entries: 0, "tee-sheet": 1, cards: 2, results: 3 };
+const JOB_ORDER: Record<ClubJobKey, number> = { entries: 0, "tee-sheet": 1, launch: 2, schedule: 3, draw: 4, cards: 5, results: 6 };
+
+/** A launch is a job once the first day is this near — the tee sheet's fortnight. */
+export const LAUNCH_AHEAD_DAYS = TEE_SHEET_AHEAD_DAYS;
+
+const isIso = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+/**
+ * THE TOURNAMENT'S OWN JOB — its next action, as the machine gives it.
+ *
+ *   setting up   Launch, when the first day is within a fortnight and not yet
+ *                gone (a championship in March is not this week's work, and
+ *                one whose dates went by unlaunched is the Tournaments list's
+ *                "Dates passed", not a job) — or at once when results are in
+ *                on it unlaunched (D2, D5)
+ *   live         the next round's draw or the next week's day, when that is
+ *                the next action; Complete is NOT a job while golf is being
+ *                played — the cards are
+ *   play over    Complete, or its refusal: "1 result is still waiting to be
+ *                signed off" with Open Score entry, never a button the
+ *                dashboard would refuse (D3)
+ *   completed    nothing: a completed tournament never appears
+ *
+ * A refused action goes to its way out when that is a job's screen, and to the
+ * dashboard otherwise, where the refusal is said in place with its way out.
+ */
+function lifecycleJob(t: TournamentJobFacts, today: string, day: (iso: string) => string): ClubJob | null {
+  const st = t.status;
+  const next = st.nextAction;
+  if (!next) return null;
+  const base = { eventId: t.eventId, eventName: t.name };
+  const refused = (lead: string): Pick<ClubJob, "text" | "href" | "action"> => {
+    const way = next.wayOut;
+    const out = way && isJobScreen(way.href) ? way.href : null;
+    return {
+      text: lead ? `${lead} · ${next.disabledBecause ?? ""}` : (next.disabledBecause ?? ""),
+      href: out ?? "/dashboard",
+      action: out && way ? way.says : next.kind === "launch" ? "Finish setting up" : "Open the dashboard",
+    };
+  };
+  const pressed = (href: string): JobScreen => (isJobScreen(href) ? href : "/dashboard");
+
+  if (st.step === "setting-up" && next.kind === "launch") {
+    const first = isIso(t.startOn) ? t.startOn : "";
+    const last = isIso(t.endOn) ? t.endOn : first;
+    const soon = !!first && first <= addDays(today, LAUNCH_AHEAD_DAYS) && last >= today;
+    if (!soon && !st.underWayUnlaunched) return null;
+    const lead = st.underWayUnlaunched ? "Results are in · not launched" : `Starts ${day(first)}`;
+    const due = first && first > today ? first : today;
+    if (!next.enabled) return { ...base, key: "launch", due, ...refused(lead) };
+    return { ...base, key: "launch", text: `${lead}${st.underWayUnlaunched ? "" : " · ready to launch"}`, href: "/dashboard", action: next.label, due };
+  }
+  if (st.step === "live" && (next.kind === "draw" || next.kind === "schedule")) {
+    return {
+      ...base,
+      key: next.kind,
+      text: next.kind === "draw" ? "The next round is not drawn yet" : "The next week has no day or deadline yet",
+      href: pressed(next.href),
+      action: next.label,
+      due: today,
+    };
+  }
+  if (st.step === "play-over" && next.kind === "complete") {
+    if (!next.enabled) return { ...base, key: "results", due: today, ...refused("") };
+    return { ...base, key: "results", text: st.chipDetail, href: pressed(next.href), action: next.label, due: today };
+  }
+  return null;
+}
 
 export function whatsNext(input: {
   tournaments: readonly TournamentJobFacts[];
@@ -212,16 +300,8 @@ export function whatsNext(input: {
       }
     }
 
-    if (t.resultsWaiting) {
-      jobs.push({
-        ...base,
-        key: "results",
-        text: "Every round is closed · results not released",
-        href: "/dashboard",
-        action: "Complete the tournament",
-        due: today,
-      });
-    }
+    const own = lifecycleJob(t, today, day);
+    if (own) jobs.push(own);
   }
 
   return jobs.sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : JOB_ORDER[a.key] - JOB_ORDER[b.key]));
