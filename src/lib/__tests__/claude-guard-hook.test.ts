@@ -3,7 +3,7 @@
 // refuse — so a change that breaks the contract (wrong exit code, a crash that exits 1
 // and lets everything through) fails here, not silently in a session.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -142,5 +142,51 @@ describe("a commit carrying contact details", () => {
     const r = run("git commit -m x", { cwd: path.join(tmpdir(), "zz-guard-no-such-dir") });
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("could not read");
+  });
+});
+
+describe("prisma generate in a worktree (one shared client)", () => {
+  let main: string;
+  let tree: string;
+  const g = (dir: string, ...args: string[]) => {
+    const r = spawnSync("git", ["-C", dir, "-c", "user.name=zz-guard", "-c", "user.email=zz-guard@example.invalid", ...args], { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr);
+  };
+
+  beforeAll(() => {
+    main = mkdtempSync(path.join(tmpdir(), "zz-guard-main-"));
+    tree = `${main}-tree`;
+    g(main, "init", "-q");
+    mkdirSync(path.join(main, "prisma"));
+    writeFileSync(path.join(main, "prisma", "schema.prisma"), "model A {\n  id Int @id\n}\n");
+    g(main, "add", "prisma/schema.prisma");
+    g(main, "commit", "-q", "-m", "seed");
+    g(main, "worktree", "add", "-q", "-b", "zz-branch", tree);
+  });
+  afterAll(() => {
+    rmSync(tree, { recursive: true, force: true });
+    rmSync(main, { recursive: true, force: true });
+  });
+
+  it("is let through while the schema matches main's", () => {
+    expect(run("npx prisma generate", { cwd: tree }).code).toBe(0);
+  });
+
+  it("is refused once the worktree's schema differs, in every spelling", () => {
+    writeFileSync(path.join(tree, "prisma", "schema.prisma"), "model A {\n  id Int @id\n  extra Int?\n}\n");
+    for (const command of ["npx prisma generate", "npm run db:generate", "cd . && npx prisma generate --no-hints"]) {
+      const r = run(command, { cwd: tree });
+      expect(r.code, command).toBe(2);
+      expect(r.stderr).toContain("Shared Prisma client");
+    }
+  });
+
+  it("is let through from the main checkout itself, and with the flag", () => {
+    expect(run("npx prisma generate", { cwd: main }).code).toBe(0);
+    expect(run("PRISMA_SHARED_CLIENT_OK=1 npx prisma generate", { cwd: tree }).code).toBe(0);
+  });
+
+  it("does not read other prisma commands as a generate", () => {
+    expect(run("npx prisma validate", { cwd: tree }).code).toBe(0);
   });
 });
