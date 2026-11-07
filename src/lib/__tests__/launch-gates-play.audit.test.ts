@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { playRefusalFor } from "@/lib/services/action-shared";
+// The machine's play refusal since state machine PR 4 (`playRefusalFor` retired, D2).
+import { playRefusedBecause } from "@/lib/services/tournament-status";
 
 /**
  * THE GATE AGAINST REAL ROWS.
@@ -67,7 +68,7 @@ describe("a tournament nobody has played yet", () => {
   it("refuses a score while it sits in draft", async () => {
     const e = await event("fresh", "draft");
     await stage(e.id);
-    const refusal = await playRefusalFor(e.id);
+    const refusal = await playRefusedBecause(e.id);
     expect(refusal, "a draft tournament with nothing played let a score through").toBeTruthy();
     expect(refusal!).toMatch(/launch/i);
   });
@@ -75,7 +76,7 @@ describe("a tournament nobody has played yet", () => {
   it("lets it through the moment it is launched", async () => {
     const e = await event("launched", "live");
     await stage(e.id);
-    expect(await playRefusalFor(e.id), "a launched tournament was gated").toBeNull();
+    expect(await playRefusedBecause(e.id), "a launched tournament was gated").toBeNull();
   });
 });
 
@@ -100,7 +101,7 @@ describe("a tournament already under way is not locked out", () => {
       },
     });
     expect(
-      await playRefusalFor(e.id),
+      await playRefusedBecause(e.id),
       "a draft tournament with a card in was locked out mid-round",
     ).toBeNull();
   });
@@ -132,7 +133,7 @@ describe("a tournament already under way is not locked out", () => {
 
     // Drawn but not played: still refused, because a draw is setting up.
     expect(
-      await playRefusalFor(e.id),
+      await playRefusedBecause(e.id),
       "an empty draw was treated as a tournament already under way",
     ).toBeTruthy();
 
@@ -142,7 +143,7 @@ describe("a tournament already under way is not locked out", () => {
       data: { holes: JSON.stringify(["A", ...new Array(17).fill(null)]) },
     });
     expect(
-      await playRefusalFor(e.id),
+      await playRefusedBecause(e.id),
       "a draft tournament with a hole played was locked out mid-round",
     ).toBeNull();
   });
@@ -173,8 +174,36 @@ describe("a tournament already under way is not locked out", () => {
       },
     });
     expect(
-      await playRefusalFor(e.id),
+      await playRefusedBecause(e.id),
       "a team day already under way was told to launch itself first",
+    ).toBeNull();
+  });
+
+  it("D2: a WALKOVER counts as under way — the machine's one definition, not a private one (state machine PR 4)", async () => {
+    /**
+     * `playRefusalFor` asked its own four tables and a match counted only with a
+     * hole played, so a draft round robin whose first result was a walkover was
+     * "not started" at the scoring gate while Rounds & formats, completing and
+     * the machine's `hasResult` (`roundsWithResultsFrom`: "a forfeit is a
+     * result") called it under way. The gate now asks the machine.
+     */
+    const e = await event("walkover-in-draft", "draft");
+    const s = await prisma.stage.create({
+      data: { eventId: e.id, position: 0, type: "Round Robin", format: "Match Play", holes: 18 },
+    });
+    const [a, b] = await Promise.all([
+      prisma.player.create({ data: { eventId: e.id, name: `${TAG} WA`, seed: 1, status: "confirmed" } }),
+      prisma.player.create({ data: { eventId: e.id, name: `${TAG} WB`, seed: 2, status: "confirmed" } }),
+    ]);
+    const group = await prisma.group.create({ data: { eventId: e.id, name: "A", position: 0 } });
+    const match = await prisma.match.create({
+      data: { eventId: e.id, stageId: s.id, groupId: group.id, round: 1, playerAId: a.id, playerBId: b.id, holes: JSON.stringify(new Array(18).fill(null)) },
+    });
+    expect(await playRefusedBecause(e.id), "an empty draw was treated as under way").toBeTruthy();
+    await prisma.match.update({ where: { id: match.id }, data: { forfeitedBy: b.id } });
+    expect(
+      await playRefusedBecause(e.id),
+      "a draft round robin with a walkover recorded was told to launch itself first",
     ).toBeNull();
   });
 });

@@ -91,6 +91,17 @@ async function finish(page: Page, round: string) {
   const closedNotes = page.getByText(/Closed\. Untick it/);
   const before = await closedNotes.count();
   await box.click();
+  /**
+   * Cards typed or imported by the committee are not approved yet, so closing
+   * asks first, naming whose (state machine PR 4; the TD's ruling, panel 8.1
+   * Q4) — and the secretary closing the round over them answers Close anyway.
+   */
+  const anyway = page.getByRole("button", { name: "Close anyway" });
+  await expect(closedNotes.nth(before).or(anyway)).toBeVisible({ timeout: 30_000 });
+  if (await anyway.isVisible()) {
+    await expect(page.getByRole("group", { name: "Close the round anyway?" })).toContainText(`approved yet. Close ${round} anyway?`);
+    await anyway.click();
+  }
   await expect(closedNotes).toHaveCount(before + 1, { timeout: 30_000 });
 }
 

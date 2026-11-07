@@ -1,5 +1,6 @@
 import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
+import { sideNamesOf } from "@/lib/services/side-names";
 import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf, loadEventState } from "@/lib/services/tournament";
 import { allowsAutoConfirm, isLeaderboardPublic, mayOpenBoard } from "@/lib/tournament-settings";
@@ -483,9 +484,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         ...(await prisma.player.findMany({ where: { id: { in: otherIds }, eventId: event.id }, select: { id: true, name: true } })).map(
           (p) => [p.id, p.name] as const,
         ),
-        ...(await prisma.team.findMany({ where: { id: { in: otherIds }, eventId: event.id }, select: { id: true, name: true } })).map(
-          (t) => [t.id, t.name] as const,
-        ),
+        ...(await sideNamesOf(event.id, otherIds)),
       ])
     : new Map<string, string>();
   // A groupmate's match the scorer keeps is named by both sides, as drawn.

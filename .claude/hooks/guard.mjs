@@ -17,6 +17,9 @@
 //                                     Hard rule 3 — main reaches production only via a PR
 //   git commit whose changes hold a real-looking email address or phone number
 //                                     Hard rule 2 — the repository is public
+//   prisma generate (or npm run db:generate) in a worktree whose prisma/schema.prisma differs
+//                                     from the main checkout's: every worktree shares the main
+//                                     checkout's node_modules, so it replaces EVERYONE's client
 //   PowerShell writing a source file  "Never rewrite a source file with PowerShell"
 //   on Windows only: Playwright, next dev/start/build, npm run dev/build/start/test:e2e/
 //   smoke:all/electron:*              Ajay's ruling: no builds, servers or browsers on
@@ -149,7 +152,51 @@ const NOT_ON_DESKTOP =
   "Builds, dev servers, Playwright and browsers do not run on Ajay's desktop (his ruling). " +
   "Push a round branch and let CI run it, or run it in a cloud session.";
 
-function checkSegment(words, platform) {
+/** The main checkout's folder, from any worktree of it; null when dir is not in a repository. */
+function mainCheckout(dir) {
+  try {
+    const common = git(dir, ["rev-parse", "--path-format=absolute", "--git-common-dir"]).trim();
+    return path.dirname(common);
+  } catch {
+    return null;
+  }
+}
+
+function readSchema(root) {
+  const file = path.join(root, "prisma", "schema.prisma");
+  return existsSync(file) ? readFileSync(file, "utf8").replace(/\r\n/g, "\n") : null;
+}
+
+/**
+ * Every worktree reaches the main checkout's node_modules (.claude/settings.json), so there is ONE generated
+ * Prisma client. `prisma generate` from a branch whose schema differs from main's replaces it for every other
+ * worktree: their tsc and audit tests then fail with "The column ... does not exist" (6-7 Nov, three engineers).
+ */
+export function sharedClientRefusal(dir, env = process.env) {
+  if (env.PRISMA_SHARED_CLIENT_OK === "1") return null;
+  const main = mainCheckout(dir);
+  if (!main) return null;
+  let top;
+  try {
+    top = git(dir, ["rev-parse", "--show-toplevel"]).trim();
+  } catch {
+    return null;
+  }
+  if (path.resolve(top) === path.resolve(main)) return null; // regenerating from main itself is the repair
+  const mine = readSchema(top);
+  const theirs = readSchema(main);
+  if (mine === null || theirs === null || mine === theirs) return null;
+  return refuse(
+    "Shared Prisma client: this worktree's prisma/schema.prisma differs from the main checkout's, and every worktree shares " +
+      "the main checkout's node_modules, so `prisma generate` here would replace the client under every other engineer " +
+      '(their tsc and audit tests fail with "The column ... does not exist"). Do not generate from a branch with a schema change. ' +
+      "Run `node scripts/prisma-client-check.mjs` (read-only) to see whose schema the shared client holds, say in your report that " +
+      "the client is stale, and leave regenerating to the main session after merge. If you are sure nobody else is mid-run, repeat " +
+      "the command with PRISMA_SHARED_CLIENT_OK=1 in front of it. Long form: docs/claude/migrations.md.",
+  );
+}
+
+function checkSegment(words, platform, dir) {
   // A word holding spaces came from quotes (a message, a title): text, not part of the command.
   const joined = words.map((w) => (/\s/.test(w) ? "_" : w)).join(" ");
   const git = gitCall(words);
@@ -172,6 +219,16 @@ function checkSegment(words, platform) {
   }
   if (/\bprisma (migrate reset|db push\b.*--(force-reset|accept-data-loss))/.test(joined) || /\bnpm (run )?db:reset\b/.test(joined)) {
     return refuse("Hard rule 6: never drop or reset the development database. If Prisma asks for a reset, fix the drift by hand (docs/claude/migrations.md).");
+  }
+  if (dir && (/\bprisma generate\b/.test(joined) || /\bnpm (run )?db:generate\b/.test(joined))) {
+    const env = { ...process.env };
+    for (const w of words) {
+      const m = /^PRISMA_SHARED_CLIENT_OK=(.*)$/.exec(w);
+      if (m) env.PRISMA_SHARED_CLIENT_OK = m[1];
+      else if (!/^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) break;
+    }
+    const hit = sharedClientRefusal(dir, env);
+    if (hit) return hit;
   }
   if (platform === "win32") {
     if (/\bplaywright (test|install|codegen|open|show-report|ui)\b/.test(joined)) return refuse(NOT_ON_DESKTOP);
@@ -296,7 +353,7 @@ export function verdict(input, platform = process.platform) {
       dir = path.resolve(dir, words[1]);
       continue;
     }
-    const hit = checkSegment(words, platform);
+    const hit = checkSegment(words, platform, dir);
     if (hit) return hit;
     const call = gitCall(words);
     if (!call) continue;

@@ -61,9 +61,10 @@ describe("the tournament's dates", () => {
     // setup flow's facts, which the launch action asks (gap G3, 2026-10-31).
     // Since PR 2 of the state machine those facts are the setup side of the
     // one facts read (services/tournament-facts.ts), handed over unchanged by
-    // `setupFactsOf`.
-    expect(actions).toMatch(/await launchCheckFor\(eventId\)/);
-    expect(readSource("src", "lib", "services", "setup-flow.ts")).toMatch(/import \{ setupFactsFor \} from "\.\/tournament-facts"/);
+    // `setupFactsOf`. Since PR 4 the action asks the machine, whose launch
+    // refusal is that flow's verdict first (`refusals.launch`).
+    expect(actions).toMatch(/const refusal = told\.status\.refusals\.launch;/);
+    expect(readSource("src", "lib", "services", "tournament-status.ts")).toMatch(/tournamentFactsFor\(eventId, today\)/);
     expect(readSource("src", "lib", "services", "tournament-facts.ts")).toMatch(/dated: !!event\.dates\.trim\(\)/);
     expect(readSource("src", "lib", "domain", "tournament-status.ts")).toMatch(/dated: f\.dated/);
     expect(readSource("src", "lib", "domain", "launch-check.ts")).toMatch(/dated: f\.dated/);

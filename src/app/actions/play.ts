@@ -15,7 +15,8 @@ import { effectiveScoreStatus } from "@/lib/services/tournament";
 import { isCardLocked, isPartnerCardSigned, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { assertSignsCards } from "@/lib/services/scorecard-write";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
-import { playRefusalFor } from "@/lib/services/action-shared";
+// The machine's play refusal (`refusals.play`, state machine PR 4).
+import { playRefusedBecause } from "@/lib/services/tournament-status";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { cleanHoleResults, cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { matchIsOver } from "@/lib/domain/match";
@@ -468,7 +469,7 @@ export async function savePlayMatchHoles(
   // setting up to playing and it gated nothing, so a tournament left in draft
   // played a whole round with only a banner to say so. See playRefusal: a
   // tournament already under way is deliberately NOT stopped halfway.
-  const notStarted = await playRefusalFor(session.eventId);
+  const notStarted = await playRefusedBecause(session.eventId);
   if (notStarted) return { ok: false, error: notStarted };
 
   // Scoped three ways: the right tournament, the right round, and a match this
@@ -592,7 +593,7 @@ export async function savePlayMatchResult(
   // setting up to playing and it gated nothing, so a tournament left in draft
   // played a whole round with only a banner to say so. See playRefusal: a
   // tournament already under way is deliberately NOT stopped halfway.
-  const notStarted = await playRefusalFor(session.eventId);
+  const notStarted = await playRefusedBecause(session.eventId);
   if (notStarted) return { ok: false, error: notStarted };
 
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
@@ -708,7 +709,7 @@ export async function savePlayCard(strokes: (number | null)[], opts?: PlaySaveOp
   // setting up to playing and it gated nothing, so a tournament left in draft
   // played a whole round with only a banner to say so. See playRefusal: a
   // tournament already under way is deliberately NOT stopped halfway.
-  const notStarted = await playRefusalFor(session.eventId);
+  const notStarted = await playRefusedBecause(session.eventId);
   if (notStarted) return { ok: false, error: notStarted };
 
   // A closed round takes no more cards from a player — see `assertRoundOpen`.
@@ -830,7 +831,7 @@ export async function certifyPlayCard(): Promise<ClaimResult> {
   // setting up to playing and it gated nothing, so a tournament left in draft
   // played a whole round with only a banner to say so. See playRefusal: a
   // tournament already under way is deliberately NOT stopped halfway.
-  const notStarted = await playRefusalFor(session.eventId);
+  const notStarted = await playRefusedBecause(session.eventId);
   if (notStarted) return { ok: false, error: notStarted };
 
   try {
@@ -883,7 +884,7 @@ export async function savePlayMatchCard(matchId: string, strokes: (number | null
   const settings = settingsOf(event);
   const refused = await entryRefusal(session, settings);
   if (refused) return { ok: false, error: refused };
-  const notStarted = await playRefusalFor(session.eventId);
+  const notStarted = await playRefusedBecause(session.eventId);
   if (notStarted) return { ok: false, error: notStarted };
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
     return { ok: false, error: "That match isn't in your round." };
@@ -1019,7 +1020,7 @@ export async function keepGroup(input?: { takeOver?: boolean }): Promise<KeepGro
   if (!event) return { ok: false, error: "Round not found." };
   const refused = await entryRefusal(session, settingsOf(event));
   if (refused) return { ok: false, error: refused };
-  const notStarted = await playRefusalFor(session.eventId);
+  const notStarted = await playRefusedBecause(session.eventId);
   if (notStarted) return { ok: false, error: notStarted };
   const res = await claimGroup({
     eventId: session.eventId,
