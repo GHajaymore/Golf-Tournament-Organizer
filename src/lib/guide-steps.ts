@@ -173,7 +173,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       },
       {
         kind: "tip",
-        text: "The list above the form is every tournament you can reach. A tournament whose last day has gone by without being launched reads **Dates passed, not launched**. Two tournaments with the same name each show their dates (or the day they were created, where they have none), with a number such as #2 where the dates are the same too; the same dates are shown in **Start from**. The bin deletes a tournament with its players and every score, and asks first; only an {organizer} of that tournament can delete it, and pressing the bin on any other says so.",
+        text: "The list above the form is every tournament you can reach. A tournament whose last day has gone by without being launched reads **Dates passed, not launched**. Two tournaments with the same name each show their dates (or the day they were created, where they have none), with a number such as #2 where the dates are the same too; the same dates are shown in **Start from**. The bin deletes a tournament for good, with its players, every score and its other records, and asks first; there is no undo; only an {organizer} of that tournament can delete it, and pressing the bin on any other says so.",
       },
       { kind: "h", text: "Tournament details" },
       { kind: "where", text: "Set up → Tournament details ({organizers} only)" },

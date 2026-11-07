@@ -1410,8 +1410,8 @@ function StageCard({
       </b>
       <div className="text-muted" style={{ marginTop: 4 }}>
         {removeCost.stakes > 0
-          ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down."
-          : "The matches and cards go with it. There is no undo."}
+          ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down. This is permanent and cannot be undone."
+          : "The matches, cards and handicaps go with it. This is permanent and cannot be undone."}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
         <button

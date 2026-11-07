@@ -1,0 +1,111 @@
+import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+
+/**
+ * DELETING A ROUND OR A TOURNAMENT IS A PURGE (Ajay, 2026-11-07).
+ *
+ * "Make sure delete round or tournament should clear all traces." Most of a
+ * tournament goes by `onDelete: Cascade`; the rest carries a bare `eventId` or
+ * `stageId` with NO foreign key, so it was left behind, still naming people.
+ * This file is the one place that removes those, in the same transaction as the
+ * row they hang from, and `delete-purges-everything.test.ts` reads the schema
+ * and fails when a model gains an `eventId` or `stageId` this file (or the
+ * cascade) does not handle.
+ *
+ * Every delete path asks it: `deleteEvent`, the Free plan's deletion, the
+ * archive sweep, the casual-round sweep and the par sweep.
+ */
+
+/**
+ * Models with an `eventId` that are KEPT when the event goes, with the reason.
+ * Empty on purpose: the owner ruled that nothing of a purged tournament stays.
+ * (The one trace he allows, a club's audit line saying it was deleted and by
+ * whom, has no table that can outlive the event yet: `AuditLog.eventId` is
+ * required and cascades. A club-level audit table is a separate migration.)
+ */
+export const KEPT_ON_EVENT_DELETE: Record<string, string> = {};
+
+/**
+ * Models with a `stageId` that are KEPT when a round goes. Empty for the same
+ * reason.
+ */
+export const KEPT_ON_ROUND_DELETE: Record<string, string> = {};
+
+/**
+ * Models whose `eventId` has no foreign key (or none to Event), so the cascade
+ * does not reach them and they are deleted here by hand.
+ */
+export const EVENT_ROWS_WITHOUT_A_CASCADE = ["HonoursEntry", "SmsDelivery", "EmailFailure"] as const;
+
+/**
+ * Models whose `stageId` has no foreign key to Stage, deleted by hand with the
+ * round. (A child of one of these, e.g. ExpenseShare, goes by its own cascade.)
+ */
+export const ROUND_ROWS_WITHOUT_A_CASCADE = [
+  "Scorecard",
+  "TeamScorecard",
+  "RoundHandicap",
+  "HandicapPost",
+  "Expense",
+  "Contest",
+  "SideGame",
+  "TournamentFund",
+] as const;
+
+type Tx = Prisma.TransactionClient;
+
+async function deleteRoundRows(tx: Tx, eventId: string, stageIds: string[]) {
+  if (stageIds.length === 0) return;
+  const where = { eventId, stageId: { in: stageIds } };
+  await tx.scorecard.deleteMany({ where });
+  await tx.teamScorecard.deleteMany({ where });
+  await tx.roundHandicap.deleteMany({ where });
+  await tx.handicapPost.deleteMany({ where });
+  await tx.expense.deleteMany({ where });
+  await tx.contest.deleteMany({ where });
+  await tx.sideGame.deleteMany({ where });
+  await tx.tournamentFund.deleteMany({ where });
+}
+
+/**
+ * Delete one round and everything tied to it, in one transaction. Scoped by the
+ * event, so a round id from another tournament deletes nothing. Returns whether
+ * the round existed.
+ */
+export async function purgeRound(eventId: string, stageId: string): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const stage = await tx.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });
+    if (!stage) return false;
+    await deleteRoundRows(tx, eventId, [stageId]);
+    await tx.stage.deleteMany({ where: { id: stageId, eventId } });
+    return true;
+  });
+}
+
+/**
+ * Delete every tournament matching `where`, and everything tied to it, in one
+ * transaction. `where` is re-applied to the delete, so a sweep's "still due"
+ * condition holds at the moment of deletion. Returns how many went.
+ */
+export async function purgeEvents(where: Prisma.EventWhereInput): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const ids = (await tx.event.findMany({ where, select: { id: true } })).map((e) => e.id);
+    if (ids.length === 0) return 0;
+    // The rest of the tournament hangs off the event by a cascade.
+    const gone = await tx.event.deleteMany({ where: { AND: [{ id: { in: ids } }, where] } });
+    // Only for events that really went: a sweep's `where` may have stopped
+    // matching a row between the select and the delete.
+    const still = new Set((await tx.event.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((e) => e.id));
+    const goneIds = ids.filter((id) => !still.has(id));
+    const byEvent = { eventId: { in: goneIds } };
+    await tx.honoursEntry.deleteMany({ where: byEvent });
+    await tx.smsDelivery.deleteMany({ where: byEvent });
+    await tx.emailFailure.deleteMany({ where: byEvent });
+    return gone.count;
+  });
+}
+
+/** One tournament. */
+export async function purgeEvent(eventId: string): Promise<boolean> {
+  return (await purgeEvents({ id: eventId })) > 0;
+}
