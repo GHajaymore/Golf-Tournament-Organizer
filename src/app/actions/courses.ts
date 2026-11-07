@@ -1108,6 +1108,8 @@ async function directoryBudget(session: { role: string; userId?: string; email: 
 export async function searchCourseDirectory(
   query: string,
   localOnly = false,
+  /** True only for a press on "Search more courses": the one door to GolfCourseAPI. */
+  moreCourses = false,
 ): Promise<DirectorySearchResult> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
@@ -1142,7 +1144,7 @@ export async function searchCourseDirectory(
     const budget = await directoryBudget(session);
     if (!budget.allowed) live = false;
   }
-  const { hits, notice } = await searchDirectoryWithNotice(query, !live, await clubNear(session.eventId));
+  const { hits, notice } = await searchDirectoryWithNotice(query, !live, await clubNear(session.eventId), moreCourses);
 
   /**
    * Which of these the club already has.

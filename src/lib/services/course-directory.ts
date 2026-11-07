@@ -144,8 +144,9 @@ export async function searchDirectory(
   query: string,
   localOnly = false,
   near?: Near,
+  moreCourses = false,
 ): Promise<DirectoryHit[]> {
-  return (await searchDirectoryWithNotice(query, localOnly, near)).hits;
+  return (await searchDirectoryWithNotice(query, localOnly, near, moreCourses)).hits;
 }
 
 /**
@@ -164,6 +165,13 @@ export async function searchDirectoryWithNotice(
    * exactly as it was.
    */
   near?: Near,
+  /**
+   * An explicit press on "Search more courses" (7 Nov 2026). GolfCourseAPI has a
+   * 50-a-day free allowance and is asked ONLY when this is true — never while
+   * somebody is still typing, never on a schedule. Required to be said, so the
+   * typing path (which never says it) cannot reach the lookup.
+   */
+  moreCourses = false,
 ): Promise<{ hits: DirectoryHit[]; notice?: string }> {
   const q = query.trim();
   const area = parseAreaQuery(q);
@@ -296,7 +304,7 @@ export async function searchDirectoryWithNotice(
 
   const payload = await getJson(`/v1/courses/search?q=${encodeURIComponent(q.slice(0, 80))}`);
   const open = rankCourseHits(hitsFrom(payload), rankOn, place).slice(0, 20);
-  if (open.length > 0) return { hits: open };
+  if (open.length > 0 || !moreCourses) return { hits: open };
 
   /**
    * GolfCourseAPI, ON DEMAND (7 Nov 2026): the stored catalogue and the open

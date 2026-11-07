@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { readSource } from "./source";
 
 /**
@@ -67,7 +67,35 @@ describe("nothing schedules the catalogue walk", () => {
     expect(offenders).toEqual([]);
   });
 
-  /** Every module a file reaches through `@/...` imports (static, re-exports and dynamic). */
+  it("only a press reaches the extra lookup: the screens' typing paths never say so, their press handlers do", () => {
+    const calls = (file: string) =>
+      [...readSource(file).matchAll(/searchCourseDirectory\(([^)]*)\)/g)].map((m) => m[1].replace(/\s+/g, ""));
+    for (const file of ["src/components/CoursePicker.tsx", "src/components/CourseSearch.tsx"]) {
+      const withMore = calls(file).filter((a) => a.split(",").length >= 3);
+      const without = calls(file).filter((a) => a.split(",").length < 3);
+      expect(without.length, `${file} still searches while typing`).toBeGreaterThan(0);
+      expect(withMore, `${file} has exactly one press that asks for more`).toEqual(["q,false,true"]);
+    }
+    // The press sits in a function that is not an effect/timeout.
+    const picker = readSource("src/components/CoursePicker.tsx");
+    const at = picker.indexOf("searchCourseDirectory(q, false, true)");
+    expect(picker.slice(picker.lastIndexOf("const searchMore", at), at)).not.toMatch(/setTimeout|useEffect/);
+    expect(picker).toMatch(/Search more courses/);
+    expect(picker).toMatch(/\bnotice\b/);
+  });
+
+  it("nothing outside the live lookup names the GolfCourseAPI host (src, scripts, workflows)", () => {
+    const files = [...walk(join(ROOT, "src")), ...walk(join(ROOT, "scripts")), ...walk(join(ROOT, ".github"))]
+      .filter((f) => /\.(ts|tsx|mjs|js|cjs|yml|yaml|json)$/.test(f))
+      .map((f) => f.slice(ROOT.length + 1).replace(/\\/g, "/"))
+      .filter((f) => !f.includes("__tests__"));
+    const naming = files.filter((f) => readFileSync(join(ROOT, f), "utf8").includes("api.golfcourseapi.com"));
+    expect(naming).toEqual(["src/lib/services/golfcourseapi-live.ts"]);
+    // Control: the same scan finds a host we know is named.
+    expect(files.some((f) => readFileSync(join(ROOT, f), "utf8").includes("opengolfapi"))).toBe(true);
+  });
+
+  /** Every module a file reaches through `@/...` or relative imports (static, re-exports and dynamic). */
   const reach = (entry: string): Set<string> => {
     const seen = new Set<string>();
     const todo = [entry];
@@ -76,8 +104,11 @@ describe("nothing schedules the catalogue walk", () => {
       if (seen.has(file)) continue;
       seen.add(file);
       const src = readSource(file);
-      for (const m of src.matchAll(/(?:from|import\()\s*["']@\/([^"']+)["']/g)) {
-        const base = `src/${m[1]}`;
+      for (const m of src.matchAll(/(?:from|import\()\s*["'](@\/|\.{1,2}\/)([^"']+)["']/g)) {
+        const base =
+          m[1] === "@/"
+            ? `src/${m[2]}`
+            : posix.normalize(posix.join(posix.dirname(file), m[1] + m[2]));
         const hit = [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`].find((p) => existsSync(join(ROOT, p)));
         if (hit) todo.push(hit);
       }
@@ -129,11 +160,22 @@ describe("search falls back to the live lookup", () => {
 
   it("asks GolfCourseAPI for THIS search when nothing stored or open matches, and ids the hit gca:", async () => {
     gcaAnswer = () => Response.json({ courses: [summary] });
-    const hits = await searchDirectory("zz fixture", false);
+    const hits = await searchDirectory("zz fixture", false, undefined, true);
     expect(hits).toMatchObject([{ id: "gca:7", name: "ZZ Fixture Club", city: "Zzville", country: "GB" }]);
     const gcaCalls = urls.filter((u) => u.startsWith("https://api.golfcourseapi.com"));
     expect(gcaCalls).toEqual(["https://api.golfcourseapi.com/v1/search?search_query=zz%20fixture"]);
     expect(headers[urls.indexOf(gcaCalls[0])].Authorization).toMatch(/^Bearer /);
+  });
+
+  it("the typing path (live directory, no press) never reaches GolfCourseAPI; the press path does", async () => {
+    gcaAnswer = () => Response.json({ courses: [summary] });
+    const typing = await searchDirectory("zz fixture", false);
+    expect(typing).toEqual([]);
+    expect(urls.some((u) => u.startsWith("https://api.golfcourseapi.com"))).toBe(false);
+    // Control: the same search, pressed, does reach it.
+    const pressed = await searchDirectory("zz fixture", false, undefined, true);
+    expect(pressed).toHaveLength(1);
+    expect(urls.some((u) => u.startsWith("https://api.golfcourseapi.com"))).toBe(true);
   });
 
   it("does not ask at all while typing (catalogue only)", async () => {
@@ -144,7 +186,7 @@ describe("search falls back to the live lookup", () => {
 
   it("with no key it is silent: no call, no notice", async () => {
     delete process.env[KEY_ENV];
-    const r = await searchDirectoryWithNotice("zz fixture", false);
+    const r = await searchDirectoryWithNotice("zz fixture", false, undefined, true);
     expect(r.hits).toEqual([]);
     expect(r.notice).toBeUndefined();
     expect(urls.some((u) => u.startsWith("https://api.golfcourseapi.com"))).toBe(false);
@@ -153,14 +195,14 @@ describe("search falls back to the live lookup", () => {
   it("when the lookup is down it says so in plain words and does not throw", async () => {
     for (const down of [() => new Response("no", { status: 503 }), () => new Response("slow", { status: 429 })]) {
       gcaAnswer = down;
-      const r = await searchDirectoryWithNotice("zz fixture", false);
+      const r = await searchDirectoryWithNotice("zz fixture", false, undefined, true);
       expect(r.hits).toEqual([]);
       expect(r.notice).toBe(GCA_UNAVAILABLE_NOTICE);
     }
     gcaAnswer = () => {
       throw new TypeError("network");
     };
-    expect((await searchDirectoryWithNotice("zz fixture", false)).notice).toBe(GCA_UNAVAILABLE_NOTICE);
+    expect((await searchDirectoryWithNotice("zz fixture", false, undefined, true)).notice).toBe(GCA_UNAVAILABLE_NOTICE);
     // Nothing in the words blocks the other ways of adding a course.
     expect(GCA_UNAVAILABLE_NOTICE).toMatch(/typing it in or pasting/);
   });
