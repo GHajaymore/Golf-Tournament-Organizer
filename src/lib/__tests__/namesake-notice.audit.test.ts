@@ -42,7 +42,7 @@ vi.mock("@/lib/email", () => ({
 const { createEvent } = await import("@/app/actions/tournament");
 const { saveOrganizationBranding } = await import("@/app/actions/organization");
 const { dismissNamesakeNotice } = await import("@/app/actions/join");
-const { createOrganizationWithOwner } = await import("@/lib/services/organization");
+const { createOrganizationWithOwner, otherOrganizationNamed } = await import("@/lib/services/organization");
 const { openNamesakeNotices } = await import("@/lib/services/namesake-notice");
 
 const boss = { email: `${lower}-boss@example.invalid`, name: `${TAG} First Secretary` };
@@ -248,10 +248,21 @@ describe("what the Commissioner reads, and who may dismiss it", () => {
     expect(await noticesFor(leagueId), "the original notice was lost").toHaveLength(1);
   });
 
+  it("the question to the second club never names the first club's founder by an address either", async () => {
+    await prisma.user.updateMany({ where: { email: boss.email }, data: { name: boss.email } });
+    try {
+      const hit = await otherOrganizationNamed(LEAGUE, null, { city: "Cincinnati", region: "OH", country: "" });
+      expect(hit?.runBy).toBe("");
+    } finally {
+      await prisma.user.updateMany({ where: { email: boss.email }, data: { name: boss.name } });
+    }
+  });
+
   it("says a club that existed TOOK the name, and one made with it was SET UP; neither shows an address", async () => {
     await prisma.user.updateMany({ where: { email: second.email }, data: { name: second.email } });
     await saveOrganizationBranding(LEAGUE, "", "", { city: "Cincinnati", region: "OH", country: "" });
     const [renamed] = await openNamesakeNotices(leagueId);
+    expect((await noticesFor(leagueId))[0].byName, "an address was stored").toBe("");
     expect(renamed.words).toContain("took the name");
     expect(renamed.words).not.toContain("@");
     expect(renamed.words).toContain("ask them to join");
