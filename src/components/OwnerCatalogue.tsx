@@ -28,9 +28,10 @@ export function OwnerCatalogue({ withCards, lastLine }: { withCards: number; las
       }
       const chunks = chunkRows(parsed.file.courses);
       let total: LoadCounts = NO_COUNTS;
+      const loadId = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
       for (let i = 0; i < chunks.length; i++) {
         setProgress(`Request ${i + 1} of ${chunks.length}…`);
-        const res = await loadCourseCatalogue(chunks[i]);
+        const res = await loadCourseCatalogue(chunks[i], { id: loadId, part: i + 1, of: chunks.length });
         if (!res.ok || !res.counts) {
           setProgress("");
           setSaid({ ok: false, text: `${res.error ?? "That did not load."} Stopped at request ${i + 1} of ${chunks.length}; ${countsInWords(total)} Loading again is safe.` });
@@ -48,7 +49,7 @@ export function OwnerCatalogue({ withCards, lastLine }: { withCards: number; las
     <div className="card elev-sm" style={{ marginBottom: 16 }} id="course-catalogue">
       <span className="card-title" style={{ fontSize: 15 }}>Course catalogue</span>
       <p style={{ fontSize: 14, margin: "6px 0 4px" }}>
-        {withCards} courses with a usable scorecard are held here.
+        {withCards} courses have a scorecard on file here (a load adds the ones that pass the card check; it does not change a card that already works).
       </p>
       <p className="text-muted" style={{ fontSize: 13, margin: "0 0 6px" }}>
         Load the file made by the export script. Courses are added or updated, never removed; a card the app refuses is skipped, never stored blank; nothing from GolfCourseAPI is ever loaded. {DIRECTORY_ATTRIBUTION}

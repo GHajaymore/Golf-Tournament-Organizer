@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import { PLANS, LIMIT_KEYS, isValidPercentOff, keepsDataForever, type PlanKey, type LimitKey } from "@/lib/plans";
 import { liftArchive } from "@/lib/services/club-archive";
 import { savePricingOverride } from "@/lib/services/platform-pricing";
@@ -88,13 +89,20 @@ export async function sendEarlyListCodes(): Promise<OwnerActionResult & { sent?:
  * refused, a card `cardRefusal` refuses is skipped, never stored blank); the rows are added or
  * updated, never deleted. The counts come back, and an audit line is kept.
  */
-export async function loadCourseCatalogue(rows: unknown): Promise<OwnerActionResult & { counts?: LoadCounts }> {
+export async function loadCourseCatalogue(
+  rows: unknown,
+  load?: { id: string; part: number; of: number },
+): Promise<OwnerActionResult & { counts?: LoadCounts }> {
   const session = await getSession();
   if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
   if (!Array.isArray(rows) || rows.length === 0) return { ok: false, error: "That request held no courses." };
   if (rows.length > CHUNK_ROWS * 3) return { ok: false, error: "That request held too many courses; nothing was loaded." };
+  // One audit line per load: its requests share the id the browser made for it.
+  const id = load && typeof load.id === "string" && /^\w{4,32}$/.test(load.id) ? load.id : randomUUID().replace(/-/g, "").slice(0, 12);
+  const part = load && Number.isInteger(load.part) && load.part > 0 ? load.part : 1;
+  const of = load && Number.isInteger(load.of) && load.of >= part ? load.of : part;
   const counts = await loadCatalogueRows(rows);
-  await noteCatalogueLoad(session.email, counts, new Date());
+  await noteCatalogueLoad(session.email, counts, new Date(), id, part, of);
   return { ok: true, counts };
 }
 

@@ -74,6 +74,32 @@ export function isGcaId(id: unknown): boolean {
   return typeof id === "string" && id.trim().toLowerCase().startsWith(GCA_PREFIX);
 }
 
+/**
+ * Why a card's pars and stroke index are not fit to store, or null. A course has 9 or 18 holes: passing
+ * `pars.length` to `cardRefusal` as the hole count would enforce no length at all, and `[]` would pass
+ * (the same rule as `picked-card.ts`). Pars and stroke index only; yardage is never a reason.
+ */
+export function holesRefusal(pars: number[], strokeIndex: number[]): string | null {
+  if (pars.length !== 9 && pars.length !== 18) return `It has ${pars.length} holes on it, not 9 or 18.`;
+  return cardRefusal(pars, [], strokeIndex, pars.length);
+}
+
+const MAX_TEES = 40;
+
+/** Is this a list of tees each with a name? Optional data, but not arbitrary data. */
+function teesFit(json: string): boolean {
+  try {
+    const v: unknown = JSON.parse(json);
+    return (
+      Array.isArray(v) &&
+      v.length <= MAX_TEES &&
+      v.every((t) => t && typeof t === "object" && typeof (t as { name?: unknown }).name === "string" && ((t as { name: string }).name.length <= 100))
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Judge one incoming row. The id is read first, so a `gca:` row is refused whatever else it holds. */
 export function judgeRow(raw: unknown): RowVerdict {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -95,7 +121,7 @@ export function judgeRow(raw: unknown): RowVerdict {
   if (!pars || !strokeIndex) return { ok: false, kind: "skipped", id, reason: "No card." };
   // Judged exactly as the catalogue importers judge it: pars and stroke index only, yardage never
   // a reason (docs/claude/course-cards.md).
-  const refusal = cardRefusal(pars, [], strokeIndex, pars.length);
+  const refusal = holesRefusal(pars, strokeIndex);
   if (refusal) return { ok: false, kind: "skipped", id, reason: refusal };
   const yards = r.yards === "" || r.yards === undefined ? [] : numbers(r.yards);
   if (!yards || (yards.length !== 0 && yards.length !== pars.length)) {
@@ -103,12 +129,10 @@ export function judgeRow(raw: unknown): RowVerdict {
   }
   let tees = "[]";
   if (r.tees !== undefined && r.tees !== "") {
-    try {
-      if (typeof r.tees !== "string" || !Array.isArray(JSON.parse(r.tees))) throw new Error("not a list");
-      tees = r.tees;
-    } catch {
-      return { ok: false, kind: "skipped", id, reason: "The tees are not a list." };
+    if (typeof r.tees !== "string" || r.tees.length > 40_000 || !teesFit(r.tees)) {
+      return { ok: false, kind: "skipped", id, reason: "The tees are not a short list of named tees." };
     }
+    tees = r.tees;
   }
   const par = typeof r.par === "number" && Number.isInteger(r.par) && r.par >= 0 && r.par <= 200 ? r.par : 0;
   const s = (k: (typeof TEXT)[number]) => (typeof r[k] === "string" ? (r[k] as string) : "");

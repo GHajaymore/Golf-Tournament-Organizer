@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   judgeRow,
+  holesRefusal,
   isGcaId,
   parseCatalogueFile,
   chunkRows,
@@ -61,6 +62,23 @@ describe("judgeRow", () => {
     expect(judgeRow(row({ strokeIndex: JSON.stringify(dupe) }))).toMatchObject({ ok: false, kind: "skipped" });
   });
 
+  it("holds a course to 9 or 18 holes: an empty card, one hole and 27 holes are skipped", () => {
+    expect(judgeRow(row({ pars: "[]", strokeIndex: "[]" }))).toMatchObject({ ok: false, kind: "skipped" });
+    expect(judgeRow(row({ pars: "[4]", strokeIndex: "[1]" }))).toMatchObject({ ok: false, kind: "skipped" });
+    const p27 = [...PARS, ...PARS.slice(0, 9)];
+    const s27 = Array.from({ length: 27 }, (_, i) => i + 1);
+    expect(judgeRow(row({ pars: JSON.stringify(p27), strokeIndex: JSON.stringify(s27) }))).toMatchObject({ ok: false, kind: "skipped" });
+    expect(holesRefusal([], [])).not.toBeNull();
+    expect(holesRefusal(PARS, SI)).toBeNull();
+  });
+
+  it("holds tees to a short list of named tees", () => {
+    expect(judgeRow(row({ tees: JSON.stringify([{ name: "White", slopeRating: 120 }]) })).ok).toBe(true);
+    expect(judgeRow(row({ tees: JSON.stringify([1, 2]) }))).toMatchObject({ ok: false });
+    expect(judgeRow(row({ tees: JSON.stringify(Array.from({ length: 41 }, () => ({ name: "T" }))) }))).toMatchObject({ ok: false });
+    expect(judgeRow(row({ tees: JSON.stringify([{ name: 5 }]) }))).toMatchObject({ ok: false });
+  });
+
   it("skips malformed rows and never throws", () => {
     for (const bad of [null, 5, "x", [], {}, row({ name: "" }), row({ pars: "{" }), row({ tees: "{}" }), row({ city: 4 }), row({ yards: "[1,2]" })]) {
       expect(judgeRow(bad)).toMatchObject({ ok: false });
@@ -104,7 +122,7 @@ describe("the export script and the load keep gca out (a sweep with a control)",
     const src = readSource("scripts/export-catalogue.ts");
     expect(src).toContain("isGcaId");
     expect(src).toContain("localhost");
-    expect(src).toContain("Refusing to write inside the repository");
+    expect(src).toContain("Refusing to write inside a git repository");
   });
   it("the action asks the owner list before anything", () => {
     const src = readSource("src/app/actions/owner.ts");

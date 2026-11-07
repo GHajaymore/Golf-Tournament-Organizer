@@ -78,10 +78,46 @@ describe("loadCourseCatalogue", () => {
     expect((await stored("a"))!.updatedAt.getTime()).toBe(before);
   });
 
-  it("updates a changed usable row", async () => {
-    const res = await loadCourseCatalogue([row("a", { name: "Zz Invented A, renamed" })]);
-    expect(res.counts).toMatchObject({ updated: 1, loaded: 0 });
-    expect((await stored("a"))!.name).toBe("Zz Invented A, renamed");
+  it("never touches a stored row whose card works, and never blanks its other fields", async () => {
+    await prisma.courseCatalog.update({
+      where: { id: `${MARK}a` },
+      data: { city: "Production City", website: "https://prod.example.invalid", address: "1 Prod Road", yards: JSON.stringify(PARS.map(() => 350)), tees: JSON.stringify([{ name: "Blue" }]) },
+    });
+    const before = await stored("a");
+    const res = await loadCourseCatalogue([row("a", { name: "Zz Invented A, renamed", city: "", website: "", address: "", tees: "[]" })]);
+    expect(res.counts).toMatchObject({ updated: 0, loaded: 0, unchanged: 1 });
+    const after = await stored("a");
+    expect(after).toMatchObject({ name: before!.name, city: "Production City", website: "https://prod.example.invalid", address: "1 Prod Road", yards: before!.yards, tees: before!.tees });
+  });
+
+  it("fills a stored row whose card is not usable, never writing an empty value over a non-empty one", async () => {
+    await prisma.courseCatalog.create({
+      data: { id: `${MARK}g`, name: "Zz Invented g", city: "Kept City", cardProblem: "No card", pars: "", strokeIndex: "", yards: "", tees: "[]" },
+    });
+    const res = await loadCourseCatalogue([row("g", { city: "" })]);
+    expect(res.counts).toMatchObject({ updated: 1 });
+    const g = (await stored("g"))!;
+    expect(g.cardProblem).toBe("");
+    expect(g.pars).toBe(JSON.stringify(PARS));
+    expect(g.city).toBe("Kept City");
+  });
+
+  it("refuses cards that are not 9 or 18 holes", async () => {
+    const res = await loadCourseCatalogue([row("h", { pars: "[]", strokeIndex: "[]" }), row("i", { pars: "[4]", strokeIndex: "[1]" })]);
+    expect(res.counts).toMatchObject({ skipped: 2, loaded: 0 });
+    expect(await stored("h")).toBeNull();
+    expect(await stored("i")).toBeNull();
+  });
+
+  it("writes ONE audit line for a load that took several requests", async () => {
+    const lines = async () => ((await prisma.platformSetting.findUnique({ where: { key: CATALOGUE_LOG_KEY } }))?.value ?? "").split("\n").length;
+    const n = await lines();
+    await loadCourseCatalogue([row("j1")], { id: "zzloadone", part: 1, of: 2 });
+    await loadCourseCatalogue([row("j2")], { id: "zzloadone", part: 2, of: 2 });
+    expect(await lines()).toBe(n + 1);
+    const last = (await prisma.platformSetting.findUnique({ where: { key: CATALOGUE_LOG_KEY } }))!.value.split("\n").pop()!;
+    expect(last).toContain("2 loaded");
+    expect(last).toContain("request 2 of 2");
   });
 
   it("skips a refused card, never storing it, and never downgrading a usable one", async () => {

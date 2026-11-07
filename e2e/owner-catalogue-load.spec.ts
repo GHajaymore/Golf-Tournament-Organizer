@@ -88,5 +88,12 @@ test("the owner picks a catalogue file and reads what was loaded, skipped and re
     await expect(page.getByRole("alert").filter({ hasText: "not a catalogue file" })).toBeVisible({ timeout: 15_000 });
   });
 
+  await test.step("somebody who is not signed in is told /owner is not there, and has no file control", async () => {
+    await page.context().clearCookies();
+    const res = await page.goto(`/owner?bust=${Date.now()}`);
+    expect(res?.status(), "a stranger was not refused /owner").toBe(404);
+    await expect(page.locator("#catalogue-file")).toHaveCount(0);
+  });
+
   expect(errors, errors.join("\n")).toEqual([]);
 });
