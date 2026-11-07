@@ -2,7 +2,18 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "../db";
 import { isLaunched } from "../domain/lifecycle-state";
-import { tournamentStatus, setupFlowOf, playRefusalOf, type TournamentFacts, type TournamentStatus } from "../domain/tournament-status";
+import {
+  tournamentStatus,
+  setupFlowOf,
+  playRefusalOf,
+  locksFor,
+  scopeLockOf,
+  lockRefusalWords,
+  type LockScope,
+  type ScopeLock,
+  type TournamentFacts,
+  type TournamentStatus,
+} from "../domain/tournament-status";
 import type { SetupFlow } from "../domain/setup-flow";
 import { setupSideFactsFor, tournamentFactsFor } from "./tournament-facts";
 import { todayForEvent } from "./club-clock";
@@ -79,4 +90,45 @@ export async function playRefusedBecause(eventId: string): Promise<string | null
 export async function setupRailFor(eventId: string): Promise<SetupFlow | null> {
   const facts = await setupSideFactsFor(eventId);
   return facts ? setupFlowOf(facts) : null;
+}
+
+/**
+ * THE LOCK ON ONE SCOPE, as the machine states it (`locksFor`, PR 5a) — for a
+ * screen's `ScopeLockBanner` and for the action behind it, which read the same
+ * request-cached setup-side batch, so the banner and the refusal are one answer.
+ */
+export async function scopeLockFor(eventId: string, scope: LockScope): Promise<ScopeLock | null> {
+  const facts = await setupSideFactsFor(eventId);
+  return facts ? scopeLockOf(locksFor(facts), scope) : null;
+}
+
+/** A refused structural change: the sentence, and the lock it came from for the screen to draw. */
+export interface LockRefusal {
+  ok: false;
+  error: string;
+  lock: ScopeLock;
+}
+
+/**
+ * REFUSE A CHANGE TO A LOCKED SCOPE — RETURNED, NEVER THROWN (J10, PR 5a).
+ *
+ * It replaces `assertUnlocked` in the actions that called it. That THREW, and a
+ * throw inside a transition is "This screen didn't load" — in production Next
+ * blanks a thrown message anyway — so a press on a screen drawn before the lock
+ * (another tab launched the tournament, or locked setup again) took the whole
+ * screen down. This RETURNS `{ ok: false, error, lock }`: the reason and the
+ * way out in words (`lockRefusalWords`), and the lock itself, so the screen can
+ * catch up with it.
+ *
+ * `what` finishes the way out — "… Unlock it on the dashboard to change teams."
+ *
+ * WHAT IT COSTS: the setup side of the facts (`setupSideFactsFor`, one batch of
+ * grouped queries) where `assertUnlocked` read one row. Accepted rather than
+ * given a narrower read of its own, because a second spelling of "is it locked"
+ * is the copy the scoped locks exist to retire; these are organizer presses,
+ * never a save on the course.
+ */
+export async function refuseIfLocked(eventId: string, scope: LockScope, what: string): Promise<LockRefusal | null> {
+  const lock = await scopeLockFor(eventId, scope);
+  return lock ? { ok: false, error: lockRefusalWords(lock, what), lock } : null;
 }

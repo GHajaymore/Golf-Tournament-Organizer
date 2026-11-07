@@ -12,7 +12,8 @@ import { PLAYABLE_FORMAT_NAMES } from "@/lib/formats";
 import { STAGE_TYPES } from "@/lib/stage-types";
 import { extractReadingJson } from "@/lib/domain/card-reading";
 import { parseSetupProposal, setupPrompt, type SetupProposal } from "@/lib/domain/setup-proposal";
-import { assertUnlocked } from "@/lib/services/action-shared";
+import { refuseIfLocked } from "@/lib/services/tournament-status";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { askClaude } from "@/lib/services/claude";
 import { scoringDefaults } from "@/lib/domain/round-scoring";
@@ -56,6 +57,8 @@ export interface SetupSuggestResult {
   error?: string;
   proposal?: SetupProposal;
   configured?: boolean;
+  /** Refused because the rounds are locked (`refuseIfLocked`): the lock, with its reason and way out. */
+  lock?: ScopeLock;
 }
 
 /** Long enough to describe a tournament, short enough not to be a payload. */
@@ -63,8 +66,8 @@ const MAX_DESCRIPTION = 600;
 
 /**
  * Structural changes stop once the tournament is live, unless the organizer
- * has explicitly unlocked it. The same rule and the same words as `addStage`,
- * because this writes the rows `addStage` writes.
+ * has explicitly unlocked it: the "rounds" scope's lock (`refuseIfLocked`),
+ * because this writes the rounds a round card would.
  */
 
 async function requireStaff(): Promise<{ eventId: string; who: string }> {
@@ -165,7 +168,9 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
   // description typed into a live tournament could append rounds that the
   // ordinary control refuses — the lock exists because adding a round to an
   // event already being played changes what the standings are counting.
-  await assertUnlocked(eventId);
+  // RETURNED, never thrown (J10, state machine PR 5a).
+  const locked = await refuseIfLocked(eventId, "rounds", "add rounds");
+  if (locked) return locked;
 
   const checked = parseSetupProposal({ rounds }, PLAYABLE_FORMAT_NAMES, STAGE_TYPES);
   if (checked.rounds.length === 0) {
