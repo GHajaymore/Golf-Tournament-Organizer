@@ -124,11 +124,13 @@ export interface RowTies {
   placed: boolean;
 }
 
-export const hasTies = (t: RowTies): boolean => t.scores + t.cards + t.stakes + t.team > 0 || t.placed;
+const NO_TIES: RowTies = { scores: 0, cards: 0, stakes: 0, team: 0, placed: false };
+
+export const hasTies =(t: RowTies): boolean => t.scores + t.cards + t.stakes + t.team > 0 || t.placed;
 
 export type Cluster =
   | { key: string; keep: string; drop: string[]; adoptMemberId: string | null; refused: null }
-  | { key: string; keep: null; drop: []; adoptMemberId: null; refused: string };
+  | { key: string; keep: null; drop: string[]; adoptMemberId: null; refused: string };
 
 /** Pure: which rows of one event are duplicates of which, and what is kept. */
 export function planCluster(key: string, rows: SweepPlayer[], ties: Map<string, RowTies>): Cluster {
@@ -149,8 +151,6 @@ export function planCluster(key: string, rows: SweepPlayer[], ties: Map<string, 
   const adoptMemberId = !keep.memberId && members.size === 1 ? [...members][0] : null;
   return { key, keep: keep.id, drop, adoptMemberId, refused: null };
 }
-
-const NO_TIES: RowTies = { scores: 0, cards: 0, stakes: 0, team: 0, placed: false };
 
 /** Pure: group an event's rows by the importer's key and keep only the keys held more than once. */
 export function duplicateClusters(players: SweepPlayer[]): Map<string, SweepPlayer[]> {
@@ -291,8 +291,8 @@ export async function applyEvent(c: PrismaClient, eventId: string): Promise<Appl
       const plan = await planEvent(tx, eventId);
       const result: ApplyResult = { merged: 0, deleted: 0, refused: [] };
       for (const k of plan.clusters) {
-        if (k.refused) {
-          result.refused.push(k.refused);
+        if (k.refused !== null || k.keep === null) {
+          result.refused.push(k.refused ?? "no row to keep");
           continue;
         }
         if (k.adoptMemberId) await tx.player.update({ where: { id: k.keep }, data: { memberId: k.adoptMemberId } });
