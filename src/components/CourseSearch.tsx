@@ -281,7 +281,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
                       but the club has a card to enter before they can score
                       a round there, and finding that out after adding it is
                       the wrong moment. */}
-                  {h.par > 0 ? ` · par ${h.par}` : " · no card yet"}
+                  {h.par > 0 ? ` · par ${h.par}` : h.id.startsWith("gca:") ? "" : " · no card yet"}
                 </span>
               </span>
               {h.inLibrary ? (
@@ -304,9 +304,11 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
           {/* ODbL 1.0 permits commercial use WITH attribution, so this is a
               condition of using the data rather than a courtesy — which is why
               it sits with the results instead of in a footer nobody reads. */}
-          <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
-            {DIRECTORY_ATTRIBUTION}
-          </p>
+          {hits.some((h) => !h.id.startsWith("gca:")) && (
+            <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
+              {DIRECTORY_ATTRIBUTION}
+            </p>
+          )}
         </div>
       )}
     </div>

@@ -49,22 +49,50 @@ describe("nothing schedules the catalogue walk", () => {
   const crons = () =>
     (JSON.parse(readFileSync(join(ROOT, "vercel.json"), "utf8")) as { crons: Array<{ path: string }> }).crons.map((c) => c.path);
 
-  it("vercel.json has no cron for the course catalogue", () => {
-    expect(crons().filter((p) => /catalogue|course/i.test(p))).toEqual([]);
+  it("exactly one cron walks the catalogue, once a day, and it is the OpenGolfAPI route", () => {
+    expect(crons().filter((p) => /catalogue|course/i.test(p))).toEqual(["/api/cron/course-catalogue"]);
+    expect(existsSync(join(ROOT, "src/app/api/cron/course-catalogue/route.ts"))).toBe(true);
   });
 
   it("control: the sweep can see a cron when there is one", () => {
     expect(crons()).toContain("/api/cron/expire-rounds");
   });
 
-  it("the cron route is gone, and so is every importer that only it called", () => {
-    expect(existsSync(join(ROOT, "src/app/api/cron/course-catalogue"))).toBe(false);
+  it("the GolfCourseAPI walk is gone, with every importer and script that only it used", () => {
     expect(existsSync(join(ROOT, "src/lib/services/catalogue-gca.ts"))).toBe(false);
     expect(existsSync(join(ROOT, "scripts/import-golfcourseapi.ts"))).toBe(false);
     const offenders = walk(join(ROOT, "src"))
       .filter((f) => /\.(ts|tsx)$/.test(f) && !f.includes("__tests__"))
       .filter((f) => /importGcaSlice|GCA_TERMS|catalogue-gca/.test(readSource(f.slice(ROOT.length + 1))));
     expect(offenders).toEqual([]);
+  });
+
+  /** Every module a file reaches through `@/...` imports (static, re-exports and dynamic). */
+  const reach = (entry: string): Set<string> => {
+    const seen = new Set<string>();
+    const todo = [entry];
+    while (todo.length) {
+      const file = todo.pop() as string;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      const src = readSource(file);
+      for (const m of src.matchAll(/(?:from|import\()\s*["']@\/([^"']+)["']/g)) {
+        const base = `src/${m[1]}`;
+        const hit = [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`].find((p) => existsSync(join(ROOT, p)));
+        if (hit) todo.push(hit);
+      }
+    }
+    return seen;
+  };
+
+  it("the cron's code path never reaches golfcourseapi-live.ts", () => {
+    const reached = reach("src/app/api/cron/course-catalogue/route.ts");
+    expect(reached.has("src/lib/services/catalogue-import.ts")).toBe(true); // it sees the real path
+    expect(reached.has("src/lib/services/golfcourseapi-live.ts")).toBe(false);
+  });
+
+  it("control: from an organizer's search it does reach it", () => {
+    expect(reach("src/app/actions/courses.ts").has("src/lib/services/golfcourseapi-live.ts")).toBe(true);
   });
 });
 

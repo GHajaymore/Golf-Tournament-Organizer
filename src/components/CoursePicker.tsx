@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { rankCourses, tierOf, Tier } from "@/lib/domain/course-ranking";
 import { Icon } from "./Icon";
+import { DIRECTORY_ATTRIBUTION } from "@/lib/domain/course-directory";
 import { NO_CARD_YET, IMPORTED_UNCHECKED, type PickedCardNote } from "@/lib/domain/picked-card";
 import {
   searchCourseDirectory,
@@ -115,7 +116,7 @@ function rowLabel(
           {muted(
             [
               [row.hit.city, row.hit.state, row.hit.country].filter(Boolean).join(", "),
-              row.hit.par > 0 ? "" : " · no card yet",
+              row.hit.par > 0 || row.hit.id.startsWith("gca:") ? "" : " · no card yet",
               adding === row.hit.id ? " · adding…" : "",
             ].join(""),
           )}
@@ -612,6 +613,13 @@ export function CoursePicker({
               </Fragment>
             );
           })}
+
+          {/* ODbL 1.0 asks for attribution wherever the directory's courses are shown. */}
+          {found.some((h) => !h.id.startsWith("gca:")) && (
+            <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "4px 10px" }}>
+              {DIRECTORY_ATTRIBUTION}
+            </p>
+          )}
 
           {shown.length === 0 && found.length === 0 && !onEnterNew && (
             <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "8px 10px", lineHeight: 1.5 }}>
