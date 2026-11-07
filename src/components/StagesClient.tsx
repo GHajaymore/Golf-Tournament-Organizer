@@ -36,7 +36,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
 import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP, cutTieRuleOf, cutTieRuleWords } from "@/lib/domain/cut";
-import { cutRuleOf, cutRuleWords, cutLineKindOf } from "@/lib/domain/cut-ready";
+import { cutRuleWords, cutFeederOf, cutAfterRound } from "@/lib/domain/cut-ready";
 import {
   chainIssues,
   issuesForRound,
@@ -591,10 +591,10 @@ function NextRoundTransition({
    * organizer believes they have set the thing, and the sheet agrees with them.
    */
   const nextIsSeeded = nextStage ? seededFromQualifiers(nextStage.type) : false;
-  // What a tie at this cut's line is decided on — a card, a round robin's
-  // table — or null for a cut that settles no tie of its own (`cutLineKindOf`,
-  // the one answer the rules sheet and both engines ask).
-  const cutLineKind = nextStage ? cutLineKindOf(allStages.find((s) => s.id === stageId), nextStage) : null;
+  // What a tie at the next round's cut line is decided on — a card, a round
+  // robin's table — or null for a cut that settles no tie of its own
+  // (`cutFeederOf`, the one answer the rules sheet and both engines ask).
+  const cutLineKind = nextStage ? (cutFeederOf(allStages, nextStage.id)?.kind ?? null) : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -705,7 +705,7 @@ function NextRoundTransition({
             // A tie at a round robin's line is settled the way the committee
             // chose, as a stroke cut's is (J31) — on points and the table's
             // tie-breaks, so the words are the table's. ONLY where a cut out of
-            // this round settles a tie of its own (`cutLineKindOf`): a team
+            // this round settles a tie of its own (`cutFeederOf`): a team
             // medal's cut, or a round robin cut out of a stroke round, is
             // honoured by no engine and printed by no rules sheet, so it offers
             // no choice to store.
@@ -1129,18 +1129,19 @@ function StageCard({
   // button summarising things visible above it is noise.
   const transitionParts: string[] = [];
   if (nextStage?.carryEnabled) transitionParts.push(`carries ${nextStage.carryPct}%`);
-  if (nextStage?.cutEnabled) {
-    // In the words the rules sheet prints (`cutRuleWords`): "top 8 in each flight
-    // and ties" — a cut to "top 8" was the summary of a per-flight cut too.
-    // A stroke cut's or a round robin's (J31): both settle a tie the way chosen.
-    const settlesTies = cutLineKindOf(stage, nextStage) !== null;
-    const tieRule = cutTieRuleOf(nextStage.cutTies);
-    transitionParts.push(
-      `cuts to ${cutRuleWords(cutRuleOf(nextStage), settlesTies && tieRule === "ties").toLowerCase()}${
-        settlesTies && tieRule === "playoff" ? ", a tie by play-off" : settlesTies && tieRule === "countback" ? ", a tie by countback" : ""
-      }`,
-    );
-  }
+  // THE CUT THIS ROUND DECIDES, in the words the rules sheet prints
+  // (`cutAfterRound`): "top 8 in each flight and ties" — a cut to "top 8" was
+  // the summary of a per-flight cut too. Asked of the sheet's own function
+  // (2026-11-07), so the card names the cut its scores decide — a round robin's
+  // cut past a medal on the round robin's card, under the round it feeds — and
+  // nothing for a cut no engine makes.
+  const cutHere = cutAfterRound(allStages, stage.id);
+  const cutWords = cutHere
+    ? `cuts to ${cutRuleWords(cutHere.rule, cutHere.ties).toLowerCase()}${
+        cutHere.tieRule === "playoff" ? ", a tie by play-off" : cutHere.tieRule === "countback" ? ", a tie by countback" : ""
+      }`
+    : "";
+  if (cutHere && cutHere.intoId === nextStage?.id) transitionParts.push(cutWords);
   /**
    * WHAT IS CHANGED FROM A CLUB'S USUAL ROUND, and nothing else (2026-10-16).
    * The Customize button summarises only what is inside it, and inside it now
@@ -1238,6 +1239,13 @@ function StageCard({
     if (!asPanel) rowParts.push(intoNext);
   } else if (showTransition && !nextStage) {
     rowParts.push("No round after this yet");
+  }
+  // A cut this round decides into a LATER round — a round robin's cut past a
+  // medal — said under the round it feeds, never as the next round's.
+  if (cutHere && cutHere.intoId !== nextStage?.id && chainsRounds) {
+    const later = `Into ${roundLabelOf(allStages, cutHere.intoId)}: ${cutWords}`;
+    intoNext = intoNext ? `${intoNext} · ${later}` : later;
+    if (!asPanel) rowParts.push(later);
   }
 
   // What this kind of round settles. A Bracket Stage playing off for third and

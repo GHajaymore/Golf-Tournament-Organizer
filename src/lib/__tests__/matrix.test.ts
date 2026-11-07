@@ -59,7 +59,7 @@ import {
   type NextRoundFlight,
 } from "@/lib/domain/cut";
 import { aggregateStats, rankPlayers } from "@/lib/domain/standings";
-import { cutFeederOf } from "@/lib/domain/cut-ready";
+import { cutFeederOf, cutAfterRound } from "@/lib/domain/cut-ready";
 import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/domain/match-cards";
 import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-agg";
@@ -606,6 +606,13 @@ describe("the round a cut is taken out of, for every shape of tournament", () =>
       const rounds = shapes.map((s, i) => ({ id: `r${i + 1}`, ...s }));
       const line = cutFeederOf(rounds, rounds[rounds.length - 1].id);
       expect(line ? [line.feeder.id, line.kind] : null).toEqual(from === null ? null : [`r${from + 1}`, kind]);
+      // And the rules sheet prints that cut on exactly ONE round's sheet — the
+      // round that decides it, the same one — and on none where nothing does.
+      const withCut = rounds.map((r, i) => ({
+        ...r, cutEnabled: i === rounds.length - 1, cutScope: "overall", cutMode: "count", cutCount: 2, cutPercent: 50, cutTies: "playoff",
+      }));
+      const printedOn = withCut.filter((r) => cutAfterRound(withCut, r.id) !== null).map((r) => r.id);
+      expect(printedOn, `${name}: the sheets that print the cut`).toEqual(from === null ? [] : [`r${from + 1}`]);
     });
   }
 });

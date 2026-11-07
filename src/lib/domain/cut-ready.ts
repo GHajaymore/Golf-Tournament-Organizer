@@ -1,5 +1,6 @@
 import { isIndividualStrokeRound, isPlayingRound, seededFromQualifiers } from "../stage-types";
 import type { CutRule, CutLineKind } from "./cut";
+import { roundLabel } from "./round-label";
 
 /**
  * The cut a round's settings describe. One reader for the cut itself
@@ -80,17 +81,52 @@ export function cutRuleWords(rule: CutRule, ties = true): string {
  * the same setting, on points and the table's tie-breaks rather than a card
  * (`decidedOn`). A round seeded from qualifiers (a bracket) has no cut to
  * print — its field is its qualifiers. Null for a round with no cut after it.
+ *
+ * AND IT IS PRINTED ON THE SHEET OF THE ROUND THAT DECIDES IT (2026-11-07,
+ * ruled by the main session on the J31 review): the round whose card or table
+ * the cut is taken on (`cutFeederOf`), not simply the round before the one it
+ * feeds. For round robin → medal → cut round, Round 1's sheet says "Top N and
+ * ties advance to Round 3" with the tie method, and the medal's says nothing
+ * of that cut — its scores do not decide it. `into` names the round the cut
+ * feeds when it is not the next one. A cut that no engine makes (no table and
+ * no card before it — a scramble's) is printed nowhere: it is a promise
+ * nobody keeps.
  */
-export function cutAfterRound<R extends { id: string; type: string; format: string; cutEnabled: boolean; cutScope: string; cutMode: string; cutCount: number; cutPercent: number; cutTies: string }>(
+export function cutAfterRound<R extends { id: string; type: string; format: string; position?: number; cutEnabled: boolean; cutScope: string; cutMode: string; cutCount: number; cutPercent: number; cutTies: string }>(
   rounds: readonly R[],
   roundId: string,
-): { rule: CutRule; ties: boolean; tieRule: CutTieRule | null; decidedOn: CutLineKind | null } | null {
-  const i = rounds.findIndex((r) => r.id === roundId);
-  const next = i >= 0 ? rounds[i + 1] : undefined;
-  if (!next || !next.cutEnabled || seededFromQualifiers(next.type)) return null;
-  const decidedOn = cutLineKindOf(rounds[i], next);
-  const tieRule = decidedOn ? cutTieRuleOf(next.cutTies) : null;
-  return { rule: cutRuleOf(next), ties: tieRule === "ties", tieRule, decidedOn };
+): { rule: CutRule; ties: boolean; tieRule: CutTieRule; decidedOn: CutLineKind; intoId: string; into: string | null } | null {
+  const decided = cutDecidedBy(rounds, roundId);
+  if (!decided) return null;
+  const { next, kind } = decided;
+  const playing = rounds.filter((r) => isPlayingRound(r.type));
+  const after = playing[playing.findIndex((r) => r.id === roundId) + 1];
+  const tieRule = cutTieRuleOf(next.cutTies);
+  return {
+    rule: cutRuleOf(next),
+    ties: tieRule === "ties",
+    tieRule,
+    decidedOn: kind,
+    intoId: next.id,
+    into: after?.id === next.id ? null : roundLabel(rounds, next.id),
+  };
+}
+
+/**
+ * THE CUT `roundId` DECIDES — the first round after it, with a cut and a field
+ * of its own (not a bracket's qualifiers), whose cut is taken out of this round
+ * (`cutFeederOf`) — or null. The rules sheet and the round's card ask it.
+ */
+export function cutDecidedBy<R extends { id: string; type: string; format: string; cutEnabled: boolean }>(
+  rounds: readonly R[],
+  roundId: string,
+): { next: R; kind: CutLineKind } | null {
+  for (const next of rounds) {
+    if (!next.cutEnabled || seededFromQualifiers(next.type)) continue;
+    const line = cutFeederOf(rounds, next.id);
+    if (line && line.feeder.id === roundId) return { next, kind: line.kind };
+  }
+  return null;
 }
 
 /**
@@ -99,8 +135,13 @@ export function cutAfterRound<R extends { id: string; type: string; format: stri
  * (`generateCutRound`) — or null for a cut that settles no tie of its own.
  * The stroke test first: a Round Robin set to Stroke Play between two medals
  * is cut on its cards, as `applyStrokeCut` cuts it.
+ *
+ * NOT EXPORTED (2026-11-07): handed two neighbouring rounds it answers for the
+ * round beside the cut, and every reader that did so named the wrong round
+ * when a medal stood between a round robin and its cut. Ask `cutFeederOf` or
+ * `cutDecidedBy`; `one-reading-of-a-cut.test.ts` refuses a second reading.
  */
-export function cutLineKindOf(
+function cutLineKindOf(
   feeder: { type: string; format: string } | undefined,
   next: { type: string; format: string },
 ): CutLineKind | null {

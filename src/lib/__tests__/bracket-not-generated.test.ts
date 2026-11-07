@@ -103,10 +103,30 @@ describe("the published rules sheet only prints a cut the engine applies", () =>
       "Top 8 in each flight and ties advance to the next round",
     );
     // CONTROL: a cut out of a round that settles no tie of its own (a team
-    // medal, cut by neither engine's line) promises no ties.
+    // medal, cut by neither engine's line) promises no ties — and since
+    // 2026-11-07 no cut at all: no engine makes it (`generateCutRound` refuses a
+    // cut with no round robin before it, `applyStrokeCut` one off a team card).
     expect(
       cutLine([round("r1", { type: "Stroke Play Round", format: "Scramble" }), round("r2", { cutEnabled: true, cutScope: "perFlight" })], "r1"),
-    ).toBe("Top 8 in each flight advance to the next round");
+    ).toBeUndefined();
+  });
+
+  /**
+   * ON THE SHEET OF THE ROUND THAT DECIDES IT (2026-11-07). Round robin → medal
+   * → round robin with a cut: the draw takes the cut on Round 1's table, so
+   * Round 1 is played for it and its sheet says so, naming the round it feeds;
+   * the medal's scores decide nothing of it, so the medal's sheet is silent.
+   */
+  it("prints a round robin's cut past a medal on the round robin's sheet, not the medal's", () => {
+    const medal = { type: "Stroke Play Round", format: "Stroke Play" };
+    const rounds = [round("r1"), round("r2", medal), round("r3", { cutEnabled: true, cutTies: "playoff" })];
+    expect(cutLine(rounds, "r1")).toBe("Top 8 advance to Round 3. A tie for the last place is decided by a play-off");
+    expect(cutLine(rounds, "r2"), "the medal decides nothing of it").toBeUndefined();
+    expect(cutLine(rounds, "r3"), "made: nothing after it").toBeUndefined();
+    // CONTROL: a medal → medal cut after it is the medal's, on its cards.
+    const cards = [round("r1"), round("r2", medal), round("r3", { ...medal, cutEnabled: true })];
+    expect(cutLine(cards, "r1")).toBeUndefined();
+    expect(cutLine(cards, "r2")).toBe("Top 8 and ties advance to the next round");
   });
 
   it("prints a round robin's tie method in the table's words, not the card's (J31)", () => {
@@ -262,7 +282,7 @@ describe("the published rules sheet breaks ties the way the round is scored", ()
  * 2026-11-07) — the screen-side twin of "a scramble medal promises no ties".
  *
  * Rounds & formats sets how a tie at the cut line is settled; the rules sheet
- * prints it (`cutAfterRound`); the cut is made by the engine `cutLineKindOf`
+ * prints it (`cutAfterRound`); the cut is made by the engine `cutFeederOf`
  * names. The control was given the choice unconditionally and fell back to the
  * table's words where there is no line of either kind, so a cut no engine
  * settles a tie on would be offered a Play-off, store it, and print nothing.
@@ -313,4 +333,18 @@ describe("the Rounds screen offers a tie method exactly where the sheet prints o
       if (sheet?.decidedOn === "card") expect(html, name).toContain("the players level on that score play off");
     });
   }
+
+  it("round robin → medal → round robin: Round 1's card names the cut it decides, under Round 3; the medal's names none", () => {
+    const stages = [
+      view("r1", 0, RR),
+      view("r2", 1, MEDAL),
+      view("r3", 2, { ...RR, cutEnabled: true, cutTies: "playoff" }),
+    ];
+    const html = renderToStaticMarkup(createElement(StagesClient, { ...base, stages }));
+    // The sheet's words, from the sheet's function, on the round it is printed for.
+    expect(cutAfterRound(stages, "r1")?.into).toBe("Round 3");
+    expect(html).toContain("Into Round 3: cuts to top 8, a tie by play-off");
+    expect(html.match(/cuts to top 8/g) ?? [], "said once — on Round 1's card, not again on the medal's").toHaveLength(1);
+    expect(html, "never as the medal's cut").not.toContain("Into Round 2: cuts to");
+  });
 });
