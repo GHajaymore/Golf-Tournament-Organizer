@@ -19,15 +19,19 @@ import { readSource } from "./source";
  * `countbackCardsFor` (services/course-resolution.ts), which takes the venue as
  * a required argument. This sweep reads every call of a function that decides a
  * match or ranks on the toughest holes, anywhere in `src` outside the domain
- * that defines them, and requires the card it is handed to BE that answer —
- * `countbackCard…`, whether passed straight, as a tiebreak object's
- * `strokeIndex`, or through a local holding one. A tournament-level index
- * (`resolveCourse(event).strokeIndex`, `course.strokeIndex`, a round's
- * `holeDifficulty`) is refused by name, as is any other expression: ban the
- * shape, not the spelling.
+ * that defines them, and requires the card it is handed to BE that answer:
+ * followed through locals (and through a tiebreak object's `strokeIndex`,
+ * spreads included) to the expression it is bound to, which must be a call of
+ * `countbackCardsFor(…)` or the state's `.countbackCardFor` — or a parameter of
+ * a decider, whose own callers are swept. Anything else is refused, whatever it
+ * is called: a tournament-level index (`resolveCourse(event).strokeIndex`,
+ * `course.strokeIndex`, a round's `holeDifficulty`) in a local named
+ * `countbackCard` is refused too (the review of #1045: the first version of
+ * this sweep matched the NAME). Ban the shape, not the spelling.
  *
  * The CONTROL below feeds the checker the shapes the three readers had before
- * J26 and requires it to flag each, so a checker that sees nothing cannot pass.
+ * J26, the renamed one and the spread one, and requires it to flag each, so a
+ * checker that sees nothing cannot pass.
  */
 
 /** The functions that decide a match or rank on its toughest holes, and where each takes its card. */
@@ -57,8 +61,6 @@ const EXEMPT: Record<string, string> = {
   "src/lib/domain/match-entry.ts":
     "decides ONE match from the context its caller builds for that match (`MatchScoringContext.strokeIndex`); it has no production caller today",
 };
-
-const THE_ANSWER = /\bcountbackCard/;
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -97,14 +99,62 @@ export function cardCalls(code: string, fileName = "x.ts"): CardCall[] {
     if (depth < 4 && ts.isIdentifier(e) && locals.has(e.text)) return follow(locals.get(e.text)!, depth + 1);
     return e;
   };
-  const propertyOf = (obj: ts.Expression, key: string): ts.Expression | null => {
+  /**
+   * The expression that ends up as `obj[key]`, as JavaScript decides it: the
+   * LAST of an explicit `key:` and any spread. A spread of a literal is read
+   * through; a spread of anything else may carry its own `strokeIndex`, so the
+   * spread itself becomes the card and is judged (and refused). Null only when
+   * nothing in the object can set the key at all.
+   */
+  const propertyOf = (obj: ts.Expression, key: string, depth = 0): ts.Expression | null => {
     const o = follow(obj);
     if (!ts.isObjectLiteralExpression(o)) return o; // not a literal: judged whole
+    let current: ts.Expression | null = null;
     for (const p of o.properties) {
-      if (ts.isPropertyAssignment(p) && p.name.getText(sf) === key) return p.initializer;
-      if (ts.isShorthandPropertyAssignment(p) && p.name.text === key) return p.name;
+      if (ts.isPropertyAssignment(p) && p.name.getText(sf) === key) current = p.initializer;
+      else if (ts.isShorthandPropertyAssignment(p) && p.name.text === key) current = p.name;
+      else if (ts.isSpreadAssignment(p)) {
+        const spread = follow(p.expression);
+        if (ts.isObjectLiteralExpression(spread) && depth < 4) {
+          const inner = propertyOf(spread, key, depth + 1);
+          if (inner) current = inner;
+        } else {
+          current = p.expression;
+        }
+      }
     }
-    return null; // no card in the object: nothing to rank on
+    return current; // null: no card in the object, nothing to rank on
+  };
+
+  /**
+   * An identifier the file never binds locally is acceptable only as a
+   * PARAMETER of a function that is itself a decider (`chainRoundStandings`
+   * passing its own `countbackCard` on): that function's callers are swept,
+   * so the card is judged where it is made.
+   */
+  const isDeciderParameter = (id: ts.Identifier): boolean => {
+    for (let n: ts.Node | undefined = id.parent; n; n = n.parent) {
+      if (ts.isFunctionLike(n) && n.parameters.some((p) => ts.isIdentifier(p.name) && p.name.text === id.text)) {
+        const fnName = "name" in n && n.name && ts.isIdentifier(n.name as ts.Node) ? (n.name as ts.Identifier).text : "";
+        return Object.hasOwn(DECIDERS, fnName);
+      }
+    }
+    return false;
+  };
+
+  /**
+   * THE SHAPE, NOT THE NAME. The card is followed to the expression it is
+   * bound to, and that expression must BE the answer: a call of
+   * `countbackCardsFor(…)`, or the state's `.countbackCardFor` (which
+   * tournament.ts binds to that call — pinned below). A local merely NAMED
+   * `countbackCard` holding the tournament's index is refused.
+   */
+  const isTheAnswer = (card: ts.Expression): boolean => {
+    const x = follow(card);
+    if (ts.isCallExpression(x) && ts.isIdentifier(x.expression) && x.expression.text === "countbackCardsFor") return true;
+    if (ts.isPropertyAccessExpression(x) && x.name.text === "countbackCardFor") return true;
+    if (ts.isIdentifier(x) && !locals.has(x.text)) return isDeciderParameter(x);
+    return false;
   };
 
   const out: CardCall[] = [];
@@ -123,7 +173,7 @@ export function cardCalls(code: string, fileName = "x.ts"): CardCall[] {
           fn: name,
           line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
           card: text,
-          ok: THE_ANSWER.test(text) || THE_ANSWER.test(card.getText(sf)),
+          ok: isTheAnswer(card),
         });
       }
     }
@@ -193,7 +243,26 @@ describe("the card a halved match is decided on is the match's venue", () => {
     const week = `chainRoundStandings(state.rrStages, state.matches, ps, sc, opts.holeDifficulty, seq);`;
     // A round's card is not a match's card either.
     const round = `computeStandings(p, m, s, {}, state.strokeCourseFor(id).holeDifficulty, seq);`;
-    for (const [what, code] of Object.entries({ h2h, standings, week, round })) {
+    // THE RENAMED SHAPE (the review of #1045): the tournament's index under the right NAME.
+    const renamed = `
+      const countbackCard = resolveCourse(event).strokeIndex;
+      chainRoundStandings(r, m, p, s, countbackCard, seq);`;
+    const renamedInTiebreak = `
+      const countbackCardFor = resolveCourse(state.event).strokeIndex;
+      decidedOutcome(m, { sequence: s, strokeIndex: countbackCardFor });`;
+    // A tiebreak object that SPREADS IN its own strokeIndex — with no key of its own…
+    const spread = `
+      const own = { strokeIndex: resolveCourse(state.event).strokeIndex };
+      decidedOutcome(m, { sequence: s, ...own });`;
+    // …over the right key (the spread comes last, so it wins)…
+    const spreadOver = `
+      const own = { strokeIndex: resolveCourse(state.event).strokeIndex };
+      decidedOutcome(m, { sequence: s, strokeIndex: state.countbackCardFor, ...own });`;
+    // …or of an object the checker cannot read, which may carry anything.
+    const spreadUnknown = `decidedOutcome(m, { sequence: s, ...settingsOf(event) });`;
+    // A bare parameter is only the answer inside a decider, whose callers are swept.
+    const strayParam = `function rankAgain(p, m, countbackCard) { return computeStandings(p, m, s, {}, countbackCard, seq); }`;
+    for (const [what, code] of Object.entries({ h2h, standings, week, round, renamed, renamedInTiebreak, spread, spreadOver, spreadUnknown, strayParam })) {
       const found = cardCalls(code);
       expect(found.length, `${what}: the checker did not see the call`).toBe(1);
       expect(found[0].ok, `${what}: the checker passed ${found[0].card}`).toBe(false);
@@ -202,7 +271,21 @@ describe("the card a halved match is decided on is the match's venue", () => {
       const tiebreak = { sequence: s, strokeIndex: state.countbackCardFor };
       decidedOutcome(m, tiebreak);
       const countbackCard = countbackCardsFor(event, stages, matches, venueOf);
-      chainRoundStandings(r, m, p, s, countbackCard, seq);`;
-    expect(cardCalls(right).map((c) => c.ok)).toEqual([true, true]);
+      chainRoundStandings(r, m, p, s, countbackCard, seq);
+      decidedOutcome(m, { ...{ sequence: s }, strokeIndex: state.countbackCardFor });
+      decidedOutcome(m, { strokeIndex: resolveCourse(e).strokeIndex, ...{ strokeIndex: state.countbackCardFor } });`;
+    expect(cardCalls(right).map((c) => c.ok)).toEqual([true, true, true, true]);
+    // A decider handing its OWN parameter on (chainRoundStandings in tournament.ts).
+    const passedOn = `function chainRoundStandings(rr, ms, ps, sc, countbackCard, seq) { return computeStandings(ps, ms, sc, {}, countbackCard, seq); }`;
+    expect(cardCalls(passedOn).map((c) => c.ok)).toEqual([true]);
+  });
+
+  it("the state's countbackCardFor is bound to countbackCardsFor, so reading it off the state IS the answer", () => {
+    const state = readSource("src/lib/services/tournament.ts");
+    expect(state).toMatch(/const countbackCardFor = countbackCardsFor\(/);
+    // Returned on the state under that name (shorthand), not some other value;
+    // the one `countbackCardFor:` is the EventState field's type.
+    expect(state).toMatch(/^\s*countbackCardFor,\s*$/m);
+    expect(state.match(/countbackCardFor:[^\r\n]*/g)).toEqual(["countbackCardFor: (m: { id: string }) => number[];"]);
   });
 });
