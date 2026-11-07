@@ -187,6 +187,15 @@ export interface UnratedTees {
   typedCard?: boolean;
 }
 
+/**
+ * WAS A CARD ACTUALLY TYPED IN? The event's own pars (`Event.customPars`), and
+ * not merely a venue's name: a name with no card says nothing about tees.
+ */
+export function hasTypedCard(customPars: string): boolean {
+  const v = customPars.trim();
+  return v !== "" && v !== "[]";
+}
+
 export function unratedTeesFact(input: {
   rounds: readonly { label: string; scoringBasis: string }[];
   /** The tees the field actually plays (`teesInPlayFor`), not every set on the course. */

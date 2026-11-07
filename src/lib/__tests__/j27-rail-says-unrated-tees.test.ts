@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { tournamentStatus, setupFlowOf, flowFromStatus } from "../domain/tournament-status";
-import { unratedTeesTodo, unratedTiers, unratedTeesFact, warningText, type UnratedTees } from "../domain/launch-check";
+import { readFileSync } from "node:fs";
+import { unratedTeesTodo, unratedTiers, unratedTeesFact, hasTypedCard, warningText, type UnratedTees } from "../domain/launch-check";
 import { facts } from "../domain/__tests__/tournament-facts-fixtures";
 import { GUIDE_STEPS } from "../guide-steps";
 
@@ -110,6 +111,19 @@ describe("the finished and the classifier", () => {
 describe("a typed-in card with no saved course", () => {
   const net = [{ label: "Round 1", scoringBasis: "net" }];
   const typed = () => unratedTeesFact({ rounds: net, tees: [], fixedCourse: false, typedCard: true });
+
+  it("a card is typed only when pars are: a venue name alone is not a card", () => {
+    expect(hasTypedCard("")).toBe(false);
+    expect(hasTypedCard("  ")).toBe(false);
+    expect(hasTypedCard("[]")).toBe(false);
+    expect(hasTypedCard(JSON.stringify(new Array(18).fill(4)))).toBe(true);
+  });
+
+  it("the reader derives typedCard from the pars, not the venue name", () => {
+    const src = readFileSync("src/lib/services/tournament-facts.ts", "utf8");
+    expect(src).toContain("hasTypedCard(e.customPars)");
+    expect(src).not.toMatch(/typed\s*=[^;]*e\.course/);
+  });
 
   it("speaks when a card was typed and players are not choosing", () => {
     expect(typed()).toMatchObject({ typedCard: true, noTees: false });

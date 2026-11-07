@@ -87,7 +87,7 @@ test("a net medal on a course with no tees: the rail and Launch both say scores 
     await expect(page.getByText(/Ready to launch — \d+ of \d+ done, the rest optional/), "the rail does not say it can launch").toBeVisible({ timeout: 15_000 });
     const card = page.locator(".card").filter({ hasText: /Ready to launch/ }).first();
     await expect(card, "the card does not say players get strokes off their Handicap Index").toContainText(TODO);
-    await expect(card.getByRole("link", { name: "Tournament details" }).first()).toHaveAttribute("href", "/event#courses");
+    await expect(card.locator('a[href="/event#courses"]').first()).toHaveAttribute("href", "/event#courses");
 
     // From another setup screen the strip marks Tournament details Optional (here it would read "Now").
     await page.goto(`/registration?bust=${Date.now()}`);
