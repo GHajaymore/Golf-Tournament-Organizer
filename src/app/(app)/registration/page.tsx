@@ -114,6 +114,8 @@ export default async function RegistrationPage() {
     promotedAt: p.promotedAt ? p.promotedAt.toISOString() : null,
     // "Don't show my name on public pages" (2026-10-24).
     publicNameWithheld: p.publicNameWithheld,
+    // Member or guest, as stored (A039); the screen reads it through `entryStanding`.
+    standing: p.standing,
   });
 
   return (

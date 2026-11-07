@@ -56,7 +56,6 @@ async function authorPlayerId(eventId: string, session: Session | null): Promise
 import {
   mayReportPartialCard,
   allowsAutoConfirm,
-  entryNeedsEmail,
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Session } from "@/lib/auth";
@@ -105,13 +104,14 @@ import { drainWaitlist, fieldLimitFor, promoteFromWaitlist } from "@/lib/service
 import { fieldFactsFor, fieldRefusal } from "@/lib/services/field-change";
 import { storedMatchIsOver } from "@/lib/domain/match";
 import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
-import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
+import { parseCsv, hasNameColumn, cell, type CsvTable } from "@/lib/csv";
+import { planCsvSignups, readChoices, maskEmail, maskHandicapId, type SignupRowPlan } from "@/lib/domain/csv-signups";
+import { GUEST, MEMBER, CODES_TURNED_ON, isGuest, readStanding, type EntryStanding, type StandingCheck } from "@/lib/domain/entry-standing";
 import { cloneSingleMatchRule, parseSingleMatchRule, singleMatchRuleRefusal } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import {
-  EMAIL_RE,
   EMAIL_REFUSAL,
   isEmailAddress,
   nameRefusal,
@@ -126,7 +126,7 @@ import {
   PRIZE_DETAIL_MAX,
   prizeAmountRefusal,
 } from "@/lib/domain/prize-amount";
-import { indexRefusal } from "@/lib/domain/handicap-label";
+import { indexRefusal, indexLabel } from "@/lib/domain/handicap-label";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, KNOCKOUT_STAGE_TYPES, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { randomUUID } from "node:crypto";
@@ -188,7 +188,7 @@ import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked, isFinished, isLaunched } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
-import { ensureRoundCodes } from "@/lib/services/round-codes";
+import { ensureRoundCodes, codesOnForAnEntryWithoutEmail } from "@/lib/services/round-codes";
 import { isSupportedLocale, formatDayRange, resolveLocale } from "@/lib/domain/locale";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 
@@ -500,6 +500,8 @@ export interface SignupInput {
   homeClub?: string;
   handicapSource?: string;
   handicapType?: string;
+  /** "member" | "guest" — the organizer's choice on Add (`readStanding`). */
+  standing?: string;
 }
 
 export interface SignupResult {
@@ -529,7 +531,18 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const clean = String(input.name ?? "").trim();
   const badName = nameRefusal(clean, PERSON_NAME_MAX, "Enter a player name.");
   if (badName) return { ok: false, error: badName };
-  const cleanEmail = String(input.email ?? "").trim().toLowerCase();
+  /**
+   * MEMBER OR GUEST, the organizer's choice (Ajay, 2026-11-07). Read at the
+   * boundary; a caller that says nothing is entering a member, which is what
+   * this form did before the choice existed.
+   */
+  const standing = input.standing === undefined ? MEMBER : readStanding(input.standing);
+  if (!standing) return { ok: false, error: "Choose Member or Guest (not a club member)." };
+  const guest = standing === GUEST;
+  // A guest's email and mobile are never asked for and never stored: an email
+  // on the entry would make a sign-in account and hand the entry to whoever
+  // holds that address (`syncPlayerAccount`, `byAddress`).
+  const cleanEmail = guest ? "" : String(input.email ?? "").trim().toLowerCase();
   // A home club is a place's name, held to a place's length like the club's
   // own town — said, not cut (the text-box crawl, 2026-10-21).
   if (String(input.homeClub ?? "").trim().length > PLACE_MAX) {
@@ -557,16 +570,12 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const casualFull = await casualRoundFull(event, 1);
   if (casualFull) return { ok: false, error: casualFull };
   /**
-   * Asked of the tournament, not demanded of everybody — see `entryNeedsEmail`.
-   *
-   * A tournament signing players in by email genuinely needs one from each of
-   * them, and says so. One using Round Codes does not, and refusing the entry
-   * anyway is what stopped a society with a names-only roster entering its own
-   * members.
+   * NO ENTRY IS REFUSED FOR WANT OF AN EMAIL (Ajay, 2026-11-07: a member may
+   * enter without one, a guest needs none). This refused one on an email-only
+   * tournament ("Email is required — it's how this player signs in"); now the
+   * entry is made and Round Codes come on beside email sign-in, below
+   * (`codesOnForAnEntryWithoutEmail`), so the player still has a way to the card.
    */
-  if (!cleanEmail && entryNeedsEmail(settingsOf(event))) {
-    return { ok: false, error: "Email is required — it's how this player signs in." };
-  }
   if (cleanEmail && !isEmailAddress(cleanEmail)) return { ok: false, error: EMAIL_REFUSAL };
   // A handicap that was typed is one a golfer can have. Not finite is "left
   // blank", which is allowed and is recorded below as no index.
@@ -577,8 +586,9 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // The same rule the public form follows. An organizer typing someone in must
   // not be able to create an entrant the tournament cannot reach, when the
   // stranger filling in the form on their phone cannot.
-  const cleanPhone = String(input.phone ?? "").trim();
-  if (phoneRequiredFor(event.requirePhone)) {
+  // Never of a guest, even where the tournament asks every member (ruled 2026-11-07).
+  const cleanPhone = guest ? "" : String(input.phone ?? "").trim();
+  if (!guest && phoneRequiredFor(event.requirePhone)) {
     if (!cleanPhone) return { ok: false, error: "Enter a mobile number for this player." };
   }
   // A number that was typed is a number, whether or not this tournament asks
@@ -661,7 +671,9 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // so the club list is never a separate chore an organizer has to remember.
   const memberId = await upsertMember(
     event.organizationId,
-    { ...input, name: clean, email: cleanEmail },
+    // A guest is matched onto nobody: never onto a member of the same name, whose
+    // index this staff door would otherwise restate (design §4.3).
+    { ...input, name: clean, email: cleanEmail, phone: cleanPhone, guest },
     "staff",
   );
   await prisma.player.create({
@@ -672,8 +684,9 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
       handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
       seed: (maxSeed._max.seed ?? 0) + 1,
       status,
+      standing,
       email: cleanEmail,
-      phone: (input.phone ?? "").trim(),
+      phone: cleanPhone,
       ghin: (input.ghin ?? "").trim(),
       homeClub: (input.homeClub ?? "").trim(),
       // NO FIGURE, NO CLAIM. An empty handicap box arrives as not-a-number and
@@ -691,9 +704,12 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   });
   await syncPlayerAccount(eventId, clean, cleanEmail);
   // On the record ("Recent changes to the field"), whoever added them.
-  await logAudit(eventId, "added", `${clean} was added to the field (${status}).`);
+  await logAudit(eventId, "added", `${clean} was added to the field (${status}${guest ? ", guest" : ""}).`);
+  const codesOn = !cleanEmail && (await codesOnForAnEntryWithoutEmail(eventId, `${clean} was added without an email`));
   await refresh();
-  return { ok: true, said: await lateEntryWords(eventId, event.status, clean, status) };
+  const late = await lateEntryWords(eventId, event.status, clean, status);
+  const said = [late, codesOn ? CODES_TURNED_ON : ""].filter(Boolean).join(" ");
+  return { ok: true, said: said || undefined };
 }
 
 /**
@@ -754,6 +770,11 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   if (patch.email !== undefined) {
     const cleanEmail = String(patch.email).trim().toLowerCase();
     if (cleanEmail && !isEmailAddress(cleanEmail)) return { ok: false, error: EMAIL_REFUSAL };
+    // A guest's entry holds no email: one here would make a sign-in account and
+    // hand the entry to whoever holds the address (`byAddress`). Make member is a later change.
+    if (cleanEmail && isGuest(player)) {
+      return { ok: false, error: `${player.name} is entered as a guest (not a club member), so the entry holds no email.` };
+    }
     /**
      * Correcting an email must not create the duplicate `addSignup` now refuses.
      *
@@ -819,8 +840,13 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   // of having one record per person. Re-resolving rather than updating the
   // linked member directly, because a changed email may now identify someone
   // else on the roster (or nobody, in which case they're added).
+  //
+  // Not a guest already on the roster: a guest is matched onto nobody, so
+  // re-resolving would add a fresh row of theirs on every correction. Their row
+  // is the one they were given when entered (design §4.3).
   const organizationId = await organizationIdForEvent(eventId);
-  if (organizationId) {
+  const guest = isGuest(player);
+  if (organizationId && !(guest && player.memberId)) {
     const memberId = await upsertMember(organizationId, {
       name: (data.name as string) ?? player.name,
       email: (data.email as string) ?? player.email,
@@ -830,6 +856,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
       handicap: (data.handicap as number) ?? player.handicap,
       handicapType: (data.handicapType as string) ?? player.handicapType,
       handicapSource: (data.handicapSource as string) ?? player.handicapSource,
+      guest,
     },
       // Details only: an existing member's index is changed through
       // `setPlayerIndex`, which asks first (2026-10-16).
@@ -1126,21 +1153,46 @@ export interface CsvImportResult {
   skippedDuplicates: number;
   skippedInvalid: number;
   error?: string;
-  /** True when a names-only list switched this tournament to Round Codes as well as email. */
+  /** True when an entry without an email switched this tournament to Round Codes as well as email. */
   codesTurnedOn?: boolean;
+  /** Members and guests imported, for the line under the button. */
+  members?: number;
+  guests?: number;
+  /** Guest rows whose file carried an email, imported without it. */
+  emailsDropped?: number;
 }
 
-export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
-  const eventId = await requireStaffEvent();
-  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
-  if (!event) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "Event not found." };
-  // A sentence, not a throw — the same reasoning as `addSignup`: the import sat
-  // beside the Add form, ungated, on a locked tournament. A list is not a
-  // day-of act, so after launch it stays locked (the one field rule, "bulk").
-  const refused = await fieldRefusal(eventId, "bulk");
-  if (refused) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: refused };
-  if (typeof csv !== "string") return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "The file is empty." };
+/** One row of the preview: what the import will do with it. Masked: the screen needs to recognise, not copy. */
+export interface CsvPreviewRow {
+  row: number;
+  name: string;
+  email: string;
+  handicapId: string;
+  /** As the field shows it ("12.4", "+1.2", "No index") — `indexLabel`'s words, never a bare figure. */
+  handicapLabel: string;
+  standing: EntryStanding;
+  check: StandingCheck | null;
+  rosterName: string;
+  skip: "invalid" | "duplicate" | null;
+  emailDropped: boolean;
+}
 
+export type CsvPreviewResult = { ok: true; rows: CsvPreviewRow[] } | { ok: false; error: string };
+
+/**
+ * THE ENTRY LIST, READ ONCE FOR THE PREVIEW AND THE IMPORT (no-email player
+ * identity, PR 1). Every refusal about the FILE (empty, no name column, a
+ * casual round past eight, no phone column where one is collected) is here, so
+ * the preview refuses exactly what the import would. Every decision about a
+ * ROW is `planCsvSignups`.
+ */
+async function readEntryList(
+  eventId: string,
+  event: { organizationId: string; requirePhone: boolean; id: string; shape: string },
+  csv: unknown,
+  rawChoices: unknown,
+): Promise<{ error: string } | { table: CsvTable; plan: SignupRowPlan[] }> {
+  if (typeof csv !== "string") return { error: "The file is empty." };
   /**
    * Parsed with the shared reader, the same one the roster import uses.
    *
@@ -1151,100 +1203,109 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
    * format is how that happens; there is now one.
    */
   const table = parseCsv(csv);
-  if (!table) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "The file is empty." };
+  if (!table) return { error: "The file is empty." };
   if (!hasNameColumn(table)) {
     return {
-      imported: 0,
-      skippedDuplicates: 0,
-      skippedInvalid: 0,
       error:
         'Couldn\'t find a name column in the header row. Expected a header like: name, handicap, email, phone — or first name and last name in separate columns.',
     };
   }
   // Before anything is written: a casual round cannot be imported past eight.
   const casualFull = await casualRoundFull(event, table.rows.length);
-  if (casualFull) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: casualFull };
-  const headerCols = table.columns;
-  const emailIdx = headerCols.indexOf("email");
-  /**
-   * The same rule as every other way in — see `entryNeedsEmail`.
-   *
-   * Refused at the HEADER for the reason the phone check below records: a file
-   * with no email column at all would otherwise read as a hundred individually
-   * invalid rows, and the organizer would be told "skipped 100" with no hint
-   * that one missing column caused it. That stays; what changes is that a
-   * tournament using Round Codes is not asked for the column, because a
-   * names-only membership list is exactly the file it will be handed.
-   */
-  let needsEmail = entryNeedsEmail(settingsOf(event));
-  /**
-   * A LIST WITH NO ADDRESSES AT ALL TURNS ROUND CODES ON, rather than being
-   * refused (Ajay, 2026-09-28, left to my recommendation: "Round Codes by
-   * default when the roster has no emails").
-   *
-   * A club's membership export is very often names and handicaps and nothing
-   * else, and the refusal — "email is required so each player can sign in" —
-   * sent the organizer off to collect sixty addresses before anybody could be
-   * entered. Round Codes exist for exactly that list. So an email-only
-   * tournament handed a names-only file keeps email sign-in AND gains codes
-   * ("both"), imports the list, and says so on the screen.
-   *
-   * Only for a file with NO address anywhere. A file where some rows have one
-   * is a list with gaps, and those rows are still refused one by one — the
-   * organizer meant email sign-in and has most of the addresses.
-   */
-  const noAddresses = emailIdx === -1 || table.rows.every((cols) => !cell(table, cols, "email").trim());
-  const codesTurnedOn = needsEmail && noAddresses;
-  const phoneIdx = headerCols.indexOf("phone");
+  if (casualFull) return { error: casualFull };
   // Same rule as every other way in: the organizer's setting, on any plan.
   // Refused at the header rather than row by row: a file with no phone column
   // at all would otherwise be read as a hundred individually invalid rows, and
   // the organizer would be told "skipped 100" with no hint that one missing
   // column caused it.
   const needsPhone = phoneRequiredFor(event.requirePhone);
-  if (needsPhone && phoneIdx === -1) {
+  if (needsPhone && !table.columns.includes("phone")) {
     return {
-      imported: 0,
-      skippedDuplicates: 0,
-      skippedInvalid: 0,
       error:
-        'Couldn\'t find a "phone" column in the header row — this tournament collects a mobile number for every entrant. Add a phone column, or enter the field by hand.',
+        'Couldn\'t find a "phone" column in the header row — this tournament collects a mobile number for every member (never a guest). Add a phone column, or enter the field by hand.',
     };
   }
-  // After every header refusal, so a file that is going to be turned away
-  // anyway does not change the tournament's sign-in on its way out.
-  if (codesTurnedOn) {
-    await prisma.event.update({ where: { id: eventId }, data: { playerAccess: "both" } });
-    await ensureRoundCodes(eventId);
-    await logAudit(eventId, "round-codes-on", "Round Codes turned on: the imported list has no email addresses");
-    needsEmail = false;
-  }
   /**
-   * De-duplicated on email where there is one, and on name where there is not.
-   *
-   * The name check was removed once, correctly, with this reasoning: it drops
-   * the second real John Smith in a club that has two of them, "and clubs do"
-   * — and it was safe to remove because "the entry importer already requires
-   * one from every row".
-   *
-   * That last clause is no longer true, so the conclusion no longer follows.
-   * A file of names with no addresses would re-import in full on every upload,
-   * because every row's key is the empty string and `.filter(Boolean)` drops
-   * it — the field doubles and nothing says a word.
-   *
-   * So: email remains the key whenever a row has one, and namesakes are still
-   * both imported in that case. Name is the fallback ONLY for rows that have
-   * no address at all, which is the same fallback `upsertMember` already makes
-   * for the roster. The John Smith cost is real and confined to lists that
-   * carry no addresses, where nothing better exists — and it fails towards
-   * skipping a row an organizer can add by hand, rather than towards a silent
-   * double entry nobody sees until the tee sheet.
+   * De-duplicated on email where there is one, and on name where there is not
+   * (`planCsvSignups`). The name check was removed once, correctly, because it
+   * drops the second real John Smith — and put back when lists without
+   * addresses arrived, because a file of names would otherwise re-import in
+   * full on every upload. Email remains the key whenever an entry has one.
    */
-  const existing = await prisma.player.findMany({ where: { eventId }, select: { email: true, name: true } });
-  const seenEmails = new Set(existing.map((p) => p.email.trim().toLowerCase()).filter(Boolean));
-  const seenNames = new Set(
-    existing.filter((p) => !p.email.trim()).map((p) => p.name.trim().toLowerCase()).filter(Boolean),
+  const [existing, roster] = await Promise.all([
+    prisma.player.findMany({ where: { eventId }, select: { email: true, name: true } }),
+    prisma.member.findMany({ where: { organizationId: event.organizationId }, select: { name: true } }),
+  ]);
+  const plan = planCsvSignups(
+    table,
+    { existing, rosterNames: roster.map((m) => m.name), needsPhone },
+    readChoices(rawChoices, table.rows.length),
   );
+  return { table, plan };
+}
+
+/**
+ * WHAT THE FILE WILL DO, BEFORE IT DOES IT ("Check the list"). Staff-only and
+ * read-only: it writes nothing, and the import re-reads the file rather than
+ * trusting what this said.
+ */
+export async function previewCsvSignups(csv: string): Promise<CsvPreviewResult> {
+  const eventId = await requireStaffEvent();
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
+  if (!event) return { ok: false, error: "Event not found." };
+  const refused = await fieldRefusal(eventId, "bulk");
+  if (refused) return { ok: false, error: refused };
+  const read = await readEntryList(eventId, event, csv, {});
+  if ("error" in read) return { ok: false, error: read.error };
+  return {
+    ok: true,
+    rows: read.plan.map((p) => {
+      const hcp = parseHandicapInput(cell(read.table, read.table.rows[p.row], "handicap"));
+      return {
+        row: p.row,
+        name: p.name,
+        email: maskEmail(p.email),
+        handicapId: maskHandicapId(p.handicapId),
+        handicapLabel: indexLabel({ handicap: hcp.ok ? hcp.value : 0, handicapSource: hcp.ok ? hcp.source : "none" }),
+        standing: p.standing,
+        check: p.check,
+        rosterName: p.rosterName,
+        skip: p.skip,
+        emailDropped: p.emailDropped,
+      };
+    }),
+  };
+}
+
+/**
+ * Import an entry list. `choices` are the preview's switches, row → member or
+ * guest; they are read again here (`readChoices`), never trusted, and a row
+ * nobody switched takes the default (`defaultStanding`).
+ */
+export async function importCsvSignups(csv: string, choices?: Record<number, string>): Promise<CsvImportResult> {
+  const eventId = await requireStaffEvent();
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
+  if (!event) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "Event not found." };
+  // A sentence, not a throw — the same reasoning as `addSignup`: the import sat
+  // beside the Add form, ungated, on a locked tournament. A list is not a
+  // day-of act, so after launch it stays locked (the one field rule, "bulk").
+  const refused = await fieldRefusal(eventId, "bulk");
+  if (refused) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: refused };
+  const read = await readEntryList(eventId, event, csv, choices);
+  if ("error" in read) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: read.error };
+  const { table, plan } = read;
+
+  /**
+   * AN ENTRY WITHOUT AN EMAIL TURNS ROUND CODES ON, rather than being refused
+   * (Ajay, 2026-09-28 for a names-only list; 2026-11-07 for any member without
+   * one, and every guest). After every refusal about the file, so a file that
+   * is going to be turned away does not change the tournament's sign-in on its
+   * way out. `codesOnForAnEntryWithoutEmail` is the one place this happens.
+   */
+  const accepted = plan.filter((p) => !p.skip);
+  const codesTurnedOn =
+    accepted.some((p) => !p.entryEmail) &&
+    (await codesOnForAnEntryWithoutEmail(eventId, "the imported list has players without an email address"));
 
   let confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   // The plan's field cap over the stored number — see `addSignup`.
@@ -1254,44 +1315,17 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   let seed = (agg._max.seed ?? 0) + 1;
 
   let imported = 0;
-  let skippedDuplicates = 0;
-  let skippedInvalid = 0;
+  let members = 0;
+  let guests = 0;
+  let emailsDropped = 0;
+  const skippedDuplicates = plan.filter((p) => p.skip === "duplicate").length;
+  const skippedInvalid = plan.filter((p) => p.skip === "invalid").length;
 
-  for (const cols of table.rows) {
-    // Handles a single "Name" column and a "First Name"/"Last Name" pair alike.
-    const name = nameFrom(table, cols);
-    if (!name) {
-      skippedInvalid += 1;
-      continue;
-    }
-    const emailKey = emailIdx === -1 ? "" : cell(table, cols, "email").toLowerCase();
-    /**
-     * A blank address is a refusal only where the tournament needs one. A
-     * MALFORMED one is always a refusal — "j.smith@" is somebody's mistake in
-     * either case, and importing it would create an entrant whose sign-in can
-     * never work while the roster shows an address that looks fine at a
-     * glance.
-     */
-    if (!emailKey && needsEmail) {
-      skippedInvalid += 1;
-      continue;
-    }
-    if (emailKey && !EMAIL_RE.test(emailKey)) {
-      skippedInvalid += 1;
-      continue;
-    }
-    const nameKey = name.trim().toLowerCase();
-    if (emailKey ? seenEmails.has(emailKey) : seenNames.has(nameKey)) {
-      skippedDuplicates += 1;
-      continue;
-    }
-    // The column exists (checked above), so a row failing here is that one
-    // player's cell being blank or unreadable — the same class as a missing
-    // email, and counted the same way.
-    if (needsPhone && !looksLikePhone(cell(table, cols, "phone"))) {
-      skippedInvalid += 1;
-      continue;
-    }
+  for (const p of accepted) {
+    const cols = table.rows[p.row];
+    const guest = p.standing === GUEST;
+    const name = p.name;
+    const emailKey = p.entryEmail;
     // Same reading as the public form, for the same reason: parseFloat("+2.4")
     // is 2.4, and a plus handicap is 2.4 the other way. An entry list is where
     // the club's better players arrive, so this is the importer where the sign
@@ -1307,12 +1341,14 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     if (status === "confirmed") confirmedCount += 1;
     // One reading, shared with the roster importer — see `parseHandicapType`.
     const handicapType = parseHandicapType(cell(table, cols, "handicapType"));
-    const phone = cell(table, cols, "phone");
+    // A guest is never asked for a mobile, and none is kept (ruled 2026-11-07).
+    const phone = guest ? "" : cell(table, cols, "phone");
     // THE COLUMNS THE ROSTER IMPORT READS, READ HERE TOO. A "Home club" or "GHIN"
     // column in an entry list was recognised by its header and then dropped, so
     // the same file put a visitor's club on Members and not on the entry
-    // (2026-10-21, checking every door that adds a player).
-    const ghin = cell(table, cols, "ghin").trim();
+    // (2026-10-21, checking every door that adds a player). The handicap ID
+    // column, whichever body's words head it, is read into the same field.
+    const ghin = p.handicapId;
     const homeClub = cell(table, cols, "homeClub").trim();
     // Importing a field also builds the roster: a club that uploads its
     // spring CSV has its member list from then on, without a second import.
@@ -1320,7 +1356,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     // is what the entry carries (`memberGender`).
     const memberId = await upsertMember(
       event.organizationId,
-      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource, gender: cell(table, cols, "gender") },
+      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource, gender: cell(table, cols, "gender"), guest },
       "staff",
     );
     await prisma.player.create({
@@ -1331,6 +1367,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         handicap,
         seed: seed++,
         status,
+        standing: p.standing,
         email: emailKey,
         phone,
         ghin,
@@ -1343,19 +1380,22 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     // A no-op for a blank address, which is what makes an email-less entry a
     // Round Code player rather than a broken sign-in.
     await syncPlayerAccount(eventId, name, emailKey);
-    /**
-     * BOTH KEYS UPDATED AS WE GO, or a file that repeats a row imports it
-     * twice. `seenEmails` alone would have let every duplicate of an
-     * address-less name straight through — the within-file half of the same
-     * hole the set above closes for rows already in the field.
-     */
-    if (emailKey) seenEmails.add(emailKey);
-    else seenNames.add(nameKey);
     imported += 1;
+    if (guest) guests += 1;
+    else members += 1;
+    if (p.emailDropped) emailsDropped += 1;
   }
 
   await refresh();
-  return { imported, skippedDuplicates, skippedInvalid, ...(codesTurnedOn ? { codesTurnedOn } : {}) };
+  return {
+    imported,
+    skippedDuplicates,
+    skippedInvalid,
+    members,
+    guests,
+    ...(emailsDropped ? { emailsDropped } : {}),
+    ...(codesTurnedOn ? { codesTurnedOn } : {}),
+  };
 }
 
 export async function setInviteMessage(message: string) {

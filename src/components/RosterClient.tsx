@@ -5,7 +5,9 @@ import { ClubHandicapPanel } from "@/components/ClubHandicapPanel";
 import { listNames } from "@/lib/format";
 import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import { csvSizeRefusal } from "@/lib/csv";
+import { CODES_TURNED_ON, rosterNoEmailYet, standingHint } from "@/lib/domain/entry-standing";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
+import { useGolfTerms } from "@/components/GolfTermsProvider";
 import { rosterSelection } from "@/lib/domain/roster-selection";
 import { indexLabel, indexFigure, hasIndex, NO_INDEX } from "@/lib/domain/handicap-label";
 import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
@@ -188,6 +190,8 @@ export function RosterClient({
   // read "society" here. The provider carries kind, country and the override
   // together and every screen in the console is inside it.
   const profile = useOrgProfile();
+  // The club's golf words, for the member-or-guest hint (a {cart} is a buggy in Britain).
+  const golfWords = useGolfTerms();
   /** Whether there is a tournament to talk about at all — see the prop. */
   const hasTournament = eventName !== "";
 
@@ -339,9 +343,13 @@ export function RosterClient({
           // Named, and split by what is actually missing. The organizer's next
           // move is to open those members and fill the detail in, and neither a
           // count nor a merged list tells them which detail or whose.
-          if (r.needEmail.length) bits.push(`no email for ${listNames(r.needEmail)} — not entered`);
           if (r.needPhone.length) bits.push(`no mobile for ${listNames(r.needPhone)} — not entered`);
-          setNotice(bits.join(" · "));
+          // Entered, not refused, since 2026-11-07: a member may play without an email.
+          const after = [
+            r.noEmailYet.length ? rosterNoEmailYet(listNames(r.noEmailYet), golfWords) : "",
+            r.codesTurnedOn ? CODES_TURNED_ON : "",
+          ].filter(Boolean);
+          setNotice([`${bits.join(" · ")}.`, ...after].join(" "));
           setSelected(new Set());
         }
         return r;
@@ -491,6 +499,10 @@ export function RosterClient({
           <span className="card-title" style={{ fontSize: 15 }}>
             {editing ? "Edit member" : "Add a member"}
           </span>
+          {/* The organizer's hint, wherever the list is built (Ajay, 2026-11-07). */}
+          <p className="text-muted" style={{ fontSize: 13, margin: "-4px 0 0" }} data-testid="standing-hint">
+            {standingHint(clubName, golfWords)}
+          </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
             {/* Every label is tied to its field. They were plain text above the
                 boxes, so a screen reader announced eight unnamed edit boxes —
@@ -508,7 +520,7 @@ export function RosterClient({
             </div>
             <div className="field">
               <label htmlFor={`${fid}-email`}>
-                Email <span className="text-muted">· how they sign in</span>
+                Email <span className="text-muted">· optional, lets them sign in</span>
               </label>
               <input
                 id={`${fid}-email`}

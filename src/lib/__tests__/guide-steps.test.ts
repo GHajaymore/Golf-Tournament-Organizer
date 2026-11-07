@@ -49,6 +49,11 @@ const PINNED: [label: string, file: string][] = [
   ["Share", "src/components/PlaySettings.tsx"],
   ["Print…", "src/app/(app)/foursomes/page.tsx"],
   ["Print…", "src/app/(app)/cup/page.tsx"],
+  // Member or guest (the no-email player identity, PR 1): the CSV preview's buttons.
+  ["Download template", "src/components/RegistrationClient.tsx"],
+  ["Make guest", "src/components/RegistrationClient.tsx"],
+  ["Make member", "src/components/RegistrationClient.tsx"],
+  ["Choose another file", "src/components/RegistrationClient.tsx"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */
