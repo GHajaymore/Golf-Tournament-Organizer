@@ -37,7 +37,7 @@ const SITES: Record<string, { file: string; scope: string; what: string; except?
   saveEvent: { file: TOURNAMENT, scope: "details", what: "change the tournament’s details" },
   applyManualCount: { file: TOURNAMENT, scope: "field", what: "change the field limit" },
   regenGroups: { file: TOURNAMENT, scope: "flights", what: "make the flights again" },
-  generateNextRound: { file: TOURNAMENT, scope: "draw", what: "draw the round again" },
+  generateNextRound: { file: TOURNAMENT, scope: "draw", what: "redraw a round that already has scores, which would wipe its cards" },
   saveScoring: { file: TOURNAMENT, scope: "rounds", what: "change the points" },
   setQualifyPerGroup: { file: TOURNAMENT, scope: "rounds", what: "change who qualifies" },
   setStageCarry: { file: TOURNAMENT, scope: "rounds", what: "change the points carried forward" },

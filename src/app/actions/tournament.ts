@@ -1891,7 +1891,7 @@ export async function generateNextRound(stageId: string) {
    * committee correction opens (PR 5b) — refused in words, never thrown.
    */
   if ((await enteredCardCount(eventId, stageId)) > 0) {
-    const locked = await refuseIfLocked(eventId, "draw", "draw the round again");
+    const locked = await refuseIfLocked(eventId, "draw", "redraw a round that already has scores, which would wipe its cards");
     if (locked) return locked;
   }
   const result = await generateCutRound(eventId, stageId);

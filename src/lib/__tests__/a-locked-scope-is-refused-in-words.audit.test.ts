@@ -123,6 +123,20 @@ beforeAll(async () => {
     select: { id: true },
   });
   eventId = ev.id;
+  // A course with its card, so Launch is not refused for want of par and stroke index.
+  const course = await prisma.course.create({
+    data: {
+      organizationId: org.id,
+      name: `${TAG} links`,
+      city: "",
+      pars: JSON.stringify(new Array(18).fill(4)),
+      yards: JSON.stringify(new Array(18).fill(400)),
+      strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+    },
+    select: { id: true },
+  });
+  await prisma.eventCourse.create({ data: { eventId, courseId: course.id } });
+  await prisma.tee.create({ data: { courseId: course.id, name: `${TAG} White`, courseRating: 71.2, slopeRating: 128, par: 72, position: 0 } });
   round1 = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: "2026-11-14" }, select: { id: true } })).id;
   round2 = (await prisma.stage.create({ data: { eventId, position: 1, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: "2026-11-15" }, select: { id: true } })).id;
   flightA = (await prisma.group.create({ data: { eventId, name: "Flight A", position: 0 }, select: { id: true } })).id;
@@ -149,6 +163,7 @@ beforeAll(async () => {
 afterAll(async () => {
   try {
     await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
+    await prisma.course.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } });
   } finally {
@@ -213,7 +228,8 @@ const PRESSES: { name: string; scope: string; what: string; press: () => Promise
 
 describe("launching leaves its line (panel 8.0 F1), and the scopes lock", () => {
   it("Launch writes tournament-launched", async () => {
-    expect(await launchTournament()).toEqual({ ok: true });
+    const launched = await launchTournament();
+    expect(launched, launched.error).toEqual({ ok: true });
     const lines = await prisma.auditLog.findMany({ where: { eventId, action: "tournament-launched" } });
     expect(lines).toHaveLength(1);
     expect((await prisma.event.findUniqueOrThrow({ where: { id: eventId } })).status).toBe("live");
@@ -244,11 +260,20 @@ describe("on a launched tournament, every structural press is refused in words â
     // Drawing a round nobody has played is running the event, not setup: it may fail for its own reasons, but never on the lock.
     const open = await generateNextRound(round2);
     expect(open).not.toHaveProperty("lock");
-    const card = await prisma.scorecard.create({ data: { eventId, stageId: round2, playerId, strokes: JSON.stringify(Array(18).fill(5)), status: "entered" } });
+    // A card WITH SCORES on it â€” giving out blank cards is not playing (`enteredCardCount`).
+    await prisma.scorecard.upsert({
+      where: { stageId_playerId: { stageId: round2, playerId } },
+      create: { eventId, stageId: round2, playerId, strokes: JSON.stringify(Array(18).fill(5)), status: "entered" },
+      update: { strokes: JSON.stringify(Array(18).fill(5)), status: "entered" },
+    });
     try {
-      expect(await generateNextRound(round2)).toMatchObject({ ok: false, error: LIVE("draw the round again"), lock: { scope: "draw", by: "launch" } });
+      expect(await generateNextRound(round2)).toMatchObject({
+        ok: false,
+        error: LIVE("redraw a round that already has scores, which would wipe its cards"),
+        lock: { scope: "draw", by: "launch" },
+      });
     } finally {
-      await prisma.scorecard.delete({ where: { id: card.id } });
+      await prisma.scorecard.deleteMany({ where: { stageId: round2 } });
     }
   });
 
