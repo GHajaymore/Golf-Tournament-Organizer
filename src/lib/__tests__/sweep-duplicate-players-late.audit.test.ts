@@ -79,8 +79,9 @@ describe("sweeping duplicate players: late writes and data", () => {
         data: { eventId: m.ev.id, stageId: stage.id, groupId: grp.id, round: 1, playerAId: op.id, playerBId: op.id, ...data } as never,
       });
 
-    const one = await make({ attestedBy: JSON.stringify([a.id]) });
-    expect((await planEvent(prisma, m.ev.id)).clusters[0]).toMatchObject({ keep: a.id, drop: [b.id], refused: null });
+    // On the LATER row, so that ignoring the tie would keep the earlier one and be seen.
+    const one = await make({ attestedBy: JSON.stringify([b.id]) });
+    expect((await planEvent(prisma, m.ev.id)).clusters[0]).toMatchObject({ keep: b.id, drop: [a.id], refused: null });
     await prisma.match.delete({ where: { id: one.id } });
 
     await make({ enteredById: a.id });
