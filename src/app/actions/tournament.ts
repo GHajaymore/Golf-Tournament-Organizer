@@ -2905,6 +2905,10 @@ export async function removeStage(stageId: string, force = false) {
     }
   }
 
+  // The id is this tournament's own round, or nothing is deleted.
+  const owned = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });
+  if (!owned) return { ok: true as const };
+
   const flightsBefore = await flightDefaultFor(eventId);
   /**
    * A PURGE (Ajay, 2026-11-07): the round and everything tied to it go in one
