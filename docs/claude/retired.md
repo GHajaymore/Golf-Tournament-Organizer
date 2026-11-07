@@ -15,6 +15,13 @@
   suite.** End-to-end does NOT cover every action yet: 36 of 263 were performed by a browser
   test when last measured (2026-10-10). Every round re-measures it and names what nothing does.
 
+> Retired (Superseded by J26, 2026-11-06: a halved match's toughest-holes countback is decided on the card of the course the match was PLAYED on, per match, through `matchCountbackIndex` / `countbackCardsFor` in `course-resolution.ts`. Neither `regroup.ts` nor `week-view.ts` reads the tournament's stroke index any more, and `the-countback-card-is-the-match-venue.test.ts` refuses it. The current rule is in `combination-sweep.md`, point 7.)
+
+`regroup.ts` stays event-level on purpose and is the one exemption: it
+resolves a single stroke index for a CHAIN of qualifying rounds, which has
+no one card to be resolved per round. `week-view.ts` documents the same
+exemption for its match tiebreaks.
+
 > Retired (Superseded by Ajay's two rulings of 2026-11-06: "we can't waste time waiting this long. this kind of real tournament [freeze] we should do at the last when we have all other foundations and basic issues fixed", and "let's turn off that freez until Nov 20th". The freeze is now off until 20 Nov 2026 (`FREEZE_RESUMES`), then guards only pilot clubs while sign-ins are held, and is this paragraph's full rule again once accounts are live. CLAUDE.md carries the new wording.)
 
 **SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A FREEZE** (the testing
