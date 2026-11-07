@@ -168,6 +168,17 @@ describe("quiet cases", () => {
     expect(await noticesFor(leagueId)).toHaveLength(0);
   });
 
+  it("says nothing about a namesake in another state when the new club is made through the tournament form", async () => {
+    // The create path asks the matcher itself (settings hands it the answer it already has).
+    await prisma.organization.updateMany({
+      where: { members: { some: { user: { email: second.email } } } },
+      data: { city: "Austin", region: "TX", country: "US" },
+    });
+    const res = await createEvent(`${TAG} Week 8`, "custom", "series", LEAGUE, undefined, true);
+    expect(res.ok, res.error).toBe(true);
+    expect(await noticesFor(leagueId), "told about a league two states away").toHaveLength(0);
+  });
+
   it("says nothing to a club about its own name", async () => {
     asTheLeague();
     const res = await saveOrganizationBranding(LEAGUE, "", "", { city: "Cincinnati", region: "OH", country: "" });
