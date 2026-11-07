@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { isKnockoutRound } from "@/lib/stage-types";
 
 /**
  * DELETING A ROUND OR A TOURNAMENT IS A PURGE (Ajay, 2026-11-07).
@@ -82,6 +83,21 @@ export const ROUND_ROWS_WITHOUT_A_CASCADE = [
   "TournamentFund",
 ] as const;
 
+/**
+ * WHEN A TOURNAMENT'S HONOURS ENTRY GOES (a ruling the owner has yet to make).
+ *
+ * `"every-delete"` (today): the club's honours-board line for a tournament goes
+ * with the tournament, however it was deleted, the automatic sweeps included
+ * (the Free plan's 15 days after completion, a lapsed club's archive).
+ * `"deliberate-delete-only"`: the line goes only when a person pressed Delete
+ * (`deleteEvent`); the sweeps leave it, since the board is the club's history.
+ * The ruling is this one line.
+ */
+export const HONOURS_GO_WITH: "every-delete" | "deliberate-delete-only" = "every-delete";
+
+/** A lapsed club's archive can hold many tournaments; Prisma's default of 5 s would fail it every night. */
+const PURGE_TX = { timeout: 60_000, maxWait: 10_000 } as const;
+
 type Tx = Prisma.TransactionClient;
 
 async function deleteRoundRows(tx: Tx, eventId: string, stageIds: string[]) {
@@ -104,20 +120,52 @@ async function deleteRoundRows(tx: Tx, eventId: string, stageIds: string[]) {
  */
 export async function purgeRound(eventId: string, stageId: string): Promise<boolean> {
   return prisma.$transaction(async (tx) => {
-    const stage = await tx.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });
+    const stage = await tx.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true, type: true } });
     if (!stage) return false;
     await deleteRoundRows(tx, eventId, [stageId]);
     await tx.stage.deleteMany({ where: { id: stageId, eventId } });
+    // A bracket's results are keyed "{winners|consolation}-{round}-{match}" with
+    // no stage id, so the cascade from the Stage cannot reach them: they go with
+    // the knockout round, and a stored draw with no bracket left goes too.
+    if (isKnockoutRound(stage.type)) {
+      await tx.bracketWinner.deleteMany({ where: { eventId } });
+      await tx.bracketReport.deleteMany({ where: { eventId } });
+      const left = await tx.stage.findMany({ where: { eventId }, select: { type: true } });
+      if (!left.some((s) => isKnockoutRound(s.type))) {
+        await tx.event.update({ where: { id: eventId }, data: { bracketDraw: "" } });
+      }
+    }
     return true;
-  });
+  }, PURGE_TX);
+}
+
+const filled = (v: unknown): boolean => typeof v === "string" && v.length > 0;
+const named = (v: unknown): boolean => {
+  if (filled(v)) return true;
+  if (typeof v !== "object" || v === null) return false;
+  const o = v as { equals?: unknown; in?: unknown };
+  return filled(o.equals) || (Array.isArray(o.in) && o.in.length > 0);
+};
+
+/**
+ * Why a filter may not reach a purge: it must name a club (`organizationId`) or
+ * explicit tournaments (`id`), else `{}` or `{ archivedAt: { not: null } }`
+ * would match every tournament in every club. Null when the filter is scoped.
+ */
+export function purgeScopeRefusal(where: Prisma.EventWhereInput): string | null {
+  if (named(where.organizationId) || named(where.id)) return null;
+  return "A purge needs a club (organizationId) or explicit tournament ids; an unscoped filter would match every tournament.";
 }
 
 /**
  * Delete every tournament matching `where`, and everything tied to it, in one
  * transaction. `where` is re-applied to the delete, so a sweep's "still due"
  * condition holds at the moment of deletion. Returns how many went.
+ * `deliberate` means a person pressed Delete (see `HONOURS_GO_WITH`).
  */
-export async function purgeEvents(where: Prisma.EventWhereInput): Promise<number> {
+export async function purgeEvents(where: Prisma.EventWhereInput, opts: { deliberate?: boolean } = {}): Promise<number> {
+  const refusal = purgeScopeRefusal(where);
+  if (refusal) throw new Error(refusal);
   return prisma.$transaction(async (tx) => {
     const ids = (await tx.event.findMany({ where, select: { id: true } })).map((e) => e.id);
     if (ids.length === 0) return 0;
@@ -128,14 +176,14 @@ export async function purgeEvents(where: Prisma.EventWhereInput): Promise<number
     const still = new Set((await tx.event.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((e) => e.id));
     const goneIds = ids.filter((id) => !still.has(id));
     const byEvent = { eventId: { in: goneIds } };
-    await tx.honoursEntry.deleteMany({ where: byEvent });
+    if (HONOURS_GO_WITH === "every-delete" || opts.deliberate) await tx.honoursEntry.deleteMany({ where: byEvent });
     await tx.smsDelivery.deleteMany({ where: byEvent });
     await tx.emailFailure.deleteMany({ where: byEvent });
     return gone.count;
-  });
+  }, PURGE_TX);
 }
 
 /** One tournament. */
-export async function purgeEvent(eventId: string): Promise<boolean> {
-  return (await purgeEvents({ id: eventId })) > 0;
+export async function purgeEvent(eventId: string, opts: { deliberate?: boolean } = {}): Promise<boolean> {
+  return (await purgeEvents({ id: eventId }, opts)) > 0;
 }

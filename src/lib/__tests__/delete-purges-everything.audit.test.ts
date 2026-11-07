@@ -128,10 +128,14 @@ beforeAll(async () => {
     });
   const annMember = await member("ann", 12.4);
   const cyMember = await member("cy", 3.1);
-  ann = (await prisma.player.create({ data: { eventId, memberId: annMember.id, name: `${TAG} ann`, email: `${TAG}.ann@example.invalid`, seed: 1, status: "confirmed" } })).id;
+  ann = (await prisma.player.create({ data: { eventId, memberId: annMember.id, name: `${TAG} ann`, email: userEmail, seed: 1, status: "confirmed" } })).id; // the User IS this entry's account (linked by address)
   const cy = (await prisma.player.create({ data: { eventId: otherEventId, memberId: cyMember.id, name: `${TAG} cy`, email: `${TAG}.cy@example.invalid`, seed: 1, status: "confirmed" } })).id;
   clubRows = await clubLevel();
   await prisma.account.create({ data: { eventId, name: "zz staff", email: staffEmail, role: "admin" } });
+  // The same person is also on the tournament's own access list, as its assistant.
+  await prisma.account.create({ data: { eventId, name: "zz user", email: userEmail, role: "assistant" } });
+  expect(await prisma.player.count({ where: { eventId, email: userEmail } })).toBe(1);
+  expect(await prisma.user.count({ where: { email: userEmail } })).toBe(1);
   const team = await prisma.team.create({ data: { eventId, name: `${TAG} side`, seed: 1 } });
   const otherTeam = await prisma.team.create({ data: { eventId: otherEventId, name: `${TAG} other side`, seed: 1 } });
   await seedRound(eventId, r1, ann, team.id);
@@ -166,6 +170,64 @@ afterAll(async () => {
   } finally {
     await prisma.$disconnect();
   }
+});
+
+describe("who may delete a round that holds money records", () => {
+  it("an Assistant is refused in plain words and nothing is deleted, even with force", async () => {
+    session = { ...session!, role: "assistant" };
+    try {
+      for (const force of [false, true]) {
+        const res = await removeStage(r2, force);
+        expect(res).toMatchObject({ ok: false, refused: "Ask the Organizer to delete this round — it holds money records." });
+      }
+      expect(await prisma.stage.count({ where: { id: r2 } })).toBe(1);
+      expect(await rowsIn("Expense", "stageId", r2)).toBe(1);
+      expect(await rowsIn("Scorecard", "stageId", r2)).toBe(1);
+    } finally {
+      session = { ...session!, role: "admin" };
+    }
+  });
+
+  it("an Assistant may still delete a round that holds no money records", async () => {
+    session = { ...session!, role: "assistant" };
+    const bare = (await prisma.stage.create({ data: { eventId, position: 9, type: "Stroke Play Round", format: "Individual Stroke Play", holes: 18 } })).id;
+    try {
+      expect((await removeStage(bare)).ok).toBe(true);
+      expect(await prisma.stage.count({ where: { id: bare } })).toBe(0);
+    } finally {
+      session = { ...session!, role: "admin" };
+    }
+  });
+
+  it("the Organizer is not refused (the next block deletes r2 as the Organizer)", async () => {
+    expect(await removeStage(r2)).toMatchObject({ needsConfirm: true, records: 4 });
+  });
+});
+
+describe("deleting a knockout round", () => {
+  it("takes its bracket results, reports and stored draw, and leaves another tournament's", async () => {
+    const ko = (await prisma.stage.create({ data: { eventId, position: 8, type: "Bracket Stage", format: "Match Play", holes: 18 } })).id;
+    await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: "zz-draw" } });
+    await prisma.bracketWinner.create({ data: { eventId, key: "winners-0-0", winnerId: ann, result: "3&2" } });
+    await prisma.bracketReport.create({ data: { eventId, key: "winners-0-1", winnerId: ann, reportedById: ann } });
+    await prisma.bracketWinner.create({ data: { eventId: otherEventId, key: "winners-0-0", winnerId: "zz" } });
+    expect(await prisma.bracketWinner.count({ where: { eventId } })).toBe(1); // the control
+    expect((await removeStage(ko, true)).ok).toBe(true);
+    expect(await prisma.bracketWinner.count({ where: { eventId } })).toBe(0);
+    expect(await prisma.bracketReport.count({ where: { eventId } })).toBe(0);
+    expect((await prisma.event.findUnique({ where: { id: eventId }, select: { bracketDraw: true } }))?.bracketDraw).toBe("");
+    expect(await prisma.bracketWinner.count({ where: { eventId: otherEventId } })).toBe(1);
+  });
+
+  it("deleting a stroke-play round leaves the bracket's results alone", async () => {
+    await prisma.stage.create({ data: { eventId, position: 8, type: "Bracket Stage", format: "Match Play", holes: 18 } });
+    const sp = (await prisma.stage.create({ data: { eventId, position: 7, type: "Stroke Play Round", format: "Individual Stroke Play", holes: 18 } })).id;
+    await prisma.bracketWinner.create({ data: { eventId, key: "winners-0-0", winnerId: ann } });
+    expect((await removeStage(sp)).ok).toBe(true);
+    expect(await prisma.bracketWinner.count({ where: { eventId } })).toBe(1);
+    await prisma.bracketWinner.deleteMany({ where: { eventId } });
+    await prisma.stage.deleteMany({ where: { eventId, position: 8 } });
+  });
 });
 
 describe("removing a round", () => {
@@ -231,6 +293,8 @@ describe("deleting a tournament", () => {
     // nor their handicap and history fields, the User sign-in, or the membership.
     expect(await prisma.player.count({ where: { eventId } })).toBe(0);
     expect(await prisma.member.count({ where: { organizationId: orgId } })).toBe(2);
+    expect(await prisma.account.count({ where: { eventId } })).toBe(0); // the tournament's own access list goes
+    expect(await prisma.user.count({ where: { email: userEmail } })).toBe(1); // the sign-in of the person who was in it stays
     expect(await clubLevel()).toBe(clubRows);
     // The other tournament's entry still points at its Member.
     expect((await prisma.player.findFirst({ where: { eventId: otherEventId }, select: { memberId: true } }))?.memberId).toBeTruthy();

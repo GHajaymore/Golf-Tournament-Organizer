@@ -1,6 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { readdirSync } from "node:fs";
+import { join, relative } from "node:path";
+import { describe, it, expect, vi } from "vitest";
 import { readSource, readVerbatim } from "./source";
+
+// purgeEvents must throw on an unscoped filter BEFORE it touches the database.
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    $transaction: () => {
+      throw new Error("the database was reached");
+    },
+  },
+}));
 import {
+  purgeEvents,
+  purgeScopeRefusal,
+  HONOURS_GO_WITH,
   EVENT_ROWS_WITHOUT_A_CASCADE,
   ROUND_ROWS_WITHOUT_A_CASCADE,
   KEPT_ON_EVENT_DELETE,
@@ -153,10 +167,74 @@ describe("every model that names a tournament or a round is purged with it", () 
     expect(schema).toMatch(/member\s+Member\?\s+@relation\(fields: \[memberId\], references: \[id\], onDelete: SetNull\)/);
   });
 
-  it("every delete path goes through the purge", () => {
-    expect(readSource("src", "app", "actions", "tournament.ts")).not.toMatch(/prisma\.event\.delete(Many)?\(/);
-    for (const f of ["club-archive.ts", "round-sweep.ts", "par-sweep.ts", "demo-club.ts"]) {
-      expect(readSource("src", "lib", "services", f), f).not.toMatch(/prisma\.event\.delete(Many)?\(/);
+  it("every delete path goes through the purge: nothing in src but purge.ts deletes an event or a round", () => {
+    const files = sourceFilesUnder(join(process.cwd(), "src")).filter((f) => !f.endsWith(join("services", "purge.ts")));
+    expect(files.length).toBeGreaterThan(300); // not an empty walk
+    const offenders = files.filter((f) => DELETES_A_TOURNAMENT_OR_ROUND.test(readSource(relative(process.cwd(), f))));
+    expect(offenders.map((f) => relative(process.cwd(), f))).toEqual([]);
+  });
+
+  it("a CONTROL: the sweep sees every spelling of a delete, and purge.ts itself holds both", () => {
+    for (const s of [
+      "await prisma.event.delete({ where: { id } })",
+      "await prisma.event.deleteMany({})",
+      "await tx.event.deleteMany({ where })",
+      "await prisma.stage.delete({ where: { id } })",
+      "await db.stage.deleteMany({ where })",
+    ]) {
+      expect(DELETES_A_TOURNAMENT_OR_ROUND.test(s), s).toBe(true);
     }
+    expect(DELETES_A_TOURNAMENT_OR_ROUND.test("await prisma.stageOrder.deleteMany({})")).toBe(false);
+    const purge = readSource("src", "lib", "services", "purge.ts");
+    expect(purge).toMatch(/\.stage\.deleteMany\(/);
+    expect(purge).toMatch(/\.event\.deleteMany\(/);
+  });
+
+  it("a filter that would match every tournament is refused, a scoped one is not", () => {
+    expect(purgeScopeRefusal({})).toMatch(/needs a club/);
+    expect(purgeScopeRefusal({ archivedAt: { not: null } })).toMatch(/needs a club/);
+    expect(purgeScopeRefusal({ id: "" })).not.toBeNull();
+    expect(purgeScopeRefusal({ id: { in: [] } })).not.toBeNull();
+    expect(purgeScopeRefusal({ organizationId: undefined })).not.toBeNull();
+    expect(purgeScopeRefusal({ id: "e1" })).toBeNull();
+    expect(purgeScopeRefusal({ id: { in: ["e1", "e2"] } })).toBeNull();
+    expect(purgeScopeRefusal({ organizationId: "o1", archivedAt: { not: null } })).toBeNull();
+  });
+
+  it("purgeEvents refuses an unscoped filter before it opens a transaction", async () => {
+    await expect(purgeEvents({})).rejects.toThrow(/needs a club/);
+    await expect(purgeEvents({ expiresAt: { lte: new Date() } })).rejects.toThrow(/needs a club/);
+  });
+
+  it("every purge transaction states its own timeout, and the honours ruling is one named switch", () => {
+    const src = readSource("src", "lib", "services", "purge.ts");
+    const calls = src.match(/\$transaction\(/g) ?? [];
+    expect(calls.length).toBe(2);
+    expect((src.match(/\},\s*PURGE_TX\)/g) ?? []).length).toBe(calls.length);
+    expect(src).toMatch(/PURGE_TX = \{ timeout: 60_000, maxWait: \d+/);
+    expect(["every-delete", "deliberate-delete-only"]).toContain(HONOURS_GO_WITH);
+    expect(HONOURS_GO_WITH).toBe("every-delete"); // today's behaviour, until the owner rules
+    // It is the only place that decides: honours are deleted behind that switch and nowhere else.
+    expect(src.match(/honoursEntry\.deleteMany/g)?.length).toBe(1);
+    expect(src).toMatch(/HONOURS_GO_WITH === "every-delete" \|\| opts\.deliberate\)\s*await tx\.honoursEntry\.deleteMany/);
+  });
+
+  it("deleting a knockout round takes the bracket's results with it", () => {
+    const src = readSource("src", "lib", "services", "purge.ts");
+    expect(src).toMatch(/isKnockoutRound\(stage\.type\)[\s\S]*bracketWinner\.deleteMany[\s\S]*bracketReport\.deleteMany/);
   });
 });
+
+/** Any `.event.delete(` / `.stage.deleteMany(` — whatever the client is called. */
+const DELETES_A_TOURNAMENT_OR_ROUND = /\.(event|stage)\.delete(Many)?\(/;
+
+function sourceFilesUnder(dir: string): string[] {
+  const out: string[] = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) {
+      if (e.name !== "__tests__") out.push(...sourceFilesUnder(p));
+    } else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) out.push(p);
+  }
+  return out;
+}

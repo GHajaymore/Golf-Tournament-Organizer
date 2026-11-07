@@ -869,7 +869,7 @@ function StageCard({
    * cards and — through the cascade — its skins pot with every stake already
    * collected, and the trash icon used to do all of that on one click.
    */
-  const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number; records: number } | null>(null);
+  const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number; records: number; refused?: string } | null>(null);
   // On the timeline Delete is the panel's last control, so its warning opens below the fold of
   // the panel's own scroll: brought into view when it appears (`rounds-panel.spec`, 2026-11-02).
   const removeWarningRef = useRef<HTMLDivElement>(null);
@@ -1381,7 +1381,16 @@ function StageCard({
    * row as the trash button. The timeline's panel puts Delete at its very end, a screen away from
    * the Format box, so there it is drawn beside Delete (`rounds-panel.spec`, 2026-11-02).
    */
-  const removeWarning = removeCost && (
+  const removeWarning = removeCost?.refused ? (
+    <div ref={removeWarningRef} role="alert" style={{ marginTop: 8, padding: "8px 10px", border: "1px solid var(--color-danger)", borderRadius: 8, fontSize: 13, lineHeight: 1.55 }}>
+      {removeCost.refused}
+      <div style={{ marginTop: 6 }}>
+        <button type="button" className="btn btn-ghost" onClick={() => setRemoveCost(null)}>
+          Close
+        </button>
+      </div>
+    </div>
+  ) : removeCost && (
     <div
       ref={removeWarningRef}
       style={{
@@ -1712,7 +1721,8 @@ function StageCard({
               // The server refuses when the round holds results or money, and
               // says how much of each. An empty round still deletes on one press.
               const res = await removeStage(stage.id);
-              if (res?.needsConfirm) setRemoveCost({ cards: res.cards ?? 0, stakes: res.stakes ?? 0, records: res.records ?? 0 });
+              if (res && "refused" in res && res.refused) setRemoveCost({ cards: 0, stakes: 0, records: 0, refused: res.refused });
+              else if (res?.needsConfirm) setRemoveCost({ cards: res.cards ?? 0, stakes: res.stakes ?? 0, records: res.records ?? 0 });
             })
           }
         >

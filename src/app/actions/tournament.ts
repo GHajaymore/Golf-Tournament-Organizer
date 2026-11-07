@@ -2895,22 +2895,32 @@ export async function removeStage(stageId: string, force = false) {
    * 7 says this app records money rather than moving it, which makes the record
    * the only thing there is — losing it silently is losing the money.
    */
-  if (!force) {
-    // `records`: the expenses, funds, contests and side games tied to this round,
-    // which the purge also removes, so the warning says so.
-    const tied = { eventId, stageId };
-    const [cards, stakes, ...kinds] = await Promise.all([
-      enteredCardCount(eventId, stageId),
-      prisma.skinsEntry.count({ where: { pot: { stageId }, confirmed: true } }),
-      prisma.expense.count({ where: tied }),
-      prisma.tournamentFund.count({ where: tied }),
-      prisma.contest.count({ where: tied }),
-      prisma.sideGame.count({ where: tied }),
-    ]);
-    const records = kinds.reduce((a, b) => a + b, 0);
-    if (cards > 0 || stakes > 0 || records > 0) {
-      return { ok: false as const, needsConfirm: true as const, cards, stakes, records };
-    }
+  // `records`: the expenses, funds, contests and side games tied to this round,
+  // which the purge also removes, so the warning says so.
+  const tied = { eventId, stageId };
+  const [cards, stakes, ...kinds] = await Promise.all([
+    enteredCardCount(eventId, stageId),
+    prisma.skinsEntry.count({ where: { pot: { eventId, stageId }, confirmed: true } }),
+    prisma.expense.count({ where: tied }),
+    prisma.tournamentFund.count({ where: tied }),
+    prisma.contest.count({ where: tied }),
+    prisma.sideGame.count({ where: tied }),
+  ]);
+  const records = kinds.reduce((a, b) => a + b, 0);
+  /**
+   * The purge destroys money records, which an Assistant Organizer may not do
+   * (the Organizer and the club's Commissioner may), whether or not the
+   * confirmation was shown: `force` is a public argument.
+   */
+  if ((stakes > 0 || records > 0) && (await getSession())?.role === "assistant") {
+    return {
+      ok: false as const,
+      needsConfirm: false as const,
+      refused: "Ask the Organizer to delete this round — it holds money records.",
+    };
+  }
+  if (!force && (cards > 0 || stakes > 0 || records > 0)) {
+    return { ok: false as const, needsConfirm: true as const, cards, stakes, records };
   }
 
   // The id is this tournament's own round, or nothing is deleted.
@@ -5218,7 +5228,7 @@ export async function deleteEvent(eventId: string) {
   if (access?.role !== "admin") throw new Error("Only the organizer can delete a tournament");
 
   // A purge: the cascade plus the rows that have no foreign key (`services/purge.ts`).
-  await purgeEvent(eventId);
+  await purgeEvent(eventId, { deliberate: true });
   await landAfterDeleting(session);
 }
 
