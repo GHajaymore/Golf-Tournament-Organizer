@@ -37,6 +37,15 @@ function daysInMonth(year: number, month: number): number {
 }
 
 /**
+ * THE DAY A ROUND IS PLAYED: its own `playedOn`, else the tournament's first
+ * day (`startOn`) for a round never dated on its own, else "". The one answer
+ * to "what day is this round" — `docs/one-rule-one-place.md`.
+ */
+export function roundDayOf(playedOn: string | null | undefined, startOn: string | null | undefined): IsoDate | "" {
+  return cleanIsoDate(playedOn) || cleanIsoDate(startOn);
+}
+
+/**
  * Add whole days to a calendar date.
  *
  * Goes through UTC purely as a calendar, never as a clock — midday guards
