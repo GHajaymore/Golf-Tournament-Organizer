@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setMatchTiebreakers } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
 import {
   OFFERED_MATCH_TIEBREAKS,
   MATCH_TIEBREAK_LABELS,
@@ -35,10 +36,13 @@ export function MatchTiebreakControl({
 }) {
   const [seq, setSeq] = useState<MatchTiebreakKey[]>(selected);
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
 
   const commit = (next: MatchTiebreakKey[]) => {
     setSeq(next);
-    startTransition(() => void setMatchTiebreakers(next));
+    startTransition(async () => {
+      caughtUp(await setMatchTiebreakers(next));
+    });
   };
 
   const toggle = (key: MatchTiebreakKey) => {

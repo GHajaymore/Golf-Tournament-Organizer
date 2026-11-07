@@ -137,7 +137,20 @@ import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
 // Launch, Complete, Reopen, play and closing a round ask the state machine (PR 4).
 import { roundCloseCheck, statusRequestOf } from "@/lib/domain/tournament-status";
-import { playRefusedBecause, tournamentStatusNow } from "@/lib/services/tournament-status";
+import { playRefusedBecause, tournamentStatusNow, refuseIfLocked, refuseIfAddingARoundIsLocked, scopeLockFor } from "@/lib/services/tournament-status";
+import { lockFactsFor } from "@/lib/services/tournament-facts";
+import {
+  locksFor,
+  correctionRefusal,
+  correctionReasonRefusal,
+  correctionOpenedLine,
+  correctionClosedLine,
+  LOCK_SCOPES,
+  type LockScope,
+  type ScopeLock,
+} from "@/lib/domain/tournament-status";
+import { endOfClubDay } from "@/lib/domain/club-clock";
+import { zoneOfEvent } from "@/lib/services/club-clock";
 import { roundCloseFactsFor } from "@/lib/services/tournament-facts";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
@@ -184,10 +197,10 @@ import { FORMAT_NAMES } from "@/lib/formats";
 import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { assertUnlocked, lockedRefusal, logAudit, roundWordsFor } from "@/lib/services/action-shared";
+import { logAudit, roundWordsFor } from "@/lib/services/action-shared";
 import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
-import { configurationLocked, isFinished, isLaunched } from "@/lib/domain/lifecycle-state";
+import { isFinished, isLaunched } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
@@ -1402,7 +1415,8 @@ export async function saveEvent(data: {
   courseMode: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "details", "change the tournament’s details");
+  if (locked) return locked;
 
   /**
    * A TOURNAMENT HAS A NAME (the text-box crawl, 2026-10-21). This stored
@@ -1576,7 +1590,8 @@ export async function saveEvent(data: {
 
 export async function applyManualCount(target: number, force = false): Promise<RegenResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "field", "change the field limit");
+  if (locked) return locked;
 
   // Resizing the field rebuilds the schedule, which discards scored matches
   // exactly as regenGroups does — same guard, for the same reason.
@@ -1814,7 +1829,8 @@ export async function regenGroups(
   force = false,
 ): Promise<RegenResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "flights", "make the flights again");
+  if (locked) return locked;
 
   // Refused, not quietly rewritten.
   //
@@ -1871,15 +1887,12 @@ export async function generateNextRound(stageId: string) {
    * the target round's cards or matches before drawing it. So once setup is
    * locked, the draw is allowed only while that round has nothing on it — a
    * re-press after the round has started would wipe the scores being played.
-   * Redrawing a round with results in it stays behind an explicit unlock.
+   * Redrawing a round with results in it stays behind the draw's lock, which a
+   * committee correction opens (PR 5b) — refused in words, never thrown.
    */
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, configUnlocked: true } });
-  if (event && configurationLocked(event) && (await enteredCardCount(eventId, stageId)) > 0) {
-    return {
-      ok: false as const,
-      error:
-        "That round already has scores, so drawing it again would wipe them. Unlock setup first if that is really what you want.",
-    };
+  if ((await enteredCardCount(eventId, stageId)) > 0) {
+    const locked = await refuseIfLocked(eventId, "draw", "draw the round again");
+    if (locked) return locked;
   }
   const result = await generateCutRound(eventId, stageId);
   /**
@@ -1930,9 +1943,10 @@ export async function saveScoring(data: {
   holeRatioPts: number;
   bonusPts: number;
   maxPerMatch: number;
-}) {
+}): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the points");
+  if (locked) return locked;
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -1945,16 +1959,19 @@ export async function saveScoring(data: {
     },
   });
   await refresh();
+  return { ok: true };
 }
 
-export async function setQualifyPerGroup(n: number) {
+export async function setQualifyPerGroup(n: number): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change who qualifies");
+  if (locked) return locked;
   await prisma.event.update({
     where: { id: eventId },
     data: { qualifyPerGroup: Math.min(3, Math.max(1, Math.round(n))) },
   });
   await refresh();
+  return { ok: true };
 }
 
 /* ── Stages ───────────────────────────────────────────────────────────── */
@@ -2129,9 +2146,10 @@ export async function dateUndatedRounds(
   return { dated: plan.length, first };
 }
 
-export async function setStageCarry(stageId: string, enabled: boolean, pct: number) {
+export async function setStageCarry(stageId: string, enabled: boolean, pct: number): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the points carried forward");
+  if (locked) return locked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: {
@@ -2144,11 +2162,13 @@ export async function setStageCarry(stageId: string, enabled: boolean, pct: numb
     },
   });
   await refresh();
+  return { ok: true };
 }
 
-export async function setStageCut(stageId: string, enabled: boolean, mode: string, count: number, percent: number) {
+export async function setStageCut(stageId: string, enabled: boolean, mode: string, count: number, percent: number): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the cut");
+  if (locked) return locked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: {
@@ -2159,6 +2179,7 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
     },
   });
   await refresh();
+  return { ok: true };
 }
 
 /**
@@ -2173,9 +2194,10 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
  *
  * Same guard and same shape as `setStageFormat`, for the same reason.
  */
-export async function setStageScoringBasis(stageId: string, basis: string, force = false) {
+export async function setStageScoringBasis(stageId: string, basis: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change how a round is scored");
+  if (locked) return locked;
   const current = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
     select: { scoringBasis: true, format: true },
@@ -2215,16 +2237,17 @@ export async function setStageScoringBasis(stageId: string, basis: string, force
  * public HTTP endpoint that will be called with whatever the caller likes, and
  * "final result only" on a Stableford round would be a shape no engine reads.
  */
-export async function setStageScoreInput(stageId: string, input: string) {
+export async function setStageScoreInput(stageId: string, input: string): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change how scores are entered");
+  if (locked) return locked;
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
     // The basis as well as the format: whether a two-ball side may record
     // one score depends on whether the round is won on gross or on net.
     select: { format: true, scoringBasis: true },
   });
-  if (!stage) return;
+  if (!stage) return { ok: false, error: "Round not found." };
   const wanted = (input ?? "").trim();
   /**
    * "" always means "no opinion" and is always allowed; anything else must be
@@ -2245,6 +2268,7 @@ export async function setStageScoreInput(stageId: string, input: string) {
       : "";
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { scoreInput: value } });
   await refresh();
+  return { ok: true };
 }
 
 /**
@@ -2262,7 +2286,8 @@ export async function setStageScoreInput(stageId: string, input: string) {
  */
 export async function setStageMatchKeptBy(stageId: string, kept: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change who keeps the match card");
+  if (locked) return locked;
   const stage = await prisma.stage.findFirst({
     where: { id: String(stageId), eventId },
     select: { id: true, type: true, format: true, scoreInput: true, matchKeptBy: true },
@@ -2362,7 +2387,8 @@ async function roundHoldsAScore(stageId: string): Promise<boolean> {
 
 export async function setStageFormat(stageId: string, format: string, force = false) {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change a round’s format");
+  if (locked) return locked;
   /**
    * Changing a format re-scores every card in the round.
    *
@@ -2430,9 +2456,10 @@ export async function setStageFormat(stageId: string, format: string, force = fa
  * See `enteredCardCount`, whose own header calls that out and names this as
  * the kind of thing that must ask first.
  */
-export async function setStageHoles(stageId: string, holes: number, force = false) {
+export async function setStageHoles(stageId: string, holes: number, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change a round’s holes");
+  if (locked) return locked;
   const value = holesPlayed(holes);
   if (!force) {
     const current = await prisma.stage.findFirst({
@@ -2606,9 +2633,10 @@ export async function applyRoundHandicapToRest(
 
 /* ── Tiebreakers & qualification ──────────────────────────────────────── */
 
-export async function saveTiebreakers(order: string[]) {
+export async function saveTiebreakers(order: string[]): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the tie-breakers");
+  if (locked) return locked;
   // isTiebreakerKey rather than a membership test against a fixed list: the
   // countbacks are `toughest-N` for any N a committee names, and it bounds N
   // to the holes on a card. De-duplicated because the same tiebreaker twice
@@ -2624,11 +2652,13 @@ export async function saveTiebreakers(order: string[]) {
     data: { tiebreakers: JSON.stringify(valid) },
   });
   await refresh();
+  return { ok: true };
 }
 
-export async function setQualifyMode(mode: string, overall: number) {
+export async function setQualifyMode(mode: string, overall: number): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change who qualifies");
+  if (locked) return locked;
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -2637,6 +2667,7 @@ export async function setQualifyMode(mode: string, overall: number) {
     },
   });
   await refresh();
+  return { ok: true };
 }
 
 /* Stage types live in src/lib/stage-types.ts, shared with the picker. Two
@@ -2675,12 +2706,17 @@ export interface AddStageOptions {
 export async function addStage(
   type: string,
   countOrOpts: number | AddStageOptions = 1,
-): Promise<{ id?: string; error?: string }> {
+): Promise<{ id?: string; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  // Not behind the lock: a live league adds next week's round as it goes, and
-  // a championship adds a play-off round when the field finishes level. Adding
-  // is additive — the rounds already played are untouched (2026-09-27).
+  // Not behind the launch lock: a live league adds next week's round as it goes,
+  // and a championship adds a play-off round when the field finishes level.
+  // Adding is additive — the rounds already played are untouched (2026-09-27).
   // Deleting a round (`removeStage`) and changing one's format stay locked.
+  // REFUSED ONLY ONCE COMPLETED (TD ruling on PR 5a, Q2), by the one rule the
+  // described tournament (`applySetupProposal`) asks too — this refused nothing
+  // at all before PR 5b, not even a completed tournament. Returned, never thrown.
+  const locked = await refuseIfAddingARoundIsLocked(eventId);
+  if (locked) return { error: locked.error, lock: locked.lock };
   // Refused, not read as a round robin: an unknown kind of round used to add a
   // full set of pairings for whatever the caller had actually meant.
   if (!isStageType(type)) return { error: "That is not a kind of round." };
@@ -2878,9 +2914,10 @@ export async function addStage(
   return { id: firstId };
 }
 
-export async function removeStage(stageId: string, force = false) {
+export async function removeStage(stageId: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; stakes?: number; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "delete a round");
+  if (locked) return locked;
 
   /**
    * Deleting a round deletes everything played in it.
@@ -5397,6 +5434,12 @@ export async function setEventStatus(
    * one. Pinned here, by the act that would otherwise move them.
    */
   await setActiveEvent(eventId);
+  // THE TRAIL (PR 5b; panel 8.0 F1): Complete and Reopen each leave a line, as Launch does.
+  if (s === "completed") {
+    await logAudit(eventId, "tournament-completed", "Completed the tournament. The result is final and every open round is closed.");
+  } else if (current.status === "completed") {
+    await logAudit(eventId, "tournament-reopened", "Reopened the completed tournament to correct it. The result is no longer final.");
+  }
   /**
    * COMPLETING CLOSES EVERY ROUND STILL OPEN — Ajay's call, 2026-09-26.
    *
@@ -5485,14 +5528,94 @@ async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string
     where: { id: eventId },
     data: { status: "live", launchedAt: new Date(), configUnlocked: false },
   });
+  // THE TRAIL (PR 5b; panel 8.0 F1): launching wrote no line of its own, so
+  // Recent changes could not say who declared the tournament live, or when.
+  await logAudit(eventId, "tournament-launched", "Launched the tournament. Setup is locked; a committee correction opens one part of it.");
   await refresh();
   return { ok: true };
 }
 
-export async function setConfigUnlocked(unlocked: boolean) {
+/**
+ * THE BLANKET UNLOCK IS RETIRED (PR 5b; TD Q2, panel 8.1): it opened every
+ * scope, recorded nothing and stayed open for weeks. What is left of it is the
+ * way to LOCK AGAIN a tournament a legacy `configUnlocked` still holds open —
+ * the dashboard offers that, and only that, while the flag is on. Opening is
+ * refused in words; the committee correction (`openCorrection`) is the remedy.
+ * The flag itself is read as the legacy correction until PR 9.
+ */
+export async function setConfigUnlocked(unlocked: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
-  await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: unlocked } });
+  if (unlocked) {
+    return { ok: false, error: "Setup is no longer unlocked as a whole. Make a committee correction to open one part of it, with a reason." };
+  }
+  await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: false } });
+  await logAudit(eventId, "committee-correction", "Locked setup again — the old whole-tournament unlock is closed.");
   await refresh();
+  return { ok: true };
+}
+
+/**
+ * OPEN A COMMITTEE CORRECTION ON ONE SCOPE (PR 5b; TD Q2, panel 8.1).
+ *
+ * The Committee may correct its own errors (Rule 20.2d); the Terms of the
+ * Competition are not changed once play has started except in exceptional
+ * circumstances (Committee Procedures, Section 5A). So: the Organizer only
+ * (`requireAdminEvent`); on a launched tournament that is not completed (for a
+ * completed one Reopen is the remedy); ONE scope, and only one whose lock is by
+ * launch or by the draw — never over recorded scores or results
+ * (`correctionRefusal`); a reason of 10–200 characters, which goes in Recent
+ * changes with the Organizer's name (`committee-correction`); open until Done
+ * (`endCorrection`) or the end of the CLUB's day (`endOfClubDay(zone)`),
+ * whichever comes first — never overnight, as `configUnlocked` was.
+ *
+ * One at a time: opening a second scope replaces the first, and the record says
+ * both happened.
+ */
+export async function openCorrection(scope: string, reason: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  if (!(LOCK_SCOPES as readonly string[]).includes(scope)) return { ok: false, error: "Choose which part of setup to open." };
+  const facts = await lockFactsFor(eventId);
+  if (!facts) return { ok: false, error: "This tournament could not be found." };
+  if (!isLaunched(facts.status)) return { ok: false, error: "Nothing is locked before launch — change it directly." };
+  if (isFinished(facts.status)) return { ok: false, error: "The tournament is completed. Reopen it on the dashboard to change anything." };
+  const clean = String(reason ?? "").trim();
+  const badReason = correctionReasonRefusal(clean);
+  if (badReason) return { ok: false, error: badReason };
+  // The locks as they stand with NO correction, so an open correction on this very scope reads as locked and may be renewed.
+  const refused = correctionRefusal(locksFor({ ...facts, correction: null }), scope as LockScope);
+  if (refused) return { ok: false, error: refused };
+  const session = await getSession();
+  const by = session?.name || "The Organizer";
+  const until = endOfClubDay(await zoneOfEvent(eventId));
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { correctionScope: scope, correctionReason: clean, correctionBy: by, correctionUntil: until },
+  });
+  await logAudit(eventId, "committee-correction", correctionOpenedLine({ scope: scope as LockScope, by, reason: clean }), { actor: by });
+  await refresh();
+  return { ok: true };
+}
+
+/** Done: the correction closes now, and the record says who closed it. Idempotent — nothing open is simply nothing. */
+export async function endCorrection(): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const open = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { correctionScope: true, correctionBy: true, correctionUntil: true },
+  });
+  if (!open) return { ok: false, error: "This tournament could not be found." };
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { correctionScope: null, correctionReason: null, correctionBy: null, correctionUntil: null },
+  });
+  if (open.correctionScope && (LOCK_SCOPES as readonly string[]).includes(open.correctionScope)) {
+    const closedBy = (await getSession())?.name || "The Organizer";
+    await logAudit(eventId, "committee-correction", correctionClosedLine({ scope: open.correctionScope as LockScope, by: open.correctionBy ?? "" }, closedBy), {
+      actor: closedBy,
+    });
+  }
+  await refresh();
+  return { ok: true };
 }
 
 /* ── Prizes & payouts ─────────────────────────────────────────────────── */
@@ -5826,7 +5949,8 @@ export async function removeAnnouncement(announcementId: string) {
  */
 export async function setBracketMode(mode: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "draw", "change the bracket’s arrangement");
+  if (locked) return locked;
   if (!isBracketMode(mode)) return { ok: false, error: "Unknown bracket arrangement." };
   /**
    * INTO OR OUT OF FLIGHTS, ONLY BEFORE A RESULT (2026-10-12).
@@ -6017,8 +6141,8 @@ export async function renameFlight(flight: unknown, name: unknown): Promise<{ ok
  */
 export async function renameGroup(groupId: string, name: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  const locked = await lockedRefusal(eventId, "change the flights");
-  if (locked) return { ok: false, error: locked };
+  const locked = await refuseIfLocked(eventId, "flights", "rename a flight", { except: ["draw"] });
+  if (locked) return locked;
   const clean = name.trim().slice(0, 40);
   if (!clean) return { ok: false, error: "Give the flight a name." };
 
@@ -6049,8 +6173,8 @@ export async function renameGroup(groupId: string, name: string): Promise<{ ok: 
  */
 export async function setFlightsConfirmed(confirmed: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  const locked = await lockedRefusal(eventId, "change the flights");
-  if (locked) return { ok: false, error: locked };
+  const locked = await refuseIfLocked(eventId, "flights", "confirm or reopen the draw", { except: ["draw"] });
+  if (locked) return locked;
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { formationRule: true } });
   if (event?.formationRule !== "manual") {
     return { ok: false, error: "Only a manual draw is confirmed by hand — the other rules regenerate." };
@@ -6071,7 +6195,8 @@ export async function setFlightsConfirmed(confirmed: boolean): Promise<{ ok: boo
  */
 export async function setMatchTiebreakers(keys: string[]): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the match tie-breakers");
+  if (locked) return locked;
   // Cleaned rather than trusted: this is a public endpoint, and an unknown key
   // reaching the engine would silently skip instead of failing loudly.
   const clean = cleanMatchTiebreakers(keys).filter((k) => OFFERED_MATCH_TIEBREAKS.includes(k));
@@ -6157,7 +6282,8 @@ export async function saveEntryTerms(data: {
   capacity: number;
 }): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "field", "change the entry terms");
+  if (locked) return locked;
   const opens = parseDeadlineIso(String(data.regOpens ?? ""));
   const closes = parseDeadlineIso(String(data.regDeadline ?? ""));
   if (opens && closes && closes < opens) {
@@ -6189,7 +6315,8 @@ export async function saveEntryTerms(data: {
  *  than stored, since an unknown mode would decide where every entry goes. */
 export async function setRegistrationApproval(mode: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "field", "change how entries are approved");
+  if (locked) return locked;
   await prisma.event.update({
     where: { id: eventId },
     data: { registrationApproval: mode === "approve" ? "approve" : "auto" },
@@ -6238,14 +6365,17 @@ export async function approveSignup(playerId: string): Promise<{ ok: boolean; er
 }
 
 /** Whether a round's cut is taken across the field or within each flight. */
-export async function setStageCutScope(stageId: string, scope: string): Promise<void> {
+// RETURNED, NEVER THROWN (PR 5b): these two answered `void`, so the lock could only throw.
+export async function setStageCutScope(stageId: string, scope: string): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the cut");
+  if (locked) return locked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { cutScope: isCutScope(scope) ? scope : "overall" },
   });
   await refresh();
+  return { ok: true };
 }
 
 /**
@@ -6254,14 +6384,16 @@ export async function setStageCutScope(stageId: string, scope: string): Promise<
  * terms, which a committee publishes before play (Committee Procedures 5A(6)),
  * so it locks with the rest of setup. See `strokeCutOutcome`.
  */
-export async function setStageCutTies(stageId: string, rule: string): Promise<void> {
+export async function setStageCutTies(stageId: string, rule: string): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the cut");
+  if (locked) return locked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { cutTies: cutTieRuleOf(rule) },
   });
   await refresh();
+  return { ok: true };
 }
 
 /**
@@ -6864,7 +6996,8 @@ export async function clearRoundScores(
    * assistant, which is the wrong way round.
    */
   const eventId = await requireAdminEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "clear scores");
+  if (locked) return { ...locked, cleared: 0 };
 
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
   if (!stage) return { ok: false, cleared: 0, error: "That round isn't in this tournament." };
@@ -7219,7 +7352,8 @@ export async function reopenScorecard(stageId: string, playerId: string) {
  */
 export async function setRequirePhone(required: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "field", "change the entry terms");
+  if (locked) return locked;
   await prisma.event.update({ where: { id: eventId }, data: { requirePhone: !!required } });
   await refresh();
   return { ok: true };
@@ -7294,7 +7428,8 @@ export async function setSingleMatchRule(
   rule: { kind: string; a: string | number; b: string | number },
 ): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the match’s rule");
+  if (locked) return locked;
 
   const parsed = parseSingleMatchRule(JSON.stringify(rule ?? {}));
   if (!parsed) {
@@ -7382,7 +7517,8 @@ export async function createSingleMatch(stageId: string): Promise<{ ok: boolean;
 /** Whether this knockout plays off for third. Off by default. */
 export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  const locked = await refuseIfLocked(eventId, "rounds", "change the play-off for third");
+  if (locked) return locked;
 
   // A knockout in several flights is a pure knockout in each: there is no one pair of beaten
   // semi-finalists to play off, and finishing order does not read a play-off there.

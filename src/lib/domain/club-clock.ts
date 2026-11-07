@@ -86,6 +86,32 @@ export function clubDay(timeZone: string | null | undefined, at: Date = new Date
 }
 
 /**
+ * THE INSTANT THE CLUB'S DAY ENDS — midnight at the club, as a timestamp the
+ * server can compare with its own clock. For a thing that must not outlive the
+ * day it was opened on (the committee correction, PR 5b: "until Done or the end
+ * of the club's day, whichever comes first"). An INSTANT, so it may be stored
+ * and compared with `new Date()`; the day it closes is still the CLUB's.
+ *
+ * Found by asking the club's wall clock what it reads at the server's midnight
+ * guess, and moving the guess by the difference — twice, for the one night a
+ * year the offset changes between the two readings. A club that has not said
+ * where it is keeps this machine's clock, as `clubToday` does.
+ */
+export function endOfClubDay(timeZone: string | null | undefined, at: Date = new Date()): Date {
+  const [y, m, d] = clubToday(timeZone, at).split("-").map(Number);
+  if (!isTimeZone(timeZone)) return new Date(y, m - 1, d + 1, 0, 0, 0, 0);
+  const wantedMinutes = Date.UTC(y, m - 1, d + 1) / 60_000;
+  let guess = new Date(wantedMinutes * 60_000);
+  for (let i = 0; i < 2; i++) {
+    const f = fieldsAt(guess, timeZone);
+    if (!f) return guess;
+    const readMinutes = Date.UTC(f.year, f.month - 1, f.day, f.hour, f.minute) / 60_000;
+    guess = new Date(guess.getTime() + (wantedMinutes - readMinutes) * 60_000);
+  }
+  return guess;
+}
+
+/**
  * THE CLOCK ON THE CLUB'S WALL AT AN INSTANT: the club's day (as `clubToday`
  * gives it) and the minutes past midnight there. For a question asked of a
  * time the committee WROTE on the club's own clock — a tee time, "8:10 AM" —

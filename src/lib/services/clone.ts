@@ -200,6 +200,11 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "a decision about last year's deadline — a copy has a new deadline and starts following it",
   status: "a copy starts as a draft, however far along the original got",
   configUnlocked: "an unlock is granted to one tournament, not inherited",
+  // The committee correction (state machine PR 5b): opened on one tournament, for one reason, until one day's end.
+  correctionScope: "a committee correction is made on one tournament, for a stated reason — a copy has nothing to correct",
+  correctionReason: "the reason belongs to the correction it was given for",
+  correctionBy: "who made the correction is a fact about the original's record",
+  correctionUntil: "it lapses at the end of the day it was opened on, which is not the copy's day",
   launchedAt: "the copy has not been launched",
   flightsConfirmed:
     "a copy has no flights yet — inheriting the sign-off would mark an empty draw as finished, and lock it",

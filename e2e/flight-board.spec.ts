@@ -266,7 +266,8 @@ test("a rename after another tab launched the tournament is answered in words, n
   const box = page.getByRole("textbox", { name: "Rename Flight B" });
   await box.fill("Handicap");
   await box.press("Enter");
-  const refused = page.getByText(/Configuration is locked\. Unlock the tournament/);
+  // The flights scope's lock, in the machine's words (state machine PR 5b).
+  const refused = page.getByText(/Locked because the tournament is live\. Make a committee correction to rename a flight\./);
   await expect(refused, "a locked tournament's refusal was not said where the name was typed").toBeVisible({ timeout: 20_000 });
   await expect(refused).toBeInViewport();
   await expect(page.getByRole("heading", { level: 1, name: "Flights" }), "the screen was replaced by an error page").toBeVisible();

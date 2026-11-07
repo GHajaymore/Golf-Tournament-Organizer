@@ -143,7 +143,7 @@ async function snapshot() {
   return { teams, members, matches, stages };
 }
 
-const LIVE = (what: string) => `Locked because the tournament is live. Unlock it on the dashboard to ${what}.`;
+const LIVE = (what: string) => `Locked because the tournament is live. Make a committee correction to ${what}.`;
 
 const PRESSES: { name: string; scope: string; what: string; press: () => Promise<{ ok: boolean; error?: string; lock?: { scope: string } }> }[] = [
   { name: "createTeam", scope: "sides", what: "change teams", press: () => createTeam(`${TAG} new side`, fourBall) },
@@ -155,13 +155,10 @@ const PRESSES: { name: string; scope: string; what: string; press: () => Promise
   { name: "setStageAllowance", scope: "rounds", what: "change a round’s handicap allowance", press: () => setStageAllowance(fourBall, 100, true) },
   { name: "setStageCountBest", scope: "rounds", what: "change how many scores count", press: () => setStageCountBest(fourBall, 2, true) },
   { name: "setStageAllowanceWeights", scope: "rounds", what: "change the handicap split", press: () => setStageAllowanceWeights(greensomes, [50, 50], true) },
-  {
-    name: "applySetupProposal",
-    scope: "rounds",
-    what: "add rounds",
-    press: () => applySetupProposal([{ type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "gross", description: "" }]),
-  },
 ];
+
+/** The described tournament's rounds — refused ONLY once completed since PR 5b (TD ruling on 5a, Q2). */
+const describeRounds = () => applySetupProposal([{ type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "gross", description: "" }]);
 
 describe("on a launched tournament, every structural press on sides and rounds is refused in words", () => {
   for (const p of PRESSES) {
@@ -173,14 +170,29 @@ describe("on a launched tournament, every structural press on sides and rounds i
     });
   }
 
-  it("a completed tournament's refusal names Reopen, the way out a completed one has", async () => {
+  it("a completed tournament's refusal names Reopen, the way out a completed one has — and only then are rounds refused to the described tournament", async () => {
     await prisma.event.update({ where: { id: eventId }, data: { status: "completed" } });
     try {
       const res = await createTeam(`${TAG} late side`, fourBall);
       expect(res).toMatchObject({ ok: false, error: "Locked because the tournament is completed. Reopen it on the dashboard to change teams." });
+      const before = await snapshot();
+      expect(await describeRounds()).toEqual({
+        ok: false,
+        error: "Locked because the tournament is completed. Reopen it on the dashboard to add a round.",
+        lock: expect.objectContaining({ scope: "rounds", by: "completed", correctable: false }),
+      });
+      expect(await snapshot(), "a completed tournament took a described round").toEqual(before);
     } finally {
       await prisma.event.update({ where: { id: eventId }, data: { status: "live" } });
     }
+  });
+
+  it("LIVE, the described tournament's rounds go in — a live league adds next week's as it goes (TD ruling on 5a)", async () => {
+    const before = await prisma.stage.count({ where: { eventId } });
+    const res = await describeRounds();
+    expect(res).toMatchObject({ ok: true });
+    expect(await prisma.stage.count({ where: { eventId } })).toBe(before + 1);
+    await prisma.stage.deleteMany({ where: { eventId, position: { gt: 1 } } });
   });
 
   it("THE CONTROL: unlocked on the day, the same presses go through", async () => {

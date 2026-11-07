@@ -7,6 +7,7 @@ import { tiebreakerLabel, tiebreakerHelp, FIXED_TIEBREAKER_KEYS, toughestN, MAX_
 import { RuleCite } from "./RuleCite";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
 
 /**
  * A ROUND ROBIN'S POINTS, AND HOW ITS TABLE BREAKS A TIE — two controls, not one
@@ -57,10 +58,13 @@ export function pointsInWords(v: Values): string {
 export function PointsControl({ initial, locked = false }: { initial: Values; locked?: boolean }) {
   const [values, setValues] = useState<Values>(initial);
   const [saving, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
 
   const save = (next: Values) => {
     setValues(next);
-    startTransition(() => saveScoring(next));
+    startTransition(async () => {
+      caughtUp(await saveScoring(next));
+    });
   };
   const onChange = (key: keyof Values, raw: string) => {
     save({ ...values, [key]: figureOr(readDecimal(raw), 0) });
@@ -117,11 +121,14 @@ export function PointsControl({ initial, locked = false }: { initial: Values; lo
 export function TableTiebreakControl({ tiebreakers, locked = false }: { tiebreakers: TiebreakerKey[]; locked?: boolean }) {
   const [order, setOrder] = useState<TiebreakerKey[]>(tiebreakers);
   const [saving, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   const pending = saving || locked;
 
   const commit = (next: TiebreakerKey[]) => {
     setOrder(next);
-    startTransition(() => saveTiebreakers(next));
+    startTransition(async () => {
+      caughtUp(await saveTiebreakers(next));
+    });
   };
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir;

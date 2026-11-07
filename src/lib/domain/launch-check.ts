@@ -88,7 +88,7 @@ export interface LaunchWarning {
 
 /** The warning as one line of text — what a screen reader and a test both read. */
 export function warningText(w: LaunchWarning): string {
-  return `${w.says} ${w.fix}${w.afterLaunch === "unlock" ? " — after launch, this needs Unlock first." : " — you can still do this after launch."}`;
+  return `${w.says} ${w.fix}${w.afterLaunch === "unlock" ? " — after launch, this needs a committee correction first." : " — you can still do this after launch."}`;
 }
 
 /**

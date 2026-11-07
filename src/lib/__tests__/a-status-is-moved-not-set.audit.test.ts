@@ -161,7 +161,7 @@ describe("a launched tournament does not go back to setting up", () => {
         const id = await tournament(`${from}-${to}`, from);
         const res = await setEventStatus(to);
         expect(res.ok).toBe(false);
-        expect(res.error ?? "").toMatch(/Unlock setup/);
+        expect(res.error ?? "").toMatch(/committee correction/);
         expect((await read(id))?.status).toBe(from);
       });
     }
@@ -176,7 +176,7 @@ describe("a launched tournament does not go back to setting up", () => {
       const res = await setEventStatus(to);
       expect(res.ok, `${to} was written`).toBe(false);
       expect(res.error ?? "").toMatch(/one Setting up step/);
-      expect(res.error ?? "").not.toMatch(/Unlock setup/);
+      expect(res.error ?? "").not.toMatch(/committee correction/);
     }
     expect((await read(id))?.status).toBe("draft");
   });

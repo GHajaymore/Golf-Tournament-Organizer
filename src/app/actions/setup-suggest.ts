@@ -12,7 +12,7 @@ import { PLAYABLE_FORMAT_NAMES } from "@/lib/formats";
 import { STAGE_TYPES } from "@/lib/stage-types";
 import { extractReadingJson } from "@/lib/domain/card-reading";
 import { parseSetupProposal, setupPrompt, type SetupProposal } from "@/lib/domain/setup-proposal";
-import { refuseIfLocked } from "@/lib/services/tournament-status";
+import { refuseIfAddingARoundIsLocked } from "@/lib/services/tournament-status";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { askClaude } from "@/lib/services/claude";
@@ -66,8 +66,8 @@ const MAX_DESCRIPTION = 600;
 
 /**
  * Structural changes stop once the tournament is live, unless the organizer
- * has explicitly unlocked it: the "rounds" scope's lock (`refuseIfLocked`),
- * because this writes the rounds a round card would.
+ * has opened a correction — the rounds' add rule (`refuseIfAddingARoundIsLocked`,
+ * refused only once completed), because this writes the rounds a round card would.
  */
 
 async function requireStaff(): Promise<{ eventId: string; who: string }> {
@@ -168,8 +168,10 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
   // description typed into a live tournament could append rounds that the
   // ordinary control refuses — the lock exists because adding a round to an
   // event already being played changes what the standings are counting.
-  // RETURNED, never thrown (J10, state machine PR 5a).
-  const locked = await refuseIfLocked(eventId, "rounds", "add rounds");
+  // RETURNED, never thrown (J10, state machine PR 5a). ONE RULE WITH `addStage`
+  // (TD ruling on 5a, Q2; PR 5b): adding a round is refused only once the
+  // tournament is completed — a live league adds next week's as it goes.
+  const locked = await refuseIfAddingARoundIsLocked(eventId);
   if (locked) return locked;
 
   const checked = parseSetupProposal({ rounds }, PLAYABLE_FORMAT_NAMES, STAGE_TYPES);

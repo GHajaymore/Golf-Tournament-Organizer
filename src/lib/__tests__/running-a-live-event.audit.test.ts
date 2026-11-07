@@ -162,6 +162,11 @@ describe("on a live tournament whose setup is locked", () => {
   });
 
   it("still refuses a real SETUP change (the control)", async () => {
-    await expect(setStageCarry(round2, true, 100)).rejects.toThrow(/Configuration is locked/);
+    // Returned, never thrown, since the scoped locks (state machine PR 5b): the rounds' lock, in words.
+    await expect(setStageCarry(round2, true, 100)).resolves.toMatchObject({
+      ok: false,
+      error: "Locked because the tournament is live. Make a committee correction to change the points carried forward.",
+      lock: { scope: "rounds", by: "launch" },
+    });
   });
 });

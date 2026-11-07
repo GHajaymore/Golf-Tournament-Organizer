@@ -308,6 +308,9 @@ export const FULL_ONLY = [
   "e2e/league.spec.ts",
   // State machine PR 5a: each Teams & pairs control and each team round's pricing Save, pressed once on a stale screen after setup locked — refused in words, never thrown.
   "e2e/locked-sides-refuse-in-words.spec.ts",
+  // State machine PR 5b: the rest of the app's locked controls (details, entry terms, flights, rounds, clear scores), pressed once each on a
+  // stale screen — refused in the scope's words — and the committee correction opened, used and closed, on the record.
+  "e2e/locked-setup-refuses-in-words.spec.ts",
   "e2e/match-kept-by.spec.ts",
   "e2e/match-play-rules.spec.ts",
   "e2e/match-results.spec.ts",

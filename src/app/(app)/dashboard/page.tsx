@@ -40,7 +40,7 @@ import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { statusChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { tournamentStatusFor } from "@/lib/services/tournament-status";
-import { launchDialogOf, statusCardOf } from "@/lib/domain/tournament-status";
+import { launchDialogOf, statusCardOf, lockFactsOf, locksFor, scopeLockOf, LOCK_SCOPES } from "@/lib/domain/tournament-status";
 import { nothingDrawnWords } from "@/lib/domain/nothing-drawn";
 import { isMatch, reviewsScores } from "@/lib/tournament-shape";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
@@ -943,6 +943,9 @@ export default async function DashboardPage() {
           status={statusCardOf(told.facts, status)}
           isAdmin={isAdmin}
           configUnlocked={event.configUnlocked}
+          // The committee correction (PR 5b): which locked scopes it may open, and the one open now.
+          correctableScopes={LOCK_SCOPES.filter((s) => scopeLockOf(locksFor(lockFactsOf(told.facts)), s)?.correctable)}
+          correction={told.facts.correction}
           archived={!!event.archivedAt}
           // What the launch dialog says is still open — the machine's warnings.
           launchOpen={nextAction?.kind === "launch" ? launchDialogOf(status, false) : undefined}

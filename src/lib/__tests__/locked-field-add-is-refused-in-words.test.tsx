@@ -117,7 +117,7 @@ describe("Entries under way in a knockout: the draw is the field", () => {
   it("refuses Add in the rule's words where the button is, and promises nothing", async () => {
     const html = await reg({ locked: true, doors, underWay: ["x"] });
     expect(isDisabled(tagBefore(html, "Add late entry"))).toBe(true);
-    expect(html).toContain("The draw is made, so the field is fixed. To change it, an Organizer can unlock the tournament on the dashboard.");
+    expect(html).toContain("The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction on the dashboard.");
     expect(html).not.toContain("You can still add players below");
     expect(html).toContain("While it is closed the sign-up link turns everyone away.");
     // Withdraw is still open: a withdrawal never reopens anything.
@@ -127,7 +127,7 @@ describe("Entries under way in a knockout: the draw is the field", () => {
   it("after the first card a stroke field refuses Add, naming the round and who can unlock", async () => {
     const html = await reg({ locked: true, doors: liveDoors("stroke", "Round 1"), underWay: ["x"] });
     expect(html).toContain(
-      "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.",
+      "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction on the dashboard.",
     );
   });
 });

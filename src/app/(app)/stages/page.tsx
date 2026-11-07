@@ -3,7 +3,7 @@ import { playedOnBy } from "@/lib/services/courses";
 import "./rounds-timeline.css";
 import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
 import { isHeadToHead, isPlayingRound, hasKnockoutStage } from "@/lib/stage-types";
 import { loadEventState, parseMatchTiebreakers, playingStages, settingsOf } from "@/lib/services/tournament";
@@ -28,10 +28,10 @@ import { missingCardsRefusal } from "@/lib/domain/round-card-status";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { cardTrustNote, parseIndex } from "@/lib/domain/card-trust";
 import { pickedCardNote } from "@/lib/domain/picked-card";
-import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { DescribeTournament } from "@/components/DescribeTournament";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor, tournamentStatusFor } from "@/lib/services/tournament-status";
+import { setupRailFor, tournamentStatusFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
 import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason } from "@/lib/domain/team-entry";
 import { effectiveAllowance, effectiveCountBest, recommendedAllowance, snakeDraw } from "@/lib/services/teams";
@@ -108,7 +108,9 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
     Number.isInteger(datedCount) && datedCount > 0 && datedFirst
       ? datedSaid(datedCount, formatDay(datedFirst, (await formattingForEvent(session.eventId)).locale))
       : "";
-  const locked = isSetupLocked(state.event);
+  // The machine's lock on the rounds (PR 5b) — the one every round setting here asks (`refuseIfLocked(…, "rounds")`).
+  const rounds = await screenLocksFor(session.eventId, ["rounds"]);
+  const locked = rounds.locks.length > 0;
   // For "date the season": playing rounds, and how many of them have no day.
   const playingRounds = playingStages(state.stages);
   const playingCount = playingRounds.length;
@@ -380,7 +382,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         {subtitle}
       </div>
       )}
-      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
+      <ScopeLockBanner locks={rounds.locks} correction={rounds.correction} isAdmin={session.viewRole === "admin"} />
       {/* A way IN to the builder rather than an alternative to it — whatever
           it proposes lands as ordinary rounds on the cards below, editable
           like any other. That is why it sits above them.

@@ -223,21 +223,25 @@ describe("a launched stroke medal, before anybody has played", () => {
   it("what stays locked refuses in words, and changes nothing", async () => {
     expect(await updateSignup(ids.cat, { name: `${TAG} renamed` })).toEqual({
       ok: false,
-      error: "A player’s details are locked once the tournament is launched. To correct one, an Organizer can unlock the tournament on the dashboard.",
+      error: "A player’s details are locked once the tournament is launched. To correct one, an Organizer can make a committee correction on the dashboard.",
     });
     expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.cat } })).name).toBe(`${TAG} cat`);
     const bulk =
-      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to unlock the tournament on the dashboard.";
+      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to make a committee correction on the dashboard.";
     expect((await importCsvSignups(`name,email\n${TAG} csv,${at("csv")}\n`)).error).toBe(bulk);
     expect(await removeSignups([ids.cat])).toEqual({ deleted: 0, withdrawn: 0, missing: 0, error: bulk });
     expect(await statusOf("cat")).toBe("confirmed");
     expect(await movePlayerToGroup(ids.cat, flightA)).toEqual({
       ok: false,
-      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can unlock the tournament on the dashboard.",
+      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can make a committee correction on the dashboard.",
     });
     expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.cat } })).groupId).toBe(flightB);
-    // The format is setup, and setup stays locked (thrown by `assertUnlocked`, as before).
-    await expect(setStageFormat(stageId, "Stableford")).rejects.toThrow(/Configuration is locked/);
+    // The format is setup, and the rounds stay locked — returned in words, never thrown (state machine PR 5b).
+    await expect(setStageFormat(stageId, "Stableford")).resolves.toMatchObject({
+      ok: false,
+      error: "Locked because the tournament is live. Make a committee correction to change a round’s format.",
+      lock: { scope: "rounds", by: "launch" },
+    });
   });
 
   it("an Assistant may withdraw and put back", async () => {
@@ -261,7 +265,7 @@ describe("once Round 1 has a card", () => {
   });
 
   it("a late entry and an approval are refused, naming the round", async () => {
-    const begun = "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.";
+    const begun = "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction on the dashboard.";
     expect(await addSignup({ name: `${TAG} too-late`, email: at("too-late"), handicap: 9 })).toEqual({ ok: false, error: begun });
     expect(await prisma.player.count({ where: { eventId: medal, email: at("too-late") } })).toBe(0);
     expect(await approveSignup(ids.pam)).toEqual({ ok: false, error: begun });
@@ -279,7 +283,7 @@ describe("once Round 1 has a card", () => {
       const res = await addSignup({ name: `${TAG} walk-in`, email: at("walk-in"), handicap: 20 });
       expect(res.ok).toBe(false);
       expect(res.error).toBe(
-        "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.",
+        "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction on the dashboard.",
       );
       // The reason the words matter: the Assistant has no Unlock of their own.
       await expect(setConfigUnlocked(true)).rejects.toThrow();
@@ -298,7 +302,7 @@ describe("once Round 1 has a card", () => {
     await reinstateWithdrawn(ids.lee);
     await prisma.player.update({ where: { id: ids.lee }, data: { groupId: null } });
     const res = await placeInFlight(ids.lee, flightA);
-    expect(res).toEqual({ ok: false, error: "The first card of Round 1 is in, so the flights are fixed. To place a player, an Organizer can unlock the tournament on the dashboard." });
+    expect(res).toEqual({ ok: false, error: "The first card of Round 1 is in, so the flights are fixed. To place a player, an Organizer can make a committee correction on the dashboard." });
   });
 });
 
@@ -311,7 +315,7 @@ describe("other families and stages", () => {
     try {
       expect(await addSignup({ name: `${TAG} ko-late`, email: at("ko-late"), handicap: 9 })).toEqual({
         ok: false,
-        error: "The draw is made, so the field is fixed. To change it, an Organizer can unlock the tournament on the dashboard.",
+        error: "The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction on the dashboard.",
       });
       const res = await removeSignup(ids.kay);
       expect(res).toMatchObject({ ok: true, outcome: "withdrawn" });

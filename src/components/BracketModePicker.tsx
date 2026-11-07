@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setBracketMode } from "@/app/actions/tournament";
 import { BRACKET_MODES, type BracketMode } from "@/lib/domain/bracket";
+import { useCaughtUp } from "./useAction";
 
 /**
  * How the knockout is arranged.
@@ -33,6 +34,7 @@ export function BracketModePicker({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
 
   const current = BRACKET_MODES.find((m) => m.key === mode) ?? BRACKET_MODES[1];
 
@@ -40,7 +42,7 @@ export function BracketModePicker({
     if (next === mode) return;
     setError("");
     startTransition(async () => {
-      const res = await setBracketMode(next);
+      const res = caughtUp(await setBracketMode(next));
       if (!res.ok) setError(res.error ?? "Couldn't save that.");
     });
   };
@@ -75,16 +77,16 @@ export function BracketModePicker({
       {/* "Every qualifier in a single knockout. Lose and you're out." under "One bracket"
           says the name twice; the others' lines say something the name does not. */}
       {!(embedded && mode === "single") && <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{current.blurb}</p>}
-      {/* On a round card the page's own Unlock setup is a scroll away: one short line,
-          not a second, differently worded way to unlock (2026-10-16). */}
+      {/* On a round card the page's own banner is a scroll away: one short line,
+          not a second, differently worded way out (2026-10-16). */}
       {!readOnly && locked && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {embedded ? (
-            "Locked with setup."
+            "Locked with the rounds."
           ) : (
             <>
-              Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on{" "}
-              <a href="/event">Tournament details</a> to change it.
+              Changing this redraws who plays whom, so it is locked while the draw is. An Organizer can make a committee
+              correction to the draw on the <a href="/dashboard">dashboard</a> to change it.
             </>
           )}
         </p>

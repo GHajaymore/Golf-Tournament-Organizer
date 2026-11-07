@@ -118,8 +118,9 @@ describe("what locked means is written once", () => {
      * failure.
      */
     const readers = [
-      "src/lib/page-helpers.ts",
-      "src/lib/services/action-shared.ts",
+      // `page-helpers.ts` (`isSetupLocked`) and `action-shared.ts` (`assertUnlocked`, `lockedRefusal`)
+      // were readers until the state machine's PR 5b DELETED them: every screen and action asks its
+      // scope's lock through the machine instead. Neither may hold a copy — asserted below.
       // The state machine (PR 3): its locks ask the shared predicate…
       "src/lib/domain/tournament-status.ts",
       // …and so does the one field rule (day-of field changes, PR A), which the roster
@@ -130,6 +131,10 @@ describe("what locked means is written once", () => {
       expect(readSource(file), `${file} no longer asks the shared question`).toMatch(
         /configurationLocked\(|isSetupLocked\(/,
       );
+    }
+    // The two deleted readers hold no copy of the question either (PR 5b).
+    for (const file of ["src/lib/page-helpers.ts", "src/lib/services/action-shared.ts"]) {
+      expect(readSource(file), `${file} has grown a lock of its own again`).not.toMatch(/configUnlocked|isSetupLocked\(|assertUnlocked\(|lockedRefusal\(/);
     }
     // The roster's two copies read the field rule: neither a copy nor a lost check.
     expect(readSource("src/app/actions/roster.ts")).toMatch(/await fieldRefusal\(eventId, "add"\)/);

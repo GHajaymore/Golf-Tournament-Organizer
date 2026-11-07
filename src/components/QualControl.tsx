@@ -3,6 +3,7 @@ import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useId, useState, useTransition } from "react";
 import { setQualifyPerGroup, setQualifyMode } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
+import { useCaughtUp } from "./useAction";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 export function QualControl({
@@ -41,6 +42,7 @@ export function QualControl({
   const [pf, setPf] = useState(perFlight);
   const [ov, setOv] = useState(overall);
   const [saving, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   // Every one of these saves itself, the number when its box is left — said
   // beside them, as other self-saving controls do (`SaveState`).
   const saveStatus = useSaveStatus(saving);
@@ -49,7 +51,9 @@ export function QualControl({
 
   const switchMode = (next: "perFlight" | "overall") => {
     setM(next);
-    startTransition(() => setQualifyMode(next, ov));
+    startTransition(async () => {
+      caughtUp(await setQualifyMode(next, ov));
+    });
   };
 
   return (
@@ -80,7 +84,9 @@ export function QualControl({
                 disabled={pending}
                 onChange={() => {
                   setPf(n);
-                  startTransition(() => setQualifyPerGroup(n));
+                  startTransition(async () => {
+                    caughtUp(await setQualifyPerGroup(n));
+                  });
                 }}
               />
               Top {n}
@@ -99,7 +105,11 @@ export function QualControl({
             disabled={pending}
             onChange={(e) => setOv(figureOr(readWhole(e.target.value), 1) || 1)}
             onKeyDown={leaveOnEnter}
-            onBlur={() => startTransition(() => setQualifyMode("overall", ov))}
+            onBlur={() =>
+              startTransition(async () => {
+                caughtUp(await setQualifyMode("overall", ov));
+              })
+            }
           />
         </label>
       )}

@@ -87,7 +87,7 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
       await page.waitForLoadState("networkidle").catch(() => {});
     };
     const teamsPath = `/teams?round=${stage.id}`;
-    const REFUSED = "Locked because the tournament is live. Unlock it on the dashboard to change teams.";
+    const REFUSED = "Locked because the tournament is live. Make a committee correction to change teams.";
 
     /**
      * Draw the screen unlocked, lock setup "in another tab", press, and read the answer:
@@ -106,7 +106,7 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
       await expect(page.getByRole("heading", { level: 1, name: "Teams & pairs" }), `${label}: the screen was replaced by an error page`).toBeVisible();
       const banner = page.getByRole("region", { name: "Locked" });
       await expect(banner, `${label}: the screen did not catch up with the lock`).toContainText("Locked because the tournament is live.", { timeout: 20_000 });
-      await expect(banner.getByRole("button", { name: "Unlock setup" }), `${label}: the Organizer has no way out on the banner`).toBeVisible();
+      await expect(banner.getByRole("button", { name: "Make a committee correction" }), `${label}: the Organizer has no way out on the banner`).toBeVisible();
       await expect(page.getByRole("button", { name: "Locked — see above" }).first()).toBeVisible();
       expect(await stored(), `${label}: written while locked`).toEqual(before);
     };
@@ -171,7 +171,7 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
         label: "Handicap allowance",
         words: /^Handicap allowance/,
         set: async (card: ReturnType<typeof page.locator>) => card.getByLabel("Handicap allowance percent").fill("90"),
-        said: "Locked because the tournament is live. Unlock it on the dashboard to change a round’s handicap allowance.",
+        said: "Locked because the tournament is live. Make a committee correction to change a round’s handicap allowance.",
       },
       {
         label: "Scores that count",
@@ -179,7 +179,7 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
         set: async (card: ReturnType<typeof page.locator>) => {
           await card.getByLabel("How many scores count on each hole").selectOption({ label: "best 2 of 2" });
         },
-        said: "Locked because the tournament is live. Unlock it on the dashboard to change how many scores count.",
+        said: "Locked because the tournament is live. Make a committee correction to change how many scores count.",
       },
     ]) {
       await setupUnlocked(true);

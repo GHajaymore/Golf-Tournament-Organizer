@@ -272,7 +272,7 @@ const isWeekly = (t: string) => t === "Round Robin" || t === "Stroke Play Round"
  * sidebar's "This week" door keeps its own question ("is there more than one
  * round to show a week of?"), which is a door and not a ruling about golf.
  */
-export function tournamentFamily(f: Pick<TournamentFacts, "shape" | "rounds" | "bracketMode" | "league">): Family {
+export function tournamentFamily(f: Pick<LockFacts, "shape" | "rounds" | "bracketMode" | "league">): Family {
   const types = f.rounds.map((r) => r.type);
   if (f.shape === "match") return "casual";
   if (types.includes("Team Session")) return "teamCup";
@@ -553,7 +553,7 @@ function laterUndatedWeeks(f: TournamentFacts): RoundFacts[] {
 const DASHBOARD = "/dashboard";
 const SCORE_ENTRY = "/entry";
 
-/** The scopes today's blanket lock covers (`assertUnlocked` and its kin). Money and the tee sheet it never did. */
+/** The scopes today's blanket lock covers (the retired `assertUnlocked` and its kin). Money and the tee sheet it never did. */
 const BLANKET: readonly LockScope[] = ["details", "rounds", "field", "flights", "draw", "sides", "cup"];
 
 function lock(by: LockBy, because: string, wayOut: WayOut): Lock {
@@ -561,11 +561,49 @@ function lock(by: LockBy, because: string, wayOut: WayOut): Lock {
 }
 
 /**
+ * THE WAY OUT OF A LOCK BY LAUNCH IS THE COMMITTEE CORRECTION (PR 5b; TD Q2,
+ * panel 8.1): the Organizer opens ONE scope, for a reason, until Done or the
+ * end of the club's day, and the record says so. The blanket "Unlock
+ * configuration" is gone, so no sentence here may send anybody to it.
+ */
+const CORRECTION_WAY_OUT: WayOut = { says: "Make a committee correction", href: DASHBOARD };
+const REOPEN_WAY_OUT: WayOut = { says: "Reopen it on the dashboard", href: DASHBOARD };
+
+/**
+ * THE FACTS A LOCK IS DECIDED ON — the status, the legacy unlock, an open
+ * correction, a confirmed draw, and of each round only its kind and whether
+ * it has a result (the family, and a flighted knockout's first result). An
+ * action asking "may I write" reads this much (`lockFactsFor`), not the whole
+ * setup side — the panel's cost ruling on 5a: a server action is its own
+ * request, so React's cache shares nothing with the screen, and the full batch
+ * is fifteen queries. `lockFactsOf` is the projection from the full facts, and
+ * `scoped-locks.test.ts` holds `locksFor` of either to the same answer.
+ */
+export type LockRoundFacts = Pick<RoundFacts, "type" | "playing" | "stableford" | "hasResult">;
+export interface LockFacts extends Pick<SetupSideFacts, "status" | "configUnlocked" | "correction" | "flightsConfirmed" | "shape" | "league" | "bracketMode"> {
+  rounds: readonly LockRoundFacts[];
+}
+
+/** The lock facts, cut from the full ones — so a screen that has the batch asks the same rule the actions do. */
+export function lockFactsOf(f: SetupSideFacts): LockFacts {
+  return {
+    status: f.status,
+    configUnlocked: f.configUnlocked,
+    correction: f.correction,
+    flightsConfirmed: f.flightsConfirmed,
+    shape: f.shape,
+    league: f.league,
+    bracketMode: f.bracketMode,
+    rounds: f.rounds.map((r) => ({ type: r.type, playing: r.playing, stableford: r.stableford, hasResult: r.hasResult })),
+  };
+}
+
+/**
  * THE LOCKS, PER SCOPE, as today's four locks set them — PR 1 changes no lock
  * (the upstream-change rules are PR 7, the scoped locks PR 5). What it adds is
  * the scope, the reason in words and the way out.
  */
-function locksOf(f: SetupSideFacts, family: Family): Record<LockScope, Lock> {
+function locksOf(f: LockFacts, family: Family): Record<LockScope, Lock> {
   const open: Lock = { locked: false };
   const out = Object.fromEntries(LOCK_SCOPES.map((s) => [s, open])) as Record<LockScope, Lock>;
   const finished = isFinished(f.status);
@@ -574,8 +612,8 @@ function locksOf(f: SetupSideFacts, family: Family): Record<LockScope, Lock> {
   for (const scope of BLANKET) {
     if (!blanket) continue;
     out[scope] = finished
-      ? lock("completed", "Locked because the tournament is completed.", { says: "Reopen it on the dashboard", href: DASHBOARD })
-      : lock("launch", "Locked because the tournament is live.", { says: "Unlock it on the dashboard", href: DASHBOARD });
+      ? lock("completed", "Locked because the tournament is completed.", REOPEN_WAY_OUT)
+      : lock("launch", "Locked because the tournament is live.", CORRECTION_WAY_OUT);
   }
   // The confirmed draw — `movePlayerToGroup`'s second lock, asked after the first.
   if (!out.flights.locked && f.flightsConfirmed) {
@@ -588,7 +626,7 @@ function locksOf(f: SetupSideFacts, family: Family): Record<LockScope, Lock> {
   if (family === "flightedKnockout") {
     const results = f.rounds.some((r) => isKnockoutRound(r.type) && r.hasResult);
     out.draw = finished
-      ? lock("completed", "Locked because the tournament is completed.", { says: "Reopen it on the dashboard", href: DASHBOARD })
+      ? lock("completed", "Locked because the tournament is completed.", REOPEN_WAY_OUT)
       : results
         ? lock("results", "Locked because this knockout has results.", { says: "Clear the results on the Bracket", href: "/bracket" })
         : open;
@@ -610,8 +648,23 @@ function locksOf(f: SetupSideFacts, family: Family): Record<LockScope, Lock> {
  * whether it may write does not pay for those. The same `locksOf` the whole
  * status reads, so the banner and the refusal cannot disagree.
  */
-export function locksFor(f: SetupSideFacts): Record<LockScope, Lock> {
+export function locksFor(f: LockFacts): Record<LockScope, Lock> {
   return locksOf(f, tournamentFamily(f));
+}
+
+/**
+ * ADDING A ROUND IS REFUSED ONLY ON A COMPLETED TOURNAMENT (TD ruling on 5a,
+ * Q2): a live league adds next week's round as it goes, and a championship adds
+ * a play-off when the field finishes level — a new round has no draw and no
+ * scores to invalidate (section 3, "Add a round"). `addStage` and
+ * `applySetupProposal` ask THIS, the one rule, and nothing else: until PR 5b
+ * one refused while live and the other refused nothing, not even completed.
+ * Read off the rounds lock so a completed tournament a legacy unlock holds open
+ * is open here too, as it is for every other round setting.
+ */
+export function addRoundLockOf(locks: Record<LockScope, Lock>): ScopeLock | null {
+  const l = scopeLockOf(locks, "rounds");
+  return l && l.by === "completed" ? l : null;
 }
 
 /** One locked scope as a banner draws it and a refusal returns it — plain values a client can be handed. */
@@ -630,14 +683,111 @@ export function scopeLockOf(locks: Record<LockScope, Lock>, scope: LockScope): S
   return l.locked ? { scope, by: l.by, because: l.because, wayOut: l.wayOut, correctable: l.correctable } : null;
 }
 
+/** Who is pressing: the Organizer, or anybody else on the staff. */
+export type LockReader = "organizer" | "staff";
+
+/** The locks whose way out only the Organizer can take: a correction, and Reopen. */
+const ORGANIZERS_WAY_OUT: readonly LockBy[] = ["launch", "completed"];
+
+/** Does this lock's way out need the Organizer? Said on the banner, and in a refusal to anyone else. */
+export function wayOutIsOrganizers(lock: Pick<ScopeLock, "by">): boolean {
+  return ORGANIZERS_WAY_OUT.includes(lock.by);
+}
+
 /**
  * THE REFUSAL OF A LOCKED SCOPE, IN WORDS (J10): the reason, then the way out
- * with what the press was for — "Locked because the tournament is live.
- * Unlock it on the dashboard to change teams." Every way out is a verb phrase
+ * with what the press was for — "Locked because the tournament is live. Make a
+ * committee correction to change teams." Every way out is a verb phrase
  * ("Reopen the draw on Flights"), so `to <what>` finishes each of them.
+ *
+ * IT KNOWS WHO IS READING (panel on 5a, words): a way out only the Organizer
+ * can take is not offered to an assistant as if they could — "Ask the Organizer
+ * to make a committee correction to change teams." A way out anybody on the
+ * staff can take (Reopen the draw, Clear the results) reads the same for both.
  */
-export function lockRefusalWords(lock: Pick<ScopeLock, "because" | "wayOut">, what: string): string {
-  return `${lock.because} ${lock.wayOut.says} to ${what}.`;
+export function lockRefusalWords(lock: Pick<ScopeLock, "by" | "because" | "wayOut">, what: string, who: LockReader): string {
+  const says = lock.wayOut.says;
+  const wayOut = who === "staff" && wayOutIsOrganizers(lock) ? `Ask the Organizer to ${says.charAt(0).toLowerCase()}${says.slice(1)}` : says;
+  return `${lock.because} ${wayOut} to ${what}.`;
+}
+
+/* ------------------------------------- the committee correction (PR 5b) */
+
+/**
+ * THE COMMITTEE CORRECTION (TD Q2, panel 8.1). The Committee may correct its own
+ * errors (Rule 20.2d), and the Terms of the Competition are not changed once
+ * play has started except in exceptional circumstances (Committee Procedures,
+ * Section 5A). So the one override that survives the blanket Unlock is
+ * exceptional, named, narrow and recorded: the Organizer opens ONE scope, gives
+ * a reason that goes in Recent changes, and it closes at Done or at the end of
+ * the club's day — never overnight, as `configUnlocked` did.
+ */
+export const CORRECTION_REASON = { min: 10, max: 200 } as const;
+
+/** A correction as the facts carry it: the scope, who opened it, why, and the instant it lapses (ISO). */
+export type CorrectionFacts = NonNullable<TournamentFacts["correction"]>;
+
+/**
+ * THE OPEN CORRECTION, FROM THE ROW — null when none is open, when its scope is
+ * not one the machine knows, or when it has lapsed. `now` is an instant and
+ * `correctionUntil` is an instant (the club's midnight, `endOfClubDay`), so the
+ * comparison is one the server's clock may make.
+ */
+export function openCorrectionOf(
+  row: { correctionScope: string | null; correctionReason: string | null; correctionBy: string | null; correctionUntil: Date | null },
+  now: Date,
+): CorrectionFacts | null {
+  const scope = row.correctionScope;
+  if (!scope || !(LOCK_SCOPES as readonly string[]).includes(scope)) return null;
+  if (!row.correctionUntil || row.correctionUntil.getTime() <= now.getTime()) return null;
+  return { scope: scope as LockScope, by: row.correctionBy ?? "", reason: row.correctionReason ?? "", until: row.correctionUntil.toISOString() };
+}
+
+/** Why a reason is refused, or null when it will do. */
+export function correctionReasonRefusal(reason: string): string | null {
+  const clean = reason.trim();
+  if (clean.length < CORRECTION_REASON.min) return `Say why in at least ${CORRECTION_REASON.min} characters — it goes in Recent changes.`;
+  if (clean.length > CORRECTION_REASON.max) return `Keep the reason to ${CORRECTION_REASON.max} characters.`;
+  return null;
+}
+
+/**
+ * Why a correction cannot be opened on this scope, or null when it can: only a
+ * lock by launch or by the draw is correctable; a lock by scores, by results or
+ * by completion keeps its own way out (TD: "never over recorded scores";
+ * "for a completed one, Reopen is the remedy").
+ */
+export function correctionRefusal(locks: Record<LockScope, Lock>, scope: LockScope): string | null {
+  const l = locks[scope];
+  if (!l.locked) return "That part of setup is not locked, so there is nothing to correct.";
+  if (!l.correctable) return `${l.because} ${l.wayOut.says} instead — a committee correction cannot open it.`;
+  return null;
+}
+
+/** The scope, as the banner and the correction dialog name it. */
+export const SCOPE_WORDS: Record<LockScope, string> = {
+  details: "Details",
+  rounds: "Rounds",
+  field: "The field",
+  flights: "Flights",
+  draw: "The draw",
+  sides: "Sides",
+  cup: "Cup teams",
+  money: "Money",
+  teeSheet: "The tee sheet",
+};
+
+/** The banner's line while a correction is open: "Open for a correction by A. Organizer: ‘Wrong flight for one player’". */
+export function correctionWords(c: Pick<CorrectionFacts, "by" | "reason">): string {
+  return `Open for a correction by ${c.by}: ‘${c.reason}’`;
+}
+
+/** The record's lines: when a correction opens, and when it is closed by hand. */
+export function correctionOpenedLine(c: Pick<CorrectionFacts, "scope" | "by" | "reason">): string {
+  return `${c.by} opened ${SCOPE_WORDS[c.scope].toLowerCase()} for a correction: ${c.reason}`;
+}
+export function correctionClosedLine(c: Pick<CorrectionFacts, "scope" | "by">, closedBy: string): string {
+  return `${closedBy} closed the correction ${c.by} opened on ${SCOPE_WORDS[c.scope].toLowerCase()}`;
 }
 
 /**

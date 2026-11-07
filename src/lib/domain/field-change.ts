@@ -115,7 +115,7 @@ const LIVE_BY_NATURE: readonly Family[] = ["league", "casual"];
 /** Families whose flights are prize divisions a late entrant may be placed in. */
 const PRIZE_DIVISIONS: readonly Family[] = ["stroke", "stableford"];
 
-const UNLOCK: WayOut = { says: "Unlock it on the dashboard", href: "/dashboard" };
+const UNLOCK: WayOut = { says: "Make a committee correction", href: "/dashboard" };
 const REOPEN: WayOut = { says: "Reopen it on the dashboard", href: "/dashboard" };
 const REOPEN_DRAW: WayOut = { says: "Reopen the draw on Flights", href: "/grouping" };
 const ONE_AT_A_TIME: WayOut = { says: "Withdraw players one at a time on Entries", href: "/registration" };
@@ -182,8 +182,8 @@ function closedWords(c: { tee: LastTeeTime } | { card: string }, what: "add" | "
   if ("tee" in c) {
     const why = `${c.tee.round}’s last tee time (${c.tee.time}) has passed.`;
     return what === "add"
-      ? `Late entries are closed. ${why} To add someone, an Organizer can unlock it on the dashboard.`
-      : `Flights are fixed. ${why} To place someone, an Organizer can unlock it on the dashboard.`;
+      ? `Late entries are closed. ${why} To add someone, an Organizer can make a committee correction.`
+      : `Flights are fixed. ${why} To place someone, an Organizer can make a committee correction.`;
   }
   return what === "add"
     ? `The first card of ${c.card} is in, so late entries are closed. ${byOrganizer("add someone anyway")}`
@@ -246,7 +246,7 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
       return no(`A player’s details are locked once the tournament is launched. ${byOrganizer("correct one")}`, UNLOCK);
     case "bulk":
       return no(
-        "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to unlock the tournament on the dashboard.",
+        "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to make a committee correction on the dashboard.",
         ONE_AT_A_TIME,
       );
   }
@@ -257,10 +257,10 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
  * primary Organizer can unlock (`setConfigUnlocked` is admin-only), and on the
  * morning the person reading a refusal is as likely to be an Assistant — so
  * every refusal that ends in Unlock names who can, in words true for both
- * readers, and the place the guide names ("Unlock it on the dashboard").
+ * readers, and the place the guide names ("Make a committee correction").
  */
 function byOrganizer(act: string): string {
-  return `To ${act}, an Organizer can unlock the tournament on the dashboard.`;
+  return `To ${act}, an Organizer can make a committee correction on the dashboard.`;
 }
 
 /**

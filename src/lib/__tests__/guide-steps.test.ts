@@ -29,9 +29,8 @@ const PINNED: [label: string, file: string][] = [
   ["Suspend play now", "src/components/PlayStatusControl.tsx"],
   ["Start this game", "src/components/ContestsClient.tsx"],
   ["Everyone with a card", "src/components/SkinsPotClient.tsx"],
-  ["Unlock setup", "src/components/SetupLockBanner.tsx"],
-  // Teams & pairs draws the scoped lock's banner (state machine PR 5a).
-  ["Unlock setup", "src/components/ScopeLockBanner.tsx"],
+  // The committee correction replaces the blanket Unlock (state machine PR 5b): the one button, on every banner and the dashboard.
+  ["Make a committee correction", "src/components/CommitteeCorrection.tsx"],
   // Day-of field changes (PR A): the under-way Entries screen.
   ["Withdraw", "src/components/RegistrationClient.tsx"],
   ["Put back", "src/components/WithdrawnList.tsx"],

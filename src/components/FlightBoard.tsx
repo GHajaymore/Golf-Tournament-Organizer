@@ -6,6 +6,7 @@ import { movePlayerToGroup, renameGroup, setFlightsConfirmed } from "@/app/actio
 import { setFlightCaptain } from "@/app/actions/attendance";
 import { setFlightTee } from "@/app/actions/courses";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
 
 export interface FlightPlayer {
   id: string;
@@ -97,6 +98,7 @@ export function FlightBoard({
   };
   const [confirming, setConfirming] = useState<{ playerId: string; groupId: string; scored: number } | null>(null);
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
 
   // A confirmed draw is finished work. It stays visible and stays reopenable,
   // but it is no longer one stray drag from being different.
@@ -209,7 +211,7 @@ export function FlightBoard({
             onClick={() => {
               setError("");
               startTransition(async () => {
-                const res = await setFlightsConfirmed(!confirmed);
+                const res = caughtUp(await setFlightsConfirmed(!confirmed));
                 if (!res.ok) refuse(res.error ?? "Couldn't update the draw.", null);
               });
             }}
@@ -271,7 +273,7 @@ export function FlightBoard({
                   setRenaming(null);
                   setError("");
                   startTransition(async () => {
-                    const res = await renameGroup(g.id, name);
+                    const res = caughtUp(await renameGroup(g.id, name));
                     if (!res.ok) refuse(res.error ?? "Couldn't rename that flight.", g.id);
                   });
                 }}
