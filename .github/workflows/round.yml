@@ -336,7 +336,7 @@ jobs:
     # the INSTALLED Chrome or Edge (browsers "chromium chrome" / "chromium msedge"), or no browser
     # at all (the dependency check, the mutation ratchet on Node 22), stays on the runner and
     # installs as before: the image holds neither Chrome nor Edge.
-    container: ${{ contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) && fromJSON('{"image":"mcr.microsoft.com/playwright:v1.62.1-noble","options":"--ipc=host"}') || null }}
+    container: ${{ matrix.part.image && fromJSON('{"image":"mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e","options":"--ipc=host --user 1001"}') || '' }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -360,7 +360,7 @@ jobs:
           # StrykerJS 10 needs Node 22; every other part keeps the app's 20 (.github/actions/setup).
           node-version: ${{ matrix.part.id == 'mutation' && '22' || '20' }}
           # In the container its database is the service's name; the action forwards localhost to it.
-          database-host: ${{ contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) && 'postgres' || '' }}
+          database-host: ${{ matrix.part.image && 'postgres' || '' }}
       - name: Take the build
         id: build
         uses: actions/download-artifact@v4
@@ -368,7 +368,7 @@ jobs:
           name: build
           path: .next-e2e
       - name: Take the packages the browsers need
-        if: ${{ matrix.part.browsers != '' && !contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) }}
+        if: ${{ matrix.part.browsers != '' && !matrix.part.image }}
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
@@ -379,14 +379,14 @@ jobs:
         # The container's browsers were baked in for one Playwright version; if the image is not
         # this branch's, this says so by name (the same "installing the browser failed" verdict
         # the install step below gets: the machine's, not the app's).
-        if: ${{ contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) }}
+        if: ${{ matrix.part.image }}
         run: node scripts/ci/check-browsers-present.mjs ${{ matrix.part.browsers }}
       - name: Install the browser this part drives
         id: browser
         # A part with no browser (the dependency check) installs none: with no
         # name given, this command would fetch all of them. A part in the container
         # (above) installs none either: its browsers are in the image.
-        if: ${{ matrix.part.browsers != '' && !contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) }}
+        if: ${{ matrix.part.browsers != '' && !matrix.part.image }}
         # The apt step behind --with-deps has hung for half an hour before, and
         # on 2026-10-23, with a dozen rounds queued, one hung attempt failed a
         # dozen parts that had not run a single test. A hang is now one attempt

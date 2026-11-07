@@ -36,16 +36,19 @@ runs:
     - name: Reach the database on localhost (container jobs only)
       if: ${{ inputs.database-host != '' }}
       shell: bash
+      env:
+        # Through the environment, never spliced into the script text.
+        DATABASE_HOST: ${{ inputs.database-host }}
       run: |
-        # The checkout is owned by the runner's user and the container runs as root.
+        # The checkout may belong to another user than the one the container runs as.
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        nohup node scripts/ci/forward-postgres.mjs "${{ inputs.database-host }}" 5432 > "$RUNNER_TEMP/forward-postgres.log" 2>&1 &
+        nohup node scripts/ci/forward-postgres.mjs "$DATABASE_HOST" 5432 > "$RUNNER_TEMP/forward-postgres.log" 2>&1 &
         for i in $(seq 1 70); do
           if (exec 3<>/dev/tcp/127.0.0.1/5432) 2>/dev/null; then cat "$RUNNER_TEMP/forward-postgres.log"; exit 0; fi
           sleep 1
         done
         cat "$RUNNER_TEMP/forward-postgres.log"
-        echo "::error::localhost:5432 never reached the ${{ inputs.database-host }} service (a machine fault, re-run the job)."
+        echo "::error::localhost:5432 never reached the $DATABASE_HOST service (a machine fault, re-run the job)."
         exit 1
 
     - uses: actions/setup-node@v4

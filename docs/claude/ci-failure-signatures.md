@@ -289,7 +289,10 @@ re-run later. `browser-install-is-bounded.test.ts` refuses a bare `playwright in
 **Since 2026-11-06 (later the same day) there is no install to time out.** The browser jobs run in
 Playwright's own container image, `mcr.microsoft.com/playwright:v<X>-noble`, `<X>` exactly the
 `@playwright/test` in `package-lock.json` (`browser-image-matches-the-lockfile.test.ts` fails when
-they differ: bump the lockfile and the four workflows' tags together). Moved: `ci.yml` End-to-end (all
+they differ: bump the lockfile and the four workflows' tags and `@sha256:` digests together). The
+container runs `--user 1001`, the runner's uid: as root with `$HOME` owned by 1001 Firefox refuses
+to start. `scripts/ci/install-browsers.sh` is gone (no caller was left). A round part says it runs in
+the image with one field, `image`, set in `layers.mjs` `partsFor`. Moved: `ci.yml` End-to-end (all
 shards), `browsers.yml`, `breaks.yml` (baseline and every break), and `round.yml`'s parts whose
 `browsers` is exactly `chromium`, `firefox` or `webkit`. Not moved, and still installing through the
 bounded loop: the parts that drive the INSTALLED Chrome or Edge (`chromium chrome`, `chromium msedge`;

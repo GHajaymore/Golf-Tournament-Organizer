@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import net from "node:net";
 import { forward, waitForUpstream } from "../../../scripts/ci/forward-postgres.mjs";
+import { partsFor } from "../../../scripts/qa/layers.mjs";
 import { listeningInodes } from "../../../scripts/qa/free-port.mjs";
 
 /**
@@ -57,6 +58,21 @@ describe("forward-postgres: localhost reaches the service", () => {
     } finally {
       up.close();
     }
+  });
+});
+
+describe("layers.mjs says once which parts run in the image", () => {
+  it("image is true exactly for chromium, firefox and webkit parts", () => {
+    const parts = [...partsFor(1, {}), ...partsFor(1, { schedule: "nightly", countries: "all" }), ...partsFor(1, { schedule: "weekly", countries: "all" })];
+    expect(parts.length).toBeGreaterThan(10);
+    for (const p of parts) expect(p.image, p.id).toBe(["chromium", "firefox", "webkit"].includes(p.browsers));
+  });
+
+  it("the control: a part with a channel or no browser is not in the image", () => {
+    const all = [...partsFor(1, { schedule: "nightly", countries: "all" }), ...partsFor(1, { schedule: "weekly", countries: "all" })];
+    expect(all.some((p) => p.browsers === "" && p.image === false)).toBe(true);
+    expect(all.some((p) => p.browsers.includes("chrome") || p.browsers.includes("msedge"))).toBe(true);
+    expect(all.some((p) => p.image === true)).toBe(true);
   });
 });
 

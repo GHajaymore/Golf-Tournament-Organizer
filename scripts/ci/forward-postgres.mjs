@@ -30,7 +30,15 @@ export function forward({ listenPort, host, port, listenHost = "127.0.0.1" }) {
   });
   return new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(listenPort, listenHost, () => resolve(server));
+    // IPv4 only, on purpose: every DATABASE_URL says `localhost`, which Node 17+ may resolve to
+    // ::1 first, but node and Prisma both fall back to 127.0.0.1 when ::1 refuses; binding both
+    // families would only add a second listener to keep honest.
+    server.listen(listenPort, listenHost, () => {
+      // After it is listening a later error (EMFILE on accept, say) must not be an unhandled
+      // 'error' event that kills the forwarder silently: say it, and keep serving.
+      server.on("error", (e) => console.error(`forwarder: ${e.message}`));
+      resolve(server);
+    });
   });
 }
 
