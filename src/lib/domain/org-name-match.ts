@@ -207,3 +207,43 @@ export function clubExistsQuestion(existing: {
     `name, carry on.`
   );
 }
+
+/**
+ * WHEN A CLUB TAKES A NAME, IS THE CLUB THAT WAS HERE FIRST TOLD? (Ajay, 7 Nov 2026)
+ *
+ * `clubExistsQuestion` tells the person setting up the SECOND club about the first. This is the other
+ * direction: the same match (`otherOrganizationNamed`, so the same `orgNamesLookLikeOne` and
+ * `inTheSameArea`, never a second copy of either) finds the first club, and a notice is kept for its
+ * Commissioner. This is only the half that needs no database: whether the club that took the name
+ * may start one at all.
+ *
+ * QUIET FOR: a `personal` tenant (named after a person by sign-up, nobody's club), the demo club (an
+ * invented club, `docs/claude/demo-club.md`), and a club with no name of its own yet. The namesake
+ * side is quiet for the same first two reasons in `otherOrganizationNamed`'s query.
+ */
+export function mayStartNamesakeNotice(newClub: { kind: string; isDemo: boolean; name: string }): boolean {
+  return newClub.kind !== "personal" && !newClub.isDemo && newClub.name.trim().length > 0;
+}
+
+/**
+ * What the existing club's Commissioner reads. Three facts about the new club and no more: its name,
+ * its town, and the NAME of whoever set it up (never an email, phone, roster or tournament). `label` is
+ * the new club's own word for itself (`orgProfile(kind, country, communityNoun).label`), so a society
+ * is a society. `day` is the day it was set up, in the READING club's own words (`clubDayInWords`).
+ */
+export function namesakeNoticeWords(notice: {
+  name: string;
+  label: string;
+  where?: string;
+  byName?: string;
+  day: string;
+}): string {
+  const kind = notice.label.toLowerCase();
+  const place = notice.where?.trim() ? ` in ${notice.where.trim()}` : "";
+  const by = notice.byName?.trim();
+  return (
+    `A ${kind} named “${notice.name}”${place} was set up on ${notice.day}${by ? ` by ${by}` : ""}. ` +
+    `If it is the same ${kind} as yours, ask ${by ? by : "them"} to join this one instead of keeping a second. ` +
+    `If it is a different one, dismiss this.`
+  );
+}

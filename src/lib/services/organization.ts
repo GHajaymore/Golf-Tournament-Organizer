@@ -9,7 +9,7 @@ import {
 import { houseDefaultsOf } from "../tournament-settings";
 import { generateShareToken } from "../codes";
 import { newOrganizationName, organizationWasNamed } from "../org-naming";
-import { orgNamesLookLikeOne, inTheSameArea, type Whereabouts } from "../domain/org-name-match";
+import { orgNamesLookLikeOne, inTheSameArea, mayStartNamesakeNotice, type Whereabouts } from "../domain/org-name-match";
 import { isOrgKind, orgProfile, type OrgKind } from "../domain/org-profile";
 import { moneyModeFlipsOnKindChange } from "../domain/kind-change-money";
 import type { OrgSetupFacts } from "../domain/org-setup";
@@ -184,6 +184,7 @@ async function nameIfStillUnnamed(
   }
   if (!kindData.kind) {
     await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted } });
+    await noteNamesake(organizationId);
     return;
   }
   /**
@@ -207,6 +208,7 @@ async function nameIfStillUnnamed(
     ...flips.map((f) => prisma.event.update({ where: { id: f.id }, data: { moneyMode: f.from } })),
     prisma.organization.update({ where: { id: organizationId }, data: { name: wanted, ...kindData } }),
   ]);
+  await noteNamesake(organizationId);
 }
 
 /**
@@ -376,6 +378,55 @@ export async function clubNameClash(
     region: mine?.region ?? "",
     country: mine?.country ?? "",
   });
+}
+
+/**
+ * Keep a notice for the club already carrying `newOrganizationId`'s name, if there is one.
+ *
+ * `known` is the answer the caller already holds (settings asked `otherOrganizationNamed` for its
+ * warning): `undefined` = ask here, `null` = there is nobody, so only stale notices are tidied.
+ * Never throws: a notice that could not be kept must not undo the naming that was just done.
+ */
+export async function noteNamesake(newOrganizationId: string, known?: NamesakeOutfit | null): Promise<void> {
+  try {
+    const club = await prisma.organization.findUnique({
+      where: { id: newOrganizationId },
+      select: {
+        id: true, name: true, kind: true, isDemo: true, city: true, region: true, country: true,
+        members: { where: { role: "owner" }, orderBy: { createdAt: "asc" }, take: 1, select: { user: { select: { name: true } } } },
+      },
+    });
+    if (!club || !mayStartNamesakeNotice(club)) return;
+
+    const hit =
+      known !== undefined
+        ? known
+        : await otherOrganizationNamed(club.name, club.id, { city: club.city, region: club.region, country: club.country });
+
+    // A notice about a name this club no longer shares with that club is out of date: withdrawn
+    // while still open. One already dismissed stays dismissed; nobody is asked twice.
+    await prisma.namesakeNotice.deleteMany({
+      where: { newOrganizationId: club.id, status: "open", ...(hit ? { organizationId: { not: hit.organizationId } } : {}) },
+    });
+    if (!hit) return;
+
+    const facts = {
+      name: club.name,
+      town: [club.city, club.region || club.country].filter((s) => (s ?? "").trim()).join(", "),
+      byName: club.members[0]?.user?.name?.trim() ?? "",
+    };
+    const existing = await prisma.namesakeNotice.findUnique({
+      where: { organizationId_newOrganizationId: { organizationId: hit.organizationId, newOrganizationId: club.id } },
+      select: { id: true, status: true },
+    });
+    if (!existing) {
+      await prisma.namesakeNotice.create({ data: { organizationId: hit.organizationId, newOrganizationId: club.id, ...facts } });
+    } else if (existing.status === "open") {
+      await prisma.namesakeNotice.update({ where: { id: existing.id }, data: facts });
+    }
+  } catch (e) {
+    console.error("namesake notice not kept", e);
+  }
 }
 
 /**
@@ -594,6 +645,8 @@ export async function createOrganizationWithOwner(input: {
       members: { create: { userId: owner.id, role: "owner" } },
     },
   });
+  // A club made WITH a name takes it now; one named after its person (sign-up) takes none.
+  if ((input.orgName ?? "").trim()) await noteNamesake(org.id);
   return org.id;
 }
 

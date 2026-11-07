@@ -16,7 +16,7 @@ import {
   moneyModeToKeep,
 } from "@/lib/domain/kind-change-money";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
-import { otherOrganizationNamed } from "@/lib/services/organization";
+import { noteNamesake, otherOrganizationNamed } from "@/lib/services/organization";
 import { seatRefusalFor } from "@/lib/services/limits";
 import {
   isThemeKey, hexToHsl, isAppearance, DEFAULT_CLUB_THEME, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
@@ -334,6 +334,8 @@ export async function saveOrganizationBranding(
       brandDisplay: isBrandDisplay(brandDisplay) ? brandDisplay : "short",
     },
   });
+  // The club that was here first is told as well as the person: same match as the warning below.
+  await noteNamesake(org.organizationId, clash);
 
   revalidatePath("/", "layout");
   /**
