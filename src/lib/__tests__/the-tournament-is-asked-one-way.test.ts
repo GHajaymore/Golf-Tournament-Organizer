@@ -136,8 +136,15 @@ export const READS_THE_STEP: readonly string[] = [
 
 const STEP_DECIDERS = [...OLD_READERS, "tournamentPhase", "datesPassedUnlaunched", "STATUS_META", "isLaunched"] as const;
 
-/** A stored status, under any name, compared with any of its five words. Never `p.status === "confirmed"`. */
-const ANY_STORED_WORD = /(?<![\w.])(?:[\w?]+\.)*(?:status|eventStatus)\s*[!=]==?\s*["'](?:draft|registration|ready|live|completed)["']/;
+/**
+ * A stored status, on any receiver (`row.eventStatus`, `(row as X).status`,
+ * `rows[0].status`) and either way round, compared with any of its five words.
+ * Never `p.status === "confirmed"`: a player's status has other words.
+ */
+const STORED_WORD = `["'](?:draft|registration|ready|live|completed)["']`;
+const ANY_STORED_WORD = new RegExp(
+  String.raw`\b(?:status|eventStatus)\s*[!=]==?\s*${STORED_WORD}|${STORED_WORD}\s*[!=]==?\s*[\w$.?()[\]\s]*\b(?:status|eventStatus)\b`,
+);
 
 /** What a step-reading file does that only the machine may: decide the step. */
 export function stepDeciders(src: string): string[] {
@@ -225,6 +232,10 @@ describe("the home, the switcher, the Tournaments list and the public event page
     expect(stepDeciders(`import { STATUS_META } from "@/lib/format";`)).toEqual(["STATUS_META"]);
     expect(stepDeciders(`      ? row.eventStatus === "live"`)).toEqual(["(a stored status compared by hand)"]);
     expect(stepDeciders(`const done = e.status !== "completed";`)).toEqual(["(a stored status compared by hand)"]);
+    // On any receiver, and either way round — the shape, not one spelling of it.
+    expect(stepDeciders(`return (row as { eventStatus?: string }).eventStatus === "live";`)).toEqual(["(a stored status compared by hand)"]);
+    expect(stepDeciders(`const first = rows[0].status == "draft";`)).toEqual(["(a stored status compared by hand)"]);
+    expect(stepDeciders(`if ("live" === row.eventStatus) return;`)).toEqual(["(a stored status compared by hand)"]);
     // Not deciders: the machine, the stored word that IS the completed step, a player's status, a step.
     expect(stepDeciders(`import { tournamentStatus } from "../domain/tournament-status";`)).toEqual([]);
     expect(stepDeciders(`import { isFinished } from "../domain/lifecycle-state";`)).toEqual([]);
