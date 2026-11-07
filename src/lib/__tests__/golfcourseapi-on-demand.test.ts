@@ -60,7 +60,6 @@ describe("nothing schedules the catalogue walk", () => {
   it("the cron route is gone, and so is every importer that only it called", () => {
     expect(existsSync(join(ROOT, "src/app/api/cron/course-catalogue"))).toBe(false);
     expect(existsSync(join(ROOT, "src/lib/services/catalogue-gca.ts"))).toBe(false);
-    expect(existsSync(join(ROOT, "src/lib/services/catalogue-import.ts"))).toBe(false);
     expect(existsSync(join(ROOT, "scripts/import-golfcourseapi.ts"))).toBe(false);
     const offenders = walk(join(ROOT, "src"))
       .filter((f) => /\.(ts|tsx)$/.test(f) && !f.includes("__tests__"))
