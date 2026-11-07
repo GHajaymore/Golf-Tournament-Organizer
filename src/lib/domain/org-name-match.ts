@@ -217,12 +217,14 @@ export function clubExistsQuestion(existing: {
  * Commissioner. This is only the half that needs no database: whether the club that took the name
  * may start one at all.
  *
- * QUIET FOR: a `personal` tenant (named after a person by sign-up, nobody's club), the demo club (an
- * invented club, `docs/claude/demo-club.md`), and a club with no name of its own yet. The namesake
- * side is quiet for the same first two reasons in `otherOrganizationNamed`'s query.
+ * QUIET FOR: the demo club (an invented club, `docs/claude/demo-club.md`) and a club with no name of
+ * its own yet. A `personal` tenant that TOOK a typed name MAY start one (PM, 7 Nov: leaving the kind on
+ * its default is exactly the duplicate to catch); the callers only ask once a name was typed, so
+ * sign-up's auto-name after the person raises nothing. The EXISTING side stays quiet for a `personal`
+ * tenant and the demo club, in `otherOrganizationNamed`'s query.
  */
 export function mayStartNamesakeNotice(newClub: { kind: string; isDemo: boolean; name: string }): boolean {
-  return newClub.kind !== "personal" && !newClub.isDemo && newClub.name.trim().length > 0;
+  return !newClub.isDemo && newClub.name.trim().length > 0;
 }
 
 /**

@@ -42,6 +42,7 @@ vi.mock("@/lib/email", () => ({
 const { createEvent } = await import("@/app/actions/tournament");
 const { saveOrganizationBranding } = await import("@/app/actions/organization");
 const { dismissNamesakeNotice } = await import("@/app/actions/join");
+const { createOrganizationWithOwner } = await import("@/lib/services/organization");
 const { openNamesakeNotices } = await import("@/lib/services/namesake-notice");
 
 const boss = { email: `${lower}-boss@example.invalid`, name: `${TAG} First Secretary` };
@@ -186,16 +187,31 @@ describe("quiet cases", () => {
     expect(await prisma.namesakeNotice.count({ where: { OR: [{ organizationId: leagueId }, { newOrganizationId: leagueId }] } })).toBe(0);
   });
 
-  it("never tells a personal tenant, and a personal tenant never starts a notice", async () => {
+  it("never tells a personal tenant, but a personal newcomer that took the name does start one", async () => {
     const personalName = `${TAG} Dana Personal`;
     const personalId = await outfit(personalName, { email: `${lower}-p@example.invalid`, name: personalName }, { kind: "personal" });
     // A club takes a personal tenant's name: nobody is told (a person's workspace is nobody's club).
     await saveOrganizationBranding(personalName, "", "", {});
     expect(await noticesFor(personalId)).toHaveLength(0);
-    // A personal tenant taking a club's name starts nothing.
+    // A personal tenant (the form's default kind) taking a club's name DOES tell the club.
     await prisma.organization.updateMany({ where: { members: { some: { user: { email: second.email } } } }, data: { kind: "personal" } });
     await saveOrganizationBranding(LEAGUE, "", "", { city: "Cincinnati", region: "OH", country: "" });
-    expect(await noticesFor(leagueId)).toHaveLength(0);
+    expect(await noticesFor(leagueId)).toHaveLength(1);
+  });
+
+  it("a personal newcomer made through the tournament form with a typed club name tells the club", async () => {
+    await prisma.organization.updateMany({ where: { members: { some: { user: { email: second.email } } } }, data: { kind: "personal" } });
+    const res = await createEvent(`${TAG} Week 9`, "custom", "series", LEAGUE, undefined, true);
+    expect(res.ok, res.error).toBe(true);
+    expect(await noticesFor(leagueId)).toHaveLength(1);
+  });
+
+  it("a tenant auto-named after its person at sign-up raises nothing", async () => {
+    // Named exactly like the league, with NO typed name: sign-up passes none.
+    const user = `${lower}-signup@example.invalid`;
+    const id = await createOrganizationWithOwner({ email: user, displayName: LEAGUE });
+    expect((await prisma.organization.findUnique({ where: { id } }))?.name).toBe(LEAGUE);
+    expect(await noticesFor(leagueId), "sign-up's auto-name told a club").toHaveLength(0);
   });
 
   it("never tells the demo club, and the demo club never starts a notice", async () => {

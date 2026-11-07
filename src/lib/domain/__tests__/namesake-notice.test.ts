@@ -7,12 +7,12 @@ import { mayStartNamesakeNotice, namesakeNoticeWords, orgNamesLookLikeOne, inThe
  * notice and the words the Commissioner reads. The rows are in `namesake-notice.audit.test.ts`.
  */
 describe("which club may start a notice", () => {
-  it("a named club does", () => {
+  it("a named club does, and so does a personal tenant that took a typed name", () => {
+    expect(mayStartNamesakeNotice({ kind: "personal", isDemo: false, name: "Mill Ridge Golf Club" })).toBe(true);
     expect(mayStartNamesakeNotice({ kind: "club", isDemo: false, name: "Mill Ridge Golf Club" })).toBe(true);
     expect(mayStartNamesakeNotice({ kind: "community", isDemo: false, name: "Thursday League" })).toBe(true);
   });
-  it("a personal tenant, the demo club and an unnamed club do not", () => {
-    expect(mayStartNamesakeNotice({ kind: "personal", isDemo: false, name: "Dana Lee" })).toBe(false);
+  it("the demo club and an unnamed club do not", () => {
     expect(mayStartNamesakeNotice({ kind: "club", isDemo: true, name: "Demo Heath Golf Club" })).toBe(false);
     expect(mayStartNamesakeNotice({ kind: "club", isDemo: false, name: "   " })).toBe(false);
   });
