@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { tournamentStatus, setupFlowOf, flowFromStatus } from "../domain/tournament-status";
-import { readFileSync } from "node:fs";
+import { readSource } from "./source";
 import { unratedTeesTodo, unratedTiers, unratedTeesFact, hasTypedCard, warningText, type UnratedTees } from "../domain/launch-check";
 import { facts } from "../domain/__tests__/tournament-facts-fixtures";
 import { GUIDE_STEPS } from "../guide-steps";
@@ -120,7 +120,7 @@ describe("a typed-in card with no saved course", () => {
   });
 
   it("the reader derives typedCard from the pars, not the venue name", () => {
-    const src = readFileSync("src/lib/services/tournament-facts.ts", "utf8");
+    const src = readSource("src", "lib", "services", "tournament-facts.ts");
     expect(src).toContain("hasTypedCard(e.customPars)");
     expect(src).not.toMatch(/typed\s*=[^;]*e\.course/);
   });
