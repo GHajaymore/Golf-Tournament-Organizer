@@ -10,6 +10,7 @@ import {
   rosterNoEmailYet,
   previewSummary,
   importButtonWords,
+  memberWithoutEmail,
   STANDING_CHOICE,
   GUEST,
 } from "../domain/entry-standing";
@@ -182,6 +183,14 @@ describe("the words (UX Writer: a guest is never lesser)", () => {
     expect(standingHint("", uk)).toContain("from the buggy QR");
     expect(rosterNoEmailYet("zz A and zz B", us)).toBe("zz A and zz B have no email yet. They're entered and score from the cart QR.");
     expect(rosterNoEmailYet("zz A", us)).toBe("zz A has no email yet. They're entered and score from the cart QR.");
+  });
+
+  it("says before the press that a member without an email turns round codes on (TD, 2026-11-07)", () => {
+    expect(memberWithoutEmail(true)).toBe(
+      "They can play and score now. Add an email later so they can sign in. This also turns round codes on for this tournament.",
+    );
+    // A tournament that already has round codes: nothing turns on, and nothing is said about it.
+    expect(memberWithoutEmail(false)).toBe("They can play and score now. Add an email later so they can sign in.");
   });
 
   it("counts the preview the way the design wrote it", () => {

@@ -95,6 +95,52 @@ describe("Add stores member or guest", () => {
   });
 });
 
+/**
+ * A GUEST IS NEVER MATCHED ONTO A MEMBER (design §4.3 point 2; the review of #1047, 2026-11-07).
+ *
+ * A guest has no email, so `upsertMember` fell to the name, linked the guest's entry to the
+ * member of the same name and — from a staff door — wrote the guest's typed index over his.
+ * Both organizer doors that make a guest are pressed: Add and the import.
+ */
+describe("a guest with a member's name", () => {
+  it("leaves the member's roster row byte-identical and gets a row of their own", async () => {
+    const ev = await make("namesake");
+    const orgId = ev.organizationId!;
+    expect(orgId, "the tournament belongs to a club").toBeTruthy();
+    const member = await prisma.member.create({
+      data: { organizationId: orgId, name: `${TAG} Rob Hale`, email: "zz-rob-hale@example.invalid", handicap: 10.4, handicapSource: "manual" },
+    });
+    // Read back rather than assumed: the row as the database holds it, every column.
+    const before = await prisma.member.findUniqueOrThrow({ where: { id: member.id } });
+    const rows = () => prisma.member.findMany({ where: { organizationId: orgId, name: { equals: `${TAG} rob hale`, mode: "insensitive" } } });
+
+    // Add, typed in another casing and with a different index.
+    const res = await addSignup({ name: `${TAG} ROB HALE`, handicap: 22, handicapSource: "manual", standing: "guest" });
+    expect(res.ok, res.error).toBe(true);
+    expect(await prisma.member.findUniqueOrThrow({ where: { id: member.id } }), "the guest restated the member's row").toEqual(before);
+    const added = await prisma.player.findFirstOrThrow({ where: { eventId: ev.id, name: `${TAG} ROB HALE` }, select: { memberId: true, standing: true } });
+    expect(added.standing).toBe("guest");
+    expect(added.memberId, "the guest was given no roster row").toBeTruthy();
+    expect(added.memberId, "the guest was linked to the member").not.toBe(member.id);
+    const own = await prisma.member.findUniqueOrThrow({ where: { id: added.memberId! } });
+    expect({ email: own.email, handicap: own.handicap }).toEqual({ email: "", handicap: 22 });
+
+    // The import, in a second tournament, the guest marked so in the file.
+    const ev2 = await make("namesake-import");
+    const r = await importCsvSignups([
+      "name,email,handicap,handicap id,member or guest",
+      `${TAG} Rob Hale,,25,,guest`,
+    ].join("\n"));
+    expect(r.error).toBeUndefined();
+    expect(r.guests).toBe(1);
+    expect(await prisma.member.findUniqueOrThrow({ where: { id: member.id } }), "the imported guest restated the member's row").toEqual(before);
+    const imported = await prisma.player.findFirstOrThrow({ where: { eventId: ev2.id, name: `${TAG} Rob Hale` }, select: { memberId: true } });
+    expect(imported.memberId, "the imported guest was linked to the member").not.toBe(member.id);
+    // The member, and one row for each guest entry: never folded together.
+    expect((await rows()).length).toBe(3);
+  });
+});
+
 describe("the CSV import stores Ajay's default and the organizer's switches", () => {
   it("row by row, re-reading every switch", async () => {
     const ev = await make("import");

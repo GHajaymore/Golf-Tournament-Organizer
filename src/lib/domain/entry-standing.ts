@@ -138,6 +138,18 @@ export function standingHint(club: string, words: GolfWords): string {
 /** Said under Email when a member is being added without one. */
 export const MEMBER_WITHOUT_EMAIL = "They can play and score now. Add an email later so they can sign in.";
 
+/** Said BEFORE the press, beside `MEMBER_WITHOUT_EMAIL`, when the add will turn round codes on. */
+export const CODES_WILL_TURN_ON = "This also turns round codes on for this tournament.";
+
+/**
+ * The line under an empty Email box on Add. `codesWillTurnOn` is the tournament's
+ * `entryNeedsEmail` (no round codes yet): the add then turns them on, and the
+ * organizer reads that before pressing, not only after (`CODES_TURNED_ON`).
+ */
+export function memberWithoutEmail(codesWillTurnOn: boolean): string {
+  return codesWillTurnOn ? `${MEMBER_WITHOUT_EMAIL} ${CODES_WILL_TURN_ON}` : MEMBER_WITHOUT_EMAIL;
+}
+
 /** Said when an entry without an email turned round codes on. */
 export const CODES_TURNED_ON =
   "Players without an email score with the round code, so round codes are on now too. Change it on Tournament details.";

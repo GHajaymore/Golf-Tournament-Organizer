@@ -95,6 +95,11 @@ test("the organizer adds a guest and two members by hand, and each is stored as 
   // The Add form's own box, not a row's "Email for …" in the field below.
   const addEmail = page.getByLabel(/^Email · optional/);
 
+  // 0. Before any press, under the empty Email box: whether this add turns round codes on.
+  const codesNote = page.getByText("This also turns round codes on for this tournament.");
+  if (accessBefore === "email") await expect(codesNote, "the codes are not said before the press").toBeVisible();
+  else await expect(codesNote).toHaveCount(0);
+
   // 1. A guest: the email and mobile boxes go away.
   await page.locator("label.seg-opt", { hasText: "Guest (not a club member)" }).click();
   await expect(guestRadio).toBeChecked();

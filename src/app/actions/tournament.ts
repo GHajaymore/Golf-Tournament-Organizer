@@ -671,7 +671,9 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // so the club list is never a separate chore an organizer has to remember.
   const memberId = await upsertMember(
     event.organizationId,
-    { ...input, name: clean, email: cleanEmail, phone: cleanPhone },
+    // A guest is matched onto nobody: never onto a member of the same name, whose
+    // index this staff door would otherwise restate (design §4.3).
+    { ...input, name: clean, email: cleanEmail, phone: cleanPhone, guest },
     "staff",
   );
   await prisma.player.create({
@@ -771,7 +773,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
     // A guest's entry holds no email: one here would make a sign-in account and
     // hand the entry to whoever holds the address (`byAddress`). Make member is a later change.
     if (cleanEmail && isGuest(player)) {
-      return { ok: false, error: `${player.name} is entered as a guest (not a club member), who is entered without an email.` };
+      return { ok: false, error: `${player.name} is entered as a guest (not a club member), so the entry holds no email.` };
     }
     /**
      * Correcting an email must not create the duplicate `addSignup` now refuses.
@@ -838,8 +840,13 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   // of having one record per person. Re-resolving rather than updating the
   // linked member directly, because a changed email may now identify someone
   // else on the roster (or nobody, in which case they're added).
+  //
+  // Not a guest already on the roster: a guest is matched onto nobody, so
+  // re-resolving would add a fresh row of theirs on every correction. Their row
+  // is the one they were given when entered (design §4.3).
   const organizationId = await organizationIdForEvent(eventId);
-  if (organizationId) {
+  const guest = isGuest(player);
+  if (organizationId && !(guest && player.memberId)) {
     const memberId = await upsertMember(organizationId, {
       name: (data.name as string) ?? player.name,
       email: (data.email as string) ?? player.email,
@@ -849,6 +856,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
       handicap: (data.handicap as number) ?? player.handicap,
       handicapType: (data.handicapType as string) ?? player.handicapType,
       handicapSource: (data.handicapSource as string) ?? player.handicapSource,
+      guest,
     },
       // Details only: an existing member's index is changed through
       // `setPlayerIndex`, which asks first (2026-10-16).
@@ -1348,7 +1356,7 @@ export async function importCsvSignups(csv: string, choices?: Record<number, str
     // is what the entry carries (`memberGender`).
     const memberId = await upsertMember(
       event.organizationId,
-      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource, gender: cell(table, cols, "gender") },
+      { name, email: emailKey, phone, ghin, homeClub, handicap, handicapType, handicapSource, gender: cell(table, cols, "gender"), guest },
       "staff",
     );
     await prisma.player.create({

@@ -17,13 +17,13 @@ import {
   CSV_TEMPLATE_HEADER,
   ENTRY_STANDINGS,
   GUEST_EMAIL_DROPPED,
-  MEMBER_WITHOUT_EMAIL,
   NO_EMAIL_YET,
   STANDING_CHOICE,
   STANDING_TAG,
   entryStanding,
   importButtonWords,
   isGuest,
+  memberWithoutEmail,
   previewSummary,
   standingHint,
   type EntryStanding,
@@ -1349,12 +1349,13 @@ export function RegistrationClient({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div className="field">
               {/* Optional for a member, whatever the tournament (2026-11-07): an entry without
-                  one turns Round Codes on, and the screen says so after the press. */}
+                  one turns Round Codes on, and the screen says so before the press and after it. */}
               <label htmlFor={`${fid}-email`}>Email <span style={{ color: "var(--color-accent-200)" }}>· optional, lets them sign in</span></label>
               <input id={`${fid}-email`} className="input" type="email" maxLength={EMAIL_MAX} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" />
               {!email.trim() && (
                 <span className="text-muted" style={{ fontSize: 13 }}>
-                  {MEMBER_WITHOUT_EMAIL}
+                  {/* Before the press: on a tournament without round codes, this add turns them on. */}
+                  {memberWithoutEmail(needsEmail)}
                 </span>
               )}
             </div>

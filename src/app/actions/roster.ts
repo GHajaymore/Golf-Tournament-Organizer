@@ -8,7 +8,7 @@ import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { upsertMember, entryContactNeeds } from "@/lib/services/roster";
 import { codesOnForAnEntryWithoutEmail } from "@/lib/services/round-codes";
-import { MEMBER } from "@/lib/domain/entry-standing";
+import { MEMBER, isGuest } from "@/lib/domain/entry-standing";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
 import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap-record";
 import { handicapPolicyOf, refuseHandByHand } from "@/lib/domain/handicap-policy";
@@ -478,7 +478,7 @@ export async function addFieldToRoster(): Promise<{
       select: {
         id: true, name: true, email: true, phone: true, memberId: true,
         ghin: true, homeClub: true, gender: true, preferredTee: true,
-        handicap: true, handicapType: true, handicapSource: true,
+        handicap: true, handicapType: true, handicapSource: true, standing: true,
       },
     }),
     prisma.member.findMany({ where: { organizationId }, select: { id: true, email: true } }),
@@ -489,7 +489,8 @@ export async function addFieldToRoster(): Promise<{
   let linked = 0;
 
   for (const p of todo) {
-    const memberId = await upsertMember(organizationId, p, "staff");
+    // A guest in the field gets a row of their own, never a namesake member's.
+    const memberId = await upsertMember(organizationId, { ...p, guest: isGuest(p) }, "staff");
     // A player with no name has nothing to become a member of; upsertMember
     // says so by returning null rather than creating an anonymous row.
     if (!memberId) continue;

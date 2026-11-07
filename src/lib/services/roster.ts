@@ -175,6 +175,18 @@ export interface MemberIdentity {
   handicap?: number;
   handicapType?: string;
   handicapSource?: string;
+  /**
+   * The entry is a GUEST (not a club member). Required, so the compiler lists every
+   * door that writes a roster row the day this question is asked of it.
+   *
+   * A guest is never matched onto a roster row automatically (the no-email identity
+   * design, §4.3 point 2). A guest has no email, so the lookup fell to the name, and
+   * a guest called "Rob Hale" became the member Rob Hale: the entry was linked to his
+   * row and, from a staff door, the guest's typed index was written over his. A guest
+   * always gets a row of their own (§4.3 step 3); joining it to a member is a press
+   * somebody makes, later.
+   */
+  guest: boolean;
 }
 
 /**
@@ -206,7 +218,9 @@ export type MemberWriter =
  * maintain the club list as a separate chore.
  *
  * Matching is by email where there is one (stable across name changes and
- * spelling variants), falling back to an exact case-insensitive name match.
+ * spelling variants), falling back to an exact case-insensitive name match —
+ * except for a GUEST, who is matched onto nobody and always gets a row of their
+ * own (`MemberIdentity.guest`).
  * Details on an existing member are filled in but not overwritten: a blank
  * phone in a CSV should not wipe the number the club already had.
  *
@@ -237,14 +251,18 @@ export async function upsertMember(
 ): Promise<string | null> {
   const name = input.name.trim();
   if (!organizationId || !name) return null;
-  const email = (input.email ?? "").trim().toLowerCase();
+  // A guest's row holds no email, as a guest's entry holds none.
+  const email = input.guest ? "" : (input.email ?? "").trim().toLowerCase();
 
   const [existing, org] = await Promise.all([
-    email
-      ? prisma.member.findFirst({ where: { organizationId, email } })
-      : prisma.member.findFirst({
-          where: { organizationId, name: { equals: name, mode: "insensitive" } },
-        }),
+    // A guest is matched onto nobody: always a row of their own (`guest` above).
+    input.guest
+      ? null
+      : email
+        ? prisma.member.findFirst({ where: { organizationId, email } })
+        : prisma.member.findFirst({
+            where: { organizationId, name: { equals: name, mode: "insensitive" } },
+          }),
     prisma.organization.findUnique({
       where: { id: organizationId },
       select: { handicapPolicy: true, handicapAuthorityId: true, country: true },
