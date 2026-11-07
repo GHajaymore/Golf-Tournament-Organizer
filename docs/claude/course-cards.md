@@ -58,4 +58,7 @@ What it does now (`services/golfcourseapi-live.ts`, called from `services/course
   card, and never blanks a card already held. Re-check against source (`fetchLiveDirectoryCourse`) reads without storing.
 - **Down or slow**: a 6 second timeout; any failure returns the plain-words notice (`GCA_UNAVAILABLE_NOTICE`) and
   never throws, and the paste box and manual entry stay beside it. No `GOLFCOURSE_API_KEY` means silence, not a notice.
+- **The OpenGolfAPI walk and its refresh went with it** (`services/catalogue-import.ts`): their only caller was that cron,
+  so they were dead. OpenGolfAPI (open data, ODbL) is still searched live, before GolfCourseAPI; it is no longer
+  copied wholesale.
 - Courses already stored (`gca:` rows) stay. The key is configuration: never log it, never put one in a test.
