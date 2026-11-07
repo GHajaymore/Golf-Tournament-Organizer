@@ -94,7 +94,7 @@ test("a second club takes the name; the first club's Commissioner is told in the
     await page.getByLabel("Tournament name").fill(`${MARK} Spring Cup`);
     await page.getByRole("button", { name: /^A single round/ }).click();
     await page.getByLabel(/Who.s running this\?/).fill(CLUB);
-    // A club, not the default outing: a personal workspace named like a club is nobody's club (it starts no notice).
+    // A club, as a person would pick; the default (personal) tells the club as well (audit test).
     await page.getByRole("radiogroup", { name: "What kind of outfit runs it" }).getByText(/club/i).first().click();
     await page.getByRole("button", { name: "Create tournament" }).click();
     const carryOn = page.getByRole("button", { name: /^Create a separate / });
