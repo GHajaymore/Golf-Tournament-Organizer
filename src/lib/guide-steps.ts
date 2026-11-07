@@ -173,7 +173,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       },
       {
         kind: "tip",
-        text: "The list above the form is every tournament you can reach. A tournament whose last day has gone by without being launched reads **Dates passed, not launched**. Two tournaments with the same name each show their dates (or the day they were created, where they have none), with a number such as #2 where the dates are the same too; the same dates are shown in **Start from**. The bin deletes a tournament with its players and every score, and asks first; only an {organizer} of that tournament can delete it, and pressing the bin on any other says so.",
+        text: "The list above the form is every tournament you can reach, each with the status its dashboard shows — **Setting up**, **Live**, **Play over** or **Completed**. A tournament whose last day has gone by without being launched reads **Dates passed, not launched**. Two tournaments with the same name each show their dates (or the day they were created, where they have none), with a number such as #2 where the dates are the same too; the same dates are shown in **Start from**. The bin deletes a tournament with its players and every score, and asks first; only an {organizer} of that tournament can delete it, and pressing the bin on any other says so.",
       },
       { kind: "h", text: "Tournament details" },
       { kind: "where", text: "Set up → Tournament details ({organizers} only)" },
@@ -193,7 +193,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "**Who can see the leaderboard**: Organizers only, Organizers and players, or **Anyone with the link** — which shows the **Public leaderboard link** with [[Copy]] and [[New link]] (the old link stops working at once).",
           "Under it, with **Anyone with the link**, are two more links on the same board, each with **Open** and [[Copy]]: the **Event page** and the **Clubhouse screen**. [[New link]] replaces all three at once, and all three close when the board is set to Organizers only or Organizers and players.",
-          "The **Event page** is the one link to send before and after the day — in the newsletter, on the noticeboard, in the group chat. It shows the tournament's name, date, course and format; while entries are open, an **Enter this tournament** button and the sign-up QR poster; on the day, the leaderboard and the clubhouse screen; afterwards, the result and **Read the final report**. Contests with a sponsor are listed with their winners. It is a link, not an email: nothing is sent.",
+          "The **Event page** is the one link to send before and after the day — in the newsletter, on the noticeboard, in the group chat. It shows the tournament's name, date, course and format; while entries are open, an **Enter this tournament** button and the sign-up QR poster; on the day — from launch, or from the first result in any round — the leaderboard and the clubhouse screen; afterwards, the result and **Read the final report**. Contests with a sponsor are listed with their winners. It is a link, not an email: nothing is sent.",
           "The **Clubhouse screen** is the leaderboard for a TV in the bar: large type, no buttons, the field a page at a time when it is longer than the screen, starting again after the last page, and refreshing every 30 seconds like the board. It shows nothing the board does not.",
           "**Who enters scores**: Organizers and assistants only, or Players may enter their own scores. With Organizers and assistants only, a player's card and a round code offer no score buttons at all: the screen says the club is keeping the cards and points them to the board.",
           "**When players may submit**: during the round, hole by hole; or after the round, as a completed card. A match is complete once it is decided, so a match won 5&4 goes in without the four holes nobody played.",
@@ -479,8 +479,9 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
-          "One line for each job waiting on you in the club's tournaments, the soonest first: entries waiting for approval (with the day entries close), a tee sheet for the next fortnight not yet published, cards not returned in a round being played, and results not released once every round is closed.",
-          "Each line names its tournament and has one button that opens that tournament on the screen that does the job: [[Approve entries]], [[Publish the tee sheet]], [[Open score entry]] or [[Complete the tournament]].",
+          "One line for each job waiting on you in the club's tournaments, the soonest first: entries waiting for approval (with the day entries close), a tee sheet for the next fortnight not yet published, a tournament starting within the fortnight that is not launched yet (or one with results already in that never was), the next round's pairings or the next week's day once it is live, cards not returned in a round being played, and results not released once play is over — every round closed, or a knockout's Final decided.",
+          "The tournament's own line is the same next step its dashboard offers, so the two never disagree. When the dashboard would refuse it — a card still waiting to be signed off, nothing scored, a step of setup still open — the line says why instead, and its button goes where that is put right.",
+          "Each line names its tournament and has one button that opens that tournament on the screen that does the job: [[Approve entries]], [[Publish the tee sheet]], [[Launch tournament]], [[Open score entry]], [[Complete tournament]], or the way out a refusal names.",
           "The buttons are for the club's Commissioner and Admins. Anyone else running a tournament sees the same lines without them.",
           "Nothing waiting says so. A completed tournament never appears.",
         ],

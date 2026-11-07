@@ -107,7 +107,7 @@ vi.mock("react", async (importOriginal) => {
 vi.mock("@/lib/auth", () => ({ getSession: async () => null }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { tournamentFactsFor, tournamentFactsForMany } = await import("@/lib/services/tournament-facts");
+const { tournamentFactsFor, tournamentFactsForMany, tournamentStepsFor } = await import("@/lib/services/tournament-facts");
 const { loadEventState } = await import("@/lib/services/tournament");
 const { launchCheckFor } = await import("@/lib/services/setup-flow");
 // The rail is the state machine's since PR 3 (`setupRailFor`), from the same request-cached read.
@@ -368,5 +368,27 @@ describe("the secretary's home on the seeded club", () => {
     // queries plus the card check per tournament (`roundsMissingCards`, four
     // reads), not the batch per tournament.
     expect(grouped.queries - home.queries).toBeLessThan(withFacts.queries - home.queries);
+
+    /**
+     * THE STEP ALONE (state machine PR 6): what the Tournaments list, the player
+     * switcher and the public event page pay — `tournamentStepsFor`, the same
+     * batch without the setup checks and the review queue. Over every
+     * tournament of the club (the list shows completed ones too), it must cost
+     * less than the facts of the running ones alone, and not grow per
+     * tournament: no card check, and the whole state only for a live knockout.
+     */
+    const days = new Map(running.map((e) => [e.id, TODAY]));
+    const steps = await request(() => tournamentStepsFor(days), 3);
+    const factsOfAll = await request(() => tournamentFactsForMany(running.map((e) => e.id), TODAY), 3);
+    line(`steps: tournamentStepsFor × ${running.length} (every tournament)`, steps);
+    line(`steps: tournamentFactsForMany × ${running.length}, for comparison`, factsOfAll);
+    expect(steps.queries, "the step alone pays for the setup checks or the review queue").toBeLessThan(factsOfAll.queries);
+    // And it reads what the full read reads: the same step for every tournament.
+    const told = await tournamentStepsFor(days);
+    const full = await tournamentFactsForMany(running.map((e) => e.id), TODAY);
+    for (const [id, f] of full) {
+      expect(told.get(id)?.step, `${id}: the step alone and the full read disagree`).toBe(tournamentStatus(f).step);
+      expect(told.get(id)?.journey).toBe(tournamentStatus(f).journey);
+    }
   });
 });

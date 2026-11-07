@@ -42,7 +42,17 @@ export interface TournamentSays {
   setup?: { holds: string; done: number; of: number } | { ready: true; done: number; of: number; optional: string[] } | null;
   /** The phase the journey card marks "You are here". */
   journey?: "Set up" | "Launch" | "Play" | "Finish";
+  /**
+   * The tournament's own line on the secretary's home (dashboard → What's next;
+   * state machine PR 6): its words and its one button — the dashboard's next
+   * action, or the way out of its refusal. Null: no such line. The fixture's
+   * club runs this one tournament, so its line is the only one of these kinds.
+   */
+  home?: { text: string | RegExp; action: string } | null;
 }
+
+/** The home's lines that are a tournament's own next action (`lifecycleJob` in needs-you-now.ts). */
+const OWN_LINE = '[data-job="launch"], [data-job="schedule"], [data-job="draw"], [data-job="results"]';
 
 /** The dashboard's lifecycle buttons — never "Unlock configuration" or a quick action. */
 const LIFECYCLE = /^(Launch|Complete|Reopen|Generate|Set )/;
@@ -72,6 +82,20 @@ export async function expectTournamentSays(page: Page, says: TournamentSays): Pr
       await expect(reason.getByRole("link", { name: says.refused.wayOut.says }), "the refusal has no way out").toHaveAttribute("href", says.refused.wayOut.href);
     } else if (says.refused === null) {
       await expect(action, "the action is refused").not.toHaveAttribute("aria-disabled", "true");
+    }
+  }
+
+  if (says.home !== undefined) {
+    const next = page.getByRole("region", { name: "What's next" });
+    await expect(next, "the dashboard has no What's next").toBeVisible();
+    const own = next.locator(OWN_LINE);
+    if (says.home === null) {
+      await expect(own, "the home offers a next step the dashboard does not").toHaveCount(0);
+    } else {
+      await expect(own, "the home's line for this tournament").toHaveCount(1);
+      await expect(own, "the home says something else than the dashboard").toContainText(says.home.text);
+      // The open tournament's line is a link to the screen that does it (`WhatsNext`).
+      await expect(own.getByRole("link", { name: says.home.action }), "the home's button").toBeVisible();
     }
   }
 

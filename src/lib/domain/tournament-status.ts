@@ -616,6 +616,8 @@ export const ALREADY_LAUNCHED = "This tournament has already been launched, so t
 export const ALREADY_COMPLETED = "This tournament is already completed. To change a result, reopen it on the dashboard.";
 export const NOT_LAUNCHED_TO_COMPLETE = "This tournament hasn’t been launched yet, so there is nothing to complete. Launch it from the dashboard first.";
 export const NOT_COMPLETED_TO_REOPEN = "This tournament isn’t completed, so there is nothing to reopen.";
+/** The launch dialog's warning for a tournament whose last day has gone by unlaunched — and the Tournaments list's word (PR 6). */
+export const DATES_PASSED_UNLAUNCHED = "Its dates have passed and it was never launched.";
 
 export function tournamentStatus(f: TournamentFacts): TournamentStatus {
   const family = tournamentFamily(f);
@@ -749,7 +751,7 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
   const last = f.endOn || f.startOn;
   if (!launched && /^\d{4}-\d{2}-\d{2}$/.test(last) && last < f.today) {
     warnings.push({
-      says: "Its dates have passed and it was never launched.",
+      says: DATES_PASSED_UNLAUNCHED,
       fix: `Launch it or change its dates on ${screenName("/event")}`,
       href: "/event",
       screen: screenName("/event"),
