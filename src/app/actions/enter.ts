@@ -157,21 +157,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
     };
   }
 
-  const already = await prisma.player.findFirst({
-    where: {
-      eventId,
-      ...byAddress(session.email),
-      status: { in: ["confirmed", "waitlisted", "pending"] },
-    },
-    select: { status: true },
-  });
-  if (already) {
-    return {
-      ok: false,
-      error: "Your name is already down for this one.",
-      status: already.status as EnterResult["status"],
-    };
-  }
+  // The "already in" check is NOT here: it runs under the intake lock below (J46).
 
   // The organizer's capacity, tightened to the tier's field cap when the owner
   // has enforcement on — a no-op otherwise, so entry is unchanged until then. A
@@ -239,6 +225,23 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
   // The closing day ends when it ends AT THE CLUB — see `domain/club-clock.ts`.
   const clubNow = await clubDayForEvent(eventId);
   const decision = await withEventIntakeLock(eventId, async (tx) => {
+    /**
+     * ALREADY IN, ASKED UNDER THE LOCK (J46). Confirmed, waitlisted and pending
+     * all mean their name is down; pressing Enter twice must not put it down
+     * twice. This check used to run before the lock, so two submissions arriving
+     * together (a busy opening, a double tap on a slow phone) both found nobody
+     * and both created a row. Asked here, the second request queues behind the
+     * first and finds its row. (A withdrawn row is not "in": see above.)
+     */
+    const already = await tx.player.findFirst({
+      where: {
+        eventId,
+        ...byAddress(session.email),
+        status: { in: ["confirmed", "waitlisted", "pending"] },
+      },
+      select: { status: true },
+    });
+    if (already) return { accepted: false as const, already: already.status };
     const confirmedCount = await tx.player.count({
       where: { eventId, status: "confirmed" },
     });
@@ -281,7 +284,16 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
     });
     return d;
   });
-  if (!decision.accepted) return { ok: false, error: NOT_OPEN };
+  if (!decision.accepted) {
+    if ("already" in decision) {
+      return {
+        ok: false,
+        error: "Your name is already down for this one.",
+        status: decision.already as EnterResult["status"],
+      };
+    }
+    return { ok: false, error: NOT_OPEN };
+  }
 
   // On the record, beside the withdrawal line: the organizer's "Recent changes
   // to the field" (Registration) shows who came as well as who went.
