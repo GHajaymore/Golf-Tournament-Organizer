@@ -1214,7 +1214,7 @@ async function readEntryList(
   if (needsPhone && !table.columns.includes("phone")) {
     return {
       error:
-        'Couldn\'t find a "phone" column in the header row — this tournament collects a mobile for every member it enters. Add a phone column, or enter the field by hand.',
+        'Couldn\'t find a "phone" column in the header row — this tournament collects a mobile number for every member (never a guest). Add a phone column, or enter the field by hand.',
     };
   }
   /**
