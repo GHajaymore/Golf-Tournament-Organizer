@@ -16,7 +16,7 @@ import { parseHoleArray } from "@/lib/courses";
 import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
 import type { Near } from "@/lib/domain/course-ranking";
 import {
-  searchDirectory,
+  searchDirectoryWithNotice,
   fetchDirectoryCourse,
   fetchLiveDirectoryCourse,
 } from "@/lib/services/course-directory";
@@ -1029,6 +1029,8 @@ export interface DirectorySearchResult {
   ok: boolean;
   error?: string;
   hits?: DirectorySearchHit[];
+  /** Plain words when the live lookup could not answer; typing a course in by hand still works. */
+  notice?: string;
 }
 
 /**
@@ -1140,7 +1142,7 @@ export async function searchCourseDirectory(
     const budget = await directoryBudget(session);
     if (!budget.allowed) live = false;
   }
-  const hits = await searchDirectory(query, !live, await clubNear(session.eventId));
+  const { hits, notice } = await searchDirectoryWithNotice(query, !live, await clubNear(session.eventId));
 
   /**
    * Which of these the club already has.
@@ -1178,7 +1180,7 @@ export async function searchCourseDirectory(
       })
     : [];
   const have = new Set(mine.map((c) => directoryIdFrom(c.sourceUrl)).filter(Boolean));
-  return { ok: true, hits: hits.map((h) => ({ ...h, inLibrary: have.has(h.id) })) };
+  return { ok: true, hits: hits.map((h) => ({ ...h, inLibrary: have.has(h.id) })), ...(notice ? { notice } : {}) };
 }
 
 export interface DirectoryImportResult extends CourseResult {

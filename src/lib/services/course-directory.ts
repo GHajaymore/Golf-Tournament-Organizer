@@ -5,6 +5,12 @@ import { parseAreaQuery } from "@/lib/domain/course-area";
 import { rankCourseHits, type Near } from "@/lib/domain/course-ranking";
 import { parseHoleArray } from "@/lib/courses";
 import {
+  GCA_UNAVAILABLE_NOTICE,
+  fetchGolfCourseApiCourse,
+  isGcaId,
+  searchGolfCourseApi,
+} from "@/lib/services/golfcourseapi-live";
+import {
   hitsFrom,
   courseFrom,
   type DirectoryHit,
@@ -82,7 +88,12 @@ function fromCatalog(row: {
   let tees: DirectoryTee[] = [];
   try {
     const parsed = JSON.parse(row.tees) as unknown;
-    if (Array.isArray(parsed)) tees = parsed as DirectoryTee[];
+    // Rows the old international walk wrote held tee NAMES, not rated sets.
+    if (Array.isArray(parsed)) {
+      tees = (parsed as unknown[]).filter(
+        (t): t is DirectoryTee => !!t && typeof t === "object" && typeof (t as DirectoryTee).name === "string",
+      );
+    }
   } catch {
     // A corrupt tees blob costs the ratings, not the course.
     tees = [];
@@ -132,6 +143,19 @@ function fromCatalog(row: {
 export async function searchDirectory(
   query: string,
   localOnly = false,
+  near?: Near,
+): Promise<DirectoryHit[]> {
+  return (await searchDirectoryWithNotice(query, localOnly, near)).hits;
+}
+
+/**
+ * `searchDirectory`, plus a plain-words `notice` when the live lookup was asked
+ * and could not answer — so the screen can say so beside "nothing found" and
+ * never leave an organizer thinking the course does not exist.
+ */
+export async function searchDirectoryWithNotice(
+  query: string,
+  localOnly = false,
   /**
    * Where the club plays, used to order rows the query itself could not
    * separate — see `localityOf`.
@@ -140,7 +164,7 @@ export async function searchDirectory(
    * exactly as it was.
    */
   near?: Near,
-): Promise<DirectoryHit[]> {
+): Promise<{ hits: DirectoryHit[]; notice?: string }> {
   const q = query.trim();
   const area = parseAreaQuery(q);
   /**
@@ -149,7 +173,7 @@ export async function searchDirectory(
    * way to ask for Ohio, and the guard was refusing it before anything got
    * the chance to read it as a place.
    */
-  if (q.length < 3 && !area.state) return [];
+  if (q.length < 3 && !area.state) return { hits: [] };
 
   /**
    * Name, town, or state — because a club looking for a course is as likely
@@ -268,10 +292,23 @@ export async function searchDirectory(
    * it only makes sure the club's own town reached the ranker at all.
    */
   const local = [...homeTown, ...general.filter((g) => !homeTown.some((h) => h.id === g.id))];
-  if (local.length > 0 || localOnly) return rankCourseHits(local, rankOn, place).slice(0, 20);
+  if (local.length > 0 || localOnly) return { hits: rankCourseHits(local, rankOn, place).slice(0, 20) };
 
   const payload = await getJson(`/v1/courses/search?q=${encodeURIComponent(q.slice(0, 80))}`);
-  return rankCourseHits(hitsFrom(payload), rankOn, place).slice(0, 20);
+  const open = rankCourseHits(hitsFrom(payload), rankOn, place).slice(0, 20);
+  if (open.length > 0) return { hits: open };
+
+  /**
+   * GolfCourseAPI, ON DEMAND (7 Nov 2026): the stored catalogue and the open
+   * directory both had nothing, so ask for THIS search and nothing else. Its
+   * terms forbid compiling its dataset, so there is no scheduled walk any more;
+   * a course is stored only when somebody picks it (`fetchDirectoryCourse`).
+   */
+  const gca = await searchGolfCourseApi(q);
+  return {
+    hits: rankCourseHits(gca.hits, rankOn, place).slice(0, 20),
+    ...(gca.unavailable ? { notice: GCA_UNAVAILABLE_NOTICE } : {}),
+  };
 }
 
 /** One course in full — its card, if it has a usable one, and its rated tees. */
@@ -284,6 +321,8 @@ export async function fetchDirectoryCourse(id: string, live = true): Promise<Dir
   // The stored catalogue costs nothing; the directory is a shared allowance,
   // and whether THIS caller may spend one of its requests is theirs to say.
   if (!live) return null;
+  // The picked course from GolfCourseAPI: fetched once, judged, and stored.
+  if (isGcaId(clean)) return fetchGolfCourseApiCourse(clean);
 
   const payload = await getJson(`/api/v1/courses/${encodeURIComponent(clean)}`);
   return payload ? courseFrom(payload) : null;
@@ -299,6 +338,7 @@ export async function fetchDirectoryCourse(id: string, live = true): Promise<Dir
 export async function fetchLiveDirectoryCourse(id: string): Promise<DirectoryCourse | null> {
   const clean = id.trim();
   if (!clean) return null;
+  if (isGcaId(clean)) return fetchGolfCourseApiCourse(clean, { store: false });
   const payload = await getJson(`/api/v1/courses/${encodeURIComponent(clean)}`);
   return payload ? courseFrom(payload) : null;
 }

@@ -37,6 +37,8 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<DirectorySearchHit[] | null>(null);
   const [error, setError] = useState("");
+  /** Plain words when the live lookup was down; the paste box below still works. */
+  const [lookupNotice, setLookupNotice] = useState("");
   /** What the last import did, in the club's terms. */
   const [note, setNote] = useState<{ kind: "ok" | "partial"; text: string } | null>(null);
   const [busyId, setBusyId] = useState("");
@@ -99,6 +101,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
         return;
       }
       setHits(res.hits ?? []);
+      setLookupNotice(res.notice ?? "");
       // A new list means the old highlight pointed at a different course.
       setActive(-1);
     });
@@ -236,7 +239,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
         // to stop trying.
         <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           Nothing matching that. Try fewer letters — &ldquo;heathe&rdquo; finds Heatherwoode — or the
-          town it is in. Or paste your card below; it takes about twenty seconds.
+          town it is in. Or paste your card below; it takes about twenty seconds.{lookupNotice ? ` ${lookupNotice}` : ""}
         </p>
       )}
 

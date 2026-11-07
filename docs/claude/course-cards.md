@@ -41,3 +41,21 @@ So before adding or tightening a card rule:
    omitted the par-3 exemption reported three good courses as failures. Judge pars and
    stroke index only: pass an empty yards array, exactly as `revalidateStored` does, or the
    range check on yardage takes good scoring data down with it.
+
+## GolfCourseAPI is on demand only (Ajay, 7 Nov 2026: "Switch it off")
+
+The provider's terms forbid compiling its dataset. The twice-a-day walk (`api/cron/course-catalogue`, `importGcaSlice`,
+the 676-term search list, `scripts/import-golfcourseapi.ts`) is **deleted**, not parked, and `vercel.json` schedules
+nothing for the catalogue. `golfcourseapi-on-demand.test.ts` fails if a cron, a route or an importer comes back.
+
+What it does now (`services/golfcourseapi-live.ts`, called from `services/course-directory.ts`):
+
+- **Search**: the stored catalogue first; then the open directory (OpenGolfAPI); only when both have nothing, ONE
+  GolfCourseAPI search for what the organizer typed (never while typing as you go: `localOnly` asks no network).
+  Hits are ids `gca:<id>`. It shares the per-person hourly budget (`directoryBudget`) with every other live door.
+- **Pick**: `fetchDirectoryCourse("gca:..", live)` fetches that ONE course, judges it with `cardRefusal` (`gcaCard`) and
+  upserts it into `CourseCatalog`, so the next club asks us. A refused card is stored as its reason, never as a
+  card, and never blanks a card already held. Re-check against source (`fetchLiveDirectoryCourse`) reads without storing.
+- **Down or slow**: a 6 second timeout; any failure returns the plain-words notice (`GCA_UNAVAILABLE_NOTICE`) and
+  never throws, and the paste box and manual entry stay beside it. No `GOLFCOURSE_API_KEY` means silence, not a notice.
+- Courses already stored (`gca:` rows) stay. The key is configuration: never log it, never put one in a test.
