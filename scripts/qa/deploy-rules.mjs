@@ -9,7 +9,9 @@
  *      that contains it. A core change merges after one round and waits here;
  *   3. no club is in its freeze — a tournament on today in the club's own time,
  *      or a weekend morning (05:00–14:00) in any club's zone — unless a person
- *      overrides the freeze by hand for an emergency.
+ *      overrides the freeze by hand for an emergency. That is the app's rule
+ *      once accounts are live; before launch it is narrower (Ajay, 2026-11-06:
+ *      off until 20 Nov 2026, then only pilot clubs) — `deployWindowFor`.
  *
  * `scripts/qa/deploy-gate.mjs` gathers the facts (GitHub's API, git, the app's
  * /api/deploy-window) and hands them to `decideDeploy`, which is pure so every
