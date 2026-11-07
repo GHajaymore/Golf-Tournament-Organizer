@@ -39,7 +39,7 @@ export function RoundAllowance({
 }: {
   stageId: string;
   info: RoundAllowanceInfo;
-  /** Setup is locked, which the action refuses by throwing. */
+  /** Setup is locked. The action refuses it in words (`refuseIfLocked`, "rounds"), said under the box like any refusal. */
   locked?: boolean;
 }) {
   const { pending: saving, error, setError, run, startTransition } = useAction();

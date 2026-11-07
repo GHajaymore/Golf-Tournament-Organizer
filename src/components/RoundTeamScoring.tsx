@@ -79,7 +79,7 @@ export function RoundTeamScoring({
 }: {
   stageId: string;
   info: RoundScoringInfo;
-  /** Setup is locked, which every action here refuses by throwing. */
+  /** Setup is locked. Every action here refuses it in words (`refuseIfLocked`, "rounds"), said under that setting's Save. */
   locked?: boolean;
 }) {
   const { pending: saving, error, setError, run, startTransition } = useAction();
