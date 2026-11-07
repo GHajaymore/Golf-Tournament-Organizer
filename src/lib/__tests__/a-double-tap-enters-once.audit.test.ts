@@ -39,6 +39,8 @@ const PAIRS = 5;
 const ALREADY = "Your name is already down for this one.";
 
 async function cleanup() {
+  // The entry limiter's rows for this run's address (it lives in Postgres).
+  await prisma.rateLimitHit.deleteMany({ where: { key: { contains: WHO } } });
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.member.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -126,5 +128,48 @@ describe("one person's two entries at the same moment", () => {
       expect(losses[0].error).toBe(ALREADY);
       expect(losses[0].status).toBe("confirmed");
     }
+  });
+});
+
+describe("the early answer: already down beats every other refusal", () => {
+  it("tells a member who is already entered so, even when the club later required a mobile they have none for", async () => {
+    // The phone rule was turned on AFTER they entered, and the roster has no
+    // number for them. They must hear "already down", not "needs a mobile".
+    const member = await prisma.member.findFirstOrThrow({
+      where: { email: session.email },
+      select: { id: true, organizationId: true },
+    });
+    await prisma.member.update({ where: { id: member.id }, data: { phone: "" } });
+    const ev = await prisma.event.create({
+      data: {
+        organizationId: member.organizationId,
+        name: `${TAG} tournament phone-later`,
+        status: "registration",
+        shape: "single",
+        format: "stroke",
+        formationRule: "balanced",
+        dates: "",
+        course: `${TAG} Course`,
+        city: `${TAG} Town`,
+        address: "",
+        regDeadline: "",
+        capacity: 40,
+        registrationOpen: true,
+        registrationApproval: "auto",
+        registrationToken: randomBytes(6).toString("hex"),
+        shareToken: randomBytes(10).toString("hex"),
+        requirePhone: true,
+      },
+      select: { id: true },
+    });
+    await prisma.player.create({
+      data: { eventId: ev.id, name: `${TAG} Roster Name`, email: session.email, seed: 1, status: "confirmed" },
+    });
+
+    const res = await enterThisTournament(ev.id);
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe(ALREADY);
+    expect(res.status).toBe("confirmed");
+    expect(await prisma.player.count({ where: { eventId: ev.id } })).toBe(1);
   });
 });

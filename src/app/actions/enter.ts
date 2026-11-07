@@ -157,7 +157,25 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
     };
   }
 
-  // The "already in" check is NOT here: it runs under the intake lock below (J46).
+  // ALREADY IN, asked early so the answer comes before any other refusal (a
+  // member already down must hear that, not "needs a mobile number" because the
+  // club turned the phone on after they entered). It is asked AGAIN under the
+  // intake lock below, which is the guarantee against a double tap (J46).
+  const already = await prisma.player.findFirst({
+    where: {
+      eventId,
+      ...byAddress(session.email),
+      status: { in: ["confirmed", "waitlisted", "pending"] },
+    },
+    select: { status: true },
+  });
+  if (already) {
+    return {
+      ok: false,
+      error: "Your name is already down for this one.",
+      status: already.status as EnterResult["status"],
+    };
+  }
 
   // The organizer's capacity, tightened to the tier's field cap when the owner
   // has enforcement on — a no-op otherwise, so entry is unchanged until then. A
@@ -233,7 +251,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
      * and both created a row. Asked here, the second request queues behind the
      * first and finds its row. (A withdrawn row is not "in": see above.)
      */
-    const already = await tx.player.findFirst({
+    const again = await tx.player.findFirst({
       where: {
         eventId,
         ...byAddress(session.email),
@@ -241,7 +259,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       },
       select: { status: true },
     });
-    if (already) return { accepted: false as const, already: already.status };
+    if (again) return { accepted: false as const, already: again.status };
     const confirmedCount = await tx.player.count({
       where: { eventId, status: "confirmed" },
     });

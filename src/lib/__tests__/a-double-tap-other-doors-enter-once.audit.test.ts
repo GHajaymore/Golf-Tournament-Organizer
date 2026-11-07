@@ -51,6 +51,8 @@ let organizerId = "";
 const events: { id: string; token: string }[] = [];
 
 async function cleanup() {
+  // The entry limiter's rows for this run's addresses (it lives in Postgres).
+  await prisma.rateLimitHit.deleteMany({ where: { key: { contains: `-${RUN}@example.invalid` } } });
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.member.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.member.deleteMany({ where: { email: { startsWith: TAG } } });
