@@ -1,7 +1,9 @@
 "use client";
+import { useState } from "react";
 import { setRoundClosed } from "@/app/actions/tournament";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { Icon } from "./Icon";
+import { RoundCloseAsk } from "./RoundCloseAsk";
 import { useAction } from "./useAction";
 
 /**
@@ -31,7 +33,17 @@ export function RoundClosedControl({
   closed: boolean;
   pointsBoard?: boolean;
 }) {
-  const { pending, error, run } = useAction();
+  const { pending, error, setError, startTransition } = useAction();
+  /** The server's question — a card not yet approved or signed (`roundCloseCheck`) — while it is open. */
+  const [asking, setAsking] = useState("");
+  const close = (shut: boolean, confirmUnsigned = false) =>
+    startTransition(async () => {
+      setError("");
+      setAsking("");
+      const res = await setRoundClosed(stageId, shut, confirmUnsigned);
+      if (res.needsUnsignedConfirm) setAsking(res.error ?? "");
+      else if (!res.ok) setError(res.error ?? "Couldn't save that.");
+    });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -39,8 +51,8 @@ export function RoundClosedControl({
         <input
           type="checkbox"
           checked={closed}
-          disabled={pending}
-          onChange={(e) => run(() => setRoundClosed(stageId, e.target.checked))}
+          disabled={pending || !!asking}
+          onChange={(e) => close(e.target.checked)}
           style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
         />
         <span>
@@ -71,6 +83,10 @@ export function RoundClosedControl({
             is lost either way.
           </span>
         </div>
+      )}
+
+      {asking && (
+        <RoundCloseAsk question={asking} pending={pending} onClose={() => close(true, true)} onKeepOpen={() => setAsking("")} />
       )}
 
       {/* An alert, brought into view: it sits under the paragraph above, which on a phone is
