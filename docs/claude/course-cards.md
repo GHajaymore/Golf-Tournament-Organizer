@@ -44,9 +44,10 @@ So before adding or tightening a card rule:
 
 ## GolfCourseAPI is on demand only (Ajay, 7 Nov 2026: "Switch it off")
 
-The provider's terms forbid compiling its dataset. The twice-a-day walk (`api/cron/course-catalogue`, `importGcaSlice`,
-the 676-term search list, `scripts/import-golfcourseapi.ts`) is **deleted**, not parked, and `vercel.json` schedules
-nothing for the catalogue. `golfcourseapi-on-demand.test.ts` fails if a cron, a route or an importer comes back.
+The provider's terms forbid compiling its dataset. The walk (`importGcaSlice`, the 676-term search list,
+`scripts/import-golfcourseapi.ts`) is **deleted**, not parked. The one daily cron (`api/cron/course-catalogue`) walks
+OpenGolfAPI only (open data, ODbL, credited beside results) and must never reach `golfcourseapi-live.ts`;
+`golfcourseapi-on-demand.test.ts` fails if it does, or if a GolfCourseAPI importer comes back.
 
 What it does now (`services/golfcourseapi-live.ts`, called from `services/course-directory.ts`):
 
