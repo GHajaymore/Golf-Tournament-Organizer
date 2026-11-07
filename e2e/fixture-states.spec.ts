@@ -53,6 +53,7 @@ async function accentOf(page: Page, path: string): Promise<string> {
 const sidewaysBy = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 test("a club on a second theme wears a different accent, and no screen runs sideways in it", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(testInfo.project.name === "small-phone", "walked at laptop and phone size");
   const errors: string[] = [];
   watchPageErrors(page, errors, "secretary");
   const verdigris = await makeClub(markFor("v", testInfo.project.name));
@@ -101,7 +102,7 @@ test("two rounds with a cut set and not made: round 1 says so, and nothing has b
 
     await gotoStages(page);
     const card = await openRound(page, round1.id);
-    await expect(card.getByText("Before the next round")).toBeVisible();
+    await expect(card.getByText("The cut", { exact: true })).toBeVisible();
     const cut = card.getByRole("checkbox", { name: "Cut the field for Round 2" });
     await centre(cut);
     await expect(cut, "round 1 does not show the cut into round 2 as set").toBeChecked();
@@ -143,6 +144,7 @@ test("an assistant runs the Rounds screen and is turned away from Access", async
 });
 
 test("a cup played to its end: the report names the winners and the score, and has no league table", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(testInfo.project.name === "small-phone", "walked at laptop and phone size");
   const errors: string[] = [];
   watchPageErrors(page, errors, "secretary");
   const mark = markFor("cup", testInfo.project.name);

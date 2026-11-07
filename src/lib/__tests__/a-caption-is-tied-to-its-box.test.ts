@@ -18,7 +18,7 @@ import { stripComments } from "./source";
  * written tomorrow fails here; a caption fixed tomorrow fails here too until its
  * line is deleted, so the list cannot go on claiming a fault that is gone.
  *
- * Tied means ANY of: `htmlFor`, an `id` (an `aria-labelledby` can point at it),
+ * Tied means ANY of: `htmlFor`, an `id` that an `aria-labelledby` in the same file names,
  * or a control (`input`, `select`, `textarea`) inside the label itself.
  */
 const SRC = join(process.cwd(), "src");
@@ -37,7 +37,14 @@ export function bareCaptions(code: string): string[] {
   for (const m of code.matchAll(LABEL)) {
     const attrs = m[1];
     const body = m[2];
-    if (/\bhtmlFor\b/.test(attrs) || /\bid=/.test(attrs)) continue;
+    if (/\bhtmlFor\b/.test(attrs)) continue;
+    // An id only ties when something in the same file points at it; `data-id=` is not an id.
+    const id = attrs.match(/(?<![\w-])id=(?:"([^"]+)"|\{([^}]+)\})/);
+    if (id) {
+      const quoted = id[1] !== undefined;
+      const token = quoted ? id[1] : id[2].trim();
+      if (code.includes(quoted ? `aria-labelledby="${token}"` : `aria-labelledby={${token}`)) continue;
+    }
     if (/<input\b|<select\b|<textarea\b/.test(body)) continue;
     // The words only: tags dropped, each {expression} shown as an ellipsis, so a key is stable
     // under a restyle and readable in a diff.
@@ -141,6 +148,9 @@ describe("a caption names its box", () => {
     expect(bareCaptions('<label htmlFor="n">Course name</label><input id="n" />')).toEqual([]);
     expect(bareCaptions('<label>Course name <input className="input" /></label>')).toEqual([]);
     expect(bareCaptions('<label id="cap">Holes</label><div role="radiogroup" aria-labelledby="cap" />')).toEqual([]);
+    // An id nothing points at ties nothing, and data-id is not an id.
+    expect(bareCaptions('<label id="cap">Holes</label><div />')).toEqual(["Holes"]);
+    expect(bareCaptions('<label data-id="cap">Holes</label><div aria-labelledby="cap" />')).toEqual(["Holes"]);
   });
 
   it("CONTROL: the sweep reads files at all (a sweep of nothing reports nothing)", () => {
