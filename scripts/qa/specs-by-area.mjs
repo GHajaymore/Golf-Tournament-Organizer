@@ -375,6 +375,7 @@ export const FULL_ONLY = [
   "e2e/status-stableford.spec.ts",
   "e2e/status-stroke.spec.ts",
   "e2e/status-team-cup.spec.ts",
+  "e2e/status-team-match-result-line.spec.ts",
   "e2e/team-cup.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",
