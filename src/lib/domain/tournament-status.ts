@@ -507,7 +507,7 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
       // J27: tees that cannot give a Course Handicap are a to-do on this step, never a hold
       // (the launch dialog warns of the same fact, `unratedTeesWarning`, on this same screen).
       const teesTodo = unratedTeesTodo(f.unratedTees);
-      if (done && !holdsNow && teesTodo) {
+      if (done && !holdsNow && teesTodo && !isFinished(f.status)) {
         done = false;
         missing = teesTodo;
       }

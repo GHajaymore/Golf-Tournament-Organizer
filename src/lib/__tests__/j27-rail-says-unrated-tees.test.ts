@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { tournamentStatus, setupFlowOf, flowFromStatus } from "../domain/tournament-status";
-import { unratedTeesTodo, type UnratedTees } from "../domain/launch-check";
+import { unratedTeesTodo, unratedTiers, type UnratedTees } from "../domain/launch-check";
 import { facts } from "../domain/__tests__/tournament-facts-fixtures";
 import { GUIDE_STEPS } from "../guide-steps";
 
@@ -16,7 +16,9 @@ import { GUIDE_STEPS } from "../guide-steps";
 const none: UnratedTees = { rounds: ["Round 1"], noSlope: [], noRating: [], noTees: true };
 const noSlope: UnratedTees = { rounds: ["Round 1"], noSlope: ["White"], noRating: [], noTees: false };
 const noRating: UnratedTees = { rounds: ["Round 1"], noSlope: [], noRating: ["Red"], noTees: false };
-const TODO = "Add tees with a rating, or net scores use each player's handicap index.";
+const TODO = "Add tees with their Course Rating and Slope, or players get strokes off their raw Handicap Index.";
+const SLOPE = "Add the Slope Rating to the tees, or players get strokes off their raw Handicap Index.";
+const RATING = "Add the Course Rating to the tees, or players' strokes are a little off.";
 
 const eventStep = (u: UnratedTees | null, over = {}) =>
   tournamentStatus(facts({ unratedTees: u, ...over })).setup.steps.find((s) => s.key === "event")!;
@@ -33,15 +35,16 @@ describe("the to-do on the rail", () => {
     expect(s).toMatchObject({ done: false, holds: false, optional: true, missing: TODO });
   });
 
-  it("a tee with no Slope: the same words (the raw index is used)", () => {
-    expect(eventStep(noSlope).missing).toBe(TODO);
+  it("a tee with no Slope: names the Slope (the raw index is used)", () => {
+    expect(eventStep(noSlope).missing).toBe(SLOPE);
   });
 
   it("a Slope but no Course Rating: a lesser line that does not claim the raw index", () => {
     const s = eventStep(noRating);
     expect(s.optional).toBe(true);
     expect(s.missing).toMatch(/Course Rating/);
-    expect(s.missing).not.toMatch(/handicap index/i);
+    expect(s.missing).toBe(RATING);
+    expect(s.missing).not.toMatch(/Handicap Index/);
   });
 
   it("never holds launch: setup is complete and ready, and Launch is allowed", () => {
@@ -72,8 +75,8 @@ describe("the words", () => {
   it("unratedTeesTodo is null for no fact and says one thing for each fault", () => {
     expect(unratedTeesTodo(null)).toBeNull();
     expect(unratedTeesTodo(none)).toBe(TODO);
-    expect(unratedTeesTodo(noSlope)).toBe(TODO);
-    expect(unratedTeesTodo(noRating)).toMatch(/Course Rating/);
+    expect(unratedTeesTodo(noSlope)).toBe(SLOPE);
+    expect(unratedTeesTodo(noRating)).toBe(RATING);
   });
 
   it("never says bet", () => {
@@ -84,6 +87,22 @@ describe("the words", () => {
 describe("the organizer's guide says it", () => {
   it("names the Optional to-do about tees on the rail", () => {
     const all = JSON.stringify(GUIDE_STEPS);
-    expect(all).toMatch(/Add tees with a rating, or net scores use each player's handicap index/);
+    expect(all).toContain("Add tees with their Course Rating and Slope, or players get strokes off their raw Handicap Index.");
+  });
+});
+
+describe("the finished and the classifier", () => {
+  it("says nothing once the tournament is finished", () => {
+    expect(eventStep(none, { status: "completed" }).done).toBe(true);
+  });
+
+  it("one classifier: the worst fault leads, and no fault is none", () => {
+    expect(unratedTiers(none)).toEqual(["noTees"]);
+    expect(unratedTiers({ ...noSlope, noRating: ["Red"] })).toEqual(["noSlope", "noRating"]);
+    expect(unratedTiers(null)).toEqual([]);
+  });
+
+  it("never says net scores (Stableford gives points)", () => {
+    for (const u of [none, noSlope, noRating]) expect(unratedTeesTodo(u)).not.toMatch(/net scores/i);
   });
 });

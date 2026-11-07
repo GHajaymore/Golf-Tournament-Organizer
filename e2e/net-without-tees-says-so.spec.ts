@@ -21,7 +21,7 @@ import { prisma, makeClub, dropClub, makeEvent, signIn, CARD_PARS } from "./roun
  */
 
 const WALKED = ["desktop", "phone"];
-const TODO = "Add tees with a rating, or net scores use each player's handicap index.";
+const TODO = "Add tees with their Course Rating and Slope, or players get strokes off their raw Handicap Index.";
 
 test.describe.configure({ timeout: 150_000 });
 test.afterAll(async () => {
@@ -41,8 +41,11 @@ test("a net medal on a course with no tees: the rail and Launch both say scores 
       configUnlocked: true,
       stages: [{ playedOn: "2099-06-12", scoringBasis: "net" }],
       players: 4,
-      event: { dates: "Jun 12", customYards: JSON.stringify(new Array(18).fill(380)) },
+      // Money answered and a tee sheet saved, so the only warnings left are the flights and the tees:
+      // the launch dialog shows three in full, and the tees one must be among them (`launchRows`).
+      event: { dates: "Jun 12", moneyMode: "none", customYards: JSON.stringify(new Array(18).fill(380)) },
     });
+    await prisma.stage.updateMany({ where: { eventId: event.id }, data: { teeSheet: JSON.stringify({ groups: [] }) } });
     // The course carries its card (so nothing is held for want of one) and one RATED tee.
     const course = await prisma.course.create({
       data: {
@@ -78,15 +81,18 @@ test("a net medal on a course with no tees: the rail and Launch both say scores 
     // The tees go.
     await prisma.tee.delete({ where: { id: tee.id } });
 
-    launch = await openDialog();
-    const row = page.getByRole("link").filter({ hasText: "Tournament details" }).filter({ hasText: TODO });
-    await expect(row.first(), "the checklist does not say net scores use the handicap index").toBeVisible({ timeout: 15_000 });
-    await expect(row.first(), "the to-do is not marked Optional").toContainText("Optional");
-
+    // On Tournament details the ready-to-launch card says it, in words, with a way to the Courses card.
+    // (The checklist that also carries these words is hidden in this very state.)
     await page.goto(`/event?bust=${Date.now()}`);
     await expect(page.getByText(/Ready to launch — \d+ of \d+ done, the rest optional/), "the rail does not say it can launch").toBeVisible({ timeout: 15_000 });
+    const card = page.locator(".card").filter({ hasText: /Ready to launch/ }).first();
+    await expect(card, "the card does not say players get strokes off their Handicap Index").toContainText(TODO);
+    await expect(card.getByRole("link", { name: "Tournament details" }).first()).toHaveAttribute("href", "/event#courses");
+
+    // From another setup screen the strip marks Tournament details Optional (here it would read "Now").
+    await page.goto(`/registration?bust=${Date.now()}`);
     const step = page.getByRole("link").filter({ hasText: "Tournament details" }).filter({ hasText: "Optional" });
-    await expect(step.first(), "the rail does not mark Tournament details Optional").toBeVisible();
+    await expect(step.first(), "the rail does not mark Tournament details Optional").toBeVisible({ timeout: 15_000 });
 
     launch = await openDialog();
     await launch.click();
