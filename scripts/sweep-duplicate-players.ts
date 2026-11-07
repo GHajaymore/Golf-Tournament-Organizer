@@ -65,6 +65,14 @@ export interface SweepPlayer {
   teeId: string | null;
   groupId: string | null;
   playWith: string[];
+  phone: string;
+  ghin: string;
+  homeClub: string;
+  preferredTee: string;
+  handicap: number;
+  handicapSource: string;
+  handicapType: string;
+  publicNameWithheld: boolean;
 }
 
 /** The importer's key: email where there is one, name only where there is not. Null = nobody. */
@@ -85,19 +93,25 @@ export type TieKind = "scores" | "cards" | "stakes" | "team";
  * is the Prisma client's name for the model. A tie on one of these makes a row
  * undeletable.
  */
-export const LINKS: ReadonlyArray<{ kind: TieKind; model: string; delegate: string; fields: string[] }> = [
+export const LINKS: ReadonlyArray<{ kind: TieKind; model: string; delegate: string; fields: string[]; containing?: string[] }> = [
   { kind: "scores", model: "Scorecard", delegate: "scorecard", fields: ["playerId"] },
   { kind: "scores", model: "TeamScorecard", delegate: "teamScorecard", fields: ["playerId"] },
   { kind: "scores", model: "RoundHandicap", delegate: "roundHandicap", fields: ["playerId"] },
   { kind: "scores", model: "HandicapPost", delegate: "handicapPost", fields: ["playerId"] },
-  { kind: "scores", model: "Match", delegate: "match", fields: ["playerAId", "playerBId"] },
+  {
+    kind: "scores", model: "Match", delegate: "match",
+    fields: ["playerAId", "playerBId", "enteredById", "confirmedById", "forfeitedBy"],
+    // attestedBy is a JSON array of player ids held in a String: found by contains.
+    containing: ["attestedBy"],
+  },
   { kind: "scores", model: "BracketWinner", delegate: "bracketWinner", fields: ["winnerId"] },
-  { kind: "scores", model: "BracketReport", delegate: "bracketReport", fields: ["winnerId"] },
+  { kind: "scores", model: "BracketReport", delegate: "bracketReport", fields: ["winnerId", "reportedById"] },
   { kind: "scores", model: "HonoursEntry", delegate: "honoursEntry", fields: ["playerId"] },
   { kind: "scores", model: "Prize", delegate: "prize", fields: ["winnerId"] },
   { kind: "cards", model: "RoundAttendance", delegate: "roundAttendance", fields: ["playerId"] },
   { kind: "cards", model: "ScoringKeeper", delegate: "scoringKeeper", fields: ["playerId"] },
   { kind: "stakes", model: "SkinsEntry", delegate: "skinsEntry", fields: ["playerId"] },
+  { kind: "stakes", model: "Expense", delegate: "expense", fields: ["paidBy"] },
   { kind: "stakes", model: "ExpenseShare", delegate: "expenseShare", fields: ["playerId"] },
   { kind: "stakes", model: "ExpensePayment", delegate: "expensePayment", fields: ["playerId"] },
   { kind: "stakes", model: "Settlement", delegate: "settlement", fields: ["fromPlayerId", "toPlayerId"] },
@@ -112,6 +126,28 @@ export const NOT_TIES: Readonly<Record<string, string>> = {
   "Member.memberNumber": "a club's number for a member, not a player id",
   "LeaguePlayoffHole.winnerId": "a club's id, not a player's",
   "Player.memberId": "the roster link, handled as a conflict between two rows",
+  // `...By` columns that hold a display name or a setting, read from the schema's own comments:
+  "Organization.defaultScoreEntryBy": "a setting (staff | players)",
+  "Organization.defaultAttestBy": "a setting (marker | opponent | all)",
+  "Event.scoreEntryBy": "a setting (staff | players)",
+  "Event.attestBy": "a setting (marker | opponent | all)",
+  "Stage.knockoutPlayBy": "a setting",
+  "Stage.matchKeptBy": "a setting",
+  "Course.verifiedBy": "a name",
+  "JoinRequest.decidedBy": "a name, 'by name' per the schema",
+  "RoundAttendance.decidedBy": "the player themself or a staff NAME, per the schema",
+  "LeaguePlayoffHole.decidedBy": "a name",
+  "Match.enteredBy": "a display name beside enteredById",
+  "Match.confirmedBy": "a display name beside confirmedById",
+  "BracketReport.reportedBy": "a display name beside reportedById",
+  "Scorecard.certifiedBy": "a name",
+  "Scorecard.approvedBy": "a name",
+  "Expense.createdBy": "a name",
+  "Settlement.recordedBy": "a name",
+  "Contest.createdBy": "a name",
+  "SideGame.createdBy": "a name",
+  "TournamentFund.createdBy": "a name",
+  "HonoursEntry.confirmedBy": "a name",
 };
 
 export interface RowTies {
@@ -129,18 +165,45 @@ const NO_TIES: RowTies = { scores: 0, cards: 0, stakes: 0, team: 0, placed: fals
 export const hasTies =(t: RowTies): boolean => t.scores + t.cards + t.stakes + t.team > 0 || t.placed;
 
 export type Cluster =
-  | { key: string; keep: string; drop: string[]; adoptMemberId: string | null; refused: null }
-  | { key: string; keep: null; drop: string[]; adoptMemberId: null; refused: string };
+  | { key: string; keep: string; drop: string[]; adoptMemberId: string | null; fill: Record<string, string | number | boolean>; refused: null }
+  | { key: string; keep: null; drop: string[]; adoptMemberId: null; fill: Record<string, never>; refused: string };
+
+const TEXT_FIELDS = ["phone", "ghin", "homeClub", "preferredTee"] as const;
+const handicapSet = (p: SweepPlayer): boolean => p.handicap !== 0;
+
+/**
+ * What the kept row must take from the dropped ones so nothing a person typed is lost, or the
+ * reason it cannot be decided: two rows holding DIFFERENT non-empty values for one field.
+ * A handicap is "held" when it is not 0 (the default); `publicNameWithheld` is a privacy choice,
+ * so true on any row stays true.
+ */
+export function mergeFill(keep: SweepPlayer, others: SweepPlayer[]): { fill: Record<string, string | number | boolean> } | { conflict: string } {
+  const fill: Record<string, string | number | boolean> = {};
+  for (const f of TEXT_FIELDS) {
+    const vals = new Set([keep, ...others].map((p) => p[f].trim()).filter(Boolean));
+    if (vals.size > 1) return { conflict: `rows hold different values for ${f}` };
+    if (!keep[f].trim() && vals.size === 1) fill[f] = [...vals][0];
+  }
+  const hcps = [keep, ...others].filter(handicapSet);
+  if (new Set(hcps.map((p) => p.handicap)).size > 1) return { conflict: "rows hold different handicaps" };
+  if (!handicapSet(keep) && hcps.length) {
+    fill.handicap = hcps[0].handicap;
+    fill.handicapSource = hcps[0].handicapSource;
+    fill.handicapType = hcps[0].handicapType;
+  }
+  if (!keep.publicNameWithheld && others.some((p) => p.publicNameWithheld)) fill.publicNameWithheld = true;
+  return { fill };
+}
 
 /** Pure: which rows of one event are duplicates of which, and what is kept. */
 export function planCluster(key: string, rows: SweepPlayer[], ties: Map<string, RowTies>): Cluster {
   const tied = rows.filter((r) => hasTies(ties.get(r.id) ?? NO_TIES));
   const members = new Set(rows.map((r) => r.memberId).filter(Boolean) as string[]);
   if (tied.length > 1) {
-    return { key, keep: null, drop: [], adoptMemberId: null, refused: `${tied.length} of ${rows.length} rows carry ties` };
+    return { key, keep: null, drop: [], adoptMemberId: null, fill: {}, refused: `${tied.length} of ${rows.length} rows carry ties` };
   }
   if (members.size > 1) {
-    return { key, keep: null, drop: [], adoptMemberId: null, refused: "rows belong to different roster members" };
+    return { key, keep: null, drop: [], adoptMemberId: null, fill: {}, refused: "rows belong to different roster members" };
   }
   const order = [...rows].sort(
     (a, b) =>
@@ -149,7 +212,9 @@ export function planCluster(key: string, rows: SweepPlayer[], ties: Map<string, 
   const keep = tied[0] ?? order[0];
   const drop = rows.filter((r) => r.id !== keep.id).map((r) => r.id);
   const adoptMemberId = !keep.memberId && members.size === 1 ? [...members][0] : null;
-  return { key, keep: keep.id, drop, adoptMemberId, refused: null };
+  const merged = mergeFill(keep, rows.filter((r) => r.id !== keep.id));
+  if ("conflict" in merged) return { key, keep: null, drop: [], adoptMemberId: null, fill: {}, refused: merged.conflict };
+  return { key, keep: keep.id, drop, adoptMemberId, fill: merged.fill, refused: null };
 }
 
 /** Pure: group an event's rows by the importer's key and keep only the keys held more than once. */
@@ -175,6 +240,8 @@ export function databaseIsLocal(env: Record<string, string | undefined>): { loca
     } catch {
       return { local: false, why: "a database URL could not be read" };
     }
+    // `?host=db.example/` makes libpq-style drivers connect elsewhere whatever the authority says.
+    if (new URL(u).searchParams.get("host")) return { local: false, why: "a database URL carries a host= parameter" };
     if (host !== "localhost" && host !== "127.0.0.1") return { local: false, why: "a database host is not localhost or 127.0.0.1" };
   }
   return { local: true, why: "" };
@@ -188,6 +255,8 @@ const delegateOf = (c: Client, name: string) => (c as unknown as Record<string, 
 
 const PLAYER_SELECT = {
   id: true, name: true, email: true, status: true, seed: true, memberId: true, teeId: true, groupId: true, playWith: true,
+  phone: true, ghin: true, homeClub: true, preferredTee: true, handicap: true, handicapSource: true, handicapType: true,
+  publicNameWithheld: true,
 } as const;
 
 export async function loadPlayers(c: Client, eventId: string): Promise<SweepPlayer[]> {
@@ -206,6 +275,18 @@ export async function loadTies(c: Client, ids: string[]): Promise<Map<string, Ro
       for (const r of rows) {
         const t = ties.get(r[field] as string);
         if (t) t[link.kind] += 1;
+      }
+    }
+  }
+  for (const link of LINKS) {
+    for (const field of link.containing ?? []) {
+      // A JSON array of ids in a String column: one contains-query per id (the ids are cuids, quoted in the JSON).
+      for (const id of ids) {
+        const n = await delegateOf(c, link.delegate).findMany({
+          where: { [field]: { contains: `"${id}"` } },
+          select: { id: true },
+        });
+        if (n.length) ties.get(id)![link.kind] += n.length;
       }
     }
   }
@@ -281,12 +362,20 @@ export interface ApplyResult {
 
 export class SweepRefusal extends Error {}
 
-export async function applyEvent(c: PrismaClient, eventId: string): Promise<ApplyResult> {
+export async function applyEvent(
+  c: PrismaClient,
+  eventId: string,
+  /** For the audit test only: runs after the plan and before the delete. */
+  hooks: { beforeDelete?: () => Promise<void> } = {},
+): Promise<ApplyResult> {
   const ev = await c.event.findUnique({ where: { id: eventId }, select: { id: true, organization: { select: { isDemo: true } } } });
   if (!ev) throw new SweepRefusal("No such event.");
   if (ev.organization.isDemo) throw new SweepRefusal("That event belongs to the demo club; it is never touched.");
   return c.$transaction(
     async (tx) => {
+      // Lock this event's player rows first: anything that references one through a foreign key
+      // (a skins entry, a team seat) waits, and a second sweep waits for this one.
+      await tx.$queryRaw`SELECT id FROM "Player" WHERE "eventId" = ${eventId} FOR UPDATE`;
       // Planned INSIDE the transaction, from the rows as they are now.
       const plan = await planEvent(tx, eventId);
       const result: ApplyResult = { merged: 0, deleted: 0, refused: [] };
@@ -295,7 +384,8 @@ export async function applyEvent(c: PrismaClient, eventId: string): Promise<Appl
           result.refused.push(k.refused ?? "no row to keep");
           continue;
         }
-        if (k.adoptMemberId) await tx.player.update({ where: { id: k.keep }, data: { memberId: k.adoptMemberId } });
+        const patch = { ...k.fill, ...(k.adoptMemberId ? { memberId: k.adoptMemberId } : {}) };
+        if (Object.keys(patch).length) await tx.player.update({ where: { id: k.keep }, data: patch });
         // The only references to a player that are not ties: other players' `playWith`.
         const asked = await tx.player.findMany({
           where: { eventId, playWith: { hasSome: k.drop } },
@@ -304,6 +394,13 @@ export async function applyEvent(c: PrismaClient, eventId: string): Promise<Appl
         for (const a of asked) {
           const next = [...new Set(a.playWith.map((id) => (k.drop.includes(id) ? k.keep : id)))].filter((id) => id !== a.id);
           await tx.player.update({ where: { id: a.id }, data: { playWith: next } });
+        }
+        await hooks.beforeDelete?.();
+        // A column with no foreign key (a match's entered-by, a settlement) takes no lock, so
+        // look again at the very last moment. Any tie now rolls the WHOLE transaction back.
+        const late = await loadTies(tx, k.drop);
+        if ([...late.values()].some(hasTies)) {
+          throw new SweepRefusal("A row to be deleted gained a tie while the sweep ran; nothing was changed. Run it again.");
         }
         const gone = await tx.player.deleteMany({ where: { id: { in: k.drop }, eventId } });
         result.merged += 1;

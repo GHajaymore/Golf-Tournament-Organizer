@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  sameKey, planCluster, duplicateClusters, databaseIsLocal, parseArgs, LINKS, NOT_TIES,
+  sameKey, planCluster, mergeFill, duplicateClusters, databaseIsLocal, parseArgs, LINKS, NOT_TIES,
   type SweepPlayer, type RowTies,
 } from "../../../scripts/sweep-duplicate-players";
 import { readSource, readVerbatim } from "./source";
@@ -13,7 +13,9 @@ import { readSource, readVerbatim } from "./source";
  */
 
 const row = (o: Partial<SweepPlayer> & { id: string }): SweepPlayer => ({
-  name: "", email: "", status: "confirmed", seed: 1, memberId: null, teeId: null, groupId: null, playWith: [], ...o,
+  name: "", email: "", status: "confirmed", seed: 1, memberId: null, teeId: null, groupId: null, playWith: [],
+  phone: "", ghin: "", homeClub: "", preferredTee: "", handicap: 0, handicapSource: "manual", handicapType: "18",
+  publicNameWithheld: false, ...o,
 });
 const none: RowTies = { scores: 0, cards: 0, stakes: 0, team: 0, placed: false };
 
@@ -89,7 +91,28 @@ describe("which row is kept", () => {
   });
 });
 
+describe("what the kept row takes from the dropped one", () => {
+  const keep = row({ id: "k" });
+  it("fills empty fields, handicap with its source, and a privacy choice", () => {
+    const m = mergeFill(keep, [row({ id: "d", phone: "123", ghin: "9", homeClub: "H", preferredTee: "Blue", handicap: 12.4, handicapSource: "ghin", handicapType: "9", publicNameWithheld: true })]);
+    expect(m).toEqual({ fill: { phone: "123", ghin: "9", homeClub: "H", preferredTee: "Blue", handicap: 12.4, handicapSource: "ghin", handicapType: "9", publicNameWithheld: true } });
+  });
+  it("never overwrites what the kept row holds, and takes nothing when the values agree", () => {
+    expect(mergeFill(row({ id: "k", phone: "1", handicap: 5 }), [row({ id: "d", phone: " 1 ", handicap: 5 })])).toEqual({ fill: {} });
+  });
+  it("refuses the cluster when the two hold different non-empty values", () => {
+    expect(mergeFill(keep, [row({ id: "a", ghin: "1" }), row({ id: "b", ghin: "2" })])).toEqual({ conflict: "rows hold different values for ghin" });
+    const c = planCluster("k", [row({ id: "a", handicap: 4 }), row({ id: "b", seed: 2, handicap: 9 })], new Map());
+    expect(c.refused).toMatch(/different handicaps/);
+    expect(c.drop).toEqual([]);
+  });
+});
+
 describe("the host guard", () => {
+  it("refuses a host= parameter that points the driver elsewhere", () => {
+    expect(databaseIsLocal({ DATABASE_URL: "postgresql://u:p@localhost:5432/db?host=db.example.invalid" }).local).toBe(false);
+    expect(databaseIsLocal({ DATABASE_URL: "postgresql://u:p@localhost:5432/db?host=" }).local).toBe(true);
+  });
   const url = (h: string) => `postgresql://u:p@${h}:5432/db`;
   it("passes localhost and 127.0.0.1 only", () => {
     expect(databaseIsLocal({ DATABASE_URL: url("localhost"), PRISMA_DATABASE_URL: url("127.0.0.1") }).local).toBe(true);
@@ -129,12 +152,12 @@ describe("every column that holds a player id is either a tie or said not to be"
       const m = /^model (\w+) \{/.exec(line);
       if (m) model = m[1];
       const f = /^ {2}(\w+)\s+String\??(\[\])?(\s|$)/.exec(line);
-      if (model && f && /(player\w*Id|winnerId|captainId|viceCaptainId|memberNumber)$/i.test(f[1])) out.push(`${model}.${f[1]}`);
+      if (model && f && /(player\w*Id|winnerId|captainId|viceCaptainId|memberNumber|(entered|confirmed|reported)ById|\w+By)$/i.test(f[1])) out.push(`${model}.${f[1]}`);
     }
     return out;
   }
 
-  const listed = new Set([...LINKS.flatMap((l) => l.fields.map((f) => `${l.model}.${f}`)), ...Object.keys(NOT_TIES)]);
+  const listed = new Set([...LINKS.flatMap((l) => [...l.fields, ...(l.containing ?? [])].map((f) => `${l.model}.${f}`)), ...Object.keys(NOT_TIES)]);
 
   it("has no column LINKS does not know", () => {
     const unknown = playerishColumns(schema).filter((c) => !listed.has(c));
@@ -150,5 +173,14 @@ describe("every column that holds a player id is either a tie or said not to be"
     const fake = schema.replace("model Scorecard {", "model Scorecard {\n  zzPlayerId String");
     const unknown = playerishColumns(fake).filter((c) => !listed.has(c));
     expect(unknown).toEqual(["Scorecard.zzPlayerId"]);
+  });
+
+  it("CONTROL: and sees an entered-by / reported-by column, and lists the ones the review found", () => {
+    const fake = schema.replace("model Scorecard {", "model Scorecard {\n  zzEnteredById String\n  zzSignedBy String");
+    expect(playerishColumns(fake).filter((c) => !listed.has(c))).toEqual(["Scorecard.zzEnteredById", "Scorecard.zzSignedBy"]);
+    for (const c of ["Match.enteredById", "Match.confirmedById", "Match.attestedBy", "Match.forfeitedBy", "BracketReport.reportedById", "Expense.paidBy"]) {
+      expect(listed.has(c), c).toBe(true);
+      expect(NOT_TIES[c], c).toBeUndefined();
+    }
   });
 });
