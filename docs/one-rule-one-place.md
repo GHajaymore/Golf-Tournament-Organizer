@@ -101,6 +101,16 @@ handicap readers became one (counted off the diff, not the inventory). The four
   promised once round 2 had begun, and no "in each flight" or "and ties".
   `e2e/the-cut-a-round-is-played-for.spec.ts` reads it as the organizer and a
   player, in its own throwaway medal with round 1 in play.
+- **A tie for the last place at a cut line** (J31, 2026-11-06): `cutLineOutcome`
+  in `domain/cut.ts` is the one rule — "ties", a play-off or a countback then a
+  draw, chosen per cut (`Stage.cutTies`) and settled by the committee
+  (`Stage.cutTieDecisions`). A stroke cut asks it of the board (`cutLineRows`,
+  `strokeCutOutcome` is the same function); a round robin's cut asks it of the
+  table (`roundRobinCutOutcome`), which `generateCutRound` draws with and the
+  board lights with. Its words differ by what the line is drawn through
+  (`CutLineKind`, a REQUIRED argument of `cutTieRuleWords`). Worked from the
+  Rules in `a-tie-at-a-round-robin-cut.test.ts`, swept in `matrix.test.ts`,
+  property-tested against a pencil in `properties-round-robin-cut-tie.test.ts`.
 - **Leaving the field** (step 2): three inline copies of "withdrawn or
   disqualified" ask `hasLeftTheField` / `LEFT_THE_FIELD`;
   `left-the-field-is-asked-one-way.test.ts` refuses a fourth. Places that say

@@ -1,5 +1,5 @@
 import { isIndividualStrokeRound, seededFromQualifiers } from "../stage-types";
-import type { CutRule } from "./cut";
+import type { CutRule, CutLineKind } from "./cut";
 
 /**
  * The cut a round's settings describe. One reader for the cut itself
@@ -57,8 +57,8 @@ export function cutHasBeenMade(
 
 /**
  * "Top 16 and ties", "Top 25% in each flight and ties" — or without the ties,
- * for a cut that does not take them (a round robin's, which `survivors` makes
- * on the standings' own order).
+ * for a cut whose tie is settled another way (a play-off, a countback), or one
+ * that settles no tie of its own.
  */
 export function cutRuleWords(rule: CutRule, ties = true): string {
   const top = rule.mode === "percent" ? `Top ${rule.percent}%` : `Top ${rule.count}`;
@@ -76,20 +76,38 @@ export function cutRuleWords(rule: CutRule, ties = true): string {
  *
  * A cut between two individual stroke rounds settles a tie for the last place
  * the way the organizer chose (`cutTies`): "and ties" only where the ties go
- * through; a round robin's cut takes the standings' order. A round seeded from
- * qualifiers (a bracket) has no cut to print — its field is its qualifiers.
- * Null for a round with no cut after it.
+ * through. So does a cut out of a round robin's table since J31 (2026-11-06) —
+ * the same setting, on points and the table's tie-breaks rather than a card
+ * (`decidedOn`). A round seeded from qualifiers (a bracket) has no cut to
+ * print — its field is its qualifiers. Null for a round with no cut after it.
  */
 export function cutAfterRound<R extends { id: string; type: string; format: string; cutEnabled: boolean; cutScope: string; cutMode: string; cutCount: number; cutPercent: number; cutTies: string }>(
   rounds: readonly R[],
   roundId: string,
-): { rule: CutRule; ties: boolean; tieRule: CutTieRule | null } | null {
+): { rule: CutRule; ties: boolean; tieRule: CutTieRule | null; decidedOn: CutLineKind | null } | null {
   const i = rounds.findIndex((r) => r.id === roundId);
   const next = i >= 0 ? rounds[i + 1] : undefined;
   if (!next || !next.cutEnabled || seededFromQualifiers(next.type)) return null;
-  const stroke = isIndividualStrokeRound(rounds[i]) && isIndividualStrokeRound(next);
-  const tieRule = stroke ? cutTieRuleOf(next.cutTies) : null;
-  return { rule: cutRuleOf(next), ties: tieRule === "ties", tieRule };
+  const decidedOn = cutLineKindOf(rounds[i], next);
+  const tieRule = decidedOn ? cutTieRuleOf(next.cutTies) : null;
+  return { rule: cutRuleOf(next), ties: tieRule === "ties", tieRule, decidedOn };
+}
+
+/**
+ * WHAT A CUT OUT OF `feeder` INTO `next` IS DRAWN THROUGH — a card (two
+ * individual stroke rounds, `applyStrokeCut`) or a round robin's table
+ * (`generateCutRound`) — or null for a cut that settles no tie of its own.
+ * The stroke test first: a Round Robin set to Stroke Play between two medals
+ * is cut on its cards, as `applyStrokeCut` cuts it.
+ */
+export function cutLineKindOf(
+  feeder: { type: string; format: string } | undefined,
+  next: { type: string; format: string },
+): CutLineKind | null {
+  if (!feeder) return null;
+  if (isIndividualStrokeRound(feeder) && isIndividualStrokeRound(next)) return "card";
+  if (feeder.type === "Round Robin") return "table";
+  return null;
 }
 
 /**

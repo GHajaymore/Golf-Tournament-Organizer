@@ -58,7 +58,9 @@ const cutLine = (rounds: Round[], id: string) => {
 describe("the published rules sheet only prints a cut the engine applies", () => {
   it("prints the cut on the round it is made AFTER, not the round it feeds", () => {
     const rounds = [round("r1"), round("r2", { cutEnabled: true })];
-    expect(cutLine(rounds, "r1"), "round 1 is played for a place in round 2").toBe("Top 8 advance to the next round");
+    // "and ties": a round robin's cut takes the committee's tie rule, whose
+    // default is "the leading N and ties" (J31; Committee Procedures 5A(6)).
+    expect(cutLine(rounds, "r1"), "round 1 is played for a place in round 2").toBe("Top 8 and ties advance to the next round");
     expect(cutLine(rounds, "r2"), "round 2's cut has been made: there is no cut after it").toBeUndefined();
   });
 
@@ -66,10 +68,25 @@ describe("the published rules sheet only prints a cut the engine applies", () =>
     const medal = { type: "Stroke Play Round", format: "Stroke Play" };
     const rounds = [round("r1", medal), round("r2", { ...medal, cutEnabled: true, cutScope: "perFlight", cutMode: "percent", cutPercent: 25 })];
     expect(cutLine(rounds, "r1")).toBe("Top 25% in each flight and ties advance to the next round");
-    // CONTROL: a round robin's cut is made on the standings' own order, without ties.
+    // And a round robin's, since J31: the same tie rule, on its table.
     expect(cutLine([round("r1"), round("r2", { cutEnabled: true, cutScope: "perFlight" })], "r1")).toBe(
-      "Top 8 in each flight advance to the next round",
+      "Top 8 in each flight and ties advance to the next round",
     );
+    // CONTROL: a cut out of a round that settles no tie of its own (a team
+    // medal, cut by neither engine's line) promises no ties.
+    expect(
+      cutLine([round("r1", { type: "Stroke Play Round", format: "Scramble" }), round("r2", { cutEnabled: true, cutScope: "perFlight" })], "r1"),
+    ).toBe("Top 8 in each flight advance to the next round");
+  });
+
+  it("prints a round robin's tie method in the table's words, not the card's (J31)", () => {
+    const cut = (cutTies: string) => cutLine([round("r1"), round("r2", { cutEnabled: true, cutTies })], "r1");
+    expect(cut("playoff")).toBe("Top 8 advance to the next round. A tie for the last place is decided by a play-off");
+    expect(cut("countback")).toBe(
+      "Top 8 advance to the next round. A tie for the last place is decided by the table's tie-breaks, in the order set for the round, then by lot",
+    );
+    // CONTROL: the card's countback names holes a table does not have.
+    expect(cut("countback")).not.toMatch(/last 9/);
   });
 
   it("prints the committee's method for a tie when it is not 'and ties' (2026-10-23)", () => {
@@ -95,7 +112,7 @@ describe("the published rules sheet only prints a cut the engine applies", () =>
 
   it("prints a percent cut before an ordinary round and not before a bracket", () => {
     expect(cutLine([round("r1"), round("r2", { cutEnabled: true, cutMode: "percent" })], "r1")).toBe(
-      "Top 50% advance to the next round",
+      "Top 50% and ties advance to the next round",
     );
     expect(
       cutLine([round("r1"), round("r2", { type: "Bracket Stage", cutEnabled: true, cutMode: "percent" })], "r1"),

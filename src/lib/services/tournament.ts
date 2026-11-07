@@ -14,6 +14,8 @@ import { COURSE_REF, roundCard } from "./course-resolution";
 import {
   survivors,
   strokeCutOutcome,
+  roundRobinCutOutcome,
+  tableHasResults,
   cutLineRows,
   cutTieRuleOf,
   cutTieDecisionsOf,
@@ -23,7 +25,7 @@ import {
   type CutTie,
 } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
-import { roundReadyForCut, cutProgress, cutHasBeenMade } from "../domain/cut-ready";
+import { roundReadyForCut, cutProgress, cutHasBeenMade, cutLineKindOf } from "../domain/cut-ready";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
@@ -811,8 +813,9 @@ export interface EventState {
    */
   qualifying: boolean;
   /**
-   * TIES FOR THE LAST PLACE AT THE BOARD'S STROKE CUT THAT THE COMMITTEE HAS
-   * STILL TO SETTLE — a play-off, or a draw after countback (2026-10-23). Empty
+   * TIES FOR THE LAST PLACE AT THE BOARD'S CUT THAT THE COMMITTEE HAS STILL TO
+   * SETTLE — a play-off, or a draw after countback (2026-10-23; a round robin's
+   * cut too since J31, `roundRobinCutOutcome`, after the first result). Empty
    * under "ties go through", and wherever the line falls in a gap. Nobody in
    * one is in `advancingIds`, and nobody in one may be told they are out: the
    * board marks them `tiedAtCut`, and the cut cannot be made until they are
@@ -2654,7 +2657,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // With neither a knockout nor a round cut, nobody is advancing yet.
   const hasKnockout = hasKnockoutStage(stages);
   let advancingIds: Set<string>;
-  // See `EventState.cutTiesUndecided`; set only by a stroke cut below.
+  // See `EventState.cutTiesUndecided`; set only by a stroke cut or a round robin's cut below.
   let cutTiesUndecided: CutTie[] = [];
   // Whether anybody CAN advance — see `EventState.qualifying`.
   let qualifying = hasKnockout;
@@ -2722,6 +2725,20 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
           cutTieRuleOf(nextRound.cutTies),
           cutTieDecisionsOf(nextRound.cutTieDecisions),
         );
+        advancingIds = outcome.through;
+        cutTiesUndecided = outcome.undecided;
+      } else if (!isStroke && !!nextRound && cutLineKindOf(activeRound, nextRound) === "table" && tableHasResults(stillIn)) {
+        /**
+         * A ROUND ROBIN'S CUT IS LIT THE WAY IT IS MADE (J31, 2026-11-06):
+         * `roundRobinCutOutcome`, which `generateCutRound` draws the next round
+         * with. Everybody level on points goes through, or nobody in the tie is
+         * lit until the committee records the play-off or the draw — never the
+         * front of the list, which past the tie-breaks is entry order.
+         *
+         * Only once something has been played: before that the whole table is
+         * level on nought, and a tie of the whole field is nobody's play-off.
+         */
+        const outcome = roundRobinCutOutcome(stillIn, nextRound);
         advancingIds = outcome.through;
         cutTiesUndecided = outcome.undecided;
       } else {
@@ -3375,9 +3392,10 @@ function boardRows(state: EventState, withDidNotStart: boolean): StandingRow[] {
   // AND A STROKE CUT'S TIE THE COMMITTEE HAS STILL TO SETTLE (2026-10-23).
   // Nobody in it is lit, so the shared-place reading above cannot see it: the
   // play-off is for players level on the SCORE, whom the board's countback may
-  // have given different places.
+  // have given different places. And a round robin's cut's (J31): a play-off is
+  // for players level on POINTS, whom the table's tie-breaks may have placed.
   const tieBy = new Map<string, "playoff" | "draw">();
-  for (const t of state.boardIsStroke ? state.cutTiesUndecided : []) {
+  for (const t of state.cutTiesUndecided) {
     for (const id of t.playerIds) {
       tied.add(id);
       tieBy.set(id, t.by);
@@ -3479,8 +3497,9 @@ function boardRows(state: EventState, withDidNotStart: boolean): StandingRow[] {
       // Same flag the stroke rows carry, now that it is computed from the
       // ranking a match-play event is decided on.
       tiedAtCut: tied.has(r.player.id),
-      // A match board's ties are the knockout's line, never a stroke cut's.
-      cutTieBy: "" as const,
+      // A round robin's cut waiting on a tie says how it will be settled (J31);
+      // a knockout's line has no rule of its own yet (J30), so it says nothing.
+      cutTieBy: tieBy.get(r.player.id) ?? ("" as const),
       record: fmtRecord(r.stats),
       diff: fmtDiff(r.stats),
       pts: fmtPts(r.stats.totalPoints),
