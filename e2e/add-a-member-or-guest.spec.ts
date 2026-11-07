@@ -105,6 +105,10 @@ test("the organizer adds a guest and two members by hand, and each is stored as 
   await expect(guestRadio).toBeChecked();
   await expect(addEmail, "a guest is still asked for an email").toHaveCount(0);
   await expect(page.getByLabel(/^Mobile/), "a guest is still asked for a mobile").toHaveCount(0);
+  // Said under the Guest choice too, before the press: a guest has no email.
+  const guestNote = page.getByTestId("guest-codes-note");
+  if (accessBefore === "email") await expect(guestNote, "the codes are not said before a guest is added").toHaveText("This also turns round codes on for this tournament.");
+  else await expect(guestNote).toHaveCount(0);
   await nameBox.fill(`${MARK} Dana Guest`);
   await add.click();
   await expect.poll(() => entry(`${MARK} Dana Guest`), { timeout: 15_000, message: "the guest was not added" }).toEqual({

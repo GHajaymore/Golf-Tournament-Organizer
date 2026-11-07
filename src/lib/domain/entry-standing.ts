@@ -150,6 +150,15 @@ export function memberWithoutEmail(codesWillTurnOn: boolean): string {
   return codesWillTurnOn ? `${MEMBER_WITHOUT_EMAIL} ${CODES_WILL_TURN_ON}` : MEMBER_WITHOUT_EMAIL;
 }
 
+/**
+ * The line under the Guest choice on Add. A guest is always entered without an
+ * email, so on a tournament without round codes every guest add turns them on:
+ * said before the press, as for a member, and nothing ("") when codes are on already.
+ */
+export function guestCodesNote(codesWillTurnOn: boolean): string {
+  return codesWillTurnOn ? CODES_WILL_TURN_ON : "";
+}
+
 /** Said when an entry without an email turned round codes on. */
 export const CODES_TURNED_ON =
   "Players without an email score with the round code, so round codes are on now too. Change it on Tournament details.";

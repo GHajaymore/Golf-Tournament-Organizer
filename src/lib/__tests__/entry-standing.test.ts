@@ -11,6 +11,7 @@ import {
   previewSummary,
   importButtonWords,
   memberWithoutEmail,
+  guestCodesNote,
   STANDING_CHOICE,
   GUEST,
 } from "../domain/entry-standing";
@@ -191,6 +192,13 @@ describe("the words (UX Writer: a guest is never lesser)", () => {
     );
     // A tournament that already has round codes: nothing turns on, and nothing is said about it.
     expect(memberWithoutEmail(false)).toBe("They can play and score now. Add an email later so they can sign in.");
+  });
+
+  it("says it under the Guest choice too: a guest always enters without an email (UX Writer and TD, 2026-11-07)", () => {
+    expect(guestCodesNote(true)).toBe("This also turns round codes on for this tournament.");
+    // The same sentence the member hears, not a second wording of it.
+    expect(memberWithoutEmail(true).endsWith(guestCodesNote(true))).toBe(true);
+    expect(guestCodesNote(false)).toBe("");
   });
 
   it("counts the preview the way the design wrote it", () => {

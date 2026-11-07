@@ -22,6 +22,7 @@ import {
   STANDING_TAG,
   entryStanding,
   importButtonWords,
+  guestCodesNote,
   isGuest,
   memberWithoutEmail,
   previewSummary,
@@ -1344,6 +1345,13 @@ export function RegistrationClient({
             <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }} data-testid="standing-hint">
               {hint}
             </p>
+            {/* Before the press: a guest has no email, so on a tournament without round
+                codes this add turns them on, as the member's empty-Email line says. */}
+            {addingGuest && guestCodesNote(needsEmail) && (
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }} data-testid="guest-codes-note">
+                {guestCodesNote(needsEmail)}
+              </p>
+            )}
           </div>
           {!addingGuest && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
