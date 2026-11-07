@@ -107,6 +107,20 @@ export function reachableNeverPurged(schema: string, never: string[]): string[] 
 
 const schema = readVerbatim("prisma", "schema.prisma");
 
+/** Any `.event.delete(` / `.stage.deleteMany(` — whatever the client is called. */
+const DELETES_A_TOURNAMENT_OR_ROUND = /\.(event|stage)\.delete(Many)?\(/;
+
+function sourceFilesUnder(dir: string): string[] {
+  const out: string[] = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) {
+      if (e.name !== "__tests__") out.push(...sourceFilesUnder(p));
+    } else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) out.push(p);
+  }
+  return out;
+}
+
 describe("every model that names a tournament or a round is purged with it", () => {
   it("every eventId is a cascade, deleted by hand, or kept with a reason", () => {
     expect(unhandled(schema, "eventId", EVENT_ROWS_WITHOUT_A_CASCADE, KEPT_ON_EVENT_DELETE)).toEqual([]);
@@ -224,17 +238,3 @@ describe("every model that names a tournament or a round is purged with it", () 
     expect(src).toMatch(/isKnockoutRound\(stage\.type\)[\s\S]*bracketWinner\.deleteMany[\s\S]*bracketReport\.deleteMany/);
   });
 });
-
-/** Any `.event.delete(` / `.stage.deleteMany(` — whatever the client is called. */
-const DELETES_A_TOURNAMENT_OR_ROUND = /\.(event|stage)\.delete(Many)?\(/;
-
-function sourceFilesUnder(dir: string): string[] {
-  const out: string[] = [];
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name);
-    if (e.isDirectory()) {
-      if (e.name !== "__tests__") out.push(...sourceFilesUnder(p));
-    } else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) out.push(p);
-  }
-  return out;
-}
