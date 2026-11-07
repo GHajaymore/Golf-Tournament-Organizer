@@ -27,7 +27,7 @@ import { generatesPairings, isKnockoutRound, isPlayingRound } from "../stage-typ
 import { TEAM_FORMAT_NAMES } from "../formats";
 import { roundsMissingCards } from "./round-card-lines";
 import { teesInPlayFor } from "./handicaps";
-import { unratedTeesFact } from "../domain/launch-check";
+import { unratedTeesFact, hasTypedCard } from "../domain/launch-check";
 import { loadEventState, settingsOf } from "./tournament";
 import { cupBoard } from "./cup";
 
@@ -157,6 +157,7 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
       startOn: true,
       endOn: true,
       course: true,
+      customPars: true,
       shape: true,
       status: true,
       configUnlocked: true,
@@ -250,7 +251,18 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
   const unratedOf = new Map(
     needTees.map((e) => {
       const p = inPlay.get(e.id);
-      return [e.id, unratedTeesFact({ rounds: roundsOf(e.id), tees: p?.tees ?? [], fixedCourse: !!p?.hasCourse && !p?.open })] as const;
+      // A card typed on the event (its own pars, or a venue named) with no saved course: nothing to rate.
+      // Players-choose-course and no venue yet stay silent.
+      const typed = hasTypedCard(e.customPars);
+      return [
+        e.id,
+        unratedTeesFact({
+          rounds: roundsOf(e.id),
+          tees: p?.tees ?? [],
+          fixedCourse: !!p?.hasCourse && !p?.open,
+          typedCard: !p?.hasCourse && !p?.open && typed,
+        }),
+      ] as const;
     }),
   );
   const cardsOf = byEvent([...cardRows, ...teamCardRows]);
