@@ -183,6 +183,8 @@ export interface UnratedTees {
   noRating: string[];
   /** The course has no tees at all, so nothing can be rated. */
   noTees: boolean;
+  /** No course is saved, but a card was typed in (par and stroke index on the event): there are no tees to rate. */
+  typedCard?: boolean;
 }
 
 export function unratedTeesFact(input: {
@@ -195,11 +197,21 @@ export function unratedTeesFact(input: {
    * Defaults to true: a caller that has a course says nothing extra.
    */
   fixedCourse?: boolean;
+  /**
+   * A card was typed in (the event's own pars, or a venue named) with no saved
+   * course, and players are not choosing their own course. Only read when
+   * `fixedCourse` is false. Players-choose-course and no-venue-yet leave it
+   * false and stay silent.
+   */
+  typedCard?: boolean;
 }): UnratedTees | null {
   const rounds = input.rounds.filter((r) => r.scoringBasis !== "gross").map((r) => r.label);
   if (rounds.length === 0) return null;
   if (input.tees.length === 0) {
-    return input.fixedCourse === false ? null : { rounds, noSlope: [], noRating: [], noTees: true };
+    if (input.fixedCourse === false) {
+      return input.typedCard ? { rounds, noSlope: [], noRating: [], noTees: false, typedCard: true } : null;
+    }
+    return { rounds, noSlope: [], noRating: [], noTees: true };
   }
   // The app's own test for a Slope (`isRated`), the one `courseHandicapExact` falls back on.
   const noSlope = input.tees.filter((t) => !isRated(t)).map((t) => t.name);
@@ -216,9 +228,10 @@ const joined = (names: readonly string[]) =>
  * all, a tee with no Slope (the raw Handicap Index is used), a Slope with no
  * Course Rating (scaled by Slope alone).
  */
-export type UnratedTier = "noTees" | "noSlope" | "noRating";
+export type UnratedTier = "typedCard" | "noTees" | "noSlope" | "noRating";
 export function unratedTiers(u: UnratedTees | null | undefined): UnratedTier[] {
   if (!u) return [];
+  if (u.typedCard) return ["typedCard"];
   if (u.noTees) return ["noTees"];
   const tiers: UnratedTier[] = [];
   if (u.noSlope.length > 0) tiers.push("noSlope");
@@ -238,6 +251,9 @@ function unratedTeesWarning(u: UnratedTees | null | undefined, screen: string): 
   const rounds = joined(u.rounds);
   const rawIndex = "usually understates strokes on a hard course and overstates them on an easy one";
   const parts = tiers.map((tier) => {
+    if (tier === "typedCard") {
+      return "The card was typed in without tees, so players get strokes off their raw Handicap Index.";
+    }
     if (tier === "noTees") {
       return `No tees are set up for the course, so there is no Slope or Course Rating to work out a Course Handicap for ${rounds}: players are scored on their raw Handicap Index, which ${rawIndex}.`;
     }
@@ -253,6 +269,7 @@ function unratedTeesWarning(u: UnratedTees | null | undefined, screen: string): 
 
 /** The rail's one line for each fault, in the same terms as the warning. */
 const TODO_WORDS: Record<UnratedTier, string> = {
+  typedCard: "Add the course with its tees, their Course Rating and Slope, or players get strokes off their raw Handicap Index.",
   noTees: "Add tees with their Course Rating and Slope, or players get strokes off their raw Handicap Index.",
   noSlope: "Add the Slope Rating to the tees, or players get strokes off their raw Handicap Index.",
   noRating: "Add the Course Rating to the tees, or players' strokes are a little off.",

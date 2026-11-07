@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { tournamentStatus, setupFlowOf, flowFromStatus } from "../domain/tournament-status";
-import { unratedTeesTodo, unratedTiers, type UnratedTees } from "../domain/launch-check";
+import { unratedTeesTodo, unratedTiers, unratedTeesFact, warningText, type UnratedTees } from "../domain/launch-check";
 import { facts } from "../domain/__tests__/tournament-facts-fixtures";
 import { GUIDE_STEPS } from "../guide-steps";
 
@@ -104,5 +104,29 @@ describe("the finished and the classifier", () => {
 
   it("never says net scores (Stableford gives points)", () => {
     for (const u of [none, noSlope, noRating]) expect(unratedTeesTodo(u)).not.toMatch(/net scores/i);
+  });
+});
+
+describe("a typed-in card with no saved course", () => {
+  const net = [{ label: "Round 1", scoringBasis: "net" }];
+  const typed = () => unratedTeesFact({ rounds: net, tees: [], fixedCourse: false, typedCard: true });
+
+  it("speaks when a card was typed and players are not choosing", () => {
+    expect(typed()).toMatchObject({ typedCard: true, noTees: false });
+    expect(unratedTiers(typed())).toEqual(["typedCard"]);
+  });
+
+  it("stays silent for players-choose-course or no venue yet (typedCard false), and for a gross round", () => {
+    expect(unratedTeesFact({ rounds: net, tees: [], fixedCourse: false, typedCard: false })).toBeNull();
+    expect(unratedTeesFact({ rounds: net, tees: [], fixedCourse: false })).toBeNull();
+    expect(unratedTeesFact({ rounds: [{ label: "Round 1", scoringBasis: "gross" }], tees: [], fixedCourse: false, typedCard: true })).toBeNull();
+  });
+
+  it("the launch warning and the rail say it, and it holds nothing", () => {
+    const warnings = tournamentStatus(facts({ unratedTees: typed() })).warnings.map((w) => warningText({ ...w }));
+    expect(warnings.join(" | ")).toContain("The card was typed in without tees, so players get strokes off their raw Handicap Index.");
+    const s = eventStep(typed());
+    expect(s).toMatchObject({ done: false, holds: false, optional: true });
+    expect(s.missing).toMatch(/raw Handicap Index/);
   });
 });
