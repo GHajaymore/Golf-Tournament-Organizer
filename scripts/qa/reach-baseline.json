@@ -2,19 +2,6 @@
  "measuredOn": "round G23-4 on GitHub (commit a054c9d, app 6ed0d1fb4c52, 2026-10-13), less the actions the specs written after it perform; less the 13 round G226-1 (2026-10-21) measured as performed",
  "note": "Server actions no screen test performs. It may only get shorter: a round fails on any unperformed action that is not listed here. See scripts/qa/merge.mjs and docs/testing.md. Added on purpose, once: saveHandicapPolicy (#958, 2026-11-03) — with no federation link live (federationLinkLive) the club's own record is the only choice, so Club settings draws no button that calls it; its refusal is held by service-only-reads-as-the-clubs-own.audit.test.ts. It comes off this list the day the link is live and the choices return.",
  "neverCalled": {
-  "app/actions/account.ts": [
-   "deleteMyAccount"
-  ],
-  "app/actions/attendance.ts": [
-   "setAttendance",
-   "setStageOptDeadline"
-  ],
-  "app/actions/auth.ts": [
-   "setPreviewAction"
-  ],
-  "app/actions/bet-name.ts": [
-   "renameBet"
-  ],
   "app/actions/billing.ts": [
    "openBillingPortal",
    "startCheckout"
@@ -24,18 +11,12 @@
    "readGroupCardPhoto",
    "readScorecardPhoto"
   ],
-  "app/actions/club-deletion.ts": [
-   "deleteClub"
-  ],
   "app/actions/commentary.ts": [
    "suggestCommentary"
   ],
   "app/actions/courses.ts": [
    "applySourceCard",
-   "checkCourseAgainstSource",
-   "importClubCourseCard",
-   "nameMatchVenue",
-   "setMatchCourse"
+   "checkCourseAgainstSource"
   ],
   "app/actions/draft-message.ts": [
    "draftMessage"
@@ -43,79 +24,14 @@
   "app/actions/handicap-policy.ts": [
    "saveHandicapPolicy"
   ],
-  "app/actions/join.ts": [
-   "approveJoinRequest",
-   "askToJoinNamesake",
-   "declineJoinRequest"
-  ],
-  "app/actions/messaging.ts": [
-   "broadcastToScope",
-   "broadcastWithText"
-  ],
-  "app/actions/organization.ts": [
-   "saveOrganizationNoun",
-   "saveOrganizationSeason"
-  ],
-  "app/actions/owner.ts": [
-   "createDiscountCode",
-   "saveTierLimits",
-   "saveTierPrices",
-   "setClubPlan",
-   "setDiscountCodeActive"
-  ],
-  "app/actions/play.ts": [
-   "certifyPlayCard",
-   "savePlayMatchResult"
-  ],
   "app/actions/push.ts": [
    "getVapidPublicKey",
    "removePushSubscription",
    "savePushSubscription"
   ],
-  "app/actions/roster.ts": [
-   "acceptClubHandicap",
-   "addFieldToRoster"
-  ],
-  "app/actions/round-expiry.ts": [
-   "keepRound"
-  ],
   "app/actions/setup-suggest.ts": [
    "applySetupProposal",
    "suggestSetup"
-  ],
-  "app/actions/teams.ts": [
-   "generateTeamMatches",
-   "setStageAllowanceWeights"
-  ],
-  "app/actions/tournament.ts": [
-   "applyRoundHandicapToRest",
-   "clearFlights",
-   "cloneEvent",
-   "createSingleMatch",
-   "createThirdPlaceMatch",
-   "dateUndatedRounds",
-   "deleteEvent",
-   "generateNextRound",
-   "movePlayerToGroup",
-   "rejectBracketReport",
-   "removeSignups",
-   "renameGroup",
-   "reseedFlight",
-   "rotatePublicToken",
-   "saveCustomCourse",
-   "saveScoring",
-   "saveTiebreakers",
-   "setFlightsConfirmed",
-   "setQualifyPerGroup",
-   "setSingleMatchRule",
-   "setStageCarry",
-   "setStageCutScope",
-   "setStageDeadline",
-   "setStageDeadlineOverride",
-   "setStageFormat",
-   "setStageHoles",
-   "setStagePlayedOn",
-   "switchEvent"
   ]
  }
 }

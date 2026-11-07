@@ -322,6 +322,20 @@ const RULED: Array<{ screen: string; says: RegExp; why: string }> = [
   { screen: "/organization", says: /only Commissioner/i, why: "a club keeps at least one Commissioner; the refusal names the remedy" },
   { screen: "/access", says: /only organi[sz]er/i, why: "a tournament keeps at least one organizer; the warning names the remedy" },
   { screen: "/foursomes", says: /Hole \d+: Paces/i, why: "a pin's side means nothing without its paces; the refusal names the hole" },
+  /**
+   * "This round is finished" on a round holding a DISPUTED card (state machine
+   * PR 4; the Tournament Director's ruling, panel 8.1 Q4). The seeded medal's
+   * Round 1 holds one, so the tick is refused until the Committee rules on it
+   * (Rule 20.1c(4), Rule 20.2b), and the refusal says where: Score entry. Exact
+   * words, so any other refusal on that tick is still a finding. A card that is
+   * only NOT APPROVED yet is asked about instead ("Close anyway"), which the
+   * crawl already counts as "asks first" and does not press.
+   */
+  {
+    screen: "/stages",
+    says: /^\s*\d+ results? in .+ (is|are) disputed, so the round can’t be closed yet\. Settle (it|them) on Score entry, then close the round\./,
+    why: "a round is not closed over a disputed result: the Committee rules on it first, and the refusal names Score entry",
+  },
 ];
 
 /** Server action id → its exported name, off the build the crawl is running against. */

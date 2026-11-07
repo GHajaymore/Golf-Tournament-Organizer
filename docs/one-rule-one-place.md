@@ -125,6 +125,14 @@ handicap readers became one (counted off the diff, not the inventory). The four
   `a-withdrawn-partner-is-not-in-the-stored-match.test.ts` works it in whole
   numbers and sweeps for any other call of `sidePlayingHandicap` (with a
   control); its `.audit` twin files the match on real rows.
+- **A side's name** (2026-11-06): `sideNamesOf(eventId, teamIds)` in
+  `services/side-names.ts` — a team match (four-ball, foursomes, a cup's) leaves
+  `playerAId`/`playerBId` empty, and its sides are named by the team's own name
+  (a pair's names). Five readers wrote the lookup out (match card, casual
+  summary, `/me/match`, `/play`, and the day's result line, which did not and
+  said "Side A beat Side B" on `/me/board`). `a-side-is-named-once.test.ts`
+  refuses a sixth, with a control; `a-team-match-result-names-its-sides.audit.test.ts`
+  files the matches on real rows.
 - **What a stroke can be** (step 5): `isStroke` in `domain/score-payload.ts`,
   a whole number from 1 to `MAX_STROKES_PER_HOLE`; every writer of a card asks
   it, and `a-stroke-is-one-test.test.ts` refuses the range written by hand (a
@@ -306,6 +314,10 @@ day and will drift: search for the expression.
 - **Creating a tournament** (2 Nov, the setup questionnaire): one writer, `createTournament` in `actions/tournament.ts` — the club-first gate, the plan's limits, the name, the course (home or chosen), the rounds, the event's scoring and the round codes. "Create tournament" (`createEvent`, a template) and "Set up with a few questions" (`createEventFromAnswers`, `domain/setup-questions.ts`'s draft) only decide WHAT is made. A tee's card is resolved by `teeViewsOf` (`services/handicaps.ts`) for the questionnaire's scorecard check and for `teesForEvent` alike, and a card is marked checked only by `markCourseCardChecked`. Held by `a-tournament-name-is-checked-one-way.test.ts` (both doors reach `createTournament`).
 - Two of one name on a list are told apart by `tellApart` (dates the club's way, "created …" without dates, "#2" for twins of one club on one date): `/tournaments`, `/choose` and both **Start from** pickers. It replaced `/tournaments`' own `name.trim().toLowerCase()` count.
 - Pinned by hand in `a-tournament-name-is-checked-one-way.test.ts`, which also sweeps for a tournament name normalised by hand, a file creating a tournament without the backstop, and a door that skips the call (each with a control); against real rows in `one-name-in-play-per-club.audit.test.ts`; as the secretary in `e2e/one-name-in-play.spec.ts`. Mutation: deleting `holdsItsName` from `nameClash` turned 4 unit and 3 audit tests red. Removing a door's own check leaves the audit green while the index exists (the backstop refuses in the same words) — the door sweep is what sees it.
+
+### A round's day (2026-11-06)
+- **One rule**: `roundDayOf(playedOn, startOn)` in `domain/round-dates.ts` — the round's own `playedOn`, else the tournament's `startOn`, else "". Read by `lastTeeFor` (`services/field-change.ts`, the late-entry cutoff) and `daysToFirstRoundFrom` (`domain/promotion.ts`, the promotion email's reply line).
+- **Known divergence, left alone**: `services/club-events.ts` (`startOn: event.startOn || roundDaysOf(stages)[0]`) reads the other way round — the tournament's date first, then the earliest dated round — because it files a tournament under a season; it is not asking when one round is played.
 
 ### Dead twins of live rules
 All four deleted: `courseHandicapForPlayer` (2026-10-13), and `rankByCountback`, `seasonPosition`, `isMatchStarted` (2026-10-14).
