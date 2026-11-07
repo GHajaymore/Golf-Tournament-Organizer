@@ -1,7 +1,9 @@
 "use client";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
+import { ScopeLockMark } from "./ScopeLockBanner";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
 import { Icon } from "./Icon";
@@ -16,6 +18,7 @@ import {
   removeTeamMember,
   autoDrawTeams,
   generateTeamMatches,
+  type TeamResult,
 } from "@/app/actions/teams";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { bringIntoView } from "@/lib/bring-into-view";
@@ -101,11 +104,13 @@ export function TeamsClient({
    */
   drawsMatches: boolean;
   /**
-   * Setup is locked. Every action here that changes a side refuses a locked
-   * tournament by THROWING (`assertUnlocked(…, "change teams")`), so each of
-   * these buttons took the page down to "Application error" on a live event
-   * (swept 2026-09-27). `busy` below gates them on it; renaming a side is not
-   * behind the lock and stays open.
+   * The sides are locked (the machine's `locks.sides`, drawn above this by
+   * `ScopeLockBanner`). Every action here that changes a side refuses it —
+   * they THREW until the scoped locks (PR 5a), which took the page down to
+   * "Application error" on a live event (swept 2026-09-27); they RETURN the
+   * refusal in words now. `busy` below still gates them on it, with a padlock
+   * that points at the banner; renaming a side is not behind the lock and
+   * stays open.
    */
   locked?: boolean;
   rounds: RoundRow[];
@@ -125,6 +130,18 @@ export function TeamsClient({
   league?: boolean;
 }) {
   const { pending, error, setError, run, startTransition } = useAction();
+  const router = useRouter();
+  /**
+   * A PRESS REFUSED BY THE LOCK (PR 5a). This screen was drawn before it — the
+   * tournament launched in another tab, or setup was locked again — so its
+   * controls were live. The refusal is said like any other (the sentence names
+   * the reason and the way out), and the screen is drawn again, so the banner
+   * arrives and the controls shut rather than inviting a second refused press.
+   */
+  const caughtUp = <T extends TeamResult>(res: T): T => {
+    if (!res.ok && res.lock) router.refresh();
+    return res;
+  };
   /** A side's rename refused, said under that side's name. */
   const [nameSaid, setNameSaid] = useState<{ id: string; text: string } | null>(null);
   const saveStatus = useSaveStatus(pending);
@@ -144,7 +161,7 @@ export function TeamsClient({
   const makeMatches = (replace: boolean) => {
     setError("");
     startTransition(async () => {
-      const res = await generateTeamMatches(activeRoundId, replace);
+      const res = caughtUp(await generateTeamMatches(activeRoundId, replace));
       if (res.needsConfirm) {
         setConfirmMatches(true);
         return;
@@ -175,7 +192,7 @@ export function TeamsClient({
   const removeMember = (teamId: string, playerId: string, name: string, force: boolean) => {
     setError("");
     startTransition(async () => {
-      const res = await removeTeamMember(teamId, playerId, force);
+      const res = caughtUp(await removeTeamMember(teamId, playerId, force));
       if (res.needsConfirm) {
         setConfirmRemove({ teamId, playerId, name, cards: res.cards ?? 1 });
         return;
@@ -188,7 +205,7 @@ export function TeamsClient({
   const draw = (replace: boolean) => {
     setError("");
     startTransition(async () => {
-      const res = await autoDrawTeams(activeRoundId, replace);
+      const res = caughtUp(await autoDrawTeams(activeRoundId, replace));
       if (res.needsConfirm) {
         setConfirmDraw(true);
         return;
@@ -277,8 +294,13 @@ export function TeamsClient({
         </div>
       )}
 
+      {/* Brought into view when it appears: a press low on the page (a side's
+          Remove, its Add player) is answered up here, so the answer comes to
+          where the person is looking. */}
       {error && (
-        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>{error}</p>
+        <p role="alert" ref={bringIntoView} style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+          {error}
+        </p>
       )}
       {drawNote && !error && (
         <p className="text-muted" role="status" style={{ fontSize: 13, margin: 0 }}>
@@ -312,6 +334,7 @@ export function TeamsClient({
 
       {!league && (<>
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+        {locked && <ScopeLockMark />}
         <div className="field" style={{ flex: 1, minWidth: 200 }}>
           <label htmlFor="teams-new-name">Add a team</label>
           <input
@@ -323,7 +346,7 @@ export function TeamsClient({
             placeholder="e.g. The Slicers"
             onKeyDown={(e) => {
               if (e.key === "Enter" && newName.trim() && !busy) {
-                run(() => createTeam(newName, activeRoundId));
+                run(async () => caughtUp(await createTeam(newName, activeRoundId)));
                 setNewName("");
               }
             }}
@@ -334,7 +357,7 @@ export function TeamsClient({
           className="btn btn-secondary"
           disabled={busy || !newName.trim()}
           onClick={() => {
-            run(() => createTeam(newName, activeRoundId));
+            run(async () => caughtUp(await createTeam(newName, activeRoundId)));
             setNewName("");
           }}
         >
@@ -482,11 +505,14 @@ export function TeamsClient({
                 {/* The side and its whole membership. Removing one PLAYER from
                     a side, below, is left on one tap — that is re-added in a
                     tap too, and a confirmation on it would be noise. */}
+                {/* One padlock per side, not one per control on it: the side's
+                    Remove, its members' remove and Add player shut together. */}
+                {locked && <ScopeLockMark />}
                 <ConfirmButton
                   title="Remove team"
                   confirmLabel="Remove the team"
                   disabled={busy}
-                  onConfirm={() => run(() => deleteTeam(t.id))}
+                  onConfirm={() => run(async () => caughtUp(await deleteTeam(t.id)))}
                 />
               </div>
               {nameSaid?.id === t.id && (
@@ -551,7 +577,8 @@ export function TeamsClient({
                   aria-label={`Add a player to ${t.name}`}
                   value=""
                   onChange={(e) => {
-                    if (e.target.value) run(() => addTeamMember(t.id, e.target.value));
+                    const playerId = e.target.value;
+                    if (playerId) run(async () => caughtUp(await addTeamMember(t.id, playerId)));
                     setAddingTo("");
                   }}
                   onBlur={() => setAddingTo("")}
