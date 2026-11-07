@@ -57,7 +57,8 @@ import {
   type CutRule,
   type NextRoundFlight,
 } from "@/lib/domain/cut";
-import { aggregateStats, rankPlayers } from "@/lib/domain/standings";
+import { aggregateStats, rankPlayers, computeStandings } from "@/lib/domain/standings";
+import { countbackCardsFor } from "@/lib/services/course-resolution";
 import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/domain/match-cards";
 import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-agg";
@@ -718,6 +719,76 @@ describe("standings, at every field size", () => {
     const stats = aggregateStats([], [], DEFAULT_SCORING);
     expect(rankPlayers([], stats, DEFAULT_SCORING, [])).toEqual([]);
   });
+});
+
+/**
+ * A HALVED MATCH IS DECIDED ON THE CARD IT WAS PLAYED ON — at every field size,
+ * on nine holes and eighteen, with the venue named at every level (J26,
+ * 2026-11-06).
+ *
+ * Committee Procedures 5A(6): a tied match is decided as the Terms say, and a
+ * "toughest holes" countback names holes by the stroke index of the course
+ * PLAYED (Rules of Handicapping, Appendix E allocates an index per course). The
+ * tournament's own card holds hole 1 hardest; the away card is the same layout
+ * indexed the other way, hole 18 (or the 9th of a nine) hardest.
+ *
+ * Every match in the round robin is halved the same way: side A won the first
+ * holes, side B the last ones — so on the HOME card every countback goes to A
+ * and on the AWAY card every one goes to B. A board that read one card for every
+ * match ranks the field exactly upside down from one that reads the right one,
+ * and the wins are asserted as numbers, not as an order alone.
+ */
+describe("a halved match's countback, at every field size, hole count and venue level", () => {
+  const HOME = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
+  const AWAY = (n: number) => Array.from({ length: n }, (_, i) => n - i);
+  const awayCourse = (n: number) => ({
+    id: "zz-away",
+    name: "zz-away",
+    city: "",
+    pars: JSON.stringify(new Array(n).fill(4)),
+    yards: "",
+    strokeIndex: JSON.stringify(AWAY(n)),
+  });
+  // A wins the first two holes, B the last two, the rest halved: all square.
+  const halved = (holes: number): HoleResult[] =>
+    Array.from({ length: holes }, (_, i) => (i < 2 ? "A" : i >= holes - 2 ? "B" : "H"));
+
+  for (const holes of [9, 18]) {
+    for (const level of ["match", "round", "event"] as const) {
+      for (const n of FIELD_SIZES) {
+        it(`${n} player(s), ${holes} holes, venue on the ${level}: every halve goes to the side that won the played card's hardest holes`, () => {
+          const players = field(n);
+          const rows: Array<{ id: string; stageId: string; courseId: string | null }> = [];
+          const matches: Match[] = [];
+          for (let i = 0; i < n; i += 1) {
+            for (let j = i + 1; j < n; j += 1) {
+              const id = `c${i}-${j}`;
+              rows.push({ id, stageId: "wk", courseId: level === "match" ? "zz-away" : null });
+              matches.push({ id, stageId: "wk", groupId: "g1", round: 1, playerAId: players[i].id, playerBId: players[j].id, holes: halved(holes) });
+            }
+          }
+          const cards = countbackCardsFor(
+            { course: "zz-home", city: "", customPars: JSON.stringify(new Array(18).fill(4)), customYards: "", customStrokeIndex: JSON.stringify(HOME(18)) },
+            [{ id: "wk", courseId: level === "round" ? "zz-away" : null, holes }],
+            rows,
+            (id) => (id === "zz-away" ? awayCourse(18) : null),
+          );
+          const ranked = computeStandings(players, matches, { ...DEFAULT_SCORING, tiebreakers: [] }, {}, cards, ["toughest-1"]);
+          const away = level !== "event";
+          // Player at index k is side A against everybody after them and side B
+          // against everybody before them. Away, B takes every countback.
+          for (let k = 0; k < n; k += 1) {
+            const s = ranked.find((r) => r.player.id === players[k].id)!.stats;
+            const wins = away ? k : n - 1 - k;
+            expect({ wins: s.wins, losses: s.losses, ties: s.ties }, `${players[k].id}`).toEqual({ wins, losses: n - 1 - wins, ties: 0 });
+            expect(s.totalPoints).toBe(wins * DEFAULT_SCORING.winPts);
+          }
+          // The board itself: away, the LAST entrant leads; at home, the first.
+          if (n >= 2) expect(ranked[0].player.id).toBe(away ? players[n - 1].id : players[0].id);
+        });
+      }
+    }
+  }
 });
 
 /**
