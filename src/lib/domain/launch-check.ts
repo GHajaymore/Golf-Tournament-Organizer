@@ -243,6 +243,24 @@ function unratedTeesWarning(u: UnratedTees | null | undefined, screen: string): 
   return { says, fix: `Add the Course Rating and Slope on ${screen}`, href: "/event", screen, afterLaunch: "open" };
 }
 
+/**
+ * THE SETUP RAIL'S TO-DO FOR THE SAME FACT (J27). The launch dialog above says
+ * it in full; the rail and the checklist have one line, in the same terms:
+ * no tees or no Slope means the raw Handicap Index, a Slope without a Course
+ * Rating is a lesser fault. Optional, never a hold: a scratch or gross-only
+ * event has nothing to add (the fact is null for it).
+ */
+export function unratedTeesTodo(u: UnratedTees | null | undefined): string | null {
+  if (!u) return null;
+  if (u.noTees || u.noSlope.length > 0) {
+    return "Add tees with a rating, or net scores use each player's handicap index.";
+  }
+  if (u.noRating.length > 0) {
+    return "Add the Course Rating to the tees, or net scores are a little off.";
+  }
+  return null;
+}
+
 export function launchCheck(
   f: LaunchSource,
   steps: readonly SetupStep[],
