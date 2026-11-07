@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
+import { importedNames } from "./imported-names";
 
 /**
  * A SCREEN ASKS THE TOURNAMENT ONE WAY — through `tournamentStatus`.
@@ -43,17 +44,8 @@ const OLD_READERS = [
   "playOverOf",
 ] as const;
 
-/** The names a source file imports, from single- and multi-line `import { … } from` blocks. */
-export function importedNames(src: string): string[] {
-  const names: string[] = [];
-  for (const m of src.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*["'][^"']+["']/g)) {
-    for (const part of m[1].split(",")) {
-      const name = part.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0].trim();
-      if (name) names.push(name);
-    }
-  }
-  return names;
-}
+/** The names a source file imports — one reader, shared with `the-actions-ask-the-machine.test.ts`. */
+export { importedNames };
 
 /**
  * The hand-written spellings of "is it set up yet": a status compared with a
@@ -84,7 +76,14 @@ export function strays(src: string): string[] {
  * PR 3 (4 Nov) cut four: the dashboard, Prizes & payouts (its rail is
  * `setupRailFor` now), `LifecycleBar` and `TournamentJourney` — they read
  * `tournamentStatus(facts)`. The rest keep `isSetupLocked` / `assertUnlocked`
- * until the scoped locks (PR 5) or the actions (PR 4).
+ * until the scoped locks (PR 5).
+ *
+ * PR 4 (6 Nov) cut `actions/play.ts`: its five saves and keeping a group's
+ * card ask the machine's play refusal (`playRefusedBecause`). `actions/
+ * tournament.ts` no longer asks `launchCheckFor`, `statusMove`,
+ * `finishRefusal`, `completingCheckFor` or `playRefusalFor` either
+ * (`the-actions-ask-the-machine.test.ts` holds that by name), but stays here
+ * for `assertUnlocked`, `lockedRefusal` and `configurationLocked` until PR 5.
  */
 export const KNOWN_STRAYS: readonly string[] = [
   "src/app/(app)/bracket/page.tsx",
@@ -94,7 +93,6 @@ export const KNOWN_STRAYS: readonly string[] = [
   "src/app/(app)/registration/page.tsx",
   "src/app/(app)/stages/page.tsx",
   "src/app/(app)/teams/page.tsx",
-  "src/app/actions/play.ts",
   "src/app/actions/setup-suggest.ts",
   "src/app/actions/teams.ts",
   "src/app/actions/tournament.ts",

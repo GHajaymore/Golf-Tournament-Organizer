@@ -363,6 +363,8 @@ export const FULL_ONLY = [
   "e2e/slow-signal-scoring.spec.ts",
   "e2e/staff-kept-cards.spec.ts",
   // The state machine's family walks (PR 3): the core lifecycle every tournament goes through.
+  // PR 4: each action that now asks the machine, pressed once in the state it refuses (launch, complete, close a round, every door into scoring).
+  "e2e/status-actions-refuse.spec.ts",
   "e2e/status-casual.spec.ts",
   "e2e/status-four-ball-match-board.spec.ts",
   "e2e/status-knockout-flights.spec.ts",
