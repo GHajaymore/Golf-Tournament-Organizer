@@ -5,8 +5,9 @@ import "server-only";
 import { prisma } from "../db";
 import { enteredCardCount } from "./round-cards";
 import { formGroups, roundRobinSchedule } from "../domain";
-import { survivors, nextRoundFlights } from "../domain/cut";
-import { cutRuleOf } from "../domain/cut-ready";
+import { nextRoundFlights, roundRobinCutOutcome, type CutOutcome, type CutTie } from "../domain/cut";
+import type { Stage as DbStage, Match as DbMatch } from "@prisma/client";
+import { cutRuleOf, cutFeederOf } from "../domain/cut-ready";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
 import { needsTeams } from "../formats";
 import { generatesPairings, isPlayingRound, seededFromQualifiers } from "../stage-types";
@@ -457,6 +458,8 @@ export type CutRoundResult =
   | { ok: false; reason: "no-prior-round" }
   | { ok: false; reason: "no-results"; roundName: string }
   | { ok: false; reason: "no-pairings"; survivors: number }
+  /** A tie for the last place the cut's rule leaves to the committee, not yet recorded (J31). */
+  | { ok: false; reason: "cut-tie"; undecided: CutTie[]; names: Map<string, string> }
   | { ok: false; reason: "seeded-not-generated" };
 
 export async function generateCutRound(
@@ -505,7 +508,6 @@ export async function generateCutRound(
   ]);
   if (!event) return { ok: false, reason: "no-stage" };
 
-  const rrStages = roundRobinStages(allStages);
   // groupId carried through so a per-flight cut can be taken flight by flight.
   const domainPlayers: DomainPlayer[] = confirmed.map((p) => ({
     id: p.id,
@@ -523,98 +525,40 @@ export async function generateCutRound(
 
   let survivorIds: Set<string>;
   if (stage.cutEnabled) {
-    // The field entering this round is the standings after the last Round Robin
-    // played before it — by position, not by adjacency, so a stroke-play final
-    // still cuts from the match-play qualifying that fed it. (Cutting from a
-    // stroke round is not supported here; the qualifying is a points ladder.)
-    const priorRr = rrStages.filter((s) => s.position < stage.position);
-    if (priorRr.length === 0) {
-      return { ok: false, reason: "no-prior-round" }; // use Generate flights instead
-    }
-
-    /**
-     * A cut needs something to cut ON.
-     *
-     * Run before a ball is struck, every tiebreak in the default chain returns
-     * 0 for everybody, so the sort falls through to the last thing that
-     * separates the field — seed, which is handicap order. "Top 16 advance"
-     * then advances the SIXTEEN LOWEST HANDICAPS, and because the cut's scope
-     * is overall by default, the reform below dissolves Round 1's flights to
-     * do it. The button sits next to the text "run it once this round is
-     * complete", which is advice the organizer has to remember; this is the
-     * same sentence enforced.
-     *
-     * Deliberately narrow. It refuses only a round with NOTHING in it — one
-     * card, one hole, one conceded match and the cut is the organizer's call,
-     * because a cut taken with a match still out is a real thing clubs do.
-     * `enteredCardCount` unions all four places a score can live, and a
-     * forfeit is counted separately because it is a result that leaves no
-     * card at all: a flight settled by two concessions has no strokes and no
-     * holes, and refusing that would refuse a legitimate cut.
-     */
-    const lastPriorRound = priorRr[priorRr.length - 1];
-    const priorResults = await enteredCardCount(eventId, lastPriorRound.id);
-    const priorForfeits = allMatches.some(
-      (m) => m.stageId === lastPriorRound.id && m.forfeitedBy,
-    );
-    if (priorResults === 0 && !priorForfeits) {
-      return {
-        ok: false,
-        reason: "no-results",
-        // Same label the boards use: what the organizer called the round if
-        // they named it, and its number if they did not — its number among
-        // ALL the rounds (`roundLabel`), not among the round robins, which
-        // called it Round 1 after a qualifying medal the board calls Round 1.
-        roundName: roundKicker(lastPriorRound.description, roundLabel(allStages, lastPriorRound.id)),
-      };
-    }
-
-    /**
-     * Only the players who actually contested the round being cut from.
-     *
-     * This was every confirmed player in the event, which broke a second cut
-     * in two ways at once. A 28-player field cut to 24 still produced 28
-     * standings rows, so:
-     *
-     *   - a percent cut sized itself against 28 rather than the 24 still in —
-     *     "top 66%" of a 24-player round let 19 through;
-     *   - the four already eliminated sat at 0 points with a hole differential
-     *     of 0, which RANKS ABOVE a survivor who played and lost (negative
-     *     differential). They were advanced again, and real survivors were cut
-     *     in their place.
-     *
-     * Membership of a match in the last qualifying round is the honest test of
-     * who was still in it. Falling back to the whole field when no matches
-     * exist keeps a first cut — where nobody has been eliminated yet — working
-     * exactly as before.
-     */
-    const lastPrior = priorRr[priorRr.length - 1];
-    const contestedIds = new Set(
-      allMatches
-        .filter((m) => m.stageId === lastPrior.id)
-        .flatMap((m) => [m.playerAId, m.playerBId])
-        .filter((id): id is string => !!id),
-    );
-    const contenders = contestedIds.size
-      ? domainPlayers.filter((p) => contestedIds.has(p.id))
-      : domainPlayers;
-
-    const chain = chainRoundStandings(
-      priorRr,
+    const cut = await roundRobinCutFrom(
+      eventId,
+      stage,
+      allStages,
       allMatches,
-      contenders,
+      domainPlayers,
       scoring,
       holeDifficulty,
       parseMatchTiebreakers(event.matchTiebreakers),
     );
-    const priorStanding = chain[chain.length - 1];
+    if (!cut.ok) return cut;
+    /**
+     * A TIE FOR THE LAST PLACE IS SETTLED THE WAY THIS CUT SAYS (J31, 2026-11-06).
+     *
+     * This took the front of the table's list, so where the tie-breaks ran out
+     * the last place went to whoever had entered first. Now the cut's own tie
+     * rule decides it (`roundRobinCutOutcome`): everybody level on points goes
+     * through, or the round is not drawn until the committee has recorded the
+     * play-off or the draw by lot — refused rather than drawn with a pick, so
+     * nobody in the tie is ever handed a round they did not win, or left out of
+     * one they did.
+     */
+    if (cut.outcome.undecided.length > 0) {
+      return {
+        ok: false,
+        reason: "cut-tie",
+        undecided: cut.outcome.undecided,
+        names: new Map(domainPlayers.map((p) => [p.id, p.name])),
+      };
+    }
     // The rule covers both axes — how many, and out of what. A per-flight cut
     // takes N from every flight rather than N from the tournament, which is the
     // difference between a bracket of eight and a bracket of two.
-    survivorIds = survivors(
-      priorStanding.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId })),
-      cutRuleOf(stage),
-    );
+    survivorIds = cut.outcome.through;
   } else {
     survivorIds = new Set(confirmed.map((p) => p.id));
   }
@@ -716,3 +660,189 @@ export async function generateCutRound(
   });
   return { ok: true };
 }
+
+/**
+ * THE TABLE A ROUND ROBIN'S CUT IS TAKEN ON, AND WHO IT SENDS THROUGH.
+ *
+ * Out of `generateCutRound` (J31, 2026-11-06) so that the round it draws and
+ * `roundRobinCutOf` — which the committee's tie card and `settleCutTie` read —
+ * ask one table and one rule: a tie recorded against one table and applied to
+ * another would send the wrong player through.
+ */
+type RoundRobinCut =
+  | { ok: false; reason: "no-prior-round" }
+  | { ok: false; reason: "no-results"; roundName: string }
+  | { ok: true; feeder: DbStage; outcome: CutOutcome };
+
+async function roundRobinCutFrom(
+  eventId: string,
+  stage: DbStage,
+  allStages: DbStage[],
+  allMatches: DbMatch[],
+  domainPlayers: DomainPlayer[],
+  scoring: ReturnType<typeof scoringFrom>,
+  holeDifficulty: number[],
+  matchTiebreakers: ReturnType<typeof parseMatchTiebreakers>,
+): Promise<RoundRobinCut> {
+  const rrStages = roundRobinStages(allStages);
+  // The field entering this round is the standings after the last Round Robin
+  // played before it — by position, not by adjacency, so a stroke-play final
+  // still cuts from the match-play qualifying that fed it. (Cutting from a
+  // stroke round is not supported here; the qualifying is a points ladder.)
+  const priorRr = rrStages.filter((s) => s.position < stage.position);
+  if (priorRr.length === 0) {
+    return { ok: false, reason: "no-prior-round" }; // use Generate flights instead
+  }
+
+  /**
+   * A cut needs something to cut ON.
+   *
+   * Run before a ball is struck, every tiebreak in the default chain returns
+   * 0 for everybody, so the sort falls through to the last thing that
+   * separates the field — seed, which is handicap order. "Top 16 advance"
+   * then advances the SIXTEEN LOWEST HANDICAPS, and because the cut's scope
+   * is overall by default, the reform below dissolves Round 1's flights to
+   * do it. The button sits next to the text "run it once this round is
+   * complete", which is advice the organizer has to remember; this is the
+   * same sentence enforced.
+   *
+   * Deliberately narrow. It refuses only a round with NOTHING in it — one
+   * card, one hole, one conceded match and the cut is the organizer's call,
+   * because a cut taken with a match still out is a real thing clubs do.
+   * `enteredCardCount` unions all four places a score can live, and a
+   * forfeit is counted separately because it is a result that leaves no
+   * card at all: a flight settled by two concessions has no strokes and no
+   * holes, and refusing that would refuse a legitimate cut.
+   */
+  const lastPriorRound = priorRr[priorRr.length - 1];
+  const priorResults = await enteredCardCount(eventId, lastPriorRound.id);
+  const priorForfeits = allMatches.some(
+    (m) => m.stageId === lastPriorRound.id && m.forfeitedBy,
+  );
+  if (priorResults === 0 && !priorForfeits) {
+    return {
+      ok: false,
+      reason: "no-results",
+      // Same label the boards use: what the organizer called the round if
+      // they named it, and its number if they did not — its number among
+      // ALL the rounds (`roundLabel`), not among the round robins, which
+      // called it Round 1 after a qualifying medal the board calls Round 1.
+      roundName: roundKicker(lastPriorRound.description, roundLabel(allStages, lastPriorRound.id)),
+    };
+  }
+
+  /**
+   * Only the players who actually contested the round being cut from.
+   *
+   * This was every confirmed player in the event, which broke a second cut
+   * in two ways at once. A 28-player field cut to 24 still produced 28
+   * standings rows, so:
+   *
+   *   - a percent cut sized itself against 28 rather than the 24 still in —
+   *     "top 66%" of a 24-player round let 19 through;
+   *   - the four already eliminated sat at 0 points with a hole differential
+   *     of 0, which RANKS ABOVE a survivor who played and lost (negative
+   *     differential). They were advanced again, and real survivors were cut
+   *     in their place.
+   *
+   * Membership of a match in the last qualifying round is the honest test of
+   * who was still in it. Falling back to the whole field when no matches
+   * exist keeps a first cut — where nobody has been eliminated yet — working
+   * exactly as before.
+   */
+  const lastPrior = priorRr[priorRr.length - 1];
+  const contestedIds = new Set(
+    allMatches
+      .filter((m) => m.stageId === lastPrior.id)
+      .flatMap((m) => [m.playerAId, m.playerBId])
+      .filter((id): id is string => !!id),
+  );
+  const contenders = contestedIds.size
+    ? domainPlayers.filter((p) => contestedIds.has(p.id))
+    : domainPlayers;
+
+  const chain = chainRoundStandings(
+    priorRr,
+    allMatches,
+    contenders,
+    scoring,
+    holeDifficulty,
+    matchTiebreakers,
+  );
+  const priorStanding = chain[chain.length - 1];
+  return { ok: true, feeder: lastPrior, outcome: roundRobinCutOutcome(priorStanding, stage) };
+}
+
+/**
+ * A ROUND ROBIN'S CUT INTO `stageId`, AS IT STANDS (J31, 2026-11-06): the round
+ * robin it is taken out of, and who goes through — ties the committee owes
+ * included. The round's tie card on Rounds & formats and `settleCutTie` read
+ * this; `generateCutRound` draws the round with the very same function.
+ *
+ * Null when the round has no cut out of a round robin's table
+ * (`cutFeederOf`), or nothing has been played to cut on — a tie of the whole
+ * field on nought is not a tie anybody owes a play-off for.
+ *
+ * THE FEEDER IS THE ONE THE DRAW CUTS FROM (`cut.feeder`, the last round robin
+ * before this round by position), not the round beside it: for Round robin →
+ * medal → cut round this asked the medal, found no table, and the card showed
+ * no tie while the draw refused for one (J31 review, 2026-11-07).
+ */
+export async function roundRobinCutOf(
+  eventId: string,
+  stageId: string,
+): Promise<{ feeder: DbStage; next: DbStage; outcome: CutOutcome; names: Map<string, string> } | null> {
+  const [event, allStages, confirmed, allMatches] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
+    prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, orderBy: { seed: "asc" } }),
+    prisma.match.findMany({ where: { eventId } }),
+  ]);
+  const stage = allStages.find((s) => s.id === stageId);
+  if (!event || !stage || !stage.cutEnabled || !isPlayingRound(stage.type) || seededFromQualifiers(stage.type)) return null;
+  if (cutFeederOf(allStages, stage.id)?.kind !== "table") return null;
+  const domainPlayers: DomainPlayer[] = confirmed.map((p) => ({
+    id: p.id,
+    name: p.name,
+    handicap: p.handicap,
+    seed: p.seed,
+    groupId: p.groupId,
+  }));
+  const cut = await roundRobinCutFrom(
+    eventId,
+    stage,
+    allStages,
+    allMatches,
+    domainPlayers,
+    scoringFrom(event),
+    resolveCourse(event).strokeIndex,
+    parseMatchTiebreakers(event.matchTiebreakers),
+  );
+  if (!cut.ok) return null;
+  return { feeder: cut.feeder, next: stage, outcome: cut.outcome, names: new Map(domainPlayers.map((p) => [p.id, p.name])) };
+}
+
+/**
+ * The same, asked from the round robin the cut is taken OUT of — as `settleCutTie`
+ * is pressed: the first round after it with a cut out of its table
+ * (`cutFeederOf`), which need not be the round beside it.
+ */
+export async function roundRobinCutAfter(
+  eventId: string,
+  feederId: string,
+): ReturnType<typeof roundRobinCutOf> {
+  const stages = await prisma.stage.findMany({
+    where: { eventId },
+    orderBy: { position: "asc" },
+    select: { id: true, type: true, format: true, cutEnabled: true },
+  });
+  const next = stages.find((s) => {
+    if (!s.cutEnabled || seededFromQualifiers(s.type)) return false;
+    const line = cutFeederOf(stages, s.id);
+    return line?.kind === "table" && line.feeder.id === feederId;
+  });
+  if (!next) return null;
+  const made = await roundRobinCutOf(eventId, next.id);
+  return made && made.feeder.id === feederId ? made : null;
+}
+

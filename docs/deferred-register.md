@@ -1560,6 +1560,14 @@ dashboard's tie panel, are the pattern to copy. Left because the bracket's draw,
 
 **A round robin's cut** (`generateCutRound`, `survivors`) still takes the standings' order,
 whose last fallback is the club's tiebreak chain. Same shape, same fix, not asked for.
+**DONE in J31 (2026-11-06):** the same rule and the same setting — `cutLineOutcome` (the one
+function; `strokeCutOutcome` is its stroke name) asked of the table through
+`roundRobinCutOutcome`, on points for "ties" and a play-off and on the table's shared places
+(its own tie-breaks) for a countback. `generateCutRound` refuses to draw through an unsettled
+tie, the board lights and marks it the same way, and the committee records it on the round the
+cut draws (`settleCutTie`, `roundRobinCutOf`). The knockout's qualification tie (J30, ruled for
+after launch) is still list order; it is to call `cutLineOutcome` with its own rows and no
+"ties" (a draw of fixed size, Committee Procedures 5A(7)).
 
 **Net countback off a full handicap** (above) is unchanged, and the cut's countback is the
 board's: hole-by-hole net. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the

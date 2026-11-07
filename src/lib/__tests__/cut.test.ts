@@ -15,6 +15,7 @@ import {
   type RoundCutFields,
 } from "../domain/cut";
 import type { Player } from "../domain/types";
+import { cutAfterRound } from "../domain/cut-ready";
 import { deadlineState, deadlinePassed, todayIso, isIsoDate } from "../deadline";
 
 /**
@@ -293,8 +294,16 @@ describe("re-flighting the survivors of a cut", () => {
 describe("the cut line for the current round", () => {
   // The dashboard shows this for a tournament that cuts round to round with no
   // knockout to qualify into. The cut lives on the round it feeds, so the cut
-  // out of the active round is the NEXT round's.
-  const round = (over: Partial<RoundCutFields> = {}): RoundCutFields => ({
+  // out of the active round is the NEXT round's — the round its table or card
+  // DECIDES (`cutDecidedBy`, 2026-11-07), which for round robins in a row is
+  // the next one.
+  type Round = RoundCutFields & { id: string; type: string; format: string; cutTies: string };
+  let made = 0;
+  const round = (over: Partial<Round> = {}): Round => ({
+    id: `r${(made += 1)}`,
+    type: "Round Robin",
+    format: "Match Play",
+    cutTies: "ties",
     cutEnabled: false,
     cutMode: "count",
     cutCount: 16,
@@ -428,6 +437,27 @@ describe("the cut line for the current round", () => {
     expect(currentRoundCutRule([round(), round()], 0)).toBeNull();
     expect(currentRoundCutRule([round(), round({ cutEnabled: true })], 1)).toBeNull();
     expect(currentRoundCutRule([round({ cutEnabled: true })], -1)).toBeNull();
+  });
+
+  /**
+   * ROUND ROBIN → MEDAL → CUT ROUND (2026-11-07, ruled on the J31 review). The
+   * draw cuts Round 3 on Round 1's table, so while Round 1 is played the
+   * dashboard's card and the board's rule are Round 3's cut — what Round 1's
+   * rules sheet prints — and while the medal is played they are nothing: its
+   * scores decide nothing of it. Before, both read the round beside the active
+   * one: nothing at all during Round 1, and Round 3's cut during the medal.
+   */
+  it("round robin → medal → cut round: the card says what Round 1's sheet says", () => {
+    const rounds = [round(), round({ type: "Stroke Play Round", format: "Stroke Play" }), round({ cutEnabled: true, cutCount: 8, cutTies: "playoff" })];
+    const card = currentRoundCut(rounds, 0, 1)!;
+    expect(card, "Round 1 decides it").not.toBeNull();
+    expect(card.label).toBe("Round 1 → Round 3 · top 8 advance");
+    expect(card.note).toBe("Round 1 is being played — the top 8 go through to Round 3.");
+    const sheet = cutAfterRound(rounds, rounds[0].id)!;
+    expect(currentRoundCutRule(rounds, 0), "the board's rule is the sheet's").toEqual(sheet.rule);
+    expect(`Round ${card.toRound}`, "and the same round").toBe(sheet.into);
+    expect(currentRoundCut(rounds, 1), "the medal decides nothing of it").toBeNull();
+    expect(cutAfterRound(rounds, rounds[1].id), "nor does its sheet say so").toBeNull();
   });
 });
 

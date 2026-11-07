@@ -130,6 +130,21 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
+/**
+ * THE FOURTH PLACE IS A TIE, AND THE COMMITTEE SETTLES IT (J31, 2026-11-06).
+ *
+ * A2, B2 and C2 finish level on points and on every tie-break the table has —
+ * they played in different flights, with identical records. Until J31 the
+ * lower HANDICAP split them, which is what made "top 4" land {A:2, B:1, C:1};
+ * a handicap is not a result, and the tie at the line is now the committee's
+ * (Committee Procedures 5A(6)). So the same shape is made the way a committee
+ * makes it: a play-off for the one place, recorded as won by A2.
+ */
+function a2WonThePlayOff(players: { id: string; group: number }[]) {
+  const second = [0, 1, 2].map((f) => players.filter((p) => p.group === f)[1].id);
+  return { cutTies: "playoff", cutTieDecisions: JSON.stringify([{ tied: second, through: [second[0]] }]) };
+}
+
 describe("generateCutRound with an overall cut", () => {
   it("reforms the survivors so nobody is left in a flight of one", async () => {
     const { eventId, r2, players } = await seedEvent();
@@ -138,7 +153,7 @@ describe("generateCutRound with an overall cut", () => {
     // matches, silently.
     await prisma.stage.update({
       where: { id: r2 },
-      data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 4 },
+      data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 4, ...a2WonThePlayOff(players) },
     });
 
     await generateCutRound(eventId, r2);
@@ -217,7 +232,7 @@ describe("cutting a match-play field into a stroke-play final", () => {
     const { eventId, r2, players } = await seedEvent({ type: "Stroke Play Round", format: "Stroke Play" });
     await prisma.stage.update({
       where: { id: r2 },
-      data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 4 },
+      data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 4, ...a2WonThePlayOff(players) },
     });
 
     await generateCutRound(eventId, r2);

@@ -7,6 +7,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { RoundCloseAsk } from "./RoundCloseAsk";
 import { useAction } from "./useAction";
+import type { CutLineKind } from "@/lib/domain/cut";
 
 /**
  * THE CUT, WAITING ON THE ORGANIZER — Ajay, 2026-10-05.
@@ -100,7 +101,7 @@ export function CutReadyCard({
         </p>
       )}
       {ties.map((t) => (
-        <CutTiePanel key={t.tied.join(",")} feederId={feederId} tie={t} tieRule={tieRule} />
+        <CutTiePanel key={t.tied.join(",")} feederId={feederId} tie={t} tieRule={tieRule} decidedOn="card" />
       ))}
       <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
         {rule}: {through} {through === 1 ? "player goes" : "players go"} through to {nextName}
@@ -140,8 +141,23 @@ export function CutReadyCard({
   );
 }
 
-/** One tie at the line, with a tick for each player in it. */
-function CutTiePanel({ feederId, tie, tieRule }: { feederId: string; tie: CutTieOnCard; tieRule?: string }) {
+/**
+ * One tie at the line, with a tick for each player in it. Here for a stroke
+ * cut, and on the round a round robin's cut draws (J31) — `decidedOn` is what
+ * "level on countback too" means: the card's last holes, or the table's
+ * tie-breaks.
+ */
+export function CutTiePanel({
+  feederId,
+  tie,
+  tieRule,
+  decidedOn,
+}: {
+  feederId: string;
+  tie: CutTieOnCard;
+  tieRule?: string;
+  decidedOn: CutLineKind;
+}) {
   const [picked, setPicked] = useState<string[]>(tie.chosen);
   const { pending, error, run } = useAction();
   const decided = tie.chosen.length > 0;
@@ -170,7 +186,9 @@ function CutTiePanel({ feederId, tie, tieRule }: { feederId: string; tie: CutTie
         {listOf(tie.names)} are level for {places}.{" "}
         {tie.by === "playoff"
           ? `${tieRule ?? "This cut settles a tie by play-off"}. Tick who won it.`
-          : `They are level on countback too (last 9, 6, 3 and the last hole), so lots are drawn. Tick who the draw sent through.`}{" "}
+          : decidedOn === "table"
+            ? `They are level on the table's tie-breaks too, so lots are drawn. Tick who the draw sent through.`
+            : `They are level on countback too (last 9, 6, 3 and the last hole), so lots are drawn. Tick who the draw sent through.`}{" "}
         Nobody in the tie has missed the cut until you do.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
