@@ -1425,7 +1425,11 @@ function StageCard({
           disabled={pending || locked}
           onClick={() => {
             setRemoveCost(null);
-            startTransition(() => void removeStage(stage.id, true));
+            startTransition(async () => {
+              // Said where the press was: a refusal comes back as words, never silence.
+              const res = await removeStage(stage.id, true);
+              if (res && "refused" in res && res.refused) setRemoveCost({ cards: 0, stakes: 0, records: 0, refused: res.refused });
+            });
           }}
         >
           Delete the round anyway
