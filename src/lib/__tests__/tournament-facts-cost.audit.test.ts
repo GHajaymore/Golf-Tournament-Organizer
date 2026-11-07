@@ -383,6 +383,27 @@ describe("the secretary's home on the seeded club", () => {
     line(`steps: tournamentStepsFor × ${running.length} (every tournament)`, steps);
     line(`steps: tournamentFactsForMany × ${running.length}, for comparison`, factsOfAll);
     expect(steps.queries, "the step alone pays for the setup checks or the review queue").toBeLessThan(factsOfAll.queries);
+    /**
+     * THE PLAYER SWITCHER'S SHARE: the step for the tournaments a member is in
+     * and that are not completed — the rows its note words (`band: "entered"`).
+     * Measured for the member of this club entered in the most of them.
+     */
+    const entries = await prisma.player.groupBy({
+      by: ["email"],
+      where: { status: "confirmed", email: { not: "" }, eventId: { in: open.map((e) => e.id) } },
+      _count: true,
+    });
+    entries.sort((a, b) => b._count - a._count);
+    const busiest = entries[0];
+    if (busiest) {
+      const theirs = await prisma.player.findMany({
+        where: { status: "confirmed", email: busiest.email, eventId: { in: open.map((e) => e.id) } },
+        select: { eventId: true },
+      });
+      const memberDays = new Map(theirs.map((p) => [p.eventId, TODAY]));
+      const member = await request(() => tournamentStepsFor(memberDays), 3);
+      line(`steps: the busiest member's ${memberDays.size} running entries (switcher)`, member);
+    }
     // And it reads what the full read reads: the same step for every tournament.
     const told = await tournamentStepsFor(days);
     const full = await tournamentFactsForMany(running.map((e) => e.id), TODAY);
