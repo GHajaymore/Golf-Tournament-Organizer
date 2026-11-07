@@ -56,6 +56,12 @@ jobs:
         engine: [firefox, webkit]
         project: [phone, small-phone, desktop]
 
+    # Playwright's official image at EXACTLY the locked @playwright/test version: it holds
+    # Chromium, Firefox and WebKit with their system libraries, so no apt runs here (see ci.yml).
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+      options: --ipc=host --user 1001
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -67,18 +73,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-        ports:
-          - 5432:5432
 
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+        with:
+          database-host: postgres
 
-      - name: Install the browser
-        # The same ten-minute limit ci.yml gives this step, for the same reason:
-        # the apt step behind `--with-deps` has hung for half an hour before.
-        timeout-minutes: 10
-        run: bash scripts/ci/install-browsers.sh ${{ matrix.engine }}
+      - name: Check the image holds this Playwright's browser
+        run: node scripts/ci/check-browsers-present.mjs ${{ matrix.engine }}
 
       - name: The standing suite on ${{ matrix.engine }}
         env:
