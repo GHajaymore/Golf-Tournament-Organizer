@@ -317,6 +317,10 @@ day and will drift: search for the expression.
 - Two of one name on a list are told apart by `tellApart` (dates the club's way, "created …" without dates, "#2" for twins of one club on one date): `/tournaments`, `/choose` and both **Start from** pickers. It replaced `/tournaments`' own `name.trim().toLowerCase()` count.
 - Pinned by hand in `a-tournament-name-is-checked-one-way.test.ts`, which also sweeps for a tournament name normalised by hand, a file creating a tournament without the backstop, and a door that skips the call (each with a control); against real rows in `one-name-in-play-per-club.audit.test.ts`; as the secretary in `e2e/one-name-in-play.spec.ts`. Mutation: deleting `holdsItsName` from `nameClash` turned 4 unit and 3 audit tests red. Removing a door's own check leaves the audit green while the index exists (the backstop refuses in the same words) — the door sweep is what sees it.
 
+### A round's day (2026-11-06)
+- **One rule**: `roundDayOf(playedOn, startOn)` in `domain/round-dates.ts` — the round's own `playedOn`, else the tournament's `startOn`, else "". Read by `lastTeeFor` (`services/field-change.ts`, the late-entry cutoff) and `daysToFirstRoundFrom` (`domain/promotion.ts`, the promotion email's reply line).
+- **Known divergence, left alone**: `services/club-events.ts` (`startOn: event.startOn || roundDaysOf(stages)[0]`) reads the other way round — the tournament's date first, then the earliest dated round — because it files a tournament under a season; it is not asking when one round is played.
+
 ### Dead twins of live rules
 All four deleted: `courseHandicapForPlayer` (2026-10-13), and `rankByCountback`, `seasonPosition`, `isMatchStarted` (2026-10-14).
 

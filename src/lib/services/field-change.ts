@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { clubToday, clubWallClock } from "../domain/club-clock";
 import { fieldChangeAllowed, fieldFactsOf, lateEntryRound, type FieldChange, type FieldFacts, type LastTeeTime } from "../domain/field-change";
-import { cleanIsoDate } from "../domain/round-dates";
+import { roundDayOf } from "../domain/round-dates";
 import { lastTeeTime, parseTeeSheet } from "../domain/tee-sheet";
 import type { TournamentFacts } from "../domain/tournament-status";
 import { zoneOfEvent } from "./club-clock";
@@ -56,7 +56,7 @@ async function lastTeeFor(facts: TournamentFacts): Promise<LastTeeTime | null> {
   if (!stage?.teeSheetPublished) return null;
   const sheet = parseTeeSheet(stage.teeSheet ?? "");
   const time = sheet ? lastTeeTime(sheet) : null;
-  const day = cleanIsoDate(stage.playedOn) || cleanIsoDate(facts.startOn);
+  const day = roundDayOf(stage.playedOn, facts.startOn);
   // The round's own label, the same one `playedRound` is read by, so the two compare.
   return time && day ? { round: round.label, day, time } : null;
 }
