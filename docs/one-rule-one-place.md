@@ -151,6 +151,9 @@ handicap readers became one (counted off the diff, not the inventory). The four
   **Measured and registered** (step 3): a halved match's toughest-holes
   countback reads the tournament's card in all three readers; no tournament
   uses that countback, so nothing can show it — see `docs/deferred-register.md`.
+  **Done 2026-11-06 (J26)**: one function, `matchCountbackIndex`, through
+  `countbackCardsFor`; four readers (the cut in `regroup.ts` was the fourth);
+  sweep `the-countback-card-is-the-match-venue.test.ts`.
 - **Checked and consistent** (step 2): "confirmed" is spelled one way in
   every query that asks for the field (`status: "confirmed"`), and the two
   readers of "who contested the last round" — the round-robin cut and the
@@ -256,7 +259,7 @@ day and will drift: search for the expression.
 ### 3 The venue (course, card, tees)
 - Tees: `teeIdFor` is the only resolver. Round's tee bypassing `teeForPlay`: handicap-record.ts:198, 207 pass `event.defaultTeeId` raw. Flight-tee map built FOUR times (five before `courseHandicapForPlayer` was deleted on 2026-10-13): handicaps.ts (canonical `flightTeeByPlayer`); handicaps.ts in `handicapsForRound`; tournament.ts:1224 (documented separate); handicap-record.ts:150.
 - Card: chain `cardForStage(courseForRound(venue, event) ?? resolveCourse(event), stage)` hand-assembled at foursomes/page.tsx:238; actions/tournament.ts:3261, 5444; expenses.ts:845; league.ts:154; skins-pot.ts:254-270; tournament-result.ts:62-65; round-card.ts:43; handicap-record.ts:172.
-- Event-level stroke index for match tiebreaks: tournament.ts:1335; regroup.ts:517 (documented); week-view.ts:239 (documented); head-to-head.ts:76 (no documented exemption).
+- Event-level stroke index for match tiebreaks: tournament.ts:1335; regroup.ts:517 (documented); week-view.ts:239 (documented); head-to-head.ts:76 (no documented exemption). **Folded 2026-11-06 (J26)**: each match's own card, `matchCountbackIndex` in course-resolution.ts via `countbackCardsFor`; no reader holds the tournament's index for a match (`the-countback-card-is-the-match-venue.test.ts`).
 
 ### 4 Handicap
 - Course-handicap conversion, FOUR pipelines: `courseHandicapMap` (boards, pots, sides; carries 6.2b); `handicapsForRound` -> `explainHandicap` handicaps.ts:146 (tee name / "rated" at entry/page.tsx:531, me/card/page.tsx:409, `teeNamesForRound`); `courseHandicapForPlayer` (had no callers; DELETED 2026-10-13); handicap-record.ts:227. The last three give no 6.2b strokes.
