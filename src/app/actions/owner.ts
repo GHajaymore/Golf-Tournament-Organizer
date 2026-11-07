@@ -13,6 +13,8 @@ import { setSignInsOpen } from "@/lib/services/signins-switch";
 import { buildDemoClub, demoMark, type DemoLinks } from "@/lib/services/demo-club";
 import { sendEarlyListCodes as sendCodes } from "@/lib/services/early-list";
 import { ownerClockInWords } from "@/lib/services/owner-clock";
+import { loadCatalogueRows, noteCatalogueLoad } from "@/lib/services/catalogue-load";
+import { CHUNK_ROWS, type LoadCounts } from "@/lib/domain/catalogue-load";
 
 /**
  * Owner-only writes — the platform's own controls, not a club's.
@@ -77,6 +79,23 @@ export async function sendEarlyListCodes(): Promise<OwnerActionResult & { sent?:
   // When the rest can go, in words on the owner's own clock — said beside the press.
   const nextAt = res.nextAt ? await ownerClockInWords(session.userId, res.nextAt) : null;
   return { ok: res.ok, error: res.error, sent: res.sent, later: res.later, nextAt };
+}
+
+/**
+ * LOAD THE COURSE CATALOGUE — one request's worth of rows from the file `scripts/export-catalogue.ts`
+ * wrote (Ajay, J29). The owner's browser reads the file and sends it in chunks; nobody holds
+ * production's database, the app does the writing. Each row is judged by `judgeRow` (a `gca:` id is
+ * refused, a card `cardRefusal` refuses is skipped, never stored blank); the rows are added or
+ * updated, never deleted. The counts come back, and an audit line is kept.
+ */
+export async function loadCourseCatalogue(rows: unknown): Promise<OwnerActionResult & { counts?: LoadCounts }> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  if (!Array.isArray(rows) || rows.length === 0) return { ok: false, error: "That request held no courses." };
+  if (rows.length > CHUNK_ROWS * 3) return { ok: false, error: "That request held too many courses; nothing was loaded." };
+  const counts = await loadCatalogueRows(rows);
+  await noteCatalogueLoad(session.email, counts, new Date());
+  return { ok: true, counts };
 }
 
 /**

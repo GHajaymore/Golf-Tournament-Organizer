@@ -107,9 +107,10 @@ export const AREAS = {
       "src/components/OwnerLimits.tsx",
       "src/components/OwnerPricing.tsx",
       "src/components/OwnerDemoClub.tsx",
+      "src/components/OwnerCatalogue.tsx",
       "src/app/actions/owner.ts",
     ],
-    specs: ["e2e/owner-console.spec.ts", "e2e/owner-console-refusals.spec.ts", "e2e/go-live-switch.spec.ts", "e2e/interest.spec.ts", "e2e/demo-club.spec.ts"],
+    specs: ["e2e/owner-console.spec.ts", "e2e/owner-catalogue-load.spec.ts","e2e/owner-console-refusals.spec.ts", "e2e/go-live-switch.spec.ts", "e2e/interest.spec.ts", "e2e/demo-club.spec.ts"],
     scenarios: [],
     // The demo club replays its days.
     dateSensitive: true,
