@@ -9,6 +9,7 @@ import { emailBrandFor } from "@/lib/services/email-brand";
 import { EMAIL } from "@/lib/themes";
 import { SALES_EMAIL, SUPPORT_EMAIL } from "@/lib/contact";
 import { interestSubject } from "@/lib/domain/interest";
+import { promotionReplyLine } from "@/lib/domain/promotion";
 import { EARLY_LIST } from "@/lib/go-live";
 import { signUpLinkFor } from "@/lib/domain/discount";
 import { EMAIL_CODE_WORDS } from "@/lib/domain/email-code";
@@ -856,6 +857,8 @@ export async function sendFieldStatusEmail(
     eventId: string;
     /** For the follow-up: an organizer needs to know who to call. */
     toName?: string;
+    /** Whole days from the CLUB's today to the first round; null/absent = unknown. */
+    daysToFirstRound?: number | null;
   },
 ): Promise<void> {
   if (!resend) {
@@ -867,6 +870,8 @@ export async function sendFieldStatusEmail(
   const eventName = escapeHtml(opts.eventName);
   const heading = where ? `<p>${where}</p>` : "";
 
+  const replyLine = opts.change === "promoted" ? promotionReplyLine(opts.daysToFirstRound ?? null) : null;
+
   const subject =
     opts.change === "promoted"
       ? `A place has opened - you're in the field for ${opts.eventName}`
@@ -877,11 +882,14 @@ export async function sendFieldStatusEmail(
       ? `<p>A place has opened in <strong>${eventName}</strong> and you have moved off the waitlist.</p>` +
         heading +
         `<p><strong>You are now confirmed in the field.</strong> Your place is held - there is nothing you need to do to accept it.</p>` +
-        // Asks for a reply within the same window the organizer's screen uses
-        // to decide who to chase, so the message and the badge agree. It is a
-        // request, not a deadline: the place is theirs either way, and saying
-        // otherwise would be a threat the software does not carry out.
-        `<p>If you can no longer play, please tell the organizer <strong>within 48 hours</strong> so the place can go to the next person on the list.</p>`
+        // Asks for a reply: with the first round three or more days away (or
+        // undated) in the same 48 hours the organizer's badge turns into a
+        // nudge; nearer than that, sooner ("as soon as you can", "straight
+        // away"), worded by `promotionReplyLine` from the club's day that
+        // `field-notify` tells it. A request, not a deadline: the place is
+        // theirs either way, and saying otherwise would be a threat the
+        // software does not carry out.
+        (replyLine ? `<p>${replyLine.before}<strong>${replyLine.strong}</strong>${replyLine.after}</p>` : "")
       : `<p>The field for <strong>${eventName}</strong> has been resized, and you have been moved to the waitlist.</p>` +
         heading +
         `<p><strong>You are not currently in the field, so please do not travel to the course expecting to play.</strong></p>` +
