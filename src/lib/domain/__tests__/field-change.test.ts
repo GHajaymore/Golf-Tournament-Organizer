@@ -36,8 +36,21 @@ import { NO_SHEET } from "../../__tests__/field-doors";
  * regression table copied from the present guard, `configurationLocked`).
  */
 
-type Stage = "draft" | "registration" | "ready" | "live" | "liveWithResult" | "completed" | "unlocked" | "unlockedWithResult";
-const STAGES: Stage[] = ["draft", "registration", "ready", "live", "liveWithResult", "completed", "unlocked", "unlockedWithResult"];
+type Stage =
+  | "draft"
+  | "registration"
+  | "ready"
+  | "live"
+  | "liveWithResult"
+  | "completed"
+  | "unlocked"
+  | "unlockedWithResult"
+  | "fieldCorrection"
+  | "flightsCorrection";
+const STAGES: Stage[] = ["draft", "registration", "ready", "live", "liveWithResult", "completed", "unlocked", "unlockedWithResult", "fieldCorrection", "flightsCorrection"];
+
+/** A committee correction open on one scope, after Round 1's first card — the day the way out is needed. */
+const correctionOn = (scope: "field" | "flights") => ({ scope, by: "A. Organizer", reason: "A walk-in after the first card", until: "2026-11-30T05:00:00.000Z" });
 
 function at(family: Family, stage: Stage): TournamentFacts {
   const f = FAMILY_FIXTURES[family]();
@@ -60,6 +73,10 @@ function at(family: Family, stage: Stage): TournamentFacts {
       return { ...f, status: "live", configUnlocked: true };
     case "unlockedWithResult":
       return withResult({ ...f, status: "live", configUnlocked: true });
+    case "fieldCorrection":
+      return { ...withResult(launched(f)), correction: correctionOn("field") };
+    case "flightsCorrection":
+      return { ...withResult(launched(f)), correction: correctionOn("flights") };
   }
 }
 
@@ -74,7 +91,25 @@ function expected(family: Family, stage: Stage, change: FieldChange): boolean {
   if (stage === "draft" || stage === "registration" || stage === "ready" || stage === "unlocked" || stage === "unlockedWithResult") {
     return true;
   }
-  const begun = stage === "liveWithResult";
+  /**
+   * THE CORRECTION OPENS WHAT ITS REFUSAL NAMED (panel review of 5b, must-fix
+   * 1), worked from the desk's side: the field's correction is for the walk-in,
+   * the approval, the wrong name and the list — and, in a prize-division
+   * competition, for putting the walk-in in a division (part of the late
+   * entry). The flights' is for placing where flights make the pairings, and
+   * for moving somebody placed. Each opens its own and nothing of the other's.
+   */
+  if (stage === "fieldCorrection") {
+    if (change === "move-flight") return false;
+    if (change === "place-in-flight") return PRIZE_DIVISIONS.includes(family);
+    return true;
+  }
+  if (stage === "flightsCorrection") {
+    if (change === "move-flight") return true;
+    if (change === "place-in-flight") return !PRIZE_DIVISIONS.includes(family);
+    // The rest is the day-of table with a card in, below.
+  }
+  const begun = stage === "liveWithResult" || stage === "flightsCorrection";
   switch (change) {
     case "withdraw":
     case "reinstate":
@@ -156,28 +191,51 @@ describe("the words", () => {
 
   it("a late entry after the first card names the round, and who can unlock", () => {
     expect(says("stroke", "liveWithResult", "add")).toBe(
-      "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction on the dashboard.",
+      "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction to the field on the dashboard.",
     );
   });
 
   it("a late entry into a drawn field says the draw is made", () => {
     for (const family of ["match", "roundRobinFlights", "knockout", "flightedKnockout"] as Family[]) {
       expect(says(family, "live", "add")).toBe(
-        "The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction on the dashboard.",
+        "The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.",
       );
     }
     expect(says("teamCup", "live", "add")).toBe(
-      "The sides are picked, so the field is fixed. To change it, an Organizer can make a committee correction on the dashboard.",
+      "The sides are picked, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.",
     );
   });
 
   it("details and bulk say what stays open instead", () => {
     expect(says("stroke", "live", "edit")).toBe(
-      "A player’s details are locked once the tournament is launched. To correct one, an Organizer can make a committee correction on the dashboard.",
+      "A player’s details are locked once the tournament is launched. To correct one, an Organizer can make a committee correction to the field on the dashboard.",
     );
     expect(says("stroke", "live", "bulk")).toBe(
-      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to make a committee correction on the dashboard.",
+      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to make a committee correction to the field on the dashboard.",
     );
+  });
+
+  it("every refusal that offers the correction names the PART to open — the field or the flights (panel review of 5b)", () => {
+    let seen = 0;
+    for (const family of FAMILIES) {
+      for (const stage of STAGES) {
+        for (const confirmed of [false, true]) {
+          const facts = { ...fieldFactsOf(at(family, stage), NO_SHEET), flightsConfirmed: confirmed };
+          for (const change of FIELD_CHANGES) {
+            const v = fieldChangeAllowed(facts, change);
+            if (v.ok || !/committee correction/.test(v.says)) continue;
+            seen += 1;
+            // The part the sentence names is the part a correction must be opened on to go through.
+            const part = /to the field|open the field/.test(v.says) ? "field" : /to the flights/.test(v.says) ? "flights" : null;
+            expect(part, `${family} ${stage} ${change}: ${v.says}`).not.toBeNull();
+            // (A completed tournament's refusals say Reopen, never the correction, so none reaches here.)
+            const opened = { ...facts, correction: correctionOn(part as "field" | "flights") };
+            expect(fieldChangeAllowed(opened, change).ok, `${family} ${stage} ${change}: the correction the sentence names opens nothing`).toBe(true);
+          }
+        }
+      }
+    }
+    expect(seen).toBeGreaterThan(50);
   });
 
   it("completed sends you to reopen it, and says who can", () => {
@@ -234,11 +292,11 @@ describe("a confirmed draw holds moves, not a late entrant's placement in a priz
       expect(fieldChangeAllowed(withDraw(family, "live"), "place-in-flight").ok).toBe(true);
       const begun = fieldChangeAllowed(withDraw(family, "liveWithResult"), "place-in-flight");
       expect(begun.ok ? "" : begun.says).toBe(
-        "The first card of Round 1 is in, so the flights are fixed. To place a player, an Organizer can make a committee correction on the dashboard.",
+        "The first card of Round 1 is in, so the flights are fixed. To place a player, an Organizer can make a committee correction to the field on the dashboard.",
       );
       const move = fieldChangeAllowed(withDraw(family, "live"), "move-flight");
       expect(move.ok ? "" : move.says).toBe(
-        "The draw is confirmed, so the flights are fixed. To change them, an Organizer can make a committee correction on the dashboard.",
+        "The draw is confirmed, so the flights are fixed. To change them, an Organizer can make a committee correction to the flights on the dashboard.",
       );
       const draftMove = fieldChangeAllowed(withDraw(family, "draft"), "move-flight");
       expect(draftMove.ok ? "" : draftMove.says).toBe("Draw confirmed. Reopen it to move anyone.");
@@ -257,6 +315,80 @@ describe("a confirmed draw holds moves, not a late entrant's placement in a priz
     expect(fieldChangeAllowed(withDraw("stroke", "unlocked"), "place-in-flight").ok).toBe(true);
     expect(fieldChangeAllowed(withDraw("stroke", "live"), "withdraw").ok).toBe(true);
     expect(fieldChangeAllowed(withDraw("stroke", "live"), "add").ok).toBe(true);
+  });
+
+  it("a correction to the flights opens the move the confirmed-draw refusal sent them to make; one to the field does not", () => {
+    expect(fieldChangeAllowed(withDraw("stroke", "flightsCorrection"), "move-flight").ok).toBe(true);
+    expect(fieldChangeAllowed(withDraw("stroke", "fieldCorrection"), "move-flight").ok).toBe(false);
+    // Where flights make the pairings, the placement the draw held is the flights' too.
+    expect(fieldChangeAllowed(withDraw("roundRobinFlights", "flightsCorrection"), "place-in-flight").ok).toBe(true);
+    // A confirmed draw before launch has no correction (nothing is locked): Reopen the draw, as always.
+    expect(fieldChangeAllowed({ ...withDraw("stroke", "draft"), correction: correctionOn("flights") }, "move-flight").ok).toBe(false);
+  });
+});
+
+/**
+ * THE TD'S WORST CASE (panel review of 5b, must-fix 1): locked out on the day,
+ * told "an Organizer can make a committee correction", and the correction
+ * opened nothing. Every refusal here names a part; a correction open on that
+ * part goes through, and on the other part changes nothing.
+ */
+describe("a committee correction opens exactly the changes whose refusal named it", () => {
+  const walkIn = (family: Family, scope: "field" | "flights" | null, clock = NO_SHEET) => {
+    const f = fieldFactsOf(at(family, "liveWithResult"), clock);
+    return scope ? { ...f, correction: correctionOn(scope) } : f;
+  };
+
+  it("a walk-in after the first card: refused, then taken through a correction to the field — and placed in a division", () => {
+    expect(fieldChangeAllowed(walkIn("stroke", null), "add").ok).toBe(false);
+    expect(fieldChangeAllowed(walkIn("stroke", "field"), "add").ok).toBe(true);
+    expect(fieldChangeAllowed(walkIn("stroke", "field"), "approve").ok).toBe(true);
+    expect(fieldChangeAllowed(walkIn("stroke", "field"), "place-in-flight").ok).toBe(true);
+    expect(fieldChangeAllowed(walkIn("stableford", "field"), "place-in-flight").ok).toBe(true);
+    // The flights' correction is not the field's.
+    expect(fieldChangeAllowed(walkIn("stroke", "flights"), "add").ok).toBe(false);
+  });
+
+  it("a walk-in after the last tee time, the same", () => {
+    const passed = { lastTee: { round: "Round 1", day: NO_SHEET.now.day, time: "10:40 AM" }, now: { day: NO_SHEET.now.day, minutes: 11 * 60 } };
+    const shut = fieldChangeAllowed(walkIn("stroke", null, passed), "add");
+    expect(shut.ok ? "" : shut.says).toBe("Late entries are closed. Round 1’s last tee time (10:40 AM) has passed. An Organizer can open the field with a committee correction.");
+    expect(fieldChangeAllowed(walkIn("stroke", "field", passed), "add").ok).toBe(true);
+  });
+
+  it("a player's details and a list: the field's; a drawn field's late entry too, since its refusal named the field", () => {
+    for (const family of FAMILIES) {
+      if (family === "casual" || family === "league") continue; // open by nature
+      expect(fieldChangeAllowed(walkIn(family, "field"), "edit").ok, family).toBe(true);
+      expect(fieldChangeAllowed(walkIn(family, "field"), "bulk").ok, family).toBe(true);
+      expect(fieldChangeAllowed(walkIn(family, "field"), "add").ok, family).toBe(true);
+      expect(fieldChangeAllowed(walkIn(family, "flights"), "edit").ok, family).toBe(false);
+    }
+  });
+
+  it("moving a placed player: the flights' — and placing where flights make the pairings", () => {
+    expect(fieldChangeAllowed(walkIn("stroke", "flights"), "move-flight").ok).toBe(true);
+    expect(fieldChangeAllowed(walkIn("stroke", "field"), "move-flight").ok).toBe(false);
+    expect(fieldChangeAllowed(walkIn("roundRobinFlights", "flights"), "place-in-flight").ok).toBe(true);
+    expect(fieldChangeAllowed(walkIn("roundRobinFlights", "field"), "place-in-flight").ok).toBe(false);
+  });
+
+  it("a correction never opens a completed tournament's field (Reopen is the remedy), and before launch there is nothing to open", () => {
+    expect(fieldChangeAllowed({ ...fieldFactsOf(at("stroke", "completed"), NO_SHEET), correction: correctionOn("field") }, "add").ok).toBe(false);
+    expect(fieldChangeAllowed({ ...fieldFactsOf(at("stroke", "draft"), NO_SHEET), correction: correctionOn("field") }, "add").ok).toBe(true);
+  });
+
+  it("the Entries banner says what the field's correction opened, and drops the close time", () => {
+    const sheet = { lastTee: { round: "Round 1", day: NO_SHEET.now.day, time: "10:40 AM" }, now: NO_SHEET.now };
+    expect(fieldBanner(walkIn("stroke", "field", sheet))).toEqual([
+      "The field is open for a correction: late entries, players’ details and imports go through.",
+      "The format and rounds stay locked.",
+    ]);
+    // A correction on the flights changes nothing the field's banner says.
+    expect(fieldBanner(walkIn("stroke", "flights", sheet))).toEqual(fieldBanner(walkIn("stroke", null, sheet)));
+    // The facts carry the scope and nothing else of the correction.
+    expect(fieldFactsOf(at("stroke", "fieldCorrection"), NO_SHEET).correction).toEqual({ scope: "field" });
+    expect(fieldFactsOf(at("stroke", "live"), NO_SHEET).correction).toBeNull();
   });
 });
 
@@ -348,11 +480,11 @@ describe("late entries close at Round 1's last published tee time, by the club's
   it("the refusal names the round and the time, and who can unlock", () => {
     const v = fieldChangeAllowed(facts("stroke", "liveWithResult", WHEN[3]), "add");
     expect(v.ok ? "" : v.says).toBe(
-      "Late entries are closed. Round 1’s last tee time (10:40 AM) has passed. To add someone, an Organizer can make a committee correction.",
+      "Late entries are closed. Round 1’s last tee time (10:40 AM) has passed. An Organizer can open the field with a committee correction.",
     );
     const p = fieldChangeAllowed(facts("stroke", "live", WHEN[5]), "place-in-flight");
     expect(p.ok ? "" : p.says).toBe(
-      "Flights are fixed. Round 1’s last tee time (10:40 AM) has passed. To place someone, an Organizer can make a committee correction.",
+      "Flights are fixed. Round 1’s last tee time (10:40 AM) has passed. An Organizer can open the field with a committee correction.",
     );
   });
 

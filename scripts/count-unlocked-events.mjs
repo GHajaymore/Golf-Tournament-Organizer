@@ -50,7 +50,7 @@ try {
   console.log(`configUnlocked = true: ${unlocked}`);
   for (const row of byStatus.sort((a, b) => a.status.localeCompare(b.status))) console.log(`  status ${row.status}: ${row._count}`);
   console.log(`live and unlocked (the Ops risk, panel 8.5): ${liveToday}`);
-  console.log(`committee corrections open: ${corrections === null ? "n/a (A039 not applied here)" : corrections}`);
+  console.log(`committee corrections open: ${corrections === null ? "n/a (A040 not applied here)" : corrections}`);
 } finally {
   await prisma.$disconnect();
 }

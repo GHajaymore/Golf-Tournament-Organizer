@@ -127,7 +127,8 @@ describe("on a live tournament whose setup is locked", () => {
 
     const res = await generateNextRound(round2);
     expect(res.ok).toBe(false);
-    expect("error" in res ? res.error : "").toMatch(/already has scores/);
+    // The round's own refusal (`redrawRefusal`), never a lock's: clear the scores first, on the record.
+    expect("error" in res ? res.error : "").toBe("Round 2 has scores — clear them on Score entry first.");
     const after = await prisma.scorecard.findUniqueOrThrow({ where: { id: card.id } });
     expect(JSON.parse(after.strokes)).toEqual(played);
   });

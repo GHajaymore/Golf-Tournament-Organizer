@@ -164,7 +164,7 @@ test("the assistant puts a late entry in a group with room, withdraws a drawn pl
     await open(desk, "/registration", "Entries");
     await expect(desk.getByRole("button", { name: "Add late entry" })).toBeDisabled();
     await expect(
-      desk.getByText("Late entries are closed. Round 1’s last tee time (8:10 AM) has passed. To add someone, an Organizer can make a committee correction.", { exact: false }).first(),
+      desk.getByText("Late entries are closed. Round 1’s last tee time (8:10 AM) has passed. An Organizer can open the field with a committee correction.", { exact: false }).first(),
     ).toBeVisible();
 
     expect(errors, "the page threw").toEqual([]);

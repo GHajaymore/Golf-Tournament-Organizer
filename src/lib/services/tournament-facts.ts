@@ -146,8 +146,8 @@ function leagueOf(e: { playKind: string; leaguePoints: string; attendanceMode: s
  * closes at the first result (`locksOf`). "Has a result" is still the one rule,
  * `roundsWithResultsFrom`, over those rounds alone. `locksFor` of this equals
  * `locksFor(lockFactsOf(setupSideFacts))` for every tournament
- * (`a-lock-is-read-narrowly.audit.test.ts`), so the banner and the refusal
- * cannot disagree. Request-cached, like the batch.
+ * (`a-locked-scope-is-refused-in-words.audit.test.ts`, its last describe), so
+ * the banner and the refusal cannot disagree. Request-cached, like the batch.
  */
 export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | null> => {
   const event = await prisma.event.findUnique({

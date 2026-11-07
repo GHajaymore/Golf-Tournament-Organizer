@@ -17,6 +17,7 @@ const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
 const live = (minutes: number): FieldFacts => ({
   status: "live",
   configUnlocked: false,
+  correction: null,
   family: "stroke",
   playedRound: "Round 1",
   flightsConfirmed: false,

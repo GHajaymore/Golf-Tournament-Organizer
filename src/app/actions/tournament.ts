@@ -137,7 +137,7 @@ import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
 // Launch, Complete, Reopen, play and closing a round ask the state machine (PR 4).
 import { roundCloseCheck, statusRequestOf } from "@/lib/domain/tournament-status";
-import { playRefusedBecause, tournamentStatusNow, refuseIfLocked, refuseIfAddingARoundIsLocked, scopeLockFor } from "@/lib/services/tournament-status";
+import { playRefusedBecause, tournamentStatusNow, refuseIfLocked, refuseIfAddingARoundIsLocked } from "@/lib/services/tournament-status";
 import { lockFactsFor } from "@/lib/services/tournament-facts";
 import {
   locksFor,
@@ -145,6 +145,8 @@ import {
   correctionReasonRefusal,
   correctionOpenedLine,
   correctionClosedLine,
+  openCorrectionOf,
+  redrawRefusal,
   LOCK_SCOPES,
   type LockScope,
   type ScopeLock,
@@ -1884,16 +1886,19 @@ export async function generateNextRound(stageId: string) {
    * has to be unlocked for it.
    *
    * What the lock was also doing, and still must: `generateCutRound` DELETES
-   * the target round's cards or matches before drawing it. So once setup is
-   * locked, the draw is allowed only while that round has nothing on it — a
-   * re-press after the round has started would wipe the scores being played.
-   * Redrawing a round with results in it stays behind the draw's lock, which a
-   * committee correction opens (PR 5b) — refused in words, never thrown.
+   * the target round's cards or matches before drawing it. So a round with
+   * scores on it is NEVER redrawn (`redrawRefusal`; panel review of 5b, must-fix
+   * 2) — asked of the round's cards alone, before and instead of any lock. The
+   * draw's lock was the wrong guard: in a flighted knockout the draw stays open
+   * while live until the first knockout result, so a re-press on a scored
+   * qualifying round wiped its cards with no refusal; and where it did refuse,
+   * it offered a committee correction — a way to wipe scores, against "never
+   * over recorded scores". The way out is Clear scores on Score entry, which
+   * refuses an approved card and leaves a line. Refused in words, never thrown.
    */
-  if ((await enteredCardCount(eventId, stageId)) > 0) {
-    const locked = await refuseIfLocked(eventId, "draw", "redraw a round that already has scores, which would wipe its cards");
-    if (locked) return locked;
-  }
+  const stages = await prisma.stage.findMany({ where: { eventId }, select: { id: true, type: true, position: true } });
+  const refused = redrawRefusal(roundLabel(stages, stageId), await enteredCardCount(eventId, stageId));
+  if (refused) return { ok: false as const, error: refused };
   const result = await generateCutRound(eventId, stageId);
   /**
    * A refusal has to reach the screen, or it is the same silence as before.
@@ -5569,7 +5574,8 @@ export async function setConfigUnlocked(unlocked: boolean): Promise<{ ok: boolea
  * whichever comes first — never overnight, as `configUnlocked` was.
  *
  * One at a time: opening a second scope replaces the first, and the record says
- * both happened.
+ * both happened — a closing line for the first, then the opening line for the
+ * second, which says when it ends (panel review of 5b, must-fix 3).
  */
 export async function openCorrection(scope: string, reason: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
@@ -5586,33 +5592,40 @@ export async function openCorrection(scope: string, reason: string): Promise<{ o
   if (refused) return { ok: false, error: refused };
   const session = await getSession();
   const by = session?.name || "The Organizer";
-  const until = endOfClubDay(await zoneOfEvent(eventId));
+  const zone = await zoneOfEvent(eventId);
+  const until = endOfClubDay(zone);
+  // A correction still standing on another scope (or this one) is closed by this press: the record says so before it says what opened.
+  if (facts.correction) await logAudit(eventId, "committee-correction", correctionClosedLine(facts.correction, by, "replaced"), { actor: by });
   await prisma.event.update({
     where: { id: eventId },
     data: { correctionScope: scope, correctionReason: clean, correctionBy: by, correctionUntil: until },
   });
-  await logAudit(eventId, "committee-correction", correctionOpenedLine({ scope: scope as LockScope, by, reason: clean }), { actor: by });
+  await logAudit(eventId, "committee-correction", correctionOpenedLine({ scope: scope as LockScope, by, reason: clean, until: until.toISOString() }, zone), { actor: by });
   await refresh();
   return { ok: true };
 }
 
-/** Done: the correction closes now, and the record says who closed it. Idempotent — nothing open is simply nothing. */
+/**
+ * Done: the correction closes now, and the record says who closed it. Idempotent
+ * — nothing open is simply nothing, and a correction that already LAPSED with
+ * the club's day (`openCorrectionOf` reads it as none) is cleared with no line:
+ * its opening line said when it ended (panel review of 5b, must-fix 3).
+ */
 export async function endCorrection(): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
-  const open = await prisma.event.findUnique({
+  const row = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { correctionScope: true, correctionBy: true, correctionUntil: true },
+    select: { correctionScope: true, correctionReason: true, correctionBy: true, correctionUntil: true },
   });
-  if (!open) return { ok: false, error: "This tournament could not be found." };
+  if (!row) return { ok: false, error: "This tournament could not be found." };
+  const standing = openCorrectionOf(row, new Date());
   await prisma.event.update({
     where: { id: eventId },
     data: { correctionScope: null, correctionReason: null, correctionBy: null, correctionUntil: null },
   });
-  if (open.correctionScope && (LOCK_SCOPES as readonly string[]).includes(open.correctionScope)) {
+  if (standing) {
     const closedBy = (await getSession())?.name || "The Organizer";
-    await logAudit(eventId, "committee-correction", correctionClosedLine({ scope: open.correctionScope as LockScope, by: open.correctionBy ?? "" }, closedBy), {
-      actor: closedBy,
-    });
+    await logAudit(eventId, "committee-correction", correctionClosedLine(standing, closedBy), { actor: closedBy });
   }
   await refresh();
   return { ok: true };

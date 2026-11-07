@@ -39,7 +39,7 @@
  *     even with the early groups' cards coming in. With no published sheet
  *     there is no starting time to hold it to, and it closes at the FIRST CARD
  *     of any round (PR A's rule). After either, a walk-in needs an Organizer to
- *     unlock the tournament. In
+ *     make a committee correction TO THE FIELD (below). In
  *     match play, a round robin, a knockout or a cup the draw IS the field, so
  *     nobody is added after launch. A league's field changes week to week by
  *     nature, so it keeps taking entries between weeks.
@@ -53,6 +53,17 @@
  *     group is `placeInGroup`'s (domain/tee-sheet.ts).
  *   - Moving a PLACED player between flights, editing a player's details and
  *     bulk imports or deletions are not day-of acts: they stay locked.
+ *   - THE COMMITTEE CORRECTION IS THE WAY OUT (state machine PR 5b; panel
+ *     review of 5b, must-fix 1). Every refusal here ends "an Organizer can make
+ *     a committee correction to the field" (or "to the flights"), so a
+ *     correction open on that scope (`TournamentFacts.correction`, one scope at
+ *     a time, until Done or the club's midnight) OPENS exactly the changes that
+ *     named it: the field's are a late entry, an approval, a player's details,
+ *     a list, and a late entrant's placement in a prize division; the flights'
+ *     are placing where flights make the pairings and moving a placed player —
+ *     a confirmed draw included, since that refusal named it too. The TD's
+ *     worst case was the desk locked out on the day, told of a way out that
+ *     opened nothing.
  *
  * Pure: no prisma, no clock. The facts are a subset of `TournamentFacts`
  * (`fieldFactsOf`), read by `tournamentFactsFor`, so the state machine's PR 5
@@ -64,7 +75,7 @@
  */
 import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
 import { minutesOfTeeTime } from "./tee-sheet";
-import { tournamentFamily, type Family, type RoundFacts, type TournamentFacts, type WayOut } from "./tournament-status";
+import { tournamentFamily, type Family, type LockScope, type RoundFacts, type TournamentFacts, type WayOut } from "./tournament-status";
 
 export const FIELD_CHANGES = ["withdraw", "reinstate", "add", "approve", "place-in-flight", "place-in-group", "edit", "bulk", "move-flight"] as const;
 export type FieldChange = (typeof FIELD_CHANGES)[number];
@@ -98,6 +109,12 @@ export interface FieldFacts extends FieldClock {
   status: string;
   /** Today's blanket Unlock. */
   configUnlocked: boolean;
+  /**
+   * The one scope a committee correction holds open (`TournamentFacts.correction`,
+   * read off the row only while it stands), or null. REQUIRED, so no caller can
+   * build the facts and forget the way out every refusal here names.
+   */
+  correction: { scope: LockScope } | null;
   /** `tournamentFamily` — the machine's answer, not a second reading of it. */
   family: Family;
   /** The first round with a result ("Round 1"), or null when nobody has played. */
@@ -132,6 +149,7 @@ export function fieldFactsOf(f: TournamentFacts, clock: FieldClock): FieldFacts 
   return {
     status: f.status,
     configUnlocked: f.configUnlocked,
+    correction: f.correction ? { scope: f.correction.scope } : null,
     family: tournamentFamily(f),
     playedRound: f.rounds.find((r) => r.hasResult)?.label ?? null,
     flightsConfirmed: f.flightsConfirmed,
@@ -181,27 +199,58 @@ export function lateEntryClosed(f: FieldFacts): { tee: LastTeeTime } | { card: s
 function closedWords(c: { tee: LastTeeTime } | { card: string }, what: "add" | "place"): string {
   if ("tee" in c) {
     const why = `${c.tee.round}’s last tee time (${c.tee.time}) has passed.`;
+    // Each sentence twelve words or fewer (`day-of-words-at-a-glance.test.ts`), and the part it opens named.
     return what === "add"
-      ? `Late entries are closed. ${why} To add someone, an Organizer can make a committee correction.`
-      : `Flights are fixed. ${why} To place someone, an Organizer can make a committee correction.`;
+      ? `Late entries are closed. ${why} An Organizer can open the field with a committee correction.`
+      : `Flights are fixed. ${why} An Organizer can open the field with a committee correction.`;
   }
   return what === "add"
-    ? `The first card of ${c.card} is in, so late entries are closed. ${byOrganizer("add someone anyway")}`
-    : `The first card of ${c.card} is in, so the flights are fixed. ${byOrganizer("place a player")}`;
+    ? `The first card of ${c.card} is in, so late entries are closed. ${byOrganizer("add someone anyway", "field")}`
+    : `The first card of ${c.card} is in, so the flights are fixed. ${byOrganizer("place a player", "field")}`;
+}
+
+/** The two scopes the field rule's changes fall under — the part a correction must be opened on. */
+type FieldPart = Extract<LockScope, "field" | "flights">;
+
+/**
+ * WHICH PART A CORRECTION OPENS FOR A CHANGE. The field for a late entry, an
+ * approval, a player's details and a list; the flights for placing where the
+ * flights make the pairings and for moving a placed player. A late entrant's
+ * placement in a PRIZE DIVISION is the field's: it is part of taking the late
+ * entry, and its refusal names the field. Withdraw, put back and put in group
+ * need no correction, and are the field's for the record.
+ */
+export function partOf(change: FieldChange, family: Family): FieldPart {
+  switch (change) {
+    case "move-flight":
+      return "flights";
+    case "place-in-flight":
+      return PRIZE_DIVISIONS.includes(family) ? "field" : "flights";
+    default:
+      return "field";
+  }
 }
 
 /**
  * MAY THIS CHANGE BE MADE TO THE FIELD NOW. Questions in order: completed
- * refuses everything; a confirmed draw refuses a move (and a placement where
- * flights make the pairings); not launched,
- * or unlocked, allows (exactly the behaviour before this rule); otherwise the
- * day-of table above.
+ * refuses everything; a correction open on the change's part allows it (the
+ * way out every refusal below names, taken); a confirmed draw refuses a move
+ * (and a placement where flights make the pairings); not launched, or unlocked,
+ * allows (exactly the behaviour before this rule); otherwise the day-of table
+ * above.
  */
 export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): FieldVerdict {
   if (isFinished(facts.status)) {
     return no("The tournament is completed, so its field is as it finished. An Organizer can reopen it on the dashboard.", REOPEN);
   }
   const locked = configurationLocked(facts);
+  /**
+   * THE CORRECTION OPENS WHAT NAMED IT (panel review of 5b, must-fix 1). Only
+   * while locked: before launch nothing is locked and none can be opened
+   * (`openCorrection`); completed was refused above, where Reopen is the remedy
+   * — the same two limits `locksOf` puts on `correctable`.
+   */
+  if (locked && facts.correction?.scope === partOf(change, facts.family)) return OPEN;
   /**
    * A CONFIRMED DRAW MOVES NOBODY — and placing an UNPLACED player in a prize
    * division moves nobody either (panel review of #1028, must-fix 1). So in
@@ -213,7 +262,7 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
   const drawHolds = change === "move-flight" || (change === "place-in-flight" && !PRIZE_DIVISIONS.includes(facts.family));
   if (drawHolds && facts.flightsConfirmed) {
     return locked
-      ? no(`The draw is confirmed, so the flights are fixed. ${byOrganizer("change them")}`, UNLOCK)
+      ? no(`The draw is confirmed, so the flights are fixed. ${byOrganizer("change them", "flights")}`, UNLOCK)
       : no("Draw confirmed. Reopen it to move anyone.", REOPEN_DRAW);
   }
   if (!locked) return OPEN;
@@ -228,25 +277,25 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
     case "approve":
       if (!LATE_ENTRY_FAMILIES.includes(facts.family)) {
         return facts.family === "teamCup"
-          ? no(`The sides are picked, so the field is fixed. ${byOrganizer("change it")}`, UNLOCK)
-          : no(`The draw is made, so the field is fixed. ${byOrganizer("change it")}`, UNLOCK);
+          ? no(`The sides are picked, so the field is fixed. ${byOrganizer("change it", "field")}`, UNLOCK)
+          : no(`The draw is made, so the field is fixed. ${byOrganizer("change it", "field")}`, UNLOCK);
       }
       if (closed && !LIVE_BY_NATURE.includes(facts.family)) return no(closedWords(closed, "add"), UNLOCK);
       return OPEN;
     case "place-in-flight":
       if (!PRIZE_DIVISIONS.includes(facts.family)) {
-        return no(`Flights are fixed once the tournament is launched. ${byOrganizer("place a player")}`, UNLOCK);
+        return no(`Flights are fixed once the tournament is launched. ${byOrganizer("place a player", "flights")}`, UNLOCK);
       }
       // The same window as a late entry: a walk-in taken before the last tee time is placed in one.
       if (closed) return no(closedWords(closed, "place"), UNLOCK);
       return OPEN;
     case "move-flight":
-      return no(`Flights are fixed once the tournament is launched. ${byOrganizer("move a player")}`, UNLOCK);
+      return no(`Flights are fixed once the tournament is launched. ${byOrganizer("move a player", "flights")}`, UNLOCK);
     case "edit":
-      return no(`A player’s details are locked once the tournament is launched. ${byOrganizer("correct one")}`, UNLOCK);
+      return no(`A player’s details are locked once the tournament is launched. ${byOrganizer("correct one", "field")}`, UNLOCK);
     case "bulk":
       return no(
-        "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to make a committee correction on the dashboard.",
+        "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to make a committee correction to the field on the dashboard.",
         ONE_AT_A_TIME,
       );
   }
@@ -257,10 +306,12 @@ export function fieldChangeAllowed(facts: FieldFacts, change: FieldChange): Fiel
  * primary Organizer can unlock (`setConfigUnlocked` is admin-only), and on the
  * morning the person reading a refusal is as likely to be an Assistant — so
  * every refusal that ends in Unlock names who can, in words true for both
- * readers, and the place the guide names ("Make a committee correction").
+ * readers, and the place the guide names ("Make a committee correction"). It
+ * names the PART too (panel review of 5b): the dialog asks which part to open,
+ * and a sentence that does not say sends the desk to guess.
  */
-function byOrganizer(act: string): string {
-  return `To ${act}, an Organizer can make a committee correction on the dashboard.`;
+function byOrganizer(act: string, part: FieldPart): string {
+  return `To ${act}, an Organizer can make a committee correction to the ${part} on the dashboard.`;
 }
 
 /**
@@ -293,6 +344,10 @@ export function fieldDoors(facts: FieldFacts): Record<FieldChange, string | null
  */
 export function fieldBanner(facts: FieldFacts): string[] | null {
   if (!isLaunched(facts.status) || isFinished(facts.status) || !configurationLocked(facts)) return null;
+  // A correction open on the field: the banner's own line says who and why (`CorrectionOpenLine`); this says what it opened.
+  if (facts.correction?.scope === "field") {
+    return ["The field is open for a correction: late entries, players’ details and imports go through.", "The format and rounds stay locked."];
+  }
   const add = fieldChangeAllowed(facts, "add");
   // Two short lines under the title "Under way" (panel review of #1028): what is open, then what is not.
   // And, where a published sheet sets it, when late entries close (PR B) — the time the desk works to.

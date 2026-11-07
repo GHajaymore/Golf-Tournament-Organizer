@@ -111,7 +111,8 @@ test("the second round robin is drawn within each flight, and is not redrawn ove
     await expect(redraw, "after a reload the round does not know it is drawn").toBeVisible();
     await centre(redraw);
     await redraw.click();
-    const refused = card.getByRole("alert").filter({ hasText: "Not drawn. That round already has scores, so drawing it again would wipe them." });
+    // The round's own refusal (`redrawRefusal`), asked of its cards before any lock: never a committee correction over scores.
+    const refused = card.getByRole("alert").filter({ hasText: "Not drawn. Round 2 has scores — clear them on Score entry first." });
     await expect(refused, "a redraw over a played hole was not refused in words").toBeVisible();
     await saidBeside(refused, redraw, "redrawing a round with a hole played");
     expect((await matches()).map((m) => m.id), "the refused redraw changed the matches").toEqual(drawn.map((m) => m.id));

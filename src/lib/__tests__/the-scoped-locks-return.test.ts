@@ -37,7 +37,7 @@ const SITES: Record<string, { file: string; scope: string; what: string; except?
   saveEvent: { file: TOURNAMENT, scope: "details", what: "change the tournament’s details" },
   applyManualCount: { file: TOURNAMENT, scope: "field", what: "change the field limit" },
   regenGroups: { file: TOURNAMENT, scope: "flights", what: "make the flights again" },
-  generateNextRound: { file: TOURNAMENT, scope: "draw", what: "redraw a round that already has scores, which would wipe its cards" },
+  // generateNextRound asks NO lock: a round with scores is refused by `redrawRefusal` (below).
   saveScoring: { file: TOURNAMENT, scope: "rounds", what: "change the points" },
   setQualifyPerGroup: { file: TOURNAMENT, scope: "rounds", what: "change who qualifies" },
   setStageCarry: { file: TOURNAMENT, scope: "rounds", what: "change the points carried forward" },
@@ -121,7 +121,7 @@ describe("the scoped locks return, never throw", () => {
     });
   }
 
-  it("thirty-seven sites, and no other lock-asking action in the three files goes unlisted", () => {
+  it("thirty-six sites, and no other lock-asking action in the three files goes unlisted", () => {
     const listed = new Set(Object.keys(SITES));
     for (const file of FILES) {
       for (const part of readSource(file).split(/export async function /).slice(1)) {
@@ -129,7 +129,24 @@ describe("the scoped locks return, never throw", () => {
         if (/refuseIfLocked\(/.test(part)) expect(listed.has(name), `${name} asks a lock and is not pinned here`).toBe(true);
       }
     }
-    expect(listed.size).toBe(37);
+    expect(listed.size).toBe(36);
+  });
+
+  /**
+   * A REDRAW NEVER GOES OVER RECORDED SCORES (panel review of 5b, must-fix 2).
+   * `generateNextRound` asked the draw's lock, which in a flighted knockout is
+   * OPEN while live until the first knockout result — so a re-press on a scored
+   * qualifying round wiped its cards with no refusal — and where it did refuse,
+   * it offered a committee correction as a way to wipe scores. It asks the
+   * round's cards instead (`redrawRefusal`), before the draw, and no lock.
+   */
+  it("generateNextRound asks the round's cards, not a lock, and refuses before it draws", () => {
+    const b = body(TOURNAMENT, "generateNextRound");
+    expect(b).not.toMatch(/refuseIfLocked\(/);
+    const refused = b.indexOf("redrawRefusal(");
+    expect(refused, "the redraw rule is not asked").toBeGreaterThan(-1);
+    expect(b).toMatch(/redrawRefusal\(roundLabel\(stages, stageId\), await enteredCardCount\(eventId, stageId\)\);\s*if \(refused\) return \{ ok: false as const, error: refused \};/);
+    expect(refused).toBeLessThan(b.indexOf("generateCutRound("));
   });
 
   it("the only lock whose own controls are excepted is the draw's, on the two flights controls that ARE its way out", () => {

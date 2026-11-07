@@ -79,6 +79,8 @@ import {
 } from "@/app/actions/tournament";
 import { lockFactsFor, setupSideFactsFor } from "@/lib/services/tournament-facts";
 import { locksFor, lockFactsOf } from "@/lib/domain/tournament-status";
+import { clubToday } from "@/lib/domain/club-clock";
+import { formatDay } from "@/lib/domain/locale";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SM5B";
@@ -267,11 +269,8 @@ describe("on a launched tournament, every structural press is refused in words �
       update: { strokes: JSON.stringify(Array(18).fill(5)), status: "entered" },
     });
     try {
-      expect(await generateNextRound(round2)).toMatchObject({
-        ok: false,
-        error: LIVE("redraw a round that already has scores, which would wipe its cards"),
-        lock: { scope: "draw", by: "launch" },
-      });
+      // The round's own refusal (`redrawRefusal`), never a lock's — a lock offered a correction as a way to wipe scores (panel review of 5b, must-fix 2).
+      expect(await generateNextRound(round2)).toEqual({ ok: false, error: "Round 2 has scores — clear them on Score entry first." });
     } finally {
       await prisma.scorecard.deleteMany({ where: { stageId: round2 } });
     }
@@ -314,7 +313,9 @@ describe("the committee correction opens ONE scope, for a reason, on the record 
     expect(await renameGroup(flightA, "Renamed")).toMatchObject({ ok: false, lock: { scope: "flights" } });
 
     const lines = await prisma.auditLog.findMany({ where: { eventId, action: "committee-correction" }, orderBy: { createdAt: "asc" } });
-    expect(lines.map((l) => l.detail)).toEqual([`${TAG} admin opened rounds for a correction: Round 1 was set to 18 holes by mistake`]);
+    // The line says when it ends (panel review of 5b, must-fix 3): midnight at the club, on the club's own day — asked of the club's clock by another route.
+    const clubsDay = formatDay(clubToday("America/New_York"));
+    expect(lines.map((l) => l.detail)).toEqual([`${TAG} admin opened rounds for a correction: Round 1 was set to 18 holes by mistake — until midnight on ${clubsDay}, club time`]);
     expect(lines[0].actor).toBe(`${TAG} admin`);
   });
 
@@ -328,13 +329,34 @@ describe("the committee correction opens ONE scope, for a reason, on the record 
     expect(lines[1].detail).toBe(`${TAG} admin closed the correction ${TAG} admin opened on rounds`);
   });
 
-  it("a lapsed correction opens nothing: the row says a scope, the clock says it ended", async () => {
+  it("opening another scope while one stands closes the first, and the record says so", async () => {
+    await prisma.auditLog.deleteMany({ where: { eventId, action: "committee-correction" } });
+    expect(await openCorrection("rounds", "Round 1 was set to 18 holes by mistake")).toEqual({ ok: true });
+    expect(await openCorrection("details", "The course was named wrongly")).toEqual({ ok: true });
+    const row = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
+    expect(row.correctionScope).toBe("details");
+    expect(await setStageHoles(round1, 9, true)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
+    expect(await endCorrection()).toEqual({ ok: true });
+    const lines = (await prisma.auditLog.findMany({ where: { eventId, action: "committee-correction" }, orderBy: { createdAt: "asc" } })).map((l) => l.detail);
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toMatch(/^.+ admin opened rounds for a correction: Round 1 was set to 18 holes by mistake — until midnight on .+, club time$/);
+    expect(lines[1]).toBe(`${TAG} admin closed the correction ${TAG} admin opened on rounds to open another`);
+    expect(lines[2]).toMatch(/^.+ admin opened details for a correction: The course was named wrongly — until midnight on .+, club time$/);
+    expect(lines[3]).toBe(`${TAG} admin closed the correction ${TAG} admin opened on details`);
+  });
+
+  it("a lapsed correction opens nothing: the row says a scope, the clock says it ended — and Done on it writes no line", async () => {
     await prisma.event.update({
       where: { id: eventId },
       data: { correctionScope: "rounds", correctionReason: "Yesterday's correction", correctionBy: `${TAG} admin`, correctionUntil: new Date(Date.now() - 60_000) },
     });
     try {
       expect(await setStageHoles(round1, 9, true)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
+      // Done after the lapse clears the row and says nothing: the opening line said when it ended (panel review of 5b, must-fix 3).
+      await prisma.auditLog.deleteMany({ where: { eventId, action: "committee-correction" } });
+      expect(await endCorrection()).toEqual({ ok: true });
+      expect(await prisma.auditLog.count({ where: { eventId, action: "committee-correction" } })).toBe(0);
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: eventId } })).correctionScope).toBeNull();
     } finally {
       await prisma.event.update({ where: { id: eventId }, data: { correctionScope: null, correctionReason: null, correctionBy: null, correctionUntil: null } });
     }

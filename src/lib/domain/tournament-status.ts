@@ -30,6 +30,7 @@
  * a family's play is over, and the lock's reason and way out.
  */
 import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
+import { formatDayAt } from "./locale";
 import { setupFlow, type SetupFacts, type SetupFlow, type SetupStep } from "./setup-flow";
 import type { LaunchCheck, UnratedTees } from "./launch-check";
 import { completingCheckFor, finishRefusal, playRefusal, statusMove } from "./phase-gate";
@@ -667,6 +668,22 @@ export function addRoundLockOf(locks: Record<LockScope, Lock>): ScopeLock | null
   return l && l.by === "completed" ? l : null;
 }
 
+/**
+ * A ROUND WITH SCORES IS NEVER REDRAWN — whatever the draw's lock says (panel
+ * review of 5b, must-fix 2; the TD: "never over recorded scores"). Drawing a
+ * round is running the event, so `generateNextRound` asks no lock; but
+ * `generateCutRound` DELETES the target round's cards or matches first, and the
+ * draw's lock was the wrong guard: in a flighted knockout the draw stays OPEN
+ * while live until the first knockout result (`locksOf`), so a re-press on a
+ * scored qualifying round would have wiped its cards with no refusal, and the
+ * refusal elsewhere offered a correction — a way to wipe scores. This is asked
+ * of the round's cards alone, before any lock, and its way out is the one that
+ * leaves a record: clear the scores on Score entry.
+ */
+export function redrawRefusal(round: string, cards: number): string | null {
+  return cards > 0 ? `${round || "That round"} has scores — clear them on Score entry first.` : null;
+}
+
 /** One locked scope as a banner draws it and a refusal returns it — plain values a client can be handed. */
 export interface ScopeLock {
   scope: LockScope;
@@ -782,12 +799,28 @@ export function correctionWords(c: Pick<CorrectionFacts, "by" | "reason">): stri
   return `Open for a correction by ${c.by}: ‘${c.reason}’`;
 }
 
-/** The record's lines: when a correction opens, and when it is closed by hand. */
-export function correctionOpenedLine(c: Pick<CorrectionFacts, "scope" | "by" | "reason">): string {
-  return `${c.by} opened ${SCOPE_WORDS[c.scope].toLowerCase()} for a correction: ${c.reason}`;
+/**
+ * THE RECORD'S LINES (panel review of 5b, must-fix 3). The opening line says
+ * WHEN THE CORRECTION ENDS — midnight at the club, named by the club's own day
+ * — because a correction that lapses with the day writes no closing line, and
+ * a reader of Recent changes a week later must still see how long it stood.
+ * The day is the club's day of the last instant the correction stands
+ * (`until` is `endOfClubDay`, an instant): never the server's day of that
+ * instant, which for a club in Florida is already tomorrow.
+ */
+export function correctionOpenedLine(c: Pick<CorrectionFacts, "scope" | "by" | "reason" | "until">, timeZone: string): string {
+  const ends = formatDayAt(new Date(new Date(c.until).getTime() - 1), undefined, timeZone || undefined);
+  return `${c.by} opened ${SCOPE_WORDS[c.scope].toLowerCase()} for a correction: ${c.reason} — until midnight on ${ends}, club time`;
 }
-export function correctionClosedLine(c: Pick<CorrectionFacts, "scope" | "by">, closedBy: string): string {
-  return `${closedBy} closed the correction ${c.by} opened on ${SCOPE_WORDS[c.scope].toLowerCase()}`;
+/**
+ * Closed by hand — at Done, or because the Organizer opened another scope in its
+ * place (one at a time). A correction that LAPSED writes no line: the opening
+ * line already said when, and "closed" at a later Done would be a line about
+ * nothing.
+ */
+export function correctionClosedLine(c: Pick<CorrectionFacts, "scope" | "by">, closedBy: string, how: "done" | "replaced" = "done"): string {
+  const closed = `${closedBy} closed the correction ${c.by} opened on ${SCOPE_WORDS[c.scope].toLowerCase()}`;
+  return how === "replaced" ? `${closed} to open another` : closed;
 }
 
 /**

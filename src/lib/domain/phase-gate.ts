@@ -332,7 +332,7 @@ export function statusMove(from: string, to: string): StatusMove {
   if (launched && PRE_LAUNCH_STATUSES.includes(to)) {
     return {
       kind: "refuse",
-      error: "This tournament has been launched, so it can’t go back to setting up. Make a committee correction to correct it — its players keep seeing it while you do.",
+      error: "This tournament has been launched, so it can’t go back to setting up. Make a committee correction to change it — its players keep seeing it while you do.",
     };
   }
   /**

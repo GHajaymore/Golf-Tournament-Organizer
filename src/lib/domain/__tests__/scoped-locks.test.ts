@@ -10,6 +10,9 @@ import {
   correctionRefusal,
   correctionReasonRefusal,
   correctionWords,
+  correctionOpenedLine,
+  correctionClosedLine,
+  redrawRefusal,
   LOCK_SCOPES,
   type LockScope,
 } from "../tournament-status";
@@ -166,6 +169,57 @@ describe("the committee correction opens one scope (TD Q2, panel 8.1)", () => {
 
   it("the banner's line names who and why", () => {
     expect(correctionWords(open("flights").correction!)).toBe("Open for a correction by A. Organizer: ‘Wrong flight for one player’");
+  });
+
+  /**
+   * THE RECORD SAYS WHEN IT ENDS (panel review of 5b, must-fix 3), on the club's
+   * calendar: the correction stands until 05:00 UTC on the 8th, which at a club
+   * in Florida is midnight ending the 7th — so the line says the 7th, though the
+   * server's day at that instant is the 8th.
+   */
+  it("the opening line says until when, by the club's day; the closing line says Done or replaced", () => {
+    const c = { scope: "field" as LockScope, by: "A. Organizer", reason: "A walk-in after the first card", until: "2026-11-08T05:00:00.000Z" };
+    expect(correctionOpenedLine(c, "America/New_York")).toBe(
+      "A. Organizer opened the field for a correction: A walk-in after the first card — until midnight on Nov 7, 2026, club time",
+    );
+    // Auckland is ahead: 11:00 UTC on the 8th is midnight ending the 8th there.
+    expect(correctionOpenedLine({ ...c, until: "2026-11-08T11:00:00.000Z" }, "Pacific/Auckland")).toMatch(/until midnight on Nov 8, 2026, club time$/);
+    expect(correctionClosedLine(c, "A. Organizer")).toBe("A. Organizer closed the correction A. Organizer opened on the field");
+    expect(correctionClosedLine(c, "B. Deputy", "replaced")).toBe("B. Deputy closed the correction A. Organizer opened on the field to open another");
+  });
+});
+
+/**
+ * A REDRAW NEVER GOES OVER RECORDED SCORES (panel review of 5b, must-fix 2).
+ * The cell the review asked for: in a flighted knockout the draw's lock is OPEN
+ * while live until the first knockout result (`locksOf`), so a lock could not
+ * have refused a re-press on a scored qualifying round. The rule is the round's
+ * cards, in every family, lock or no lock.
+ */
+describe("a redraw is refused by the round's scores, whatever the draw's lock says", () => {
+  it("flighted knockout: the draw is open while live — and a round with cards is still refused", () => {
+    const fk = launched(FAMILY_FIXTURES.flightedKnockout());
+    expect(scopeLockOf(locksFor(fk), "draw")).toBeNull();
+    expect(redrawRefusal("Round 1", 1)).toBe("Round 1 has scores — clear them on Score entry first.");
+    expect(redrawRefusal("Round 1", 0)).toBeNull();
+  });
+
+  for (const family of FAMILIES) {
+    it(`${family}: the answer does not change with the lock — open with no cards, refused with one, in every state`, () => {
+      const base = FAMILY_FIXTURES[family]();
+      for (const f of STATES(base)) {
+        const drawLocked = scopeLockOf(locksFor(f), "draw") !== null;
+        expect(redrawRefusal("Round 2", 0), `${family} draw ${drawLocked ? "locked" : "open"}`).toBeNull();
+        expect(redrawRefusal("Round 2", 3), `${family} draw ${drawLocked ? "locked" : "open"}`).toBe("Round 2 has scores — clear them on Score entry first.");
+      }
+    });
+  }
+
+  it("never offers a committee correction, and names the way out that leaves a record", () => {
+    const said = redrawRefusal("Round 2", 1) ?? "";
+    expect(said).not.toMatch(/correction/i);
+    expect(said).toMatch(/Score entry/);
+    expect(redrawRefusal("", 1)).toBe("That round has scores — clear them on Score entry first.");
   });
 });
 

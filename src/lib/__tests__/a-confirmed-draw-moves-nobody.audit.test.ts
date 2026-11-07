@@ -89,7 +89,7 @@ describe("a launched tournament's flights board", () => {
     // launch a placed player stays where they are, in the rule's words.
     await expect(movePlayerToGroup(ids.ann, ids.b, true)).resolves.toMatchObject({
       ok: false,
-      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can make a committee correction on the dashboard.",
+      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can make a committee correction to the flights on the dashboard.",
     });
     await expect(renameGroup(ids.a, "Renamed")).resolves.toMatchObject(want("rename a flight"));
     await expect(setFlightsConfirmed(true)).resolves.toMatchObject(want("confirm or reopen the draw"));

@@ -46,8 +46,10 @@ import { createSession, setActiveEvent } from "@/lib/auth";
 import {
   addSignup,
   approveSignup,
+  endCorrection,
   importCsvSignups,
   movePlayerToGroup,
+  openCorrection,
   placeInFlight,
   reinstateWithdrawn,
   removeSignup,
@@ -223,17 +225,17 @@ describe("a launched stroke medal, before anybody has played", () => {
   it("what stays locked refuses in words, and changes nothing", async () => {
     expect(await updateSignup(ids.cat, { name: `${TAG} renamed` })).toEqual({
       ok: false,
-      error: "A player’s details are locked once the tournament is launched. To correct one, an Organizer can make a committee correction on the dashboard.",
+      error: "A player’s details are locked once the tournament is launched. To correct one, an Organizer can make a committee correction to the field on the dashboard.",
     });
     expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.cat } })).name).toBe(`${TAG} cat`);
     const bulk =
-      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to make a committee correction on the dashboard.";
+      "Importing a list or removing several players at once is locked once the tournament is launched. Withdraw players one at a time, or ask an Organizer to make a committee correction to the field on the dashboard.";
     expect((await importCsvSignups(`name,email\n${TAG} csv,${at("csv")}\n`)).error).toBe(bulk);
     expect(await removeSignups([ids.cat])).toEqual({ deleted: 0, withdrawn: 0, missing: 0, error: bulk });
     expect(await statusOf("cat")).toBe("confirmed");
     expect(await movePlayerToGroup(ids.cat, flightA)).toEqual({
       ok: false,
-      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can make a committee correction on the dashboard.",
+      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can make a committee correction to the flights on the dashboard.",
     });
     expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.cat } })).groupId).toBe(flightB);
     // The format is setup, and the rounds stay locked — returned in words, never thrown (state machine PR 5b).
@@ -265,7 +267,7 @@ describe("once Round 1 has a card", () => {
   });
 
   it("a late entry and an approval are refused, naming the round", async () => {
-    const begun = "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction on the dashboard.";
+    const begun = "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction to the field on the dashboard.";
     expect(await addSignup({ name: `${TAG} too-late`, email: at("too-late"), handicap: 9 })).toEqual({ ok: false, error: begun });
     expect(await prisma.player.count({ where: { eventId: medal, email: at("too-late") } })).toBe(0);
     expect(await approveSignup(ids.pam)).toEqual({ ok: false, error: begun });
@@ -283,7 +285,7 @@ describe("once Round 1 has a card", () => {
       const res = await addSignup({ name: `${TAG} walk-in`, email: at("walk-in"), handicap: 20 });
       expect(res.ok).toBe(false);
       expect(res.error).toBe(
-        "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction on the dashboard.",
+        "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction to the field on the dashboard.",
       );
       // The reason the words matter: the Assistant has no Unlock of their own.
       await expect(setConfigUnlocked(true)).rejects.toThrow();
@@ -302,7 +304,64 @@ describe("once Round 1 has a card", () => {
     await reinstateWithdrawn(ids.lee);
     await prisma.player.update({ where: { id: ids.lee }, data: { groupId: null } });
     const res = await placeInFlight(ids.lee, flightA);
-    expect(res).toEqual({ ok: false, error: "The first card of Round 1 is in, so the flights are fixed. To place a player, an Organizer can make a committee correction on the dashboard." });
+    expect(res).toEqual({ ok: false, error: "The first card of Round 1 is in, so the flights are fixed. To place a player, an Organizer can make a committee correction to the field on the dashboard." });
+  });
+
+  /**
+   * THE WAY OUT THE REFUSALS NAME, TAKEN (panel review of 5b, must-fix 1). Every
+   * refusal above ends "an Organizer can make a committee correction to the
+   * field" — and until this, a correction to the field opened nothing here: the
+   * TD's worst case, the desk locked out on the day with no working way out.
+   * Through the real actions: the Organizer opens the field, the walk-in is
+   * taken, placed in a division and a name corrected; a move between flights
+   * is still the flights' (refused, naming them); Done shuts the field again,
+   * and the record says who opened what, why, until when, and who closed it.
+   */
+  it("a committee correction to the field takes the walk-in, places them and corrects a name; Done shuts it again", async () => {
+    await prisma.auditLog.deleteMany({ where: { eventId: medal, action: "committee-correction" } });
+    expect(await openCorrection("field", "A walk-in arrived after the first card")).toEqual({ ok: true });
+    try {
+      const res = await addSignup({ name: `${TAG} walk-in`, email: at("walk-in"), handicap: 20 });
+      expect(res.ok, res.error).toBe(true);
+      const walkIn = await prisma.player.findFirstOrThrow({ where: { eventId: medal, email: at("walk-in") } });
+      expect(walkIn.status).toBe("confirmed");
+      // Placed in a prize division: part of the late entry, so the field's correction covers it. With a
+      // card in, Entries' own door sends the placement to Flights, where the move asks first (`force`).
+      expect(await placeInFlight(walkIn.id, flightA)).toEqual({ ok: false, error: "Matches have been scored. Place them on Flights, where the move asks first." });
+      expect(await movePlayerToGroup(walkIn.id, flightA, true)).toMatchObject({ ok: true });
+      expect((await prisma.player.findUniqueOrThrow({ where: { id: walkIn.id } })).groupId).toBe(flightA);
+      expect(await approveSignup(ids.pam)).toMatchObject({ ok: true });
+      expect(await statusOf("pam")).toBe("confirmed");
+      expect(await updateSignup(ids.cat, { name: `${TAG} catherine` })).toMatchObject({ ok: true });
+      expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.cat } })).name).toBe(`${TAG} catherine`);
+      // The flights' change is not the field's: still refused, naming the part to open.
+      expect(await movePlayerToGroup(ids.cat, flightA)).toEqual({
+        ok: false,
+        error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can make a committee correction to the flights on the dashboard.",
+      });
+    } finally {
+      expect(await endCorrection()).toEqual({ ok: true });
+    }
+    // Shut again: the next walk-in is refused as before.
+    expect((await addSignup({ name: `${TAG} second-walk-in`, email: at("second-walk-in"), handicap: 20 })).ok).toBe(false);
+    const lines = (await prisma.auditLog.findMany({ where: { eventId: medal, action: "committee-correction" }, orderBy: { createdAt: "asc" } })).map((l) => l.detail);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(new RegExp(`^${TAG} Organizer opened the field for a correction: A walk-in arrived after the first card — until midnight on .+, club time$`));
+    expect(lines[1]).toBe(`${TAG} Organizer closed the correction ${TAG} Organizer opened on the field`);
+  });
+
+  it("a committee correction to the flights moves a placed player — the move's own refusal named it", async () => {
+    expect(await openCorrection("flights", "One player drawn in the wrong flight")).toEqual({ ok: true });
+    try {
+      // Flights asks first over a scored round (`force`), then the move goes through.
+      expect(await movePlayerToGroup(ids.cat, flightA)).toMatchObject({ ok: false, needsConfirm: true });
+      expect(await movePlayerToGroup(ids.cat, flightA, true)).toMatchObject({ ok: true });
+      expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.cat } })).groupId).toBe(flightA);
+      // The field's changes are not the flights': a name stays locked.
+      expect((await updateSignup(ids.cat, { name: `${TAG} cat` })).ok).toBe(false);
+    } finally {
+      expect(await endCorrection()).toEqual({ ok: true });
+    }
   });
 });
 
@@ -315,7 +374,7 @@ describe("other families and stages", () => {
     try {
       expect(await addSignup({ name: `${TAG} ko-late`, email: at("ko-late"), handicap: 9 })).toEqual({
         ok: false,
-        error: "The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction on the dashboard.",
+        error: "The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.",
       });
       const res = await removeSignup(ids.kay);
       expect(res).toMatchObject({ ok: true, outcome: "withdrawn" });

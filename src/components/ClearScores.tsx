@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { clearRoundScores } from "@/app/actions/tournament";
+import { CorrectionButton } from "./CommitteeCorrection";
 import { Icon } from "./Icon";
 import { useCaughtUp } from "./useAction";
 
@@ -150,12 +151,14 @@ export function ClearScores({
           Not while the rounds are locked: `clearRoundScores` refuses a locked
           tournament — it threw, so "Yes — clear" took the page down to
           "Application error" (walked 2026-09-27); it answers in words now
-          (PR 5b). Said instead of offered. */}
+          (PR 5b). Said instead of offered — with the way out in place: this
+          panel is drawn for the Organizer only (EntryModes), so the correction
+          button is theirs to press here, where the lock is said. */}
       {locked ? (
-        <p style={{ fontSize: 13, margin: 0 }}>
-          The rounds are locked, so scores can&apos;t be cleared. An Organizer can make a committee correction to the rounds on the{" "}
-          <a href="/dashboard">dashboard</a> first.
-        </p>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <p style={{ fontSize: 13, margin: 0 }}>The rounds are locked, so scores can&apos;t be cleared. A committee correction to the rounds opens them.</p>
+          <CorrectionButton scopes={["rounds"]} />
+        </div>
       ) : confirming ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button
