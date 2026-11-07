@@ -94,8 +94,10 @@ export async function setupRailFor(eventId: string): Promise<SetupFlow | null> {
 
 /**
  * THE LOCK ON ONE SCOPE, as the machine states it (`locksFor`, PR 5a) — for a
- * screen's `ScopeLockBanner` and for the action behind it, which read the same
- * request-cached setup-side batch, so the banner and the refusal are one answer.
+ * screen's `ScopeLockBanner` and for the action behind it, which ask the same
+ * rule of the same setup-side read, so the banner and the refusal are one
+ * answer. `cache` is per request: on a page the read is shared with the rail
+ * (`setupRailFor`); a press is its own request and makes the read once.
  */
 export async function scopeLockFor(eventId: string, scope: LockScope): Promise<ScopeLock | null> {
   const facts = await setupSideFactsFor(eventId);
