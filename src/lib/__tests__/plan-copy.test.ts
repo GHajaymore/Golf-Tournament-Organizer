@@ -125,7 +125,7 @@ describe("what a club gets for its money is actually said", () => {
     // sweep is what deletes — so the notice's "and is then deleted" is held to BOTH halves.
     expect(status, "completing no longer starts the fifteen days").toMatch(/closesAt:\s*closesAtOnComplete\(/);
     const sweep = readSource("src/lib/services/par-sweep.ts");
-    expect(sweep, "nothing deletes a Par tournament once its close is due").toMatch(/prisma\.event\.deleteMany\(/);
+    expect(sweep, "nothing deletes a Par tournament once its close is due").toMatch(/purgeEvents\(/);
 
     // A grandfathered club is not told a deletion that will not happen to it.
     expect(retentionNotice("free", false)).toBeNull();

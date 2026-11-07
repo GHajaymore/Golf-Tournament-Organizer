@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
+import { purgeEvents } from "./purge";
 import {
   archiveEndsAt,
   archiveRefusal,
@@ -209,14 +210,11 @@ export async function sweepArchives(
       noticed += r.count;
     }
     if (step.delete) {
-      const d = await prisma.event.deleteMany({
-        where: {
-          organizationId: c.organizationId,
-          archivedAt: { not: null },
-          organization: { subscription: { lapsedAt } },
-        },
+      deleted += await purgeEvents({
+        organizationId: c.organizationId,
+        archivedAt: { not: null },
+        organization: { subscription: { lapsedAt } },
       });
-      deleted += d.count;
     }
   }
   return { noticed, deleted };
