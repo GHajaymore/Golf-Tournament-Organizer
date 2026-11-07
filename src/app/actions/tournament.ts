@@ -185,6 +185,7 @@ import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, lockedRefusal, logAudit, roundWordsFor } from "@/lib/services/action-shared";
+import { purgeEvent, purgeRound } from "@/lib/services/purge";
 import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked, isFinished, isLaunched } from "@/lib/domain/lifecycle-state";
@@ -2895,17 +2896,37 @@ export async function removeStage(stageId: string, force = false) {
    * the only thing there is — losing it silently is losing the money.
    */
   if (!force) {
-    const [cards, stakes] = await Promise.all([
+    // `records`: the expenses, funds, contests and side games tied to this round,
+    // which the purge also removes, so the warning says so.
+    const tied = { eventId, stageId };
+    const [cards, stakes, ...kinds] = await Promise.all([
       enteredCardCount(eventId, stageId),
       prisma.skinsEntry.count({ where: { pot: { stageId }, confirmed: true } }),
+      prisma.expense.count({ where: tied }),
+      prisma.tournamentFund.count({ where: tied }),
+      prisma.contest.count({ where: tied }),
+      prisma.sideGame.count({ where: tied }),
     ]);
-    if (cards > 0 || stakes > 0) {
-      return { ok: false as const, needsConfirm: true as const, cards, stakes };
+    const records = kinds.reduce((a, b) => a + b, 0);
+    if (cards > 0 || stakes > 0 || records > 0) {
+      return { ok: false as const, needsConfirm: true as const, cards, stakes, records };
     }
   }
 
+  // The id is this tournament's own round, or nothing is deleted.
+  const owned = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });
+  if (!owned) return { ok: true as const };
+
   const flightsBefore = await flightDefaultFor(eventId);
-  await prisma.stage.deleteMany({ where: { id: stageId, eventId } });
+  /**
+   * A PURGE (Ajay, 2026-11-07): the round and everything tied to it go in one
+   * transaction, including the rows with a `stageId` and no foreign key
+   * (cards, handicaps, expenses ...), which used to stay behind and be counted
+   * by `enteredCardCount(eventId)` (`services/purge.ts`). The audit line names
+   * the round and the person, never a player.
+   */
+  const words = await roundWordsFor(eventId, stageId);
+  if (await purgeRound(eventId, stageId)) await logAudit(eventId, "Round deleted", words);
   await followFlightDefault(eventId, flightsBefore);
   await refresh();
   return { ok: true as const };
@@ -5196,7 +5217,8 @@ export async function deleteEvent(eventId: string) {
   const access = await effectiveAccess(session.email, eventId);
   if (access?.role !== "admin") throw new Error("Only the organizer can delete a tournament");
 
-  await prisma.event.delete({ where: { id: eventId } }); // cascades to all children
+  // A purge: the cascade plus the rows that have no foreign key (`services/purge.ts`).
+  await purgeEvent(eventId);
   await landAfterDeleting(session);
 }
 

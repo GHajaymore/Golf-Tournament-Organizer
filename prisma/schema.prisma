@@ -3525,17 +3525,17 @@ model CourseCatalog {
 }
 
 /**
- * A name on the club's board — the permanent record, not a view of the data.
- * Deliberately DENORMALISED, and that is the whole design. Every field a board
- * needs is captured when the committee confirms it, so the record survives
- * everything that happens afterwards: a member leaving the roster, a tournament
- * being renamed, an event deleted under the retention policy, or a scoring
- * correction that would otherwise re-decide a championship years later. A board
- * that changes when you fix a bug is not a board.
- * There is no foreign key to Event for the same reason. `eventId` is kept so a
- * confirmed tournament can be recognised, but the entry does not depend on the
- * row still existing — a club's oldest records are exactly the ones whose
- * events are gone.
+ * A name on the club's board — a record kept as written, not a view of the data.
+ * Deliberately DENORMALISED. Every field a board needs is captured when the
+ * committee confirms it, so the entry survives a member leaving the roster, a
+ * tournament being renamed, or a scoring correction that would otherwise
+ * re-decide a championship years later. A board that changes when you fix a bug
+ * is not a board.
+ * There is no foreign key to Event. `eventId` is kept so a confirmed tournament
+ * can be recognised, but the entry does NOT survive that tournament being
+ * deleted: deleting a tournament is a purge (Ajay, 2026-11-07), and
+ * `services/purge.ts` removes its entries by hand because no cascade reaches
+ * them.
  * Unique on (eventId, playerId) rather than on eventId alone: the same player
  * cannot be recorded twice for one tournament, but two CAN share a title. The
  * domain refuses to break a tie precisely so a committee can declare a shared
