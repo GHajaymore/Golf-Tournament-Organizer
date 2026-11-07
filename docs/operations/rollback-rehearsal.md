@@ -14,7 +14,8 @@ each step takes. Background and the real-incident version: `runbook.md` section 
 **Never, in this rehearsal:**
 - **Never during a freeze.** The freeze is a tournament on today at any club (real clubs only), or a
   Saturday or Sunday 05:00-14:00 in any club's zone (`deploy-window.ts`). Thursday is not a weekend, but
-  step 1 asks the app rather than assuming.
+  step 1 asks the app rather than assuming. (Since 2026-11-06 that is the rule once accounts are live:
+  the freeze is off until 20 Nov 2026, then guards only pilot clubs while sign-ins are held.)
 - **Never touch the database.** No `prisma` command, no migration, no SQL, no restore, no reset. Instant
   Rollback runs no build and no migration. If a step seems to need the database, stop.
 - **Never test against, seed into or edit a real event** (Hard rule 1). Do not sign in to look at one. The

@@ -289,8 +289,11 @@ plan's 10 GB, the point at which Vercel may refuse a production deploy.
 panel's item C). `ci.yml`'s `deploy` job calls it; so do the nightly round (after a clean
 verdict), an hourly schedule and *Run workflow*. `scripts/qa/deploy-gate.mjs` deploys a commit
 only when `verify` is green on it, every core commit since the last deploy is inside a clean
-nightly round, and no club is in its FREEZE — a tournament on today in the club's own time, or a
-weekend morning 05:00–14:00 in any club's zone. The freeze is asked of the APP
+nightly round, and no club is in its FREEZE. **Ajay, 2026-11-06:** the freeze is OFF until 20 Nov 2026
+(`FREEZE_RESUMES`, 20 Nov 00:00 in UTC+14); then, while sign-ins are held, only a PILOT club (one
+where somebody on `SIGNIN_ALLOW_EMAILS` is staff) playing today freezes, never a weekend morning;
+once live, a tournament on today at any club in its own time, or a weekend morning 05:00–14:00 in
+any club's zone (`deployWindowFor`; old wording in `docs/claude/retired.md`). The freeze is asked of the APP
 (`/api/deploy-window`, bearer `DEPLOY_WINDOW_TOKEN`, answering only `{frozen, reason}`), because
 this runner must never hold production's database credentials (below); unreachable means not
 frozen, said in the summary. A HOLD IS GREEN — the gate working — and the hourly run ships it
