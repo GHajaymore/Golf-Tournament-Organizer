@@ -16,6 +16,7 @@ import {
   moneyModeToKeep,
 } from "@/lib/domain/kind-change-money";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
+import { orgNamesLookLikeOne } from "@/lib/domain/org-name-match";
 import { noteNamesake, otherOrganizationNamed } from "@/lib/services/organization";
 import { seatRefusalFor } from "@/lib/services/limits";
 import {
@@ -314,7 +315,7 @@ export async function saveOrganizationBranding(
   let warning: string | undefined;
   const current = await prisma.organization.findUnique({
     where: { id: org.organizationId },
-    select: { logoUrl: true },
+    select: { logoUrl: true, name: true },
   });
   if (cleanLogo !== current?.logoUrl) {
     const check = await checkLogoUrl(cleanLogo);
@@ -335,7 +336,8 @@ export async function saveOrganizationBranding(
     },
   });
   // The club that was here first is told as well as the person: same match as the warning below.
-  await noteNamesake(org.organizationId, clash);
+  // Only when the NAME changed: a save of the logo must not tell the club that has the name that this one took it.
+  if (!orgNamesLookLikeOne(current?.name ?? "", cleanName)) await noteNamesake(org.organizationId, clash);
 
   revalidatePath("/", "layout");
   /**

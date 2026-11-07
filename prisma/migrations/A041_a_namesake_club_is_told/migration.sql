@@ -11,6 +11,7 @@ CREATE TABLE "NamesakeNotice" (
     "name" TEXT NOT NULL,
     "town" TEXT NOT NULL DEFAULT '',
     "byName" TEXT NOT NULL DEFAULT '',
+    "how" TEXT NOT NULL DEFAULT 'new',
     "status" TEXT NOT NULL DEFAULT 'open',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "dismissedAt" TIMESTAMP(3),

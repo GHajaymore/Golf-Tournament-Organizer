@@ -237,6 +237,32 @@ describe("what the Commissioner reads, and who may dismiss it", () => {
     expect(mail, "a notice must never send an email").toEqual([]);
   });
 
+  it("a plain save of the FIRST club's settings does not tell the second club that it took the name", async () => {
+    await saveOrganizationBranding(LEAGUE, "", "", { city: "Cincinnati", region: "OH", country: "" });
+    const secondOrg = await prisma.organization.findFirstOrThrow({ where: { members: { some: { user: { email: second.email } } } }, select: { id: true } });
+    asTheLeague();
+    // Same name, a different short name: nothing about the NAME changed.
+    const res = await saveOrganizationBranding(LEAGUE, "Thursday", "", { city: "Cincinnati", region: "OH", country: "" });
+    expect(res.ok).toBe(true);
+    expect(await prisma.namesakeNotice.count({ where: { organizationId: secondOrg.id } }), "the older club told the newer one it took the name").toBe(0);
+    expect(await noticesFor(leagueId), "the original notice was lost").toHaveLength(1);
+  });
+
+  it("says a club that existed TOOK the name, and one made with it was SET UP; neither shows an address", async () => {
+    await prisma.user.updateMany({ where: { email: second.email }, data: { name: second.email } });
+    await saveOrganizationBranding(LEAGUE, "", "", { city: "Cincinnati", region: "OH", country: "" });
+    const [renamed] = await openNamesakeNotices(leagueId);
+    expect(renamed.words).toContain("took the name");
+    expect(renamed.words).not.toContain("@");
+    expect(renamed.words).toContain("ask them to join");
+
+    await prisma.namesakeNotice.deleteMany({ where: { organizationId: leagueId } });
+    await createOrganizationWithOwner({ email: `${lower}-made@example.invalid`, displayName: `${TAG} Made Founder`, orgName: LEAGUE, kind: "club" });
+    const [made] = await openNamesakeNotices(leagueId);
+    expect(made.words).toContain("was set up on");
+    expect(made.words).toContain(`by ${TAG} Made Founder`);
+  });
+
   it("is dismissed by the club's Commissioner, stays dismissed, and is not raised again", async () => {
     await saveOrganizationBranding(LEAGUE, "", "", { city: "Cincinnati", region: "OH", country: "" });
     const [notice] = await noticesFor(leagueId);

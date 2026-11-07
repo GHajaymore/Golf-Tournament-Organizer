@@ -228,24 +228,47 @@ export function mayStartNamesakeNotice(newClub: { kind: string; isDemo: boolean;
 }
 
 /**
+ * A person's NAME for a screen, or nothing. An account with no display name is stored under its email
+ * address (`name: displayName || email`), and an address is never shown to somebody who is not that
+ * person's own club: the notice and `clubExistsQuestion`'s "run by" both pass through here.
+ */
+export function nameWithoutAddress(name: string | null | undefined): string {
+  const t = (name ?? "").trim();
+  return t.includes("@") ? "" : t;
+}
+
+/** "a club", "an association": the article a noun takes. */
+export function withArticle(noun: string): string {
+  return /^[aeiou]/i.test(noun.trim()) ? `an ${noun}` : `a ${noun}`;
+}
+
+/**
  * What the existing club's Commissioner reads. Three facts about the new club and no more: its name,
- * its town, and the NAME of whoever set it up (never an email, phone, roster or tournament). `label` is
- * the new club's own word for itself (`orgProfile(kind, country, communityNoun).label`), so a society
- * is a society. `day` is the day it was set up, in the READING club's own words (`clubDayInWords`).
+ * its town, and the NAME of whoever runs it (never an email, phone, roster or tournament). `noun` is
+ * the new club's own word for itself (`orgProfile(kind, country, communityNoun).noun`: club, society,
+ * group, league, association), so a society is a society. `day` is the day, in the READING club's own
+ * words (`clubDayInWords`). `how` is "new" for a club made with the name and "renamed" for one that
+ * already existed and took it, because "was set up on" is false of a club that is years old.
  */
 export function namesakeNoticeWords(notice: {
   name: string;
-  label: string;
+  noun: string;
   where?: string;
   byName?: string;
   day: string;
+  how?: string;
 }): string {
-  const kind = notice.label.toLowerCase();
+  const noun = notice.noun.trim().toLowerCase();
+  const a = withArticle(noun);
   const place = notice.where?.trim() ? ` in ${notice.where.trim()}` : "";
-  const by = notice.byName?.trim();
+  const by = nameWithoutAddress(notice.byName);
+  const head =
+    notice.how === "renamed"
+      ? `${a}${place} took the name “${notice.name}” on ${notice.day}${by ? `, run by ${by}` : ""}.`
+      : `${a} named “${notice.name}”${place} was set up on ${notice.day}${by ? ` by ${by}` : ""}.`;
   return (
-    `A ${kind} named “${notice.name}”${place} was set up on ${notice.day}${by ? ` by ${by}` : ""}. ` +
-    `If it is the same ${kind} as yours, ask ${by ? by : "them"} to join this one instead of keeping a second. ` +
-    `If it is a different one, dismiss this.`
+    head.charAt(0).toUpperCase() + head.slice(1) +
+    ` If it is the same ${noun} as yours, ask ${by || "them"} to join this one instead of keeping a second. ` +
+    "If it is a different one, dismiss this."
   );
 }

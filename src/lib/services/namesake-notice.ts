@@ -30,7 +30,7 @@ export async function openNamesakeNotices(organizationId: string): Promise<OpenN
     where: { organizationId, status: "open" },
     orderBy: { createdAt: "asc" },
     select: {
-      id: true, name: true, town: true, byName: true, createdAt: true,
+      id: true, name: true, town: true, byName: true, how: true, createdAt: true,
       newOrganization: { select: { kind: true, country: true, communityNoun: true } },
     },
   });
@@ -38,7 +38,8 @@ export async function openNamesakeNotices(organizationId: string): Promise<OpenN
     id: r.id,
     words: namesakeNoticeWords({
       name: r.name,
-      label: orgProfile(r.newOrganization.kind, r.newOrganization.country, r.newOrganization.communityNoun).label,
+      noun: orgProfile(r.newOrganization.kind, r.newOrganization.country, r.newOrganization.communityNoun).noun,
+      how: r.how,
       where: r.town,
       byName: r.byName,
       day: clubDayInWords(reader?.timeZone, reader?.locale, r.createdAt),

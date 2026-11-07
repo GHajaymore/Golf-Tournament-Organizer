@@ -816,6 +816,8 @@ model NamesakeNotice {
   name              String
   town              String    @default("")
   byName            String    @default("")
+  /// new (a club made with the name) | renamed (a club that already existed took it)
+  how               String    @default("new")
   /// open | dismissed
   status            String    @default("open")
   createdAt         DateTime  @default(now())

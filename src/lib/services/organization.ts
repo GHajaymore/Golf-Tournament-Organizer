@@ -9,7 +9,7 @@ import {
 import { houseDefaultsOf } from "../tournament-settings";
 import { generateShareToken } from "../codes";
 import { newOrganizationName, organizationWasNamed } from "../org-naming";
-import { orgNamesLookLikeOne, inTheSameArea, mayStartNamesakeNotice, type Whereabouts } from "../domain/org-name-match";
+import { orgNamesLookLikeOne, inTheSameArea, mayStartNamesakeNotice, nameWithoutAddress, type Whereabouts } from "../domain/org-name-match";
 import { isOrgKind, orgProfile, type OrgKind } from "../domain/org-profile";
 import { moneyModeFlipsOnKindChange } from "../domain/kind-change-money";
 import type { OrgSetupFacts } from "../domain/org-setup";
@@ -380,6 +380,11 @@ export async function clubNameClash(
   });
 }
 
+/** Town, or region/country when there is no town: what makes "which one?" answerable. The ONE spelling of it. */
+function townOf(p: { city: string; region: string; country: string }): string {
+  return [p.city, p.region || p.country].filter((s) => (s ?? "").trim()).join(", ");
+}
+
 /**
  * Keep a notice for the club already carrying `newOrganizationId`'s name, if there is one.
  *
@@ -387,7 +392,12 @@ export async function clubNameClash(
  * warning): `undefined` = ask here, `null` = there is nobody, so only stale notices are tidied.
  * Never throws: a notice that could not be kept must not undo the naming that was just done.
  */
-export async function noteNamesake(newOrganizationId: string, known?: NamesakeOutfit | null): Promise<void> {
+export async function noteNamesake(
+  newOrganizationId: string,
+  known?: NamesakeOutfit | null,
+  /** "new" for a club made with the name, "renamed" for one that existed and took it. */
+  how: "new" | "renamed" = "renamed",
+): Promise<void> {
   try {
     const club = await prisma.organization.findUnique({
       where: { id: newOrganizationId },
@@ -412,15 +422,15 @@ export async function noteNamesake(newOrganizationId: string, known?: NamesakeOu
 
     const facts = {
       name: club.name,
-      town: [club.city, club.region || club.country].filter((s) => (s ?? "").trim()).join(", "),
-      byName: club.members[0]?.user?.name?.trim() ?? "",
+      town: townOf(club),
+      byName: nameWithoutAddress(club.members[0]?.user?.name),
     };
     const existing = await prisma.namesakeNotice.findUnique({
       where: { organizationId_newOrganizationId: { organizationId: hit.organizationId, newOrganizationId: club.id } },
       select: { id: true, status: true },
     });
     if (!existing) {
-      await prisma.namesakeNotice.create({ data: { organizationId: hit.organizationId, newOrganizationId: club.id, ...facts } });
+      await prisma.namesakeNotice.create({ data: { organizationId: hit.organizationId, newOrganizationId: club.id, how, ...facts } });
     } else if (existing.status === "open") {
       await prisma.namesakeNotice.update({ where: { id: existing.id }, data: facts });
     }
@@ -501,8 +511,8 @@ export async function otherOrganizationNamed(
     communityNoun: hit.communityNoun,
     // The town answers "which one?", which is the whole question for a league
     // named after the night it plays. Region or country when there is no town.
-    where: [hit.city, hit.region || hit.country].filter((s) => (s ?? "").trim()).join(", "),
-    runBy: hit.members[0]?.user?.name?.trim() ?? "",
+    where: townOf(hit),
+    runBy: nameWithoutAddress(hit.members[0]?.user?.name),
   };
 }
 
@@ -646,7 +656,7 @@ export async function createOrganizationWithOwner(input: {
     },
   });
   // A club made WITH a name takes it now; one named after its person (sign-up) takes none.
-  if ((input.orgName ?? "").trim()) await noteNamesake(org.id);
+  if ((input.orgName ?? "").trim()) await noteNamesake(org.id, undefined, "new");
   return org.id;
 }
 
