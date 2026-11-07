@@ -125,6 +125,14 @@ handicap readers became one (counted off the diff, not the inventory). The four
   `a-withdrawn-partner-is-not-in-the-stored-match.test.ts` works it in whole
   numbers and sweeps for any other call of `sidePlayingHandicap` (with a
   control); its `.audit` twin files the match on real rows.
+- **A side's name** (2026-11-06): `sideNamesOf(eventId, teamIds)` in
+  `services/side-names.ts` — a team match (four-ball, foursomes, a cup's) leaves
+  `playerAId`/`playerBId` empty, and its sides are named by the team's own name
+  (a pair's names). Five readers wrote the lookup out (match card, casual
+  summary, `/me/match`, `/play`, and the day's result line, which did not and
+  said "Side A beat Side B" on `/me/board`). `a-side-is-named-once.test.ts`
+  refuses a sixth, with a control; `a-team-match-result-names-its-sides.audit.test.ts`
+  files the matches on real rows.
 - **What a stroke can be** (step 5): `isStroke` in `domain/score-payload.ts`,
   a whole number from 1 to `MAX_STROKES_PER_HOLE`; every writer of a card asks
   it, and `a-stroke-is-one-test.test.ts` refuses the range written by hand (a

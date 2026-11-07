@@ -49,7 +49,9 @@ migrated only by a production deploy, which runs only after `verify` is green.
 Since 2026-10-23 (the testing panel, `docs/testing-panel-2026-10-23.md`) the "after merge" column
 is enforced by `deploy.yml`'s gate rather than remembered, and the freeze — a tournament on today
 at any club, in its own time, or a weekend morning 05:00–14:00 in any club's zone — holds every
-class. An hourly production canary (`canary.yml`) watches the public doors and one public board
+class. (Ajay, 2026-11-06: that is the rule once accounts are live. Until 20 Nov 2026 the freeze is
+off; from then while sign-ins are held only a pilot club playing today holds a deploy —
+`deployWindowFor` in `src/lib/domain/deploy-window.ts`.) An hourly production canary (`canary.yml`) watches the public doors and one public board
 between deploys.
 
 And, for every change: **its preview must build.** A failed preview is a
