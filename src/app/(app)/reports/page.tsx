@@ -3,7 +3,7 @@ import { hasKnockoutStage } from "@/lib/stage-types";
 import Link from "next/link";
 import { requireScreen } from "@/lib/page-helpers";
 import { contestBoard } from "@/lib/services/contest-board";
-import { loadEventState, standingRows, withBoardRound } from "@/lib/services/tournament";
+import { loadEventState, resultsSheetRows, withBoardRound } from "@/lib/services/tournament";
 import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
 import { RoundPicker } from "@/components/RoundPicker";
 import { isMatch } from "@/lib/tournament-shape";
@@ -81,7 +81,8 @@ export default async function ReportsPage({
   const golf = golfTermsFor(golfRegister(clubOf?.organization?.country, clubOf?.organization?.golfTerms));
 
   const { event } = state;
-  const rows = standingRows(state);
+  // The results sheet: the board, with DNS beneath WD for who withdrew before teeing off (PR B).
+  const rows = resultsSheetRows(state);
   /**
    * THE ROUND ON SCREEN, not the event around it.
    *

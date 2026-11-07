@@ -134,7 +134,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Type a name under **Create a new tournament**.",
           "Choose **How is it played?** — a single round, a series of rounds, or a knockout.",
-          "Choose **Start from**: a template, or one of your past tournaments to copy (settings carry over, scores never do).",
+          "Choose **Start from**: a template, or one of your past tournaments to copy (settings carry over, scores never do). Choosing a past tournament asks for its **First day** (and **Last day**), exactly as **Copy last event** below does, and the entry window and rounds move with it.",
           "Press [[Create tournament]], then [[Manage]] to open it.",
         ],
       },
@@ -181,9 +181,9 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "**Tournament name** and **Tournament dates** are required to launch; the name cannot be one another of your tournaments in play is using. Tick **These dates are tentative** if they may move; dates have their own [[Save dates]].",
-          "**Overall result** — Match play or Stroke play — decides how season standings are worked out, not each round's format.",
+          "**Overall result** — Match play or Stroke play — decides how season standings are worked out, not each round's format. It is asked once the tournament has a round; until then your first round decides it (a medal or Stableford round makes it stroke play), and a choice you make after that stays.",
           "**Golf course**: pick a course, **Other (enter manually)**, or **No fixed course — players choose**.",
-          "Registration: **Entries open**, **Registration deadline** and **Field capacity** (a fixed number, or open). The deadline day itself is open, until midnight at the club. Press [[Save event]].",
+          "Press [[Save event]]. When entries open and close, and how many places there are, are not set here: they are on **Entries**, with the switch that opens them.",
         ],
       },
       { kind: "h", text: "Players & scoring" },
@@ -234,7 +234,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "**Ties** is first under [[Customize this round]], and its closed bar says so. Each tie question the round raises is one line, with the rule in use — the standard rules of golf until you change it. A knockout all square after 18 plays extra holes from the 1st, hole by hole, and you record the winner on Bracket. A medal or Stableford places players level by countback on the card — the last nine, six, three, then the last hole — and anybody still level shares the place. A match-play round robin raises two questions: **A match all square after 18** (it stays halved unless you choose a countback or a play-off) and **Level in the table** (head-to-head, then hole difference, and so on). Press [[Change]] beside either to choose; they apply to every round robin in the tournament. A round robin's **Points for a match** — win, halve, loss — are under Customize too, as their own line.",
           "A round with matches also asks **How players keep their matches**, under [[Customize this round]]: **Tap who won each hole** — one tap a hole on any phone, the card players praised at the first cup — or **Stroke cards**, where each player enters their own strokes and the app works out who won each hole, shots included, with gross and net published: on the cup board each ball's gross and net sit under the names. A cup session starts on tapping; any other team match on stroke cards. Match Play and Nassau ask the same question as **How scores are recorded**. Choose before anyone scores: a round is kept one way, so once a match has a score the choice stays as it is.",
           "**On the day** appears once the tournament is live or the round has a card: **Is this round over?** and the **Scoring window**. Before then there is nothing to finish.",
-          "Each format comes with the usual handicap allowance (Stroke Play 95%, Foursomes 50%, a Four-Ball 85% at stroke play and 90% in a match…). On a team round you can change it: the round's card has a section named for its format, **Handicaps for Four-Ball**, with [[Change]] beside the allowance. If cards are already in you are asked first, because every one of them is re-scored. An individual net round — a medal, a Stableford — has the same line on its card under **Handicap allowance**: the Rules of Handicapping recommend 95% for a field of thirty or more, and a committee may play a smaller field at 100%. A gross round and a match have no such line, because neither takes a share of a handicap.",
+          "Each format comes with the usual handicap allowance (Stroke Play 95%, Foursomes 50%, a Four-Ball 85% at stroke play and 90% in a match…). On a team round you can change it: the round's card has a section named for its format, **Handicaps for Four-Ball**, with [[Change]] beside the allowance. If cards are already in you are asked first, because every one of them is re-scored. An individual net round — a medal, a Stableford — has the same line on its card under **Handicap allowance**: the Rules of Handicapping recommend 95% for a field of thirty or more, and a committee may play a smaller field at 100%. A gross round and a match have no such line, because neither takes a share of a handicap. Whatever the figure, the rules sheet always states a team round's allowance and whose it is — the Rules' recommendation, a club convention, or the committee's — and a four-ball's board lists **Plays off** for each player, their own playing handicap, instead of a side figure nobody plays off.",
           "The allowance is taken of a player's course handicap before that is rounded, and the result rounded once, as the Rules of Handicapping say. So a course handicap of 7 that was 6.6 plays off 6 at 95%, not 7. **Handicaps for this round** shows all three figures for every player — the course handicap, what it was before rounding, and what they play off — so you can check any card by hand.",
           "To change one player's handicap, press [[Change a player's handicap]] there, then **Change** beside their name, and say what you are changing. **Their strokes in this round only** is whole strokes — 12, not 12.4 — and a plus handicap is typed “+2”; nothing else moves, and **Use in later rounds too** copies it to later rounds on the same course, tees and holes. **Their handicap index** is to one decimal — 14.2, or 14,2 — and moves every round of this tournament not yet played; a round with cards in keeps what it was scored off, and a round with its own strokes keeps those. The sentence above **Save** says exactly which rounds move.",
           "Tick **Also make it their handicap on Members** to make the new index the member's own, for every tournament they enter from now on. Only the {organizer} of the club, league or {golfGroup} can, a reason is asked for and kept in the history, and it is not offered for a guest, for a member whose index comes from an association such as GHIN, or for a nine-hole index. Their entries in other tournaments keep the figure they entered with.",
@@ -311,7 +311,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "h", text: "What locks after launch" },
-      { kind: "p", text: "Structure locks: format, holes, course, scoring basis, cuts, tiebreakers, deleting rounds and editing the field. An {organizer} can [[Unlock setup]] to correct something. Running the event stays open: changing a round's date, marking a round over, handicap adjustments, adding a round, drawing the next round and deadlines." },
+      { kind: "p", text: "Structure locks: format, holes, course, scoring basis, cuts, tiebreakers, deleting rounds, moving a player between flights, players' details and importing a list. An {organizer} can [[Unlock setup]] to correct something. Running the event stays open: changing a round's date, marking a round over, handicap adjustments, adding a round, drawing the next round and deadlines." },
+      { kind: "p", text: "The day's changes to the field stay open too, for an {organizer} or an assistant, without unlocking anything: [[Withdraw]] a player, [[Put back]] one withdrawn by mistake, and — in stroke play, Stableford and a league — add a late entry until Round 1's last published tee time (with no published sheet, until its first card is in; after that, a walk-in needs an {organizer} to unlock the tournament: Unlock it on the dashboard). In match play, a round robin, a knockout or a team cup the draw is the field, so nobody can be added once it is launched; a withdrawal there leaves their matches to be recorded as walkovers." },
     ],
   },
   {
@@ -321,6 +322,15 @@ export const GUIDE_STEPS: GuideSection[] = [
     blocks: [
       { kind: "where", text: "Set up → Entries" },
       { kind: "p", text: "Waiting to see how many sign up before choosing the format? Take entries first — the entry form says “Format to be confirmed” until you add a round, and Rounds & formats shows how many have entered when you come back to choose." },
+      { kind: "h", text: "Open entries" },
+      {
+        kind: "steps",
+        items: [
+          "At the top of Entries, one card says whether entries are **Not open**, **Open** or **Closed** (and, before the opening day, when they open), and has one button. Set **Entries open**, **Entries close** and **Places** (a fixed number, or open) first, and press [[Save entry terms]]. The closing day itself is open, until midnight at the club. After launch the entry terms are read-only; to take entries past the closing day, use [[Reopen entries]].",
+          "Press [[Open entries]] when you are ready to send the notice: it publishes the sign-up link. [[Close entries]] stops sign-ups, and [[Reopen entries]] takes them again, past the closing day if you want. They control the public sign-up only — staff can always add players by hand.",
+          "Choose **When someone enters**: **Auto-confirm to capacity** or **Approve each entry**.",
+        ],
+      },
       { kind: "h", text: "Add players yourself" },
       {
         kind: "steps",
@@ -334,9 +344,9 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Open **Let players sign themselves up** and press [[Publish the link]].",
+          "Once entries are open, **Let players sign themselves up** shows the sign-up link, with [[Copy link]].",
           "For the noticeboard or the pro shop, [[Show QR code]] draws a poster — the tournament, its date and course, and a QR code to the sign-up link — and [[Print poster]] prints it on a page of its own. [[New link]] makes printed posters stop working, so print them again after one.",
-          "Choose **When someone registers**: **Auto-confirm to capacity** or **Approve each entry**. Tick **Require a mobile number** if you want one.",
+          "Tick **Require a mobile number** if you want one.",
           "Share it from **Invite players**: edit the message, then [[WhatsApp]], [[SMS]], [[Share…]], [[Copy message]] or [[Copy link]].",
           "Under **Pending approval**, press [[Accept]] or [[Decline]]. Beyond capacity, entries go to the **Waitlist** and are promoted automatically when a place frees up.",
         ],
@@ -344,8 +354,24 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
-          "[[Close registration]], [[Reopen registration]] and [[Follow the deadline again]] control the public sign-up only — staff can always add players by hand.",
           "Remove someone with × (or select several and [[Delete N selected]]). A player who has already played is withdrawn instead, and their results are kept.",
+        ],
+      },
+      { kind: "h", text: "On the day: withdrawals and late entries" },
+      { kind: "where", text: "Set up → Entries, once the tournament is launched" },
+      {
+        kind: "steps",
+        items: [
+          "The banner reads **Under way** and says what is still open. An assistant can do all of this as well as the {organizer}; nothing needs unlocking.",
+          "To take somebody out, press × on their row, then [[Withdraw]]. They come off the tee sheet and the board; their scores and side-game entries stay on the record. After launch nobody is deleted: they move to **Withdrawn**.",
+          "The results list a player who had begun as **WD** and one who had not teed off as **DNS** (did not start): on your Leaderboard, the Reports sheet and its CSV, beneath WD and above DQ, with no place. The public board and the players' Board leave a DNS out. One case to know: somebody who withdrew before launch but whose entry was kept (they had a side-game entry or a side) is also listed DNS once the tournament is launched.",
+          "Where they were drawn on a published tee sheet, the screen says what that leaves — “Group 3 goes out as a {groupOfTwo}”. Leave it, or put someone in on the Tee sheet.",
+          "If somebody is waiting, the first on the **Waitlist** moves into the place by themselves and the screen names them. They have no tee time yet: put them in a group on the Tee sheet ([[Put in group]]).",
+          "Withdrawn by mistake? Press [[Put back]] beside their name under **Withdrawn**. If the place has been filled in the meantime, they go back on the Waitlist, where they first queued. If a walkover has already been recorded against them, Put back leaves it as it is: whether the match is replayed is the committee's ruling, made on Score entry or the Bracket.",
+          "To take a late entry in a stroke play or Stableford competition, use **Add someone new** ([[Add late entry]]) or the roster picker. The screen then reminds you to put them in a group on the Tee sheet, and, where the field is flighted, offers **Choose a flight** in their row — even when the draw is confirmed, because placing a late entrant moves nobody else.",
+          "Late entries close at the LAST TEE TIME of Round 1 on its published tee sheet, on the round's day, by your club's clock: a walk-in can still go into the last group while the early groups' cards come in. The **Under way** banner says the time. With no published sheet for Round 1 they close when its first card is in. There is no grace period: the time on the sheet is the time, even when the start is running late. A walk-in after that needs an {organizer} to unlock the tournament: Unlock it on the dashboard (an assistant cannot).",
+          "In match play, a round robin, a knockout or a team cup the draw is the field: Add is refused once launched. A withdrawal there leaves their matches to be recorded as walkovers (Score entry, or the Bracket for a knockout); the app does not award them by itself.",
+          "Still locked after launch: importing a list, removing several at once, a player's name, email and 9- or 18-hole index, and moving a player who is already in a flight. Those need an {organizer} to unlock the tournament: Unlock it on the dashboard, or [[Unlock setup]] on this screen's banner. Before launch, a confirmed draw is changed the same way it always was: Reopen the draw on Flights.",
         ],
       },
     ],
@@ -390,6 +416,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Players' pairing requests are kept together where possible (not in a draw by position); any that couldn't fit are listed.",
           "In a team round partners always go out together, and where sides play a match — a cup's four-balls or foursomes — both sides of each match share a group, so every group is one match.",
           "[[Save sheet]] keeps a draft. [[Save & publish]], then confirm [[Publish the tee sheet]].",
+          "A late entry or a reserve who moved in has no group yet: **Not in a group yet** lists them over the saved sheet. Choose a group with room (fewer than four) and press [[Put in group]]. A group already out on the course is marked **teed off** and listed last; whether a late arrival may join it is the Committee's call. Nobody else moves and no time changes; on a published sheet only that player is told their time. Moving a player who is already in a group is a re-draw.",
         ],
       },
       { kind: "tip", text: "On publish each player gets “Your tee time is set” (or “has changed”) on their phone and sees their group on Today. [[Unpublish]] hides it again without losing the draw. To print the cards and signs for the round, press [[Print…]] under the sheet." },
@@ -410,6 +437,18 @@ export const GUIDE_STEPS: GuideSection[] = [
         ],
       },
       { kind: "tip", text: "Paper never carries an email, a phone number or an amount of money. If one has been typed into a name, the Print kit says so before you print." },
+      { kind: "h", text: "Money and the prize list" },
+      { kind: "where", text: "Set up → Prizes & payouts — money setup at the foot of the page" },
+      {
+        kind: "list",
+        items: [
+          "Answer **how money works** before you launch, and write the prize list the players will be told about. Paying out is Part 9, afterwards. TourneyHQ works money out and writes it down; it never moves it.",
+          "**Costs handled outside the app** — fees and prizes happen elsewhere; skins and side games are still worked out.",
+          "**Tournament kitty** — one pot: record money in and out. Nobody owes anybody, so no settle-up.",
+          "**Split shared costs** — record who paid for what; the app works out who pays whom in the fewest payments, with side-game winnings folded in. Choose **Who adds a shared cost**.",
+          "Under [[Add a prize]], start from a structure (such as flight winners) or enter Category, Detail and Amount, then [[Add]]. The winners are named later, once results are in (Part 9).",
+        ],
+      },
     ],
   },
   {
@@ -423,7 +462,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Until it is launched, a tournament's status is **Setting up** — one step, however far you are. Entries are not a status: players can sign up once you publish the sign-up link on **Entries**. With results already in, it reads **Setting up · results in** and the card says which round has results; the button is still **Launch tournament**.",
           "Work through the setup steps on the bar across the top of each Set-up screen — it is the one count of how far you are (for example **3 of 6 done**); the **How a tournament runs** panel on Tournament details marks where you are without a second count. The tournament needs a name and its **dates**; a venue alone is not enough, because players cannot plan around a tournament with no day. Until you launch, the Dashboard keeps the steps still to do under **Still to set up**, even once your players are in.",
           "Some steps are **Optional** and never stop you: flights for a medal or a Stableford (one field is a complete setup, and the step reads **Optional — one field**), the answer on how money works, and a day for every round of a tournament played over several rounds. Once nothing stops a launch the bar reads **Ready to launch** and says how many parts are done, the rest optional.",
-          "Press the launch button on the status bar. **Launch “‹name›”?** first lists what setup still has open — no flights, no tee sheet, no answer on how money works — each with a link to the screen that fixes it and whether you can still do it after launch. Then it summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
+          "Press the launch button on the status bar. **Launch “‹name›”?** first lists what setup still has open — no flights, no tee sheet, no answer on how money works, a tee with no Slope under a round that scores net or Stableford (its players are then scored on their raw Handicap Index), or a tee with a Slope but no Course Rating (scored on the Slope alone, without the Course Rating minus Par adjustment) — each with a link to the screen that fixes it and whether you can still do it after launch. Then it summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
           "Press [[Launch tournament]]. Setup locks; Part 3 lists what you can still change.",
         ],
       },
@@ -587,20 +626,12 @@ export const GUIDE_STEPS: GuideSection[] = [
     title: "Money",
     blocks: [
       { kind: "warn", text: "**TourneyHQ works the money out and writes it down. It never moves it.** Marking something settled records that a payment happened elsewhere." },
-      { kind: "where", text: "Afterwards → Prizes & payouts — money setup at the foot of the page" },
-      {
-        kind: "list",
-        items: [
-          "**Costs handled outside the app** — fees and prizes happen elsewhere; skins and side games are still worked out.",
-          "**Tournament kitty** — one pot: record money in and out. Nobody owes anybody, so no settle-up.",
-          "**Split shared costs** — record who paid for what; the app works out who pays whom in the fewest payments, with side-game winnings folded in. Choose **Who adds a shared cost**.",
-        ],
-      },
+      { kind: "where", text: "Set up → Prizes & payouts (the same screen you set money up on in Part 5, before launch)" },
+      { kind: "tip", text: "How money works and the prize list are set up BEFORE you launch, in Part 5. This part is what you do with them once play has begun: naming winners, skins, side games and settling up." },
       { kind: "h", text: "Prizes" },
       {
         kind: "steps",
         items: [
-          "Under [[Add a prize]], start from a structure (such as flight winners) or enter Category, Detail and Amount, then [[Add]].",
           "Once results are in, pick each prize's **Winner** — the list shows finishing places to help. A prize for best gross or best net lists the field on that figure, with ties broken by countback (last nine, six, three, then the last hole) as the leaderboard breaks them.",
           "If nobody may take home two placing prizes, tick **One prize per player** above the list. The lines are then shown gross first: award the gross prizes first, and a player who wins one is skipped for the net. Each winner list puts anybody who already holds a prize last, saying which, and marks the next in line; choosing them anyway is refused beside the list. Skill prizes such as nearest the pin and longest drive don't count, so the same player can win one — each line has a **Counts** tick to say which kind it is. If somebody already holds two prizes, the tick is refused until you clear one.",
         ],
@@ -690,7 +721,10 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "faq",
         items: [
           { q: "A button is greyed out", a: "The reason is written next to it — an empty field, locked setup, a missing course. Fix that and the button wakes up." },
-          { q: "“Configuration is locked”", a: "The tournament has launched. An {organizer} can Unlock setup on the banner to change structure; running the day doesn't need it." },
+          { q: "“Configuration is locked”", a: "The tournament has launched. An {organizer} can Unlock setup on the banner to change structure; running the day doesn't need it — withdrawing a player, putting one back and (in stroke play, Stableford and a league, until Round 1's last published tee time) a late entry stay open on Entries." },
+          { q: "I withdrew the wrong player", a: "Entries → Withdrawn → Put back. They return to the field, or to the Waitlist if their place has been filled since. Their cards were never deleted. A walkover already recorded against them stays until the committee changes it." },
+          { q: "A walk-in arrived after the first card", a: "With a published tee sheet, late entries stay open until Round 1's last tee time: add them on Entries, then [[Put in group]] on the Tee sheet. Without one, or after that time, late entries are closed. An {organizer} can unlock the tournament to add them: Unlock it on the dashboard. An assistant cannot unlock." },
+          { q: "What do DNS and WD mean on the results?", a: "DNS: withdrew before teeing off. WD: withdrew after beginning. Both are listed under the field with no place, then DQ. A DNS shows on your Leaderboard, the Reports sheet and the CSV, not on the public board." },
           { q: "“This round cannot be scored as set”", a: "The format and round type don't match: match play needs a head-to-head round, stroke formats need a stroke play round." },
           { q: "A player can't find their card", a: "Check they're Confirmed (not Pending or Waitlist), the round is published, and — with a round code — that it hasn't been reissued." },
           { q: "No money is showing", a: "Result money appears only once the round is final. Approve the remaining cards or mark the round over." },

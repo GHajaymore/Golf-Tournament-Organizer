@@ -124,6 +124,7 @@ import { SideBetStart } from "@/components/SideBetStart";
 import { RoundMoney } from "@/components/RoundMoney";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import type { HoleResult } from "@/lib/domain/types";
+import { OPEN_DOORS } from "./field-doors";
 
 /**
  * React reports missing keys, invalid nesting and bad props by writing to
@@ -644,10 +645,12 @@ describe("team screens", () => {
   it("says what the side's handicap number is", () => {
     // It rendered as a bare "14" beside the side's name with its meaning in a
     // `title` — an unlabelled number on a screen about handicaps, explained
-    // only to a mouse.
+    // only to a mouse. A SHARED-BALL side (J23): on a four-ball nobody plays
+    // off the side's figure, so that round says each partner's own instead —
+    // pinned in four-ball-plays-off.test.tsx.
     const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
-        format={format}
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Foursomes" }]} activeRoundId="r1"
+        format={{ ...format, name: "Foursomes", sharesOneCard: true }}
         teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
         problems={[]} unassigned={[]} matchCount={0} drawsMatches />,
     );
@@ -905,9 +908,9 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Scramble" basis="net"
         rows={[
-          { teamId: "t1", name: "Side A", members: ["Ann", "Bob"], memberIds: ["p1", "p2"], playingHandicap: 7,
+          { teamId: "t1", name: "Side A", members: ["Ann", "Bob"], memberIds: ["p1", "p2"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: 0, place: 1 },
-          { teamId: "t2", name: "Side B", members: [], memberIds: [], playingHandicap: 0,
+          { teamId: "t2", name: "Side B", members: [], memberIds: [], memberPlaying: [], playingHandicap: 0,
             gross: 0, net: 0, points: 0, played: 0, toPar: 0, place: null },
         ]} />,
     );
@@ -1041,11 +1044,11 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Four-Ball" basis="net"
         rows={[
-          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
+          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
-          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], playingHandicap: 9,
+          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], memberPlaying: [], playingHandicap: 9,
             gross: 74, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
-          { teamId: "t3", name: "Cats", members: ["Cal"], memberIds: ["p3"], playingHandicap: 4,
+          { teamId: "t3", name: "Cats", members: ["Cal"], memberIds: ["p3"], memberPlaying: [], playingHandicap: 4,
             gross: 71, net: 67, points: 0, played: 18, toPar: -5, place: 3 },
         ]} />,
     );
@@ -1063,9 +1066,9 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Four-Ball" basis="stableford"
         rows={[
-          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
+          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 38, played: 18, toPar: 0, place: 1 },
-          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], playingHandicap: 9,
+          { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], memberPlaying: [], playingHandicap: 9,
             gross: 80, net: 71, points: 38, played: 18, toPar: 0, place: 1 },
         ]} />,
     );
@@ -1108,6 +1111,7 @@ describe("leaderboards for every format", () => {
         rows={[{
           teamId: "t1", name: "Ants", members: ["Ann", "Bob", "Cal", "Dee"],
           memberIds: ["p1", "p2", "p3", "p4"],
+          memberPlaying: [],
           playingHandicap: 0,
           gross: card.grossTotal, net: card.netTotal, points: card.pointsTotal,
           played: card.played, toPar: card.toPar, place: 1,
@@ -1121,9 +1125,9 @@ describe("leaderboards for every format", () => {
     const html = render(
       <TeamLeaderboard format="Scramble" basis="net"
         rows={[
-          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
+          { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], memberPlaying: [], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
-          { teamId: "t2", name: "Bees", members: [], memberIds: [], playingHandicap: 0,
+          { teamId: "t2", name: "Bees", members: [], memberIds: [], memberPlaying: [], playingHandicap: 0,
             gross: 0, net: 0, points: 0, played: 0, toPar: 0, place: null },
         ]} />,
     );
@@ -2305,7 +2309,7 @@ describe("roster CSV import", () => {
 
   it("offers both ways of adding someone", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("Add member");
@@ -2320,7 +2324,7 @@ describe("roster CSV import", () => {
     // right edge. The one sentence a new club needs was the one being cut in
     // half. No rows, no table.
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("No members yet.");
@@ -2331,7 +2335,7 @@ describe("roster CSV import", () => {
 
   it("renders a populated roster", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={null}
         fieldSize={2} unlinkedCount={0}
         members={[row(), row({ id: "m2", name: "Rob Ferris", status: "inactive" })]} />,
     );
@@ -6473,7 +6477,7 @@ describe("the roster and the tournament in front of it", () => {
   const roster = async (members: RosterRow[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6523,7 +6527,7 @@ describe("members", () => {
   const roster = async (members: ReturnType<typeof member>[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={null}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -6797,7 +6801,7 @@ describe("registration and field", () => {
   const reg = async (over: Record<string, unknown> = {}) => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     return render(
-      <RegistrationClient
+      <RegistrationClient doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
           name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
@@ -6812,48 +6816,76 @@ describe("registration and field", () => {
   it("keeps every control on the registration screen", async () => {
     const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
     for (const control of [
-      "Confirmed", "Waitlisted", "Registration closes", "Status",
-      "Public sign-up link", "Take the link down", "When someone registers",
+      "Confirmed", "Waitlisted", "Entry terms", "Entries open", "Entries close", "Places",
+      "Public sign-up link", "When someone enters",
       "Auto-confirm to capacity", "Approve each entry", "Require a mobile number",
       "Invite players", "Message", "Add someone new", "Player name",
-      "Close registration",
+      "Close entries",
     ]) {
       expect(html, `missing control: ${control}`).toContain(control);
     }
   });
 
-  it("does not give two different switches the same name", async () => {
-    // The banner's "Close registration" is registrationOverride — whether this
-    // tournament takes entries at all. The card's switch is registrationOpen —
-    // whether the public link exists. They are not opposites, and both used to
-    // say "registration": the card was titled "Open registration" and its
-    // button read "Open registration" / "Close sign-ups", inches under a button
-    // reading "Close registration".
-    /**
-     * Rendered with the link PUBLISHED, because that is now the state in which
-     * these two switches are on screen together.
-     *
-     * The self-service panels sit behind a disclosure that opens itself when a
-     * public link exists and stays shut when none does — so with
-     * `registrationOpen: false` the card's switch is one click away and cannot
-     * be confused with the banner's, and with it true both are visible at once,
-     * which is exactly the case this test was written for. Asserting the open
-     * state is therefore asserting the collision that could actually happen.
-     */
-    const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
-    expect(html).toContain("Take the link down");
-    expect(html).not.toContain(">Open registration<");
+  it("has ONE switch for whether entries are open, and it is named for what it does", async () => {
+    // Five controls used to answer this: the banner's "Close registration" /
+    // "Reopen registration" / "Follow the deadline again" (the organizer's
+    // override) and the link panel's "Publish the link" / "Take the link down".
+    // Two switches, one word, and they were not opposites. There is now one
+    // state line and one button, worded by `entriesOpen`.
+    const live = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(live).toContain("Close entries");
+    expect(live).not.toContain(">Open entries<");
+    for (const gone of ["Take the link down", "Publish the link", "Close registration", "Reopen registration", "Follow the deadline again", "Keep taking entries"]) {
+      expect(live, gone).not.toContain(gone);
+    }
 
-    // And with no link, the disclosure carries the state in its own summary
-    // rather than hiding it — an organizer must be able to tell whether people
-    // can sign themselves up without opening anything.
+    // And with no link: the same one button, the other way round — and the
+    // state is said in words, not left to a chip.
     const shut = await reg({ registrationOpen: false });
+    expect(shut).toContain("Open entries");
+    expect(shut).not.toContain("Close entries");
+    expect(shut).toContain("Not open");
     expect(shut).toContain("Let players sign themselves up");
     expect(shut).toContain("No public link yet");
-    // The word this test exists to police. The collapsed header must not
-    // become a third control that says "registration" and means a fourth
-    // thing.
-    expect(shut).not.toContain(">Open registration<");
+    for (const gone of ["Take the link down", "Publish the link", "Close registration", "Reopen registration"]) {
+      expect(shut, gone).not.toContain(gone);
+    }
+  });
+
+  it("says Reopen entries when the dates or the organizer have shut the door", async () => {
+    const closedByHand = await reg({ registrationOpen: true, registrationToken: "zztok", registrationOverride: true });
+    expect(closedByHand).toContain("Reopen entries");
+    const pastDeadline = await reg({ registrationOpen: true, registrationToken: "zztok", regDeadline: "2026-05-01" });
+    expect(pastDeadline).toContain("Reopen entries");
+    const notYet = await reg({ registrationOpen: true, registrationToken: "zztok", regOpens: "2026-06-10" });
+    expect(notYet).toContain("Open entries now");
+  });
+
+  it("tells staff who are not admins why the entry terms are read-only, instead of letting the server refuse", async () => {
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    const html = render(
+      <RegistrationClient doors={OPEN_DOORS}
+        confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin={false} roster={[]}
+        event={{
+          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+          registrationOverride: null, inviteMessage: "", organizationName: "zz-Club",
+          dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+          requirePhone: false, registrationToken: "",
+        }} />,
+    );
+    expect(html).toContain("Only an organizer can change the entry terms. You can still open and close entries.");
+    expect(html).toContain("Open entries");
+    // CONTROL: an admin is not told it.
+    expect(html, "the dates can be typed into").toMatch(/<input[^>]*type="date"[^>]*disabled/);
+    const asAdmin = await reg();
+    expect(asAdmin).not.toContain("Only an organizer can change the entry terms");
+    expect(asAdmin).not.toMatch(/<input[^>]*type="date"[^>]*disabled/);
+  });
+
+  it("shows no way back to Tournament details for the entry terms", async () => {
+    const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(html).not.toContain("change on Tournament details");
+    expect(html).not.toContain("set it on Tournament details");
   });
 
   it("keeps the sign-up link and its invites behind one disclosure", async () => {
@@ -6870,7 +6902,7 @@ describe("registration and field", () => {
     expect(shut).not.toContain("Invite players");
     // The refusal that lives inside it goes with it — it is advice about a
     // panel that is not on screen.
-    expect(shut).not.toContain("Publish the sign-up link first");
+    expect(shut).not.toContain("Open entries first");
 
     const open = await reg({ registrationOpen: true, registrationToken: "zztok" });
     expect(open).toContain("Invite players");
@@ -6893,7 +6925,7 @@ describe("registration and field", () => {
   it("does not tell an organizer that closing is cosmetic", async () => {
     // "closing only changes what this says" was false. registrationStatus
     // returning acceptingEntries:false makes decideIntake refuse the entry.
-    const html = await reg({ registrationOverride: true });
+    const html = await reg({ registrationOverride: true, registrationOpen: true, registrationToken: "zztok" });
     expect(html).not.toContain("only changes what this says");
     // The specific sentence, not just the words "sign-up link" — those also
     // appear in the invite card's refusal, which would pass this vacuously.
@@ -6910,6 +6942,8 @@ describe("tournament details", () => {
       <EventSetupClient
         playersCount={24}
         courses={[{ id: "c1", name: "Bushwood", city: "Chicago", address: "" }]}
+        // A tournament with a round: the Overall result is only asked then.
+        roundFormats={["Stroke Play"]}
         {...props}
         initial={{
           name: "zz-Club Championship", playKind: "tournament", startOn: "", endOn: "", dates: "", datesTentative: false,
@@ -6920,6 +6954,24 @@ describe("tournament details", () => {
         }} />,
     );
   };
+
+  it("does not ask the Overall result before there is a round to ask it about", async () => {
+    /**
+     * Setup sequencing audit, item 6 (5 Nov). Details asked "Match play or
+     * Stroke play?" of a tournament with no rounds, and the FIRST round then
+     * overwrote the answer (`addStage`: a round with no opponents decides the
+     * tournament on strokes). Two controls for one rule, the later one winning
+     * quietly. Now the question is asked only once there are rounds, where an
+     * answer sticks: before that the screen says the first round decides it.
+     */
+    const html = await setup({}, { roundFormats: [] });
+    expect(html).not.toContain('name="fmt"');
+    expect(html).toContain("Decided by your first round");
+    // CONTROL: with a round on the tournament the choice is the organizer's.
+    const withRound = await setup({}, { roundFormats: ["Stroke Play"] });
+    expect(withRound).toContain('name="fmt"');
+    expect(withRound).not.toContain("Decided by your first round");
+  });
 
   it("says when more are confirmed than the field holds", async () => {
     /**
@@ -6963,7 +7015,6 @@ describe("tournament details", () => {
       "Tournament identity", "Tournament name", "Tournament dates",
       "How the tournament is decided", "Overall result", "Match play", "Stroke play",
       "Venue", "Golf course", "City", "Address",
-      "Registration", "Registration deadline", "Field capacity",
       "Where the field size comes from", "Player count", "From registrations",
       "Target player count", "Apply",
       // The save button reads "Saved" until something is dirty, which on a
@@ -7077,19 +7128,37 @@ describe("tournament details", () => {
     // of this card wore the same name, and the Recommended flow card below it
     // told organizers to go to "Entries" — meaning the screen.
     const html = await setup();
-    // Once, in the Recommended flow list, where it means the screen.
-    // As a NAME (a whole text node), not the "Entries open" date label.
-    expect(html.match(/>Entries</g)?.length ?? 0).toBe(1);
+    // In the Recommended flow list and in the line that says where the entry
+    // terms went, where it means the screen. Never as a SECTION heading.
+    expect(html.match(/>Entries</g)?.length ?? 0).toBe(2);
+    expect(html).not.toMatch(/card-kicker[^>]*>Entries</);
+    expect(html).not.toMatch(/card-kicker[^>]*>Registration</);
   });
 
   it("separates the field-resizing tool from the registration rules", async () => {
     // The deadline and the capacity decide whether the public form takes an
     // entry. "Player count" → Manual → Apply waitlists confirmed players,
     // invents placeholder rows and deletes scored matches. One heading held
-    // all three.
+    // all three; now the first two are not on this screen at all.
     const html = await setup({ playerCountMode: "manual" });
-    expect(html.indexOf("Field capacity")).toBeLessThan(html.indexOf("Where the field size comes from"));
+    expect(html.indexOf("are set on")).toBeLessThan(html.indexOf("Where the field size comes from"));
     expect(html.indexOf("Where the field size comes from")).toBeLessThan(html.indexOf("Player count"));
+  });
+
+  it("keeps the entry terms off Tournament details: they are set on Entries", async () => {
+    /**
+     * The entries cleanup (5 Nov, setup audit items 1 and 2). When entries
+     * open and close and how many places there are were set here while
+     * approval and the sign-up link were on Entries; Entries showed the
+     * deadline read-only and sent the organizer back to this page.
+     */
+    const html = await setup({ capacity: 32, regDeadline: "2026-06-14", regOpens: "2026-06-01" });
+    for (const gone of ["Registration deadline", "Field capacity", "Entries open", "reg-opens", "capmode"]) {
+      expect(html, gone).not.toContain(gone);
+    }
+    expect(html).toContain("are set on");
+    expect(html).toContain('href="/registration"');
+    // CONTROL: the Entries screen has them (see "registration and field").
   });
 
   it("names real screens in the recommended flow", async () => {

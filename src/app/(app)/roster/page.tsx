@@ -1,4 +1,4 @@
-import { configurationLocked } from "@/lib/domain/lifecycle-state";
+import { fieldRefusal } from "@/lib/services/field-change";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireOrgScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
@@ -101,8 +101,11 @@ export default async function RosterPage() {
    * and not unlocked` by hand, which is a screen and the server it calls
    * holding separate copies of one rule — and a screen offering a control the
    * server refuses is a bug report filed against the wrong thing.
+   *
+   * The one field rule now (day-of field changes, PR A): a late entry stays
+   * open after launch where the rule allows it, and the refusal is its words.
    */
-  const fieldLocked = !!event && configurationLocked(event);
+  const fieldLocked = event && session.eventId ? await fieldRefusal(session.eventId, "add") : null;
   const policy = handicapPolicyOf(org.handicapPolicy);
 
   /**

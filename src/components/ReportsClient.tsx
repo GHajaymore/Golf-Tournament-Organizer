@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
+import { LeaderboardTable, resultsLegend, type StandingRow } from "./LeaderboardTable";
 import { toParCell } from "@/lib/domain/ranked-score";
 import { toCsv, exportStatus, exportRank } from "@/lib/domain/csv-export";
 import { placesWithin } from "@/lib/domain/flight-places";
@@ -377,6 +377,12 @@ export function ReportsClient({
             320px phone (2026-10-07). */}
         {board ?? (
           <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} compact={casual} rankedOn={rankedOn} />
+        )}
+        {/* What the office codes on the sheet mean, for the codes it carries (PR B). */}
+        {!board && resultsLegend(rows) && (
+          <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
+            {resultsLegend(rows)}
+          </p>
         )}
         {/* The contests on the sheet that goes to the noticeboard, from the
             reader the public board uses (`contestBoard`). Names, never stakes. */}

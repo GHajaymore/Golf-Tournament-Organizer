@@ -108,8 +108,6 @@ const VOID_CALLS: Record<string, string> = {
   setMatchTiebreakers: "cannot refuse — writes and returns",
   rotatePublicToken: "cannot refuse — writes and returns",
   removeSignup: "returns a status string, and the row disappears either way",
-  setRegistrationOverride: "cannot refuse — writes and returns",
-  setRegistrationOpen: "cannot refuse — writes and returns",
   setRegistrationApproval: "cannot refuse — writes and returns",
   setRequirePhone: "cannot refuse — writes and returns",
   approveSignup: "cannot refuse — writes and returns",

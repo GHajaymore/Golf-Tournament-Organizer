@@ -400,12 +400,16 @@ describe("moving a player between flights", () => {
     expect(body).toBeTruthy();
   });
 
-  it("is staff-only and refuses once setup is locked", () => {
+  it("is staff-only and refuses once the field rule says so", () => {
     expect(body).toMatch(/requireStaffEvent\(\)/);
-    // Thrown (`assertUnlocked`) or, since 2026-10-21, RETURNED (`lockedRefusal`) so the board can say
-    // it — the guarantee is the refusal, not its spelling. The behaviour itself is held against real
-    // rows in `a-confirmed-draw-moves-nobody.audit.test.ts`.
-    expect(body).toMatch(/assertUnlocked\(eventId\)|const locked = await lockedRefusal\(eventId[^)]*\);\s*if \(locked\) return \{ ok: false, error: locked \}/);
+    // Thrown (`assertUnlocked`), then RETURNED (`lockedRefusal`, 2026-10-21) so the board can say it,
+    // and since day-of field changes (PR A) the ONE field rule — a placed player is "move-flight", an
+    // unplaced one "place-in-flight". The guarantee is the refusal, asked before the write; the
+    // behaviour itself is held against real rows in `a-confirmed-draw-moves-nobody.audit.test.ts`
+    // and `a-late-changes-after-launch.audit.test.ts`.
+    const asked = body.search(/const refused = await fieldRefusal\(eventId, player\.groupId \? "move-flight" : "place-in-flight"\);\s*if \(refused\) return \{ ok: false, error: refused \}/);
+    expect(asked).toBeGreaterThan(-1);
+    expect(asked).toBeLessThan(body.indexOf("prisma.player.update("));
   });
 
   it("scopes BOTH ids to the caller's tournament", () => {
@@ -479,7 +483,7 @@ describe("flight naming and sign-off", () => {
 });
 
 describe("registration close / extend", () => {
-  const body = actions("tournament.ts").find((a) => a.name === "setRegistrationOverride")!.body;
+  const body = actions("tournament.ts").find((a) => a.name === "setEntriesOpen")!.body;
 
   it("is staff-only, and deliberately NOT lock-gated", () => {
     // This asserted assertUnlocked until D2 of the 2026-08-12 audit showed
@@ -509,7 +513,7 @@ describe("registration close / extend", () => {
   it("the screen derives status from the deadline rather than capacity alone", () => {
     // The bug: a tournament whose deadline passed still read "Open · unlimited".
     const client = readSource("src", "components", "RegistrationClient.tsx");
-    expect(client).toMatch(/registrationStatus\(\{/);
+    expect(client).toMatch(/entriesOpen\(\{/);
     expect(client).toMatch(/deadline: event\.regDeadline/);
     expect(client).not.toMatch(/const status = unlimited \? "Open · unlimited"/);
   });
@@ -3100,5 +3104,62 @@ describe("one engine decides how many strokes a hole gives", () => {
     for (const rel of Object.keys(ALLOWED)) {
       expect(callers, `${rel} is exempted but no longer does it`).toContain(rel);
     }
+  });
+});
+
+/**
+ * WHO MAY CHANGE THE FIELD IS ASKED OF ONE RULE (day-of field changes, PR A).
+ *
+ * Every exported action in `tournament.ts` and `roster.ts` that creates,
+ * deletes or re-statuses a `Player` row (or moves one between flights) asks
+ * `fieldRefusal`, and none of the old four spellings (an inline
+ * `configurationLocked`, `assertUnlocked`, `lockedRefusal`, the bare
+ * confirmed-draw read). Swept as a class, so an action added tomorrow that
+ * writes the field is held to it the day it lands. The verdicts themselves are
+ * `field-change.test.ts`; the rows are `a-late-changes-after-launch.audit.test.ts`.
+ */
+describe("every field action asks the one field rule", () => {
+  /** Actions that write a Player's status or flight but are not the organizer changing the field, each with why. */
+  const NOT_FIELD_CHANGES: Record<string, string> = {
+    // The field LIMIT, an entry term — deliberately outside the lock (design table, "Entries
+    // open/close, capacity"). It moves players only by the waiting list's own order, asked first.
+    applyManualCount: "the field limit, an entry term, never a lock",
+  };
+  const FIELD_WRITE = /prisma\.player\.(create|createMany|delete|deleteMany)\(|prisma\.player\.update(Many)?\(\{[^;]*data: \{ (status|groupId)\b|\bremoveSignup\(|\bintoFlight\(/;
+  const fieldActions = [...actions("tournament.ts"), ...actions("roster.ts")].filter((a) => FIELD_WRITE.test(a.body));
+  const MUST = ["addSignup", "removeSignup", "removeSignups", "reinstateWithdrawn", "approveSignup", "movePlayerToGroup", "placeInFlight", "importCsvSignups", "addMembersToEvent"];
+
+  it("finds the field actions it is about (the control)", () => {
+    const names = fieldActions.map((a) => a.name);
+    for (const n of MUST) expect(names, `${n} should be swept as a field action`).toContain(n);
+  });
+
+  it("each field action asks fieldRefusal, returned, and none of the four old spellings", () => {
+    for (const a of fieldActions.filter((x) => MUST.includes(x.name))) {
+      // `placeInFlight` asks through `intoFlight`, the body it shares with `movePlayerToGroup`
+      // (whose slice holds it, and is asserted above to ask before the write).
+      const asks = a.name === "placeInFlight" ? /await intoFlight\(eventId, / : /await fieldRefusal\(eventId, /;
+      expect(a.body, `${a.name} must ask the one field rule`).toMatch(asks);
+      expect(a.body, `${a.name} must not use an old lock spelling`).not.toMatch(/assertUnlocked\(|lockedRefusal\(|configurationLocked\(|select: \{ flightsConfirmed: true \}/);
+    }
+    // updateSignup edits details: the rule's "edit", asked the same way.
+    const update = actions("tournament.ts").find((a) => a.name === "updateSignup")!.body;
+    expect(update).toMatch(/await fieldRefusal\(eventId, "edit"\)/);
+    expect(update).not.toMatch(/assertUnlocked\(/);
+  });
+
+  it("an action that writes the field and does not ask the rule is named here with the reason", () => {
+    const unexplained = fieldActions.map((a) => a.name).filter((n) => !MUST.includes(n) && !(n in NOT_FIELD_CHANGES));
+    expect(unexplained).toEqual([]);
+  });
+
+  // PR B: the tee sheet's one-player placement is a change kind of the same rule, asked before the sheet is written.
+  it("the tee sheet's Put in group asks the rule (place-in-group) before it writes", () => {
+    const put = actions("tee-sheet.ts").find((a) => a.name === "placeInTeeGroup");
+    expect(put, "placeInTeeGroup should be swept").toBeDefined();
+    const asks = put!.body.search(/await fieldRefusal\(session\.eventId, "place-in-group"\)/);
+    const writes = put!.body.search(/prisma\.stage\.updateMany\(/);
+    expect(asks, "placeInTeeGroup must ask the one field rule").toBeGreaterThan(-1);
+    expect(writes, "the write comes after the rule is asked").toBeGreaterThan(asks);
   });
 });

@@ -4,6 +4,7 @@ import { type OrgProfile } from "@/lib/domain/org-profile";
 // checklist's tournament step, and the sidebar's way out of an eventless
 // session is the same door — a literal here would be a second copy of it.
 import { SETUP_HREF } from "@/lib/domain/org-setup";
+import { bySetupOrder } from "@/lib/domain/setup-flow";
 import { ALL_PLAYER_SCREENS } from "@/lib/player-nav";
 import { canSeeLeaderboard, canEnterScores, type TournamentSettings } from "./tournament-settings";
 
@@ -350,7 +351,11 @@ export const NAV: NavSection[] = [
   {
     // Everything that defines the tournament. Locks when the event goes live.
     label: "Set up",
-    items: [
+    // ONE ORDER, decided in one place (audit item 17, 5 Nov): `bySetupOrder`
+    // sorts these into `SETUP_ORDER`, the strip's own sequence, so Teams sit
+    // before Flights here exactly as they do on the strip. Screens it does not
+    // name (Staff & helpers) keep their place after the guided ones.
+    items: bySetupOrder([
       { key: "event", label: "Tournament details", href: "/event", icon: "ph ph-gear-six", tier: "at-desk" },
       /**
        * ROUNDS BEFORE THE FIELD, matching the guided chain.
@@ -367,9 +372,9 @@ export const NAV: NavSection[] = [
        * rail went event → rounds → field while the list beside it read event →
        * field → rounds, and nothing reconciled the two.
        *
-       * The rest of this section is not in the chain at all — flights, teams
-       * and staff are reachable whenever they are wanted — so only these two
-       * had an order to disagree about.
+       * Flights and Teams are in the chain too (Teams first, as `SETUP_ORDER`
+       * has them), and `bySetupOrder` above applies it to the whole section so
+       * no screen here keeps an order of its own. Staff is the only one left out.
        */
       { key: "stages", label: "Rounds & formats", href: "/stages", icon: "ph ph-stack", tier: "at-desk" },
       { key: "registration", label: "Entries", href: "/registration", icon: "ph ph-user-plus", tier: "at-desk" },
@@ -383,7 +388,7 @@ export const NAV: NavSection[] = [
       // paying out is one short act afterwards. Coins, not the trophy of Season standings.
       { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-coins", tier: "at-desk" },
       { key: "access", label: "Staff & helpers", href: "/access", icon: "ph ph-shield-check", tier: "at-desk" },
-    ],
+    ]),
   },
   {
     /**

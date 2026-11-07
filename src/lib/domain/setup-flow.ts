@@ -31,7 +31,7 @@
  * shape of the tournament is not a lock either, for the same reason.
  */
 
-import { launchCheck, type LaunchCheck } from "./launch-check";
+import { launchCheck, type LaunchCheck, type UnratedTees } from "./launch-check";
 
 /**
  * ONE ROUND, as the guide has to judge it.
@@ -177,6 +177,12 @@ export interface SetupFacts {
    * builds the real one, passes it, and a test pins that.
    */
   missingCards?: readonly { label: string; course: string }[];
+  /**
+   * Tees with no Course Rating and Slope under a round that scores off a
+   * handicap (`unratedTeesFact`) — a launch WARNING, never a refusal. Optional
+   * for the same reason as `missingCards`; `tournament-facts.ts` builds it.
+   */
+  unratedTees?: UnratedTees | null;
   /**
    * The bracket is the tournament's first round, so the whole field is drawn
    * and there is nothing for flights to decide. See the `grouping` step.
@@ -416,7 +422,7 @@ const STEPS: ReadonlyArray<{
     key: "registration",
     href: "/registration",
     question: "Who is playing?",
-    missing: () => "Nobody is entered yet.",
+    missing: () => "Nobody is entered yet. Open entries, or add players, on Entries.",
     /**
      * ONE ENTRY, AND THAT IS GENUINELY THE BAR — checked 2026-09-15 rather
      * than left as the "at least one" shape the two steps either side of it
@@ -672,7 +678,7 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
   const readyToLaunch = complete && !facts.launched;
   // The launch gate's verdict from these facts and these steps — see launch-check.ts.
   const launch = launchCheck(
-    { ...facts, playingRounds: facts.playingRounds ?? facts.rounds.length, missingCards: facts.missingCards ?? [] },
+    { ...facts, playingRounds: facts.playingRounds ?? facts.rounds.length, missingCards: facts.missingCards ?? [], unratedTees: facts.unratedTees ?? null },
     steps,
     labelFor,
   );

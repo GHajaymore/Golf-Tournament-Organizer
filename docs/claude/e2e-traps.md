@@ -194,3 +194,12 @@ presses both, with `e2e/doors-fixture.ts` for its club. `/play/board` is the cod
 (`e2e/play-board.spec.ts`, all three visibility settings). A QR in the Print kit is now an `<a>` around the
 `svg.pk-qr`, and its modules are the one `svg.pk-qr > path`; the mark in its centre has paths of its own, so
 count modules with the child combinator, never `svg path`.
+
+A SEGMENTED CONTROL'S RADIO IS PRESSED, NEVER CHECKED (found 2026-11-05, sprint 1). `.seg-opt input` and `.radio input`
+are `opacity: 0; width: 0; height: 0` (`design-system.css`), so `getByLabel("X won").check()` or
+`getByRole("radio", { name }).check()` returns at once when X is ALREADY chosen (the test passes for the wrong
+reason) and waits for ever for a visible radio when it is not (the test hangs). Press the label and then see it
+chosen: `await pressRadio(radio)` from `e2e/press-radio.ts` (label click, then `toBeChecked()`), or
+`getByText("X won", { exact: true }).click()` then `expect(radio).toBeChecked()`.
+`src/lib/__tests__/seg-opt-radios-are-pressed-not-checked.test.ts` refuses a `.check(` on any locator that reaches a
+radio (by role, by `input[type="radio"]`, or by the words of a `.seg-opt` label); real checkboxes are untouched.

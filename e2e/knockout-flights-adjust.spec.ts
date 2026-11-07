@@ -3,6 +3,7 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { pressRadio } from "./press-radio";
 
 /**
  * A KNOCKOUT IN FLIGHTS, ADJUSTED BY HAND BEFORE ANYBODY PLAYS (2026-10-21).
@@ -115,7 +116,7 @@ async function divided(page: Page) {
   await prisma.event.update({ where: { id: ids.event }, data: { bracketDraw: "" } });
   await open(page);
   await expect(page.getByRole("heading", { name: "Divide the field of 6" })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("radio", { name: "Your own sizes" }).check();
+  await pressRadio(page.getByRole("radio", { name: "Your own sizes" }));
   await page.getByLabel("Players in each flight, top flight first, separated by commas").fill("3, 3");
   await expect(page.getByText("2 flights, 6 players.")).toBeVisible();
   await page.getByRole("button", { name: "Divide the field" }).click();

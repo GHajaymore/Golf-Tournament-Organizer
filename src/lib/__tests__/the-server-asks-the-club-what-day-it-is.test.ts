@@ -109,7 +109,9 @@ describe("what day it is, on the server", () => {
     // If the reader found no calls, there would be nothing to refuse.
     const callers = (name: string) => SOURCES.filter((f) => readSource(...f.split("/")).includes(`${name}(`));
     expect(SOURCES.length).toBeGreaterThan(400);
-    expect(callers("registrationStatus").length).toBeGreaterThanOrEqual(3);
+    // The link and the dates are joined once (`entriesOpen`, which asks `registrationStatus`).
+    expect(callers("entriesOpen").length).toBeGreaterThanOrEqual(3);
+    expect(callers("registrationStatus").length).toBeGreaterThanOrEqual(1);
     expect(callers("playerMayChange").length).toBeGreaterThanOrEqual(3);
     expect(callers("decideIntake").length).toBeGreaterThanOrEqual(2);
     expect(callers("clubDay").length + callers("clubDayForEvent").length).toBeGreaterThanOrEqual(6);

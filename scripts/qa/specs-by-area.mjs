@@ -151,13 +151,18 @@ export const AREAS = {
       "src/app/(app)/registration/",
       "src/app/register/",
       "src/components/RegistrationClient.tsx",
+      "src/components/EntryTermsCard.tsx",
       "src/components/RegisterClient.tsx",
       "src/components/DisqualifyPanel.tsx",
+      "src/components/WithdrawnList.tsx",
       "src/app/actions/register.ts",
       "src/app/actions/disqualify.ts",
     ],
     specs: [
+      // Day-of field changes (PR A): withdraw, put back, a late entry and its flight, after launch.
+      "e2e/day-of-field-changes.spec.ts",
       "e2e/entry-needs-approval.spec.ts",
+      "e2e/entry-terms.spec.ts",
       "e2e/disqualified-and-reinstated.spec.ts",
       "e2e/organizer-requires-a-phone.spec.ts",
       "e2e/enter-from-the-club-list.spec.ts",
@@ -173,8 +178,13 @@ export const AREAS = {
   },
   "tee-sheet": {
     name: "The tee sheet",
-    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/app/actions/tee-sheet.ts"],
-    specs: ["e2e/organizer-teesheet.spec.ts", "e2e/play-with.spec.ts"],
+    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts"],
+    specs: [
+      "e2e/organizer-teesheet.spec.ts",
+      "e2e/play-with.spec.ts",
+      // Day-of field changes (PR B): put one late entry in a group with room, DNS, the late-entry cutoff.
+      "e2e/day-of-tee-sheet.spec.ts",
+    ],
     scenarios: [],
     // Tee times are read on the club's clock.
     dateSensitive: true,
@@ -354,6 +364,7 @@ export const FULL_ONLY = [
   "e2e/staff-kept-cards.spec.ts",
   // The state machine's family walks (PR 3): the core lifecycle every tournament goes through.
   "e2e/status-casual.spec.ts",
+  "e2e/status-four-ball-match-board.spec.ts",
   "e2e/status-knockout-flights.spec.ts",
   "e2e/status-knockout.spec.ts",
   "e2e/status-league.spec.ts",

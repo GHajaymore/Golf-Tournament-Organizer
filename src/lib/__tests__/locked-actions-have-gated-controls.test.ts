@@ -139,6 +139,45 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     expect(setup).toMatch(/configUnlocked: true/);
   });
 
+  /**
+   * THE FIELD ACTIONS ASK THEIR OWN RULE (day-of field changes, PR A): after
+   * launch Withdraw, Put back and a late entry stay open while setup is locked,
+   * so a control reaching one of them takes the field's DOORS (`fieldDoors`, or
+   * one door as a sentence), never the setup lock alone — the setup lock would
+   * shut the very controls the morning needs. Swept as a class like the above.
+   */
+  it("each control reaching a field action receives the field's doors", () => {
+    const fieldActions = new Set<string>();
+    for (const f of files(join(ROOT, "src", "app", "actions"), /\.ts$/)) {
+      for (const part of readSource(relative(ROOT, f)).split(/export async function /).slice(1)) {
+        if (/\bfieldRefusal\(/.test(part)) fieldActions.add(part.slice(0, part.indexOf("(")).trim());
+      }
+    }
+    // The control: the sweep finds the actions it is about.
+    for (const a of ["addSignup", "removeSignup", "reinstateWithdrawn", "approveSignup", "addMembersToEvent"]) {
+      expect(fieldActions.has(a), `${a} should ask the field rule`).toBe(true);
+    }
+    const reaching = callers(new Map([...fieldActions].map((a) => [a, ""])));
+    expect(reaching.has("src/components/RegistrationClient.tsx")).toBe(true);
+    expect(reaching.has("src/components/WithdrawnList.tsx")).toBe(true);
+    const DOORS = /\b(doors\??:\s*FieldDoors|door\??:\s*string \| null|fieldLocked\??:\s*string \| null)/;
+    const FIELD_EXEMPT: Record<string, string> = {
+      ...EXEMPT,
+      // Handed `locked={!!doors.add}` by RegistrationClient — the add door, as a boolean (asserted below).
+      "src/components/RosterPicker.tsx": "given the add door by its one caller",
+      // The Flights board shuts every move on the setup lock (and on a confirmed draw). After launch the
+      // field rule refuses "move-flight" too; the one move it allows — placing an unplaced late entrant —
+      // is offered on Entries instead. Stricter than the rule, never looser, so no refused press is offered.
+      "src/components/FlightBoard.tsx": "shuts every move on the setup lock, stricter than the field rule",
+    };
+    const blind = [...reaching.entries()]
+      .filter(([f]) => !(f in FIELD_EXEMPT))
+      .filter(([f]) => !DOORS.test(readSource(f)))
+      .map(([f, names]) => `${f} → ${names.join(", ")}`);
+    expect(blind, "controls reaching a field action without the field's doors").toEqual([]);
+    expect(readSource("src", "components", "RegistrationClient.tsx")).toMatch(/<RosterPicker [^>]*locked=\{!!doors\.add\}/);
+  });
+
   it("each page hands its screen the lock", () => {
     expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/<StagesClient[\s\S]*?locked=\{locked\}/);
     expect(readSource("src", "app", "(app)", "teams", "page.tsx")).toMatch(/<TeamsClient\s+locked=\{locked\}/);

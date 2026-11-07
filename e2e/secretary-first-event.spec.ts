@@ -159,11 +159,12 @@ test("a new club secretary has a tournament with a working entry link in under t
       await press(visible(page.locator("main").getByRole("link", { name: "Entries", exact: true })));
       await page.waitForURL(/\/registration/, { timeout: 30_000 });
       await page.waitForLoadState("networkidle").catch(() => {});
-      await press(page.getByRole("button", { name: /Let players sign themselves up/ }));
-      await press(page.getByRole("button", { name: "Publish the link" }));
-      await expect(page.getByRole("button", { name: "Take the link down" })).toBeVisible({ timeout: 20_000 });
-      link = await page.locator("input").evaluateAll((els) => (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "");
-      expect(link, "no sign-up link is shown").toMatch(/\/register\//);
+      await press(page.getByRole("button", { name: /^Open entries/ }));
+      await expect(page.getByRole("button", { name: "Close entries" })).toBeVisible({ timeout: 20_000 });
+      // The link panel opens itself a moment after the button turns; read it once it is drawn.
+      const readLink = () => page.locator("input").evaluateAll((els) => (els as HTMLInputElement[]).map((e) => e.value).find((v) => v.includes("/register/")) ?? "");
+      await expect.poll(readLink, { timeout: 20_000, message: "no sign-up link is shown" }).toMatch(/\/register\//);
+      link = await readLink();
     });
 
     await test.step("the link works: a member opens it and is shown the entry form", async () => {

@@ -91,7 +91,7 @@ jobs:
       - name: Install the browser, if a browser test is named
         if: needs.plan.outputs.browser != ''
         timeout-minutes: 12
-        run: npx playwright install --with-deps chromium
+        run: bash scripts/ci/install-browsers.sh chromium
       - name: Run every named test with nothing broken
         env:
           AUTH_SECRET: breaks-e2e-secret
@@ -134,7 +134,7 @@ jobs:
         if: matrix.break.browser != ''
         # The limit ci.yml gives this step, for the reason it gives.
         timeout-minutes: 12
-        run: npx playwright install --with-deps chromium
+        run: bash scripts/ci/install-browsers.sh chromium
       - name: Break the app, and ask the tests
         env:
           AUTH_SECRET: breaks-e2e-secret

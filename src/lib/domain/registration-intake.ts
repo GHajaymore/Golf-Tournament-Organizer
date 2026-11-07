@@ -16,7 +16,7 @@
  * than discovered in production against a real club's members.
  */
 
-import { registrationStatus, type RegistrationInput } from "../registration";
+import { entriesOpen, type RegistrationInput } from "../registration";
 import { readHandicapIndex } from "./handicap-label";
 import { EMAIL_RE } from "./typed-limits";
 
@@ -63,15 +63,14 @@ export interface IntakeInput {
  *     unlimited field (capacity 0) never waitlists.
  */
 export function decideIntake(input: IntakeInput): IntakeDecision {
-  if (!input.registrationOpen) return { accepted: false };
-
-  const status = registrationStatus(input.reg);
-  if (!status.acceptingEntries) return { accepted: false };
+  // The link and the dates are joined once, in `entriesOpen`.
+  const entries = entriesOpen({ ...input.reg, registrationOpen: input.registrationOpen });
+  if (!entries.open) return { accepted: false };
 
   if (input.approvalMode === "approve") {
     return { accepted: true, status: "pending", waitlisted: false };
   }
-  const waitlisted = status.waitlisting;
+  const waitlisted = entries.status.waitlisting;
   return { accepted: true, status: waitlisted ? "waitlisted" : "confirmed", waitlisted };
 }
 

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readSource } from "./source";
+import { NO_SHEET, OPEN_DOORS, liveDoors } from "./field-doors";
+import { fieldBanner } from "@/lib/domain/field-change";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -21,69 +23,160 @@ vi.mock("@/app/actions/messaging", actionModule);
 vi.mock("@/app/actions/event", actionModule);
 
 /**
- * ADDING A PLAYER TO A LOCKED TOURNAMENT — walked as the secretary on the live
- * April Medal, 2026-09-27.
+ * THE ENTRIES SCREEN AFTER LAUNCH — what is open and what is shut, drawn from
+ * the one field rule (day-of field changes, PR A).
  *
- * Every control on Registration is disabled while setup is locked except one:
- * the "Add someone new" form. So it could be filled in and pressed, and
- * `addSignup` — which refused a locked tournament by THROWING — took the whole
- * page down to "Application error: a server-side exception has occurred". And
- * the closed-registration banner above it said, in bold, "You can still add
- * players below".
+ * Its history: walked as the secretary on the live April Medal, 2026-09-27,
+ * the "Add someone new" form was the one control not gated on the lock, and
+ * `addSignup` refused by THROWING ("Application error"), under a banner that
+ * promised "You can still add players below". Then every field control shut
+ * at launch — including Withdraw, so on the morning an Assistant could not
+ * record one name off the sheet.
  *
- * Three halves, each pinned: the button follows the lock, the banner stops
- * promising it, and the action answers in a sentence (asserted against a real
- * locked tournament in `locked-field-add.audit.test.ts`).
+ * Now the screen takes the field's DOORS (`fieldDoors`), the same verdicts the
+ * actions ask: under way in a stroke field, Add, Withdraw and the roster picker
+ * stay open; the CSV import and players' details stay shut with the reason
+ * beside them; a drawn field (a knockout) refuses Add in the rule's words.
  */
-const reg = async (locked: boolean) => {
+const row = (id: string, name: string) => ({
+  id, name, handicap: 10, handicapType: "18", handicapSource: "manual", seed: 1, email: `${id}@example.invalid`, phone: "",
+});
+
+const reg = async (opts: { locked: boolean; doors: typeof OPEN_DOORS; underWay?: string[] | null; flights?: Array<{ id: string; label: string }> }) => {
   const { RegistrationClient } = await import("@/components/RegistrationClient");
   return renderToStaticMarkup(
     <RegistrationClient
-      confirmed={[]} waitlist={[]} pendingEntries={[]} locked={locked} isAdmin roster={[]}
+      confirmed={[row("p1", "zz-Ann Doyle")]} waitlist={[]} pendingEntries={[]} isAdmin
+      roster={[{ id: "m1", name: "zz-Cleo Green", email: "m1@example.invalid", phone: "", handicap: 12, entered: false } as never]}
+      locked={opts.locked} doors={opts.doors} underWay={opts.underWay ?? null} flights={opts.flights ?? []}
       event={{
         name: "zz-April Medal", capacity: 32, status: "live", regDeadline: "", regOpens: "", today: "2026-06-01",
-        // Closed by hand (true is "closed" — `setRegistrationOverride(true)` is
-        // the Close button), the state in which the banner offers "add below".
+        // Closed by hand (true is "closed"), with the link published: the state
+        // in which the card offers "add below" (and, refused, says it cannot).
         registrationOverride: true, inviteMessage: "", organizationName: "zz-Club",
-        dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+        dates: "", course: "", city: "", registrationOpen: true, registrationApproval: "auto",
         requirePhone: false, registrationToken: "",
       }} />,
   );
 };
 
-describe("a locked tournament's Registration screen", () => {
-  it("does not promise that players can still be added", async () => {
-    const html = await reg(true);
-    expect(html).toContain("Setup locked");
-    expect(html).not.toContain("You can still add players below");
-    expect(html).toContain("While it is closed the sign-up link turns everyone away.");
-    // And says why the Add button is dead where the button is.
-    expect(html).toContain("Setup is locked, so nobody can be added.");
+/** The opening tag of the element whose text (or accessible name) is `marker`. */
+function tagBefore(html: string, marker: string, tag = "button"): string {
+  const at = html.indexOf(marker);
+  expect(at, `${marker} should be on the screen`).toBeGreaterThan(-1);
+  const open = html.lastIndexOf(`<${tag}`, at);
+  return html.slice(open, html.indexOf(">", open) + 1);
+}
+const isDisabled = (tag: string) => /\sdisabled=""/.test(tag);
+
+describe("Entries under way in a stroke field: the day-of doors are open", () => {
+  const doors = liveDoors("stroke");
+  const underWay = fieldBanner({ status: "live", configUnlocked: false, family: "stroke", playedRound: null, flightsConfirmed: false, ...NO_SHEET });
+
+  it("says it is under way and what is still open, not 'Setup locked'", async () => {
+    const html = await reg({ locked: true, doors, underWay });
+    expect(html).toContain("Under way");
+    expect(html).toContain("You can withdraw a player, put one back or add a late entry");
+    expect(html).not.toContain("Setup locked");
   });
 
-  it("still says so when setup is open (the control)", async () => {
-    const html = await reg(false);
+  it("Add, Withdraw and the roster picker are live; the CSV import and details are not, with the reason beside them", async () => {
+    const html = await reg({ locked: true, doors, underWay });
+    // Add: the late-entry button is not disabled by the field (only by the empty name box).
+    const add = tagBefore(html, "Add late entry");
+    expect(add).toContain("disabled");
+    expect(html).not.toContain(doors.add ?? "THE ADD DOOR IS OPEN");
+    // Withdraw: the per-row button, named for the act, enabled.
+    // The WHOLE opening tag: `disabled` may come after the title (a slice up to the title missed it).
+    const withdraw = tagBefore(html, 'title="Withdraw zz-Ann Doyle"');
+    expect(withdraw).toMatch(/^<button[^>]*>$/);
+    expect(isDisabled(withdraw)).toBe(false);
+    // The CSV import: shut, and why.
+    expect(html).toMatch(/type="file"[^>]*disabled=""/);
+    expect(html).toContain(doors.bulk!);
+    // Details (the email box): shut.
+    expect(isDisabled(tagBefore(html, 'aria-label="Email for zz-Ann Doyle"', "input"))).toBe(true);
+    // The promise above the form is true again: a stroke field takes a late entry.
     expect(html).toContain("You can still add players below");
-    expect(html).not.toContain("Setup is locked, so nobody can be added.");
   });
 
-  it("gates the Add button on the lock, like the roster picker beside it", () => {
+  it("the Add button's only refusal is the empty form (the control: a name typed would enable it)", () => {
     const src = readSource("src", "components", "RegistrationClient.tsx");
     const at = src.indexOf("onClick={submitAdd}");
-    expect(at).toBeGreaterThan(-1);
     const button = src.slice(src.lastIndexOf("<button", at), at);
-    expect(button).toMatch(/disabled=\{pending \|\| locked \|\|/);
-    // And the CSV import beside it.
-    expect(src).toMatch(/type="file"[^>]*onChange=\{onFile\} disabled=\{pending \|\| locked\}/);
+    expect(button).toMatch(/disabled=\{pending \|\| !!doors\.add \|\|/);
+    expect(src).toMatch(/type="file"[^>]*onChange=\{onFile\} disabled=\{pending \|\| !!doors\.bulk\}/);
+    // The roster picker beside it follows the same add door, not the setup lock.
+    expect(src).toMatch(/<RosterPicker [^>]*locked=\{!!doors\.add\}/);
+  });
+});
+
+describe("Entries under way in a knockout: the draw is the field", () => {
+  const doors = liveDoors("knockout");
+
+  it("refuses Add in the rule's words where the button is, and promises nothing", async () => {
+    const html = await reg({ locked: true, doors, underWay: ["x"] });
+    expect(isDisabled(tagBefore(html, "Add late entry"))).toBe(true);
+    expect(html).toContain("The draw is made, so the field is fixed. To change it, an Organizer can unlock the tournament on the dashboard.");
+    expect(html).not.toContain("You can still add players below");
+    expect(html).toContain("While it is closed the sign-up link turns everyone away.");
+    // Withdraw is still open: a withdrawal never reopens anything.
+    expect(isDisabled(tagBefore(html, 'title="Withdraw zz-Ann Doyle"'))).toBe(false);
   });
 
-  it("the action refuses in words rather than throwing", () => {
-    const src = readSource("src", "app", "actions", "tournament.ts");
-    const body = src.slice(src.indexOf("export async function addSignup("), src.indexOf("export async function addSignup(") + 2500);
-    expect(body).toMatch(/if \(configurationLocked\(event\)\) \{\s*return \{ ok: false,/);
-    expect(body).not.toMatch(/assertUnlocked/);
-    const csv = src.slice(src.indexOf("export async function importCsvSignups("), src.indexOf("export async function importCsvSignups(") + 900);
-    expect(csv).toMatch(/if \(configurationLocked\(event\)\) \{\s*return \{/);
-    expect(csv).not.toMatch(/assertUnlocked/);
+  it("after the first card a stroke field refuses Add, naming the round and who can unlock", async () => {
+    const html = await reg({ locked: true, doors: liveDoors("stroke", "Round 1"), underWay: ["x"] });
+    expect(html).toContain(
+      "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.",
+    );
+  });
+});
+
+/**
+ * A CONFIRMED DRAW DOES NOT SHUT "CHOOSE A FLIGHT" FOR A LATE ENTRANT in stroke
+ * play or Stableford (panel review of #1028, must-fix 1): placing an unplaced
+ * player moves nobody. The control: where flights make the pairings (a round
+ * robin) the confirmed draw does shut it, and so does the first card.
+ */
+describe("Entries under way with a confirmed draw: a late entrant can still be given a flight", () => {
+  const flights = [{ id: "g1", label: "Flight A" }, { id: "g2", label: "Flight B" }];
+  const chooser = 'aria-label="Flight for zz-Ann Doyle"';
+
+  for (const family of ["stroke", "stableford"] as const) {
+    it(`${family}: "Choose a flight" is offered and live`, async () => {
+      const html = await reg({ locked: true, doors: liveDoors(family, null, true), underWay: ["x"], flights });
+      expect(isDisabled(tagBefore(html, chooser, "select"))).toBe(false);
+      expect(html).toContain("Choose a flight");
+    });
+  }
+
+  it("CONTROL: a round robin's confirmed draw, or a first card, shuts it", async () => {
+    const robin = await reg({ locked: true, doors: liveDoors("roundRobinFlights", null, true), underWay: ["x"], flights });
+    expect(robin).not.toContain(chooser);
+    const begun = await reg({ locked: true, doors: liveDoors("stroke", "Round 1", true), underWay: ["x"], flights });
+    expect(begun).not.toContain(chooser);
+  });
+});
+
+describe("Entries before launch (the control)", () => {
+  it("everything is open and the old words stand", async () => {
+    const html = await reg({ locked: false, doors: OPEN_DOORS });
+    expect(html).toContain("You can still add players below");
+    expect(html).not.toContain("Under way");
+    expect(html).toContain("Add to field");
+    expect(html).toContain('title="Remove zz-Ann Doyle from the field"');
+    expect(isDisabled(tagBefore(html, 'aria-label="Email for zz-Ann Doyle"', "input"))).toBe(false);
+  });
+});
+
+describe("the actions ask the one rule, in words", () => {
+  const src = readSource("src", "app", "actions", "tournament.ts");
+  const body = (name: string, len = 2500) => src.slice(src.indexOf(`export async function ${name}(`), src.indexOf(`export async function ${name}(`) + len);
+
+  it("addSignup and importCsvSignups return the rule's refusal rather than throwing", () => {
+    expect(body("addSignup")).toMatch(/const refused = await fieldRefusal\(eventId, "add"\);\s*if \(refused\) return \{ ok: false, error: refused \};/);
+    expect(body("addSignup")).not.toMatch(/assertUnlocked|configurationLocked/);
+    expect(body("importCsvSignups", 900)).toMatch(/fieldRefusal\(eventId, "bulk"\)/);
+    expect(body("importCsvSignups", 900)).not.toMatch(/assertUnlocked|configurationLocked/);
   });
 });

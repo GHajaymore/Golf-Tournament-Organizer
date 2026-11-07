@@ -162,8 +162,8 @@ describe("a knockout with results is a tournament under way", () => {
 
   it("withdraws a player who has won a tie rather than deleting them", async () => {
     // players[0] holds the slot above; players[1] holds nothing.
-    expect(await removeSignup(players[1])).toBe("deleted");
-    expect(await removeSignup(players[0])).toBe("withdrawn");
+    expect(await removeSignup(players[1])).toMatchObject({ ok: true, outcome: "deleted" });
+    expect(await removeSignup(players[0])).toMatchObject({ ok: true, outcome: "withdrawn" });
 
     // And the bracket still names somebody who exists. `winnerId` is a plain
     // column, so a delete would have left it pointing at nothing rather than

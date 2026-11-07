@@ -13,7 +13,10 @@ import { GUIDE_STEPS } from "../guide-steps";
  */
 
 const PINNED: [label: string, file: string][] = [
-  ["Publish the link", "src/components/RegistrationClient.tsx"],
+  ["Open entries", "src/lib/registration.ts"],
+  ["Close entries", "src/lib/registration.ts"],
+  ["Reopen entries", "src/lib/registration.ts"],
+  ["Save entry terms", "src/components/EntryTermsCard.tsx"],
   ["Keep their money as it is", "src/components/OrgKindPicker.tsx"],
   ["Switch anyway", "src/components/OrgKindPicker.tsx"],
   ["Generate flights", "src/components/GroupingControls.tsx"],
@@ -27,6 +30,10 @@ const PINNED: [label: string, file: string][] = [
   ["Start this game", "src/components/ContestsClient.tsx"],
   ["Everyone with a card", "src/components/SkinsPotClient.tsx"],
   ["Unlock setup", "src/components/SetupLockBanner.tsx"],
+  // Day-of field changes (PR A): the under-way Entries screen.
+  ["Withdraw", "src/components/RegistrationClient.tsx"],
+  ["Put back", "src/components/WithdrawnList.tsx"],
+  ["Add late entry", "src/components/RegistrationClient.tsx"],
   ["Save scorecard", "src/components/StrokePlayEntry.tsx"],
   ["Certify my card", "src/components/PlayerCard.tsx"],
   ["Draw sides automatically", "src/components/TeamsClient.tsx"],
@@ -82,5 +89,28 @@ describe("the step-by-step guide names buttons the app really has", () => {
       expect(s.blocks.length, s.id).toBeGreaterThan(0);
     }
     expect(new Set(GUIDE_STEPS.map((s) => s.id)).size).toBe(GUIDE_STEPS.length);
+  });
+});
+
+describe("the guide teaches money in the order a tournament office does", () => {
+  const text = (s: (typeof GUIDE_STEPS)[number]) => JSON.stringify(s.blocks);
+  const index = (id: string) => GUIDE_STEPS.findIndex((s) => s.id === id);
+
+  it("sets money and the prize list up BEFORE the Launch part (setup audit item 16)", () => {
+    const setup = GUIDE_STEPS.findIndex((s) => text(s).includes("[[Add a prize]]"));
+    expect(setup, "the guide never says how to write the prize list").toBeGreaterThan(-1);
+    expect(setup, "the prize list is taught after launch").toBeLessThan(index("launch"));
+    const modes = GUIDE_STEPS.findIndex((s) => text(s).includes("Tournament kitty"));
+    expect(modes, "the money modes are taught after launch").toBeLessThan(index("launch"));
+  });
+
+  it("points at the menu Prizes & payouts is actually in", () => {
+    const where = GUIDE_STEPS.flatMap((s) => s.blocks)
+      .filter((b): b is { kind: "where"; text: string } => b.kind === "where" && b.text.includes("Prizes & payouts"));
+    expect(where.length, "no part says where Prizes & payouts is").toBeGreaterThan(0);
+    for (const w of where) {
+      expect(w.text, "Prizes & payouts is in Set up, not Afterwards").not.toMatch(/Afterwards\s*→\s*Prizes/);
+      expect(w.text).toMatch(/Set up\s*→\s*Prizes/);
+    }
   });
 });

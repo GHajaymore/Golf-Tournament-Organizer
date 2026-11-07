@@ -84,7 +84,12 @@ describe("a launched tournament's flights board", () => {
   it("answers each press with a sentence rather than an error, and changes nothing", async () => {
     await prisma.event.update({ where: { id: ids.event }, data: { status: "live" } });
     const want = { ok: false, error: "Configuration is locked. Unlock the tournament to change the flights." };
-    await expect(movePlayerToGroup(ids.ann, ids.b, true)).resolves.toMatchObject(want);
+    // Moving a placed player asks the one field rule since day-of field changes (PR A): after
+    // launch a placed player stays where they are, in the rule's words.
+    await expect(movePlayerToGroup(ids.ann, ids.b, true)).resolves.toMatchObject({
+      ok: false,
+      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can unlock the tournament on the dashboard.",
+    });
     await expect(renameGroup(ids.a, "Renamed")).resolves.toMatchObject(want);
     await expect(setFlightsConfirmed(true)).resolves.toMatchObject(want);
     expect(await annIn()).toBe(ids.a);

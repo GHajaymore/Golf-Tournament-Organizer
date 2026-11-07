@@ -17,7 +17,13 @@ describe("the field page", () => {
   });
 
   it("draws them, and only when there are some", () => {
-    expect(src()).toMatch(/withdrawn\.length > 0 && \(/);
-    expect(src()).toMatch(/aria-label="Withdrawn"/);
+    // In its own client component since day-of field changes (PR A), for Put back.
+    expect(src()).toMatch(/<WithdrawnList withdrawn=\{withdrawn\} door=\{doors\.reinstate\} \/>/);
+    const list = readSource("src/components/WithdrawnList.tsx");
+    expect(list).toMatch(/if \(withdrawn\.length === 0\) \{\s*return said \?/);
+    expect(list).toMatch(/aria-label="Withdrawn"/);
+    // Each with Put back, behind the field rule's door.
+    expect(list).toMatch(/disabled=\{pending \|\| !!door\}/);
+    expect(list).toMatch(/reinstateWithdrawn\(p\.id\)/);
   });
 });

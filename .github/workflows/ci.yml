@@ -420,8 +420,13 @@ jobs:
         # passed). Ten minutes is far more than a healthy install takes, and a
         # hang now fails in ten rather than thirty — and fails HERE, naming the
         # step, instead of reading as a cancelled test run.
+        #
+        # AND A RETRY, because on 2026-11-05 a slow mirror (about two minutes
+        # per package) used the whole ten minutes three times in two days. The
+        # script gives apt a 30-second stall limit and makes two attempts of
+        # four minutes; a real hang still fails here, in under ten.
         timeout-minutes: 10
-        run: npx playwright install --with-deps chromium
+        run: bash scripts/ci/install-browsers.sh chromium
 
       - name: End-to-end
         # The one net that was NOT here, and it rotted for eleven days as a

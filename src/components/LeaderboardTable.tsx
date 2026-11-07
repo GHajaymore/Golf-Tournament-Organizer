@@ -104,6 +104,8 @@ export interface StandingRow {
   missedCut?: string;
   /** Withdrew after beginning: WD, at the foot of the sheet, without a place. */
   withdrew?: boolean;
+  /** Withdrew before teeing off: DNS, beneath WD and above DQ — on the results sheet only (`resultsSheetRows`). */
+  didNotStart?: boolean;
   /** Disqualified by the committee: DQ, the last line, without a place. */
   disqualified?: boolean;
   /**
@@ -143,6 +145,9 @@ export interface StandingRow {
  */
 export function unrankedNote(r: StandingRow): string {
   if (r.ranked) return "";
+  // Withdrew before teeing off — the results sheet's own line (PR B). Asked
+  // before "nothing returned", which it would otherwise be read as.
+  if (r.didNotStart) return "DNS — did not start";
   // No card at all for a round the committee closed — said, not left as a
   // row of dashes (grid cell T48, 2026-10-08).
   if (r.thru <= 0) return r.missedRound ? `Didn't play ${r.missedRound}` : "";
@@ -158,6 +163,19 @@ export function unrankedNote(r: StandingRow): string {
   return r.holesOwed > r.thru
     ? `Not ranked — ${r.thru} of ${r.holesOwed} holes played`
     : "Not ranked — card incomplete";
+}
+
+/**
+ * WHAT THE OFFICE CODES ON A RESULTS SHEET MEAN — only the codes the sheet
+ * carries, in the order they are listed (PR B): "DNS did not start. WD
+ * withdrew after beginning. DQ disqualified." Empty when the sheet has none.
+ */
+export function resultsLegend(rows: readonly StandingRow[]): string {
+  const codes: string[] = [];
+  if (rows.some((r) => r.didNotStart)) codes.push("DNS did not start.");
+  if (rows.some((r) => r.withdrew)) codes.push("WD withdrew after beginning.");
+  if (rows.some((r) => r.disqualified)) codes.push("DQ disqualified.");
+  return codes.join(" ");
 }
 
 /**

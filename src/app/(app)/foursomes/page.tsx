@@ -18,7 +18,11 @@ import { sidesByMatch, type Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
-import { parseTeeSheet, teeSheetDrift, driftSentence } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn, DRIFT_PLACE_LINE } from "@/lib/domain/tee-sheet";
+import { clubWallClock } from "@/lib/domain/club-clock";
+import { cleanIsoDate } from "@/lib/domain/round-dates";
+import { PlaceInGroup } from "@/components/PlaceInGroup";
+import { fieldRefusal } from "@/lib/services/field-change";
 import { strokeCutField, strokeCutOutcomeOf, cutTieRefusal } from "@/lib/services/stroke-cut";
 import { shortDate } from "@/lib/domain/round-dates";
 import { roundCard } from "@/lib/services/course-resolution";
@@ -239,6 +243,19 @@ export default async function FoursomesPage({
       ? teeSheetDrift(savedSheet, new Set(field.map((p) => p.id)))
       : null;
   /**
+   * WHO HAS NO GROUP ON THE SAVED SHEET, AND WHERE THERE IS ROOM (day-of field
+   * changes, PR B): a late entry or a reserve who moved in is written into one
+   * group, and nobody else moves. Staff only, and only while the one field rule
+   * allows it (`place-in-group`). Drawn from the same `field` the sheet is.
+   */
+  const isStaff = session.role === "admin" || session.role === "assistant";
+  const undrawn = savedSheet && isStaff ? undrawnOn(savedSheet, fieldIds) : [];
+  const placeDoor = undrawn.length > 0 ? await fieldRefusal(session.eventId, "place-in-group") : null;
+  const nameOf = new Map(field.map((p) => [p.id, p.name]));
+  // The round's day at the club — its own, or the tournament's first day for
+  // the first round (as the late-entry cutoff reads it) — for which groups are out.
+  const roundDay = stage ? cleanIsoDate(stage.playedOn) || (stage.id === rounds[0]?.id ? cleanIsoDate(state.event.startOn) : "") : "";
+  /**
    * The card THIS ROUND is played on, narrowed to the nine it uses.
    *
    * This printed the EVENT's card, so a two-course tournament put round one's
@@ -374,8 +391,22 @@ export default async function FoursomesPage({
             )}{" "}
             Re-pair and publish again to put it right — the printed sheet leaves out anyone who has gone, so
             it is correct but shorter than you drew it.
+            {drift.undrawn.length > 0 && ` ${DRIFT_PLACE_LINE}`}
           </p>
         </div>
+      )}
+      {/* Mounted whenever staff have a saved sheet, though nobody is undrawn: the
+          refresh after placing the LAST player must not take away the line that
+          says where they went (round day-of-field-b-3, phone). The card draws
+          nothing when it has nothing to show. */}
+      {stage && savedSheet && isStaff && (
+        <PlaceInGroup
+          stageId={stage.id}
+          undrawn={undrawn.map((id) => ({ id, name: nameOf.get(id) ?? "" }))}
+          groups={markTeedOff(groupsWithRoom(savedSheet, new Set(fieldIds)), roundDay, clubWallClock(state.timeZone))}
+          door={placeDoor}
+          firstHole={firstHole}
+        />
       )}
       {stage && field.length > 1 && (
         <PairingRequests
