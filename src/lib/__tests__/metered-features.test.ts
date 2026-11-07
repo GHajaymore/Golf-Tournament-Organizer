@@ -152,7 +152,7 @@ describe("every metered feature is actually gated", () => {
     const dir = join(process.cwd(), "src", "app", "actions");
     const spenders = readdirSync(dir)
       .filter((f) => f.endsWith(".ts"))
-      .filter((f) => /api\.anthropic\.com|sendSms\(/.test(stripComments(readFileSync(join(dir, f), "utf8"))))
+      .filter((f) => /askClaude\(|api\.anthropic\.com|sendSms\(/.test(stripComments(readFileSync(join(dir, f), "utf8"))))
       .map((f) => join("app", "actions", f))
       .filter((f) => !known.has(f));
     expect(spenders, "gate it and add it to SPENDERS").toEqual([]);

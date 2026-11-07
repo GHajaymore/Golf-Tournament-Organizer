@@ -102,7 +102,7 @@ export async function suggestSetup(description: string): Promise<SetupSuggestRes
   if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
   const answer = await askClaude({
-    model: "claude-sonnet-5",
+    job: "setupSuggest",
     maxTokens: 700,
     content: setupPrompt(text, PLAYABLE_FORMAT_NAMES, STAGE_TYPES),
   });
@@ -111,7 +111,7 @@ export async function suggestSetup(description: string): Promise<SetupSuggestRes
       return {
         ok: false,
         configured: false,
-        error: "Describing a tournament in words isn't switched on. Build it with the controls instead.",
+        error: `${answer.why ?? "Describing a tournament in words isn't switched on."} Build it with the controls instead.`,
       };
     }
     if (answer.reason === "unreachable") {

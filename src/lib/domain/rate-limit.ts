@@ -59,7 +59,8 @@ export type RateLimitKind =
   | "join-request"
   | "interest"
   | "course-search"
-  | "course-search-staff";
+  | "course-search-staff"
+  | "ai-check";
 
 export interface RateLimitPolicy {
   /** Attempts allowed inside one window. The (limit + 1)th is refused. */
@@ -165,6 +166,12 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * it. Searching and importing both draw on it — see `directoryBudget`.
    */
   "course-search-staff": { limit: 120, windowMs: 60 * MINUTE },
+  /**
+   * The owner's Check AI (2026-11-03): one real request per AI job, paid for.
+   * One press a minute — enough to check after an account swap, not enough
+   * for a stuck button to run up a bill.
+   */
+  "ai-check": { limit: 1, windowMs: MINUTE },
 };
 
 /**
@@ -347,6 +354,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many registration attempts. Wait ${wait} and try again.`;
     case "join-request":
       return `Too many requests to join. Wait ${wait} and try again.`;
+    case "ai-check":
+      return `One AI check a minute. Try again in ${wait}.`;
     case "interest":
       return `We already have your note — thank you. To add anything, wait ${wait} or write to inquiries@tourneyhq.club.`;
   }

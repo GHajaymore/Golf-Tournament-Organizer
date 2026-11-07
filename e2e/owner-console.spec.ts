@@ -5,6 +5,7 @@ import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { E2E_OWNER_EMAIL } from "./owner-email.mjs";
 import { EARLY_LIST, OWNER_CARD } from "../src/lib/go-live";
+import { JOB_WORDS } from "../src/lib/ai-config";
 
 /**
  * THE OWNER CONSOLE, AS THE OWNER USES IT (2026-10-21).
@@ -53,8 +54,8 @@ async function cleanup() {
 
 test.beforeAll(async () => {
   await cleanup();
-  for (const key of ["pricing", "limits", "signins"]) {
-    saved[key] = await prisma.platformSetting.findUnique({ where: { key }, select: { value: true } });
+  for (const key of ["pricing", "limits", "signins", "ai-budget-cents"]) {
+    saved[key] =await prisma.platformSetting.findUnique({ where: { key }, select: { value: true } });
   }
   ids.org = (await prisma.organization.create({ data: { name: CLUB, kind: "club" } })).id;
   const owner = await prisma.user.create({ data: { email: E2E_OWNER_EMAIL, name: "Zz Owner", password: "x:unusable" } });
@@ -68,7 +69,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   try {
     // The whole app's prices, limits and launch switch, back exactly as they were.
-    for (const key of ["pricing", "limits", "signins"]) {
+    for (const key of ["pricing", "limits", "signins", "ai-budget-cents"]) {
       const was = saved[key];
       if (was) await prisma.platformSetting.upsert({ where: { key }, update: { value: was.value }, create: { key, value: was.value } });
       else await prisma.platformSetting.deleteMany({ where: { key } });
@@ -122,6 +123,68 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     await page.getByRole("dialog", { name: OWNER_CARD.holdTitle }).getByRole("button", { name: OWNER_CARD.holdConfirm }).click();
     await expect(page.locator("#accounts").getByRole("status")).toContainText(OWNER_CARD.heldAgain);
     await expect.poll(async () => (await prisma.platformSetting.findUnique({ where: { key: "signins" } }))?.value).toBe("held");
+  });
+
+  /**
+   * CHECK AI (`checkAiAccount`, 2026-11-03). The servers that run this spec hold no AI key, so the
+   * press reaches no API: every job must come back on its own line, NOT OK, with the reason in words.
+   * A line that said OK here would be a check that passes without asking anybody. The real call per
+   * job, with a key, is the owner's press on the preview (`docs/ai-account.md`).
+   */
+  await test.step("Check AI: one line per job, each saying why it is off when there is no key", async () => {
+    await open();
+    const card = page.getByRole("region", { name: "AI account" });
+    await expect(card).toContainText("Sends each AI job one tiny real request.");
+    await card.getByRole("button", { name: "Check AI" }).click();
+    const lines = card.getByRole("status").getByRole("listitem");
+    await expect(lines.first()).toBeVisible({ timeout: 30_000 });
+    const said = await lines.allInnerTexts();
+    for (const job of Object.values(JOB_WORDS)) {
+      const line = said.find((l) => l.startsWith(`${job}:`));
+      expect(line, `no line for ${job}`).toBeTruthy();
+      expect(line, `${job} said OK with no key`).not.toMatch(/: OK ·/);
+      expect(line!.length, `${job} gave no reason`).toBeGreaterThan(job.length + 3);
+    }
+    await expect(card.getByRole("alert")).toHaveCount(0);
+  });
+
+  /**
+   * THE AI BUDGET (`setAiBudget`, 2026-11-03: Ajay, "let's set the budget to $20 / month. make it
+   * configurable in owner's console"). $20.00 with no row; a figure over the $1,000 ceiling is refused
+   * in words and saves nothing; $12.34 is saved, written to the row in cents, and read back on the card
+   * after a fresh load; then put back. The row itself is restored exactly in `afterAll`. That a spent
+   * budget stops the next call is proved against real rows in `the-ai-budget-stops-the-call.audit.test.ts`.
+   */
+  await test.step("the AI budget: $20.00 unset, a refusal in words, $12.34 saved and read back, restored", async () => {
+    const KEY = "ai-budget-cents";
+    const row = async () => (await prisma.platformSetting.findUnique({ where: { key: KEY } }))?.value ?? null;
+    await prisma.platformSetting.deleteMany({ where: { key: KEY } });
+    await open();
+    let card = page.getByRole("region", { name: "AI account" });
+    await expect(card.locator("p", { hasText: "spent of" })).toContainText("spent of $20.00");
+    let box = card.getByLabel("Monthly AI budget (US dollars)");
+    await expect(box).toHaveValue("20.00");
+    await expect(card).toContainText("$0 turns AI off for everyone.");
+
+    await box.fill("1000.01");
+    await card.getByRole("button", { name: "Save budget" }).click();
+    await expect(card.getByRole("alert")).toHaveText("The budget can be at most $1,000.00 a month.");
+    expect(await row(), "a refused budget was saved").toBeNull();
+
+    await box.fill("12.34");
+    await card.getByRole("button", { name: "Save budget" }).click();
+    await expect(card.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
+    await expect.poll(row).toBe("1234");
+    await open();
+    card = page.getByRole("region", { name: "AI account" });
+    await expect(card.locator("p", { hasText: "spent of" })).toContainText("spent of $12.34");
+    box = card.getByLabel("Monthly AI budget (US dollars)");
+    await expect(box).toHaveValue("12.34");
+
+    await box.fill("20");
+    await card.getByRole("button", { name: "Save budget" }).click();
+    await expect(card.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
+    await expect.poll(row).toBe("2000");
   });
 
   /**
