@@ -54,9 +54,10 @@ through the app, by the owner:
    sends it in chunks (`chunkRows`: 100 rows and 600 KB at most per request, under a server action's 1 MB
    body limit); the server (`loadCourseCatalogue`, owner only, `services/catalogue-load.ts`) judges every row
    with `judgeRow` (`domain/catalogue-load.ts`), which calls `cardRefusal`.
-3. **Add and update only, never delete.** A refused card is SKIPPED and counted, never stored blank, and
-   never written over a usable stored card. The card reports loaded / updated / unchanged / skipped /
-   refused (gca) and keeps the last 30 audit lines in `PlatformSetting` `catalogue-load-log`.
+3. **Never delete: a usable stored row is never touched, an unusable one is filled, and an empty value
+   never replaces a stored one.** A refused card is SKIPPED and counted, never stored blank. The card
+   reports loaded / updated / unchanged / skipped / refused (gca) and keeps one audit line per load
+   (the last 30) in `PlatformSetting` `catalogue-load-log`.
 4. **`gca:` rows are never exported and never loaded** (GolfCourseAPI's terms forbid compiling its
    dataset; Ajay). Refused by id, before anything else is read, and counted apart. Only OpenGolfAPI
    (ODbL, credit required — `DIRECTORY_ATTRIBUTION`, shown on the card and beside every catalogue search).
