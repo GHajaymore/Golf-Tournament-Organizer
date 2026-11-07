@@ -18,6 +18,8 @@ import { OwnerClubPlan } from "@/components/OwnerClubPlan";
 import { peopleOwningSeveralParClubs } from "@/lib/services/close-terms";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
 import { OwnerAccounts } from "@/components/OwnerAccounts";
+import { OwnerCatalogue } from "@/components/OwnerCatalogue";
+import { catalogueStatus } from "@/lib/services/catalogue-load";
 import { launchSwitch } from "@/lib/services/signins-switch";
 import { ownerClockInWords } from "@/lib/services/owner-clock";
 import { earlyListStatus } from "@/lib/services/early-list";
@@ -75,6 +77,8 @@ export default async function OwnerConsolePage() {
   // Real clubs only: the demo club is in none of these (`services/owner-counts.ts`).
   const [{ totalOrgs, orgsByPlan, orgsByKind, eventsByStatus, totalPlayers, orgsWithNoEvents, recentOrgs, liveEvents }, severalParClubs, demo] =
     await Promise.all([ownerCounts(), peopleOwningSeveralParClubs(), demoStatus(demoMark())]);
+
+  const catalogue = await catalogueStatus();
 
   // The owner's own price overrides, so the projected MRR here and the price
   // the editor below shows both reflect what customers are actually quoted.
@@ -250,6 +254,9 @@ export default async function OwnerConsolePage() {
         holesIn={demo.holesIn}
         links={demo.links}
       />
+
+      {/* The course catalogue, loaded from the export script's file through the app (J29). */}
+      <OwnerCatalogue withCards={catalogue.withCards} lastLine={catalogue.lastLine} />
 
       {/* The controls that write: the price every screen quotes, and the caps
           every entry gate reads. */}

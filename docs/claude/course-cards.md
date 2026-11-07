@@ -60,3 +60,29 @@ What it does now (`services/golfcourseapi-live.ts`, called from `services/course
 - **Down or slow**: a 6 second timeout; any failure returns the plain-words notice (`GCA_UNAVAILABLE_NOTICE`) and
   never throws, and the paste box and manual entry stay beside it. No `GOLFCOURSE_API_KEY` means silence, not a notice.
 - Courses already stored (`gca:` rows) stay. The key is configuration: never log it, never put one in a test.
+
+## Loading the catalogue into production (J29, 2026-11-06)
+
+Nobody holds production's database credentials (CLAUDE.md), so the dev catalogue reaches production
+through the app, by the owner:
+
+1. `DOTENV_CONFIG_PATH=<main checkout>/.env npx tsx scripts/export-catalogue.ts [outDirOrFile]` reads the
+   LOCAL dev database only (it refuses any other host) and writes ONE JSON file outside the repo
+   (default `Documents/Apps/Golf Tournament App/catalogue-exports/`; it refuses a path inside the repo).
+2. On `/owner`, the **Course catalogue** card takes that file. The browser checks the format/version and
+   sends it in chunks (`chunkRows`: 100 rows and 600 KB at most per request, under a server action's 1 MB
+   body limit); the server (`loadCourseCatalogue`, owner only, `services/catalogue-load.ts`) judges every row
+   with `judgeRow` (`domain/catalogue-load.ts`), which calls `cardRefusal`.
+3. **Never delete: a usable stored row is never touched, an unusable one is filled, and an empty value
+   never replaces a stored one.** A refused card is SKIPPED and counted, never stored blank. The card
+   reports loaded / updated / unchanged / skipped / refused (gca) and keeps one audit line per load
+   (the last 30) in `PlatformSetting` `catalogue-load-log`.
+4. **`gca:` rows are never exported and never loaded** (GolfCourseAPI's terms forbid compiling its
+   dataset; Ajay). Refused by id, before anything else is read, and counted apart. Only OpenGolfAPI
+   (ODbL, credit required — `DIRECTORY_ATTRIBUTION`, shown on the card and beside every catalogue search).
+5. Measured 2026-11-06: of the dev rows with an empty `cardProblem`, 334 carry a stroke index of all zeros
+   (a placeholder `catalogueRefusal` keeps on purpose, `cardRefusal` refuses). They are not exported, so
+   production receives the cards that pass the strict rule: that is the point of the load.
+
+Tests: `catalogue-load.test.ts` (judgement), `catalogue-load.audit.test.ts` (real rows),
+`e2e/owner-catalogue-load.spec.ts` (the owner's press).
