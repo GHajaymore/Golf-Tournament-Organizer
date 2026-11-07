@@ -28,7 +28,7 @@ import { prisma } from "@/lib/db";
 // session — see deleteEvent.
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect, unstable_rethrow } from "next/navigation";
-import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
+import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount, roundRobinCutAfter } from "@/lib/services/regroup";
 import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
 import { settingsOf, effectiveScoreStatus, hasAnyHole, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
@@ -1904,6 +1904,21 @@ export async function generateNextRound(stageId: string) {
           result.survivors === 1
             ? "Only one player survives this cut, so there is nobody left to play. Widen the cut, or finish the tournament here."
             : `Only ${result.survivors} players survive this cut and none of them can be paired. Widen the cut.`,
+      };
+    }
+    if (result.reason === "cut-tie") {
+      // Said where the press was, with the tie card right under it (J31).
+      const t = result.undecided[0];
+      const names = t.playerIds.map((id) => result.names.get(id) ?? "A player");
+      const who = names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+      const places = t.places === 1 ? "the last place" : `the last ${t.places} places`;
+      const more = result.undecided.length > 1 ? ` (and ${result.undecided.length - 1} more flight${result.undecided.length === 2 ? " is" : "s are"} tied)` : "";
+      return {
+        ok: false as const,
+        error:
+          t.by === "playoff"
+            ? `${who} are level on points for ${places}${more}. This cut settles a tie by play-off: record who won it below, then draw the round.`
+            : `${who} are level on points and on every tie-break for ${places}${more}, so lots are drawn: record who the draw sent through below, then draw the round.`,
       };
     }
     if (result.reason === "seeded-not-generated") {
@@ -6261,6 +6276,11 @@ export async function setStageCutTies(stageId: string, rule: string): Promise<vo
  * Not behind the lock: a play-off is played on the day, after launch by
  * definition. Refused once the round is closed — the cut has been made, and
  * re-opening the round is how it is changed.
+ *
+ * A ROUND ROBIN'S CUT TOO (J31, 2026-11-06): `feederId` is then the round
+ * robin the cut is taken out of, and the decision is kept on the round it
+ * feeds, as a stroke cut's is. That cut is made by drawing the next round, so
+ * what refuses a change is the next round holding results, not a closed round.
  */
 export async function settleCutTie(
   feederId: string,
@@ -6273,9 +6293,13 @@ export async function settleCutTie(
     select: { id: true, closedAt: true },
   });
   if (!feeder) return { ok: false, error: "That round isn't in this tournament." };
-  if (feeder.closedAt) return { ok: false, error: "This round is closed, so its cut has been made. Re-open it on Rounds & formats to change who went through." };
-  const made = await strokeCutOutcomeOf(eventId, feeder.id);
+  const stroke = await strokeCutOutcomeOf(eventId, feeder.id);
+  if (stroke && feeder.closedAt) return { ok: false, error: "This round is closed, so its cut has been made. Re-open it on Rounds & formats to change who went through." };
+  const made = stroke ?? (await roundRobinCutAfter(eventId, feeder.id));
   if (!made) return { ok: false, error: "There is no cut out of this round." };
+  if (!stroke && (await enteredCardCount(eventId, made.next.id)) > 0) {
+    return { ok: false, error: "The round after this one has results already, so its field has been played on. Unlock setup and redraw it to change who went through." };
+  }
   const wanted = Array.isArray(tied) ? tied.filter((x) => typeof x === "string") : [];
   const same = (a: readonly string[]) => a.length === wanted.length && a.every((id) => wanted.includes(id));
   const tie = [...made.outcome.undecided, ...made.outcome.decided].find((t) => same(t.playerIds));

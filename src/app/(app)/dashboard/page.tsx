@@ -325,7 +325,7 @@ export default async function DashboardPage() {
     return {
       ...state.cutReady,
       rule: cutRuleWords(rule, tieRule === "ties"),
-      tieRule: cutTieRuleWords(tieRule),
+      tieRule: cutTieRuleWords(tieRule, "card"),
       through,
       missed: Math.max(0, made.state.strokeStandings.length - through - waiting),
       ties: [

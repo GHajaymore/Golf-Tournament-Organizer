@@ -1,8 +1,38 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { tournamentTerms } from "../rules";
 import { cutAfterRound } from "../domain/cut-ready";
 import { STAGE_TYPE_INFO, seededFromQualifiers } from "../stage-types";
 import type { TiebreakerKey } from "../domain/types";
+import { StagesClient, type StageView } from "@/components/StagesClient";
+
+// The Rounds screen is rendered below (the sheet's screen-side twin). Server
+// actions only sit behind its buttons, so a no-op stands in for each — as in
+// `render.test.tsx`; `then` stays undefined so the module is not a thenable.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/",
+  redirect: vi.fn(),
+  notFound: vi.fn(),
+}));
+function actionModule() {
+  return new Proxy({}, { get: (_t, key) => (typeof key === "string" && key !== "then" ? async () => ({ ok: true }) : undefined) }) as Record<
+    string,
+    unknown
+  >;
+}
+vi.mock("@/app/actions/series", actionModule);
+vi.mock("@/app/actions/courses", actionModule);
+vi.mock("@/app/actions/teams", actionModule);
+vi.mock("@/app/actions/organization", actionModule);
+vi.mock("@/app/actions/tournament", actionModule);
+vi.mock("@/app/actions/event", actionModule);
+vi.mock("@/app/actions/stages", actionModule);
+vi.mock("@/app/actions/roster", actionModule);
+vi.mock("@/app/actions/messaging", actionModule);
+vi.mock("@/app/actions/attendance", actionModule);
 
 /**
  * A bracket is seeded from the event's qualifiers, and a round cut on one does
@@ -58,7 +88,9 @@ const cutLine = (rounds: Round[], id: string) => {
 describe("the published rules sheet only prints a cut the engine applies", () => {
   it("prints the cut on the round it is made AFTER, not the round it feeds", () => {
     const rounds = [round("r1"), round("r2", { cutEnabled: true })];
-    expect(cutLine(rounds, "r1"), "round 1 is played for a place in round 2").toBe("Top 8 advance to the next round");
+    // "and ties": a round robin's cut takes the committee's tie rule, whose
+    // default is "the leading N and ties" (J31; Committee Procedures 5A(6)).
+    expect(cutLine(rounds, "r1"), "round 1 is played for a place in round 2").toBe("Top 8 and ties advance to the next round");
     expect(cutLine(rounds, "r2"), "round 2's cut has been made: there is no cut after it").toBeUndefined();
   });
 
@@ -66,10 +98,45 @@ describe("the published rules sheet only prints a cut the engine applies", () =>
     const medal = { type: "Stroke Play Round", format: "Stroke Play" };
     const rounds = [round("r1", medal), round("r2", { ...medal, cutEnabled: true, cutScope: "perFlight", cutMode: "percent", cutPercent: 25 })];
     expect(cutLine(rounds, "r1")).toBe("Top 25% in each flight and ties advance to the next round");
-    // CONTROL: a round robin's cut is made on the standings' own order, without ties.
+    // And a round robin's, since J31: the same tie rule, on its table.
     expect(cutLine([round("r1"), round("r2", { cutEnabled: true, cutScope: "perFlight" })], "r1")).toBe(
-      "Top 8 in each flight advance to the next round",
+      "Top 8 in each flight and ties advance to the next round",
     );
+    // CONTROL: a cut out of a round that settles no tie of its own (a team
+    // medal, cut by neither engine's line) promises no ties — and since
+    // 2026-11-07 no cut at all: no engine makes it (`generateCutRound` refuses a
+    // cut with no round robin before it, `applyStrokeCut` one off a team card).
+    expect(
+      cutLine([round("r1", { type: "Stroke Play Round", format: "Scramble" }), round("r2", { cutEnabled: true, cutScope: "perFlight" })], "r1"),
+    ).toBeUndefined();
+  });
+
+  /**
+   * ON THE SHEET OF THE ROUND THAT DECIDES IT (2026-11-07). Round robin → medal
+   * → round robin with a cut: the draw takes the cut on Round 1's table, so
+   * Round 1 is played for it and its sheet says so, naming the round it feeds;
+   * the medal's scores decide nothing of it, so the medal's sheet is silent.
+   */
+  it("prints a round robin's cut past a medal on the round robin's sheet, not the medal's", () => {
+    const medal = { type: "Stroke Play Round", format: "Stroke Play" };
+    const rounds = [round("r1"), round("r2", medal), round("r3", { cutEnabled: true, cutTies: "playoff" })];
+    expect(cutLine(rounds, "r1")).toBe("Top 8 advance to Round 3. A tie for the last place is decided by a play-off");
+    expect(cutLine(rounds, "r2"), "the medal decides nothing of it").toBeUndefined();
+    expect(cutLine(rounds, "r3"), "made: nothing after it").toBeUndefined();
+    // CONTROL: a medal → medal cut after it is the medal's, on its cards.
+    const cards = [round("r1"), round("r2", medal), round("r3", { ...medal, cutEnabled: true })];
+    expect(cutLine(cards, "r1")).toBeUndefined();
+    expect(cutLine(cards, "r2")).toBe("Top 8 and ties advance to the next round");
+  });
+
+  it("prints a round robin's tie method in the table's words, not the card's (J31)", () => {
+    const cut = (cutTies: string) => cutLine([round("r1"), round("r2", { cutEnabled: true, cutTies })], "r1");
+    expect(cut("playoff")).toBe("Top 8 advance to the next round. A tie for the last place is decided by a play-off");
+    expect(cut("countback")).toBe(
+      "Top 8 advance to the next round. A tie for the last place is decided by the table's tie-breaks, in the order set for the round, then by lot",
+    );
+    // CONTROL: the card's countback names holes a table does not have.
+    expect(cut("countback")).not.toMatch(/last 9/);
   });
 
   it("prints the committee's method for a tie when it is not 'and ties' (2026-10-23)", () => {
@@ -95,7 +162,7 @@ describe("the published rules sheet only prints a cut the engine applies", () =>
 
   it("prints a percent cut before an ordinary round and not before a bracket", () => {
     expect(cutLine([round("r1"), round("r2", { cutEnabled: true, cutMode: "percent" })], "r1")).toBe(
-      "Top 50% advance to the next round",
+      "Top 50% and ties advance to the next round",
     );
     expect(
       cutLine([round("r1"), round("r2", { type: "Bracket Stage", cutEnabled: true, cutMode: "percent" })], "r1"),
@@ -207,5 +274,77 @@ describe("the published rules sheet breaks ties the way the round is scored", ()
     }).find((t) => t.label === "Ties");
     expect(ties, "a medal with no configured chain published no tiebreak").toBeTruthy();
     expect(ties!.value).toMatch(/^Countback:/);
+  });
+});
+
+/**
+ * THE SCREEN OFFERS A TIE METHOD EXACTLY WHERE THE SHEET PRINTS ONE (J31 review,
+ * 2026-11-07) — the screen-side twin of "a scramble medal promises no ties".
+ *
+ * Rounds & formats sets how a tie at the cut line is settled; the rules sheet
+ * prints it (`cutAfterRound`); the cut is made by the engine `cutFeederOf`
+ * names. The control was given the choice unconditionally and fell back to the
+ * table's words where there is no line of either kind, so a cut no engine
+ * settles a tie on would be offered a Play-off, store it, and print nothing.
+ * Here, for every shape: the choice is on screen if and only if the sheet
+ * prints a tie method, and in the same terms — points and the table's
+ * tie-breaks for a round robin's, "that score" for a card's.
+ */
+describe("the Rounds screen offers a tie method exactly where the sheet prints one", () => {
+  const view = (id: string, position: number, s: Partial<StageView>): StageView => ({
+    id, position, type: "Round Robin", description: "", format: "Match Play",
+    closed: false,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
+    carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", cutTies: "ties", deadlineOverride: null, optDeadline: "", attendance: null,
+    matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...s,
+  });
+  const base = {
+    today: "2026-11-07",
+    rrMatchesPerPlayer: 3,
+    scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 },
+    tiebreakers: [] as never[],
+    qual: { mode: "overall", perFlight: 2, overall: 8 },
+    confirmedCount: 32,
+    chainsRounds: true,
+  };
+  const RR = { type: "Round Robin", format: "Match Play" };
+  const MEDAL = { type: "Stroke Play Round", format: "Stroke Play" };
+  const SCRAMBLE = { type: "Stroke Play Round", format: "Scramble" };
+  const RR_MEDAL = { type: "Round Robin", format: "Stroke Play" };
+  const shapes: [string, typeof RR, typeof RR][] = [
+    ["round robin → round robin", RR, RR],
+    ["round robin → medal", RR, MEDAL],
+    ["round robin at stroke play → medal", RR_MEDAL, MEDAL],
+    ["medal → medal", MEDAL, MEDAL],
+    ["a scramble medal → round robin", SCRAMBLE, RR],
+    ["a scramble medal → medal", SCRAMBLE, MEDAL],
+    ["medal → round robin", MEDAL, RR],
+  ];
+  for (const [name, first, second] of shapes) {
+    it(name, () => {
+      const stages = [view("r1", 0, first), view("r2", 1, { ...second, cutEnabled: true, cutTies: "playoff" })];
+      const html = renderToStaticMarkup(createElement(StagesClient, { ...base, stages }));
+      const sheet = cutAfterRound(stages, "r1");
+      const offered = /\/>Play-off<\/label>/.test(html);
+      expect(offered, `${name}: the screen offers a tie method — the sheet prints ${sheet?.decidedOn ?? "none"}`).toBe(
+        !!sheet?.decidedOn,
+      );
+      if (sheet?.decidedOn === "table") expect(html, name).toContain("the players level on points play off");
+      if (sheet?.decidedOn === "card") expect(html, name).toContain("the players level on that score play off");
+    });
+  }
+
+  it("round robin → medal → round robin: Round 1's card names the cut it decides, under Round 3; the medal's names none", () => {
+    const stages = [
+      view("r1", 0, RR),
+      view("r2", 1, MEDAL),
+      view("r3", 2, { ...RR, cutEnabled: true, cutTies: "playoff" }),
+    ];
+    const html = renderToStaticMarkup(createElement(StagesClient, { ...base, stages }));
+    // The sheet's words, from the sheet's function, on the round it is printed for.
+    expect(cutAfterRound(stages, "r1")?.into).toBe("Round 3");
+    expect(html).toContain("Into Round 3: cuts to top 8, a tie by play-off");
+    expect(html.match(/cuts to top 8/g) ?? [], "said once — on Round 1's card, not again on the medal's").toHaveLength(1);
+    expect(html, "never as the medal's cut").not.toContain("Into Round 2: cuts to");
   });
 });

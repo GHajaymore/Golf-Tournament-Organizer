@@ -21,6 +21,8 @@ import { formattingForEvent } from "@/lib/services/organization";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import type { ThirdPlaceView } from "@/components/StagesClient";
+import type { CutTieOnCard } from "@/components/CutReadyCard";
+import { roundRobinCutOf } from "@/lib/services/regroup";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
 import { roundCardLines, roundsMissingCards } from "@/lib/services/round-card-lines";
@@ -197,6 +199,27 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
     roundHandicaps[s.id] = await roundHandicapsFor(session.eventId, s.id);
   }
 
+  /**
+   * A TIE AT A ROUND ROBIN'S CUT LINE, FOR THE ROUND IT DECIDES THE FIELD OF
+   * (J31): `roundRobinCutOf`, the answer the round is drawn with, so the tie
+   * card and the draw cannot disagree. Once the tournament is live — a round
+   * is drawn from results, and before launch there are none.
+   */
+  const cutTieOf = new Map<string, { feederId: string; ties: CutTieOnCard[] }>();
+  if (!settingUp) {
+    for (const s of playingStages(state.stages)) {
+      if (!s.cutEnabled) continue;
+      const made = await roundRobinCutOf(session.eventId, s.id);
+      if (!made) continue;
+      const name = (id: string) => made.names.get(id) ?? "A player";
+      const ties = [
+        ...made.outcome.undecided.map((t) => ({ t, chosen: [] as string[] })),
+        ...made.outcome.decided.map((t) => ({ t, chosen: t.through })),
+      ].map(({ t, chosen }) => ({ tied: t.playerIds, names: t.playerIds.map(name), places: t.places, by: t.by, chosen }));
+      if (ties.length > 0) cutTieOf.set(s.id, { feederId: made.feeder.id, ties });
+    }
+  }
+
   const stages = state.stages.map((s) => ({
     id: s.id,
     position: s.position,
@@ -230,6 +253,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
     cutPercent: s.cutPercent,
     cutScope: s.cutScope,
     cutTies: s.cutTies,
+    cutTie: cutTieOf.get(s.id) ?? null,
     deadlineOverride: s.deadlineOverride,
     optDeadline: s.optDeadline,
     // What a team round costs its sides in strokes. Computed here, on the
