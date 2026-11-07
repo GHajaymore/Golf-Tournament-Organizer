@@ -186,7 +186,7 @@ describe("a round robin's cut taken past a medal: the tie card, the record and t
     expect(await roundThreeField(), "the play-off's winner, though the table placed her lower").toEqual(["ann", "cat"]);
   });
 
-  it("CONTROL: with ties going through, the cut takes all three level on 4 or more — the same table", async () => {
+  it("with ties going through, the cut takes all three level on 4 or more — the same table", async () => {
     await setStageCutTies(r3, "ties");
     await prisma.stage.update({ where: { id: r3 }, data: { cutTieDecisions: "[]" } });
     const made = await roundRobinCutOf(eventId, r3);
