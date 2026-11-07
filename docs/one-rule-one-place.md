@@ -111,6 +111,13 @@ handicap readers became one (counted off the diff, not the inventory). The four
   (`CutLineKind`, a REQUIRED argument of `cutTieRuleWords`). Worked from the
   Rules in `a-tie-at-a-round-robin-cut.test.ts`, swept in `matrix.test.ts`,
   property-tested against a pencil in `properties-round-robin-cut-tie.test.ts`.
+  WHICH ROUND a cut is taken out of is `cutFeederOf` in `domain/cut-ready.ts`
+  (2026-11-07): the stroke round just before it (cards), or the LAST round robin
+  before it by position (the table `generateCutRound` cuts on) — never simply
+  the round beside it. The tie card (`roundRobinCutOf`), the record of a
+  play-off (`settleCutTie` → `roundRobinCutAfter`) and the board ask it; swept
+  shape by shape in `matrix.test.ts`, and round robin → medal → cut round on
+  real rows in `a-round-robin-cut-past-a-medal.audit.test.ts`.
 - **Leaving the field** (step 2): three inline copies of "withdrawn or
   disqualified" ask `hasLeftTheField` / `LEFT_THE_FIELD`;
   `left-the-field-is-asked-one-way.test.ts` refuses a fourth. Places that say
