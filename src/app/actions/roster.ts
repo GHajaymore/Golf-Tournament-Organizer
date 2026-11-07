@@ -7,6 +7,8 @@ import { getSession } from "@/lib/auth";
 import { archiveRefusalFor } from "@/lib/services/club-archive";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { upsertMember, entryContactNeeds } from "@/lib/services/roster";
+import { codesOnForAnEntryWithoutEmail } from "@/lib/services/round-codes";
+import { MEMBER } from "@/lib/domain/entry-standing";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
 import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap-record";
 import { handicapPolicyOf, refuseHandByHand } from "@/lib/domain/handicap-policy";
@@ -510,19 +512,22 @@ export interface AddToEventResult extends RosterResult {
   /** Already in the field — skipped rather than duplicated. */
   skipped: number;
   /**
-   * Members left out because the roster has no email for them, by name.
+   * Members left out for a missing contact detail, by name.
    *
    * Names rather than a count, because the organizer's next action is to go and
-   * fill those addresses in and a number tells them nothing about whom.
+   * fill that detail in and a number tells them nothing about whom. Since
+   * 2026-11-07 the only such detail is a mobile, where the tournament asks.
    */
   needContact: string[];
-  /**
-   * Split by what is actually missing, so the notice can say which detail to go
-   * and fill in. One merged list would send an organizer looking for a missing
-   * email on a member whose address was fine and whose mobile was blank.
-   */
-  needEmail: string[];
   needPhone: string[];
+  /**
+   * Members ENTERED without an email (Ajay, 2026-11-07: a member may enter
+   * without one), by name — "{names} have no email yet. They're entered and
+   * score from the cart QR."
+   */
+  noEmailYet: string[];
+  /** True when one of them turned this tournament's Round Codes on (`codesOnForAnEntryWithoutEmail`). */
+  codesTurnedOn?: boolean;
 }
 
 /**
@@ -535,9 +540,9 @@ export interface AddToEventResult extends RosterResult {
 export async function addMembersToEvent(memberIds: string[]): Promise<AddToEventResult> {
   const { organizationId, eventId } = await requireRosterOrg();
   const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) return { ok: false, error: "Event not found.", added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
+  if (!event) return { ok: false, error: "Event not found.", added: 0, waitlisted: 0, skipped: 0, needContact: [], needPhone: [], noEmailYet: [] };
   const archived = await archiveRefusalFor(eventId);
-  if (archived) return { ok: false, error: archived, added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
+  if (archived) return { ok: false, error: archived, added: 0, waitlisted: 0, skipped: 0, needContact: [], needPhone: [], noEmailYet: [] };
   // The one field rule (domain/field-change.ts): a late entry from the roster
   // is the same act as typing one in, and opens and shuts with it.
   const refused = await fieldRefusal(eventId, "add");
@@ -549,8 +554,8 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
       waitlisted: 0,
       skipped: 0,
       needContact: [],
-      needEmail: [],
       needPhone: [],
+      noEmailYet: [],
     };
   }
 
@@ -580,8 +585,8 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   let waitlisted = 0;
   let skipped = 0;
   const needContact: string[] = [];
-  const needEmail: string[] = [];
   const needPhone: string[] = [];
+  const noEmailYet: string[] = [];
   // The same answer the roster picker shows beside each member before the tick
   // — see `entryContactNeeds` and `contactGap`.
   const needs = await entryContactNeeds(event);
@@ -626,13 +631,15 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
      * deliberately allowed to hold members without one, which is what made
      * "add from the club roster" refuse the very members it was listing.
      */
-    const gap = contactGap(m, needs);
-    const missingEmail = gap === "email";
-    const missingPhone = gap === "mobile";
-    if (missingEmail || missingPhone) {
+    /**
+     * AND NOT REFUSED ON AN EMAIL-ONLY TOURNAMENT EITHER (Ajay, 2026-11-07: a
+     * member may enter without one). They are entered, named back to the
+     * organizer ("no email yet"), and Round Codes come on below so they score
+     * from the cart QR. A mobile is still asked where the organizer asks.
+     */
+    if (contactGap(m, needs) === "mobile") {
       needContact.push(m.name);
-      if (missingEmail) needEmail.push(m.name);
-      else needPhone.push(m.name);
+      needPhone.push(m.name);
       continue;
     }
     const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
@@ -656,6 +663,8 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
         handicapSource: m.handicapSource,
         seed: seed++,
         status,
+        // The club's roster is its members (`entryStanding`).
+        standing: MEMBER,
         email: m.email,
         phone: m.phone,
         ghin: m.ghin,
@@ -664,15 +673,28 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
         preferredTee: m.preferredTee,
       },
     });
-    // Unconditional now: an entrant without an address never reaches here.
+    // A no-op for a blank address: that member scores with the round code.
     await syncPlayerAccount(eventId, m.name, m.email);
     takenIds.add(m.id);
-    takenEmails.add(m.email);
+    if (m.email.trim()) takenEmails.add(m.email);
+    else noEmailYet.push(m.name);
     added += 1;
   }
 
+  const codesTurnedOn =
+    noEmailYet.length > 0 &&
+    (await codesOnForAnEntryWithoutEmail(eventId, "members were entered from the roster without an email"));
   await refresh();
-  return { ok: true, added, waitlisted, skipped, needContact, needEmail, needPhone };
+  return {
+    ok: true,
+    added,
+    waitlisted,
+    skipped,
+    needContact,
+    needPhone,
+    noEmailYet,
+    ...(codesTurnedOn ? { codesTurnedOn } : {}),
+  };
 }
 
 /* ── The club handicap a member's own cards support ───────────────────────── */

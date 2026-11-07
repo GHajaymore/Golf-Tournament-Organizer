@@ -1637,6 +1637,13 @@ model Player {
   handicapSource String  @default("manual") // ghin | manual | none
   handicapType   String  @default("18") // 9 | 18 — which index this handicap number represents
   /**
+   * MEMBER OR GUEST (A039, Ajay 2026-11-07): "member" | "guest" | "" — and
+   * "" is every entry made before A039, which reads as a member. Read only
+   * through `entryStanding` (`domain/entry-standing.ts`): a blank email no
+   * longer says guest, because a member may enter without one.
+   */
+  standing       String  @default("")
+  /**
    * Which tees this entry plays from.
    * Null means the round's default. It matters because the Course Handicap
    * depends on the tees: the same index is worth different strokes off the

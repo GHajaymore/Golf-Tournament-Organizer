@@ -5,21 +5,18 @@ import { handicapPolicyOf, refuseHandByHand } from "../domain/handicap-policy";
 import { clubHandicapBody, homeBodyId } from "../domain/handicap-body";
 import { contactGap, type ContactNeeds } from "../domain/registration-intake";
 import { phoneRequiredFor } from "../plans";
-import { cleanSettings, entryNeedsEmail } from "../tournament-settings";
 
 /**
- * Which contact details THIS tournament requires of every entrant.
+ * Which contact details THIS tournament requires of every member it enters.
  *
  * A mobile where the organizer has asked for one, on any plan
- * (`phoneRequiredFor`). An email is needed unless players sign in with Round
- * Codes (`entryNeedsEmail`). The one place both the add action and the roster
- * picker ask, so they cannot answer differently — see `contactGap`.
+ * (`phoneRequiredFor`). No email (Ajay, 2026-11-07): a member without one is
+ * entered, and an email-only tournament turns Round Codes on for them
+ * (`codesOnForAnEntryWithoutEmail`). The one place both the add action and the
+ * roster picker ask, so they cannot answer differently — see `contactGap`.
  */
 export async function entryContactNeeds(event: Event): Promise<ContactNeeds> {
-  return {
-    phone: phoneRequiredFor(event.requirePhone),
-    email: entryNeedsEmail(cleanSettings(event)),
-  };
+  return { phone: phoneRequiredFor(event.requirePhone) };
 }
 
 /**
@@ -125,7 +122,7 @@ export interface RosterCandidate {
    * same answer `addMembersToEvent` refuses them for (`contactGap`), shown
    * before the tick rather than after the click.
    */
-  missing: "email" | "mobile" | null;
+  missing: "mobile" | null;
 }
 
 /**
@@ -145,7 +142,7 @@ export async function rosterForEvent(eventId: string): Promise<RosterCandidate[]
     prisma.player.findMany({ where: { eventId }, select: { memberId: true, email: true } }),
     prisma.event.findUnique({ where: { id: eventId } }),
   ]);
-  const needs: ContactNeeds = event ? await entryContactNeeds(event) : { email: false, phone: false };
+  const needs: ContactNeeds = event ? await entryContactNeeds(event) : { phone: false };
 
   const enteredIds = new Set(entered.map((p) => p.memberId).filter(Boolean) as string[]);
   // Also match on email, so an entry added before the roster existed (or
