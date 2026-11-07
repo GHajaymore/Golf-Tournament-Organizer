@@ -1,5 +1,6 @@
 import type { Match } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { sideNamesOf } from "@/lib/services/side-names";
 import { loadEventState } from "@/lib/services/tournament";
 import { COURSE_REF, courseForMatch, cardForMatch } from "@/lib/services/course-resolution";
 import { distanceUnitFor } from "@/lib/services/round-card";
@@ -84,16 +85,7 @@ export async function matchCardFor(input: { match: Match }): Promise<MatchCardDa
   const event = await prisma.event.findUniqueOrThrow({ where: { id: match.eventId }, include: COURSE_REF });
   // A match between two sides (a four-ball or foursomes pair), rather than two players.
   const sideMatch = match.teamAId !== "" && match.teamBId !== "" && match.playerAId === "" && match.playerBId === "";
-  const sideNames = sideMatch
-    ? new Map(
-        (
-          await prisma.team.findMany({
-            where: { id: { in: [match.teamAId, match.teamBId] }, eventId: event.id },
-            select: { id: true, name: true },
-          })
-        ).map((t) => [t.id, t.name]),
-      )
-    : null;
+  const sideNames = sideMatch ? await sideNamesOf(event.id, [match.teamAId, match.teamBId]) : null;
 
   const [singles, members, stage] = await Promise.all([
     sideMatch
