@@ -728,9 +728,16 @@ describe("standings, at every field size", () => {
  *
  * Committee Procedures 5A(6): a tied match is decided as the Terms say, and a
  * "toughest holes" countback names holes by the stroke index of the course
- * PLAYED (Rules of Handicapping, Appendix E allocates an index per course). The
- * tournament's own card holds hole 1 hardest; the away card is the same layout
- * indexed the other way, hole 18 (or the 9th of a nine) hardest.
+ * PLAYED (Rules of Handicapping, Appendix E allocates an index per course).
+ *
+ * Eighteen holes: the tournament's own card holds the 1st hardest, the away
+ * card is the same layout indexed the other way (the 18th hardest). NINE holes
+ * are the BACK nine, on cards laid out as clubs lay them out — odd indexes out,
+ * even home — so the nine is a real axis: the home back nine's hardest is the
+ * 10th (its index 2), the away back nine's the 18th (also index 2). Read off the
+ * FRONT nine's indexes instead, both cards would make the first hole of the nine
+ * the hardest (index 1) and the away match would go to A — the narrowing to the
+ * nine played is what tells them apart.
  *
  * Every match in the round robin is halved the same way: side A won the first
  * holes, side B the last ones — so on the HOME card every countback goes to A
@@ -739,15 +746,16 @@ describe("standings, at every field size", () => {
  * and the wins are asserted as numbers, not as an order alone.
  */
 describe("a halved match's countback, at every field size, hole count and venue level", () => {
-  const HOME = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
-  const AWAY = (n: number) => Array.from({ length: n }, (_, i) => n - i);
-  const awayCourse = (n: number) => ({
+  const ODDS = [1, 3, 5, 7, 9, 11, 13, 15, 17];
+  const HOME_CARD = (holes: number) => (holes === 18 ? Array.from({ length: 18 }, (_, i) => i + 1) : [...ODDS, 2, 4, 6, 8, 10, 12, 14, 16, 18]);
+  const AWAY_CARD = (holes: number) => (holes === 18 ? Array.from({ length: 18 }, (_, i) => 18 - i) : [...ODDS, 18, 16, 14, 12, 10, 8, 6, 4, 2]);
+  const awayCourse = (holes: number) => ({
     id: "zz-away",
     name: "zz-away",
     city: "",
-    pars: JSON.stringify(new Array(n).fill(4)),
+    pars: JSON.stringify(new Array(18).fill(4)),
     yards: "",
-    strokeIndex: JSON.stringify(AWAY(n)),
+    strokeIndex: JSON.stringify(AWAY_CARD(holes)),
   });
   // A wins the first two holes, B the last two, the rest halved: all square.
   const halved = (holes: number): HoleResult[] =>
@@ -768,10 +776,10 @@ describe("a halved match's countback, at every field size, hole count and venue 
             }
           }
           const cards = countbackCardsFor(
-            { course: "zz-home", city: "", customPars: JSON.stringify(new Array(18).fill(4)), customYards: "", customStrokeIndex: JSON.stringify(HOME(18)) },
-            [{ id: "wk", courseId: level === "round" ? "zz-away" : null, holes }],
+            { course: "zz-home", city: "", customPars: JSON.stringify(new Array(18).fill(4)), customYards: "", customStrokeIndex: JSON.stringify(HOME_CARD(holes)) },
+            [{ id: "wk", courseId: level === "round" ? "zz-away" : null, holes, nine: holes === 9 ? "back" : "full" }],
             rows,
-            (id) => (id === "zz-away" ? awayCourse(18) : null),
+            (id) => (id === "zz-away" ? awayCourse(holes) : null),
           );
           const ranked = computeStandings(players, matches, { ...DEFAULT_SCORING, tiebreakers: [] }, {}, cards, ["toughest-1"]);
           const away = level !== "event";
