@@ -25,7 +25,7 @@ import {
   type CutTie,
 } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
-import { roundReadyForCut, cutProgress, cutHasBeenMade, cutLineKindOf } from "../domain/cut-ready";
+import { roundReadyForCut, cutProgress, cutHasBeenMade, cutFeederOf } from "../domain/cut-ready";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
@@ -2718,6 +2718,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       const strokeCut =
         isStroke && !!activeRound && !!nextRound &&
         isIndividualStrokeRound(activeRound) && isIndividualStrokeRound(nextRound);
+      // What the cut into the next round is taken out of, and on what (`cutFeederOf`).
+      const line = nextRound ? cutFeederOf(playRounds, nextRound.id) : null;
       if (strokeCut) {
         const outcome = strokeCutOutcome(
           cutLineRows(strokeStandings, rankingBasis),
@@ -2727,7 +2729,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         );
         advancingIds = outcome.through;
         cutTiesUndecided = outcome.undecided;
-      } else if (!isStroke && !!nextRound && cutLineKindOf(activeRound, nextRound) === "table" && tableHasResults(stillIn)) {
+      } else if (!isStroke && line?.kind === "table" && line.feeder.id === activeRound?.id && !!nextRound && tableHasResults(stillIn)) {
         /**
          * A ROUND ROBIN'S CUT IS LIT THE WAY IT IS MADE (J31, 2026-11-06):
          * `roundRobinCutOutcome`, which `generateCutRound` draws the next round
@@ -2737,6 +2739,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          *
          * Only once something has been played: before that the whole table is
          * level on nought, and a tie of the whole field is nobody's play-off.
+         *
+         * And only where the cut is taken out of THIS table — the round robin
+         * the board holds — asked of `cutFeederOf`, the function the tie card
+         * and `settleCutTie` ask, so the three cannot name different rounds.
          */
         const outcome = roundRobinCutOutcome(stillIn, nextRound);
         advancingIds = outcome.through;

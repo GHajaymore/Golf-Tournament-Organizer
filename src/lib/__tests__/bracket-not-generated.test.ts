@@ -1,8 +1,38 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { tournamentTerms } from "../rules";
 import { cutAfterRound } from "../domain/cut-ready";
 import { STAGE_TYPE_INFO, seededFromQualifiers } from "../stage-types";
 import type { TiebreakerKey } from "../domain/types";
+import { StagesClient, type StageView } from "@/components/StagesClient";
+
+// The Rounds screen is rendered below (the sheet's screen-side twin). Server
+// actions only sit behind its buttons, so a no-op stands in for each — as in
+// `render.test.tsx`; `then` stays undefined so the module is not a thenable.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/",
+  redirect: vi.fn(),
+  notFound: vi.fn(),
+}));
+function actionModule() {
+  return new Proxy({}, { get: (_t, key) => (typeof key === "string" && key !== "then" ? async () => ({ ok: true }) : undefined) }) as Record<
+    string,
+    unknown
+  >;
+}
+vi.mock("@/app/actions/series", actionModule);
+vi.mock("@/app/actions/courses", actionModule);
+vi.mock("@/app/actions/teams", actionModule);
+vi.mock("@/app/actions/organization", actionModule);
+vi.mock("@/app/actions/tournament", actionModule);
+vi.mock("@/app/actions/event", actionModule);
+vi.mock("@/app/actions/stages", actionModule);
+vi.mock("@/app/actions/roster", actionModule);
+vi.mock("@/app/actions/messaging", actionModule);
+vi.mock("@/app/actions/attendance", actionModule);
 
 /**
  * A bracket is seeded from the event's qualifiers, and a round cut on one does
@@ -225,4 +255,62 @@ describe("the published rules sheet breaks ties the way the round is scored", ()
     expect(ties, "a medal with no configured chain published no tiebreak").toBeTruthy();
     expect(ties!.value).toMatch(/^Countback:/);
   });
+});
+
+/**
+ * THE SCREEN OFFERS A TIE METHOD EXACTLY WHERE THE SHEET PRINTS ONE (J31 review,
+ * 2026-11-07) — the screen-side twin of "a scramble medal promises no ties".
+ *
+ * Rounds & formats sets how a tie at the cut line is settled; the rules sheet
+ * prints it (`cutAfterRound`); the cut is made by the engine `cutLineKindOf`
+ * names. The control was given the choice unconditionally and fell back to the
+ * table's words where there is no line of either kind, so a cut no engine
+ * settles a tie on would be offered a Play-off, store it, and print nothing.
+ * Here, for every shape: the choice is on screen if and only if the sheet
+ * prints a tie method, and in the same terms — points and the table's
+ * tie-breaks for a round robin's, "that score" for a card's.
+ */
+describe("the Rounds screen offers a tie method exactly where the sheet prints one", () => {
+  const view = (id: string, position: number, s: Partial<StageView>): StageView => ({
+    id, position, type: "Round Robin", description: "", format: "Match Play",
+    closed: false,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", matchKeptBy: "", carryEnabled: false, carryPct: 0,
+    carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", cutTies: "ties", deadlineOverride: null, optDeadline: "", attendance: null,
+    matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...s,
+  });
+  const base = {
+    today: "2026-11-07",
+    rrMatchesPerPlayer: 3,
+    scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 },
+    tiebreakers: [] as never[],
+    qual: { mode: "overall", perFlight: 2, overall: 8 },
+    confirmedCount: 32,
+    chainsRounds: true,
+  };
+  const RR = { type: "Round Robin", format: "Match Play" };
+  const MEDAL = { type: "Stroke Play Round", format: "Stroke Play" };
+  const SCRAMBLE = { type: "Stroke Play Round", format: "Scramble" };
+  const RR_MEDAL = { type: "Round Robin", format: "Stroke Play" };
+  const shapes: [string, typeof RR, typeof RR][] = [
+    ["round robin → round robin", RR, RR],
+    ["round robin → medal", RR, MEDAL],
+    ["round robin at stroke play → medal", RR_MEDAL, MEDAL],
+    ["medal → medal", MEDAL, MEDAL],
+    ["a scramble medal → round robin", SCRAMBLE, RR],
+    ["a scramble medal → medal", SCRAMBLE, MEDAL],
+    ["medal → round robin", MEDAL, RR],
+  ];
+  for (const [name, first, second] of shapes) {
+    it(name, () => {
+      const stages = [view("r1", 0, first), view("r2", 1, { ...second, cutEnabled: true, cutTies: "playoff" })];
+      const html = renderToStaticMarkup(createElement(StagesClient, { ...base, stages }));
+      const sheet = cutAfterRound(stages, "r1");
+      const offered = /\/>Play-off<\/label>/.test(html);
+      expect(offered, `${name}: the screen offers a tie method — the sheet prints ${sheet?.decidedOn ?? "none"}`).toBe(
+        !!sheet?.decidedOn,
+      );
+      if (sheet?.decidedOn === "table") expect(html, name).toContain("the players level on points play off");
+      if (sheet?.decidedOn === "card") expect(html, name).toContain("the players level on that score play off");
+    });
+  }
 });

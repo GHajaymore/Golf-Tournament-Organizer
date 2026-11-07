@@ -7,7 +7,7 @@ import { enteredCardCount } from "./round-cards";
 import { formGroups, roundRobinSchedule } from "../domain";
 import { nextRoundFlights, roundRobinCutOutcome, type CutOutcome, type CutTie } from "../domain/cut";
 import type { Stage as DbStage, Match as DbMatch } from "@prisma/client";
-import { cutRuleOf, cutLineKindOf } from "../domain/cut-ready";
+import { cutRuleOf, cutFeederOf } from "../domain/cut-ready";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
 import { needsTeams } from "../formats";
 import { generatesPairings, isPlayingRound, seededFromQualifiers } from "../stage-types";
@@ -780,8 +780,13 @@ async function roundRobinCutFrom(
  * this; `generateCutRound` draws the round with the very same function.
  *
  * Null when the round has no cut out of a round robin's table
- * (`cutLineKindOf`), or nothing has been played to cut on — a tie of the whole
+ * (`cutFeederOf`), or nothing has been played to cut on — a tie of the whole
  * field on nought is not a tie anybody owes a play-off for.
+ *
+ * THE FEEDER IS THE ONE THE DRAW CUTS FROM (`cut.feeder`, the last round robin
+ * before this round by position), not the round beside it: for Round robin →
+ * medal → cut round this asked the medal, found no table, and the card showed
+ * no tie while the draw refused for one (J31 review, 2026-11-07).
  */
 export async function roundRobinCutOf(
   eventId: string,
@@ -795,9 +800,7 @@ export async function roundRobinCutOf(
   ]);
   const stage = allStages.find((s) => s.id === stageId);
   if (!event || !stage || !stage.cutEnabled || !isPlayingRound(stage.type) || seededFromQualifiers(stage.type)) return null;
-  const rounds = allStages.filter((s) => isPlayingRound(s.type));
-  const before = rounds[rounds.findIndex((s) => s.id === stage.id) - 1];
-  if (cutLineKindOf(before, stage) !== "table") return null;
+  if (cutFeederOf(allStages, stage.id)?.kind !== "table") return null;
   const domainPlayers: DomainPlayer[] = confirmed.map((p) => ({
     id: p.id,
     name: p.name,
@@ -819,16 +822,26 @@ export async function roundRobinCutOf(
   return { feeder: cut.feeder, next: stage, outcome: cut.outcome, names: new Map(domainPlayers.map((p) => [p.id, p.name])) };
 }
 
-/** The same, asked from the round robin the cut is taken OUT of — as `settleCutTie` is pressed. */
+/**
+ * The same, asked from the round robin the cut is taken OUT of — as `settleCutTie`
+ * is pressed: the first round after it with a cut out of its table
+ * (`cutFeederOf`), which need not be the round beside it.
+ */
 export async function roundRobinCutAfter(
   eventId: string,
   feederId: string,
 ): ReturnType<typeof roundRobinCutOf> {
-  const rounds = (await prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: { id: true, type: true } })).filter(
-    (s) => isPlayingRound(s.type),
-  );
-  const next = rounds[rounds.findIndex((s) => s.id === feederId) + 1];
-  if (!next || rounds.findIndex((s) => s.id === feederId) < 0) return null;
+  const stages = await prisma.stage.findMany({
+    where: { eventId },
+    orderBy: { position: "asc" },
+    select: { id: true, type: true, format: true, cutEnabled: true },
+  });
+  const next = stages.find((s) => {
+    if (!s.cutEnabled || seededFromQualifiers(s.type)) return false;
+    const line = cutFeederOf(stages, s.id);
+    return line?.kind === "table" && line.feeder.id === feederId;
+  });
+  if (!next) return null;
   const made = await roundRobinCutOf(eventId, next.id);
   return made && made.feeder.id === feederId ? made : null;
 }

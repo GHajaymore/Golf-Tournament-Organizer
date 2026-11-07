@@ -59,6 +59,7 @@ import {
   type NextRoundFlight,
 } from "@/lib/domain/cut";
 import { aggregateStats, rankPlayers } from "@/lib/domain/standings";
+import { cutFeederOf } from "@/lib/domain/cut-ready";
 import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/domain/match-cards";
 import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-agg";
@@ -564,6 +565,47 @@ describe("a tie exactly at a round robin's cut line, in flights, at every field 
           }
         }
       }
+    });
+  }
+});
+
+/**
+ * WHAT A CUT IS TAKEN OUT OF, IN EVERY SHAPE OF TOURNAMENT (J31 review, 2026-11-07).
+ *
+ * Written by hand from what the two engines do, not from `cutFeederOf`:
+ * `applyStrokeCut` cuts a stroke round on the stroke round just before it
+ * (the cards), and `generateCutRound` cuts anything else on the table of the
+ * last round robin before it BY POSITION — a medal between them does not move
+ * it. The tie card, the record of a play-off and the board ask this one
+ * function; it once asked the round beside the cut, and for round robin →
+ * medal → cut round named no feeder while the draw refused for a tie.
+ */
+describe("the round a cut is taken out of, for every shape of tournament", () => {
+  const RR = { type: "Round Robin", format: "Match Play" };
+  const RR_MEDAL = { type: "Round Robin", format: "Stroke Play" };
+  const MEDAL = { type: "Stroke Play Round", format: "Stroke Play" };
+  const SCRAMBLE = { type: "Stroke Play Round", format: "Scramble" };
+  type Shape = { type: string; format: string };
+  // [the rounds, in order — the last is the cut round], the round it is taken out of (index), on what.
+  const cells: [string, Shape[], number | null, "card" | "table" | null][] = [
+    ["round robin → round robin", [RR, RR], 0, "table"],
+    ["round robin → medal", [RR, MEDAL], 0, "table"],
+    ["round robin → medal → round robin", [RR, MEDAL, RR], 0, "table"],
+    ["round robin → scramble → medal", [RR, SCRAMBLE, MEDAL], 0, "table"],
+    ["round robin → round robin → medal → round robin", [RR, RR, MEDAL, RR], 1, "table"],
+    ["round robin → medal → medal (the cards)", [RR, MEDAL, MEDAL], 1, "card"],
+    ["medal → medal", [MEDAL, MEDAL], 0, "card"],
+    ["round robin at stroke play → medal (the cards)", [RR_MEDAL, MEDAL], 0, "card"],
+    ["round robin at stroke play → round robin", [RR_MEDAL, RR], 0, "table"],
+    ["medal → round robin: no table before it", [MEDAL, RR], null, null],
+    ["scramble → medal: neither engine cuts it", [SCRAMBLE, MEDAL], null, null],
+    ["one round: nothing before it", [RR], null, null],
+  ];
+  for (const [name, shapes, from, kind] of cells) {
+    it(name, () => {
+      const rounds = shapes.map((s, i) => ({ id: `r${i + 1}`, ...s }));
+      const line = cutFeederOf(rounds, rounds[rounds.length - 1].id);
+      expect(line ? [line.feeder.id, line.kind] : null).toEqual(from === null ? null : [`r${from + 1}`, kind]);
     });
   }
 });

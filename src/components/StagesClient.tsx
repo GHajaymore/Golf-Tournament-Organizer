@@ -591,6 +591,10 @@ function NextRoundTransition({
    * organizer believes they have set the thing, and the sheet agrees with them.
    */
   const nextIsSeeded = nextStage ? seededFromQualifiers(nextStage.type) : false;
+  // What a tie at this cut's line is decided on — a card, a round robin's
+  // table — or null for a cut that settles no tie of its own (`cutLineKindOf`,
+  // the one answer the rules sheet and both engines ask).
+  const cutLineKind = nextStage ? cutLineKindOf(allStages.find((s) => s.id === stageId), nextStage) : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -700,10 +704,14 @@ function NextRoundTransition({
             locked={locked}
             // A tie at a round robin's line is settled the way the committee
             // chose, as a stroke cut's is (J31) — on points and the table's
-            // tie-breaks, so the words are the table's.
-            tiesGoThrough
+            // tie-breaks, so the words are the table's. ONLY where a cut out of
+            // this round settles a tie of its own (`cutLineKindOf`): a team
+            // medal's cut, or a round robin cut out of a stroke round, is
+            // honoured by no engine and printed by no rules sheet, so it offers
+            // no choice to store.
+            tiesGoThrough={cutLineKind !== null}
             tieRule={nextStage?.cutTies ?? "ties"}
-            decidedOn={(nextStage && cutLineKindOf(allStages.find((s) => s.id === stageId), nextStage)) || "table"}
+            decidedOn={cutLineKind ?? undefined}
           />
         )}
         {/* DRAWING THE NEXT ROUND IS NOT SETTING THIS ONE UP (2026-10-16; Ajay: "is this

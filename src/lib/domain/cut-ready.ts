@@ -1,4 +1,4 @@
-import { isIndividualStrokeRound, seededFromQualifiers } from "../stage-types";
+import { isIndividualStrokeRound, isPlayingRound, seededFromQualifiers } from "../stage-types";
 import type { CutRule, CutLineKind } from "./cut";
 
 /**
@@ -108,6 +108,40 @@ export function cutLineKindOf(
   if (isIndividualStrokeRound(feeder) && isIndividualStrokeRound(next)) return "card";
   if (feeder.type === "Round Robin") return "table";
   return null;
+}
+
+/**
+ * THE ROUND A CUT INTO `stageId` IS TAKEN OUT OF, AND WHAT IT IS DRAWN ON
+ * (J31 review, 2026-11-07) — the one answer the round's tie card, the record
+ * of a play-off (`settleCutTie`) and the board ask, so none of them can name a
+ * different round from the engine that makes the cut.
+ *
+ * A CARD when this round and the round before it are both individual stroke
+ * rounds: `applyStrokeCut` cuts on the round just played. Otherwise the TABLE
+ * of the last Round Robin before it BY POSITION, not the round beside it —
+ * `generateCutRound` cuts from that table, so a medal played between a round
+ * robin and the round it qualifies for does not move the cut off the table.
+ * They asked the adjacent round, and for Round robin → medal → cut round the
+ * draw refused "record who won it below" while the card showed no tie, and
+ * the record said there was no cut out of the round robin at all.
+ *
+ * Null where neither engine cuts: the first round, or a cut with no round
+ * robin before it that is not a stroke cut (`generateCutRound` refuses it as
+ * `no-prior-round`). Rounds that are not played (`isPlayingRound`) are passed
+ * over, so the caller may hand in every stage in position order.
+ */
+export function cutFeederOf<R extends { id: string; type: string; format: string }>(
+  stages: readonly R[],
+  stageId: string,
+): { feeder: R; kind: CutLineKind } | null {
+  const rounds = stages.filter((s) => isPlayingRound(s.type));
+  const i = rounds.findIndex((s) => s.id === stageId);
+  if (i <= 0) return null;
+  const next = rounds[i];
+  const before = rounds[i - 1];
+  if (cutLineKindOf(before, next) === "card") return { feeder: before, kind: "card" };
+  const table = rounds.slice(0, i).filter((s) => s.type === "Round Robin").pop();
+  return table ? { feeder: table, kind: "table" } : null;
 }
 
 /**
