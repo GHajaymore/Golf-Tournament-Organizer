@@ -2,6 +2,7 @@ import { hasLeftTheField } from "../domain/left-the-field";
 import "server-only";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
+import { sideNamesOf } from "./side-names";
 import type { EventState } from "./tournament";
 import { parseStrokeCards, playingStages } from "./tournament";
 import { tournamentResult, type OutingLine, type RoundOutcome } from "../domain/tournament-result";
@@ -48,7 +49,7 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
   const stages = playingStages(state.stages);
   if (stages.length === 0) return [];
 
-  const [cardRows, courses] = await Promise.all([
+  const [cardRows, courses, teamNameOf] = await Promise.all([
     prisma.scorecard.findMany({
       where: { eventId: state.event.id },
       select: { playerId: true, stageId: true, strokes: true, status: true },
@@ -57,9 +58,24 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
       where: { ...playedOnBy(state.event.id) },
       select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
     }),
+    sideNamesOf(
+      state.event.id,
+      state.matches.flatMap((m) => [m.teamAId, m.teamBId]),
+    ),
   ]);
 
   const nameOf = new Map(state.players.map((p) => [p.id, p.name]));
+  /**
+   * A TEAM MATCH LEAVES ITS PLAYER COLUMNS EMPTY (four-ball, foursomes, a cup's
+   * matches), so its sides are named the way the match card names them
+   * (`matchCardFor`): by the team's own name, which for a pair is the pair's
+   * names ("Third & Fourth").
+   */
+  const sideOf = (m: { playerAId: string | null; playerBId: string | null; teamAId: string; teamBId: string }, side: "A" | "B") => {
+    const playerId = (side === "A" ? m.playerAId : m.playerBId) ?? "";
+    const teamId = side === "A" ? m.teamAId : m.teamBId;
+    return { id: playerId || teamId, name: nameOf.get(playerId) ?? teamNameOf.get(teamId) };
+  };
 
   /**
    * EACH ROUND'S OWN CARD, KEYED BY ROUND — and read by round id below rather
@@ -184,8 +200,8 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
        */
       if (played.length === 1) {
         const { match, result } = played[0];
-        const a = nameOf.get(match.playerAId ?? "") ?? "Side A";
-        const b = nameOf.get(match.playerBId ?? "") ?? "Side B";
+        const a = sideOf(match, "A").name ?? "Side A";
+        const b = sideOf(match, "B").name ?? "Side B";
         if (result.winner === "H" || !result.winner) {
           return { kind: "match", label, winner: a, loser: b, margin: "halved" };
         }
@@ -195,15 +211,19 @@ export async function roundOutcomesFor(state: EventState): Promise<Array<{ stage
           : { kind: "match", label, winner: b, loser: a, margin };
       }
       const wins = new Map<string, number>();
+      const winnerNames = new Map<string, string>();
       for (const { match, result } of played) {
-        const id = result.winner === "A" ? match.playerAId : result.winner === "B" ? match.playerBId : null;
-        if (id) wins.set(id, (wins.get(id) ?? 0) + 1);
+        const side = result.winner === "A" ? sideOf(match, "A") : result.winner === "B" ? sideOf(match, "B") : null;
+        if (side?.id) {
+          wins.set(side.id, (wins.get(side.id) ?? 0) + 1);
+          if (side.name) winnerNames.set(side.id, side.name);
+        }
       }
       const most = Math.max(0, ...wins.values());
       if (most === 0) return { kind: "pending", label, note: "Every match halved" };
       const winners = [...wins.entries()]
         .filter(([, n]) => n === most)
-        .map(([id]) => ({ name: nameOf.get(id) ?? "—", score: String(most) }));
+        .map(([id]) => ({ name: winnerNames.get(id) ?? "—", score: String(most) }));
       return { kind: "stroke", label, winners, unit: most === 1 ? "win" : "wins" };
     }
 

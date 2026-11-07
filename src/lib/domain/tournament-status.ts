@@ -32,7 +32,7 @@
 import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
 import { setupFlow, type SetupFacts, type SetupFlow, type SetupStep } from "./setup-flow";
 import { unratedTeesTodo, type LaunchCheck, type UnratedTees } from "./launch-check";
-import { completingCheckFor, finishRefusal, playRefusal } from "./phase-gate";
+import { completingCheckFor, finishRefusal, playRefusal, statusMove } from "./phase-gate";
 import type { BracketView } from "./bracket";
 import { screenName } from "@/lib/nav";
 import { hasKnockoutStage, isKnockoutRound, isStraightKnockout } from "@/lib/stage-types";
@@ -244,6 +244,13 @@ export interface TournamentStatus {
   nextAction: NextAction | null;
   locks: Record<LockScope, Lock>;
   refusals: { launch: string | null; play: string | null; complete: string | null; reopen: string | null };
+  /**
+   * What pressing it should ASK first, when it is allowed (PR 4): completing
+   * with a round nobody has played (`completingCheckFor`'s question). Here as
+   * well as on `nextAction`, because the action asks it whatever the button of
+   * the moment is — a live league's button may be "Set Round 4's day".
+   */
+  asks: { complete: string | null };
   warnings: StatusWarning[];
 }
 
@@ -606,6 +613,17 @@ function locksOf(f: TournamentFacts, family: Family): Record<LockScope, Lock> {
  */
 const COMPLETE_WAY_OUT: WayOut = { says: "Open Score entry", href: SCORE_ENTRY };
 
+/*
+ * THE REFUSALS THE ACTIONS RETURN (PR 4), in the app's voice: what is wrong,
+ * then what to do. No button shows them — the button for a launched
+ * tournament is never Launch — but the actions now return them to a second
+ * tab, a double press or a caller that is not a screen.
+ */
+export const ALREADY_LAUNCHED = "This tournament has already been launched, so there is nothing to launch.";
+export const ALREADY_COMPLETED = "This tournament is already completed. To change a result, reopen it on the dashboard.";
+export const NOT_LAUNCHED_TO_COMPLETE = "This tournament hasn’t been launched yet, so there is nothing to complete. Launch it from the dashboard first.";
+export const NOT_COMPLETED_TO_REOPEN = "This tournament isn’t completed, so there is nothing to reopen.";
+
 export function tournamentStatus(f: TournamentFacts): TournamentStatus {
   const family = tournamentFamily(f);
   const launched = isLaunched(f.status);
@@ -624,7 +642,7 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
   const current = launched ? null : (steps.find((s) => s.holds) ?? null);
   // Today's gate first, in today's words; then the panel's new holds, the one on the current step first.
   const refusalLaunch = launched
-    ? "It has been launched already."
+    ? ALREADY_LAUNCHED
     : (todayLaunch?.refusal ?? holds.find((h) => h.href === current?.href)?.refusal ?? holds[0]?.refusal ?? null);
 
   /* refusals */
@@ -636,16 +654,16 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
         )
       : null;
   const refusalComplete = finished
-    ? "It is completed already."
+    ? ALREADY_COMPLETED
     : !launched
-      ? "It hasn’t been launched yet, so there is nothing to complete."
+      ? NOT_LAUNCHED_TO_COMPLETE
       : (finishRefusal({ pendingConfirmations: f.review.pendingConfirmations, disputed: f.review.disputed }) ??
         (completing && "refuse" in completing ? completing.refuse : null));
   const refusals = {
     launch: refusalLaunch,
-    play: playRefusal({ status: f.status, anyResult }),
+    play: playRefusalOf(f),
     complete: refusalComplete,
-    reopen: finished ? null : "Only a completed tournament can be reopened.",
+    reopen: finished ? null : NOT_COMPLETED_TO_REOPEN,
   };
 
   /* the one next action */
@@ -769,8 +787,122 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
     nextAction,
     locks: locksOf(f, family),
     refusals,
+    asks: { complete: refusals.complete === null && completing && "ask" in completing ? completing.ask : null },
     warnings,
   };
+}
+
+/* ------------------------------------------- what the actions ask (PR 4) */
+
+/**
+ * MAY A SCORE BE ENTERED — the machine's play refusal, for the eight doors into
+ * scoring (PR 4). `playRefusal` holds the rule (no play before launch, unless
+ * play has already begun); what it is told is THE ONE DEFINITION of "has
+ * anybody played": a round's `hasResult`. `playRefusalFor` counted its own four
+ * tables instead, and differed from it on a forfeit, a match card and a
+ * winner recorded with no knockout round (D2). Retired in PR 4.
+ *
+ * Only `status` and the rounds are asked, so a caller on a hot path may hand
+ * it a launched tournament with no rounds read: once launched, play is never
+ * refused, whatever the rounds hold.
+ */
+export function playRefusalOf(f: Pick<TournamentFacts, "status" | "rounds">): string | null {
+  return playRefusal({ status: f.status, anyResult: f.rounds.some((r) => r.hasResult) });
+}
+
+/** What a request to move a tournament's status is, asked of the machine (`setEventStatus`, PR 4). */
+export type StatusRequest =
+  | { kind: "launch" }
+  | { kind: "complete"; asks: string | null }
+  | { kind: "reopen" }
+  | { kind: "refuse"; error: string };
+
+/**
+ * A STATUS IS MOVED, NOT SET — and the machine says whether this move may be
+ * made. `statusMove` keeps the vocabulary (an unknown word is refused, a
+ * launched tournament never goes back to setting up, there is one Setting up
+ * step); everything past that is the machine's refusal for the move asked:
+ * going live is Launch (`refusals.launch`), completing is Complete
+ * (`refusals.complete`, and its question), and "live" on a launched tournament
+ * is Reopen (`refusals.reopen`).
+ *
+ * So a draft can no longer be completed by this door, nor a completed
+ * tournament completed twice: the dashboard never offered either, and the
+ * action is a public endpoint.
+ */
+export function statusRequestOf(st: TournamentStatus, from: string, to: string): StatusRequest {
+  const move = statusMove(from, to);
+  if (move.kind === "refuse") return move;
+  if (move.kind === "launch") return st.refusals.launch ? { kind: "refuse", error: st.refusals.launch } : { kind: "launch" };
+  if (to === "completed") {
+    return st.refusals.complete ? { kind: "refuse", error: st.refusals.complete } : { kind: "complete", asks: st.asks.complete };
+  }
+  return st.refusals.reopen ? { kind: "refuse", error: st.refusals.reopen } : { kind: "reopen" };
+}
+
+/** One round, as closing it is judged (`roundCloseCheck`). */
+export interface RoundCloseFacts {
+  /** "Round 2", or the round's own description. */
+  label: string;
+  /**
+   * The field's players whose card in this round has scores on it and is not
+   * yet final (`cardIsFinal`): not signed by the player, or — where the
+   * committee accepts cards — not yet accepted. By name, in card order.
+   */
+  unsigned: readonly string[];
+  /**
+   * The committee accepts cards (`!allowsAutoConfirm`): a card waits on its
+   * APPROVAL. Otherwise players sign, and it waits on a SIGNATURE. Said in
+   * those words, as `cutBlockedSentence` says them.
+   */
+  staffApproves: boolean;
+  /** Cards and match results in this round somebody has said are wrong. */
+  disputed: number;
+}
+
+/** "Ann Lee’s", "Ann Lee’s and Bo Park’s", "Ann Lee’s, Bo Park’s and Cy Ode’s". */
+function possessives(names: readonly string[]): string {
+  return andList(names.map((n) => `${n}’s`));
+}
+
+/**
+ * CLOSING A ROUND WITH CARDS OUTSTANDING (panel 8.1, TD Q4; PR 4).
+ *
+ *   disputed   REFUSED until the committee rules on it. A doubt about a score
+ *              is the Committee's to decide (Rule 20.1c(4), Rule 20.2b);
+ *              closing over it fixes a contested score into the round and
+ *              turns on Play over with a result that is not final.
+ *   unsigned   ASKED, naming who. A card not certified is the player's breach
+ *              of Rule 3.3b(2), whose penalty — disqualification — is the
+ *              COMMITTEE's to decide, not the app's: so the app asks rather
+ *              than refuses, and the committee may close and chase the card.
+ *
+ * WHAT CLOSING DOES TO THAT CARD, said truly: nothing. The board does not
+ * filter a card by its status, so an unapproved or unsigned card already
+ * counts, and it can still be approved (`approveScorecard`) or signed
+ * (`certifyPlayCard`) after the round is closed. The question says so in the
+ * club's own terms — approved where the committee accepts cards, signed where
+ * players do.
+ *
+ * Asked after the cut's own refusal (`strokeCutRefusal`), which stays: a round
+ * a cut is made from waits for every card to be final, because closing it IS
+ * making the cut.
+ */
+export function roundCloseCheck(r: RoundCloseFacts): { refuse: string } | { ask: string } | null {
+  if (r.disputed > 0) {
+    const one = r.disputed === 1;
+    return {
+      refuse: `${r.disputed} result${one ? "" : "s"} in ${r.label} ${one ? "is" : "are"} disputed, so the round can’t be closed yet. Settle ${one ? "it" : "them"} on Score entry, then close the round.`,
+    };
+  }
+  const n = r.unsigned.length;
+  if (n === 0) return null;
+  const one = n === 1;
+  const who = n <= 3 ? `${possessives(r.unsigned)} ${one ? "card isn’t" : "cards aren’t"}` : `${n} cards aren’t`;
+  const after = r.staffApproves
+    ? `You can still approve ${one ? "it" : "them"} afterwards.`
+    : `${one ? "It" : "They"} can still be signed afterwards.`;
+  return { ask: `${who} ${r.staffApproves ? "approved" : "signed"} yet. Close ${r.label} anyway? ${after}` };
 }
 
 /* ---------------------------------------------- what the screens draw (PR 3) */

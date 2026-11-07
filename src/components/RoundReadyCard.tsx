@@ -1,8 +1,10 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { setRoundClosed } from "@/app/actions/tournament";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { RoundCloseAsk } from "./RoundCloseAsk";
 import { useAction } from "./useAction";
 
 /**
@@ -27,7 +29,17 @@ export function RoundReadyCard({
   /** Players with no card, once the next round is under way (`missingFromRound`). */
   missing?: number;
 }) {
-  const { pending, error, run } = useAction();
+  const { pending, error, setError, startTransition } = useAction();
+  /** The server's question — a card not yet approved or signed (`roundCloseCheck`) — while it is open. */
+  const [asking, setAsking] = useState("");
+  const close = (confirmUnsigned = false) =>
+    startTransition(async () => {
+      setError("");
+      setAsking("");
+      const res = await setRoundClosed(stageId, true, confirmUnsigned);
+      if (res.needsUnsignedConfirm) setAsking(res.error ?? "");
+      else if (!res.ok) setError(res.error ?? "Couldn't save that.");
+    });
   return (
     <section
       aria-label="The round is ready to close"
@@ -56,14 +68,15 @@ export function RoundReadyCard({
           title={`Close ${roundName}`}
           confirmLabel="Close the round"
           note="The public board will read Final."
-          disabled={pending}
-          onConfirm={() => run(() => setRoundClosed(stageId, true))}
+          disabled={pending || !!asking}
+          onConfirm={() => close()}
           style={{ minHeight: 44 }}
         />
         <Link href="/leaderboard" className="btn btn-secondary" style={{ minHeight: 44 }}>
           See the board <Icon name="arrow-right" />
         </Link>
       </div>
+      {asking && <RoundCloseAsk question={asking} pending={pending} onClose={() => close(true)} onKeepOpen={() => setAsking("")} />}
       {error && (
         <p className="form-error">
           <Icon name="warning-circle" /> {error}

@@ -1,7 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "../db";
-import { roundLabel } from "../domain/round-label";
+import { roundKicker, roundLabel } from "../domain/round-label";
+import { cardsNotFinal } from "../domain/cut-ready";
+import { allowsAutoConfirm } from "../tournament-settings";
 import { roundIsScheduled, type SetupFacts } from "../domain/setup-flow";
 import { roundShapeMismatch } from "../domain/round-shape";
 import { isMoneyMode } from "../domain/money-mode";
@@ -14,18 +16,19 @@ import { roundsWithResultsFrom } from "../domain/rounds-with-results";
 import {
   drawFacts,
   setupFactsOf,
+  type RoundCloseFacts,
   type RoundFacts,
   type SetupSideFacts,
   type TournamentFacts,
 } from "../domain/tournament-status";
-import { isMatch } from "../tournament-shape";
+import { isMatch, reviewsScores } from "../tournament-shape";
 import { isAttendanceMode, tracksPerRound } from "../domain/attendance";
 import { generatesPairings, isKnockoutRound, isPlayingRound } from "../stage-types";
 import { TEAM_FORMAT_NAMES } from "../formats";
 import { roundsMissingCards } from "./round-card-lines";
 import { teesInPlayFor } from "./handicaps";
 import { unratedTeesFact, hasTypedCard } from "../domain/launch-check";
-import { loadEventState } from "./tournament";
+import { loadEventState, settingsOf } from "./tournament";
 import { cupBoard } from "./cup";
 
 /**
@@ -352,6 +355,46 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
     });
   }
   return out;
+}
+
+/**
+ * ONE ROUND, AS CLOSING IT IS JUDGED (`roundCloseCheck`, state machine PR 4):
+ * who in the field has a card in it that is not final yet, and how many of its
+ * cards and match results are disputed. Null when the round is not in this
+ * tournament.
+ *
+ * Read when the committee closes a round, never on a screen's every load: it
+ * names people, which no tournament-wide count does. The field is the
+ * CONFIRMED field, as the cut's refusal reads it (`strokeCutRefusal`): a
+ * withdrawn player's card stays on the record and is nobody's result. Which
+ * cards are final is `cardsNotFinal`, the cut's own split, under the club's
+ * own answer to "does the committee accept cards" (`allowsAutoConfirm`).
+ */
+export async function roundCloseFactsFor(eventId: string, stageId: string): Promise<RoundCloseFacts | null> {
+  const [event, stages] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: { id: true, type: true, position: true, description: true } }),
+  ]);
+  const stage = stages.find((s) => s.id === stageId);
+  if (!event || !stage) return null;
+  const [field, cards, disputedMatches] = await Promise.all([
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true } }),
+    prisma.scorecard.findMany({ where: { eventId, stageId }, orderBy: { id: "asc" }, select: { playerId: true, status: true, strokes: true } }),
+    prisma.match.count({ where: { eventId, stageId, scoreStatus: "disputed" } }),
+  ]);
+  const names = new Map(field.map((p) => [p.id, p.name]));
+  const staffApproves = !allowsAutoConfirm(settingsOf(event));
+  const split = cardsNotFinal(
+    cards.filter((c) => names.has(c.playerId)),
+    staffApproves,
+  );
+  return {
+    label: roundKicker(stage.description, roundLabel(stages, stage.id) || "This round"),
+    // Nobody signs a casual round's card (`reviewsScores`), so nothing in one waits on a signature.
+    unsigned: reviewsScores(event.shape) ? split.pending.map((c) => names.get(c.playerId) ?? "A player") : [],
+    staffApproves,
+    disputed: split.disputed.length + disputedMatches,
+  };
 }
 
 /** The three facts only a live tournament's whole state knows — see the note on `tournamentFactsFor`. */

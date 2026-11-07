@@ -70,8 +70,19 @@ async function tournament(name: string) {
 
 const exists = async (id: string) => (await prisma.event.count({ where: { id } })) === 1;
 
+/**
+ * As launching leaves it. Only a launched tournament can be completed — the
+ * dashboard never offered Complete on one setting up, and since the state
+ * machine's PR 4 the action refuses it too ("there is nothing to complete").
+ * These tests are about what completing KEEPS, so they complete a launched one.
+ */
+async function launched(id: string) {
+  await prisma.event.update({ where: { id }, data: { status: "live", launchedAt: new Date(), configUnlocked: false } });
+}
+
 /** Complete it, confirmed, and report whether the action deleted and redirected. */
 async function completeConfirmed() {
+  await launched(session.eventId);
   try {
     const res = await setEventStatus("completed", true);
     return { redirected: false, res };
@@ -136,6 +147,7 @@ describe("a new Free club", () => {
   });
 
   it("is ASKED before completing, and is told it is kept fifteen days and then deleted; asking changes nothing", async () => {
+    await launched(eventId);
     const res = await setEventStatus("completed");
     expect(res.ok).toBe(false);
     expect(res.needsDeleteConfirm).toBe(true);

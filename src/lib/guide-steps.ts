@@ -675,6 +675,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Approve the last cards. When everything is in, the Dashboard offers to close the round — or mark it over with **Is this round over?** on Rounds & formats. Any cut is made then, and the board reads Final.",
+          "If a card in the round is not approved yet (or, where players sign their cards, not signed yet), closing it asks first and names whose: [[Close anyway]] closes the round with the card as it stands; it can still be approved or signed afterwards. [[Keep it open]] leaves the round as it was. A disputed card or result stops the close until you settle it on Score entry. A round a cut is made from waits for every card in it to be final, as before.",
           "Award prizes and settle the money.",
           "Export from **Afterwards → Reports & export**: [[Export CSV]] for standings and flight results (or the format's own sheet), **Who turned out**, the **Bracket sheet** and **Scorecards**. The snapshot has a [[Print]] button for a PDF.",
           "On the Dashboard press [[Complete tournament]] and confirm. If a round has no scores it asks first: [[Complete anyway]] closes that round as not played and decides results on the rounds played, [[Keep playing]] leaves everything open. Boards switch to Final standings. To correct a card afterwards, press [[Reopen tournament]] — it asks first too — then complete it again. It is refused while another tournament in play has the same name; rename one of them first.",

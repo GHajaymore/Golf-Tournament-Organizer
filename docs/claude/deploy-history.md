@@ -122,3 +122,21 @@ secrets and `ios-testflight.yml` seven; the repository holds NONE of them. (`gh 
 is no longer empty — it has held `VERCEL_TOKEN` since 2026-09-04 — so read the names rather
 than the count.) Both are `workflow_dispatch` only, so nothing goes red on a push, but "Run
 workflow" fails at signing. That is a missing certificate, not a broken file.
+
+**6 Nov: Ajay — before launch the freeze guards only pilot clubs.** "We can't waste time waiting
+this long. this kind of real tournament [freeze] we should do at the last when we have all other
+foundations and basic issues fixed." The same night: "let's turn off that freez until Nov 20th".
+So `deployWindowFor` (`src/lib/domain/deploy-window.ts`) answers in three periods. Until
+`FREEZE_RESUMES` (20 Nov 2026 00:00 in UTC+14, which is 19 Nov 10:00 UTC, so it is back before the
+20th begins anywhere): never frozen, "the freeze is off until 20 Nov 2026 (the owner's ruling of 6
+Nov)". From then while sign-ins are held (`launchState()`): frozen only while a pilot club (a real
+club where somebody on `SIGNIN_ALLOW_EMAILS`, and not on `OWNER_EMAILS`, is Commissioner, Admin,
+Organizer or helper) has a tournament on today, never on a weekend morning, and the reason begins
+"sign-ins are held: only pilot clubs count". Once live: the 2026-10-23 rule unchanged, the reason
+beginning "accounts are live: every club counts". Why: a held production signs in only the owners
+and the allow-list, so before launch most tournaments are tests. Not all: round codes (`/play`) and
+public boards work while held, which is how the CDG/CVC cup was played, so a real event an owner runs
+by round code can be on today — and before launch it does NOT hold a deploy. That is the ruling as
+given; whether such events should be covered is a question for Ajay, not built in. The first pilot
+club's organizer starts setting up on 20 Nov, which is why the freeze resumes then. A completed
+tournament never freezes.
