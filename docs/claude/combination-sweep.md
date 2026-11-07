@@ -158,10 +158,25 @@ So, for any change to scoring, draw, cut, bracket or handicap code:
    `board-scores-the-round-venue.audit.test.ts` against the played course's
    par, exactly as the paragraph above asks.
 
-   `regroup.ts` stays event-level on purpose and is the one exemption: it
-   resolves a single stroke index for a CHAIN of qualifying rounds, which has
-   no one card to be resolved per round. `week-view.ts` documents the same
-   exemption for its match tiebreaks.
+   **A HALVED MATCH IS DECIDED ON THE CARD IT WAS PLAYED ON, NOT THE
+   TOURNAMENT'S (J26, 2026-11-06).** The exemption that stood here ("regroup.ts
+   stays event-level on purpose", moved to `retired.md`) was the fault: a
+   "toughest N holes" countback ranks holes by a stroke index, and an index is
+   the PLAYED course's. The standings in `loadEventState`, the week view, the
+   head-to-head record and the cut out of a match-play round (`regroup.ts`)
+   each handed every match the tournament's index, so an away week's halved
+   match in a league or interclub was settled on the home club's hardest
+   holes. A chain of rounds needs no one card: each MATCH has its own.
+   `matchCountbackIndex` (course-resolution.ts) is the one answer — match
+   venue, then the round's, then the tournament's, on the nine played — taking
+   the venue as a required argument; every reader gets it through
+   `countbackCardsFor` (`state.countbackCardFor` on the screens), and the
+   standings' own "toughest N" tiebreaker reads each match's card the same
+   way. `the-countback-card-is-the-match-venue.test.ts` refuses a reader that
+   hands a decider any other card, with a control of the old shapes;
+   `an-away-match-is-decided-on-the-away-card.test.ts` works it from the Rules
+   and by property; the matrix carries the cell; the audit and
+   `e2e/an-away-halve-on-the-away-card.spec.ts` read it off real rows.
 
 8. **ASK WHICH TABLE THIS ROUND FILES ITS RESULT IN, BEFORE BELIEVING ANY
    COUNT.** There are FOUR, and on 2026-09-20 six separate readers were asking
