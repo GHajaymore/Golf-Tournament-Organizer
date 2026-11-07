@@ -17,6 +17,36 @@ import { prisma } from "@/lib/db";
  */
 
 /**
+ * CLUB- AND PERSON-LEVEL MODELS A PURGE MUST NEVER REACH (Ajay, 2026-11-07:
+ * "make sure it doesnt delete the member record/entry").
+ *
+ * A tournament's `Player` is an ENTRY; the `Member` it points to is the club's
+ * roster record, with the handicap and history that outlive any one event. The
+ * link is `Player.memberId -> Member` with `onDelete: SetNull` on the Member
+ * side, so deleting an entry never touches the Member. `delete-purges-
+ * everything.test.ts` fails if any of these can be reached by a cascade from
+ * Event or Stage, or is deleted in this file.
+ * `Account` is NOT here: it is the tournament's own access list (`eventId`,
+ * cascade) and holds no password; the sign-in is the `User`.
+ */
+export const NEVER_PURGED: Record<string, string> = {
+  Member: "the club's roster record: handicap, GHIN, history",
+  User: "a person's sign-in",
+  Organization: "the club itself",
+  OrganizationMember: "who belongs to the club and in what role",
+  JoinRequest: "a person asking to join a club",
+  Subscription: "the club's plan and billing record",
+  Series: "the club's season, which tournaments belong to",
+  Course: "the club's course library",
+  Tee: "a course's tees",
+  Integration: "the club's association credentials",
+  KnownDevice: "a person's trusted browser",
+  PasswordResetToken: "a person's sign-in",
+  EmailCode: "a person's sign-in",
+  PushSubscription: "a person's device",
+};
+
+/**
  * Models with an `eventId` that are KEPT when the event goes, with the reason.
  * Empty on purpose: the owner ruled that nothing of a purged tournament stays.
  * (The one trace he allows, a club's audit line saying it was deleted and by

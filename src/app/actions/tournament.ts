@@ -2896,12 +2896,20 @@ export async function removeStage(stageId: string, force = false) {
    * the only thing there is — losing it silently is losing the money.
    */
   if (!force) {
-    const [cards, stakes] = await Promise.all([
+    // `records`: the expenses, funds, contests and side games tied to this round,
+    // which the purge also removes, so the warning says so.
+    const tied = { eventId, stageId };
+    const [cards, stakes, ...kinds] = await Promise.all([
       enteredCardCount(eventId, stageId),
       prisma.skinsEntry.count({ where: { pot: { stageId }, confirmed: true } }),
+      prisma.expense.count({ where: tied }),
+      prisma.tournamentFund.count({ where: tied }),
+      prisma.contest.count({ where: tied }),
+      prisma.sideGame.count({ where: tied }),
     ]);
-    if (cards > 0 || stakes > 0) {
-      return { ok: false as const, needsConfirm: true as const, cards, stakes };
+    const records = kinds.reduce((a, b) => a + b, 0);
+    if (cards > 0 || stakes > 0 || records > 0) {
+      return { ok: false as const, needsConfirm: true as const, cards, stakes, records };
     }
   }
 

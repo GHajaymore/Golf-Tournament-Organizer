@@ -59,6 +59,17 @@ let r1 = "";
 let r2 = "";
 let otherStage = "";
 let ann = "";
+let clubRows = "";
+const userEmail = `${TAG}.user@example.invalid`.toLowerCase();
+
+/** Every club- and person-level row the test made, as one comparable string. */
+async function clubLevel(): Promise<string> {
+  const members = await prisma.member.findMany({ where: { organizationId: orgId }, orderBy: { name: "asc" } });
+  const user = await prisma.user.findUnique({ where: { email: userEmail } });
+  const orgMembers = await prisma.organizationMember.findMany({ where: { organizationId: orgId } });
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  return JSON.stringify({ members, user, orgMembers, org });
+}
 
 async function eventWith(suffix: string) {
   return prisma.event.create({
@@ -107,8 +118,19 @@ beforeAll(async () => {
   r1 = (await mk(eventId, 0)).id;
   r2 = (await mk(eventId, 1)).id;
   otherStage = (await mk(otherEventId, 0)).id;
-  ann = (await prisma.player.create({ data: { eventId, name: `${TAG} ann`, email: `${TAG}.ann@example.invalid`, seed: 1, status: "confirmed" } })).id;
-  const cy = (await prisma.player.create({ data: { eventId: otherEventId, name: `${TAG} cy`, email: `${TAG}.cy@example.invalid`, seed: 1, status: "confirmed" } })).id;
+  // Each entry is linked to the club's roster record (handicap, GHIN, history) and
+  // the club has a person with a sign-in: none of it may go with a tournament.
+  const user = await prisma.user.create({ data: { email: userEmail, name: "zz user" } });
+  await prisma.organizationMember.create({ data: { organizationId: orgId, userId: user.id, role: "member" } });
+  const member = (n: string, handicap: number) =>
+    prisma.member.create({
+      data: { organizationId: orgId, name: `${TAG} ${n}`, email: `${TAG}.${n}@example.invalid`, ghin: "zz-1", homeClub: "zz home", handicap, handicapType: "18", handicapSource: "manual", memberNumber: `zz-${n}` },
+    });
+  const annMember = await member("ann", 12.4);
+  const cyMember = await member("cy", 3.1);
+  ann = (await prisma.player.create({ data: { eventId, memberId: annMember.id, name: `${TAG} ann`, email: `${TAG}.ann@example.invalid`, seed: 1, status: "confirmed" } })).id;
+  const cy = (await prisma.player.create({ data: { eventId: otherEventId, memberId: cyMember.id, name: `${TAG} cy`, email: `${TAG}.cy@example.invalid`, seed: 1, status: "confirmed" } })).id;
+  clubRows = await clubLevel();
   await prisma.account.create({ data: { eventId, name: "zz staff", email: staffEmail, role: "admin" } });
   const team = await prisma.team.create({ data: { eventId, name: `${TAG} side`, seed: 1 } });
   const otherTeam = await prisma.team.create({ data: { eventId: otherEventId, name: `${TAG} other side`, seed: 1 } });
@@ -135,6 +157,7 @@ async function clean() {
   await prisma.emailFailure.deleteMany({ where: { organizationId: { in: orgs } } });
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
+  await prisma.user.deleteMany({ where: { email: userEmail } });
 }
 
 afterAll(async () => {
@@ -152,6 +175,9 @@ describe("removing a round", () => {
   });
 
   it("leaves no table holding the round, and the other round and the players alone", async () => {
+    // Asked first, the confirm counts what will go: cards AND the money records.
+    const ask = await removeStage(r2);
+    expect(ask).toMatchObject({ needsConfirm: true, cards: 2, records: 4 });
     const res = await removeStage(r2, true);
     expect(res.ok).toBe(true);
     expect(await prisma.stage.count({ where: { id: r2 } })).toBe(0);
@@ -171,6 +197,8 @@ describe("removing a round", () => {
     // An audit line that says what happened and never who played.
     const line = await prisma.auditLog.findFirst({ where: { eventId, action: "Round deleted" } });
     expect(line?.actor).toBe("zz staff");
+    // The club's roster, the sign-in and the membership are exactly as they were.
+    expect(await clubLevel()).toBe(clubRows);
   });
 
   it("deletes nothing of another tournament when handed its round id", async () => {
@@ -199,5 +227,12 @@ describe("deleting a tournament", () => {
     for (const t of ["HonoursEntry", "SmsDelivery", "EmailFailure", "AuditLog", "Thread", "Player"]) {
       expect(await rowsIn(t, "eventId", otherEventId), `${t} lost the OTHER tournament`).toBeGreaterThan(0);
     }
+    // The tournament's entries are gone; the club's Members they pointed at are not,
+    // nor their handicap and history fields, the User sign-in, or the membership.
+    expect(await prisma.player.count({ where: { eventId } })).toBe(0);
+    expect(await prisma.member.count({ where: { organizationId: orgId } })).toBe(2);
+    expect(await clubLevel()).toBe(clubRows);
+    // The other tournament's entry still points at its Member.
+    expect((await prisma.player.findFirst({ where: { eventId: otherEventId }, select: { memberId: true } }))?.memberId).toBeTruthy();
   });
 });

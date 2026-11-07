@@ -869,7 +869,7 @@ function StageCard({
    * cards and — through the cascade — its skins pot with every stake already
    * collected, and the trash icon used to do all of that on one click.
    */
-  const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number } | null>(null);
+  const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number; records: number } | null>(null);
   // On the timeline Delete is the panel's last control, so its warning opens below the fold of
   // the panel's own scroll: brought into view when it appears (`rounds-panel.spec`, 2026-11-02).
   const removeWarningRef = useRef<HTMLDivElement>(null);
@@ -1395,23 +1395,19 @@ function StageCard({
     >
       <b style={{ color: "var(--color-danger)" }}>
         <Icon name="warning-circle" /> Deleting this round destroys{" "}
-        {removeCost.cards > 0 && (
-          <>
-            {removeCost.cards} entered card{removeCost.cards === 1 ? "" : "s"}
-          </>
-        )}
-        {removeCost.cards > 0 && removeCost.stakes > 0 && " and "}
-        {removeCost.stakes > 0 && (
-          <>
-            {removeCost.stakes} paid stake{removeCost.stakes === 1 ? "" : "s"}
-          </>
-        )}
+        {[
+          removeCost.cards > 0 && `${removeCost.cards} entered card${removeCost.cards === 1 ? "" : "s"}`,
+          removeCost.stakes > 0 && `${removeCost.stakes} paid stake${removeCost.stakes === 1 ? "" : "s"}`,
+          removeCost.records > 0 && `${removeCost.records} money record${removeCost.records === 1 ? "" : "s"}`,
+        ]
+          .filter(Boolean)
+          .join(", ")}
         .
       </b>
       <div className="text-muted" style={{ marginTop: 4 }}>
         {removeCost.stakes > 0
           ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down. This is permanent and cannot be undone."
-          : "The matches, cards and handicaps go with it. This is permanent and cannot be undone."}
+          : "The matches, cards, handicaps and money records go with it. This is permanent and cannot be undone."}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
         <button
@@ -1716,7 +1712,7 @@ function StageCard({
               // The server refuses when the round holds results or money, and
               // says how much of each. An empty round still deletes on one press.
               const res = await removeStage(stage.id);
-              if (res?.needsConfirm) setRemoveCost({ cards: res.cards ?? 0, stakes: res.stakes ?? 0 });
+              if (res?.needsConfirm) setRemoveCost({ cards: res.cards ?? 0, stakes: res.stakes ?? 0, records: res.records ?? 0 });
             })
           }
         >
