@@ -48,3 +48,8 @@
  * audit file is correct without its author knowing this rule exists.
  */
 import "dotenv/config";
+
+// No audit test may hold the real GolfCourseAPI key (50 free searches a day). Empty, not deleted:
+// a test file's own `import "dotenv/config"` would put a deleted variable back from `.env`, and
+// never overrides an existing one. An empty key means "no key" to golfcourseapi-live.ts.
+process.env.GOLFCOURSE_API_KEY = "";
