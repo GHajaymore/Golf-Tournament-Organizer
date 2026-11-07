@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { readSource } from "./source";
+import { readSource, readVerbatim } from "./source";
 import {
   EVENT_ROWS_WITHOUT_A_CASCADE,
   ROUND_ROWS_WITHOUT_A_CASCADE,
@@ -93,7 +91,7 @@ export function reachableNeverPurged(schema: string, never: string[]): string[] 
   return never.filter((n) => reached.has(n));
 }
 
-const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+const schema = readVerbatim("prisma", "schema.prisma");
 
 describe("every model that names a tournament or a round is purged with it", () => {
   it("every eventId is a cascade, deleted by hand, or kept with a reason", () => {
