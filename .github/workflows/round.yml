@@ -55,18 +55,18 @@ name: Round
 # Safari and Firefox on a Mac or on Windows. Every browser here is its Linux
 # build. The summary says so each time.
 #
-# WHY THE PARTS DO NOT RUN IN PLAYWRIGHT'S OWN CONTAINER IMAGE (measured against
-# the docs 2026-10-23, and kept as the packages job below): a container job
-# reaches its Postgres service by the service's NAME, not localhost — and
-# `scripts/seed-club.mjs` refuses any database host that is not localhost, on
-# purpose (a seed pointed elsewhere cannot be undone). GitHub refuses `--network`
-# in a job container's options, so the service cannot be put on localhost; the
-# only ways round that are a TCP forwarder started inside every part or
-# loosening the guard, and neither is clean. The image also lacks the installed
-# Chrome and Edge two layers drive, `lsof` (round.mjs stops its server with it)
-# and `sudo`, and runs Firefox as root. The packages job keeps the mirror out of
-# all but one job instead, and can no longer fail a round (continue-on-error,
-# with its own twenty-minute limit — the same change as #923).
+# WHERE THE PARTS RUN (2026-11-06). A part that drives Playwright's own Chromium, Firefox or
+# WebKit runs in Playwright's official container image at the locked version, so apt never
+# runs for it (the Ubuntu mirror stalled daily). The 2026-10-23 reasons against it, and what
+# answers each: a container job reaches Postgres by the service NAME and `scripts/seed-club.mjs`
+# refuses any host that is not localhost, on purpose, so `.github/actions/setup` forwards
+# localhost:5432 to the service (scripts/ci/forward-postgres.mjs) and the guard is untouched;
+# the image has no `lsof` (round.mjs reads /proc instead, scripts/qa/free-port.mjs) and no
+# `sudo` (nothing in a containerised part uses it). A part that drives the INSTALLED Chrome or
+# Edge, or no browser, stays on the runner, and the packages job below still keeps the mirror
+# out of those (continue-on-error, with its own twenty-minute limit — the same change as #923).
+# NOT PROVEN WITHOUT A RUNNER: that Firefox runs as root in the image, and that the forwarder
+# outlives the step that starts it (see the pull request).
 
 on:
   workflow_dispatch:
@@ -330,6 +330,13 @@ jobs:
       max-parallel: ${{ fromJSON(needs.plan.outputs.cap || '12') }}
       matrix:
         part: ${{ fromJson(needs.plan.outputs.parts) }}
+    # A part that drives one of Playwright's own three engines runs in Playwright's official image,
+    # at EXACTLY the locked @playwright/test version (browser-image-matches-the-lockfile.test.ts):
+    # the browsers and their system libraries are in it, so no apt runs for it. A part that drives
+    # the INSTALLED Chrome or Edge (browsers "chromium chrome" / "chromium msedge"), or no browser
+    # at all (the dependency check, the mutation ratchet on Node 22), stays on the runner and
+    # installs as before: the image holds neither Chrome nor Edge.
+    container: ${{ contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) && fromJSON('{"image":"mcr.microsoft.com/playwright:v1.62.1-noble","options":"--ipc=host"}') || null }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -352,6 +359,8 @@ jobs:
         with:
           # StrykerJS 10 needs Node 22; every other part keeps the app's 20 (.github/actions/setup).
           node-version: ${{ matrix.part.id == 'mutation' && '22' || '20' }}
+          # In the container its database is the service's name; the action forwards localhost to it.
+          database-host: ${{ contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) && 'postgres' || '' }}
       - name: Take the build
         id: build
         uses: actions/download-artifact@v4
@@ -359,17 +368,25 @@ jobs:
           name: build
           path: .next-e2e
       - name: Take the packages the browsers need
-        if: matrix.part.browsers != ''
+        if: ${{ matrix.part.browsers != '' && !contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) }}
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: browser-packages
           path: browser-packages
+      - name: Check the image holds the browser this part drives
+        id: browser-image
+        # The container's browsers were baked in for one Playwright version; if the image is not
+        # this branch's, this says so by name (the same "installing the browser failed" verdict
+        # the install step below gets: the machine's, not the app's).
+        if: ${{ contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) }}
+        run: node scripts/ci/check-browsers-present.mjs ${{ matrix.part.browsers }}
       - name: Install the browser this part drives
         id: browser
         # A part with no browser (the dependency check) installs none: with no
-        # name given, this command would fetch all of them.
-        if: matrix.part.browsers != ''
+        # name given, this command would fetch all of them. A part in the container
+        # (above) installs none either: its browsers are in the image.
+        if: ${{ matrix.part.browsers != '' && !contains(fromJSON('["chromium","firefox","webkit"]'), matrix.part.browsers) }}
         # The apt step behind --with-deps has hung for half an hour before, and
         # on 2026-10-23, with a dozen rounds queued, one hung attempt failed a
         # dozen parts that had not run a single test. A hang is now one attempt
@@ -434,7 +451,7 @@ jobs:
           ID: ${{ matrix.part.id }}
           SETUP: ${{ steps.setup.outcome }}
           BUILD: ${{ steps.build.outcome }}
-          BROWSER: ${{ steps.browser.outcome }}
+          BROWSER: ${{ steps.browser.outcome != 'skipped' && steps.browser.outcome || steps.browser-image.outcome }}
           RUN: ${{ steps.run.outcome }}
         run: |
           mkdir -p ".qa/rounds/$TAG"

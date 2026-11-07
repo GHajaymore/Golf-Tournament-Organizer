@@ -12,6 +12,10 @@ import { readVerbatim } from "./source";
  * `scripts/ci/install-browsers.sh` (or a loop of its own that retries), the step keeps a
  * `timeout-minutes` so a real hang still fails, and the script retries under a per-attempt
  * limit that fits inside the step's limit.
+ *
+ * Since 2026-11-06 a job that needs Playwright's own engines runs in Playwright's container image
+ * and installs nothing (browser-image-matches-the-lockfile.test.ts); this guard stays for every
+ * job that still installs (round.yml's parts that drive the installed Chrome or Edge).
  */
 
 const WORKFLOWS = readdirSync(".github/workflows").filter((f) => /\.ya?ml$/.test(f));
@@ -31,6 +35,13 @@ export function bareWithDepsInstalls(file: string, text: string): string[] {
   return out;
 }
 
+/** Lines (1-based) of a workflow that install a browser, comments left out. */
+export function installLines(text: string): number[] {
+  return text
+    .split(/\r?\n/)
+    .flatMap((l, i) => (/^\s*#/.test(l) ? [] : /playwright install\b|install-browsers\.sh/.test(l) ? [i + 1] : []));
+}
+
 describe("the browser install is bounded and retried", () => {
   const script = readVerbatim("scripts/ci/install-browsers.sh");
 
@@ -45,12 +56,10 @@ describe("the browser install is bounded and retried", () => {
   });
 
   it("every step that calls the script keeps a time limit that fits its attempts", () => {
-    let calls = 0;
     for (const f of WORKFLOWS) {
       const lines = readVerbatim(`.github/workflows/${f}`).split(/\r?\n/);
       lines.forEach((l, i) => {
         if (!/bash scripts\/ci\/install-browsers\.sh/.test(l)) return;
-        calls++;
         // The step's own limit sits in the lines just above its `run:`.
         const above = lines.slice(Math.max(0, i - 25), i).join("\n");
         const limits = [...above.matchAll(/timeout-minutes:\s*(\d+)/g)];
@@ -61,7 +70,31 @@ describe("the browser install is bounded and retried", () => {
         expect(minutes, `${f}:${i + 1}`).toBeLessThanOrEqual(15);
       });
     }
-    expect(calls).toBeGreaterThanOrEqual(4);
+  });
+
+  it("a workflow in Playwright's image installs nothing, except round.yml's parts that cannot use it", () => {
+    const inImage = WORKFLOWS.filter((f) => /mcr\.microsoft\.com\/playwright:/.test(readVerbatim(`.github/workflows/${f}`)));
+    expect(inImage.sort()).toEqual(["breaks.yml", "browsers.yml", "ci.yml", "round.yml"]);
+    for (const f of inImage) {
+      const text = readVerbatim(`.github/workflows/${f}`);
+      const installs = installLines(text);
+      if (f !== "round.yml") {
+        expect(installs, `${f} runs in the image and must not install`).toEqual([]);
+        continue;
+      }
+      // round.yml keeps its bounded loop for the parts that drive the installed Chrome or Edge, and the
+      // step's own condition says a part in the image skips it.
+      expect(installs.length, "round.yml still installs for its channel parts").toBeGreaterThan(0);
+      const step = text.slice(text.indexOf("- name: Install the browser this part drives"));
+      const condition = /\n\s*if: (.*)\n/.exec(step)?.[1] ?? "";
+      expect(condition, "the install step must skip a part that runs in the image").toMatch(/!contains\(fromJSON/);
+    }
+  });
+
+  it("the control: the install finder sees an install and ignores a comment", () => {
+    expect(installLines("run: npx playwright install chromium")).toEqual([1]);
+    expect(installLines("run: bash scripts/ci/install-browsers.sh chromium")).toEqual([1]);
+    expect(installLines("# npx playwright install chromium")).toEqual([]);
   });
 
   it("the script retries, bounds each attempt, and still fails in the end", () => {

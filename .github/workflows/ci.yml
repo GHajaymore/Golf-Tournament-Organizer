@@ -371,6 +371,13 @@ jobs:
           - { project: small-phone, shard: 1, shards: 2 }
           - { project: small-phone, shard: 2, shards: 2 }
 
+    # Playwright's official image, at EXACTLY the @playwright/test version in package-lock.json
+    # (browser-image-matches-the-lockfile.test.ts fails when they differ; change both together).
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      # Chromium wants the host's shared memory (Playwright's own advice for CI).
+      options: --ipc=host
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -382,51 +389,25 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-        ports:
-          - 5432:5432
 
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-
-      # The browser download is about a minute of every run and changes only
-      # when Playwright's version does — so it is keyed on the resolved version
-      # in the lockfile rather than on the lockfile itself, which changes for
-      # every unrelated dependency bump.
-      - name: Work out the Playwright version
-        id: pw
-        run: |
-          VERSION=$(node -p "require('./node_modules/@playwright/test/package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Cache the browser
-        id: pw-cache
-        uses: actions/cache@v4
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+          # The job runs in a container, so its database is `postgres`, not localhost.
+          database-host: postgres
 
-      - name: Install Playwright browsers
-        # All three projects are Chromium (Pixel 5 twice and Desktop Chrome),
-        # so there is no reason to download Firefox and WebKit as well.
-        #
-        # `--with-deps` installs system libraries OUTSIDE the cached directory,
-        # so it has to run even on a cache hit — but with the browser already
-        # present it is seconds rather than a download.
-        #
-        # A TIME LIMIT, because on 2026-10-08 the apt step behind `--with-deps`
-        # hung on archive.ubuntu.com for 29 minutes and the job's own timeout
-        # killed it before a test ran (#832, End-to-end (desktop); the re-run
-        # passed). Ten minutes is far more than a healthy install takes, and a
-        # hang now fails in ten rather than thirty — and fails HERE, naming the
-        # step, instead of reading as a cancelled test run.
-        #
-        # AND A RETRY, because on 2026-11-05 a slow mirror (about two minutes
-        # per package) used the whole ten minutes three times in two days. The
-        # script gives apt a 30-second stall limit and makes two attempts of
-        # four minutes; a real hang still fails here, in under ten.
-        timeout-minutes: 10
-        run: bash scripts/ci/install-browsers.sh chromium
+      # NO BROWSER INSTALL (2026-11-06). The job runs in Playwright's own image, which holds
+      # the browsers and every system library they need, so apt runs nowhere in it. Before this,
+      # `playwright install --with-deps` went to Ubuntu's mirror on every run and timed out on
+      # a slow one, daily (runs 42307709158, 42308035657, 42312021460), and a retry then hit the
+      # dpkg lock the first attempt's apt still held. The only thing left to go wrong is the
+      # image not being the one this branch's Playwright expects; the step below says so by
+      # name, and browser-image-matches-the-lockfile.test.ts refuses the drift before the push.
+      # (The browser cache this job kept is gone: there is nothing left to download.)
+      - name: Check the image holds this Playwright's browsers
+        id: browser
+        run: node scripts/ci/check-browsers-present.mjs chromium
 
       - name: End-to-end
         # The one net that was NOT here, and it rotted for eleven days as a

@@ -285,3 +285,24 @@ connection after 30 s and retries, and the install is two attempts of four minut
 unchanged ten-minute limit, so a real hang still fails, loudly, in the same step. A red here now means
 BOTH attempts failed (the log says "could not be installed in 2 attempts"): the mirror is down, so
 re-run later. `browser-install-is-bounded.test.ts` refuses a bare `playwright install --with-deps`.
+
+**Since 2026-11-06 (later the same day) there is no install to time out.** The browser jobs run in
+Playwright's own container image, `mcr.microsoft.com/playwright:v<X>-noble`, `<X>` exactly the
+`@playwright/test` in `package-lock.json` (`browser-image-matches-the-lockfile.test.ts` fails when
+they differ: bump the lockfile and the four workflows' tags together). Moved: `ci.yml` End-to-end (all
+shards), `browsers.yml`, `breaks.yml` (baseline and every break), and `round.yml`'s parts whose
+`browsers` is exactly `chromium`, `firefox` or `webkit`. Not moved, and still installing through the
+bounded loop: the parts that drive the INSTALLED Chrome or Edge (`chromium chrome`, `chromium msedge`;
+the image holds neither) and the parts with no browser. What it changes in a log:
+
+- **no apt anywhere in a containerised job**; the step "Check the image holds ... browser" runs
+  `scripts/ci/check-browsers-present.mjs`. If it is red the image is not this branch's Playwright (a
+  config fault: fix the tag), and in a round it reads as "installing the browser failed", so the verdict
+  is `INCOMPLETE - re-run` as before.
+- **the database is `postgres`, forwarded to localhost.** A container job reaches its service by name;
+  every seed refuses a host that is not localhost, so the setup action (input `database-host`) starts
+  `scripts/ci/forward-postgres.mjs`. Red in "Reach the database on localhost" = the service never came
+  up (re-run). Every `DATABASE_URL` is still `@localhost:5432`.
+- **no `lsof`, no `sudo`** in the image: `round.mjs` stops its server through `scripts/qa/free-port.mjs`
+  (reads `/proc`) when `lsof` is missing.
+- Node: the image carries Node 24; `setup-node` still puts the app's 20 (22 for mutation) first on PATH.
