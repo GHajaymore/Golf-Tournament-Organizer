@@ -19,7 +19,9 @@ import {
 } from "../domain/club-event-card";
 import { venueOf } from "./registration";
 import { seasonWindow, type SeasonWindow } from "../domain/club-season";
-import { openCardOf, playOverOf, type OpenCard } from "../domain/tournament-switcher";
+import { openCardOf, type OpenCard } from "../domain/tournament-switcher";
+import type { TournamentStep } from "../domain/tournament-step";
+import { tournamentStepsFor } from "./tournament-facts";
 import { isPlayingRound } from "../stage-types";
 import { isLaunched, openToMembers } from "../domain/lifecycle-state";
 import { golfRegister, golfTermsFor } from "../domain/golf-terms";
@@ -64,8 +66,12 @@ export interface ClubEventRow {
   seriesName: string;
   /** draft | registration | ready | live | completed. */
   eventStatus: string;
-  /** Every round is closed — see `playOverOf`. */
-  playOver: boolean;
+  /**
+   * Where it is, as the machine says it (`tournamentStepsFor`, state machine PR
+   * 6) — for the member's own tournaments (`band: "entered"`) only; null on
+   * every other row. What the switcher's note reads.
+   */
+  step: Pick<TournamentStep, "step" | "journey"> | null;
   /** "Open", "Closed", "Full" — the same word the console uses. */
   statusLabel: string;
   /** One sentence saying why, for the ones that are shut. */
@@ -369,7 +375,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   const orgIds = [...new Set(events.map((e) => e.organizationId))];
   const caps = new Map(await Promise.all(orgIds.map(async (id) => [id, await fieldCapFor(id)] as const)));
 
-  return events
+  const rows: ClubEventRow[] = events
     // A tournament still being set up is on the list when members may see it —
     // `openToMembers`, the one rule (the link, or a legacy registration/ready row).
     // It was `status !== "draft"`, a button ("Start taking entries") that no
@@ -471,7 +477,6 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       venue: venueOf(event.course, event.city),
       seriesName: event.series?.name ?? "",
       eventStatus: event.status,
-      playOver: playOverOf(event.stages),
       statusLabel: status.label,
       statusDetail: status.detail,
       entryDates: entryDatesOf(event.regOpens, event.regDeadline, event.status, locale),
@@ -501,6 +506,27 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
        */
       canView: hasResults.has(event.id) || isLaunched(event.status),
       viewLabel: event.status === "completed" ? "Results" : "Leaderboard",
+      step: null,
     };
   });
+
+  /**
+   * WHERE EACH OF THE MEMBER'S OWN TOURNAMENTS IS — the machine's step (state
+   * machine PR 6, `tournamentStepsFor`), which the switcher's note says
+   * ("Playing now", "Play complete"). Read only for the rows the note words it
+   * on — the member's own, not completed (`band: "entered"`) — so a list of
+   * everything the club runs, on every player screen, pays for the two or three
+   * tournaments the member is playing in and not for the rest. Each is told its
+   * own club's day, as everything on this list is.
+   */
+  const own = rows.filter((r) => r.band === "entered");
+  if (own.length > 0) {
+    const zoneOf = new Map(events.map((e) => [e.id, e.organization?.timeZone]));
+    const steps = await tournamentStepsFor(new Map(own.map((r) => [r.eventId, todayIso(clubDay(zoneOf.get(r.eventId)))])));
+    for (const r of own) {
+      const s = steps.get(r.eventId);
+      r.step = s ? { step: s.step, journey: s.journey } : null;
+    }
+  }
+  return rows;
 }

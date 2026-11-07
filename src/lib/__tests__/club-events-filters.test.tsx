@@ -22,7 +22,7 @@ function row(i: number): ClubEventRow {
     venue: "zz-filters Course",
     seriesName: "",
     eventStatus: "registration",
-    playOver: false,
+    step: null,
     statusLabel: "Open",
     statusDetail: "",
     entryDates: "",

@@ -2,8 +2,14 @@ import { describe, it, expect } from "vitest";
 import { switcherFor, isWatching, openCardOf, playOverOf, type SwitchableRow } from "@/lib/domain/tournament-switcher";
 import { BAND_LABEL, type EventBand } from "@/lib/domain/club-event-card";
 import { readSource } from "./source";
-import { tournamentStatus } from "@/lib/domain/tournament-status";
-import { facts, round, launched } from "@/lib/domain/__tests__/tournament-facts-fixtures";
+import { tournamentStatus, type TournamentFacts } from "@/lib/domain/tournament-status";
+import { stepOf } from "@/lib/domain/tournament-step";
+import { FAMILY_FIXTURES, facts, round, launched, playedOut } from "@/lib/domain/__tests__/tournament-facts-fixtures";
+
+/** Where a tournament is, as the machine hands it to the switcher (`stepOf`, PR 6). */
+const SETTING_UP = { step: "setting-up", journey: "setup" } as const;
+const LIVE = { step: "live", journey: "play" } as const;
+const PLAY_OVER = { step: "play-over", journey: "play" } as const;
 
 const row = (eventId: string, band: EventBand, over: Partial<SwitchableRow> = {}): SwitchableRow => ({
   eventId,
@@ -92,8 +98,8 @@ describe("the tournament switcher", () => {
     // The club's ask: a player in several tournaments picks the one they are playing.
     const s = switcherFor(
       [
-        row("league", "entered", { eventStatus: "draft" }),
-        row("medal", "entered", { eventStatus: "live" }),
+        row("league", "entered", { step: SETTING_UP }),
+        row("medal", "entered", { step: LIVE }),
         row("cup", "live"),
       ],
       null,
@@ -115,10 +121,10 @@ describe("the tournament switcher", () => {
     // "Playing now" lines, and his card open at the 12th in the last of them.
     const s = switcherFor(
       [
-        row("twilight", "entered", { eventStatus: "live" }),
-        row("league", "entered", { eventStatus: "live" }),
-        row("medal", "entered", { eventStatus: "live", openCard: { thru: 11, complete: false } }),
-        row("signing", "entered", { eventStatus: "live", openCard: { thru: 9, complete: true } }),
+        row("twilight", "entered", { step: LIVE }),
+        row("league", "entered", { step: LIVE }),
+        row("medal", "entered", { step: LIVE, openCard: { thru: 11, complete: false } }),
+        row("signing", "entered", { step: LIVE, openCard: { thru: 9, complete: true } }),
       ],
       null,
       false,
@@ -135,7 +141,7 @@ describe("the tournament switcher", () => {
     // Today, directly beneath, says "YOUR CARD · THRU 11" itself — the second
     // copy was found by e2e/player.spec.ts matching both.
     const s = switcherFor(
-      [row("medal", "entered", { eventStatus: "live", openCard: { thru: 11, complete: false } })],
+      [row("medal", "entered", { step: LIVE, openCard: { thru: 11, complete: false } })],
       "medal",
       false,
     );
@@ -148,7 +154,7 @@ describe("the tournament switcher", () => {
    */
   it("says play is complete once every round is closed, and not before", () => {
     const at = (playOver: boolean) =>
-      switcherFor([row("medal", "entered", { eventStatus: "live", playOver })], "medal", false).current?.note;
+      switcherFor([row("medal", "entered", { step: playOver ? PLAY_OVER : LIVE })], "medal", false).current?.note;
     expect(at(true)).toBe("You’re in · Play complete");
     expect(at(false)).toBe("You’re in · Playing now");
   });
@@ -159,9 +165,48 @@ describe("the tournament switcher", () => {
    */
   it("says a member missed the cut, not that they are playing", () => {
     const at = (cutOut: boolean) =>
-      switcherFor([row("medal", "entered", { eventStatus: "live", cutOut })], "medal", false).current?.note;
+      switcherFor([row("medal", "entered", { step: LIVE, cutOut })], "medal", false).current?.note;
     expect(at(true)).toBe("You’re in · Missed the cut");
     expect(at(false)).toBe("You’re in · Playing now");
+  });
+
+  /**
+   * THE NOTE READS THE MACHINE (state machine PR 6). Facts in, the machine's
+   * step out, the note from that — the route the player's switcher takes
+   * (`clubEventsFor` → `tournamentStepsFor` → `stepOf`).
+   */
+  describe("the note is the machine's step", () => {
+    const noteFor = (f: TournamentFacts) =>
+      switcherFor([row("t", "entered", { step: stepOf(tournamentStatus(f)) })], "t", false).current?.note;
+
+    it("a knockout whose Final is decided is play complete — no round is ever closed on one (D3)", () => {
+      const ko = FAMILY_FIXTURES.knockout();
+      const decided = playedOut(ko);
+      expect(decided.rounds.every((r) => !r.closed), "the fixture closes a Bracket Stage").toBe(true);
+      expect(noteFor(decided)).toBe("You’re in · Play complete");
+      // CONTROL: the Final not yet decided is still being played.
+      const undecided = { ...decided, knockout: { ...decided.knockout!, draws: decided.knockout!.draws.map((d) => ({ ...d, finalDecided: false })) } };
+      expect(noteFor(undecided)).toBe("You’re in · Playing now");
+      // And what the switcher said before, from every round closed: never complete for a knockout.
+      expect(playOverOf(decided.rounds.map((r) => ({ type: r.type, closedAt: r.closed ? new Date() : null })))).toBe(false);
+    });
+
+    it("a tournament being played before it was launched is being played (D5)", () => {
+      const f = facts({ rounds: [round({ id: "r1", position: 0, hasResult: true })] });
+      expect(f.status).toBe("draft");
+      expect(noteFor(f)).toBe("You’re in · Playing now");
+      // CONTROL: the same draft with nothing on it says nothing.
+      expect(noteFor(facts())).toBe("You’re in");
+    });
+
+    it("live, play over and completed read as before for a medal", () => {
+      expect(noteFor(launched(facts()))).toBe("You’re in · Playing now");
+      expect(noteFor(playedOut(facts()))).toBe("You’re in · Play complete");
+    });
+
+    it("a row the machine was not asked about says nothing about being played", () => {
+      expect(switcherFor([row("t", "entered", { step: null })], "t", false).current?.note).toBe("You’re in");
+    });
   });
 
   it("counts only playing rounds, and a tournament with none has not been played", () => {

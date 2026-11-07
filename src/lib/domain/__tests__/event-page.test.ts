@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { eventLinks, eventPhase, eventSections, finalReportReady } from "../event-page";
+import { tournamentStatus, type TournamentFacts } from "../tournament-status";
+import { stepOf } from "../tournament-step";
+import { FAMILIES, FAMILY_FIXTURES, completed, facts, launched, playedOut } from "./tournament-facts-fixtures";
 
 /**
  * What the event page leads with on each day of a tournament's life
@@ -8,18 +11,36 @@ import { eventLinks, eventPhase, eventSections, finalReportReady } from "../even
  * `e2e/clubhouse-and-event-page.spec.ts`.
  */
 
-describe("where the tournament is", () => {
+/** The page's phase, as the page reads it: the machine's journey for these facts (state machine PR 6). */
+const phaseOf = (f: TournamentFacts) => eventPhase(stepOf(tournamentStatus(f)).journey);
+const played = (f: TournamentFacts) => ({ ...f, rounds: f.rounds.map((r) => ({ ...r, hasResult: true })) });
+
+describe("where the tournament is — the machine's journey", () => {
   it("is before the day until it is launched or a result is in", () => {
-    for (const s of ["draft", "registration", "ready"]) expect(eventPhase(s, false), s).toBe("before");
+    for (const s of ["draft", "registration", "ready"]) expect(phaseOf(facts({ status: s })), s).toBe("before");
     // A card typed in before launch is play, as the dashboard says.
-    expect(eventPhase("registration", true)).toBe("during");
-    expect(eventPhase("live", false)).toBe("during");
+    expect(phaseOf(played(facts({ status: "registration" })))).toBe("during");
+    expect(phaseOf(launched(facts()))).toBe("during");
   });
 
   it("is after only once the committee has completed it", () => {
-    expect(eventPhase("completed", false)).toBe("after");
-    expect(eventPhase("completed", true)).toBe("after");
-    expect(eventPhase("live", true)).toBe("during");
+    expect(phaseOf(facts({ status: "completed" }))).toBe("after");
+    expect(phaseOf(completed(facts()))).toBe("after");
+    expect(phaseOf(played(launched(facts())))).toBe("during");
+    // Play over is still during: the results are not released until it is completed.
+    expect(tournamentStatus(playedOut(facts())).step).toBe("play-over");
+    expect(phaseOf(playedOut(facts()))).toBe("during");
+  });
+
+  it("a match played before launch is during, in every family — not only a card or a knockout tie (D2)", () => {
+    // The page counted stroke cards, side cards and knockout winners, and never
+    // a match's holes: a round robin played unlaunched led with "before". A
+    // round's `hasResult` is the one definition, and the machine reads it.
+    for (const family of FAMILIES.filter((x) => x !== "casual")) {
+      const f = FAMILY_FIXTURES[family]();
+      expect(phaseOf(f), `${family}, nothing played`).toBe("before");
+      expect(phaseOf(played(f)), `${family}, a result in`).toBe("during");
+    }
   });
 });
 

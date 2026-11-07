@@ -128,12 +128,14 @@ false — "Only Manual lets you … set tees per flight".
 
 The panel's item 4 (approved by Ajay, 2026-10-24). The dashboard's **What's next** is one line for
 each job waiting on the person in every tournament they run at the open tournament's club — entries
-awaiting approval, a tee sheet for the next fortnight unpublished, cards not returned, results not
-released — soonest first. The facts come from the screens' own functions (`services/whats-next.ts`:
-`awaitingApproval`, `nextUnplayedRound`, `boardProgress`, `playOverOf`) and `whatsNext` in
-`domain/needs-you-now.ts` only words and orders them, so the home cannot disagree with the screen it
-sends you to. Buttons only with the club's `canEdit`; a job in another tournament opens it through
-`enterTournament(eventId, screen)`, which honours `JOB_SCREENS` and nothing else.
+awaiting approval, a tee sheet for the next fortnight unpublished, a launch, the next draw or week,
+cards not returned, results not released — soonest first. Per-round facts come from the screens' own
+functions (`services/whats-next.ts`: `awaitingApproval`, `nextUnplayedRound`, `boardProgress`); each
+tournament's own job is the state machine's `nextAction`, with its refusal and way out
+(`lifecycleJob`), never worked out on the home. `whatsNext` in `domain/needs-you-now.ts` only words
+and orders them, so the home cannot disagree with the screen it sends you to. Buttons only with the
+club's `canEdit`; a job in another tournament opens it through `enterTournament(eventId, screen)`,
+which honours `JOB_SCREENS` (`/registration`, `/foursomes`, `/stages`, `/entry`, `/dashboard`) and nothing else.
 
 **Copy last event** is `cloneEvent` given a first day: `copiedCalendar` moves the entry window and the
 rounds by the same distance against the club's own today, side games come across as games with nobody
