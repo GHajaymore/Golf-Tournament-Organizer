@@ -169,14 +169,31 @@ describe("a names-only list turns Round Codes on instead of being refused", () =
     expect(stage!.accessCode).not.toBe("");
   });
 
-  it("CONTROL: a list with SOME addresses keeps email sign-in and skips the gaps", async () => {
+  /**
+   * A LIST WITH GAPS IS ENTERED IN FULL NOW (Ajay, 2026-11-07: a member may enter without an
+   * email). This was the control "keeps email sign-in and skips the gaps" — right under the old
+   * rule, the defect under the new one. The row without an address is entered and Round Codes
+   * come on so they can reach their card; the control is now the list where EVERY row has one.
+   */
+  it("a list with SOME addresses enters everybody, and turns codes on for the gaps", async () => {
     const ev = await make("gaps");
     const r = await importCsvSignups(
       "name,email,phone\nzz-defaults Cy Example,zz-defaults-cy@example.invalid,07700 900003\nzz-defaults Di Example,,07700 900004\n",
     );
+    expect(r.codesTurnedOn).toBe(true);
+    expect(r.imported).toBe(2);
+    expect(r.skippedInvalid).toBe(0);
+    const after = await prisma.event.findUnique({ where: { id: ev.id }, select: { playerAccess: true } });
+    expect(after!.playerAccess).toBe("both");
+  });
+
+  it("CONTROL: a list where every row has an address keeps email sign-in alone", async () => {
+    const ev = await make("all-addresses");
+    const r = await importCsvSignups(
+      "name,email,phone\nzz-defaults Ed Example,zz-defaults-ed@example.invalid,07700 900005\nzz-defaults Flo Example,zz-defaults-flo@example.invalid,07700 900006\n",
+    );
     expect(r.codesTurnedOn).toBeUndefined();
-    expect(r.imported).toBe(1);
-    expect(r.skippedInvalid).toBe(1);
+    expect(r.imported).toBe(2);
     const after = await prisma.event.findUnique({ where: { id: ev.id }, select: { playerAccess: true } });
     expect(after!.playerAccess).toBe("email");
   });
