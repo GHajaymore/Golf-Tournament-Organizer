@@ -83,7 +83,7 @@ describe("one builder of the launch facts", () => {
 
   it("the machine refuses everything the action's gate refuses, in the gate's own words (PR 3)", () => {
     for (const family of FAMILIES.filter((f) => f !== "casual")) {
-      for (const over of [{}, { dated: false }, { confirmed: 0 }, { rounds: [] }, { missingCards: [{ label: "Round 1", course: "Invented Links" }] }]) {
+      for (const over of [{}, { dated: false }, { confirmed: 0 }, { rounds: [] }, { missingCards: [{ stageId: "r1", label: "Round 1", course: "Invented Links" }] }]) {
         const f = { ...FAMILY_FIXTURES[family](), ...over };
         const gate = setupFlow(setupFactsOf(f), (h) => screenName(h)).launch.refusal;
         if (gate) expect(tournamentStatus(f).refusals.launch, `${family} ${JSON.stringify(over)}`).toBe(gate);

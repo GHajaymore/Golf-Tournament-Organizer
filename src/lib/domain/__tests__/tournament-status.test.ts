@@ -101,7 +101,7 @@ describe("stroke play and Stableford", () => {
   });
 
   it("a round with no course card holds on Rounds & formats, where the card is chosen (D4b)", () => {
-    const st = s({ ...FAMILY_FIXTURES.stroke(), missingCards: [{ label: "Round 1", course: "Invented Links" }] });
+    const st = s({ ...FAMILY_FIXTURES.stroke(), missingCards: [{ stageId: "r1", label: "Round 1", course: "Invented Links" }] });
     expect(st.setup.current?.key).toBe("stages");
     expect(st.refusals.launch).not.toBeNull();
   });

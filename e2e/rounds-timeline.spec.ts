@@ -8,8 +8,9 @@ import { prisma, makeClub, dropClub, makeEvent, signIn, CARD_PARS, dayIn, addDay
  * Ajay's test for it: "the main thing is ease of using the configuration and guided one". So this
  * walks it the way a new organizer meets it, at every width the suite runs:
  *
- *   guided        "Needs you" names the ONE next thing first, with what it costs the players, and
- *                 its button is the screen's one filled button
+ *   guided        "Needs you" leads with the state machine's ONE next thing (PR 5c, J16) — here
+ *                 Launch, refused in place with the dashboard's reason and way out — then each
+ *                 round's own needs with what they cost the players; one filled button on screen
  *   opens it      a gap's "Open Round 3" opens that round's panel, which says the effect before it
  *                 happens and is laid out as the four numbered golf sections
  *   it clears     setting the date takes "Round 3 has no date" off the list, with no reload
@@ -66,15 +67,27 @@ test("the timeline guides: the next thing first with its consequence, opened in 
     await signIn(context, baseURL!, club, event.id);
     await open(page);
 
-    // ── guided: the next thing first, its consequence in words, the one filled button ──
+    // ── the step, as the context bar says it (state machine PR 5c, J16) ──
+    await expect(page.locator(".rt-hero-step .tag"), "the timeline's chip").toHaveText("Setting up");
+    await expect(page.locator(".event-context-bar .tag").first()).toHaveText("Setting up");
+
+    // ── guided: the machine's next thing first — Launch, refused in place with its reason and way
+    //    out, exactly as the dashboard draws it — then each round's own needs, in setup order ──
     const needs = page.getByRole("region", { name: /Needs you/ });
     await expect(needs).toBeVisible();
-    const words = await needs.locator(".rt-need-words").allInnerTexts();
+    const lead = needs.locator(".rt-need-next");
+    const launch = lead.getByRole("button", { name: "Launch tournament" });
+    await expect(launch, "the lead is not the machine's next action").toHaveAttribute("aria-disabled", "true");
+    await expect(lead, "the refusal is not said in the lead").toContainText("This tournament has no dates");
+    await expect(lead.getByRole("link", { name: "Open Tournament details" })).toHaveAttribute("href", "/event");
+    const words = (await needs.locator(".rt-need-rest .rt-need-words").allInnerTexts()).filter((w) => w.startsWith("Round"));
     expect(words, "Needs you is not in the order a round is set up").toEqual([
       "Round 2 has no tee times — players cannot see when they start.",
       "Round 3 has no date — players cannot see when they play.",
       "Round 3 has no tee times — players cannot see when they start.",
     ]);
+    // The refusal is the lead, so its step is not a line again below it.
+    await expect(needs.locator(".rt-need-rest .rt-need-words").filter({ hasText: /^Tournament details/ })).toHaveCount(0);
     // ── said once: the old "1 round has no date" notice does not repeat the Needs you line ──
     await expect(
       page.getByRole("button", { name: /rounds? (has|have) no date/ }),
@@ -82,7 +95,13 @@ test("the timeline guides: the next thing first with its consequence, opened in 
     ).toHaveCount(0);
     const filled = page.locator("main .btn-primary").filter({ visible: true });
     await expect(filled, "more than one filled button on the screen").toHaveCount(1);
-    await expect(filled).toHaveAttribute("href", `/foursomes?round=${r2.id}`);
+    await expect(filled).toHaveAttribute("aria-disabled", "true");
+    // Round 2's tee times are a quiet link straight to its tee sheet.
+    await expect(needs.getByRole("link", { name: "Tee sheet for Round 2" })).toHaveAttribute("href", `/foursomes?round=${r2.id}`);
+    // ── each round's chip names its first need — the same need its line says (D7) ──
+    await expect(page.locator(`[id="round-${r2.id}"] .tag`).first()).toHaveText("No tee times");
+    await expect(page.locator(`[id="round-${r3.id}"] .tag`).first()).toHaveText("No date");
+    await expect(page.locator(`[id="round-${r1.id}"] .tag`).first()).toHaveText("Set up");
 
     // ── a round's facts on the spine: Round 1's two saved groups as ticks ──
     await expect(page.locator(`[id="round-${r1.id}"] .rt-tick`)).toHaveCount(2);
@@ -112,7 +131,10 @@ test("the timeline guides: the next thing first with its consequence, opened in 
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), "the page scrolls sideways").toBeLessThanOrEqual(0);
     if (viewport.width < 768) {
       const small = await page.evaluate(() =>
+        // Not the way out inside a refusal's sentence: an inline link in running text, as the
+        // dashboard's shared `RefusedAction` draws it (WCAG 2.5.8 exempts a link in a sentence).
         [...document.querySelectorAll(".rt-needs a, .rt-needs button, .rt-sect-link")]
+          .filter((el) => !el.closest(".refused-action p"))
           .map((el) => ({ text: (el as HTMLElement).innerText.trim(), h: el.getBoundingClientRect().height }))
           .filter((t) => t.h > 0 && t.h < 44),
       );

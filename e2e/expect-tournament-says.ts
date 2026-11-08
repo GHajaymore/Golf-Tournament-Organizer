@@ -49,6 +49,13 @@ export interface TournamentSays {
    * club runs this one tournament, so its line is the only one of these kinds.
    */
   home?: { text: string | RegExp; action: string } | null;
+  /**
+   * Also ask Rounds & formats' "Course day" timeline (`/stages?view=timeline`, behind its switch;
+   * state machine PR 5c, J16): its chip, the line under it, and the lead of its "Needs you" strip
+   * must say what the dashboard's status card says — the one next action, refused in place with
+   * the same reason. A completed tournament's strip leads with nothing (Reopen is a remedy, not a need).
+   */
+  timeline?: boolean;
 }
 
 /** The home's lines that are a tournament's own next action (`lifecycleJob` in needs-you-now.ts). */
@@ -107,6 +114,8 @@ export async function expectTournamentSays(page: Page, says: TournamentSays): Pr
     await expect(stillToDo, "the dashboard says setup is not finished while nothing holds launch").toHaveCount(0);
   }
 
+  if (says.timeline) await expectTimelineSays(page, says);
+
   if (says.setup === undefined && says.journey === undefined) return;
   await page.goto(`/event?bust=${Date.now()}`);
   const main = page.locator("main");
@@ -130,5 +139,41 @@ export async function expectTournamentSays(page: Page, says: TournamentSays): Pr
     const journey = page.locator(".card").filter({ hasText: "How a tournament runs" });
     await expect(journey.locator("li").filter({ hasText: "You are here" }), "the journey card disagrees").toContainText(says.journey, { timeout: 30_000 });
     await expect(journey, "the journey card counts again").not.toContainText(/phase \d of \d/);
+  }
+}
+
+/**
+ * THE TIMELINE SAYS IT TOO (PR 5c, J16). Rounds & formats as "Course day" draws the machine's
+ * chip above the rounds (`TimelineStep`) and leads its "Needs you" strip with the machine's next
+ * action (`NeedsYou`, through `courseDayOf`) — the same `tournamentStatusFor` the context bar on the
+ * same page reads, so the two are held to each other here as well as to `says`.
+ */
+async function expectTimelineSays(page: Page, says: TournamentSays): Promise<void> {
+  await page.goto(`/stages?view=timeline&bust=${Date.now()}`);
+  const step = page.locator(".rt-hero-step");
+  await expect(step.locator(".tag"), "the timeline's chip").toHaveText(says.chip, { timeout: 30_000 });
+  await expect(page.locator(".event-context-bar .tag").first(), "the timeline's chip disagrees with the context bar above it").toHaveText(says.chip);
+  if (says.chipDetail) await expect(step, "the line under the timeline's chip").toContainText(says.chipDetail);
+  else if (says.chipDetail === null) await expect(step, "a second line under the timeline's chip").not.toContainText("results not released");
+
+  const lead = page.locator(".rt-need-next");
+  if (says.nextAction === null || says.chip === "Completed") {
+    await expect(lead, "the timeline leads with a next action the dashboard does not offer").toHaveCount(0);
+    return;
+  }
+  const action = lead.getByRole("button", { name: says.nextAction }).or(lead.getByRole("link", { name: says.nextAction })).first();
+  await expect(action, `the timeline's next action is not "${says.nextAction}"`).toBeVisible();
+  if (says.refused) {
+    await expect(action, "the timeline's refused action looks pressable").toHaveAttribute("aria-disabled", "true");
+    const reason = page.locator(`#${await action.getAttribute("aria-describedby")}`);
+    await expect(reason, "the timeline does not say the dashboard's refusal").toContainText(says.refused.because);
+    if (says.refused.wayOut.href === "/stages") {
+      // Put right on this very screen: the way out opens the round concerned, in place.
+      await expect(lead.getByRole("button", { name: /^Open / }), "the timeline's refusal has no way out").toBeVisible();
+    } else {
+      await expect(reason.getByRole("link", { name: says.refused.wayOut.says }), "the timeline's refusal has no way out").toHaveAttribute("href", says.refused.wayOut.href);
+    }
+  } else if (says.refused === null) {
+    await expect(action, "the timeline refuses what the dashboard allows").not.toHaveAttribute("aria-disabled", "true");
   }
 }
