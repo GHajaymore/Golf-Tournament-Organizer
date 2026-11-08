@@ -133,7 +133,8 @@ beforeAll(async () => {
       // The directory has never heard of it.
       return new Response("{}", { status: 404 });
     }
-    return realFetch(input);
+    // Every outside URL is refused: this file may never spend a real request.
+    throw new Error(`unexpected outside request: ${url}`);
   }) as typeof fetch;
 
   await person("player", "player");

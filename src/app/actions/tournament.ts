@@ -102,6 +102,7 @@ import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
 import { drainWaitlist, fieldLimitFor, promoteFromWaitlist } from "@/lib/services/waitlist";
+import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { fieldFactsFor, fieldRefusal } from "@/lib/services/field-change";
 import { storedMatchIsOver } from "@/lib/domain/match";
 import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
@@ -626,16 +627,20 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
    * tee slots and two shares of a split expense; being asked about a real
    * namesake costs one look.
    */
-  const duplicate = cleanEmail
-    ? await prisma.player.findFirst({
-        where: { eventId, ...byAddress(cleanEmail) },
-        select: { name: true, status: true },
-      })
-    : await prisma.player.findFirst({
-        where: { eventId, name: { equals: clean, mode: "insensitive" } },
-        select: { name: true, status: true },
-      });
-  if (duplicate) {
+  // Asked twice: here, so a plain duplicate costs nothing more, and AGAIN under
+  // the intake lock below (J46), which is the one that holds when two presses
+  // arrive together.
+  const findDuplicate = (db: Pick<typeof prisma, "player">) =>
+    cleanEmail
+      ? db.player.findFirst({
+          where: { eventId, ...byAddress(cleanEmail) },
+          select: { name: true, status: true },
+        })
+      : db.player.findFirst({
+          where: { eventId, name: { equals: clean, mode: "insensitive" } },
+          select: { name: true, status: true },
+        });
+  const duplicateRefusal = (duplicate: { name: string; status: string }): SignupResult => {
     const how = cleanEmail ? "with that email" : "under that name";
     return {
       ok: false,
@@ -650,16 +655,15 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
               `${duplicate.name} is already entered ${how} and has been disqualified — reinstate them on Entries rather than adding a second entry.`
             : `${duplicate.name} is already in the field ${how}.`,
     };
-  }
+  };
+  const duplicate = await findDuplicate(prisma);
+  if (duplicate) return duplicateRefusal(duplicate);
 
-  const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
-  const maxSeed = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   // The plan's field cap over the stored number, as `register` and `enter` do.
   // A club moved down to Par keeps the unlimited field it set on a higher tier,
   // and this confirmed an eleventh player past a ten-player cap (2026-09-30).
   const capacity = await fieldLimitFor(event);
   const unlimited = capacity <= 0; // 0 = open / unlimited field
-  const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
   // Entering someone in a tournament is also how they join the club roster —
   // so the club list is never a separate chore an organizer has to remember.
   const memberId = await upsertMember(
@@ -667,31 +671,45 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
     { ...input, name: clean, email: cleanEmail },
     "staff",
   );
-  await prisma.player.create({
-    data: {
-      eventId,
-      memberId,
-      name: clean,
-      handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
-      seed: (maxSeed._max.seed ?? 0) + 1,
-      status,
-      email: cleanEmail,
-      phone: (input.phone ?? "").trim(),
-      ghin: (input.ghin ?? "").trim(),
-      homeClub: (input.homeClub ?? "").trim(),
-      // NO FIGURE, NO CLAIM. An empty handicap box arrives as not-a-number and
-      // is stored as "none" whatever the source said: this stored it as 0 "by
-      // hand" — a scratch golfer nobody declared, given no strokes in a net
-      // round. The guide has always said a blank is not scratch.
-      handicapSource: !Number.isFinite(input.handicap)
-        ? "none"
-        : ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
-          ? input.handicapSource!
-          : "manual",
-      handicapType: input.handicapType === "9" ? "9" : "18",
-      gender: await memberGender(memberId),
-    },
+  const gender = await memberGender(memberId);
+  // DUPLICATE, COUNT, SEED AND CREATE UNDER THE EVENT'S INTAKE LOCK (J46), as
+  // `enter.ts` and `register.ts` do. Without it two presses at once both found
+  // nobody and both created a row, or both counted the same confirmed total.
+  const placed = await withEventIntakeLock(eventId, async (tx) => {
+    const again = await findDuplicate(tx);
+    if (again) return { duplicate: again, status: null };
+    const confirmedCount = await tx.player.count({ where: { eventId, status: "confirmed" } });
+    const maxSeed = await tx.player.aggregate({ where: { eventId }, _max: { seed: true } });
+    const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
+    await tx.player.create({
+      data: {
+        eventId,
+        memberId,
+        name: clean,
+        handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
+        seed: (maxSeed._max.seed ?? 0) + 1,
+        status,
+        email: cleanEmail,
+        phone: (input.phone ?? "").trim(),
+        ghin: (input.ghin ?? "").trim(),
+        homeClub: (input.homeClub ?? "").trim(),
+        // NO FIGURE, NO CLAIM. An empty handicap box arrives as not-a-number and
+        // is stored as "none" whatever the source said: this stored it as 0 "by
+        // hand" — a scratch golfer nobody declared, given no strokes in a net
+        // round. The guide has always said a blank is not scratch.
+        handicapSource: !Number.isFinite(input.handicap)
+          ? "none"
+          : ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
+            ? input.handicapSource!
+            : "manual",
+        handicapType: input.handicapType === "9" ? "9" : "18",
+        gender,
+      },
+    });
+    return { duplicate: null, status };
   });
+  if (placed.status === null) return duplicateRefusal(placed.duplicate);
+  const status = placed.status;
   await syncPlayerAccount(eventId, clean, cleanEmail);
   // On the record ("Recent changes to the field"), whoever added them.
   await logAudit(eventId, "added", `${clean} was added to the field (${status}).`);

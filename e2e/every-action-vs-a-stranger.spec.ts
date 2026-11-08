@@ -65,7 +65,7 @@ const IGNORED_TABLES = new Set([
  * directory, which allows 500 requests a day (CLAUDE.md, "Course cards") —
  * a sweep that spent it would leave a club unable to import a course.
  */
-const SPENDS_THE_DIRECTORY = ["searchDirectory(", "fetchDirectoryCourse(", "fetchLiveDirectoryCourse("];
+const SPENDS_THE_DIRECTORY = ["searchDirectory(", "searchDirectoryWithNotice(", "fetchDirectoryCourse(", "fetchLiveDirectoryCourse("];
 
 /**
  * DOORS THAT ARE MEANT TO BE OPEN, each with the reason. A finding is matched

@@ -1,4 +1,4 @@
-import { COURSE_REF } from "./course-resolution";
+import { COURSE_REF, countbackCardsFor } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { roundTeeId, flightTeeByPlayer } from "./handicaps";
 import "server-only";
@@ -11,7 +11,6 @@ import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../dom
 import { needsTeams } from "../formats";
 import { generatesPairings, isPlayingRound, seededFromQualifiers } from "../stage-types";
 import { courseHandicapMap } from "../domain";
-import { resolveCourse } from "../courses";
 import { chainRoundStandings, scoringFrom, parseMatchTiebreakers, roundRobinStages } from "./tournament";
 import { holesPlayed } from "../domain/handicap";
 import { roundKicker, roundLabel } from "../domain/round-label";
@@ -490,7 +489,7 @@ export async function generateCutRound(
     return { ok: false, reason: "seeded-not-generated" };
   }
 
-  const [event, allStages, confirmed, allMatches, groups] = await Promise.all([
+  const [event, allStages, confirmed, allMatches, groups, venues] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
     prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
     prisma.player.findMany({ where: { eventId, status: "confirmed" }, orderBy: { seed: "asc" } }),
@@ -502,6 +501,9 @@ export async function generateCutRound(
     // here, so the carrier's identity survives — but a match bucket is still
     // not a division of the field.
     prisma.group.findMany({ where: { eventId, isCarrier: false }, orderBy: { position: "asc" } }),
+    // The tournament's venues, so the cut decides each halved match on the
+    // card it was played on (J26), as the leaderboard does.
+    prisma.course.findMany({ where: { ...playedOnBy(eventId) } }),
   ]);
   if (!event) return { ok: false, reason: "no-stage" };
 
@@ -515,7 +517,10 @@ export async function generateCutRound(
     groupId: p.groupId,
   }));
   const scoring = scoringFrom(event);
-  const holeDifficulty = resolveCourse(event).strokeIndex;
+  // Each match on its own venue's toughest holes (`countbackCardsFor`, J26):
+  // the cut is taken on the standings the leaderboard shows, away weeks and all.
+  const venueById = new Map(venues.map((c) => [c.id, c]));
+  const countbackCard = countbackCardsFor(event, allStages, allMatches, (id) => venueById.get(id) ?? null);
 
   // The cut's own scope when it has one (`cutRuleOf`, the one reading of a
   // round's cut settings); a round with no cut groups flight by flight.
@@ -604,7 +609,7 @@ export async function generateCutRound(
       allMatches,
       contenders,
       scoring,
-      holeDifficulty,
+      countbackCard,
       parseMatchTiebreakers(event.matchTiebreakers),
     );
     const priorStanding = chain[chain.length - 1];

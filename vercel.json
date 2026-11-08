@@ -18,10 +18,6 @@
       "schedule": "0 4 * * *"
     },
     {
-      "path": "/api/cron/course-catalogue",
-      "schedule": "0 16 * * *"
-    },
-    {
       "path": "/api/cron/demo-replay",
       "schedule": "15 9 * * *"
     }

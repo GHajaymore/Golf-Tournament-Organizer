@@ -432,3 +432,75 @@ export function cardForMatch<
 ): T {
   return applyNine(course, nineForMatch(match, stage), holesPlayed(stage?.holes));
 }
+
+/**
+ * WHICH CARD'S HOLES DECIDE THIS MATCH — the stroke index a halved match's
+ * "toughest N holes" countback is ranked on (J26, 2026-11-06).
+ *
+ * The card the match was PLAYED on: its own venue, then its round's (a
+ * league's week, an interclub's away fixture), then the tournament's —
+ * `courseForMatch` — narrowed to the nine it was played over
+ * (`cardForMatch`), so a back-nine match is decided on the back nine's
+ * hardest holes, re-ranked 1..9.
+ *
+ * The VENUE is a required argument, and that is the point. Until this
+ * existed the standings, the week view and the head-to-head record each took
+ * the TOURNAMENT's stroke index (`resolveCourse(event).strokeIndex`) and
+ * decided every match on it — so an away match halved on the course was
+ * settled on the home club's toughest holes, which are just a list of
+ * numbers at a club the players never stood on. The cut out of a match-play
+ * round (`regroup.ts`) read it the same way, which made four. Committee
+ * Procedures 5A(6) lets a committee decide a tie by the holes of the round,
+ * and the round's holes are the course's it was played on.
+ *
+ * Every reader goes through `countbackCardsFor` below, which calls this;
+ * `the-countback-card-is-the-match-venue.test.ts` refuses a fifth that goes
+ * back to the tournament's card.
+ */
+export function matchCountbackIndex(
+  venue: { match: StoredCourse | null; round: StoredCourse | null },
+  match: { nine?: string | null },
+  round: { holes?: number | null; nine?: string | null } | null | undefined,
+  event: EventCourseFields,
+): number[] {
+  const course = courseForMatch(venue.match, venue.round, event) ?? resolveCourse(event);
+  return cardForMatch(course, match, round).strokeIndex;
+}
+
+/**
+ * Every match's countback card, for a reader holding a tournament's matches
+ * and rounds — the function `MatchStrokeIndex` (domain/standings.ts) takes.
+ *
+ * Looked up by the match's id, so the domain's match (which carries no venue)
+ * is answered from the stored row that does. A match not in `matches` has no
+ * venue to ask and gets no card — the countback then skips its toughest-holes
+ * steps rather than guessing the tournament's.
+ */
+export function countbackCardsFor(
+  event: EventCourseFields,
+  rounds: ReadonlyArray<{ id: string; courseId?: string | null; holes?: number | null; nine?: string | null }>,
+  matches: ReadonlyArray<{ id: string; stageId: string; courseId?: string | null; nine?: string | null }>,
+  venueOf: (courseId: string) => StoredCourse | null,
+): (m: { id: string }) => number[] {
+  const roundById = new Map(rounds.map((r) => [r.id, r]));
+  const matchById = new Map(matches.map((m) => [m.id, m]));
+  const cards = new Map<string, number[]>();
+  return (m) => {
+    const cached = cards.get(m.id);
+    if (cached) return cached;
+    const row = matchById.get(m.id);
+    if (!row) return [];
+    const round = roundById.get(row.stageId) ?? null;
+    const card = matchCountbackIndex(
+      {
+        match: row.courseId ? venueOf(row.courseId) : null,
+        round: round?.courseId ? venueOf(round.courseId) : null,
+      },
+      row,
+      round,
+      event,
+    );
+    cards.set(m.id, card);
+    return card;
+  };
+}

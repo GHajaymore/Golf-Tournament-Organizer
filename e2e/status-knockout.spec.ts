@@ -85,15 +85,18 @@ test("a knockout says the same thing on every panel from the draw to the Final (
     // a knockout is not over until its Final is.
     await win("winners-1-0", p1, "2 up");
     await win("winners-1-1", p2, "1 up");
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: "Complete tournament", refused: null });
+    // The secretary's home has nothing of this tournament's own to do while its Final is unplayed (PR 6).
+    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: "Complete tournament", refused: null, home: null });
 
-    // The Final decided, and no round closed: Play over, said as a knockout says it.
+    // The Final decided, and no round closed: Play over, said as a knockout says it — and the
+    // secretary's home says it too (D3k: "every round closed" never could, nobody closes a Bracket Stage).
     await win("winners-2-0", p1, "19th");
     await expectTournamentSays(page, {
       chip: "Play over",
       chipDetail: "Final decided · results not released",
       nextAction: "Complete tournament",
       refused: null,
+      home: { text: "Final decided · results not released", action: "Complete tournament" },
     });
     const rounds = await prisma.stage.findMany({ where: { eventId: f.eventId }, select: { closedAt: true } });
     expect(rounds.every((r) => r.closedAt === null), "a Bracket Stage was closed by something other than Complete").toBe(true);
