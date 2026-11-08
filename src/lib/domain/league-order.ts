@@ -6,7 +6,7 @@ import { placeByPointsThenSteps, type LevelStep } from "./level-places";
  * CHAIN RATHER THAN BY THE ALPHABET.
  *
  * The tournament already holds one — `Event.tiebreakers`, set on Scoring &
- * rules, and `tiebreakerCompare` applies it to PLAYERS. The league table was
+ * rules, and `rankPlayers` applies it to PLAYERS. The league table was
  * written without it and fell back to the club's name, so a four-way tie at
  * the top of a twelve-club league seeded the play-offs alphabetically. A club
  * that wins its meetings and a club that does not are not separated by being

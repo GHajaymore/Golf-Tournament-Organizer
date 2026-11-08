@@ -222,6 +222,12 @@ export function aggregateStats(
  * members, and a cycle that the mini-league cannot separate goes on to the
  * next step together (`placesOfLevelGroup`, domain/level-places.ts). The
  * pairwise `headToHead` that the shared place used to be asked of is gone.
+ *
+ * A MEETING NOT YET PLAYED COUNTS FOR NOTHING, deliberately: an unplayed match
+ * cannot be held against anybody. So while a round robin is still being played
+ * (the normal live state), a player who has not met the others in the group
+ * scores 0 and sits BETWEEN those who won their meetings and those who lost
+ * them. Said in the tie-break's help, the guide and knockouts-and-leagues.md.
  */
 /**
  * Which side won by forfeit, or null when the match was played out.

@@ -164,8 +164,11 @@ and seeded the play-offs that way.
 one rule, for players and clubs alike: everybody level on points is ONE group; each
 step of the committee's chain ("Level in the table") is asked of the group;
 head-to-head is the mini-league among only the tied, asked AGAIN of any part it
-leaves level (football's group rule: points among the tied, then the same among
-only those still level); a cycle goes on to the next step together; once a later
+leaves level. The mini-league is matches won less matches lost against the others
+in the group, and a match not yet played counts for nothing — an unplayed match
+cannot be held against anybody — so in a round robin still being played, a
+player who has not met the others sits BETWEEN those who won their meetings and
+those who lost them. A cycle goes on to the next step together; once a later
 step is reached the chain goes on down and does not start again; whoever the
 chain cannot separate SHARES the place. A handicap on an untouched chain and the
 seed still ORDER a shared place — they never make one. Every reader of a player

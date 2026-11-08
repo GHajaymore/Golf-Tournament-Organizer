@@ -16,8 +16,8 @@ import { readSource, stripComments } from "../../__tests__/source";
  * order. How a tie is decided is the Committee's (Committee Procedures 5A(6)),
  * and the table's chain ("Level in the table") is that decision. Its
  * head-to-head step is the usual league practice, a MINI-LEAGUE among only
- * the tied (as football's group rules write it: points among the tied, and
- * if some are still level, the same again among only those): asked of the
+ * the tied — matches won less matches lost against only the others level, a
+ * match not yet played counting for nothing — asked of the
  * whole level group; a part still level is asked it AGAIN over only its own
  * members; a group it cannot separate at all (a cycle) goes on to the next
  * step together; once a step after head-to-head has been reached, the chain
@@ -135,6 +135,38 @@ describe("a head-to-head cycle among players level on points", () => {
     expect(ranksInEveryOrder(["ann", "bea", "cat", "dot"], margins, ["head-to-head", "holes-won-ratio"])).toEqual({
       ann: 1, bea: 2, dot: 2, cat: 4,
     });
+  });
+
+  it("a split made by a LATER step is not asked head-to-head again", () => {
+    // Bea b Cat by 1, Cat b Dot by 3 (3&2), Dot b Bea by 2 (2&1); Ann beats
+    // each 1 up. Points: Ann 6, the three 2 each; mini-league 0, 0, 0 — a cycle.
+    //   Bea  won 1   lost 1 (Ann) + 2 (Dot) = 3   difference -2
+    //   Cat  won 3   lost 1 (Ann) + 1 (Bea) = 2   difference +1
+    //   Dot  won 2   lost 1 (Ann) + 3 (Cat) = 4   difference -2
+    // Hole difference puts Cat 2nd and leaves Bea and Dot level. The chain goes
+    // ON — fewest holes lost: Bea 3, Dot 4 — so Bea 3rd, Dot 4th. Asking
+    // head-to-head of {Bea, Dot} again would put Dot (who beat Bea) above her:
+    // the chain is the committee's order, and head-to-head has had its turn.
+    const results: Result[] = [
+      ["ann", "bea", 1], ["ann", "cat", 1], ["ann", "dot", 1],
+      ["bea", "cat", 1], ["cat", "dot", 3], ["dot", "bea", 2],
+    ];
+    expect(ranksInEveryOrder(["ann", "bea", "cat", "dot"], results)).toEqual({ ann: 1, cat: 2, bea: 3, dot: 4 });
+  });
+
+  it("a round robin still being played: a player who has not met the others sits between the winners and the losers", () => {
+    // Played so far (every win 1 up): Ann b Bea, Bea b Dot, Cat b Dot. Nothing
+    // else yet. Points: Ann 2, Bea 2, Cat 2, Dot 0. The three level on 2:
+    //   Ann  b Bea               against the group: +1
+    //   Bea  lost to Ann         against the group: -1 (her win was over Dot)
+    //   Cat  has met neither     against the group:  0 — nothing to count
+    // A meeting not yet played counts for nothing, so Cat is 2nd, between Ann
+    // (who won her meeting) and Bea (who lost hers). Ann 1, Cat 2, Bea 3, Dot 4.
+    // Bea beat Dot by 3 holes (3&2), so on hole difference she is +2 to Cat's
+    // +1: a rule that counted Cat's unplayed meetings AGAINST her would put
+    // Bea 2nd. That is the answer this cell refuses.
+    const results: Result[] = [["ann", "bea", 1], ["bea", "dot", 3], ["cat", "dot", 1]];
+    expect(ranksInEveryOrder(["ann", "bea", "cat", "dot"], results)).toEqual({ ann: 1, cat: 2, bea: 3, dot: 4 });
   });
 
   it("a cycle with a fourth who halved all three: the next step decides what it can, and the rest share", () => {
@@ -339,6 +371,22 @@ describe("nobody applies head-to-head without the level-group resolver", () => {
     });
   const appliesHeadToHead = (code: string) => /case\s+["']head-to-head["']\s*:/.test(code);
   const usesResolver = (code: string) => /from\s+["'](?:\.\/|@\/lib\/domain\/)level-places["']/.test(code);
+
+  /**
+   * And a numbered standings line prints the table's PLACE (`r.rank`), never
+   * the row's position: the commentary draft numbered the top five `i + 1`,
+   * so a shared 2nd read 2, 3, 4 to the model writing the line. `draft-facts.ts`
+   * already read `r.rank`.
+   */
+  const numbersByPosition = (code: string) => /\$\{i \+ 1\}\. \$\{\w+\.player\.name/.test(code);
+  it("a standings line is numbered by its place, not its position (with a control)", () => {
+    expect(numbersByPosition("`${i + 1}. ${r.player.name} ${r.stats.wins}`"), "CONTROL").toBe(true);
+    const offenders = files(SRC).filter((path) => numbersByPosition(readSource(relative(process.cwd(), path))));
+    expect(offenders).toEqual([]);
+    for (const reader of ["src/app/actions/commentary.ts", "src/lib/services/draft-facts.ts"]) {
+      expect(readSource(reader), reader).toMatch(/\$\{r\.rank\}\. \$\{r\.player\.name\}/);
+    }
+  });
 
   it("CONTROL: the sweep sees the old shape", () => {
     const old = stripComments(`
