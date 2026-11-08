@@ -1504,6 +1504,16 @@ because the fix changes how the leaderboard breaks a tie — all three readers a
 yet. Do it with a test that halves a match at an away course whose hardest holes differ from
 the home card's, and asserts the winner both ways.
 
+**DONE — J26, 2026-11-06.** Four readers, not three: the cut out of a match-play round
+(`regroup.ts`) read the same card. All four now decide each match on its own venue's card
+through ONE function, `matchCountbackIndex` (`course-resolution.ts`; match venue, then the
+round's, then the tournament's, narrowed to the nine played — the per-match twin of `roundCard`
+above), reached by `countbackCardsFor` and `state.countbackCardFor`. The standings' own "toughest
+N holes" tiebreaker ranks each match's own card too. Sweep with a control:
+`the-countback-card-is-the-match-venue.test.ts`; the test asked for above, both ways and by
+property: `an-away-match-is-decided-on-the-away-card.test.ts`; on real rows:
+`an-away-match-countback.audit.test.ts` and `e2e/an-away-halve-on-the-away-card.spec.ts`.
+
 **Captions tied to no box: about thirty candidates, measured 2026-10-14, read-only.** The
 invitation box on Registration had `<label>Message</label>` with no `htmlFor`, so a screen
 reader announced an unnamed text area; that one is fixed, and its browser test finds the box

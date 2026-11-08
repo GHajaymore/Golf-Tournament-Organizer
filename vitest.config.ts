@@ -21,5 +21,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["src/**/*.audit.test.ts", "**/node_modules/**"],
     environment: "node",
+    // Empties GOLFCOURSE_API_KEY: no test may spend the real allowance.
+    setupFiles: ["./vitest.setup.ts"],
   },
 });

@@ -59,8 +59,6 @@ tsconfig.tsbuildinfo
 
 # The world-walk cursor: the importer's own bookkeeping, not app data.
 .course-walk.json
-.gca-walk.json
-.gca-queue.json
 
 # Mutation testing (npm run mutation): the report and the sandbox are made
 # per run. reports/stryker-incremental.json is the incremental cache.

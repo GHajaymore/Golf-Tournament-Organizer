@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db";
 import { loadEventState, parseMatchTiebreakers } from "@/lib/services/tournament";
-import { resolveCourse } from "@/lib/courses";
 import { decidedOutcome } from "@/lib/domain/standings";
 import { resolveMatch } from "@/lib/domain/match";
 import type { HoleResult } from "@/lib/domain/types";
@@ -73,7 +72,9 @@ export async function meetingsFor(organizationId: string, memberId: string): Pro
     const stageById = new Map(state.stages.map((s) => [s.id, s]));
     const tiebreak = {
       sequence: parseMatchTiebreakers(state.event.matchTiebreakers),
-      strokeIndex: resolveCourse(state.event).strokeIndex,
+      // Each meeting on the toughest holes of the card it was PLAYED on — an
+      // away match on the away card (J26) — exactly as that table decided it.
+      strokeIndex: state.countbackCardFor,
     };
     const eventDate = (s?: { playedOn: string }) => s?.playedOn || "";
 

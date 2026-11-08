@@ -16,7 +16,7 @@ import { parseHoleArray } from "@/lib/courses";
 import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
 import type { Near } from "@/lib/domain/course-ranking";
 import {
-  searchDirectory,
+  searchDirectoryWithNotice,
   fetchDirectoryCourse,
   fetchLiveDirectoryCourse,
 } from "@/lib/services/course-directory";
@@ -1029,6 +1029,8 @@ export interface DirectorySearchResult {
   ok: boolean;
   error?: string;
   hits?: DirectorySearchHit[];
+  /** Plain words when the live lookup could not answer; typing a course in by hand still works. */
+  notice?: string;
 }
 
 /**
@@ -1106,6 +1108,8 @@ async function directoryBudget(session: { role: string; userId?: string; email: 
 export async function searchCourseDirectory(
   query: string,
   localOnly = false,
+  /** True only for a press on "Search more courses": the one door to GolfCourseAPI. */
+  moreCourses = false,
 ): Promise<DirectorySearchResult> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
@@ -1140,7 +1144,7 @@ export async function searchCourseDirectory(
     const budget = await directoryBudget(session);
     if (!budget.allowed) live = false;
   }
-  const hits = await searchDirectory(query, !live, await clubNear(session.eventId));
+  const { hits, notice } = await searchDirectoryWithNotice(query, !live, await clubNear(session.eventId), moreCourses);
 
   /**
    * Which of these the club already has.
@@ -1178,7 +1182,7 @@ export async function searchCourseDirectory(
       })
     : [];
   const have = new Set(mine.map((c) => directoryIdFrom(c.sourceUrl)).filter(Boolean));
-  return { ok: true, hits: hits.map((h) => ({ ...h, inLibrary: have.has(h.id) })) };
+  return { ok: true, hits: hits.map((h) => ({ ...h, inLibrary: have.has(h.id) })), ...(notice ? { notice } : {}) };
 }
 
 export interface DirectoryImportResult extends CourseResult {
