@@ -175,6 +175,9 @@ export const AREAS = {
       "e2e/organizer-entry.spec.ts",
       "e2e/public-links-and-removals.spec.ts",
       "e2e/members.spec.ts",
+      // The no-email player identity, PR 1: Member or Guest (not a club member) on Add and in the CSV.
+      "e2e/add-a-member-or-guest.spec.ts",
+      "e2e/import-marks-member-or-guest.spec.ts",
     ],
     // Members enter from their own phones in the society's Stableford.
     scenarios: ["a"],
