@@ -1,5 +1,7 @@
 import { balances, combinedBalances, shareOf, paymentsOf, type Expense, type Net } from "@/lib/domain/expenses";
 import { splitExactly, settle } from "@/lib/domain/money";
+import { matchBetNets, nassauNets } from "@/lib/domain/derived-games";
+import type { HoleResult } from "@/lib/domain/types";
 
 /**
  * Which generation of the money rules produced a number.
@@ -166,6 +168,17 @@ function fingerprint(): string {
   parts.push(`split:${splitExactly(1000, [1, 1, 1]).join(",")}`);
   parts.push(`split:${splitExactly(4001, [3, 2, 1]).join(",")}`);
   parts.push(`split:${splitExactly(7, [1, 1, 1, 1, 1]).join(",")}`);
+
+  // A side game between UNEVEN sides at an odd stake (8 Nov 2026): who takes
+  // the odd cent when two share what one put in is a rule of its own, and the
+  // ledger above never reaches it. Both directions, so the winning pair and the
+  // losing pair are each pinned, and one Nassau, which pays per segment.
+  const allA: HoleResult[] = Array(18).fill("A");
+  const allB: HoleResult[] = Array(18).fill("B");
+  const sides = (n: Net[]) => n.map((x) => `${x.playerId}=${x.netCents}`).join(",");
+  parts.push(`sides:${sides(matchBetNets({ matchId: "m1", sideA: ["bo", "ana"], sideB: ["cy"], holes: allA, stakeCents: 1001 }))}`);
+  parts.push(`sides:${sides(matchBetNets({ matchId: "m2", sideA: ["ana", "bo", "cy"], sideB: ["dee", "ed"], holes: allB, stakeCents: 7 }))}`);
+  parts.push(`sides:${sides(nassauNets({ matchId: "n1", sideA: ["cy"], sideB: ["bo", "ana"], holes: allB, stakeCents: 333 }))}`);
 
   return parts.join("|");
 }
