@@ -129,7 +129,7 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts", "src/lib/domain/timeline-step.ts"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
       "e2e/stages-scoring-setup.spec.ts",
@@ -139,6 +139,8 @@ export const AREAS = {
       "e2e/presses-that-are-not-awaited.spec.ts",
       // Step 2, "Course day": the guided "Needs you", the four sections, the docked panel.
       "e2e/rounds-timeline.spec.ts",
+      // State machine PR 5c (J16): the timeline's chip and "Needs you" lead say what the dashboard says, at every step.
+      "e2e/status-timeline.spec.ts",
       "e2e/rounds-and-formats.spec.ts",
       "e2e/round-date-and-viewing-as.spec.ts",
       "e2e/round-day.spec.ts",
