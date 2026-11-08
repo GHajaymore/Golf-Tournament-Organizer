@@ -118,6 +118,11 @@ beforeAll(async () => {
   const [a, b] = await field(rr, 2, () => ({ groupId: flight.id }));
   await prisma.match.create({ data: { eventId: rr, stageId: r1.id, groupId: flight.id, round: 1, playerAId: a, playerBId: b, holes: "[]" } });
 
+  // B2 (PR 5c review): the same round robin with NO flights and nothing drawn — the control.
+  const rrBare = await event(org.id, "round-robin-no-flights", { moneyMode: "none" });
+  await prisma.stage.create({ data: { eventId: rrBare, position: 0, type: "Round Robin", format: "Match Play", holes: 18, playedOn: "2026-11-14" } });
+  await field(rrBare, 2);
+
   // C: a four-ball round, one side of two made, two players on no side; money "split".
   const fb = await event(org.id, "four-ball", { moneyMode: "split" });
   await prisma.stage.create({ data: { eventId: fb, position: 0, type: "Stroke Play Round", format: "Four-Ball", holes: 18 } });
@@ -198,11 +203,35 @@ describe("the setup flow and the launch gate, worked by hand", () => {
     expect(flights.optional).toBe(true);
   });
 
-  it("a round robin with Round 2 undrawn: Flights holds, and launch is refused", async () => {
+  /**
+   * THE GUARANTEE: the step that holds is the screen the launch refusal sends the organizer to,
+   * and launch is refused. With the flights made, the gate says "Generate them on Rounds & formats"
+   * — the round's Generate button is there — so Rounds & formats holds (PR 5c review; it held
+   * Flights, a screen with no Generate button). With no flights the gate says "Make flights on
+   * Flights", and Flights holds.
+   */
+  it("a round robin, flights made, Round 2 undrawn: Rounds & formats holds, and launch is refused", async () => {
     const r = await read("round-robin");
-    expect(r).toEqual({ steps: "event+ stages+ registration+ grouping- money+", current: "grouping", complete: false, readyToLaunch: false, refused: true, stepsOpen: 1 });
+    expect(r).toEqual({
+      steps: "event+ stages- registration+ grouping+ money+", // PR 5c: was "stages+ … grouping-".
+      current: "stages", // PR 5c: was "grouping".
+      complete: false,
+      readyToLaunch: false,
+      refused: true,
+      stepsOpen: 1, // the launch action's own gate (PR 4), unchanged.
+    });
     const flow = await setupFlowFor(ids["round-robin"]);
     expect(flow!.current!.missing).toContain("Round 2");
+    expect(flow!.current!.missing).toMatch(/no pairings/);
+    expect((await launchCheckFor(ids["round-robin"])).refusal).toMatch(/Generate them on Rounds & formats/);
+  });
+
+  it("CONTROL: a round robin with no flights and nothing drawn: Flights holds, as the refusal says to make them first", async () => {
+    const r = await read("round-robin-no-flights");
+    expect(r.current).toBe("grouping");
+    expect(r.refused).toBe(true);
+    expect(r.steps).toMatch(/grouping-/);
+    expect((await launchCheckFor(ids["round-robin-no-flights"])).refusal).toMatch(/Make flights on Flights/);
   });
 
   it("a four-ball with two players on no side: Sides opens before Flights; a side exists, so launch is not refused", async () => {

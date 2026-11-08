@@ -36,9 +36,8 @@ const render = (candidates: RosterCandidate[]) =>
 
 describe("the roster picker", () => {
   it("marks each member who can't be entered, and says how many", () => {
-    const html = render([member("a", "mobile"), member("b", "email"), member("c", null)]);
+    const html = render([member("a", "mobile"), member("b", "mobile"), member("c", null)]);
     expect(html).toContain("Needs a mobile number");
-    expect(html).toContain("Needs an email address");
     expect(html).toContain("2 of these members can&#x27;t be entered yet");
   });
 
@@ -47,17 +46,14 @@ describe("the roster picker", () => {
     expect(html).toContain("None of these members can be entered yet");
   });
 
-  it("offers a Round Code as the other way round a missing email", () => {
-    // Found 2026-09-26: a fresh tournament on email sign-in refused every
-    // member without an address, and the only remedy named was to go and
-    // find eight addresses.
-    const html = render([member("a", "email"), member("b", "email")]);
-    // By the option's own label, so the words match what the setting says.
-    expect(html).toContain(PLAYER_ACCESS_LABEL.code);
-    expect(html).toContain("How players sign in");
+  it("never marks a member for a missing email (Ajay, 2026-11-07: a member may enter without one)", () => {
+    // Every candidate here has `email: ""`; none is missing anything the tournament needs.
+    const html = render([member("a", null), member("b", null)]);
+    expect(html).not.toContain("Needs an email address");
+    expect(html).not.toContain(PLAYER_ACCESS_LABEL.code);
   });
 
-  it("does not offer it for a missing mobile, which no setting waives (control)", () => {
+  it("does not offer a sign-in setting for a missing mobile, which no setting waives (control)", () => {
     const html = render([member("a", "mobile"), member("b", "mobile")]);
     expect(html).not.toContain(PLAYER_ACCESS_LABEL.code);
   });

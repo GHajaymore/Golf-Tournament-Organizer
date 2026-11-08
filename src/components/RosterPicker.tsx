@@ -4,7 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { addMembersToEvent } from "@/app/actions/roster";
 import { listNames } from "@/lib/format";
-import { PLAYER_ACCESS_LABEL } from "@/lib/tournament-settings";
+import { CODES_TURNED_ON, rosterNoEmailYet } from "@/lib/domain/entry-standing";
+import { useGolfTerms } from "./GolfTermsProvider";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
@@ -44,6 +45,8 @@ export function RosterPicker({
   const [entered, setEntered] = useState(true);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  // The club's golf words: a {cart} is a buggy in Britain.
+  const golfWords = useGolfTerms();
 
   const available = candidates.filter((c) => !c.entered);
   /**
@@ -56,19 +59,8 @@ export function RosterPicker({
    * the click, eight times over, is the fault. `missing` is the same answer the
    * add action refuses on (`contactGap`), so the row can say it first.
    */
+  // Only a mobile, since 2026-11-07: a member without an email is entered (`ContactNeeds`).
   const missingCount = available.filter((c) => c.missing).length;
-  /**
-   * AN ADDRESS HAS A SECOND REMEDY; A MOBILE DOES NOT.
-   *
-   * An email is needed only because this tournament signs players in by
-   * email — `entryNeedsEmail` is `!usesAccessCodes`. Found 2026-09-26: a
-   * newcomer's "Set it up yourself" knockout took the club default (email
-   * sign-in) and refused all eight members its Stableford, copied from a
-   * Round Code tournament, had entered an hour earlier. "Add it under Manage
-   * members" is one way; letting players in with a Round Code, which needs no
-   * address, is the other, and the club may not have the addresses at all.
-   */
-  const missingEmail = available.some((c) => c.missing === "email");
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -105,7 +97,6 @@ export function RosterPicker({
       const bits = [`Added ${r.added}`];
       if (r.waitlisted) bits.push(`${r.waitlisted} waitlisted`);
       if (r.skipped) bits.push(`${r.skipped} already in the field`);
-      if (r.needEmail.length) bits.push(`no email for ${listNames(r.needEmail)} — not entered`);
       if (r.needPhone.length) bits.push(`no mobile for ${listNames(r.needPhone)} — not entered`);
       /**
        * And what to DO about it, when the answer is nobody.
@@ -117,17 +108,22 @@ export function RosterPicker({
        * The "Manage members" link is at the top of this card, so the sentence
        * only has to point at it.
        */
-      if (r.added === 0 && (r.needEmail.length || r.needPhone.length)) {
+      if (r.added === 0 && r.needPhone.length) {
         bits.push("add their details under Manage members, then pick them again");
       }
-      setResult(`${bits.join(" · ")}.`);
+      // Entered, and said: a member may play without an email (2026-11-07).
+      const after = [
+        r.noEmailYet.length ? rosterNoEmailYet(listNames(r.noEmailYet), golfWords) : "",
+        r.codesTurnedOn ? CODES_TURNED_ON : "",
+      ].filter(Boolean);
+      setResult([`${bits.join(" · ")}.`, ...after].join(" "));
       setEntered(r.added > 0 || r.waitlisted > 0);
       // Only what was actually entered clears. Leaving the refused members
       // ticked is the difference between "pick those four again" and "which
       // four were they?" — and the names in the line above are truncated at
       // three.
       setSelected(
-        r.added === 0 && (r.needEmail.length || r.needPhone.length)
+        r.added === 0 && r.needPhone.length
           ? new Set(ids)
           : new Set(),
       );
@@ -175,14 +171,6 @@ export function RosterPicker({
               Each is missing a contact detail this tournament needs, marked below. Add it under{" "}
               <Link href="/roster" style={{ textDecoration: "underline" }}>Manage members</Link>, then pick
               them here.
-              {missingEmail && (
-                <>
-                  {" "}
-                  Or choose &ldquo;{PLAYER_ACCESS_LABEL.code}&rdquo;, which needs no email, under &ldquo;How
-                  players sign in&rdquo; on{" "}
-                  <Link href="/event" style={{ textDecoration: "underline" }}>Tournament details</Link>.
-                </>
-              )}
             </MoreInfo>
           )}
 
@@ -228,7 +216,7 @@ export function RosterPicker({
                   {/* Said BEFORE the tick — see `missingCount` above. */}
                   {c.missing && (
                     <span style={{ display: "block", fontSize: 13, color: "var(--color-accent-200)" }}>
-                      {c.missing === "mobile" ? "Needs a mobile number" : "Needs an email address"}
+                      Needs a mobile number
                     </span>
                   )}
                 </span>

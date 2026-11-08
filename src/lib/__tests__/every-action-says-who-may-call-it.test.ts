@@ -105,7 +105,7 @@ const WHO: Record<string, string> = {
   removeSkinsPot: "the pot", confirmSkinsEntry: "the pot",
   // club role
   startCheckout: "club role", openBillingPortal: "club role", checkDiscountCode: "club role", deleteClub: "club role", approveJoinRequest: "club role",
-  declineJoinRequest: "club role", setOrgMoneyMode: "club role", addOrganizationMember: "club role",
+  declineJoinRequest: "club role", dismissNamesakeNotice: "club role", setOrgMoneyMode: "club role", addOrganizationMember: "club role",
   setOrganizationMemberRole: "club role", removeOrganizationMember: "club role", saveOrganizationBranding: "club role",
   saveOrganizationTheme: "club role", saveOrganizationCurrency: "club role", saveOrganizationSeason: "club role",
   saveOrganizationLocale: "club role", saveOrganizationTimeZone: "club role", adoptClubTimeZone: "club role",
