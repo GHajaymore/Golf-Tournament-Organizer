@@ -133,6 +133,32 @@ async function roundTwoField(): Promise<string[]> {
 }
 
 describe("a tie at a round robin's cut line, settled the committee's way", () => {
+  it("the board marks the tie whatever the tournament's Scoring says — the draw never reads it", async () => {
+    // Round train-1107-3 (J31): the browser walk's tournament was left at
+    // Scoring "Stroke play" (two match-play round robins), and the board lit
+    // nobody and marked no tie — it read the table only under "Match play" —
+    // while the draw, which cuts on the table whatever the setting, refused
+    // for the tie. One cut, one answer: the board asks what the draw asks.
+    await setStageCutTies(r2, "playoff");
+    await prisma.event.update({ where: { id: eventId }, data: { format: "stroke" } });
+    try {
+      const state = (await loadEventState(eventId))!;
+      expect(state.isStroke, "the fixture is what it says").toBe(true);
+      expect([...state.advancingIds].sort()).toEqual([id.ann]);
+      expect(state.cutTiesUndecided.map((t) => [[...t.playerIds].sort(), t.places, t.by])).toEqual([[[id.bea, id.cat].sort(), 1, "playoff"]]);
+      const rows = standingRows(state);
+      for (const who of ["bea", "cat"]) {
+        const r = rows.find((x) => x.id === id[who])!;
+        expect([r.advancing, r.tiedAtCut, r.cutTieBy], who).toEqual([false, true, "playoff"]);
+      }
+      // The draw agrees: refused for the same tie.
+      const refused = await generateNextRound(r2);
+      expect("error" in refused ? refused.error : "").toMatch(/are level on points for the last place/);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { format: "match" } });
+    }
+  });
+
   it("a play-off: nobody in the tie is lit or drawn until the committee records who won it", async () => {
     await setStageCutTies(r2, "playoff");
 

@@ -2745,7 +2745,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         );
         advancingIds = outcome.through;
         cutTiesUndecided = outcome.undecided;
-      } else if (!isStroke && cut.kind === "table" && tableHasResults(stillIn)) {
+      } else if (cut.kind === "table" && tableHasResults(stillIn)) {
         /**
          * A ROUND ROBIN'S CUT IS LIT THE WAY IT IS MADE (J31, 2026-11-06):
          * `roundRobinCutOutcome`, which `generateCutRound` draws the next round
@@ -2760,6 +2760,13 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * the board holds — which `cutDecidedBy` guarantees: it is the cut
          * whose feeder (`cutFeederOf`, the function the tie card and
          * `settleCutTie` ask) is the active round.
+         *
+         * WHATEVER THE TOURNAMENT'S SCORING SAYS (round train-1107-3): this was
+         * `!isStroke && …`, so a tournament of round robins left at "Stroke
+         * play" — or a round robin feeding a medal, which `scoringMismatch`
+         * calls correct under either setting — lit nobody and marked no tie,
+         * while the draw, which never reads `event.format`, refused for the
+         * tie. `cut.kind` is the one reading of what a cut is taken on.
          */
         const outcome = roundRobinCutOutcome(stillIn, nextRound);
         advancingIds = outcome.through;

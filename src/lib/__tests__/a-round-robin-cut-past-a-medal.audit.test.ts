@@ -177,6 +177,23 @@ describe("a round robin's cut taken past a medal: the tie card, the record and t
     expect(sheet.rule).toEqual(currentRoundCutRule(state.playRounds, at));
   });
 
+  it("the same with the tournament's Scoring set to Stroke play — a mixed tournament may be either", async () => {
+    // A round robin feeding a medal is a MIXED tournament, which
+    // `scoringMismatch` calls set up correctly under either Scoring. The draw
+    // never reads the setting (`generateCutRound` cuts on the table), so the
+    // board may not either: it lit nobody and marked no tie under Stroke play
+    // while the draw refused for the tie (round train-1107-3, J31).
+    await prisma.event.update({ where: { id: eventId }, data: { format: "stroke" } });
+    try {
+      const state = (await loadEventState(eventId))!;
+      expect(state.isStroke, "the fixture is what it says").toBe(true);
+      expect([...state.advancingIds]).toEqual([id.ann]);
+      expect(state.cutTiesUndecided.map((t) => [[...t.playerIds].sort(), t.places, t.by])).toEqual([[[id.bea, id.cat].sort(), 1, "playoff"]]);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { format: "match" } });
+    }
+  });
+
   it("the draw refuses, the play-off is recorded against Round 1, and Round 3 is drawn with its winner", async () => {
     const refused = await generateNextRound(r3);
     expect(refused.ok).toBe(false);
