@@ -319,6 +319,7 @@ export const FULL_ONLY = [
   "e2e/match-results.spec.ts",
   "e2e/money-nav.spec.ts",
   "e2e/named-side-bet.spec.ts",
+  "e2e/net-without-tees-says-so.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
   "e2e/one-name-in-play.spec.ts",
