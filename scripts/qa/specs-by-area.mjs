@@ -129,7 +129,7 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts", "src/lib/domain/timeline-step.ts"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
       "e2e/stages-scoring-setup.spec.ts",
@@ -139,6 +139,8 @@ export const AREAS = {
       "e2e/presses-that-are-not-awaited.spec.ts",
       // Step 2, "Course day": the guided "Needs you", the four sections, the docked panel.
       "e2e/rounds-timeline.spec.ts",
+      // State machine PR 5c (J16): the timeline's chip and "Needs you" lead say what the dashboard says, at every step.
+      "e2e/status-timeline.spec.ts",
       "e2e/rounds-and-formats.spec.ts",
       "e2e/round-date-and-viewing-as.spec.ts",
       "e2e/round-day.spec.ts",
@@ -175,6 +177,9 @@ export const AREAS = {
       "e2e/organizer-entry.spec.ts",
       "e2e/public-links-and-removals.spec.ts",
       "e2e/members.spec.ts",
+      // The no-email player identity, PR 1: Member or Guest (not a club member) on Add and in the CSV.
+      "e2e/add-a-member-or-guest.spec.ts",
+      "e2e/import-marks-member-or-guest.spec.ts",
     ],
     // Members enter from their own phones in the society's Stableford.
     scenarios: ["a"],
@@ -309,6 +314,7 @@ export const FULL_ONLY = [
   "e2e/interclub-league.spec.ts",
   "e2e/joining-a-club-refusals.spec.ts",
   "e2e/joining-a-club.spec.ts",
+  "e2e/namesake-notice.spec.ts",
   "e2e/kind-change-asks-about-money.spec.ts",
   "e2e/kitty.spec.ts",
   "e2e/landing-demo-doors.spec.ts",
@@ -316,11 +322,14 @@ export const FULL_ONLY = [
   "e2e/landing-screens.spec.ts",
   "e2e/launch-reads-setup.spec.ts",
   "e2e/league.spec.ts",
+  // State machine PR 5a: each Teams & pairs control and each team round's pricing Save, pressed once on a stale screen after setup locked — refused in words, never thrown.
+  "e2e/locked-sides-refuse-in-words.spec.ts",
   "e2e/match-kept-by.spec.ts",
   "e2e/match-play-rules.spec.ts",
   "e2e/match-results.spec.ts",
   "e2e/money-nav.spec.ts",
   "e2e/named-side-bet.spec.ts",
+  "e2e/net-without-tees-says-so.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
   "e2e/one-name-in-play.spec.ts",

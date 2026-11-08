@@ -1,50 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { effectLine, parsPlayed, roundNeeds, sheetFacts, type NeedsInput } from "@/lib/rounds-timeline";
+import { effectLine, parsPlayed, sheetFacts } from "@/lib/rounds-timeline";
 
 /**
  * ROUNDS & FORMATS STEP 2 ("Course day", behind `?view=timeline`).
  *
- * What the timeline says about a round is read from what is stored, and the "Needs you" strip
- * guides in the order a round is set up: course, date, then tee times (Ajay, 2 Nov: "ease of using
- * the configuration and guided one").
+ * The golf facts the timeline says about a round are read from what is stored. What the round
+ * still NEEDS is the state machine's (`rounds[i].needs`) and is tested with the machine, in
+ * `domain/__tests__/timeline-step.test.ts` (PR 5c, J16).
  */
-const round = (over: Partial<NeedsInput> = {}): NeedsInput => ({
-  id: "r1", label: "Round 1", playing: true, done: false, playedOn: "2026-11-07",
-  courseName: "Braid Hollow", hasCard: true, hasSheet: true, ...over,
-});
-
-describe("roundNeeds", () => {
-  it("lists nothing for a round that is set up", () => {
-    expect(roundNeeds([round()], 48)).toEqual([]);
-  });
-
-  it("guides in the order a round is set up — course, date, tee times — round by round", () => {
-    const needs = roundNeeds(
-      [round({ id: "r1", label: "Round 1", hasSheet: false }), round({ id: "r2", label: "Final", courseName: "", playedOn: "", hasSheet: false })],
-      48,
-    );
-    expect(needs.map((n) => `${n.round} ${n.missing}`)).toEqual([
-      "Round 1 has no tee times",
-      "Final has no course",
-      "Final has no date",
-      "Final has no tee times",
-    ]);
-    // The consequence is in the player's terms, and the fix is named.
-    expect(needs[0]).toMatchObject({ consequence: "players cannot see when they start", fix: "tee-sheet" });
-    expect(needs[2]).toMatchObject({ consequence: "players cannot see when they play", fix: "round" });
-  });
-
-  it("asks for tee times only once somebody has entered, and never of a cut, a bracket or a played round", () => {
-    expect(roundNeeds([round({ hasSheet: false })], 0)).toEqual([]);
-    expect(roundNeeds([round({ playing: false, courseName: "", playedOn: "" })], 48)).toEqual([]);
-    expect(roundNeeds([round({ done: true, playedOn: "" })], 48)).toEqual([]);
-  });
-
-  it("a course with no card is its own gap, said before the date", () => {
-    expect(roundNeeds([round({ hasCard: false, playedOn: "" })], 0).map((n) => n.missing)).toEqual(["has no course card", "has no date"]);
-  });
-});
-
 describe("parsPlayed", () => {
   const card = [4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4];
   it("gives the eighteen, or the nine the round names", () => {

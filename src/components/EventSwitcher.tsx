@@ -228,7 +228,7 @@ export function EventSwitcher({
                           {/* Says what goes with it: the bin deletes the field
                               and every card too (`deleteEvent` cascades). */}
                           <span className="text-muted" style={{ fontSize: 13, textAlign: "right", maxWidth: 220 }}>
-                            {e.players > 0 ? `Delete with its ${e.players} ${e.players === 1 ? "player" : "players"} and every score?` : "Delete?"}
+                            {e.players > 0 ? `Delete with its ${e.players} ${e.players === 1 ? "player" : "players"} and every score? This is permanent and cannot be undone.` : "Delete? This is permanent and cannot be undone."}
                           </span>
                           {/* NAMED. Every control in this table acted on a
                               row and said only what it did — twelve identical
@@ -343,7 +343,7 @@ export function EventSwitcher({
                     round somebody is mid-way through is just as permanent. */}
                 {confirmingId === e.id && (
                   <div style={{ display: "flex", gap: 6, alignItems: "center", width: "100%" }}>
-                    <span className="text-muted" style={{ fontSize: 13 }}>Delete this round?</span>
+                    <span className="text-muted" style={{ fontSize: 13 }}>Delete this round? This is permanent and cannot be undone.</span>
                     <button
                       type="button"
                       className="btn btn-icon"

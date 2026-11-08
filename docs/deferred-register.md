@@ -1570,6 +1570,38 @@ dashboard's tie panel, are the pattern to copy. Left because the bracket's draw,
 
 **A round robin's cut** (`generateCutRound`, `survivors`) still takes the standings' order,
 whose last fallback is the club's tiebreak chain. Same shape, same fix, not asked for.
+**DONE in J31 (2026-11-06):** the same rule and the same setting — `cutLineOutcome` (the one
+function; `strokeCutOutcome` is its stroke name) asked of the table through
+`roundRobinCutOutcome`, on points for "ties" and a play-off and on the table's shared places
+(its own tie-breaks) for a countback. `generateCutRound` refuses to draw through an unsettled
+tie, the board lights and marks it the same way, and the committee records it on the round the
+cut draws (`settleCutTie`, `roundRobinCutOf`). The knockout's qualification tie (J30, ruled for
+after launch) is still list order; it is to call `cutLineOutcome` with its own rows and no
+"ties" (a draw of fixed size, Committee Procedures 5A(7)).
+
+**A head-to-head cycle at a round robin's line is ranked by entry order — SEEN in the J31 review,
+NOT CHANGED (2026-11-07).** Round robin → round robin with a cut → a second cut on countback.
+Round 2 among four: Ann beats all three; Bea b Cat, Cat b Dot, Dot b Bea, each 1 up. Bea, Cat
+and Dot are level on 2 points, each won 1 hole and lost 2, and their meetings go round in a
+circle — nothing they DID separates them, so the countback should end in a draw by lot for the
+one place. `rankPlayers` (`domain/standings.ts`) sorts the three by the club's chain (all zero)
+and then seed, and gives shared places by asking `separated` of each NEIGHBOURING PAIR's own
+meeting: Bea b Cat, Cat b Dot — so it numbers them 2, 3, 4, and the cut sends Bea, the earliest
+entry, through. The board and the draw agree (they read the same table), so nothing on screen
+disagrees; both are wrong the same way. Pinned as an `it.todo` in
+`the-board-and-the-draw-agree-on-a-cut.audit.test.ts`. The fix is in `rankPlayers`: decide a
+shared place over the whole level GROUP's mini-league (as the sort already does), not pair by
+pair. Left because it moves every round robin board in the app, not only a cut, and wants its
+own matrix cells and three rounds.
+**DONE (2026-11-07, `claude/h2h-cycle-mini-league`):** `domain/level-places.ts` decides a
+level group's places over the group — head-to-head as the mini-league among only the tied,
+re-asked of any part still level; a cycle goes on to the next step together; whoever the chain
+cannot separate shares the place. `rankPlayers` and the league of clubs' `orderClubs` (which had
+the same fault as an intransitive sort) both use it. The `it.todo` is a real test on real rows
+(board and draw both owe a draw for the one place, in two entry orders); the matrix carries a
+3-cycle and a 4-player partial cycle; `a-head-to-head-cycle-shares-the-place.test.ts` works the
+rule by hand in every entry order and sweeps for a second copy. Long form:
+`docs/claude/knockouts-and-leagues.md`, "A table's ties".
 
 **Net countback off a full handicap** (above) is unchanged, and the cut's countback is the
 board's: hole-by-hole net. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the

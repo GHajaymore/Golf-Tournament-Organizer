@@ -112,8 +112,6 @@ const VOID_CALLS: Record<string, string> = {
   setRequirePhone: "cannot refuse — writes and returns",
   approveSignup: "cannot refuse — writes and returns",
   reopenMatch: "cannot refuse — writes and returns",
-  // The FORCED delete, from inside the confirmation it already asked for.
-  removeStage: "the force path, behind the confirmation it already showed",
   setStageOptDeadline: "refuses only a malformed date the picker cannot produce",
   // Offered once, silently, by a component that draws nothing. A refusal means
   // the club already has a zone or this person may not set one — both are the
@@ -165,8 +163,8 @@ describe("an action whose answer is thrown away", () => {
      * The dangerous half, and the reason this test exists. An action that can
      * come back `needsConfirm` has REFUSED and is waiting to be asked again —
      * dropping that answer means the click did nothing at all and the screen
-     * says so nowhere. `removeStage` is exempt because its `void` call IS the
-     * second ask.
+     * says so nowhere. `removeStage` is no longer exempt: its forced call reads
+     * the answer too, since an Assistant is refused there in words.
      */
     const actionSrc = readdirSync(join(process.cwd(), "src/app/actions"))
       .filter((f) => f.endsWith(".ts"))
@@ -181,7 +179,7 @@ describe("an action whose answer is thrown away", () => {
     };
 
     const dropped = calls
-      .filter((c) => c.name !== "removeStage" && asksConfirmation(c.name))
+      .filter((c) => asksConfirmation(c.name))
       .map((c) => `${c.file}: ${c.name}`);
     expect(
       dropped,

@@ -30,6 +30,8 @@ const PINNED: [label: string, file: string][] = [
   ["Start this game", "src/components/ContestsClient.tsx"],
   ["Everyone with a card", "src/components/SkinsPotClient.tsx"],
   ["Unlock setup", "src/components/SetupLockBanner.tsx"],
+  // Teams & pairs draws the scoped lock's banner (state machine PR 5a).
+  ["Unlock setup", "src/components/ScopeLockBanner.tsx"],
   // Day-of field changes (PR A): the under-way Entries screen.
   ["Withdraw", "src/components/RegistrationClient.tsx"],
   ["Put back", "src/components/WithdrawnList.tsx"],
@@ -51,6 +53,11 @@ const PINNED: [label: string, file: string][] = [
   ["Share", "src/components/PlaySettings.tsx"],
   ["Print…", "src/app/(app)/foursomes/page.tsx"],
   ["Print…", "src/app/(app)/cup/page.tsx"],
+  // Member or guest (the no-email player identity, PR 1): the CSV preview's buttons.
+  ["Download template", "src/components/RegistrationClient.tsx"],
+  ["Make guest", "src/components/RegistrationClient.tsx"],
+  ["Make member", "src/components/RegistrationClient.tsx"],
+  ["Choose another file", "src/components/RegistrationClient.tsx"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */

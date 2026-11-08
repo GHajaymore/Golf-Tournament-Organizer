@@ -225,7 +225,7 @@ const SHAPES: Shape[] = [
     differs: { step: "D3k", chip: "N1", homeSaysComplete: "D3k" },
   },
   { name: "D4a: named, a venue, no dates", facts: facts({ dated: false, venued: true }), differs: { setupCurrent: "D4a", journey: "D4a" } },
-  { name: "D4b: a round with no course card", facts: facts({ missingCards: [{ label: "Round 1", course: "Invented Links" }] }), differs: { setupCurrent: "D4b", journey: "D4b" } },
+  { name: "D4b: a round with no course card", facts: facts({ missingCards: [{ stageId: "r1", label: "Round 1", course: "Invented Links" }] }), differs: { setupCurrent: "D4b", journey: "D4b" } },
   { name: "D5: a medal in draft with cards in", facts: facts({ rounds: [round({ id: "r1", position: 0, hasResult: true })] }), differs: { chip: "D5" } },
   { name: "P1: a team round with one player on no side", facts: { ...F.stroke(), teams: { needed: true, sides: 3, unsided: 1 } }, differs: { launchRefusal: "P1" } },
   { name: "P2: a knockout of one", facts: { ...F.knockout(), confirmed: 1 }, differs: { launchRefusal: "P2", setupCurrent: "P2", journey: "P2" } },

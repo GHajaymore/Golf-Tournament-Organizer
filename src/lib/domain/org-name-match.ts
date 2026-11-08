@@ -207,3 +207,68 @@ export function clubExistsQuestion(existing: {
     `name, carry on.`
   );
 }
+
+/**
+ * WHEN A CLUB TAKES A NAME, IS THE CLUB THAT WAS HERE FIRST TOLD? (Ajay, 7 Nov 2026)
+ *
+ * `clubExistsQuestion` tells the person setting up the SECOND club about the first. This is the other
+ * direction: the same match (`otherOrganizationNamed`, so the same `orgNamesLookLikeOne` and
+ * `inTheSameArea`, never a second copy of either) finds the first club, and a notice is kept for its
+ * Commissioner. This is only the half that needs no database: whether the club that took the name
+ * may start one at all.
+ *
+ * QUIET FOR: the demo club (an invented club, `docs/claude/demo-club.md`) and a club with no name of
+ * its own yet. A `personal` tenant that TOOK a typed name MAY start one (PM, 7 Nov: leaving the kind on
+ * its default is exactly the duplicate to catch); the callers only ask once a name was typed, so
+ * sign-up's auto-name after the person raises nothing. The EXISTING side stays quiet for a `personal`
+ * tenant and the demo club, in `otherOrganizationNamed`'s query.
+ */
+export function mayStartNamesakeNotice(newClub: { kind: string; isDemo: boolean; name: string }): boolean {
+  return !newClub.isDemo && newClub.name.trim().length > 0;
+}
+
+/**
+ * A person's NAME for a screen, or nothing. An account with no display name is stored under its email
+ * address (`name: displayName || email`), and an address is never shown to somebody who is not that
+ * person's own club: the notice and `clubExistsQuestion`'s "run by" both pass through here.
+ */
+export function nameWithoutAddress(name: string | null | undefined): string {
+  const t = (name ?? "").trim();
+  return t.includes("@") ? "" : t;
+}
+
+/** "a club", "an association": the article a noun takes. */
+export function withArticle(noun: string): string {
+  return /^[aeiou]/i.test(noun.trim()) ? `an ${noun}` : `a ${noun}`;
+}
+
+/**
+ * What the existing club's Commissioner reads. Three facts about the new club and no more: its name,
+ * its town, and the NAME of whoever runs it (never an email, phone, roster or tournament). `noun` is
+ * the new club's own word for itself (`orgProfile(kind, country, communityNoun).noun`: club, society,
+ * group, league, association), so a society is a society. `day` is the day, in the READING club's own
+ * words (`clubDayInWords`). `how` is "new" for a club made with the name and "renamed" for one that
+ * already existed and took it, because "was set up on" is false of a club that is years old.
+ */
+export function namesakeNoticeWords(notice: {
+  name: string;
+  noun: string;
+  where?: string;
+  byName?: string;
+  day: string;
+  how?: string;
+}): string {
+  const noun = notice.noun.trim().toLowerCase();
+  const a = withArticle(noun);
+  const place = notice.where?.trim() ? ` in ${notice.where.trim()}` : "";
+  const by = nameWithoutAddress(notice.byName);
+  const head =
+    notice.how === "renamed"
+      ? `${a}${place} took the name “${notice.name}” on ${notice.day}${by ? `, run by ${by}` : ""}.`
+      : `${a} named “${notice.name}”${place} was set up on ${notice.day}${by ? ` by ${by}` : ""}.`;
+  return (
+    head.charAt(0).toUpperCase() + head.slice(1) +
+    ` If it is the same ${noun} as yours, ask ${by || "them"} to join this one instead of keeping a second. ` +
+    "If it is a different one, dismiss this."
+  );
+}

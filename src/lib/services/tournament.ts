@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
 import { playedOnBy } from "./courses";
-import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound, isStructuralStage } from "../stage-types";
+import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isStructuralStage } from "../stage-types";
 import {
   roundHandicapKey,
   type RoundHandicapRow,
@@ -12,14 +12,14 @@ import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../form
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, countbackCardsFor, roundCard } from "./course-resolution";
 import {
-  survivors,
   strokeCutOutcome,
+  roundRobinCutOutcome,
+  roundHasSomethingToCutOn,
   cutLineRows,
   cutTieRuleOf,
   cutTieDecisionsOf,
-  currentRoundCutRule,
+  currentRoundCutOf,
   fieldEnteringRound,
-  type CutCandidate,
   type CutTie,
 } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
@@ -62,7 +62,7 @@ import { todayIso } from "../deadline";
 import { clubDay, clubToday } from "../domain/club-clock";
 import { zoneOfOrganization } from "./club-clock";
 import { cleanIsoDate } from "../domain/round-dates";
-import { pts as fmtPts, record as fmtRecord, diff as fmtDiff, placeOrdinal } from "../format";
+import { pts as fmtPts, record as fmtRecord, diff as fmtDiff, placeOrdinal, listNames } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import {
   computeStandings,
@@ -809,7 +809,19 @@ export interface EventState {
    */
   outOn: (stageId: string) => ReadonlySet<string>;
   advancingCount: number;
+  /**
+   * Who the BOARD lights: the cut the active round decides when there is one,
+   * otherwise the knockout's line (`qualifierIds`), otherwise nobody.
+   */
   advancingIds: Set<string>;
+  /**
+   * THE KNOCKOUT'S LINE, as it stands — who would be in the draw (J31 review,
+   * 2026-11-07). It was `advancingIds` whenever a bracket existed; now the
+   * board lights a pending cut first, so the panels LABELLED by the knockout's
+   * rule ("Top 8 overall", the qualification card and `/bracket`'s panel) read
+   * this and keep saying what their label says. Empty without a knockout.
+   */
+  qualifierIds: Set<string>;
   /**
    * Whether this round decides who goes on at all — a knockout fed by it, or
    * a cut into the next round (2026-10-09). Without one nobody is "advancing",
@@ -819,8 +831,9 @@ export interface EventState {
    */
   qualifying: boolean;
   /**
-   * TIES FOR THE LAST PLACE AT THE BOARD'S STROKE CUT THAT THE COMMITTEE HAS
-   * STILL TO SETTLE — a play-off, or a draw after countback (2026-10-23). Empty
+   * TIES FOR THE LAST PLACE AT THE BOARD'S CUT THAT THE COMMITTEE HAS STILL TO
+   * SETTLE — a play-off, or a draw after countback (2026-10-23; a round robin's
+   * cut too since J31, `roundRobinCutOutcome`, after the first result). Empty
    * under "ties go through", and wherever the line falls in a gap. Nobody in
    * one is in `advancingIds`, and nobody in one may be told they are out: the
    * board marks them `tiedAtCut`, and the cut cannot be made until they are
@@ -2670,22 +2683,49 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // With neither a knockout nor a round cut, nobody is advancing yet.
   const hasKnockout = hasKnockoutStage(stages);
   let advancingIds: Set<string>;
-  // See `EventState.cutTiesUndecided`; set only by a stroke cut below.
+  // See `EventState.cutTiesUndecided`; set only by a stroke cut or a round robin's cut below.
   let cutTiesUndecided: CutTie[] = [];
+  const activePlayIdx = activeStage ? playRounds.findIndex((s) => s.id === activeStage.id) : -1;
+  // `roundHasSomethingToCutOn` over the round's own rows — every place a score
+  // can live, as the draw (`roundRobinCutFrom`) reads them.
+  const feederHasSomethingToCutOn = (stageId: string) => {
+    const own = matches.filter((m) => m.stageId === stageId);
+    const ownIds = new Set(own.map((m) => m.id));
+    return roundHasSomethingToCutOn({
+      matches: own,
+      cards: [
+        ...scorecards.filter((c) => c.stageId === stageId),
+        ...teamCards.filter((c) => c.stageId === stageId),
+        ...matchCards.filter((c) => ownIds.has(c.matchId)),
+      ],
+    });
+  };
+  // The cut the active round DECIDES and the round it feeds (`currentRoundCutOf`
+  // → `cutDecidedBy`), the answer the rules sheet prints — past a medal too.
+  const cut = currentRoundCutOf(playRounds, activePlayIdx);
+  const cutRule = cut?.rule ?? null;
   // Whether anybody CAN advance — see `EventState.qualifying`.
-  let qualifying = hasKnockout;
-  if (hasKnockout) {
-    advancingIds = qualifierIds;
-  } else {
-    const activePlayIdx = activeStage ? playRounds.findIndex((s) => s.id === activeStage.id) : -1;
-    const cutRule = currentRoundCutRule(playRounds, activePlayIdx);
-    qualifying = !!cutRule;
-    if (!cutRule) {
-      advancingIds = new Set<string>();
+  const qualifying = hasKnockout || !!cutRule;
+  {
+    /**
+     * A CUT THE ACTIVE ROUND DECIDES IS LIT FIRST, KNOCKOUT OR NOT (J31 review,
+     * 2026-11-07). This read `hasKnockout` first and lit the knockout's line
+     * (`qualifierIds`) whenever a bracket stood anywhere in the tournament. For
+     * round robin → round robin with a cut → main draw and plate — the shape
+     * the guide advertises — Round 1's board lit the knockout's top N off Round
+     * 1's table and marked no tie, while drawing Round 2 refused for a tie at
+     * ITS line. The next thing to happen to the field is the cut, so the board
+     * shows the cut; the knockout's line is shown once no cut is pending, and
+     * the knockout-labelled panels read `qualifierIds` themselves.
+     */
+    if (!cut || !cutRule) {
+      advancingIds = hasKnockout ? qualifierIds : new Set<string>();
     } else {
-      // Ranked in finishing order, which survivors() takes the front of — per
-      // flight or overall as the cut's scope dictates. Stroke ranks by returned
-      // cards (only those who've posted), match by the chained standings.
+      // A cut on a CARD is lit off the stroke standings, a cut on a TABLE off
+      // the chained standings — asked of `cut.kind` alone, never of the
+      // tournament's Scoring (`event.format`), which neither engine reads
+      // (`strokeCutOutcomeOf`, `roundRobinCutFrom`). `one-reading-of-a-cut.test.ts`
+      // refuses `isStroke` / `event.format` in this block.
       //
       // Restricted to the players who actually CONTESTED the round being cut
       // out of, which is the same rule generateCutRound applies. Without it the
@@ -2707,9 +2747,6 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       const stillIn = contestedIds.size
         ? overall.filter((rp) => contestedIds.has(rp.player.id))
         : overall;
-      const ranked: CutCandidate[] = isStroke
-        ? strokeStandings.filter((s) => s.ranked).map((s) => ({ id: s.player.id, groupId: s.player.groupId }))
-        : stillIn.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId }));
       /**
        * A STROKE CUT IS LIT THE WAY IT IS MADE: top N AND TIES (2026-10-04).
        *
@@ -2726,12 +2763,16 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
        * records the play-off or the draw — `strokeCutOutcome`, the one answer
        * `applyStrokeCut` makes the cut with. Never a provisional pick.
        */
-      const activeRound = playRounds[activePlayIdx];
-      const nextRound = playRounds[activePlayIdx + 1];
-      const strokeCut =
-        isStroke && !!activeRound && !!nextRound &&
-        isIndividualStrokeRound(activeRound) && isIndividualStrokeRound(nextRound);
-      if (strokeCut) {
+      // The round the cut feeds; a stroke cut is the round just played's cards
+      // (`cut.kind`, from `cutFeederOf` — both rounds individual stroke play).
+      //
+      // WHATEVER THE TOURNAMENT'S SCORING SAYS (J31, 2026-11-07): this was
+      // `isStroke && cut.kind === "card"`, so medal → medal → round robin left
+      // at "Match play" — a mixed tournament, correct under either setting —
+      // lit the front of an empty match table (entry order) while
+      // `applyStrokeCut` cut on the cards.
+      const nextRound = cut.next;
+      if (cut.kind === "card") {
         const outcome = strokeCutOutcome(
           cutLineRows(strokeStandings, rankingBasis),
           cutRule,
@@ -2740,8 +2781,44 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         );
         advancingIds = outcome.through;
         cutTiesUndecided = outcome.undecided;
+      } else if (!feederHasSomethingToCutOn(playRounds[activePlayIdx].id)) {
+        /**
+         * A ROUND ROBIN'S CUT BEFORE ANY RESULT LIGHTS NOBODY (J31, 2026-11-07).
+         * Nothing entered in the round the cut is taken out of: the draw refuses
+         * to cut ("no results"), so nobody is lit, under either Scoring. This lit
+         * the front of the list under "Match play" — entry order, as if it were
+         * a result — and nobody under "Stroke play". Asked through
+         * `roundHasSomethingToCutOn`, the draw's own predicate (J31 review): the
+         * table's reading lit a round drawn but unplayed off its carried points,
+         * and stayed dark over a match with only halves entered.
+         */
+        advancingIds = new Set<string>();
       } else {
-        advancingIds = survivors(ranked, cutRule);
+        /**
+         * A ROUND ROBIN'S CUT IS LIT THE WAY IT IS MADE (J31, 2026-11-06):
+         * `roundRobinCutOutcome`, which `generateCutRound` draws the next round
+         * with. Everybody level on points goes through, or nobody in the tie is
+         * lit until the committee records the play-off or the draw — never the
+         * front of the list, which past the tie-breaks is entry order.
+         *
+         * Only once something has been played: before that the whole table is
+         * level on nought, and a tie of the whole field is nobody's play-off.
+         *
+         * And only where the cut is taken out of THIS table — the round robin
+         * the board holds — which `cutDecidedBy` guarantees: it is the cut
+         * whose feeder (`cutFeederOf`, the function the tie card and
+         * `settleCutTie` ask) is the active round.
+         *
+         * WHATEVER THE TOURNAMENT'S SCORING SAYS (round train-1107-3): this was
+         * `!isStroke && …`, so a tournament of round robins left at "Stroke
+         * play" — or a round robin feeding a medal, which `scoringMismatch`
+         * calls correct under either setting — lit nobody and marked no tie,
+         * while the draw, which never reads `event.format`, refused for the
+         * tie. `cut.kind` is the one reading of what a cut is taken on.
+         */
+        const outcome = roundRobinCutOutcome(stillIn, nextRound);
+        advancingIds = outcome.through;
+        cutTiesUndecided = outcome.undecided;
       }
     }
   }
@@ -3176,6 +3253,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     outOn,
     advancingCount,
     advancingIds,
+    qualifierIds: hasKnockout ? qualifierIds : new Set<string>(),
     qualifying,
     cutTiesUndecided,
     pendingConfirmations,
@@ -3392,9 +3470,10 @@ function boardRows(state: EventState, withDidNotStart: boolean): StandingRow[] {
   // AND A STROKE CUT'S TIE THE COMMITTEE HAS STILL TO SETTLE (2026-10-23).
   // Nobody in it is lit, so the shared-place reading above cannot see it: the
   // play-off is for players level on the SCORE, whom the board's countback may
-  // have given different places.
+  // have given different places. And a round robin's cut's (J31): a play-off is
+  // for players level on POINTS, whom the table's tie-breaks may have placed.
   const tieBy = new Map<string, "playoff" | "draw">();
-  for (const t of state.boardIsStroke ? state.cutTiesUndecided : []) {
+  for (const t of state.cutTiesUndecided) {
     for (const id of t.playerIds) {
       tied.add(id);
       tieBy.set(id, t.by);
@@ -3496,8 +3575,9 @@ function boardRows(state: EventState, withDidNotStart: boolean): StandingRow[] {
       // Same flag the stroke rows carry, now that it is computed from the
       // ranking a match-play event is decided on.
       tiedAtCut: tied.has(r.player.id),
-      // A match board's ties are the knockout's line, never a stroke cut's.
-      cutTieBy: "" as const,
+      // A round robin's cut waiting on a tie says how it will be settled (J31);
+      // a knockout's line has no rule of its own yet (J30), so it says nothing.
+      cutTieBy: tieBy.get(r.player.id) ?? ("" as const),
       record: fmtRecord(r.stats),
       diff: fmtDiff(r.stats),
       pts: fmtPts(r.stats.totalPoints),
@@ -3568,6 +3648,25 @@ export function computeHighlights(state: EventState): Highlight[] {
   return state.drawFrozen ? all.filter((h) => h.kind !== "cut") : all;
 }
 
+/**
+ * The Leader / Winner card, for one name or a shared first place (2026-11-07).
+ *
+ * It read the top ROW of the board, and the top row of a tie is only first in
+ * the list: once three level players beating each other in a circle share 1st,
+ * "Ann won on 6 pts" named the earliest entry the champion over a board that
+ * prints 1, 1, 1. A shared first names nobody — `suggestChampion` already
+ * refuses a champion while `leaders.length > 1`, and the committee settles a
+ * single title (a play-off, or its published method).
+ */
+function sharedLead(names: string[], done: boolean, figure: string): Highlight {
+  if (names.length <= 1) {
+    return { icon: "🏆", title: done ? "Winner" : "Leader", text: `${names[0] ?? "—"} ${done ? "won" : "leads"} ${figure}.` };
+  }
+  return done
+    ? { icon: "🏆", title: "Level for first", text: `${listNames(names)} share first place ${figure}. Nothing separates them, so the committee decides the title.` }
+    : { icon: "🏆", title: "Leaders", text: `${listNames(names)} share the lead ${figure}.` };
+}
+
 function highlightsOf(state: EventState): Highlight[] {
   const out: Highlight[] = [];
   const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
@@ -3584,6 +3683,9 @@ function highlightsOf(state: EventState): Highlight[] {
     const done = state.event.status === "completed";
     const verb = done ? "won" : "leads";
     const leaderTitle = done ? "Winner" : "Leader";
+    // Everybody on the leader's place: more than one is a shared lead, and a
+    // completed board with a shared first names no winner (`sharedLead`).
+    const level = scored.filter((s) => s.rank === lead.rank).map((s) => s.player.name);
     if (stableford) {
       /**
        * The points AND the holes they came off, because one without the other
@@ -3598,11 +3700,11 @@ function highlightsOf(state: EventState): Highlight[] {
        * when they still legitimately differ.
        */
       const thru = lead.thru > 0 ? ` from ${lead.thru} holes` : "";
-      out.push({
-        icon: "🏆",
-        title: leaderTitle,
-        text: `${lead.player.name} ${verb} on ${lead.points} Stableford pts${thru}.`,
-      });
+      out.push(
+        level.length > 1
+          ? sharedLead(level, done, `on ${lead.points} Stableford pts${thru}`)
+          : { icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} on ${lead.points} Stableford pts${thru}.` },
+      );
     } else {
       /**
        * On the board's own basis, and GROSS only where there is no par.
@@ -3634,7 +3736,11 @@ function highlightsOf(state: EventState): Highlight[] {
        */
       const netBoard = unitIsNet(state.strokeUnitLabel);
       const total = netBoard ? ` (net ${lead.net})` : lead.parKnown ? ` (${lead.gross})` : "";
-      out.push({ icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} at ${par}${total}.` });
+      out.push(
+        level.length > 1
+          ? sharedLead(level, done, `at ${par}${total}`)
+          : { icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} at ${par}${total}.` },
+      );
     }
     // Only while it is a watch — see the match-play branch below, and
     // `qualifyingSettled` for why the two ways of being settled differ.
@@ -3793,11 +3899,10 @@ function highlightsOf(state: EventState): Highlight[] {
   if (leader && leader.stats.played > 0) {
     // A completed tournament has a winner — the stroke branch's rule (T59).
     const done = state.event.status === "completed";
-    out.push({
-      icon: "🏆",
-      title: done ? "Winner" : "Leader",
-      text: `${leader.player.name} ${done ? "won" : "leads"} on ${fmt(leader.stats.totalPoints)} pts.`,
-    });
+    // A SHARED FIRST PLACE NAMES NOBODY (2026-11-07): the top row of a tie is
+    // only first in the list. `sharedLead` says so, as `suggestChampion` does.
+    const level = state.overall.filter((r) => r.rank === leader.rank).map((r) => r.player.name);
+    out.push(sharedLead(level, done, `on ${fmt(leader.stats.totalPoints)} pts`));
   }
 
   // Longest current win streak across the field.

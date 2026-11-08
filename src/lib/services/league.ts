@@ -669,7 +669,7 @@ export async function leagueTable(
 
   /**
    * Most points first, then the COMMITTEE'S OWN CHAIN — the one set on
-   * Scoring & rules and applied to players by `tiebreakerCompare`. The
+   * Scoring & rules and applied to players by `rankPlayers` (`level-places.ts`). The
    * league table used to go straight to the club's name, so a four-way tie
    * at the top of a twelve-club league seeded the play-offs alphabetically.
    *

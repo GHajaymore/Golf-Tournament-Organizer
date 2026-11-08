@@ -17,6 +17,7 @@ import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { OrgKindPicker } from "@/components/OrgKindPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { pendingAsks } from "@/lib/services/join-requests";
+import { openNamesakeNotices } from "@/lib/services/namesake-notice";
 import { limitStatus } from "@/lib/services/limits";
 import { organizationAccessReport } from "@/lib/services/access";
 import { organizationAccess } from "@/lib/services/org-access";
@@ -133,6 +134,8 @@ export default async function OrganizationPage() {
   const report = await organizationAccessReport(org.id);
   // Who is waiting to be let in. Almost always empty; see OrganizationAccess.
   const asks = await pendingAsks(org.id);
+  // A club of the same name was set up nearby: told here, not by email.
+  const namesakes = await openNamesakeNotices(org.id);
 
   /**
    * What this page contains, in the order it contains it — one TAB each now
@@ -153,7 +156,7 @@ export default async function OrganizationPage() {
     { id: "handicaps", label: "Handicaps" },
     { id: "money", label: "Money" },
     { id: "plan", label: "Plan" },
-    { id: "access", label: "Staff & access", count: asks.length },
+    { id: "access", label: "Staff & access", count: asks.length + namesakes.length },
   ];
   const outfit = orgProfile(org.kind, org.country, org.communityNoun);
 
@@ -384,6 +387,7 @@ export default async function OrganizationPage() {
           report={report}
           canEdit={canEdit}
           asks={asks}
+          namesakes={namesakes}
           seats={standing.staffSeats.current}
           organizer={golfTermsFor(golfRegister(org.country, org.golfTerms)).organizer}
         />

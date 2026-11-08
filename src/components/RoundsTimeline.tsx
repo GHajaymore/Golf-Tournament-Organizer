@@ -2,7 +2,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Icon } from "./Icon";
-import type { NeedItem, RoundFacts } from "@/lib/rounds-timeline";
+import { RefusedAction } from "./RefusedAction";
+import type { RoundFacts } from "@/lib/rounds-timeline";
+import type { CourseDay, GuideAction, RoundStepView } from "@/lib/domain/timeline-step";
+import type { TournamentStep } from "@/lib/domain/tournament-step";
 
 /**
  * ROUNDS & FORMATS, STEP 2 — "COURSE DAY" (behind `?view=timeline`; Ajay, 2 Nov: "Yes, go").
@@ -28,7 +31,7 @@ export function TimelineHero({
   event: string;
   title: ReactNode;
   line?: ReactNode;
-  /** "3 rounds", "48 entered", "31 Oct – 14 Nov", "Braid Hollow" — said once, in one line. */
+  /** "3 rounds", "31 Oct – 14 Nov", "Braid Hollow" — said once, in one line (the entry count is the subtitle's). */
   facts: string[];
   /** The club's own picture when it has one; otherwise the illustrative course. */
   photo: { src: string; srcSet?: string; alt: string };
@@ -60,48 +63,94 @@ export function TimelineHero({
 }
 
 /**
- * WHAT NEEDS YOU — the next step, always visible (the brief's rule 3), and the consequence in
- * words, not only a chip (Ajay kept that from Concept 1). The first item is the one next thing,
- * and its button is the screen's one filled button; the rest are quiet links.
+ * WHERE THE TOURNAMENT IS — the machine's chip, in its tone, with the line under "Play over" —
+ * the same words the context bar and the dashboard's status card say (`stepOf`), never a reading
+ * of the stored status here (state machine PR 5c, J16).
  */
-export function NeedsYou({ items, onOpen }: { items: NeedItem[]; onOpen: (roundId: string) => void }) {
-  if (items.length === 0) return null;
-  const [next, ...rest] = items;
-  const action = (n: NeedItem, primary: boolean) =>
-    n.fix === "tee-sheet" ? (
-      <Link href={`/foursomes?round=${n.roundId}`} className={primary ? "btn btn-primary rt-need-btn" : "rt-need-link"}>
-        Tee sheet <span className="sr-only">for {n.round}</span>
+export function TimelineStep({ step }: { step: TournamentStep }) {
+  return (
+    <p className="rt-hero-step" data-step={step.step}>
+      <span className={`tag ${step.tag}`}>{step.chip}</span>
+      {step.chipDetail && <span className="text-muted rt-hero-step-detail">{step.chipDetail}</span>}
+    </p>
+  );
+}
+
+/**
+ * WHAT NEEDS YOU — the next step, always visible (the brief's rule 3), and the consequence in
+ * words, not only a chip (Ajay kept that from Concept 1).
+ *
+ * THE MACHINE'S ANSWER, DRAWN (state machine PR 5c, J16). The first line is `nextAction`: its
+ * button is the screen's one filled button, or — refused — the shared `RefusedAction` with the
+ * machine's own sentence and its way out, as the dashboard draws it. The rest is the machine's
+ * list (`courseDayOf`): the steps that hold launch in setup order, each round's own needs, then
+ * the launch dialog's warnings. Nothing here decides what is missing.
+ */
+export function NeedsYou({ guide, onOpen }: { guide: CourseDay; onOpen: (roundId: string) => void }) {
+  const { lead, items } = guide;
+  if (!lead && items.length === 0) return null;
+  const press = (a: GuideAction, primary: boolean, round = "") =>
+    a.kind === "link" ? (
+      <Link href={a.href} className={primary ? "btn btn-primary rt-need-btn" : "rt-need-link"}>
+        {a.says}
+        {round && <span className="sr-only"> for {round}</span>}
       </Link>
     ) : (
-      <button type="button" className={primary ? "btn btn-primary rt-need-btn" : "rt-need-link"} onClick={() => onOpen(n.roundId)}>
-        Open {n.round}
+      <button type="button" className={primary ? "btn btn-primary rt-need-btn" : "rt-need-link"} onClick={() => onOpen(a.roundId)}>
+        {a.says}
       </button>
     );
+  // A refused lead whose way out opens a round HERE: that button is the one to press, so it is the
+  // filled one and the refused button is drawn quiet (a screen has one filled button, rule 2).
+  const wayOutHere = lead && !lead.enabled && lead.wayOut?.kind === "round" ? lead.wayOut : null;
   return (
     <section className="rt-needs" aria-labelledby="rt-needs-title">
       <h2 id="rt-needs-title" className="rt-needs-title">
-        Needs you <span className="rt-needs-count">{items.length}</span>
+        Needs you <span className="rt-needs-count">{items.length + (lead ? 1 : 0)}</span>
       </h2>
-      <div className="rt-need rt-need-next">
-        <p className="rt-need-words">
-          <b>{next.round} {next.missing}</b> — {next.consequence}.
-        </p>
-        {action(next, true)}
-      </div>
-      {rest.length > 0 && (
+      {lead && (
+        <div className="rt-need rt-need-next" data-lead={lead.enabled ? "enabled" : "refused"}>
+          {lead.enabled && lead.action ? (
+            press(lead.action, true)
+          ) : (
+            <>
+              <RefusedAction
+                label={lead.label}
+                reason={lead.disabledBecause ?? ""}
+                wayOut={lead.wayOut?.kind === "link" ? { says: lead.wayOut.says, href: lead.wayOut.href } : null}
+                primary={!wayOutHere}
+              />
+              {wayOutHere && press(wayOutHere, true)}
+            </>
+          )}
+        </div>
+      )}
+      {items.length > 0 && (
         <ul className="rt-need-rest">
-          {rest.map((n) => (
-            <li key={`${n.roundId}-${n.missing}`} className="rt-need">
+          {items.map((n) => (
+            <li key={n.key} className="rt-need" data-holds={n.holds ? "" : undefined}>
               <p className="rt-need-words">
-                <b>{n.round} {n.missing}</b> — {n.consequence}.
+                {n.said && <b>{n.said}</b>}
+                {n.said && n.rest ? " — " : ""}
+                {n.rest}
               </p>
-              {action(n, false)}
+              {n.action && press(n.action, false, n.round)}
             </li>
           ))}
         </ul>
       )}
     </section>
   );
+}
+
+/**
+ * A ROUND'S STATE CHIP on its stop on the spine — the machine's per-round step (results only,
+ * D8) and its first need, worked out by `courseDayOf`. "No date" names the same gap the strip
+ * lists for this round, because both are the round's `needs`.
+ */
+export function RoundChip({ step }: { step: RoundStepView | null }) {
+  if (!step) return null;
+  return <span className={`tag tag-${step.tone}`}>{step.chip}</span>;
 }
 
 /** A round's recipe as three small tiles: holes, the format (highlighted), how it is scored. */
