@@ -45,6 +45,18 @@ describe("a match-play tournament set to stroke play", () => {
     expect(scoringMismatch("match", [roundRobin])).toBeNull();
   });
 
+  it("never claims a cut is made on the setting — no cut is (J31)", () => {
+    // A cut is taken on a card or a table by `cutFeederOf`'s kind, and since
+    // J31 nothing that decides one reads the Scoring (`one-reading-of-a-cut`).
+    // The words said a cut "would be made on stroke totals" / "on match points
+    // that nobody has earned": a warning about a fault the app does not have.
+    for (const m of [scoringMismatch("stroke", [roundRobin]), scoringMismatch("match", [stroke])]) {
+      expect(m!.message).not.toMatch(/would be made on|stroke totals|match points that nobody/);
+      expect(m!.message, "and still says the rounds are cut on their own results").toMatch(/ranked and cut on its own (results|scores)/);
+      expect(m!.message, "the remedy, named").toContain("Tournament details");
+    }
+  });
+
   it("counting a bracket as head to head", () => {
     // A knockout draws no pairings from the flights and is nothing but
     // opponents all the same — the distinction `isHeadToHead` exists for.

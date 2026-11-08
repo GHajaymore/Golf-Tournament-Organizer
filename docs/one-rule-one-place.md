@@ -125,7 +125,14 @@ handicap readers became one (counted off the diff, not the inventory). The four
   nowhere. `cutLineKindOf` is private to `cut-ready.ts`;
   `one-reading-of-a-cut.test.ts` refuses a round read off its neighbour by
   index and then asked for its cut, with only the card cut's own readings
-  (adjacent by definition) listed, each by reason.
+  (adjacent by definition) listed, each by reason. WHAT a cut is taken on —
+  card or table — is `cutFeederOf`'s `kind` and never the tournament's Scoring
+  (`event.format`, `isStroke`), which neither engine reads; the board read it
+  twice (round train-1107-3) and lit nobody, or entry order, where the cut
+  would take somebody else. Before any result a round robin's cut lights
+  nobody under either Scoring. The same test refuses `isStroke` /
+  `event.format` in every place that decides who goes through; on real rows in
+  `a-cut-is-lit-whatever-the-scoring.audit.test.ts`.
 - **Leaving the field** (step 2): three inline copies of "withdrawn or
   disqualified" ask `hasLeftTheField` / `LEFT_THE_FIELD`;
   `left-the-field-is-asked-one-way.test.ts` refuses a fourth. Places that say

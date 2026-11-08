@@ -22,6 +22,9 @@ import { readSource, stripComments } from "./source";
  *   2. Anywhere else in the app, a round reached as the one after another by
  *      index (`rounds[i + 1]`, `[findIndex(…) + 1]`) and then asked for its cut
  *      is a second reading — unless it is on the list below, with its reason.
+ *   3. Nothing that decides who goes through a cut reads the tournament's
+ *      Scoring (`isStroke`, `event.format`): what a cut is taken on is
+ *      `cutFeederOf`'s `kind`, and the engines never asked the setting.
  *
  * Each has a control proving the matcher sees the shape it bans.
  */
@@ -99,6 +102,48 @@ const ALLOWED: Record<string, string> = {
   // (`currentRoundCutOf`) ask `cutDecidedBy` since 2026-11-07.
 };
 
+/**
+ * The tournament's Scoring read in source: `isStroke` (which is
+ * `event.format === "stroke"`), `event.format` / `ev.format` themselves, and a
+ * format compared with the Scoring's own two values. A ROUND's format
+ * (`stage.format`, "Stroke Play") is not the Scoring and is not matched.
+ */
+function scoringReadings(src: string): string[] {
+  const out: string[] = [];
+  for (const re of [/\bisStroke\b/g, /\b(?:event|ev)\??\.format\b/g, /\bformat\s*[!=]==?\s*["'](?:stroke|match)["']/g]) {
+    for (const m of src.match(re) ?? []) out.push(m);
+  }
+  return out;
+}
+
+const WHOLE = "*";
+
+/** The whole file (`*`), a top-level function by name, or the text from one marker up to the next. */
+function regionOf(src: string, region: string | [string, string]): string | null {
+  if (region === WHOLE) return src.trim() ? src : null;
+  if (typeof region === "string") {
+    const body = functionBody(src, region);
+    return body ? src.slice(body.start, body.end) : null;
+  }
+  const start = src.indexOf(region[0]);
+  if (start < 0) return null;
+  const end = src.indexOf(region[1], start);
+  return end < 0 ? null : src.slice(start, end);
+}
+
+/**
+ * EVERY PLACE THAT DECIDES WHO GOES THROUGH A CUT: the two engines and the
+ * functions they share, and the board's "advancing" (which the player app, the
+ * tee sheet and the export read). A new decider belongs on this list.
+ */
+const CUT_DECIDERS: [string, (string | [string, string])[]][] = [
+  ["src/lib/domain/cut.ts", [WHOLE]],
+  ["src/lib/domain/cut-ready.ts", [WHOLE]],
+  ["src/lib/services/stroke-cut.ts", [WHOLE]],
+  ["src/lib/services/regroup.ts", ["generateCutRound", "roundRobinCutFrom", "roundRobinCutOf", "roundRobinCutAfter"]],
+  ["src/lib/services/tournament.ts", [["currentRoundCutOf(playRounds, activePlayIdx)", "const advancingCount"]]],
+];
+
 describe("one reading of which round decides a cut", () => {
   it("cutLineKindOf is private to cut-ready.ts and asked only inside cutFeederOf", () => {
     const src = readSource("src/lib/domain/cut-ready.ts");
@@ -150,6 +195,43 @@ describe("one reading of which round decides a cut", () => {
       for (const name of adjacentCutReadings(readSource(rel))) seen.add(`${rel}:${name}`);
     }
     expect(Object.keys(ALLOWED).filter((k) => !seen.has(k))).toEqual([]);
+  });
+
+  /**
+   * 3. WHO GOES THROUGH A CUT IS NEVER ASKED OF THE TOURNAMENT'S SCORING
+   *    (J31, 2026-11-07). A cut is taken on a card or a table — `cutFeederOf`'s
+   *    `kind` says which — and neither engine reads `event.format`. The board
+   *    did, twice: a round robin's cut lit only under "Match play" (round
+   *    train-1107-3, where the walk's board marked nobody tied while the draw
+   *    refused for the tie), and a medal's only under "Stroke play". So the
+   *    shape is banned in every place that decides who is through.
+   */
+  it("nothing that decides who goes through a cut reads the tournament's Scoring", () => {
+    const findings: string[] = [];
+    for (const [file, regions] of CUT_DECIDERS) {
+      const src = readSource(file);
+      for (const region of regions) {
+        const text = regionOf(src, region);
+        expect(text, `${file}: ${JSON.stringify(region)} is found — a renamed marker must not empty the sweep`).not.toBeNull();
+        for (const hit of scoringReadings(text!)) findings.push(`${file} (${typeof region === "string" ? region : region[0]}): ${hit}`);
+      }
+    }
+    expect(findings, "a cut decided on event.format — ask cutFeederOf's kind, as the engines do").toEqual([]);
+  });
+
+  it("CONTROL: the Scoring matcher sees the readings it replaced, and not a round's own format", () => {
+    // The two lines the board held until 2026-11-07, as they were written.
+    expect(scoringReadings('const strokeCut = isStroke && cut.kind === "card";')).toEqual(["isStroke"]);
+    expect(scoringReadings('} else if (!isStroke && cut.kind === "table" && tableHasResults(stillIn)) {')).toEqual(["isStroke"]);
+    expect(scoringReadings('const ranked = event.format === "stroke" ? a : b;')).toEqual(['event.format', 'format === "stroke"']);
+    expect(scoringReadings('if (ev?.format !== "match") return;')).toEqual(["ev?.format", 'format !== "match"']);
+    expect(scoringReadings("const s = state.isStroke;")).toEqual(["isStroke"]);
+    // Not the Scoring: a round's own format, and names that merely begin with it.
+    expect(scoringReadings('if (feeder.format === "Stroke Play" || isStrokeShape(x) || isIndividualStrokeRound(next)) {}')).toEqual([]);
+    // And the region reader finds what it is pointed at, and says when it cannot.
+    expect(regionOf("a\nfunction foo() {\n  isStroke;\n}\nb", "foo")).toContain("isStroke");
+    expect(regionOf("x START y isStroke z END w", ["START", "END"])).toBe("START y isStroke z ");
+    expect(regionOf("nothing here", "foo")).toBeNull();
   });
 
   it("CONTROL: the matcher sees the shapes it bans, and not a carry-forward", () => {

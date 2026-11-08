@@ -12,7 +12,6 @@ import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../form
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, countbackCardsFor, roundCard } from "./course-resolution";
 import {
-  survivors,
   strokeCutOutcome,
   roundRobinCutOutcome,
   tableHasResults,
@@ -21,7 +20,6 @@ import {
   cutTieDecisionsOf,
   currentRoundCutOf,
   fieldEnteringRound,
-  type CutCandidate,
   type CutTie,
 } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
@@ -2689,9 +2687,11 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     if (!cut || !cutRule) {
       advancingIds = new Set<string>();
     } else {
-      // Ranked in finishing order, which survivors() takes the front of — per
-      // flight or overall as the cut's scope dictates. Stroke ranks by returned
-      // cards (only those who've posted), match by the chained standings.
+      // A cut on a CARD is lit off the stroke standings, a cut on a TABLE off
+      // the chained standings — asked of `cut.kind` alone, never of the
+      // tournament's Scoring (`event.format`), which neither engine reads
+      // (`strokeCutOutcomeOf`, `roundRobinCutFrom`). `one-reading-of-a-cut.test.ts`
+      // refuses `isStroke` / `event.format` in this block.
       //
       // Restricted to the players who actually CONTESTED the round being cut
       // out of, which is the same rule generateCutRound applies. Without it the
@@ -2713,9 +2713,6 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       const stillIn = contestedIds.size
         ? overall.filter((rp) => contestedIds.has(rp.player.id))
         : overall;
-      const ranked: CutCandidate[] = isStroke
-        ? strokeStandings.filter((s) => s.ranked).map((s) => ({ id: s.player.id, groupId: s.player.groupId }))
-        : stillIn.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId }));
       /**
        * A STROKE CUT IS LIT THE WAY IT IS MADE: top N AND TIES (2026-10-04).
        *
@@ -2734,9 +2731,14 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
        */
       // The round the cut feeds; a stroke cut is the round just played's cards
       // (`cut.kind`, from `cutFeederOf` — both rounds individual stroke play).
+      //
+      // WHATEVER THE TOURNAMENT'S SCORING SAYS (J31, 2026-11-07): this was
+      // `isStroke && cut.kind === "card"`, so medal → medal → round robin left
+      // at "Match play" — a mixed tournament, correct under either setting —
+      // lit the front of an empty match table (entry order) while
+      // `applyStrokeCut` cut on the cards.
       const nextRound = cut.next;
-      const strokeCut = isStroke && cut.kind === "card";
-      if (strokeCut) {
+      if (cut.kind === "card") {
         const outcome = strokeCutOutcome(
           cutLineRows(strokeStandings, rankingBasis),
           cutRule,
@@ -2745,7 +2747,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         );
         advancingIds = outcome.through;
         cutTiesUndecided = outcome.undecided;
-      } else if (cut.kind === "table" && tableHasResults(stillIn)) {
+      } else if (!tableHasResults(stillIn)) {
+        /**
+         * A ROUND ROBIN'S CUT BEFORE ANY RESULT LIGHTS NOBODY (J31, 2026-11-07).
+         * The whole table is level on nought: a tie of the whole field, which is
+         * nobody's play-off and nobody's place. This lit the front of the list
+         * under "Match play" — entry order, as if it were a result — and nobody
+         * under "Stroke play". Nobody, under either; the cut is still being
+         * played for (`qualifying`).
+         */
+        advancingIds = new Set<string>();
+      } else {
         /**
          * A ROUND ROBIN'S CUT IS LIT THE WAY IT IS MADE (J31, 2026-11-06):
          * `roundRobinCutOutcome`, which `generateCutRound` draws the next round
@@ -2771,8 +2783,6 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         const outcome = roundRobinCutOutcome(stillIn, nextRound);
         advancingIds = outcome.through;
         cutTiesUndecided = outcome.undecided;
-      } else {
-        advancingIds = survivors(ranked, cutRule);
       }
     }
   }
