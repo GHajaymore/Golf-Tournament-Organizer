@@ -303,16 +303,36 @@ export function roundRobinCutOutcome(
 }
 
 /**
- * Whether a round robin's table holds anything a cut could be taken ON: a
- * match finished or conceded, a hole won, or points that differ (carried in
- * from an earlier round). Before that every row is level on nought, and a tie
- * of the whole field is not a tie at a line.
+ * SOMETHING TO CUT ON (J31 review, 2026-11-07): whether the round a round
+ * robin's cut is taken out of holds anything ENTERED — a hole of any match
+ * (a halve is a result), a concession, or a stroke on any card filed for it.
+ * The ONE predicate: the draw (`roundRobinCutFrom`) refuses to cut without
+ * it, and the board lights nobody without it, so the board never lights a
+ * field the draw would refuse to cut, nor stays dark over one it would cut.
+ *
+ * It replaced two that disagreed. The board asked the TABLE (`tableHasResults`:
+ * a hole won, a match over, or points that differ) and the draw asked the
+ * ROUND (`enteredCardCount`): a round drawn but unplayed under carry-forward
+ * lit from the carried points while the draw refused "no results", and a
+ * match with only halves entered stayed dark while the draw cut on it.
+ *
+ * Asked of the FEEDER's rows only — carried points are not a result of the
+ * round that decides the cut.
  */
-export function tableHasResults(
-  table: ReadonlyArray<{ stats: { played: number; holesWon: number; holesLost: number; totalPoints: number } }>,
-): boolean {
-  if (table.some((r) => r.stats.played > 0 || r.stats.holesWon > 0 || r.stats.holesLost > 0)) return true;
-  return new Set(table.map((r) => r.stats.totalPoints)).size > 1;
+export function roundHasSomethingToCutOn(feeder: {
+  matches: ReadonlyArray<{ holes: string; forfeitedBy?: string | null }>;
+  cards: ReadonlyArray<{ strokes: string }>;
+}): boolean {
+  const parsed = (json: string): unknown[] => {
+    try {
+      const v = JSON.parse(json) as unknown;
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  };
+  if (feeder.matches.some((m) => !!m.forfeitedBy || parsed(m.holes).some((h) => typeof h === "string" && h.trim() !== ""))) return true;
+  return feeder.cards.some((c) => parsed(c.strokes).some((s) => typeof s === "number" && s > 0));
 }
 
 const sameSet = (a: readonly string[], b: readonly string[]) =>

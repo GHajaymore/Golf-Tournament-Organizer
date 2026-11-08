@@ -192,6 +192,20 @@ describe("a tie at a round robin's cut line, settled the committee's way", () =>
     expect(await roundTwoField(), "the play-off's winner, though the table placed her lower").toEqual(["ann", "cat"]);
   });
 
+  it("a result recorded after round 2 is drawn says to redraw it — the draw does not move by itself", async () => {
+    // Round 2 is drawn (Ann v Cat) and unplayed. The committee corrects the
+    // play-off to Bea: recorded, and told plainly that the round it already
+    // drew does not have it yet. (Before the draw the same press is a bare
+    // success — the `toEqual({ ok: true })` in the test above is that control.)
+    expect(await roundTwoField(), "round 2 is drawn").toEqual(["ann", "cat"]);
+    const res = await settleCutTie(r1, [id.bea, id.cat], [id.bea]);
+    expect(res).toEqual({ ok: true, notice: "Recorded. Round 2 was drawn before this, so it does not have this result yet. Redraw Round 2 so the draw uses it." });
+    expect(await roundTwoField(), "nothing moved on its own").toEqual(["ann", "cat"]);
+    const redrawn = await generateNextRound(r2);
+    expect(redrawn.ok, "error" in redrawn ? redrawn.error : "").toBe(true);
+    expect(await roundTwoField(), "the redraw uses it").toEqual(["ann", "bea"]);
+  });
+
   it("a countback: the table's own tie-break — Bea won their meeting", async () => {
     await setStageCutTies(r2, "countback");
     const drawn = await generateNextRound(r2);

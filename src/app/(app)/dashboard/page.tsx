@@ -106,7 +106,11 @@ export const generateMetadata = () => screenMetadataForEvent("/dashboard");
 
 export default async function DashboardPage() {
   const { session, state } = await requireState();
-  const { event, groupStandings, advancingCount, brackets } = state;
+  const { event, groupStandings, brackets } = state;
+  // Both places that print it sit under the knockout's rule ("Top 8 overall"),
+  // so they count the knockout's line — not the board's lit rows, which show a
+  // pending cut first (J31 review, 2026-11-07).
+  const advancingCount = state.qualifierIds.size;
   /**
    * A CASUAL ROUND IS ONE SCREEN, AND IT IS NOT THIS ONE (Ajay, 2026-10-06).
    * Its card, where it stands, the money and the round's settings are all on

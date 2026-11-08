@@ -222,6 +222,27 @@ describe("generateCutRound with an overall cut", () => {
     expect(r2Matches).toHaveLength(3);
     for (const m of r2Matches) expect(flights).toContain(m.groupId);
   });
+
+  it("under the default — ties go through — everybody level for the fourth place is drawn", async () => {
+    // The test above this pre-records a play-off for A2, which hides what the
+    // DEFAULT does with the same table (J31 review). Nothing recorded: A1, B1
+    // and C1 take three places, and A2, B2 and C2 are level on points and every
+    // tie-break for the fourth — "the leading 4 and ties" (Committee
+    // Procedures 5A(6)) sends all three.
+    const { eventId, r2, players } = await seedEvent();
+    await prisma.stage.update({
+      where: { id: r2 },
+      data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 4 },
+    });
+    expect((await prisma.stage.findUniqueOrThrow({ where: { id: r2 } })).cutTies, "the column default is the published default").toBe("ties");
+    expect(await generateCutRound(eventId, r2)).toEqual({ ok: true });
+    const drawn = new Set(
+      (await prisma.match.findMany({ where: { eventId, stageId: r2 } })).flatMap((m) => [m.playerAId, m.playerBId]),
+    );
+    const firstTwo = [0, 1, 2].flatMap((f) => players.filter((p) => p.group === f).slice(0, 2).map((p) => p.id));
+    expect([...drawn].sort(), "the three winners and all three level for fourth").toEqual(firstTwo.sort());
+    expect(drawn.size).toBe(6);
+  });
 });
 
 describe("cutting a match-play field into a stroke-play final", () => {

@@ -597,6 +597,8 @@ describe("the round a cut is taken out of, for every shape of tournament", () =>
     ["round robin → medal → medal (the cards)", [RR, MEDAL, MEDAL], 1, "card"],
     ["medal → medal", [MEDAL, MEDAL], 0, "card"],
     ["round robin at stroke play → medal (the cards)", [RR_MEDAL, MEDAL], 0, "card"],
+    // A card cut needs BOTH rounds individual stroke play (`applyStrokeCut`); the round after is head to head, so this is
+    // `generateCutRound`'s cut, which is always taken on the last round robin's table — whatever that round robin was scored as.
     ["round robin at stroke play → round robin", [RR_MEDAL, RR], 0, "table"],
     ["medal → round robin: no table before it", [MEDAL, RR], null, null],
     ["scramble → medal: neither engine cuts it", [SCRAMBLE, MEDAL], null, null],

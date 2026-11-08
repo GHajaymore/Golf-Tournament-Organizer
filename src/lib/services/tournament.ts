@@ -14,7 +14,7 @@ import { COURSE_REF, countbackCardsFor, roundCard } from "./course-resolution";
 import {
   strokeCutOutcome,
   roundRobinCutOutcome,
-  tableHasResults,
+  roundHasSomethingToCutOn,
   cutLineRows,
   cutTieRuleOf,
   cutTieDecisionsOf,
@@ -809,7 +809,19 @@ export interface EventState {
    */
   outOn: (stageId: string) => ReadonlySet<string>;
   advancingCount: number;
+  /**
+   * Who the BOARD lights: the cut the active round decides when there is one,
+   * otherwise the knockout's line (`qualifierIds`), otherwise nobody.
+   */
   advancingIds: Set<string>;
+  /**
+   * THE KNOCKOUT'S LINE, as it stands — who would be in the draw (J31 review,
+   * 2026-11-07). It was `advancingIds` whenever a bracket existed; now the
+   * board lights a pending cut first, so the panels LABELLED by the knockout's
+   * rule ("Top 8 overall", the qualification card and `/bracket`'s panel) read
+   * this and keep saying what their label says. Empty without a knockout.
+   */
+  qualifierIds: Set<string>;
   /**
    * Whether this round decides who goes on at all — a knockout fed by it, or
    * a cut into the next round (2026-10-09). Without one nobody is "advancing",
@@ -2673,19 +2685,41 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   let advancingIds: Set<string>;
   // See `EventState.cutTiesUndecided`; set only by a stroke cut or a round robin's cut below.
   let cutTiesUndecided: CutTie[] = [];
+  const activePlayIdx = activeStage ? playRounds.findIndex((s) => s.id === activeStage.id) : -1;
+  // `roundHasSomethingToCutOn` over the round's own rows — every place a score
+  // can live, as the draw (`roundRobinCutFrom`) reads them.
+  const feederHasSomethingToCutOn = (stageId: string) => {
+    const own = matches.filter((m) => m.stageId === stageId);
+    const ownIds = new Set(own.map((m) => m.id));
+    return roundHasSomethingToCutOn({
+      matches: own,
+      cards: [
+        ...scorecards.filter((c) => c.stageId === stageId),
+        ...teamCards.filter((c) => c.stageId === stageId),
+        ...matchCards.filter((c) => ownIds.has(c.matchId)),
+      ],
+    });
+  };
+  // The cut the active round DECIDES and the round it feeds (`currentRoundCutOf`
+  // → `cutDecidedBy`), the answer the rules sheet prints — past a medal too.
+  const cut = currentRoundCutOf(playRounds, activePlayIdx);
+  const cutRule = cut?.rule ?? null;
   // Whether anybody CAN advance — see `EventState.qualifying`.
-  let qualifying = hasKnockout;
-  if (hasKnockout) {
-    advancingIds = qualifierIds;
-  } else {
-    const activePlayIdx = activeStage ? playRounds.findIndex((s) => s.id === activeStage.id) : -1;
-    // The cut the active round DECIDES and the round it feeds (`currentRoundCutOf`
-    // → `cutDecidedBy`), the answer the rules sheet prints — past a medal too.
-    const cut = currentRoundCutOf(playRounds, activePlayIdx);
-    const cutRule = cut?.rule ?? null;
-    qualifying = !!cutRule;
+  const qualifying = hasKnockout || !!cutRule;
+  {
+    /**
+     * A CUT THE ACTIVE ROUND DECIDES IS LIT FIRST, KNOCKOUT OR NOT (J31 review,
+     * 2026-11-07). This read `hasKnockout` first and lit the knockout's line
+     * (`qualifierIds`) whenever a bracket stood anywhere in the tournament. For
+     * round robin → round robin with a cut → main draw and plate — the shape
+     * the guide advertises — Round 1's board lit the knockout's top N off Round
+     * 1's table and marked no tie, while drawing Round 2 refused for a tie at
+     * ITS line. The next thing to happen to the field is the cut, so the board
+     * shows the cut; the knockout's line is shown once no cut is pending, and
+     * the knockout-labelled panels read `qualifierIds` themselves.
+     */
     if (!cut || !cutRule) {
-      advancingIds = new Set<string>();
+      advancingIds = hasKnockout ? qualifierIds : new Set<string>();
     } else {
       // A cut on a CARD is lit off the stroke standings, a cut on a TABLE off
       // the chained standings — asked of `cut.kind` alone, never of the
@@ -2747,14 +2781,16 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         );
         advancingIds = outcome.through;
         cutTiesUndecided = outcome.undecided;
-      } else if (!tableHasResults(stillIn)) {
+      } else if (!feederHasSomethingToCutOn(playRounds[activePlayIdx].id)) {
         /**
          * A ROUND ROBIN'S CUT BEFORE ANY RESULT LIGHTS NOBODY (J31, 2026-11-07).
-         * The whole table is level on nought: a tie of the whole field, which is
-         * nobody's play-off and nobody's place. This lit the front of the list
-         * under "Match play" — entry order, as if it were a result — and nobody
-         * under "Stroke play". Nobody, under either; the cut is still being
-         * played for (`qualifying`).
+         * Nothing entered in the round the cut is taken out of: the draw refuses
+         * to cut ("no results"), so nobody is lit, under either Scoring. This lit
+         * the front of the list under "Match play" — entry order, as if it were
+         * a result — and nobody under "Stroke play". Asked through
+         * `roundHasSomethingToCutOn`, the draw's own predicate (J31 review): the
+         * table's reading lit a round drawn but unplayed off its carried points,
+         * and stayed dark over a match with only halves entered.
          */
         advancingIds = new Set<string>();
       } else {
@@ -3217,6 +3253,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     outOn,
     advancingCount,
     advancingIds,
+    qualifierIds: hasKnockout ? qualifierIds : new Set<string>(),
     qualifying,
     cutTiesUndecided,
     pendingConfirmations,

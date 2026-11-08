@@ -6318,7 +6318,7 @@ export async function settleCutTie(
   feederId: string,
   tied: string[],
   through: string[],
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; notice?: string }> {
   const eventId = await requireStaffEvent();
   const feeder = await prisma.stage.findFirst({
     where: { id: feederId, eventId },
@@ -6356,6 +6356,24 @@ export async function settleCutTie(
       : `The ${tie.by === "playoff" ? "play-off" : "draw"} for the last place in the cut was taken back — ${tie.playerIds.map(name).join(", ")} are level again.`,
   );
   await refresh();
+  /**
+   * RECORDED AFTER THE ROUND WAS ALREADY DRAWN (J31 review, 2026-11-07). A round
+   * robin's cut is made by drawing the next round, and recording the play-off
+   * does not move anybody already drawn: the round still holds the field it
+   * was drawn with. A bare success left the secretary believing the winner was
+   * in. Say what to do — redraw it, which is allowed while nothing is played.
+   */
+  if (!stroke) {
+    const [drawnMatches, drawnCards] = await Promise.all([
+      prisma.match.count({ where: { eventId, stageId: made.next.id } }),
+      prisma.scorecard.count({ where: { eventId, stageId: made.next.id } }),
+    ]);
+    if (drawnMatches + drawnCards > 0) {
+      const stages = await prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: { id: true, type: true, description: true, position: true } });
+      const next = roundKicker(made.next.description, roundLabel(stages, made.next.id));
+      return { ok: true, notice: `Recorded. ${next} was drawn before this, so it does not have this result yet. Redraw ${next} so the draw uses it.` };
+    }
+  }
   return { ok: true };
 }
 

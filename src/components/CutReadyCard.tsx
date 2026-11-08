@@ -160,6 +160,15 @@ export function CutTiePanel({
 }) {
   const [picked, setPicked] = useState<string[]>(tie.chosen);
   const { pending, error, run } = useAction();
+  // What the server asks of the secretary after a success — a round already
+  // drawn without this result, to be redrawn (J31 review).
+  const [notice, setNotice] = useState("");
+  const settle = (through: string[]) => async () => {
+    setNotice("");
+    const res = await settleCutTie(feederId, tie.tied, through);
+    if (res.ok) setNotice(res.notice ?? "");
+    return res;
+  };
   const decided = tie.chosen.length > 0;
   const what = tie.by === "playoff" ? "play-off" : "draw";
   const places = tie.places === 1 ? "the last place" : `the last ${tie.places} places`;
@@ -210,7 +219,7 @@ export function CutTiePanel({
           className="btn btn-secondary"
           style={{ minHeight: 44 }}
           disabled={pending}
-          onClick={() => run(() => settleCutTie(feederId, tie.tied, picked))}
+          onClick={() => run(settle(picked))}
         >
           <Icon name="check" /> {decided ? `Save the ${what} result` : `Record the ${what}`}
         </button>
@@ -220,7 +229,7 @@ export function CutTiePanel({
             className="btn btn-ghost"
             style={{ minHeight: 44 }}
             disabled={pending}
-            onClick={() => run(() => settleCutTie(feederId, tie.tied, []), () => setPicked([]))}
+            onClick={() => run(settle([]), () => setPicked([]))}
           >
             Take it back
           </button>
@@ -230,6 +239,11 @@ export function CutTiePanel({
       {error && (
         <p className="form-error" role="alert" ref={bringIntoView}>
           <Icon name="warning-circle" /> {error}
+        </p>
+      )}
+      {notice && !error && (
+        <p role="status" style={{ margin: 0, fontSize: 14 }}>
+          <Icon name="info" /> {notice}
         </p>
       )}
     </fieldset>

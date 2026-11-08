@@ -1579,6 +1579,21 @@ cut draws (`settleCutTie`, `roundRobinCutOf`). The knockout's qualification tie 
 after launch) is still list order; it is to call `cutLineOutcome` with its own rows and no
 "ties" (a draw of fixed size, Committee Procedures 5A(7)).
 
+**A head-to-head cycle at a round robin's line is ranked by entry order — SEEN in the J31 review,
+NOT CHANGED (2026-11-07).** Round robin → round robin with a cut → a second cut on countback.
+Round 2 among four: Ann beats all three; Bea b Cat, Cat b Dot, Dot b Bea, each 1 up. Bea, Cat
+and Dot are level on 2 points, each won 1 hole and lost 2, and their meetings go round in a
+circle — nothing they DID separates them, so the countback should end in a draw by lot for the
+one place. `rankPlayers` (`domain/standings.ts`) sorts the three by the club's chain (all zero)
+and then seed, and gives shared places by asking `separated` of each NEIGHBOURING PAIR's own
+meeting: Bea b Cat, Cat b Dot — so it numbers them 2, 3, 4, and the cut sends Bea, the earliest
+entry, through. The board and the draw agree (they read the same table), so nothing on screen
+disagrees; both are wrong the same way. Pinned as an `it.todo` in
+`the-board-and-the-draw-agree-on-a-cut.audit.test.ts`. The fix is in `rankPlayers`: decide a
+shared place over the whole level GROUP's mini-league (as the sort already does), not pair by
+pair. Left because it moves every round robin board in the app, not only a cut, and wants its
+own matrix cells and three rounds.
+
 **Net countback off a full handicap** (above) is unchanged, and the cut's countback is the
 board's: hole-by-hole net. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the
 fractional method agrees, and says so.

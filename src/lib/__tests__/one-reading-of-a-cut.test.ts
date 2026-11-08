@@ -25,6 +25,8 @@ import { readSource, stripComments } from "./source";
  *   3. Nothing that decides who goes through a cut reads the tournament's
  *      Scoring (`isStroke`, `event.format`): what a cut is taken on is
  *      `cutFeederOf`'s `kind`, and the engines never asked the setting.
+ *   4. Whether there is anything to cut on yet is `roundHasSomethingToCutOn`,
+ *      asked by the board and the draw alike.
  *
  * Each has a control proving the matcher sees the shape it bans.
  */
@@ -114,6 +116,11 @@ function scoringReadings(src: string): string[] {
     for (const m of src.match(re) ?? []) out.push(m);
   }
   return out;
+}
+
+/** The two readings of "is there anything to cut on" that `roundHasSomethingToCutOn` replaced. */
+function somethingToCutOnReadings(src: string): string[] {
+  return src.match(/\b(?:tableHasResults|enteredCardCount)\s*\(/g) ?? [];
 }
 
 const WHOLE = "*";
@@ -217,6 +224,37 @@ describe("one reading of which round decides a cut", () => {
       }
     }
     expect(findings, "a cut decided on event.format — ask cutFeederOf's kind, as the engines do").toEqual([]);
+  });
+
+  /**
+   * 4. "IS THERE ANYTHING TO CUT ON YET" IS ONE PREDICATE (J31 review,
+   *    2026-11-07): `roundHasSomethingToCutOn`. The board asked the table
+   *    (`tableHasResults`) and the draw asked the round (`enteredCardCount`),
+   *    and they disagreed twice — a round drawn but unplayed under
+   *    carry-forward, and a match with only halves entered. Both must ask the
+   *    one predicate, and neither of the two old readings may come back.
+   */
+  it("the board and the draw ask one predicate for whether there is anything to cut on", () => {
+    const board = regionOf(readSource("src/lib/services/tournament.ts"), ["currentRoundCutOf(playRounds, activePlayIdx)", "const advancingCount"]);
+    const draw = regionOf(readSource("src/lib/services/regroup.ts"), "roundRobinCutFrom");
+    expect(board, "the board's advancing block is found").not.toBeNull();
+    expect(draw, "roundRobinCutFrom is found").not.toBeNull();
+    // The board asks it through a local helper defined just above the block.
+    expect(readSource("src/lib/services/tournament.ts")).toMatch(/feederHasSomethingToCutOn\s*=[\s\S]{0,400}?roundHasSomethingToCutOn\(/);
+    expect(board!).toMatch(/feederHasSomethingToCutOn\(/);
+    expect(draw!).toMatch(/roundHasSomethingToCutOn\(/);
+    const findings: string[] = [];
+    for (const [file, regions] of CUT_DECIDERS) {
+      const src = readSource(file);
+      for (const region of regions) for (const hit of somethingToCutOnReadings(regionOf(src, region) ?? "")) findings.push(`${file}: ${hit}`);
+    }
+    expect(findings, "a second reading of 'anything to cut on' — ask roundHasSomethingToCutOn").toEqual([]);
+  });
+
+  it("CONTROL: the 'anything to cut on' matcher sees the two readings it replaced", () => {
+    expect(somethingToCutOnReadings("} else if (!tableHasResults(stillIn)) {")).toEqual(["tableHasResults("]);
+    expect(somethingToCutOnReadings("const priorResults = await enteredCardCount(eventId, lastPriorRound.id);")).toEqual(["enteredCardCount("]);
+    expect(somethingToCutOnReadings("if (!roundHasSomethingToCutOn({ matches, cards })) return;")).toEqual([]);
   });
 
   it("CONTROL: the Scoring matcher sees the readings it replaced, and not a round's own format", () => {

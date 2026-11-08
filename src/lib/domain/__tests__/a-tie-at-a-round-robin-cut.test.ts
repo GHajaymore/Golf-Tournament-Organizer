@@ -3,7 +3,7 @@ import { computeStandings } from "../standings";
 import {
   roundRobinCutOutcome,
   tableCutLineRows,
-  tableHasResults,
+  roundHasSomethingToCutOn,
   cutTieRuleWords,
   type CutStageFields,
 } from "../cut";
@@ -207,10 +207,21 @@ describe("a countback — the table's tie-breaks, then a draw by lot", () => {
   });
 });
 
-describe("nothing played is nothing to cut on", () => {
-  it("a table of noughts has no results; one result is a result", () => {
-    expect(tableHasResults(computeStandings(field, [], DEFAULT_SCORING))).toBe(false);
-    expect(tableHasResults(tableOne)).toBe(true);
-    expect(tableHasResults(computeStandings(field, [match("ann", "bea", H("A"))], DEFAULT_SCORING))).toBe(true);
+describe("nothing entered is nothing to cut on (`roundHasSomethingToCutOn`, the board's and the draw's one predicate)", () => {
+  const blank = JSON.stringify(new Array(18).fill(null));
+  it("a round drawn and unplayed has nothing; one hole of any kind is something", () => {
+    expect(roundHasSomethingToCutOn({ matches: [{ holes: blank }, { holes: blank }], cards: [] })).toBe(false);
+    expect(roundHasSomethingToCutOn({ matches: [], cards: [] }), "an empty round").toBe(false);
+    expect(roundHasSomethingToCutOn({ matches: [{ holes: JSON.stringify(H("A")) }], cards: [] })).toBe(true);
+    // A HALVE is a result — the draw has always cut on it, and the board's
+    // table reading (no hole won, no match over, points level) did not see it.
+    const halvedOnly = JSON.stringify(["H", "H", ...new Array(16).fill(null)]);
+    expect(roundHasSomethingToCutOn({ matches: [{ holes: halvedOnly }], cards: [] })).toBe(true);
+  });
+  it("a concession, and a stroke on a card filed for the round, are something; blanks and rubbish are not", () => {
+    expect(roundHasSomethingToCutOn({ matches: [{ holes: blank, forfeitedBy: "A" }], cards: [] })).toBe(true);
+    expect(roundHasSomethingToCutOn({ matches: [{ holes: blank, forfeitedBy: "" }], cards: [] })).toBe(false);
+    expect(roundHasSomethingToCutOn({ matches: [], cards: [{ strokes: JSON.stringify([4, null]) }] })).toBe(true);
+    expect(roundHasSomethingToCutOn({ matches: [{ holes: "not json" }], cards: [{ strokes: "[]" }, { strokes: "[0,null]" }] })).toBe(false);
   });
 });

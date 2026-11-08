@@ -5,7 +5,7 @@ import "server-only";
 import { prisma } from "../db";
 import { enteredCardCount } from "./round-cards";
 import { formGroups, roundRobinSchedule } from "../domain";
-import { nextRoundFlights, roundRobinCutOutcome, type CutOutcome, type CutTie } from "../domain/cut";
+import { nextRoundFlights, roundHasSomethingToCutOn, roundRobinCutOutcome, type CutOutcome, type CutTie } from "../domain/cut";
 import type { Stage as DbStage, Match as DbMatch } from "@prisma/client";
 import { cutRuleOf, cutFeederOf } from "../domain/cut-ready";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
@@ -715,17 +715,21 @@ async function roundRobinCutFrom(
    * Deliberately narrow. It refuses only a round with NOTHING in it — one
    * card, one hole, one conceded match and the cut is the organizer's call,
    * because a cut taken with a match still out is a real thing clubs do.
-   * `enteredCardCount` unions all four places a score can live, and a
-   * forfeit is counted separately because it is a result that leaves no
-   * card at all: a flight settled by two concessions has no strokes and no
-   * holes, and refusing that would refuse a legitimate cut.
+   * Every place a score can live is read — the match's holes, a concession
+   * (a result that leaves no card at all: a flight settled by two
+   * concessions has no strokes and no holes), and a stroke on any card filed
+   * for the round — through `roundHasSomethingToCutOn`, the predicate the
+   * board lights with too (J31 review, 2026-11-07), so the board is never lit
+   * over a round this refuses to cut, nor dark over one it cuts.
    */
   const lastPriorRound = priorRr[priorRr.length - 1];
-  const priorResults = await enteredCardCount(eventId, lastPriorRound.id);
-  const priorForfeits = allMatches.some(
-    (m) => m.stageId === lastPriorRound.id && m.forfeitedBy,
-  );
-  if (priorResults === 0 && !priorForfeits) {
+  const feederMatches = allMatches.filter((m) => m.stageId === lastPriorRound.id);
+  const [strokeCards, teamCards, matchCards] = await Promise.all([
+    prisma.scorecard.findMany({ where: { eventId, stageId: lastPriorRound.id }, select: { strokes: true } }),
+    prisma.teamScorecard.findMany({ where: { eventId, stageId: lastPriorRound.id }, select: { strokes: true } }),
+    prisma.matchScorecard.findMany({ where: { eventId, match: { stageId: lastPriorRound.id } }, select: { strokes: true } }),
+  ]);
+  if (!roundHasSomethingToCutOn({ matches: feederMatches, cards: [...strokeCards, ...teamCards, ...matchCards] })) {
     return {
       ok: false,
       reason: "no-results",
