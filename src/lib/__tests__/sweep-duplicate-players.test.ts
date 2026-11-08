@@ -39,13 +39,13 @@ describe("the importer's key", () => {
     // importCsvSignups is "use server" and exports only async functions, so
     // its rule cannot be imported. Pin the spelling instead: if the importer's
     // key moves, this goes red and the sweep must follow it.
-    const src = readSource("src", "app", "actions", "tournament.ts");
-    expect(src).toContain("new Set(existing.map((p) => p.email.trim().toLowerCase()).filter(Boolean))");
-    expect(src).toContain("existing.filter((p) => !p.email.trim()).map((p) => p.name.trim().toLowerCase())");
-    expect(src).toContain("emailKey ? seenEmails.has(emailKey) : seenNames.has(nameKey)");
+    const src = readSource("src", "lib", "domain", "csv-signups.ts");
+    expect(src).toContain("new Set(facts.existing.map((p) => p.email.trim().toLowerCase()).filter(Boolean))");
+    expect(src).toContain("facts.existing.filter((p) => !p.email.trim()).map((p) => p.name.trim().toLowerCase())");
+    expect(src).toContain("entryEmail ? seenEmails.has(entryEmail) : seenNames.has(nameKey)");
     // CONTROL: the pin can see a difference.
     expect(src.replace("p.name.trim().toLowerCase()", "p.name")).not.toContain(
-      "existing.filter((p) => !p.email.trim()).map((p) => p.name.trim().toLowerCase())",
+      "facts.existing.filter((p) => !p.email.trim()).map((p) => p.name.trim().toLowerCase())",
     );
   });
 });
