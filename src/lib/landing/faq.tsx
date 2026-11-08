@@ -77,6 +77,25 @@ export const FAQ: FaqGroup[] = [
         a: () => <p>Copy it in a click. Every setting — flights, rounds, format, prizes — carries over to a fresh event; last year&rsquo;s scores never do. You can also start from a template.</p>,
       },
       {
+        // Ajay, 2026-11-08. Every line is what the app does TODAY (the guide's "Players", "Copy last event"
+        // and "Create a tournament" steps); the closing paragraph says what does not carry. No migration
+        // service is promised, and no other tool is named.
+        id: "switching",
+        q: "Switching from another tool or a spreadsheet?",
+        a: () => (
+          <>
+            <p>Here is what carries over today, and what does not.</p>
+            <ul>
+              <li><strong>Your players.</strong> Bring a list in from a spreadsheet saved as CSV, to your members or straight into a tournament&rsquo;s entries. A template gives you the header. Before anything is added you see the list checked: each row as a member or a guest, and any row worth a second look, such as a name that matches a member already on your roster.</li>
+              <li><strong>Your course.</strong> Search for it and its card and tees arrive, or choose &lsquo;Other (enter manually)&rsquo; and type the card in yourself.</li>
+              <li><strong>Last year&rsquo;s event.</strong> Copy it, and the format, rounds, handicap allowances, tee rules, flights, side games (with nobody entered in them) and entry settings come across. The entry window and each round move to the new first day. The club&rsquo;s Commissioner or an Admin makes the copy.</li>
+              <li><strong>Scores kept on a spreadsheet.</strong> Cards can be imported from a spreadsheet, many at once, and the clean ones approved together.</li>
+            </ul>
+            <p>What does not carry: players, scores, money, notices and the tee sheet of a copied event, and anything held in another tool&rsquo;s own files. A spreadsheet is the way in, and you bring the list yourself. Handicap indexes are entered by you for now.</p>
+          </>
+        ),
+      },
+      {
         id: "team",
         q: "Can more than one of us run it?",
         a: () => (
@@ -317,6 +336,22 @@ export const FAQ: FaqGroup[] = [
         id: "entry-fees",
         q: "Can players pay their entry fee through TourneyHQ?",
         a: () => <p>No, and that is deliberate. Entry fees go to your club the way they do today — at the pro shop, by bank transfer, on your own payment page or in cash — and TourneyHQ keeps the record. That means no payment fees on your players&rsquo; money, no card details for entry fees held here, and no refunds to sort out through us: if a player withdraws, your club refunds them as it already would. What TourneyHQ does is work out everything that depends on the entries — skins and side-game pots, prizes, shared costs, and who pays whom — and keep it in one record your club can show its members.</p>,
+      },
+      {
+        // Ajay, 2026-11-08: "no fees, we never touch the money", with a small example. It extends the two
+        // answers above (which say "never holds, moves or takes a cut" and "no payment fees on your players'
+        // money") by walking one entry fee through. It does NOT say TourneyHQ records who has paid an ENTRY
+        // fee: it does not (the kitty is one pot; "paid in" is a skins and side-game column).
+        id: "no-fees",
+        q: "Do you take a fee or a percentage of the money?",
+        a: () => (
+          <>
+            <p>No. TourneyHQ takes no percentage of what your players pay and processes none of it, so there is nothing for it to take a cut of. One entry fee, start to finish:</p>
+            <p>Say your entry fee is 40 and twenty players enter. Each player pays your club the way they already do: at the pro shop, by bank transfer, on your own payment page or in cash. That is 800, and all of it reaches your club. TourneyHQ never sees it move.</p>
+            <p>What TourneyHQ keeps is the record. For a skins game or a side game, staff mark who has paid in, and the pot is worked out from exactly those players. Where a tournament chooses the kitty, it records money in and out, entry fees included. Prizes come out of what your club holds, and your club pays them.</p>
+            <p>A player never pays TourneyHQ anything. The plan is the organizer&rsquo;s.</p>
+          </>
+        ),
       },
       {
         id: "trip",

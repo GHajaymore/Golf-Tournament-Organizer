@@ -275,9 +275,15 @@ export default async function LandingPage() {
       {c.note ? <small>{c.note}</small> : null}
     </>
   );
+  // THE ONE PRIMARY CALL TO ACTION: the hero's button and the quiet ones at the section breaks are
+  // this one function, so the words and where they lead are decided once (`words`, from launchState).
+  const primaryDoor = (cls: string) => (
+    <a className={`m-btn ${cls}`} href={start}>{words.heroCta} <span className="m-arrow" aria-hidden="true">→</span></a>
+  );
+  const quietDoor = <div className="m-quiet">{primaryDoor("m-line")}</div>;
   const doors = (
     <div className="m-cta-row">
-      <a className="m-btn m-primary" href={start}>{words.heroCta} <span className="m-arrow" aria-hidden="true">→</span></a>
+      {primaryDoor("m-primary")}
       <a className="m-btn m-line" href="/play"><span className="m-long">I have a round code</span><span className="m-short">Enter a code</span></a>
     </div>
   );
@@ -443,6 +449,8 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {quietDoor}
+
         {/* ═══════════ ONE MOMENT ═══════════ */}
         <section className="m-moment" aria-label="What a live board means">
           <div className="m-wall m-decor" aria-hidden="true">
@@ -592,6 +600,8 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {quietDoor}
+
         {/* ═══════════ WHO IT'S FOR: THREE DOORS ═══════════ */}
         <section className="m-chapter" id="for" aria-labelledby="for-h">
           <div className="m-wrap">
@@ -635,6 +645,8 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {quietDoor}
+
         {/* ═══════════ ON EVERY PLAN, AND THREE QUESTIONS ═══════════
             The list is `onEveryPlan()` — read from PLANS, never typed here. The answers are
             short, each with its long form on /faq. */}
@@ -660,6 +672,12 @@ export default async function LandingPage() {
                 ))}
               </div>
             </div>
+            {/* The money line, outside the green pricing section it sits beside. Hard rule 7: it records, it never moves. */}
+            <p className="m-nofee">
+              <b>No fees. We never touch the money.</b>
+              <span>TourneyHQ takes no percentage of what your players pay and processes none of it. Your club collects entry fees the way it does today, and TourneyHQ keeps the record.</span>
+              <a href="/faq#q-no-fees">See a worked example <span className="m-arrow" aria-hidden="true">→</span></a>
+            </p>
           </div>
         </section>
 
