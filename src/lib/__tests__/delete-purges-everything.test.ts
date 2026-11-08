@@ -227,7 +227,7 @@ describe("every model that names a tournament or a round is purged with it", () 
     expect((src.match(/\},\s*PURGE_TX\)/g) ?? []).length).toBe(calls.length);
     expect(src).toMatch(/PURGE_TX = \{ timeout: 60_000, maxWait: \d+/);
     expect(["every-delete", "deliberate-delete-only"]).toContain(HONOURS_GO_WITH);
-    expect(HONOURS_GO_WITH).toBe("every-delete"); // today's behaviour, until the owner rules
+    expect(HONOURS_GO_WITH).toBe("deliberate-delete-only"); // ruled 2026-11-08: honours are history; only a person pressing Delete erases them
     // It is the only place that decides: honours are deleted behind that switch and nowhere else.
     expect(src.match(/honoursEntry\.deleteMany/g)?.length).toBe(1);
     expect(src).toMatch(/HONOURS_GO_WITH === "every-delete" \|\| opts\.deliberate\)\s*await tx\.honoursEntry\.deleteMany/);
