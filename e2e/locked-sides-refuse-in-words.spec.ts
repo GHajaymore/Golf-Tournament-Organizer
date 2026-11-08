@@ -192,7 +192,9 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
       await setupUnlocked(false);
       // The Save beside THIS setting's box, not any Save on the card: a team round's card can hold
       // more than one editor, and a card-wide "Save" would be ambiguous (strict mode) or the wrong one.
-      const editor = card.locator("div", { has: card.getByLabel(step.control) }).last();
+      // `has` is matched from inside each div, so the inner locator must not start at the card
+      // (`card.getByLabel(...)` looks for a card INSIDE the div and never matches): start at the page.
+      const editor = card.locator("div", { has: page.getByLabel(step.control) }).last();
       await editor.getByRole("button", { name: "Save", exact: true }).click();
       const said = card.getByText(step.said);
       await expect(said, `${step.label}: the refusal was not said on the round's card`).toBeVisible({ timeout: 20_000 });
