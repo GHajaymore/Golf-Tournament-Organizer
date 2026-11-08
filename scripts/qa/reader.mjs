@@ -87,12 +87,16 @@ export function runState(run, jobs, posted) {
  *  - only runs on the asked heads hold the watch;
  *  - a head's `verify` that has NOT STARTED holds it only while no round runs on that head
  *    (a round head has no PR and never will have a verify); queued, in progress or
- *    unreadable always hold it.
+ *    unreadable always hold it;
+ *  - a run that ENDED WITHOUT A VERDICT (cancelled, or stopped by the machine) has answered:
+ *    what it asks for is a re-run, which is a person's decision, not more waiting. A watch on
+ *    a cancelled round otherwise never ended (8 Nov, two rounds cancelled for runner capacity).
  */
 export function stillWaiting(r, shas) {
   const asked = (sha) => shas.some((s) => sha.startsWith(s));
   const onAsked = r.runs.filter((x) => asked(x.sha));
-  if (onAsked.some((x) => !x.state.startsWith("finished"))) return true;
+  const answered = (state) => state.startsWith("finished") || state.startsWith("ended without a verdict");
+  if (onAsked.some((x) => !answered(x.state))) return true;
   const hasRound = (sha) => onAsked.some((x) => x.sha.startsWith(sha) && (x.workflow === "Round" || (x.branch ?? "").startsWith("round/")));
   return r.heads.some((h) => ["queued", "in_progress", "unknown — re-ask"].includes(h.verify) || (h.verify === "not started" && !hasRound(h.sha)));
 }

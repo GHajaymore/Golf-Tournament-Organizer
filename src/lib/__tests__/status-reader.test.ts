@@ -156,3 +156,16 @@ describe("a watch waits only on what it was asked about", () => {
     expect(stillWaiting(reading([], [{ sha: head, verify: "success" }]), [head])).toBe(false);
   });
 });
+
+describe("a cancelled run has answered the watch", () => {
+  const head = "d".repeat(40);
+  const run = (state: string) => ({ id: 1, workflow: "Round", branch: "round/x-1", sha: head, url: "", state, parts: null, verdict: null });
+
+  it("a round that ended without a verdict (cancelled) does not hold the watch", () => {
+    expect(stillWaiting({ at: "", runs: [run("ended without a verdict (cancelled) — re-run it")], heads: [{ sha: head, verify: "not started" }] }, [head])).toBe(false);
+  });
+
+  it("CONTROL: the same round still in flight does", () => {
+    expect(stillWaiting({ at: "", runs: [run("in flight")], heads: [{ sha: head, verify: "not started" }] }, [head])).toBe(true);
+  });
+});
