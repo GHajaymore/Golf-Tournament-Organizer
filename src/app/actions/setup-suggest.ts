@@ -12,7 +12,8 @@ import { PLAYABLE_FORMAT_NAMES } from "@/lib/formats";
 import { STAGE_TYPES } from "@/lib/stage-types";
 import { extractReadingJson } from "@/lib/domain/card-reading";
 import { parseSetupProposal, setupPrompt, type SetupProposal } from "@/lib/domain/setup-proposal";
-import { assertUnlocked } from "@/lib/services/action-shared";
+import { refuseIfLocked } from "@/lib/services/tournament-status";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { askClaude } from "@/lib/services/claude";
 import { scoringDefaults } from "@/lib/domain/round-scoring";
@@ -56,15 +57,18 @@ export interface SetupSuggestResult {
   error?: string;
   proposal?: SetupProposal;
   configured?: boolean;
+  /** Refused because the rounds are locked (`refuseIfLocked`): the lock, with its reason and way out. */
+  lock?: ScopeLock;
 }
 
 /** Long enough to describe a tournament, short enough not to be a payload. */
 const MAX_DESCRIPTION = 600;
 
 /**
- * Structural changes stop once the tournament is live, unless the organizer
- * has explicitly unlocked it. The same rule and the same words as `addStage`,
- * because this writes the rows `addStage` writes.
+ * Applying a description stops once the tournament is live, unless the
+ * organizer has explicitly unlocked it: the "rounds" scope's lock
+ * (`refuseIfLocked`). Today's behaviour, kept in 5a — see S7 in
+ * `applySetupProposal` for the TD's ruling it moves to.
  */
 
 async function requireStaff(): Promise<{ eventId: string; who: string }> {
@@ -161,11 +165,18 @@ export async function suggestSetup(description: string): Promise<SetupSuggestRes
  */
 export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestResult> {
   const { eventId } = await requireStaff();
-  // S7. `addStage` applies the lock and this creates the same rows, so a
-  // description typed into a live tournament could append rounds that the
-  // ordinary control refuses — the lock exists because adding a round to an
-  // event already being played changes what the standings are counting.
-  await assertUnlocked(eventId);
+  // S7, AS IT STANDS NOW. This comment used to say `addStage` applies the lock
+  // too; it has not since 2026-09-27 (`addStage` in tournament.ts: adding is
+  // running the event — a league's next week, a play-off — and touches no
+  // round already played). The TD's ruling (proposal 3 Nov, section 3, "Add a
+  // round": open before the draw, after it and after scores; refused once the
+  // tournament is completed) is the rule for BOTH doors, because this one only
+  // appends rounds, exactly as `addStage` does. They will ask that ONE rule in
+  // PR 5b / PR 7. Until then 5a keeps today's behaviour here — the "rounds"
+  // lock, so a live, locked tournament still refuses a description — and only
+  // changes how: RETURNED, never thrown (J10).
+  const locked = await refuseIfLocked(eventId, "rounds", "add rounds");
+  if (locked) return locked;
 
   const checked = parseSetupProposal({ rounds }, PLAYABLE_FORMAT_NAMES, STAGE_TYPES);
   if (checked.rounds.length === 0) {

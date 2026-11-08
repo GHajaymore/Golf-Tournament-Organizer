@@ -30,6 +30,8 @@ const PINNED: [label: string, file: string][] = [
   ["Start this game", "src/components/ContestsClient.tsx"],
   ["Everyone with a card", "src/components/SkinsPotClient.tsx"],
   ["Unlock setup", "src/components/SetupLockBanner.tsx"],
+  // Teams & pairs draws the scoped lock's banner (state machine PR 5a).
+  ["Unlock setup", "src/components/ScopeLockBanner.tsx"],
   // Day-of field changes (PR A): the under-way Entries screen.
   ["Withdraw", "src/components/RegistrationClient.tsx"],
   ["Put back", "src/components/WithdrawnList.tsx"],

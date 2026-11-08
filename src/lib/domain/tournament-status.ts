@@ -565,7 +565,7 @@ function lock(by: LockBy, because: string, wayOut: WayOut): Lock {
  * (the upstream-change rules are PR 7, the scoped locks PR 5). What it adds is
  * the scope, the reason in words and the way out.
  */
-function locksOf(f: TournamentFacts, family: Family): Record<LockScope, Lock> {
+function locksOf(f: SetupSideFacts, family: Family): Record<LockScope, Lock> {
   const open: Lock = { locked: false };
   const out = Object.fromEntries(LOCK_SCOPES.map((s) => [s, open])) as Record<LockScope, Lock>;
   const finished = isFinished(f.status);
@@ -598,6 +598,46 @@ function locksOf(f: TournamentFacts, family: Family): Record<LockScope, Lock> {
     if (l.locked && l.correctable) out[f.correction.scope] = open;
   }
   return out;
+}
+
+/* ------------------------------------------- the scoped locks (PR 5a) */
+
+/**
+ * THE LOCKS, FROM THE SETUP SIDE OF THE FACTS ALONE (PR 5a). A lock asks the
+ * status, the blanket unlock, a confirmed draw, the family and whether a
+ * knockout round has a result — never the club's day, a knockout's draws, a
+ * cup's verdict or the review queue — so an action that only needs to know
+ * whether it may write does not pay for those. The same `locksOf` the whole
+ * status reads, so the banner and the refusal cannot disagree.
+ */
+export function locksFor(f: SetupSideFacts): Record<LockScope, Lock> {
+  return locksOf(f, tournamentFamily(f));
+}
+
+/** One locked scope as a banner draws it and a refusal returns it — plain values a client can be handed. */
+export interface ScopeLock {
+  scope: LockScope;
+  by: LockBy;
+  /** "Locked because the tournament is live." */
+  because: string;
+  wayOut: WayOut;
+  correctable: boolean;
+}
+
+/** The scope's lock, or null when it is open. */
+export function scopeLockOf(locks: Record<LockScope, Lock>, scope: LockScope): ScopeLock | null {
+  const l = locks[scope];
+  return l.locked ? { scope, by: l.by, because: l.because, wayOut: l.wayOut, correctable: l.correctable } : null;
+}
+
+/**
+ * THE REFUSAL OF A LOCKED SCOPE, IN WORDS (J10): the reason, then the way out
+ * with what the press was for — "Locked because the tournament is live.
+ * Unlock it on the dashboard to change teams." Every way out is a verb phrase
+ * ("Reopen the draw on Flights"), so `to <what>` finishes each of them.
+ */
+export function lockRefusalWords(lock: Pick<ScopeLock, "because" | "wayOut">, what: string): string {
+  return `${lock.because} ${lock.wayOut.says} to ${what}.`;
 }
 
 /**

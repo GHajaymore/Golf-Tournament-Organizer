@@ -84,6 +84,11 @@ export function strays(src: string): string[] {
  * `finishRefusal`, `completingCheckFor` or `playRefusalFor` either
  * (`the-actions-ask-the-machine.test.ts` holds that by name), but stays here
  * for `assertUnlocked`, `lockedRefusal` and `configurationLocked` until PR 5.
+ *
+ * PR 5a (6 Nov) cut three: `actions/teams.ts` and `actions/setup-suggest.ts`
+ * ask their scope's lock (`refuseIfLocked`) instead of `assertUnlocked`, and
+ * Teams & pairs draws `scopeLockFor(…, "sides")` in a `ScopeLockBanner`
+ * instead of `isSetupLocked`.
  */
 export const KNOWN_STRAYS: readonly string[] = [
   "src/app/(app)/bracket/page.tsx",
@@ -92,9 +97,6 @@ export const KNOWN_STRAYS: readonly string[] = [
   "src/app/(app)/grouping/page.tsx",
   "src/app/(app)/registration/page.tsx",
   "src/app/(app)/stages/page.tsx",
-  "src/app/(app)/teams/page.tsx",
-  "src/app/actions/setup-suggest.ts",
-  "src/app/actions/teams.ts",
   "src/app/actions/tournament.ts",
 ];
 

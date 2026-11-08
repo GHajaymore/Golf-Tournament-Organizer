@@ -403,6 +403,8 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Fill sides with [[Add player]]; **Not on a side yet** shows who is left.",
           "In a round robin of sides, press [[Generate matches]] once there are at least two sides. A stroke-play round has no matches to draw, so the button is not there.",
           "Rename a side in its name box. Taking out a player who has returned a card asks first, because the side's score changes; a side with scores on it cannot be removed.",
+          "Once the tournament is launched the sides lock. The banner at the top names the reason — **Sides · Locked because the tournament is live.** — and a padlock on the toolbar and on each side points to it. An {organizer} can press [[Unlock setup]] on the banner to correct a side; an assistant is told only the {organizer} can. Renaming a side stays open.",
+          "If another tab launched the tournament while this screen was open, a press here is refused in words — “Locked because the tournament is live. Unlock it on the dashboard to change teams.” — nothing changes, and the screen redraws with the banner.",
         ],
       },
       { kind: "h", text: "Tee sheet" },
@@ -723,7 +725,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "faq",
         items: [
           { q: "A button is greyed out", a: "The reason is written next to it — an empty field, locked setup, a missing course. Fix that and the button wakes up." },
-          { q: "“Configuration is locked”", a: "The tournament has launched. An {organizer} can Unlock setup on the banner to change structure; running the day doesn't need it — withdrawing a player, putting one back and (in stroke play, Stableford and a league, until Round 1's last published tee time) a late entry stay open on Entries." },
+          { q: "“Configuration is locked” or “Locked because the tournament is live”", a: "The tournament has launched. On Teams & pairs the banner names what is locked and why. A refused handicap allowance, split or count on Rounds & formats says the same. An {organizer} can Unlock setup on the banner to change structure; running the day doesn't need it — withdrawing a player, putting one back and (in stroke play, Stableford and a league, until Round 1's last published tee time) a late entry stay open on Entries." },
           { q: "I withdrew the wrong player", a: "Entries → Withdrawn → Put back. They return to the field, or to the Waitlist if their place has been filled since. Their cards were never deleted. A walkover already recorded against them stays until the committee changes it." },
           { q: "A walk-in arrived after the first card", a: "With a published tee sheet, late entries stay open until Round 1's last tee time: add them on Entries, then [[Put in group]] on the Tee sheet. Without one, or after that time, late entries are closed. An {organizer} can unlock the tournament to add them: Unlock it on the dashboard. An assistant cannot unlock." },
           { q: "What do DNS and WD mean on the results?", a: "DNS: withdrew before teeing off. WD: withdrew after beginning. Both are listed under the field with no place, then DQ. A DNS shows on your Leaderboard, the Reports sheet and the CSV, not on the public board." },
