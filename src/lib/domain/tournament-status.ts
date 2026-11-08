@@ -137,8 +137,12 @@ export interface TournamentFacts {
   cup: { flights: number; unplaced: number } | null;
   /** Every round, in play order. */
   rounds: RoundFacts[];
-  /** Playing rounds whose format needs a course card they lack (`roundsMissingCards`). */
-  missingCards: { label: string; course: string }[];
+  /**
+   * Playing rounds whose format needs a course card they lack (`roundsMissingCards`).
+   * `stageId` says WHICH round, so a round's own need (`RoundNeed`, J16) is the
+   * launch gate's fact and never a second reading of the card.
+   */
+  missingCards: { stageId: string; label: string; course: string }[];
   /** Tees with no rating under a round that scores off a handicap (`unratedTeesFact`); a launch warning only. */
   unratedTees?: UnratedTees | null;
   /** A knockout's draws and its play-off for third; null when there is no Bracket Stage. */
@@ -208,6 +212,12 @@ export interface NextAction {
   kind: NextKind;
   label: string;
   href: string;
+  /**
+   * The round it is about, for an action done on one round ("Generate Round 2
+   * pairings", "Set Week 3's day"): Rounds & formats opens that round rather
+   * than reloading itself (J16). Null for an action on the whole tournament.
+   */
+  roundId: string | null;
   enabled: boolean;
   /** Refused IN PLACE, with the reason. */
   disabledBecause: string | null;
@@ -226,6 +236,47 @@ export interface StatusWarning {
   afterLaunch: "open" | "unlock";
 }
 
+/**
+ * WHAT ONE ROUND STILL NEEDS (J16), in the order a round is set up: where (a
+ * course with a card), what (a format its type can score), when (a day or a
+ * deadline), then who meets whom (pairings) and who goes off when (tee times,
+ * which wait for entries). Each is the machine's own fact, so the strip on
+ * Rounds & formats says exactly what launch refuses and its dialog warns:
+ *
+ *   course / card  `missingCards` — the launch gate's card fact (holds)
+ *   format         `!scorable` — `roundShapeMismatch` (holds)
+ *   draw           a round robin not drawn and not fed by a cut, or a single
+ *                  match not made (holds); once live, the draw owed now
+ *   date           not `scheduled` (a day OR a deadline): asked of every round
+ *                  only when there is more than one (a one-round tournament's
+ *                  day is its dates); a league only of its NEXT unplayed week,
+ *                  which holds (J08) — later weeks are one warning, not a line each
+ *   teeSheet       `teeSheetSaved === false` (the dialog's own question), and
+ *                  only once somebody has entered: a tee sheet is drawn from the field
+ *
+ * A round that is played (a result) or closed needs nothing.
+ */
+export type RoundNeedKey = "course" | "card" | "format" | "draw" | "date" | "teeSheet";
+
+export interface RoundNeed {
+  key: RoundNeedKey;
+  /** Read after the round's name: "has no course card". */
+  missing: string;
+  /** What it costs, in the players' terms (the UX writer, 2 Nov): "players cannot see when they play". */
+  consequence: string;
+  /** Launch is refused while it is open. Only ever true while setting up. */
+  holds: boolean;
+  /** Where it is put right: the round itself on Rounds & formats, or the tee sheet. */
+  fix: "round" | "tee-sheet";
+}
+
+export interface StatusRound {
+  id: string;
+  label: string;
+  state: "not-started" | "under-way" | "closed";
+  needs: RoundNeed[];
+}
+
 export interface TournamentStatus {
   family: Family;
   step: Step;
@@ -238,8 +289,12 @@ export interface TournamentStatus {
   /** For `TournamentJourney` and `eventPhase`. */
   journey: "setup" | "launch" | "play" | "results";
   setup: { steps: StatusStep[]; done: number; of: number; current: StatusStep | null };
-  /** Each round's own step — D8's "has this round started", answered from results only. */
-  rounds: { id: string; label: string; state: "not-started" | "under-way" | "closed" }[];
+  /**
+   * Each round's own step — D8's "has this round started", answered from results only —
+   * and what that round still needs, by the same rules that hold launch and warn in its
+   * dialog (J16): the strip on Rounds & formats draws these, never a reading of its own.
+   */
+  rounds: StatusRound[];
   /** THE one button. Null only for a casual round, which is never on the home. */
   nextAction: NextAction | null;
   locks: Record<LockScope, Lock>;
@@ -410,6 +465,71 @@ function nextUnplayedWeek(f: TournamentFacts): RoundFacts | null {
   return f.rounds.find((r) => r.playing && isWeekly(r.type) && !r.closed && !r.hasResult) ?? null;
 }
 
+/**
+ * A ROUND WHOSE PAIRINGS ARE OWED — one rule for the launch gate's "no
+ * pairings" hold, the live tournament's "Generate Round N pairings" and the
+ * round's own need (J16). Before launch: a round that draws pairings, is not
+ * fed by a cut (its field is not known yet) and has no matches. Once live: the
+ * same, open, and a cut-fed round once the round before it is closed.
+ */
+function owesDraw(f: TournamentFacts, i: number, launched: boolean): boolean {
+  const r = f.rounds[i];
+  if (!r.drawsPairings || r.matches > 0) return false;
+  if (!launched) return !r.cutFed;
+  return r.playing && !r.closed && (!r.cutFed || (i > 0 && f.rounds[i - 1].closed));
+}
+
+/** A single match not made yet — a match's own hold (Golf Pro, 8.2). */
+function matchNotMade(f: TournamentFacts, family: Family): RoundFacts | null {
+  if (family !== "match") return null;
+  const first = f.rounds.find((r) => r.playing);
+  return first && first.type === "Single Match Stage" && first.matches === 0 ? first : null;
+}
+
+/** What each playing round still needs — see `RoundNeed`. */
+function roundNeedsOf(f: TournamentFacts, family: Family, launched: boolean): Map<string, RoundNeed[]> {
+  const out = new Map<string, RoundNeed[]>();
+  const week = family === "league" ? nextUnplayedWeek(f) : null;
+  const unmade = matchNotMade(f, family);
+  f.rounds.forEach((r, i) => {
+    if (!r.playing) return;
+    const needs: RoundNeed[] = [];
+    out.set(r.id, needs);
+    if (r.closed || r.hasResult) return;
+    const holds = !launched;
+    const card = f.missingCards.find((c) => c.stageId === r.id);
+    if (card) {
+      needs.push(
+        card.course
+          ? { key: "card", missing: "has no course card", consequence: "its cards cannot be scored", holds, fix: "round" }
+          : { key: "course", missing: "has no course", consequence: "its cards cannot be scored", holds, fix: "round" },
+      );
+    }
+    if (!r.scorable) {
+      needs.push({ key: "format", missing: "cannot be scored in the format it is set to", consequence: "its results cannot be worked out", holds, fix: "round" });
+    }
+    if (!r.scheduled) {
+      if (family === "league") {
+        // J08: only the next unplayed week needs a day; the later ones are the dialog's one warning.
+        if (week?.id === r.id) {
+          needs.push({ key: "date", missing: "has no day and no deadline", consequence: "nobody knows when to play it", holds, fix: "round" });
+        }
+      } else if (f.rounds.length > 1) {
+        needs.push({ key: "date", missing: "has no date", consequence: "players cannot see when they play", holds: false, fix: "round" });
+      }
+    }
+    if (owesDraw(f, i, launched)) {
+      needs.push({ key: "draw", missing: "has no pairings", consequence: "there are no matches to play", holds, fix: "round" });
+    } else if (unmade?.id === r.id) {
+      needs.push({ key: "draw", missing: "has no match made yet", consequence: "there is nothing to score", holds, fix: "round" });
+    }
+    if (r.teeSheetSaved === false && f.confirmed > 0) {
+      needs.push({ key: "teeSheet", missing: "has no tee times", consequence: "players cannot see when they start", holds: false, fix: "tee-sheet" });
+    }
+  });
+  return out;
+}
+
 interface Hold {
   href: string;
   refusal: string;
@@ -432,14 +552,12 @@ function familyHolds(f: TournamentFacts, family: Family): Hold[] {
           : "A knockout needs at least two players, and only one is entered. Add more on Entries, then launch.",
     });
   }
-  if (family === "match") {
-    const first = f.rounds.find((r) => r.playing);
-    if (first && first.type === "Single Match Stage" && first.matches === 0) {
-      holds.push({
-        href: "/stages",
-        refusal: `${first.label || "The match"} has no match made yet, so there is nothing to score. Make it on Rounds & formats, then launch.`,
-      });
-    }
+  const unmade = matchNotMade(f, family);
+  if (unmade) {
+    holds.push({
+      href: "/stages",
+      refusal: `${unmade.label || "The match"} has no match made yet, so there is nothing to score. Make it on Rounds & formats, then launch.`,
+    });
   }
   if (family === "league") {
     const week = nextUnplayedWeek(f);
@@ -490,15 +608,35 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
   if (!flow) return [];
   const playing = f.rounds.filter((r) => r.playing);
   const extra = (href: string) => holds.some((h) => h.href === href);
-  const undrawn = f.rounds.some((r) => r.drawsPairings && !r.cutFed && r.matches === 0);
+  const undrawnRounds = f.rounds.filter((_, i) => owesDraw(f, i, false));
+  const undrawn = undrawnRounds.length > 0;
+  const cupHolds = !!f.cup && f.cup.flights !== 2;
+  const teamsHold = f.teams.needed && !f.cup && f.teams.sides === 0;
+  /**
+   * WHERE "NO PAIRINGS" IS PUT RIGHT (PR 5c review). Pairings are generated on
+   * Rounds & formats (the round's own Generate button), and the gate says so:
+   * "Generate them on Rounds & formats, then launch". So once the flights are
+   * made, an undrawn round holds the ROUNDS step and the way out opens it —
+   * it held Flights, and the dashboard sent the organizer to a screen with no
+   * Generate button on it. With no flights yet the gate says "Make flights on
+   * Flights and generate the pairings", and Flights keeps the hold. And only
+   * once the gate's earlier refusals are answered (entries, sides, the cup's
+   * teams — `launchRefusal`'s order), so the way out names the screen the
+   * refusal names.
+   */
+  const drawOnRounds = undrawn && f.groups > 0 && f.confirmed >= 1 && !teamsHold && !cupHolds;
   const stepHolds: Record<string, boolean> = {
     event: !f.dated,
     stages:
-      playing.length < 1 || f.rounds.some((r) => !r.scorable) || f.missingCards.length > 0 || extra("/stages"),
+      playing.length < 1 ||
+      f.rounds.some((r) => !r.scorable) ||
+      f.missingCards.length > 0 ||
+      drawOnRounds ||
+      extra("/stages"),
     registration: f.confirmed < 1 || extra("/registration"),
-    cup: !!f.cup && f.cup.flights !== 2,
-    teams: f.teams.needed && !f.cup && f.teams.sides === 0,
-    grouping: undrawn || extra("/grouping"),
+    cup: cupHolds,
+    teams: teamsHold,
+    grouping: (undrawn && !drawOnRounds) || extra("/grouping"),
     money: false,
   };
   const shown = flow.steps.filter((s) => !(family === "match" && s.key === "grouping"));
@@ -529,8 +667,11 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
        */
       done =
         !holdsNow && (family === "league" || f.rounds.length === 1 || f.rounds.every((r) => r.scheduled));
-      if (holdsNow && f.missingCards.length > 0 && playing.length > 0 && f.rounds.every((r) => r.scorable)) {
+      const otherwiseReady = playing.length > 0 && f.rounds.every((r) => r.scorable);
+      if (holdsNow && f.missingCards.length > 0 && otherwiseReady) {
         missing = `${andList(f.missingCards.map((c) => c.label))} ${f.missingCards.length === 1 ? "has" : "have"} no course card to score against.`;
+      } else if (holdsNow && drawOnRounds && otherwiseReady && !extra("/stages")) {
+        missing = `${andList(undrawnRounds.map((r) => r.label || "A round"))} ${undrawnRounds.length === 1 ? "has" : "have"} no pairings — generate them on ${undrawnRounds.length === 1 ? "its" : "their"} round.`;
       } else if (holdsNow && family === "league") {
         const week = nextUnplayedWeek(f);
         if (week && !week.scheduled && f.rounds.every((r) => r.scorable) && f.missingCards.length === 0) {
@@ -712,7 +853,7 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
   let nextAction: NextAction | null = null;
   if (family !== "casual") {
     if (step === "completed") {
-      nextAction = { kind: "reopen", label: "Reopen tournament", href: DASHBOARD, enabled: true, disabledBecause: null, wayOut: null, asks: null };
+      nextAction = { kind: "reopen", label: "Reopen tournament", href: DASHBOARD, roundId: null, enabled: true, disabledBecause: null, wayOut: null, asks: null };
     } else if (step === "setting-up") {
       const enabled = refusals.launch === null;
       nextAction = {
@@ -722,6 +863,7 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
         // chip ("Setting up · results in") and the card's notice (`underWay`), never by the button.
         label: "Launch tournament",
         href: DASHBOARD,
+        roundId: null,
         enabled,
         disabledBecause: enabled ? null : refusals.launch,
         wayOut: enabled ? null : current ? { says: `Open ${current.label}`, href: current.href } : { says: "Open the dashboard", href: DASHBOARD },
@@ -730,10 +872,7 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
     } else {
       const owedDraw =
         step === "live"
-          ? f.rounds.find(
-              (r, i) =>
-                r.playing && r.drawsPairings && !r.closed && r.matches === 0 && (!r.cutFed || (i > 0 && f.rounds[i - 1].closed)),
-            )
+          ? f.rounds.find((_, i) => owesDraw(f, i, true))
           : undefined;
       const week = step === "live" && family === "league" ? nextUnplayedWeek(f) : null;
       if (owedDraw) {
@@ -741,19 +880,21 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
           kind: "draw",
           label: `Generate ${owedDraw.label || "the next round's"} pairings`,
           href: "/stages",
+          roundId: owedDraw.id,
           enabled: true,
           disabledBecause: null,
           wayOut: null,
           asks: null,
         };
       } else if (week && !week.scheduled) {
-        nextAction = { kind: "schedule", label: `Set ${week.label || "the next week"}’s day`, href: "/stages", enabled: true, disabledBecause: null, wayOut: null, asks: null };
+        nextAction = { kind: "schedule", label: `Set ${week.label || "the next week"}’s day`, href: "/stages", roundId: week.id, enabled: true, disabledBecause: null, wayOut: null, asks: null };
       } else {
         const enabled = refusals.complete === null;
         nextAction = {
           kind: "complete",
           label: "Complete tournament",
           href: DASHBOARD,
+          roundId: null,
           enabled,
           disabledBecause: enabled ? null : refusals.complete,
           wayOut: enabled ? null : COMPLETE_WAY_OUT,
@@ -806,6 +947,10 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
     });
   }
 
+  // Once play is over its rounds need nothing: a round never played will not be (completing closes
+  // it as not played), so it is not asked for a date or tee times it can no longer use.
+  const needsByRound = step === "play-over" || finished ? new Map<string, RoundNeed[]>() : roundNeedsOf(f, family, launched);
+
   const chip =
     step === "setting-up"
       ? `Setting up${underWayUnlaunched ? " · results in" : ""}`
@@ -825,7 +970,12 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
     setup: { steps, done: steps.filter((s) => s.done).length, of: steps.length, current },
     rounds: f.rounds
       .filter((r) => r.playing)
-      .map((r) => ({ id: r.id, label: r.label, state: r.closed ? "closed" : r.hasResult ? "under-way" : "not-started" })),
+      .map((r) => ({
+        id: r.id,
+        label: r.label,
+        state: r.closed ? "closed" : r.hasResult ? "under-way" : "not-started",
+        needs: needsByRound.get(r.id) ?? [],
+      })),
     nextAction,
     locks: locksOf(f, family),
     refusals,

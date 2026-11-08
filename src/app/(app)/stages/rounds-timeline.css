@@ -21,6 +21,10 @@
 .rt-hero-words { padding: 22px 24px; display: grid; gap: 4px; align-content: center; min-width: 0; }
 .rt-hero-where { margin: 0; font-size: 13px; color: var(--color-text-muted); overflow-wrap: anywhere; }
 .rt-hero .page-title { margin: 2px 0 0; }
+/* The tournament's step, as the context bar says it (state machine PR 5c): the shared chip, and the
+   line under "Play over". Layout only — the chip's colours are the shared `.tag-*`, measured below. */
+.rt-hero-step { margin: 8px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+.rt-hero-step-detail { overflow-wrap: anywhere; }
 .rt-hero-line { margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: var(--color-text); max-width: 60ch; }
 .rt-hero-facts {
   list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px;
