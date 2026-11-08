@@ -135,6 +135,8 @@ export const AREAS = {
       "e2e/stages-scoring-setup.spec.ts",
       // The timeline and its side panel, behind `?view=timeline` (the rehaul's step 1 guards).
       "e2e/rounds-panel.spec.ts",
+      // The two presses that do not wait for their answer (J51).
+      "e2e/presses-that-are-not-awaited.spec.ts",
       // Step 2, "Course day": the guided "Needs you", the four sections, the docked panel.
       "e2e/rounds-timeline.spec.ts",
       "e2e/rounds-and-formats.spec.ts",
@@ -293,6 +295,8 @@ export const FULL_ONLY = [
   "e2e/dialog.spec.ts",
   "e2e/discount-code.spec.ts",
   "e2e/event-setup-calm.spec.ts",
+  // The worlds the shared fixture lacks: a second theme, a cut set not made, an assistant, a finished cup, three flights (J52).
+  "e2e/fixture-states.spec.ts",
   // The card, the public board and the handicap working: shared ground, as honest-card and boards-by-the-rules.
   "e2e/every-figure-explains-itself.spec.ts",
   "e2e/faq-blocks.spec.ts",
