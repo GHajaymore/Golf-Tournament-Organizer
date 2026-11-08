@@ -267,14 +267,36 @@ describe("the demo club is left out of what is about real clubs — each with a 
     expect(counts.recentOrgs.map((o) => o.id), "CONTROL: a new real club is not among the newest").toContain(real.orgId);
     expect(counts.liveEvents.map((e) => e.id)).not.toContain(demo.eventId);
     expect(counts.liveEvents.map((e) => e.id), "CONTROL: a real live tournament is not live right now").toContain(real.eventId);
-    // The totals: the same with the demo's own rows taken away, and different without the real club.
-    const all = await prisma.organization.count();
-    const demos = await prisma.organization.count({ where: { isDemo: true } });
-    expect(counts.totalOrgs).toBe(all - demos);
-    const players = await prisma.player.count();
-    const demoPlayers = await prisma.player.count({ where: { event: { organization: { isDemo: true } } } });
-    expect(demoPlayers).toBeGreaterThan(0);
-    expect(counts.totalPlayers).toBe(players - demoPlayers);
+    // The totals: the same with the demo's own rows taken away. ownerCounts() reads its figures
+    // in separate queries, so a writer outside this run (another test file, another worktree on
+    // the one development database) can move a global count between the two readings. So the
+    // expected figures are taken in ONE REPEATABLE-READ snapshot, once before and once after
+    // ownerCounts(); the equality is asserted only when the two snapshots agree (nothing moved
+    // while it ran) and the reading is retried otherwise. The guarantee is unchanged: totals
+    // equal everything minus the demo's rows, and a demo that was NOT excluded would differ in
+    // every attempt. Never a tolerance, never a skip.
+    const expectedTotals = () =>
+      prisma.$transaction(
+        async (tx) => {
+          const all = await tx.organization.count();
+          const demos = await tx.organization.count({ where: { isDemo: true } });
+          const players = await tx.player.count();
+          const demoPlayers = await tx.player.count({ where: { event: { organization: { isDemo: true } } } });
+          return { totalOrgs: all - demos, totalPlayers: players - demoPlayers, demoPlayers };
+        },
+        { isolationLevel: "RepeatableRead" },
+      );
+    let settled: { read: Awaited<ReturnType<typeof ownerCounts>>; expected: Awaited<ReturnType<typeof expectedTotals>> } | null = null;
+    for (let attempt = 0; attempt < 8 && !settled; attempt++) {
+      const before = await expectedTotals();
+      const read = await ownerCounts();
+      const after = await expectedTotals();
+      if (before.totalOrgs === after.totalOrgs && before.totalPlayers === after.totalPlayers) settled = { read, expected: before };
+    }
+    expect(settled, "the database kept changing under the reading (8 attempts): another writer is busy").not.toBeNull();
+    expect(settled!.expected.demoPlayers).toBeGreaterThan(0);
+    expect(settled!.read.totalOrgs).toBe(settled!.expected.totalOrgs);
+    expect(settled!.read.totalPlayers).toBe(settled!.expected.totalPlayers);
   });
 
   it("interest counts: a row on the demo's domain is not counted; any other is", async () => {
