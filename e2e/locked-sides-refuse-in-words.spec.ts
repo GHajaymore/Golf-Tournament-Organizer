@@ -170,12 +170,14 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
       {
         label: "Handicap allowance",
         words: /^Handicap allowance/,
+        control: "Handicap allowance percent",
         set: async (card: ReturnType<typeof page.locator>) => card.getByLabel("Handicap allowance percent").fill("90"),
         said: "Locked because the tournament is live. Make a committee correction to change a round’s handicap allowance.",
       },
       {
         label: "Scores that count",
         words: /^Scores that count/,
+        control: "How many scores count on each hole",
         set: async (card: ReturnType<typeof page.locator>) => {
           await card.getByLabel("How many scores count on each hole").selectOption({ label: "best 2 of 2" });
         },
@@ -188,7 +190,12 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
       await changeBeside(card, step.words).click();
       await step.set(card);
       await setupUnlocked(false);
-      await card.getByRole("button", { name: "Save", exact: true }).click();
+      // The Save beside THIS setting's box, not any Save on the card: a team round's card can hold
+      // more than one editor, and a card-wide "Save" would be ambiguous (strict mode) or the wrong one.
+      // `has` is matched from inside each div, so the inner locator must not start at the card
+      // (`card.getByLabel(...)` looks for a card INSIDE the div and never matches): start at the page.
+      const editor = card.locator("div", { has: page.getByLabel(step.control) }).last();
+      await editor.getByRole("button", { name: "Save", exact: true }).click();
       const said = card.getByText(step.said);
       await expect(said, `${step.label}: the refusal was not said on the round's card`).toBeVisible({ timeout: 20_000 });
       await expect(said, `${step.label}: the refusal is not in view`).toBeInViewport();

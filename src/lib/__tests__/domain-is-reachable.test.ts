@@ -227,6 +227,15 @@ const KNOWN_DEAD: string[] = [
   // through it; PR 9 deletes it with the other dead twins.
   // `the-actions-ask-the-machine.test.ts` keeps it out of the actions.
   "lib/services/setup-flow.ts:launchCheckFor",
+  // PR 6: the secretary's home, the player switcher's note, the public event
+  // page and the Tournaments list read the machine's step (`nextAction`,
+  // `tournamentStepsFor`). These three were their own answers; kept, uncalled,
+  // as the shadow test's record of what was asked before, and deleted with the
+  // other dead twins in PR 9. `the-tournament-is-asked-one-way.test.ts` refuses
+  // them to every screen and to the four readers' own files.
+  "lib/domain/lifecycle-state.ts:datesPassedUnlaunched",
+  "lib/domain/lifecycle-state.ts:tournamentPhase",
+  "lib/domain/tournament-switcher.ts:playOverOf",
 ];
 
 const dead: Dead[] = [];

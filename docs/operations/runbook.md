@@ -96,7 +96,10 @@ credentials.
 
 **The freeze** is a tournament on today, by the club's own clock (a round dated today, or a tournament
 of at most a week whose dates take in today), or **Saturday or Sunday 05:00-14:00 in any club's time zone**
-(`src/lib/domain/deploy-window.ts`). Demo clubs are left out. The app answers the question itself at
+(`src/lib/domain/deploy-window.ts`). Demo clubs are left out. **That is the rule once accounts are
+live (Ajay, 2026-11-06):** until 20 Nov 2026 (`FREEZE_RESUMES`) the freeze is off, and from then while
+sign-ins are held only a pilot club (somebody on `SIGNIN_ALLOW_EMAILS` is its staff) playing today
+freezes, never a weekend morning. The `reason` says which rule applied. The app answers the question itself at
 `/api/deploy-window`, returning only `{frozen, reason}`:
 
 ```bash
@@ -114,10 +117,13 @@ so in the summary. During an event, treat "not checked" as "frozen" and hold mer
 the clubs to finish. It overrides only the freeze: a core change still needs a clean nightly round
 (run the Nightly round by hand; about forty minutes).
 
-**Event days.** The Florida event is on a Sunday and Monday (29 and 30 Nov). The weekend rule covers the
-Sunday morning. The "tournament on today" rule covers both days **only if the event has its dates or round
-dates entered**, so the Organizer must enter them during setup from 14 Nov (To confirm: that the event
-shows as frozen on `/api/deploy-window` once dated). A separate program hold on changes around the event
+**Event days.** The Florida event is on a Sunday and Monday (29 and 30 Nov). Before launch the weekend rule
+is OFF (2026-11-06), so the "tournament on today" rule is the only cover, and it covers both days **only if
+the club is a pilot club and the event has its dates or round dates entered**: the Organizer's address
+must be on `SIGNIN_ALLOW_EMAILS` and they must be the club's Commissioner or Admin, or an Organizer on the
+event, and they must enter the dates during setup (To confirm: that the event shows as frozen on
+`/api/deploy-window` once dated — the reason then begins "sign-ins are held: only pilot clubs count, and 1
+pilot club is playing"). A separate program hold on changes around the event
 is planned; its dates are not settled in the repository (see To confirm below).
 
 Other gate failures that are not the code (`deploy-history.md`): an invalid `VERCEL_TOKEN` (run

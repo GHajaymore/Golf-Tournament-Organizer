@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { deployWindow, onToday, clockIn, LONGEST_TOURNAMENT_DAYS } from "@/lib/domain/deploy-window";
+import { deployWindow, deployWindowFor, onToday, clockIn, LONGEST_TOURNAMENT_DAYS, HELD_RULE, LIVE_RULE, FREEZE_RESUMES, FREEZE_OFF } from "@/lib/domain/deploy-window";
+import { signInAllowList } from "@/lib/sign-in-gate";
 
 /**
  * THE DEPLOY FREEZE (the testing panel, 2026-10-23). A deploy waits while any
@@ -69,6 +70,132 @@ describe("whether a deploy may go now", () => {
   it("reads the weekday, hour and minute of a zone as numbers", () => {
     expect(clockIn("Pacific/Auckland", SAT_EVENING_UTC)).toEqual({ weekday: 0, hour: 9, minute: 30 });
     expect(clockIn("America/Los_Angeles", SAT_EVENING_UTC)).toEqual({ weekday: 6, hour: 13, minute: 30 });
+  });
+});
+
+/**
+ * BEFORE LAUNCH THE FREEZE GUARDS ONLY PILOT CLUBS (Ajay, 2026-11-06). While production holds
+ * sign-ins only the owners and the people let in by name can sign in, though round codes and public
+ * boards still work — so a real event an owner runs by round code can be on today, and by the
+ * owner's ruling it does not hold a deploy. Held: only a pilot club playing today freezes, and the
+ * weekend morning is off. Live: exactly the rule above, the answer saying which rule it was.
+ * And before 20 November 2026 (`FREEZE_RESUMES`) nothing freezes at all, held or live.
+ *
+ * These instants are AFTER the resume, as the rule's own are not (October 2026).
+ */
+// Tuesday 2026-12-01 at 12:00 UTC: a weekday at every club below.
+const DEC_TUESDAY_NOON_UTC = new Date("2026-12-01T12:00:00Z");
+// Saturday 2026-12-05 at 20:30 UTC: Sunday 09:30 in Auckland (summer time), Saturday evening in London.
+const DEC_SAT_EVENING_UTC = new Date("2026-12-05T20:30:00Z");
+
+const PILOT = "zz-club-pilot";
+const OWNERS = "zz-club-owners";
+const pilots = new Set([PILOT]);
+const at = (clubId: string, over: Partial<{ timeZone: string; startOn: string; endOn: string; playedOn: string[] }>) => ({ clubId, ...event(over) });
+
+describe("the freeze is off until 20 November 2026 (Ajay, 6 Nov)", () => {
+  const MINUTE = 60_000;
+  const before = new Date(FREEZE_RESUMES.getTime() - MINUTE);
+  const after = new Date(FREEZE_RESUMES.getTime() + MINUTE);
+  // A pilot club on UTC playing on the 19th: on today on both sides of the resume (09:59 and 10:01 UTC).
+  const pilotPlaying = [at(PILOT, { timeZone: "UTC", playedOn: ["2026-11-19"] })];
+
+  it("resumes at 20 November 00:00 in the earliest zone on Earth — 19 November 10:00 UTC", () => {
+    expect(FREEZE_RESUMES.toISOString()).toBe("2026-11-19T10:00:00.000Z");
+    expect(clockIn("Pacific/Kiritimati", FREEZE_RESUMES)).toEqual({ weekday: 5, hour: 0, minute: 0 });
+  });
+
+  it("held: a pilot club playing is not frozen a minute before, and is frozen a minute after", () => {
+    expect(deployWindowFor("held", before, ["UTC"], pilotPlaying, pilots)).toEqual({ frozen: false, reason: FREEZE_OFF });
+    const w = deployWindowFor("held", after, ["UTC"], pilotPlaying, pilots);
+    expect(w.frozen).toBe(true);
+    expect(w.reason.startsWith(HELD_RULE)).toBe(true);
+  });
+
+  it("live: a club playing is not frozen a minute before, and is frozen a minute after", () => {
+    expect(deployWindowFor("live", before, ["UTC"], pilotPlaying, new Set())).toEqual({ frozen: false, reason: FREEZE_OFF });
+    const w = deployWindowFor("live", after, ["UTC"], pilotPlaying, new Set());
+    expect(w.frozen).toBe(true);
+    expect(w.reason.startsWith(LIVE_RULE)).toBe(true);
+  });
+
+  it("off means off: a weekend morning and every club playing, live, before the resume", () => {
+    const owners = [at(OWNERS, { timeZone: "Pacific/Auckland", playedOn: ["2026-10-25"] })];
+    expect(deployWindowFor("live", SAT_EVENING_UTC, ["Pacific/Auckland"], owners, pilots)).toEqual({ frozen: false, reason: FREEZE_OFF });
+    // CONTROL: the live rule itself froze exactly that.
+    expect(deployWindow(SAT_EVENING_UTC, ["Pacific/Auckland"], owners).frozen).toBe(true);
+  });
+});
+
+describe("held or live: which clubs freeze a deploy", () => {
+  const TUESDAY_NOON_UTC = DEC_TUESDAY_NOON_UTC;
+  const SAT_EVENING_UTC = DEC_SAT_EVENING_UTC;
+
+  it("held: a pilot club playing today freezes, and says so by the held rule — zones, never a name", () => {
+    const w = deployWindowFor("held", TUESDAY_NOON_UTC, ["Europe/London"], [at(PILOT, { timeZone: "America/New_York", playedOn: ["2026-12-01"] })], pilots);
+    expect(w.frozen).toBe(true);
+    expect(w.reason.startsWith(HELD_RULE)).toBe(true);
+    expect(w.reason).toBe(`${HELD_RULE}, and 1 pilot club is playing: 1 tournament is being played today in the club's own time (America/New_York)`);
+    expect(w.reason).not.toContain(PILOT);
+  });
+
+  it("held: the count of pilot clubs playing reads right with more than one", () => {
+    const two = new Set([PILOT, "zz-club-pilot-2"]);
+    const rows = [at(PILOT, { playedOn: ["2026-12-01"] }), at(PILOT, { playedOn: ["2026-12-01"] }), at("zz-club-pilot-2", { timeZone: "America/New_York", playedOn: ["2026-12-01"] })];
+    expect(deployWindowFor("held", TUESDAY_NOON_UTC, [], rows, two).reason).toBe(
+      `${HELD_RULE}, and 2 pilot clubs are playing: 3 tournaments are being played today in the club's own time (America/New_York, Europe/London)`,
+    );
+    expect(deployWindowFor("held", TUESDAY_NOON_UTC, [], rows, pilots).reason).toContain("1 pilot club is playing: 2 tournaments are");
+  });
+
+  it("held: the owners' own club playing today does NOT freeze; live, the same tournament does", () => {
+    const owners = [at(OWNERS, { playedOn: ["2026-12-01"] })];
+    const held = deployWindowFor("held", TUESDAY_NOON_UTC, ["Europe/London"], owners, pilots);
+    expect(held.frozen).toBe(false);
+    expect(held.reason).toBe(`${HELD_RULE}, and none is playing today (1 pilot club); weekend mornings are not frozen before launch`);
+    // CONTROL: live, every club counts — the very same rows freeze.
+    const live = deployWindowFor("live", TUESDAY_NOON_UTC, ["Europe/London"], owners, pilots);
+    expect(live.frozen).toBe(true);
+    expect(live.reason.startsWith(LIVE_RULE)).toBe(true);
+  });
+
+  it("held: a pilot club's tournament on ANOTHER day does not freeze — the pilot is a club, not a pass", () => {
+    expect(deployWindowFor("held", TUESDAY_NOON_UTC, [], [at(PILOT, { playedOn: ["2026-12-02"] })], pilots).frozen).toBe(false);
+  });
+
+  it("held: a weekend morning in a club's zone does not freeze; live, it does", () => {
+    // Sunday 09:30 in Auckland, as in the live rule's own case above.
+    const held = deployWindowFor("held", SAT_EVENING_UTC, ["Europe/London", "Pacific/Auckland"], [], pilots);
+    expect(held.frozen).toBe(false);
+    expect(held.reason).toContain("weekend mornings are not frozen before launch");
+    const live = deployWindowFor("live", SAT_EVENING_UTC, ["Europe/London", "Pacific/Auckland"], [], pilots);
+    expect(live.frozen).toBe(true);
+    expect(live.reason).toContain("Pacific/Auckland");
+  });
+
+  it("held with no pilot club at all: nothing freezes, and the answer says there is none", () => {
+    const w = deployWindowFor("held", SAT_EVENING_UTC, ["Pacific/Auckland"], [at(OWNERS, { timeZone: "Pacific/Auckland", playedOn: ["2026-12-06"] })], new Set());
+    expect(w).toEqual({
+      frozen: false,
+      reason: `${HELD_RULE}, and there is none (nobody let in by name, other than an owner, is staff at a real club); weekend mornings are not frozen before launch`,
+    });
+  });
+
+  it("live is the live rule word for word, after the words that name it", () => {
+    for (const [when, zones, rows] of [
+      [TUESDAY_NOON_UTC, ["Europe/London"], []],
+      [TUESDAY_NOON_UTC, ["Europe/London"], [at(PILOT, { playedOn: ["2026-12-01"] }), at(OWNERS, { timeZone: "America/New_York", startOn: "2026-12-01" })]],
+      [SAT_EVENING_UTC, ["Pacific/Auckland"], []],
+    ] as const) {
+      const live = deployWindowFor("live", when, [...zones], [...rows], new Set());
+      const rule = deployWindow(when, [...zones], [...rows]);
+      expect(live).toEqual({ frozen: rule.frozen, reason: `${LIVE_RULE} — ${rule.reason}` });
+    }
+  });
+
+  it("the allow-list is read by the sign-in gate's one parser", () => {
+    expect(signInAllowList({ SIGNIN_ALLOW_EMAILS: " Zz-Pilot@Example.invalid , ,zz-two@example.invalid" })).toEqual(["zz-pilot@example.invalid", "zz-two@example.invalid"]);
+    expect(signInAllowList({})).toEqual([]);
   });
 });
 

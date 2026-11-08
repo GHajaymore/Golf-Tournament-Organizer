@@ -37,6 +37,10 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<DirectorySearchHit[] | null>(null);
   const [error, setError] = useState("");
+  /** Plain words when the live lookup was down; the paste box below still works. */
+  const [lookupNotice, setLookupNotice] = useState("");
+  /** The query already sent to the extra lookup by a press, so one question costs one request. */
+  const [askedMore, setAskedMore] = useState("");
   /** What the last import did, in the club's terms. */
   const [note, setNote] = useState<{ kind: "ok" | "partial"; text: string } | null>(null);
   const [busyId, setBusyId] = useState("");
@@ -60,7 +64,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
    */
   const seq = useRef(0);
 
-  const search = () => {
+  const search = (more = false) => {
     const q = query.trim();
     setError("");
     setNote(null);
@@ -69,10 +73,11 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
       return;
     }
     const mine = (seq.current += 1);
+    if (more) setAskedMore(q);
     startTransition(async () => {
       // The catalogue first: free, instant, and it holds the course most of
       // the time.
-      let res = await searchCourseDirectory(q, true);
+      let res = more ? await searchCourseDirectory(q, false, true) : await searchCourseDirectory(q, true);
       if (mine !== seq.current) return;
 
       /**
@@ -88,7 +93,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
        * and only once the typing has settled — one metered request per
        * unanswered question, not one per keystroke.
        */
-      if (res.ok && (res.hits ?? []).length === 0) {
+      if (!more && res.ok && (res.hits ?? []).length === 0) {
         res = await searchCourseDirectory(q, false);
         if (mine !== seq.current) return;
       }
@@ -99,6 +104,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
         return;
       }
       setHits(res.hits ?? []);
+      setLookupNotice(res.notice ?? "");
       // A new list means the old highlight pointed at a different course.
       setActive(-1);
     });
@@ -120,7 +126,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
       setError("");
       return;
     }
-    const t = setTimeout(search, 300);
+    const t = setTimeout(() => search(), 300);
     return () => clearTimeout(t);
     // `search` is stable enough for this: it reads `query` from the same
     // render this effect belongs to.
@@ -236,7 +242,15 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
         // to stop trying.
         <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           Nothing matching that. Try fewer letters — &ldquo;heathe&rdquo; finds Heatherwoode — or the
-          town it is in. Or paste your card below; it takes about twenty seconds.
+          town it is in. Or paste your card below; it takes about twenty seconds.{lookupNotice ? ` ${lookupNotice}` : ""}
+          {askedMore !== query.trim() && (
+            <>
+              {" "}
+              <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => search(true)}>
+                Search more courses
+              </button>
+            </>
+          )}
         </p>
       )}
 
@@ -278,7 +292,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
                       but the club has a card to enter before they can score
                       a round there, and finding that out after adding it is
                       the wrong moment. */}
-                  {h.par > 0 ? ` · par ${h.par}` : " · no card yet"}
+                  {h.par > 0 ? ` · par ${h.par}` : h.id.startsWith("gca:") ? "" : " · no card yet"}
                 </span>
               </span>
               {h.inLibrary ? (
@@ -301,9 +315,11 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
           {/* ODbL 1.0 permits commercial use WITH attribution, so this is a
               condition of using the data rather than a courtesy — which is why
               it sits with the results instead of in a footer nobody reads. */}
-          <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
-            {DIRECTORY_ATTRIBUTION}
-          </p>
+          {hits.some((h) => !h.id.startsWith("gca:")) && (
+            <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
+              {DIRECTORY_ATTRIBUTION}
+            </p>
+          )}
         </div>
       )}
     </div>

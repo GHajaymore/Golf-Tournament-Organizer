@@ -1498,7 +1498,8 @@ export function RegistrationClient({
  * "Promoted 2 days ago", beside a player who came off the waitlist.
  *
  * The organizer's half of the promise the registration email makes. The player
- * is asked to say within 48 hours if they can no longer play; this is how
+ * is asked to say if they can no longer play (within 48 hours, or sooner
+ * when the round is near); this is how
  * somebody notices that they have not, and picks up the phone.
  *
  * It is a prompt to chase, never a status. The player is in the field either
@@ -1540,7 +1541,7 @@ function PromotedBadge({ promotedAt }: { promotedAt?: string | null }) {
       title={
         overdue
           ? "Promoted off the waitlist and not heard from since — worth a call to confirm they are playing."
-          : "Promoted off the waitlist. They were asked to say within 48 hours if they cannot play."
+          : "Promoted off the waitlist. They were asked to tell you if they cannot play."
       }
       style={{
         marginLeft: 8,

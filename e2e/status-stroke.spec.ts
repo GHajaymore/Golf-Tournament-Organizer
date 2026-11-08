@@ -89,6 +89,8 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
       chipDetail: "Every round closed · results not released",
       nextAction: "Complete tournament",
       refused: null,
+      // The secretary's home offers the dashboard's own next action, in its words (PR 6).
+      home: { text: "Every round closed · results not released", action: "Complete tournament" },
       setup: null,
       journey: "Play",
     });

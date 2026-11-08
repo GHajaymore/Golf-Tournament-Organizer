@@ -116,7 +116,12 @@ describe("the dashboard asks the rules where they are kept", () => {
     expect(service).toMatch(/awaitingApproval\(entrants\)/);
     expect(service).toMatch(/state\.nextUnplayedRound/);
     expect(service).toMatch(/state\.boardProgress\.certified/);
-    expect(service).toMatch(/playOverOf\(e\.stages\)/);
+    // Each tournament's step and next action are the machine's (state machine PR 6): the club in
+    // one batch, the open tournament from the request's own answer — never decided here.
+    expect(service).toMatch(/tournamentFactsForMany\(others, today\)/);
+    expect(service).toMatch(/tournamentStatusFor\(session\.eventId, today\)/);
+    expect(service).toMatch(/statusOf\.set\(id, tournamentStatus\(f\)\)/);
+    expect(service).not.toMatch(/playOverOf|isLaunched/);
   });
 
   it("Entries reads its awaiting list through the same rule", () => {

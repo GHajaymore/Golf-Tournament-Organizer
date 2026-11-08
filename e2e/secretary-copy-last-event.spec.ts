@@ -8,8 +8,10 @@ import { prisma, makeClub, dropClub, makeEvent, returnCard, signIn, signInWith, 
  *   what's next    the club's jobs on the console's home, one line each; the
  *                  button on another tournament's line OPENS that tournament on
  *                  the screen that does the job — here Entries, with the entry
- *                  that is waiting on it
- *   copy last      last summer's medal copied from the home with a new first
+ *                  that is waiting on it; and a live round robin's next action
+ *                  (the machine's: "Generate Round 2 pairings") opens IT on
+ *                  Rounds & formats, a screen on `JOB_SCREENS` since PR 6
+ *   copy last     last summer's medal copied from the home with a new first
  *                  day: what came across and what did not, FIELD BY FIELD
  *                  against the source row; the copy's sign-up link, once
  *                  published, is a NEW address; the original is exactly as it
@@ -94,6 +96,24 @@ test("what's next opens the right tournament on the right screen, and copy last 
       data: { eventId: autumn.event.id, name: "Wren Halloran-Pike", email: `${mark}-w@example.invalid`, handicap: 14.2, seed: 9, status: "pending" },
     });
 
+    // ── The winter singles, live: Round 1 played and closed, Round 2 not drawn yet ──
+    // The machine's next action for it is "Generate Round 2 pairings" (state machine PR 6).
+    const winter = await makeEvent(club, "Winter Singles", {
+      status: "live",
+      stages: [
+        { type: "Round Robin", format: "Match Play" },
+        { type: "Round Robin", format: "Match Play" },
+      ],
+      players: 4,
+      flights: 1,
+    });
+    const [a, b, c, d] = winter.players;
+    const won = JSON.stringify([...Array(10).fill("A"), ...Array(8).fill("H")]);
+    for (const [round, [x, y]] of [[a, b], [c, d]].entries()) {
+      await prisma.match.create({ data: { eventId: winter.event.id, stageId: winter.stages[0].id, groupId: winter.flights[0].id, round: round + 1, playerAId: x.id, playerBId: y.id, holes: won } });
+    }
+    await prisma.stage.update({ where: { id: winter.stages[0].id }, data: { closedAt: new Date() } });
+
     // ── Next door, an entry waiting that is nobody here's business ──
     const theirs = await makeEvent(nextDoor, "Next Door Open", { status: "registration", stages: [{}], players: 1 });
     await prisma.player.create({ data: { eventId: theirs.event.id, name: "Zz Neighbour", email: `${mark}-nd-n@example.invalid`, handicap: 9, seed: 2, status: "pending" } });
@@ -121,6 +141,20 @@ test("what's next opens the right tournament on the right screen, and copy last 
       await page.waitForURL(/\/registration/, { timeout: 30_000 });
       // The FOURSOMES are open now, on Entries, with the entry that was waiting.
       await expect(page.locator("main"), "the button did not open the tournament the job is in").toContainText(waiting.name);
+    });
+
+    await test.step("what's next: another tournament's next action opens it on Rounds & formats (PR 6)", async () => {
+      await open(page, "/dashboard");
+      const next = page.getByRole("region", { name: "What's next" });
+      // The machine's next action for the winter singles, as its own dashboard would offer it.
+      const line = next.locator('[data-job="draw"]').filter({ hasText: winter.event.name });
+      await expect(line).toContainText("The next round is not drawn yet");
+      const go = line.getByRole("button", { name: /Generate Round 2 pairings/ });
+      await centre(go);
+      await go.click();
+      // `enterTournament` with a job's screen: the winter singles open, on Rounds & formats.
+      await page.waitForURL(/\/stages/, { timeout: 30_000 });
+      await expect(page.locator(".event-context-bar"), "the button did not open the tournament the job is in").toContainText(winter.event.name);
     });
 
     // Five days ahead at the club: the medal took entries from 12 days before its first day to 3 days

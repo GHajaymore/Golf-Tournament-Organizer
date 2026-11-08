@@ -315,6 +315,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Open Events.",
       "Tap the button on the tournament you want.",
       "Today, Board and My card all follow it.",
+      "The one being played says Playing now.",
+      "Play complete means the golf is over.",
     ],
   },
   {
