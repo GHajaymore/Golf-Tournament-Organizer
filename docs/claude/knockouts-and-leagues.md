@@ -145,3 +145,51 @@ and all wrong. `matchCountbackIndex` (`course-resolution.ts`) is the one answer,
 taking the venue as a required argument; readers get it through
 `countbackCardsFor` / `state.countbackCardFor`. The long form is in
 `combination-sweep.md`, point 7.
+
+## A table's ties: decided over the whole level GROUP, never pair by pair
+
+**THREE PLAYERS WHO BEAT EACH OTHER IN A CIRCLE SHARE THE PLACE** (2026-11-07;
+registered by the J31 review). `rankPlayers` ordered players level on points by
+the group's mini-league, but decided whether two NEIGHBOURS shared a place by
+asking that pair's own meeting. Bea b Cat, Cat b Dot, Dot b Bea, all level: each
+neighbouring pair had a winner, so the table read 2, 3, 4 in ENTRY order, and a
+round robin's cut on countback sent the earliest entry through where the
+committee owed a draw. The other way about, a group the mini-league DID separate
+(+1, 0, -1) shared a place wherever the neighbours had halved their own meeting.
+The league of clubs (`orderClubs`) sorted on the pairwise meeting outright — an
+intransitive comparator, so a cycle came out in whatever order `Array.sort` reached
+and seeded the play-offs that way.
+
+`domain/level-places.ts` (`placesOfLevelGroup`, `placeByPointsThenSteps`) is now the
+one rule, for players and clubs alike: everybody level on points is ONE group; each
+step of the committee's chain ("Level in the table") is asked of the group;
+head-to-head is the mini-league among only the tied, asked AGAIN of any part it
+leaves level. The mini-league is matches won less matches lost against the others
+in the group, and a match not yet played counts for nothing — an unplayed match
+cannot be held against anybody — so in a round robin still being played, a
+player who has not met the others sits BETWEEN those who won their meetings and
+those who lost them. A cycle goes on to the next step together; once a later
+step is reached the chain goes on down and does not start again; whoever the
+chain cannot separate SHARES the place. A handicap on an untouched chain and the
+seed still ORDER a shared place — they never make one. Every reader of a player
+table gets it through `rankPlayers` (the board, the cut via `roundRobinCutOutcome`
+→ `cutLineOutcome`, the week view, the export, the report); the head-to-head screen
+(`services/head-to-head.ts`) is a record of meetings, not a ranking, and reads
+`decidedOutcome` as before.
+
+Three things to carry forward:
+
+- **A cycle is ordinary in a round robin, not an edge case.** Test a tie with
+  THREE players level, never two: for two, the pair's meeting and the group's
+  mini-league are the same answer, which is why every two-player test passed
+  the pairwise rule.
+- **Run a ranking test in every entry order.** The fault was entry order deciding
+  a place; a fixture entered in one order cannot see it. The cells in
+  `a-head-to-head-cycle-shares-the-place.test.ts` run every permutation, the
+  matrix runs two, and `properties-round-robin-cut-tie.test.ts` holds places to
+  any entry order under any chain.
+- **One rule, one place, with a sweep.** A `case "head-to-head"` in a file that
+  does not use `level-places.ts` is refused, with a control of the old shape.
+  The audit (`the-board-and-the-draw-agree-on-a-cut.audit.test.ts`) puts the
+  cycle at a real cut line and holds the board and the draw to the same draw for
+  the one place.

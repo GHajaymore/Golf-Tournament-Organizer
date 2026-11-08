@@ -863,6 +863,93 @@ describe("standings, at every field size", () => {
     const stats = aggregateStats([], [], DEFAULT_SCORING);
     expect(rankPlayers([], stats, DEFAULT_SCORING, [])).toEqual([]);
   });
+
+  /**
+   * A HEAD-TO-HEAD CYCLE, at every field size it fits in (2026-11-07).
+   *
+   * The decisive round robin above, with ONE result turned round: the player
+   * at window+2 beats the player at window. Worked by hand: in the decisive
+   * table the three hold W, W-1 and W-2 wins; turning the one meeting round
+   * gives each of them W-1 — level on points — and their meetings now go in a
+   * circle (w b w+1, w+1 b w+2, w+2 b w). Every match is 10&8 (ten holes
+   * won), and each of the three won and lost the same NUMBER of matches, so
+   * hole difference and holes lost are level too. Nothing they did separates
+   * them: Committee Procedures 5A(6) leaves the committee's chain to decide,
+   * and the chain runs out — they SHARE place w+1. Everyone else keeps their
+   * own position. Run in two entry orders, so a ranking that falls back on
+   * the seed shows as two different boards.
+   *
+   * Under the pairwise rule this cell read w+1, w+2, w+3: each neighbouring
+   * pair had a winner.
+   */
+  const flip = (matches: Match[], winner: string, loser: string): Match[] =>
+    matches.map((m) =>
+      m.playerAId === loser && m.playerBId === winner
+        ? { ...m, holes: new Array(18).fill("B") as Match["holes"] }
+        : m.playerAId === winner && m.playerBId === loser
+          ? { ...m, holes: new Array(18).fill("A") as Match["holes"] }
+          : m,
+    );
+  const reseeded = (players: Player[]) => players.map((p, i) => ({ ...p, seed: players.length - i }));
+  const rankOf = (players: Player[], matches: Match[]) =>
+    Object.fromEntries(
+      rankPlayers(players, aggregateStats(players, matches, DEFAULT_SCORING), DEFAULT_SCORING, matches).map((r) => [
+        r.player.id,
+        r.rank,
+      ]),
+    );
+
+  for (const n of FIELD_SIZES.filter((s) => s >= 3)) {
+    it(`a three-way head-to-head cycle in a field of ${n} shares the place`, () => {
+      const players = field(n);
+      const w = Math.floor((n - 3) / 2);
+      const [x, y, z] = [players[w].id, players[w + 1].id, players[w + 2].id];
+      const matches = flip(decisive(players), z, x);
+      const expected = Object.fromEntries(
+        players.map((p, i) => [p.id, i >= w && i <= w + 2 ? w + 1 : i + 1]),
+      );
+      expect(rankOf(players, matches), `${x} b ${y}, ${y} b ${z}, ${z} b ${x}`).toEqual(expected);
+      expect(rankOf(reseeded(players), matches), "entered the other way round").toEqual(expected);
+    });
+  }
+
+  /**
+   * A FOUR-PLAYER PARTIAL CYCLE: one of four level players beat the other
+   * three, who go round in a circle among themselves. A window of six inside
+   * the decisive table (everyone above beats all six, everyone below loses to
+   * all six, so the window's own results decide it). Within the window, every
+   * win 10&8:
+   *   A  b B, C, D; lost E, F                   3 wins
+   *   B  b C, E, F; lost A, D                   3 wins ┐
+   *   C  b D, E, F; lost A, B                   3 wins ├ B b C, C b D, D b B
+   *   D  b B, E, F; lost A, C                   3 wins ┘
+   *   E  b A, F                                 2 wins
+   *   F  b A                                    1 win
+   * A, B, C, D level. Their mini-league: A +3, B, C, D -1 each — A first.
+   * Asked again of B, C, D alone: 0, 0, 0, a cycle; each won 3 and lost 2
+   * matches, so hole difference and holes lost are level: they share the next
+   * place. Then E, then F.
+   */
+  for (const n of FIELD_SIZES.filter((s) => s >= 6)) {
+    it(`a four-player partial cycle in a field of ${n}: one on top, three sharing the next place`, () => {
+      const players = field(n);
+      const w = Math.floor((n - 6) / 2);
+      const [A, B, C, D, E, F] = players.slice(w, w + 6).map((p) => p.id);
+      // Decisive already has A b B, C, D, E, F; B b C, D, E, F; C b D, E, F; D b E, F; E b F.
+      let matches = decisive(players);
+      for (const [winner, loser] of [[E, A], [F, A], [D, B]] as const) matches = flip(matches, winner, loser);
+      const expected = Object.fromEntries(
+        players.map((p, i) => {
+          const at = i - w;
+          if (at === 0) return [p.id, w + 1];
+          if (at >= 1 && at <= 3) return [p.id, w + 2];
+          return [p.id, i + 1];
+        }),
+      );
+      expect(rankOf(players, matches), `${A} on top; ${B}, ${C}, ${D} in a circle`).toEqual(expected);
+      expect(rankOf(reseeded(players), matches), "entered the other way round").toEqual(expected);
+    });
+  }
 });
 
 /**
