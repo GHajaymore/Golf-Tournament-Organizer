@@ -5,6 +5,7 @@ import { setRoundClosed, settleCutTie } from "@/app/actions/tournament";
 import { bringIntoView } from "@/lib/bring-into-view";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { RoundCloseAsk } from "./RoundCloseAsk";
 import { useAction } from "./useAction";
 
 /**
@@ -61,8 +62,25 @@ export function CutReadyCard({
   /** Ties at the line the committee settles here — decided or not. */
   ties?: CutTieOnCard[];
 }) {
-  const { pending, error, run } = useAction();
+  const { pending, error, setError, startTransition } = useAction();
   const waiting = ties.filter((t) => t.chosen.length === 0);
+  /**
+   * THE THIRD DOOR THAT CLOSES A ROUND (state machine PR 4), so it hears the
+   * same question the other two do (`RoundCloseAsk`). On a cut it should never
+   * come: the cut's refusal waits for every card to be final first. But the
+   * card is drawn from one read and pressed after another — the cut switched
+   * off in a second tab, and this is a plain close — so the question is
+   * answered here rather than shown as an error nobody can act on.
+   */
+  const [asking, setAsking] = useState("");
+  const close = (confirmUnsigned = false) =>
+    startTransition(async () => {
+      setError("");
+      setAsking("");
+      const res = await setRoundClosed(feederId, true, confirmUnsigned);
+      if (res.needsUnsignedConfirm) setAsking(res.error ?? "");
+      else if (!res.ok) setError(res.error ?? "Couldn't save that.");
+    });
 
   return (
     <section
@@ -98,8 +116,8 @@ export function CutReadyCard({
           title={`Approve the cut after ${feederName}`}
           confirmLabel="Make the cut"
           note={`${through} go through to ${nextName}. You can re-open ${feederName} on Rounds & formats to correct a card.`}
-          disabled={pending || waiting.length > 0}
-          onConfirm={() => run(() => setRoundClosed(feederId, true))}
+          disabled={pending || waiting.length > 0 || !!asking}
+          onConfirm={() => close()}
           style={{ minHeight: 44 }}
         />
         <Link href="/leaderboard" className="btn btn-secondary" style={{ minHeight: 44 }}>
@@ -112,6 +130,7 @@ export function CutReadyCard({
           <Icon name="warning-circle" /> The cut waits on the tie above: record who went through, and this button opens.
         </p>
       )}
+      {asking && <RoundCloseAsk question={asking} pending={pending} onClose={() => close(true)} onKeepOpen={() => setAsking("")} />}
       {error && (
         <p className="form-error" role="alert" ref={bringIntoView}>
           <Icon name="warning-circle" /> {error}

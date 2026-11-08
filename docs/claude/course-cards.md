@@ -41,3 +41,48 @@ So before adding or tightening a card rule:
    omitted the par-3 exemption reported three good courses as failures. Judge pars and
    stroke index only: pass an empty yards array, exactly as `revalidateStored` does, or the
    range check on yardage takes good scoring data down with it.
+
+## GolfCourseAPI is on demand only (Ajay, 7 Nov 2026: "Switch it off")
+
+The provider's terms forbid compiling its dataset. The walk (`importGcaSlice`, the 676-term search list,
+`scripts/import-golfcourseapi.ts`) is **deleted**, not parked. The one daily cron (`api/cron/course-catalogue`) walks
+OpenGolfAPI only (open data, ODbL, credited beside results) and must never reach `golfcourseapi-live.ts`;
+`golfcourseapi-on-demand.test.ts` fails if it does, or if a GolfCourseAPI importer comes back.
+
+What it does now (`services/golfcourseapi-live.ts`, called from `services/course-directory.ts`):
+
+- **Search**: the stored catalogue first; then the open directory (OpenGolfAPI); only when both have nothing, ONE
+  GolfCourseAPI search for what the organizer typed (never while typing as you go: `localOnly` asks no network).
+  Hits are ids `gca:<id>`. It shares the per-person hourly budget (`directoryBudget`) with every other live door.
+- **Pick**: `fetchDirectoryCourse("gca:..", live)` fetches that ONE course, judges it with `cardRefusal` (`gcaCard`) and
+  upserts it into `CourseCatalog`, so the next club asks us. A refused card is stored as its reason, never as a
+  card, and never blanks a card already held. Re-check against source (`fetchLiveDirectoryCourse`) reads without storing.
+- **Down or slow**: a 6 second timeout; any failure returns the plain-words notice (`GCA_UNAVAILABLE_NOTICE`) and
+  never throws, and the paste box and manual entry stay beside it. No `GOLFCOURSE_API_KEY` means silence, not a notice.
+- Courses already stored (`gca:` rows) stay. The key is configuration: never log it, never put one in a test.
+
+## Loading the catalogue into production (J29, 2026-11-06)
+
+Nobody holds production's database credentials (CLAUDE.md), so the dev catalogue reaches production
+through the app, by the owner:
+
+1. `DOTENV_CONFIG_PATH=<main checkout>/.env npx tsx scripts/export-catalogue.ts [outDirOrFile]` reads the
+   LOCAL dev database only (it refuses any other host) and writes ONE JSON file outside the repo
+   (default `Documents/Apps/Golf Tournament App/catalogue-exports/`; it refuses a path inside the repo).
+2. On `/owner`, the **Course catalogue** card takes that file. The browser checks the format/version and
+   sends it in chunks (`chunkRows`: 100 rows and 600 KB at most per request, under a server action's 1 MB
+   body limit); the server (`loadCourseCatalogue`, owner only, `services/catalogue-load.ts`) judges every row
+   with `judgeRow` (`domain/catalogue-load.ts`), which calls `cardRefusal`.
+3. **Never delete: a usable stored row is never touched, an unusable one is filled, and an empty value
+   never replaces a stored one.** A refused card is SKIPPED and counted, never stored blank. The card
+   reports loaded / updated / unchanged / skipped / refused (gca) and keeps one audit line per load
+   (the last 30) in `PlatformSetting` `catalogue-load-log`.
+4. **`gca:` rows are never exported and never loaded** (GolfCourseAPI's terms forbid compiling its
+   dataset; Ajay). Refused by id, before anything else is read, and counted apart. Only OpenGolfAPI
+   (ODbL, credit required — `DIRECTORY_ATTRIBUTION`, shown on the card and beside every catalogue search).
+5. Measured 2026-11-06: of the dev rows with an empty `cardProblem`, 334 carry a stroke index of all zeros
+   (a placeholder `catalogueRefusal` keeps on purpose, `cardRefusal` refuses). They are not exported, so
+   production receives the cards that pass the strict rule: that is the point of the load.
+
+Tests: `catalogue-load.test.ts` (judgement), `catalogue-load.audit.test.ts` (real rows),
+`e2e/owner-catalogue-load.spec.ts` (the owner's press).

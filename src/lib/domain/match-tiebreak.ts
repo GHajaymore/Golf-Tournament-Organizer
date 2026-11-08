@@ -69,9 +69,11 @@ export const MATCH_TIEBREAK_BLURBS: Record<MatchTiebreakKey, string> = {
   "last-6": "Who won more of the last six.",
   "last-3": "Who won more of the last three.",
   "last-1": "Who won the 18th. The last step of the countback, and rarely decisive on its own.",
-  "toughest-6": "Who won more of the six hardest holes on the card, by stroke index.",
+  // The card is the one the match was PLAYED on — an away match's own course
+  // (J26, `matchCountbackIndex`), so the words say so.
+  "toughest-6": "Who won more of the six hardest holes, by the stroke index of the course the match was played on.",
   "toughest-3": "Who won more of the three hardest holes.",
-  "toughest-1": "Who won stroke index 1 — the hardest hole on the course.",
+  "toughest-1": "Who won stroke index 1 — the hardest hole on the course the match was played on.",
   "sudden-death": "Played off on the course. The app records the result rather than computing it.",
 };
 

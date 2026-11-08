@@ -19,6 +19,8 @@ import { golfTermsForEvent } from "@/lib/services/organization";
 import { isMatch } from "@/lib/tournament-shape";
 import { formatDeadline } from "@/lib/deadline";
 import { eventLinks, eventPhase, eventSections, finalReportReady, type EventSection } from "@/lib/domain/event-page";
+import { tournamentStepsFor } from "@/lib/services/tournament-facts";
+import { todayForEvent } from "@/lib/services/club-clock";
 
 /**
  * THE EVENT PAGE — ONE LINK A SECRETARY SENDS BEFORE AND AFTER THE DAY (2026-10-24).
@@ -85,19 +87,17 @@ export default async function PublicEventPage({ params }: { params: Promise<{ to
 
   const board = await liveBoard(event.id);
   if (!board) notFound();
-  const [cup, entries, scoredRows] = await Promise.all([
+  const today = await todayForEvent(event.id);
+  const [cup, entries, steps] = await Promise.all([
     cupBoard(event.id),
     // Null unless the entry link is open and taking entries — the form's own judgement.
     openRegistrationView(event.registrationToken ?? ""),
-    // Any result anywhere: a stroke card, a side's card, a knockout tie.
-    Promise.all([
-      prisma.scorecard.count({ where: { eventId: event.id } }),
-      prisma.teamScorecard.count({ where: { eventId: event.id } }),
-      prisma.bracketWinner.count({ where: { eventId: event.id } }),
-    ]).then((counts) => counts.reduce((a, b) => a + b, 0)),
+    // Where it is — the state machine's step (PR 6), on the club's own day: any round's result,
+    // a match's holes and a knockout's ties included, moves it to "during" (D2).
+    tournamentStepsFor(new Map([[event.id, today]])),
   ]);
 
-  const phase = eventPhase(event.status, scoredRows > 0);
+  const phase = eventPhase(steps.get(event.id)?.journey ?? "setup");
   const reportReady = finalReportReady({
     status: event.status,
     casual: isMatch(event.shape),

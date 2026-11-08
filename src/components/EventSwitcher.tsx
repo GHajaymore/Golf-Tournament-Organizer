@@ -8,13 +8,18 @@ import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape"
 import { Icon } from "./Icon";
 import { CopyDayFields } from "./CopyDayFields";
 import { useOrgProfile } from "./OrgProfileProvider";
-import { STATUS_META } from "@/lib/format";
 import { bringIntoView } from "@/lib/bring-into-view";
 
 export interface EventRow {
   id: string;
   name: string;
-  status: string;
+  /**
+   * The status word and its tone — the state machine's chip (`listWordOf`, PR 6),
+   * or "Dates passed, not launched" by the machine's own warning. Worked out on
+   * the server and only drawn here: this list held a copy of the chip's words
+   * (`STATUS_META`) and a test of the dates of its own.
+   */
+  word: { label: string; tag: string };
   dates: string;
   course: string;
   players: number;
@@ -39,8 +44,6 @@ export interface EventRow {
    * used to be.
    */
   isCasual?: boolean;
-  /** Not launched, and its last day has gone by at the club (`datesPassedUnlaunched`). */
-  datesPassed?: boolean;
   /**
    * How it is told apart from another tournament of the same name — its dates the club's way,
    * and "#2" where they are shared too (`tellApart`). Empty when its name is its own.
@@ -50,11 +53,6 @@ export interface EventRow {
 
 /** Said where the bin is pressed by somebody who may not delete (`deleteEvent`'s one refusal). */
 const ONLY_THE_ORGANIZER = "Only an organizer of this tournament can delete it.";
-
-// The status words are the chip's own (`STATUS_META`) — this list had a second
-// copy that said "Registration" and "Ready" where the chip said something else.
-const STATUS = STATUS_META;
-const DATES_PASSED = { label: "Dates passed, not launched", tag: "tag-outline" };
 
 export function EventSwitcher({
   events,
@@ -200,8 +198,7 @@ export function EventSwitcher({
           </thead>
           <tbody>
             {tournaments.map((e) => {
-              // "Draft" a month after the last day is what the column holds, not what is true.
-              const s = e.datesPassed ? DATES_PASSED : (STATUS[e.status] ?? STATUS.draft);
+              const s = e.word;
               return (
                 <tr key={e.id} style={e.isActive ? { background: "var(--color-accent-900)" } : undefined}>
                   <td style={{ fontWeight: 500 }}>

@@ -1,7 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "../db";
-import { roundLabel } from "../domain/round-label";
+import { roundKicker, roundLabel } from "../domain/round-label";
+import { cardsNotFinal } from "../domain/cut-ready";
+import { allowsAutoConfirm } from "../tournament-settings";
 import { roundIsScheduled, type SetupFacts } from "../domain/setup-flow";
 import { roundShapeMismatch } from "../domain/round-shape";
 import { isMoneyMode } from "../domain/money-mode";
@@ -11,21 +13,24 @@ import { storedMatchIsOver } from "../domain/match";
 import { bracketDraws } from "../domain/my-tie";
 import { isFinished, isLaunched } from "../domain/lifecycle-state";
 import { roundsWithResultsFrom } from "../domain/rounds-with-results";
+import { stepOf, type TournamentStep } from "../domain/tournament-step";
 import {
   drawFacts,
   setupFactsOf,
+  tournamentStatus,
+  type RoundCloseFacts,
   type RoundFacts,
   type SetupSideFacts,
   type TournamentFacts,
 } from "../domain/tournament-status";
-import { isMatch } from "../tournament-shape";
+import { isMatch, reviewsScores } from "../tournament-shape";
 import { isAttendanceMode, tracksPerRound } from "../domain/attendance";
 import { generatesPairings, isKnockoutRound, isPlayingRound } from "../stage-types";
 import { TEAM_FORMAT_NAMES } from "../formats";
 import { roundsMissingCards } from "./round-card-lines";
 import { teesInPlayFor } from "./handicaps";
 import { unratedTeesFact } from "../domain/launch-check";
-import { loadEventState } from "./tournament";
+import { loadEventState, settingsOf } from "./tournament";
 import { cupBoard } from "./cup";
 
 /**
@@ -91,6 +96,37 @@ export async function tournamentFactsForMany(eventIds: readonly string[], today:
   return out;
 }
 
+/**
+ * THE STEP ALONE, FOR SEVERAL TOURNAMENTS (state machine PR 6) — the
+ * Tournaments list's word, the player switcher's note and the public event
+ * page's phase. Each tournament is told ITS club's day (`days`: id → day), as
+ * a list may span clubs in two zones.
+ *
+ * The same batch and the same rule — `tournamentStatus` of the facts — with
+ * the two reads the step never asks left out, so a list of forty tournaments
+ * does not pay for forty launch checks:
+ *
+ *   the setup checks   the course cards and the tees (`roundsMissingCards`,
+ *                      `teesInPlayFor`) hold launch or warn about it; they
+ *                      never move a tournament from one step to another
+ *   the review queue   pending and disputed results refuse Complete; play is
+ *                      over or not whatever they hold
+ *
+ * So the whole state is built only for a live KNOCKOUT, whose Final decides
+ * play over (D3) and whose draws are the standings', and the cup board only
+ * for a live cup. What comes back is the step and nothing else (`stepOf`):
+ * the facts behind it are not complete enough to refuse anything with, so
+ * they never leave this function.
+ */
+export async function tournamentStepsFor(days: ReadonlyMap<string, string>): Promise<Map<string, TournamentStep>> {
+  const core = await readCore([...days.keys()], { setupChecks: false });
+  const out = new Map<string, TournamentStep>();
+  for (const [id, c] of core) {
+    out.set(id, stepOf(tournamentStatus(await withLiveFacts(id, c, days.get(id) ?? "", { review: false }))));
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------- the batch */
 
 interface Core {
@@ -141,7 +177,7 @@ function counts(rows: ReadonlyArray<{ eventId: string; _count: number }>): (id: 
   return (id) => m.get(id) ?? 0;
 }
 
-async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>> {
+async function readCore(eventIds: readonly string[], opts: { setupChecks: boolean } = { setupChecks: true }): Promise<Map<string, Core>> {
   const ids = [...new Set(eventIds)];
   const out = new Map<string, Core>();
   if (ids.length === 0) return out;
@@ -227,7 +263,10 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
       prisma.matchScorecard.findMany({ where: inEvents, select: { eventId: true, matchId: true, slot: true, strokes: true } }),
       prisma.bracketWinner.groupBy({ by: ["eventId"], where: inEvents, _count: true }),
       // The launch gate's card fact, from the same reader the launch action refuses on.
-      Promise.all(found.map(async (id) => [id, await roundsMissingCards(id)] as const)).then((pairs) => new Map(pairs)),
+      // Not asked for the step alone (`tournamentStepsFor`): a missing card holds launch, it never moves a step.
+      opts.setupChecks
+        ? Promise.all(found.map(async (id) => [id, await roundsMissingCards(id)] as const)).then((pairs) => new Map(pairs))
+        : new Map<string, Awaited<ReturnType<typeof roundsMissingCards>>>(),
     ]);
 
   const stagesOf = byEvent(stageRows);
@@ -242,7 +281,7 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
   };
   // ONE batch of tee reads for every tournament that has a round off a handicap
   // (not one query per tournament), resolved by the one tee resolver.
-  const needTees = events.filter((e) => roundsOf(e.id).some((r) => r.scoringBasis !== "gross"));
+  const needTees = opts.setupChecks ? events.filter((e) => roundsOf(e.id).some((r) => r.scoringBasis !== "gross")) : [];
   const inPlay = await teesInPlayFor(needTees);
   const unratedOf = new Map(
     needTees.map((e) => {
@@ -342,10 +381,51 @@ async function readCore(eventIds: readonly string[]): Promise<Map<string, Core>>
   return out;
 }
 
+/**
+ * ONE ROUND, AS CLOSING IT IS JUDGED (`roundCloseCheck`, state machine PR 4):
+ * who in the field has a card in it that is not final yet, and how many of its
+ * cards and match results are disputed. Null when the round is not in this
+ * tournament.
+ *
+ * Read when the committee closes a round, never on a screen's every load: it
+ * names people, which no tournament-wide count does. The field is the
+ * CONFIRMED field, as the cut's refusal reads it (`strokeCutRefusal`): a
+ * withdrawn player's card stays on the record and is nobody's result. Which
+ * cards are final is `cardsNotFinal`, the cut's own split, under the club's
+ * own answer to "does the committee accept cards" (`allowsAutoConfirm`).
+ */
+export async function roundCloseFactsFor(eventId: string, stageId: string): Promise<RoundCloseFacts | null> {
+  const [event, stages] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: { id: true, type: true, position: true, description: true } }),
+  ]);
+  const stage = stages.find((s) => s.id === stageId);
+  if (!event || !stage) return null;
+  const [field, cards, disputedMatches] = await Promise.all([
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true } }),
+    prisma.scorecard.findMany({ where: { eventId, stageId }, orderBy: { id: "asc" }, select: { playerId: true, status: true, strokes: true } }),
+    prisma.match.count({ where: { eventId, stageId, scoreStatus: "disputed" } }),
+  ]);
+  const names = new Map(field.map((p) => [p.id, p.name]));
+  const staffApproves = !allowsAutoConfirm(settingsOf(event));
+  const split = cardsNotFinal(
+    cards.filter((c) => names.has(c.playerId)),
+    staffApproves,
+  );
+  return {
+    label: roundKicker(stage.description, roundLabel(stages, stage.id) || "This round"),
+    // Nobody signs a casual round's card (`reviewsScores`), so nothing in one waits on a signature.
+    unsigned: reviewsScores(event.shape) ? split.pending.map((c) => names.get(c.playerId) ?? "A player") : [],
+    staffApproves,
+    disputed: split.disputed.length + disputedMatches,
+  };
+}
+
 /** The three facts only a live tournament's whole state knows — see the note on `tournamentFactsFor`. */
-async function withLiveFacts(eventId: string, c: Core, today: string): Promise<TournamentFacts> {
+async function withLiveFacts(eventId: string, c: Core, today: string, opts: { review: boolean } = { review: true }): Promise<TournamentFacts> {
   const live = isLaunched(c.facts.status) && !isFinished(c.facts.status);
-  const state = live ? await loadEventState(eventId) : null;
+  // For the step alone the review queue is not asked, so the state is built only for a knockout's draws.
+  const state = live && (opts.review || c.hasBracket) ? await loadEventState(eventId) : null;
 
   let cupDecided: boolean | null = null;
   if (c.hasCup && live) {

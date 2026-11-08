@@ -324,7 +324,16 @@ export async function upsertMember(
   const newGhin = (input.ghin ?? "").trim();
   const mayRecordIndex =
     refuseHandByHand(policy, asked, { handicap: 0, ghin: newGhin }, body) === null;
-  const created = await prisma.member.create({
+  /**
+   * TWO PRESSES AT ONCE (J46). Both found no roster row and both came here; the
+   * club's unique address index let the first create stand and refused the
+   * second, which surfaced as a server error to someone who only double tapped.
+   * The loser takes the row the winner made, which is what it would have found
+   * had it arrived a moment later. Only an address can collide (the index is on
+   * it), so only an address is looked up.
+   */
+  const createdRow = await prisma.member
+    .create({
     data: {
       organizationId,
       name,
@@ -346,8 +355,16 @@ export async function upsertMember(
           ? input.handicapSource!
           : "manual",
     },
-  });
-  return created.id;
+    })
+    .catch(async (err: unknown) => {
+      const duplicateAddress =
+        !!email && typeof err === "object" && err !== null && (err as { code?: string }).code === "P2002";
+      if (!duplicateAddress) throw err;
+      const winner = await prisma.member.findFirst({ where: { organizationId, email }, select: { id: true } });
+      if (!winner) throw err;
+      return winner;
+    });
+  return createdRow.id;
 }
 
 /**

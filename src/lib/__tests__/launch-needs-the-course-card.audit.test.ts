@@ -130,7 +130,12 @@ describe("launch and the course card", () => {
   it("CONTROL: gross match play needs no card and launches without one", async () => {
     await tournament({ format: "Match Play", scoringBasis: "gross" });
     expect((await roundCardLines(eventId))[0].status).toBe("not-needed");
-    expect((await launchTournament()).ok).toBe(true);
+    // A knockout needs two players (Golf Pro, panel 8.2), which the launch action
+    // asks since the state machine's PR 4 — the button already did.
+    await prisma.player.create({
+      data: { eventId, name: `${TAG} Quin`, email: `${TAG.toLowerCase()}-q-${Math.random()}@example.invalid`, handicap: 12, seed: 2, status: "confirmed" },
+    });
+    expect(await launchTournament()).toEqual({ ok: true });
   });
 
   /**
