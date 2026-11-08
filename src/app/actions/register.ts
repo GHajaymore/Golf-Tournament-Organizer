@@ -194,6 +194,14 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
    * guarded the same way.
    */
   const placed = await withEventIntakeLock(event.id, async (tx) => {
+    // De-duplicated AGAIN, under the lock (J46). The check above is the cheap
+    // early answer; this one is the guarantee, because two taps arriving
+    // together both pass the first. The second queues here and finds the row.
+    const again = await tx.player.findFirst({
+      where: { eventId: event.id, ...byAddress(person.email) },
+      select: { id: true },
+    });
+    if (again) return null;
     const freshCount = await tx.player.count({
       where: { eventId: event.id, status: "confirmed" },
     });
@@ -239,6 +247,8 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
     });
     return d;
   });
+  // The same answer the early check gives: already down, nothing created.
+  if (!placed) return { ok: true, already: true };
 
   /**
    * A new entrant changes the field, so the public board must be recomputed.

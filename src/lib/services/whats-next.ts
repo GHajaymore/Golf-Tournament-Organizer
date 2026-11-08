@@ -8,8 +8,10 @@ import { todayForEvent } from "./club-clock";
 import { formattingForEvent } from "./organization";
 import { awaitingApproval, parseDeadlineIso } from "../registration";
 import { whatsNext, type ClubJob, type TournamentJobFacts } from "../domain/needs-you-now";
-import { playOverOf } from "../domain/tournament-switcher";
-import { isFinished, isLaunched } from "../domain/lifecycle-state";
+import { isFinished } from "../domain/lifecycle-state";
+import { tournamentStatus, type TournamentStatus } from "../domain/tournament-status";
+import { tournamentFactsForMany } from "./tournament-facts";
+import { tournamentStatusFor } from "./tournament-status";
 import { roundLabel } from "../domain/round-label";
 import { isPlayingRound } from "../stage-types";
 import { TEAM_SESSION } from "./cup";
@@ -74,6 +76,7 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
       status: true,
       regDeadline: true,
       startOn: true,
+      endOn: true,
       archivedAt: true,
       createdAt: true,
       stages: { select: { type: true, closedAt: true } },
@@ -108,8 +111,27 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
   for (const p of awaitingApproval(entrants)) waitingIn.set(p.eventId, (waitingIn.get(p.eventId) ?? 0) + 1);
   const hasField = new Set(entrants.filter((p) => p.status === "confirmed").map((p) => p.eventId));
 
+  /**
+   * EACH TOURNAMENT'S STEP AND NEXT ACTION ARE THE MACHINE'S (state machine PR
+   * 6): `tournamentStatus` of the facts, read for the whole club in one batch
+   * (`tournamentFactsForMany`, the grouped read PR 2 measured on this home).
+   * The open tournament is the one the layout and the dashboard have already
+   * asked (`tournamentStatusFor`, request-cached on the same club day), so it
+   * is not read twice.
+   */
+  const others = running.filter((e) => e.id !== session.eventId).map((e) => e.id);
+  const [opened, batch] = await Promise.all([
+    running.some((e) => e.id === session.eventId) ? tournamentStatusFor(session.eventId, today) : null,
+    tournamentFactsForMany(others, today),
+  ]);
+  const statusOf = new Map<string, TournamentStatus>();
+  if (opened) statusOf.set(session.eventId, opened.status);
+  for (const [id, f] of batch) statusOf.set(id, tournamentStatus(f));
+
   const tournaments: TournamentJobFacts[] = [];
   for (const e of running) {
+    const status = statusOf.get(e.id);
+    if (!status) continue;
     const facts: TournamentJobFacts = {
       eventId: e.id,
       name: e.name,
@@ -117,7 +139,9 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
       entriesClose: parseDeadlineIso(e.regDeadline),
       nextSheet: null,
       board: null,
-      resultsWaiting: isLaunched(e.status) && playOverOf(e.stages),
+      status,
+      startOn: e.startOn,
+      endOn: e.endOn,
     };
     /**
      * THE ROUND FACTS ARE THE TOURNAMENT'S OWN STATE — `loadEventState`, the

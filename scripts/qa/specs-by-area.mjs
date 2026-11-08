@@ -107,9 +107,13 @@ export const AREAS = {
       "src/components/OwnerLimits.tsx",
       "src/components/OwnerPricing.tsx",
       "src/components/OwnerDemoClub.tsx",
+      "src/components/OwnerCatalogue.tsx",
+      "scripts/export-catalogue.ts",
+      "src/lib/domain/catalogue-load.ts",
+      "src/lib/services/catalogue-load.ts",
       "src/app/actions/owner.ts",
     ],
-    specs: ["e2e/owner-console.spec.ts", "e2e/owner-console-refusals.spec.ts", "e2e/go-live-switch.spec.ts", "e2e/interest.spec.ts", "e2e/demo-club.spec.ts"],
+    specs: ["e2e/owner-console.spec.ts", "e2e/owner-catalogue-load.spec.ts", "e2e/owner-console-refusals.spec.ts", "e2e/go-live-switch.spec.ts", "e2e/interest.spec.ts", "e2e/demo-club.spec.ts"],
     scenarios: [],
     // The demo club replays its days.
     dateSensitive: true,
@@ -269,6 +273,8 @@ export const FULL_ONLY = [
   "e2e/access.spec.ts",
   "e2e/account.spec.ts",
   "e2e/an-address-is-proved.spec.ts",
+  // J26: an away week's halved match on the away card — leaderboard, week sheet, match record. Leagues: shared ground.
+  "e2e/an-away-halve-on-the-away-card.spec.ts",
   "e2e/boards-by-the-rules.spec.ts",
   "e2e/casual-round-kept.spec.ts",
   "e2e/casual-round.spec.ts",
@@ -366,6 +372,8 @@ export const FULL_ONLY = [
   "e2e/slow-signal-scoring.spec.ts",
   "e2e/staff-kept-cards.spec.ts",
   // The state machine's family walks (PR 3): the core lifecycle every tournament goes through.
+  // PR 4: each action that now asks the machine, pressed once in the state it refuses (launch, complete, close a round, every door into scoring).
+  "e2e/status-actions-refuse.spec.ts",
   "e2e/status-casual.spec.ts",
   "e2e/status-four-ball-match-board.spec.ts",
   "e2e/status-knockout-flights.spec.ts",
@@ -376,6 +384,7 @@ export const FULL_ONLY = [
   "e2e/status-stableford.spec.ts",
   "e2e/status-stroke.spec.ts",
   "e2e/status-team-cup.spec.ts",
+  "e2e/status-team-match-result-line.spec.ts",
   "e2e/team-cup.spec.ts",
   "e2e/teams-and-pairs.spec.ts",
   "e2e/the-boards-agree.spec.ts",

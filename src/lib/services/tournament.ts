@@ -10,7 +10,7 @@ import {
 } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
-import { COURSE_REF, roundCard } from "./course-resolution";
+import { COURSE_REF, countbackCardsFor, roundCard } from "./course-resolution";
 import {
   survivors,
   strokeCutOutcome,
@@ -58,7 +58,6 @@ import { reviewQueue, type ReviewQueue } from "../domain/review-queue";
 import { bracketDraws, openTieReport } from "../domain/my-tie";
 import { parseFlightPlan, planAgainstField, type FlightPlan } from "../domain/bracket-flights";
 import { isLaunched, resultsIn } from "../domain/lifecycle-state";
-import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
 import { clubDay, clubToday } from "../domain/club-clock";
 import { zoneOfOrganization } from "./club-clock";
@@ -765,6 +764,15 @@ export interface EventState {
    */
   strokeCourseFor: (stageId: string) => { pars: number[]; holeDifficulty: number[] };
   /**
+   * THE STROKE INDEX A MATCH'S TOUGHEST HOLES ARE RANKED ON — the card it was
+   * played on (match venue, then its round's, then the tournament's, on the
+   * nine it was played over), from `countbackCardsFor` (J26). What the
+   * standings, the week view and the head-to-head record decide a halved
+   * match on, so the three cannot disagree and none reads the tournament's
+   * card for an away match.
+   */
+  countbackCardFor: (m: { id: string }) => number[];
+  /**
    * HOW MANY PLAYERS THIS ROUND'S CARDS ARE OWED BY — an individual stroke
    * round's field, the denominator of its "Cards in N/M" — or null for a round
    * counted in another unit (sides, matches, ties, or scored by hand).
@@ -930,8 +938,12 @@ export function chainRoundStandings(
   matches: DbMatch[],
   domainPlayers: Player[],
   scoring: ScoringRules,
-  /** Stroke index per hole (1 = hardest), for the "toughest N holes" tiebreakers. */
-  holeDifficulty?: number[],
+  /**
+   * EACH MATCH'S OWN CARD for the "toughest N holes" steps — `countbackCardsFor`
+   * (course-resolution.ts), never the tournament's one card (J26). Required,
+   * and a function of the match, so no caller can hand every match one card.
+   */
+  countbackCard: (m: { id: string }) => number[],
   /** How an all-square match is decided, in order. */
   matchTiebreakers: MatchTiebreakKey[] = [],
 ): RankedPlayer[][] {
@@ -942,7 +954,7 @@ export function chainRoundStandings(
     // A result in dispute is held off the standings (`onBoard`, domain/board-hold.ts).
     const stageMatches = matches.filter((m) => m.stageId === stage.id).map(onBoard).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
-    const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
+    const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, countbackCard, matchTiebreakers);
     perStage.push(overall);
     const next = rrStages[i + 1];
     // Points carry only between rounds counted in the same unit. Across a
@@ -1435,8 +1447,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // standings; a single Round Robin stage behaves exactly as before.
   const rrStages = roundRobinStages(stages);
   const domainPlayers = confirmed.map((p) => toDomainPlayer(p, hcpOf(p)));
-  const course = resolveCourse(event);
-  const holeDifficulty = course.strokeIndex;
+  /**
+   * EACH MATCH'S OWN CARD for its toughest-holes countback (J26) — the venue
+   * it was played on, not the tournament's. `countbackCardsFor` is the one
+   * answer; the week view and the head-to-head record read it off this state.
+   */
+  const countbackCardFor = countbackCardsFor(event, stages, matches, (id) => venuesById.get(id) ?? null);
 
   const playRounds = playingStages(stages);
   const activeRrIdx = currentRoundIndex(rrStages, matches);
@@ -1480,10 +1496,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     const stageMatches = matches.filter((m) => m.stageId === stage.id).map(onBoard).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
 
-    overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
+    overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, countbackCardFor, matchTiebreakers);
     groupStandings = groups.map((g) => {
       const gp = confirmed.filter((p) => p.groupId === g.id).map((p) => toDomainPlayer(p, hcpOf(p)));
-      const ranked = computeStandings(gp, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
+      const ranked = computeStandings(gp, stageMatches, scoring, carryIn, countbackCardFor, matchTiebreakers);
       return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
     });
     activeDomainMatches = stageMatches;
@@ -3145,6 +3161,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       });
     },
     strokeCourseFor: courseFor,
+    countbackCardFor,
     roundFieldSize: (stageId: string) => {
       const s = stages.find((x) => x.id === stageId);
       if (!s || isManualFormat(s.format) || needsTeams(s.format) || boardKind(s.format) === "nassau") return null;

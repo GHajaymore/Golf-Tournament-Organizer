@@ -6,11 +6,14 @@ import { organizationsForOrganizer } from "@/lib/services/organization";
 import { EventSwitcher } from "@/components/EventSwitcher";
 import { isMatch } from "@/lib/tournament-shape";
 import { orgProfile } from "@/lib/domain/org-profile";
-import { datesPassedUnlaunched } from "@/lib/domain/lifecycle-state";
 import { clubToday } from "@/lib/domain/club-clock";
+import { listWordOf, type TournamentStep } from "@/lib/domain/tournament-step";
+import { tournamentStepsFor } from "@/lib/services/tournament-facts";
 import { tellApart } from "@/lib/domain/tournament-name";
 
 export const metadata = screenMetadata("/tournaments");
+
+const wordOf = (s: TournamentStep | undefined) => (s ? listWordOf(s) : { label: "", tag: "tag-outline" });
 
 /**
  * Every tournament this person can reach, and the acts that are about the SET
@@ -90,10 +93,21 @@ export default async function TournamentsPage() {
    */
   const toldApart = tellApart(allEvents);
 
+  /**
+   * THE STATUS WORD IS THE MACHINE'S (state machine PR 6): each tournament's
+   * step through `tournamentStepsFor`, on its own club's day — the chip the
+   * dashboard and the context bar draw, so a knockout with its Final decided
+   * reads "Play over" here as it does there (it read "Live"), and a draft
+   * whose last day went by reads "Dates passed, not launched" by the machine's
+   * own warning rather than a second test of the dates.
+   */
+  const steps = await tournamentStepsFor(new Map(allEvents.map((ev) => [ev.id, clubToday(ev.organization?.timeZone)])));
+
   const events = allEvents.map((ev) => ({
     id: ev.id,
     name: ev.name,
-    status: ev.status,
+    // Every tournament read is in the batch; one deleted between the two reads has no word, not an invented one.
+    word: wordOf(steps.get(ev.id)),
     dates: ev.dates,
     course: ev.course || ev.courses.map((c) => c.course.name).join(" · "),
     players: ev._count.players,
@@ -113,7 +127,6 @@ export default async function TournamentsPage() {
      * championship out of.
      */
     isCasual: isMatch(ev.shape),
-    datesPassed: datesPassedUnlaunched(ev, clubToday(ev.organization?.timeZone)),
     toldApart: toldApart.get(ev.id) ?? "",
   }));
 

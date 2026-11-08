@@ -418,7 +418,7 @@ describe("what the directory search still refuses", () => {
     expect(fn).toMatch(/const budget = await directoryBudget\(session\);/);
     // Over budget is a fallback to the catalogue, never an unbounded lookup.
     expect(fn).toMatch(/if \(!budget\.allowed\) live = false;/);
-    expect(fn).toMatch(/searchDirectory\(query, !live, /);
+    expect(fn).toMatch(/searchDirectoryWithNotice\(query, !live, /);
 
     // And the one budget every door asks: a player's, or an organizer's larger one.
     const src = readSource("src/app/actions/courses.ts");

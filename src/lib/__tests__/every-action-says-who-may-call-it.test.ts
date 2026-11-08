@@ -117,6 +117,7 @@ const WHO: Record<string, string> = {
   // the business
   setClubPlan: "the business", saveTierPrices: "the business", saveTierLimits: "the business",
   createDiscountCode: "the business", setDiscountCodeActive: "the business", setAccountsOpen: "the business", sendEarlyListCodes: "the business", refreshDemoClub: "the business",
+  loadCourseCatalogue: "the business",
 };
 
 /** What must appear in the body of an action of each kind. Not proof the check is right — proof it is there. */

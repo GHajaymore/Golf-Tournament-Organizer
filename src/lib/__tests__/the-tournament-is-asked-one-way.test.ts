@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
+import { importedNames } from "./imported-names";
 
 /**
  * A SCREEN ASKS THE TOURNAMENT ONE WAY — through `tournamentStatus`.
@@ -43,17 +44,8 @@ const OLD_READERS = [
   "playOverOf",
 ] as const;
 
-/** The names a source file imports, from single- and multi-line `import { … } from` blocks. */
-export function importedNames(src: string): string[] {
-  const names: string[] = [];
-  for (const m of src.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*["'][^"']+["']/g)) {
-    for (const part of m[1].split(",")) {
-      const name = part.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0].trim();
-      if (name) names.push(name);
-    }
-  }
-  return names;
-}
+/** The names a source file imports — one reader, shared with `the-actions-ask-the-machine.test.ts`. */
+export { importedNames };
 
 /**
  * The hand-written spellings of "is it set up yet": a status compared with a
@@ -84,7 +76,14 @@ export function strays(src: string): string[] {
  * PR 3 (4 Nov) cut four: the dashboard, Prizes & payouts (its rail is
  * `setupRailFor` now), `LifecycleBar` and `TournamentJourney` — they read
  * `tournamentStatus(facts)`. The rest keep `isSetupLocked` / `assertUnlocked`
- * until the scoped locks (PR 5) or the actions (PR 4).
+ * until the scoped locks (PR 5).
+ *
+ * PR 4 (6 Nov) cut `actions/play.ts`: its five saves and keeping a group's
+ * card ask the machine's play refusal (`playRefusedBecause`). `actions/
+ * tournament.ts` no longer asks `launchCheckFor`, `statusMove`,
+ * `finishRefusal`, `completingCheckFor` or `playRefusalFor` either
+ * (`the-actions-ask-the-machine.test.ts` holds that by name), but stays here
+ * for `assertUnlocked`, `lockedRefusal` and `configurationLocked` until PR 5.
  */
 export const KNOWN_STRAYS: readonly string[] = [
   "src/app/(app)/bracket/page.tsx",
@@ -94,11 +93,73 @@ export const KNOWN_STRAYS: readonly string[] = [
   "src/app/(app)/registration/page.tsx",
   "src/app/(app)/stages/page.tsx",
   "src/app/(app)/teams/page.tsx",
-  "src/app/actions/play.ts",
   "src/app/actions/setup-suggest.ts",
   "src/app/actions/teams.ts",
   "src/app/actions/tournament.ts",
 ];
+
+/**
+ * THE SCREENS THAT READ THE STEP, AND NOTHING ELSE (PR 6; readers #18, #19,
+ * #8 and #3 of the proposal's table). The secretary's home, the player
+ * switcher's note, the public event page's phase and the Tournaments list's
+ * status word each decided "where is this tournament" for itself — and a
+ * knockout with its Final decided was "Live" on all four (D3). They now read
+ * `tournamentStatus(facts)` (the home its `nextAction`; the other three its step
+ * through `tournamentStepsFor` / `stepOf`).
+ *
+ * This is a WALL, not a ratchet: on these files a second reader of the step is
+ * refused outright. Wider than the screens' list above, because the deciding
+ * was done in the services and domain modules behind them, and stricter:
+ *
+ *   - no old reader, and none of the three PR 6 retired (`tournamentPhase`,
+ *     `datesPassedUnlaunched`, `playOverOf`), nor the chip's words keyed by the
+ *     stored status (`STATUS_META`), nor `isLaunched` — the stored half of a
+ *     step the machine refines (results in unlaunched, play over);
+ *   - no stored status compared by hand with ANY of its five words, under any
+ *     name (`row.eventStatus === "live"` was the switcher's).
+ *
+ * `isFinished` is allowed: "completed" is the one step the stored word decides
+ * alone (the machine's own `step` is "completed" exactly when it is), and the
+ * home asks it only to leave a completed tournament out of the read.
+ */
+export const READS_THE_STEP: readonly string[] = [
+  "src/lib/services/whats-next.ts",
+  "src/lib/domain/needs-you-now.ts",
+  "src/lib/domain/tournament-switcher.ts",
+  "src/lib/domain/event-page.ts",
+  "src/lib/domain/tournament-step.ts",
+  "src/app/live/[token]/event/page.tsx",
+  "src/app/(app)/tournaments/page.tsx",
+  "src/components/EventSwitcher.tsx",
+  "src/components/NeedsYouNow.tsx",
+];
+
+const STEP_DECIDERS = [...OLD_READERS, "tournamentPhase", "datesPassedUnlaunched", "STATUS_META", "isLaunched"] as const;
+
+/**
+ * A stored status, on any receiver (`row.eventStatus`, `(row as X).status`,
+ * `rows[0].status`) and either way round, compared with any of its five words.
+ * Never `p.status === "confirmed"`: a player's status has other words.
+ */
+const STORED_WORD = `["'](?:draft|registration|ready|live|completed)["']`;
+const ANY_STORED_WORD = new RegExp(
+  String.raw`\b(?:status|eventStatus)\s*[!=]==?\s*${STORED_WORD}|${STORED_WORD}\s*[!=]==?\s*[\w$.?()[\]\s]*\b(?:status|eventStatus)\b`,
+);
+
+/** What a step-reading file does that only the machine may: decide the step. */
+export function stepDeciders(src: string): string[] {
+  const found = importedNames(src).filter((n) => (STEP_DECIDERS as readonly string[]).includes(n));
+  if (ANY_STORED_WORD.test(src)) found.push("(a stored status compared by hand)");
+  return [...new Set(found)];
+}
+
+/**
+ * And the one service the switcher's rows come from (`clubEventsFor`) keeps the
+ * member's events list's own readers (its bands, `openToMembers`, `canView`),
+ * which are not the step — but it may not ask `playOverOf` again, the reader the
+ * switcher's note was built on.
+ */
+const SWITCHER_SOURCE = "src/lib/services/club-events.ts";
 
 function swept(): string[] {
   const out: string[] = [];
@@ -158,5 +219,54 @@ describe("a screen asks the tournament one way", () => {
   it("the list only shrinks: a listed file that no longer asks an old reader comes off it", () => {
     const freed = KNOWN_STRAYS.filter((f) => !files.includes(f) || strays(readSource(f)).length === 0);
     expect(freed, "delete these lines from KNOWN_STRAYS in the-tournament-is-asked-one-way.test.ts").toEqual([]);
+  });
+});
+
+describe("the home, the switcher, the Tournaments list and the public event page read the step (PR 6)", () => {
+  it("CONTROL: the matcher sees a second reader of the step, and not the machine or another status", () => {
+    // Each of the four as it was before PR 6, a line from its own source:
+    expect(stepDeciders(`import { playOverOf } from "../domain/tournament-switcher";`)).toEqual(["playOverOf"]);
+    expect(stepDeciders(`import { isFinished, isLaunched } from "../domain/lifecycle-state";`)).toEqual(["isLaunched"]);
+    expect(stepDeciders(`import { isFinished, tournamentPhase } from "./lifecycle-state";`)).toEqual(["tournamentPhase"]);
+    expect(stepDeciders(`import { datesPassedUnlaunched } from "@/lib/domain/lifecycle-state";`)).toEqual(["datesPassedUnlaunched"]);
+    expect(stepDeciders(`import { STATUS_META } from "@/lib/format";`)).toEqual(["STATUS_META"]);
+    expect(stepDeciders(`      ? row.eventStatus === "live"`)).toEqual(["(a stored status compared by hand)"]);
+    expect(stepDeciders(`const done = e.status !== "completed";`)).toEqual(["(a stored status compared by hand)"]);
+    // On any receiver, and either way round — the shape, not one spelling of it.
+    expect(stepDeciders(`return (row as { eventStatus?: string }).eventStatus === "live";`)).toEqual(["(a stored status compared by hand)"]);
+    expect(stepDeciders(`const first = rows[0].status == "draft";`)).toEqual(["(a stored status compared by hand)"]);
+    expect(stepDeciders(`if ("live" === row.eventStatus) return;`)).toEqual(["(a stored status compared by hand)"]);
+    // Not deciders: the machine, the stored word that IS the completed step, a player's status, a step.
+    expect(stepDeciders(`import { tournamentStatus } from "../domain/tournament-status";`)).toEqual([]);
+    expect(stepDeciders(`import { isFinished } from "../domain/lifecycle-state";`)).toEqual([]);
+    expect(stepDeciders(`const mine = entrants.filter((p) => p.status === "confirmed");`)).toEqual([]);
+    expect(stepDeciders(`if (st.step === "play-over" && next.kind === "complete") return job;`)).toEqual([]);
+    expect(stepDeciders(`const card = c.status === "entered";`)).toEqual([]);
+  });
+
+  it("CONTROL: every listed file exists, and each one asks the machine", () => {
+    for (const f of READS_THE_STEP) {
+      const src = readSource(f);
+      expect(src.length, `${f} is empty or missing`).toBeGreaterThan(0);
+    }
+    // The four readers themselves, by the name they ask the machine with.
+    expect(readSource("src/lib/services/whats-next.ts")).toMatch(/tournamentStatus\(/);
+    expect(readSource("src/lib/domain/needs-you-now.ts")).toMatch(/st\.nextAction/);
+    expect(readSource("src/lib/services/club-events.ts")).toMatch(/tournamentStepsFor\(/);
+    expect(readSource("src/app/live/[token]/event/page.tsx")).toMatch(/tournamentStepsFor\(/);
+    expect(readSource("src/app/(app)/tournaments/page.tsx")).toMatch(/tournamentStepsFor\(/);
+  });
+
+  it("none of them decides the step a second way", () => {
+    const found = READS_THE_STEP.map((f) => [f, stepDeciders(readSource(f))] as const)
+      .filter(([, d]) => d.length > 0)
+      .map(([f, d]) => `${f}: ${d.join(", ")}`);
+    expect(found, "read the step from tournamentStatus (stepOf / tournamentStepsFor / nextAction) instead").toEqual([]);
+  });
+
+  it("the switcher's rows are not built on playOverOf again", () => {
+    expect(importedNames(readSource(SWITCHER_SOURCE))).not.toContain("playOverOf");
+    // CONTROL: the check reads the file it names.
+    expect(importedNames(readSource(SWITCHER_SOURCE))).toContain("tournamentStepsFor");
   });
 });

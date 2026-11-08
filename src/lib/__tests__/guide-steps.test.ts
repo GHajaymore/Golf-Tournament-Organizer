@@ -42,7 +42,9 @@ const PINNED: [label: string, file: string][] = [
   ["Create the copy", "src/components/CopyLastEvent.tsx"],
   ["Approve entries", "src/lib/domain/needs-you-now.ts"],
   ["Open score entry", "src/lib/domain/needs-you-now.ts"],
-  ["Complete the tournament", "src/lib/domain/needs-you-now.ts"],
+  // Since the state machine's PR 6 the tournament's own job is the dashboard's next action, in its words.
+  ["Launch tournament", "src/lib/domain/tournament-status.ts"],
+  ["Complete tournament", "src/lib/domain/tournament-status.ts"],
   // The Print kit (2026-10-23) and its doors.
   ["Reprint these", "src/components/print/PrintKitClient.tsx"],
   ["Print the signs", "src/components/PlaySettings.tsx"],

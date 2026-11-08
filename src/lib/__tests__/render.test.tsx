@@ -2088,7 +2088,7 @@ describe("course library", () => {
 
 describe("event switcher", () => {
   const event = {
-    id: "e1", name: "Ajay More Invitational", status: "live", dates: "12–14 Jun",
+    id: "e1", name: "Ajay More Invitational", word: { label: "Live", tag: "tag-accent-2" }, dates: "12–14 Jun",
     course: "Bushwood", players: 32, isActive: true, hasAccess: true, isOrganizer: true,
   };
 
@@ -9554,7 +9554,7 @@ describe("the event switcher, with a quick round in the list", () => {
   const row = (over: Partial<EventRow> = {}): EventRow => ({
     id: "e1",
     name: "Club Championship",
-    status: "draft",
+    word: { label: "Setting up", tag: "tag-neutral" },
     dates: "May 14–16",
     course: "Blue Ash",
     players: 33,
@@ -9566,7 +9566,7 @@ describe("the event switcher, with a quick round in the list", () => {
 
   const both = [
     row(),
-    row({ id: "e2", name: "Ada v Bo", players: 2, status: "live", isCasual: true }),
+    row({ id: "e2", name: "Ada v Bo", players: 2, word: { label: "Live", tag: "tag-accent-2" }, isCasual: true }),
   ];
 
   it("counts tournaments, not everything in the list", () => {

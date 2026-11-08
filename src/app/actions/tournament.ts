@@ -101,6 +101,7 @@ import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
 import { drainWaitlist, fieldLimitFor, promoteFromWaitlist } from "@/lib/services/waitlist";
+import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { fieldFactsFor, fieldRefusal } from "@/lib/services/field-change";
 import { storedMatchIsOver } from "@/lib/domain/match";
 import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
@@ -135,8 +136,10 @@ import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
-import { finishRefusal, statusMove, completingCheckFor } from "@/lib/domain/phase-gate";
-import { launchCheckFor } from "@/lib/services/setup-flow";
+// Launch, Complete, Reopen, play and closing a round ask the state machine (PR 4).
+import { roundCloseCheck, statusRequestOf } from "@/lib/domain/tournament-status";
+import { playRefusedBecause, tournamentStatusNow } from "@/lib/services/tournament-status";
+import { roundCloseFactsFor } from "@/lib/services/tournament-facts";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { bracketDraws, tieByKey, tieReportRefusal, marginWords } from "@/lib/domain/my-tie";
@@ -182,7 +185,7 @@ import { FORMAT_NAMES } from "@/lib/formats";
 import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { assertUnlocked, lockedRefusal, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
+import { assertUnlocked, lockedRefusal, logAudit, roundWordsFor } from "@/lib/services/action-shared";
 import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked, isFinished, isLaunched } from "@/lib/domain/lifecycle-state";
@@ -267,9 +270,9 @@ async function requireScoreEntry(
    * It cannot strand the certify and dispute paths below, which need a card to
    * act on — a card existing is itself a result, so `playRefusal` returns null
    * for them. And staff hold the remedy: the refusal names it, and launching
-   * is theirs to do.
+   * is theirs to do. The machine's refusal (`refusals.play`, PR 4).
    */
-  const notStarted = await playRefusalFor(session.eventId);
+  const notStarted = await playRefusedBecause(session.eventId);
   if (notStarted) throw new Error(notStarted);
   /**
    * AND NOT IN A LAPSED CLUB'S ARCHIVE: an unfinished tournament there is
@@ -633,16 +636,20 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
    * tee slots and two shares of a split expense; being asked about a real
    * namesake costs one look.
    */
-  const duplicate = cleanEmail
-    ? await prisma.player.findFirst({
-        where: { eventId, ...byAddress(cleanEmail) },
-        select: { name: true, status: true },
-      })
-    : await prisma.player.findFirst({
-        where: { eventId, name: { equals: clean, mode: "insensitive" } },
-        select: { name: true, status: true },
-      });
-  if (duplicate) {
+  // Asked twice: here, so a plain duplicate costs nothing more, and AGAIN under
+  // the intake lock below (J46), which is the one that holds when two presses
+  // arrive together.
+  const findDuplicate = (db: Pick<typeof prisma, "player">) =>
+    cleanEmail
+      ? db.player.findFirst({
+          where: { eventId, ...byAddress(cleanEmail) },
+          select: { name: true, status: true },
+        })
+      : db.player.findFirst({
+          where: { eventId, name: { equals: clean, mode: "insensitive" } },
+          select: { name: true, status: true },
+        });
+  const duplicateRefusal = (duplicate: { name: string; status: string }): SignupResult => {
     const how = cleanEmail ? "with that email" : "under that name";
     return {
       ok: false,
@@ -657,16 +664,15 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
               `${duplicate.name} is already entered ${how} and has been disqualified — reinstate them on Entries rather than adding a second entry.`
             : `${duplicate.name} is already in the field ${how}.`,
     };
-  }
+  };
+  const duplicate = await findDuplicate(prisma);
+  if (duplicate) return duplicateRefusal(duplicate);
 
-  const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
-  const maxSeed = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   // The plan's field cap over the stored number, as `register` and `enter` do.
   // A club moved down to Par keeps the unlimited field it set on a higher tier,
   // and this confirmed an eleventh player past a ten-player cap (2026-09-30).
   const capacity = await fieldLimitFor(event);
   const unlimited = capacity <= 0; // 0 = open / unlimited field
-  const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
   // Entering someone in a tournament is also how they join the club roster —
   // so the club list is never a separate chore an organizer has to remember.
   const memberId = await upsertMember(
@@ -676,32 +682,46 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
     { ...input, name: clean, email: cleanEmail, phone: cleanPhone, guest },
     "staff",
   );
-  await prisma.player.create({
-    data: {
-      eventId,
-      memberId,
-      name: clean,
-      handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
-      seed: (maxSeed._max.seed ?? 0) + 1,
-      status,
-      standing,
-      email: cleanEmail,
-      phone: cleanPhone,
-      ghin: (input.ghin ?? "").trim(),
-      homeClub: (input.homeClub ?? "").trim(),
-      // NO FIGURE, NO CLAIM. An empty handicap box arrives as not-a-number and
-      // is stored as "none" whatever the source said: this stored it as 0 "by
-      // hand" — a scratch golfer nobody declared, given no strokes in a net
-      // round. The guide has always said a blank is not scratch.
-      handicapSource: !Number.isFinite(input.handicap)
-        ? "none"
-        : ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
-          ? input.handicapSource!
-          : "manual",
-      handicapType: input.handicapType === "9" ? "9" : "18",
-      gender: await memberGender(memberId),
-    },
+  const gender = await memberGender(memberId);
+  // DUPLICATE, COUNT, SEED AND CREATE UNDER THE EVENT'S INTAKE LOCK (J46), as
+  // `enter.ts` and `register.ts` do. Without it two presses at once both found
+  // nobody and both created a row, or both counted the same confirmed total.
+  const placed = await withEventIntakeLock(eventId, async (tx) => {
+    const again = await findDuplicate(tx);
+    if (again) return { duplicate: again, status: null };
+    const confirmedCount = await tx.player.count({ where: { eventId, status: "confirmed" } });
+    const maxSeed = await tx.player.aggregate({ where: { eventId }, _max: { seed: true } });
+    const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
+    await tx.player.create({
+      data: {
+        eventId,
+        memberId,
+        name: clean,
+        handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
+        seed: (maxSeed._max.seed ?? 0) + 1,
+        status,
+        standing,
+        email: cleanEmail,
+        phone: cleanPhone,
+        ghin: (input.ghin ?? "").trim(),
+        homeClub: (input.homeClub ?? "").trim(),
+        // NO FIGURE, NO CLAIM. An empty handicap box arrives as not-a-number and
+        // is stored as "none" whatever the source said: this stored it as 0 "by
+        // hand" — a scratch golfer nobody declared, given no strokes in a net
+        // round. The guide has always said a blank is not scratch.
+        handicapSource: !Number.isFinite(input.handicap)
+          ? "none"
+          : ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
+            ? input.handicapSource!
+            : "manual",
+        handicapType: input.handicapType === "9" ? "9" : "18",
+        gender,
+      },
+    });
+    return { duplicate: null, status };
   });
+  if (placed.status === null) return duplicateRefusal(placed.duplicate);
+  const status = placed.status;
   await syncPlayerAccount(eventId, clean, cleanEmail);
   // On the record ("Recent changes to the field"), whoever added them.
   await logAudit(eventId, "added", `${clean} was added to the field (${status}${guest ? ", guest" : ""}).`);
@@ -4246,7 +4266,7 @@ export async function reportBracketResult(
   }
 
   // A draw nobody has launched is not being played yet — the same rule as a card.
-  const notStarted = await playRefusalFor(eventId);
+  const notStarted = await playRefusedBecause(eventId);
   if (notStarted) return { ok: false, error: notStarted };
   // Nor one paused in a lapsed club's archive.
   const archived = await archiveRefusalFor(eventId, "player");
@@ -5324,9 +5344,17 @@ export async function setEventStatus(
     select: { status: true, closesAt: true, organizationId: true, name: true, shape: true },
   });
   if (!current) return { ok: false, error: "That tournament no longer exists." };
-  const move = statusMove(current.status, status);
-  if (move.kind === "refuse") return { ok: false, error: move.error };
-  if (move.kind === "launch") return launchTournament();
+  /**
+   * ASKED OF THE STATE MACHINE (PR 4): the move is refused for exactly the
+   * reason the dashboard's button is refused, in the same words — going live is
+   * Launch (`refusals.launch`), completing is Complete (`refusals.complete`, and
+   * its question about unplayed rounds), "live" on a completed one is Reopen.
+   */
+  const told = await tournamentStatusNow(eventId);
+  if (!told) return { ok: false, error: "That tournament no longer exists." };
+  const request = statusRequestOf(told.status, current.status, status);
+  if (request.kind === "refuse") return { ok: false, error: request.error };
+  if (request.kind === "launch") return launchNow(eventId);
   const s = status;
   /**
    * REOPENING BRINGS A NAME BACK INTO PLAY (Ajay, 2026-11-01). A completed Spring Medal may share
@@ -5363,17 +5391,12 @@ export async function setEventStatus(
    * a club fixes exactly this, and a gate on the way back would be the app
    * refusing the remedy it just asked for.
    */
-  if (s === "completed") {
-    const state = await loadEventState(eventId);
-    const refusal = state
-      ? finishRefusal({
-          pendingConfirmations: state.pendingConfirmations,
-          disputed: state.reviewing.disputed,
-        })
-      : null;
-    if (refusal) return { ok: false, error: refusal };
-
+  if (request.kind === "complete") {
     /**
+     * The refusal — a disputed result, one waiting to be signed off, nothing
+     * scored at all (`finishRefusal`, `completingCheckFor`) — was the machine's,
+     * above (`refusals.complete`).
+     *
      * ROUNDS NOBODY HAS PLAYED ARE ASKED ABOUT FIRST (2026-10-31, the panel). Completing closes
      * every open round below, so a round with no scores would close as not played on one confirm.
      * Asked rather than refused — a committee may abandon a round — and refused only when nothing
@@ -5381,11 +5404,7 @@ export async function setEventStatus(
      * the golf, that one about keeping the tournament. A public endpoint, so a caller that did not
      * ask is answered with the question, as `confirmDelete` is.
      */
-    if (state) {
-      const check = completingCheckFor(state.stages, state.roundsWithResults);
-      if (check && "refuse" in check) return { ok: false, error: check.refuse };
-      if (check && "ask" in check && !confirmUnplayed) return { ok: false, needsUnplayedConfirm: true, error: check.ask };
-    }
+    if (request.asks && !confirmUnplayed) return { ok: false, needsUnplayedConfirm: true, error: request.asks };
 
     /**
      * ON THE FREE PLAN, COMPLETING IS DELETING (Ajay, 2026-09-29) — for a club
@@ -5482,7 +5501,16 @@ export async function setEventStatus(
 export async function launchTournament(): Promise<{ ok: boolean; error?: string }> {
   const gate = await adminEventOrRefusal();
   if ("refused" in gate) return { ok: false, error: gate.refused };
-  const { eventId } = gate;
+  return launchNow(gate.eventId);
+}
+
+/**
+ * LAUNCH, behind the Organizer's gate — the one body both doors reach
+ * (`launchTournament`, and `setEventStatus("live")` on a tournament setting up).
+ * Not exported: a `"use server"` export is a public endpoint, and this one has
+ * no gate of its own.
+ */
+async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string }> {
   /**
    * NOTHING USED TO STOP THIS, and launching is not a small act: it publishes
    * the tournament to its field and clears `configUnlocked`, so a tournament
@@ -5490,15 +5518,19 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
    * move was to unlock the thing they had just locked, in order to build the
    * tournament they had just published.
    *
-   * The conditions are in `launchRefusal` with the reasoning. Guided
-   * inside setting up, gated between phases — see phase-gate.ts.
-   *
-   * The facts are the setup flow's own (`launchCheckFor`, gap G3 2026-10-31):
-   * the dashboard's button asks the same function, so this refuses exactly what
-   * the button refuses, in the same words. Behind the staff gate above; the
-   * refusal names this tournament's own rounds and screens, nothing else.
+   * ASKED OF THE STATE MACHINE (PR 4): `refusals.launch` is the setup flow's own
+   * gate first, in its words (`launchRefusal`), then the panel's holds per
+   * format family (8.2: two players for a match or a knockout, every player on
+   * a side, a round robin's flights, a league's next week dated). The dashboard
+   * draws the same refusal under its button, so this refuses exactly what the
+   * button refuses — where it asked `launchCheckFor` and let through a
+   * knockout of one the button had refused. And a tournament already live is
+   * refused rather than launched again, which re-stamped it and locked setup
+   * an organizer had unlocked.
    */
-  const { refusal } = await launchCheckFor(eventId);
+  const told = await tournamentStatusNow(eventId);
+  if (!told) return { ok: false, error: "This tournament could not be found." };
+  const refusal = told.status.refusals.launch;
   if (refusal) return { ok: false, error: refusal };
 
   // On launch, every non-staff account receives the Player role. Once registration
@@ -7456,7 +7488,9 @@ export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok:
 export async function setRoundClosed(
   stageId: string,
   closed: boolean,
-): Promise<{ ok: boolean; error?: string }> {
+  /** Must be true to close over a card not yet approved or signed (`roundCloseCheck` asks first). */
+  confirmUnsigned = false,
+): Promise<{ ok: boolean; error?: string; needsUnsignedConfirm?: boolean }> {
   const eventId = await requireStaffEvent();
 
   const stage = await prisma.stage.findFirst({
@@ -7471,6 +7505,19 @@ export async function setRoundClosed(
   if (closed) {
     const refusal = await strokeCutRefusal(eventId, stage.id);
     if (refusal) return { ok: false, error: refusal };
+    /**
+     * AND ANY ROUND, OVER CARDS STILL OUTSTANDING (panel 8.1, TD Q4; state
+     * machine PR 4). A disputed card or result is REFUSED until the committee
+     * rules on it; a card not yet approved (or, where players sign, not yet
+     * signed) is ASKED about, naming whose — closing leaves that card as it
+     * stands, and it can still be approved or signed afterwards. A public
+     * endpoint, so a caller that did not ask is answered with the question, as
+     * completing answers `confirmUnplayed`.
+     */
+    const facts = await roundCloseFactsFor(eventId, stage.id);
+    const check = facts ? roundCloseCheck(facts) : null;
+    if (check && "refuse" in check) return { ok: false, error: check.refuse };
+    if (check && "ask" in check && !confirmUnsigned) return { ok: false, needsUnsignedConfirm: true, error: check.ask };
   }
 
   await prisma.stage.update({

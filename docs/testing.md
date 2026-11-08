@@ -450,6 +450,10 @@ after a clean round, hourly, and by hand). It deploys a commit when `verify` is 
 core commit since the last deploy — and, since 2026-11-01, every function commit, its round targeted
 or full — is in a clean nightly round, and no club is in its freeze — a
 tournament on today in the club's own time, or Saturday and Sunday 05:00–14:00 in any club's zone.
+**That is the rule once accounts are live (Ajay, 2026-11-06).** Until 20 Nov 2026 (`FREEZE_RESUMES`,
+00:00 in UTC+14) the freeze is off altogether; from then while sign-ins are held, only a pilot club
+(somebody on `SIGNIN_ALLOW_EMAILS` is its staff) playing today freezes, and weekend mornings do not.
+The reason the gate prints says which rule applied (`deployWindowFor` in `src/lib/domain/deploy-window.ts`).
 The app answers the freeze itself (`/api/deploy-window`, `{ frozen, reason }` only), because the
 runner may not hold production's database credentials. A held deploy is green and says why; the
 hourly run picks it up. *Override freeze* on *Run workflow* is for emergencies and overrides the
