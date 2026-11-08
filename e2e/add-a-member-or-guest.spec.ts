@@ -118,6 +118,18 @@ test("the organizer adds a guest and two members by hand, and each is stored as 
   });
   const danaRow = page.getByRole("row", { name: new RegExp(`${MARK} Dana Guest`) });
   await expect(danaRow.locator('[data-standing="guest"]')).toHaveText("Guest", { timeout: 15_000 });
+  // A guest has no email, so on an email-only tournament THIS add (the first without
+  // an email) is the one that turns round codes on, and says so after the press.
+  // The next add finds them on already and says nothing of it.
+  const accessAfterGuest = (await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { playerAccess: true } })).playerAccess;
+  if (accessBefore === "email") {
+    expect(accessAfterGuest, "round codes did not come on for a guest").toBe("both");
+    await expect(page.getByText(/round codes are on now too/), "a guest add did not say it turned codes on").toBeVisible();
+    // Once on, the note before the press goes away (it is derived from the saved setting).
+    await expect(codesNote, "the codes are still promised after they came on").toHaveCount(0, { timeout: 15_000 });
+  } else {
+    expect(accessAfterGuest).toBe(accessBefore);
+  }
 
   // 2. A member with no email: entered, not refused.
   await page.locator("label.seg-opt", { hasText: /^Member$/ }).click();
@@ -135,13 +147,10 @@ test("the organizer adds a guest and two members by hand, and each is stored as 
   await expect(robRow.locator('[data-standing="member"]')).toHaveText("Member", { timeout: 15_000 });
   await expect(robRow.getByText("No email yet")).toBeVisible();
   const accessAfter = (await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { playerAccess: true } })).playerAccess;
-  if (accessBefore === "email") {
-    // An email-only tournament gains Round Codes beside email, and says so.
-    expect(accessAfter, "round codes did not come on for a player without an email").toBe("both");
-    await expect(page.getByText(/round codes are on now too/)).toBeVisible();
-  } else {
-    expect(accessAfter).toBe(accessBefore);
-  }
+  // The guest before him already turned codes on (when they were off); Rob's add changes
+  // nothing more and has nothing to say about it.
+  expect(accessAfter, "the member add moved the sign-in setting again").toBe(accessAfterGuest);
+  await expect(page.getByText(/round codes are on now too/), "a second add repeated the codes line").toHaveCount(0);
 
   // 3. A member with an email.
   await nameBox.fill(`${MARK} Ann Member`);
