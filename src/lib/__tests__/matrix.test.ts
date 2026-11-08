@@ -51,6 +51,7 @@ import {
   survivors,
   nextRoundFlights,
   strokeCutOutcome,
+  roundRobinCutOutcome,
   CUT_TIE_RULES,
   type CutLineRow,
   type CutCandidate,
@@ -58,6 +59,7 @@ import {
   type NextRoundFlight,
 } from "@/lib/domain/cut";
 import { aggregateStats, rankPlayers, computeStandings } from "@/lib/domain/standings";
+import { cutFeederOf, cutAfterRound } from "@/lib/domain/cut-ready";
 import { countbackCardsFor } from "@/lib/services/course-resolution";
 import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/domain/match-cards";
@@ -476,6 +478,148 @@ describe("a tie on the stroke cut line, at every field size", () => {
   }
 });
 
+/**
+ * A TIE EXACTLY AT A ROUND ROBIN'S CUT LINE, IN FLIGHTS (J31, 2026-11-06).
+ *
+ * A real table from real matches, ranked by `rankPlayers`: in each flight a
+ * strict ladder — everybody beats everybody listed below them, 1 up — except
+ * that the two players either side of the line HALVE their meeting. That
+ * leaves them level on points and on every tie-break the round has (they
+ * halved head-to-head; their holes won and lost are the same), so the line
+ * falls exactly through a tie the table cannot split. How it is settled is
+ * the committee's published method — Committee Procedures 5A(6) — never the
+ * order the list happens to be in, which past the tie-breaks is entry order:
+ *
+ *   - everyone above the pair is through, everyone below it is not, under
+ *     every rule, in every flight;
+ *   - "ties": both go through and nothing is owed;
+ *   - a play-off or a countback: neither goes through, one tie of exactly the
+ *     pair is owed for one place — by play-off, or by lot (the tie-breaks ran
+ *     out) — in that flight;
+ *   - recorded, the draw's winner goes through, even the one listed lower, and
+ *     the flight sends exactly N.
+ *
+ * Flights of one to three; a cut of N bigger than a flight takes all of it.
+ */
+describe("a tie exactly at a round robin's cut line, in flights, at every field size", () => {
+  const oneUp: HoleResult[] = ["A", ...new Array<HoleResult>(17).fill("H")];
+  const allSquare: HoleResult[] = new Array<HoleResult>(18).fill("H");
+  for (const n of FIELD_SIZES) {
+    it(`a field of ${n}, in one to three flights, every cut, every rule`, () => {
+      for (const flights of [1, 2, 3].filter((f) => f <= n)) {
+        for (const count of [1, 2, 3]) {
+          const players = field(n).map((p, i) => ({ ...p, groupId: `f${i % flights}` }));
+          const byFlight = new Map<string, string[]>();
+          for (const p of players) byFlight.set(p.groupId, [...(byFlight.get(p.groupId) ?? []), p.id]);
+          const matches: Match[] = [];
+          for (const [g, ids] of byFlight) {
+            for (let i = 0; i < ids.length; i += 1) {
+              for (let j = i + 1; j < ids.length; j += 1) {
+                const atLine = i === count - 1 && j === count;
+                matches.push({ id: `${ids[i]}-${ids[j]}`, stageId: "r1", groupId: g, round: 1, playerAId: ids[i], playerBId: ids[j], holes: atLine ? allSquare : oneUp });
+              }
+            }
+          }
+          const table = rankPlayers(players, aggregateStats(players, matches, DEFAULT_SCORING), DEFAULT_SCORING, matches);
+          for (const scope of flights === 1 ? (["perFlight", "overall"] as const) : (["perFlight"] as const)) {
+            for (const tie of CUT_TIE_RULES) {
+              const label = `n=${n} ${flights} flight(s) top ${count} ${scope} ${tie}`;
+              const next = { cutScope: scope, cutMode: "count", cutCount: count, cutPercent: 50, cutTies: tie, cutTieDecisions: "[]" };
+              const out = roundRobinCutOutcome(table, next);
+              const owed = out.undecided.flatMap((u) => u.playerIds);
+              expect(owed.filter((id) => out.through.has(id)), `${label}: through AND owed`).toEqual([]);
+              expect(out.through.size + owed.length, `${label}: inside the field`).toBeLessThanOrEqual(n);
+              for (const [g, ids] of byFlight) {
+                const flightLabel = `${label}, flight ${g} of ${ids.length}`;
+                if (count >= ids.length) {
+                  for (const id of ids) expect(out.through.has(id), `${flightLabel}: ${id} — the cut takes the flight`).toBe(true);
+                  continue;
+                }
+                const pair = [ids[count - 1], ids[count]];
+                for (const id of ids.slice(0, count - 1)) expect(out.through.has(id), `${flightLabel}: ${id} is above the line`).toBe(true);
+                for (const id of ids.slice(count + 1)) {
+                  expect(out.through.has(id) || owed.includes(id), `${flightLabel}: ${id} is below the line`).toBe(false);
+                }
+                const theirs = out.undecided.filter((u) => u.playerIds.some((id) => pair.includes(id)));
+                if (tie === "ties") {
+                  for (const id of pair) expect(out.through.has(id), `${flightLabel}: ${id} is level, and ties go through`).toBe(true);
+                  expect(theirs, flightLabel).toEqual([]);
+                } else {
+                  for (const id of pair) expect(out.through.has(id), `${flightLabel}: ${id} is in a tie nobody has settled`).toBe(false);
+                  expect(theirs, flightLabel).toEqual([
+                    { groupId: scope === "overall" ? null : g, playerIds: pair, places: 1, by: tie === "playoff" ? "playoff" : "draw" },
+                  ]);
+                }
+              }
+              // Every owed tie recorded for its LOWER-listed player: nothing owed,
+              // and each flight sends exactly N — the draw's winner among them.
+              const decisions = out.undecided.map((u) => ({ tied: u.playerIds, through: [u.playerIds[u.playerIds.length - 1]] }));
+              const settled = roundRobinCutOutcome(table, { ...next, cutTieDecisions: JSON.stringify(decisions) });
+              expect(settled.undecided, `${label}: settled`).toEqual([]);
+              if (tie === "ties") continue;
+              for (const [g, ids] of byFlight) {
+                const went = ids.filter((id) => settled.through.has(id));
+                expect(went.length, `${label}, flight ${g}: settled, N go`).toBe(Math.min(count, ids.length));
+                if (count < ids.length) expect(went, `${label}, flight ${g}: the draw's winner`).toContain(ids[count]);
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+});
+
+/**
+ * WHAT A CUT IS TAKEN OUT OF, IN EVERY SHAPE OF TOURNAMENT (J31 review, 2026-11-07).
+ *
+ * Written by hand from what the two engines do, not from `cutFeederOf`:
+ * `applyStrokeCut` cuts a stroke round on the stroke round just before it
+ * (the cards), and `generateCutRound` cuts anything else on the table of the
+ * last round robin before it BY POSITION — a medal between them does not move
+ * it. The tie card, the record of a play-off and the board ask this one
+ * function; it once asked the round beside the cut, and for round robin →
+ * medal → cut round named no feeder while the draw refused for a tie.
+ */
+describe("the round a cut is taken out of, for every shape of tournament", () => {
+  const RR = { type: "Round Robin", format: "Match Play" };
+  const RR_MEDAL = { type: "Round Robin", format: "Stroke Play" };
+  const MEDAL = { type: "Stroke Play Round", format: "Stroke Play" };
+  const SCRAMBLE = { type: "Stroke Play Round", format: "Scramble" };
+  type Shape = { type: string; format: string };
+  // [the rounds, in order — the last is the cut round], the round it is taken out of (index), on what.
+  const cells: [string, Shape[], number | null, "card" | "table" | null][] = [
+    ["round robin → round robin", [RR, RR], 0, "table"],
+    ["round robin → medal", [RR, MEDAL], 0, "table"],
+    ["round robin → medal → round robin", [RR, MEDAL, RR], 0, "table"],
+    ["round robin → scramble → medal", [RR, SCRAMBLE, MEDAL], 0, "table"],
+    ["round robin → round robin → medal → round robin", [RR, RR, MEDAL, RR], 1, "table"],
+    ["round robin → medal → medal (the cards)", [RR, MEDAL, MEDAL], 1, "card"],
+    ["medal → medal", [MEDAL, MEDAL], 0, "card"],
+    ["round robin at stroke play → medal (the cards)", [RR_MEDAL, MEDAL], 0, "card"],
+    // A card cut needs BOTH rounds individual stroke play (`applyStrokeCut`); the round after is head to head, so this is
+    // `generateCutRound`'s cut, which is always taken on the last round robin's table — whatever that round robin was scored as.
+    ["round robin at stroke play → round robin", [RR_MEDAL, RR], 0, "table"],
+    ["medal → round robin: no table before it", [MEDAL, RR], null, null],
+    ["scramble → medal: neither engine cuts it", [SCRAMBLE, MEDAL], null, null],
+    ["one round: nothing before it", [RR], null, null],
+  ];
+  for (const [name, shapes, from, kind] of cells) {
+    it(name, () => {
+      const rounds = shapes.map((s, i) => ({ id: `r${i + 1}`, ...s }));
+      const line = cutFeederOf(rounds, rounds[rounds.length - 1].id);
+      expect(line ? [line.feeder.id, line.kind] : null).toEqual(from === null ? null : [`r${from + 1}`, kind]);
+      // And the rules sheet prints that cut on exactly ONE round's sheet — the
+      // round that decides it, the same one — and on none where nothing does.
+      const withCut = rounds.map((r, i) => ({
+        ...r, cutEnabled: i === rounds.length - 1, cutScope: "overall", cutMode: "count", cutCount: 2, cutPercent: 50, cutTies: "playoff",
+      }));
+      const printedOn = withCut.filter((r) => cutAfterRound(withCut, r.id) !== null).map((r) => r.id);
+      expect(printedOn, `${name}: the sheets that print the cut`).toEqual(from === null ? [] : [`r${from + 1}`]);
+    });
+  }
+});
+
 describe("flights, at every field size", () => {
   for (const n of FIELD_SIZES) {
     it(`never leaves a lone player in a flight at n=${n}`, () => {
@@ -719,6 +863,93 @@ describe("standings, at every field size", () => {
     const stats = aggregateStats([], [], DEFAULT_SCORING);
     expect(rankPlayers([], stats, DEFAULT_SCORING, [])).toEqual([]);
   });
+
+  /**
+   * A HEAD-TO-HEAD CYCLE, at every field size it fits in (2026-11-07).
+   *
+   * The decisive round robin above, with ONE result turned round: the player
+   * at window+2 beats the player at window. Worked by hand: in the decisive
+   * table the three hold W, W-1 and W-2 wins; turning the one meeting round
+   * gives each of them W-1 — level on points — and their meetings now go in a
+   * circle (w b w+1, w+1 b w+2, w+2 b w). Every match is 10&8 (ten holes
+   * won), and each of the three won and lost the same NUMBER of matches, so
+   * hole difference and holes lost are level too. Nothing they did separates
+   * them: Committee Procedures 5A(6) leaves the committee's chain to decide,
+   * and the chain runs out — they SHARE place w+1. Everyone else keeps their
+   * own position. Run in two entry orders, so a ranking that falls back on
+   * the seed shows as two different boards.
+   *
+   * Under the pairwise rule this cell read w+1, w+2, w+3: each neighbouring
+   * pair had a winner.
+   */
+  const flip = (matches: Match[], winner: string, loser: string): Match[] =>
+    matches.map((m) =>
+      m.playerAId === loser && m.playerBId === winner
+        ? { ...m, holes: new Array(18).fill("B") as Match["holes"] }
+        : m.playerAId === winner && m.playerBId === loser
+          ? { ...m, holes: new Array(18).fill("A") as Match["holes"] }
+          : m,
+    );
+  const reseeded = (players: Player[]) => players.map((p, i) => ({ ...p, seed: players.length - i }));
+  const rankOf = (players: Player[], matches: Match[]) =>
+    Object.fromEntries(
+      rankPlayers(players, aggregateStats(players, matches, DEFAULT_SCORING), DEFAULT_SCORING, matches).map((r) => [
+        r.player.id,
+        r.rank,
+      ]),
+    );
+
+  for (const n of FIELD_SIZES.filter((s) => s >= 3)) {
+    it(`a three-way head-to-head cycle in a field of ${n} shares the place`, () => {
+      const players = field(n);
+      const w = Math.floor((n - 3) / 2);
+      const [x, y, z] = [players[w].id, players[w + 1].id, players[w + 2].id];
+      const matches = flip(decisive(players), z, x);
+      const expected = Object.fromEntries(
+        players.map((p, i) => [p.id, i >= w && i <= w + 2 ? w + 1 : i + 1]),
+      );
+      expect(rankOf(players, matches), `${x} b ${y}, ${y} b ${z}, ${z} b ${x}`).toEqual(expected);
+      expect(rankOf(reseeded(players), matches), "entered the other way round").toEqual(expected);
+    });
+  }
+
+  /**
+   * A FOUR-PLAYER PARTIAL CYCLE: one of four level players beat the other
+   * three, who go round in a circle among themselves. A window of six inside
+   * the decisive table (everyone above beats all six, everyone below loses to
+   * all six, so the window's own results decide it). Within the window, every
+   * win 10&8:
+   *   A  b B, C, D; lost E, F                   3 wins
+   *   B  b C, E, F; lost A, D                   3 wins ┐
+   *   C  b D, E, F; lost A, B                   3 wins ├ B b C, C b D, D b B
+   *   D  b B, E, F; lost A, C                   3 wins ┘
+   *   E  b A, F                                 2 wins
+   *   F  b A                                    1 win
+   * A, B, C, D level. Their mini-league: A +3, B, C, D -1 each — A first.
+   * Asked again of B, C, D alone: 0, 0, 0, a cycle; each won 3 and lost 2
+   * matches, so hole difference and holes lost are level: they share the next
+   * place. Then E, then F.
+   */
+  for (const n of FIELD_SIZES.filter((s) => s >= 6)) {
+    it(`a four-player partial cycle in a field of ${n}: one on top, three sharing the next place`, () => {
+      const players = field(n);
+      const w = Math.floor((n - 6) / 2);
+      const [A, B, C, D, E, F] = players.slice(w, w + 6).map((p) => p.id);
+      // Decisive already has A b B, C, D, E, F; B b C, D, E, F; C b D, E, F; D b E, F; E b F.
+      let matches = decisive(players);
+      for (const [winner, loser] of [[E, A], [F, A], [D, B]] as const) matches = flip(matches, winner, loser);
+      const expected = Object.fromEntries(
+        players.map((p, i) => {
+          const at = i - w;
+          if (at === 0) return [p.id, w + 1];
+          if (at >= 1 && at <= 3) return [p.id, w + 2];
+          return [p.id, i + 1];
+        }),
+      );
+      expect(rankOf(players, matches), `${A} on top; ${B}, ${C}, ${D} in a circle`).toEqual(expected);
+      expect(rankOf(reseeded(players), matches), "entered the other way round").toEqual(expected);
+    });
+  }
 });
 
 /**

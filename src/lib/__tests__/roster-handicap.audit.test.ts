@@ -69,8 +69,9 @@ const member = (who: string) =>
  * found to be reaching this function with no session at all; that half is
  * covered in its own describe at the bottom.
  */
-const staffUpsert = (input: Parameters<typeof upsertMember>[1]) =>
-  upsertMember(orgId, input, "staff");
+// Every row here is a member's; a guest is matched onto nobody (member-or-guest-is-stored).
+const staffUpsert = (input: Omit<Parameters<typeof upsertMember>[1], "guest">) =>
+  upsertMember(orgId, { ...input, guest: false }, "staff");
 
 describe("a member already on the roster with an index", () => {
   it("keeps it when they register without entering one", async () => {
@@ -189,8 +190,8 @@ describe("a caller that says nothing about the source", () => {
  * Handicap Index every future event snapshots.
  */
 describe("a public entrant writing a roster row", () => {
-  const publicUpsert = (input: Parameters<typeof upsertMember>[1]) =>
-    upsertMember(orgId, input, "public");
+  const publicUpsert = (input: Omit<Parameters<typeof upsertMember>[1], "guest">) =>
+    upsertMember(orgId, { ...input, guest: false }, "public");
 
   it("cannot restate an existing member's index", async () => {
     await staffUpsert({
@@ -295,6 +296,7 @@ describe("a club that plays off association indexes", () => {
         handicap: 11.1,
         handicapType: "18",
         handicapSource: "manual",
+        guest: false,
       },
       "staff",
     );
@@ -316,6 +318,7 @@ describe("a club that plays off association indexes", () => {
         handicap: 4.8,
         handicapType: "18",
         handicapSource: "manual",
+        guest: false,
       },
       "public",
     );
@@ -341,6 +344,7 @@ describe("a club that plays off association indexes", () => {
         handicap: 26,
         handicapType: "18",
         handicapSource: "manual",
+        guest: false,
       },
       "staff",
     );

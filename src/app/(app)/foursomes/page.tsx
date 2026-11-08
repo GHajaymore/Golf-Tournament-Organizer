@@ -24,6 +24,7 @@ import { cleanIsoDate } from "@/lib/domain/round-dates";
 import { PlaceInGroup } from "@/components/PlaceInGroup";
 import { fieldRefusal } from "@/lib/services/field-change";
 import { strokeCutField, strokeCutOutcomeOf, cutTieRefusal } from "@/lib/services/stroke-cut";
+import { cutFeederOf } from "@/lib/domain/cut-ready";
 import { shortDate } from "@/lib/domain/round-dates";
 import { roundCard } from "@/lib/services/course-resolution";
 import { formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
@@ -200,8 +201,10 @@ export default async function FoursomesPage({
    */
   const cutWaiting = await (async () => {
     if (!stage || cutField || !stage.cutEnabled) return "";
-    const at = state.playRounds.findIndex((s) => s.id === stage.id);
-    const feeder = at > 0 ? state.playRounds[at - 1] : undefined;
+    // The round a stroke cut into this one is taken out of (`cutFeederOf`, the
+    // one answer to "which round decides a cut").
+    const line = cutFeederOf(state.playRounds, stage.id);
+    const feeder = line?.kind === "card" ? line.feeder : undefined;
     if (!feeder) return "";
     const made = await strokeCutOutcomeOf(session.eventId, feeder.id);
     if (!made || made.outcome.undecided.length === 0) return "";

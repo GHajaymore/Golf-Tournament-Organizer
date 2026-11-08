@@ -6,9 +6,10 @@ import {
   setOrganizationMemberRole,
   removeOrganizationMember,
 } from "@/app/actions/organization";
-import { approveJoinRequest, declineJoinRequest } from "@/app/actions/join";
+import { approveJoinRequest, declineJoinRequest, dismissNamesakeNotice } from "@/app/actions/join";
 import type { AccessReport } from "@/lib/services/access";
 import type { PendingAsk } from "@/lib/services/join-requests";
+import type { OpenNamesakeNotice } from "@/lib/services/namesake-notice";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
@@ -54,6 +55,7 @@ export function OrganizationAccess({
   report,
   canEdit,
   asks,
+  namesakes = [],
   seats,
   organizer = "organizer",
 }: {
@@ -63,6 +65,8 @@ export function OrganizationAccess({
   canEdit: boolean;
   /** People waiting to be let in. Empty for almost every club, almost always. */
   asks: PendingAsk[];
+  /** Clubs of this name set up nearby, worded for this club. Empty for almost every club. */
+  namesakes?: OpenNamesakeNotice[];
   /**
    * How many people hold a STAFF SEAT — the number the plan allowance counts,
    * and the number the stat card at the top of this page prints.
@@ -217,6 +221,46 @@ export function OrganizationAccess({
                   </div>
                 )}
                 {refusedAt(`ask:${ask.id}`)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── A club of the same name was set up nearby ─────────────────────
+          Told here and not by email (Ajay, 7 Nov): the club that was here first used to
+          learn of its namesake never. Only shown when there is one. */}
+      {namesakes.length > 0 && (
+        <div className="card elev-sm" data-testid="namesake-notices">
+          <span className="card-title" style={{ fontSize: 15 }}>
+            Same name nearby ({namesakes.length})
+          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {namesakes.map((n) => (
+              <div
+                key={n.id}
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingTop: 8,
+                  borderTop: "1px solid var(--color-divider)",
+                }}
+              >
+                <div style={{ minWidth: 0, flex: "1 1 260px", fontSize: 13 }}>{n.words}</div>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={pending}
+                    onClick={() => press(`notice:${n.id}`, () => dismissNamesakeNotice(n.id))}
+                  >
+                    Dismiss
+                  </button>
+                )}
+                {refusedAt(`notice:${n.id}`)}
               </div>
             ))}
           </div>

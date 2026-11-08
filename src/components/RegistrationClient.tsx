@@ -1,5 +1,7 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
+import { useGolfTerms } from "@/components/GolfTermsProvider";
+import { toCsv } from "@/lib/domain/csv-export";
 import { entriesOpen, overCapacity, suggestedInvite } from "@/lib/registration";
 import { dayAsDate } from "@/lib/deadline";
 import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
@@ -7,7 +9,26 @@ import { promotionState } from "@/lib/domain/promotion";
 import { setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
 import { Fragment, useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
 import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
-import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, placeInFlight, type CsvImportResult } from "@/app/actions/tournament";
+import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, previewCsvSignups, setInviteMessage, placeInFlight, type CsvImportResult, type CsvPreviewRow } from "@/app/actions/tournament";
+import {
+  CHECK_WORDS,
+  CODES_TURNED_ON,
+  CSV_STANDING_GUIDE,
+  CSV_TEMPLATE_HEADER,
+  ENTRY_STANDINGS,
+  GUEST_EMAIL_DROPPED,
+  NO_EMAIL_YET,
+  STANDING_CHOICE,
+  STANDING_TAG,
+  entryStanding,
+  importButtonWords,
+  guestCodesNote,
+  isGuest,
+  memberWithoutEmail,
+  previewSummary,
+  standingHint,
+  type EntryStanding,
+} from "@/lib/domain/entry-standing";
 import { withdrawConfirmation, type FieldChange } from "@/lib/domain/field-change";
 import { setNameWithheld } from "@/app/actions/report-settings";
 import { SaveState, useSaveStatus } from "./SaveState";
@@ -60,6 +81,8 @@ interface Signup {
   promotedAt?: string | null;
   /** "Don't show my name on public pages": signed out, they are "Player (name withheld)". */
   publicNameWithheld?: boolean;
+  /** As stored (`Player.standing`); read only through `entryStanding`. */
+  standing?: string;
 }
 interface EventInfo {
   name: string;
@@ -191,6 +214,15 @@ export function RegistrationClient({
     if (event.registrationOpen) setSelfServeOpen(true);
   }, [event.registrationOpen]);
   const [name, setName] = useState("");
+  // Member or Guest (not a club member), the organizer's choice (Ajay, 2026-11-07).
+  const [standing, setStanding] = useState<EntryStanding>("member");
+  const addingGuest = standing === "guest";
+  // The hint's {club}: the club's own name where the page has it.
+  const golfWords = useGolfTerms();
+  const hint = standingHint(event.organizationName ?? "", golfWords);
+  // The CSV preview ("Check the list"): the file's text, what each row will be, and the organizer's switches.
+  const [preview, setPreview] = useState<{ csv: string; rows: CsvPreviewRow[] } | null>(null);
+  const [choices, setChoices] = useState<Record<number, EntryStanding>>({});
   // The "Add someone new" captions are real <label>s for their controls.
   const fid = useId();
   const [handicap, setHandicap] = useState("");
@@ -338,7 +370,8 @@ export function RegistrationClient({
   // tournament signing players in by Round Code, where it is false. The field
   // input one screen down already says the opposite: "optional — they sign in
   // with the Round Code".
-  const gaps = contactGaps([...confirmed, ...waitlist], phoneRequired, needsEmail);
+  // A guest has no email and no mobile by the ruling, so neither is a gap (2026-11-07).
+  const gaps = contactGaps([...confirmed, ...waitlist].filter((p) => !isGuest(p)), phoneRequired, needsEmail);
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -432,9 +465,13 @@ export function RegistrationClient({
      * A client-side copy of a server rule is the shape that guarantees this:
      * it cannot be caught by a test of the action, and it fails in the one
      * direction nobody checks, by refusing rather than admitting.
+     *
+     * And since 2026-11-07 there is no email rule to copy: a member may be
+     * added without one and a guest needs none (the action turns Round Codes
+     * on where they are needed).
      */
-    if (!name.trim() || (needsEmail && !email.trim())) {
-      setAddError(!name.trim() ? "Enter a player name." : "Email is required — it's how this player signs in.");
+    if (!name.trim()) {
+      setAddError("Enter a player name.");
       return;
     }
     // The same reading as the public form and both importers: "+2.4" is a plus
@@ -453,8 +490,10 @@ export function RegistrationClient({
         // handicap" and hands back 0 for the arithmetic; sending that 0 on
         // made every blank a scratch golfer entered by hand.
         handicap: h.source === "none" ? Number.NaN : h.value,
-        email,
-        phone,
+        standing,
+        // A guest is asked for neither (ruled 2026-11-07); the boxes are hidden, and nothing typed before the switch goes.
+        email: addingGuest ? "" : email,
+        phone: addingGuest ? "" : phone,
         ghin,
         handicapBodyId: visitorBody,
         homeClub,
@@ -492,9 +531,44 @@ export function RegistrationClient({
       return;
     }
     const text = await file.text();
+    /**
+     * CHECK THE LIST FIRST (no-email player identity, PR 1). The file is read
+     * by the server and shown row by row — member or guest, and why a row is
+     * worth a look — before anything is entered. Import is a second press, and
+     * the server reads the file again rather than trusting this.
+     */
     startTransition(async () => {
       try {
-        setImportResult(await importCsvSignups(text));
+        const res = await previewCsvSignups(text);
+        if (!res.ok) {
+          setImportResult({ imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: res.error });
+          return;
+        }
+        setChoices({});
+        setPreview({ csv: text, rows: res.rows });
+      } catch {
+        setImportResult({
+          imported: 0,
+          skippedDuplicates: 0,
+          skippedInvalid: 0,
+          error: "That file didn't go through. Check your connection and try again — nothing was added.",
+        });
+      }
+    });
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  /** The preview's rows with the organizer's switches applied — what Import will do. */
+  const previewRows = (preview?.rows ?? []).map((r) => (choices[r.row] ? { ...r, standing: choices[r.row], check: null } : r));
+  const importing = previewRows.filter((r) => !r.skip);
+  const confirmImport = () => {
+    if (!preview) return;
+    const text = preview.csv;
+    startTransition(async () => {
+      try {
+        setImportResult(await importCsvSignups(text, choices));
+        setPreview(null);
+        setChoices({});
       } catch {
         // A rejected body, a dropped connection, a timeout. Whatever it was,
         // the organizer needs to know it did not happen rather than be left
@@ -507,7 +581,16 @@ export function RegistrationClient({
         });
       }
     });
-    if (fileRef.current) fileRef.current.value = "";
+  };
+  /** The template: the header a club fills in (`CSV_TEMPLATE_HEADER`), made in the browser. */
+  const downloadTemplate = () => {
+    const blob = new Blob([`${toCsv([CSV_TEMPLATE_HEADER.split(",")])}\r\n`], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "entry-list-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   /**
@@ -631,6 +714,7 @@ export function RegistrationClient({
                   <td className="text-muted">{i + 1}</td>
                   <td style={{ fontWeight: 500 }}>
                     {p.name}
+                    <StandingTags p={p} />
                     <PromotedBadge promotedAt={p.promotedAt} />
                     {/* SHOWN WHERE IT WAS TYPED. "Home club" on the Add form was stored and then
                         drawn nowhere on this screen, so the organizer who typed it could not see
@@ -752,36 +836,35 @@ export function RegistrationClient({
                     </div>
                   </td>
                   <td style={{ fontSize: 13 }}>
+                    {/* A GUEST HAS NO EMAIL HERE (2026-11-07): one would make a sign-in
+                        account and hand the entry to whoever holds the address. */}
+                    {isGuest(p) ? (
+                      <span className="text-muted">—</span>
+                    ) : (
                     <input
                       className="input"
                       type="email"
                       maxLength={EMAIL_MAX}
                       defaultValue={p.email ?? ""}
                       disabled={pending || !!doors.edit}
-                      placeholder="Required for sign-in"
+                      placeholder="Add email"
                       style={{
                         padding: "3px 6px",
                         fontSize: 13,
                         width: 150,
-                        borderColor: p.email ? undefined : "var(--color-accent)",
                       }}
                       // The consequence in the accessible NAME rather than a
                       // `title`, which never appears on a touch device. A
-                      // sighted organizer already has the accent border and
-                      // the "Required for sign-in" placeholder; somebody using
-                      // a reader had a tooltip they may never hear. A sentence
-                      // per row would be noise in a table this dense.
-                      aria-label={
-                        p.email
-                          ? `Email for ${p.name}`
-                          : `Email for ${p.name} — none on file, so they cannot sign in until one is added`
-                      }
+                      // member may play without an email (2026-11-07), so it
+                      // is a fact ("No email yet"), not an alarm.
+                      aria-label={p.email ? `Email for ${p.name}` : `Email for ${p.name} — ${NO_EMAIL_YET}`}
                       onKeyDown={leaveOnEnter}
                       onBlur={(e) => {
                         const v = e.target.value.trim();
                         if (v !== (p.email ?? "")) commitUpdate(p.id, { email: v });
                       }}
                     />
+                    )}
                   </td>
                   <td className="text-muted" style={{ fontSize: 13 }}>{p.phone || "—"}</td>
                   {showFlight && (
@@ -1248,10 +1331,41 @@ export function RegistrationClient({
             Anyone added here joins the {org.noun} roster too, so you only enter their details once.
           </p>
           <div className="field"><label htmlFor={`${fid}-name`}>Player name</label><input id={`${fid}-name`} className="input" value={name} maxLength={PERSON_NAME_MAX} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
+          {/* MEMBER OR GUEST (Ajay, 2026-11-07), above Email, with the hint. */}
+          <div className="field">
+            <label id={`${fid}-standing`}>Member or guest</label>
+            <div className="seg" style={{ width: "100%" }} role="radiogroup" aria-labelledby={`${fid}-standing`}>
+              {ENTRY_STANDINGS.map((s) => (
+                <label className="seg-opt" key={s} style={{ flex: 1, justifyContent: "center" }}>
+                  <input type="radio" name="standing" value={s} checked={standing === s} onChange={() => setStanding(s)} />
+                  {STANDING_CHOICE[s]}
+                </label>
+              ))}
+            </div>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }} data-testid="standing-hint">
+              {hint}
+            </p>
+            {/* Before the press: a guest has no email, so on a tournament without round
+                codes this add turns them on, as the member's empty-Email line says. */}
+            {addingGuest && guestCodesNote(needsEmail) && (
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }} data-testid="guest-codes-note">
+                {guestCodesNote(needsEmail)}
+              </p>
+            )}
+          </div>
+          {!addingGuest && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div className="field">
-              <label htmlFor={`${fid}-email`}>Email <span style={{ color: "var(--color-accent-200)" }}>{needsEmail ? "· required, grants sign-in" : "· optional — they sign in with the Round Code"}</span></label>
-              <input id={`${fid}-email`} className="input" type="email" maxLength={EMAIL_MAX} required={needsEmail} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" style={needsEmail && !email.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
+              {/* Optional for a member, whatever the tournament (2026-11-07): an entry without
+                  one turns Round Codes on, and the screen says so before the press and after it. */}
+              <label htmlFor={`${fid}-email`}>Email <span style={{ color: "var(--color-accent-200)" }}>· optional, lets them sign in</span></label>
+              <input id={`${fid}-email`} className="input" type="email" maxLength={EMAIL_MAX} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" />
+              {!email.trim() && (
+                <span className="text-muted" style={{ fontSize: 13 }}>
+                  {/* Before the press: on a tournament without round codes, this add turns them on. */}
+                  {memberWithoutEmail(needsEmail)}
+                </span>
+              )}
             </div>
             {/* SAID LIKE EMAIL IS, WHEN IT IS REQUIRED (2026-09-26). Where the
                 tournament asks for a mobile the server refuses an add without
@@ -1264,6 +1378,7 @@ export function RegistrationClient({
               <input id={`${fid}-phone`} className="input" type="tel" maxLength={PHONE_MAX} required={phoneRequired} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" style={phoneRequired && !phone.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
             </div>
           </div>
+          )}
           {/* A visitor from another country plays off their own body's index —
               valid everywhere under WHS. Folded away (Ajay: "I dont want to
               complicate"): almost every entrant is local, and the form reads
@@ -1315,7 +1430,7 @@ export function RegistrationClient({
           {/* Gated on the field's add door like the roster picker above —
               `addSignup` asks the same rule — and this was once the one button
               on the screen that still offered a refused add. */}
-          <button type="button" className="btn btn-primary btn-block" disabled={pending || !!doors.add || !name.trim() || (needsEmail && !email.trim()) || (phoneRequired && !phone.trim())} onClick={submitAdd}><Icon name="plus" /> {underWay ? "Add late entry" : "Add to field"}</button>
+          <button type="button" className="btn btn-primary btn-block" disabled={pending || !!doors.add || !name.trim() || (!addingGuest && phoneRequired && !phone.trim())} onClick={submitAdd}><Icon name="plus" /> {underWay ? "Add late entry" : "Add to field"}</button>
           {/* Said HERE, where the dead button is — the banner is a screen and a
               half above a form somebody has just filled in. The rule's own words. */}
           {doors.add && (
@@ -1350,35 +1465,30 @@ export function RegistrationClient({
                 {doors.bulk}
               </p>
             )}
+            {/* The hint beside the button: a list is where members and guests are told apart (2026-11-07). */}
+            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }} data-testid="standing-hint">
+              {hint}
+            </p>
+            <button
+              type="button"
+              onClick={downloadTemplate}
+              style={{ background: "none", border: "none", padding: 0, minHeight: "var(--tap-min, 32px)", cursor: "pointer", fontSize: 13, color: "var(--color-accent-200)" }}
+            >
+              <Icon name="download-simple" /> Download template
+            </button>
             {/* Says what this tournament actually requires, rather than what
-                every tournament used to. Built as a list rather than a third
-                nested ternary: two independent switches (email, phone) make
-                four sentences, and the nested form had already produced one
-                that read "name and email (both required — email is how each
-                player signs in), handicap, phone". */}
+                every tournament used to. No email is required any more
+                (2026-11-07): a member may enter without one, a guest needs none. */}
             {/* One line, the full rules an ⓘ away (2026-10-05). */}
             <MoreInfo
-              short={`A header row, then: ${["name", ...(needsEmail ? ["email"] : []), ...(phoneRequired ? ["phone"] : [])].join(", ")}.`}
+              short={`A header row, then: ${["name", ...(phoneRequired ? ["phone"] : [])].join(", ")}.`}
               style={{ marginTop: 6 }}
             >
-              First row must be a header. Required columns:{" "}
-              {[
-                "name",
-                ...(needsEmail ? ["email"] : []),
-                ...(phoneRequired ? ["phone"] : []),
-              ].join(", ")}
-              {needsEmail ? " — email is how each player signs in" : ""}
-              {phoneRequired ? ", and this tournament collects a mobile for every entrant" : ""}. Also read:{" "}
-              {[
-                ...(needsEmail ? [] : ["email"]),
-                ...(phoneRequired ? [] : ["phone"]),
-                "handicap",
-                "handicap type (9/18)",
-              ].join(", ")}
-              .{" "}
-              {needsEmail
-                ? "Rows missing a required column, or duplicating an email already in the field, are skipped automatically."
-                : "Rows missing a required column are skipped automatically. Without an email to go on, a row is treated as already entered when its name matches somebody in the field."}
+              First row must be a header. Required columns: {["name", ...(phoneRequired ? ["phone"] : [])].join(", ")}
+              {phoneRequired ? ", and this tournament collects a mobile for every member" : ""}. Also read: email,{" "}
+              {phoneRequired ? "" : "phone, "}handicap, handicap type (9/18). {CSV_STANDING_GUIDE} You check the list before
+              anything is added. Rows with no name or a broken email are skipped, and so is a row whose email (or, with
+              no email, whose name) is already in the field.
             </MoreInfo>
             {importResult && (
               importResult.error ? (
@@ -1386,16 +1496,14 @@ export function RegistrationClient({
                   <Icon name="warning-circle" /> {importResult.error}
                 </p>
               ) : (
-                <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }} role="status">
                   <Icon name="check-circle" style={{ color: "var(--color-accent-2-200)" }} /> Imported {importResult.imported}
+                  {importResult.members !== undefined && importResult.guests !== undefined
+                    ? ` (${importResult.members} ${importResult.members === 1 ? "member" : "members"}, ${importResult.guests} ${importResult.guests === 1 ? "guest" : "guests"})`
+                    : ""}
                   {importResult.skippedDuplicates > 0 ? `, skipped ${importResult.skippedDuplicates} duplicate${importResult.skippedDuplicates === 1 ? "" : "s"}` : ""}
                   {importResult.skippedInvalid > 0 ? `, skipped ${importResult.skippedInvalid} invalid row${importResult.skippedInvalid === 1 ? "" : "s"}` : ""}.
-                  {importResult.codesTurnedOn && (
-                    <>
-                      {" "}The list had no email addresses, so Round Codes are now on as well: players sign in with
-                      the round&rsquo;s code. Change it on Tournament details.
-                    </>
-                  )}
+                  {importResult.codesTurnedOn ? ` ${CODES_TURNED_ON}` : ""}
                 </p>
               )
             )}
@@ -1408,6 +1516,98 @@ export function RegistrationClient({
               <Icon name="warning-circle" /> {rowError}
             </p>
           )}
+          {/* CHECK THE LIST (no-email player identity, PR 1): every row of the file,
+              member or guest, why a default is worth a look, and a switch on each.
+              Nothing is entered until Import is pressed. */}
+          {preview && (
+            <div className="card elev-sm" style={{ borderColor: "var(--color-accent)", gap: 8 }} data-testid="csv-preview" ref={bringIntoView}>
+              <span className="card-title" style={{ fontSize: 15 }}>Check the list</span>
+              <p style={{ fontSize: 13, margin: 0 }} role="status">
+                {previewSummary({
+                  members: importing.filter((r) => r.standing === "member").length,
+                  toCheck: importing.filter((r) => r.standing === "member" && r.check).length,
+                  guests: importing.filter((r) => r.standing === "guest").length,
+                  skipped: previewRows.length - importing.length,
+                })}
+              </p>
+              <div className="table-scroll">
+                <table className="table" style={{ fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th style={{ textAlign: "right" }}>Hcp</th>
+                      <th>Email</th>
+                      <th>Handicap ID</th>
+                      <th>Member or guest</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((r) => (
+                      <tr key={r.row} data-row={r.row} style={r.skip ? { opacity: 0.6 } : undefined}>
+                        <td style={{ fontWeight: 500 }}>{r.name || "—"}</td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.handicapLabel}</td>
+                        <td className="text-muted">
+                          {r.standing === "guest" ? (r.email ? GUEST_EMAIL_DROPPED : "—") : r.email || NO_EMAIL_YET}
+                        </td>
+                        <td className="text-muted">{r.handicapId || "—"}</td>
+                        <td>
+                          {r.skip ? (
+                            <span className="text-muted">
+                              {r.skip === "duplicate" ? "Already in the field: skipped" : "Skipped: no name, a broken email or no mobile"}
+                            </span>
+                          ) : (
+                            <>
+                              <span data-standing={r.standing}>{STANDING_CHOICE[r.standing]}</span>
+                              {r.check && (
+                                <span style={{ display: "block", color: "var(--color-accent-200)" }}>
+                                  <Icon name="warning-circle" /> Check: {CHECK_WORDS[r.check]}
+                                  {r.rosterName ? ` (${r.rosterName})` : ""}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </td>
+                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          {!r.skip && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ fontSize: 13, padding: "4px 10px", minHeight: 44 }}
+                              disabled={pending}
+                              aria-label={`${r.standing === "member" ? "Make guest" : "Make member"}: ${r.name}`}
+                              onClick={() =>
+                                setChoices((prev) => ({ ...prev, [r.row]: r.standing === "member" ? "guest" : "member" }))
+                              }
+                            >
+                              {r.standing === "member" ? "Make guest" : "Make member"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" className="btn btn-primary" disabled={pending || importing.length === 0 || !!doors.bulk} onClick={confirmImport}>
+                  <Icon name="check" /> {importButtonWords(importing.length)}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={pending}
+                  onClick={() => {
+                    setPreview(null);
+                    setChoices({});
+                    fileRef.current?.click();
+                  }}
+                >
+                  Choose another file
+                </button>
+              </div>
+            </div>
+          )}
           {pendingEntries.length > 0 && (
             <div className="card elev-sm" style={{ borderColor: "var(--color-accent)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1416,6 +1616,9 @@ export function RegistrationClient({
               </div>
               <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 2px" }}>
                 Self-service entries waiting for you. Accepting one puts it in the field (or the waitlist if full).
+              </p>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0 }} data-testid="standing-hint">
+                {hint}
               </p>
               {/* Why Accept is dead, on the page (never a tooltip): the field rule's own words. */}
               {doors.approve && (
@@ -1436,7 +1639,10 @@ export function RegistrationClient({
                   <tbody>
                     {pendingEntries.map((p) => (
                       <tr key={p.id}>
-                        <td style={{ fontWeight: 500 }}>{p.name}</td>
+                        <td style={{ fontWeight: 500 }}>
+                          {p.name}
+                          <StandingTags p={p} />
+                        </td>
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                           {/* One reader for the two fields. A pending entry
                               from a club playing off association indexes has
@@ -1481,6 +1687,34 @@ export function RegistrationClient({
           {table(waitlist, "Waitlist", false)}
         </div>
       </div>
+    </>
+  );
+}
+
+/**
+ * MEMBER OR GUEST, beside the name (no-email player identity, PR 1): "Member"
+ * or "Guest", and "No email yet" for a member without one. Read through
+ * `entryStanding`, so an entry made before A039 reads as a member.
+ */
+function StandingTags({ p }: { p: { standing?: string; email?: string } }) {
+  const s = entryStanding(p);
+  // Muted by its style, not the `text-muted` class: that class under a name is the home club's line.
+  const tag = {
+    marginLeft: 8,
+    fontSize: 13,
+    fontWeight: 400,
+    padding: "1px 7px",
+    borderRadius: 999,
+    whiteSpace: "nowrap" as const,
+    border: "1px solid var(--color-divider)",
+    color: "var(--color-text-muted)",
+  };
+  return (
+    <>
+      <span style={tag} data-standing={s}>
+        {STANDING_TAG[s]}
+      </span>
+      {s === "member" && !(p.email ?? "").trim() && <span style={tag}>{NO_EMAIL_YET}</span>}
     </>
   );
 }

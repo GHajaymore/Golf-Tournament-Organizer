@@ -200,7 +200,10 @@ export default async function BracketPage() {
             state.event.qualifyMode === "overall"
               ? `Top ${state.event.qualifyOverall} overall`
               : `Top ${state.event.qualifyPerGroup}/flight`,
-          advancingCount: state.advancingCount,
+          // The knockout's line (`qualifierIds`), which this panel's rule
+          // names — not the board's lit rows, which show a pending cut first
+          // (J31 review: round robin → round robin with a cut → this draw).
+          advancingCount: state.qualifierIds.size,
           fieldSize: state.confirmed.length,
           toWinners: draw.main.length,
           mainLabel: draw.mainLabel,
@@ -234,7 +237,7 @@ export default async function BracketPage() {
             ...common,
             cutoffText: qualifyingPlayed ? qualifyingCutoffText(state.qualifyingCutoff, pts) : "—",
             qualifiers: state.strokeStandings
-              .filter((s) => state.advancingIds.has(s.player.id))
+              .filter((s) => state.qualifierIds.has(s.player.id))
               .map((s) => ({
                 id: s.player.id,
                 name: s.player.name,
@@ -254,7 +257,7 @@ export default async function BracketPage() {
                   name: s.player.name,
                   points: figure(s),
                   shown: shown(s),
-                  advancing: state.advancingIds.has(s.player.id),
+                  advancing: state.qualifierIds.has(s.player.id),
                 })),
             })),
           };
@@ -262,7 +265,7 @@ export default async function BracketPage() {
         return {
           ...common,
           qualifiers: state.overall
-            .filter((r) => state.advancingIds.has(r.player.id))
+            .filter((r) => state.qualifierIds.has(r.player.id))
             .map((r) => ({
               id: r.player.id,
               name: r.player.name,
@@ -278,7 +281,7 @@ export default async function BracketPage() {
               rank: r.rank,
               name: r.player.name,
               points: r.stats.totalPoints,
-              advancing: state.advancingIds.has(r.player.id),
+              advancing: state.qualifierIds.has(r.player.id),
             })),
           })),
         };

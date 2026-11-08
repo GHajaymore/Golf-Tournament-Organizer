@@ -12,7 +12,7 @@
  */
 
 import { formGroups } from "./grouping";
-import { cutRuleOf, type CutTieRule } from "./cut-ready";
+import { cutRuleOf, cutTieRuleOf, cutDecidedBy, type CutTieRule } from "./cut-ready";
 import { scoreOnBasis, type BasisScore, type RankingBasis } from "./stroke-countback";
 import type { Player } from "./types";
 
@@ -34,7 +34,7 @@ export const CUT_SCOPE_HELP =
   "Overall takes the top players from the whole field, so one strong flight can fill most of the places. Per flight takes the same number out of each flight, so every flight sends someone through regardless of how the others scored.";
 
 export const ROUND_CUT_HELP =
-  "This trims the field on the way out of this round: whoever survives plays the next one. It is set on each round, so a league can cut differently week to week. In stroke play the cut is made when you mark this round finished — the leaders get a card for the next round, a tie for the last place is settled the way you chose (everyone tied goes through, a play-off, or a countback), and nobody else does.";
+  "This trims the field on the way out of this round: whoever survives plays the next one. It is set on each round, so a league can cut differently week to week. In stroke play the cut is made when you mark this round finished — the leaders get a card for the next round, a tie for the last place is settled the way you chose (everyone tied goes through, a play-off, or a countback), and nobody else does. After a round robin it is made when you draw the next round, and a tie for the last place is settled the same way, on points and the table's tie-breaks.";
 
 export const QUALIFICATION_CUT_HELP =
   "This decides who reaches the knockout bracket, and it is a property of the tournament rather than of one round. A tournament that runs straight through from round to round does not need it — use the cut line on each round instead.";
@@ -139,11 +139,39 @@ export function survivors(rankedInOrder: CutCandidate[], rule: CutRule): Set<str
 // cut off its Stage row; re-exported here, where the rule is applied.
 export { cutTieRuleOf, CUT_TIE_RULES, DEFAULT_CUT_TIE_RULE, type CutTieRule } from "./cut-ready";
 
-/** The rule as a committee prints it, for the setup screen and the rules sheet. */
-export function cutTieRuleWords(rule: CutTieRule): string {
+/**
+ * WHAT A CUT LINE IS DRAWN THROUGH (J31, 2026-11-06) — the one thing about a
+ * tie at the line that differs between a stroke cut and a round robin's.
+ *
+ *   card    a stroke round's board: level means level on the score, and the
+ *           countback is the card's (last 9, 6, 3, the last hole).
+ *   table   a round robin's table of match points: level means level on
+ *           points, and the countback is the table's own tie-breaks — the
+ *           order the committee set for the round (head-to-head, holes won,
+ *           …), which is what the table ranks on. A handicap and an entry
+ *           order are not results and decide nothing (`rankPlayers`).
+ *
+ * The RULE is the same one (`cutLineOutcome`); only its words change. A
+ * knockout's qualifying line (J30, after launch) is either kind, by what it
+ * qualifies on.
+ */
+export type CutLineKind = "card" | "table";
+
+/**
+ * The rule as a committee prints it, for the setup screen and the rules sheet.
+ * `on` is REQUIRED: a round robin's "countback" is not the last nine holes, and
+ * a sheet saying so would publish a tie-break the table does not use.
+ */
+export function cutTieRuleWords(rule: CutTieRule, on: CutLineKind): string {
   if (rule === "playoff") return "A tie for the last place is decided by a play-off";
-  if (rule === "countback") return "A tie for the last place is decided by countback (last 9, 6, 3, then the last hole), then by lot";
-  return "Everybody tied for the last place goes through";
+  if (rule === "countback") {
+    return on === "table"
+      ? "A tie for the last place is decided by the table's tie-breaks, in the order set for the round, then by lot"
+      : "A tie for the last place is decided by countback (last 9, 6, 3, then the last hole), then by lot";
+  }
+  return on === "table"
+    ? "Everybody level on points for the last place goes through"
+    : "Everybody tied for the last place goes through";
 }
 
 /**
@@ -225,23 +253,114 @@ export function cutLineRows(
     .map((s) => ({ id: s.player.id, groupId: s.player.groupId ?? null, rank: s.rank, score: scoreOnBasis(s, basis) }));
 }
 
+/**
+ * A round robin's table as the rows a cut reads (J31, 2026-11-06): the table's
+ * order, its shared places, and the match points it is decided on.
+ *
+ * `rank` is the table's own place, which two players SHARE when nothing they
+ * did separates them on the tie-breaks the committee set (`rankPlayers`) — so a
+ * "countback" at a round robin's line is those tie-breaks, and a draw by lot is
+ * owed only where they run out. `score` is the points: "level" for a play-off,
+ * or for "and ties", is level on points, whatever the tie-breaks then say.
+ */
+export function tableCutLineRows(
+  table: ReadonlyArray<{ player: { id: string; groupId?: string | null }; stats: { totalPoints: number }; rank: number }>,
+): CutLineRow[] {
+  return table.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId ?? null, rank: rp.rank, score: rp.stats.totalPoints }));
+}
+
+/** A cut's settings as they sit on the Stage it feeds — the rule, the tie rule and the decisions. */
+export interface CutStageFields {
+  cutScope: string;
+  cutMode: string;
+  cutCount: number;
+  cutPercent: number;
+  cutTies: string;
+  cutTieDecisions: string;
+}
+
+/**
+ * WHO GOES THROUGH A ROUND ROBIN'S CUT (J31, 2026-11-06) — the same rule as a
+ * stroke cut, asked of the table. `generateCutRound` makes the cut with it, the
+ * board lights who is through with it, and `settleCutTie` records the
+ * committee's decision against the ties it returns: one answer, so the board
+ * cannot light a player the draw then leaves out.
+ *
+ * Until this, the cut took the front of the table's list — which, where the
+ * tie-breaks ran out, was entry order: a tie at the line decided by who had
+ * entered first, with nothing on any screen saying so.
+ */
+export function roundRobinCutOutcome(
+  table: Parameters<typeof tableCutLineRows>[0],
+  next: CutStageFields,
+): CutOutcome {
+  return cutLineOutcome(
+    tableCutLineRows(table),
+    cutRuleOf(next),
+    cutTieRuleOf(next.cutTies),
+    cutTieDecisionsOf(next.cutTieDecisions),
+  );
+}
+
+/**
+ * SOMETHING TO CUT ON (J31 review, 2026-11-07): whether the round a round
+ * robin's cut is taken out of holds anything ENTERED — a hole of any match
+ * (a halve is a result), a concession, or a stroke on any card filed for it.
+ * The ONE predicate: the draw (`roundRobinCutFrom`) refuses to cut without
+ * it, and the board lights nobody without it, so the board never lights a
+ * field the draw would refuse to cut, nor stays dark over one it would cut.
+ *
+ * It replaced two that disagreed. The board asked the TABLE (`tableHasResults`:
+ * a hole won, a match over, or points that differ) and the draw asked the
+ * ROUND (`enteredCardCount`): a round drawn but unplayed under carry-forward
+ * lit from the carried points while the draw refused "no results", and a
+ * match with only halves entered stayed dark while the draw cut on it.
+ *
+ * Asked of the FEEDER's rows only — carried points are not a result of the
+ * round that decides the cut.
+ */
+export function roundHasSomethingToCutOn(feeder: {
+  matches: ReadonlyArray<{ holes: string; forfeitedBy?: string | null }>;
+  cards: ReadonlyArray<{ strokes: string }>;
+}): boolean {
+  const parsed = (json: string): unknown[] => {
+    try {
+      const v = JSON.parse(json) as unknown;
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  };
+  if (feeder.matches.some((m) => !!m.forfeitedBy || parsed(m.holes).some((h) => typeof h === "string" && h.trim() !== ""))) return true;
+  return feeder.cards.some((c) => parsed(c.strokes).some((s) => typeof s === "number" && s > 0));
+}
+
 const sameSet = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && [...a].sort().join("\u0000") === [...b].sort().join("\u0000");
 
 /**
- * WHO GOES THROUGH A STROKE CUT — THE ONE ANSWER (2026-10-23).
+ * WHO GOES THROUGH A CUT LINE — THE ONE ANSWER (2026-10-23; every kind of line
+ * since J31, 2026-11-06).
  *
  * Every reader asks this: `applyStrokeCut` making the cut, `strokeCutRefusal`
  * refusing it while a tie is unsettled, the dashboard's preview, and the board
  * lighting who is through (`advancingIds`, which the player app, the tee sheet
- * and the export read). The tie rule and the decisions are REQUIRED, so a new
- * reader cannot quietly take "top N" and pick somebody out of a tie.
+ * and the export read) — and a round robin's cut through `roundRobinCutOutcome`.
+ * The tie rule and the decisions are REQUIRED, so a new reader cannot quietly
+ * take "top N" and pick somebody out of a tie.
  *
  * `rankedInOrder` is the field in finishing order (the board's own order), as
  * for `survivors`. Only ranked rows (rank > 0) can go through. A per-flight
  * cut applies all of this inside each flight.
+ *
+ * NOTHING HERE IS ABOUT STROKES. A row is a place, a score and a flight
+ * (`CutLineRow`), so a stroke board (`cutLineRows`) and a round robin's table
+ * (`tableCutLineRows`) are asked the same question; a knockout's qualifying
+ * line (J30, ruled for after launch) is meant to be asked it too — its draw is
+ * of a FIXED size (Committee Procedures 5A(7), the draw for match play), so it
+ * will take a play-off or a countback and never "and ties".
  */
-export function strokeCutOutcome(
+export function cutLineOutcome(
   rankedInOrder: readonly CutLineRow[],
   rule: CutRule,
   tieRule: CutTieRule,
@@ -306,6 +425,12 @@ export function strokeCutOutcome(
   for (const [key, list] of byFlight) take(list, key || null);
   return out;
 }
+
+/**
+ * The stroke cut's name for `cutLineOutcome` — the SAME function, not a second
+ * rule, kept so the stroke cut's readers did not all move in J31.
+ */
+export const strokeCutOutcome = cutLineOutcome;
 
 /**
  * Would enabling this cut change who plays the next round?
@@ -462,20 +587,37 @@ export interface RoundCutLine {
  * card labels it (via `currentRoundCut`). A knockout uses event-level
  * qualification instead, which is why the caller only asks here when there is
  * no bracket/qualification stage to advance into.
+ *
+ * AND IT IS THE CUT THE ACTIVE ROUND DECIDES (2026-11-07, ruled on the J31
+ * review): `cutDecidedBy`, the function the rules sheet prints from — not
+ * simply the round beside it. For round robin → medal → cut round, while
+ * Round 1 is played its table decides the cut into Round 3, and the board and
+ * the dashboard say so, as Round 1's sheet does; the medal's scores decide
+ * nothing of it. A cut no engine makes (no table, no card before it) is no
+ * cut here either.
  */
-export function currentRoundCutRule(
-  rounds: RoundCutFields[],
+export function currentRoundCutOf<R extends RoundCutFields & { id: string; type: string; format: string }>(
+  rounds: readonly R[],
+  activeIndex: number,
+): { rule: CutRule; next: R; nextIndex: number; kind: CutLineKind } | null {
+  const active = activeIndex >= 0 ? rounds[activeIndex] : undefined;
+  if (!active) return null;
+  const decided = cutDecidedBy(rounds, active.id);
+  if (!decided) return null;
+  return { rule: cutRuleOf(decided.next), next: decided.next, nextIndex: rounds.indexOf(decided.next), kind: decided.kind };
+}
+
+/** Only the rule of `currentRoundCutOf`. */
+export function currentRoundCutRule<R extends RoundCutFields & { id: string; type: string; format: string }>(
+  rounds: readonly R[],
   activeIndex: number,
 ): CutRule | null {
-  if (activeIndex < 0) return null;
-  const next = rounds[activeIndex + 1];
-  if (!next || !next.cutEnabled) return null;
-  return cutRuleOf(next);
+  return currentRoundCutOf(rounds, activeIndex)?.rule ?? null;
 }
 
 /** The current round's cut as a one-line dashboard label, or null. */
-export function currentRoundCut(
-  rounds: RoundCutFields[],
+export function currentRoundCut<R extends RoundCutFields & { id: string; type: string; format: string }>(
+  rounds: readonly R[],
   activeIndex: number,
   /**
    * The round the BOARD is showing, 1-based, or 0 when nothing has been
@@ -484,14 +626,16 @@ export function currentRoundCut(
    */
   playedThrough = 0,
 ): RoundCutLine | null {
-  const rule = currentRoundCutRule(rounds, activeIndex);
-  if (!rule) return null;
+  const cut = currentRoundCutOf(rounds, activeIndex);
+  if (!cut) return null;
+  const { rule } = cut;
 
   const perFlight = rule.scope === "perFlight";
   const amount = rule.mode === "percent" ? `${rule.percent}%` : `${rule.count}`;
   const advance = `top ${amount}${perFlight ? " per flight" : ""} advance`;
   const fromRound = activeIndex + 1;
-  const toRound = activeIndex + 2;
+  // The round the cut FEEDS, which past a medal is not the next one.
+  const toRound = cut.nextIndex + 1;
 
   /**
    * THREE STATES, AND THE CARD SHOULD READ DIFFERENTLY IN EACH.
