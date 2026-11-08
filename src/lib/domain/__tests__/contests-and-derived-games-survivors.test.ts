@@ -20,7 +20,7 @@ import type { HoleResult } from "../types";
  * Written from the mutation run for backlog item J49: the changes to
  * `contests.ts` and `derived-games.ts` that no test noticed. Every expectation
  * is worked by hand from the side game's own rule (each entrant puts in the
- * stake, the winners share what was put in to the cent, a bet between sides
+ * stake, the winners share what was put in to the cent, a side game between sides
  * is paid per player and sums to zero) and not read off the code.
  *
  * Names are invented single letters. TourneyHQ works the money out and writes
@@ -237,13 +237,13 @@ describe("a derived pot, worked from the rule that the pot goes back out in full
   });
 });
 
-/* ── bets between sides ────────────────────────────────────────────────── */
+/* ── side games between sides──────────────────────────────────────────────── */
 
 const run = (s: string): HoleResult[] => s.split("").map((c) => (c === "." ? null : (c as "A" | "B" | "H")));
 const ALL_A = "A".repeat(18);
 const ALL_B = "B".repeat(18);
 
-describe("the match bet, worked as each player against their opposite number", () => {
+describe("the match side game, worked as each player against their opposite number", () => {
   const bet = (over: Partial<Parameters<typeof matchBetNets>[0]> = {}) => ({
     matchId: "m",
     sideA: ["a"],
@@ -302,7 +302,7 @@ describe("the match bet, worked as each player against their opposite number", (
     expect(nets.map((n) => n.playerId)).toEqual(["a", "c", "b", "d"]);
   });
 
-  it("the ledger of several match bets nets each player and lists biggest first, ties by id", () => {
+  it("the ledger of several match side games nets each player and lists biggest first, ties by id", () => {
     const ledger = matchBetLedger([
       bet({ matchId: "m1", sideA: ["c"], sideB: ["d"], stakeCents: 100 }),
       bet({ matchId: "m2", sideA: ["a"], sideB: ["b"], stakeCents: 100 }),
@@ -316,7 +316,7 @@ describe("the match bet, worked as each player against their opposite number", (
   });
 });
 
-describe("the Nassau, worked as three bets on one card", () => {
+describe("the Nassau, worked as three side games on one card", () => {
   const nassau = (over: Partial<Parameters<typeof nassauNets>[0]> = {}) => ({
     matchId: "n",
     sideA: ["a"],
@@ -364,7 +364,7 @@ describe("the Nassau, worked as three bets on one card", () => {
     expect(nets.map((n) => n.playerId)).toEqual(["a", "c", "b", "d"]);
   });
 
-  it("the ledger nets each player across bets, drops those level, and lists biggest first", () => {
+  it("the ledger nets each player across side games, drops those level, and lists biggest first", () => {
     // a beats b three times over; then b beats a three times over: both back to nothing.
     expect(nassauLedger([nassau({ matchId: "n1" }), nassau({ matchId: "n2", holes: run(ALL_B) })])).toEqual([]);
     const ledger = nassauLedger([
