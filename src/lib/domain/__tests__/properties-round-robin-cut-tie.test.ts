@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { computeStandings } from "../standings";
 import { roundRobinCutOutcome, CUT_TIE_RULES, survivorCount, type CutTieRule } from "../cut";
-import { DEFAULT_SCORING, type HoleResult, type Match, type Player } from "../types";
+import { DEFAULT_SCORING, FIXED_TIEBREAKER_KEYS, type HoleResult, type Match, type Player, type TiebreakerKey } from "../types";
 
 /**
  * PROPERTIES OF A ROUND ROBIN'S CUT LINE (J31, 2026-11-06), checked against a
@@ -133,13 +133,15 @@ describe("a round robin's cut line, against a pencil", () => {
     );
   });
 
-  it("does not depend on the order the players entered, where the points decide it", () => {
+  it("does not depend on the order the players entered — on points, and on the table's places for a countback", () => {
     fc.assert(
       fc.property(
         fieldArb,
         fc.integer({ min: 0, max: 1000 }),
         ({ sizes, results, order, count, tie }, salt) => {
-          if (tie === "countback") return; // the table's places are the table's business
+          // A countback included since 2026-11-07: the table's shared places
+          // are decided over the whole level group, so a head-to-head cycle
+          // at the line is a tie owed a draw whoever entered first.
           const again = [...order].sort((a, b) => ((a * 7919 + salt) % 97) - ((b * 7919 + salt) % 97));
           const one = roundRobinCutOutcome(build(sizes, results, order).table, next(count, tie));
           const two = roundRobinCutOutcome(build(sizes, results, again).table, next(count, tie));
@@ -147,6 +149,32 @@ describe("a round robin's cut line, against a pencil", () => {
           expect(one.undecided.map((u) => sorted(u.playerIds))).toEqual(two.undecided.map((u) => sorted(u.playerIds)));
         },
       ),
+      RUNS,
+    );
+  });
+
+  /**
+   * THE TABLE'S PLACES ARE A FUNCTION OF WHAT WAS PLAYED, NOT OF WHO ENTERED
+   * FIRST (2026-11-07), under any chain a committee can set. Each player keeps
+   * the same handicap whichever order the field entered in (a handicap the
+   * committee CHOSE may decide a place; the seed never may). The pairwise rule
+   * this replaced failed it on the first head-to-head cycle the generator
+   * drew: the three were numbered in entry order.
+   */
+  it("gives every player the same place in any entry order, under any chain", () => {
+    const chainArb = fc.shuffledSubarray<TiebreakerKey>([...FIXED_TIEBREAKER_KEYS, "toughest-6"], { minLength: 0 });
+    fc.assert(
+      fc.property(fieldArb, chainArb, fc.integer({ min: 0, max: 1000 }), ({ sizes, results, order }, chain, salt) => {
+        const again = [...order].sort((a, b) => ((a * 7919 + salt) % 97) - ((b * 7919 + salt) % 97));
+        const placesOf = (o: number[]) => {
+          const { players, matches } = build(sizes, results, o);
+          // The handicap belongs to the player, not to the entry position.
+          for (const p of players) p.handicap = (Number(p.id.slice(p.id.indexOf("p") + 1)) * 5) % 7;
+          const scoring = { ...DEFAULT_SCORING, tiebreakers: chain };
+          return Object.fromEntries(computeStandings(players, matches, scoring).map((r) => [r.player.id, r.rank]));
+        };
+        expect(placesOf(again)).toEqual(placesOf(order));
+      }),
       RUNS,
     );
   });

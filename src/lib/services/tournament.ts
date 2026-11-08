@@ -62,7 +62,7 @@ import { todayIso } from "../deadline";
 import { clubDay, clubToday } from "../domain/club-clock";
 import { zoneOfOrganization } from "./club-clock";
 import { cleanIsoDate } from "../domain/round-dates";
-import { pts as fmtPts, record as fmtRecord, diff as fmtDiff, placeOrdinal } from "../format";
+import { pts as fmtPts, record as fmtRecord, diff as fmtDiff, placeOrdinal, listNames } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import {
   computeStandings,
@@ -3648,6 +3648,25 @@ export function computeHighlights(state: EventState): Highlight[] {
   return state.drawFrozen ? all.filter((h) => h.kind !== "cut") : all;
 }
 
+/**
+ * The Leader / Winner card, for one name or a shared first place (2026-11-07).
+ *
+ * It read the top ROW of the board, and the top row of a tie is only first in
+ * the list: once three level players beating each other in a circle share 1st,
+ * "Ann won on 6 pts" named the earliest entry the champion over a board that
+ * prints 1, 1, 1. A shared first names nobody — `suggestChampion` already
+ * refuses a champion while `leaders.length > 1`, and the committee settles a
+ * single title (a play-off, or its published method).
+ */
+function sharedLead(names: string[], done: boolean, figure: string): Highlight {
+  if (names.length <= 1) {
+    return { icon: "🏆", title: done ? "Winner" : "Leader", text: `${names[0] ?? "—"} ${done ? "won" : "leads"} ${figure}.` };
+  }
+  return done
+    ? { icon: "🏆", title: "Level for first", text: `${listNames(names)} share first place ${figure}. Nothing separates them, so the committee decides the title.` }
+    : { icon: "🏆", title: "Leaders", text: `${listNames(names)} share the lead ${figure}.` };
+}
+
 function highlightsOf(state: EventState): Highlight[] {
   const out: Highlight[] = [];
   const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
@@ -3664,6 +3683,9 @@ function highlightsOf(state: EventState): Highlight[] {
     const done = state.event.status === "completed";
     const verb = done ? "won" : "leads";
     const leaderTitle = done ? "Winner" : "Leader";
+    // Everybody on the leader's place: more than one is a shared lead, and a
+    // completed board with a shared first names no winner (`sharedLead`).
+    const level = scored.filter((s) => s.rank === lead.rank).map((s) => s.player.name);
     if (stableford) {
       /**
        * The points AND the holes they came off, because one without the other
@@ -3678,11 +3700,11 @@ function highlightsOf(state: EventState): Highlight[] {
        * when they still legitimately differ.
        */
       const thru = lead.thru > 0 ? ` from ${lead.thru} holes` : "";
-      out.push({
-        icon: "🏆",
-        title: leaderTitle,
-        text: `${lead.player.name} ${verb} on ${lead.points} Stableford pts${thru}.`,
-      });
+      out.push(
+        level.length > 1
+          ? sharedLead(level, done, `on ${lead.points} Stableford pts${thru}`)
+          : { icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} on ${lead.points} Stableford pts${thru}.` },
+      );
     } else {
       /**
        * On the board's own basis, and GROSS only where there is no par.
@@ -3714,7 +3736,11 @@ function highlightsOf(state: EventState): Highlight[] {
        */
       const netBoard = unitIsNet(state.strokeUnitLabel);
       const total = netBoard ? ` (net ${lead.net})` : lead.parKnown ? ` (${lead.gross})` : "";
-      out.push({ icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} at ${par}${total}.` });
+      out.push(
+        level.length > 1
+          ? sharedLead(level, done, `at ${par}${total}`)
+          : { icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} at ${par}${total}.` },
+      );
     }
     // Only while it is a watch — see the match-play branch below, and
     // `qualifyingSettled` for why the two ways of being settled differ.
@@ -3873,11 +3899,10 @@ function highlightsOf(state: EventState): Highlight[] {
   if (leader && leader.stats.played > 0) {
     // A completed tournament has a winner — the stroke branch's rule (T59).
     const done = state.event.status === "completed";
-    out.push({
-      icon: "🏆",
-      title: done ? "Winner" : "Leader",
-      text: `${leader.player.name} ${done ? "won" : "leads"} on ${fmt(leader.stats.totalPoints)} pts.`,
-    });
+    // A SHARED FIRST PLACE NAMES NOBODY (2026-11-07): the top row of a tie is
+    // only first in the list. `sharedLead` says so, as `suggestChampion` does.
+    const level = state.overall.filter((r) => r.rank === leader.rank).map((r) => r.player.name);
+    out.push(sharedLead(level, done, `on ${fmt(leader.stats.totalPoints)} pts`));
   }
 
   // Longest current win streak across the field.

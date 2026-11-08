@@ -5,6 +5,7 @@
 import { resolveMatch, countedHoles } from "./match";
 import { breakMatchTie, type MatchTiebreakKey } from "./match-tiebreak";
 import { toughestN, DEFAULT_TIEBREAKERS } from "./types";
+import { placeByPointsThenSteps, type LevelStep } from "./level-places";
 import type {
   Match,
   Player,
@@ -203,7 +204,7 @@ export function aggregateStats(
 /**
  * Head-to-head as a NUMBER, over the players who are actually tied.
  *
- * The pairwise version below is not a total order. Beating each other in a
+ * A pairwise comparison is not a total order. Beating each other in a
  * cycle — A beat B, B beat C, C beat A — is an ordinary thing to happen in a
  * round robin, and `Array.sort` given an intransitive comparator returns
  * whatever its algorithm happens to produce: the order then depends on how
@@ -215,6 +216,18 @@ export function aggregateStats(
  * mini-league among the tied players only. Wins less losses against that
  * group is a scalar, scalars are transitive, and for the common case of two
  * players it is exactly the old answer — who won the meeting.
+ *
+ * And it decides the SHARED PLACE as well as the order (2026-11-07): the
+ * group is asked once, a part left level is asked again over only its own
+ * members, and a cycle that the mini-league cannot separate goes on to the
+ * next step together (`placesOfLevelGroup`, domain/level-places.ts). The
+ * pairwise `headToHead` that the shared place used to be asked of is gone.
+ *
+ * A MEETING NOT YET PLAYED COUNTS FOR NOTHING, deliberately: an unplayed match
+ * cannot be held against anybody. So while a round robin is still being played
+ * (the normal live state), a player who has not met the others in the group
+ * scores 0 and sits BETWEEN those who won their meetings and those who lost
+ * them. Said in the tie-break's help, the guide and knockouts-and-leagues.md.
  */
 /**
  * Which side won by forfeit, or null when the match was played out.
@@ -265,30 +278,6 @@ function miniLeague(
     score += wonIt ? 1 : -1;
   }
   return score;
-}
-
-/**
- * Result of the head-to-head between two players within `matches`:
- * -1 if `aId` won the meeting, 1 if `bId` won, 0 if halved / no completed meeting.
- */
-function headToHead(
-  aId: string,
-  bId: string,
-  matches: Match[],
-  matchTiebreak?: MatchTiebreak,
-): number {
-  for (const m of matches) {
-    const isPair =
-      (m.playerAId === aId && m.playerBId === bId) ||
-      (m.playerAId === bId && m.playerBId === aId);
-    if (!isPair) continue;
-    const outcome = decidedOutcome(m, matchTiebreak);
-    if (outcome === null || outcome === "H") continue;
-    const winnerId = outcome === "A" ? m.playerAId : m.playerBId;
-    if (winnerId === aId) return -1;
-    if (winnerId === bId) return 1;
-  }
-  return 0;
 }
 
 /**
@@ -382,43 +371,42 @@ function holesDiffOn(playerId: string, matches: Match[], card: MatchStrokeIndex,
   return diff;
 }
 
-function tiebreakerCompare(
+/**
+ * One step of the committee's chain as a FIGURE per player, higher is better,
+ * asked of the group of players it is separating (`LevelStep`).
+ *
+ * Head-to-head is the only step whose figure depends on the group: the
+ * mini-league among exactly those players (`miniLeague`). Everything else is
+ * the player's own record. The pairwise comparator this replaced
+ * (`tiebreakerCompare`, with a two-player `headToHead` fallback) answered "did
+ * these two separate" of a pair's own meeting, which in a cycle is a different
+ * question from the one the group's order was decided on.
+ */
+function chainStep(
   key: TiebreakerKey,
-  pa: Player,
-  pb: Player,
-  sa: PlayerStats,
-  sb: PlayerStats,
+  stats: Map<string, PlayerStats>,
   matches: Match[],
-  holeDifficulty?: MatchStrokeIndex,
-  /** Mini-league scores for the tied group this comparison belongs to. */
-  h2h?: Map<string, number>,
+  holeDifficulty: MatchStrokeIndex | undefined,
   /** The round's all-square rule, so a decided halved match counts as a meeting. */
-  matchTiebreak?: MatchTiebreak,
-): number {
+  matchTiebreak: MatchTiebreak | undefined,
+): LevelStep<Player> {
+  const own = (figure: (s: PlayerStats, p: Player) => number): LevelStep<Player> => ({
+    score: (p) => figure(stats.get(p.id)!, p),
+    regroup: false,
+  });
   switch (key) {
     case "head-to-head":
-      // The scalar, when the caller has grouped the tie (rankPlayers always
-      // does). The pairwise fallback is kept for the handful of callers that
-      // compare two players outside a ranking, where a "group" of two makes
-      // the two answers identical anyway.
-      if (h2h) return (h2h.get(pb.id) ?? 0) - (h2h.get(pa.id) ?? 0);
-      return headToHead(pa.id, pb.id, matches, matchTiebreak);
+      return { score: (p, group) => miniLeague(p.id, [...group], matches, matchTiebreak), regroup: true };
     case "most-wins":
-      return sb.wins - sa.wins; // more wins ranks first
-    case "win-percentage": {
-      const wa = sa.played > 0 ? sa.wins / sa.played : 0;
-      const wb = sb.played > 0 ? sb.wins / sb.played : 0;
-      return wb - wa; // higher win% ranks first
-    }
-    case "holes-won-ratio": {
-      const da = sa.holesWon - sa.holesLost;
-      const db = sb.holesWon - sb.holesLost;
-      return db - da; // higher differential ranks first
-    }
+      return own((s) => s.wins); // more wins ranks first
+    case "win-percentage":
+      return own((s) => (s.played > 0 ? s.wins / s.played : 0)); // higher win% ranks first
+    case "holes-won-ratio":
+      return own((s) => s.holesWon - s.holesLost); // higher differential ranks first
     case "fewest-holes-lost":
-      return sa.holesLost - sb.holesLost; // fewer lost ranks first
+      return own((s) => -s.holesLost); // fewer lost ranks first
     case "lower-handicap":
-      return pa.handicap - pb.handicap; // lower handicap ranks first
+      return own((_, p) => -p.handicap); // lower handicap ranks first
     default: {
       // The countbacks. N is part of the key rather than one of two fixed
       // choices, so a committee can write its own ladder — hardest 9, then 6,
@@ -426,13 +414,14 @@ function tiebreakerCompare(
       // 1..18, which is how a bad key from the database decides nothing rather
       // than reading holes that do not exist.
       const n = toughestN(key);
-      if (n === null) return 0;
-      // No course/stroke-index data available — skip to the next tiebreaker.
-      // (A per-match card with no index ranks no holes for that match.)
-      if (!holeDifficulty || (Array.isArray(holeDifficulty) && holeDifficulty.length === 0)) return 0;
-      const da = holesDiffOn(pa.id, matches, holeDifficulty, n);
-      const db = holesDiffOn(pb.id, matches, holeDifficulty, n);
-      return db - da; // better record on the toughest holes ranks first
+      // No course/stroke-index data available — the step decides nothing and
+      // the next is asked. (A per-match card with no index ranks no holes for
+      // that match.)
+      if (n === null || !holeDifficulty || (Array.isArray(holeDifficulty) && holeDifficulty.length === 0)) {
+        return own(() => 0);
+      }
+      // Better record on the toughest holes ranks first.
+      return own((_, p) => holesDiffOn(p.id, matches, holeDifficulty, n));
     }
   }
 }
@@ -479,50 +468,6 @@ export function rankPlayers(
   // level on points share the place (how ties are decided is the Committee's
   // to set — Committee Procedures 5A(6)).
   const chain = Array.isArray(scoring.tiebreakers) ? scoring.tiebreakers : DEFAULT_TIEBREAKERS;
-
-  /**
-   * Points first, and then each tie broken WITHIN its own group.
-   *
-   * Sorting the whole field with one comparator is what made the order depend
-   * on the field: head-to-head is pairwise, a cycle of results is ordinary in
-   * a round robin, and `Array.sort` handed an intransitive comparator returns
-   * whatever its algorithm reaches. Grouping first means the mini-league is
-   * computed over exactly the players who are level, which is both the rule
-   * every league actually uses and a scalar — and a scalar cannot be
-   * intransitive.
-   */
-  const byPoints = [...players].sort((pa, pb) => {
-    const diff = (stats.get(pb.id)?.totalPoints ?? 0) - (stats.get(pa.id)?.totalPoints ?? 0);
-    return diff !== 0 ? diff : pa.seed - pb.seed;
-  });
-
-  const sorted: Player[] = [];
-  let i = 0;
-  while (i < byPoints.length) {
-    const points = stats.get(byPoints[i].id)?.totalPoints ?? 0;
-    let j = i;
-    while (j < byPoints.length && (stats.get(byPoints[j].id)?.totalPoints ?? 0) === points) j += 1;
-
-    const tied = byPoints.slice(i, j);
-    if (tied.length === 1) {
-      sorted.push(tied[0]);
-    } else {
-      // One mini-league for this group, computed once rather than per
-      // comparison — and it is the group's own results, not the field's.
-      const h2h = new Map(tied.map((p) => [p.id, miniLeague(p.id, tied, matches, matchTiebreak)]));
-      const ordered = [...tied].sort((pa, pb) => {
-        const sa = stats.get(pa.id)!;
-        const sb = stats.get(pb.id)!;
-        for (const key of chain) {
-          const c = tiebreakerCompare(key, pa, pb, sa, sb, matches, holeDifficulty, h2h, matchTiebreak);
-          if (c !== 0) return c;
-        }
-        return pa.seed - pb.seed;
-      });
-      sorted.push(...ordered);
-    }
-    i = j;
-  }
 
   /**
    * TWO PLAYERS NOTHING SEPARATES SHARE A PLACE.
@@ -613,31 +558,39 @@ export function rankPlayers(
    */
   const separating = configured ? chain : chain.filter((key) => key !== "lower-handicap");
 
-  const separated = (a: Player, b: Player): boolean => {
-    const sa = stats.get(a.id)!;
-    const sb = stats.get(b.id)!;
-    if ((sa.totalPoints ?? 0) !== (sb.totalPoints ?? 0)) return true;
-    // The mini-league is computed over the players who are actually level, the
-    // same way the sort does it — head-to-head over a wider set is a different
-    // question and would answer this one wrongly.
-    const pair = [a, b];
-    const h2h = new Map(pair.map((p) => [p.id, miniLeague(p.id, pair, matches, matchTiebreak)]));
-    return separating.some(
-      (key) => tiebreakerCompare(key, a, b, sa, sb, matches, holeDifficulty, h2h, matchTiebreak) !== 0,
-    );
+  /**
+   * PLACES ARE DECIDED OVER THE WHOLE LEVEL GROUP, NOT PAIR BY PAIR
+   * (2026-11-07). `placeByPointsThenSteps` (`domain/level-places.ts`) groups
+   * the table by points and asks each separating step of the group: head-to-
+   * head as the group's own mini-league, re-asked of any part it leaves level;
+   * a cycle goes on to the next step together; whoever the chain cannot
+   * separate shares the place.
+   *
+   * Until then the ORDER was the group's mini-league but the SHARED PLACE was
+   * asked of each neighbouring pair's own meeting — so three players beating
+   * each other in a circle were numbered 2, 3, 4 in entry order, and a cut on
+   * countback sent the earliest entry through instead of owing a draw.
+   *
+   * The steps that do not separate (a handicap on an untouched chain) still
+   * order a shared place, and then the seed does: the list keeps the order it
+   * has always had inside a tie, and stops claiming that order is a result.
+   */
+  const steps = separating.map((key) => chainStep(key, stats, matches, holeDifficulty, matchTiebreak));
+  const orderOnly = chain
+    .filter((key) => !separating.includes(key))
+    .map((key) => chainStep(key, stats, matches, holeDifficulty, matchTiebreak));
+  const within = (a: Player, b: Player): number => {
+    for (const step of orderOnly) {
+      const d = step.score(b, []) - step.score(a, []);
+      if (d !== 0) return d;
+    }
+    return a.seed - b.seed;
   };
-
-  const ranks: number[] = [];
-  sorted.forEach((player, i) => {
-    const prev = i > 0 ? sorted[i - 1] : null;
-    ranks.push(prev && !separated(prev, player) ? ranks[i - 1] : i + 1);
-  });
-
-  return sorted.map((player, i) => ({
-    player,
-    stats: stats.get(player.id)!,
-    rank: ranks[i],
-  }));
+  // Seed order in, so two players with the same seed keep a stable order.
+  const bySeed = [...players].sort((a, b) => a.seed - b.seed);
+  return placeByPointsThenSteps(bySeed, (p) => stats.get(p.id)?.totalPoints ?? 0, steps, within).map(
+    ({ row, place }) => ({ player: row, stats: stats.get(row.id)!, rank: place }),
+  );
 }
 
 /** Convenience: aggregate + rank in one call for a group or the whole field. */
