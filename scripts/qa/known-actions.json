@@ -391,6 +391,7 @@
   ]
  },
  "newSince": {
+  "app/actions/tournament.ts:previewCsvSignups": "e2e/import-marks-member-or-guest.spec.ts",
   "app/actions/tournament.ts:setStageScoring": "e2e/stages-scoring-setup.spec.ts",
   "app/actions/tournament.ts:setEntriesOpen": "e2e/entry-terms.spec.ts",
   "app/actions/tournament.ts:saveEntryTerms": "e2e/entry-terms.spec.ts",
@@ -404,6 +405,7 @@
   "app/actions/tee-sheet.ts:placeInTeeGroup": "e2e/day-of-tee-sheet.spec.ts",
   "app/actions/tournament.ts:openCorrection": "e2e/locked-setup-refuses-in-words.spec.ts",
   "app/actions/tournament.ts:endCorrection": "e2e/locked-setup-refuses-in-words.spec.ts",
-  "app/actions/owner.ts:loadCourseCatalogue": "e2e/owner-catalogue-load.spec.ts"
+  "app/actions/owner.ts:loadCourseCatalogue": "e2e/owner-catalogue-load.spec.ts",
+  "app/actions/join.ts:dismissNamesakeNotice": "e2e/namesake-notice.spec.ts"
  }
 }

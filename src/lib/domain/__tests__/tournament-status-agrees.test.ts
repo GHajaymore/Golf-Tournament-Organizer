@@ -73,7 +73,7 @@ function randomFacts(next: () => number): TournamentFacts {
     teams: bool(0.3) ? { needed: true, sides: pick([0, 2, 4]), unsided: pick([0, 0, 1]) } : base.teams,
     cup: base.cup ? { flights: pick([0, 2, 2, 3]), unplaced: pick([0, 0, 1]) } : null,
     rounds,
-    missingCards: bool(0.15) ? [{ label: rounds[0]?.label ?? "Round 1", course: "Invented Links" }] : [],
+    missingCards: bool(0.15) ? [{ stageId: rounds[0]?.id ?? "r1", label: rounds[0]?.label ?? "Round 1", course: "Invented Links" }] : [],
     knockout: base.knockout
       ? {
           draws: base.knockout.draws.map((d) => ({ ...d, entrants: pick([1, 2, 5, 8]), finalDecided: bool(0.5) })),

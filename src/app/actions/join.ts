@@ -222,3 +222,31 @@ export async function declineJoinRequest(requestId: string): Promise<JoinResult>
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+/**
+ * Dismiss a "a club of your name was set up nearby" notice (Ajay, 7 Nov 2026).
+ *
+ * The id arrives from a form, so it is looked up INSIDE the caller's own club: a notice belonging to
+ * another club is "no longer waiting", whatever the id. A Commissioner or Admin only. The row is kept,
+ * marked dismissed, so the same pair is never raised twice (`noteNamesake` leaves a dismissed one alone).
+ */
+export async function dismissNamesakeNotice(noticeId: string): Promise<JoinResult> {
+  const org = await organizationAccess(await getSession());
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can answer this." };
+
+  const notice = await prisma.namesakeNotice.findFirst({
+    where: { id: String(noticeId ?? ""), organizationId: org.organizationId, status: "open" },
+    select: { id: true },
+  });
+  if (!notice) return { ok: false, error: "That notice is no longer waiting." };
+
+  const session = await getSession();
+  await prisma.namesakeNotice.update({
+    where: { id: notice.id },
+    data: { status: "dismissed", dismissedAt: new Date(), dismissedBy: session?.name || session?.email || "" },
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

@@ -54,6 +54,15 @@ test("a round robin with nothing drawn says why on the dashboard, and flights st
     await expect(tile).toContainText("Not drawn yet", { timeout: 30_000 });
     await expect(tile).toContainText("The flights are made, but Round 1's pairings have not been generated.");
     await expect(tile.getByRole("link", { name: "Generate them on Rounds & formats" })).toHaveAttribute("href", "/stages");
+    // And Launch's way out is where the refusal says Generate is — Rounds & formats, not Flights
+    // (state machine PR 5c review) — on the dashboard, the rail and the Course day timeline alike.
+    await expectTournamentSays(page, {
+      chip: "Setting up",
+      nextAction: "Launch tournament",
+      refused: { because: "Generate them on Rounds & formats", wayOut: { says: "Open Rounds & formats", href: "/stages" } },
+      setup: { holds: "Rounds & formats", done: 4, of: 5 },
+      timeline: true,
+    });
     expect(await f.status(), "nothing here changed the tournament").toBe("draft");
     expect(errors).toEqual([]);
   } finally {

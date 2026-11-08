@@ -7,6 +7,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { RoundCloseAsk } from "./RoundCloseAsk";
 import { useAction } from "./useAction";
+import type { CutLineKind } from "@/lib/domain/cut";
 
 /**
  * THE CUT, WAITING ON THE ORGANIZER — Ajay, 2026-10-05.
@@ -100,7 +101,7 @@ export function CutReadyCard({
         </p>
       )}
       {ties.map((t) => (
-        <CutTiePanel key={t.tied.join(",")} feederId={feederId} tie={t} tieRule={tieRule} />
+        <CutTiePanel key={t.tied.join(",")} feederId={feederId} tie={t} tieRule={tieRule} decidedOn="card" />
       ))}
       <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
         {rule}: {through} {through === 1 ? "player goes" : "players go"} through to {nextName}
@@ -140,10 +141,34 @@ export function CutReadyCard({
   );
 }
 
-/** One tie at the line, with a tick for each player in it. */
-function CutTiePanel({ feederId, tie, tieRule }: { feederId: string; tie: CutTieOnCard; tieRule?: string }) {
+/**
+ * One tie at the line, with a tick for each player in it. Here for a stroke
+ * cut, and on the round a round robin's cut draws (J31) — `decidedOn` is what
+ * "level on countback too" means: the card's last holes, or the table's
+ * tie-breaks.
+ */
+export function CutTiePanel({
+  feederId,
+  tie,
+  tieRule,
+  decidedOn,
+}: {
+  feederId: string;
+  tie: CutTieOnCard;
+  tieRule?: string;
+  decidedOn: CutLineKind;
+}) {
   const [picked, setPicked] = useState<string[]>(tie.chosen);
   const { pending, error, run } = useAction();
+  // What the server asks of the secretary after a success — a round already
+  // drawn without this result, to be redrawn (J31 review).
+  const [notice, setNotice] = useState("");
+  const settle = (through: string[]) => async () => {
+    setNotice("");
+    const res = await settleCutTie(feederId, tie.tied, through);
+    if (res.ok) setNotice(res.notice ?? "");
+    return res;
+  };
   const decided = tie.chosen.length > 0;
   const what = tie.by === "playoff" ? "play-off" : "draw";
   const places = tie.places === 1 ? "the last place" : `the last ${tie.places} places`;
@@ -170,7 +195,9 @@ function CutTiePanel({ feederId, tie, tieRule }: { feederId: string; tie: CutTie
         {listOf(tie.names)} are level for {places}.{" "}
         {tie.by === "playoff"
           ? `${tieRule ?? "This cut settles a tie by play-off"}. Tick who won it.`
-          : `They are level on countback too (last 9, 6, 3 and the last hole), so lots are drawn. Tick who the draw sent through.`}{" "}
+          : decidedOn === "table"
+            ? `They are level on the table's tie-breaks too, so lots are drawn. Tick who the draw sent through.`
+            : `They are level on countback too (last 9, 6, 3 and the last hole), so lots are drawn. Tick who the draw sent through.`}{" "}
         Nobody in the tie has missed the cut until you do.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -192,7 +219,7 @@ function CutTiePanel({ feederId, tie, tieRule }: { feederId: string; tie: CutTie
           className="btn btn-secondary"
           style={{ minHeight: 44 }}
           disabled={pending}
-          onClick={() => run(() => settleCutTie(feederId, tie.tied, picked))}
+          onClick={() => run(settle(picked))}
         >
           <Icon name="check" /> {decided ? `Save the ${what} result` : `Record the ${what}`}
         </button>
@@ -202,7 +229,7 @@ function CutTiePanel({ feederId, tie, tieRule }: { feederId: string; tie: CutTie
             className="btn btn-ghost"
             style={{ minHeight: 44 }}
             disabled={pending}
-            onClick={() => run(() => settleCutTie(feederId, tie.tied, []), () => setPicked([]))}
+            onClick={() => run(settle([]), () => setPicked([]))}
           >
             Take it back
           </button>
@@ -212,6 +239,11 @@ function CutTiePanel({ feederId, tie, tieRule }: { feederId: string; tie: CutTie
       {error && (
         <p className="form-error" role="alert" ref={bringIntoView}>
           <Icon name="warning-circle" /> {error}
+        </p>
+      )}
+      {notice && !error && (
+        <p role="status" style={{ margin: 0, fontSize: 14 }}>
+          <Icon name="info" /> {notice}
         </p>
       )}
     </fieldset>

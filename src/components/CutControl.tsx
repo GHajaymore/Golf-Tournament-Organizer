@@ -2,7 +2,7 @@
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
 import { setStageCut, setStageCutScope, setStageCutTies } from "@/app/actions/tournament";
-import { cutAdvancesEveryone, cutTieRuleOf, type CutTieRule } from "@/lib/domain/cut";
+import { cutAdvancesEveryone, cutTieRuleOf, type CutTieRule, type CutLineKind } from "@/lib/domain/cut";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { useCaughtUp } from "./useAction";
@@ -23,16 +23,20 @@ export function CutControl({
   locked = false,
   tiesGoThrough = false,
   tieRule = "ties",
+  decidedOn = "card",
 }: {
   /**
-   * A cut between two stroke rounds, where a tie for the last place is settled
-   * the way `tieRule` says (`strokeCutOutcome`) — and offered here. Under the
-   * default, everyone level goes through, which the count says so "2 of 5
-   * advance" is not read as a promise of exactly two.
+   * A cut that settles a tie for the last place the way `tieRule` says
+   * (`cutLineOutcome`) — between two stroke rounds, or out of a round robin's
+   * table (J31) — and offered here. Under the default, everyone level goes
+   * through, which the count says so "2 of 5 advance" is not read as a promise
+   * of exactly two.
    */
   tiesGoThrough?: boolean;
   /** "ties" | "playoff" | "countback" — the stored `Stage.cutTies`. */
   tieRule?: string;
+  /** What "level" and "countback" mean here: a card's score, or a table's points and tie-breaks. */
+  decidedOn?: CutLineKind;
   /** Setup is locked, which both cut actions refuse — see `SetupLocked`. */
   locked?: boolean;
   /** Stable id for radio/name grouping — doesn't need to be a real stage id yet. */
@@ -252,11 +256,17 @@ export function CutControl({
             ))}
           </div>
           <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
-            {ties === "ties"
-              ? "A tie for the last place: everybody level on that score goes through, so the field can be a little bigger than the number."
-              : ties === "playoff"
-                ? "A tie for the last place: the players level on that score play off, and you record who won before the cut is made. Nobody in the tie is out until you do."
-                : "A tie for the last place: the better last 9 holes go through, then the last 6, 3 and the last hole, on what the round is decided by — gross, net or points. If they are still level, you draw lots and record who went through before the cut is made."}
+            {decidedOn === "table"
+              ? ties === "ties"
+                ? "A tie for the last place: everybody level on points goes through, so the field can be a little bigger than the number."
+                : ties === "playoff"
+                  ? "A tie for the last place: the players level on points play off, and you record who won before the next round is drawn. Nobody in the tie is out until you do."
+                  : "A tie for the last place: the table's tie-breaks decide it, in the order set under Ties on this round. If they are still level, you draw lots and record who went through before the next round is drawn."
+              : ties === "ties"
+                ? "A tie for the last place: everybody level on that score goes through, so the field can be a little bigger than the number."
+                : ties === "playoff"
+                  ? "A tie for the last place: the players level on that score play off, and you record who won before the cut is made. Nobody in the tie is out until you do."
+                  : "A tie for the last place: the better last 9 holes go through, then the last 6, 3 and the last hole, on what the round is decided by — gross, net or points. If they are still level, you draw lots and record who went through before the cut is made."}
           </span>
         </div>
       )}

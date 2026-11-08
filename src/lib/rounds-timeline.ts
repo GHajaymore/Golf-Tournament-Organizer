@@ -1,10 +1,14 @@
 /**
  * ROUNDS & FORMATS, STEP 2 — "COURSE DAY" (behind `?view=timeline`, approved by Ajay 2 Nov).
  *
- * The facts the timeline shows beside each round, and the one list of what is still missing.
- * Everything here is read from what is STORED — the round, its course card and its saved tee
- * sheet — never from a guess about what the organizer will do next (the brief's rule 4: show the
- * effect before it happens, from stored settings only).
+ * The GOLF facts the timeline shows beside each round: its course card, its field, its saved tee
+ * times, and the effect of its settings. Everything here is read from what is STORED — the round,
+ * its course card and its saved tee sheet — never from a guess about what the organizer will do
+ * next (the brief's rule 4: show the effect before it happens, from stored settings only).
+ *
+ * WHERE THE TOURNAMENT IS — its step, what needs the organizer, each round's state — is NOT here.
+ * It was (`roundNeeds`, with rules of its own for a course, a date and tee times: D7), and is now
+ * the state machine's alone, read through `courseDayOf` (domain/timeline-step.ts; PR 5c, J16).
  *
  * Pure, so the server works it out once and the screen and its tests read the same answer.
  */
@@ -58,56 +62,6 @@ export function parsPlayed(pars: readonly number[], holes: number, nine: string)
   if (real.length === 0) return [];
   if (holes !== 9 || real.length < 18) return real.slice(0, holes === 9 ? 9 : real.length);
   return nine === "back" ? real.slice(9, 18) : real.slice(0, 9);
-}
-
-/** What a round is missing, said with what it costs the players. */
-export interface NeedItem {
-  roundId: string;
-  round: string;
-  /** "has no date" — read after the round's name. */
-  missing: string;
-  /** In the player's terms (the UX writer, 2 Nov): "players cannot see when they play". */
-  consequence: string;
-  /** Where it is fixed: the round's own panel, or the tee sheet. */
-  fix: "round" | "tee-sheet";
-}
-
-export interface NeedsInput {
-  id: string;
-  label: string;
-  /** A round the field tees off in (a cut or a bracket has no card or tee sheet). */
-  playing: boolean;
-  /** Played, closed or carrying a result: nothing left to set up. */
-  done: boolean;
-  playedOn: string;
-  courseName: string;
-  hasCard: boolean;
-  hasSheet: boolean;
-}
-
-/**
- * WHAT NEEDS YOU, IN THE ORDER IT IS DONE (Ajay, 2 Nov: "ease of using the configuration and
- * guided one"). Round by round, in play order, and inside a round in the order an organizer sets
- * it: where (a course with a card), when (a date), then who goes off when (tee times, which wait
- * for entries). The first item is the one next thing to do.
- */
-export function roundNeeds(rounds: readonly NeedsInput[], entered: number): NeedItem[] {
-  const out: NeedItem[] = [];
-  for (const r of rounds) {
-    if (!r.playing || r.done) continue;
-    if (!r.courseName) {
-      out.push({ roundId: r.id, round: r.label, missing: "has no course", consequence: "its cards cannot be scored", fix: "round" });
-    } else if (!r.hasCard) {
-      out.push({ roundId: r.id, round: r.label, missing: "has no course card", consequence: "its cards cannot be scored", fix: "round" });
-    }
-    if (!r.playedOn) {
-      out.push({ roundId: r.id, round: r.label, missing: "has no date", consequence: "players cannot see when they play", fix: "round" });
-    }
-    if (entered > 0 && !r.hasSheet) {
-      out.push({ roundId: r.id, round: r.label, missing: "has no tee times", consequence: "players cannot see when they start", fix: "tee-sheet" });
-    }
-  }
-  return out;
 }
 
 /**

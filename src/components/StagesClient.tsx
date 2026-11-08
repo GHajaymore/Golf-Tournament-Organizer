@@ -37,8 +37,8 @@ import { INTERVAL_OPTIONS, dueBeforePlayed, roundDates, shortDate } from "@/lib/
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
-import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP, cutTieRuleOf } from "@/lib/domain/cut";
-import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
+import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP, cutTieRuleOf, cutTieRuleWords } from "@/lib/domain/cut";
+import { cutRuleWords, cutFeederOf, cutAfterRound } from "@/lib/domain/cut-ready";
 import {
   chainIssues,
   issuesForRound,
@@ -90,9 +90,11 @@ import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "./Icon";
+import { CutTiePanel, type CutTieOnCard } from "./CutReadyCard";
 import { SidePanel } from "./SidePanel";
-import { CourseCard, NeedsYou, PanelSection, RecipeTiles, TeeTicks, factsLine } from "./RoundsTimeline";
-import { effectLine, type NeedItem, type RoundFacts } from "@/lib/rounds-timeline";
+import { CourseCard, NeedsYou, PanelSection, RecipeTiles, RoundChip, TeeTicks, factsLine } from "./RoundsTimeline";
+import { effectLine, type RoundFacts } from "@/lib/rounds-timeline";
+import type { CourseDay, RoundStepView } from "@/lib/domain/timeline-step";
 import { countbackSegments } from "@/lib/domain/stroke-countback";
 import { useFormatting } from "./CurrencyProvider";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -140,6 +142,12 @@ export interface StageView {
   cutScope: string;
   /** ties | playoff | countback — how a tie for the last place is settled. */
   cutTies: string;
+  /**
+   * A round robin's cut into this round, where its line falls in a tie the
+   * committee settles (J31) — decided or not — with the round robin it is
+   * taken out of. Null where there is no such tie, or no such cut.
+   */
+  cutTie?: { feederId: string; ties: CutTieOnCard[] } | null;
   /** true = closed by hand, false = extended past the date, null = follow it. */
   deadlineOverride: boolean | null;
   /** Last day players may change their weekly in/out. "" = open. */
@@ -309,6 +317,7 @@ function DrawRound({ stage, label }: { stage: StageView; label: string }) {
   const [refused, setRefused] = useState<string | null>(null);
   const pairings = generatesPairings(stage.type);
   const drawn = stage.matchCount > 0;
+  const tie = stage.cutTie;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -340,6 +349,19 @@ function DrawRound({ stage, label }: { stage: StageView; label: string }) {
           <Icon name="warning-circle" /> Not drawn. {refused}
         </p>
       )}
+      {/* A TIE AT THE ROUND ROBIN'S LINE IS SETTLED HERE, ON THE ROUND IT
+          DECIDES THE FIELD OF (J31): drawing it is what makes the cut, so the
+          play-off or the draw by lot is recorded under the button that draws —
+          where the refusal above says to record it. */}
+      {tie?.ties.map((t) => (
+        <CutTiePanel
+          key={t.tied.join(",")}
+          feederId={tie.feederId}
+          tie={t}
+          tieRule={cutTieRuleWords(cutTieRuleOf(stage.cutTies), "table")}
+          decidedOn="table"
+        />
+      ))}
     </div>
   );
 }
@@ -576,6 +598,10 @@ function NextRoundTransition({
    * organizer believes they have set the thing, and the sheet agrees with them.
    */
   const nextIsSeeded = nextStage ? seededFromQualifiers(nextStage.type) : false;
+  // What a tie at the next round's cut line is decided on — a card, a round
+  // robin's table — or null for a cut that settles no tie of its own
+  // (`cutFeederOf`, the one answer the rules sheet and both engines ask).
+  const cutLineKind = nextStage ? (cutFeederOf(allStages, nextStage.id)?.kind ?? null) : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -683,6 +709,16 @@ function NextRoundTransition({
             confirmedCount={confirmedCount}
             flightCount={flightCount}
             locked={locked}
+            // A tie at a round robin's line is settled the way the committee
+            // chose, as a stroke cut's is (J31) — on points and the table's
+            // tie-breaks, so the words are the table's. ONLY where a cut out of
+            // this round settles a tie of its own (`cutFeederOf`): a team
+            // medal's cut, or a round robin cut out of a stroke round, is
+            // honoured by no engine and printed by no rules sheet, so it offers
+            // no choice to store.
+            tiesGoThrough={cutLineKind !== null}
+            tieRule={nextStage?.cutTies ?? "ties"}
+            decidedOn={cutLineKind ?? undefined}
           />
         )}
         {/* DRAWING THE NEXT ROUND IS NOT SETTING THIS ONE UP (2026-10-16; Ajay: "is this
@@ -721,12 +757,15 @@ function StageCard({
   arrangement = null,
   asPanel = false,
   facts = null,
+  roundStep = null,
   playingCount = 0,
 }: {
   /** The timeline (behind its switch): the open round's settings in the side panel, not unfolded inline. */
   asPanel?: boolean;
   /** Step 2's golf facts for this round (course card, field, saved tee times); timeline only. */
   facts?: RoundFacts | null;
+  /** Step 2: this round's state chip and spine shape, from the state machine (`courseDayOf`); timeline only. */
+  roundStep?: RoundStepView | null;
   /** How many rounds the field plays, for the panel's "Round 2 of 3". */
   playingCount?: number;
   /** How the knockout is arranged, and whether this viewer may change it — see "The draw". */
@@ -876,7 +915,7 @@ function StageCard({
    * cards and — through the cascade — its skins pot with every stake already
    * collected, and the trash icon used to do all of that on one click.
    */
-  const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number } | null>(null);
+  const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number; records: number; refused?: string } | null>(null);
   /** Delete refused outright — the rounds are locked (PR 5b) — said under the bin, in the lock's words. */
   const [removeRefused, setRemoveRefused] = useState("");
   // On the timeline Delete is the panel's last control, so its warning opens below the fold of
@@ -1105,17 +1144,19 @@ function StageCard({
   // button summarising things visible above it is noise.
   const transitionParts: string[] = [];
   if (nextStage?.carryEnabled) transitionParts.push(`carries ${nextStage.carryPct}%`);
-  if (nextStage?.cutEnabled) {
-    // In the words the rules sheet prints (`cutRuleWords`): "top 8 in each flight
-    // and ties" — a cut to "top 8" was the summary of a per-flight cut too.
-    const strokeCut = isIndividualStrokeRound(stage) && isIndividualStrokeRound(nextStage);
-    const tieRule = cutTieRuleOf(nextStage.cutTies);
-    transitionParts.push(
-      `cuts to ${cutRuleWords(cutRuleOf(nextStage), strokeCut && tieRule === "ties").toLowerCase()}${
-        strokeCut && tieRule === "playoff" ? ", a tie by play-off" : strokeCut && tieRule === "countback" ? ", a tie by countback" : ""
-      }`,
-    );
-  }
+  // THE CUT THIS ROUND DECIDES, in the words the rules sheet prints
+  // (`cutAfterRound`): "top 8 in each flight and ties" — a cut to "top 8" was
+  // the summary of a per-flight cut too. Asked of the sheet's own function
+  // (2026-11-07), so the card names the cut its scores decide — a round robin's
+  // cut past a medal on the round robin's card, under the round it feeds — and
+  // nothing for a cut no engine makes.
+  const cutHere = cutAfterRound(allStages, stage.id);
+  const cutWords = cutHere
+    ? `cuts to ${cutRuleWords(cutHere.rule, cutHere.ties).toLowerCase()}${
+        cutHere.tieRule === "playoff" ? ", a tie by play-off" : cutHere.tieRule === "countback" ? ", a tie by countback" : ""
+      }`
+    : "";
+  if (cutHere && cutHere.intoId === nextStage?.id) transitionParts.push(cutWords);
   /**
    * WHAT IS CHANGED FROM A CLUB'S USUAL ROUND, and nothing else (2026-10-16).
    * The Customize button summarises only what is inside it, and inside it now
@@ -1213,6 +1254,13 @@ function StageCard({
     if (!asPanel) rowParts.push(intoNext);
   } else if (showTransition && !nextStage) {
     rowParts.push("No round after this yet");
+  }
+  // A cut this round decides into a LATER round — a round robin's cut past a
+  // medal — said under the round it feeds, never as the next round's.
+  if (cutHere && cutHere.intoId !== nextStage?.id && chainsRounds) {
+    const later = `Into ${roundLabelOf(allStages, cutHere.intoId)}: ${cutWords}`;
+    intoNext = intoNext ? `${intoNext} · ${later}` : later;
+    if (!asPanel) rowParts.push(later);
   }
 
   // What this kind of round settles. A Bracket Stage playing off for third and
@@ -1396,6 +1444,15 @@ function StageCard({
     <p role="alert" ref={bringIntoView} style={{ marginTop: 8, fontSize: 13, color: "var(--color-danger)" }}>
       {removeRefused}
     </p>
+  ) : removeCost?.refused ? (
+    <div ref={removeWarningRef} role="alert" style={{ marginTop: 8, padding: "8px 10px", border: "1px solid var(--color-danger)", borderRadius: 8, fontSize: 13, lineHeight: 1.55 }}>
+      {removeCost.refused}
+      <div style={{ marginTop: 6 }}>
+        <button type="button" className="btn btn-ghost" onClick={() => setRemoveCost(null)}>
+          Close
+        </button>
+      </div>
+    </div>
   ) : removeCost && (
     <div
       ref={removeWarningRef}
@@ -1410,23 +1467,19 @@ function StageCard({
     >
       <b style={{ color: "var(--color-danger)" }}>
         <Icon name="warning-circle" /> Deleting this round destroys{" "}
-        {removeCost.cards > 0 && (
-          <>
-            {removeCost.cards} entered card{removeCost.cards === 1 ? "" : "s"}
-          </>
-        )}
-        {removeCost.cards > 0 && removeCost.stakes > 0 && " and "}
-        {removeCost.stakes > 0 && (
-          <>
-            {removeCost.stakes} paid stake{removeCost.stakes === 1 ? "" : "s"}
-          </>
-        )}
+        {[
+          removeCost.cards > 0 && `${removeCost.cards} entered card${removeCost.cards === 1 ? "" : "s"}`,
+          removeCost.stakes > 0 && `${removeCost.stakes} paid stake${removeCost.stakes === 1 ? "" : "s"}`,
+          removeCost.records > 0 && `${removeCost.records} money record${removeCost.records === 1 ? "" : "s"}`,
+        ]
+          .filter(Boolean)
+          .join(", ")}
         .
       </b>
       <div className="text-muted" style={{ marginTop: 4 }}>
         {removeCost.stakes > 0
-          ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down."
-          : "The matches and cards go with it. There is no undo."}
+          ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down. This is permanent and cannot be undone."
+          : "The matches, cards, handicaps and money records go with it. This is permanent and cannot be undone."}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
         <button
@@ -1436,8 +1489,10 @@ function StageCard({
           onClick={() => {
             setRemoveCost(null);
             startTransition(async () => {
+              // Said where the press was: a refusal comes back as words, never silence.
               const res = caughtUp(await removeStage(stage.id, true));
-              if (res && !res.ok && "error" in res) setRemoveRefused(res.error ?? "");
+              if (res && "refused" in res && res.refused) setRemoveCost({ cards: 0, stakes: 0, records: 0, refused: res.refused });
+              else if (res && !res.ok && "error" in res) setRemoveRefused(res.error ?? "");
             });
           }}
         >
@@ -1735,7 +1790,8 @@ function StageCard({
               // says how much of each. An empty round still deletes on one press.
               setRemoveRefused("");
               const res = caughtUp(await removeStage(stage.id));
-              if (res?.needsConfirm) setRemoveCost({ cards: res.cards ?? 0, stakes: res.stakes ?? 0 });
+              if (res && "refused" in res && res.refused) setRemoveCost({ cards: 0, stakes: 0, records: 0, refused: res.refused });
+              else if (res?.needsConfirm) setRemoveCost({ cards: res.cards ?? 0, stakes: res.stakes ?? 0, records: res.records ?? 0 });
               // Refused outright — the rounds are locked — and said where the press was (PR 5b).
               else if (res && !res.ok && "error" in res) setRemoveRefused(res.error ?? "");
             })
@@ -2441,25 +2497,10 @@ function StageCard({
         : basis === "both"
           ? "Gross and net"
           : basis === "gross" ? "Gross" : "";
-  // The state chip: what the round IS, by its own facts. "Needs …" names the first gap, the same
-  // gap the Needs you strip lists first for this round.
-  const chip: { words: string; tone: "accent" | "accent-2" | "neutral" } | null = !asPanel
-    ? null
-    : underWay
-      ? notGenerated
-        ? { words: "Not drawn yet", tone: "neutral" }
-        : { words: standing === "active" ? "In play" : standing === "played" ? "Played" : "Upcoming", tone: standing === "active" ? "accent" : "neutral" }
-      : !isPlayingRound(stage.type)
-        ? null
-        : facts && !facts.courseName
-          ? { words: "No course", tone: "accent-2" }
-          : facts && facts.pars.length === 0
-            ? { words: "No course card", tone: "accent-2" }
-            : !stage.playedOn
-              ? { words: "No date", tone: "accent-2" }
-              : facts && confirmedCount > 0 && !facts.hasSheet
-                ? { words: "No tee times", tone: "accent-2" }
-                : { words: "Set up", tone: "accent" };
+  // The state chip is the STATE MACHINE's (PR 5c, J16): `roundStep`, from the round's own step
+  // (results only, D8) and its first need — the same need the strip lists for it. It was worked
+  // out here from the round's date, today, the launch and the course facts: a fourth answer to
+  // "has this round started" (D8) and a second list of what it lacks (D7).
   const effect = asPanel && facts && isPlayingRound(stage.type) ? effectLine({ holes: stage.holes, basis: basisWords.toLowerCase(), facts }) : null;
   const roundNo = roundNumberOf(allStages, stage.id);
 
@@ -2469,7 +2510,7 @@ function StageCard({
       // On the timeline a round is a stop on the spine, not a boxed card (`.round-node`), and its
       // state is drawn from `data-standing` — by shape, never by colour alone.
       className={asPanel ? "round-node" : "card elev-sm"}
-      data-standing={asPanel ? (underWay ? standing : "setup") : undefined}
+      data-standing={asPanel ? (roundStep?.standing ?? "setup") : undefined}
       data-open={asPanel && expanded ? "" : undefined}
       // Clear of the sticky header when a new round is scrolled to. A CLOSED
       // round is a row, so it is padded as one (2026-10-16): ten closed rounds
@@ -2572,8 +2613,8 @@ function StageCard({
             {!asPanel && notGenerated && (
               <span className="tag tag-neutral"><Icon name="clock" /> Not drawn yet</span>
             )}
-            {/* The timeline's state chip (step 2): what the round is, by its own facts. */}
-            {chip && <span className={`tag tag-${chip.tone}`}>{chip.words}</span>}
+            {/* The timeline's state chip (step 2): what the round is, as the state machine says. */}
+            {asPanel && <RoundChip step={roundStep} />}
             {/* Pinned to the right edge rather than trailing the last tag.
                 A disclosure chevron is the affordance for the whole row, and
                 sitting wherever the tags happen to end put it in a different
@@ -2969,12 +3010,15 @@ export function StagesClient({
   timeline = false,
   linkedRound = null,
   roundFacts = null,
-  needs = [],
+  courseDay = null,
 }: {
   /** Step 2: each round's golf facts, worked out on the server from what is stored (timeline only). */
   roundFacts?: Record<string, RoundFacts> | null;
-  /** Step 2: what is missing, in the order it is done — the "Needs you" strip (timeline only). */
-  needs?: NeedItem[];
+  /**
+   * Step 2: where the tournament is — the "Needs you" strip and each round's chip — read from the
+   * state machine on the server (`courseDayOf`, PR 5c / J16). Timeline only; never worked out here.
+   */
+  courseDay?: CourseDay | null;
   /** A round named in the address (`?round=<id>`): opened on arrival, if it is one of these. */
   linkedRound?: string | null;
   /**
@@ -3170,7 +3214,7 @@ export function StagesClient({
     <SetupLocked.Provider value={locked}>
     <div className={timeline ? "rounds-timeline" : undefined} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* STEP 2: the next step, always visible, above the rounds it opens (the brief's rule 3). */}
-      {timeline && <NeedsYou items={needs} onOpen={(id) => setOpenRound(id)} />}
+      {timeline && courseDay && <NeedsYou guide={courseDay} onOpen={(id) => setOpenRound(id)} />}
       {playing.length >= 3 && (
         <EveryRound rounds={playing} resultIds={roundsWithResults} onDone={setEveryNote} />
       )}
@@ -3198,6 +3242,7 @@ export function StagesClient({
             arrangement={arrangement}
             asPanel={timeline}
             facts={timeline ? roundFacts?.[s.id] ?? null : null}
+            roundStep={timeline ? courseDay?.rounds[s.id] ?? null : null}
             playingCount={playing.length}
             expanded={openRound === s.id}
             onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}

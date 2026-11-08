@@ -12,6 +12,7 @@ import {
   openRound,
   centre,
   saidBeside,
+  pick,
 } from "./rounds-fixture";
 
 /**
@@ -41,8 +42,13 @@ import {
  * club with two people on the committee meets these refusals, since the screen
  * stops offering the button once the match exists.
  *
- * WHAT IT CANNOT SEE: a cut between the round robins (`the-cut-a-round-is-played-for.spec`),
- * and the matches being played (`match-results.spec`, `organizer-knockout.spec`).
+ *   a tie at the cut line    between two round robins, by play-off: refused
+ *                            until recorded, then drawn with the play-off's
+ *                            winner (J31)
+ *
+ * WHAT IT CANNOT SEE: an ordinary cut between the round robins
+ * (`the-cut-a-round-is-played-for.spec`), and the matches being played
+ * (`match-results.spec`, `organizer-knockout.spec`).
  */
 
 const WALKED = ["desktop", "phone"];
@@ -116,6 +122,121 @@ test("the second round robin is drawn within each flight, and is not redrawn ove
     await expect(refused, "a redraw over a played hole was not refused in words").toBeVisible();
     await saidBeside(refused, redraw, "redrawing a round with a hole played");
     expect((await matches()).map((m) => m.id), "the refused redraw changed the matches").toEqual(drawn.map((m) => m.id));
+  } finally {
+    await dropClub(mark);
+  }
+  expect(errors, errors.join("\n")).toEqual([]);
+});
+
+/**
+ * A TIE EXACTLY AT THE CUT LINE BETWEEN TWO ROUND ROBINS (J31, 2026-11-06), settled
+ * the way the secretary chose — Committee Procedures 5A(6) — and never by the
+ * order the table is printed in. Five in one flight, every match 1 up, win 2:
+ *
+ *   [0] beat everybody 8 · [1] beat [2] and [3], lost to [4] 4 · [2] beat [3] and [4] 4
+ *   [3] beat [4] 2 · [4] beat [1] 2
+ *
+ * Round 2 takes the top 2. [1] and [2] are level on points for the last place,
+ * and [1] won their meeting, so the table lists [1] above [2]. As the secretary:
+ * Play-off chosen on Round 1's card; the board marks the pair tied; drawing
+ * Round 2 is refused beside the button with the pair named; [2] — the player the
+ * table placed LOWER — is recorded as the play-off's winner; Round 2 is then
+ * drawn as [0] v [2]. The countback and "ties" are worked on real rows in
+ * `a-tie-at-a-round-robin-cut.audit.test.ts`.
+ */
+test("a tie at a round robin's cut line is settled by the committee's choice, not the table's order", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+  const errors: string[] = [];
+  watchPageErrors(page, errors, "secretary");
+  const mark = markFor("rrtie", testInfo.project.name);
+  const club = await makeClub(mark);
+  try {
+    const { event, stages, players, flights } = await makeEvent(club, "Spring Groups", {
+      status: "live",
+      // The tie rule is part of the cut's terms, which lock with setup.
+      configUnlocked: true,
+      stages: [
+        { type: "Round Robin", format: "Match Play", scoringBasis: "gross" },
+        { type: "Round Robin", format: "Match Play", scoringBasis: "gross" },
+      ],
+      players: 5,
+      flights: 1,
+      // Scoring is left at makeEvent's "stroke" ON PURPOSE: the draw cuts on the
+      // table whatever it says, so the board must too (round train-1107-3, where
+      // the board marked nobody tied under it; `a-tie-at-a-round-robin-cut.audit`).
+    });
+    expect(event.format, "the fixture's Scoring, as the comment above says").toBe("stroke");
+    const [first, second] = stages;
+    await prisma.stage.update({ where: { id: second.id }, data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 2 } });
+    const oneUp = (w: "A" | "B") => JSON.stringify([w, ...new Array(17).fill("H")]);
+    const results: [number, number, "A" | "B"][] = [
+      [0, 1, "A"], [0, 2, "A"], [0, 3, "A"], [0, 4, "A"],
+      [1, 2, "A"], [1, 3, "A"], [1, 4, "B"],
+      [2, 3, "A"], [2, 4, "A"],
+      [3, 4, "A"],
+    ];
+    for (const [a, b, w] of results) {
+      await prisma.match.create({
+        data: { eventId: event.id, stageId: first.id, groupId: flights[0].id, round: 1, playerAId: players[a].id, playerBId: players[b].id, holes: oneUp(w) },
+      });
+    }
+    const [lead, upper, lower] = players;
+    await signIn(context, baseURL!, club, event.id);
+    const drawnBetween = async () => {
+      const ms = await prisma.match.findMany({ where: { stageId: second.id }, select: { playerAId: true, playerBId: true } });
+      return [...new Set(ms.flatMap((m) => [m.playerAId, m.playerBId]))].sort();
+    };
+
+    await test.step("Play-off is chosen on Round 1's card, and kept", async () => {
+      await gotoStages(page);
+      const card = await openRound(page, first.id);
+      const rule = card.getByRole("radiogroup", { name: "How a tie for the last place in the cut for Round 2 is settled" });
+      const { radio } = await pick(rule, "Play-off");
+      await expect(radio).toBeChecked();
+      await expect(card.getByText("the players level on points play off", { exact: false })).toBeVisible();
+      await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: second.id } })).cutTies).toBe("playoff");
+    });
+
+    await test.step("the board marks the pair tied, by play-off — nobody lit in their place", async () => {
+      expect((await page.goto(`/leaderboard?bust=${Date.now()}`))?.status(), "the secretary is signed in").toBe(200);
+      const rowOf = (name: string) => page.getByRole("row").filter({ hasText: name }).first();
+      for (const p of [upper, lower]) await expect(rowOf(p.name), p.name).toContainText("Tied for the last place — play-off to decide");
+      await expect(rowOf(lead.name), "control: the leader is through, not tied").not.toContainText("Tied for the last place");
+    });
+
+    await test.step("drawing Round 2 is refused beside the button, with the pair named", async () => {
+      await gotoStages(page);
+      const card = await openRound(page, second.id);
+      const draw = card.getByRole("button", { name: "Draw Round 2's matches", exact: true });
+      await centre(draw);
+      await draw.click();
+      const refused = card.getByRole("alert").filter({
+        hasText: `Not drawn. ${upper.name} and ${lower.name} are level on points for the last place. This cut settles a tie by play-off: record who won it below, then draw the round.`,
+      });
+      await expect(refused, "the tie at the line was not said where the press was").toBeVisible();
+      await saidBeside(refused, draw, "drawing a round whose cut waits on a play-off");
+      expect(await drawnBetween(), "a round was drawn through an unsettled tie").toEqual([]);
+    });
+
+    await test.step("the play-off's winner — the player the table placed lower — is recorded, and Round 2 is drawn", async () => {
+      await gotoStages(page);
+      let card = await openRound(page, second.id);
+      const tie = card.getByRole("group", { name: "Tied for the last place" });
+      await expect(tie).toContainText(`${upper.name} and ${lower.name} are level for the last place`);
+      await expect(tie.getByRole("checkbox")).toHaveCount(2);
+      await tie.getByLabel(lower.name).check();
+      await tie.getByRole("button", { name: "Record the play-off" }).click();
+      await expect(card.getByRole("group", { name: "Tied for the last place" })).toContainText("The play-off for the last place is recorded");
+
+      await gotoStages(page);
+      card = await openRound(page, second.id);
+      const draw = card.getByRole("button", { name: "Draw Round 2's matches", exact: true });
+      await centre(draw);
+      await draw.click();
+      await expect.poll(drawnBetween, { message: "Round 2 was not drawn between the leader and the play-off's winner" }).toEqual(
+        [lead.id, lower.id].sort(),
+      );
+    });
   } finally {
     await dropClub(mark);
   }

@@ -214,7 +214,7 @@ export function TableTiebreakControl({ tiebreakers, locked = false }: { tiebreak
       </div>
       {order.includes("head-to-head" as TiebreakerKey) && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-          Head-to-head decides nothing between players who never met; the next step is used.
+          Head-to-head decides nothing between players who never met, or who beat each other in a circle; the next step is used.
         </p>
       )}
     </div>

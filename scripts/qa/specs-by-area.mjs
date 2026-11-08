@@ -129,14 +129,18 @@ export const AREAS = {
   },
   rounds: {
     name: "Rounds and formats (the Rounds screen)",
-    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts"],
+    paths: ["src/app/(app)/stages/", "src/components/StagesClient.tsx", "src/components/RoundDeadlineControl.tsx", "src/components/RoundClosedControl.tsx", "src/components/SidePanel.tsx", "src/components/RoundsTimeline.tsx", "src/lib/rounds-timeline.ts", "src/lib/domain/timeline-step.ts"],
     specs: [
       "e2e/organizer-rounds-screen.spec.ts",
       "e2e/stages-scoring-setup.spec.ts",
       // The timeline and its side panel, behind `?view=timeline` (the rehaul's step 1 guards).
       "e2e/rounds-panel.spec.ts",
+      // The two presses that do not wait for their answer (J51).
+      "e2e/presses-that-are-not-awaited.spec.ts",
       // Step 2, "Course day": the guided "Needs you", the four sections, the docked panel.
       "e2e/rounds-timeline.spec.ts",
+      // State machine PR 5c (J16): the timeline's chip and "Needs you" lead say what the dashboard says, at every step.
+      "e2e/status-timeline.spec.ts",
       "e2e/rounds-and-formats.spec.ts",
       "e2e/round-date-and-viewing-as.spec.ts",
       "e2e/round-day.spec.ts",
@@ -173,6 +177,9 @@ export const AREAS = {
       "e2e/organizer-entry.spec.ts",
       "e2e/public-links-and-removals.spec.ts",
       "e2e/members.spec.ts",
+      // The no-email player identity, PR 1: Member or Guest (not a club member) on Add and in the CSV.
+      "e2e/add-a-member-or-guest.spec.ts",
+      "e2e/import-marks-member-or-guest.spec.ts",
     ],
     // Members enter from their own phones in the society's Stableford.
     scenarios: ["a"],
@@ -293,6 +300,8 @@ export const FULL_ONLY = [
   "e2e/dialog.spec.ts",
   "e2e/discount-code.spec.ts",
   "e2e/event-setup-calm.spec.ts",
+  // The worlds the shared fixture lacks: a second theme, a cut set not made, an assistant, a finished cup, three flights (J52).
+  "e2e/fixture-states.spec.ts",
   // The card, the public board and the handicap working: shared ground, as honest-card and boards-by-the-rules.
   "e2e/every-figure-explains-itself.spec.ts",
   "e2e/faq-blocks.spec.ts",
@@ -305,6 +314,7 @@ export const FULL_ONLY = [
   "e2e/interclub-league.spec.ts",
   "e2e/joining-a-club-refusals.spec.ts",
   "e2e/joining-a-club.spec.ts",
+  "e2e/namesake-notice.spec.ts",
   "e2e/kind-change-asks-about-money.spec.ts",
   "e2e/kitty.spec.ts",
   "e2e/landing-demo-doors.spec.ts",
@@ -322,6 +332,7 @@ export const FULL_ONLY = [
   "e2e/match-results.spec.ts",
   "e2e/money-nav.spec.ts",
   "e2e/named-side-bet.spec.ts",
+  "e2e/net-without-tees-says-so.spec.ts",
   "e2e/offline.spec.ts",
   "e2e/old-addresses.spec.ts",
   "e2e/one-name-in-play.spec.ts",

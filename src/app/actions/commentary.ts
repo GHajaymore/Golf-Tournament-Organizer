@@ -57,9 +57,11 @@ export async function suggestCommentary(): Promise<{ text: string; configured: b
   const highlights = computeHighlights(state)
     .map((h) => `- ${h.title}: ${h.text}`)
     .join("\n");
+  // The table's own PLACE, as `draft-facts.ts` prints it — never the row's
+  // position, which numbers a shared 2nd as 2, 3, 4 (2026-11-07).
   const top = state.overall
     .slice(0, 5)
-    .map((r, i) => `${i + 1}. ${r.player.name} ${r.stats.wins}-${r.stats.ties}-${r.stats.losses}, ${Math.round(r.stats.totalPoints * 10) / 10} pts`)
+    .map((r) => `${r.rank}. ${r.player.name} ${r.stats.wins}-${r.stats.ties}-${r.stats.losses}, ${Math.round(r.stats.totalPoints * 10) / 10} pts`)
     .join("\n");
 
   if (!key) {
