@@ -124,10 +124,6 @@ test.describe("on a phone, and on paper", () => {
   test("nothing scrolls sideways, and every figure in a picture is 16px or more", async ({ page }) => {
     for (const key of ["stableford", "championship", "fourball", "league", "knockout", "medal", "casual"] as const) {
       await open(page, seeded.events[key].shareToken);
-      // A phone has no classic scrollbar. Safari's engine on a desktop run draws one (10px), which takes
-      // the picture from about 309px to about 299 and its 19px figures from 16.3px to 15.8 — a
-      // narrow-desktop-window figure, not what a phone shows. Measure the phone: no scrollbar.
-      await page.addStyleTag({ content: "html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; }" });
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, key).toBeLessThanOrEqual(0);
       // The overflow above depends on the font: with Oswald loaded a knockout's figure ("beat … in
