@@ -36,3 +36,14 @@ frozen, said in the summary. A HOLD IS GREEN — the gate working — and the ho
 later. *Override freeze* is for emergencies and overrides only the freeze. What production holds
 is recorded as a GitHub deployment to `tourneyhq-production`. The job's check is now named
 `Deploy to production / Deploy to production`, so read it with `endswith`, as below.
+
+> Retired (Superseded by state machine PR 6, #1052, 2026-11-07: each tournament's own job on What's next is now the state machine's `nextAction` with its refusal and way out (`lifecycleJob`), so `playOverOf` is no longer one of the home's facts, and `JOB_SCREENS` gained `/stages`. CLAUDE.md carries the new wording.)
+
+The panel's item 4 (approved by Ajay, 2026-10-24). The dashboard's **What's next** is one line for
+each job waiting on the person in every tournament they run at the open tournament's club — entries
+awaiting approval, a tee sheet for the next fortnight unpublished, cards not returned, results not
+released — soonest first. The facts come from the screens' own functions (`services/whats-next.ts`:
+`awaitingApproval`, `nextUnplayedRound`, `boardProgress`, `playOverOf`) and `whatsNext` in
+`domain/needs-you-now.ts` only words and orders them, so the home cannot disagree with the screen it
+sends you to. Buttons only with the club's `canEdit`; a job in another tournament opens it through
+`enterTournament(eventId, screen)`, which honours `JOB_SCREENS` and nothing else.
