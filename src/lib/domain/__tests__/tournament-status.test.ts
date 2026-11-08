@@ -197,6 +197,28 @@ describe("a round robin in flights", () => {
     expect(s(f).refusals.launch).toBe("Round 1 has no pairings, so there are no matches to score. Generate them on Rounds & formats, then launch.");
   });
 
+  it("flights made, no pairings: the way out is Rounds & formats, where the refusal says Generate is (PR 5c review)", () => {
+    // The refusal names Rounds & formats, and the Generate button is on the round there; the way
+    // out used to be "Open Flights" — a screen with no Generate button.
+    const f = FAMILY_FIXTURES.roundRobinFlights();
+    f.rounds[0] = { ...f.rounds[0], matches: 0 };
+    const st = s(f);
+    expect(st.refusals.launch).toMatch(/Generate them on Rounds & formats/);
+    expect(st.setup.current?.key).toBe("stages");
+    expect(st.nextAction?.wayOut).toEqual({ says: "Open Rounds & formats", href: "/stages" });
+    expect(st.setup.current?.missing).toBe("Round 1 has no pairings — generate them on its round.");
+    // Flights is not held for it: they are made, and nobody is out of them.
+    expect(st.setup.steps.find((x) => x.key === "grouping")).toMatchObject({ done: true, holds: false });
+  });
+
+  it("CONTROL: no flights yet, no pairings: Flights keeps the hold, as the refusal says to make them first", () => {
+    const f = { ...FAMILY_FIXTURES.roundRobinFlights(), groups: 0 };
+    f.rounds = [{ ...f.rounds[0], matches: 0 }];
+    const st = s(f);
+    expect(st.refusals.launch).toMatch(/Make flights on Flights/);
+    expect(st.nextAction?.wayOut?.href).toBe("/grouping");
+  });
+
   it("while live, a cut-fed round whose qualifier has closed is the next thing to do: draw it", () => {
     const f = launched(
       facts({

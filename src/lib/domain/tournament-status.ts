@@ -608,15 +608,35 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
   if (!flow) return [];
   const playing = f.rounds.filter((r) => r.playing);
   const extra = (href: string) => holds.some((h) => h.href === href);
-  const undrawn = f.rounds.some((_, i) => owesDraw(f, i, false));
+  const undrawnRounds = f.rounds.filter((_, i) => owesDraw(f, i, false));
+  const undrawn = undrawnRounds.length > 0;
+  const cupHolds = !!f.cup && f.cup.flights !== 2;
+  const teamsHold = f.teams.needed && !f.cup && f.teams.sides === 0;
+  /**
+   * WHERE "NO PAIRINGS" IS PUT RIGHT (PR 5c review). Pairings are generated on
+   * Rounds & formats (the round's own Generate button), and the gate says so:
+   * "Generate them on Rounds & formats, then launch". So once the flights are
+   * made, an undrawn round holds the ROUNDS step and the way out opens it —
+   * it held Flights, and the dashboard sent the organizer to a screen with no
+   * Generate button on it. With no flights yet the gate says "Make flights on
+   * Flights and generate the pairings", and Flights keeps the hold. And only
+   * once the gate's earlier refusals are answered (entries, sides, the cup's
+   * teams — `launchRefusal`'s order), so the way out names the screen the
+   * refusal names.
+   */
+  const drawOnRounds = undrawn && f.groups > 0 && f.confirmed >= 1 && !teamsHold && !cupHolds;
   const stepHolds: Record<string, boolean> = {
     event: !f.dated,
     stages:
-      playing.length < 1 || f.rounds.some((r) => !r.scorable) || f.missingCards.length > 0 || extra("/stages"),
+      playing.length < 1 ||
+      f.rounds.some((r) => !r.scorable) ||
+      f.missingCards.length > 0 ||
+      drawOnRounds ||
+      extra("/stages"),
     registration: f.confirmed < 1 || extra("/registration"),
-    cup: !!f.cup && f.cup.flights !== 2,
-    teams: f.teams.needed && !f.cup && f.teams.sides === 0,
-    grouping: undrawn || extra("/grouping"),
+    cup: cupHolds,
+    teams: teamsHold,
+    grouping: (undrawn && !drawOnRounds) || extra("/grouping"),
     money: false,
   };
   const shown = flow.steps.filter((s) => !(family === "match" && s.key === "grouping"));
@@ -640,8 +660,11 @@ function judgedSteps(f: TournamentFacts, family: Family, flow: SetupFlow | null,
        */
       done =
         !holdsNow && (family === "league" || f.rounds.length === 1 || f.rounds.every((r) => r.scheduled));
-      if (holdsNow && f.missingCards.length > 0 && playing.length > 0 && f.rounds.every((r) => r.scorable)) {
+      const otherwiseReady = playing.length > 0 && f.rounds.every((r) => r.scorable);
+      if (holdsNow && f.missingCards.length > 0 && otherwiseReady) {
         missing = `${andList(f.missingCards.map((c) => c.label))} ${f.missingCards.length === 1 ? "has" : "have"} no course card to score against.`;
+      } else if (holdsNow && drawOnRounds && otherwiseReady && !extra("/stages")) {
+        missing = `${andList(undrawnRounds.map((r) => r.label || "A round"))} ${undrawnRounds.length === 1 ? "has" : "have"} no pairings — generate them on ${undrawnRounds.length === 1 ? "its" : "their"} round.`;
       } else if (holdsNow && family === "league") {
         const week = nextUnplayedWeek(f);
         if (week && !week.scheduled && f.rounds.every((r) => r.scorable) && f.missingCards.length === 0) {
@@ -877,8 +900,9 @@ export function tournamentStatus(f: TournamentFacts): TournamentStatus {
     });
   }
 
-  // A completed tournament needs nothing of its rounds: completing closed what was unplayed.
-  const needsByRound = finished ? new Map<string, RoundNeed[]>() : roundNeedsOf(f, family, launched);
+  // Once play is over its rounds need nothing: a round never played will not be (completing closes
+  // it as not played), so it is not asked for a date or tee times it can no longer use.
+  const needsByRound = step === "play-over" || finished ? new Map<string, RoundNeed[]>() : roundNeedsOf(f, family, launched);
 
   const chip =
     step === "setting-up"

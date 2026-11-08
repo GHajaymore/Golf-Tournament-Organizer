@@ -178,6 +178,22 @@ describe("the strip is the machine's list — what launch refuses and its dialog
     expect(d.rounds.r1).toMatchObject({ chip: "No course card", standing: "setup" });
   });
 
+  it("a round robin, flights made, no pairings: the way out opens the round with Generate on it, and its line is not said twice", () => {
+    const f = FAMILY_FIXTURES.roundRobinFlights();
+    f.rounds = [{ ...f.rounds[0], matches: 0 }];
+    const st = tournamentStatus(f);
+    const d = courseDayOf(st);
+    // The machine's way out is Rounds & formats (PR 5c review), so here it is the round itself.
+    expect(st.nextAction?.wayOut?.href).toBe("/stages");
+    expect(d.lead).toMatchObject({ enabled: false, wayOut: { kind: "round", roundId: "r1", says: "Open Round 1" } });
+    expect(d.lead!.disabledBecause).toMatch(/Generate them on Rounds & formats/);
+    expect(st.rounds[0].needs.map((n) => n.key)).toEqual(["draw"]);
+    expect(d.items.some((i) => i.key === "r1-draw"), words(d).join("\n")).toBe(false);
+    // Nor is Flights listed as a step to open: it holds nothing.
+    expect(d.items.some((i) => i.said === "Flights")).toBe(false);
+    expect(d.rounds.r1.chip).toBe("Not drawn yet");
+  });
+
   it("no dates: the refusal's way out is Tournament details, and that step is not listed again", () => {
     const d = day({ ...FAMILY_FIXTURES.stroke(), dated: false });
     expect(d.lead).toMatchObject({ enabled: false, wayOut: { kind: "link", href: "/event", says: "Open Tournament details" } });
@@ -216,6 +232,26 @@ describe("a round's chip is the round's own step (D8), never its date against to
     expect(d.rounds.r2.chip).toBe("Upcoming");
   });
 
+  it("play over with a round never played: that round is Not played — never No date or Upcoming (PM, PR 5c review)", () => {
+    // A cup decided after its first session: play is over, the second session was never played.
+    const base = FAMILY_FIXTURES.teamCup();
+    const f = launched({
+      ...base,
+      cupDecided: true,
+      rounds: [{ ...base.rounds[0], hasResult: true, closed: true }, { ...base.rounds[1], scheduled: false }],
+    });
+    const st = tournamentStatus(f);
+    expect(st.step).toBe("play-over");
+    expect(st.rounds[1]).toMatchObject({ state: "not-started", needs: [] });
+    const d = courseDayOf(st);
+    expect(d.rounds.r2).toEqual({ chip: "Not played", tone: "neutral", standing: "played" });
+    expect(d.rounds.r1.chip).toBe("Played");
+    // And the strip asks nothing of it: play is over.
+    expect(d.items.some((i) => i.round === "Round 2")).toBe(false);
+    // Completed, the same.
+    expect(courseDayOf(tournamentStatus({ ...f, status: "completed" })).rounds.r2.chip).toBe("Not played");
+  });
+
   it("results in before launch: the chip says so, the round is in play, and Launch is still the lead", () => {
     const f = facts({ rounds: [round({ id: "r1", position: 0, hasResult: true })] });
     const d = day(f);
@@ -246,6 +282,23 @@ describe("live: the lead is the machine's next action, done on its round here", 
     });
     expect(d.items.some((i) => i.key === "r2-draw")).toBe(false);
     expect(d.rounds.r2.chip).toBe("Not drawn yet");
+  });
+
+  it("a live league: only the NEXT unplayed week needs a day — never the weeks after it (J08)", () => {
+    const base = FAMILY_FIXTURES.league();
+    const f = launched({
+      ...base,
+      rounds: base.rounds.map((r, i) => ({ ...r, scheduled: i === 0, hasResult: i === 0, closed: i === 0 })),
+    });
+    const st = tournamentStatus(f);
+    expect(st.rounds.map((r) => r.needs.filter((n) => n.key === "date").length)).toEqual([0, 1, 0]);
+    // Live, it holds nothing (launch is past); it is the next action, done on that week here.
+    expect(st.rounds[1].needs[0]).toMatchObject({ key: "date", holds: false, missing: "has no day and no deadline" });
+    const d = courseDayOf(st);
+    expect(d.lead).toMatchObject({ label: "Set Round 2’s day", enabled: true, action: { kind: "round", roundId: "w2" } });
+    expect(d.items.filter((i) => /has no day/.test(i.said))).toEqual([]);
+    expect(d.rounds.w2.chip).toBe("No date");
+    expect(d.rounds.w3.chip).toBe("Upcoming");
   });
 
   it("a medal with nothing scored: Complete is refused in place, with the machine's way out", () => {

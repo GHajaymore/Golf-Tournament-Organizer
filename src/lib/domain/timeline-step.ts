@@ -94,11 +94,13 @@ function roundStep(r: StatusRound, st: TournamentStatus): RoundStepView {
   // closes a knockout's Bracket Stage, and its decided Final is not "in play" (D3).
   const over = st.step === "play-over" || st.step === "completed";
   if (r.state === "under-way") return over ? { chip: "Played", tone: "neutral", standing: "played" } : { chip: "In play", tone: "accent", standing: "active" };
+  // PM, PR 5c review: a round never played once play is over (or completed) is "Not played" —
+  // never "No date" or "Upcoming", which offer it a future it does not have.
+  if (over) return { chip: "Not played", tone: "neutral", standing: "played" };
   const settingUp = st.step === "setting-up";
   const first = r.needs[0];
   if (first) return { ...NEED_CHIP[first.key], standing: settingUp ? "setup" : "upcoming" };
   if (settingUp) return { chip: "Set up", tone: "accent", standing: "setup" };
-  if (st.step === "completed") return { chip: "Not played", tone: "neutral", standing: "played" };
   return { chip: "Upcoming", tone: "neutral", standing: "upcoming" };
 }
 
