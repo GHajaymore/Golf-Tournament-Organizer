@@ -49,14 +49,17 @@ describe("the browser install is bounded and retried", () => {
     for (const f of WORKFLOWS) {
       const lines = readVerbatim(`.github/workflows/${f}`).split(/\r?\n/);
       lines.forEach((l, i) => {
-        if (!/bash scripts\/ci\/install-browsers\.sh/.test(l)) return;
+        if (/^\s*#/.test(l) || !/bash scripts\/ci\/install-browsers\.sh/.test(l)) return;
         calls++;
-        // The step's own limit sits in the lines just above its `run:`.
-        const above = lines.slice(Math.max(0, i - 25), i).join("\n");
+        // The step's own limit sits above its `run:`, back to the step's first key (`- name:`,
+        // `- uses:`, ...) and no further, so a neighbouring step's limit is never read as this one's.
+        let start = i;
+        while (start > 0 && !/^\s*-\s+[\w-]+:/.test(lines[start])) start--;
+        const above = lines.slice(start, i).join("\n");
         const limits = [...above.matchAll(/timeout-minutes:\s*(\d+)/g)];
         expect(limits.length, `${f}:${i + 1} has no timeout-minutes`).toBeGreaterThan(0);
         const minutes = Number(limits[limits.length - 1][1]);
-        // two attempts of four minutes and a pause is just over eight
+        // two attempts of 240 s, a KILL grace of 15 s each and one 15 s pause: up to 8 min 45 s
         expect(minutes, `${f}:${i + 1}`).toBeGreaterThanOrEqual(9);
         expect(minutes, `${f}:${i + 1}`).toBeLessThanOrEqual(15);
       });
@@ -66,9 +69,21 @@ describe("the browser install is bounded and retried", () => {
 
   it("the script retries, bounds each attempt, and still fails in the end", () => {
     expect(script).toMatch(/attempts=2/);
-    expect(script).toMatch(/timeout 240 npx playwright install --with-deps/);
-    expect(script).toMatch(/Acquire::http::Timeout/);
-    expect(script).toMatch(/Acquire::Retries/);
-    expect(script).toMatch(/exit 1/);
+    expect(script).toMatch(/timeout -k 15 240 npx playwright install --with-deps/);
+    // The written conf text and the code, never the comments that talk about them.
+    const code = script.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join("\n");
+    expect(code).toMatch(/DPkg::Lock::Timeout "\d+";/);
+    expect(code).toMatch(/Acquire::http::Timeout "\d+";/);
+    expect(code).toMatch(/Acquire::Retries "\d+";/);
+    // no pause after the last attempt: the sleep sits INSIDE the `if attempt < attempts` block
+    expect(code).toMatch(/if \[ "\$attempt" -lt "\$attempts" \]; then\n(?:(?!\bfi\b)[\s\S])*?sleep 5\n\s*fi\ndone/);
+    // Before a retry the first attempt's root apt/dpkg (which `timeout` cannot reach) is killed,
+    // waited for (bounded) and dpkg is let finish: else attempt 2 dies on the dpkg frontend lock
+    // (runs 42307709158 and 42308035657). The clean-up runs inside the retry block, before the pause.
+    expect(code).toMatch(/sudo pkill -KILL -f "\$leftovers"/);
+    expect(code).toMatch(/seq 1 20\)[\s\S]*?pgrep -f "\$leftovers"[\s\S]*?break/);
+    expect(code).toMatch(/dpkg --configure -a/);
+    expect(code).toMatch(/then\n(?:(?!\bfi\b)[\s\S])*?\n\s*clear_leftovers\n\s*sleep 5\n\s*fi\ndone/);
+    expect(code).toMatch(/exit 1/);
   });
 });
