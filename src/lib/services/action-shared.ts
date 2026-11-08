@@ -1,6 +1,5 @@
 import "server-only";
-import { configurationLocked, PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
-import { playRefusal } from "@/lib/domain/phase-gate";
+import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { prisma } from "../db";
 import { getSession } from "../auth";
 import { roundLabel } from "@/lib/domain/round-label";
@@ -60,87 +59,15 @@ export async function lockedRefusal(eventId: string, what = "make structural cha
   return e && configurationLocked(e) ? `Configuration is locked. Unlock the tournament to ${what}.` : null;
 }
 
-/**
- * Refuse a score on a tournament that has not started, or return null.
- *
- * ONE PLACE, because there are four doors into scoring — the console's
- * `requireScoreEntry`, the play surface, and two in `actions/courses.ts` — and
- * a rule each of them has to remember to call is a rule one of them will
- * forget. That is this codebase's most-repeated defect and `isManualFormat`
- * is the entry CLAUDE.md keeps about it.
- *
- * RETURNS THE REASON rather than throwing, unlike `assertUnlocked` above, and
- * the difference is deliberate. A locked configuration is reached only by a
- * client out of step with the server, so throwing is right there. This one a
- * PERSON hits — a player opening their card on the first tee of a tournament
- * nobody launched — and they need to be told what is wrong and who can fix it.
- *
- * COSTS NOTHING ONCE LAUNCHED. The status is one indexed read, and the two
- * result lookups run only while the tournament is still pre-launch, which is
- * the rare case and never the hot path.
+/*
+ * `playRefusalFor` LIVED HERE until the state machine's PR 4. It counted its own
+ * four tables for "has anybody played" and differed from the machine's one
+ * definition (`hasResult`) on a forfeit, a match card and a winner recorded with
+ * no knockout round — D2 of the proposal. Every door into scoring now asks
+ * `playRefusedBecause` (services/tournament-status.ts), which is the machine's
+ * `refusals.play`. Deleted rather than left beside it: a dead twin is a second
+ * copy waiting to be used.
  */
-export async function playRefusalFor(eventId: string): Promise<string | null> {
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { status: true },
-  });
-  if (!event) return null;
-  if (!PRE_LAUNCH_STATUSES.includes(event.status)) return null;
-
-  /**
-   * "Any result" over the WHOLE tournament, all FOUR sources.
-   *
-   * A pure stroke tournament has no matches, a pure match one has no cards, a
-   * team day has neither and a KNOCKOUT has none of the three — so asking any
-   * subset of them answers this wrongly for some shape of the product. The
-   * same fault `resultsIn` was written to fix for the dashboard banner, and
-   * the reason that function counts more than one.
-   *
-   * THE FOURTH WAS MISSING AND THE COMMENT SAID THREE. A Bracket Stage files
-   * no Scorecard, no TeamScorecard and no Match — its results are
-   * `BracketWinner` rows keyed by slot, which CLAUDE.md sets out and the
-   * seeded club measures: its knockout holds 0 Match rows against 5
-   * BracketWinner rows. And `setBracketWinner` is gated on STAFF ROLE, not on
-   * the event being launched, so a knockout can hold results while its status
-   * is still `ready`.
-   *
-   * `playRefusal` then returns "This tournament hasn't been launched yet, so
-   * play hasn't started" — to people who are five ties into it. That sentence
-   * is the exact symptom CLAUDE.md names for this class, and this function's
-   * whole job is to recognise a tournament that is under way and get out of
-   * its path.
-   *
-   * `matchSettled` is not used: it wants a whole match object and this only
-   * needs to know whether anybody has been out on the course. One hole
-   * answers that, which is the same line the lifecycle warning draws.
-   */
-  const [card, teamCard, match, bracket] = await Promise.all([
-    prisma.scorecard.findFirst({ where: { eventId }, select: { id: true } }),
-    /**
-     * THE THIRD TABLE, and the one a team round is the only writer of.
-     *
-     * The comment above says "both sources" and there are three: a side
-     * playing one ball files a `TeamScorecard` and nothing else, so a team day
-     * that had already started read as a tournament nobody had teed off in —
-     * and this function's whole job is to recognise a tournament that is under
-     * way and get out of its path.
-     */
-    prisma.teamScorecard.findFirst({ where: { eventId }, select: { id: true } }),
-    prisma.match.findFirst({
-      where: { eventId, NOT: { holes: { equals: "" } } },
-      select: { holes: true },
-    }),
-    /**
-     * THE FOURTH TABLE, and the one a knockout is the only writer of. A slot
-     * with a winner in it is somebody having played a tie, whatever the
-     * event's status still says.
-     */
-    prisma.bracketWinner.findFirst({ where: { eventId }, select: { id: true } }),
-  ]);
-  const played =
-    !!card || !!teamCard || !!(match && /[1-9AaBbHh]/.test(match.holes)) || !!bracket;
-  return playRefusal({ status: event.status, anyResult: played });
-}
 
 /**
  * Write one line into the tournament's audit log.

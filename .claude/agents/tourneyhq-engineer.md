@@ -27,6 +27,10 @@ TypeScript, Prisma 6, PostgreSQL). Your brief names one change. Do that change, 
 ## Practical
 - Your worktree gets `node_modules` linked from the main checkout automatically. If it is missing,
   link it from PowerShell: `New-Item -ItemType Junction -Path node_modules -Target "<main checkout>\node_modules"`.
+- That `node_modules` is the main checkout's, so the generated Prisma client is SHARED by every worktree. A
+  branch with a schema change must NOT run `prisma generate` (the guard refuses it): it would break every
+  other engineer's tsc and audit tests. Run `node scripts/prisma-client-check.mjs` to see whose schema the
+  client holds, and say in your report that the client is stale for your new columns.
 - Under Git Bash, node needs `export PATH="/c/Program Files/nodejs:$PATH"`.
 - Fixtures: a throwaway zz-marked organization and event, invented names, `@example.invalid` addresses,
   deleted in a `finally`. Never touch an event holding real people, never commit a real person's data.

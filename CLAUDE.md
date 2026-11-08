@@ -128,12 +128,14 @@ false — "Only Manual lets you … set tees per flight".
 
 The panel's item 4 (approved by Ajay, 2026-10-24). The dashboard's **What's next** is one line for
 each job waiting on the person in every tournament they run at the open tournament's club — entries
-awaiting approval, a tee sheet for the next fortnight unpublished, cards not returned, results not
-released — soonest first. The facts come from the screens' own functions (`services/whats-next.ts`:
-`awaitingApproval`, `nextUnplayedRound`, `boardProgress`, `playOverOf`) and `whatsNext` in
-`domain/needs-you-now.ts` only words and orders them, so the home cannot disagree with the screen it
-sends you to. Buttons only with the club's `canEdit`; a job in another tournament opens it through
-`enterTournament(eventId, screen)`, which honours `JOB_SCREENS` and nothing else.
+awaiting approval, a tee sheet for the next fortnight unpublished, a launch, the next draw or week,
+cards not returned, results not released — soonest first. Per-round facts come from the screens' own
+functions (`services/whats-next.ts`: `awaitingApproval`, `nextUnplayedRound`, `boardProgress`); each
+tournament's own job is the state machine's `nextAction`, with its refusal and way out
+(`lifecycleJob`), never worked out on the home. `whatsNext` in `domain/needs-you-now.ts` only words
+and orders them, so the home cannot disagree with the screen it sends you to. Buttons only with the
+club's `canEdit`; a job in another tournament opens it through `enterTournament(eventId, screen)`,
+which honours `JOB_SCREENS` (`/registration`, `/foursomes`, `/stages`, `/entry`, `/dashboard`) and nothing else.
 
 **Copy last event** is `cloneEvent` given a first day: `copiedCalendar` moves the entry window and the
 rounds by the same distance against the club's own today, side games come across as games with nobody
@@ -289,8 +291,11 @@ plan's 10 GB, the point at which Vercel may refuse a production deploy.
 panel's item C). `ci.yml`'s `deploy` job calls it; so do the nightly round (after a clean
 verdict), an hourly schedule and *Run workflow*. `scripts/qa/deploy-gate.mjs` deploys a commit
 only when `verify` is green on it, every core commit since the last deploy is inside a clean
-nightly round, and no club is in its FREEZE — a tournament on today in the club's own time, or a
-weekend morning 05:00–14:00 in any club's zone. The freeze is asked of the APP
+nightly round, and no club is in its FREEZE. **Ajay, 2026-11-06:** the freeze is OFF until 20 Nov 2026
+(`FREEZE_RESUMES`, 20 Nov 00:00 in UTC+14); then, while sign-ins are held, only a PILOT club (one
+where somebody on `SIGNIN_ALLOW_EMAILS` is staff) playing today freezes, never a weekend morning;
+once live, a tournament on today at any club in its own time, or a weekend morning 05:00–14:00 in
+any club's zone (`deployWindowFor`; old wording in `docs/claude/retired.md`). The freeze is asked of the APP
 (`/api/deploy-window`, bearer `DEPLOY_WINDOW_TOKEN`, answering only `{frozen, reason}`), because
 this runner must never hold production's database credentials (below); unreachable means not
 frozen, said in the summary. A HOLD IS GREEN — the gate working — and the hourly run ships it

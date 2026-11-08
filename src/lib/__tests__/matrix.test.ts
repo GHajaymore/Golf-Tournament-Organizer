@@ -58,8 +58,9 @@ import {
   type CutRule,
   type NextRoundFlight,
 } from "@/lib/domain/cut";
-import { aggregateStats, rankPlayers } from "@/lib/domain/standings";
+import { aggregateStats, rankPlayers, computeStandings } from "@/lib/domain/standings";
 import { cutFeederOf, cutAfterRound } from "@/lib/domain/cut-ready";
+import { countbackCardsFor } from "@/lib/services/course-resolution";
 import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/domain/match-cards";
 import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-agg";
@@ -860,6 +861,84 @@ describe("standings, at every field size", () => {
     const stats = aggregateStats([], [], DEFAULT_SCORING);
     expect(rankPlayers([], stats, DEFAULT_SCORING, [])).toEqual([]);
   });
+});
+
+/**
+ * A HALVED MATCH IS DECIDED ON THE CARD IT WAS PLAYED ON — at every field size,
+ * on nine holes and eighteen, with the venue named at every level (J26,
+ * 2026-11-06).
+ *
+ * Committee Procedures 5A(6): a tied match is decided as the Terms say, and a
+ * "toughest holes" countback names holes by the stroke index of the course
+ * PLAYED (Rules of Handicapping, Appendix E allocates an index per course).
+ *
+ * Eighteen holes: the tournament's own card holds the 1st hardest, the away
+ * card is the same layout indexed the other way (the 18th hardest). NINE holes
+ * are the BACK nine, on cards laid out as clubs lay them out — odd indexes out,
+ * even home — so the nine is a real axis: the home back nine's hardest is the
+ * 10th (its index 2), the away back nine's the 18th (also index 2). Read off the
+ * FRONT nine's indexes instead, both cards would make the first hole of the nine
+ * the hardest (index 1) and the away match would go to A — the narrowing to the
+ * nine played is what tells them apart.
+ *
+ * Every match in the round robin is halved the same way: side A won the first
+ * holes, side B the last ones — so on the HOME card every countback goes to A
+ * and on the AWAY card every one goes to B. A board that read one card for every
+ * match ranks the field exactly upside down from one that reads the right one,
+ * and the wins are asserted as numbers, not as an order alone.
+ */
+describe("a halved match's countback, at every field size, hole count and venue level", () => {
+  const ODDS = [1, 3, 5, 7, 9, 11, 13, 15, 17];
+  const HOME_CARD = (holes: number) => (holes === 18 ? Array.from({ length: 18 }, (_, i) => i + 1) : [...ODDS, 2, 4, 6, 8, 10, 12, 14, 16, 18]);
+  const AWAY_CARD = (holes: number) => (holes === 18 ? Array.from({ length: 18 }, (_, i) => 18 - i) : [...ODDS, 18, 16, 14, 12, 10, 8, 6, 4, 2]);
+  const awayCourse = (holes: number) => ({
+    id: "zz-away",
+    name: "zz-away",
+    city: "",
+    pars: JSON.stringify(new Array(18).fill(4)),
+    yards: "",
+    strokeIndex: JSON.stringify(AWAY_CARD(holes)),
+  });
+  // A wins the first two holes, B the last two, the rest halved: all square.
+  const halved = (holes: number): HoleResult[] =>
+    Array.from({ length: holes }, (_, i) => (i < 2 ? "A" : i >= holes - 2 ? "B" : "H"));
+
+  for (const holes of [9, 18]) {
+    for (const level of ["match", "round", "event"] as const) {
+      for (const n of FIELD_SIZES) {
+        it(`${n} player(s), ${holes} holes, venue on the ${level}: every halve goes to the side that won the played card's hardest holes`, () => {
+          const players = field(n);
+          const rows: Array<{ id: string; stageId: string; courseId: string | null }> = [];
+          const matches: Match[] = [];
+          for (let i = 0; i < n; i += 1) {
+            for (let j = i + 1; j < n; j += 1) {
+              const id = `c${i}-${j}`;
+              rows.push({ id, stageId: "wk", courseId: level === "match" ? "zz-away" : null });
+              matches.push({ id, stageId: "wk", groupId: "g1", round: 1, playerAId: players[i].id, playerBId: players[j].id, holes: halved(holes) });
+            }
+          }
+          const cards = countbackCardsFor(
+            { course: "zz-home", city: "", customPars: JSON.stringify(new Array(18).fill(4)), customYards: "", customStrokeIndex: JSON.stringify(HOME_CARD(holes)) },
+            [{ id: "wk", courseId: level === "round" ? "zz-away" : null, holes, nine: holes === 9 ? "back" : "full" }],
+            rows,
+            (id) => (id === "zz-away" ? awayCourse(holes) : null),
+          );
+          const ranked = computeStandings(players, matches, { ...DEFAULT_SCORING, tiebreakers: [] }, {}, cards, ["toughest-1"]);
+          const away = level !== "event";
+          // Player at index k is side A against everybody after them and side B
+          // against everybody before them. Away, B takes every countback.
+          for (let k = 0; k < n; k += 1) {
+            const s = ranked.find((r) => r.player.id === players[k].id)!.stats;
+            const wins = away ? k : n - 1 - k;
+            expect({ wins: s.wins, losses: s.losses, ties: s.ties }, `${players[k].id}`).toEqual({ wins, losses: n - 1 - wins, ties: 0 });
+            expect(s.totalPoints).toBe(wins * DEFAULT_SCORING.winPts);
+          }
+          // The board itself: away, the LAST entrant leads; at home, the first.
+          if (n >= 2) expect(ranked[0].player.id).toBe(away ? players[n - 1].id : players[0].id);
+        });
+      }
+    }
+  }
 });
 
 /**
