@@ -221,6 +221,21 @@ const KNOWN_DEAD: string[] = [
   // waiting to be used").
   "lib/domain/lifecycle-state.ts:lifecycleMismatch",
   "lib/domain/lifecycle-state.ts:nextLifecycleAction",
+  // PR 4: `launchTournament` asks the machine's `refusals.launch`, whose first
+  // answer is this same flow's verdict. Kept, uncalled by any screen or action,
+  // because three audit tests hold the flow's launch verdict to its facts
+  // through it; PR 9 deletes it with the other dead twins.
+  // `the-actions-ask-the-machine.test.ts` keeps it out of the actions.
+  "lib/services/setup-flow.ts:launchCheckFor",
+  // PR 6: the secretary's home, the player switcher's note, the public event
+  // page and the Tournaments list read the machine's step (`nextAction`,
+  // `tournamentStepsFor`). These three were their own answers; kept, uncalled,
+  // as the shadow test's record of what was asked before, and deleted with the
+  // other dead twins in PR 9. `the-tournament-is-asked-one-way.test.ts` refuses
+  // them to every screen and to the four readers' own files.
+  "lib/domain/lifecycle-state.ts:datesPassedUnlaunched",
+  "lib/domain/lifecycle-state.ts:tournamentPhase",
+  "lib/domain/tournament-switcher.ts:playOverOf",
 ];
 
 const dead: Dead[] = [];

@@ -107,7 +107,7 @@ vi.mock("react", async (importOriginal) => {
 vi.mock("@/lib/auth", () => ({ getSession: async () => null }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { tournamentFactsFor, tournamentFactsForMany } = await import("@/lib/services/tournament-facts");
+const { tournamentFactsFor, tournamentFactsForMany, tournamentStepsFor } = await import("@/lib/services/tournament-facts");
 const { loadEventState } = await import("@/lib/services/tournament");
 const { launchCheckFor } = await import("@/lib/services/setup-flow");
 // The rail is the state machine's since PR 3 (`setupRailFor`), from the same request-cached read.
@@ -312,6 +312,35 @@ describe("the cost of the one read, per family", () => {
   }
 });
 
+/**
+ * THE PLAYER SWITCHER'S BUDGET (state machine PR 6; the review of #1052).
+ *
+ * Every player screen asks the step of the member's own running tournaments
+ * (`clubEventsFor` → `tournamentStepsFor`). A member is in one to three at a
+ * time; the worst three are the fixture's — a live medal, a live KNOCKOUT (the
+ * whole state, for its draws) and a live CUP (the cup board). Measured at 38
+ * queries and 44 ms on Ajay's desktop (7 Nov). A query count does not move with
+ * the machine (`request` asserts it is the same on every run), so its budget
+ * has two to spare and no more: one more read per tournament is three more
+ * here, and goes red. Milliseconds do move, so theirs is about nine times the
+ * measurement — it catches a read that multiplies, not a slow runner.
+ */
+export const SWITCHER_BUDGET = { queries: 40, ms: 400 } as const;
+
+describe("the player switcher's share, for a member in three running tournaments", () => {
+  it("stays inside its budget", async () => {
+    const three = new Map([ids.medal, ids.knockout, ids.cup].map((id) => [id, TODAY]));
+    const cost = await request(() => tournamentStepsFor(three));
+    line("switcher: tournamentStepsFor, medal + knockout + cup", cost);
+    expect(cost.queries, `the switcher's read grew: ${cost.queries} queries for three tournaments`).toBeLessThanOrEqual(SWITCHER_BUDGET.queries);
+    expect(cost.ms, `the switcher's read took ${cost.ms} ms for three tournaments`).toBeLessThanOrEqual(SWITCHER_BUDGET.ms);
+    // CONTROL: it read something, and read the step the full read reads.
+    expect(cost.queries).toBeGreaterThan(0);
+    const steps = await tournamentStepsFor(three);
+    for (const id of three.keys()) expect(steps.get(id)?.step).toBe("live");
+  });
+});
+
 describe("the secretary's home on the seeded club", () => {
   it("today's home, and the home with the facts read once per running tournament", async (ctx) => {
     // The club with the most tournaments that has an owner — the seeded demo club on a development database.
@@ -327,11 +356,11 @@ describe("the secretary's home on the seeded club", () => {
       ctx.skip();
       return;
     }
-    const running = await prisma.event.findMany({
+    const ofTheClub = await prisma.event.findMany({
       where: { organizationId: club.organizationId, shape: { not: "match" }, expiresAt: null, archivedAt: null },
       select: { id: true, status: true },
     });
-    const open = running.filter((e) => !isFinished(e.status));
+    const open = ofTheClub.filter((e) => !isFinished(e.status));
     expect(open.length, "a club with nothing running measures nothing").toBeGreaterThan(0);
     const session = {
       userId: club.user.id,
@@ -357,7 +386,7 @@ describe("the secretary's home on the seeded club", () => {
       await tournamentFactsForMany(open.map((e) => e.id), TODAY);
     }, 3);
     const n = open.length;
-    report.push(`home: the seeded club, ${running.length} tournaments, ${n} running`);
+    report.push(`home: the seeded club, ${ofTheClub.length} tournaments, ${n} running`);
     line(`home: today (secretaryHomeFor)`, home);
     line(`home: today + tournamentFactsFor × ${n} (one request)`, withFacts);
     line(`home: tournamentFactsFor × ${n}, with no home beside it`, factsOnly);
@@ -368,5 +397,48 @@ describe("the secretary's home on the seeded club", () => {
     // queries plus the card check per tournament (`roundsMissingCards`, four
     // reads), not the batch per tournament.
     expect(grouped.queries - home.queries).toBeLessThan(withFacts.queries - home.queries);
+
+    /**
+     * THE STEP ALONE (state machine PR 6): what the Tournaments list, the player
+     * switcher and the public event page pay — `tournamentStepsFor`, the same
+     * batch without the setup checks and the review queue. Over every
+     * tournament of the club (the list shows completed ones too), it must cost
+     * less than the full facts read of the same tournaments: no card check, no
+     * review queue, and the whole state only for a live knockout.
+     */
+    const days = new Map(ofTheClub.map((e) => [e.id, TODAY]));
+    const steps = await request(() => tournamentStepsFor(days), 3);
+    const factsOfAll = await request(() => tournamentFactsForMany(ofTheClub.map((e) => e.id), TODAY), 3);
+    line(`steps: tournamentStepsFor × ${ofTheClub.length} (all the club's tournaments, completed included)`, steps);
+    line(`steps: tournamentFactsForMany × ${ofTheClub.length}, the same tournaments, for comparison`, factsOfAll);
+    expect(steps.queries, "the step alone pays for the setup checks or the review queue").toBeLessThan(factsOfAll.queries);
+    /**
+     * THE PLAYER SWITCHER'S SHARE: the step for the tournaments a member is in
+     * and that are not completed — the rows its note words (`band: "entered"`).
+     * Measured for the member of this club entered in the most of them.
+     */
+    const entries = await prisma.player.groupBy({
+      by: ["email"],
+      where: { status: "confirmed", email: { not: "" }, eventId: { in: open.map((e) => e.id) } },
+      _count: true,
+    });
+    entries.sort((a, b) => b._count - a._count);
+    const busiest = entries[0];
+    if (busiest) {
+      const theirs = await prisma.player.findMany({
+        where: { status: "confirmed", email: busiest.email, eventId: { in: open.map((e) => e.id) } },
+        select: { eventId: true },
+      });
+      const memberDays = new Map(theirs.map((p) => [p.eventId, TODAY]));
+      const member = await request(() => tournamentStepsFor(memberDays), 3);
+      line(`steps: the busiest member's ${memberDays.size} running entries (switcher)`, member);
+    }
+    // And it reads what the full read reads: the same step for every tournament.
+    const told = await tournamentStepsFor(days);
+    const full = await tournamentFactsForMany(ofTheClub.map((e) => e.id), TODAY);
+    for (const [id, f] of full) {
+      expect(told.get(id)?.step, `${id}: the step alone and the full read disagree`).toBe(tournamentStatus(f).step);
+      expect(told.get(id)?.journey).toBe(tournamentStatus(f).journey);
+    }
   });
 });

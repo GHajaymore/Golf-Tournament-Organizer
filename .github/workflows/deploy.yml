@@ -22,7 +22,9 @@ name: Deploy
 #   2. every "Core and shared" commit since the last deploy is in a clean nightly
 #      round (that commit, or a later one containing it);
 #   3. no club is in its freeze: a tournament on today in the club's own time,
-#      or Saturday and Sunday 05:00–14:00 in any club's zone. The app answers
+#      or Saturday and Sunday 05:00–14:00 in any club's zone — once accounts
+#      are live. (Ajay, 2026-11-06: off until 20 Nov 2026; then, while sign-ins
+#      are held, only a pilot club playing today.) The app answers
 #      that question itself, at /api/deploy-window, with only {frozen, reason}:
 #      THIS RUNNER NEVER GETS PRODUCTION DATABASE CREDENTIALS (the reason is in
 #      ci.yml, above "VERCEL BUILDS IT"). If the app cannot be asked, the deploy

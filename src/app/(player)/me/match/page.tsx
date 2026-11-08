@@ -6,6 +6,7 @@ import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { entryRefusalFor, ORGANIZER_KEEPS_THIS_ROUND } from "@/lib/domain/round-scoring";
 import { meFor } from "@/lib/services/me";
 import { prisma } from "@/lib/db";
+import { sideNamesOf } from "@/lib/services/side-names";
 import { matchCardFor, matchStrokeCardFor } from "@/lib/services/match-card";
 import { lineupHidden } from "@/lib/domain/cup-lineup";
 import { roundCodeName } from "@/lib/domain/round-label";
@@ -154,7 +155,7 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
   const otherNames = otherIds.length
     ? new Map([
         ...(await prisma.player.findMany({ where: { id: { in: otherIds }, eventId: state.event.id }, select: { id: true, name: true } })).map((p) => [p.id, p.name] as const),
-        ...(await prisma.team.findMany({ where: { id: { in: otherIds }, eventId: state.event.id }, select: { id: true, name: true } })).map((t) => [t.id, t.name] as const),
+        ...(await sideNamesOf(state.event.id, otherIds)),
       ])
     : new Map<string, string>();
 

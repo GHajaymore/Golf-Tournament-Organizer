@@ -187,11 +187,19 @@ describe("where the gates are enforced", () => {
    */
   it("is checked inside the actions, not only on the screen", () => {
     const actions = readSource("src", "app", "actions", "tournament.ts");
-    // Launch asks the setup flow's own verdict — `launchCheckFor` — since gap G3.
-    expect(actions).toMatch(/const \{ refusal \} = await launchCheckFor\(eventId\)/);
-    // Both facts, at the enforcement point. The screen alone passing
-    // `disputed` would leave the endpoint finishing over a dispute.
-    expect(actions).toMatch(/finishRefusal\(\{[^}]*pendingConfirmations[^}]*disputed: state\.reviewing\.disputed/);
+    // Since the state machine's PR 4 both actions ask the machine, as the
+    // dashboard's button does: launch its `refusals.launch` (the flow's own
+    // verdict first), a status move `statusRequestOf` (its `refusals.complete`).
+    expect(actions).toMatch(/const refusal = told\.status\.refusals\.launch;/);
+    expect(actions).toMatch(/const request = statusRequestOf\(told\.status, current\.status, status\);/);
+    expect(actions).toMatch(/if \(request\.kind === "refuse"\) return \{ ok: false, error: request\.error \};/);
+    // Both facts reach the machine's complete refusal from the live state, so
+    // the endpoint cannot finish over a dispute the screen alone knew about.
+    expect(readSource("src", "lib", "services", "tournament-facts.ts")).toMatch(
+      /review: state\s*\?\s*\{ pendingConfirmations: state\.pendingConfirmations, disputed: state\.reviewing\.disputed \}/,
+    );
+    const machine = readSource("src", "lib", "domain", "tournament-status.ts");
+    expect(machine).toMatch(/return st\.refusals\.complete \? \{ kind: "refuse", error: st\.refusals\.complete \}/);
     // And the refusal is returned rather than thrown away.
     expect(actions).toMatch(/if \(refusal\) return \{ ok: false, error: refusal \}/);
   });
