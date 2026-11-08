@@ -47,7 +47,8 @@ jobs:
     runs-on: ubuntu-latest
     # 797 tests on one worker: the 8 Nov proof (run 42429147194) reached test 541 in
     # 27–34 minutes on every job and was cut off at the old 45, before any failure.
-    timeout-minutes: 90
+    # The full proof (run 42441718006) took 49–82 minutes a job; WebKit desktop 82, so 120.
+    timeout-minutes: 120
 
     # One engine and one screen size per job, each with a database of its own —
     # the same reasoning as ci.yml's three legs. Nothing is cancelled when one
