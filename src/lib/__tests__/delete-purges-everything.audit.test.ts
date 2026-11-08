@@ -318,6 +318,7 @@ describe("an automatic sweep keeps the honours board (ruled 2026-11-08)", () => 
       const kept = await eventWith("pressed");
       await prisma.honoursEntry.create({ data: { organizationId: orgId, eventId: kept.id, eventName: `${TAG} pressed`, championName: "zz champion" } });
       expect(await rowsIn("HonoursEntry", "eventId", kept.id)).toBe(1);
+      await prisma.account.create({ data: { eventId: kept.id, name: "zz staff", email: staffEmail, role: "admin" } });
       session = { eventId: kept.id, email: staffEmail, viewRole: "admin", name: "zz staff", role: "admin", userId: "zz", accountId: "" };
       await expect(deleteEvent(kept.id)).rejects.toThrow("NEXT_REDIRECT");
       expect(await prisma.event.count({ where: { id: kept.id } })).toBe(0);
