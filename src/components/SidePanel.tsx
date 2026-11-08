@@ -24,8 +24,9 @@ import { Icon } from "./Icon";
  * footer is optional and usually just says it is saved.
  */
 /**
- * The width the panel docks from. The docked styles' `@media (min-width: 1280px)` is the same
- * number; they live in `src/app/(app)/stages/rounds-timeline.css`, sent only with the Rounds screen,
+ * The width the panel docks from, judged ONCE, here, against the window (`useDocked`); the docked
+ * styles follow that answer through `data-docked`, never a media query of their own (8 Nov: the two
+ * disagreed in Safari's engine). They live in `src/app/(app)/stages/rounds-timeline.css`, sent only with the Rounds screen,
  * the one caller that docks. A second caller that docks imports that sheet's rules or moves them.
  */
 export const SIDE_PANEL_DOCK_FROM = 1280;
