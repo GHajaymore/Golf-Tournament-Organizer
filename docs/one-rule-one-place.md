@@ -101,6 +101,38 @@ handicap readers became one (counted off the diff, not the inventory). The four
   promised once round 2 had begun, and no "in each flight" or "and ties".
   `e2e/the-cut-a-round-is-played-for.spec.ts` reads it as the organizer and a
   player, in its own throwaway medal with round 1 in play.
+- **A tie for the last place at a cut line** (J31, 2026-11-06): `cutLineOutcome`
+  in `domain/cut.ts` is the one rule — "ties", a play-off or a countback then a
+  draw, chosen per cut (`Stage.cutTies`) and settled by the committee
+  (`Stage.cutTieDecisions`). A stroke cut asks it of the board (`cutLineRows`,
+  `strokeCutOutcome` is the same function); a round robin's cut asks it of the
+  table (`roundRobinCutOutcome`), which `generateCutRound` draws with and the
+  board lights with. Its words differ by what the line is drawn through
+  (`CutLineKind`, a REQUIRED argument of `cutTieRuleWords`). Worked from the
+  Rules in `a-tie-at-a-round-robin-cut.test.ts`, swept in `matrix.test.ts`,
+  property-tested against a pencil in `properties-round-robin-cut-tie.test.ts`.
+  WHICH ROUND a cut is taken out of is `cutFeederOf` in `domain/cut-ready.ts`
+  (2026-11-07): the stroke round just before it (cards), or the LAST round robin
+  before it by position (the table `generateCutRound` cuts on) — never simply
+  the round beside it. The tie card (`roundRobinCutOf`), the record of a
+  play-off (`settleCutTie` → `roundRobinCutAfter`) and the board ask it; swept
+  shape by shape in `matrix.test.ts`, and round robin → medal → cut round on
+  real rows in `a-round-robin-cut-past-a-medal.audit.test.ts`. The rules sheet
+  (`cutAfterRound`), the round's card summary, and the board's "advancing"
+  and the dashboard's cut card (`currentRoundCutOf`) ask `cutDecidedBy`, its
+  reverse: a cut belongs to the round that DECIDES it, naming the round it
+  feeds when that is not the next one, and a cut no engine makes is shown
+  nowhere. `cutLineKindOf` is private to `cut-ready.ts`;
+  `one-reading-of-a-cut.test.ts` refuses a round read off its neighbour by
+  index and then asked for its cut, with only the card cut's own readings
+  (adjacent by definition) listed, each by reason. WHAT a cut is taken on —
+  card or table — is `cutFeederOf`'s `kind` and never the tournament's Scoring
+  (`event.format`, `isStroke`), which neither engine reads; the board read it
+  twice (round train-1107-3) and lit nobody, or entry order, where the cut
+  would take somebody else. Before any result a round robin's cut lights
+  nobody under either Scoring. The same test refuses `isStroke` /
+  `event.format` in every place that decides who goes through; on real rows in
+  `a-cut-is-lit-whatever-the-scoring.audit.test.ts`.
 - **Leaving the field** (step 2): three inline copies of "withdrawn or
   disqualified" ask `hasLeftTheField` / `LEFT_THE_FIELD`;
   `left-the-field-is-asked-one-way.test.ts` refuses a fourth. Places that say

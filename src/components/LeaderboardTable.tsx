@@ -417,7 +417,18 @@ export function LeaderboardTable({
                   hero on `/me`. See `holdsPosition`. */}
               {/* The same one colour as the stroke table above. */}
               <td style={num}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
-              <td style={{ fontWeight: 500 }}>{r.name}</td>
+              <td style={{ fontWeight: 500 }}>
+                {r.name}
+                {/* A round robin's cut waiting on the committee (J31): the same
+                    note as the stroke board's, where it applies — a tie the cut's
+                    rule leaves to a play-off or a draw. A knockout's qualifying
+                    line has no rule of its own yet (J30) and says nothing here. */}
+                {r.cutTieBy && tieNote(r) && (
+                  <div className="text-muted" style={{ fontWeight: 400, fontSize: "0.85em" }}>
+                    {tieNote(r)}
+                  </div>
+                )}
+              </td>
               {showFlight && <td>{r.flight}</td>}
               {compact ? (
                 <td style={num}>{r.record}</td>
