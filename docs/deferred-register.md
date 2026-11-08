@@ -1593,6 +1593,15 @@ disagrees; both are wrong the same way. Pinned as an `it.todo` in
 shared place over the whole level GROUP's mini-league (as the sort already does), not pair by
 pair. Left because it moves every round robin board in the app, not only a cut, and wants its
 own matrix cells and three rounds.
+**DONE (2026-11-07, `claude/h2h-cycle-mini-league`):** `domain/level-places.ts` decides a
+level group's places over the group — head-to-head as the mini-league among only the tied,
+re-asked of any part still level; a cycle goes on to the next step together; whoever the chain
+cannot separate shares the place. `rankPlayers` and the league of clubs' `orderClubs` (which had
+the same fault as an intransitive sort) both use it. The `it.todo` is a real test on real rows
+(board and draw both owe a draw for the one place, in two entry orders); the matrix carries a
+3-cycle and a 4-player partial cycle; `a-head-to-head-cycle-shares-the-place.test.ts` works the
+rule by hand in every entry order and sweeps for a second copy. Long form:
+`docs/claude/knockouts-and-leagues.md`, "A table's ties".
 
 **Net countback off a full handicap** (above) is unchanged, and the cut's countback is the
 board's: hole-by-hole net. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the
