@@ -58,7 +58,7 @@ const NOT_A_DOOR: Record<string, string> = {
   setMyMessagesOptOut: "person", setMySmsOptIn: "person", registerInterest: "person", askToJoinNamesake: "person",
   // club
   checkDiscountCode: "club", startCheckout: "club", openBillingPortal: "club", deleteClub: "club",
-  saveHandicapPolicy: "club", saveScoreReporting: "club", approveJoinRequest: "club", declineJoinRequest: "club",
+  saveHandicapPolicy: "club", saveScoreReporting: "club", approveJoinRequest: "club", declineJoinRequest: "club", dismissNamesakeNotice: "club",
   setOrgMoneyMode: "club", addOrganizationMember: "club", setOrganizationMemberRole: "club",
   removeOrganizationMember: "club", saveOrganizationBranding: "club", saveOrganizationTheme: "club",
   saveOrganizationCurrency: "club", saveOrganizationSeason: "club", saveOrganizationLocale: "club",

@@ -434,6 +434,9 @@ model Organization {
 
   members      OrganizationMember[]
   joinRequests JoinRequest[]
+  /** Notices that a club of this name was set up nearby: for this club's Commissioner. */
+  namesakeNotices      NamesakeNotice[] @relation("NoticeFor")
+  namesakeNoticesAbout NamesakeNotice[] @relation("NoticeAbout")
   roster       Member[]
   courses      Course[]
   events       Event[]
@@ -792,6 +795,40 @@ model JoinRequest {
   @@unique([organizationId, userId])
   @@index([organizationId, status])
   @@index([userId])
+}
+
+/**
+ * A CLUB OF THIS NAME WAS SET UP NEARBY, told to the club that was here first (Ajay, 7 Nov).
+ *
+ * Club names are not unique by design: the person setting up the second one is asked, answers
+ * "mine is a different one", and carries on. The FIRST club was never told. One row per pair,
+ * written by `services/namesake-notice.ts` at the moment a club takes the name, shown to the
+ * existing club's Commissioner on Staff & access, dismissed by its staff. It holds three facts
+ * about the new club and no more: its name, its town and the NAME of whoever set it up. Never an
+ * email, phone, roster or tournament (the same fields the other-way question reveals).
+ */
+model NamesakeNotice {
+  id                String    @id @default(cuid())
+  /// The club that was here first, and is told.
+  organizationId    String
+  /// The club that took the name. Its deletion removes the notice.
+  newOrganizationId String
+  name              String
+  town              String    @default("")
+  byName            String    @default("")
+  /// new (a club made with the name) | renamed (a club that already existed took it)
+  how               String    @default("new")
+  /// open | dismissed
+  status            String    @default("open")
+  createdAt         DateTime  @default(now())
+  dismissedAt       DateTime?
+  dismissedBy       String    @default("")
+
+  organization    Organization @relation("NoticeFor", fields: [organizationId], references: [id], onDelete: Cascade)
+  newOrganization Organization @relation("NoticeAbout", fields: [newOrganizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, newOrganizationId])
+  @@index([organizationId, status])
 }
 
 model OrganizationMember {
