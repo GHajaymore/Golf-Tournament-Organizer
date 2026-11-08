@@ -185,14 +185,16 @@ describe("the board and the draw agree on a round robin's cut", () => {
     expect(state.cutTiesUndecided.length, "and there is one to mark").toBeGreaterThan(0);
   });
 
-  it("a second cut, on countback, with a cycle at the line: the board and the draw rank the same contenders", async () => {
-    // Round 1: six, a clean top 4 (Ann 10, Bea 8, Cat 6, Dot 4, Eve 2, Fay 0 —
-    // everybody beats everybody below them). Round 2 is the top 4, drawn as the
-    // cut draws it; then Ann beats all three, and Bea, Cat and Dot go round in a
-    // circle (Bea b Cat, Cat b Dot, Dot b Bea), each 1 up: three level on 2
-    // points for the second place, head-to-head deciding nothing among them.
-    const six = ["ann", "bea", "cat", "dot", "eve", "fay"];
-    const t = await tournament("Two Cuts", six);
+  /**
+   * Round 1: six, a clean top 4 (everybody beats everybody entered below them,
+   * so the first four entered are 10, 8, 6, 4 points). Round 2 is the top 4,
+   * drawn as the cut draws it; then Ann beats all three, and Bea, Cat and Dot
+   * go round in a circle (Bea b Cat, Cat b Dot, Dot b Bea), each 1 up: three
+   * level on 2 points for the second place, head-to-head deciding nothing
+   * among them. `six` is the entry order.
+   */
+  async function twoCutsWithACycle(name: string, six: string[]) {
+    const t = await tournament(name, six);
     const r1 = (await rr(t.eventId, 0)).id;
     const r2 = (await rr(t.eventId, 1, cutTo(4, "ties"))).id;
     const r3 = (await rr(t.eventId, 2, cutTo(2, "countback"))).id;
@@ -209,7 +211,11 @@ describe("the board and the draw agree on a round robin's cut", () => {
       const key = [a, b].sort().join("|");
       await prisma.match.update({ where: { id: m.id }, data: { holes: oneUp(winner[key] === a ? "A" : "B") } });
     }
+    return { t, r2, r3 };
+  }
 
+  it("a second cut, on countback, with a cycle at the line: the board and the draw rank the same contenders", async () => {
+    const { t, r2, r3 } = await twoCutsWithACycle("Two Cuts", ["ann", "bea", "cat", "dot", "eve", "fay"]);
     const made = (await roundRobinCutOf(t.eventId, r3))!;
     expect(made.feeder.id, "the second cut is taken out of Round 2").toBe(r2);
     const state = (await loadEventState(t.eventId))!;
@@ -220,15 +226,35 @@ describe("the board and the draw agree on a round robin's cut", () => {
   });
 
   /**
-   * WHAT THE SECOND CUT SHOULD SAY, AND DOES NOT YET — deferred, not fixed here
-   * (docs/deferred-register.md, "a head-to-head cycle is ranked by entry
-   * order"). Worked by hand: Bea, Cat and Dot each won 1 hole and lost 2, and
-   * their meetings go round in a circle, so nothing they did separates them —
-   * a draw by lot for the one place. `rankPlayers` orders the three by seed
-   * and then asks `separated` of each NEIGHBOURING PAIR's own meeting (Bea b
-   * Cat, Cat b Dot), so it numbers them 2, 3, 4 and the countback sends Bea —
-   * the earliest entry — through. Board and draw agree (above); both are wrong
-   * the same way, in `domain/standings.ts`.
+   * WHAT THE SECOND CUT SAYS (registered by the J31 review as deferred; FIXED
+   * 2026-11-07, docs/deferred-register.md, "a head-to-head cycle is ranked by
+   * entry order"). Worked by hand: Bea, Cat and Dot each won 1 hole and lost 2
+   * in Round 2, and their meetings go round in a circle, so nothing they did
+   * separates them — Committee Procedures 5A(6): the committee's countback
+   * runs out, and the one place is decided by lot, which the committee
+   * records. `rankPlayers` used to ask each NEIGHBOURING PAIR's own meeting
+   * (Bea b Cat, Cat b Dot), number them 2, 3, 4, and send the earliest entry
+   * through. Run in two entry orders: the tie is the same three whoever
+   * entered first.
    */
-  it.todo("a head-to-head cycle at the line is a draw by lot for the place, not the earliest entry (deferred: rankPlayers' pairwise `separated`)");
+  it("a head-to-head cycle at the line is a draw for the place, on the board and in the draw, whoever entered first", async () => {
+    for (const [name, six] of [
+      ["Cycle Bea First", ["ann", "bea", "cat", "dot", "eve", "fay"]],
+      ["Cycle Dot First", ["ann", "dot", "cat", "bea", "eve", "fay"]],
+    ] as const) {
+      const { t, r3 } = await twoCutsWithACycle(name, [...six]);
+      const three = sorted([t.id.bea, t.id.cat, t.id.dot]);
+
+      const state = (await loadEventState(t.eventId))!;
+      const r2Places = new Map(state.overall.map((r) => [r.player.id, r.rank]));
+      expect([t.id.bea, t.id.cat, t.id.dot].map((id) => r2Places.get(id)), `${name}: the table shares 2nd`).toEqual([2, 2, 2]);
+      expect(sorted(state.advancingIds), `${name}: the board lights Ann alone`).toEqual([t.id.ann]);
+      expect(ties(state.cutTiesUndecided), `${name}: and marks a draw for the one place`).toEqual([[three, 1, "draw"]]);
+
+      const drawn = await generateCutRound(t.eventId, r3);
+      expect(drawn.ok, `${name}: the draw refuses until the committee records it`).toBe(false);
+      const undecided = !drawn.ok && drawn.reason === "cut-tie" ? drawn.undecided : [];
+      expect(ties(undecided), `${name}: for the same tie`).toEqual([[three, 1, "draw"]]);
+    }
+  });
 });

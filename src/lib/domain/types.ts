@@ -123,7 +123,7 @@ export function tiebreakerLabel(key: string): string {
  */
 const TIEBREAKER_HELP: Record<FixedTiebreakerKey, string> = {
   "head-to-head":
-    "Whoever won when these two played each other. If they never met, or their match was halved, this decides nothing and the next tiebreaker is used.",
+    "Whoever won when these two played each other. With three or more level, it is their results against each other only, asked again of any who are still level. If they never met, their match was halved, or they beat each other in a circle (A beat B, B beat C, C beat A), this decides nothing between them and the next tiebreaker is used.",
   "most-wins": "Most matches won outright. Halved matches don't count either way.",
   "win-percentage":
     "Matches won as a share of matches played. Ranks a player who won 3 of 4 above one who won 3 of 6 — worth having where players have played different numbers of matches.",
