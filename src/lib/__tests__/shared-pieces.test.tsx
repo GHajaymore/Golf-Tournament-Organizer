@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SidePanel } from "@/components/SidePanel";
+import { readSource } from "./source";
 
 /**
  * THE REDESIGN'S SIDE PANEL KEEPS ITS PROMISES (2026-10-30).
@@ -44,6 +45,19 @@ describe("SidePanel", () => {
     expect(out).toMatch(/class="side-panel-backdrop" data-dock=""/);
     expect(out).toContain('role="dialog"');
     expect(html(<SidePanel open title="Round 1" onClose={() => {}}>body</SidePanel>)).not.toContain("data-dock");
+  });
+
+  it("docking is decided ONCE, from the window's width, and the CSS follows it (a scrollbar feedback loop at 1280 in Safari's engine)", () => {
+    // Docking narrows the list, which adds or removes the page's scrollbar; a media query judged against
+    // the layout width then undocks it, and the panel flickered between docked and modal (four WebKit
+    // desktop failures, 2026-11-08). `innerWidth` does not move with the scrollbar.
+    const panel = readSource("src/components/SidePanel.tsx");
+    expect(panel).toMatch(/window.innerWidths*>=s*SIDE_PANEL_DOCK_FROM/);
+    expect(panel, "the dock reads a second evaluator").not.toMatch(/matchMedia/);
+    expect(panel).toMatch(/data-docked=/);
+    const css = readSource("src/app/(app)/stages/rounds-timeline.css");
+    expect(css, "the dock's rules key off a media query again").not.toMatch(/@media[^{]*min-width:s*1280px/);
+    expect(css).toMatch(/.side-panel-backdrop[data-dock][data-docked]s*{s*background:s*transparent/);
   });
 
   it("kept mounted while closed: in the page once, and hidden", () => {
