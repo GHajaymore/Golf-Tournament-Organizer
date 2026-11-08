@@ -188,7 +188,8 @@ describe("CONTROL: a free club's tournament that asks for a mobile", () => {
     const res = await importCsvSignups(`name,email,handicap\n${TAG} csv ${RUN},${at("csv")},10\n`);
     expect(res.imported).toBe(0);
     expect(res.error).toMatch(/Couldn't find a "phone" column/);
-    expect(res.error).toMatch(/collects a mobile number for every entrant/);
+    // "every member": a guest (not a club member) is never asked for one (2026-11-07).
+    expect(res.error).toMatch(/collects a mobile number for every member/);
     expect(await fieldOf(ev.asks.id)).toEqual([]);
   });
 

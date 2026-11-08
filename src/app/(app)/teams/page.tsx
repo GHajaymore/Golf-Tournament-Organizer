@@ -1,6 +1,6 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
-import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { requireScreen } from "@/lib/page-helpers";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { screenName } from "@/lib/nav";
 import { LeagueSection } from "@/components/LeagueSection";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
@@ -12,7 +12,7 @@ import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { generatesPairings } from "@/lib/stage-types";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor } from "@/lib/services/tournament-status";
+import { setupRailFor, scopeLockFor } from "@/lib/services/tournament-status";
 
 /**
  * Drawing sides for the team formats.
@@ -67,19 +67,18 @@ export default async function TeamsPage({
   // "next" footer as every other step, rather than being the one screen in the
   // guide that does not say where it sits.
   const flow = await setupRailFor(session.eventId);
-  // The lock every other setup screen reads; the actions here refuse it.
-  const lockState = await prisma.event.findUnique({
-    where: { id: session.eventId },
-    select: { status: true, configUnlocked: true },
-  });
-  const locked = !!lockState && isSetupLocked(lockState);
+  // The machine's lock on the sides (PR 5a) — the one every action here asks
+  // (`refuseIfLocked(…, "sides", …)`), from the same request-cached facts as the
+  // rail, so the banner and the refusal are one answer.
+  const sidesLock = await scopeLockFor(session.eventId, "sides");
+  const locked = sidesLock !== null;
 
   return (
     <>
       <SetupFlowRail flow={flow} href="/teams" />
       <p className="kicker">Set up</p>
       <h1 className="page-title">Teams &amp; pairs</h1>
-      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
+      <ScopeLockBanner locks={sidesLock ? [sidesLock] : []} isAdmin={session.viewRole === "admin"} />
       <TeamsClient
         locked={locked}
         rounds={teamStages.map((s) => ({

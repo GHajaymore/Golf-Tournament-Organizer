@@ -400,7 +400,8 @@ walk("roundRobinFlights", "nine players in a four and a five", [
     name: "flights made but the pairings not generated: refused",
     f: rr({ rounds: [rrRound(0)] }),
     step: "setting-up",
-    next: { kind: "launch", enabled: false, blocked: /^Round 1 has no pairings/, wayOut: "/grouping" },
+    // Rounds & formats, where the refusal says Generate is (PR 5c review) — it was Flights, which has no Generate button.
+    next: { kind: "launch", enabled: false, blocked: /^Round 1 has no pairings/, wayOut: "/stages" },
     locked: {},
   },
   {

@@ -157,6 +157,9 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
       handicap: person.handicap,
       handicapType: person.handicapType,
       handicapSource: person.handicapSource,
+      // The entry link makes member entries only (it stores no standing, which
+      // reads as a member). A guest on the link is a later change, and asks here.
+      guest: false,
     },
     /**
      * PUBLIC. There is no session here at all — this is the one board-affecting

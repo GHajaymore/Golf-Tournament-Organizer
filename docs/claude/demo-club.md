@@ -69,6 +69,7 @@ cannot pass by excluding everybody. All in `src/lib/__tests__/the-demo-club.audi
 | Plan limits | `services/limits.ts` `enforcementActive` answers no for the demo, whatever the master switch | demo on the free terms is capped by nothing; a real club on them is |
 | Billing | `checkoutUrl` refuses before Stripe (`DEMO_NOT_BILLED`); `setClubPlan` cannot find it | the demo is refused and given no billing row; a real club is not refused for it |
 | Listings of real clubs | `otherOrganizationNamed` (the namesake question at sign-up and branding) asks `isDemo: false` | the demo's name finds nothing; a real club's name is found |
+| The namesake notice (7 Nov) | `noteNamesake` (`services/organization.ts`) starts none for the demo (`mayStartNamesakeNotice`) and finds none through `otherOrganizationNamed` | `namesake-notice.audit.test.ts`: the demo is never told and never tells |
 | Email, text, push | `services/demo-guard.ts` `demoRefusesMessage`, asked at the wire: the Resend client in `email.ts`, `sendSms` (scope REQUIRED), `sendPushToEmails` (scope REQUIRED) | nothing reaches the wire for the demo or its domain; a real club's does |
 | Search engines | `robots.ts` disallows `/demo` (and `/live/`); every demo page says noindex; `/demo/<door>` sends `X-Robots-Tag` | `the-demo-club-is-not-indexed.test.ts`, and `e2e/demo-club.spec.ts` reads the robots meta on each page |
 

@@ -71,6 +71,22 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
         {/* Which parts are still open, each marked "Optional" — the strip
             stays while one is, so the optional step is on the rail, not gone. */}
         {flow.doneCount < flow.steps.length && <StepStrip flow={flow} href={href} />}
+        {/* WHAT AN OPEN OPTIONAL STEP IS WAITING FOR, in its own words (J27).
+            The checklist that carries a step's `missing` is hidden in this very
+            state, so the words would never be read. Tees that cannot give a
+            Course Handicap are the case; a step whose line only says "Optional"
+            has nothing more to add. */}
+        {flow.steps
+          .filter((s) => !s.done && s.optional && s.missing && !/^Optional/.test(s.missing))
+          .map((s) => (
+            <p key={s.key} className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
+              <Link href={s.key === "event" ? "/event#courses" : s.href} style={{ color: "var(--color-accent-200)" }}>
+                {s.label}
+              </Link>
+              {": "}
+              {s.missing}
+            </p>
+          ))}
         {/* NAMES THE SCREEN, NOT A BUTTON ON IT.
             "Launch it from the dashboard" was wrong for the commonest case:
             a tournament still in draft was offered "Start taking entries"
