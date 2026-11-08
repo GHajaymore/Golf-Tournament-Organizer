@@ -2,7 +2,7 @@ import { isStablefordFormat, isStablefordRound } from "./domain/week-basis";
 import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
 import { roundIsStroke, lookupStageType } from "@/lib/stage-types";
 import { cutRuleWords, type CutTieRule } from "@/lib/domain/cut-ready";
-import { cutTieRuleWords, type CutRule } from "@/lib/domain/cut";
+import { cutTieRuleWords, type CutRule, type CutLineKind } from "@/lib/domain/cut";
 import { individualAllowanceFor, teamAllowanceWords } from "@/lib/round-allowance";
 
 /**
@@ -198,7 +198,7 @@ export interface TermsInput {
   countBest: number;
   tiebreakers: TiebreakerKey[];
   /** The cut made after this round (`cutAfterRound`), or null for none. */
-  cutAfter: { rule: CutRule; ties: boolean; tieRule?: CutTieRule | null } | null;
+  cutAfter: { rule: CutRule; ties: boolean; tieRule?: CutTieRule | null; decidedOn?: CutLineKind | null; into?: string | null } | null;
   carryForwardEnabled: boolean;
   carryForwardPct: number;
 }
@@ -384,8 +384,12 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
       label: "Cut",
       // And how a tie for the last place is settled, where it is not "and
       // ties" — the committee's published method (2026-10-23).
-      value: `${cutRuleWords(input.cutAfter.rule, input.cutAfter.ties)} advance to the next round${
-        input.cutAfter.tieRule && input.cutAfter.tieRule !== "ties" ? `. ${cutTieRuleWords(input.cutAfter.tieRule)}` : ""
+      // To the round it feeds by name where that is not the next one: a medal
+      // between a round robin and its cut does not decide it (`cutAfterRound`).
+      value: `${cutRuleWords(input.cutAfter.rule, input.cutAfter.ties)} advance to ${input.cutAfter.into || "the next round"}${
+        input.cutAfter.tieRule && input.cutAfter.tieRule !== "ties"
+          ? `. ${cutTieRuleWords(input.cutAfter.tieRule, input.cutAfter.decidedOn ?? "card")}`
+          : ""
       }`,
     });
   }

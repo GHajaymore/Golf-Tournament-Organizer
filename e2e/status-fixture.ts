@@ -85,6 +85,26 @@ export async function statusFixture(
     });
     stageIds.push(s.id);
   }
+  /**
+   * A NET ROUND HAS RATED TEES (J27). Net scores need a Slope and Course Rating to make a Course
+   * Handicap; without them Tournament details carries an open to-do ("Add tees…") and the setup
+   * count is one short. These specs watch the panels agree on the dates, flights and play, not on
+   * the tees (`net-without-tees-says-so.spec.ts` holds that), so a net round gets one rated tee.
+   */
+  if (opts.rounds.some((r) => (r.scoringBasis ?? "gross") !== "gross")) {
+    const course = await prisma.course.create({
+      data: {
+        organizationId: org.id,
+        name: `${mark} Home`,
+        pars: JSON.stringify(PARS),
+        strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+        yards: JSON.stringify(new Array(18).fill(400)),
+      },
+    });
+    await prisma.tee.create({ data: { courseId: course.id, name: "Blue", gender: "any", courseRating: 71.5, slopeRating: 125, par: 72 } });
+    await prisma.eventCourse.create({ data: { eventId: event.id, courseId: course.id } });
+    await prisma.stage.updateMany({ where: { eventId: event.id }, data: { courseId: course.id } });
+  }
   const playerIds: string[] = [];
   for (let i = 0; i < (opts.players ?? 6); i += 1) {
     const p = await prisma.player.create({

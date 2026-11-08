@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { purgeEvents } from "@/lib/services/purge";
 import { clubToday } from "@/lib/domain/club-clock";
 import { formatDayRange } from "@/lib/domain/locale";
 import { eventLinks } from "@/lib/domain/event-page";
@@ -171,7 +172,7 @@ export async function buildDemoClub(input: { mark: string; at?: Date }): Promise
   const orgId = (await prisma.organization.findFirstOrThrow({ where: { id: org.id, isDemo: true }, select: { id: true } })).id;
 
   // Clear the demo's own rows: its tournaments (and everything under them), then its course.
-  await prisma.event.deleteMany({ where: { organizationId: orgId } });
+  await purgeEvents({ organizationId: orgId });
   const courses = await prisma.course.findMany({ where: { organizationId: orgId }, select: { id: true } });
   await prisma.tee.deleteMany({ where: { courseId: { in: courses.map((c) => c.id) } } });
   await prisma.course.deleteMany({ where: { organizationId: orgId } });

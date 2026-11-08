@@ -9,7 +9,8 @@ import { effectiveAllowance, effectiveCountBest, snakeDraw } from "@/lib/service
 import { roundTakesAllowance } from "@/lib/round-allowance";
 import { roundRobinSchedule } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { assertUnlocked } from "@/lib/services/action-shared";
+import { refuseIfLocked } from "@/lib/services/tournament-status";
+import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { TEAM_SESSION as CUP_SESSION } from "@/lib/services/cup";
@@ -35,6 +36,11 @@ export interface TeamResult {
    */
   needsConfirm?: boolean;
   cards?: number;
+  /**
+   * Refused because its scope is locked (`refuseIfLocked`, PR 5a): the lock,
+   * with its reason and way out, so a screen drawn before the lock can catch up.
+   */
+  lock?: ScopeLock;
 }
 
 /**
@@ -74,9 +80,11 @@ async function requireStaff(): Promise<string> {
   return session.eventId;
 }
 
-/** Structural changes are blocked once a tournament is under way, unless the
+/** Structural changes are refused once a tournament is under way, unless the
  *  organizer has explicitly unlocked it — redrawing sides mid-round would
- *  orphan every card already returned. */
+ *  orphan every card already returned. Each action asks its scope's lock
+ *  (`refuseIfLocked`: "sides" for a side, "rounds" for a term of the round)
+ *  and RETURNS the refusal in words; none throws (J10, state machine PR 5a). */
 
 /** Confirms a stage belongs to this tournament — without it, a stage id from
  *  another club's event would attach teams across the tenant boundary. */
@@ -124,7 +132,8 @@ async function refresh() {
 
 export async function createTeam(name: string, stageId: string | null): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
   const scoped = await stageInEvent(eventId, stageId);
   const clean = String(name ?? "").trim();
   if (!clean) return { ok: false, error: "Give the team a name." };
@@ -154,7 +163,8 @@ export async function renameTeam(teamId: string, name: string): Promise<TeamResu
 
 export async function deleteTeam(teamId: string): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });
   if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
   // Cascades to membership and cards. Deliberately refuses once the side has
@@ -170,7 +180,8 @@ export async function deleteTeam(teamId: string): Promise<TeamResult> {
 
 export async function addTeamMember(teamId: string, playerId: string): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
   const [team, player] = await Promise.all([
     prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true, stageId: true } }),
     prisma.player.findUnique({ where: { id: playerId }, select: { eventId: true, status: true, name: true } }),
@@ -256,7 +267,8 @@ export async function removeTeamMember(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });
   if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
 
@@ -288,7 +300,10 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
   await stageInEvent(eventId, stageId);
   const league = await leagueRefusal(eventId);
   if (league) return { ok: false, error: league };
-  await assertUnlocked(eventId, "change teams");
+  // "sides", not "draw": these are the Teams screen's matches, under its one
+  // banner; the draw scope's own rule (a flighted knockout's) is not theirs.
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
 
   const stage = await prisma.stage.findUnique({ where: { id: stageId } });
   if (!stage) return { ok: false, error: "Round not found." };
@@ -426,7 +441,8 @@ export async function autoDrawTeams(
   await stageInEvent(eventId, stageId);
   const league = await leagueRefusal(eventId);
   if (league) return { ok: false, error: league };
-  await assertUnlocked(eventId, "change teams");
+  const locked = await refuseIfLocked(eventId, "sides", "change teams");
+  if (locked) return locked;
 
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true, type: true } });
   if (!stage) return { ok: false, error: "Round not found." };
@@ -525,7 +541,9 @@ export async function setStageAllowance(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change a round's handicap allowance");
+  // A term of the round (section 3: allowance → "rounds").
+  const locked = await refuseIfLocked(eventId, "rounds", "change a round’s handicap allowance");
+  if (locked) return locked;
   await stageInEvent(eventId, stageId);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
     // "1 to 100", not "0 to 100": zero is accepted here as "back to the
@@ -574,7 +592,9 @@ export async function setStageCountBest(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  // How the round is scored, like its allowance — a term of the round.
+  const locked = await refuseIfLocked(eventId, "rounds", "change how many scores count");
+  if (locked) return locked;
   await stageInEvent(eventId, stageId);
 
   if (!Number.isFinite(count) || count < 0) {
@@ -632,7 +652,9 @@ export async function setStageAllowanceWeights(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  // The handicap split, like the allowance — a term of the round.
+  const locked = await refuseIfLocked(eventId, "rounds", "change the handicap split");
+  if (locked) return locked;
   await stageInEvent(eventId, stageId);
 
   const stored = await prisma.stage.findUnique({

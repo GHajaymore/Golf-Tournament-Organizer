@@ -135,6 +135,7 @@ export const NOT_TIES: Readonly<Record<string, string>> = {
   "Stage.matchKeptBy": "a setting",
   "Course.verifiedBy": "a name",
   "JoinRequest.decidedBy": "a name, 'by name' per the schema",
+  "NamesakeNotice.dismissedBy": "the name of the staff member who dismissed it",
   "RoundAttendance.decidedBy": "the player themself or a staff NAME, per the schema",
   "LeaguePlayoffHole.decidedBy": "a name",
   "Match.enteredBy": "a display name beside enteredById",

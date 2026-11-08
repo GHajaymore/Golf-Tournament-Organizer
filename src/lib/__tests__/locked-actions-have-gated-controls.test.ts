@@ -40,8 +40,11 @@ function lockRefusingActions(): Map<string, string> {
     const parts = src.split(/export async function /).slice(1);
     for (const part of parts) {
       const name = part.slice(0, part.indexOf("(")).trim();
-      // The body up to the next export — `split` already cut it there.
-      if (/\bassertUnlocked\(/.test(part)) out.set(name, relative(ROOT, f));
+      // The body up to the next export — `split` already cut it there. A scoped
+      // lock (`refuseIfLocked`, PR 5a) RETURNS its refusal rather than throwing,
+      // but a live control that can only be refused is still an invitation to a
+      // refused press, so its controls must know the lock all the same.
+      if (/\b(assertUnlocked|refuseIfLocked)\(/.test(part)) out.set(name, relative(ROOT, f));
     }
   }
   return out;

@@ -117,6 +117,11 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
         mimeType: "text/csv",
         buffer: Buffer.from(csv),
       });
+      // The list is checked before anything is entered (guest identity PR 1): every row
+      // here has an email, so every row is a member and the secretary presses once.
+      const preview = page.getByTestId("csv-preview");
+      await expect(preview.getByRole("status")).toHaveText(`${field.length} members, 0 guests.`, { timeout: 60_000 });
+      await preview.getByRole("button", { name: `Import ${field.length} players` }).click();
       await expect(page.getByText(/Imported \d+/)).toBeVisible({ timeout: 60_000 });
       await read(page, "/registration", "registration-imported", 4000);
     });
