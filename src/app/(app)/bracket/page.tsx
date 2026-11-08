@@ -325,8 +325,9 @@ export default async function BracketPage() {
 
   return (
     <>
-      {/* The draw's lock (PR 5b) — the one `setBracketMode` asks (`refuseIfLocked(…, "draw")`). */}
-      <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={(await scopeLockFor(session.eventId, "draw")) !== null} />
+      {/* The rounds' lock (PR 5b) — the one `setBracketMode` asks (`refuseIfLocked(…, "rounds")`), and the one
+          the same picker on Rounds & formats draws. Never the draw's: a knockout in flights keeps that open while live. */}
+      <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={(await scopeLockFor(session.eventId, "rounds")) !== null} />
       <BracketReports rows={reports} />
       {mode === "flights" && (
         <BracketFlights

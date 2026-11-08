@@ -6064,10 +6064,19 @@ export async function removeAnnouncement(announcementId: string) {
  * Organizer-only and blocked once the tournament is locked: changing the shape
  * of a bracket mid-event would redraw who plays whom, which is a rule change
  * rather than a setting.
+ *
+ * THE ROUNDS' LOCK, NOT THE DRAW'S. The arrangement is setup — the Terms of the
+ * Competition, which are not changed once play has started (Committee
+ * Procedures 5A) — and it is drawn on the knockout round's card on Rounds &
+ * formats, under that screen's rounds lock. The DRAW scope is the wrong guard:
+ * in a knockout in flights it stays OPEN while live until the first result,
+ * because dividing the field is the draw (`locksOf`) — so asking it let a live
+ * flighted knockout be switched to one bracket, wiping the division, with no
+ * correction and no record (`a-knockout-in-flights.audit.test.ts`).
  */
-export async function setBracketMode(mode: string): Promise<{ ok: boolean; error?: string }> {
+export async function setBracketMode(mode: string): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
   const eventId = await requireAdminEvent();
-  const locked = await refuseIfLocked(eventId, "draw", "change the bracket’s arrangement");
+  const locked = await refuseIfLocked(eventId, "rounds", "change the bracket’s arrangement");
   if (locked) return locked;
   if (!isBracketMode(mode)) return { ok: false, error: "Unknown bracket arrangement." };
   /**

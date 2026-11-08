@@ -241,7 +241,13 @@ describe("a knockout in several flights", () => {
     // draw and is not — a qualifying round is played after launch, and the field is divided after
     // that. Renamed and renamed back, so the division is left exactly as it was found.
     await prisma.event.update({ where: { id: eventId }, data: { status: "live", configUnlocked: false } });
-    await expect(setBracketMode("single"), "the arrangement is setup").rejects.toThrow(/locked/i);
+    // Refused in words, never thrown (state machine PR 5b, J10), by the ROUNDS' lock: the draw's stays open here.
+    expect(await setBracketMode("single"), "the arrangement is setup").toMatchObject({
+      ok: false,
+      error: "Locked because the tournament is live. Make a committee correction to change the bracket’s arrangement.",
+      lock: { scope: "rounds", by: "launch" },
+    });
+    expect(await stored(), "a refused arrangement change wrote").toEqual({ bracketDraw: before, bracketMode: "flights" });
     const name = parseFlightPlan(before)!.brackets[0].name;
     expect(await renameFlight(0, "After launch"), "the draw was shut by launching").toEqual({ ok: true });
     expect(parseFlightPlan((await stored()).bracketDraw)!.brackets[0].name).toBe("After launch");

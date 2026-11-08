@@ -25,9 +25,10 @@ export function BracketModePicker({
   secondLabel: string;
   readOnly: boolean;
   /**
-   * Setup is locked, which `setBracketMode` refuses — by THROWING, so a Change
-   * button offered here took the page down to "Application error" on every
-   * live knockout (walked 2026-09-27), under a sentence saying it was blocked.
+   * The rounds are locked, which `setBracketMode` refuses — in words since PR 5b.
+   * It used to THROW, so a Change button offered here took the page down to
+   * "Application error" on every live knockout (walked 2026-09-27), under a
+   * sentence saying it was blocked.
    */
   locked?: boolean;
 }) {
@@ -85,8 +86,8 @@ export function BracketModePicker({
             "Locked with the rounds."
           ) : (
             <>
-              Changing this redraws who plays whom, so it is locked while the draw is. An Organizer can make a committee
-              correction to the draw on the <a href="/dashboard">dashboard</a> to change it.
+              Changing this redraws who plays whom, so it is locked with the rounds. An Organizer can make a committee
+              correction to the rounds on the <a href="/dashboard">dashboard</a> to change it.
             </>
           )}
         </p>

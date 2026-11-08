@@ -17,8 +17,9 @@ import { PrismaClient } from "@prisma/client";
  * that scope go through, every other scope stays refused, the record holds the
  * line, Done closes it and logs that too. Launch, Complete and Reopen each
  * leave their line (panel 8.0 F1). And `lockFactsFor`, the narrow read every
- * action pays for, gives `locksFor` the same answer as the full facts for every
- * tournament in this database (the panel's cost ruling).
+ * action pays for, gives `locksFor` the same answer as the full facts for a
+ * tournament of every lock shape it seeds itself, and for every other one in
+ * this database (the panel's cost ruling).
  *
  * The control: the legacy blanket unlock still opens everything, so the
  * refusals are the lock, not something else refusing everything.
@@ -213,7 +214,7 @@ const PRESSES: { name: string; scope: string; what: string; press: () => Promise
   { name: "saveTiebreakers", scope: "rounds", what: "change the tie-breakers", press: () => saveTiebreakers([]) },
   { name: "setQualifyMode", scope: "rounds", what: "change who qualifies", press: () => setQualifyMode("overall", 4) },
   { name: "removeStage", scope: "rounds", what: "delete a round", press: () => removeStage(round2, true) },
-  { name: "setBracketMode", scope: "draw", what: "change the bracket’s arrangement", press: () => setBracketMode("split") },
+  { name: "setBracketMode", scope: "rounds", what: "change the bracket’s arrangement", press: () => setBracketMode("split") },
   { name: "renameGroup", scope: "flights", what: "rename a flight", press: () => renameGroup(flightA, "Renamed") },
   { name: "setFlightsConfirmed", scope: "flights", what: "confirm or reopen the draw", press: () => setFlightsConfirmed(true) },
   { name: "setMatchTiebreakers", scope: "rounds", what: "change the match tie-breakers", press: () => setMatchTiebreakers([]) },
@@ -389,16 +390,90 @@ describe("Complete and Reopen leave their lines (panel 8.0 F1)", () => {
 });
 
 describe("the narrow lock read gives the full facts' locks, for every tournament here (the panel's cost ruling)", () => {
-  it("lockFactsFor + locksFor equals locksFor(lockFactsOf(setupSideFacts)), tournament by tournament", async () => {
-    const events = await prisma.event.findMany({ select: { id: true }, orderBy: { createdAt: "desc" }, take: 150 });
-    expect(events.length, "no tournaments to compare — the sweep is broken").toBeGreaterThan(5);
-    let compared = 0;
-    for (const { id } of events) {
-      const [narrow, full] = await Promise.all([lockFactsFor(id), setupSideFactsFor(id)]);
-      if (!narrow || !full) continue;
-      expect(locksFor(narrow), `tournament ${id}: the narrow read locks differently`).toEqual(locksFor(lockFactsOf(full)));
-      compared += 1;
+  /**
+   * ITS OWN TOURNAMENTS, ONE PER WAY A LOCK IS DECIDED — not whatever other
+   * files left behind. A round's fresh database holds one tournament when this
+   * runs (this file's own), so a sweep of "every tournament here" compared one
+   * and its control failed; on a developer's database it compared hundreds,
+   * mostly alike. Each fixture below turns on a different fact `locksFor` reads
+   * (the status, the legacy unlock, a correction open or lapsed, a confirmed
+   * draw, the family, and a flighted knockout with and without a result — the
+   * one place the narrow read counts results itself), so a narrow read that
+   * dropped or misread any of them disagrees here, on any database. Whatever
+   * else the database holds is swept too.
+   */
+  const SHAPES: { label: string; event: Record<string, unknown>; rounds: { type: string; format: string }[]; result?: boolean }[] = [
+    { label: "draft", event: { status: "draft" }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
+    { label: "live", event: { status: "live" }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
+    { label: "completed", event: { status: "completed" }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
+    { label: "live, legacy unlock", event: { status: "live", configUnlocked: true }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
+    {
+      label: "live, correction open on the rounds",
+      event: { status: "live", correctionScope: "rounds", correctionReason: "Round 1 set wrongly", correctionBy: `${TAG} admin`, correctionUntil: new Date(Date.now() + 60 * 60 * 1000) },
+      rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }],
+    },
+    {
+      label: "live, correction lapsed",
+      event: { status: "live", correctionScope: "rounds", correctionReason: "Yesterday's correction", correctionBy: `${TAG} admin`, correctionUntil: new Date(Date.now() - 60 * 1000) },
+      rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }],
+    },
+    { label: "draft, draw confirmed", event: { status: "draft", flightsConfirmed: true }, rounds: [{ type: "Stroke Play Round", format: "Stroke Play" }] },
+    { label: "live Stableford", event: { status: "live" }, rounds: [{ type: "Stroke Play Round", format: "Stableford" }] },
+    { label: "live knockout, one bracket", event: { status: "live", bracketMode: "single" }, rounds: [{ type: "Bracket Stage", format: "Match Play" }], result: true },
+    { label: "live knockout in flights, no result", event: { status: "live", bracketMode: "flights" }, rounds: [{ type: "Bracket Stage", format: "Match Play" }] },
+    { label: "live knockout in flights, a result", event: { status: "live", bracketMode: "flights" }, rounds: [{ type: "Bracket Stage", format: "Match Play" }], result: true },
+    { label: "completed knockout in flights", event: { status: "completed", bracketMode: "flights" }, rounds: [{ type: "Bracket Stage", format: "Match Play" }], result: true },
+  ];
+
+  it("lockFactsFor + locksFor equals locksFor(lockFactsOf(setupSideFacts)), on its own tournaments of every lock shape and on every other one here", async () => {
+    const { organizationId } = await prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { organizationId: true } });
+    const seeded: { label: string; id: string }[] = [];
+    for (const [i, s] of SHAPES.entries()) {
+      const ev = await prisma.event.create({
+        data: { name: `${TAG} sweep ${s.label}`, organizationId, dates: "", course: "", city: "", address: "", regDeadline: "", shareToken: `${TAG}-sweep-${i}`.toLowerCase(), ...s.event },
+        select: { id: true },
+      });
+      for (const [position, r] of s.rounds.entries()) {
+        await prisma.stage.create({ data: { eventId: ev.id, position, type: r.type, format: r.format, holes: 18 } });
+      }
+      if (s.result) {
+        const p = await prisma.player.create({
+          data: { eventId: ev.id, name: `${TAG} sweep player ${i}`, email: `${TAG.toLowerCase()}-sweep-${i}@example.invalid`, seed: 1, status: "confirmed", handicap: 5 },
+          select: { id: true },
+        });
+        await prisma.bracketWinner.create({ data: { eventId: ev.id, key: "winners-0-0", winnerId: p.id } });
+      }
+      seeded.push({ label: s.label, id: ev.id });
     }
-    expect(compared).toBeGreaterThan(5);
+
+    const answer = async (id: string) => {
+      const [narrow, full] = await Promise.all([lockFactsFor(id), setupSideFactsFor(id)]);
+      return narrow && full ? { narrow: locksFor(narrow), full: locksFor(lockFactsOf(full)) } : null;
+    };
+
+    const seen = new Map<string, string>();
+    for (const { label, id } of seeded) {
+      const a = await answer(id);
+      expect(a, `${label}: not read at all`).not.toBeNull();
+      expect(a!.narrow, `${label}: the narrow read locks differently`).toEqual(a!.full);
+      seen.set(label, JSON.stringify(a!.full));
+    }
+
+    // THE CONTROL: the fixtures are not alike, so an equality over them is not an equality over one answer.
+    // Seven answers, worked from `locksOf` by hand: nothing locked (draft, the legacy unlock); the live blanket
+    // (live, the lapsed correction, Stableford, the one-bracket knockout); completed (both completed shapes);
+    // the blanket with the rounds open (the correction); the confirmed draw; and the flighted knockout's draw
+    // open, then shut by its result.
+    expect(new Set(seen.values()).size, "the fixtures all lock alike — the sweep cannot tell a wrong read").toBe(7);
+    expect(seen.get("live knockout in flights, a result"), "a result must shut a flighted knockout's draw").not.toBe(seen.get("live knockout in flights, no result"));
+    expect(seen.get("live, correction open on the rounds"), "an open correction must open its scope").not.toBe(seen.get("live, correction lapsed"));
+
+    // And every other tournament in this database, as far as the newest 150.
+    const ours = new Set([eventId, ...seeded.map((s) => s.id)]);
+    const others = await prisma.event.findMany({ where: { id: { notIn: [...ours] } }, select: { id: true }, orderBy: { createdAt: "desc" }, take: 150 });
+    for (const { id } of others) {
+      const a = await answer(id);
+      if (a) expect(a.narrow, `tournament ${id}: the narrow read locks differently`).toEqual(a.full);
+    }
   });
 });

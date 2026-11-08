@@ -185,8 +185,10 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/<StagesClient[\s\S]*?locked=\{locked\}/);
     expect(readSource("src", "app", "(app)", "teams", "page.tsx")).toMatch(/<TeamsClient\s+locked=\{locked\}/);
     expect(readSource("src", "app", "(app)", "event", "page.tsx")).toMatch(/<EventSetupClient[\s\S]*?locked=\{locked\}/);
-    // The machine's scoped lock (state machine PR 5b): the draw's for the arrangement, the rounds' for clearing scores.
-    expect(readSource("src", "app", "(app)", "bracket", "page.tsx")).toMatch(/<BracketModePicker[^>]*locked=\{\(await scopeLockFor\(session\.eventId, "draw"\)\) !== null\}/);
+    // The machine's scoped lock (state machine PR 5b): the rounds' for the arrangement (as `setBracketMode` asks, and as
+    // the same picker on Rounds & formats draws — never the draw's, which a knockout in flights keeps open while live),
+    // the rounds' for clearing scores.
+    expect(readSource("src", "app", "(app)", "bracket", "page.tsx")).toMatch(/<BracketModePicker[^>]*locked=\{\(await scopeLockFor\(session\.eventId, "rounds"\)\) !== null\}/);
     expect(readSource("src", "app", "(app)", "entry", "page.tsx")).toMatch(/<EntryModes\s+setupLocked=\{\(await scopeLockFor\(session\.eventId, "rounds"\)\) !== null\}/);
     expect(readSource("src", "components", "EntryModes.tsx")).toMatch(/<ClearScores[\s\S]*?locked=\{setupLocked\}/);
   });

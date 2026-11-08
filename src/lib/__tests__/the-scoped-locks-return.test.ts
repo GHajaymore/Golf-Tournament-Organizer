@@ -50,7 +50,8 @@ const SITES: Record<string, { file: string; scope: string; what: string; except?
   saveTiebreakers: { file: TOURNAMENT, scope: "rounds", what: "change the tie-breakers" },
   setQualifyMode: { file: TOURNAMENT, scope: "rounds", what: "change who qualifies" },
   removeStage: { file: TOURNAMENT, scope: "rounds", what: "delete a round" },
-  setBracketMode: { file: TOURNAMENT, scope: "draw", what: "change the bracket’s arrangement" },
+  // The ROUNDS' lock: a flighted knockout's draw stays open while live, and the arrangement must not (a-knockout-in-flights).
+  setBracketMode: { file: TOURNAMENT, scope: "rounds", what: "change the bracket’s arrangement" },
   renameGroup: { file: TOURNAMENT, scope: "flights", what: "rename a flight", except: "draw" },
   setFlightsConfirmed: { file: TOURNAMENT, scope: "flights", what: "confirm or reopen the draw", except: "draw" },
   setMatchTiebreakers: { file: TOURNAMENT, scope: "rounds", what: "change the match tie-breakers" },
