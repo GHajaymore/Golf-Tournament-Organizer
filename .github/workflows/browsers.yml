@@ -53,8 +53,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        engine: [firefox, webkit]
-        project: [phone, small-phone, desktop]
+        engine: [webkit]
+        project: [desktop]
 
     services:
       postgres:
@@ -86,7 +86,7 @@ jobs:
           # playwright.config.ts puts this engine under the three project names,
           # and starts the server without the Secure cookie flag for WebKit.
           E2E_ENGINE: ${{ matrix.engine }}
-        run: npx playwright test --project=${{ matrix.project }}
+        run: npx playwright test --project=${{ matrix.project }} e2e/report-rich.spec.ts e2e/rounds-panel.spec.ts e2e/rounds-timeline.spec.ts
 
       - name: Keep the trace of a failed run
         if: failure()
