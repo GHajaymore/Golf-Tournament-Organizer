@@ -160,7 +160,11 @@ test("a tie at a round robin's cut line is settled by the committee's choice, no
       ],
       players: 5,
       flights: 1,
+      // Scoring is left at makeEvent's "stroke" ON PURPOSE: the draw cuts on the
+      // table whatever it says, so the board must too (round train-1107-3, where
+      // the board marked nobody tied under it; `a-tie-at-a-round-robin-cut.audit`).
     });
+    expect(event.format, "the fixture's Scoring, as the comment above says").toBe("stroke");
     const [first, second] = stages;
     await prisma.stage.update({ where: { id: second.id }, data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 2 } });
     const oneUp = (w: "A" | "B") => JSON.stringify([w, ...new Array(17).fill("H")]);
