@@ -20,6 +20,36 @@ export interface RankedPlayer {
   rank: number;
 }
 
+/**
+ * THE CARD A MATCH'S HOLES ARE RANKED ON, for every "toughest N holes" step —
+ * the all-square countback that decides a halved match, and the standings
+ * tiebreaker that compares records on the hardest holes.
+ *
+ * Either ONE card every match here was played on (a domain test; a fixture of
+ * one venue), or a function giving each match its OWN card. Every server
+ * reader passes the function, built by `matchCountbackIndex`
+ * (services/course-resolution.ts), because a league or interclub plays its
+ * weeks at different clubs: the toughest holes of an away match are the away
+ * card's, and until J26 (2026-11-06) the standings, the week view and the
+ * head-to-head record all read the TOURNAMENT's card for every match — so an
+ * away match halved on the course was decided on holes nobody played as the
+ * hardest. `the-countback-card-is-the-match-venue.test.ts` refuses a reader
+ * that goes back to one card for the whole tournament.
+ */
+export type MatchStrokeIndex = number[] | ((m: Match) => number[]);
+
+/** The stroke index this match's toughest holes are ranked on. */
+export function strokeIndexOfMatch(card: MatchStrokeIndex | undefined, m: Match): number[] {
+  if (!card) return [];
+  return typeof card === "function" ? card(m) : card;
+}
+
+/** How an all-square match is decided, and the card(s) it is decided on. */
+export interface MatchTiebreak {
+  sequence: MatchTiebreakKey[];
+  strokeIndex: MatchStrokeIndex;
+}
+
 const emptyStats = (playerId: string): PlayerStats => ({
   playerId,
   played: 0,
@@ -50,7 +80,7 @@ export function aggregateStats(
    * re-decides every affected match instead of leaving results frozen at
    * whatever rule was in force when the card was entered.
    */
-  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
+  matchTiebreak?: MatchTiebreak,
 ): Map<string, PlayerStats> {
   const stats = new Map<string, PlayerStats>();
   for (const p of players) stats.set(p.id, emptyStats(p.id));
@@ -127,7 +157,7 @@ export function aggregateStats(
       // raw card.
       const decided =
         r.winner === "H" && matchTiebreak?.sequence.length
-          ? breakMatchTie(m.holes, matchTiebreak.strokeIndex, matchTiebreak.sequence).winner
+          ? breakMatchTie(m.holes, strokeIndexOfMatch(matchTiebreak.strokeIndex, m), matchTiebreak.sequence).winner
           : null;
       const outcome = decided ?? r.winner;
 
@@ -214,7 +244,7 @@ function miniLeague(
   playerId: string,
   tied: Player[],
   matches: Match[],
-  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
+  matchTiebreak?: MatchTiebreak,
 ): number {
   const others = new Set(tied.map((p) => p.id).filter((id) => id !== playerId));
   if (others.size === 0) return 0;
@@ -245,7 +275,7 @@ function headToHead(
   aId: string,
   bId: string,
   matches: Match[],
-  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
+  matchTiebreak?: MatchTiebreak,
 ): number {
   for (const m of matches) {
     const isPair =
@@ -286,7 +316,7 @@ function headToHead(
  */
 export function decidedOutcome(
   m: Match,
-  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
+  matchTiebreak?: MatchTiebreak,
 ): "A" | "B" | "H" | null {
   const conceded = forfeitWinnerSide(m);
   if (conceded) return conceded;
@@ -295,7 +325,7 @@ export function decidedOutcome(
   if (!r.complete || !r.winner) return null;
   if (r.winner !== "H") return r.winner;
   if (!matchTiebreak?.sequence.length) return "H";
-  return breakMatchTie(m.holes, matchTiebreak.strokeIndex, matchTiebreak.sequence).winner ?? "H";
+  return breakMatchTie(m.holes, strokeIndexOfMatch(matchTiebreak.strokeIndex, m), matchTiebreak.sequence).winner ?? "H";
 }
 
 /** Indexes (0-based) of the `n` hardest holes, by ascending stroke index (1 = hardest). */
@@ -309,8 +339,12 @@ function toughestHoleIndexes(strokeIndex: number[], n: number): Set<number> {
   );
 }
 
-/** A player's (holes won − holes lost) restricted to a set of hole indexes, across all their matches. */
-function holesDiffOn(playerId: string, matches: Match[], holeIdxs: Set<number>): number {
+/**
+ * A player's (holes won − holes lost) on the `n` hardest holes OF EACH MATCH'S
+ * OWN CARD, across all their matches — an away match's hardest holes are the
+ * away card's (`MatchStrokeIndex`).
+ */
+function holesDiffOn(playerId: string, matches: Match[], card: MatchStrokeIndex, n: number): number {
   let diff = 0;
   for (const m of matches) {
     const isA = m.playerAId === playerId;
@@ -337,6 +371,7 @@ function holesDiffOn(playerId: string, matches: Match[], holeIdxs: Set<number>):
      * result says ended two holes earlier.
      */
     const counted = countedHoles(m.holes);
+    const holeIdxs = toughestHoleIndexes(strokeIndexOfMatch(card, m), n);
     for (const idx of holeIdxs) {
       const h = counted[idx];
       if (h === null || h === undefined || h === "H") continue;
@@ -354,11 +389,11 @@ function tiebreakerCompare(
   sa: PlayerStats,
   sb: PlayerStats,
   matches: Match[],
-  holeDifficulty?: number[],
+  holeDifficulty?: MatchStrokeIndex,
   /** Mini-league scores for the tied group this comparison belongs to. */
   h2h?: Map<string, number>,
   /** The round's all-square rule, so a decided halved match counts as a meeting. */
-  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
+  matchTiebreak?: MatchTiebreak,
 ): number {
   switch (key) {
     case "head-to-head":
@@ -393,10 +428,10 @@ function tiebreakerCompare(
       const n = toughestN(key);
       if (n === null) return 0;
       // No course/stroke-index data available — skip to the next tiebreaker.
-      if (!holeDifficulty || holeDifficulty.length === 0) return 0;
-      const idxs = toughestHoleIndexes(holeDifficulty, n);
-      const da = holesDiffOn(pa.id, matches, idxs);
-      const db = holesDiffOn(pb.id, matches, idxs);
+      // (A per-match card with no index ranks no holes for that match.)
+      if (!holeDifficulty || (Array.isArray(holeDifficulty) && holeDifficulty.length === 0)) return 0;
+      const da = holesDiffOn(pa.id, matches, holeDifficulty, n);
+      const db = holesDiffOn(pb.id, matches, holeDifficulty, n);
       return db - da; // better record on the toughest holes ranks first
     }
   }
@@ -422,8 +457,8 @@ export function rankPlayers(
   stats: Map<string, PlayerStats>,
   scoring: ScoringRules,
   matches: Match[],
-  /** Stroke index per hole (1 = hardest), for the "toughest N holes" tiebreakers. Omit if unknown. */
-  holeDifficulty?: number[],
+  /** Stroke index per hole (1 = hardest) — each match's own card — for the "toughest N holes" tiebreakers. Omit if unknown. */
+  holeDifficulty?: MatchStrokeIndex,
   /**
    * The round's all-square rule.
    *
@@ -431,7 +466,7 @@ export function rankPlayers(
    * Without it here, head-to-head read a match the countback had decided as no
    * meeting at all — the table showed the win and the tiebreaker did not.
    */
-  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
+  matchTiebreak?: MatchTiebreak,
 ): RankedPlayer[] {
   // `DEFAULT_TIEBREAKERS`, not a fourth copy of the same four keys. It is the
   // same array the schema hands every event, which is what makes the
@@ -611,7 +646,8 @@ export function computeStandings(
   matches: Match[],
   scoring: ScoringRules,
   carriedPoints: Record<string, number> = {},
-  holeDifficulty?: number[],
+  /** Each match's card for the toughest-holes steps (`MatchStrokeIndex`). */
+  holeDifficulty?: MatchStrokeIndex,
   matchTiebreakers: MatchTiebreakKey[] = [],
 ): RankedPlayer[] {
   const stats = aggregateStats(players, matches, scoring, carriedPoints, {

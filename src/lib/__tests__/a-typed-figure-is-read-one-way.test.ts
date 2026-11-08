@@ -235,7 +235,7 @@ describe("what the server will store as an index", () => {
 
   it("every action that stores a typed index asks before it writes", () => {
     const DOORS: [string, string, RegExp][] = [
-      ["src/app/actions/tournament.ts", "addSignup", /prisma\.player\.create\(/],
+      ["src/app/actions/tournament.ts", "addSignup", /(prisma|tx)\.player\.create\(/], // `tx` since J46: the create runs under the intake lock
       ["src/app/actions/tournament.ts", "updateSignup", /prisma\.player\.update\(/],
       ["src/app/actions/roster.ts", "addMember", /prisma\.member\.(create|update|upsert)\(/],
       ["src/app/actions/roster.ts", "updateMember", /prisma\.member\.update\(/],

@@ -15,6 +15,13 @@
   suite.** End-to-end does NOT cover every action yet: 36 of 263 were performed by a browser
   test when last measured (2026-10-10). Every round re-measures it and names what nothing does.
 
+> Retired (Superseded by J26, 2026-11-06: a halved match's toughest-holes countback is decided on the card of the course the match was PLAYED on, per match, through `matchCountbackIndex` / `countbackCardsFor` in `course-resolution.ts`. Neither `regroup.ts` nor `week-view.ts` reads the tournament's stroke index any more, and `the-countback-card-is-the-match-venue.test.ts` refuses it. The current rule is in `combination-sweep.md`, point 7.)
+
+`regroup.ts` stays event-level on purpose and is the one exemption: it
+resolves a single stroke index for a CHAIN of qualifying rounds, which has
+no one card to be resolved per round. `week-view.ts` documents the same
+exemption for its match tiebreaks.
+
 > Retired (Superseded by Ajay's two rulings of 2026-11-06: "we can't waste time waiting this long. this kind of real tournament [freeze] we should do at the last when we have all other foundations and basic issues fixed", and "let's turn off that freez until Nov 20th". The freeze is now off until 20 Nov 2026 (`FREEZE_RESUMES`), then guards only pilot clubs while sign-ins are held, and is this paragraph's full rule again once accounts are live. CLAUDE.md carries the new wording.)
 
 **SINCE 2026-10-23 THE STEPS ARE IN `deploy.yml`, BEHIND A GATE AND A FREEZE** (the testing
@@ -29,3 +36,14 @@ frozen, said in the summary. A HOLD IS GREEN — the gate working — and the ho
 later. *Override freeze* is for emergencies and overrides only the freeze. What production holds
 is recorded as a GitHub deployment to `tourneyhq-production`. The job's check is now named
 `Deploy to production / Deploy to production`, so read it with `endswith`, as below.
+
+> Retired (Superseded by state machine PR 6, #1052, 2026-11-07: each tournament's own job on What's next is now the state machine's `nextAction` with its refusal and way out (`lifecycleJob`), so `playOverOf` is no longer one of the home's facts, and `JOB_SCREENS` gained `/stages`. CLAUDE.md carries the new wording.)
+
+The panel's item 4 (approved by Ajay, 2026-10-24). The dashboard's **What's next** is one line for
+each job waiting on the person in every tournament they run at the open tournament's club — entries
+awaiting approval, a tee sheet for the next fortnight unpublished, cards not returned, results not
+released — soonest first. The facts come from the screens' own functions (`services/whats-next.ts`:
+`awaitingApproval`, `nextUnplayedRound`, `boardProgress`, `playOverOf`) and `whatsNext` in
+`domain/needs-you-now.ts` only words and orders them, so the home cannot disagree with the screen it
+sends you to. Buttons only with the club's `canEdit`; a job in another tournament opens it through
+`enterTournament(eventId, screen)`, which honours `JOB_SCREENS` and nothing else.
