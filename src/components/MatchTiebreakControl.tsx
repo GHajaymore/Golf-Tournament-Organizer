@@ -38,10 +38,19 @@ export function MatchTiebreakControl({
   const [pending, startTransition] = useTransition();
   const caughtUp = useCaughtUp();
 
+  const [refused, setRefused] = useState("");
+
   const commit = (next: MatchTiebreakKey[]) => {
+    const before = seq;
     setSeq(next);
+    setRefused("");
     startTransition(async () => {
-      caughtUp(await setMatchTiebreakers(next));
+      // Refused (the rounds are locked) is RETURNED: say it beside the control and put the ladder back (PR 5b).
+      const res = caughtUp(await setMatchTiebreakers(next));
+      if (!res.ok) {
+        setSeq(before);
+        setRefused(res.error ?? "That change could not be saved.");
+      }
     });
   };
 
@@ -80,6 +89,12 @@ export function MatchTiebreakControl({
           to be produced today.
         </p>
       </div>
+
+      {refused && (
+        <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
+          {refused}
+        </p>
+      )}
 
       {!locked && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
