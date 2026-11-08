@@ -76,6 +76,27 @@ export function runState(run, jobs, posted) {
   return { ...base, state, parts: { done, planned: parts.length }, verdict };
 }
 
+/**
+ * WHETHER A WATCH IS STILL WAITING ON ANYTHING IT WAS ASKED ABOUT (2026-11-08).
+ *
+ * A reading lists every run in flight, so a person sees the nightly beside their round —
+ * but a watch on round 12 that also waited on them sat for hours after its three verdicts
+ * were in. And a joint round's head is pushed to `round/*` only, with no pull request, so
+ * no `verify` ever starts on it: a watch that waited for one never ended at all.
+ *
+ *  - only runs on the asked heads hold the watch;
+ *  - a head's `verify` that has NOT STARTED holds it only while no round runs on that head
+ *    (a round head has no PR and never will have a verify); queued, in progress or
+ *    unreadable always hold it.
+ */
+export function stillWaiting(r, shas) {
+  const asked = (sha) => shas.some((s) => sha.startsWith(s));
+  const onAsked = r.runs.filter((x) => asked(x.sha));
+  if (onAsked.some((x) => !x.state.startsWith("finished"))) return true;
+  const hasRound = (sha) => onAsked.some((x) => x.sha.startsWith(sha) && (x.workflow === "Round" || (x.branch ?? "").startsWith("round/")));
+  return r.heads.some((h) => ["queued", "in_progress", "unknown — re-ask"].includes(h.verify) || (h.verify === "not started" && !hasRound(h.sha)));
+}
+
 /** The status a public run page shows, or null when the page does not say. */
 export function pageStatus(html) {
   const m = /<span[^>]*>Status<\/span>\s*<span[^>]*>([^<]+)<\/span>/.exec(html ?? "");
@@ -171,8 +192,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   for (;;) {
     const r = await reading(shas);
     write(r);
-    const inFlight = r.runs.some((x) => !x.state.startsWith("finished")) || r.heads.some((h) => ["not started", "queued", "in_progress", "unknown — re-ask"].includes(h.verify));
-    if (!watch || (!r.refused && !inFlight)) break;
+    if (!watch || (!r.refused && !stillWaiting(r, shas))) break;
     // Refused: wait longer, never shorter (GitHub's burst limit is what this file exists to stay under).
     wait = r.refused ? Math.min(wait * 2, 3 * TEN_MINUTES) : TEN_MINUTES;
     await new Promise((ok) => setTimeout(ok, wait));

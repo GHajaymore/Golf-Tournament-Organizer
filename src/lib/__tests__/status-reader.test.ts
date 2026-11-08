@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
-import { NOT_PARTS, STATUS_CONTEXT, line, pageStatus, runState, statusForVerdict } from "../../../scripts/qa/reader.mjs";
+import { NOT_PARTS, STATUS_CONTEXT, line, pageStatus, runState, statusForVerdict, stillWaiting } from "../../../scripts/qa/reader.mjs";
 import { readVerbatim } from "./source";
 
 /**
@@ -121,5 +121,38 @@ describe("every workflow that calls the round grants what the round asks for", (
     expect(granted(yml).has("statuses")).toBe(false);
     const fixed = yml.replace("    with:", "    permissions:\n      statuses: write\n    with:");
     expect(granted(fixed).has("statuses")).toBe(true);
+  });
+});
+
+/**
+ * A WATCH ENDS WHEN WHAT IT WAS ASKED ABOUT HAS ANSWERED (2026-11-08). Round 12's watch
+ * waited on the nightly beside it, and on a `verify` that never starts on a round head
+ * with no pull request — it ran on for hours after three clean verdicts.
+ */
+describe("a watch waits only on what it was asked about", () => {
+  const head = "b".repeat(40);
+  const other = "c".repeat(40);
+  const run = (sha: string, state: string, workflow = "Round", branch = "round/train-1") => ({ id: 1, workflow, branch, sha, url: "", state, parts: null, verdict: null });
+  const reading = (runs: ReturnType<typeof run>[], heads: { sha: string; verify: string }[]) => ({ at: "", runs, heads });
+
+  it("a finished round on a head with no PR is answered, though verify never started", () => {
+    expect(stillWaiting(reading([run(head, "finished: success")], [{ sha: head, verify: "not started" }]), [head])).toBe(false);
+  });
+
+  it("another sha's run still in flight (the nightly) does not hold it", () => {
+    const r = reading([run(head, "finished: success"), run(other, "in flight", "Nightly round", "main")], [{ sha: head, verify: "not started" }]);
+    expect(stillWaiting(r, [head])).toBe(false);
+  });
+
+  it("CONTROL: the asked round still in flight holds it", () => {
+    expect(stillWaiting(reading([run(head, "in flight")], [{ sha: head, verify: "not started" }]), [head])).toBe(true);
+  });
+
+  it("CONTROL: a PR head with no round waits for its verify to start, and while it runs", () => {
+    expect(stillWaiting(reading([], [{ sha: head, verify: "not started" }]), [head])).toBe(true);
+    expect(stillWaiting(reading([run(head, "finished: success", "CI", "claude/x")], [{ sha: head, verify: "not started" }]), [head])).toBe(true);
+    expect(stillWaiting(reading([], [{ sha: head, verify: "in_progress" }]), [head])).toBe(true);
+    expect(stillWaiting(reading([], [{ sha: head, verify: "unknown — re-ask" }]), [head])).toBe(true);
+    expect(stillWaiting(reading([], [{ sha: head, verify: "success" }]), [head])).toBe(false);
   });
 });
