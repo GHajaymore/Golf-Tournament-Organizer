@@ -2356,7 +2356,7 @@ export async function setStageScoringBasis(stageId: string, basis: string, force
     where: { id: stageId, eventId },
     data: { scoringBasis: value },
   });
-  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: scored on ${current?.scoringBasis || "net"} → ${value}`, null);
+  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: scored on ${current?.scoringBasis || "net"} → ${value}`);
   await refresh();
   return { ok: true as const };
 }

@@ -578,7 +578,7 @@ export async function setStageAllowance(
     where: { id: stageId },
     data: { handicapAllowance: next },
   });
-  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap allowance ${was}% → ${now}%`, null);
+  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap allowance ${was}% → ${now}%`);
   await refresh();
   return { ok: true };
 }
@@ -675,7 +675,7 @@ export async function setStageAllowanceWeights(
     if ("refused" in gate) return gate.refused;
     if ("asked" in gate) return gate.asked;
     await prisma.stage.update({ where: { id: stageId }, data: { allowanceWeights: [] } });
-    await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap split ${shares(stored?.allowanceWeights ?? [])} → ${shares([])}`, null);
+    await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap split ${shares(stored?.allowanceWeights ?? [])} → ${shares([])}`);
     await refresh();
     return { ok: true };
   }
@@ -705,7 +705,7 @@ export async function setStageAllowanceWeights(
     where: { id: stageId },
     data: { allowanceWeights: wanted },
   });
-  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap split ${shares(stored?.allowanceWeights ?? [])} → ${shares(wanted)}`, null);
+  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap split ${shares(stored?.allowanceWeights ?? [])} → ${shares(wanted)}`);
   await refresh();
   return { ok: true };
 }

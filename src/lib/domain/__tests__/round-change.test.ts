@@ -3,7 +3,6 @@ import {
   acrossRounds,
   COMPLETED_DATES,
   COMPLETED_ROUNDS,
-  cutMadeWords,
   drawsDifferently,
   filesMatches,
   goesWithItWords,
@@ -16,6 +15,7 @@ import {
   roundChangeFactsOf,
   roundDoors,
   roundStepOf,
+  teesFrozenWords,
   type RoundChangeFacts,
   type RoundChangeRound,
 } from "../round-change";
@@ -47,17 +47,17 @@ const at = (round: RoundChangeRound, status = "live"): RoundChangeFacts => ({ st
 const NONE: ReadonlySet<string> = new Set();
 
 describe("a cut already made out of a round (8 Nov)", () => {
-  it("refuses its allowance, basis and tees after scores, in the coordinator's words, pointing at the cut's undo", () => {
+  it("refuses its allowance and basis after scores, in the coordinator's words, pointing at the cut's undo", () => {
     const cut = medal({ label: "Round 1", hasResult: true, cutMadeAfter: true });
-    for (const kind of ["allowance", "round-tees", "field-tees"] as const) {
-      expect(roundChangeAllowed(at(cut), { kind })).toEqual({
-        ok: false,
-        scope: "rounds",
-        step: "after-scores",
-        says: "The cut after Round 1 was made on these figures. Undo the cut first, then change it: untick “This round is finished” on Round 1.",
-        wayOut: { says: "Untick “This round is finished” on its card", href: "/stages" },
-      });
-    }
+    expect(roundChangeAllowed(at(cut), { kind: "allowance" })).toEqual({
+      ok: false,
+      scope: "rounds",
+      step: "after-scores",
+      says: "The cut after Round 1 was made on these figures. Undo the cut first, then change it: untick “This round is finished” on Round 1.",
+      wayOut: { says: "Untick “This round is finished” on its card", href: "/stages" },
+    });
+    // Its tees are refused after scores anyway (option C), in their own words.
+    for (const kind of ["round-tees", "field-tees"] as const) expect(roundChangeAllowed(at(cut), { kind })).toMatchObject({ ok: false, says: teesFrozenWords("Round 1") });
     // Its day is not a figure the cut was made on; completed still says Reopen.
     expect(roundChangeAllowed(at(cut), { kind: "day" })).toMatchObject({ ok: true, warn: "schedules" });
     expect(roundChangeAllowed(at(cut, "completed"), { kind: "allowance" })).toMatchObject({ ok: false, says: COMPLETED_ROUNDS });
@@ -136,46 +136,64 @@ describe("the allowance, split and basis: open · open · warn with a confirm ·
       wayOut: { says: "Reopen it on the dashboard", href: "/dashboard" },
     });
   });
-  it("a round's own tees answer as the allowance does", () => {
-    for (const r of [medal(), medal({ hasResult: true }), medal({ type: "Bracket Stage", format: "Match Play", hasResult: true })]) {
-      for (const status of ["live", "completed"]) {
-        expect(roundChangeAllowed(at(r, status), { kind: "round-tees" })).toEqual(roundChangeAllowed(at(r, status), { kind: "allowance" }));
-      }
+});
+
+/**
+ * A ROUND'S TEES AFTER PLAY (option C, 8 Nov): its handicaps were frozen off its
+ * tees at its first card, and the index they were frozen with is not stored —
+ * so the change is REFUSED, never re-frozen from today's index. The way out is
+ * the round's scores cleared: a player's own figure cannot be set by hand on a
+ * scored round (`setRoundHandicapOverride` refuses there).
+ */
+describe("a round's own tees or course: open · open · refuse · refuse (option C)", () => {
+  it("open before scores, launched or not — a change before scores is frozen normally at the first card", () => {
+    for (const r of [medal(), medal({ teeSheetSaved: true })]) {
+      for (const status of ["draft", "live"]) expect(roundChangeAllowed(at(r, status), { kind: "round-tees" })).toMatchObject({ ok: true, warn: null });
     }
+  });
+  it("after scores on a round of cards: refused, the way out the round's scores cleared", () => {
+    expect(roundChangeAllowed(at(medal({ label: "Round 1", hasResult: true })), { kind: "round-tees" })).toEqual({
+      ok: false,
+      scope: "rounds",
+      step: "after-scores",
+      says: "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.",
+      wayOut: { says: "Clear its scores on Score entry", href: "/entry" },
+    });
+  });
+  it("after scores on a round of matches: refused as a recorded match; completed: Reopen", () => {
+    expect(roundChangeAllowed(at(medal({ type: "Round Robin", format: "Match Play", hasResult: true, matches: 2 })), { kind: "round-tees" })).toMatchObject({ ok: false, says: "Round 2’s matches were played off these strokes. Clear its scores on Score entry first." });
+    expect(roundChangeAllowed(at(medal(), "completed"), { kind: "round-tees" })).toMatchObject({ ok: false, says: COMPLETED_ROUNDS });
   });
 });
 
 describe("the tournament's, a flight's or a player's tees reach every round", () => {
   const tournament = (rounds: ReturnType<typeof roundOf>[], status = "live") => factsOf({ status, rounds });
 
-  it("before any card: open, and nothing to name", () => {
-    expect(acrossRounds(tournament([roundOf({ id: "a", position: 0 })]), { kind: "field-tees" }, NONE)).toMatchObject({ ok: true, warn: null, rescored: [] });
+  it("before any card: open", () => {
+    expect(acrossRounds(tournament([roundOf({ id: "a", position: 0 })]), { kind: "field-tees" }, NONE)).toMatchObject({ ok: true, warn: null });
   });
-  it("names the rounds of cards worked out again; a round of matches keeps the strokes it was frozen at", () => {
+  it("refused while a scored round of cards would be reached, naming it; a round of matches alone keeps its frozen strokes", () => {
     const v = acrossRounds(
       tournament([
-        roundOf({ id: "a", position: 0, hasResult: true }),
-        roundOf({ id: "b", position: 1, type: "Bracket Stage", format: "Match Play", hasResult: true, teeSheetSaved: null }),
-        roundOf({ id: "c", position: 2, hasResult: true }),
-        roundOf({ id: "d", position: 3 }),
+        roundOf({ id: "b", position: 0, type: "Bracket Stage", format: "Match Play", hasResult: true, teeSheetSaved: null }),
+        roundOf({ id: "a", position: 1, hasResult: true }),
+        roundOf({ id: "d", position: 2 }),
       ]),
       { kind: "field-tees" },
       NONE,
     );
-    expect(v).toMatchObject({ ok: true, warn: "rescore", rescored: ["Round 1", "Round 3"] });
-  });
-  it("a cut made out of a scored round refuses a tee change that reaches it, with the cut's undo as the way out", () => {
-    const v = acrossRounds(tournament([roundOf({ id: "a", position: 0, hasResult: true }), roundOf({ id: "b", position: 1 })]), { kind: "field-tees" }, new Set(["a"]));
-    expect(v).toMatchObject({ ok: false, says: cutMadeWords("Round 1"), wayOut: { says: "Untick “This round is finished” on its card", href: "/stages" } });
+    expect(v).toMatchObject({ ok: false, says: teesFrozenWords("Round 2"), wayOut: { href: "/entry" } });
+    const matchesOnly = acrossRounds(tournament([roundOf({ id: "b", position: 0, type: "Bracket Stage", format: "Match Play", hasResult: true, teeSheetSaved: null }), roundOf({ id: "d", position: 1 })]), { kind: "field-tees" }, NONE);
+    expect(matchesOnly).toMatchObject({ ok: true, warn: null });
   });
   it("completed refuses, with no rounds at all as well as with some", () => {
     expect(acrossRounds(tournament([roundOf({ id: "a", position: 0, hasResult: true })], "completed"), { kind: "field-tees" }, NONE)).toMatchObject({ ok: false, says: COMPLETED_ROUNDS });
     expect(acrossRounds(tournament([], "completed"), { kind: "field-tees" }, NONE)).toMatchObject({ ok: false, says: COMPLETED_ROUNDS });
-    expect(acrossRounds(tournament([], "live"), { kind: "field-tees" }, NONE)).toMatchObject({ ok: true, rescored: [] });
+    expect(acrossRounds(tournament([], "live"), { kind: "field-tees" }, NONE)).toMatchObject({ ok: true });
   });
   it("a round the field does not play is not asked", () => {
     const v = acrossRounds(tournament([roundOf({ id: "a", position: 0, playing: false, hasResult: true }), roundOf({ id: "b", position: 1 })]), { kind: "field-tees" }, NONE);
-    expect(v).toMatchObject({ ok: true, rescored: [] });
+    expect(v).toMatchObject({ ok: true });
   });
 });
 
@@ -256,7 +274,7 @@ describe("the doors the Rounds screen draws", () => {
     expect(roundDoors(at(medal()))).toEqual({ allowance: null, "round-tees": null, format: null, holes: null, delete: null, day: null });
     expect(roundDoors(at(medal({ hasResult: true })))).toEqual({
       allowance: null,
-      "round-tees": null,
+      "round-tees": "Round 2’s handicaps were frozen off its tees at its first card. Clear Round 2’s scores on Score entry first.",
       format: "Round 2 was scored as Stroke Play; its cards would mean something else. Clear its scores on Score entry first.",
       holes: "Round 2 has scores; at another length its cards would mean something else. Clear its scores on Score entry first.",
       delete: "Round 2 has scores. Clear them on Score entry first.",

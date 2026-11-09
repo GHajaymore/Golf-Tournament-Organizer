@@ -1052,7 +1052,7 @@ function StageCard({
       const nine = holes === 9 ? nextNine : "full";
       const res = await setStageCourse(stage.id, nextCourse, nine);
       if (res?.needsConfirm) {
-        setRescore({ kind: "venue", course: nextCourse, nine, cards: res.cards ?? 0, says: res.says });
+        setRescore({ kind: "venue", course: nextCourse, nine, cards: res.cards ?? 0 });
       } else if (res && !res.ok) {
         // Refused by the rounds rule (J12): the picker goes back, and the reason is said under the round's face.
         setCourseId(stage.courseId);

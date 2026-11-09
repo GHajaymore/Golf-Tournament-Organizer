@@ -189,14 +189,14 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
    * the round has scores, so a control reaching one of them on Rounds & formats
    * takes the round's DOORS (`roundDoors`, or one door as a sentence) — the
    * setup lock alone would shut the controls the rule leaves open. The tee
-   * selects elsewhere (Flights, Entries, Settings) ask the server, which asks
-   * the person first after play (`askThenForce`). Swept as a class.
+   * selects elsewhere (Flights, Entries, Settings) say the server's refusal where the
+   * press was — a tee change after play is refused (option C, 8 Nov). Swept as a class.
    */
   it("each control reaching a round action on Rounds & formats receives the round's doors", () => {
     const roundActions = new Set<string>();
     for (const f of files(join(ROOT, "src", "app", "actions"), /\.ts$/)) {
       for (const part of readSource(relative(ROOT, f)).split(/export async function /).slice(1)) {
-        if (/\b(beforeTermChange|beforeFieldTeeChange|roundVerdictFor|roundRefusal|acrossRoundsRefusal)\(/.test(part)) roundActions.add(part.slice(0, part.indexOf("(")).trim());
+        if (/\b(beforeTermChange|roundVerdictFor|roundRefusal|acrossRoundsRefusal)\(/.test(part)) roundActions.add(part.slice(0, part.indexOf("(")).trim());
       }
     }
     // The control: the sweep finds the actions it is about.
@@ -213,9 +213,14 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/doors: \(\(\) => \{\s*const one = told \? roundChangeFactsOf\(told\.facts, s\.id, cutsMade\) : null;\s*return one \? roundDoors\(one\) : null;/);
     // And the cuts it hands them are the one answer's (`cutsMadeAfter`, from `cutHasBeenMade`).
     expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/const cutsMade = cutsMadeAfter\(state\.stages\);/);
-    // The tee selects ask the person when the server asks (a confirm, never a silent force).
-    for (const f of ["src/components/FlightTeeSelect.tsx", "src/components/FlightBoard.tsx", "src/components/PlaySettings.tsx", "src/components/RegistrationClient.tsx"]) {
-      expect(readSource(f), `${f} sends a tee change without asking`).toMatch(/askThenForce\(\(force\) => set(?:FlightTee|PlayerTee|EventDefaultTee)\(/);
+    // The tee selects elsewhere say a refusal where the press was: a tee change after play is refused (option C, 8 Nov).
+    for (const [f, said] of [
+      ["src/components/FlightTeeSelect.tsx", /setError\(res\.error \?\? "Couldn't set those tees\."\)/],
+      ["src/components/FlightBoard.tsx", /refuse\(res\.error \?\? "Couldn't set those tees\.", g\.id\)/],
+      ["src/components/PlaySettings.tsx", /setError\(teeResult\.error \?\? "Couldn't save the tees\."\)/],
+      ["src/components/RegistrationClient.tsx", /setRowError\(result\.ok \? "" : result\.error \?\? "Couldn’t save those tees\.", playerId\)/],
+    ] as const) {
+      expect(readSource(f), `${f} drops a refused tee change`).toMatch(said);
     }
   });
 

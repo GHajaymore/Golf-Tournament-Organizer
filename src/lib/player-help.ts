@@ -191,7 +191,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "For the tournament, for your flight, or for you.",
       "Your card names the tees you are on.",
       "You cannot change them here. Ask your {organizer}.",
-      "Moved to other tees after you played? Your Net is worked out again.",
+      "A round you have played keeps the tees you played off.",
       "On a higher par than others? You get the difference as strokes.",
       "Not in Stableford, where par already counts.",
     ],

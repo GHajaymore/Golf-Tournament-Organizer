@@ -88,7 +88,7 @@ import type { BracketView } from "@/lib/domain/bracket";
 import { tournamentStatus, drawFacts, addRoundLockOf, locksFor, lockFactsOf, type Family, type TournamentFacts } from "@/lib/domain/tournament-status";
 import { FAMILY_FIXTURES as STATUS_FAMILIES, launched as launchedFacts } from "@/lib/domain/__tests__/tournament-facts-fixtures";
 import { fieldChangeAllowed, fieldFactsOf, fieldStepOf, partOf, type FieldChange, type FieldStep, type FieldVerdict } from "@/lib/domain/field-change";
-import { acrossRounds, handicapMoves, roundChangeAllowed, roundStepOf, type RoundChangeAsk, type RoundChangeRound, type RoundStep, type RoundVerdict } from "@/lib/domain/round-change";
+import { acrossRounds, handicapMoves, roundChangeAllowed, roundStepOf, teesFrozenWords, type RoundChangeAsk, type RoundChangeRound, type RoundStep, type RoundVerdict } from "@/lib/domain/round-change";
 import { formatFitsRound } from "@/lib/domain/round-choices";
 
 /**
@@ -3078,11 +3078,14 @@ describe("an upstream edit to the field, every family × every step (J12)", () =
  * The expectation is worked HERE from section 3's table and the Golf Pro's
  * answers, never read off the function:
  *
- *   allowance / basis / a round's tees   open · open · WARN (confirm, recompute, log) · refuse
+ *   allowance / basis                     open · open · WARN (confirm, recompute, log) · refuse
  *     — except a round whose result is a MATCH: refused after scores, since a
  *       decided match stands (Rule 3.2a(5)) and is not worked out again;
- *   the tournament's / a flight's tees    as the allowance, but a round of matches is left
- *                                         alone (frozen at its first card), so open there;
+ *   a round's tees or course (8 Nov, C)   open · open · REFUSE · refuse — its handicaps were
+ *                                         frozen off its tees, and the index they were frozen
+ *                                         with is not stored, so nothing is re-frozen;
+ *   the tournament's / a flight's tees    refused after scores where a round of CARDS is reached;
+ *                                         a round of matches keeps its frozen strokes, so open there;
  *   format                                open · RE-DRAW if it now draws differently · refuse
  *                                         both ways (Rule 21.1b vs 3.3b(3); Committee
  *                                         Procedures 5A) · refuse;
@@ -3115,10 +3118,13 @@ describe("an upstream edit to a round, every format × stage type × step × fie
     if (step === "completed") return "refuse";
     switch (kind) {
       case "allowance":
-      case "round-tees":
         return step === "after-scores" ? (matches || cut ? "refuse" : "warn") : "open";
+      case "round-tees":
+        // Option C (8 Nov): a scored round's handicaps were frozen off its tees, and the index is not stored.
+        return step === "after-scores" ? "refuse" : "open";
       case "field-tees":
-        return step === "after-scores" && !matches ? (cut ? "refuse" : "warn") : "open";
+        // A scored round of cards refuses; a round of matches keeps the strokes it was frozen at.
+        return step === "after-scores" && !matches ? "refuse" : "open";
       case "format":
         return step === "after-scores" ? "refuse" : step === "after-draw" && redraws ? "redraw" : "open";
       case "holes":
@@ -3196,7 +3202,8 @@ describe("an upstream edit to a round, every format × stage type × step × fie
               // The tournament's tees, over a tournament of this one round.
               const across = acrossRounds({ status, rounds: [{ ...STATUS_FAMILIES.stroke().rounds[0], ...round }] }, { kind: "field-tees" }, new Set(cut ? ["r1"] : []));
               expect(kind(across), `${at}: field tees`).toBe(want("field-tees", meant, matches, false, cut));
-              expect(across.rescored, `${at}: the rounds a confirm names`).toEqual(kind(across) === "warn" ? ["Round 1"] : []);
+              // Never re-frozen (option C): a refusal names the round and the way out, in the rule's words.
+              if (!across.ok && meant === "after-scores") expect(across.says, `${at}: field tees refused in words`).toBe(teesFrozenWords("Round 1", type === "Bracket Stage" ? { what: "results", where: "on the Bracket" } : undefined));
               invariants(across, `${at}: field tees`, type);
             }
           }

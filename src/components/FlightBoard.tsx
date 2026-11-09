@@ -5,7 +5,6 @@ import { useState, useTransition } from "react";
 import { movePlayerToGroup, renameGroup, setFlightsConfirmed } from "@/app/actions/tournament";
 import { setFlightCaptain } from "@/app/actions/attendance";
 import { setFlightTee } from "@/app/actions/courses";
-import { askThenForce } from "@/lib/ask-then-force";
 import { Icon } from "./Icon";
 import { useCaughtUp } from "./useAction";
 
@@ -365,9 +364,8 @@ export function FlightBoard({
                     setError("");
                     const teeId = e.target.value || null;
                     startTransition(async () => {
-                      // After play the server asks first, in the rounds rule's words (J12, PR 7b).
-                      const res = await askThenForce((force) => setFlightTee(g.id, teeId, force));
-                      if (res && !res.ok) refuse(res.error ?? "Couldn't set those tees.", g.id);
+                      const res = await setFlightTee(g.id, teeId);
+                      if (!res.ok) refuse(res.error ?? "Couldn't set those tees.", g.id);
                     });
                   }}
                 >

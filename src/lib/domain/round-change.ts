@@ -26,11 +26,21 @@
  *     confirm says what it is. The basis rides with the allowance (the brief: "a
  *     round's allowance or scoring basis"): gross or net is how the handicaps are
  *     applied to the same holed-out strokes, not how the round was played.
- *   - A ROUND'S OWN TEES OR VENUE (`round-tees`): as the allowance — what each
- *     player plays off in that round is decided by them (Rules of Handicapping
- *     6.1, a Course Handicap is for one set of tees).
- *   - THE TOURNAMENT'S, A FLIGHT'S OR A PLAYER'S TEES (`field-tees`): as the
- *     allowance, asked of EVERY round the change reaches (`acrossRounds`).
+ *   - A ROUND'S OWN TEES OR VENUE (`round-tees`): open · open · REFUSE · refuse.
+ *     A Course Handicap is for one set of tees (Rules of Handicapping 6.1), and a
+ *     scored round's were frozen off its tees at its first card. Working them out
+ *     again needs the Handicap Index the round was frozen with, and that is not
+ *     stored (`RoundHandicap` keeps the converted figures only). Re-freezing from
+ *     today's index would move a player for an index edited since, so a tee
+ *     change after scores is REFUSED until the frozen index is stored (the
+ *     coordinator's ruling of 8 Nov, option C; follow-up: `frozenIndex` +
+ *     `frozenTeeId`). The way out: "Clear Round 1's scores on Score entry first."
+ *     A player's own figure cannot be set by hand on a scored round either
+ *     (`setRoundHandicapOverride` refuses there: `FROZEN_HANDICAP_REFUSAL`).
+ *   - THE TOURNAMENT'S, A FLIGHT'S OR A PLAYER'S TEES (`field-tees`): asked of
+ *     EVERY playing round (`acrossRounds`); REFUSED while any scored round of
+ *     cards would be reached, for the same reason. A round of matches keeps the
+ *     strokes it was frozen at and does not refuse it.
  *   - A ROUND'S FORMAT (`format`): open · RE-DRAW where the new format draws
  *     differently (a round robin set to match play becomes a medal, or back),
  *     else open · REFUSE, both ways (Golf Pro, Q5: Stableford to stroke is
@@ -40,8 +50,8 @@
  *   - A ROUND'S HOLES, 18 ↔ 9 (`holes`; added 8 Nov, format-like): open · open
  *     · REFUSE (the stroke index is re-ranked to the holes played and every card
  *     is measured against another length) · refuse.
- *   - A CUT ALREADY MADE OUT OF A ROUND (8 Nov): the allowance, basis and tees
- *     of that round — and a tournament-wide tee change reaching it — are
+ *   - A CUT ALREADY MADE OUT OF A ROUND (8 Nov): the allowance and basis
+ *     of that round (its tees are refused after scores anyway, above) are
  *     REFUSED, the way out the cut's own undo: "The cut after Round 1 was made
  *     on these figures. Undo the cut first, then change it: untick “This round
  *     is finished” on Round 1." The next round's field was decided on them.
@@ -62,7 +72,7 @@
  * basis or tees after a match is scored is REFUSED with the way out — clear the
  * scores — rather than warned: there is nothing the app could honestly re-work.
  * A tournament-wide tee change leaves such a round exactly as it is (its
- * handicaps were frozen at its first card, `freezeRoundHandicaps`), and says so.
+ * handicaps were frozen at its first card, `freezeRoundHandicaps`).
  *
  * THE STEP is the ROUND's (section 3: "after scores in that round"), derived
  * from its facts (`roundStepOf`) and never handed in beside them: completed ·
@@ -222,18 +232,21 @@ export function roundChangeAllowed(facts: RoundChangeFacts, ask: RoundChangeAsk)
 
   switch (ask.kind) {
     case "allowance":
-    case "round-tees":
       if (step !== "after-scores") return yes();
       // A recorded match is never worked out again (header).
       if (filesMatches(round)) return no(`${label}’s matches were played off these strokes. Clear its ${clear.what} ${clear.where} first.`, clear.wayOut);
       // A cut made out of it was decided on these figures: undo the cut first.
       if (round.cutMadeAfter) return no(cutMadeWords(round.label), UNDO_CUT);
       return yes("rescore");
+    case "round-tees":
+      if (step !== "after-scores") return yes();
+      if (filesMatches(round)) return no(`${label}’s matches were played off these strokes. Clear its ${clear.what} ${clear.where} first.`, clear.wayOut);
+      // Option C (8 Nov): its handicaps were frozen off these tees, and the index they were frozen with is not stored.
+      return no(teesFrozenWords(round.label, clear), clear.wayOut);
     case "field-tees":
-      // A round of matches keeps the handicaps frozen at its first card; a round of cards is worked out again.
+      // A round of matches keeps the handicaps frozen at its first card; a scored round of cards refuses (option C).
       if (step !== "after-scores" || filesMatches(round)) return yes();
-      if (round.cutMadeAfter) return no(cutMadeWords(round.label), UNDO_CUT);
-      return yes("rescore");
+      return no(teesFrozenWords(round.label, clear), clear.wayOut);
     case "holes":
       // Format-like (8 Nov): eighteen to nine re-ranks the stroke index and the denominator of every card.
       if (step === "after-scores") return no(`${label} has ${clear.what}; at another length its cards would mean something else. Clear its ${clear.what} ${clear.where} first.`, clear.wayOut);
@@ -253,29 +266,39 @@ export function roundChangeAllowed(facts: RoundChangeFacts, ask: RoundChangeAsk)
 }
 
 /**
+ * A TEE OR COURSE CHANGE AFTER PLAY, REFUSED (option C, 8 Nov): the round's
+ * handicaps were frozen off its tees at its first card, and re-freezing them
+ * needs the index they were frozen with, which is not stored. The way out is
+ * the round's scores cleared; a player's own figure cannot be set by hand on a
+ * scored round (`FROZEN_HANDICAP_REFUSAL`), so it is not offered.
+ */
+export function teesFrozenWords(label: string, clear: { what: string; where: string } = { what: "scores", where: "on Score entry" }): string {
+  const r = label || "This round";
+  return `${r}’s handicaps were frozen off its tees at its first card. Clear ${r}’s ${clear.what} ${clear.where} first.`;
+}
+
+/**
  * A CHANGE THAT REACHES SEVERAL ROUNDS (a tournament's, a flight's or a
- * player's tees; dating every round): each playing round is asked, the first
- * refusal is the answer, and otherwise the rounds a confirm must name — the
- * ones whose cards are worked out again. A tournament with no rounds is open.
+ * player's tees; dating every round): each playing round is asked, and the
+ * first refusal is the answer; otherwise the first warning, else open. A
+ * tournament with no rounds is open (completed still refuses).
  */
 export function acrossRounds(
   f: Pick<TournamentFacts, "status" | "rounds">,
   ask: Extract<RoundChangeAsk, { kind: "field-tees" | "day" }>,
   cutsMade: ReadonlySet<string>,
-): RoundVerdict & { rescored: string[] } {
+): RoundVerdict {
   const rounds = f.rounds.filter((r) => r.playing).map((r) => ({ ...r, cutMadeAfter: cutsMade.has(r.id) }));
-  const verdicts = rounds.map((round) => ({ round, v: roundChangeAllowed({ status: f.status, round }, ask) }));
-  const refused = verdicts.find((x) => !x.v.ok);
-  if (refused) return { ...refused.v, rescored: [] };
+  const verdicts = rounds.map((round) => roundChangeAllowed({ status: f.status, round }, ask));
+  const refused = verdicts.find((v) => !v.ok);
+  if (refused) return refused;
   if (rounds.length === 0) {
     // No round to ask: completed still refuses (its own words), anything else is open.
     const scope: RoundPart = ask.kind === "day" ? "details" : "rounds";
-    if (!isFinished(f.status)) return { ok: true, scope, step: "before-draw", warn: null, rescored: [] };
-    return { ...completedRefusal(ask.kind, scope), rescored: [] };
+    if (!isFinished(f.status)) return { ok: true, scope, step: "before-draw", warn: null };
+    return completedRefusal(ask.kind, scope);
   }
-  const rescored = verdicts.filter((x) => x.v.ok && x.v.warn === "rescore").map((x) => named(x.round));
-  const worst = verdicts.find((x) => x.v.ok && x.v.warn !== null)?.v ?? verdicts[0].v;
-  return { ...worst, rescored };
+  return verdicts.find((v) => v.ok && v.warn !== null) ?? verdicts[0];
 }
 
 /** "Round 1", "Round 1 and Round 2", "Round 1, Round 2 and Round 3". */
@@ -322,9 +345,6 @@ export const ROUNDS_UNDER_WAY = [
 
 /** A played round's day moved: who sees it (section 3, "Name, dates, venue"). */
 export const SCHEDULES_WORDS = "Players’ schedules show the new day.";
-
-/** A tournament-wide tee change in a tournament with a round of matches already scored: what it leaves alone. */
-export const MATCHES_KEEP_THEIR_STROKES = "Matches already played keep the strokes they were played off.";
 
 /**
  * EVERY CHANGE'S REFUSAL AS A SENTENCE, for one round, or null where it is open

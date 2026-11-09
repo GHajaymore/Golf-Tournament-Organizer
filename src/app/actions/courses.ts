@@ -4,8 +4,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { playedOnBy } from "@/lib/services/courses";
 import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
-import { afterTermChange, beforeFieldTeeChange, beforeTermChange } from "@/lib/services/round-change";
-import { roundWordsFor } from "@/lib/services/action-shared";
+import { acrossRoundsRefusal, roundRefusal } from "@/lib/services/round-change";
 import { isDistanceUnit } from "@/lib/domain/distance-unit";
 import { getSession } from "@/lib/auth";
 import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
@@ -53,8 +52,6 @@ export interface CourseResult {
    *  force once they have been told what it costs. */
   needsConfirm?: boolean;
   cards?: number;
-  /** The confirm's words where the rounds rule asks (J12, PR 7b): a term changed after play (`rescoreWords`). */
-  says?: string;
   /** The tournaments those cards belong to, so the question names them. */
   events?: string[];
   courseId?: string;
@@ -580,30 +577,24 @@ export async function setStageCourse(
   }
 
   /**
-   * A venue change RE-SCORES a round that already has cards.
-   *
-   * Not a single stroke moves, which is why this needs saying out loud: the
-   * numbers all stay where they are and the results computed from them
-   * change underneath, because the shots are allocated off a different
-   * stroke index. Nothing on any screen would look different afterwards.
-   *
-   * Same shape as the field resize: refuse, say how much is affected, and
-   * let the organizer come back with force. An untouched round reports zero
-   * and changes without a fuss.
+   * A venue or tee change WOULD RE-SCORE a round that already has cards: the
+   * shots are allocated off another stroke index, and every Course Handicap was
+   * frozen off the old tees at the first card.
    *
    * ASKED OF THE ROUNDS RULE (J12, PR 7b; `domain/round-change.ts`), as the
-   * round's own tees: open until the round has scores, then asked with the Golf
-   * Pro's sentence and — once confirmed — re-frozen off the new card and tees,
-   * recomputed and logged; refused once completed, or on a round whose matches
-   * are recorded (their hole results were stored off the old card).
+   * round's own tees: open until the round has scores (a change before them is
+   * frozen normally at the first card), and REFUSED once it has them — never
+   * re-frozen from today's index, since the index the round was frozen with is
+   * not stored (option C, 8 Nov) — and refused once completed. `force` no longer
+   * opens anything: there is nothing left to confirm.
    */
+  void force;
   const changed =
     (courseId ?? null) !== (stage.courseId ?? null) ||
     (courseId && teeId ? teeId : null) !== (stage.teeId ?? null) ||
     (nine !== undefined && cleanNine(nine) !== stage.nine);
-  const gate = await beforeTermChange(eventId, stageId, { kind: "round-tees" }, { changed, force });
-  if ("refused" in gate) return gate.refused;
-  if ("asked" in gate) return gate.asked;
+  const refused = changed ? await roundRefusal(eventId, stageId, { kind: "round-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
 
   // Linked before the round points at it, so the tournament's venue list and
   // the round agree. Idempotent: choosing a venue it already has changes
@@ -640,8 +631,6 @@ export async function setStageCourse(
     where: { id: stageId },
     data: { courseId, teeId: roundTee, ...(nine === undefined ? {} : { nine: cleanNine(nine) }) },
   });
-  // After play: the round's handicaps re-frozen off the card and tees it now has, and what moved logged.
-  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: where it was played, or off which tees, changed`, { players: null });
   await refresh();
   return { ok: true };
 }
@@ -814,7 +803,7 @@ export async function deleteTee(teeId: string): Promise<CourseResult> {
  * is a real answer for a society that plays one course off one tee, so it is
  * offered rather than forced.
  */
-export async function setEventDefaultTee(teeId: string | null, force = false): Promise<CourseResult> {
+export async function setEventDefaultTee(teeId: string | null): Promise<CourseResult> {
   const { eventId } = await requireOrganizerOrg();
   if (teeId) {
     // Scoped to THIS tournament's course. An unscoped read would let another
@@ -825,13 +814,11 @@ export async function setEventDefaultTee(teeId: string | null, force = false): P
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
-  // The tournament's tees reach every round (J12, PR 7b): asked after play, re-frozen and logged once confirmed.
+  // The tournament's tees reach every round (J12, PR 7b): refused while a scored round of cards would be reached (option C, 8 Nov).
   const was = await prisma.event.findUnique({ where: { id: eventId }, select: { defaultTeeId: true } });
-  const gate = await beforeFieldTeeChange(eventId, { changed: (was?.defaultTeeId ?? null) !== (teeId ?? null), force });
-  if ("refused" in gate) return gate.refused;
-  if ("asked" in gate) return gate.asked;
+  const refused = (was?.defaultTeeId ?? null) !== (teeId ?? null) ? await acrossRoundsRefusal(eventId, { kind: "field-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
   await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: teeId } });
-  await afterTermChange(eventId, gate.go, "The tournament’s tees changed", { players: null });
   await refresh();
   return { ok: true };
 }
@@ -846,7 +833,7 @@ export async function setEventDefaultTee(teeId: string | null, force = false): P
  * Null means the flight claims nothing and its players fall through to the
  * round's tees — which is how every flight behaved before this existed.
  */
-export async function setFlightTee(groupId: string, teeId: string | null, force = false): Promise<CourseResult> {
+export async function setFlightTee(groupId: string, teeId: string | null): Promise<CourseResult> {
   const { eventId } = await requireOrganizerOrg();
   // A flight, not a match carrier — a carrier has no players to play off any
   // tees it claimed. See Group.stageId.
@@ -860,13 +847,10 @@ export async function setFlightTee(groupId: string, teeId: string | null, force 
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
-  // A flight's tees reach its players in every round (J12, PR 7b): asked after play, re-frozen and logged once confirmed.
-  const gate = await beforeFieldTeeChange(eventId, { changed: (flight.teeId ?? null) !== (teeId ?? null), force });
-  if ("refused" in gate) return gate.refused;
-  if ("asked" in gate) return gate.asked;
+  // A flight's tees reach its players in every round (J12, PR 7b): refused while a scored round of cards would be reached (option C, 8 Nov).
+  const refused = (flight.teeId ?? null) !== (teeId ?? null) ? await acrossRoundsRefusal(eventId, { kind: "field-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
   await prisma.group.update({ where: { id: groupId }, data: { teeId } });
-  const members = gate.go.length ? (await prisma.player.findMany({ where: { eventId, groupId }, select: { id: true } })).map((p) => p.id) : [];
-  await afterTermChange(eventId, gate.go, `${flight.name || "A flight"}’s tees changed`, { players: members });
   await refresh();
   return { ok: true };
 }
@@ -883,7 +867,7 @@ export async function setFlightTee(groupId: string, teeId: string | null, force 
  * player reaching this is a public HTTP caller who can pass any playerId, so
  * the ownership test has to be here rather than assumed from the screen.
  */
-export async function setPlayerTee(playerId: string, teeId: string | null, force = false): Promise<CourseResult> {
+export async function setPlayerTee(playerId: string, teeId: string | null): Promise<CourseResult> {
   const session = await getSession();
   if (!session) return { ok: false, error: "Not signed in." };
 
@@ -927,13 +911,10 @@ export async function setPlayerTee(playerId: string, teeId: string | null, force
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
-  // A player's own tees reach them in every round (J12, PR 7b): asked after play, re-frozen and logged once confirmed.
-  const gate = await beforeFieldTeeChange(eventId, { changed: (player.teeId ?? null) !== (teeId ?? null), force });
-  if ("refused" in gate) return gate.refused;
-  if ("asked" in gate) return gate.asked;
+  // A player's own tees reach them in every round (J12, PR 7b): refused while a scored round of cards would be reached (option C, 8 Nov).
+  const refused = (player.teeId ?? null) !== (teeId ?? null) ? await acrossRoundsRefusal(eventId, { kind: "field-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
   await prisma.player.update({ where: { id: playerId }, data: { teeId } });
-  // The player by id: Recent changes names them (`namesForIds`); no name is stored in the line.
-  await afterTermChange(eventId, gate.go, `${playerId}’s tees changed`, { players: [playerId] });
   await refresh();
   return { ok: true };
 }

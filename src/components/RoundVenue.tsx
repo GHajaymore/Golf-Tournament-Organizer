@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setStageCourse } from "@/app/actions/courses";
-import { askThenForce } from "@/lib/ask-then-force";
 import { CoursePicker } from "@/components/CoursePicker";
 import { defaultTeeFor, type TeeLike } from "@/lib/domain/venue";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
@@ -243,10 +242,7 @@ export function RoundVenue({
   const setTee = (id: string) =>
     startTransition(async () => {
       // No nine: this panel does not know it, and saying "full" reset a back-nine round to the front.
-      // Sent with force until J12 PR 7b; now a tee change after play is asked first, in the rounds
-      // rule's words (the round's handicaps are worked out again off the new tees), and a no keeps them.
-      const res = await askThenForce((force) => setStageCourse(stageId, venue?.courseId ?? null, undefined, force, id || null));
-      if (res === null) return;
+      const res = await setStageCourse(stageId, venue?.courseId ?? null, undefined, true, id || null);
       if (!res.ok) setError(res.error ?? "Couldn't set the tees for this round.");
       else router.refresh();
     });

@@ -13,8 +13,8 @@ import { randomBytes } from "node:crypto";
  *     a yes writes; then every playing handicap is worked out again off the
  *     figure frozen at its first card, and Recent changes says what moved, old
  *     to new, by the Rules (worked by hand below from decimal indexes);
- *   - a player's tees changed after play RE-FREEZE that player in the scored
- *     round and nobody else, and the line says so;
+ *   - a tee or course change after play is REFUSED (option C, 8 Nov), force or
+ *     not, and nothing is re-frozen; an unscored round still takes its tees;
  *   - a scored round's format, and deleting it, are REFUSED in words; a scored
  *     round of matches refuses a change of basis;
  *   - an undrawn round still deletes on one press, launched;
@@ -34,7 +34,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 const { setStageAllowance } = await import("@/app/actions/teams");
 const { setStageFormat, setStageScoringBasis, removeStage, setStagePlayedOn, setStageHoles } = await import("@/app/actions/tournament");
-const { setPlayerTee, setEventDefaultTee } = await import("@/app/actions/courses");
+const { setPlayerTee, setEventDefaultTee, setStageCourse } = await import("@/app/actions/courses");
 const { freezeRoundHandicaps } = await import("@/lib/services/round-handicap");
 const { COMPLETED_DATES, COMPLETED_ROUNDS, SCHEDULES_WORDS, cutMadeWords } = await import("@/lib/domain/round-change");
 
@@ -176,22 +176,36 @@ describe("a launched tournament's rounds, judged by what a change would invalida
     expect([...(await frozenOf(ids.medal)).values()].sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([8, 16, 25]);
   });
 
-  it("a player's tees changed after play re-freeze that player in the scored round, and nobody else", async () => {
-    const before = await frozenOf(ids.medal);
-    const asked = await setPlayerTee(players[0], ids.yellow);
-    expect(asked).toMatchObject({ ok: false, needsConfirm: true });
-    expect(asked.says).toMatch(/^This changes a term of the competition after play\. Every net score in Round 1 \(3 cards\) is worked out again\./);
-    // A round of matches already played keeps its strokes, and the question says so.
-    expect(asked.says).toContain("Matches already played keep the strokes they were played off.");
-    expect((await prisma.player.findUnique({ where: { id: players[0] } }))?.teeId).toBeNull();
+  /**
+   * OPTION C (8 Nov): a tee or course change after play is REFUSED, never
+   * re-frozen — the index each handicap was frozen with is not stored, and
+   * today's index would move a player for an edit made since. The way out is
+   * the round's scores cleared (a player's own figure cannot be set by hand on a
+   * scored round: `setRoundHandicapOverride` refuses there too).
+   */
+  it("a tee or course change after play is refused, force or not, and nothing is written or re-frozen", async () => {
+    const words = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const event = await prisma.event.findUniqueOrThrow({ where: { id: ids.event } });
+    const frozenBefore = await frozenOf(ids.medal);
+    const linesBefore = await prisma.auditLog.count({ where: { eventId: ids.event, action: "round.recomputed" } });
+    // A player's, the tournament's, and the scored round's own — the last with force too.
+    expect(await setPlayerTee(players[0], ids.yellow)).toEqual({ ok: false, error: words });
+    expect(await setEventDefaultTee(ids.yellow)).toEqual({ ok: false, error: words });
+    for (const force of [false, true]) {
+      expect(await setStageCourse(ids.medal, event.courseId, undefined, force, ids.yellow)).toEqual({ ok: false, error: words });
+    }
+    expect((await prisma.player.findUniqueOrThrow({ where: { id: players[0] } })).teeId).toBeNull();
+    expect((await prisma.event.findUniqueOrThrow({ where: { id: ids.event } })).defaultTeeId).toBe(ids.white);
+    expect((await stageOf(ids.medal))?.teeId ?? null).toBeNull();
+    expect(await frozenOf(ids.medal), "a refused tee change re-froze the round").toEqual(frozenBefore);
+    expect(await prisma.auditLog.count({ where: { eventId: ids.event, action: "round.recomputed" } })).toBe(linesBefore);
+  });
 
-    expect(await setPlayerTee(players[0], ids.yellow, true)).toEqual({ ok: true });
-    const after = await frozenOf(ids.medal);
-    // Yellow: 12.4 × 120 ÷ 113 − 2 = 11.168… → frozen 11; at 85%, 9.49… → 9.
-    expect(after.get(players[0])).toBe(11);
-    expect(after.get(players[1])).toBe(before.get(players[1]));
-    expect(after.get(players[2])).toBe(before.get(players[2]));
-    expect(await lastLine()).toContain(`${players[0]} ${playing(12.4, WHITE, 85)} → ${playing(12.4, YELLOW, 85)}`);
+  it("an unscored round still takes its own tees, and is frozen off them later as any round is", async () => {
+    const event = await prisma.event.findUniqueOrThrow({ where: { id: ids.event } });
+    expect(await setStageCourse(ids.later, event.courseId, undefined, false, ids.yellow)).toEqual({ ok: true });
+    expect((await stageOf(ids.later))?.teeId).toBe(ids.yellow);
+    expect(await prisma.roundHandicap.count({ where: { stageId: ids.later, frozen: { not: null } } }), "a change before scores froze anything").toBe(0);
   });
 
   it("a scored round's format, and deleting it, are refused in words, and nothing changes", async () => {
@@ -242,7 +256,7 @@ describe("a launched tournament's rounds, judged by what a change would invalida
       expect(await setStageFormat(ids.later, "Stableford")).toEqual({ ok: false, error: COMPLETED_ROUNDS });
       expect(await setStageHoles(ids.later, 9)).toEqual({ ok: false, error: COMPLETED_ROUNDS });
       expect(await removeStage(ids.later, true)).toMatchObject({ ok: false, refused: COMPLETED_ROUNDS });
-      expect(await setPlayerTee(players[1], ids.yellow, true)).toEqual({ ok: false, error: COMPLETED_ROUNDS });
+      expect(await setPlayerTee(players[1], ids.yellow)).toEqual({ ok: false, error: COMPLETED_ROUNDS });
       expect(await setStagePlayedOn(ids.medal, "2026-11-22")).toEqual({ ok: false, error: COMPLETED_DATES });
       expect((await stageOf(ids.medal))?.handicapAllowance).toBe(85);
       expect((await stageOf(ids.medal))?.playedOn).toBe("2026-11-21");
@@ -290,16 +304,14 @@ describe("a cut made out of a round holds its figures (J12, 8 Nov)", () => {
 
   const words = "The cut after Round 1 was made on these figures. Undo the cut first, then change it: untick “This round is finished” on Round 1.";
 
-  it("refuses the allowance, the basis and the tournament's tees, force or not, in the ruling's words — and writes nothing", async () => {
+  it("refuses the allowance and the basis, force or not, in the ruling's words — and writes nothing", async () => {
     expect(cutMadeWords("Round 1")).toBe(words);
     for (const force of [false, true]) {
       expect(await setStageAllowance(cut.r1, 85, force)).toEqual({ ok: false, error: words });
       expect(await setStageScoringBasis(cut.r1, "gross", force)).toEqual({ ok: false, error: words });
-      expect(await setEventDefaultTee(ids.yellow, force)).toEqual({ ok: false, error: words });
     }
     const r1 = await prisma.stage.findUniqueOrThrow({ where: { id: cut.r1 } });
     expect([r1.handicapAllowance, r1.scoringBasis]).toEqual([0, "net"]);
-    expect((await prisma.event.findUniqueOrThrow({ where: { id: cut.event } })).defaultTeeId).toBe(ids.white);
   });
 
   it("undone where the words say — Round 1 reopened — the same change is asked again, not refused", async () => {
