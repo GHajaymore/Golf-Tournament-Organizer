@@ -105,6 +105,25 @@ describe("the next round's flights", () => {
     ]);
   });
 
+  it("a flight of one is never made: three survivors aimed at flights of two stay one flight of three; five make 3 and 2", () => {
+    const three = [p("a", 1, 1), p("b", 2, 2), p("c", 3, 3)];
+    expect(reflightSurvivors(three, 2).map((f) => f.playerIds.length)).toEqual([3]);
+    const five = [...three, p("d", 4, 4), p("e", 5, 5)];
+    expect(reflightSurvivors(five, 2).map((f) => f.playerIds.length).sort()).toEqual([2, 3]);
+  });
+
+  it("balanced means strength, not handicap alone: 60% handicap and 40% seed, dealt to the lighter flight", () => {
+    // Strength = 0.6 x (10 - handicap)/10 + 0.4 x (4 - seed)/3.
+    //   b (handicap 3, seed 1) 0.42 + 0.40 = 0.82     a (0, seed 4) 0.60 + 0 = 0.60
+    //   c (6, seed 2) 0.24 + 0.267 = 0.507            d (10, seed 3) 0 + 0.133 = 0.133
+    // Strongest first, each to the flight with the smaller total, two to a flight:
+    // b -> first, a -> second, c -> second (0.60 is lighter than 0.82), d -> first.
+    // (A snake by handicap alone would give a+d against b+c, which this refuses.)
+    const four = [p("a", 0, 4), p("b", 3, 1), p("c", 6, 2), p("d", 10, 3)];
+    const sets = reflightSurvivors(four, 2).map((f) => [...f.playerIds].sort().join("")).sort();
+    expect(sets).toEqual(["ac", "bd"]);
+  });
+
   it("balanced flights: handicaps 2, 5, 8, 11 in two flights make 2+11 and 5+8, level at 13 each", () => {
     const four = [p("h2", 2, 1), p("h5", 5, 2), p("h8", 8, 3), p("h11", 11, 4)];
     const flights = reflightSurvivors(four, 2);
