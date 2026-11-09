@@ -28,7 +28,7 @@
     "src/lib/domain/carry.ts": 84.62,
     "src/lib/domain/expenses.ts": 95.56,
     "src/lib/domain/contests.ts": 94.44,
-    "src/lib/domain/date-words.ts": 78.53,
+    "src/lib/domain/date-words.ts": 93.87,
     "src/lib/domain/team.ts": 83.33
   }
 }
