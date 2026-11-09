@@ -914,6 +914,8 @@ export const TIER_RULES = [
   ["tests", ["e2e/", "scripts/qa/", ".github/", "playwright.config.ts", "vitest.config.ts", "vitest.audit.config.ts", ".claude/", ".gitignore"]],
   ["tests", ["src/lib/__tests__/", "src/lib/domain/__tests__/"]],
   ["tests", ["scripts/smoke-all.mjs", "scripts/smoke-routes.mjs", "scripts/verify-*.mjs", "scripts/seed-club.mjs", "scripts/e2e-coverage.mjs", "scripts/look-at-screens.mjs", "scripts/run-mark.mjs", "scripts/session-cookie.mjs"]],
+  // A read-only diagnostic a developer runs by hand to see which schema the shared client holds: no app code runs it.
+  ["tests", ["scripts/prisma-client-check.mjs"]],
   // The load test and the production canary: they ask the app questions and ship nothing.
   ["tests", ["scripts/load/", "scripts/prod-smoke.mjs"]],
   // Words.
