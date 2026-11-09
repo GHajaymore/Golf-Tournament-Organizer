@@ -18,7 +18,7 @@
     "src/lib/domain/cut-ready.ts": 96.14,
     "src/lib/domain/bracket.ts": 84.28,
     "src/lib/domain/bracket-flights.ts": 82.4,
-    "src/lib/domain/draw.ts": 78.71,
+    "src/lib/domain/draw.ts": 94.68,
     "src/lib/domain/money.ts": 94.06,
     "src/lib/domain/money-layout.ts": 100,
     "src/lib/domain/derived-games.ts": 91.19,
