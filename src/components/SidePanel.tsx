@@ -24,8 +24,9 @@ import { Icon } from "./Icon";
  * footer is optional and usually just says it is saved.
  */
 /**
- * The width the panel docks from. The docked styles' `@media (min-width: 1280px)` is the same
- * number; they live in `src/app/(app)/stages/rounds-timeline.css`, sent only with the Rounds screen,
+ * The width the panel docks from, judged ONCE, here, against the window (`useDocked`); the docked
+ * styles follow that answer through `data-docked`, never a media query of their own (8 Nov: the two
+ * disagreed in Safari's engine). They live in `src/app/(app)/stages/rounds-timeline.css`, sent only with the Rounds screen,
  * the one caller that docks. A second caller that docks imports that sheet's rules or moves them.
  */
 export const SIDE_PANEL_DOCK_FROM = 1280;
@@ -34,12 +35,16 @@ export const SIDE_PANEL_DOCK_FROM = 1280;
 function useDocked(enabled: boolean): boolean {
   const [docked, setDocked] = useState(false);
   useEffect(() => {
-    if (!enabled || typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia(`(min-width: ${SIDE_PANEL_DOCK_FROM}px)`);
-    const sync = () => setDocked(mq.matches);
+    if (!enabled || typeof window === "undefined") return;
+    // `innerWidth`, not `matchMedia`/`@media`: the width a media query is judged against can be the
+    // layout width WITHOUT the page's scrollbar in Safari's engine, and docking narrows the list, which
+    // adds or removes that scrollbar — a ten-pixel feedback loop at exactly 1280 (the panel flickered
+    // between docked and modal and no press could land). `innerWidth` is the window's, whatever the
+    // content does. The CSS follows this decision (`data-docked`), not a second media query.
+    const sync = () => setDocked(window.innerWidth >= SIDE_PANEL_DOCK_FROM);
     sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
   }, [enabled]);
   return enabled && docked;
 }
@@ -118,6 +123,7 @@ export function SidePanel({
       // Docked, the backdrop lets presses through to the list (design-system.css), so there is no
       // "outside" to press: the list's own buttons are what is pressed.
       data-dock={dock ? "" : undefined}
+      data-docked={docked ? "" : undefined}
       onClick={docked ? undefined : onClose}
     >
       <div

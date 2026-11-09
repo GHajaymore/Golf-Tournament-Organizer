@@ -161,15 +161,16 @@
    The panel's width gives way before the list does (2 Nov): the list keeps about 560px beside it —
    at 1280 it was 430 beside a 560px panel. 880 = the console's 250px sidebar, its 30px left
    padding, the 24px gap, a 16px scrollbar and the list's 560. From 1440 the panel is its full 560.
-   A phone keeps the full-screen panel. */
-@media (min-width: 1280px) {
-  :root { --side-panel-dock-w: clamp(380px, calc(100vw - 880px), 560px); }
-  .side-panel-backdrop[data-dock] { background: transparent; pointer-events: none; }
-  .side-panel-backdrop[data-dock] > .side-panel { pointer-events: auto; width: var(--side-panel-dock-w); }
-  body:has(.side-panel-backdrop[data-dock]:not([hidden])) .app-main { padding-right: calc(var(--side-panel-dock-w) + 24px) !important; }
-  /* The list beside it: shrinks rather than pushing the page sideways; anything wide wraps or
-     scrolls inside itself. */
-  .rounds-timeline { min-width: 0; }
-  .rounds-timeline .round-node, .rounds-timeline .round-spine-item { min-width: 0; }
-}
+   A phone keeps the full-screen panel.
+   The rules key off `data-docked`, which `SidePanel` sets from the window's width (`innerWidth`), not
+   off an @media query: a query judged against the layout width flickered at 1280 in Safari's engine
+   (docking adds a scrollbar, the scrollbar narrows the query, which undocks, ...). */
+:root { --side-panel-dock-w: clamp(380px, calc(100vw - 880px), 560px); }
+.side-panel-backdrop[data-dock][data-docked] { background: transparent; pointer-events: none; }
+.side-panel-backdrop[data-dock][data-docked] > .side-panel { pointer-events: auto; width: var(--side-panel-dock-w); }
+body:has(.side-panel-backdrop[data-dock][data-docked]:not([hidden])) .app-main { padding-right: calc(var(--side-panel-dock-w) + 24px) !important; }
+/* The list beside it: shrinks rather than pushing the page sideways; anything wide wraps or
+   scrolls inside itself. */
+.rounds-timeline { min-width: 0; }
+.rounds-timeline .round-node, .rounds-timeline .round-spine-item { min-width: 0; }
 .rounds-timeline > * { min-width: 0; }
