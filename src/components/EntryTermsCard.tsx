@@ -95,7 +95,7 @@ export function EntryTermsCard({
         setSaved({ opens, closes, cap });
         setSaidSaved(true);
       } catch {
-        setError("That change was not saved. Check the connection, and that setup is unlocked.");
+        setError("That change was not saved. Check the connection.");
       }
     });
 

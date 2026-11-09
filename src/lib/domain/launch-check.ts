@@ -79,9 +79,10 @@ export interface LaunchWarning {
   screen: string;
   /**
    * Whether the fix can still be made once the tournament is live ("open"), or
-   * needs Unlock first because launching locks configuration ("unlock") — flights,
-   * sides and the name are structural; a round's day, the tee sheet and the money
-   * answer are not.
+   * needs a committee correction first because launching locks its scope
+   * ("unlock", the code's name for it; state machine PR 5b retired the blanket
+   * Unlock, and the words say "a committee correction") — flights, sides and the
+   * name are structural; a round's day, the tee sheet and the money answer are not.
    */
   afterLaunch: "open" | "unlock";
 }

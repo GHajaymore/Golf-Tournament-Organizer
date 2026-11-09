@@ -24,6 +24,9 @@ import { makeCommitteeCorrection, CORRECTION_REASON } from "./committee-correcti
  *   Flights              Rename <the first flight> (Enter) → flights
  *   Rounds & formats     Delete Round 2                  → rounds
  *
+ * (Round 2 is this spec's own: the seeded medal is one round, so an empty one is
+ * added to this file's copy of the club before the walk.)
+ *
  * Each is refused under the press in the scope's words — "Locked because the
  * tournament is live. Make a committee correction to delete a round." — nothing
  * is written, the screen is still there, and it redraws with the banner naming
@@ -33,6 +36,11 @@ import { makeCommitteeCorrection, CORRECTION_REASON } from "./committee-correcti
  * asks why, opens the rounds, the banner says who opened it and why, the record
  * holds the line, the same control now works, and Done closes it. The dashboard
  * offers the same button and never "Unlock configuration".
+ *
+ * LAST, THE OLD UNLOCK'S ONE CONTROL: a tournament left unlocked as a whole from
+ * before PR 5b (`configUnlocked`) says so on the dashboard and offers only Lock
+ * setup again (`setConfigUnlocked(false)`), which locks it, on the record, and
+ * brings the correction back. No screen turns the old unlock ON any more.
  *
  * WHAT IT CANNOT PRESS, and where each is proved instead: the other 24 sites
  * (Clear scores among them), the assistant's "Ask the Organizer" words, a lapsed
@@ -61,14 +69,38 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
   const errors: string[] = [];
   watchPageErrors(page, errors, "organizer");
 
-  // The fixture's facts, read from the fixture: the live medal, with flights and two rounds.
+  // The fixture's facts, read from the fixture: the live medal, with flights and its rounds.
   const ev = club.events.find((e) => e.slug === "medal")!;
   const event = await prisma.event.findUniqueOrThrow({ where: { id: ev.id } });
   expect(event.status, "the seeded medal is not launched").toBe("live");
   expect(event.configUnlocked, "the seeded medal's setup is unlocked the old way").toBe(false);
   expect(event.correctionScope, "the seeded medal already has a correction open").toBeNull();
-  const stages = await prisma.stage.findMany({ where: { eventId: ev.id }, orderBy: { position: "asc" } });
-  expect(stages.length, "the seeded medal has fewer than two rounds").toBeGreaterThanOrEqual(2);
+  const seeded = await prisma.stage.findMany({ where: { eventId: ev.id }, orderBy: { position: "asc" } });
+  expect(seeded.length, "the seeded medal has no round").toBeGreaterThanOrEqual(1);
+  expect(seeded.some((s) => s.cutEnabled), "a cut would change the rounds' numbers this spec reads").toBe(false);
+  /**
+   * THE ROUND THIS SPEC DELETES IS ITS OWN. The seeded medal is ONE round, with cards on it
+   * (`scripts/seed-club.mjs`), and every other spec reads it as one. So an empty round is added
+   * after the last, copied from it, to the copy of the club this file seeded in `beforeAll` and
+   * tears down in `afterAll` (one worker: no other spec is reading it meanwhile) — it is what is
+   * refused while locked and deleted through the correction.
+   */
+  const last = seeded[seeded.length - 1];
+  const added = await prisma.stage.create({
+    data: {
+      eventId: ev.id,
+      position: last.position + 1,
+      description: `Round ${seeded.length + 1}`,
+      type: last.type,
+      format: last.format,
+      holes: last.holes,
+      nine: last.nine,
+      courseId: last.courseId,
+      teeId: last.teeId,
+      scoringBasis: last.scoringBasis,
+    },
+  });
+  const addedLabel = `Round ${seeded.length + 1}`;
   // The first flight, labelled as the board labels it (`flightLabel`: a one- or two-character name reads "Flight X", a longer one as itself).
   const flight = await prisma.group.findFirstOrThrow({ where: { eventId: ev.id, isCarrier: false }, orderBy: { position: "asc" } });
   const flightName = flight.name.trim();
@@ -158,14 +190,15 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       },
     });
 
-    const round2 = stages[1];
+    const round2 = added;
     const deleteRound = async (p: Page) => {
-      const card = p.locator("main .card", { has: p.locator("button", { hasText: /Round 2/ }) }).first();
-      if (!(await card.getByRole("button", { name: /^Delete Round 2/ }).isVisible().catch(() => false))) await card.locator("button", { hasText: /Round 2/ }).first().click();
-      await card.getByRole("button", { name: /^Delete Round 2/ }).click();
+      const card = p.locator("main .card", { has: p.locator("button", { hasText: addedLabel }) }).first();
+      const del = card.getByRole("button", { name: `Delete ${addedLabel}`, exact: true });
+      if (!(await del.isVisible().catch(() => false))) await card.locator("button", { hasText: addedLabel }).first().click();
+      await del.click();
     };
     await pressedAfterTheLock({
-      label: "Rounds & formats · Delete Round 2",
+      label: `Rounds & formats · Delete ${addedLabel}`,
       path: "/stages",
       scope: "rounds",
       heading: /^Rounds & formats$/,
@@ -204,8 +237,28 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
     await expect(page.getByRole("button", { name: "Make a committee correction" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Unlock configuration|Unlock setup/ })).toHaveCount(0);
 
+    // ── A TOURNAMENT THE OLD WHOLE-SETUP UNLOCK STILL HOLDS OPEN (from before PR 5b) ──
+    // No screen turns `configUnlocked` ON any more; the one control left for it is the
+    // dashboard's Lock setup again (`setConfigUnlocked(false)`), pressed here by the Organizer.
+    await prisma.event.update({ where: { id: ev.id }, data: { configUnlocked: true } });
+    await open("/dashboard");
+    await expect(page.getByText("Setup was unlocked as a whole, the old way, and stays open until it is locked again.")).toBeVisible({ timeout: 20_000 });
+    const lockAgain = page.getByRole("button", { name: "Lock setup again" });
+    await lockAgain.click();
+    await expect
+      .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).configUnlocked, { message: "Lock setup again stored nothing" })
+      .toBe(false);
+    await expect(lockAgain, "Lock setup again is still offered once locked").toHaveCount(0, { timeout: 20_000 });
+    await expect(page.getByText("Setup was unlocked as a whole, the old way"), "the old unlock is still said once locked").toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Make a committee correction" }), "the correction is not offered once the old unlock is closed").toBeVisible();
+    expect(
+      await prisma.auditLog.count({ where: { eventId: ev.id, action: "committee-correction", detail: { contains: "Locked setup again" } } }),
+      "the record has no line for locking the old unlock",
+    ).toBe(1);
+
     expect(errors, errors.join("\n")).toEqual([]);
   } finally {
+    await prisma.event.update({ where: { id: ev.id }, data: { configUnlocked: false } });
     await closed();
     await prisma.auditLog.deleteMany({ where: { eventId: ev.id, action: "committee-correction" } });
   }

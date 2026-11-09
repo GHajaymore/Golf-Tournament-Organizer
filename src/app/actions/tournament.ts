@@ -6556,7 +6556,7 @@ export async function settleCutTie(
   const made = stroke ?? (await roundRobinCutAfter(eventId, feeder.id));
   if (!made) return { ok: false, error: "There is no cut out of this round." };
   if (!stroke && (await enteredCardCount(eventId, made.next.id)) > 0) {
-    return { ok: false, error: "The round after this one has results already, so its field has been played on. Unlock setup and redraw it to change who went through." };
+    return { ok: false, error: "The round after this one has results already, so its field has been played on. Clear its scores on Score entry first, then redraw it to change who went through." };
   }
   const wanted = Array.isArray(tied) ? tied.filter((x) => typeof x === "string") : [];
   const same = (a: readonly string[]) => a.length === wanted.length && a.every((id) => wanted.includes(id));
