@@ -80,9 +80,9 @@ export function drawReadiness(input: DrawReadinessInput): DrawBlock | null {
   if (input.locked) {
     return {
       problem:
-        "Setup is locked because this tournament has started. Unlock it to redraw — any scores already entered stay as they are.",
-      href: "/event",
-      linkLabel: "Unlock the tournament",
+        "The flights are locked because this tournament has started. A committee correction to the flights lets you redraw — any scores already entered stay as they are.",
+      href: "/dashboard",
+      linkLabel: "Make a committee correction",
     };
   }
   if (input.fieldSize <= 0) {

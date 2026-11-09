@@ -346,8 +346,8 @@ export function TeamsClient({
             placeholder="e.g. The Slicers"
             onKeyDown={(e) => {
               if (e.key === "Enter" && newName.trim() && !busy) {
-                run(async () => caughtUp(await createTeam(newName, activeRoundId)));
-                setNewName("");
+                // The typed name is cleared only once the side exists: a refusal keeps it (panel on 5a).
+                run(async () => caughtUp(await createTeam(newName, activeRoundId)), () => setNewName(""));
               }
             }}
           />
@@ -356,10 +356,7 @@ export function TeamsClient({
           type="button"
           className="btn btn-secondary"
           disabled={busy || !newName.trim()}
-          onClick={() => {
-            run(async () => caughtUp(await createTeam(newName, activeRoundId)));
-            setNewName("");
-          }}
+          onClick={() => run(async () => caughtUp(await createTeam(newName, activeRoundId)), () => setNewName(""))}
         >
           <Icon name="plus" /> Add team
         </button>

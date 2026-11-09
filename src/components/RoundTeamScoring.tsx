@@ -191,13 +191,11 @@ export function RoundTeamScoring({
               value={info.entryMode}
               onChange={(e) => {
                 setErrorKind(null);
-                // `setStageScoreInput` returns nothing — it either writes the
-                // value or discards one the format does not offer, and the
-                // refresh brings back whichever it settled on.
-                run(async () => {
-                  await setStageScoreInput(stageId, e.target.value);
-                  return { ok: true };
-                });
+                // `setStageScoreInput` either writes the value or discards one
+                // the format does not offer, and the refresh brings back
+                // whichever it settled on; it answers only when the rounds are
+                // locked (PR 5b), which `run` says and catches up.
+                run(async () => (await setStageScoreInput(stageId, e.target.value)) ?? { ok: true });
               }}
             >
               {info.entryChoices.map((key: TeamEntryMode) => (

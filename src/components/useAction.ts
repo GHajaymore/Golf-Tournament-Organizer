@@ -40,10 +40,29 @@ import { useRouter } from "next/navigation";
  * drift: `HandicapSetup` changes what the server will render next and the
  * others do not.
  */
+/**
+ * A PRESS REFUSED BY A SCOPED LOCK CATCHES THE SCREEN UP (state machine PR 5b;
+ * the 5a engineer's idea). Every structural action returns `{ ok: false, error,
+ * lock }` when its scope is locked (`refuseIfLocked`): the screen was drawn
+ * before the lock — the tournament launched in another tab — so its controls
+ * were live. The refusal is said like any other, and the screen is drawn again,
+ * so the banner arrives and the controls shut rather than inviting a second
+ * refused press. One place, so no component forgets: `run` below does it, and
+ * a component with a body of its own wraps its result in `caughtUp`.
+ */
+export function useCaughtUp() {
+  const router = useRouter();
+  return <T extends { ok: boolean; lock?: unknown }>(res: T): T => {
+    if (!res.ok && res.lock) router.refresh();
+    return res;
+  };
+}
+
 export function useAction({ refresh = false }: { refresh?: boolean } = {}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const router = useRouter();
+  const caughtUp = useCaughtUp();
 
   /**
    * `after` runs only when the action succeeded — closing an editor, clearing
@@ -53,12 +72,12 @@ export function useAction({ refresh = false }: { refresh?: boolean } = {}) {
    * thrown away what the person typed.
    */
   const run = (
-    fn: () => Promise<{ ok: boolean; error?: string }>,
+    fn: () => Promise<{ ok: boolean; error?: string; lock?: unknown }>,
     after?: () => void,
   ) =>
     startTransition(async () => {
       setError("");
-      const res = await fn();
+      const res = caughtUp(await fn());
       if (!res.ok) {
         setError(res.error ?? "Couldn't save that.");
         return;

@@ -30,6 +30,8 @@ import { noSheetWarning } from "@/lib/domain/keeping-words";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
 import { SaveState, useSaveStatus } from "./SaveState";
+import { useCaughtUp } from "./useAction";
+import { bringIntoView } from "@/lib/bring-into-view";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { INTERVAL_OPTIONS, dueBeforePlayed, roundDates, shortDate } from "@/lib/domain/round-dates";
 import { CoursePicker } from "@/components/CoursePicker";
@@ -248,12 +250,14 @@ const BASIS_CHOICES = BASIS_OPTIONS.filter((o) => !o.legacy);
 /**
  * SETUP IS LOCKED — provided once by `StagesClient`, read by each card.
  *
- * The actions behind most controls on this screen refuse a locked tournament
- * by THROWING (`assertUnlocked`), which takes the page down to "Application
- * error". The page computed the lock and only showed a banner with it, so on a
- * live tournament every one of them was offered and every one crashed (swept
- * 2026-09-27: 24 controls). A context rather than a prop threaded through
- * three layers of cards.
+ * The actions behind most controls on this screen refuse a locked tournament.
+ * They THREW until the scoped locks (state machine PR 5b), which took the page
+ * down to "Application error" — the page computed the lock and only showed a
+ * banner with it, so on a live tournament every one of them was offered and
+ * every one crashed (swept 2026-09-27: 24 controls). They RETURN the rounds
+ * lock's reason now (`refuseIfLocked(…, "rounds")`), and a press refused that
+ * way catches the screen up (`useCaughtUp`). A context rather than a prop
+ * threaded through three layers of cards.
  *
  * NOT everything here is behind the lock, and those stay open: a round's date,
  * its course and tees, "round finished", and the round's handicaps — and, since
@@ -261,7 +265,7 @@ const BASIS_CHOICES = BASIS_OPTIONS.filter((o) => !o.legacy);
  * a round, drawing the next round (the server refuses a redraw of a round that
  * already has scores), the completion deadline and scoring window, and making
  * the single match or the play-off for third. Gate a new control on this only
- * when its action calls `assertUnlocked`.
+ * when its action asks `refuseIfLocked`.
  */
 const SetupLocked = React.createContext(false);
 
@@ -309,6 +313,7 @@ function isIsoDate(v: string): boolean {
  */
 function DrawRound({ stage, label }: { stage: StageView; label: string }) {
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   const [refused, setRefused] = useState<string | null>(null);
   const pairings = generatesPairings(stage.type);
   const drawn = stage.matchCount > 0;
@@ -326,7 +331,7 @@ function DrawRound({ stage, label }: { stage: StageView; label: string }) {
           onClick={() =>
             startTransition(async () => {
               setRefused(null);
-              const res = await generateNextRound(stage.id);
+              const res = caughtUp(await generateNextRound(stage.id));
               if (!res.ok) setRefused(res.error);
             })
           }
@@ -504,6 +509,7 @@ function NextRoundTransition({
   const [carryEnabled, setCarryEnabled] = useState(nextStage?.carryEnabled ?? false);
   const [carryPct, setCarryPct] = useState(nextStage?.carryPct ?? 0);
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   // Every control in this section is behind the lock — see `SetupLocked`.
   const locked = React.useContext(SetupLocked);
   /**
@@ -525,7 +531,7 @@ function NextRoundTransition({
     setCarryPct(nextPct);
     startTransition(async () => {
       const id = await ensureNextStageId();
-      await setStageCarry(id, nextEnabled, nextPct);
+      caughtUp(await setStageCarry(id, nextEnabled, nextPct));
     });
   };
 
@@ -831,6 +837,7 @@ function StageCard({
   // Gates only the controls whose action refuses a locked tournament — see
   // `SetupLocked` for the ones that deliberately stay open.
   const locked = React.useContext(SetupLocked);
+  const caughtUp = useCaughtUp();
   const today = React.useContext(ServerToday);
   const launched = React.useContext(Launched);
   /**
@@ -909,6 +916,8 @@ function StageCard({
    * collected, and the trash icon used to do all of that on one click.
    */
   const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number; records: number; refused?: string } | null>(null);
+  /** Delete refused outright — the rounds are locked (PR 5b) — said under the bin, in the lock's words. */
+  const [removeRefused, setRemoveRefused] = useState("");
   // On the timeline Delete is the panel's last control, so its warning opens below the fold of
   // the panel's own scroll: brought into view when it appears (`rounds-panel.spec`, 2026-11-02).
   const removeWarningRef = useRef<HTMLDivElement>(null);
@@ -932,10 +941,10 @@ function StageCard({
     if (!p) return;
     setRescore(null);
     startTransition(async () => {
-      if (p.kind === "holes") await setStageHoles(stage.id, p.holes, true);
+      if (p.kind === "holes") caughtUp(await setStageHoles(stage.id, p.holes, true));
       else if (p.kind === "venue") {
         await setStageCourse(stage.id, p.course, p.nine, true);
-      } else await setStageScoringBasis(stage.id, p.basis, true);
+      } else caughtUp(await setStageScoringBasis(stage.id, p.basis, true));
     });
   };
   const cancelRescore = () => {
@@ -957,7 +966,7 @@ function StageCard({
     // many. Changing a format re-scores every one of them: the strokes stay,
     // what they MEAN changes.
     startTransition(async () => {
-      const res = await setStageFormat(stage.id, v);
+      const res = caughtUp(await setStageFormat(stage.id, v));
       if (res && "needsConfirm" in res) setFormatCards({ format: v, cards: res.cards ?? 0 });
       // Refused outright: the picker goes back to what the round is.
       else if (res && !res.ok) setFormat(stage.format);
@@ -968,7 +977,7 @@ function StageCard({
     if (!pendingChange) return;
     setFormatCards(null);
     startTransition(async () => {
-      await setStageFormat(stage.id, pendingChange.format, true);
+      caughtUp(await setStageFormat(stage.id, pendingChange.format, true));
     });
   };
 
@@ -993,7 +1002,7 @@ function StageCard({
     // — eighteen to nine re-ranks the stroke index onto the nine played and
     // measures every card against a different denominator.
     startTransition(async () => {
-      const res = await setStageHoles(stage.id, v);
+      const res = caughtUp(await setStageHoles(stage.id, v));
       if (res?.needsConfirm) setRescore({ kind: "holes", holes: v, cards: res.cards ?? 0 });
     });
   };
@@ -1022,13 +1031,15 @@ function StageCard({
     // Gross, net and Stableford rank the same numbers three different ways,
     // and the countback now runs on whichever this says. See the action.
     startTransition(async () => {
-      const res = await setStageScoringBasis(stage.id, next);
+      const res = caughtUp(await setStageScoringBasis(stage.id, next));
       if (res?.needsConfirm) setRescore({ kind: "basis", basis: next, cards: res.cards ?? 0 });
     });
   };
   const commitScoreInput = (next: string) => {
     setScoreInput(next);
-    startTransition(() => setStageScoreInput(stage.id, next));
+    startTransition(async () => {
+      caughtUp(await setStageScoreInput(stage.id, next));
+    });
   };
   // How players keep the matches (`matchKeptBy`). A refusal — a round with
   // scores already in — is said beside the choice and the radio goes back.
@@ -1039,7 +1050,7 @@ function StageCard({
     setKeptBy(next);
     setKeptByRefusal("");
     startTransition(async () => {
-      const res = await setStageMatchKeptBy(stage.id, next);
+      const res = caughtUp(await setStageMatchKeptBy(stage.id, next));
       if (!res.ok) {
         setKeptBy(before);
         setKeptByRefusal(res.error ?? "Couldn't change that.");
@@ -1429,7 +1440,11 @@ function StageCard({
    * row as the trash button. The timeline's panel puts Delete at its very end, a screen away from
    * the Format box, so there it is drawn beside Delete (`rounds-panel.spec`, 2026-11-02).
    */
-  const removeWarning = removeCost?.refused ? (
+  const removeWarning = removeRefused ? (
+    <p role="alert" ref={bringIntoView} style={{ marginTop: 8, fontSize: 13, color: "var(--color-danger)" }}>
+      {removeRefused}
+    </p>
+  ) : removeCost?.refused ? (
     <div ref={removeWarningRef} role="alert" style={{ marginTop: 8, padding: "8px 10px", border: "1px solid var(--color-danger)", borderRadius: 8, fontSize: 13, lineHeight: 1.55 }}>
       {removeCost.refused}
       <div style={{ marginTop: 6 }}>
@@ -1475,8 +1490,9 @@ function StageCard({
             setRemoveCost(null);
             startTransition(async () => {
               // Said where the press was: a refusal comes back as words, never silence.
-              const res = await removeStage(stage.id, true);
+              const res = caughtUp(await removeStage(stage.id, true));
               if (res && "refused" in res && res.refused) setRemoveCost({ cards: 0, stakes: 0, records: 0, refused: res.refused });
+              else if (res && !res.ok && "error" in res) setRemoveRefused(res.error ?? "");
             });
           }}
         >
@@ -1772,9 +1788,12 @@ function StageCard({
             startTransition(async () => {
               // The server refuses when the round holds results or money, and
               // says how much of each. An empty round still deletes on one press.
-              const res = await removeStage(stage.id);
+              setRemoveRefused("");
+              const res = caughtUp(await removeStage(stage.id));
               if (res && "refused" in res && res.refused) setRemoveCost({ cards: 0, stakes: 0, records: 0, refused: res.refused });
               else if (res?.needsConfirm) setRemoveCost({ cards: res.cards ?? 0, stakes: res.stakes ?? 0, records: res.records ?? 0 });
+              // Refused outright — the rounds are locked — and said where the press was (PR 5b).
+              else if (res && !res.ok && "error" in res) setRemoveRefused(res.error ?? "");
             })
           }
         >

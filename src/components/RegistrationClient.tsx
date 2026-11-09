@@ -32,7 +32,9 @@ import {
 import { withdrawConfirmation, type FieldChange } from "@/lib/domain/field-change";
 import { setNameWithheld } from "@/app/actions/report-settings";
 import { SaveState, useSaveStatus } from "./SaveState";
-import { SetupLockBanner } from "./SetupLockBanner";
+import { ScopeLockBanner } from "./ScopeLockBanner";
+import { useCaughtUp } from "./useAction";
+import type { CorrectionFacts, ScopeLock } from "@/lib/domain/tournament-status";
 import { RosterPicker } from "./RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { csvSizeRefusal } from "@/lib/csv";
@@ -133,6 +135,8 @@ export function RegistrationClient({
   waitlist,
   pendingEntries,
   locked,
+  fieldLocks = [],
+  correction = null,
   doors,
   underWay = null,
   flights = [],
@@ -179,8 +183,11 @@ export function RegistrationClient({
   waitlist: Signup[];
   /** Self-service entries awaiting the organizer's approval (approve mode). */
   pendingEntries: Signup[];
-  /** The SETUP lock — the per-player tees, the entry terms. The field has its own doors below. */
+  /** The FIELD's lock (the machine's `locks.field`, PR 5b) — the per-player tees, the entry terms. The field has its own doors below. */
   locked: boolean;
+  /** The same lock as the banner draws it, with its reason and way out, and the committee correction open on it, if any. */
+  fieldLocks?: readonly ScopeLock[];
+  correction?: CorrectionFacts | null;
   /**
    * THE FIELD'S DOORS (day-of field changes, PR A): each field change's refusal
    * in a sentence, or null where it is open — `fieldDoors` of the one rule the
@@ -253,6 +260,7 @@ export function RegistrationClient({
   const rowError = rowSaid.text;
   const setRowError = (text: string, at = "") => setRowSaid({ text, at: text ? at : "" });
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   const tableSaveStatus = useSaveStatus(pending);
   // The invite message saves when it is left, on its own transition so its
   // "Saved" does not light up for a change made somewhere else on the screen.
@@ -979,7 +987,7 @@ export function RegistrationClient({
       {/* UNDER WAY, THIS SCREEN SAYS WHAT IS STILL OPEN (day-of field changes,
           PR A) in place of "Setup locked" — the banner's words come from the one
           field rule, so it never promises an add the server refuses. */}
-      <SetupLockBanner locked={locked} isAdmin={isAdmin} underWay={underWay} />
+      <ScopeLockBanner locks={fieldLocks} correction={correction} isAdmin={isAdmin} open={underWay} />
       {fieldSaid && (
         <p role="status" className="card elev-sm" style={{ margin: "0 0 16px", fontSize: 14 }}>
           <Icon name="info" /> {fieldSaid}
@@ -1239,9 +1247,10 @@ export function RegistrationClient({
                       setSwitchRefused("");
                       showRequirePhone(on);
                       try {
-                        await setRequirePhone(on);
+                        const res = caughtUp(await setRequirePhone(on));
+                        if (!res.ok) setSwitchRefused(res.error ?? "That change was not saved.");
                       } catch {
-                        setSwitchRefused("That change was not saved. Check the connection, and that setup is unlocked.");
+                        setSwitchRefused("That change was not saved. Check the connection.");
                       }
                     });
                   }}

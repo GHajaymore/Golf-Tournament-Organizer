@@ -1,7 +1,9 @@
 "use client";
 import { useState, useTransition } from "react";
 import { clearRoundScores } from "@/app/actions/tournament";
+import { CorrectionButton } from "./CommitteeCorrection";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
 
 /**
  * Clear a round's scores — a selection, or all of them.
@@ -35,6 +37,7 @@ export function ClearScores({
   const [done, setDone] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
 
   const all = picked.size === 0;
   const toggle = (id: string) =>
@@ -48,7 +51,7 @@ export function ClearScores({
   const run = () => {
     setError("");
     startTransition(async () => {
-      const res = await clearRoundScores(stageId, [...picked]);
+      const res = caughtUp(await clearRoundScores(stageId, [...picked]));
       if (!res.ok) {
         setError(res.error ?? "Couldn't clear those scores.");
         return;
@@ -145,14 +148,17 @@ export function ClearScores({
       {/* The second press is the confirmation. A dialog gets dismissed on
           reflex; a button that changes what it says has to be read.
 
-          Not while setup is locked: `clearRoundScores` refuses a locked
-          tournament by throwing, so "Yes — clear" took the page down to
-          "Application error" (walked 2026-09-27). Said instead of offered. */}
+          Not while the rounds are locked: `clearRoundScores` refuses a locked
+          tournament — it threw, so "Yes — clear" took the page down to
+          "Application error" (walked 2026-09-27); it answers in words now
+          (PR 5b). Said instead of offered — with the way out in place: this
+          panel is drawn for the Organizer only (EntryModes), so the correction
+          button is theirs to press here, where the lock is said. */}
       {locked ? (
-        <p style={{ fontSize: 13, margin: 0 }}>
-          Setup is locked, so scores can&apos;t be cleared. Unlock setup on{" "}
-          <a href="/event">Tournament details</a> first.
-        </p>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <p style={{ fontSize: 13, margin: 0 }}>The rounds are locked, so scores can&apos;t be cleared. A committee correction to the rounds opens them.</p>
+          <CorrectionButton scopes={["rounds"]} />
+        </div>
       ) : confirming ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button

@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("@/app/actions/tournament", () => ({ setMatchTiebreakers: vi.fn() }));
+// The control catches a locked refusal up through the router (`useCaughtUp`, PR 5b).
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }));
 
 import { MatchTiebreakControl } from "@/components/MatchTiebreakControl";
 import { breakMatchTie } from "@/lib/domain/match-tiebreak";

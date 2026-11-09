@@ -15,6 +15,7 @@ export const NO_SHEET: FieldClock = { lastTee: null, now: { day: "2026-11-29", m
 export const OPEN_DOORS: Record<FieldChange, string | null> = fieldDoors({
   status: "draft",
   configUnlocked: false,
+  correction: null,
   family: "stroke",
   playedRound: null,
   flightsConfirmed: false,
@@ -31,6 +32,7 @@ export function liveDoors(
   return fieldDoors({
     status: "live",
     configUnlocked: false,
+    correction: null,
     family,
     playedRound,
     flightsConfirmed,

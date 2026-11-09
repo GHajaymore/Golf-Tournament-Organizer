@@ -143,7 +143,7 @@ test("the assistant withdraws, puts back and takes a late entry on a launched me
     // Said to the Assistant, who cannot unlock, with who can (panel review of #1028, must-fix 2).
     await expect(
       desk
-        .getByText("The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.", { exact: false })
+        .getByText("The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction to the field on the dashboard.", { exact: false })
         .first(),
     ).toBeVisible();
     // Withdrawing is still open: it never reopens anything.

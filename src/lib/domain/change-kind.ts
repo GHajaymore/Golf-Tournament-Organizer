@@ -57,6 +57,10 @@ const SETTINGS_ACTIONS = [
   // Who may read the final report, who sees its amounts, and a player's name
   // withheld from public pages (2026-10-24).
   "report.settings", "player.public-name",
+  // The tournament's own moments (state machine PR 5b; panel 8.0 F1): who launched,
+  // completed or reopened it — and the committee correction that opens one locked
+  // part of setup, with its reason (TD Q2).
+  "tournament-launched", "tournament-completed", "tournament-reopened", "committee-correction",
 ];
 
 export function changeKind(action: string): ChangeKind {

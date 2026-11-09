@@ -101,7 +101,9 @@ test("launch is refused in place for a scramble with no sides, and warns about t
     await expect(open).toContainText(/\d of \d setup steps still open — you can launch without them\./);
     await expect(open).toContainText("There are no flights, so the whole field plays as one division.");
     await expect(open.getByRole("link", { name: "Make flights on Flights" })).toHaveAttribute("href", "/grouping");
-    await expect(open).toContainText("after launch, this needs Unlock first.");
+    // Flights are structural: once live they change only through a committee correction (state machine PR 5b retired Unlock).
+    await expect(open).toContainText("Make flights on Flights — after launch, this needs a committee correction first.");
+    await expect(open, "the launch check still names the retired Unlock").not.toContainText("Unlock");
     await expect(open.getByRole("link", { name: "Give it one on Tournament details" })).toHaveAttribute("href", "/event");
     // Four warnings, three rows: the third names the other two inline, each its own link.
     await expect(open.locator("li")).toHaveCount(3);

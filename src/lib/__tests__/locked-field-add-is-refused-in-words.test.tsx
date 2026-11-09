@@ -71,7 +71,7 @@ const isDisabled = (tag: string) => /\sdisabled=""/.test(tag);
 
 describe("Entries under way in a stroke field: the day-of doors are open", () => {
   const doors = liveDoors("stroke");
-  const underWay = fieldBanner({ status: "live", configUnlocked: false, family: "stroke", playedRound: null, flightsConfirmed: false, ...NO_SHEET });
+  const underWay = fieldBanner({ status: "live", configUnlocked: false, correction: null, family: "stroke", playedRound: null, flightsConfirmed: false, ...NO_SHEET });
 
   it("says it is under way and what is still open, not 'Setup locked'", async () => {
     const html = await reg({ locked: true, doors, underWay });
@@ -117,7 +117,7 @@ describe("Entries under way in a knockout: the draw is the field", () => {
   it("refuses Add in the rule's words where the button is, and promises nothing", async () => {
     const html = await reg({ locked: true, doors, underWay: ["x"] });
     expect(isDisabled(tagBefore(html, "Add late entry"))).toBe(true);
-    expect(html).toContain("The draw is made, so the field is fixed. To change it, an Organizer can unlock the tournament on the dashboard.");
+    expect(html).toContain("The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.");
     expect(html).not.toContain("You can still add players below");
     expect(html).toContain("While it is closed the sign-up link turns everyone away.");
     // Withdraw is still open: a withdrawal never reopens anything.
@@ -127,7 +127,7 @@ describe("Entries under way in a knockout: the draw is the field", () => {
   it("after the first card a stroke field refuses Add, naming the round and who can unlock", async () => {
     const html = await reg({ locked: true, doors: liveDoors("stroke", "Round 1"), underWay: ["x"] });
     expect(html).toContain(
-      "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can unlock the tournament on the dashboard.",
+      "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction to the field on the dashboard.",
     );
   });
 });

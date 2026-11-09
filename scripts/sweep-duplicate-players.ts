@@ -134,6 +134,7 @@ export const NOT_TIES: Readonly<Record<string, string>> = {
   "Stage.knockoutPlayBy": "a setting",
   "Stage.matchKeptBy": "a setting",
   "Course.verifiedBy": "a name",
+  "Event.correctionBy": "the session's display name of whoever opened the committee correction (PR 5b), not an id",
   "JoinRequest.decidedBy": "a name, 'by name' per the schema",
   "NamesakeNotice.dismissedBy": "the name of the staff member who dismissed it",
   "RoundAttendance.decidedBy": "the player themself or a staff NAME, per the schema",

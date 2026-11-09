@@ -1,5 +1,5 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
 import { settingsOf } from "@/lib/services/tournament";
 import { flightTeeCounts } from "@/lib/tournament-settings";
 import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
@@ -7,9 +7,9 @@ import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { GroupingControls } from "@/components/GroupingControls";
 import { generatesPairings } from "@/lib/stage-types";
-import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor } from "@/lib/services/tournament-status";
+import { setupRailFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { FlightBoard } from "@/components/FlightBoard";
 import { FlightTeeSelect } from "@/components/FlightTeeSelect";
 import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
@@ -24,7 +24,16 @@ export default async function GroupingPage() {
   const session = await requireScreen("grouping");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
-  const locked = isSetupLocked(state.event);
+  /**
+   * The machine's lock on the flights (PR 5b) — the one `regenGroups`,
+   * `renameGroup` and `setFlightsConfirmed` ask. A lock BY THE DRAW is left to
+   * the board, which already draws "confirmed" and the button that reopens it:
+   * this screen IS that lock's way out, so a banner sending people here would
+   * point at itself. Only a lock by launch or completion shuts the screen.
+   */
+  const flights = await screenLocksFor(session.eventId, ["flights"]);
+  const flightLocks = flights.locks.filter((l) => l.by !== "draw");
+  const locked = flightLocks.length > 0;
   // Where this screen sits in setting the tournament up. Null for a match.
   const flow = await setupRailFor(session.eventId);
   const manual = state.event.formationRule === "manual";
@@ -82,7 +91,7 @@ export default async function GroupingPage() {
         </p>
       </div>
 
-      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
+      <ScopeLockBanner locks={flightLocks} correction={flights.correction} isAdmin={session.viewRole === "admin"} />
 
       {drawWarning && (
         <p
