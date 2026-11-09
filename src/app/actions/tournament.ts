@@ -79,8 +79,8 @@ import { formatFitsRound, naturalFormatFor, newRoundBasis } from "@/lib/domain/r
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
-import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
-import { cardRevision, overwritesUnseen, MATCH_CHANGED_ELSEWHERE } from "@/lib/domain/pending-card";
+import { cleanHoleResults, cleanStartingCards, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
+import { cardRevision, overwritesUnseenFromAll, MATCH_CHANGED_ELSEWHERE, MAX_STARTING_CARDS } from "@/lib/domain/pending-card";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, storedCard, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
 import {
@@ -3022,7 +3022,7 @@ export async function removeStage(stageId: string, force = false) {
 export async function saveMatchHoles(
   matchId: string,
   holes: HoleResult[],
-  startedFrom?: HoleResult[],
+  startedFrom?: HoleResult[][],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { eventId, session, settings } = await requireScoreEntry();
   await assertOwnMatch(session, eventId, matchId);
@@ -3049,17 +3049,20 @@ export async function saveMatchHoles(
    * back to one hole played and "pending": the sign-off and the correction
    * gone, and nobody told.
    *
-   * So the console says which card it STARTED FROM, and the stroke card's
-   * conflict rule (`overwritesUnseen`, content revisions at the round's
-   * length) decides. Taps from one screen chain — each starts from the card
-   * the last one sent, and Next sends a page's actions one at a time — so a
-   * run of taps at a scorer's pace all land; a replay, or a screen that
-   * loaded before somebody else's change, is refused in words. Absent
-   * `startedFrom` (the player's own match keeper, a test, a page loaded
-   * before this shipped) is the old unconditional write.
+   * So the console says which cards it may have STARTED FROM — the last one
+   * the server acknowledged, every one sent since whose outcome it does not
+   * know (no signal, or a reply lost), and the card just before this tap —
+   * and the stroke card's conflict rule decides (`overwritesUnseenFromAll`,
+   * content revisions at the round's length). A scorer whose tap failed
+   * taps on and the next save carries the whole card; a run of taps at a
+   * scorer's pace all land; a replay, or a screen that loaded before
+   * somebody else's change, names no card the server holds and is refused
+   * in words. Absent `startedFrom` (the player's own match keeper, a test, a
+   * page loaded before this shipped) is the old unconditional write.
    */
   if (startedFrom !== undefined) {
-    const from = cleanHoleResults(startedFrom, roundHoles);
+    // Validated at the boundary: one to MAX_STARTING_CARDS cards, each of the round's length.
+    const from = cleanStartingCards(startedFrom, roundHoles, MAX_STARTING_CARDS);
     let storedRaw: unknown = [];
     try {
       storedRaw = JSON.parse(owner.holes);
@@ -3069,7 +3072,7 @@ export async function saveMatchHoles(
     const storedCard = cleanHoleResults(storedRaw, roundHoles) ?? [];
     const stored = cardRevision(storedCard);
     const sent = cardRevision(clean);
-    if (!from || overwritesUnseen(cardRevision(from), stored, sent)) {
+    if (!from || overwritesUnseenFromAll(from.map(cardRevision), stored, sent)) {
       return { ok: false, error: MATCH_CHANGED_ELSEWHERE };
     }
     // The card arriving IS the card stored: nothing to write, and nothing to

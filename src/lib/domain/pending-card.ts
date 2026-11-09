@@ -545,6 +545,30 @@ export function overwritesUnseen(readAt: string | undefined, stored: string, sen
   return staleAgainst(readAt, stored) && sent !== stored;
 }
 
+/**
+ * THE SAME RULE, FOR A SENDER THAT CANNOT KNOW WHICH OF SEVERAL CARDS IS STORED.
+ *
+ * On a course a save can fail with no signal (never stored) or land with its
+ * reply lost (stored, though the screen thinks it failed). The scorer taps on
+ * either way, so the console's next save names EVERY card the server might be
+ * holding as far as that screen knows: the last one the server acknowledged,
+ * each sent since whose outcome is unknown, and the card just before this tap.
+ * Refused only when the write would overwrite something unseen from ALL of
+ * them — `overwritesUnseen` asked of each, so the rule stays one rule. A
+ * replay from a page that loaded before a committee's correction names only
+ * cards from before it, and none matches (round G571-4).
+ */
+export function overwritesUnseenFromAll(readAts: readonly string[], stored: string, sent: string): boolean {
+  if (readAts.length === 0) return false;
+  return readAts.every((readAt) => overwritesUnseen(readAt, stored, sent));
+}
+
+/**
+ * How many starting cards one save may name. The screen keeps the newest; a
+ * scorer twenty failed taps deep has a card to reload, not a list to grow.
+ */
+export const MAX_STARTING_CARDS = 20;
+
 /** What the console's match card says when `overwritesUnseen` refuses its save. */
 export const MATCH_CHANGED_ELSEWHERE = "This match was changed elsewhere — reload to see it.";
 

@@ -18,6 +18,7 @@ import {
   NO_CARD_REVISION,
   NAG_AFTER_MS,
   overwritesUnseen,
+  overwritesUnseenFromAll,
   pendingKey,
   RETRY_EVERY_MS,
   shouldPoll,
@@ -234,6 +235,20 @@ describe("the one conflict rule for a card written whole (overwritesUnseen)", ()
 
   it("a hole result and a stroke never hash alike", () => {
     expect(cardRevision(["A"])).not.toBe(cardRevision([1]));
+  });
+
+  it("asked of several starting cards: taken when ANY of them is the card stored", () => {
+    // A save with no signal (hole one never stored), then a tap: the list names both.
+    expect(overwritesUnseenFromAll([blanks, holeOne], blanks, fiveAndFour)).toBe(false);
+    expect(overwritesUnseenFromAll([blanks, holeOne], holeOne, fiveAndFour)).toBe(false);
+  });
+
+  it("asked of several starting cards: refused when NONE of them is (the G571-4 replay)", () => {
+    expect(overwritesUnseenFromAll([blanks, holeOne], fiveAndFour, cardRevision(["A", "B", null]))).toBe(true);
+    // ... and the same card twice is still not a conflict.
+    expect(overwritesUnseenFromAll([blanks], holeOne, holeOne)).toBe(false);
+    // An empty list names no starting point: the unconditional write, as no list at all.
+    expect(overwritesUnseenFromAll([], fiveAndFour, holeOne)).toBe(false);
   });
 });
 
