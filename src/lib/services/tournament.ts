@@ -78,7 +78,7 @@ import {
   isBracketMode,
   parseBracketDraw,
   roundRobinMatchCount,
-  resolveMatch,
+  decidedOutcome,
   matchIsOver,
   storedMatchIsOver,
   courseHandicapMap,
@@ -3906,6 +3906,15 @@ function highlightsOf(state: EventState): Highlight[] {
   }
 
   // Longest current win streak across the field.
+  // Each match counted as the table counted it (`decidedOutcome`): a forfeit
+  // is a win, the all-square countback decides a halve, and a match not over —
+  // a result held in dispute among them, which `onBoard` blanks to no holes —
+  // neither extends a streak nor breaks one. `resolveMatch([]).complete` read
+  // a held result as a halve and ended the streak of the player who won it.
+  const tiebreak = {
+    sequence: parseMatchTiebreakers(state.event.matchTiebreakers),
+    strokeIndex: state.countbackCardFor,
+  };
   let best = { name: "", n: 0 };
   for (const rp of state.overall) {
     const ms = state.domainMatches
@@ -3913,10 +3922,10 @@ function highlightsOf(state: EventState): Highlight[] {
       .sort((a, b) => a.round - b.round);
     let streak = 0;
     for (const m of ms) {
-      const r = resolveMatch(m.holes);
-      if (!r.complete) continue;
+      const outcome = decidedOutcome(m, tiebreak);
+      if (outcome === null) continue;
       const isA = m.playerAId === rp.player.id;
-      const won = (r.winner === "A" && isA) || (r.winner === "B" && !isA);
+      const won = (outcome === "A" && isA) || (outcome === "B" && !isA);
       streak = won ? streak + 1 : 0;
     }
     if (streak > best.n) best = { name: rp.player.name, n: streak };
