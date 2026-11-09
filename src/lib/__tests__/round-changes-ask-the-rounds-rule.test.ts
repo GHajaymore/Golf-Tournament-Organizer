@@ -113,7 +113,19 @@ describe("the rounds-and-format actions ask the rounds rule (J12, PR 7b)", () =>
     expect(readSource("src/lib/domain/change-kind.ts")).toMatch(/"round\.recomputed", "round\.format"/);
   });
 
+  it("a round's holes ask the rule's 'holes' (format-like, 8 Nov) before they write, and only when they change", () => {
+    const b = body(TOURNAMENT, "setStageHoles");
+    expect(b).not.toMatch(/refuseIfLocked\(|needsConfirm: true/);
+    expect(b).toMatch(/if \(holesPlayed\(current\.holes\) !== value\) \{\s*const refused = await roundRefusal\(eventId, stageId, \{ kind: "holes" \}\);\s*if \(refused\) return \{ ok: false as const, error: refused \};/);
+    expect(b.indexOf("roundRefusal(")).toBeLessThan(b.search(FIRST_WRITE));
+  });
+
+  it("the rounds a cut was made out of are the one answer's, read by the door and the screen alike", () => {
+    expect(readSource("src/lib/domain/cut-ready.ts")).toMatch(/export function cutsMadeAfter\([\s\S]*?cutHasBeenMade\(r, rounds\[i - 1\]\)/);
+    expect(readSource("src/lib/services/round-change.ts")).toMatch(/cutsMade: cutsMadeAfter\(stages\)/);
+  });
+
   it("CONTROL: the body reader sees a lock-asking action as one", () => {
-    expect(body(TOURNAMENT, "setStageHoles")).toMatch(/refuseIfLocked\(eventId, "rounds"/);
+    expect(body(TOURNAMENT, "setStageCarry")).toMatch(/refuseIfLocked\(eventId, "rounds"/);
   });
 });

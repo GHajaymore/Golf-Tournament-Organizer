@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { clubToday } from "../domain/club-clock";
+import { cutsMadeAfter } from "../domain/cut-ready";
 import {
   acrossRounds,
   filesMatches,
@@ -29,7 +30,7 @@ import { tournamentFactsFor } from "./tournament-facts";
  * Every action that changes a round's allowance, split, basis, tees, format,
  * existence or day asks this — `setStageAllowance`, `setStageAllowanceWeights`,
  * `setStageScoringBasis`, `setStageCourse`, `setEventDefaultTee`,
- * `setFlightTee`, `setPlayerTee`, `setStageFormat`, `removeStage`,
+ * `setFlightTee`, `setPlayerTee`, `setStageFormat`, `setStageHoles`, `removeStage`,
  * `setStagePlayedOn`, `setStageDeadline` and `dateUndatedRounds` — in place of
  * the setup lock, so a refusal has one spelling and is RETURNED, never thrown
  * (state machine J10).
@@ -44,9 +45,13 @@ import { tournamentFactsFor } from "./tournament-facts";
  * The facts are the state machine's own (`tournamentFactsFor`), told the club's
  * day, never the server's.
  */
-export async function roundsFactsFor(eventId: string): Promise<Pick<TournamentFacts, "status" | "rounds"> | null> {
-  const facts = await tournamentFactsFor(eventId, clubToday(await zoneOfEvent(eventId)));
-  return facts ? { status: facts.status, rounds: facts.rounds } : null;
+export async function roundsFactsFor(eventId: string): Promise<(Pick<TournamentFacts, "status" | "rounds"> & { cutsMade: Set<string> }) | null> {
+  const [facts, stages] = await Promise.all([
+    tournamentFactsFor(eventId, clubToday(await zoneOfEvent(eventId))),
+    // The rounds a cut has been made out of — `cutsMadeAfter`, the one answer (`cutHasBeenMade`).
+    prisma.stage.findMany({ where: { eventId }, select: { id: true, position: true, type: true, format: true, cutEnabled: true, cutMadeAt: true, closedAt: true } }),
+  ]);
+  return facts ? { status: facts.status, rounds: facts.rounds, cutsMade: cutsMadeAfter(stages) } : null;
 }
 
 const NOT_FOUND = "That round isn’t in this tournament.";
@@ -77,7 +82,7 @@ export interface Rescore {
 /** The round's verdict on one change, with the round it judged. */
 export async function roundVerdictFor(eventId: string, stageId: string, ask: RoundChangeAsk): Promise<{ verdict: RoundVerdict; round: RoundChangeRound } | null> {
   const facts = await roundsFactsFor(eventId);
-  const one = facts ? roundChangeFactsOf(facts, String(stageId)) : null;
+  const one = facts ? roundChangeFactsOf(facts, String(stageId), facts.cutsMade) : null;
   return one ? { verdict: roundChangeAllowed(one, ask), round: one.round } : null;
 }
 
@@ -91,7 +96,7 @@ export async function roundRefusal(eventId: string, stageId: string, ask: RoundC
 export async function acrossRoundsRefusal(eventId: string, ask: Extract<RoundChangeAsk, { kind: "field-tees" | "day" }>): Promise<string | null> {
   const facts = await roundsFactsFor(eventId);
   if (!facts) return null;
-  const v = acrossRounds(facts, ask);
+  const v = acrossRounds(facts, ask, facts.cutsMade);
   return v.ok ? null : v.says;
 }
 
@@ -132,7 +137,7 @@ export async function beforeFieldTeeChange(
   if (!opts.changed) return { go: [] };
   const facts = await roundsFactsFor(eventId);
   if (!facts) return { go: [] };
-  const v = acrossRounds(facts, { kind: "field-tees" });
+  const v = acrossRounds(facts, { kind: "field-tees" }, facts.cutsMade);
   if (!v.ok) return { refused: { ok: false, error: v.says } };
   if (v.rescored.length === 0) return { go: [] };
   const scored = facts.rounds.filter((r) => r.playing && r.hasResult && !filesMatches(r));

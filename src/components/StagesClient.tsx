@@ -1622,6 +1622,12 @@ function StageCard({
               {doors.format}
             </p>
           )}
+          {/* The Holes choice beside it is shut on the same ground (8 Nov: holes are format-like); said once, here, where there is room. */}
+          {doors?.holes && (
+            <p className="text-muted" data-testid="holes-door" style={{ margin: "4px 0 0", fontSize: 13, lineHeight: 1.45 }}>
+              {doors.holes}
+            </p>
+          )}
           {formatSaid && (
             <p role={formatSaid.refused ? "alert" : "status"} style={{ margin: "4px 0 0", fontSize: 13, lineHeight: 1.45, ...(formatSaid.refused ? { color: "var(--color-danger)" } : {}) }}>
               {formatSaid.words}
@@ -1707,10 +1713,10 @@ function StageCard({
           <span className="field-caption">Holes</span>
           <div className="seg" role="radiogroup" aria-label={`Holes for ${thisRound || "this round"}`} style={{ width: "100%" }}>
             <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-              <input type="radio" name={`holes-${stage.id}`} checked={holes === 18} disabled={pending || locked} onChange={() => commitHoles(18)} />18
+              <input type="radio" name={`holes-${stage.id}`} checked={holes === 18} disabled={pending || shut("holes")} onChange={() => commitHoles(18)} />18
             </label>
             <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-              <input type="radio" name={`holes-${stage.id}`} checked={holes === 9} disabled={pending || locked} onChange={() => commitHoles(9)} />9
+              <input type="radio" name={`holes-${stage.id}`} checked={holes === 9} disabled={pending || shut("holes")} onChange={() => commitHoles(9)} />9
             </label>
           </div>
         </div>

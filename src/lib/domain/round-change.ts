@@ -37,6 +37,14 @@
  *     impossible — a Stableford card may hold a hole with no score, Rule 21.1b,
  *     which in stroke play is a disqualification, Rule 3.3b(3); stroke to
  *     Stableford changes the Terms after play, Committee Procedures 5A) · refuse.
+ *   - A ROUND'S HOLES, 18 ↔ 9 (`holes`; added 8 Nov, format-like): open · open
+ *     · REFUSE (the stroke index is re-ranked to the holes played and every card
+ *     is measured against another length) · refuse.
+ *   - A CUT ALREADY MADE OUT OF A ROUND (8 Nov): the allowance, basis and tees
+ *     of that round — and a tournament-wide tee change reaching it — are
+ *     REFUSED, the way out the cut's own undo: "The cut after Round 1 was made
+ *     on these figures. Undo the cut first, then change it: untick “This round
+ *     is finished” on Round 1." The next round's field was decided on them.
  *   - DELETING A ROUND (`delete`): open · WARN WITH A CONFIRM (its pairings or
  *     tee sheet go with it) · REFUSE ("Round 2 has scores. Clear them on Score
  *     entry first.") · refuse.
@@ -76,7 +84,7 @@ import { isKnockoutRound, roundIsStroke } from "../stage-types";
 import type { RoundFacts, TournamentFacts, WayOut } from "./tournament-status";
 
 /** The changes this rule judges. */
-export const ROUND_CHANGES = ["allowance", "round-tees", "field-tees", "format", "delete", "day"] as const;
+export const ROUND_CHANGES = ["allowance", "round-tees", "field-tees", "format", "holes", "delete", "day"] as const;
 export type RoundChange = (typeof ROUND_CHANGES)[number];
 
 /**
@@ -99,8 +107,14 @@ export const CONFIRMED_WARNINGS: readonly RoundWarn[] = ["rescore", "goes-with-i
 /** The part a change belongs to: the rounds, or — for a day — the details (section 3's Lock column). */
 export type RoundPart = "rounds" | "details";
 
-/** One round's facts, as the state machine read them. */
-export type RoundChangeRound = Pick<RoundFacts, "id" | "label" | "type" | "format" | "playing" | "hasResult" | "matches" | "teeSheetSaved">;
+/**
+ * One round's facts, as the state machine read them — and whether the cut OUT
+ * of it has been made (`cutsMadeAfter`, from `cutHasBeenMade`, the one answer):
+ * the next round's field was decided on this round's figures.
+ */
+export type RoundChangeRound = Pick<RoundFacts, "id" | "label" | "type" | "format" | "playing" | "hasResult" | "matches" | "teeSheetSaved"> & {
+  cutMadeAfter: boolean;
+};
 
 export interface RoundChangeFacts {
   /** Stored status: draft | registration | ready | live | completed. */
@@ -125,10 +139,28 @@ function clearing(round: Pick<RoundChangeRound, "type">): { wayOut: WayOut; what
     : { wayOut: CLEAR_SCORES, what: "scores", where: "on Score entry" };
 }
 
-/** The round's facts out of the tournament's — the state machine's reading, never a second one. */
-export function roundChangeFactsOf(f: Pick<TournamentFacts, "status" | "rounds">, roundId: string): RoundChangeFacts | null {
+/**
+ * WHERE A MADE CUT IS UNDONE TODAY: the round it came out of is reopened —
+ * "This round is finished" unticked on its card — which opens the next round to
+ * everybody again until it is closed, and closing it again makes the cut again
+ * on the figures it then has (`cutHasBeenMade`, `applyStrokeCut`).
+ */
+const UNDO_CUT: WayOut = { says: "Untick “This round is finished” on its card", href: "/stages" };
+
+/** A change to how a round a cut was made out of is priced, refused (the coordinator's words, 8 Nov). */
+export function cutMadeWords(label: string): string {
+  const r = label || "this round";
+  return `The cut after ${r} was made on these figures. Undo the cut first, then change it: untick “This round is finished” on ${r}.`;
+}
+
+/**
+ * The round's facts out of the tournament's — the state machine's reading,
+ * never a second one — with the rounds a cut has been made out of
+ * (`cutsMadeAfter`), REQUIRED, so no caller can forget the cut.
+ */
+export function roundChangeFactsOf(f: Pick<TournamentFacts, "status" | "rounds">, roundId: string, cutsMade: ReadonlySet<string>): RoundChangeFacts | null {
   const round = f.rounds.find((r) => r.id === roundId);
-  return round ? { status: f.status, round } : null;
+  return round ? { status: f.status, round: { ...round, cutMadeAfter: cutsMade.has(round.id) } } : null;
 }
 
 /** The J12 column, from the facts alone (header). */
@@ -194,11 +226,18 @@ export function roundChangeAllowed(facts: RoundChangeFacts, ask: RoundChangeAsk)
       if (step !== "after-scores") return yes();
       // A recorded match is never worked out again (header).
       if (filesMatches(round)) return no(`${label}’s matches were played off these strokes. Clear its ${clear.what} ${clear.where} first.`, clear.wayOut);
+      // A cut made out of it was decided on these figures: undo the cut first.
+      if (round.cutMadeAfter) return no(cutMadeWords(round.label), UNDO_CUT);
       return yes("rescore");
     case "field-tees":
       // A round of matches keeps the handicaps frozen at its first card; a round of cards is worked out again.
       if (step !== "after-scores" || filesMatches(round)) return yes();
+      if (round.cutMadeAfter) return no(cutMadeWords(round.label), UNDO_CUT);
       return yes("rescore");
+    case "holes":
+      // Format-like (8 Nov): eighteen to nine re-ranks the stroke index and the denominator of every card.
+      if (step === "after-scores") return no(`${label} has ${clear.what}; at another length its cards would mean something else. Clear its ${clear.what} ${clear.where} first.`, clear.wayOut);
+      return yes();
     case "format":
       if (ask.to === round.format) return yes();
       if (step === "after-scores") {
@@ -222,8 +261,9 @@ export function roundChangeAllowed(facts: RoundChangeFacts, ask: RoundChangeAsk)
 export function acrossRounds(
   f: Pick<TournamentFacts, "status" | "rounds">,
   ask: Extract<RoundChangeAsk, { kind: "field-tees" | "day" }>,
+  cutsMade: ReadonlySet<string>,
 ): RoundVerdict & { rescored: string[] } {
-  const rounds = f.rounds.filter((r) => r.playing);
+  const rounds = f.rounds.filter((r) => r.playing).map((r) => ({ ...r, cutMadeAfter: cutsMade.has(r.id) }));
   const verdicts = rounds.map((round) => ({ round, v: roundChangeAllowed({ status: f.status, round }, ask) }));
   const refused = verdicts.find((x) => !x.v.ok);
   if (refused) return { ...refused.v, rescored: [] };
@@ -276,8 +316,8 @@ export function goesWithItWords(round: Pick<RoundChangeRound, "label" | "matches
  * because the tournament is live" would read as covering every control.
  */
 export const ROUNDS_UNDER_WAY = [
-  "Until a round has scores, its format, allowance, tees and day can change.",
-  "A round with no scores can still be deleted. Holes, the cut and tie-breakers stay locked.",
+  "Until a round has scores, its format, holes, allowance, tees and day can change.",
+  "A round with no scores can still be deleted. The cut, tie-breakers and scores that count stay locked.",
 ] as const;
 
 /** A played round's day moved: who sees it (section 3, "Name, dates, venue"). */
@@ -305,6 +345,7 @@ export function roundDoors(facts: RoundChangeFacts): RoundDoors {
     "round-tees": door({ kind: "round-tees" }),
     // Any OTHER format (none named): after scores every one is refused, and before them none is.
     format: door({ kind: "format", to: "" }),
+    holes: door({ kind: "holes" }),
     delete: door({ kind: "delete" }),
     day: door({ kind: "day" }),
   };

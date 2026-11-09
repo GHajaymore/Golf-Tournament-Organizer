@@ -32,6 +32,7 @@ import { cardTrustNote, parseIndex } from "@/lib/domain/card-trust";
 import { pickedCardNote } from "@/lib/domain/picked-card";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { ROUNDS_UNDER_WAY, roundChangeFactsOf, roundDoors } from "@/lib/domain/round-change";
+import { cutsMadeAfter } from "@/lib/domain/cut-ready";
 import { DescribeTournament } from "@/components/DescribeTournament";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor, tournamentStatusFor, screenLocksFor } from "@/lib/services/tournament-status";
@@ -224,6 +225,8 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
     }
   }
 
+  // The rounds a cut has been made out of (`cutsMadeAfter`, the one answer) — the rounds rule refuses re-pricing them.
+  const cutsMade = cutsMadeAfter(state.stages);
   const stages = state.stages.map((s) => ({
     id: s.id,
     position: s.position,
@@ -291,7 +294,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
     // What the rounds rule says of this round (J12, PR 7b) — the machine's own facts, so the
     // controls and the actions behind them answer alike.
     doors: (() => {
-      const one = told ? roundChangeFactsOf(told.facts, s.id) : null;
+      const one = told ? roundChangeFactsOf(told.facts, s.id, cutsMade) : null;
       return one ? roundDoors(one) : null;
     })(),
   }));

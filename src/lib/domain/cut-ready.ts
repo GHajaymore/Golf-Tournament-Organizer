@@ -57,6 +57,20 @@ export function cutHasBeenMade(
 }
 
 /**
+ * THE ROUNDS A CUT HAS ALREADY BEEN MADE OUT OF — each playing round whose next
+ * playing round's cut `cutHasBeenMade` (the one answer), by id. The rounds rule
+ * (J12, PR 7b) refuses a change to how such a round is priced: the field of the
+ * next round was decided on these figures (`domain/round-change.ts`). The
+ * playing rounds in order, as the board and `strokeCutField` take them.
+ */
+export function cutsMadeAfter(
+  stages: ReadonlyArray<{ id: string; position: number; type: string; format: string; cutEnabled: boolean; cutMadeAt: Date | null; closedAt: Date | null }>,
+): Set<string> {
+  const rounds = [...stages].filter((s) => isPlayingRound(s.type)).sort((a, b) => a.position - b.position);
+  return new Set(rounds.flatMap((r, i) => (i > 0 && cutHasBeenMade(r, rounds[i - 1]) ? [rounds[i - 1].id] : [])));
+}
+
+/**
  * "Top 16 and ties", "Top 25% in each flight and ties" — or without the ties,
  * for a cut whose tie is settled another way (a play-off, a countback), or one
  * that settles no tie of its own.

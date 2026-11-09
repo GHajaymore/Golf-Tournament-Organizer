@@ -33,10 +33,10 @@ vi.mock("@/lib/auth", () => ({ getSession: async () => session.current, setActiv
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
 const { setStageAllowance } = await import("@/app/actions/teams");
-const { setStageFormat, setStageScoringBasis, removeStage, setStagePlayedOn } = await import("@/app/actions/tournament");
-const { setPlayerTee } = await import("@/app/actions/courses");
+const { setStageFormat, setStageScoringBasis, removeStage, setStagePlayedOn, setStageHoles } = await import("@/app/actions/tournament");
+const { setPlayerTee, setEventDefaultTee } = await import("@/app/actions/courses");
 const { freezeRoundHandicaps } = await import("@/lib/services/round-handicap");
-const { COMPLETED_DATES, COMPLETED_ROUNDS, SCHEDULES_WORDS } = await import("@/lib/domain/round-change");
+const { COMPLETED_DATES, COMPLETED_ROUNDS, SCHEDULES_WORDS, cutMadeWords } = await import("@/lib/domain/round-change");
 
 const prisma = new PrismaClient();
 const TAG = "zz-j12rounds";
@@ -222,11 +222,25 @@ describe("a launched tournament's rounds, judged by what a change would invalida
     expect(await setStagePlayedOn(ids.medal, "2026-11-21")).toEqual({ ok: true, said: SCHEDULES_WORDS });
   });
 
+  it("a round's holes are format-like (8 Nov): an unplayed round changes on one press, a played one is refused", async () => {
+    expect(await setStageHoles(ids.later, 9)).toEqual({ ok: true });
+    expect((await stageOf(ids.later))?.holes).toBe(9);
+    expect(await setStageHoles(ids.later, 18)).toEqual({ ok: true });
+    for (const force of [false, true]) {
+      expect(await setStageHoles(ids.medal, 9, force)).toEqual({
+        ok: false,
+        error: "Round 1 has scores; at another length its cards would mean something else. Clear its scores on Score entry first.",
+      });
+    }
+    expect((await stageOf(ids.medal))?.holes).toBe(18);
+  });
+
   it("once completed, every one of them is refused, with Reopen as the way out", async () => {
     await prisma.event.update({ where: { id: ids.event }, data: { status: "completed" } });
     try {
       expect(await setStageAllowance(ids.medal, 90, true)).toEqual({ ok: false, error: COMPLETED_ROUNDS });
       expect(await setStageFormat(ids.later, "Stableford")).toEqual({ ok: false, error: COMPLETED_ROUNDS });
+      expect(await setStageHoles(ids.later, 9)).toEqual({ ok: false, error: COMPLETED_ROUNDS });
       expect(await removeStage(ids.later, true)).toMatchObject({ ok: false, refused: COMPLETED_ROUNDS });
       expect(await setPlayerTee(players[1], ids.yellow, true)).toEqual({ ok: false, error: COMPLETED_ROUNDS });
       expect(await setStagePlayedOn(ids.medal, "2026-11-22")).toEqual({ ok: false, error: COMPLETED_DATES });
@@ -235,5 +249,61 @@ describe("a launched tournament's rounds, judged by what a change would invalida
     } finally {
       await prisma.event.update({ where: { id: ids.event }, data: { status: "live" } });
     }
+  });
+});
+
+/**
+ * A CUT ALREADY MADE OUT OF A ROUND (the coordinator's ruling, 8 Nov): the next
+ * round's field was decided on that round's figures, so its allowance, basis
+ * and tees — and a tournament-wide tee change that reaches it — are REFUSED,
+ * with the cut's own undo as the way out. Undone (Round 1 reopened: "This round
+ * is finished" unticked), the same change is asked again, not refused.
+ */
+describe("a cut made out of a round holds its figures (J12, 8 Nov)", () => {
+  const cut = { event: "", r1: "", r2: "" };
+
+  beforeAll(async () => {
+    const course = await prisma.course.findFirstOrThrow({ where: { name: `${TAG} links` } });
+    const event = await prisma.event.create({
+      data: {
+        organizationId: ids.org, name: `${TAG} cut championship ${RUN}`, status: "live", configUnlocked: false, shape: "single", format: "stroke",
+        formationRule: "balanced", dates: "", course: `${TAG} links`, city: "", address: "", regDeadline: "", capacity: 40,
+        shareToken: randomBytes(10).toString("hex"), courseId: course.id, defaultTeeId: ids.white, teePolicy: "own",
+      },
+    });
+    cut.event = event.id;
+    await prisma.eventCourse.create({ data: { eventId: event.id, courseId: course.id } });
+    // Round 1 played and CLOSED; the cut into Round 2 MADE (`cutHasBeenMade`: enabled, recorded, the feeder closed).
+    cut.r1 = (await prisma.stage.create({ data: { eventId: event.id, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "net", closedAt: new Date() } })).id;
+    cut.r2 = (await prisma.stage.create({ data: { eventId: event.id, position: 1, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "net", cutEnabled: true, cutMode: "count", cutCount: 2, cutMadeAt: new Date() } })).id;
+    for (const [i, p] of FIELD.entries()) {
+      const id = (await prisma.player.create({ data: { eventId: event.id, name: `${p.name} (cut)`, email: `${TAG}-cut${i}-${RUN}@example.invalid`, handicap: p.index, handicapType: "18", seed: i + 1, status: "confirmed" } })).id;
+      await prisma.scorecard.create({ data: { eventId: event.id, stageId: cut.r1, playerId: id, strokes: JSON.stringify(new Array(18).fill(5)), status: "entered" } });
+    }
+    await freezeRoundHandicaps(event.id, cut.r1);
+    session.current = { ...session.current!, eventId: event.id };
+  });
+
+  afterAll(() => {
+    session.current = { ...session.current!, eventId: ids.event };
+  });
+
+  const words = "The cut after Round 1 was made on these figures. Undo the cut first, then change it: untick “This round is finished” on Round 1.";
+
+  it("refuses the allowance, the basis and the tournament's tees, force or not, in the ruling's words — and writes nothing", async () => {
+    expect(cutMadeWords("Round 1")).toBe(words);
+    for (const force of [false, true]) {
+      expect(await setStageAllowance(cut.r1, 85, force)).toEqual({ ok: false, error: words });
+      expect(await setStageScoringBasis(cut.r1, "gross", force)).toEqual({ ok: false, error: words });
+      expect(await setEventDefaultTee(ids.yellow, force)).toEqual({ ok: false, error: words });
+    }
+    const r1 = await prisma.stage.findUniqueOrThrow({ where: { id: cut.r1 } });
+    expect([r1.handicapAllowance, r1.scoringBasis]).toEqual([0, "net"]);
+    expect((await prisma.event.findUniqueOrThrow({ where: { id: cut.event } })).defaultTeeId).toBe(ids.white);
+  });
+
+  it("undone where the words say — Round 1 reopened — the same change is asked again, not refused", async () => {
+    await prisma.stage.update({ where: { id: cut.r1 }, data: { closedAt: null } });
+    expect(await setStageAllowance(cut.r1, 85)).toMatchObject({ ok: false, needsConfirm: true, cards: 3 });
   });
 });

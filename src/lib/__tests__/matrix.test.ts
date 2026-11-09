@@ -3086,6 +3086,9 @@ describe("an upstream edit to the field, every family × every step (J12)", () =
  *   format                                open · RE-DRAW if it now draws differently · refuse
  *                                         both ways (Rule 21.1b vs 3.3b(3); Committee
  *                                         Procedures 5A) · refuse;
+ *   holes (8 Nov, format-like)            open · open · refuse · refuse;
+ *   a cut made OUT of the round (8 Nov)   its allowance, basis and tees (and the tournament's) refused after
+ *                                         scores, the way out the cut's undo on Rounds & formats;
  *   delete                                open · WARN (its draw goes with it) · refuse · refuse;
  *   a round's day                         open · open · WARN (schedules) · refuse.
  *
@@ -3107,16 +3110,20 @@ describe("an upstream edit to a round, every format × stage type × step × fie
   const ON_CARDS = ["Stroke Play", "Stableford", "Modified Stableford"];
   const matchesFiled = (type: string, format: string) => HEAD_TO_HEAD.includes(type) && !ON_CARDS.includes(format);
 
-  function want(kind: RoundChangeAsk["kind"], step: RoundStep, matches: boolean, redraws: boolean): Want {
+  /** `cut`: a cut has been made OUT of this round — the next round's field was decided on its figures (8 Nov). */
+  function want(kind: RoundChangeAsk["kind"], step: RoundStep, matches: boolean, redraws: boolean, cut = false): Want {
     if (step === "completed") return "refuse";
     switch (kind) {
       case "allowance":
       case "round-tees":
-        return step === "after-scores" ? (matches ? "refuse" : "warn") : "open";
+        return step === "after-scores" ? (matches || cut ? "refuse" : "warn") : "open";
       case "field-tees":
-        return step === "after-scores" && !matches ? "warn" : "open";
+        return step === "after-scores" && !matches ? (cut ? "refuse" : "warn") : "open";
       case "format":
         return step === "after-scores" ? "refuse" : step === "after-draw" && redraws ? "redraw" : "open";
+      case "holes":
+        // Format-like (8 Nov): another length makes the cards mean something else.
+        return step === "after-scores" ? "refuse" : "open";
       case "delete":
         return step === "after-scores" ? "refuse" : step === "after-draw" ? "warn" : "open";
       case "day":
@@ -3135,7 +3142,7 @@ describe("an upstream edit to a round, every format × stage type × step × fie
     const played = (step === "after-scores" || step === "completed") && !undrawable;
     const meant: RoundStep = step === "completed" ? "completed" : undrawable ? "before-draw" : step;
     return {
-      round: { id: "r1", label: "Round 1", type, format, playing: true, hasResult: played, matches: drawn ? pairings : 0, teeSheetSaved: h2h ? null : drawn },
+      round: { id: "r1", label: "Round 1", type, format, playing: true, hasResult: played, matches: drawn ? pairings : 0, teeSheetSaved: h2h ? null : drawn, cutMadeAfter: false },
       meant,
     };
   }
@@ -3145,7 +3152,9 @@ describe("an upstream edit to a round, every format × stage type × step × fie
     expect(v.says.trim().length, `${at}: a refusal in words`).toBeGreaterThan(10);
     expect(v.wayOut.href, `${at}: a way out to a screen`).toMatch(/^\//);
     expect(v.says, `${at}: never a correction over scores`).not.toMatch(/committee correction/i);
-    expect(v.wayOut.href, `${at}: the way out of its step`).toBe(v.step === "completed" ? "/dashboard" : type === "Bracket Stage" ? "/bracket" : "/entry");
+    // A made cut is undone where it is made — reopening the round on Rounds & formats.
+    const scoresWayOut = /^The cut after /.test(v.says) ? "/stages" : type === "Bracket Stage" ? "/bracket" : "/entry";
+    expect(v.wayOut.href, `${at}: the way out of its step`).toBe(v.step === "completed" ? "/dashboard" : scoresWayOut);
   };
 
   const PAIRS = STAGE_TYPES.flatMap((type) => GOLF_FORMATS.filter((f) => formatFitsRound(type, f.name)).map((f) => ({ type, format: f.name })));
@@ -3165,25 +3174,31 @@ describe("an upstream edit to a round, every format × stage type × step × fie
     for (const step of STEPS) {
       for (const n of [1, 2, 3, 8, 28]) {
         it(`${type} · ${format} · ${step} · ${n} in the field`, () => {
-          const { round, meant } = roundAt(type, format, step, n);
-          for (const status of step === "completed" ? ["completed"] : ["draft", "live"]) {
-            const facts = { status, round };
-            const at = `${status}`;
-            expect(roundStepOf(facts), `${at}: the round stands in the step meant`).toBe(meant);
-            for (const k of ["allowance", "round-tees", "delete", "day"] as const) {
-              const v = roundChangeAllowed(facts, { kind: k });
-              expect(kind(v), `${at}: ${k}`).toBe(want(k, meant, matches, false));
-              invariants(v, `${at}: ${k}`, type);
+          const { round: base, meant } = roundAt(type, format, step, n);
+          // A cut can only have been made OUT of a played round of cards (`cutHasBeenMade`: individual stroke rounds, the feeder closed).
+          const cuts = base.hasResult && !matches ? [false, true] : [false];
+          for (const cut of cuts) {
+            const round = { ...base, cutMadeAfter: cut };
+            for (const status of step === "completed" ? ["completed"] : ["draft", "live"]) {
+              const facts = { status, round };
+              const at = `${status}${cut ? " · cut made after it" : ""}`;
+              expect(roundStepOf(facts), `${at}: the round stands in the step meant`).toBe(meant);
+              for (const k of ["allowance", "round-tees", "holes", "delete", "day"] as const) {
+                const v = roundChangeAllowed(facts, { kind: k });
+                expect(kind(v), `${at}: ${k}`).toBe(want(k, meant, matches, false, cut));
+                invariants(v, `${at}: ${k}`, type);
+              }
+              if (to) {
+                const v = roundChangeAllowed(facts, { kind: "format", to });
+                expect(kind(v), `${at}: format → ${to}`).toBe(want("format", meant, matches, other !== undefined, cut));
+                invariants(v, `${at}: format`, type);
+              }
+              // The tournament's tees, over a tournament of this one round.
+              const across = acrossRounds({ status, rounds: [{ ...STATUS_FAMILIES.stroke().rounds[0], ...round }] }, { kind: "field-tees" }, new Set(cut ? ["r1"] : []));
+              expect(kind(across), `${at}: field tees`).toBe(want("field-tees", meant, matches, false, cut));
+              expect(across.rescored, `${at}: the rounds a confirm names`).toEqual(kind(across) === "warn" ? ["Round 1"] : []);
+              invariants(across, `${at}: field tees`, type);
             }
-            if (to) {
-              const v = roundChangeAllowed(facts, { kind: "format", to });
-              expect(kind(v), `${at}: format → ${to}`).toBe(want("format", meant, matches, other !== undefined));
-              invariants(v, `${at}: format`, type);
-            }
-            // The tournament's tees, over a tournament of this one round.
-            const across = acrossRounds({ status, rounds: [{ ...STATUS_FAMILIES.stroke().rounds[0], ...round }] }, { kind: "field-tees" });
-            expect(kind(across), `${at}: field tees`).toBe(want("field-tees", meant, matches, false));
-            expect(across.rescored, `${at}: the rounds a confirm names`).toEqual(kind(across) === "warn" ? ["Round 1"] : []);
           }
         });
       }
@@ -3239,7 +3254,7 @@ describe("an allowance changed after play re-prices off the frozen figure, by th
     for (const n of [1, 2, 3, 8, 28]) {
       it(`${type} · ${format} · ${n} in the field: 95% → 85% moves exactly the players the Rules move`, () => {
         // After scores, a round of cards: the rule asks and lets it through to be worked out again.
-        const v = roundChangeAllowed({ status: "live", round: { id: "r1", label: "Round 1", type, format, playing: true, hasResult: true, matches: 0, teeSheetSaved: true } }, { kind: "allowance" });
+        const v = roundChangeAllowed({ status: "live", round: { id: "r1", label: "Round 1", type, format, playing: true, hasResult: true, matches: 0, teeSheetSaved: true, cutMadeAfter: false } }, { kind: "allowance" });
         expect(v).toEqual({ ok: true, scope: "rounds", step: "after-scores", warn: "rescore" });
 
         const field = indexes(n).map((index, i) => {

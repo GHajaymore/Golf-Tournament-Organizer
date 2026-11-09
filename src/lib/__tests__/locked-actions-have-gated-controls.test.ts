@@ -94,7 +94,7 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     // (`addStage` left this list on 2026-09-27: adding a round is running the
     // event, not setting it up. Deleting one still refuses.)
     // (`removeStage` left it on 2026-11-08, J12 PR 7b: deleting a round asks the rounds rule — swept below.)
-    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "setStageHoles", "setStageCut"]) {
+    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "setStageCarry", "setStageCut"]) {
       expect(locked.has(a), `${a} should refuse a locked tournament`).toBe(true);
     }
     for (const f of [
@@ -200,7 +200,7 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
       }
     }
     // The control: the sweep finds the actions it is about.
-    for (const a of ["setStageAllowance", "setStageAllowanceWeights", "setStageScoringBasis", "setStageFormat", "removeStage", "setStageCourse", "setFlightTee", "setPlayerTee", "setEventDefaultTee", "setStagePlayedOn"]) {
+    for (const a of ["setStageAllowance", "setStageAllowanceWeights", "setStageScoringBasis", "setStageFormat", "removeStage", "setStageCourse", "setFlightTee", "setPlayerTee", "setEventDefaultTee", "setStagePlayedOn", "setStageHoles"]) {
       expect(roundActions.has(a), `${a} should ask the rounds rule`).toBe(true);
     }
     const reaching = callers(new Map([...roundActions].map((a) => [a, ""])));
@@ -210,7 +210,9 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     const blind = STAGES.filter((f) => !DOORS.test(readSource(f)));
     expect(blind, "Rounds & formats controls reaching a round action without the round's doors").toEqual([]);
     // And the page hands them over, from the machine's own facts.
-    expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/doors: \(\(\) => \{\s*const one = told \? roundChangeFactsOf\(told\.facts, s\.id\) : null;\s*return one \? roundDoors\(one\) : null;/);
+    expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/doors: \(\(\) => \{\s*const one = told \? roundChangeFactsOf\(told\.facts, s\.id, cutsMade\) : null;\s*return one \? roundDoors\(one\) : null;/);
+    // And the cuts it hands them are the one answer's (`cutsMadeAfter`, from `cutHasBeenMade`).
+    expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/const cutsMade = cutsMadeAfter\(state\.stages\);/);
     // The tee selects ask the person when the server asks (a confirm, never a silent force).
     for (const f of ["src/components/FlightTeeSelect.tsx", "src/components/FlightBoard.tsx", "src/components/PlaySettings.tsx", "src/components/RegistrationClient.tsx"]) {
       expect(readSource(f), `${f} sends a tee change without asking`).toMatch(/askThenForce\(\(force\) => set(?:FlightTee|PlayerTee|EventDefaultTee)\(/);

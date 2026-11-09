@@ -53,7 +53,6 @@ import {
   setStageCut,
   setStageScoreInput,
   setStageMatchKeptBy,
-  setStageHoles,
   saveTiebreakers,
   setQualifyMode,
   setBracketMode,
@@ -207,7 +206,6 @@ const PRESSES: { name: string; scope: string; what: string; press: () => Promise
   // setting, so they ask the rounds rule (`round-changes-after-play.audit.test.ts` walks them launched).
   { name: "setStageScoreInput", scope: "rounds", what: "change how scores are entered", press: () => setStageScoreInput(round1, "total") },
   { name: "setStageMatchKeptBy", scope: "rounds", what: "change who keeps the match card", press: () => setStageMatchKeptBy(round1, "player") },
-  { name: "setStageHoles", scope: "rounds", what: "change a round’s holes", press: () => setStageHoles(round1, 9, true) },
   { name: "saveTiebreakers", scope: "rounds", what: "change the tie-breakers", press: () => saveTiebreakers([]) },
   { name: "setQualifyMode", scope: "rounds", what: "change who qualifies", press: () => setQualifyMode("overall", 4) },
   { name: "setBracketMode", scope: "rounds", what: "change the bracket’s arrangement", press: () => setBracketMode("split") },
@@ -248,7 +246,7 @@ describe("on a launched tournament, every structural press is refused in words �
   it("an assistant pressing the same controls is told to ask the Organizer", async () => {
     await as(assistantId);
     try {
-      expect(await setStageHoles(round1, 9, true)).toMatchObject({ ok: false, error: ASK("change a round’s holes") });
+      expect(await setQualifyPerGroup(2)).toMatchObject({ ok: false, error: ASK("change who qualifies") });
       expect(await renameGroup(flightA, "Renamed")).toMatchObject({ ok: false, error: ASK("rename a flight") });
     } finally {
       await as(organizerId);
@@ -302,9 +300,12 @@ describe("the committee correction opens ONE scope, for a reason, on the record 
     expect(row.correctionUntil!.getTime()).toBeGreaterThan(Date.now());
     expect(row.correctionUntil!.getTime() - Date.now()).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
 
-    expect(await setStageHoles(round1, 9, true)).toEqual({ ok: true });
-    expect((await prisma.stage.findUniqueOrThrow({ where: { id: round1 } })).holes).toBe(9);
-    expect(await setStageHoles(round1, 18, true)).toEqual({ ok: true });
+    // A round setting the launch lock still holds (holes ask the rounds rule since 8 Nov): who qualifies.
+    const qualifyWas = (await prisma.event.findUniqueOrThrow({ where: { id: eventId } })).qualifyPerGroup;
+    const other = qualifyWas === 3 ? 2 : 3;
+    expect(await setQualifyPerGroup(other)).toEqual({ ok: true });
+    expect((await prisma.event.findUniqueOrThrow({ where: { id: eventId } })).qualifyPerGroup).toBe(other);
+    expect(await setQualifyPerGroup(qualifyWas)).toEqual({ ok: true });
 
     expect(await setRequirePhone(true)).toMatchObject({ ok: false, lock: { scope: "field" } });
     expect(await renameGroup(flightA, "Renamed")).toMatchObject({ ok: false, lock: { scope: "flights" } });
@@ -320,7 +321,7 @@ describe("the committee correction opens ONE scope, for a reason, on the record 
     expect(await endCorrection()).toEqual({ ok: true });
     const row = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
     expect([row.correctionScope, row.correctionReason, row.correctionBy, row.correctionUntil]).toEqual([null, null, null, null]);
-    expect(await setStageHoles(round1, 9, true)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
+    expect(await setQualifyPerGroup(3)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
     const lines = await prisma.auditLog.findMany({ where: { eventId, action: "committee-correction" }, orderBy: { createdAt: "asc" } });
     expect(lines).toHaveLength(2);
     expect(lines[1].detail).toBe(`${TAG} admin closed the correction ${TAG} admin opened on rounds`);
@@ -332,7 +333,7 @@ describe("the committee correction opens ONE scope, for a reason, on the record 
     expect(await openCorrection("details", "The course was named wrongly")).toEqual({ ok: true });
     const row = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
     expect(row.correctionScope).toBe("details");
-    expect(await setStageHoles(round1, 9, true)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
+    expect(await setQualifyPerGroup(3)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
     expect(await endCorrection()).toEqual({ ok: true });
     const lines = (await prisma.auditLog.findMany({ where: { eventId, action: "committee-correction" }, orderBy: { createdAt: "asc" } })).map((l) => l.detail);
     expect(lines).toHaveLength(4);
@@ -348,7 +349,7 @@ describe("the committee correction opens ONE scope, for a reason, on the record 
       data: { correctionScope: "rounds", correctionReason: "Yesterday's correction", correctionBy: `${TAG} admin`, correctionUntil: new Date(Date.now() - 60_000) },
     });
     try {
-      expect(await setStageHoles(round1, 9, true)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
+      expect(await setQualifyPerGroup(3)).toMatchObject({ ok: false, lock: { scope: "rounds" } });
       // Done after the lapse clears the row and says nothing: the opening line said when it ended (panel review of 5b, must-fix 3).
       await prisma.auditLog.deleteMany({ where: { eventId, action: "committee-correction" } });
       expect(await endCorrection()).toEqual({ ok: true });

@@ -221,17 +221,16 @@ describe("and the actions actually ask it", () => {
   it("refuses to change the holes under a card, and does not write", async () => {
     const { stage } = await playedRound();
     const res = await setStageHoles(stage.id, 9);
-    expect(res.needsConfirm).toBe(true);
-    expect(res.cards).toBe(1);
+    // Format-like since 8 Nov (J12, PR 7b): refused outright, the way out in words — no question to answer.
+    expect(res).toEqual({ ok: false, error: "Round 1 has scores; at another length its cards would mean something else. Clear its scores on Score entry first." });
     expect(await holesOf(stage.id), "it refused and wrote anyway").toBe(18);
   });
 
-  it("goes ahead once the organizer says so", async () => {
-    // The point is a question, not a veto. An organizer who set a round up
-    // wrongly has to be able to fix it.
+  it("and not even when told: there is nothing left to confirm", async () => {
+    // It was a question until 8 Nov; the cards would mean something else, so it is a refusal, force or not.
     const { stage } = await playedRound();
-    expect(await setStageHoles(stage.id, 9, true)).toEqual({ ok: true });
-    expect(await holesOf(stage.id)).toBe(9);
+    expect(await setStageHoles(stage.id, 9, true)).toMatchObject({ ok: false });
+    expect(await holesOf(stage.id)).toBe(18);
   });
 
   it("does not ask when the holes are re-saved unchanged", async () => {

@@ -2609,21 +2609,23 @@ export async function setStageFormat(stageId: string, format: string, force = fa
  */
 export async function setStageHoles(stageId: string, holes: number, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  const locked = await refuseIfLocked(eventId, "rounds", "change a round’s holes");
-  if (locked) return locked;
+  void force;
   const value = holesPlayed(holes);
-  if (!force) {
-    const current = await prisma.stage.findFirst({
-      where: { id: stageId, eventId },
-      select: { holes: true },
-    });
-    // Only when it actually CHANGES. Re-saving the same number re-scores
-    // nothing, and a confirmation on a no-op teaches an organizer to click
-    // through the one that matters.
-    if (current && holesPlayed(current.holes) !== value) {
-      const cards = await enteredCardCount(eventId, stageId);
-      if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
-    }
+  const current = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { holes: true },
+  });
+  if (!current) return { ok: false as const, error: "That round isn’t in this tournament." };
+  /**
+   * FORMAT-LIKE, ASKED OF THE ROUNDS RULE (J12, PR 7b; the coordinator's
+   * ruling of 8 Nov): open until the round has scores, REFUSED once it has
+   * them — no confirm and no force, the cards would mean something else — and
+   * refused once completed. Only when it actually CHANGES: re-saving the same
+   * number re-scores nothing. Not the setup lock: launch changes no round's length.
+   */
+  if (holesPlayed(current.holes) !== value) {
+    const refused = await roundRefusal(eventId, stageId, { kind: "holes" });
+    if (refused) return { ok: false as const, error: refused };
   }
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },

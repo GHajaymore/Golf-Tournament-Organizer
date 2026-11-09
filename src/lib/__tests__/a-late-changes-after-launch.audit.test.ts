@@ -55,7 +55,7 @@ import {
   removeSignup,
   removeSignups,
   setConfigUnlocked,
-  setStageHoles,
+  setQualifyPerGroup,
   updateSignup,
 } from "@/app/actions/tournament";
 
@@ -239,11 +239,11 @@ describe("a launched stroke medal, before anybody has played", () => {
       error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can make a committee correction to the flights on the dashboard.",
     });
     expect((await prisma.player.findUniqueOrThrow({ where: { id: ids.cat } })).groupId).toBe(flightB);
-    // A round's holes are setup, and stay locked — returned in words, never thrown (state machine PR 5b).
-    // (Its format is judged by the rounds rule since J12 PR 7b: open until the round has scores.)
-    await expect(setStageHoles(stageId, 9)).resolves.toMatchObject({
+    // Who qualifies is setup, and stays locked — returned in words, never thrown (state machine PR 5b).
+    // (A round's format and holes are judged by the rounds rule since J12 PR 7b: open until the round has scores.)
+    await expect(setQualifyPerGroup(2)).resolves.toMatchObject({
       ok: false,
-      error: "Locked because the tournament is live. Make a committee correction to change a round’s holes.",
+      error: "Locked because the tournament is live. Make a committee correction to change who qualifies.",
       lock: { scope: "rounds", by: "launch" },
     });
   });

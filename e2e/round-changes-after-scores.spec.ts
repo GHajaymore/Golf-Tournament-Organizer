@@ -9,12 +9,13 @@ import { prisma, makeClub, dropClub, makeEvent, returnCard, signIn, gotoStages, 
  * summary item 10). Walked as the Organizer on Rounds & formats, on a LAUNCHED
  * medal of two rounds, Round 1 with every card in and Round 2 not yet played:
  *
- *   the banner              → "Under way": a round's format, allowance, tees and day
+ *   the banner              → "Under way": a round's format, holes, allowance, tees, day
  *                             change until it has scores — not "everything is locked"
  *   Round 2 (no scores)     → its format changes on one press, launched
  *   Round 1 (scored)        → its Format picker is shut, the reason under it: "Round 1
  *                             was scored as Stroke Play; its cards would mean something
- *                             else. Clear its scores on Score entry first."
+ *                             else. Clear its scores on Score entry first." — and its
+ *                             Holes the same (8 Nov: holes are format-like)
  *   Round 1 · allowance 85  → ASKED first, in the Golf Pro's words ("This changes a term
  *                             of the competition after play. Every net score in Round 1
  *                             (4 cards) is worked out again. Money is final-only, so
@@ -80,7 +81,7 @@ test("a launched medal: an unplayed round changes, a played one asks first or re
 
     // ── the banner says what is still open, not only what is locked ────────
     const banner = page.getByRole("region", { name: "Locked" });
-    await expect(banner).toContainText("Until a round has scores, its format, allowance, tees and day can change.");
+    await expect(banner).toContainText("Until a round has scores, its format, holes, allowance, tees and day can change.");
     await expect(banner).toContainText("Locked because the tournament is live.");
 
     // ── Round 2, unplayed: its format changes on one press, launched ───────
@@ -100,6 +101,10 @@ test("a launched medal: an unplayed round changes, a played one asks first or re
     const door = card.getByTestId("format-door");
     await expect(door).toHaveText("Round 1 was scored as Stroke Play; its cards would mean something else. Clear its scores on Score entry first.");
     await saidBeside(door, format1, "a played round's format");
+    // Its holes too (8 Nov: holes are format-like) — shut, the reason said beside them.
+    const holes1 = card.getByRole("radiogroup", { name: "Holes for Round 1" });
+    await expect(holes1.getByRole("radio", { name: "9", exact: true }), "a played round's holes are offered").toBeDisabled();
+    await expect(card.getByTestId("holes-door")).toHaveText("Round 1 has scores; at another length its cards would mean something else. Clear its scores on Score entry first.");
 
     // ── Round 1's allowance: asked first, in the Golf Pro's words ───────────
     const change = card.locator("div", { has: page.locator("p", { hasText: /^Handicap allowance/ }) }).last().getByRole("button", { name: "Change", exact: true });

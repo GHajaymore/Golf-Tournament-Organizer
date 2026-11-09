@@ -34,7 +34,7 @@ import {
  *                   with a card in it is REFUSED (J12, PR 7b), the picker shut
  *                   and the reason said beneath it
  *   holes           a nine counts back over the last six, three and one —
- *                   not the last nine; a round with cards asks first
+ *                   not the last nine; a round with cards is REFUSED (8 Nov)
  *   played on       the day moves; on the free Par plan a second week is
  *                   refused beside the date, and the box goes back
  *   season dates    every undated round is dated a week apart in running
@@ -119,7 +119,7 @@ test("a round's format is changed on its card and kept, and a round with a card 
   expect(errors, errors.join("\n")).toEqual([]);
 });
 
-test("a round made nine holes counts back over a nine, and a round with cards asks before it changes", async ({ page, context, baseURL }, testInfo) => {
+test("a round made nine holes counts back over a nine, and a round with cards keeps its length", async ({ page, context, baseURL }, testInfo) => {
   test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
   const errors: string[] = [];
   watchPageErrors(page, errors, "secretary");
@@ -151,18 +151,17 @@ test("a round made nine holes counts back over a nine, and a round with cards as
     await expect(tieLine(card), "a nine-hole round's countback").toContainText("the better last six, then the last three and the last hole");
     await expect(tieLine(card)).not.toContainText("last nine");
 
-    // ── the round with two cards in it ──
+    // ── the round with two cards in it: its holes are NOT changed (8 Nov, format-like under the
+    //    rounds rule) — the choice is shut, and the reason said beside it ──
     card = await openRound(page, stages[1].id);
-    const { label: nine } = await pick(card.getByRole("radiogroup", { name: "Holes for Round 2" }), "9");
-    const asked = card.locator("b", { hasText: "This round already has 2 cards entered." });
-    await expect(asked, "changing a played round's holes was not asked about").toBeVisible();
-    await expect(card.getByText(/the stroke index is re-ranked to the holes actually played/)).toBeVisible();
-    await saidBeside(asked, nine, "the holes of a round with cards in it");
-    expect(await holesOf(1), "the holes were stored before the question was answered").toBe(18);
-    await card.getByRole("button", { name: "Keep 18 holes", exact: true }).click();
-    await expect(asked).toBeHidden();
-    await expect(card.getByRole("radiogroup", { name: "Holes for Round 2" }).getByRole("radio", { name: "18", exact: true }), "declining left nine showing").toBeChecked();
-    expect(await holesOf(1), "declining stored nine holes").toBe(18);
+    const holes2 = card.getByRole("radiogroup", { name: "Holes for Round 2" });
+    await centre(holes2);
+    await expect(holes2.getByRole("radio", { name: "9", exact: true }), "a played round's holes are offered to be changed").toBeDisabled();
+    await expect(holes2.getByRole("radio", { name: "18", exact: true })).toBeChecked();
+    const refused = card.getByTestId("holes-door");
+    await expect(refused).toHaveText("Round 2 has scores; at another length its cards would mean something else. Clear its scores on Score entry first.");
+    await saidBeside(refused, holes2, "the holes of a round with cards in it");
+    expect(await holesOf(1), "a played round's holes changed").toBe(18);
   } finally {
     await dropClub(mark);
   }

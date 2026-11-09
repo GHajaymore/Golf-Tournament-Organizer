@@ -44,7 +44,7 @@ const SITES: Record<string, { file: string; scope: string; what: string; except?
   // The basis, the format and deleting a round ask the rounds rule instead (J12, PR 7b).
   setStageScoreInput: { file: TOURNAMENT, scope: "rounds", what: "change how scores are entered" },
   setStageMatchKeptBy: { file: TOURNAMENT, scope: "rounds", what: "change who keeps the match card" },
-  setStageHoles: { file: TOURNAMENT, scope: "rounds", what: "change a round’s holes" },
+  // setStageHoles left on 8 Nov: holes are format-like and ask the rounds rule (refused after scores).
   saveTiebreakers: { file: TOURNAMENT, scope: "rounds", what: "change the tie-breakers" },
   setQualifyMode: { file: TOURNAMENT, scope: "rounds", what: "change who qualifies" },
   // The ROUNDS' lock: a flighted knockout's draw stays open while live, and the arrangement must not (a-knockout-in-flights).
@@ -119,8 +119,8 @@ describe("the scoped locks return, never throw", () => {
     });
   }
 
-  // Thirty-six until PR 7b moved five to the rounds rule (allowance, split, basis, format, delete).
-  it("thirty-one sites, and no other lock-asking action in the three files goes unlisted", () => {
+  // Thirty-six until PR 7b moved six to the rounds rule (allowance, split, basis, format, delete, and holes on 8 Nov).
+  it("thirty sites, and no other lock-asking action in the three files goes unlisted", () => {
     const listed = new Set(Object.keys(SITES));
     for (const file of FILES) {
       for (const part of readSource(file).split(/export async function /).slice(1)) {
@@ -128,7 +128,7 @@ describe("the scoped locks return, never throw", () => {
         if (/refuseIfLocked\(/.test(part)) expect(listed.has(name), `${name} asks a lock and is not pinned here`).toBe(true);
       }
     }
-    expect(listed.size).toBe(31);
+    expect(listed.size).toBe(30);
   });
 
   /**
