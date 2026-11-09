@@ -29,6 +29,7 @@
  * `npx vitest run`.
  */
 import { defineConfig } from "vitest/config";
+import { BaseSequencer, type WorkspaceSpec } from "vitest/node";
 import base from "./vitest.config";
 
 export const CANNOT_RUN_IN_THE_SANDBOX = [
@@ -38,9 +39,40 @@ export const CANNOT_RUN_IN_THE_SANDBOX = [
   "src/lib/__tests__/icon-sprite.test.ts",
 ];
 
+/** A test file whose every call is held to a deadline (`src/lib/__tests__/ends-within.ts`). */
+export const ENDS_FILE = /\.ends\.test\.tsx?$/;
+
+/**
+ * THE FILES THAT HOLD A CALL TO A DEADLINE RUN FIRST (2026-11-09).
+ *
+ * Stryker runs a mutant's covering test files in the order vitest's sequencer gives
+ * and stops at the first failing test (bail 1). A mutant that makes a loop endless
+ * is caught only if a test FAILS before any test walks into that loop: the first
+ * test to enter it hangs, and the mutant ends as a plain timeout, which the ratchet
+ * counts as not caught (`scripts/qa/mutation-ratchet.mjs`). The nightly of 9 Nov
+ * held production on exactly that — eight mutants of `settle`'s two lists in
+ * `domain/money.ts`.
+ *
+ * So a `*.ends.test.ts` file, whose calls go through `endsWithin` and fail at a
+ * deadline instead of hanging, is put ahead of every other file. The rest keep
+ * vitest's own order (`BaseSequencer`), so no other module's mutants are run in a
+ * different order than before. `mutation-ratchet.test.ts` holds it.
+ */
+export class EndsFirstSequencer extends BaseSequencer {
+  override async sort(files: WorkspaceSpec[]): Promise<WorkspaceSpec[]> {
+    const sorted = await super.sort(files);
+    const ends = (spec: WorkspaceSpec) => ENDS_FILE.test(spec.moduleId.split("\\").join("/"));
+    return [...sorted.filter(ends), ...sorted.filter((spec) => !ends(spec))];
+  }
+}
+
 // Spread, not `mergeConfig`: that CONCATENATES arrays, and the base's exclude
 // list is the one to extend rather than a second one to sit beside it.
 export default defineConfig({
   ...base,
-  test: { ...base.test, exclude: [...(base.test?.exclude ?? []), ...CANNOT_RUN_IN_THE_SANDBOX] },
+  test: {
+    ...base.test,
+    exclude: [...(base.test?.exclude ?? []), ...CANNOT_RUN_IN_THE_SANDBOX],
+    sequence: { ...base.test?.sequence, sequencer: EndsFirstSequencer },
+  },
 });

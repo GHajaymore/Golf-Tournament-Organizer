@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { readVerbatim } from "./source";
+import { readSource, readVerbatim } from "./source";
+import { endsWithin } from "./ends-within";
+import mutationConfig, { ENDS_FILE, EndsFirstSequencer } from "../../../vitest.mutation.config";
 // Plain JavaScript on purpose: the ratchet runs on a bare runner (scripts/mutation.mjs).
 import {
   ARITHMETIC_CORE,
@@ -192,5 +194,66 @@ describe("the arithmetic core, and the nightly that runs it", () => {
   it("the score line is the one the verdict reads, and says the scope", () => {
     const s = scoresOf(report({ "src/lib/domain/money.ts": ["Killed", "Survived"] }));
     expect(headline(s, ["src/lib/domain/money.ts"], "arithmetic")).toBe("Mutation score (arithmetic): 50.00% — 1 of 2 mutants caught; money.ts 50%");
+  });
+});
+
+/**
+ * AN ENDLESS LOOP IS CAUGHT AT A DEADLINE, AND THE DEADLINE RUNS FIRST (2026-11-09).
+ *
+ * The nightly G24-1 (main 308c1322) failed `money.ts` at 87 of 101 against a floor of 95, measured
+ * by hand at 95: eight mutants of the lists `settle` builds before its loop make the loop endless,
+ * Stryker's hit limit never stops them (it counts only passes over the mutated line), and the
+ * ratchet counts the plain timeout as not caught, where Stryker's own table counts it as caught.
+ * `endsWithin` fails such a call at a deadline, and `EndsFirstSequencer` runs the files that use it
+ * before any other file can walk into the loop without one.
+ */
+describe("a call that must end", () => {
+  type Spec = { moduleId: string; project: { name: string } };
+  const spec = (moduleId: string): Spec => ({ moduleId, project: { name: "" } });
+  // A vitest with no history of the files: BaseSequencer then keeps them in the order given.
+  const ctx = { config: { root: process.cwd() }, cache: { getFileTestResults: () => undefined, getFileStats: () => undefined } };
+  const sequencer = new EndsFirstSequencer(ctx as never);
+
+  it("a deadline stops a loop that would not end, and lets a call that ends return", () => {
+    const t0 = Date.now();
+    // Bounded at five seconds, so a helper that lost its deadline fails here rather than hanging.
+    const spin = () => {
+      while (Date.now() - t0 < 5000) {
+        /* spin */
+      }
+      return "ended on its own";
+    };
+    expect(() => endsWithin(spin, 50)).toThrow(/timed out/);
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(endsWithin(() => 42)).toBe(42);
+  });
+
+  it("the mutation run sorts the *.ends.test.ts files first, and keeps every other file where vitest put it", async () => {
+    const files = ["src/b.test.ts", "src/z/settle.ends.test.ts", "src/a.test.ts", "C:\\w\\src\\pot.ends.test.ts", "src/c.ends.test.tsx.bak"].map(spec);
+    const sorted = (await sequencer.sort(files as never)) as unknown as Spec[];
+    expect(sorted.map((s) => s.moduleId)).toEqual(["src/z/settle.ends.test.ts", "C:\\w\\src\\pot.ends.test.ts", "src/b.test.ts", "src/a.test.ts", "src/c.ends.test.tsx.bak"]);
+  });
+
+  it("is the sequencer of the config Stryker runs", () => {
+    expect(mutationConfig.test?.sequence?.sequencer).toBe(EndsFirstSequencer);
+    expect(readSource("stryker.config.mjs")).toContain('configFile: "vitest.mutation.config.ts"');
+  });
+
+  it("a test that holds a call to a deadline is named *.ends.test.ts, and every such file holds its calls to one", () => {
+    const tests: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(join(process.cwd(), dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) walk(rel);
+        else if (/\.test\.tsx?$/.test(e.name)) tests.push(rel);
+      }
+    };
+    walk("src");
+    const self = "src/lib/__tests__/mutation-ratchet.test.ts";
+    const usesDeadline = tests.filter((f) => f !== self && /\bendsWithin\(/.test(readSource(f)));
+    // The control: the sweep sees the file this was written for.
+    expect(usesDeadline).toContain("src/lib/domain/__tests__/money-settle.ends.test.ts");
+    for (const f of usesDeadline) expect(f, `${f} uses endsWithin, so it must be named *.ends.test.ts to run first`).toMatch(ENDS_FILE);
+    for (const f of tests.filter((t) => ENDS_FILE.test(t))) expect(usesDeadline, `${f} is named *.ends.test.ts and holds nothing to a deadline`).toContain(f);
   });
 });

@@ -557,6 +557,23 @@ arithmetic core's floors were re-measured under this rule that day; the other mo
 still the 2026-10-23 figures, counted the old way (every timeout caught), so re-measure them before
 relying on `npm run mutation -- --ratchet` over the whole set.
 
+**Measure a floor the ratchet's way, never by Stryker's own table** (2026-11-09). Stryker's
+clear-text "% Mutation score" counts EVERY timeout as caught; the ratchet counts only a stopped
+loop. On 9 Nov `money.ts`'s floor had been raised to 94.06 from Stryker's own figure (80 killed + 15
+timeouts of 101); the nightly counted 87 of 101 and held production. Read the per-module line
+`scripts/mutation.mjs` prints ("killed, or an endless loop stopped") — `npm run mutation -- --mutate
+<module>` against the whole suite, not a narrowed test set — and write the floor from that.
+
+**An endless loop the hit limit cannot see is caught at a deadline** (2026-11-09). Stryker's hit
+limit counts passes over the MUTATED line, so a mutant in a list built before a loop (`settle`'s
+debtors and creditors) makes the loop endless without ever tripping it, and ends as a plain
+timeout: not caught. A test that would only ever hang on such a mutant goes in a `*.ends.test.ts`
+file and makes its calls through `endsWithin` (`src/lib/__tests__/ends-within.ts`), which stops the
+call at a deadline with `vm`'s timeout and FAILS the test. The mutation run sorts those files first
+(`EndsFirstSequencer` in `vitest.mutation.config.ts`), because Stryker stops at the first failing
+test and the deadline has to come before any other test walks into the same loop.
+`mutation-ratchet.test.ts` holds the helper, the order, and the naming both ways.
+
 **One mutant of slack per module** (2026-11-02). The nightly of 2 Nov held production on
 `stroke.ts` at 207 of 271 caught against a floor of 208: one mutant killed on the build machine
 was a plain timeout on the slower runner. So the floor is turned into the COUNT of mutants it asks
