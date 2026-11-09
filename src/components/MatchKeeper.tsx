@@ -2,6 +2,7 @@
 import { useEffect, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { usePendingCard } from "./usePendingCard";
+import { recoveredMatchCard, RECOVERED_MATCH_SUPERSEDED } from "@/lib/domain/pending-card";
 import type { HoleResult } from "@/lib/domain";
 import { countedHoles, marginRefusal, matchIsOverAfter, matchStandingText, resolveMatch } from "@/lib/domain/match";
 import { holeNumber } from "@/lib/domain/hole-number";
@@ -115,18 +116,28 @@ export function MatchKeeper(props: MatchKeeperProps) {
     },
   });
   /**
-   * HOLES LEFT ON THE PHONE LAST TIME ARE TAKEN BACK UP AND SENT. The device
-   * copy only ever holds holes the server had not confirmed, so finding one
-   * means this phone has work nobody else has seen: it is picked up where it
-   * was left.
+   * HOLES LEFT ON THE PHONE LAST TIME ARE TAKEN BACK UP AND SENT — when they
+   * are holes the server does not have. A copy is also left when a save
+   * LANDED and its answer did not (the page was left, the signal went), and by
+   * the time this card is drawn again the committee may have corrected the
+   * match: sending that copy whole put their 5&4 back to the phone's one hole
+   * (2026-11-09, `stale-match-save.spec.ts`). So it is compared with the card
+   * as drawn first (`recoveredMatchCard`): sent only when it adds holes and
+   * changes none the server has; forgotten when the server already has all of
+   * it; forgotten and SAID when the two disagree.
    */
   const { recovered, clearRecovered, push } = matchQueue;
   useEffect(() => {
     if (!recovered) return;
-    setHoles(recovered);
+    const fate = recoveredMatchCard(recovered, drawn, holeCount);
     clearRecovered();
-    push(recovered);
-  }, [recovered, clearRecovered, push]);
+    if (fate === "send") {
+      setHoles(recovered);
+      push(recovered);
+    } else if (fate === "conflict") {
+      setError(RECOVERED_MATCH_SUPERSEDED);
+    }
+  }, [recovered, clearRecovered, push, drawn, holeCount]);
 
   const filled = holes.filter((h) => h !== null).length;
 

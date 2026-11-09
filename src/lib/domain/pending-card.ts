@@ -572,6 +572,85 @@ export const MAX_STARTING_CARDS = 20;
 /** What the console's match card says when `overwritesUnseen` refuses its save. */
 export const MATCH_CHANGED_ELSEWHERE = "This match was changed elsewhere — reload to see it.";
 
+/**
+ * What `saveMatchHoles` says to a save that does NOT name a card it started
+ * from (the tap card every phone and Score entry's cup view keep, `MatchKeeper`)
+ * when it would change a result the committee has signed off.
+ */
+export const SIGNED_OFF_MATCH_REFUSAL = "This result has been signed off. An organizer has to reopen it before it can be changed.";
+
+/**
+ * Whether a match save that does not say what it started from may be written
+ * (2026-11-09). Such a save cannot be asked `overwritesUnseen`: nothing says
+ * what its sender saw. So it is not allowed to change a result the committee
+ * has SIGNED OFF ("confirmed") — that sign-off is the one thing a stale copy
+ * must never undo, and an organizer reopens a result on purpose. The same card
+ * twice changes nothing and is answered as taken, without a write.
+ *
+ *   "write"    store it (the old behaviour, for any card not signed off)
+ *   "same"     the row already holds exactly this card: nothing to write
+ *   "refuse"   it would change a signed-off result (`SIGNED_OFF_MATCH_REFUSAL`)
+ *
+ * Found by `match-kept-by.spec.ts` and `stale-match-save.spec.ts`: the hole-1
+ * save of a match kept by tapping, left on the phone because the page was left
+ * before its answer came back, was sent again by the reloaded page AFTER the
+ * committee confirmed a corrected 5&4 — and wrote it back to one hole played
+ * and "pending". The tap card's door (`keepMyMatchHoles`) names no starting card.
+ */
+export function unanchoredMatchSave(storedStatus: string, stored: string, sent: string): "write" | "same" | "refuse" {
+  if (sent === stored) return storedStatus === "confirmed" ? "same" : "write";
+  return storedStatus === "confirmed" ? "refuse" : "write";
+}
+
+/**
+ * WHAT A RECOVERED TAP CARD MAY DO (2026-11-09).
+ *
+ * `MatchKeeper` keeps each change on the phone before sending it, and a copy
+ * still there when the card is drawn again is "work nobody else has seen" —
+ * so it was sent again, whole, unconditionally. But a copy is also left when
+ * the save LANDED and its answer did not (the page was left, the signal went
+ * as the reply came back), and by the time the card is drawn again the
+ * committee may have corrected the match. Sending that copy replaced their
+ * correction with the phone's older card.
+ *
+ * So the copy is compared with the card the server drew, hole by hole:
+ *
+ *   "drop"      every hole the phone holds the server already holds the same —
+ *               nothing of the phone's is missing (its save landed, and maybe
+ *               more since). Forgotten, quietly.
+ *   "send"      the phone holds holes the server does not, and changes none the
+ *               server has — holes kept with no signal. Sent, as before.
+ *   "conflict"  both: the phone holds holes the server does not AND would change
+ *               holes the server has. The server's card (the committee's, as a
+ *               rule) wins and the copy is forgotten — but said, so the scorer
+ *               taps again whatever is missing (`RECOVERED_MATCH_SUPERSEDED`).
+ *
+ * A hole cleared on the phone and never sent (null against the server's result)
+ * counts as the server's: it is the one loss this accepts, against a stale copy
+ * wiping out a committee's correction.
+ */
+export function recoveredMatchCard(
+  recovered: ReadonlyArray<string | null>,
+  drawn: ReadonlyArray<string | null>,
+  holes: number,
+): "drop" | "send" | "conflict" {
+  let phoneHasMore = false;
+  let wouldChangeServer = false;
+  for (let i = 0; i < holes; i += 1) {
+    const here = recovered[i] ?? null;
+    const there = drawn[i] ?? null;
+    if (here === there) continue;
+    if (here !== null) phoneHasMore = true;
+    if (there !== null) wouldChangeServer = true;
+  }
+  if (!phoneHasMore) return "drop";
+  return wouldChangeServer ? "conflict" : "send";
+}
+
+/** What the tap card says when `recoveredMatchCard` finds the server's card has moved on. */
+export const RECOVERED_MATCH_SUPERSEDED =
+  "This match was changed elsewhere since this phone last saved it. The card shows the club’s copy — tap again anything that is missing.";
+
 /** Where one card's pending copy lives. One key per card, never per player. */
 export function pendingKey(stageId: string, playerId: string): string {
   // Both ids, because a player has a card per ROUND and a phone may hold

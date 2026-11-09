@@ -26,7 +26,10 @@ import type { HoleResult } from "@/lib/domain";
  *   - the starting cards are validated where they arrive;
  *   - a save that says what is already stored changes nothing (and so does not
  *     put a signed-off match back to pending);
- *   - CONTROL: a save with no starting card is the old unconditional write.
+ *   - THE PAYLOAD THE BROWSER SENT: the tap card's `keepMyMatchHoles(match, card)`
+ *     names no starting card, and may not change a signed-off result;
+ *   - CONTROL: a save with no starting card, on a match not signed off, is the
+ *     old write.
  *
  *   npx vitest run --config vitest.audit.config.ts src/lib/__tests__/a-stale-match-save-undoes-nothing.audit.test.ts
  */
@@ -38,7 +41,7 @@ let session: Record<string, string> | null = null;
 vi.mock("@/lib/auth", () => ({ getSession: async () => session, setActiveEvent: async () => {} }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { saveMatchHoles, confirmMatches } = await import("@/app/actions/tournament");
+const { saveMatchHoles, confirmMatches, keepMyMatchHoles } = await import("@/app/actions/tournament");
 
 const ids = { event: "", match: "" };
 /** Read from the round the fixture made, never assumed. */
@@ -268,10 +271,50 @@ describe("the starting cards are validated where they arrive", () => {
   });
 });
 
-describe("CONTROL: a save that names no starting card", () => {
-  it("is the old unconditional write (the player's own match keeper, a page loaded before this shipped)", async () => {
+/**
+ * THE PAYLOAD THE BROWSER ACTUALLY SENT (CI run 42627107451, the traces of
+ * `stale-match-save.spec.ts` and `match-kept-by.spec.ts`): a cup session kept
+ * by tapping draws `MatchKeeper` on Score entry, and its save is
+ * `keepMyMatchHoles(matchId, card)` — `["<match>",["A",null,…]]`, no starting
+ * card. The console's tap card above was never the sender; the replay was the
+ * tap card's own copy, left on the phone because the page was left before the
+ * save's answer came back, sent again by the reloaded page.
+ */
+describe("the tap card's save, as the browser posted it (no starting card)", () => {
+  async function signedOffFiveAndFour() {
+    expect(await keepMyMatchHoles(ids.match, card("A")), "CONTROL: the tap itself is taken").toMatchObject({ ok: true });
+    const fiveAndFour = card("A", "A", "A", "A", "A");
+    await prisma.match.update({ where: { id: ids.match }, data: { holes: JSON.stringify(fiveAndFour), scoreStatus: "pending", scoredAt: new Date() } });
+    expect((await confirmMatches([ids.match])).confirmed).toBe(1);
+    return fiveAndFour;
+  }
+
+  it("sent again after the committee signed off 5&4: refused in words, and the 5&4 and the sign-off stand", async () => {
+    const fiveAndFour = await signedOffFiveAndFour();
+    const replay = await keepMyMatchHoles(ids.match, card("A"));
+    expect(replay).toEqual({ ok: false, error: expect.stringMatching(/signed off.*reopen/) });
+    const after = await stored();
+    expect(after.holes, "the replay undid the 5&4").toEqual(fiveAndFour);
+    expect(after.status, "the replay undid the sign-off").toBe("confirmed");
+  });
+
+  it("the action under it refuses the same two-argument call by throwing (the door turns that into words)", async () => {
+    const fiveAndFour = await signedOffFiveAndFour();
+    await expect(saveMatchHoles(ids.match, card("A"))).rejects.toThrow(/signed off/);
+    expect(await stored()).toEqual({ holes: fiveAndFour, status: "confirmed" });
+  });
+
+  it("the signed-off card itself, sent again, is taken without a write — still signed off", async () => {
+    const fiveAndFour = await signedOffFiveAndFour();
+    expect(await keepMyMatchHoles(ids.match, fiveAndFour)).toEqual({ ok: true, holes: fiveAndFour });
+    expect(await stored()).toEqual({ holes: fiveAndFour, status: "confirmed" });
+  });
+
+  it("CONTROL: on a match not signed off it is the old write — a scorer tapping on, over somebody else's card too", async () => {
     await prisma.match.update({ where: { id: ids.match }, data: { holes: JSON.stringify(card("B")) } });
     expect(await saveMatchHoles(ids.match, card("A"))).toEqual({ ok: true });
     expect((await stored()).holes).toEqual(card("A"));
+    expect(await keepMyMatchHoles(ids.match, card("A", "H"))).toEqual({ ok: true, holes: card("A", "H") });
+    expect(await stored()).toEqual({ holes: card("A", "H"), status: "pending" });
   });
 });

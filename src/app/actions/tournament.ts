@@ -80,7 +80,7 @@ import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStartingCards, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
-import { cardRevision, overwritesUnseenFromAll, MATCH_CHANGED_ELSEWHERE, MAX_STARTING_CARDS } from "@/lib/domain/pending-card";
+import { cardRevision, overwritesUnseenFromAll, unanchoredMatchSave, MATCH_CHANGED_ELSEWHERE, MAX_STARTING_CARDS, SIGNED_OFF_MATCH_REFUSAL } from "@/lib/domain/pending-card";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, storedCard, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
 import {
@@ -3031,7 +3031,7 @@ export async function saveMatchHoles(
   // by `resolveMatch(list).complete`: an empty list was a finished match, and
   // ["A"] an eighteen-hole match won 1 up
   // (`a-match-result-is-a-card-of-its-length.audit.test.ts`).
-  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { holes: true, stageId: true, stage: { select: { holes: true } } } });
+  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { holes: true, scoreStatus: true, stageId: true, stage: { select: { holes: true } } } });
   if (!owner) throw new Error("Match not found.");
   // Not on a round kept on stroke cards: the next card would rebuild over it.
   const keptOnCards = await keptByRefusal(owner.stageId, "holes");
@@ -3057,27 +3057,43 @@ export async function saveMatchHoles(
    * taps on and the next save carries the whole card; a run of taps at a
    * scorer's pace all land; a replay, or a screen that loaded before
    * somebody else's change, names no card the server holds and is refused
-   * in words. Absent `startedFrom` (the player's own match keeper, a test, a
-   * page loaded before this shipped) is the old unconditional write.
+   * in words. Absent `startedFrom` (the tap card `MatchKeeper` every phone and
+   * the cup's Score entry keep, a test, a page loaded before this shipped) is
+   * the old write — except over a signed-off result (below).
    */
+  let storedRaw: unknown = [];
+  try {
+    storedRaw = JSON.parse(owner.holes);
+  } catch {
+    storedRaw = [];
+  }
+  const stored = cardRevision(cleanHoleResults(storedRaw, roundHoles) ?? []);
+  const sent = cardRevision(clean);
   if (startedFrom !== undefined) {
     // Validated at the boundary: one to MAX_STARTING_CARDS cards, each of the round's length.
     const from = cleanStartingCards(startedFrom, roundHoles, MAX_STARTING_CARDS);
-    let storedRaw: unknown = [];
-    try {
-      storedRaw = JSON.parse(owner.holes);
-    } catch {
-      storedRaw = [];
-    }
-    const storedCard = cleanHoleResults(storedRaw, roundHoles) ?? [];
-    const stored = cardRevision(storedCard);
-    const sent = cardRevision(clean);
     if (!from || overwritesUnseenFromAll(from.map(cardRevision), stored, sent)) {
       return { ok: false, error: MATCH_CHANGED_ELSEWHERE };
     }
     // The card arriving IS the card stored: nothing to write, and nothing to
     // send back through approval — a replay must not undo a sign-off either.
     if (sent === stored) return { ok: true };
+  } else {
+    /**
+     * A SAVE THAT DOES NOT SAY WHAT IT STARTED FROM DOES NOT UNDO A SIGN-OFF
+     * (2026-11-09). The tap card (`MatchKeeper`, through `keepMyMatchHoles`)
+     * sends the card alone — and it was THAT card's save, left on the phone
+     * because the page was left before its answer came back, that the reloaded
+     * page sent again after the committee confirmed a corrected 5&4
+     * (`match-kept-by.spec.ts`, `stale-match-save.spec.ts`; the console's own
+     * tap card above was never the sender). Nothing says what such a sender
+     * saw, so it may not change a signed-off result; the same card twice is
+     * taken without a write (`unanchoredMatchSave`). Thrown, because the tap
+     * card's door turns a throw into its refusal in words.
+     */
+    const verdict = unanchoredMatchSave(owner.scoreStatus, stored, sent);
+    if (verdict === "refuse") throw new Error(SIGNED_OFF_MATCH_REFUSAL);
+    if (verdict === "same") return { ok: true };
   }
   const complete = matchIsOver(clean);
   // Where the organizer wants finished cards only, a player can't dribble
@@ -3091,7 +3107,9 @@ export async function saveMatchHoles(
   const written = await prisma.match.updateMany({
     // A conditional save writes over the card it compared, or over nothing:
     // a change landing between that read and this write is not overwritten.
-    where: { id: matchId, eventId, ...(startedFrom !== undefined ? { holes: owner.holes } : {}) },
+    // One that names no starting card is not written over a sign-off that
+    // landed after its read.
+    where: { id: matchId, eventId, ...(startedFrom !== undefined ? { holes: owner.holes } : { scoreStatus: { not: "confirmed" } }) },
     data: {
       holes: JSON.stringify(clean),
       // A real result supersedes a forfeit. Without this, an organizer who
@@ -3112,6 +3130,7 @@ export async function saveMatchHoles(
     },
   });
   if (written.count === 0 && startedFrom !== undefined) return { ok: false, error: MATCH_CHANGED_ELSEWHERE };
+  if (written.count === 0) throw new Error(SIGNED_OFF_MATCH_REFUSAL);
   await refresh();
   return { ok: true };
 }
