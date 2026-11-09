@@ -15,7 +15,7 @@
     "src/lib/domain/ranked-score.ts": 91.25,
     "src/lib/domain/standings.ts": 91.98,
     "src/lib/domain/cut.ts": 81.54,
-    "src/lib/domain/cut-ready.ts": 75.39,
+    "src/lib/domain/cut-ready.ts": 96.14,
     "src/lib/domain/bracket.ts": 84.28,
     "src/lib/domain/bracket-flights.ts": 82.4,
     "src/lib/domain/draw.ts": 78.71,
