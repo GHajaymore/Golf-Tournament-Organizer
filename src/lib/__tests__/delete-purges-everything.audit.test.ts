@@ -39,6 +39,7 @@ vi.mock("next/navigation", () => ({
 
 const { removeStage, deleteEvent } = await import("@/app/actions/tournament");
 const { enteredCardCount } = await import("@/lib/services/round-cards");
+const { purgeEvents } = await import("@/lib/services/purge");
 
 const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
 const tablesWith = (column: string) =>
@@ -298,5 +299,32 @@ describe("deleting a tournament", () => {
     expect(await clubLevel()).toBe(clubRows);
     // The other tournament's entry still points at its Member.
     expect((await prisma.player.findFirst({ where: { eventId: otherEventId }, select: { memberId: true } }))?.memberId).toBeTruthy();
+  });
+});
+
+describe("an automatic sweep keeps the honours board (ruled 2026-11-08)", () => {
+  it("removes an expired tournament but leaves the club's honours line for it", async () => {
+    const swept = await eventWith("swept");
+    try {
+      await prisma.event.update({ where: { id: swept.id }, data: { expiresAt: new Date(Date.now() - 86_400_000) } });
+      await prisma.honoursEntry.create({ data: { organizationId: orgId, eventId: swept.id, eventName: `${TAG} swept`, championName: "zz champion" } });
+      // The control: the line is there before the sweep, so its survival means something.
+      expect(await rowsIn("HonoursEntry", "eventId", swept.id)).toBe(1);
+      // The sweeps' own shape (round-sweep.ts): the event's id plus "still due", and no `deliberate`.
+      expect(await purgeEvents({ id: swept.id, expiresAt: { not: null, lte: new Date() } })).toBe(1);
+      expect(await prisma.event.count({ where: { id: swept.id } })).toBe(0);
+      expect(await rowsIn("HonoursEntry", "eventId", swept.id), "the sweep erased the club's history").toBe(1);
+      // And the other direction: a person pressing Delete (deleteEvent) does erase it.
+      const kept = await eventWith("pressed");
+      await prisma.honoursEntry.create({ data: { organizationId: orgId, eventId: kept.id, eventName: `${TAG} pressed`, championName: "zz champion" } });
+      expect(await rowsIn("HonoursEntry", "eventId", kept.id)).toBe(1);
+      await prisma.account.create({ data: { eventId: kept.id, name: "zz staff", email: staffEmail, role: "admin" } });
+      session = { eventId: kept.id, email: staffEmail, viewRole: "admin", name: "zz staff", role: "admin", userId: "zz", accountId: "" };
+      await expect(deleteEvent(kept.id)).rejects.toThrow("NEXT_REDIRECT");
+      expect(await prisma.event.count({ where: { id: kept.id } })).toBe(0);
+      expect(await rowsIn("HonoursEntry", "eventId", kept.id)).toBe(0);
+    } finally {
+      await prisma.honoursEntry.deleteMany({ where: { eventId: swept.id } });
+    }
   });
 });
