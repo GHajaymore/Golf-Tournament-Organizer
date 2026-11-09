@@ -10,6 +10,8 @@ import { roundTakesAllowance } from "@/lib/round-allowance";
 import { roundRobinSchedule } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { refuseIfLocked } from "@/lib/services/tournament-status";
+import { afterTermChange, beforeTermChange } from "@/lib/services/round-change";
+import { roundWordsFor } from "@/lib/services/action-shared";
 import type { ScopeLock } from "@/lib/domain/tournament-status";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
@@ -36,6 +38,11 @@ export interface TeamResult {
    */
   needsConfirm?: boolean;
   cards?: number;
+  /**
+   * The confirm's words, where the rounds rule asks (J12, PR 7b): a term of the
+   * competition changed after play — the Golf Pro's sentence (`rescoreWords`).
+   */
+  says?: string;
   /**
    * Refused because its scope is locked (`refuseIfLocked`, PR 5a): the lock,
    * with its reason and way out, so a screen drawn before the lock can catch up.
@@ -541,9 +548,6 @@ export async function setStageAllowance(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  // A term of the round (section 3: allowance → "rounds").
-  const locked = await refuseIfLocked(eventId, "rounds", "change a round’s handicap allowance");
-  if (locked) return locked;
   await stageInEvent(eventId, stageId);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
     // "1 to 100", not "0 to 100": zero is accepted here as "back to the
@@ -558,21 +562,23 @@ export async function setStageAllowance(
   if (next > 0 && current && !roundTakesAllowance(current)) {
     return { ok: false, error: "This round takes no handicap allowance, so there is none to set." };
   }
-  // Compared as the allowance IN FORCE, so "back to the recommended 90%" on a
-  // round already playing 90% is not a change.
-  const refusal = await rescoreRefusal(
-    eventId,
-    stageId,
-    !!current &&
-      effectiveAllowance(current.format, current.handicapAllowance, current.type) !==
-        effectiveAllowance(current.format, next, current.type),
-    force,
-  );
-  if (refusal) return refusal;
+  /**
+   * THE ROUNDS RULE (J12, PR 7b; `domain/round-change.ts`): open until the
+   * round has scores, then asked with the Golf Pro's sentence and — once
+   * confirmed — recomputed and logged; refused once completed, or on a round
+   * whose matches are recorded. Compared as the allowance IN FORCE, so "back to
+   * the recommended 90%" on a round already playing 90% is not a change.
+   */
+  const was = current ? effectiveAllowance(current.format, current.handicapAllowance, current.type) : 0;
+  const now = current ? effectiveAllowance(current.format, next, current.type) : 0;
+  const gate = await beforeTermChange(eventId, stageId, { kind: "allowance" }, { changed: !!current && was !== now, force });
+  if ("refused" in gate) return gate.refused;
+  if ("asked" in gate) return gate.asked;
   await prisma.stage.update({
     where: { id: stageId },
     data: { handicapAllowance: next },
   });
+  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap allowance ${was}% → ${now}%`, null);
   await refresh();
   return { ok: true };
 }
@@ -652,9 +658,8 @@ export async function setStageAllowanceWeights(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  // The handicap split, like the allowance — a term of the round.
-  const locked = await refuseIfLocked(eventId, "rounds", "change the handicap split");
-  if (locked) return locked;
+  // The handicap split, like the allowance — a term of the round, asked of the
+  // rounds rule (J12, PR 7b) as the allowance is.
   await stageInEvent(eventId, stageId);
 
   const stored = await prisma.stage.findUnique({
@@ -663,16 +668,14 @@ export async function setStageAllowanceWeights(
   });
   const same = (a: number[], b: number[]) =>
     a.length === b.length && a.every((v, i) => v === b[i]);
+  const shares = (w: readonly number[]) => (w.length ? w.map((x) => `${x}%`).join("/") : "the recommended split");
 
   if (weights.length === 0) {
-    const refusal = await rescoreRefusal(
-      eventId,
-      stageId,
-      (stored?.allowanceWeights.length ?? 0) > 0,
-      force,
-    );
-    if (refusal) return refusal;
+    const gate = await beforeTermChange(eventId, stageId, { kind: "allowance" }, { changed: (stored?.allowanceWeights.length ?? 0) > 0, force });
+    if ("refused" in gate) return gate.refused;
+    if ("asked" in gate) return gate.asked;
     await prisma.stage.update({ where: { id: stageId }, data: { allowanceWeights: [] } });
+    await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap split ${shares(stored?.allowanceWeights ?? [])} → ${shares([])}`, null);
     await refresh();
     return { ok: true };
   }
@@ -694,18 +697,15 @@ export async function setStageAllowanceWeights(
   }
 
   const wanted = weights.map((w) => Math.round(w));
-  const refusal = await rescoreRefusal(
-    eventId,
-    stageId,
-    !same(stored?.allowanceWeights ?? [], wanted),
-    force,
-  );
-  if (refusal) return refusal;
+  const gate = await beforeTermChange(eventId, stageId, { kind: "allowance" }, { changed: !same(stored?.allowanceWeights ?? [], wanted), force });
+  if ("refused" in gate) return gate.refused;
+  if ("asked" in gate) return gate.asked;
 
   await prisma.stage.update({
     where: { id: stageId },
     data: { allowanceWeights: wanted },
   });
+  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: handicap split ${shares(stored?.allowanceWeights ?? [])} → ${shares(wanted)}`, null);
   await refresh();
   return { ok: true };
 }

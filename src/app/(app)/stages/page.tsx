@@ -31,6 +31,7 @@ import { CardTrustNote } from "@/components/CardTrustNote";
 import { cardTrustNote, parseIndex } from "@/lib/domain/card-trust";
 import { pickedCardNote } from "@/lib/domain/picked-card";
 import { ScopeLockBanner } from "@/components/ScopeLockBanner";
+import { ROUNDS_UNDER_WAY, roundChangeFactsOf, roundDoors } from "@/lib/domain/round-change";
 import { DescribeTournament } from "@/components/DescribeTournament";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupRailFor, tournamentStatusFor, screenLocksFor } from "@/lib/services/tournament-status";
@@ -287,6 +288,12 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
     matchCount: state.matches.filter((m) => m.stageId === s.id).length,
     courseId: s.courseId,
     nine: s.nine,
+    // What the rounds rule says of this round (J12, PR 7b) — the machine's own facts, so the
+    // controls and the actions behind them answer alike.
+    doors: (() => {
+      const one = told ? roundChangeFactsOf(told.facts, s.id) : null;
+      return one ? roundDoors(one) : null;
+    })(),
   }));
 
   // Venues this tournament may be played on — more than one turns on the
@@ -416,7 +423,14 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
         {subtitle}
       </div>
       )}
-      <ScopeLockBanner locks={rounds.locks} correction={rounds.correction} isAdmin={session.viewRole === "admin"} />
+      <ScopeLockBanner
+        locks={rounds.locks}
+        correction={rounds.correction}
+        isAdmin={session.viewRole === "admin"}
+        // Locked by launch, the rounds rule still leaves a round's format, allowance, tees, day and
+        // delete open until it has scores (J12, PR 7b) — said first, so the lock's line is not read as all.
+        open={rounds.locks.some((l) => l.by === "launch") ? ROUNDS_UNDER_WAY : null}
+      />
       {/* A way IN to the builder rather than an alternative to it — whatever
           it proposes lands as ordinary rounds on the cards below, editable
           like any other. That is why it sits above them.

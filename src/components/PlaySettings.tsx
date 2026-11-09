@@ -8,6 +8,7 @@ import {
 } from "@/app/actions/settings";
 import { rotatePublicToken } from "@/app/actions/tournament";
 import { setEventDefaultTee } from "@/app/actions/courses";
+import { askThenForce } from "@/lib/ask-then-force";
 import {
   LEADERBOARD_VISIBILITY,
   LEADERBOARD_VISIBILITY_LABEL,
@@ -281,7 +282,12 @@ export function PlaySettings({
       // action — but the same button, and it reports its own failure rather
       // than letting a half-save look like a whole one.
       if (teeDirty) {
-        const teeResult = await setEventDefaultTee(teeId);
+        // After play the server asks first, in the rounds rule's words (J12, PR 7b); a no saves the rest.
+        const teeResult = await askThenForce((force) => setEventDefaultTee(teeId, force));
+        if (teeResult === null) {
+          setError("The tees were kept as they were. Everything else is saved.");
+          return;
+        }
         if (!teeResult.ok) {
           setError(teeResult.error ?? "Couldn't save the tees.");
           return;

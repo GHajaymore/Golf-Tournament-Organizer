@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setFlightTee } from "@/app/actions/courses";
+import { askThenForce } from "@/lib/ask-then-force";
 
 /**
  * THE TEES A FLIGHT PLAYS, ON FLIGHTS THE APP DREW (2026-10-10).
@@ -50,7 +51,9 @@ export function FlightTeeSelect({
             const next = e.target.value;
             setError("");
             startTransition(async () => {
-              const res = await setFlightTee(groupId, next || null);
+              // After play the server asks first, in the rounds rule's words (J12, PR 7b).
+              const res = await askThenForce((force) => setFlightTee(groupId, next || null, force));
+              if (res === null) return; // declined: the select keeps what is stored
               if (res.ok) setValue(next);
               else setError(res.error ?? "Couldn't set those tees.");
             });

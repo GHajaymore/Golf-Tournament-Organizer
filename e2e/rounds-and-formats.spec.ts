@@ -31,8 +31,8 @@ import {
  *
  *   format          a medal becomes a Stableford, which is off handicap and is
  *                   said so; a stroke round is not offered match play; a round
- *                   with a card in it ASKS first, beside the picker, and
- *                   "Keep Stroke Play" stores nothing
+ *                   with a card in it is REFUSED (J12, PR 7b), the picker shut
+ *                   and the reason said beneath it
  *   holes           a nine counts back over the last six, three and one —
  *                   not the last nine; a round with cards asks first
  *   played on       the day moves; on the free Par plan a second week is
@@ -100,29 +100,19 @@ test("a round's format is changed on its card and kept, and a round with a card 
     await expect(card.getByText(/Off handicap — points are worked out after each player/)).toBeVisible();
     await expect(card.getByRole("radiogroup", { name: "Handicap for Round 1" }), "a Stableford is offered Gross").toHaveCount(0);
 
-    // ── a round with a card in it: asked, beside the picker, before anything is stored ──
+    // ── a round with a card in it: its format is NOT changed (J12, state machine PR 7b; the Golf Pro's
+    //    Q5 — refused both ways), and the reason is said under the picker, which is shut ──
     await returnCard(event.id, stages[1].id, players[0].id);
     await gotoStages(page);
     card = await openRound(page, stages[1].id);
     const second = card.getByLabel("Format for Round 2");
     await centre(second);
-    await second.selectOption("Stableford");
-    const asked = card.locator("b", { hasText: "This round already has 1 card entered." });
-    await expect(asked, "re-scoring a played round was not asked about").toBeVisible();
-    await expect(card.getByText(/Changing the format re-scores every one of them/)).toBeVisible();
-    await saidBeside(asked, second, "the format of a round with a card in it");
-    expect((await stored(1)).format, "the format was stored before the question was answered").toBe("Stroke Play");
-    await card.getByRole("button", { name: "Keep Stroke Play", exact: true }).click();
-    await expect(asked).toBeHidden();
-    await expect(second, "declining left the picker on a format the round does not have").toHaveValue("Stroke Play");
-    expect((await stored(1)).format, "declining stored the format").toBe("Stroke Play");
-
-    await second.selectOption("Stableford");
-    await card.getByRole("button", { name: "Change it anyway", exact: true }).click();
-    await expect.poll(async () => (await stored(1)).format, { message: "Change it anyway stored nothing" }).toBe("Stableford");
-    await gotoStages(page);
-    card = await openRound(page, stages[1].id);
-    await expect(card.getByLabel("Format for Round 2")).toHaveValue("Stableford");
+    await expect(second, "a played round's format is offered to be changed").toBeDisabled();
+    await expect(second).toHaveValue("Stroke Play");
+    const refused = card.getByTestId("format-door");
+    await expect(refused).toHaveText("Round 2 was scored as Stroke Play; its cards would mean something else. Clear its scores on Score entry first.");
+    await saidBeside(refused, second, "the format of a round with a card in it");
+    expect((await stored(1)).format, "a played round's format changed").toBe("Stroke Play");
   } finally {
     await dropClub(mark);
   }

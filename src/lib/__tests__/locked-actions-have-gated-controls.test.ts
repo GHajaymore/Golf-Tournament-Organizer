@@ -93,7 +93,8 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     // known members of the class, from the walk and the sweep.
     // (`addStage` left this list on 2026-09-27: adding a round is running the
     // event, not setting it up. Deleting one still refuses.)
-    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "removeStage", "setStageCut"]) {
+    // (`removeStage` left it on 2026-11-08, J12 PR 7b: deleting a round asks the rounds rule — swept below.)
+    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "setStageHoles", "setStageCut"]) {
       expect(locked.has(a), `${a} should refuse a locked tournament`).toBe(true);
     }
     for (const f of [
@@ -180,6 +181,40 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
       .map(([f, names]) => `${f} → ${names.join(", ")}`);
     expect(blind, "controls reaching a field action without the field's doors").toEqual([]);
     expect(readSource("src", "components", "RegistrationClient.tsx")).toMatch(/<RosterPicker [^>]*locked=\{!!doors\.add\}/);
+  });
+
+  /**
+   * THE ROUND ACTIONS ASK THEIR OWN RULE (J12, state machine PR 7b): after
+   * launch a round's format, allowance, tees, day and delete stay open until
+   * the round has scores, so a control reaching one of them on Rounds & formats
+   * takes the round's DOORS (`roundDoors`, or one door as a sentence) — the
+   * setup lock alone would shut the controls the rule leaves open. The tee
+   * selects elsewhere (Flights, Entries, Settings) ask the server, which asks
+   * the person first after play (`askThenForce`). Swept as a class.
+   */
+  it("each control reaching a round action on Rounds & formats receives the round's doors", () => {
+    const roundActions = new Set<string>();
+    for (const f of files(join(ROOT, "src", "app", "actions"), /\.ts$/)) {
+      for (const part of readSource(relative(ROOT, f)).split(/export async function /).slice(1)) {
+        if (/\b(beforeTermChange|beforeFieldTeeChange|roundVerdictFor|roundRefusal|acrossRoundsRefusal)\(/.test(part)) roundActions.add(part.slice(0, part.indexOf("(")).trim());
+      }
+    }
+    // The control: the sweep finds the actions it is about.
+    for (const a of ["setStageAllowance", "setStageAllowanceWeights", "setStageScoringBasis", "setStageFormat", "removeStage", "setStageCourse", "setFlightTee", "setPlayerTee", "setEventDefaultTee", "setStagePlayedOn"]) {
+      expect(roundActions.has(a), `${a} should ask the rounds rule`).toBe(true);
+    }
+    const reaching = callers(new Map([...roundActions].map((a) => [a, ""])));
+    const STAGES = ["src/components/StagesClient.tsx", "src/components/RoundAllowance.tsx", "src/components/RoundTeamScoring.tsx"];
+    for (const f of STAGES) expect(reaching.has(f), `${f} should be found calling a round action`).toBe(true);
+    const DOORS = /\b(doors\??:\s*RoundDoors|door\??:\s*string \| null|allowanceDoor\??:\s*string \| null)/;
+    const blind = STAGES.filter((f) => !DOORS.test(readSource(f)));
+    expect(blind, "Rounds & formats controls reaching a round action without the round's doors").toEqual([]);
+    // And the page hands them over, from the machine's own facts.
+    expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/doors: \(\(\) => \{\s*const one = told \? roundChangeFactsOf\(told\.facts, s\.id\) : null;\s*return one \? roundDoors\(one\) : null;/);
+    // The tee selects ask the person when the server asks (a confirm, never a silent force).
+    for (const f of ["src/components/FlightTeeSelect.tsx", "src/components/FlightBoard.tsx", "src/components/PlaySettings.tsx", "src/components/RegistrationClient.tsx"]) {
+      expect(readSource(f), `${f} sends a tee change without asking`).toMatch(/askThenForce\(\(force\) => set(?:FlightTee|PlayerTee|EventDefaultTee)\(/);
+    }
   });
 
   it("each page hands its screen the lock", () => {

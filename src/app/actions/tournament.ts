@@ -202,6 +202,8 @@ import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit, roundWordsFor } from "@/lib/services/action-shared";
+import { acrossRoundsRefusal, afterTermChange, beforeTermChange, roundRefusal, roundVerdictFor } from "@/lib/services/round-change";
+import { filesMatches, goesWithItWords, redrawWords, SCHEDULES_WORDS } from "@/lib/domain/round-change";
 import { purgeEvent, purgeRound } from "@/lib/services/purge";
 import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { holesChanged } from "@/lib/domain/card-correction";
@@ -2107,6 +2109,9 @@ export async function setStageDeadline(stageId: string, deadline: string): Promi
   const typed = typeof deadline === "string" ? deadline : "";
   const due = cleanIsoDate(typed);
   if (typed.trim() && !due) return { ok: false, error: "Pick a date from the calendar." };
+  // A day like the round's own (J12, PR 7b): open while it runs, refused once completed.
+  const dayRefused = await roundRefusal(eventId, stageId, { kind: "day" });
+  if (dayRefused) return { ok: false, error: dayRefused };
   const round = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } });
   // A round removed in another tab matched nothing, and the box went on showing a date nobody
   // held, with nothing said (2026-10-21). The same words the sign-up deadline uses.
@@ -2203,8 +2208,15 @@ async function parRoundWindowRefusal(
   return roundWindowRefusal(dated[0], [...others, ...dated.slice(1)]);
 }
 
-export async function setStagePlayedOn(stageId: string, date: string): Promise<{ ok: boolean; error?: string }> {
+export async function setStagePlayedOn(stageId: string, date: string): Promise<{ ok: boolean; error?: string; said?: string }> {
   const eventId = await requireStaffEvent();
+  /**
+   * THE ROUNDS RULE (J12, PR 7b), section 3's "Name, dates, venue" row: open
+   * while the tournament runs, said after scores ("Players' schedules show the
+   * new day"), and refused once it is completed — the record is final there.
+   */
+  const judged = await roundVerdictFor(eventId, stageId, { kind: "day" });
+  if (judged && !judged.verdict.ok) return { ok: false, error: judged.verdict.says };
   const refusal = await parRoundWindowRefusal(eventId, [cleanIsoDate(date)], stageId);
   if (refusal) return { ok: false, error: refusal };
   /**
@@ -2220,7 +2232,7 @@ export async function setStagePlayedOn(stageId: string, date: string): Promise<{
     data: { playedOn: cleanIsoDate(date) },
   });
   await refresh();
-  return { ok: true };
+  return judged?.verdict.ok && judged.verdict.warn === "schedules" ? { ok: true, said: SCHEDULES_WORDS } : { ok: true };
 }
 
 /**
@@ -2244,6 +2256,9 @@ export async function dateUndatedRounds(
   if (!Number.isInteger(step) || step < 1 || step > 31) {
     throw new Error("How often the rounds are played should be between 1 and 31 days.");
   }
+  // Every round's day at once (J12, PR 7b): refused once the tournament is completed.
+  const completed = await acrossRoundsRefusal(eventId, { kind: "day" });
+  if (completed) return { dated: 0, error: completed };
   const stages = await prisma.stage.findMany({
     where: { eventId },
     orderBy: { position: "asc" },
@@ -2314,10 +2329,8 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
  *
  * Same guard and same shape as `setStageFormat`, for the same reason.
  */
-export async function setStageScoringBasis(stageId: string, basis: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; error?: string; lock?: ScopeLock }> {
+export async function setStageScoringBasis(stageId: string, basis: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; says?: string; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  const locked = await refuseIfLocked(eventId, "rounds", "change how a round is scored");
-  if (locked) return locked;
   const current = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
     select: { scoringBasis: true, format: true },
@@ -2326,19 +2339,24 @@ export async function setStageScoringBasis(stageId: string, basis: string, force
   // asking for gross on one gets net, because this is a public endpoint and the
   // picker no longer offers it.
   const value = basisFor(current?.format, basis);
-  // No "this re-scores N cards" on a Stableford round: its points were always
-  // worked out off handicap, so moving a stored "gross" to net changes nothing.
-  if (!force && !isStablefordFormat(current?.format)) {
-    // Only when it actually changes — see `setStageHoles`.
-    if (current && current.scoringBasis !== value) {
-      const cards = await enteredCardCount(eventId, stageId);
-      if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
-    }
-  }
+  /**
+   * THE ROUNDS RULE (J12, PR 7b), with the allowance: gross or net is how the
+   * handicaps are applied to the same holed-out strokes. Open until the round
+   * has scores, then asked and — once confirmed — logged; refused once
+   * completed, or on a round whose matches are recorded. No question on a
+   * Stableford round: its points were always worked out off handicap, so moving
+   * a stored "gross" to net changes nothing. Only when it actually changes —
+   * see `setStageHoles`.
+   */
+  const changed = !!current && current.scoringBasis !== value && !isStablefordFormat(current.format);
+  const gate = await beforeTermChange(eventId, stageId, { kind: "allowance" }, { changed, force });
+  if ("refused" in gate) return gate.refused;
+  if ("asked" in gate) return gate.asked;
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { scoringBasis: value },
   });
+  await afterTermChange(eventId, gate.go, `${await roundWordsFor(eventId, stageId)}: scored on ${current?.scoringBasis || "net"} → ${value}`, null);
   await refresh();
   return { ok: true as const };
 }
@@ -2505,10 +2523,19 @@ async function roundHoldsAScore(stageId: string): Promise<boolean> {
   });
 }
 
-export async function setStageFormat(stageId: string, format: string, force = false) {
+/**
+ * A ROUND'S FORMAT, judged by the rounds rule (J12, PR 7b;
+ * `domain/round-change.ts`): open before the round has scores — with the
+ * re-draw said where the new format draws differently — and REFUSED once it
+ * has them, both ways (Golf Pro, Q5: a Stableford card may hold a hole with no
+ * score, which in stroke play is a disqualification; and stroke to Stableford
+ * changes the Terms after play). The way out is to clear the round's scores.
+ * `force` is kept for the callers that still send it; there is nothing left to
+ * confirm. Staff, as every round setting is.
+ */
+export async function setStageFormat(stageId: string, format: string, force = false): Promise<{ ok: boolean; error?: string; said?: string; needsConfirm?: boolean; cards?: number }> {
   const eventId = await requireStaffEvent();
-  const locked = await refuseIfLocked(eventId, "rounds", "change a round’s format");
-  if (locked) return locked;
+  void force;
   /**
    * Changing a format re-scores every card in the round.
    *
@@ -2530,10 +2557,9 @@ export async function setStageFormat(stageId: string, format: string, force = fa
   if (shape && shape.format !== format && !formatFitsRound(shape.type, format)) {
     return { ok: false as const, error: roundShapeMismatch(shape.type, format)?.message ?? "That format cannot be played in this kind of round." };
   }
-  if (!force) {
-    const cards = await enteredCardCount(eventId, stageId);
-    if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
-  }
+  const judged = await roundVerdictFor(eventId, stageId, { kind: "format", to: format });
+  if (!judged) return { ok: false as const, error: "That round isn’t in this tournament." };
+  if (!judged.verdict.ok) return { ok: false as const, error: judged.verdict.says };
   const value = format;
   // A round becoming Stableford becomes net with it — `basisFor`. Its current
   // basis is kept for every other format.
@@ -2554,8 +2580,13 @@ export async function setStageFormat(stageId: string, format: string, force = fa
     },
   });
   await followFlightDefault(eventId, flightsBefore);
+  // The re-draw, said where the press was: what the new format needs drawn.
+  const said = judged.verdict.warn === "redraw" ? redrawWords(judged.round.label, filesMatches({ type: judged.round.type, format: value })) : undefined;
+  if (judged.verdict.step !== "before-draw" && before && before.format !== value) {
+    await logAudit(eventId, "round.format", `${await roundWordsFor(eventId, stageId)}: format ${before.format} → ${value}`);
+  }
   await refresh();
-  return { ok: true as const };
+  return { ok: true as const, ...(said ? { said } : {}) };
 }
 
 /**
@@ -3034,10 +3065,21 @@ export async function addStage(
   return { id: firstId };
 }
 
-export async function removeStage(stageId: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; stakes?: number; records?: number; refused?: string; error?: string; lock?: ScopeLock }> {
+export async function removeStage(stageId: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; stakes?: number; records?: number; drawn?: string; refused?: string; error?: string; lock?: ScopeLock }> {
   const eventId = await requireStaffEvent();
-  const locked = await refuseIfLocked(eventId, "rounds", "delete a round");
-  if (locked) return locked;
+  /**
+   * THE ROUNDS RULE (J12, PR 7b; `domain/round-change.ts`): a round with no
+   * draw goes on one press; one whose pairings or tee sheet are made is asked
+   * first ("Round 2's pairings go with it"); one with SCORES is refused, with
+   * the way out — clear them on Score entry — since deleting it would delete
+   * what was played; and nothing is deleted once the tournament is completed.
+   * Not the setup lock: launch invalidates no round that has not been drawn.
+   */
+  const judged = await roundVerdictFor(eventId, stageId, { kind: "delete" });
+  // A round already gone (another tab) deletes nothing and says nothing, as before.
+  if (!judged) return { ok: true as const };
+  if (!judged.verdict.ok) return { ok: false as const, needsConfirm: false as const, refused: judged.verdict.says };
+  const drawn = judged.verdict.warn === "goes-with-it" ? goesWithItWords(judged.round) : undefined;
 
   /**
    * Deleting a round deletes everything played in it.
@@ -3075,8 +3117,8 @@ export async function removeStage(stageId: string, force = false): Promise<{ ok:
       refused: "Ask the Organizer to delete this round — it holds money records.",
     };
   }
-  if (!force && (cards > 0 || stakes > 0 || records > 0)) {
-    return { ok: false as const, needsConfirm: true as const, cards, stakes, records };
+  if (!force && (cards > 0 || stakes > 0 || records > 0 || drawn)) {
+    return { ok: false as const, needsConfirm: true as const, cards, stakes, records, ...(drawn ? { drawn } : {}) };
   }
 
   // The id is this tournament's own round, or nothing is deleted.

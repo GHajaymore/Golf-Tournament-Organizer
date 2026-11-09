@@ -280,10 +280,16 @@ describe("and a team round's pricing asks too", () => {
    * A four-ball for the allowance and the count, a greensomes for the split,
    * each with ONE side card on it, which is all `enteredCardCount` needs.
    */
-  async function teamRound(format: "Four-Ball" | "Greensomes", played: boolean) {
+  /**
+   * A team round: by default a ROUND ROBIN of team matches; `type` "Stroke Play
+   * Round" makes it a team round played on cards. After a card the two differ
+   * (J12, state machine PR 7b): a round of matches refuses a pricing change — a
+   * decided match is not worked out again — and a round of cards asks first.
+   */
+  async function teamRound(format: "Four-Ball" | "Greensomes", played: boolean, type = "Round Robin") {
     const { eventId, player } = await seed();
     const stage = await prisma.stage.create({
-      data: { eventId, position: 1, type: "Round Robin", format, holes: 18, scoringBasis: "net" },
+      data: { eventId, position: 1, type, format, holes: 18, scoringBasis: "net" },
     });
     if (played) {
       const side = await prisma.team.create({
@@ -322,11 +328,20 @@ describe("and a team round's pricing asks too", () => {
   });
 
   it("refuses the allowance under a card, without writing, and goes ahead when told", async () => {
-    const id = await teamRound("Four-Ball", true);
-    expect(await setStageAllowance(id, 75)).toEqual({ ok: false, needsConfirm: true, cards: 1 });
+    // A team round on cards: asked, in the rounds rule's words, then taken.
+    const id = await teamRound("Four-Ball", true, "Stroke Play Round");
+    expect(await setStageAllowance(id, 75)).toMatchObject({ ok: false, needsConfirm: true, cards: 1, says: expect.stringMatching(/^This changes a term of the competition after play\./) });
     expect((await stageOf(id)).handicapAllowance, "refused and wrote anyway").toBe(0);
     expect(await setStageAllowance(id, 75, true)).toEqual({ ok: true });
     expect((await stageOf(id)).handicapAllowance).toBe(75);
+  });
+
+  it("a round of team matches under a card refuses the allowance outright, even when told (J12, PR 7b)", async () => {
+    const id = await teamRound("Four-Ball", true);
+    for (const force of [false, true]) {
+      expect(await setStageAllowance(id, 75, force)).toEqual({ ok: false, error: "Round 2’s matches were played off these strokes. Clear its scores on Score entry first." });
+    }
+    expect((await stageOf(id)).handicapAllowance, "refused and wrote anyway").toBe(0);
   });
 
   it("does not ask when the allowance in force does not change", async () => {
@@ -348,8 +363,9 @@ describe("and a team round's pricing asks too", () => {
   });
 
   it("refuses the split under a card, and not a clear that changes nothing", async () => {
-    const id = await teamRound("Greensomes", true);
-    expect(await setStageAllowanceWeights(id, [50, 50])).toEqual({
+    // A greensomes round on cards: asked first (J12, PR 7b, the rounds rule's words).
+    const id = await teamRound("Greensomes", true, "Stroke Play Round");
+    expect(await setStageAllowanceWeights(id, [50, 50])).toMatchObject({
       ok: false,
       needsConfirm: true,
       cards: 1,
@@ -360,8 +376,14 @@ describe("and a team round's pricing asks too", () => {
 
     expect(await setStageAllowanceWeights(id, [50, 50], true)).toEqual({ ok: true });
     // …but clearing a stored split IS one.
-    expect(await setStageAllowanceWeights(id, [])).toEqual({ ok: false, needsConfirm: true, cards: 1 });
+    expect(await setStageAllowanceWeights(id, [])).toMatchObject({ ok: false, needsConfirm: true, cards: 1 });
     expect((await stageOf(id)).allowanceWeights).toEqual([50, 50]);
+  });
+
+  it("a round of greensomes matches under a card refuses the split outright (J12, PR 7b)", async () => {
+    const id = await teamRound("Greensomes", true);
+    expect(await setStageAllowanceWeights(id, [50, 50], true)).toEqual({ ok: false, error: "Round 2’s matches were played off these strokes. Clear its scores on Score entry first." });
+    expect((await stageOf(id)).allowanceWeights).toEqual([]);
   });
 });
 
@@ -399,12 +421,18 @@ describe("and an individual net round's allowance asks, where the round takes on
   it("asks under a card on a net medal and on a Stableford, without writing, and goes ahead when told", async () => {
     for (const [format, basis] of [["Stroke Play", "net"], ["Stroke Play", "both"], ["Stableford", "stableford"]] as const) {
       const id = await round(format, "Stroke Play Round", basis);
-      expect(await setStageAllowance(id, 100), `${format} · ${basis}`).toEqual({ ok: false, needsConfirm: true, cards: 1 });
+      // Asked with the Golf Pro's sentence (J12, PR 7b): a term of the competition changed after play.
+      expect(await setStageAllowance(id, 100), `${format} · ${basis}`).toEqual({
+        ok: false,
+        needsConfirm: true,
+        cards: 1,
+        says: "This changes a term of the competition after play. Every net score in Round 2 (1 card) is worked out again. Money is final-only, so nothing paid changes.",
+      });
       expect(await allowanceOf(id), `${format} · ${basis}: refused and wrote anyway`).toBe(0);
       expect(await setStageAllowance(id, 100, true)).toEqual({ ok: true });
       expect(await allowanceOf(id)).toBe(100);
       // Back to the Rules' 95% is a change too, and is asked about.
-      expect(await setStageAllowance(id, 0)).toEqual({ ok: false, needsConfirm: true, cards: 1 });
+      expect(await setStageAllowance(id, 0)).toMatchObject({ ok: false, needsConfirm: true, cards: 1 });
       expect(await allowanceOf(id)).toBe(100);
     }
   });

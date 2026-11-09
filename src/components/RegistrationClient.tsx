@@ -41,6 +41,7 @@ import { csvSizeRefusal } from "@/lib/csv";
 import { playerTeeCounts } from "@/lib/tournament-settings";
 import { contactGaps } from "@/lib/domain/contact-gaps";
 import { setPlayerTee } from "@/app/actions/courses";
+import { askThenForce } from "@/lib/ask-then-force";
 import { ConfirmButton } from "./ConfirmButton";
 import { indexLabel, indexFigure } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
@@ -342,7 +343,9 @@ export function RegistrationClient({
   // knowing about.
   const commitTee = (playerId: string, teeId: string | null) =>
     startTransition(async () => {
-      const result = await setPlayerTee(playerId, teeId);
+      // After play the server asks first, in the rounds rule's words (J12, PR 7b); a no keeps the stored set.
+      const result = await askThenForce((force) => setPlayerTee(playerId, teeId, force));
+      if (result === null) return;
       setRowError(result.ok ? "" : result.error ?? "Couldn’t save those tees.", playerId);
     });
   /**
