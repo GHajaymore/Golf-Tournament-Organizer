@@ -45,6 +45,18 @@ describe("normaliseSchema: what the shared client's copy is compared by", () => 
     expect(normaliseSchema(withField)).not.toBe(normaliseSchema(original));
   });
 
+  it("a field written after a @@ block attribute matches Prisma's copy, which prints fields first", () => {
+    const written = "model T {\n  a String\n  @@index([a])\n  b String\n}\n";
+    const printed = "model T {\n  a String\n  b String\n  @@index([a])\n}\n";
+    expect(normaliseSchema(written)).toBe(normaliseSchema(printed));
+  });
+
+  it("a genuinely added field still differs when @@ attributes are moved last", () => {
+    const written = "model T {\n  a String\n  @@index([a])\n  b String\n}\n";
+    const extra = "model T {\n  a String\n  b String\n  c String\n  @@index([a])\n}\n";
+    expect(normaliseSchema(written)).not.toBe(normaliseSchema(extra));
+  });
+
   it("a renamed model differs", () => {
     const renamed = original.replace("model Player {", "model Golfer {");
     expect(normaliseSchema(renamed)).not.toBe(normaliseSchema(original));

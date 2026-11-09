@@ -82,7 +82,37 @@ export function normaliseSchema(text) {
     if (c === '"') inString = true;
   }
   flush();
-  return out.join("\n");
+  return blockAttributesLast(out).join("\n");
+}
+
+// Prisma prints every field of a model/enum/view/type before its `@@` block attributes, whatever
+// order the schema wrote them in. Within each such block, keep the field lines in their order and
+// move the `@@` lines after them (stable). A block is its header line through its closing `}`.
+function blockAttributesLast(lines) {
+  const out = [];
+  let fields = null;
+  let attrs = null;
+  for (const line of lines) {
+    if (fields === null) {
+      if (/^(model|enum|view|type)\b/.test(line)) {
+        fields = [];
+        attrs = [];
+      }
+      out.push(line);
+      continue;
+    }
+    if (line === "}") {
+      out.push(...fields, ...attrs, line);
+      fields = null;
+      attrs = null;
+    } else if (line.startsWith("@@")) {
+      attrs.push(line);
+    } else {
+      fields.push(line);
+    }
+  }
+  if (fields !== null) out.push(...fields, ...attrs); // a block never closed: keep its lines
+  return out;
 }
 
 function gitOut(args) {
