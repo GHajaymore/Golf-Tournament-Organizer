@@ -95,6 +95,15 @@ Three things to carry forward:
   and its two questions are separate: saying yes to replacing a draw is not saying yes to a
   short season.
 
+**THE SAME TRAP, THROUGH A HOLD (2026-11-08, found by J49).** A result in dispute is held off
+every board by `onBoard`, which blanks its holes to `"[]"` — "read as not yet played". The
+round-robin table asked `resolveMatch(holes).complete` of that empty card, so while the
+Committee had not ruled both players were on P 1, ½ 1 and the halve's points, on the table and
+in the head-to-head. `decidedOutcome` (domain/standings.ts) now asks `matchIsOver`, and
+`aggregateStats`, the mini-league head-to-head, the member's head-to-head record and the hot
+streak all take the outcome from it — one place. Proved by `standings-held-match.test.ts`, the
+matrix's "a result held in dispute" cells, and the dispute steps in `e2e/match-results.spec.ts`.
+
 `e2e/interclub-league.spec.ts` runs the season from switching the league on to recording the
 play-off hole, and works every four-ball out for itself (90% before rounding, off the lowest of
 the four, better ball, the usual wording of a result). Week 1 and the final are typed into the

@@ -59,6 +59,7 @@ import {
   type NextRoundFlight,
 } from "@/lib/domain/cut";
 import { aggregateStats, rankPlayers, computeStandings } from "@/lib/domain/standings";
+import { onBoard } from "@/lib/domain/board-hold";
 import { cutFeederOf, cutAfterRound } from "@/lib/domain/cut-ready";
 import { countbackCardsFor } from "@/lib/services/course-resolution";
 import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
@@ -1586,6 +1587,92 @@ describe("forfeits, at every field size", () => {
         if (i === 0) expect(rank, "the board starts at 1").toBe(1);
         else expect([ranks[i - 1], i + 1], `rank ${i} skipped or went backwards`).toContain(rank);
       });
+    });
+  }
+});
+
+/**
+ * A result held in dispute, at every field size (2026-11-08, found by J49).
+ *
+ * The server holds a disputed match off the table by blanking its holes to
+ * `"[]"` (`onBoard`), and `resolveMatch([])` is complete and halved — so the
+ * table gave both players a match played and a halve while the Committee had
+ * not ruled. Rule 3.2a(3): a match is decided when one side leads by more holes
+ * than remain; with none played, nothing is decided.
+ *
+ * The invariant, in every cell: a held result moves NOTHING — the table with
+ * it is the table without it — and once the hold is lifted it counts exactly
+ * once, for both players. Every other match in the round is a played-out
+ * halve, so a phantom halve is indistinguishable by shape and only the
+ * counting can tell them apart.
+ */
+describe("a result held in dispute, at every field size", () => {
+  const PLAYED_HALVE = [...new Array(9).fill("A"), ...new Array(9).fill("B")] as Match["holes"];
+  /** What the disputed card says: A won 3&2. */
+  const DISPUTED_CARD = [...new Array(3).fill("A"), ...new Array(13).fill("H"), null, null] as Match["holes"];
+  const SCORING = { ...DEFAULT_SCORING, playPts: 1 };
+
+  const asStored = (scoreStatus: string, holes: Match["holes"]): Match["holes"] =>
+    JSON.parse(onBoard({ scoreStatus, holes: JSON.stringify(holes), forfeitedBy: "" }).holes) as Match["holes"];
+
+  const roundRobin = (players: Player[], firstStatus: string): Match[] => {
+    const out: Match[] = [];
+    for (let i = 0; i < players.length; i += 1) {
+      for (let j = i + 1; j < players.length; j += 1) {
+        const first = out.length === 0;
+        out.push({
+          id: `m${i}-${j}`,
+          stageId: "s1",
+          groupId: "g1",
+          round: 1,
+          playerAId: players[i].id,
+          playerBId: players[j].id,
+          holes: first ? asStored(firstStatus, DISPUTED_CARD) : PLAYED_HALVE,
+          forfeitedBy: "",
+        });
+      }
+    }
+    return out;
+  };
+
+  for (const n of FIELD_SIZES) {
+    it(`a ${n}-player round robin with one result held: the table is the table without it`, () => {
+      const players = field(n);
+      const withHeld = roundRobin(players, "disputed");
+      const withoutHeld = withHeld.slice(1);
+
+      const held = aggregateStats(players, withHeld, SCORING);
+      const absent = aggregateStats(players, withoutHeld, SCORING);
+      expect(held.size).toBe(n);
+      for (const p of players) {
+        expect(held.get(p.id), `${p.id}'s line moved for a held result`).toEqual(absent.get(p.id));
+      }
+
+      // Counted from what SHOULD be there: every played-out match is one
+      // halve for each of its two players, and the held one is none.
+      const decided = withoutHeld.length;
+      const sum = (f: (s: { played: number; ties: number }) => number) => [...held.values()].reduce((t, s) => t + f(s), 0);
+      expect(sum((s) => s.played)).toBe(2 * decided);
+      expect(sum((s) => s.ties)).toBe(2 * decided);
+
+      const rankedHeld = rankPlayers(players, held, SCORING, withHeld);
+      const rankedAbsent = rankPlayers(players, absent, SCORING, withoutHeld);
+      expect(rankedHeld.map((r) => [r.player.id, r.rank])).toEqual(rankedAbsent.map((r) => [r.player.id, r.rank]));
+
+      // Lifted: the Committee rules, the card comes back, and A's 3&2 counts
+      // once for each of the two players and nobody else.
+      if (n >= 2) {
+        const settled = aggregateStats(players, roundRobin(players, "confirmed"), SCORING);
+        const [a, b] = [withHeld[0].playerAId, withHeld[0].playerBId];
+        for (const p of players) {
+          const before = held.get(p.id)!;
+          const after = settled.get(p.id)!;
+          const inIt = p.id === a || p.id === b;
+          expect(after.played - before.played, `${p.id} played`).toBe(inIt ? 1 : 0);
+        }
+        expect(settled.get(a)!.wins - held.get(a)!.wins).toBe(1);
+        expect(settled.get(b)!.losses - held.get(b)!.losses).toBe(1);
+      }
     });
   }
 });

@@ -132,7 +132,8 @@ function stopServer() {
   if (process.platform === "win32") {
     spawnSync("powershell", ["-NoProfile", "-Command", `Get-NetTCPConnection -LocalPort ${PORT} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`]);
   } else {
-    spawnSync("sh", ["-c", `lsof -ti:${PORT} | xargs -r kill -9`]);
+    // Without lsof (Playwright's container image has none) the same is read from /proc.
+    spawnSync("sh", ["-c", `if command -v lsof >/dev/null 2>&1; then lsof -ti:${PORT} | xargs -r kill -9; else node scripts/qa/free-port.mjs ${PORT}; fi`]);
   }
 }
 

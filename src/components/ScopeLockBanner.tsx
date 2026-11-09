@@ -32,6 +32,17 @@ import { Icon } from "./Icon";
  */
 export const SCOPE_LOCK_BANNER_ID = "scope-lock-banner";
 
+/**
+ * THE BANNER IS NAMED FOR WHAT IT SAYS. A screen reader announces the region's
+ * name before its words, so a banner whose only line is "Open for a correction"
+ * must not be announced as "Locked" (round G567-2 found the screen drawn open
+ * and named locked). Any lock line on the screen makes it "Locked".
+ */
+export function bannerName(lockLines: number, correctionOpen: boolean): "Locked" | "Open for a correction" | "Under way" {
+  if (lockLines > 0) return "Locked";
+  return correctionOpen ? "Open for a correction" : "Under way";
+}
+
 export function ScopeLockBanner({
   locks,
   isAdmin,
@@ -52,7 +63,7 @@ export function ScopeLockBanner({
     <section
       id={SCOPE_LOCK_BANNER_ID}
       tabIndex={-1}
-      aria-label={lines.length === 0 && !correction ? "Under way" : "Locked"}
+      aria-label={bannerName(lines.length, correction !== null)}
       className="card elev-sm"
       style={{
         flexDirection: "row",

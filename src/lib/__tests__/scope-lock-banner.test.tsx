@@ -67,7 +67,11 @@ describe("ScopeLockBanner", () => {
     const correction = { scope: "sides" as const, by: "A. Organizer", reason: "Wrong pair in side 3", until: "2026-11-08T05:00:00.000Z" };
     const html = draw({ locks: [], correction, isAdmin: true });
     expect(html).toContain("<b>Sides</b> · Open for a correction by A. Organizer: ‘Wrong pair in side 3’");
+    expect(html, "named Locked while it says the scope is open").toContain('aria-label="Open for a correction"');
     expect(html).toMatch(/Done/);
+    // With a lock line beside it, the banner is a lock banner again.
+    const withLock = draw({ locks: [scopeLockOf(locksFor(launched(facts())), "details")!], correction, isAdmin: true });
+    expect(withLock).toContain('aria-label="Locked"');
     expect(draw({ locks: [], correction, isAdmin: false })).not.toMatch(/Done/);
   });
 

@@ -106,6 +106,14 @@ test("a round robin takes a late entrant only with a flight, and draws their mat
         message: "the late entrant was not taken into Flight A",
       })
       .toEqual({ groupId: flightA.id, status: "confirmed" });
+    /**
+     * THE ANSWER FIRST, THEN THE ROWS. The action writes the player, THEN draws their
+     * matches (`repairPlayerPairings`), THEN answers — so a player row alone does not
+     * mean the matches are there (round G569-3: on both phone sizes the matches were read
+     * between the two writes and were none). The sentence under the press is said only
+     * once both are done.
+     */
+    await expect(desk.getByRole("status").filter({ hasText: `${LATE_RR}’s matches against Flight A are drawn. Each player in it has one more to play.` })).toBeVisible({ timeout: 20_000 });
     const late = (await prisma.player.findFirst({ where: { eventId, name: LATE_RR }, select: { id: true } }))!;
     // A match against each player in Flight A — the re-draw — and nothing else.
     const theirs = await prisma.match.findMany({ where: { eventId, stageId, OR: [{ playerAId: late.id }, { playerBId: late.id }] }, select: { playerAId: true, playerBId: true } });

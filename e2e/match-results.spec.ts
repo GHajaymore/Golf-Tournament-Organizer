@@ -18,8 +18,12 @@ import { pressRadio } from "./press-radio";
  *                                     Apply is not offered to be pressed
  *   Ailsa 3&2                        → stored as holes: sixteen played, Ailsa
  *                                     three up (the Rules' "3 and 2"); pending
- *   Dispute                          → disputed
- *   Confirm result                   → confirmed
+ *   Dispute                          → disputed; the round robin's table on
+ *                                     the Leaderboard reads it as NOT YET
+ *                                     PLAYED for both (P 0, ½ 0, Pts 0) — never
+ *                                     a halve (2026-11-08)
+ *   Confirm result                   → confirmed; the table counts it once,
+ *                                     Ailsa's win and Bram's loss
  *   Clear                            → REFUSED while confirmed, said in view;
  *                                     nothing stored changes
  *   Reopen                           → pending again
@@ -36,7 +40,7 @@ test.describe.configure({ mode: "serial" });
 
 const prisma = new PrismaClient();
 const MARK = "zz-match-results";
-const ids = { org: "", event: "", match: "", medal: "", ailsa: "", bram: "", users: [] as string[] };
+const ids = { org: "", event: "", rr: "", match: "", medal: "", ailsa: "", bram: "", users: [] as string[] };
 const secret = process.env.AUTH_SECRET ?? "dev-secret";
 const sign = (v: string) => `${v}.${createHmac("sha256", secret).update(v).digest("base64url")}`;
 let organizerCookie = "";
@@ -69,6 +73,7 @@ test.beforeAll(async () => {
   const stage = await prisma.stage.create({
     data: { eventId: event.id, position: 0, type: "Round Robin", format: "Match Play", description: "Group stage", scoringBasis: "gross", holes: 18 },
   });
+  ids.rr = stage.id;
   ids.medal = (
     await prisma.stage.create({
       data: { eventId: event.id, position: 1, type: "Stroke Play Round", format: "Stroke Play", description: "Medal", scoringBasis: "gross", holes: 18 },
@@ -135,6 +140,30 @@ async function openEntry(page: Page) {
   await page.waitForLoadState("networkidle").catch(() => {});
 }
 
+/**
+ * ONE PLAYER'S LINE ON THE ROUND ROBIN'S TABLE, as the organizer's Leaderboard
+ * draws it (P · W · ½ · L · Holes ± · Pts), opened in a second tab so the
+ * Score entry page and its card stay exactly where the steps left them.
+ * Read from the END of the row, so a Flight column before the figures cannot
+ * shift them; and the tab must still be on the Leaderboard, because a refused
+ * session lands on the sign-in page and reads as a table of nothing.
+ */
+async function tableLine(page: Page, errors: string[], name: string) {
+  const board = await page.context().newPage();
+  watchPageErrors(board, errors, "leaderboard");
+  try {
+    await board.goto(`/leaderboard?round=${ids.rr}&bust=${Date.now()}`);
+    expect(new URL(board.url()).pathname, "the Leaderboard sent the organizer elsewhere").toBe("/leaderboard");
+    const line = board.locator("table.table tr", { hasText: name }).first();
+    await expect(line, `${name} is not on the round robin's table`).toBeVisible({ timeout: 20_000 });
+    const cells = (await line.locator("td").allInnerTexts()).map((t) => t.trim());
+    const [played, wins, halved, losses, , pts] = cells.slice(-6);
+    return { played, wins, halved, losses, pts };
+  } finally {
+    await board.close();
+  }
+}
+
 test("the committee types a result, has it disputed, confirms it, reopens it and clears it — refused to clear it while confirmed", async ({ page, baseURL }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
@@ -169,10 +198,38 @@ test("the committee types a result, has it disputed, confirms it, reopens it and
     expect((await row()).status).toBe("disputed");
   });
 
+  /**
+   * A DISPUTED RESULT IS NOT A HALVED MATCH (2026-11-08, found by J49). The
+   * table holds a disputed result off by reading it as not yet played
+   * (`onBoard` blanks its holes), and an empty card is complete AND halved to
+   * `resolveMatch` — so until this fix both players were on P 1, ½ 1 and the
+   * halve's point while the Committee had not ruled. Rule 3.2a(3): with no
+   * hole played, nothing has been decided.
+   */
+  await test.step("while it is disputed, the table reads the match as not yet played — not as a halve", async () => {
+    for (const name of ["Zz Ailsa", "Zz Bram"]) {
+      expect(await tableLine(page, errors, name), `${name}'s line counts a disputed result`).toEqual({
+        played: "0",
+        wins: "0",
+        halved: "0",
+        losses: "0",
+        pts: "0",
+      });
+    }
+  });
+
   await test.step("confirmed", async () => {
     await page.getByRole("button", { name: "Confirm result" }).click();
     await expect(tag("Confirmed")).toBeVisible({ timeout: 20_000 });
     expect((await row()).status).toBe("confirmed");
+  });
+
+  await test.step("confirmed, it counts once: Zz Ailsa's win, Zz Bram's loss", async () => {
+    // The points are the tournament's own, read from its row, not assumed.
+    const scoring = await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { winPts: true, lossPts: true } });
+    const pts = (n: number) => (Math.round(n * 100) / 100).toString();
+    expect(await tableLine(page, errors, "Zz Ailsa")).toEqual({ played: "1", wins: "1", halved: "0", losses: "0", pts: pts(scoring.winPts) });
+    expect(await tableLine(page, errors, "Zz Bram")).toEqual({ played: "1", wins: "0", halved: "0", losses: "1", pts: pts(scoring.lossPts) });
   });
 
   await test.step("a confirmed result cannot be cleared, and the screen says so where the press was", async () => {

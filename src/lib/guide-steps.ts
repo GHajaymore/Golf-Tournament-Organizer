@@ -309,7 +309,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Beside **Who keeps score** is the **End-of-round check** (on for a new tournament round, off for a casual one). In match play, once a match is decided the side that did not enter the result checks it on their phone: **Confirm the result** or **That's not right**. In stroke play each player checks their OWN card, whoever kept it: **Confirm my card** or **Something's wrong**.",
-          "A disputed result or card stays off the leaderboard until you settle it on Score entry. A result both sides have agreed waits in your queue marked as agreed, where the committee approves results; where players settle them, it is confirmed when the other side confirms.",
+          "A disputed result or card stays off the leaderboard until you settle it on Score entry: on a round-robin table the match counts as not played yet — never as a halve — and the head-to-head ignores it. A result both sides have agreed waits in your queue marked as agreed, where the committee approves results; where players settle them, it is confirmed when the other side confirms.",
           "A casual round has no check. Its setup asks one line instead: **Who enters scores** — **One phone for the group** (the default) or **Each player their own**, for friends who each keep a card on their own phone.",
         ],
       },
