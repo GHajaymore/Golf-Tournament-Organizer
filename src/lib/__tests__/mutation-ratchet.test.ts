@@ -239,6 +239,14 @@ describe("a call that must end", () => {
     expect(readSource("stryker.config.mjs")).toContain('configFile: "vitest.mutation.config.ts"');
   });
 
+  it("the config loads the way vitest loads it — bundled to CommonJS — so Stryker can start at all", async () => {
+    // A static import of `vitest/node` (ESM only) passes every test that imports the config as a
+    // module, and stops vite bundling it: Stryker's first run of this on 9 Nov died before its dry run.
+    const { loadConfigFromFile } = await import("vite");
+    const loaded = await loadConfigFromFile({ command: "serve", mode: "test" }, join(process.cwd(), "vitest.mutation.config.ts"));
+    expect((loaded?.config as typeof mutationConfig | undefined)?.test?.sequence?.sequencer?.name).toBe("EndsFirstSequencer");
+  }, 30000);
+
   it("a test that holds a call to a deadline is named *.ends.test.ts, and every such file holds its calls to one", () => {
     const tests: string[] = [];
     const walk = (dir: string) => {

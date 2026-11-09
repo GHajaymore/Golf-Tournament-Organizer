@@ -29,7 +29,7 @@
  * `npx vitest run`.
  */
 import { defineConfig } from "vitest/config";
-import { BaseSequencer, type WorkspaceSpec } from "vitest/node";
+import type { TestSequencer, Vitest, WorkspaceSpec } from "vitest/node";
 import base from "./vitest.config";
 
 export const CANNOT_RUN_IN_THE_SANDBOX = [
@@ -57,10 +57,23 @@ export const ENDS_FILE = /\.ends\.test\.tsx?$/;
  * deadline instead of hanging, is put ahead of every other file. The rest keep
  * vitest's own order (`BaseSequencer`), so no other module's mutants are run in a
  * different order than before. `mutation-ratchet.test.ts` holds it.
+ *
+ * `BaseSequencer` is reached by a dynamic `import()`, never a static one: vite
+ * bundles a `.ts` config to CommonJS, `vitest/node` is ESM only, and a static
+ * import stops the config loading at all ("ESM file cannot be loaded by
+ * `require`") — which is what the first run of this on 9 Nov did.
  */
-export class EndsFirstSequencer extends BaseSequencer {
-  override async sort(files: WorkspaceSpec[]): Promise<WorkspaceSpec[]> {
-    const sorted = await super.sort(files);
+const vitestOwnSequencer = async (ctx: Vitest) => new (await import("vitest/node")).BaseSequencer(ctx);
+
+export class EndsFirstSequencer implements TestSequencer {
+  constructor(private readonly ctx: Vitest) {}
+
+  async shard(files: WorkspaceSpec[]): Promise<WorkspaceSpec[]> {
+    return (await vitestOwnSequencer(this.ctx)).shard(files);
+  }
+
+  async sort(files: WorkspaceSpec[]): Promise<WorkspaceSpec[]> {
+    const sorted = await (await vitestOwnSequencer(this.ctx)).sort(files);
     const ends = (spec: WorkspaceSpec) => ENDS_FILE.test(spec.moduleId.split("\\").join("/"));
     return [...sorted.filter(ends), ...sorted.filter((spec) => !ends(spec))];
   }
