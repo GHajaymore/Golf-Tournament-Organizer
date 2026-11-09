@@ -267,6 +267,20 @@ describe("a match result disputed at the end-of-round check", () => {
     expect(await pointsOf(pl.Ann), "a disputed match still paid its winner on the table").toBe(0);
     const s = (await loadEventState(ev))!;
     expect(s.reviewing.disputed).toBe(1);
+    /**
+     * AND NOT A HALVE EITHER (2026-11-08, found by J49). The hold blanks the
+     * card to no holes, and an empty card is complete and halved to
+     * `resolveMatch` — so "no win for Ann" held while both players were on
+     * played 1, a halve and the halve's point. Not yet played means none of it.
+     */
+    const { bonusPts } = await prisma.event.findUniqueOrThrow({ where: { id: ev }, select: { bonusPts: true } });
+    for (const who of ["Ann", "Cal"]) {
+      const line = s.overall.find((r) => r.player.id === pl[who])!.stats;
+      expect(
+        { played: line.played, ties: line.ties, wins: line.wins, losses: line.losses, points: line.totalPoints },
+        `${who}'s line counts a disputed result as played`,
+      ).toEqual({ played: 0, ties: 0, wins: 0, losses: 0, points: bonusPts });
+    }
     // A disputed result cannot then be confirmed from a phone.
     await phoneOf("Cal");
     expect((await confirmPlayMatch(match)).ok).toBe(false);
