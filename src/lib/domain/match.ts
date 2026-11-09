@@ -417,7 +417,7 @@ export function parseHolesTranscript(
     const t = tokens[j];
     if (a && t === a) { results.push("A"); hole += 1; }
     else if (b && t === b) { results.push("B"); hole += 1; }
-    else if (/^half(ved)?$/.test(t) || t === "push" || t === "tie" || t === "tied") { results.push("H"); hole += 1; }
+    else if (t === "half" || t === "halved" || t === "push" || t === "tie" || t === "tied") { results.push("H"); hole += 1; }
   }
   return results;
 }
