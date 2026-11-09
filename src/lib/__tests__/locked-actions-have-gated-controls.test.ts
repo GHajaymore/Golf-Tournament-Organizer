@@ -153,7 +153,8 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
     const fieldActions = new Set<string>();
     for (const f of files(join(ROOT, "src", "app", "actions"), /\.ts$/)) {
       for (const part of readSource(relative(ROOT, f)).split(/export async function /).slice(1)) {
-        if (/\bfieldRefusal\(/.test(part)) fieldActions.add(part.slice(0, part.indexOf("(")).trim());
+        // `fieldVerdictFor` is the same rule with its warning (J12, PR 7a): addSignup asks it.
+        if (/\bfield(?:Refusal|VerdictFor)\(/.test(part)) fieldActions.add(part.slice(0, part.indexOf("(")).trim());
       }
     }
     // The control: the sweep finds the actions it is about.

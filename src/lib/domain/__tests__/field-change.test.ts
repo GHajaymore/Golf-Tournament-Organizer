@@ -84,10 +84,21 @@ function at(family: Family, stage: Stage): TournamentFacts {
 const DRAW_IS_THE_FIELD: Family[] = ["match", "roundRobinFlights", "knockout", "flightedKnockout", "teamCup"];
 /** The families whose flights are prize divisions a late entrant may be placed in. */
 const PRIZE_DIVISIONS: Family[] = ["stroke", "stableford"];
+/** The knockouts: their draw is made at the first result (the bracket re-seeds until it). */
+const KNOCKOUTS: Family[] = ["knockout", "flightedKnockout"];
+/** The stages with a result in Round 1 — for a knockout, a knockout result: its draw made. */
+const WITH_RESULT: Stage[] = ["liveWithResult", "completed", "unlockedWithResult", "fieldCorrection", "flightsCorrection"];
 
 /** The desk's answer, worked by hand — see the header. True = allowed. */
 function expected(family: Family, stage: Stage, change: FieldChange): boolean {
   if (stage === "completed") return false;
+  /**
+   * A KNOCKOUT'S DRAW IS MADE AT ITS FIRST RESULT (panel Q3, J12): a bracket
+   * has fixed places, so nobody enters after it — launched or not, and no
+   * correction gives a made bracket a new place. The way out is a reserve.
+   */
+  const entering = change === "add" || change === "add-to-flight" || change === "approve";
+  if (KNOCKOUTS.includes(family) && WITH_RESULT.includes(stage) && entering) return false;
   if (stage === "draft" || stage === "registration" || stage === "ready" || stage === "unlocked" || stage === "unlockedWithResult") {
     return true;
   }
@@ -114,14 +125,23 @@ function expected(family: Family, stage: Stage, change: FieldChange): boolean {
     case "withdraw":
     case "reinstate":
     case "place-in-group": // an undrawn player written into a tee-sheet group with room moves nobody (PR B)
+    case "reserve": // onto the waiting list: nobody enters the field (J12)
       return true;
     case "add":
     case "approve":
+      // A round robin's late entrant needs a flight (panel Q3): a bare add or an approval has none to give.
+      if (family === "roundRobinFlights") return false;
       if (DRAW_IS_THE_FIELD.includes(family)) return false;
       if (family === "league" || family === "casual") return true;
       return !begun;
+    case "add-to-flight":
+      // A round robin's late entry IS one with a flight; the window is its only question.
+      if (family === "roundRobinFlights") return !begun;
+      // In a prize division: an entry and a placement, both. Elsewhere flights are not joined once launched.
+      return PRIZE_DIVISIONS.includes(family) && expected(family, stage, "add") && expected(family, stage, "place-in-flight");
     case "place-in-flight":
-      return PRIZE_DIVISIONS.includes(family) && !begun;
+      // A round robin's unplaced player is put in one as a late entrant is (J04), in the same window.
+      return (PRIZE_DIVISIONS.includes(family) || family === "roundRobinFlights") && !begun;
     case "edit":
     case "bulk":
     case "move-flight":
@@ -141,9 +161,9 @@ describe("fieldChangeAllowed: every family × stage × change", () => {
     }
   }
 
-  it("covers all nine families and all nine changes", () => {
+  it("covers all nine families and all eleven changes", () => {
     expect(FAMILIES).toHaveLength(9);
-    expect([...FIELD_CHANGES].sort()).toEqual(["add", "approve", "bulk", "edit", "move-flight", "place-in-flight", "place-in-group", "reinstate", "withdraw"]);
+    expect([...FIELD_CHANGES].sort()).toEqual(["add", "add-to-flight", "approve", "bulk", "edit", "move-flight", "place-in-flight", "place-in-group", "reinstate", "reserve", "withdraw"]);
   });
 
   it("the facts name the family the machine names, not a second reading of it", () => {
@@ -195,12 +215,26 @@ describe("the words", () => {
     );
   });
 
-  it("a late entry into a drawn field says the draw is made", () => {
-    for (const family of ["match", "roundRobinFlights", "knockout", "flightedKnockout"] as Family[]) {
+  it("a late entry into a drawn field says the draw is made — a knockout's with the reserve, a round robin's asks for a flight (J12)", () => {
+    expect(says("match", "live", "add")).toBe(
+      "The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.",
+    );
+    for (const family of ["knockout", "flightedKnockout"] as Family[]) {
+      // Launched, no result yet: the reserve, and the correction that would open the field.
       expect(says(family, "live", "add")).toBe(
-        "The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.",
+        "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. An Organizer can open the field with a committee correction.",
+      );
+      // A result in: the reserve, and how to draw again — never a correction (no correction makes a place).
+      expect(says(family, "liveWithResult", "add")).toBe(
+        "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. To draw it again, clear its results on the Bracket.",
       );
     }
+    expect(says("roundRobinFlights", "live", "add")).toBe(
+      "In a round robin, a late entrant needs a flight. Without one they have no matches. Choose their flight in the Add form.",
+    );
+    expect(says("roundRobinFlights", "live", "approve")).toBe(
+      "In a round robin, a late entrant needs a flight. Approving cannot give one. Add them with a flight in the Add form instead.",
+    );
     expect(says("teamCup", "live", "add")).toBe(
       "The sides are picked, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.",
     );
@@ -361,8 +395,21 @@ describe("a committee correction opens exactly the changes whose refusal named i
       if (family === "casual" || family === "league") continue; // open by nature
       expect(fieldChangeAllowed(walkIn(family, "field"), "edit").ok, family).toBe(true);
       expect(fieldChangeAllowed(walkIn(family, "field"), "bulk").ok, family).toBe(true);
-      expect(fieldChangeAllowed(walkIn(family, "field"), "add").ok, family).toBe(true);
+      // A knockout with a result is the exception, below: its refusal names the reserve, not the field.
+      if (family !== "knockout" && family !== "flightedKnockout") expect(fieldChangeAllowed(walkIn(family, "field"), "add").ok, family).toBe(true);
       expect(fieldChangeAllowed(walkIn(family, "flights"), "edit").ok, family).toBe(false);
+    }
+  });
+
+  it("a knockout with a result: no correction makes a place in a made bracket — the reserve is the way out (J12, panel Q3)", () => {
+    for (const family of ["knockout", "flightedKnockout"] as Family[]) {
+      for (const change of ["add", "add-to-flight", "approve"] as FieldChange[]) {
+        const v = fieldChangeAllowed(walkIn(family, "field"), change);
+        expect(v.ok, `${family} ${change}`).toBe(false);
+        if (!v.ok) expect(v.wayOut).toEqual({ says: "Add them as a reserve on Entries", href: "/registration" });
+      }
+      expect(fieldChangeAllowed(walkIn(family, "field"), "reserve").ok).toBe(true);
+      expect(fieldChangeAllowed(walkIn(family, null), "reserve").ok).toBe(true);
     }
   });
 
@@ -415,9 +462,13 @@ describe("the screen's doors and banner come from the same rule", () => {
       "The format, rounds and players’ details stay locked.",
     ]);
     const knockout = fieldBanner(fieldFactsOf(at("knockout", "live"), NO_SHEET)) ?? [];
-    expect(knockout[0]).toBe("You can withdraw a player or put one back.");
-    expect(knockout[1]).toContain("The draw is made, so the field is fixed.");
+    // A knockout: the reserve is what is open, and the first sentence of its refusal says why (J12).
+    expect(knockout).toEqual(["You can withdraw a player, put one back or add a reserve.", "The draw is made, so nobody can join the knockout."]);
     expect(knockout.join(" ")).not.toMatch(/late entry/);
+    // A round robin: a late entry with a flight.
+    expect((fieldBanner(fieldFactsOf(at("roundRobinFlights", "live"), NO_SHEET)) ?? [])[0]).toBe(
+      "You can withdraw a player, put one back or add a late entry with a flight.",
+    );
     const begun = fieldBanner(fieldFactsOf(at("stroke", "liveWithResult"), NO_SHEET)) ?? [];
     expect(begun[1]).toContain("The first card of Round 1 is in");
     // Short: no line of the banner runs past twenty words.

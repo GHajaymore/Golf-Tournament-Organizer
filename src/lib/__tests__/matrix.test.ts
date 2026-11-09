@@ -86,8 +86,9 @@ import { placesByValue } from "@/lib/domain/flight-places";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
 import type { HoleResult, Match, Player } from "@/lib/domain/types";
 import type { BracketView } from "@/lib/domain/bracket";
-import { tournamentStatus, drawFacts } from "@/lib/domain/tournament-status";
+import { tournamentStatus, drawFacts, type Family, type TournamentFacts } from "@/lib/domain/tournament-status";
 import { FAMILY_FIXTURES as STATUS_FAMILIES, launched as launchedFacts } from "@/lib/domain/__tests__/tournament-facts-fixtures";
+import { fieldChangeAllowed, fieldFactsOf, fieldStepOf, partOf, type FieldChange, type FieldStep, type FieldVerdict } from "@/lib/domain/field-change";
 
 /**
  * The combination sweep.
@@ -2982,4 +2983,174 @@ describe("what a team board and the rules sheet say about handicap, on every tea
       }
     }
   }
+});
+
+/**
+ * AN UPSTREAM EDIT TO THE FIELD, EVERY FAMILY × EVERY STEP (J12, state machine
+ * PR 7a; the proposal's test plan, "an upstream edit, every scope × every
+ * step", for the field and flights rows).
+ *
+ * The expectation is worked HERE from the panel's table and its Q3, never read
+ * off the function:
+ *
+ *   - before the draw anything goes (nothing is locked yet);
+ *   - stroke play and Stableford take a late entrant after the draw with a
+ *     WARNING — the unplaced flag where flights exist (J04) — and with a flight
+ *     chosen, plainly; once Round 1 has a card in (no published sheet here),
+ *     the competition has begun and a new name would have no score for it, so
+ *     REFUSE;
+ *   - a round robin in flights REFUSES a late entrant with no flight (no
+ *     flight, no fixtures) and takes one with a flight as a RE-DRAW (their
+ *     matches drawn against it); refused once begun;
+ *   - a knockout REFUSES after its draw — launched, or a result recorded
+ *     before launch (D2) — and the way out is a reserve; the reserve itself is
+ *     never refused before the results are final;
+ *   - a match or a cup: the draw is the field, REFUSE after launch;
+ *   - a league or a casual round changes week to week: open;
+ *   - completed: REFUSE, every family (Rule 20.2e, results final).
+ *
+ * Field sizes start at ONE (a knockout of one, a medal of one); a flighted
+ * knockout has THREE flights (CLAUDE.md, knockouts). Invariants in every cell:
+ * the step the facts stand in is the step meant; every refusal has words and a
+ * screen; a refusal naming a correction is opened by it; a withdrawal is open
+ * until completed; the scope returned is the change's part.
+ */
+describe("an upstream edit to the field, every family × every step (J12)", () => {
+  type Want = "open" | "warn" | "redraw" | "refuse";
+  const STEPS: FieldStep[] = ["before-draw", "after-draw", "after-scores", "completed"];
+  const FAMILIES = Object.keys(STATUS_FAMILIES) as Family[];
+  /** No published sheet: Round 1's first card closes late entries (PR A's rule). */
+  const CLOCK = { lastTee: null, now: { day: "2026-11-29", minutes: 8 * 60 } };
+  const FLIGHTED: Family[] = ["stroke", "stableford", "roundRobinFlights"];
+
+  /** A family at a step, n entered, with `flights` flights where the family has them — three draws for a flighted knockout. */
+  function factsAt(family: Family, step: FieldStep, n: number, flights: number): TournamentFacts {
+    const base = STATUS_FAMILIES[family]();
+    const f: TournamentFacts = {
+      ...base,
+      confirmed: n,
+      groups: FLIGHTED.includes(family) ? flights : base.groups,
+      knockout:
+        family === "flightedKnockout"
+          ? {
+              // Three flights, the field dealt between them as the division would (n = 1 leaves two empty).
+              draws: ["Flight A", "Flight B", "Flight C"].map((label, i) => ({ label, entrants: Math.floor((n + 2 - i) / 3), finalDecided: false })),
+              thirdPlace: { on: false, decided: false },
+            }
+          : base.knockout,
+    };
+    const played = (x: TournamentFacts): TournamentFacts => ({ ...x, rounds: x.rounds.map((r, i) => (i === 0 ? { ...r, hasResult: true } : r)) });
+    switch (step) {
+      case "before-draw":
+        // A casual round is created live and unlocked; everything else is still being set up.
+        return family === "casual" ? f : { ...f, status: "draft", configUnlocked: false };
+      case "after-draw":
+        return launchedFacts(f);
+      case "after-scores":
+        return played(launchedFacts(f));
+      case "completed":
+        return { ...played(f), status: "completed", configUnlocked: false };
+    }
+  }
+
+  /** "add" — a late entrant with no flight. */
+  function wantAdd(family: Family, step: FieldStep, flights: number): Want {
+    if (step === "completed") return "refuse";
+    if (step === "before-draw") return "open";
+    if (family === "league" || family === "casual") return "open";
+    if (family === "stroke" || family === "stableford") return step === "after-draw" ? (flights > 0 ? "warn" : "open") : "refuse";
+    // A round robin needs a flight; a knockout's draw, a match's draw and a cup's sides are the field.
+    return "refuse";
+  }
+
+  /** "add-to-flight" — a late entrant with a flight, where the family has flights to give. */
+  function wantAddWithFlight(family: "stroke" | "stableford" | "roundRobinFlights", step: FieldStep): Want {
+    if (step === "completed" || step === "after-scores") return "refuse";
+    if (step === "before-draw") return "open";
+    return family === "roundRobinFlights" ? "redraw" : "open";
+  }
+
+  const kind = (v: FieldVerdict): Want => (!v.ok ? "refuse" : v.warn === "unplaced" ? "warn" : v.warn === "matches-drawn" ? "redraw" : "open");
+
+  const invariants = (facts: ReturnType<typeof fieldFactsOf>, change: FieldChange, v: FieldVerdict, at: string) => {
+    expect(v.scope, `${at}: the scope is the change's part`).toBe(partOf(change, facts.family));
+    if (v.ok) return;
+    expect(v.says.trim().length, `${at}: a refusal in words`).toBeGreaterThan(10);
+    expect(v.wayOut.href, `${at}: a way out to a screen`).toMatch(/^\//);
+    const named = /to the field|open the field/.test(v.says) ? "field" : /to the flights|open the flights/.test(v.says) ? "flights" : null;
+    if (named && fieldStepOf(facts) !== "completed") {
+      const opened = { ...facts, correction: { scope: named as "field" | "flights" } };
+      expect(fieldChangeAllowed(opened, change).ok, `${at}: the correction its refusal names opens it`).toBe(true);
+    }
+  };
+
+  for (const family of FAMILIES) {
+    for (const step of STEPS) {
+      for (const n of [1, 2, 3, 8, 28]) {
+        const flightCounts = family === "stroke" || family === "stableford" ? [0, Math.min(3, n)] : [Math.min(3, n)];
+        for (const flights of flightCounts) {
+          it(`${family} · ${step} · ${n} entered · ${flights} flights`, () => {
+            const facts = fieldFactsOf(factsAt(family, step, n, flights), CLOCK);
+            expect(fieldStepOf(facts), "the fixture stands in the step meant").toBe(step);
+
+            const add = fieldChangeAllowed(facts, "add");
+            expect(kind(add), "a late entrant with no flight").toBe(wantAdd(family, step, flights));
+            invariants(facts, "add", add, "add");
+
+            if (family === "stroke" || family === "stableford" || family === "roundRobinFlights") {
+              const withFlight = fieldChangeAllowed(facts, "add-to-flight");
+              expect(kind(withFlight), "a late entrant with a flight").toBe(wantAddWithFlight(family, step));
+              invariants(facts, "add-to-flight", withFlight, "add-to-flight");
+            }
+
+            if (family === "knockout" || family === "flightedKnockout") {
+              // After the draw the way out is a reserve, and the reserve is taken.
+              if (step === "after-draw" || step === "after-scores") {
+                expect(add.ok ? null : add.wayOut, "the reserve is the way out").toEqual({ says: "Add them as a reserve on Entries", href: "/registration" });
+              }
+              expect(fieldChangeAllowed(facts, "reserve").ok, "a reserve, until the results are final").toBe(step !== "completed");
+            }
+
+            // A withdrawal never reopens anything: open until completed, every family, every size.
+            expect(fieldChangeAllowed(facts, "withdraw").ok).toBe(step !== "completed");
+          });
+        }
+      }
+    }
+  }
+
+  it("a knockout whose draw was made before launch (D2) refuses a late entrant, a correction or not", () => {
+    for (const family of ["knockout", "flightedKnockout"] as Family[]) {
+      const base = STATUS_FAMILIES[family]();
+      const drawn: TournamentFacts = { ...base, status: "draft", rounds: base.rounds.map((r) => ({ ...r, hasResult: true })) };
+      const facts = fieldFactsOf(drawn, CLOCK);
+      expect(fieldStepOf(facts)).toBe("after-scores");
+      expect(fieldChangeAllowed(facts, "add").ok, family).toBe(false);
+      expect(fieldChangeAllowed(facts, "reserve").ok, family).toBe(true);
+      // A qualifying round's card is NOT the knockout's draw: before launch a knockout after a medal still takes entries.
+      const qualifying: TournamentFacts = {
+        ...base,
+        status: "draft",
+        rounds: [{ ...base.rounds[0], id: "q1", type: "Stroke Play Round", format: "Stroke Play", hasResult: true }, { ...base.rounds[0], id: "k1", position: 1 }],
+      };
+      expect(fieldChangeAllowed(fieldFactsOf(qualifying, CLOCK), "add").ok, `${family} after a medal`).toBe(true);
+    }
+  });
+
+  /**
+   * THE CONSTANT-OFFSET CHECK (combination sweep): two cells asserted whole,
+   * against the panel's words, so a rule that shifted every cell the same way
+   * cannot pass on the cells agreeing with each other.
+   */
+  it("two rows by hand: a medal's late entrant flagged, a knockout's refused with the reserve", () => {
+    const medal = fieldFactsOf(factsAt("stroke", "after-draw", 28, 3), CLOCK);
+    expect(fieldChangeAllowed(medal, "add")).toEqual({ ok: true, scope: "field", warn: "unplaced" });
+    const knockout = fieldFactsOf(factsAt("knockout", "after-scores", 8, 0), CLOCK);
+    expect(fieldChangeAllowed(knockout, "add")).toEqual({
+      ok: false,
+      scope: "field",
+      says: "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. To draw it again, clear its results on the Bracket.",
+      wayOut: { says: "Add them as a reserve on Entries", href: "/registration" },
+    });
+  });
 });
