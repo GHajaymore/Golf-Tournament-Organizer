@@ -67,6 +67,18 @@ describe("normaliseSchema: what the shared client's copy is compared by", () => 
     expect(normaliseSchema(one)).not.toBe(normaliseSchema(two));
   });
 
+  it("a multi-line /** */ doc comment is removed and the lines either side stay apart", () => {
+    const docced = 'model T {\n  /** Who answered,\n   * by name. */\n  a String\n  b String\n}\n';
+    const plain = "model T {\n  a String\n  b String\n}\n";
+    expect(normaliseSchema(docced)).toBe(normaliseSchema(plain));
+    expect(normaliseSchema(docced)).toContain("model T {\na String\nb String\n}");
+  });
+
+  it("a /* inside a string literal is kept", () => {
+    const schema = 'model T {\n  a String @default("/* x */")\n}\n';
+    expect(normaliseSchema(schema)).toContain('@default("/* x */")');
+  });
+
   it("a trailing comment after a string with an escaped quote is still stripped", () => {
     const withComment = 'model T {\n  a String @default("say \\"hi\\"") // note\n}\n';
     const without = 'model T {\n  a String @default("say \\"hi\\"")\n}\n';

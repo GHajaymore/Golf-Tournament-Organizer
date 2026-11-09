@@ -9,8 +9,8 @@
 // The comparison is of a NORMALISED form of each schema, not the bytes. Prisma 6 writes a TIDIED copy
 // beside the client: comments are removed and column alignment is changed (about 80 lines shorter,
 // the same models and fields). A byte comparison therefore reported "matches neither" right after a
-// correct `prisma generate` on main. normaliseSchema drops comment lines and trailing `//` comments,
-// collapses runs of whitespace outside string literals to one space, and drops blank lines. Two schemas
+// correct `prisma generate` on main. normaliseSchema drops `//`, `///` and `/* */` comments (outside
+// string literals), collapses runs of whitespace outside strings to one space, and drops blank lines. Two schemas
 // that differ only in comments or alignment match; one extra field or model does not.
 //
 //   node scripts/prisma-client-check.mjs        exit 0 always; prints the verdict
@@ -26,41 +26,63 @@ import { fileURLToPath } from "node:url";
 
 const read = (file) => (existsSync(file) ? readFileSync(file, "utf8").replace(/\r\n/g, "\n") : null);
 
-// One line, normalised. Strings ("...", with \ escapes) are copied verbatim, so `@default("a // b")`
-// keeps its `//` and its spacing. Outside a string, `//` starts a comment that runs to the end of the
-// line, and runs of whitespace become one space.
-function normaliseLine(line) {
-  let out = "";
+// Normalises a schema for comparison. Strings ("...", with \ escapes) are copied verbatim, so
+// `@default("a // b")` keeps its `//` and its spacing. Outside a string, `//` and `///` comments run to
+// the end of the line, and `/* */` and `/** */` comments are removed (their line breaks are kept, so
+// line structure survives). Runs of whitespace outside strings become one space; blank lines go.
+export function normaliseSchema(text) {
+  const src = text.replace(/\r\n/g, "\n");
+  const out = [];
+  let line = "";
+  let pending = false; // whitespace or a comment seen since the last token
   let inString = false;
-  let pendingSpace = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
+  const flush = () => {
+    if (line !== "") out.push(line);
+    line = "";
+    pending = false;
+  };
+  const put = (c) => {
+    if (pending && line !== "") line += " ";
+    pending = false;
+    line += c;
+  };
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === "\n") {
+      flush();
+      inString = false;
+      continue;
+    }
     if (inString) {
-      out += c;
-      if (c === "\\" && i + 1 < line.length) out += line[++i];
+      line += c;
+      if (c === "\\" && i + 1 < src.length && src[i + 1] !== "\n") line += src[++i];
       else if (c === '"') inString = false;
       continue;
     }
-    if (c === "/" && line[i + 1] === "/") break;
-    if (/\s/.test(c)) {
-      pendingSpace = true;
+    if (c === "/" && src[i + 1] === "/") {
+      while (i + 1 < src.length && src[i + 1] !== "\n") i++;
+      pending = true;
       continue;
     }
-    if (pendingSpace && out !== "") out += " ";
-    pendingSpace = false;
-    out += c;
+    if (c === "/" && src[i + 1] === "*") {
+      i += 2;
+      while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) {
+        if (src[i] === "\n") flush();
+        i++;
+      }
+      i++;
+      pending = true;
+      continue;
+    }
+    if (/\s/.test(c)) {
+      pending = true;
+      continue;
+    }
+    put(c);
     if (c === '"') inString = true;
   }
-  return out;
-}
-
-export function normaliseSchema(text) {
-  return text
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map(normaliseLine)
-    .filter((line) => line !== "")
-    .join("\n");
+  flush();
+  return out.join("\n");
 }
 
 function gitOut(args) {
