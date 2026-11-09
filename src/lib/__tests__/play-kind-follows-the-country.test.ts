@@ -56,5 +56,7 @@ describe("the kinds of play follow the club's country, from one place", () => {
       expect(readSource(f), f).toMatch(/eventWords\(/);
     }
     expect(readSource("src/components/EventSetupClient.tsx")).toMatch(/playKindsFor\(register/);
+    // The dates label is named after the event's kind (Ajay, 2026-11-09), not the word Tournament.
+    expect(readSource("src/components/EventSetupClient.tsx")).toMatch(/\{words\.kind\} dates/);
   });
 });
