@@ -26,10 +26,18 @@ import { moneyRulesVersion, moneyRulesFingerprint } from "@/lib/domain/money-rul
  * `moneyRulesVersion() === moneyRulesVersion()` passes forever and protects
  * nothing.
  */
-const RECORDED = "ml5h0ae";
+const RECORDED = "mlqxamd";
 
 const HISTORY: Array<{ version: string; note: string }> = [
   // { version: "m…", note: "2026-09-01 — remainder went to the largest share, not the first" },
+  {
+    version: "ml5h0ae",
+    note:
+      "2026-11-08 — a side game between UNEVEN sides at a stake that does not divide lost the odd cent " +
+      "(2 v 1 at $10.01: +500, +500, -1001); the larger side now shares the total by splitExactly, odd " +
+      "cents to the lowest player id (+501, +500, -1001). The fingerprint now runs side games between " +
+      "sides, which it never did, so this generation is the first that pins them.",
+  },
 ];
 
 describe("the money rules carry a version", () => {
