@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession, MEDAL_COURSE } from "./organizer-fixture.mjs";
+import { expectLaunched } from "./end-early";
 
 /**
  * THE TEE SHEET, FROM THE SECRETARY'S DRAW TO A MEMBER'S PHONE.
@@ -92,7 +93,7 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   // The member's own phone, signed in as her.

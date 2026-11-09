@@ -3,6 +3,7 @@ import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { seed, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
+import { expectLaunched } from "../end-early";
 
 /**
  * SCENARIO — tournament E: the Eagle club's Matchplay Championship. The
@@ -113,7 +114,7 @@ test("five E", async ({ page, context, baseURL }, testInfo) => {
       if (await launch.count()) {
         await launch.click();
         await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-        await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+        await expectLaunched(page);
       }
       await open(page, "/event");
       await page.locator("label", { hasText: "Anyone with the link" }).first().click();

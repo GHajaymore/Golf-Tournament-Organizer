@@ -2,6 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { seed, setPlanFor, names, indexes, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
+import { expectLaunched, pressComplete } from "../end-early";
 
 /**
  * SCENARIO — tournament A: a community golf society on Birdie ($49),
@@ -283,7 +284,7 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       await open(page, "/dashboard");
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
       await open(page, "/event");
       await page.locator("label", { hasText: "Anyone with the link" }).first().click();
       await page.getByRole("button", { name: /^Save/ }).last().click();
@@ -395,7 +396,10 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       // Complete asks first (2026-10-10), and a completed tournament can be
       // reopened: complete, reopen, complete again — each confirmed.
       const settle = async (button: string, want: string) => {
-        await page.getByRole("button", { name: button }).first().click();
+        // Completing goes through what the card offers now (e2e/end-early.ts): Complete once play is
+        // over, after closing a round whose every card is in.
+        if (button === "Complete tournament") await pressComplete(page);
+        else await page.getByRole("button", { name: button }).first().click();
         const dialog = page.getByRole("alertdialog");
         await expect(dialog).toBeVisible({ timeout: 15_000 });
         note(`${button} dialog: ${(await dialog.innerText()).replace(/\s+/g, " ").slice(0, 300)}`);

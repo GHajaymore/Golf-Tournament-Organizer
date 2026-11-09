@@ -325,24 +325,29 @@ export type CardPress =
   | { kind: "link"; label: string; href: string; text: string }
   | { kind: "none"; text: string };
 
+/** The overflow's one item: a deliberately named, early, destructive action — never the routine button. */
+export const END_EARLY = "End this event early…";
+
 /**
- * COMPLETE, OFFERED QUIETLY BESIDE THE JOB — or not at all while a round's cards are coming in.
+ * ENDING EARLY, IN THE CARD'S OVERFLOW — never a "Complete" button while golf remains to be played.
  *
- * The panel (9 Nov) and the PM (10 Nov): the card's button never offers "Complete tournament" while
- * golf is being played. But a committee must still be able to end a tournament early — Round 2 rained
- * off, the field gone home — and Complete asks first, naming the round nobody played
- * (`completingCheckFor`). So while live:
+ * The panel (9 Nov) and the PM (10 Nov): between rounds — the Saturday night of a two-day event — is the
+ * exact moment a routine "Complete tournament" beside the job ends a tournament one press before day 2.
+ * But ending early is a real need (Round 2 rained off), so it stays, as a deliberately named action
+ * behind a quiet "More": "End this event early…". It is the machine's own Complete — its refusal and
+ * way out, and its question naming the rounds nobody played (`completingCheckFor`) — under a name that
+ * says what it does.
  *
- *   cards still coming in, or a dispute (`cards`, `settle`)   no Complete at all
- *   anything else (before the first tee, every card in, between rounds, a knockout's ties)
- *                                                            Complete, as a QUIET second button,
- *                                                            with its question and its refusal
- *
- * Play over, Complete is the job itself (`results`) and the card's one filled button.
+ * Offered while live and while any round remains to be played: before the first card, with cards still
+ * out, between rounds, a knockout's ties. Not when the one round left open has every card in (closing it
+ * is the job, and then Complete is the button). Never once play is over: Complete is the card's one
+ * filled button then (`results`).
  */
-export function completeBeside(next: NextAction | null, job: TournamentJob | null | undefined): NextAction | null {
+export function endEarlyOf(st: Pick<TournamentStatus, "nextAction" | "rounds">, job: TournamentJob | null | undefined): NextAction | null {
+  const next = st.nextAction;
   if (!next || next.kind !== "complete" || !job || job.moves) return null;
-  return job.key === "cards" || job.key === "settle" ? null : next;
+  const left = st.rounds.filter((r) => r.state !== "closed" && !(job.key === "close" && r.id === job.roundId));
+  return left.length > 0 ? next : null;
 }
 
 export function cardPressOf(next: NextAction | null, job?: TournamentJob | null): CardPress {

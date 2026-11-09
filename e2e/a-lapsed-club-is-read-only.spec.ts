@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { completeControl } from "./end-early";
 
 /**
  * A LAPSED PAID CLUB'S TOURNAMENT IS A READ-ONLY ARCHIVE (2026-10-21,
@@ -90,8 +91,9 @@ test("an organizer of a lapsed club sees the tournament read-only, and a press i
     await expect(banner.getByRole("link", { name: "Go to Your plan" })).toHaveAttribute("href", "/organization#plan");
     await expect(page.getByRole("button", { name: /Make a committee correction/ }), "a committee correction is offered on an archive").toHaveCount(0);
 
-    // A press: Complete, confirmed — refused, in words, beside the button.
-    const complete = page.getByRole("button", { name: "Complete tournament" }).first();
+    // A press: ending it ("End this event early…" under More while golf remains), confirmed — refused,
+    // in words, beside the button.
+    const complete = await completeControl(page);
     await complete.scrollIntoViewIfNeeded();
     await complete.click();
     const dialog = page.getByRole("alertdialog");

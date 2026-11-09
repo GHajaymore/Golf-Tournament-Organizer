@@ -29,6 +29,7 @@ import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domai
 import { NeedsYouNow, WhatsNext } from "@/components/NeedsYouNow";
 import { CopyLastEvent } from "@/components/CopyLastEvent";
 import { openTournamentJob, secretaryHomeFor } from "@/lib/services/whats-next";
+import { endEarlyOf } from "@/lib/domain/lifecycle-track";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { needsYouNow } from "@/lib/domain/needs-you-now";
@@ -954,6 +955,8 @@ export default async function DashboardPage() {
         <LifecycleBar
           status={statusCardOf(told.facts, status)}
           job={job}
+          // Ending early, behind the card's "More" — never a Complete beside the job (the PM, 10 Nov).
+          endEarly={endEarlyOf(status, job)}
           isAdmin={isAdmin}
           configUnlocked={event.configUnlocked}
           // The committee correction (PR 5b): which locked scopes it may open, and the one open now.

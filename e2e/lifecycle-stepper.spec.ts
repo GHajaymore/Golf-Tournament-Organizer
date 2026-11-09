@@ -4,6 +4,8 @@ import { watchPageErrors } from "./page-errors";
 import { statusFixture, prisma } from "./status-fixture";
 import { clubToday } from "../src/lib/domain/club-clock";
 import { addDays } from "../src/lib/domain/round-dates";
+import { statusCard } from "./end-early";
+import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
  * THE LIFECYCLE STEPPER, WALKED AS AN ORGANIZER WALKS A TWO-DAY MEDAL (B03; the panel's ruling, 9 Nov).
@@ -20,8 +22,9 @@ import { addDays } from "../src/lib/domain/round-dates";
  *                     which the machine offers from the first card
  *   every card in     Close Round 1, which opens that round on Rounds & formats
  *   between rounds    Round 2's tee sheet, on Round 2's stop
- *   day 2 → over      Complete tournament, on Results (before it, Complete is only ever the quiet
- *                     second button — ending early asks first — and absent while cards come in)
+ *   day 2 → over      Complete tournament, on Results. Before it there is never a Complete button: ending
+ *                     early is "End this event early…" behind the card's More (the PM, 10 Nov), and
+ *                     between rounds — the Saturday night — opening it shows that, and nothing else
  *
  * On another screen the stepper is folded to one line (48px at most), with a quiet link to where the
  * job is done — and none on the screen where it is done. At every step the page never scrolls sideways.
@@ -40,6 +43,12 @@ const ZONE = process.env.E2E_TZ || "America/New_York";
 async function noSidewaysScroll(page: Page, where: string) {
   const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(over, `${where} scrolls sideways`).toBeLessThanOrEqual(0);
+}
+
+/** While golf remains to be played: no Complete button anywhere, and the card's More holds ending early. */
+async function noCompleteButMore(page: Page) {
+  await expect(page.getByRole("button", { name: "Complete tournament" }), "a Complete button while golf remains to be played").toHaveCount(0);
+  await expect(statusCard(page).getByRole("button", { name: "More actions", exact: true })).toBeVisible();
 }
 
 /** The dashboard, previewing the stepper: its current stop and the status card's button. */
@@ -80,16 +89,14 @@ test("the stepper, the dashboard's button and the folded line agree at every ste
     d = await dashboard(page);
     await expect(d.current).toContainText("Tee sheet");
     await expect(page.getByRole("link", { name: /Publish the tee sheet/ }).first()).toHaveAttribute("href", "/foursomes");
-    // Before anybody plays, Complete is only ever the quiet second button (ending early asks first).
-    await expect(page.locator(".card").getByRole("button", { name: "Complete tournament" }).and(page.locator(".btn-primary"))).toHaveCount(0);
+    await noCompleteButMore(page);
 
     // The sheet out: no button at all, only when it tees off.
     await prisma.stage.update({ where: { id: r1 }, data: { teeSheetPublished: true } });
     d = await dashboard(page);
     await expect(d.current).toContainText("Round 1");
     await expect(d.stepper).toContainText("Round 1 tees off");
-    // Before anybody plays, Complete is only ever the quiet second button (ending early asks first).
-    await expect(page.locator(".card").getByRole("button", { name: "Complete tournament" }).and(page.locator(".btn-primary"))).toHaveCount(0);
+    await noCompleteButMore(page);
 
     // DAY 1: four of six cards in — Open score entry, never Complete.
     await prisma.stage.update({ where: { id: r1 }, data: { playedOn: today } });
@@ -105,13 +112,13 @@ test("the stepper, the dashboard's button and the folded line agree at every ste
     await expect(d.current).toContainText("Round 1");
     await expect(d.stepper).toContainText("Round 1 · 4 of 6 cards in");
     await expect(page.getByRole("link", { name: /Open score entry/ }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Complete tournament" }), "Complete offered while golf is being played").toHaveCount(0);
+    await noCompleteButMore(page);
 
     // THE SAME WITH THE SWITCH OFF (the PM, 10 Nov): the dashboard's button follows the job for everyone.
     await page.goto(`/dashboard?bust=${Date.now()}`);
     await expect(page.getByRole("region", { name: "Where this tournament is" }), "the stepper is drawn without its switch").toHaveCount(0);
     await expect(page.getByRole("link", { name: /Open score entry/ }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Complete tournament" }), "switch off: Complete offered while golf is being played").toHaveCount(0);
+    await noCompleteButMore(page);
 
     // Folded on another screen: one line, and a quiet link to where the job is done.
     await page.goto("/registration?stepper=1");
@@ -142,8 +149,16 @@ test("the stepper, the dashboard's button and the folded line agree at every ste
     d = await dashboard(page);
     await expect(d.current).toContainText("Round 2");
     await expect(page.getByRole("link", { name: /Publish the tee sheet/ }).first()).toBeVisible();
-    // Before anybody plays, Complete is only ever the quiet second button (ending early asks first).
-    await expect(page.locator(".card").getByRole("button", { name: "Complete tournament" }).and(page.locator(".btn-primary"))).toHaveCount(0);
+    await noCompleteButMore(page);
+    // The Saturday night the panel named: ending early is there, named for what it does, only when asked
+    // for. Opened, not pressed — its question names Round 2 (`completing-asks-about-unplayed-rounds.spec.ts`).
+    const more = statusCard(page).getByRole("button", { name: "More actions", exact: true });
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    await expect(statusCard(page).getByRole("button", { name: END_EARLY })).toHaveCount(0);
+    await more.click();
+    await expect(more).toHaveAttribute("aria-expanded", "true");
+    await expect(statusCard(page).getByRole("button", { name: END_EARLY })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Complete tournament" })).toHaveCount(0);
 
     // DAY 2, THEN PLAY OVER: every card in and closed — now, and only now, Complete tournament.
     await prisma.stage.update({ where: { id: r2 }, data: { playedOn: today, teeSheetPublished: true } });

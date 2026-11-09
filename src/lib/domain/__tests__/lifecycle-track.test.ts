@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { tournamentJob, whatsNext, type TournamentJob, type TournamentJobFacts } from "../needs-you-now";
 import { readSource } from "../../__tests__/source";
-import { cardPressOf, completeBeside, lifecycleTrack, stepperOpenOn, stepperShown, trackCount, LIFECYCLE_STEPPER_ON, type LifecycleTrack } from "../lifecycle-track";
+import { cardPressOf, endEarlyOf, lifecycleTrack, stepperOpenOn, stepperShown, trackCount, LIFECYCLE_STEPPER_ON, type LifecycleTrack } from "../lifecycle-track";
 import { shortDate } from "../round-dates";
 import { tournamentStatus, type RoundFacts, type TournamentFacts, type TournamentStatus } from "../tournament-status";
 import { FAMILIES, FAMILY_FIXTURES, completed, facts, launched, playedOut, round } from "./tournament-facts-fixtures";
@@ -254,7 +254,18 @@ function invariants(name: string, t: Facts, today = TODAY) {
     expect(c.reason, `${name}: the refusal, word for word`).toBe(j.disabledBecause);
   } else expect(c.state, name).toBe("now");
   // Never Complete while golf is being played.
-  if (t.status.step === "live") expect(j.key, name).not.toBe("results");
+  if (t.status.step === "live") {
+    expect(j.key, name).not.toBe("results");
+    // Nor as the dashboard card's button: while live, Complete is only ever "End this event early…".
+    const card = cardPressOf(t.status.nextAction, j);
+    expect(card.kind === "move" && card.action.kind === "complete", `${name}: Complete is the card's button while live`).toBe(false);
+  }
+  // Ending early is offered only while live, and only as the machine's own Complete.
+  const early = endEarlyOf(t.status, j);
+  if (early) {
+    expect(t.status.step, `${name}: ending early offered outside play`).toBe("live");
+    expect(early, name).toBe(t.status.nextAction);
+  }
   // Every unfinished stop says why.
   for (const s of tr.steps) if (s.state !== "done") expect(s.reason, `${name}: ${s.label}`).not.toBe("");
   // The track never claims what has not happened: Launch is done exactly when it is launched, Results
@@ -383,35 +394,59 @@ describe("the dashboard's button follows the job for everyone, switch or no swit
     expect("const job = stepperShown(x) ? await openTournamentJob(session.eventId, state.today) : undefined;").toMatch(/stepperShown/);
   });
 
-  it("with the switch OFF, a live tournament with a round in play never shows Complete", () => {
+  it("with the switch OFF, a live tournament never offers Complete as the card's button", () => {
     expect(LIFECYCLE_STEPPER_ON).toBe(false);
     const day1 = launched(medal({ rounds: [r1({ hasResult: true }), r2()] }));
     const st = tournamentStatus(day1);
     expect(st.nextAction?.kind, "CONTROL: the machine itself offers Complete here").toBe("complete");
-    for (const over of [{ board: board() }, { board: board(), disputed: 1 }]) {
+    for (const over of [{ board: board() }, { board: board(), disputed: 1 }, { board: board({ started: 24, certified: 24 }) }, {}]) {
       const job = tournamentJob(jobFacts(day1, over), "2026-11-28", day)!;
       const press = cardPressOf(st.nextAction, job);
-      expect(press.kind).toBe("link");
-      expect(press.kind === "link" && press.label).not.toBe("Complete tournament");
-      expect(completeBeside(st.nextAction, job), `${job.key}: Complete offered while cards are coming in`).toBeNull();
+      expect(press.kind === "move" && press.action.kind === "complete", `${job.key}: Complete is the card's button while live`).toBe(false);
     }
   });
+});
 
-  it("Complete stays reachable, quietly, where ending early is a committee's call — and is the button once play is over", () => {
+describe("ending early: behind More, while golf remains to be played (the PM, 10 Nov)", () => {
+  const offered = (f: TournamentFacts, over: Partial<TournamentJobFacts> = {}, today = TODAY) => {
+    const st = tournamentStatus(f);
+    return endEarlyOf(st, tournamentJob(jobFacts(f, over), today, day));
+  };
+
+  it("offered before the first card, with cards still out, and between rounds — the machine's own Complete", () => {
+    const before = launched(medal());
+    expect(offered(before)).toEqual(tournamentStatus(before).nextAction);
+    const day1 = launched(medal({ rounds: [r1({ hasResult: true }), r2()] }));
+    expect(offered(day1, { board: board() }, "2026-11-28")).toEqual(tournamentStatus(day1).nextAction);
     const between = launched(medal({ rounds: [r1({ hasResult: true, closed: true }), r2()] }));
-    const st = tournamentStatus(between);
-    const job = tournamentJob(jobFacts(between), TODAY, day)!;
-    expect(job.moves).toBe(false);
-    expect(completeBeside(st.nextAction, job)).toBe(st.nextAction);
-    // Every card in, the round still open: Close Round 1 is the button, Complete beside it.
+    const early = offered(between);
+    expect(early).toEqual(tournamentStatus(between).nextAction);
+    // Its confirm names the round nobody has played (`completingCheckFor`).
+    expect(early?.asks).toMatch(/Round 2/);
+  });
+
+  it("every card in Round 1 with Round 2 still to play: still offered; with no round left to play: not", () => {
     const allIn = launched(medal({ rounds: [r1({ hasResult: true }), r2()] }));
-    const closeJob = tournamentJob(jobFacts(allIn, { board: board({ started: 24, certified: 24 }) }), "2026-11-28", day)!;
-    expect(closeJob.key).toBe("close");
-    expect(completeBeside(tournamentStatus(allIn).nextAction, closeJob)).not.toBeNull();
-    // Play over: Complete IS the job, so nothing is offered beside it.
+    expect(offered(allIn, { board: board({ started: 24, certified: 24 }) }, "2026-11-28")).not.toBeNull();
+    const oneRound = launched(facts({ rounds: [r1({ hasResult: true })] }));
+    const job = tournamentJob(jobFacts(oneRound, { board: board({ started: 12, certified: 12, total: 12 }) }), "2026-11-28", day)!;
+    expect(job.key).toBe("close");
+    expect(endEarlyOf(tournamentStatus(oneRound), job), "closing the round is the job; then Complete is the button").toBeNull();
+  });
+
+  it("never once play is over (Complete is the card's one filled button) or completed", () => {
     const over = playedOut(medal());
-    const overJob = tournamentJob(jobFacts(over), TODAY, day)!;
-    expect(cardPressOf(tournamentStatus(over).nextAction, overJob).kind).toBe("move");
-    expect(completeBeside(tournamentStatus(over).nextAction, overJob)).toBeNull();
+    const job = tournamentJob(jobFacts(over), TODAY, day)!;
+    expect(cardPressOf(tournamentStatus(over).nextAction, job)).toMatchObject({ kind: "move", action: { kind: "complete" } });
+    expect(endEarlyOf(tournamentStatus(over), job)).toBeNull();
+    const done = completed(medal());
+    expect(endEarlyOf(tournamentStatus(done), tournamentJob(jobFacts(done), TODAY, day))).toBeNull();
+  });
+
+  it("refused as Complete is refused: the same refusal and way out", () => {
+    const nothing = launched(medal());
+    const early = offered(nothing)!;
+    expect(early.enabled).toBe(false);
+    expect(early.disabledBecause).toBe(tournamentStatus(nothing).refusals.complete);
   });
 });
