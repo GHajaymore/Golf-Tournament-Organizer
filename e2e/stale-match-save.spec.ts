@@ -193,17 +193,30 @@ test("a hole save posted again after the committee signed off undoes nothing", a
     // Through to the server, which stores it; the answer is then dropped — the
     // page left (or the signal gone) before it came back. That is what leaves
     // the tap card's copy on the phone for the next page to find.
+    // The save is claimed SYNCHRONOUSLY (a second save arriving while this one
+    // is awaited must not be taken too), and the step waits for the handler to
+    // finish before it lets go of the route: in round G576-2 the page moved on
+    // while `route.fetch()` was still out, the browser settled the request
+    // itself, and `route.abort` threw "Route is already handled!".
+    let claimed = false;
+    let handled: Promise<void> | null = null;
     await page.route("**/entry**", async (route) => {
       const req = route.request();
-      if (kept === null && isHoleSave(req)) {
-        kept = { url: req.url(), headers: await req.allHeaders(), body: req.postData() ?? "" };
-        await route.fetch();
-        return route.abort("internetdisconnected");
+      if (!claimed && isHoleSave(req)) {
+        claimed = true;
+        handled = (async () => {
+          kept = { url: req.url(), headers: await req.allHeaders(), body: req.postData() ?? "" };
+          await route.fetch();
+          // Already settled by the browser = the answer is lost all the same.
+          await route.abort("internetdisconnected").catch(() => undefined);
+        })();
+        return handled;
       }
       return route.fallback();
     });
     await tap(page, 1);
     await expect.poll(() => kept !== null, { timeout: 20_000, message: "the hole save was never seen — this step did not run" }).toBe(true);
+    await handled;
     await expect.poll(firstTwo, { timeout: 15_000, message: "the organizer's tap was not stored" }).toBe("A,");
     expect(await phoneCopy(page), "CONTROL: the tap card's copy was not left on the phone").not.toBeNull();
     await page.unroute("**/entry**");
