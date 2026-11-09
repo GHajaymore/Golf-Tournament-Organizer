@@ -72,6 +72,11 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # Playwright's official image at EXACTLY the locked @playwright/test version: the browser and
+    # its system libraries are in it, so no apt runs here (see ci.yml).
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+      options: --ipc=host --user 1001
     services:
       postgres:
         image: postgres:16-alpine
@@ -83,15 +88,14 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-        ports:
-          - 5432:5432
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - name: Install the browser, if a browser test is named
+        with:
+          database-host: postgres
+      - name: Check the image holds the browser, if a browser test is named
         if: needs.plan.outputs.browser != ''
-        timeout-minutes: 12
-        run: bash scripts/ci/install-browsers.sh chromium
+        run: node scripts/ci/check-browsers-present.mjs chromium
       - name: Run every named test with nothing broken
         env:
           AUTH_SECRET: breaks-e2e-secret
@@ -114,6 +118,11 @@ jobs:
       fail-fast: false
       matrix:
         break: ${{ fromJson(needs.plan.outputs.breaks) }}
+    # Playwright's official image at EXACTLY the locked @playwright/test version: the browser and
+    # its system libraries are in it, so no apt runs here (see ci.yml).
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+      options: --ipc=host --user 1001
     services:
       postgres:
         image: postgres:16-alpine
@@ -125,16 +134,14 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-        ports:
-          - 5432:5432
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - name: Install the browser, for a break a browser test is to catch
+        with:
+          database-host: postgres
+      - name: Check the image holds the browser, for a break a browser test is to catch
         if: matrix.break.browser != ''
-        # The limit ci.yml gives this step, for the reason it gives.
-        timeout-minutes: 12
-        run: bash scripts/ci/install-browsers.sh chromium
+        run: node scripts/ci/check-browsers-present.mjs chromium
       - name: Break the app, and ask the tests
         env:
           AUTH_SECRET: breaks-e2e-secret
