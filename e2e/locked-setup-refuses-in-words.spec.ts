@@ -175,6 +175,14 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       },
     });
 
+    /**
+     * RENAME IS A MANUAL-RULE CONTROL. The Flights screen draws its flight board, with a
+     * Rename on each flight, only under the Manual formation rule; under any other rule
+     * the flights are the rule's and are shown as cards (round G569-3 waited six minutes
+     * for a button the seeded medal, on Balanced skills, never draws). So this file's copy
+     * of the medal is put on Manual for this step, and back in `finally`.
+     */
+    await prisma.event.update({ where: { id: ev.id }, data: { formationRule: "manual" } });
     await pressedAfterTheLock({
       label: `Flights · Rename ${flightLabel}`,
       path: "/grouping",
@@ -258,7 +266,7 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
 
     expect(errors, errors.join("\n")).toEqual([]);
   } finally {
-    await prisma.event.update({ where: { id: ev.id }, data: { configUnlocked: false } });
+    await prisma.event.update({ where: { id: ev.id }, data: { configUnlocked: false, formationRule: event.formationRule } });
     await closed();
     await prisma.auditLog.deleteMany({ where: { eventId: ev.id, action: "committee-correction" } });
   }
