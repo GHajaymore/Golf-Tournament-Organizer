@@ -21,6 +21,14 @@
  */
 
 import { tableInClubWords, type GolfWords } from "./domain/golf-terms";
+import { LIFECYCLE_STEPPER_ON } from "./domain/lifecycle-track";
+
+/**
+ * THE LIFECYCLE STEPPER, IN THE GUIDE (B03) — said only once its switch is on, when it takes the place
+ * of the setup bar and the "How a tournament runs" panel (`LIFECYCLE_STEPPER_ON`).
+ */
+export const STEPPER_GUIDE =
+  "Under the tournament bar on every screen, the stepper shows the whole tournament as one track — **Set up**, **Tee times** (**Draw** for a knockout), **Play** and **Results** — with each step marked **Done**, **Now**, **Needs you** or **To do**, and why. Its head counts the part you are in, for example **Set up · 4 of 5 done** (optional steps such as a medal's flights are not counted). It is drawn in full on the Dashboard, and on Tournament details while you are setting up; on other screens it is one line, such as **Round 1 · 18 of 24 cards in**, with a link to where that is done. The step it marks is always the one the Dashboard's button is for: **Launch tournament** while setting up, **Publish the tee sheet** before the first tee, **Open score entry** while play is on, **Close Round 1** once every card is in, the next round's pairings between rounds, and **Complete tournament** only once play is over. When the button is refused, the reason is said beside it with a link to where it is put right.";
 
 export type GuideBlock =
   | { kind: "p"; text: string }
@@ -468,7 +476,10 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Until it is launched, a tournament's status is **Setting up** — one step, however far you are. Entries are not a status: players can sign up once you publish the sign-up link on **Entries**. With results already in, it reads **Setting up · results in** and the card says which round has results; the button is still **Launch tournament**.",
-          "Work through the setup steps on the bar across the top of each Set-up screen — it is the one count of how far you are (for example **3 of 6 done**); the **How a tournament runs** panel on Tournament details marks where you are without a second count. The tournament needs a name and its **dates**; a venue alone is not enough, because players cannot plan around a tournament with no day. Until you launch, the Dashboard keeps the steps still to do under **Still to set up**, even once your players are in.",
+          // The lifecycle stepper replaces the rail and the "How a tournament runs" panel when its switch
+          // goes on, and the guide says so in the same one line (`LIFECYCLE_STEPPER_ON`).
+          (LIFECYCLE_STEPPER_ON ? STEPPER_GUIDE : "Work through the setup steps on the bar across the top of each Set-up screen — it is the one count of how far you are (for example **3 of 6 done**); the **How a tournament runs** panel on Tournament details marks where you are without a second count.") +
+          " The tournament needs a name and its **dates**; a venue alone is not enough, because players cannot plan around a tournament with no day. Until you launch, the Dashboard keeps the steps still to do under **Still to set up**, even once your players are in.",
           "Some steps are **Optional** and never stop you: flights for a medal or a Stableford (one field is a complete setup, and the step reads **Optional — one field**), the answer on how money works, and a day for every round of a tournament played over several rounds. Tees that cannot give a Course Handicap also leave **Tournament details** unticked and Optional, and the **Ready to launch** card says why, for example “Add tees with their Course Rating and Slope, or players get strokes off their raw Handicap Index.”: add the tees and their Course Rating and Slope on Tournament details → Courses, or launch as it is. Once nothing stops a launch the bar reads **Ready to launch** and says how many parts are done, the rest optional.",
           "Press the launch button on the status bar. **Launch “‹name›”?** first lists what setup still has open — no flights, no tee sheet, no answer on how money works, a tee with no Slope under a round that scores net or Stableford (its players are then scored on their raw Handicap Index), or a tee with a Slope but no Course Rating (scored on the Slope alone, without the Course Rating minus Par adjustment) — each with a link to the screen that fixes it and whether you can still do it after launch. Then it summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
           "Press [[Launch tournament]]. Setup locks; Part 3 lists what you can still change.",
@@ -487,9 +498,9 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
-          "One line for each job waiting on you in the club's tournaments, the soonest first: entries waiting for approval (with the day entries close), a tee sheet for the next fortnight not yet published, a tournament starting within the fortnight that is not launched yet (or one with results already in that never was), the next round's pairings or the next week's day once it is live, cards not returned in a round being played, and results not released once play is over — every round closed, or a knockout's Final decided.",
+          "One line for each job waiting on you in the club's tournaments, the soonest first: entries waiting for approval (with the day entries close), a tournament starting within the fortnight that is not launched yet (or one with results already in that never was), a tee sheet for the next fortnight not yet published, the next round's pairings or the next week's day once it is live, a disputed result to settle, the cards in so far in a round being played (for example **Round 1 · 18 of 24 cards in**, counted in sides for a scramble), a round with every card in that nobody has closed (**Round 1 · all 24 cards in**), and results not released once play is over — every round closed, or a knockout's Final decided.",
           "The tournament's own line is the same next step its dashboard offers, so the two never disagree. When the dashboard would refuse it — a card still waiting to be signed off, nothing scored, a step of setup still open — the line says why instead, and its button goes where that is put right.",
-          "Each line names its tournament and has one button that opens that tournament on the screen that does the job: [[Approve entries]], [[Publish the tee sheet]], [[Launch tournament]], [[Open score entry]], [[Complete tournament]], or the way out a refusal names.",
+          "Each line names its tournament and has one button that opens that tournament on the screen that does the job: [[Approve entries]], [[Launch tournament]], [[Publish the tee sheet]], **Settle it**, [[Open score entry]], **Close Round 1** (which opens that round on Rounds & formats, where **Is this round over?** asks or refuses), [[Complete tournament]], or the way out a refusal names.",
           "The buttons are for the club's Commissioner and Admins. Anyone else running a tournament sees the same lines without them.",
           "Nothing waiting says so. A completed tournament never appears.",
         ],

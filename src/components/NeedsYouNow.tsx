@@ -112,7 +112,12 @@ export function WhatsNext({
             </span>
             {mayAct &&
               (job.eventId === openEventId ? (
-                <Link href={job.href} className="btn btn-secondary" style={{ minHeight: 44 }}>
+                <Link
+                  // A job on one round ("Close Round 2") opens that round on Rounds & formats.
+                  href={job.roundId && job.href === "/stages" ? `/stages?round=${job.roundId}` : job.href}
+                  className="btn btn-secondary"
+                  style={{ minHeight: 44 }}
+                >
                   {job.action} <Icon name="arrow-right" />
                 </Link>
               ) : (

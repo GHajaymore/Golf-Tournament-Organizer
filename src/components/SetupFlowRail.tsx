@@ -54,7 +54,9 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
   if (flow.readyToLaunch) {
     return (
       <div
-        className="card elev-sm"
+        // `setup-flow-rail`: the lifecycle stepper (B03) is this rail grown to the whole
+        // tournament; while it is shown, this stands aside (lifecycle-stepper.css).
+        className="card elev-sm setup-flow-rail"
         style={{ marginBottom: 16, gap: 8, borderLeft: "3px solid var(--color-accent-2)" }}
       >
         <span className="card-title" style={{ fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}>
@@ -139,7 +141,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
   const { step } = positionOf(flow, href);
 
   return (
-    <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
+    <div className="card elev-sm setup-flow-rail" style={{ marginBottom: 16, gap: 12 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <span className="card-kicker">Setting up</span>
         <span className="text-muted" style={{ fontSize: 13 }}>

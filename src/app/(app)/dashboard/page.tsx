@@ -28,7 +28,9 @@ import { RoundReadyCard } from "@/components/RoundReadyCard";
 import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
 import { NeedsYouNow, WhatsNext } from "@/components/NeedsYouNow";
 import { CopyLastEvent } from "@/components/CopyLastEvent";
-import { secretaryHomeFor } from "@/lib/services/whats-next";
+import { openTournamentJob, secretaryHomeFor } from "@/lib/services/whats-next";
+import { stepperShown } from "@/lib/domain/lifecycle-track";
+import { headers } from "next/headers";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { needsYouNow } from "@/lib/domain/needs-you-now";
@@ -516,6 +518,13 @@ export default async function DashboardPage() {
    */
   const told = await tournamentStatusFor(session.eventId, state.today);
   const status = told?.status ?? null;
+  /**
+   * THE ONE BUTTON WITH THE STEPPER ON (B03; the panel, 9 Nov): `tournamentJob`, the job the
+   * lifecycle stepper marks and the home's first line for this tournament, composed here — never in
+   * `statusCardOf`. While the switch is off (`?stepper=1` previews it), undefined: the card presses
+   * the machine's next action exactly as before.
+   */
+  const job = stepperShown((await headers()).get("x-search") ?? "") ? await openTournamentJob(session.eventId, state.today) : undefined;
   const step = status?.step ?? "setting-up";
   const nextAction = status?.nextAction ?? null;
   /**
@@ -945,6 +954,7 @@ export default async function DashboardPage() {
       {isStaff && told && status && (
         <LifecycleBar
           status={statusCardOf(told.facts, status)}
+          job={job}
           isAdmin={isAdmin}
           configUnlocked={event.configUnlocked}
           // The committee correction (PR 5b): which locked scopes it may open, and the one open now.

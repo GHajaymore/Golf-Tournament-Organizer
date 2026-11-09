@@ -390,8 +390,9 @@ describe("what's next, for the same people", () => {
     const entries = home.jobs.find((j) => j.eventId === ids.running && j.key === "entries")!;
     expect(entries.text).toMatch(/· 1 entry awaiting approval$/);
     const cards = home.jobs.find((j) => j.eventId === ids.running && j.key === "cards")!;
-    // Two in the field, one card started and not certified: two not returned.
-    expect(cards.text).toBe("Round 1: 2 cards not returned");
+    // Two in the field, one card started and not certified: none of the two in (said as cards IN since
+    // the panel's ruling on the stepper, 9 Nov).
+    expect(cards.text).toBe("Round 1 · 0 of 2 cards in");
     expect(home.jobs.some((j) => j.eventId === ids.elsewhere)).toBe(false);
     // A completed tournament waits on nobody.
     expect(home.jobs.some((j) => j.eventId === ids.source)).toBe(false);

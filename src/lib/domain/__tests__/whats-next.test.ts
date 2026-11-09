@@ -83,20 +83,43 @@ describe("what's next: one line per job, only when it is a job", () => {
     expect(keys(quiet({ nextSheet: { round: "Round 1", day: "", published: false } }))).toEqual([]);
   });
 
-  it("cards not returned: the board's own count, once the round is being played", () => {
+  it("cards in, counted in the board's own unit, once the round is being played (the panel, 9 Nov)", () => {
     const [j] = jobs(quiet({ board: board() }));
-    expect(j.text).toBe("Round 2: 4 cards not returned");
+    expect(j.text).toBe("Round 2 · 8 of 12 cards in");
     expect(j.href).toBe("/entry");
-    expect(jobs(quiet({ board: board({ unit: "sides", total: 8, certified: 7 }) }))[0].text).toBe("Round 2: 1 side not returned");
-    // Every card in, the round closed, a knockout's ties or a round scored by hand: no line.
-    expect(keys(quiet({ board: board({ certified: 12 }) }))).toEqual([]);
+    expect(j.action).toBe("Open score entry");
+    // A scramble counts sides.
+    expect(jobs(quiet({ board: board({ unit: "sides", total: 8, certified: 7 }) }))[0].text).toBe("Round 2 · 7 of 8 sides in");
+    // The round closed, a knockout's ties or a round scored by hand: no line.
     expect(keys(quiet({ board: board({ closed: true }) }))).toEqual([]);
     expect(keys(quiet({ board: board({ unit: "ties" }) }))).toEqual([]);
     expect(keys(quiet({ board: board({ unit: "manual" }) }))).toEqual([]);
     // Before its day, with nobody out, nobody is late.
     expect(keys(quiet({ board: board({ day: "2026-10-25", started: 0, certified: 0 }) }))).toEqual([]);
     // On its day with nobody started yet, the whole field is still out.
-    expect(jobs(quiet({ board: board({ started: 0, certified: 0 }) }))[0].text).toBe("Round 2: 12 cards not returned");
+    expect(jobs(quiet({ board: board({ started: 0, certified: 0 }) }))[0].text).toBe("Round 2 · 0 of 12 cards in");
+  });
+
+  it("every card in and the round still open: closing it is the job, and it opens that round", () => {
+    const [j] = jobs(quiet({ board: board({ roundId: "r2", certified: 12 }) }));
+    expect(j.key).toBe("close");
+    expect(j.text).toBe("Round 2 · all 12 cards in");
+    expect(j.action).toBe("Close Round 2");
+    expect(j.href).toBe("/stages");
+    expect(j.roundId).toBe("r2");
+    // CONTROL: a card still out is the cards job, not the close.
+    expect(keys(quiet({ board: board({ certified: 11 }) }))).toEqual(["cards"]);
+    // An empty board (nobody to card) closes nothing.
+    expect(keys(quiet({ board: board({ total: 0, certified: 0, started: 0 }) }))).toEqual([]);
+  });
+
+  it("a disputed result comes before the cards it holds up, and is said when there is no board", () => {
+    expect(keys(quiet({ disputed: 1, board: board() }))).toEqual(["settle", "cards"]);
+    const [j] = jobs(quiet({ disputed: 2 }));
+    expect(j.text).toBe("2 disputed results to settle");
+    expect(j.action).toBe("Settle it");
+    expect(j.href).toBe("/entry");
+    expect(keys(quiet({ disputed: 0 }))).toEqual([]);
   });
 
   it("results not released: only when play is over and the tournament is not completed", () => {

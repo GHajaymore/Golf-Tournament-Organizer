@@ -32,6 +32,9 @@ export const TIMELINE_FILES: readonly string[] = [
   "src/components/RoundsTimeline.tsx",
 ];
 
+/** The lifecycle stepper (B03) and its stylesheet's component: held to the same wall. */
+export const STEPPER_FILES: readonly string[] = ["src/lib/domain/lifecycle-track.ts", "src/components/LifecycleStepper.tsx"];
+
 /** What the timeline may never ask for itself: the lifecycle, the pre-launch list, the launch facts. */
 const NOT_THE_MACHINE = [
   // the stored status and its lists
@@ -169,6 +172,16 @@ describe("the Course day timeline reads the machine (PR 5c, J16)", () => {
     expect(timelineStrays(standing![1])).toEqual([]);
     expect(client).toMatch(/<RoundChip step=\{roundStep\} \/>/);
     expect(client).toMatch(/<NeedsYou guide=\{courseDay\}/);
+  });
+
+  it("the lifecycle stepper (B03) reads the machine too: the same wall on its files", () => {
+    // Owner ruling, 3 Nov (J16): the stepper is never a second source of truth. It reads
+    // `tournamentStatus` and the one job (`tournamentJob`), and nothing on this wall.
+    for (const f of STEPPER_FILES) expect(readSource(f).length, `${f} is empty or missing`).toBeGreaterThan(0);
+    const found = STEPPER_FILES.map((f) => [f, timelineStrays(readSource(f))] as const)
+      .filter(([, s]) => s.length > 0)
+      .map(([f, s]) => `${f}: ${s.join(", ")}`);
+    expect(found, "read it from tournamentStatus and tournamentJob through lifecycleTrack instead").toEqual([]);
   });
 
   it("roundNeeds, the strip's second source, is gone from src", () => {

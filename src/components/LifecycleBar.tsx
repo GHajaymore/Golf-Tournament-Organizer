@@ -6,6 +6,8 @@ import { LAUNCH_DOES, VISIBILITY_IS_ELSEWHERE } from "@/lib/domain/lifecycle-sta
 import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
 import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-check";
 import type { CorrectionFacts, LockScope, StatusCard } from "@/lib/domain/tournament-status";
+import type { TournamentJob } from "@/lib/domain/needs-you-now";
+import { cardPressOf } from "@/lib/domain/lifecycle-track";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { RefusedAction } from "./RefusedAction";
@@ -45,7 +47,16 @@ export function LifecycleBar({
   archived = false,
   correction = null,
   correctableScopes = [],
+  job,
 }: {
+  /**
+   * THE TOURNAMENT'S ONE BUTTON (`tournamentJob`; the panel's ruling on the stepper, 9 Nov), given
+   * while the lifecycle stepper is switched on. A job that MOVES the status (Launch, Complete,
+   * Reopen) is pressed here as the machine's next action; any other is a link to where it is done
+   * ("Open score entry", "Close Round 1") or, waiting, no button at all — so "Complete tournament"
+   * is never offered while golf is being played. Absent, the card offers `nextAction` as before.
+   */
+  job?: TournamentJob | null;
   /** In a lapsed club's read-only archive (`archiveRefusalFor`): no correction is offered. */
   archived?: boolean;
   /** The committee correction open now, if any (PR 5b) — said here, with Done. */
@@ -146,7 +157,8 @@ export function LifecycleBar({
    * inches. One function answers it now, and the dashboard reads the same one
    * to decide whether its own header still deserves a primary button.
    */
-  const action = status.nextAction;
+  const press = cardPressOf(status.nextAction, job);
+  const action = press.kind === "move" ? press.action : null;
   /** What pressing it moves the status to — only Complete and Reopen move it here; Launch has its dialog. */
   const to = action?.kind === "complete" ? "completed" : action?.kind === "reopen" ? "live" : null;
   const unplayedAsk = action?.asks ?? undefined;
@@ -196,6 +208,17 @@ export function LifecycleBar({
             </span>
           )}
           <div style={{ flex: 1 }} />
+          {/* The job's own line and its way there, when it is not a status move (the stepper's switch). */}
+          {press.kind !== "move" && press.text && (
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              {press.text}
+            </span>
+          )}
+          {isAdmin && press.kind === "link" && (
+            <Link href={press.href} className="btn btn-primary">
+              {press.label} <Icon name="arrow-right" />
+            </Link>
+          )}
           {isAdmin && action && action.enabled && (action.kind === "draw" || action.kind === "schedule") && (
             // A round owes its draw, or the league's next week its day (2e): the
             // way there, not a status change.
