@@ -1,5 +1,6 @@
 import { resultSummary, type OutingLine } from "@/lib/domain/tournament-result";
-import { resultHeading } from "@/lib/domain/play-kind";
+import { eventWords } from "@/lib/domain/event-words";
+import type { GolfRegister } from "@/lib/domain/golf-terms";
 
 /**
  * WHAT HAPPENED, ROUND BY ROUND — the day's result, headed with whatever the
@@ -15,13 +16,13 @@ import { resultHeading } from "@/lib/domain/play-kind";
  * Nothing at all for a single-round tournament: the board underneath IS the
  * result, and a card repeating it would be the same fact twice.
  */
-export function ResultLines({ lines, kind }: { lines: OutingLine[]; kind: string }) {
+export function ResultLines({ lines, kind, register }: { lines: OutingLine[]; kind: string; register: GolfRegister }) {
   if (lines.length < 2) return null;
 
   return (
     <section className="card elev-sm" style={{ margin: "14px 0" }}>
       <span className="card-title" style={{ fontSize: 15 }}>
-        {resultHeading(kind)}
+        {eventWords(kind, register).resultHeading}
       </span>
       <span className="text-muted" style={{ fontSize: 13 }}>
         {resultSummary(lines)}
