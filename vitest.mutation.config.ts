@@ -1,7 +1,7 @@
 /**
  * The unit suite as the MUTATION run sees it (`npm run mutation`, Stryker).
  *
- * The whole of `vitest.config.ts`, less four files that cannot pass under
+ * The whole of `vitest.config.ts`, less ten files that cannot pass under (four below, six more at the end)
  * Stryker — measured 2026-10-23: the first two by running the suite inside an
  * instrumented sandbox (570 files, these the only failures), the third by
  * Stryker's own first run:
@@ -37,6 +37,16 @@ export const CANNOT_RUN_IN_THE_SANDBOX = [
   "src/lib/__tests__/no-secret-is-committed.test.ts",
   "src/lib/__tests__/dates-hydrate-at-midnight.test.ts",
   "src/lib/__tests__/icon-sprite.test.ts",
+  // Added 2026-11-09. In a git worktree `node_modules` is a LINK to the main checkout's, and
+  // Stryker's sandbox copy does not carry it, so these six, which read `node_modules/...`
+  // directly, fail inside the sandbox and abort its dry run. They test the toolchain and the
+  // lockfile, not any module under mutation, so leaving them out can kill no mutant falsely.
+  "src/lib/__tests__/qa-pipeline.test.ts",
+  "src/lib/__tests__/font-hosts.test.ts",
+  "src/lib/__tests__/browser-image-matches-the-lockfile.test.ts",
+  "src/lib/__tests__/build-retries-only-the-font-fetch.test.ts",
+  "src/lib/__tests__/client-manifest-check.test.ts",
+  "src/lib/__tests__/react-hydration-replay-backport.test.ts",
 ];
 
 /** A test file whose every call is held to a deadline (`src/lib/__tests__/ends-within.ts`). */
