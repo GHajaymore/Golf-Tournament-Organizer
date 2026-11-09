@@ -84,16 +84,17 @@ export const ROUND_ROWS_WITHOUT_A_CASCADE = [
 ] as const;
 
 /**
- * WHEN A TOURNAMENT'S HONOURS ENTRY GOES (a ruling the owner has yet to make).
+ * WHEN A TOURNAMENT'S HONOURS ENTRY GOES (ruled 2026-11-08).
  *
- * `"every-delete"` (today): the club's honours-board line for a tournament goes
- * with the tournament, however it was deleted, the automatic sweeps included
- * (the Free plan's 15 days after completion, a lapsed club's archive).
- * `"deliberate-delete-only"`: the line goes only when a person pressed Delete
- * (`deleteEvent`); the sweeps leave it, since the board is the club's history.
- * The ruling is this one line.
+ * The club's honours-board line for a tournament is KEPT when the tournament is
+ * removed by an automatic sweep (the Free plan's 15 days after completion, a
+ * lapsed club's archive) and goes only when a person pressed Delete
+ * (`deleteEvent` -> `purgeEvents(..., { deliberate: true })`). The board is the
+ * club's history. Decided by the team under Ajay's standing delegation.
+ * The other value, `"every-delete"`, would take the line with the tournament
+ * however it went; the ruling is this one line.
  */
-export const HONOURS_GO_WITH: "every-delete" | "deliberate-delete-only" = "every-delete";
+export const HONOURS_GO_WITH: "every-delete" | "deliberate-delete-only" = "deliberate-delete-only";
 
 /** A lapsed club's archive can hold many tournaments; Prisma's default of 5 s would fail it every night. */
 const PURGE_TX = { timeout: 60_000, maxWait: 10_000 } as const;
