@@ -80,6 +80,7 @@ import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { cleanIsoDate, dueBeforePlayed, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
+import { cardRevision, overwritesUnseen, MATCH_CHANGED_ELSEWHERE } from "@/lib/domain/pending-card";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, storedCard, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
 import {
@@ -3018,7 +3019,11 @@ export async function removeStage(stageId: string, force = false) {
 /* ── Match score entry ────────────────────────────────────────────────── */
 
 
-export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
+export async function saveMatchHoles(
+  matchId: string,
+  holes: HoleResult[],
+  startedFrom?: HoleResult[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const { eventId, session, settings } = await requireScoreEntry();
   await assertOwnMatch(session, eventId, matchId);
   // A card of THIS round's length, as the round-code screen's path cleans it
@@ -3026,13 +3031,51 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   // by `resolveMatch(list).complete`: an empty list was a finished match, and
   // ["A"] an eighteen-hole match won 1 up
   // (`a-match-result-is-a-card-of-its-length.audit.test.ts`).
-  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { stageId: true, stage: { select: { holes: true } } } });
+  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { holes: true, stageId: true, stage: { select: { holes: true } } } });
   if (!owner) throw new Error("Match not found.");
   // Not on a round kept on stroke cards: the next card would rebuild over it.
   const keptOnCards = await keptByRefusal(owner.stageId, "holes");
   if (keptOnCards) throw new Error(keptOnCards);
-  const clean = cleanHoleResults(holes, holesPlayed(owner.stage?.holes));
+  const roundHoles = holesPlayed(owner.stage?.holes);
+  const clean = cleanHoleResults(holes, roundHoles);
   if (!clean) throw new Error("Each hole is won by one side or halved. Check the card and save again.");
+  /**
+   * A SAVE BASED ON AN OLDER CARD DOES NOT UNDO A NEWER ONE (2026-11-09).
+   *
+   * Round G571-4, WebKit as an iPhone: Score entry saved hole 1, the page was
+   * reloaded, the committee corrected the match to 5&4 and pressed "Confirm
+   * result" — and then the hole-1 save arrived AGAIN, byte for byte, posted
+   * under the reloaded page's address. Being a whole card it wrote the match
+   * back to one hole played and "pending": the sign-off and the correction
+   * gone, and nobody told.
+   *
+   * So the console says which card it STARTED FROM, and the stroke card's
+   * conflict rule (`overwritesUnseen`, content revisions at the round's
+   * length) decides. Taps from one screen chain — each starts from the card
+   * the last one sent, and Next sends a page's actions one at a time — so a
+   * run of taps at a scorer's pace all land; a replay, or a screen that
+   * loaded before somebody else's change, is refused in words. Absent
+   * `startedFrom` (the player's own match keeper, a test, a page loaded
+   * before this shipped) is the old unconditional write.
+   */
+  if (startedFrom !== undefined) {
+    const from = cleanHoleResults(startedFrom, roundHoles);
+    let storedRaw: unknown = [];
+    try {
+      storedRaw = JSON.parse(owner.holes);
+    } catch {
+      storedRaw = [];
+    }
+    const storedCard = cleanHoleResults(storedRaw, roundHoles) ?? [];
+    const stored = cardRevision(storedCard);
+    const sent = cardRevision(clean);
+    if (!from || overwritesUnseen(cardRevision(from), stored, sent)) {
+      return { ok: false, error: MATCH_CHANGED_ELSEWHERE };
+    }
+    // The card arriving IS the card stored: nothing to write, and nothing to
+    // send back through approval — a replay must not undo a sign-off either.
+    if (sent === stored) return { ok: true };
+  }
   const complete = matchIsOver(clean);
   // Where the organizer wants finished cards only, a player can't dribble
   // holes onto the leaderboard as they play. Staff are never restricted this
@@ -3042,8 +3085,10 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   }
   // Any score edit resets confirmation to pending — including an organizer's,
   // so a correction always goes back through approval.
-  await prisma.match.updateMany({
-    where: { id: matchId, eventId },
+  const written = await prisma.match.updateMany({
+    // A conditional save writes over the card it compared, or over nothing:
+    // a change landing between that read and this write is not overwritten.
+    where: { id: matchId, eventId, ...(startedFrom !== undefined ? { holes: owner.holes } : {}) },
     data: {
       holes: JSON.stringify(clean),
       // A real result supersedes a forfeit. Without this, an organizer who
@@ -3063,7 +3108,9 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
       attestedBy: "[]",
     },
   });
+  if (written.count === 0 && startedFrom !== undefined) return { ok: false, error: MATCH_CHANGED_ELSEWHERE };
   await refresh();
+  return { ok: true };
 }
 
 /** Existing hole count for a match, from its stored holes array (18 or 9 depending on the round). */

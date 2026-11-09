@@ -637,7 +637,14 @@ export function ScoreEntryClient({
     setSaveNote("");
     startTransition(async () => {
       try {
-        await run();
+        const res = await run();
+        // A write that REFUSED in words (a match changed elsewhere since this
+        // screen loaded it) is said as it was given, not as an outage.
+        if (res && typeof res === "object" && "ok" in res && res.ok === false) {
+          failedInBatch.current = true;
+          const error = "error" in res && typeof res.error === "string" ? res.error : "";
+          if (error) setSaveNote(error);
+        }
       } catch {
         // Deliberately sticky: the entered value is still on screen and is
         // *not* stored, and clearing that warning on a timer would hide it.
@@ -767,9 +774,17 @@ export function ScoreEntryClient({
   };
 
   const persist = (id: string, next: HoleResult[]) => {
+    /**
+     * The card this save STARTED FROM, so the server can refuse one based on
+     * an older card than it holds (`overwritesUnseen`, 2026-11-09) — a replay
+     * after the committee signed off, or this screen loaded before somebody
+     * else's change. Read before `writeHoles`: it is the previous tap's card,
+     * which is what the server holds by the time this save reaches it.
+     */
+    const from = latestHoles.current[id] ?? holesById[id] ?? matches.find((m) => m.id === id)?.holes ?? [];
     writeHoles(id, next);
     setStatusById((prev) => ({ ...prev, [id]: "pending" }));
-    save(() => saveMatchHoles(id, next));
+    save(() => saveMatchHoles(id, next, from));
   };
 
   const setStatus = (id: string, s: string) => setStatusById((prev) => ({ ...prev, [id]: s }));

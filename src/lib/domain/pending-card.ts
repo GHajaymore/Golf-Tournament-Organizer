@@ -451,8 +451,12 @@ export function shouldPoll(s: { queued: boolean; held?: boolean; holding?: boole
  * Not cryptographic and does not need to be. It compares two values this app
  * produced a moment apart; there is no adversary, and a hole that could not be
  * distinguished from another would have to differ by a multiple of 2^32.
+ *
+ * A match's hole-by-hole card ("A" / "B" / "H" per hole) is hashed the same
+ * way (2026-11-09), so the console's match card asks the same question of the
+ * same revision — see `overwritesUnseen`.
  */
-export function cardRevision(strokes: Array<number | null>): string {
+export function cardRevision(strokes: ReadonlyArray<number | string | null>): string {
   let h = 2166136261;
   const s = JSON.stringify(strokes ?? []);
   for (let i = 0; i < s.length; i += 1) {
@@ -518,6 +522,31 @@ export function staleAgainst(readAt: string, serverNow: string): boolean {
   if (!readAt || !serverNow) return false;
   return readAt !== serverNow;
 }
+
+/**
+ * THE CONFLICT RULE, for every card written whole: whether this write would
+ * replace something its sender never saw.
+ *
+ * `readAt` is the revision of the card the sender STARTED FROM, `stored` what
+ * the server holds now, `sent` the card arriving. Refused only when the sender
+ * started from an older card (`staleAgainst`) AND is not simply saying what is
+ * already stored — the same card twice overwrites nothing (see `cardRevision`).
+ * No `readAt` is the old unconditional write.
+ *
+ * One rule for the stroke card (`services/scorecard-write.ts`) and the
+ * console's match card (`saveMatchHoles`, 2026-11-09). The match card had no
+ * check at all: on an iPhone in round G571-4 a hole saved on one page was sent
+ * AGAIN, byte for byte, after the page had been reloaded and the committee had
+ * signed off a corrected 5&4 — and the replay put the match back to one hole
+ * played and "pending".
+ */
+export function overwritesUnseen(readAt: string | undefined, stored: string, sent: string): boolean {
+  if (!readAt) return false;
+  return staleAgainst(readAt, stored) && sent !== stored;
+}
+
+/** What the console's match card says when `overwritesUnseen` refuses its save. */
+export const MATCH_CHANGED_ELSEWHERE = "This match was changed elsewhere — reload to see it.";
 
 /** Where one card's pending copy lives. One key per card, never per player. */
 export function pendingKey(stageId: string, playerId: string): string {

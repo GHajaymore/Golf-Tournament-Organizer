@@ -17,6 +17,7 @@ import {
   SEND_PATIENCE_MS,
   NO_CARD_REVISION,
   NAG_AFTER_MS,
+  overwritesUnseen,
   pendingKey,
   RETRY_EVERY_MS,
   shouldPoll,
@@ -204,6 +205,35 @@ describe("noticing that a replay would overwrite somebody", () => {
     // would put a scary prompt in front of every scorer on a fresh card.
     expect(staleAgainst("", "rev-2")).toBe(false);
     expect(staleAgainst("rev-1", "")).toBe(false);
+  });
+});
+
+describe("the one conflict rule for a card written whole (overwritesUnseen)", () => {
+  // A match's tap card, hashed like a stroke card.
+  const blanks = cardRevision([null, null, null]);
+  const holeOne = cardRevision(["A", null, null]);
+  const fiveAndFour = cardRevision(["A", "A", null]);
+
+  it("refuses a write started from an older card than the one stored", () => {
+    // G571-4: the hole-1 save replayed after the committee's 5&4 was signed off.
+    expect(overwritesUnseen(blanks, fiveAndFour, holeOne)).toBe(true);
+  });
+
+  it("takes a write started from the card stored", () => {
+    expect(overwritesUnseen(holeOne, holeOne, fiveAndFour)).toBe(false);
+  });
+
+  it("takes the same card sent twice: it overwrites nothing", () => {
+    expect(overwritesUnseen(blanks, holeOne, holeOne)).toBe(false);
+  });
+
+  it("no starting card is the old unconditional write", () => {
+    expect(overwritesUnseen(undefined, fiveAndFour, holeOne)).toBe(false);
+    expect(overwritesUnseen("", fiveAndFour, holeOne)).toBe(false);
+  });
+
+  it("a hole result and a stroke never hash alike", () => {
+    expect(cardRevision(["A"])).not.toBe(cardRevision([1]));
   });
 });
 
