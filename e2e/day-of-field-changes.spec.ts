@@ -16,8 +16,10 @@ import { watchPageErrors } from "./page-errors";
  *                               (the control: no card, so before this change the row
  *                               was deleted), and listed under Withdrawn
  *   Put back                  → back in the field, the same row
- *   Add late entry            → in the field; told to give them a tee time and offered
- *                               a flight in their row
+ *   Add late entry            → in the field; told to give them a tee time, and FLAGGED
+ *                               "in the field but in no flight" (J04, state machine PR 7a)
+ *                               on Entries and on Flights until they are placed; the
+ *                               form offers a flight without forcing one
  *   Choose a flight           → placed (nobody else moves), though the draw is confirmed
  *   a card comes in           → Add is refused, naming the round and that an Organizer can unlock
  *   the CSV import            → shut throughout, with the reason beside it
@@ -122,12 +124,20 @@ test("the assistant withdraws, puts back and takes a late entry on a launched me
     await desk.getByLabel("Player name").fill(LATE);
     // The Add form's own box ("Email · required…"), not a row's "Email for …".
     await desk.getByLabel(/^Email ·/).fill(`${MARK}-late@example.invalid`);
+    // A flight is OFFERED in the form, never forced, in a medal (J12, panel Q3): left at "No flight yet" here.
+    await expect(desk.getByLabel("Flight · optional")).toHaveValue("");
     await desk.getByRole("button", { name: "Add late entry" }).click();
     await expect.poll(async () => (await prisma.player.findFirst({ where: { eventId, name: LATE }, select: { status: true } }))?.status ?? "", { timeout: 20_000, message: "the late entry was not taken" }).toBe("confirmed");
-    await expect(desk.getByRole("status").filter({ hasText: `${LATE} is in the field. Put them in a group on the Tee sheet.` })).toBeVisible();
-    await expect(desk.getByRole("status").filter({ hasText: `${LATE} is in no flight. Choose one in the Flight column.` })).toBeVisible();
+    // Taken with the WARNING and the unplaced flag, in the panel's words (J04, state machine PR 7a).
+    await expect(desk.getByRole("status").filter({ hasText: `${LATE} is in the field but in no flight. Put them in one.` })).toBeVisible();
+    await expect(desk.getByRole("status").filter({ hasText: "Put them in a group on the Tee sheet." })).toBeVisible();
 
     const before = await prisma.player.findMany({ where: { eventId, name: { not: LATE } }, select: { id: true, groupId: true }, orderBy: { id: "asc" } });
+    await entries(desk);
+    // The flag stays while it is true — on Entries, and on Flights beside the board.
+    await expect(desk.getByTestId("unplaced-flag")).toContainText(`${LATE} is in the field but in no flight. Put them in one.`);
+    await desk.goto(`/grouping?bust=${Date.now()}`);
+    await expect(desk.getByTestId("unplaced-flag")).toContainText(`${LATE} is in the field but in no flight.`);
     await entries(desk);
     await desk.getByLabel(`Flight for ${LATE}`).selectOption({ index: 2 });
     await expect
@@ -135,6 +145,9 @@ test("the assistant withdraws, puts back and takes a late entry on a launched me
       .not.toBeNull();
     const after = await prisma.player.findMany({ where: { eventId, name: { not: LATE } }, select: { id: true, groupId: true }, orderBy: { id: "asc" } });
     expect(after, "placing the late entrant moved somebody else").toEqual(before);
+    // Placed, the flag goes.
+    await entries(desk);
+    await expect(desk.getByTestId("unplaced-flag")).toHaveCount(0);
 
     // ── a card comes in: no more late entries ───────────────────────────────
     await returnCard(eventId, stageId, withdrawnId);

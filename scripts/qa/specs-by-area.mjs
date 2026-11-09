@@ -169,6 +169,8 @@ export const AREAS = {
     specs: [
       // Day-of field changes (PR A): withdraw, put back, a late entry and its flight, after launch.
       "e2e/day-of-field-changes.spec.ts",
+      // State machine PR 7a (J12): a late entrant after the draw — a round robin's needs a flight, a knockout's is a reserve.
+      "e2e/field-changes-after-the-draw.spec.ts",
       "e2e/entry-needs-approval.spec.ts",
       "e2e/entry-terms.spec.ts",
       "e2e/disqualified-and-reinstated.spec.ts",

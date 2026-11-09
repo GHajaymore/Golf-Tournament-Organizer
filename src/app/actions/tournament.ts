@@ -102,7 +102,8 @@ import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-ac
 import { notifyFieldChange } from "@/lib/services/field-notify";
 import { drainWaitlist, fieldLimitFor, promoteFromWaitlist } from "@/lib/services/waitlist";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
-import { fieldFactsFor, fieldRefusal } from "@/lib/services/field-change";
+import { fieldFactsFor, fieldRefusal, fieldVerdictFor } from "@/lib/services/field-change";
+import { reserveWords, unplacedWords, warnWords, type FieldWarn } from "@/lib/domain/field-change";
 import { storedMatchIsOver } from "@/lib/domain/match";
 import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
 import { parseCsv, hasNameColumn, cell, type CsvTable } from "@/lib/csv";
@@ -521,6 +522,14 @@ export interface SignupInput {
   handicapType?: string;
   /** "member" | "guest" — the organizer's choice on Add (`readStanding`). */
   standing?: string;
+  /**
+   * A flight for the late entrant, from the add form (J12, PR 7a): offered in
+   * stroke play and Stableford, required in a launched round robin. Asked of the
+   * one rule as "add-to-flight".
+   */
+  flightId?: string;
+  /** Onto the waiting list as a reserve, on purpose — a knockout's way out once its draw is made. */
+  reserve?: boolean;
 }
 
 export interface SignupResult {
@@ -583,9 +592,22 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
    * THE ONE FIELD RULE now (day-of field changes, PR A): after launch a late
    * entry is open in stroke play, Stableford and a league until play has
    * begun, and refused in a drawn field — see `domain/field-change.ts`.
+   *
+   * AND THE UPSTREAM-CHANGE RULES (J12, PR 7a): an entry with a flight is
+   * asked as one ("add-to-flight") — the only late entry a launched round robin
+   * takes — and a reserve as one ("reserve"), the way out of a knockout whose
+   * draw is made. The verdict, not only the refusal: a taken entry says what is
+   * left to do (the unplaced flag, a round robin's matches drawn).
    */
-  const refused = await fieldRefusal(eventId, "add");
-  if (refused) return { ok: false, error: refused };
+  const reserve = input.reserve === true;
+  const flightId = !reserve && typeof input.flightId === "string" && input.flightId ? input.flightId : null;
+  // A flight of THIS tournament, never a match carrier — a public endpoint posts any id.
+  const flights = flightId ? await prisma.group.findMany({ where: { eventId, isCarrier: false }, orderBy: { position: "asc" }, select: { id: true, name: true } }) : [];
+  const flightAt = flights.findIndex((g) => g.id === flightId);
+  if (flightId && flightAt < 0) return { ok: false, error: "Flight not found in this tournament." };
+  const flightName = flightAt >= 0 ? flightLabel(flights[flightAt].name, flightAt) : "";
+  const verdict = await fieldVerdictFor(eventId, reserve ? "reserve" : flightId ? "add-to-flight" : "add");
+  if (!verdict.ok) return { ok: false, error: verdict.says };
   const casualFull = await casualRoundFull(event, 1);
   if (casualFull) return { ok: false, error: casualFull };
   /**
@@ -704,14 +726,18 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // nobody and both created a row, or both counted the same confirmed total.
   const placed = await withEventIntakeLock(eventId, async (tx) => {
     const again = await findDuplicate(tx);
-    if (again) return { duplicate: again, status: null };
+    if (again) return { duplicate: again, status: null, id: null };
     const confirmedCount = await tx.player.count({ where: { eventId, status: "confirmed" } });
     const maxSeed = await tx.player.aggregate({ where: { eventId }, _max: { seed: true } });
-    const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
-    await tx.player.create({
+    // A reserve waits whatever the room: that is what they were added as.
+    const status = !reserve && (unlimited || confirmedCount < capacity) ? "confirmed" : "waitlisted";
+    const created = await tx.player.create({
+      select: { id: true },
       data: {
         eventId,
         memberId,
+        // Into the flight chosen with the entry — only when they are in the field; a waiting entry has no flight.
+        groupId: flightId && status === "confirmed" ? flightId : null,
         name: clean,
         handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
         seed: (maxSeed._max.seed ?? 0) + 1,
@@ -734,16 +760,30 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
         gender,
       },
     });
-    return { duplicate: null, status };
+    return { duplicate: null, status, id: created.id };
   });
   if (placed.status === null) return duplicateRefusal(placed.duplicate);
   const status = placed.status;
+  const inFlight = !!flightId && status === "confirmed";
+  /**
+   * THEIR MATCHES, DRAWN (the re-draw, panel Q3): in a round robin the flight
+   * decides who they play, so a late entrant placed in one is given a match
+   * against each player in it — and nobody else's pairing changes
+   * (`repairPlayerPairings`, the same repair a move makes).
+   */
+  if (inFlight && placed.id) await repairPlayerPairings(eventId, placed.id);
   await syncPlayerAccount(eventId, clean, cleanEmail);
   // On the record ("Recent changes to the field"), whoever added them.
-  await logAudit(eventId, "added", `${clean} was added to the field (${status}${guest ? ", guest" : ""}).`);
+  await logAudit(
+    eventId,
+    "added",
+    reserve
+      ? `${clean} was added to the waiting list as a reserve${guest ? " (guest)" : ""}.`
+      : `${clean} was added to the field (${status}${guest ? ", guest" : ""})${inFlight ? ` in ${flightName}` : ""}.`,
+  );
   const codesOn = !cleanEmail && (await codesOnForAnEntryWithoutEmail(eventId, `${clean} was added without an email`));
   await refresh();
-  const late = await lateEntryWords(eventId, event.status, clean, status);
+  const late = reserve ? reserveWords(clean) : lateEntryWords(event.status, clean, status, verdict.ok ? verdict.warn : null, flightName);
   const said = [late, codesOn ? CODES_TURNED_ON : ""].filter(Boolean).join(" ");
   return { ok: true, said: said || undefined };
 }
@@ -752,16 +792,17 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
  * WHAT THE ORGANIZER IS TOLD AFTER A LATE ENTRY (day-of field changes, PR A):
  * where the new name still has to go. Only once launched — before it, the tee
  * sheet and the flights are still being made and the screen says so itself.
- * A flight is offered, not forced (a late entrant in no flight plays for no
- * flight prize, which the committee may intend).
+ * And what the one rule's verdict left to say (J12, PR 7a): in stroke play and
+ * Stableford a flight is offered, not forced, so a late entrant in no flight is
+ * FLAGGED in the panel's words; a round robin's, given a flight, has their
+ * matches drawn.
  */
-async function lateEntryWords(eventId: string, eventStatus: string, name: string, status: string): Promise<string | undefined> {
+function lateEntryWords(eventStatus: string, name: string, status: string, warn: FieldWarn | null, flight: string): string | undefined {
   if (!isLaunched(eventStatus)) return undefined;
   if (status === "waitlisted") return `${name} is on the waiting list: the field is full.`;
-  const flights = await prisma.group.count({ where: { eventId, isCarrier: false } });
-  const facts = flights > 0 ? await fieldFactsFor(eventId) : null;
-  const flighted = !!facts && (facts.family === "stroke" || facts.family === "stableford");
-  return `${name} is in the field. Put them in a group on the Tee sheet.${flighted ? ` ${name} is in no flight. Choose one in the Flight column.` : ""}`;
+  const lead = warn === "unplaced" ? unplacedWords([name]) : `${name} is in the field.`;
+  const drawn = warn === "matches-drawn" ? ` ${warnWords(warn, name, flight)}` : "";
+  return `${lead} Put them in a group on the Tee sheet.${drawn}`;
 }
 
 export interface SignupPatch {

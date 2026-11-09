@@ -196,7 +196,8 @@ describe("a launched stroke medal, before anybody has played", () => {
     const res = await addSignup({ name: `${TAG} lee`, email: at("lee"), handicap: 14.2 });
     expect(res.error).toBeUndefined();
     expect(res.ok).toBe(true);
-    expect(res.said).toBe(`${TAG} lee is in the field. Put them in a group on the Tee sheet. ${TAG} lee is in no flight. Choose one in the Flight column.`);
+    // Taken with the warning and the unplaced flag, in the panel's words (J04, state machine PR 7a).
+    expect(res.said).toBe(`${TAG} lee is in the field but in no flight. Put them in one. Put them in a group on the Tee sheet.`);
     const lee = await prisma.player.findFirstOrThrow({ where: { eventId: medal, email: at("lee") } });
     ids.lee = lee.id;
     expect(lee.status).toBe("confirmed");
@@ -296,8 +297,14 @@ describe("once Round 1 has a card", () => {
   });
 
   it("a withdrawal still goes through: it reopens nothing", async () => {
+    // A reserve waiting, and room for them (capacity 10 since the put-back above).
+    await player(medal, "zed", 20, "waitlisted");
     expect(await removeSignup(ids.lee)).toMatchObject({ ok: true, outcome: "withdrawn" });
     expect(await statusOf("lee")).toBe("withdrawn");
+    // Nobody moves in: Round 1 has a card, so a new name would have no score for it, and a promotion
+    // is a late entry that asks the same rule (J12, `promoteFromWaitlist`).
+    expect(await statusOf("zed"), "the queue moved a reserve in after Round 1 had begun").toBe("waitlisted");
+    await prisma.player.delete({ where: { id: ids.zed } });
   });
 
   it("an unplaced player can no longer be placed", async () => {
@@ -374,12 +381,57 @@ describe("other families and stages", () => {
     try {
       expect(await addSignup({ name: `${TAG} ko-late`, email: at("ko-late"), handicap: 9 })).toEqual({
         ok: false,
-        error: "The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.",
+        error:
+          "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. An Organizer can open the field with a committee correction.",
       });
+      // The way out (J12, panel Q3): a reserve, on the waiting list, whatever the room.
+      expect(await addSignup({ name: `${TAG} ko-late`, email: at("ko-late"), handicap: 9, reserve: true })).toEqual({
+        ok: true,
+        said: `${TAG} ko-late is on the waiting list as a reserve. The draw does not change.`,
+      });
+      const reserve = await prisma.player.findFirstOrThrow({ where: { eventId: k.id, email: at("ko-late") } });
+      ids.reserve = reserve.id;
+      expect(reserve.status).toBe("waitlisted");
+      expect(reserve.groupId).toBeNull();
       const res = await removeSignup(ids.kay);
       expect(res).toMatchObject({ ok: true, outcome: "withdrawn" });
       if (res.ok) expect(res.said).toContain("If their tie is still to play, record it as a walkover on the Bracket.");
       expect(await statusOf("kay")).toBe("withdrawn");
+      // The field is open (capacity 0), and still the reserve does not move in by itself: a promotion is
+      // a late entry and asks the same rule (`promoteFromWaitlist`). Before J12 they were promoted here.
+      expect(await statusOf("reserve"), "the queue moved a reserve into a knockout whose draw is made").toBe("waitlisted");
+    } finally {
+      await as(organizerId, medal);
+    }
+  });
+
+  it("a round robin in flights: a late entrant only with a flight, and their matches drawn against it (J12)", async () => {
+    const r = await tournament("robin", { status: "live", stage: { type: "Round Robin", format: "Match Play" } });
+    const a = (await prisma.group.create({ data: { eventId: r.id, name: "Flight A", position: 0 } })).id;
+    const b = (await prisma.group.create({ data: { eventId: r.id, name: "Flight B", position: 1 } })).id;
+    await player(r.id, "rae", 1, "confirmed", a);
+    await player(r.id, "roy", 2, "confirmed", a);
+    await player(r.id, "ria", 3, "confirmed", b);
+    await as(organizerId, r.id);
+    try {
+      expect(await addSignup({ name: `${TAG} rr-late`, email: at("rr-late"), handicap: 9 })).toEqual({
+        ok: false,
+        error: "In a round robin, a late entrant needs a flight. Without one they have no matches. Choose their flight in the Add form.",
+      });
+      expect(await prisma.player.count({ where: { eventId: r.id, email: at("rr-late") } })).toBe(0);
+      // Another tournament's flight is not a flight of this one.
+      expect(await addSignup({ name: `${TAG} rr-late`, email: at("rr-late"), handicap: 9, flightId: flightA })).toEqual({ ok: false, error: "Flight not found in this tournament." });
+      const res = await addSignup({ name: `${TAG} rr-late`, email: at("rr-late"), handicap: 9, flightId: a });
+      expect(res).toEqual({
+        ok: true,
+        said: `${TAG} rr-late is in the field. Put them in a group on the Tee sheet. ${TAG} rr-late’s matches against Flight A are drawn. Each player in it has one more to play.`,
+      });
+      const late = await prisma.player.findFirstOrThrow({ where: { eventId: r.id, email: at("rr-late") } });
+      expect(late.groupId).toBe(a);
+      const theirs = await prisma.match.findMany({ where: { eventId: r.id, OR: [{ playerAId: late.id }, { playerBId: late.id }] } });
+      expect(theirs.map((m) => (m.playerAId === late.id ? m.playerBId : m.playerAId)).sort()).toEqual([ids.rae, ids.roy].sort());
+      // Flight B's player is untouched: nobody else's pairing changed.
+      expect(await prisma.match.count({ where: { eventId: r.id, OR: [{ playerAId: ids.ria }, { playerBId: ids.ria }] } })).toBe(0);
     } finally {
       await as(organizerId, medal);
     }
