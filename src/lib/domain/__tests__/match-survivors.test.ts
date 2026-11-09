@@ -623,6 +623,17 @@ describe("parseHolesTranscript — spoken hole-by-hole results", () => {
     expect(parseHolesTranscript("Sam", "Sam", "Alex", 0, 0)).toEqual([]);
   });
 
+  it("'halved' is a halved hole, and nothing after it shifts up (Rule 3.2b)", () => {
+    expect(parseHolesTranscript("halved", "Sam", "Alex", 0, 18)).toEqual(card("H"));
+    expect(parseHolesTranscript("Ann halved Bob", "Ann", "Bob", 0, 18)).toEqual(card("AHB"));
+    expect(parseHolesTranscript("Ann, Bob, halved, half, Ann", "Ann", "Bob", 0, 18)).toEqual(card("ABHHA"));
+  });
+
+  it("'halfved' is not a word and is not accepted", () => {
+    expect(parseHolesTranscript("halfved", "Sam", "Alex", 0, 18)).toEqual([]);
+    expect(parseHolesTranscript("Ann halfved Bob", "Ann", "Bob", 0, 18)).toEqual(card("AB"));
+  });
+
   it("an empty transcript is no holes", () => {
     expect(parseHolesTranscript("", "Sam", "Alex", 0, 18)).toEqual([]);
     expect(parseHolesTranscript("   ", "Sam", "Alex", 0, 18)).toEqual([]);
