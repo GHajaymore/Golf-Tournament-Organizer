@@ -29,8 +29,6 @@ import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domai
 import { NeedsYouNow, WhatsNext } from "@/components/NeedsYouNow";
 import { CopyLastEvent } from "@/components/CopyLastEvent";
 import { openTournamentJob, secretaryHomeFor } from "@/lib/services/whats-next";
-import { stepperShown } from "@/lib/domain/lifecycle-track";
-import { headers } from "next/headers";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { needsYouNow } from "@/lib/domain/needs-you-now";
@@ -519,12 +517,13 @@ export default async function DashboardPage() {
   const told = await tournamentStatusFor(session.eventId, state.today);
   const status = told?.status ?? null;
   /**
-   * THE ONE BUTTON WITH THE STEPPER ON (B03; the panel, 9 Nov): `tournamentJob`, the job the
-   * lifecycle stepper marks and the home's first line for this tournament, composed here — never in
-   * `statusCardOf`. While the switch is off (`?stepper=1` previews it), undefined: the card presses
-   * the machine's next action exactly as before.
+   * THE ONE BUTTON (B03; the panel, 9 Nov; the PM, 10 Nov: for everyone, not only behind the stepper's
+   * switch): `tournamentJob`, the job the lifecycle stepper marks and the home's first line for this
+   * tournament, composed here — never in `statusCardOf`. So the card never offers "Complete tournament"
+   * while golf is being played: the machine offers it from the first card, which at a two-day outing is
+   * one press from ending it before day 2.
    */
-  const job = stepperShown((await headers()).get("x-search") ?? "") ? await openTournamentJob(session.eventId, state.today) : undefined;
+  const job = await openTournamentJob(session.eventId, state.today);
   const step = status?.step ?? "setting-up";
   const nextAction = status?.nextAction ?? null;
   /**

@@ -66,7 +66,11 @@ test("completing with a round nobody has played asks first, and only the answer 
     }
     ids.round2 = rounds[1];
     const wren = await prisma.player.create({ data: { eventId: event.id, name: "Wren Halloway", email: `zz-unplayed-wren-${size}@example.invalid`, seed: 1, status: "confirmed" } });
-    await prisma.scorecard.create({ data: { eventId: event.id, stageId: rounds[0], playerId: wren.id, strokes: JSON.stringify(PARS) } });
+    // Round 1's card is IN (certified and approved): the dashboard's button offers no Complete while a
+    // round's cards are still coming in (the panel and the PM, 9–10 Nov), and keeps it, quietly, once they are.
+    await prisma.scorecard.create({
+      data: { eventId: event.id, stageId: rounds[0], playerId: wren.id, strokes: JSON.stringify(PARS), status: "approved", certifiedBy: "zz", certifiedAt: new Date(), approvedBy: "zz", approvedAt: new Date() },
+    });
     await prisma.account.create({ data: { eventId: event.id, email, name: "Zz Unplayed Organizer", role: "admin" } });
     await ctx.addCookies([
       { name: "ng_session", value: sign(signedInNow(user.id)), url: baseURL! },

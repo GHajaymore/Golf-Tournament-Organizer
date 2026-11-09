@@ -7,7 +7,7 @@ import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/do
 import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-check";
 import type { CorrectionFacts, LockScope, StatusCard } from "@/lib/domain/tournament-status";
 import type { TournamentJob } from "@/lib/domain/needs-you-now";
-import { cardPressOf } from "@/lib/domain/lifecycle-track";
+import { cardPressOf, completeBeside } from "@/lib/domain/lifecycle-track";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { RefusedAction } from "./RefusedAction";
@@ -50,11 +50,12 @@ export function LifecycleBar({
   job,
 }: {
   /**
-   * THE TOURNAMENT'S ONE BUTTON (`tournamentJob`; the panel's ruling on the stepper, 9 Nov), given
-   * while the lifecycle stepper is switched on. A job that MOVES the status (Launch, Complete,
-   * Reopen) is pressed here as the machine's next action; any other is a link to where it is done
-   * ("Open score entry", "Close Round 1") or, waiting, no button at all — so "Complete tournament"
-   * is never offered while golf is being played. Absent, the card offers `nextAction` as before.
+   * THE TOURNAMENT'S ONE BUTTON (`tournamentJob`; the panel's ruling on the stepper, 9 Nov; for
+   * everyone, the PM, 10 Nov). A job that MOVES the status (Launch, Complete, Reopen) is pressed here
+   * as the machine's next action; any other is a link to where it is done ("Open score entry",
+   * "Close Round 1") or, waiting, no button at all. "Complete tournament" is then a quiet second
+   * button, and none at all while a round's cards are coming in (`completeBeside`). Absent (a test
+   * that hands none), the card offers `nextAction` as before.
    */
   job?: TournamentJob | null;
   /** In a lapsed club's read-only archive (`archiveRefusalFor`): no correction is offered. */
@@ -158,7 +159,9 @@ export function LifecycleBar({
    * to decide whether its own header still deserves a primary button.
    */
   const press = cardPressOf(status.nextAction, job);
-  const action = press.kind === "move" ? press.action : null;
+  /** Complete beside the job is quiet, and absent while a round's cards are coming in (`completeBeside`). */
+  const beside = press.kind === "move" ? null : completeBeside(status.nextAction, job);
+  const action = press.kind === "move" ? press.action : beside;
   /** What pressing it moves the status to — only Complete and Reopen move it here; Launch has its dialog. */
   const to = action?.kind === "complete" ? "completed" : action?.kind === "reopen" ? "live" : null;
   const unplayedAsk = action?.asks ?? undefined;
@@ -229,7 +232,7 @@ export function LifecycleBar({
           {isAdmin && action && action.enabled && action.kind !== "draw" && action.kind !== "schedule" && (
             <button
               type="button"
-              className={action.kind === "reopen" ? "btn btn-secondary" : "btn btn-primary"}
+              className={action.kind === "reopen" || beside ? "btn btn-secondary" : "btn btn-primary"}
               disabled={pending}
               onClick={() => {
                 setRefused("");
@@ -272,6 +275,8 @@ export function LifecycleBar({
             icon={action.kind === "launch" ? "rocket-launch" : action.kind === "complete" ? "check-circle" : undefined}
             reason={action.disabledBecause ?? ""}
             wayOut={action.wayOut}
+            // Complete beside the job is the quiet second button, refused or not.
+            primary={!beside}
           />
         )}
 

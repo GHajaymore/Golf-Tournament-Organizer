@@ -325,6 +325,26 @@ export type CardPress =
   | { kind: "link"; label: string; href: string; text: string }
   | { kind: "none"; text: string };
 
+/**
+ * COMPLETE, OFFERED QUIETLY BESIDE THE JOB — or not at all while a round's cards are coming in.
+ *
+ * The panel (9 Nov) and the PM (10 Nov): the card's button never offers "Complete tournament" while
+ * golf is being played. But a committee must still be able to end a tournament early — Round 2 rained
+ * off, the field gone home — and Complete asks first, naming the round nobody played
+ * (`completingCheckFor`). So while live:
+ *
+ *   cards still coming in, or a dispute (`cards`, `settle`)   no Complete at all
+ *   anything else (before the first tee, every card in, between rounds, a knockout's ties)
+ *                                                            Complete, as a QUIET second button,
+ *                                                            with its question and its refusal
+ *
+ * Play over, Complete is the job itself (`results`) and the card's one filled button.
+ */
+export function completeBeside(next: NextAction | null, job: TournamentJob | null | undefined): NextAction | null {
+  if (!next || next.kind !== "complete" || !job || job.moves) return null;
+  return job.key === "cards" || job.key === "settle" ? null : next;
+}
+
 export function cardPressOf(next: NextAction | null, job?: TournamentJob | null): CardPress {
   if (job === undefined) return next ? { kind: "move", action: next, text: "" } : { kind: "none", text: "" };
   if (!job || !next) return { kind: "none", text: "" };

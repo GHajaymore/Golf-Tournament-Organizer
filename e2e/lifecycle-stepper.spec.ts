@@ -20,7 +20,8 @@ import { addDays } from "../src/lib/domain/round-dates";
  *                     which the machine offers from the first card
  *   every card in     Close Round 1, which opens that round on Rounds & formats
  *   between rounds    Round 2's tee sheet, on Round 2's stop
- *   day 2 → over      Complete tournament, on Results
+ *   day 2 → over      Complete tournament, on Results (before it, Complete is only ever the quiet
+ *                     second button — ending early asks first — and absent while cards come in)
  *
  * On another screen the stepper is folded to one line (48px at most), with a quiet link to where the
  * job is done — and none on the screen where it is done. At every step the page never scrolls sideways.
@@ -79,14 +80,16 @@ test("the stepper, the dashboard's button and the folded line agree at every ste
     d = await dashboard(page);
     await expect(d.current).toContainText("Tee sheet");
     await expect(page.getByRole("link", { name: /Publish the tee sheet/ }).first()).toHaveAttribute("href", "/foursomes");
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toHaveCount(0);
+    // Before anybody plays, Complete is only ever the quiet second button (ending early asks first).
+    await expect(page.locator(".card").getByRole("button", { name: "Complete tournament" }).and(page.locator(".btn-primary"))).toHaveCount(0);
 
     // The sheet out: no button at all, only when it tees off.
     await prisma.stage.update({ where: { id: r1 }, data: { teeSheetPublished: true } });
     d = await dashboard(page);
     await expect(d.current).toContainText("Round 1");
     await expect(d.stepper).toContainText("Round 1 tees off");
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toHaveCount(0);
+    // Before anybody plays, Complete is only ever the quiet second button (ending early asks first).
+    await expect(page.locator(".card").getByRole("button", { name: "Complete tournament" }).and(page.locator(".btn-primary"))).toHaveCount(0);
 
     // DAY 1: four of six cards in — Open score entry, never Complete.
     await prisma.stage.update({ where: { id: r1 }, data: { playedOn: today } });
@@ -103,6 +106,12 @@ test("the stepper, the dashboard's button and the folded line agree at every ste
     await expect(d.stepper).toContainText("Round 1 · 4 of 6 cards in");
     await expect(page.getByRole("link", { name: /Open score entry/ }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Complete tournament" }), "Complete offered while golf is being played").toHaveCount(0);
+
+    // THE SAME WITH THE SWITCH OFF (the PM, 10 Nov): the dashboard's button follows the job for everyone.
+    await page.goto(`/dashboard?bust=${Date.now()}`);
+    await expect(page.getByRole("region", { name: "Where this tournament is" }), "the stepper is drawn without its switch").toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Open score entry/ }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Complete tournament" }), "switch off: Complete offered while golf is being played").toHaveCount(0);
 
     // Folded on another screen: one line, and a quiet link to where the job is done.
     await page.goto("/registration?stepper=1");
@@ -133,7 +142,8 @@ test("the stepper, the dashboard's button and the folded line agree at every ste
     d = await dashboard(page);
     await expect(d.current).toContainText("Round 2");
     await expect(page.getByRole("link", { name: /Publish the tee sheet/ }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toHaveCount(0);
+    // Before anybody plays, Complete is only ever the quiet second button (ending early asks first).
+    await expect(page.locator(".card").getByRole("button", { name: "Complete tournament" }).and(page.locator(".btn-primary"))).toHaveCount(0);
 
     // DAY 2, THEN PLAY OVER: every card in and closed — now, and only now, Complete tournament.
     await prisma.stage.update({ where: { id: r2 }, data: { playedOn: today, teeSheetPublished: true } });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { tournamentJob, whatsNext, type TournamentJob, type TournamentJobFacts } from "../needs-you-now";
-import { cardPressOf, lifecycleTrack, stepperOpenOn, stepperShown, trackCount, LIFECYCLE_STEPPER_ON, type LifecycleTrack } from "../lifecycle-track";
+import { readSource } from "../../__tests__/source";
+import { cardPressOf, completeBeside, lifecycleTrack, stepperOpenOn, stepperShown, trackCount, LIFECYCLE_STEPPER_ON, type LifecycleTrack } from "../lifecycle-track";
 import { shortDate } from "../round-dates";
 import { tournamentStatus, type RoundFacts, type TournamentFacts, type TournamentStatus } from "../tournament-status";
 import { FAMILIES, FAMILY_FIXTURES, completed, facts, launched, playedOut, round } from "./tournament-facts-fixtures";
@@ -366,8 +367,51 @@ describe("the switch", () => {
     expect(stepperOpenOn("/entry", "setting-up")).toBe(false);
   });
 
-  it("with the switch off the dashboard presses the machine's next action exactly as before", () => {
+  it("a card handed no job at all presses the machine's next action (the old contract)", () => {
     const st = tournamentStatus(launched(medal({ rounds: [r1({ hasResult: true }), r2()] })));
     expect(cardPressOf(st.nextAction)).toEqual({ kind: "move", action: st.nextAction, text: "" });
+  });
+});
+
+describe("the dashboard's button follows the job for everyone, switch or no switch (the PM, 10 Nov)", () => {
+  it("the dashboard hands its card the job unconditionally — never behind the stepper's switch", () => {
+    const page = readSource("src/app/(app)/dashboard/page.tsx");
+    expect(page).toMatch(/const job = await openTournamentJob\(session\.eventId, state\.today\);/);
+    expect(page).toMatch(/<LifecycleBar[\s\S]*?job=\{job\}/);
+    expect(page, "the dashboard's job is behind the stepper's switch again").not.toMatch(/stepperShown/);
+    // CONTROL: the matcher sees the switched version this file once had.
+    expect("const job = stepperShown(x) ? await openTournamentJob(session.eventId, state.today) : undefined;").toMatch(/stepperShown/);
+  });
+
+  it("with the switch OFF, a live tournament with a round in play never shows Complete", () => {
+    expect(LIFECYCLE_STEPPER_ON).toBe(false);
+    const day1 = launched(medal({ rounds: [r1({ hasResult: true }), r2()] }));
+    const st = tournamentStatus(day1);
+    expect(st.nextAction?.kind, "CONTROL: the machine itself offers Complete here").toBe("complete");
+    for (const over of [{ board: board() }, { board: board(), disputed: 1 }]) {
+      const job = tournamentJob(jobFacts(day1, over), "2026-11-28", day)!;
+      const press = cardPressOf(st.nextAction, job);
+      expect(press.kind).toBe("link");
+      expect(press.kind === "link" && press.label).not.toBe("Complete tournament");
+      expect(completeBeside(st.nextAction, job), `${job.key}: Complete offered while cards are coming in`).toBeNull();
+    }
+  });
+
+  it("Complete stays reachable, quietly, where ending early is a committee's call — and is the button once play is over", () => {
+    const between = launched(medal({ rounds: [r1({ hasResult: true, closed: true }), r2()] }));
+    const st = tournamentStatus(between);
+    const job = tournamentJob(jobFacts(between), TODAY, day)!;
+    expect(job.moves).toBe(false);
+    expect(completeBeside(st.nextAction, job)).toBe(st.nextAction);
+    // Every card in, the round still open: Close Round 1 is the button, Complete beside it.
+    const allIn = launched(medal({ rounds: [r1({ hasResult: true }), r2()] }));
+    const closeJob = tournamentJob(jobFacts(allIn, { board: board({ started: 24, certified: 24 }) }), "2026-11-28", day)!;
+    expect(closeJob.key).toBe("close");
+    expect(completeBeside(tournamentStatus(allIn).nextAction, closeJob)).not.toBeNull();
+    // Play over: Complete IS the job, so nothing is offered beside it.
+    const over = playedOut(medal());
+    const overJob = tournamentJob(jobFacts(over), TODAY, day)!;
+    expect(cardPressOf(tournamentStatus(over).nextAction, overJob).kind).toBe("move");
+    expect(completeBeside(tournamentStatus(over).nextAction, overJob)).toBeNull();
   });
 });
