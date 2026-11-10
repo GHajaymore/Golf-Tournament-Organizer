@@ -39,9 +39,13 @@ import { prisma, makeClub, dropClub, makeEvent, returnCard, signIn, centre, CARD
  * in `afterAll`. Service workers blocked (a save spec's rule on WebKit). Memory: one
  * context and one page at a time, about 150 MB.
  *
- * WHAT IT CANNOT SEE: a flight's tees (Flights & groups) and one player's
- * (Registration), which ask the same rule at the server and are not yet drawn
- * from it — named in the PR as a finding.
+ * And the other two levels, before launch with a card in Round 1 and without:
+ *     Flights · each flight   → Tees shut with the same sentence; pressed and stored without
+ *                               (the grid of drawn flights and the Manual board, both)
+ *     Entries · one player    → Tees shut with the same sentence; pressed and stored without
+ *
+ * WHAT IT CANNOT SEE: the server refusing a press that got past the screen —
+ * held on real rows by `round-changes-after-play.audit.test.ts`.
  */
 
 const WALKED = ["desktop", "phone"];
@@ -191,6 +195,116 @@ test("a scored round's tees are drawn shut with the reason; an unscored round's 
     await context.close();
   }
 });
+
+/** Flights, opened. */
+async function gotoFlights(page: Page) {
+  await page.goto(`/grouping?bust=${Date.now()}`);
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await expect(page.locator("main h1")).toBeVisible();
+}
+
+/** Entries, opened. */
+async function gotoEntries(page: Page) {
+  await page.goto(`/registration?bust=${Date.now()}`);
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await expect(page.locator("main h1")).toBeVisible();
+}
+
+/**
+ * A FLIGHT'S TEES AND ONE PLAYER'S, the other two levels of "the organizer decides the tees":
+ * `setFlightTee` and `setPlayerTee` refuse them with the same call as Played from
+ * (`acrossRoundsRefusal`, "field-tees"), so they are drawn shut with the same sentence. Walked
+ * BEFORE LAUNCH (cards in Round 1 of a tournament still taking entries): after launch Flights and
+ * Entries are shut by the setup lock, whose banner already speaks, and the rounds rule — for
+ * which launch is not a step — is the only thing left to say. Both ways a flight is shown: the
+ * grid of flights the app drew (`FlightTeeSelect`) and the Manual board (`FlightBoard`).
+ */
+for (const rule of ["balanced", "manual"] as const) {
+  test(`a flight's tees and one player's are drawn shut once a round has a card, and pressed and stored without (${rule} flights)`, async ({ browser, baseURL }, testInfo) => {
+    test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
+    test.setTimeout(180_000);
+    const at = await ratedCourse(club);
+    const make = async (name: string) => {
+      const made = await makeEvent(club, `${name} ${rule}`, {
+        status: "registration",
+        configUnlocked: false,
+        stages: [{}, {}],
+        players: 4,
+        flights: 2,
+        event: { courseId: at.course.id, defaultTeeId: at.white.id, course: at.course.name, teePolicy: "own", formationRule: rule },
+      });
+      await prisma.eventCourse.create({ data: { eventId: made.event.id, courseId: at.course.id } });
+      return made;
+    };
+    const scored = await make("Scored Open");
+    for (const p of scored.players) await returnCard(scored.event.id, scored.stages[0].id, p.id);
+    const fresh = await make("Fresh Open");
+    // Read from the fixture, never assumed: taking entries, a flight and a player on no tees of their own,
+    // every set offered by flight and by player.
+    for (const m of [scored, fresh]) {
+      const ev = await prisma.event.findUniqueOrThrow({ where: { id: m.event.id } });
+      expect([ev.status, ev.teePolicy, ev.formationRule, ev.flightsConfirmed]).toEqual(["registration", "own", rule, false]);
+      expect(m.flights.length).toBe(2);
+      expect(m.flights.every((f) => f.teeId === null) && m.players.every((p) => p.teeId === null), "the fixture starts with tees set").toBe(true);
+    }
+    const firstPlayer = (m: typeof scored) => m.players[0];
+
+    const errors: string[] = [];
+    const context = await browser.newContext({ ...testInfo.project.use, baseURL, serviceWorkers: "block" });
+    try {
+      const page = await context.newPage();
+      watchPageErrors(page, errors, "organizer");
+
+      // ── a round with cards: both shut, the sentence said ──────────────────
+      await signIn(context, baseURL!, club, scored.event.id);
+      await gotoFlights(page);
+      // The first flight's box: flights are drawn in position order, and Flights has no other "Tees for" box.
+      const flightBoxes = page.locator('main select[aria-label^="Tees for"]');
+      await expect(flightBoxes, "Flights draws a Tees box per flight").toHaveCount(2);
+      const flightBox = flightBoxes.first();
+      await centre(flightBox);
+      await expect(flightBox, "a flight's Tees is offered while a scored round would be reached").toBeDisabled();
+      await expect(page.getByTestId("flight-tees-door").first()).toContainText(FROZEN);
+      await expect(page.getByTestId("flight-tees-door").first()).toBeInViewport();
+
+      await gotoEntries(page);
+      const playerBox = page.getByLabel(`Tees for ${firstPlayer(scored).name}`, { exact: true }).first();
+      await centre(playerBox);
+      await expect(playerBox, "a player's Tees is offered while a scored round would be reached").toBeDisabled();
+      await expect(page.getByTestId("player-tees-door").first()).toContainText(FROZEN);
+      expect((await prisma.group.findMany({ where: { eventId: scored.event.id } })).map((g) => g.teeId), "a flight's tees changed on a scored tournament").toEqual([null, null]);
+      expect((await prisma.player.findUniqueOrThrow({ where: { id: firstPlayer(scored).id } })).teeId).toBeNull();
+
+      // ── no card anywhere: both pressed, and stored ────────────────────────
+      await context.clearCookies();
+      await signIn(context, baseURL!, club, fresh.event.id);
+      await gotoFlights(page);
+      const freshFlight = page.locator('main select[aria-label^="Tees for"]').first();
+      await centre(freshFlight);
+      await expect(freshFlight, "a flight's Tees is shut on a tournament with no card").toBeEnabled();
+      await expect(page.getByTestId("flight-tees-door")).toHaveCount(0);
+      await freshFlight.selectOption({ label: "Blue" });
+      await expect
+        // Whichever flight the first box is, one flight — and only one — is now on the Blues.
+        .poll(async () => (await prisma.group.findMany({ where: { eventId: fresh.event.id } })).map((g) => g.teeId).filter(Boolean), { timeout: 20_000, message: "the flight's tees were not stored" })
+        .toEqual([at.blue.id]);
+
+      await gotoEntries(page);
+      const freshPlayer = page.getByLabel(`Tees for ${firstPlayer(fresh).name}`, { exact: true }).first();
+      await centre(freshPlayer);
+      await expect(freshPlayer, "a player's Tees is shut on a tournament with no card").toBeEnabled();
+      await expect(page.getByTestId("player-tees-door")).toHaveCount(0);
+      await freshPlayer.selectOption({ label: "Red" });
+      await expect
+        .poll(async () => (await prisma.player.findUniqueOrThrow({ where: { id: firstPlayer(fresh).id } })).teeId, { timeout: 20_000, message: "the player's tees were not stored" })
+        .toBe(at.red.id);
+
+      expect(errors, "the page threw").toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
+}
 
 test("a completed tournament's round tees are drawn shut, with Reopen as the way out", async ({ browser, baseURL }, testInfo) => {
   test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
