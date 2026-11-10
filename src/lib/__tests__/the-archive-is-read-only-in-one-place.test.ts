@@ -269,6 +269,14 @@ describe("every opt-out mark is a reviewed decision", () => {
     expect(marksIn(files, THIS_TOURNAMENT_ATTRIBUTE)).toEqual(Object.keys(THIS_TOURNAMENT_MARKS).sort());
   });
 
+  it("the views found locked by the re-check are marked where they are drawn: the board's flights, a knockout's flight", () => {
+    // Inside the marked element, not merely somewhere in the file.
+    const board = readSource("src", "components", "LeaderboardBoard.tsx").replace(/\s+/g, " ");
+    expect(board).toMatch(/<div className="seg" data-reads=""[^>]*> <label className="seg-opt"> <input type="radio" name="lbview"/);
+    const bracket = readSource("src", "components", "BracketClient.tsx").replace(/\s+/g, " ");
+    expect(bracket).toMatch(/<div className="seg" data-reads=""[^>]*> \{list\.map\(\(d, i\) => \( <label className="seg-opt" key=\{d\.label\}> <input type="radio" name="brk"/);
+  });
+
   it("a screen marked data-reads as a whole imports no action", () => {
     expect(readSource("src", "components", "ReportsClient.tsx")).not.toMatch(/from "@\/app\/actions/);
   });
