@@ -59,8 +59,27 @@ function keyFor(kind: RateLimitKind, identifier: string, now: number): string {
  * Call it *before* looking the secret up, so a refusal costs the attacker a
  * query they don't get and tells them nothing about whether the thing they
  * typed exists.
+ *
+ * AN ENTRY LINK MUST SAY WHAT IT CAN TAKE (2026-11-10). `register-token`'s
+ * budget grows with the field (`entryLinkBudget`), so its caller has to hand
+ * over `budget` — the compiler refuses the call without it. It is asked only
+ * once the count passes the kind's fixed floor, so a link inside the floor
+ * still costs no lookup before it is counted, exactly as before.
  */
-export async function checkRateLimit(kind: RateLimitKind, identifier: string): Promise<RateLimitDecision> {
+export async function checkRateLimit(
+  kind: "register-token",
+  identifier: string,
+  budget: () => Promise<number>,
+): Promise<RateLimitDecision>;
+export async function checkRateLimit(
+  kind: Exclude<RateLimitKind, "register-token">,
+  identifier: string,
+): Promise<RateLimitDecision>;
+export async function checkRateLimit(
+  kind: RateLimitKind,
+  identifier: string,
+  budget?: () => Promise<number>,
+): Promise<RateLimitDecision> {
   const now = Date.now();
   // Enforced HERE rather than trusted of each caller, because the failure is
   // invisible from the call site: an empty identifier does not error, it
@@ -119,7 +138,18 @@ export async function checkRateLimit(kind: RateLimitKind, identifier: string): P
   }
 
   await prune(now);
-  return decideRateLimit(kind, attempts, now);
+  const floor = RATE_LIMITS[kind].limit;
+  if (attempts <= floor || !budget) return decideRateLimit(kind, attempts, now);
+  let limit: number;
+  try {
+    limit = await budget();
+  } catch (err) {
+    // Fail closed, like the count itself: a budget nobody could read is no budget.
+    console.error(`[rate-limit] could not read the "${kind}" budget:`, err);
+    return unavailableDecision();
+  }
+  // Never below the floor, whatever a budget says.
+  return decideRateLimit(kind, attempts, now, Math.max(floor, limit));
 }
 
 /**
