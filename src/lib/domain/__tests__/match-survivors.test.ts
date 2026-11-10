@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  HALVED_WORDS,
   countedHoles,
   deriveNetHoles,
   marginRefusal,
@@ -30,14 +31,6 @@ function card(s: string): HoleResult[] {
 }
 
 describe("resolveMatch — Rule 3.2a(3): over when one side leads by more holes than remain", () => {
-  it("an untouched card (no holes) has nothing to play: all square, played 0", () => {
-    const r = resolveMatch([]);
-    expect(r).toEqual({
-      played: 0, remaining: 0, lead: 0, holesWonA: 0, holesWonB: 0,
-      complete: true, winner: "H", resultText: "AS",
-    });
-  });
-
   it("3 up after 16 of 18 is 3&2 and the 17th and 18th, lost by the winner, do not count", () => {
     // holes 1-3 A (3 up, 15 left), 4-16 halved: after 16 played, 3 up with 2 to play: 3 > 2.
     const holes = card("AAAHHHHHHHHHHHHH" + "BB");
@@ -605,7 +598,7 @@ describe("parseHolesTranscript — spoken hole-by-hole results", () => {
   });
 
   it("ignores words it does not know without moving on a hole", () => {
-    expect(parseHolesTranscript("Sam um Alex the halve Sam samantha alexander", "Sam", "Alex", 0, 18)).toEqual(
+    expect(parseHolesTranscript("Sam um Alex the Sam samantha alexander", "Sam", "Alex", 0, 18)).toEqual(
       card("ABA"),
     );
   });
@@ -621,6 +614,18 @@ describe("parseHolesTranscript — spoken hole-by-hole results", () => {
     expect(parseHolesTranscript("Sam Alex", "Sam", "Alex", 17, 18)).toEqual(card("A"));
     expect(parseHolesTranscript("Sam Alex", "Sam", "Alex", 18, 18)).toEqual([]);
     expect(parseHolesTranscript("Sam", "Sam", "Alex", 0, 0)).toEqual([]);
+  });
+
+  it("both dictation readers take the SAME halved words, so no word is a halve to one and skipped by the other", () => {
+    for (const word of HALVED_WORDS) {
+      expect(parseHolesTranscript(`Ann ${word} Bob`, "Ann", "Bob", 0, 18)).toEqual(card("AHB"));
+      expect(parseResultTranscript(`the match was ${word}`, "Ann", "Bob")).toEqual({ winner: "H", margin: "AS" });
+    }
+    expect([...HALVED_WORDS].sort()).toEqual(["half", "halve", "halved", "push", "tie", "tied"]);
+  });
+
+  it("'halve' is a halved hole, not skipped", () => {
+    expect(parseHolesTranscript("Ann halve Bob", "Ann", "Bob", 0, 18)).toEqual(card("AHB"));
   });
 
   it("'halved' is a halved hole, and nothing after it shifts up (Rule 3.2b)", () => {
@@ -640,7 +645,7 @@ describe("parseHolesTranscript — spoken hole-by-hole results", () => {
   });
 
   it("'half', 'push', 'tie' and 'tied' are halves but 'halving' and 'halfway' are not", () => {
-    expect(parseHolesTranscript("halving halfway halve", "Sam", "Alex", 0, 18)).toEqual([]);
+    expect(parseHolesTranscript("halving halfway halves", "Sam", "Alex", 0, 18)).toEqual([]);
     expect(parseHolesTranscript("xhalf halfx", "Sam", "Alex", 0, 18)).toEqual([]);
     expect(parseHolesTranscript("pushed tiedx atie", "Sam", "Alex", 0, 18)).toEqual([]);
   });

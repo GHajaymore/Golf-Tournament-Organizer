@@ -319,6 +319,17 @@ export function marginToHoles(
   return holes;
 }
 
+/**
+ * The words a person says for a hole or a match that was halved (Rule 3.2b). ONE list for both
+ * dictation readers: when each kept its own, "halve" was a halved match to one and a word to skip
+ * in the other, and a skipped word shifts every later hole up by one.
+ */
+export const HALVED_WORDS: readonly string[] = ["half", "halve", "halved", "push", "tie", "tied"];
+
+function isHalvedWord(word: string): boolean {
+  return HALVED_WORDS.includes(word);
+}
+
 /** Parse a free-text/voice transcript into a winner + margin (see README voice spec). */
 /**
  * Whether these two spoken names can be told apart AT ALL.
@@ -351,7 +362,7 @@ export function parseResultTranscript(
   let margin = "";
 
   // Halve / draw keywords take precedence.
-  if (/\bhalved?\b/.test(t) || /\ball square\b/.test(t) || /^as$/.test(t)) {
+  if (t.split(/[^a-z]+/).some(isHalvedWord) || /\ball square\b/.test(t) || /^as$/.test(t)) {
     return { winner: "H", margin: "AS" };
   }
 
@@ -417,7 +428,7 @@ export function parseHolesTranscript(
     const t = tokens[j];
     if (a && t === a) { results.push("A"); hole += 1; }
     else if (b && t === b) { results.push("B"); hole += 1; }
-    else if (t === "half" || t === "halved" || t === "push" || t === "tie" || t === "tied") { results.push("H"); hole += 1; }
+    else if (isHalvedWord(t)) { results.push("H"); hole += 1; }
   }
   return results;
 }
