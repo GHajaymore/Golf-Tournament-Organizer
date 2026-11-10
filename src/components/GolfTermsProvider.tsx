@@ -20,7 +20,9 @@ import { golfTermsFor, type GolfRegister, type GolfWords } from "@/lib/domain/go
  */
 const GolfTermsContext = createContext<GolfWords>(golfTermsFor("us"));
 
-const GolfRegisterContext = createContext<GolfRegister>("us");
+/** What a component drawn with no provider answers: US, the app's default for a club that has not said (same as the words above). */
+export const NO_PROVIDER_REGISTER: GolfRegister = "us";
+const GolfRegisterContext = createContext<GolfRegister>(NO_PROVIDER_REGISTER);
 
 export function GolfTermsProvider({ register, children }: { register: GolfRegister; children: React.ReactNode }) {
   return (

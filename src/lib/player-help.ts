@@ -77,7 +77,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Buttons grey? The page is still loading. Wait a moment.",
       "[[Full card]] shows every hole at once.",
       "No buttons at all? Your club is keeping the cards.",
-      "Can't save a score? The tournament may not be launched yet. Ask your {organizer}.",
+      "Can't save a score? The event may not be launched yet. Ask your {organizer}.",
       "Then follow the round on the board.",
     ],
   },

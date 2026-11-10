@@ -111,9 +111,15 @@ export function playKindsFor(register: GolfRegister, saved?: string): PlayKindOp
     out.push({ key: k.key as PlayKind, label, result: `${label} result` });
   }
   // A kind already saved on the event stays on its own picker, in its own word, even where it is not offered.
+  // Where that word is one already listed (a GB event saved as `society`: its word IS the table's
+  // `outing` word) it takes over that option's key, so the word appears once and the picker still
+  // shows the saved value.
   if (saved && isPlayKind(saved) && !out.some((o) => o.key === saved)) {
     const label = labelOf(saved, register);
-    out.push({ key: saved, label, result: `${label} result` });
+    const option = { key: saved, label, result: `${label} result` };
+    const same = out.findIndex((o) => o.label === label);
+    if (same >= 0) out[same] = option;
+    else out.push(option);
   }
   return out;
 }

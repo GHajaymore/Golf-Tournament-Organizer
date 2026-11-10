@@ -24,16 +24,41 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const FILES = walk(SRC).map((p) => relative(REPO, p).split("\\").join("/"));
-const OWNERS = ["src/lib/domain/play-kind.ts", "src/lib/domain/event-words.ts"];
-const KIND_WORDS = /["'`](Society day|Roll-up|Charity day|Charity outing|Golf day)["'`]/;
+const OWNERS = [
+  "src/lib/domain/play-kind.ts",
+  "src/lib/domain/event-words.ts",
+  // CSS attribute selectors of the landing page's feature tabs (input[value=\"competition\"]): not a list of kinds.
+  "src/lib/landing/styles.ts",
+];
+/** Words only a kind of play uses: banned as a whole string or as JSX text, wherever it stands. */
+const OWN_WORDS = "Society day|Roll-up|Rollup|Charity day|Charity outing|Charity golf day|Golf day|Outing";
+const WORD_LITERAL = new RegExp("[\"'`](" + OWN_WORDS + ")[\"'`]|>\\s*(" + OWN_WORDS + ")\\s*<");
+/**
+ * Words a format also uses ("Medal" for a stroke round, "Stroke play" for a radio): banned where they
+ * stand as a KIND: the text of an <option>, or a `label:` of an option list.
+ */
+const SHARED_WORDS = "Medal|Stroke play|Stroke";
+const WORD_AS_OPTION = new RegExp(
+  "<option[^>]*>\\s*(" + SHARED_WORDS + "|" + OWN_WORDS + ")\\s*</option>|label:\\s*[\"'`](" + SHARED_WORDS + ")[\"'`]",
+);
+/** A list built from the kinds' keys: as an option's value or a key, or the one key only this list uses. */
+const KEY_NAMES = "rollup|society|charity|outing|medal|championship|competition";
+const KEY_LITERAL = new RegExp(
+  "\\bvalue\\s*[=:]\\s*\\{?\\s*[\"'`](?:" + KEY_NAMES + ")[\"'`]|[\"'`]rollup[\"'`]|\\bkey:\\s*[\"'`]rollup[\"'`]" +
+    "|\\[\\s*[\"'`](?:" + KEY_NAMES + ")[\"'`]\\s*,\\s*[\"'`](?:" + KEY_NAMES + ")[\"'`]",
+);
+/** A call to `playKindsFor` whose first argument is anything but the identifier `register`. */
+const CALL_WITH_LITERAL = /\bplayKindsFor\(\s*(?!register\b)/;
 
-/** The shapes: the list read outside its owners, a kind's word typed into code, a list asked for with no register. */
+/** The shapes: the list read outside its owners, a kind's word or key typed into code, a list asked for without the register. */
 function offences(file: string, code: string): string[] {
   if (OWNERS.includes(file)) return [];
   const found: string[] = [];
   if (/\bPLAY_KIND_KEYS\b|\bplayKindWord\b/.test(code)) found.push("reads the kinds directly");
-  if (KIND_WORDS.test(code)) found.push("types a kind's word");
-  if (/\bplayKindsFor\(/.test(code) && !/\bregister\b/.test(code)) found.push("asks for a list with no register in sight");
+  if (WORD_LITERAL.test(code)) found.push("types a kind's word");
+  if (WORD_AS_OPTION.test(code)) found.push("lists a kind's word as an option");
+  if (KEY_LITERAL.test(code)) found.push("builds a list from the kinds' keys");
+  if (CALL_WITH_LITERAL.test(code)) found.push("asks for a list without passing the register");
   return found;
 }
 
@@ -45,10 +70,31 @@ describe("the kinds of play follow the club's country, from one place", () => {
   });
 
   it("CONTROL: the guard sees each shape", () => {
-    expect(offences("src/x.tsx", "const k = PLAY_KIND_KEYS;")).toHaveLength(1);
-    expect(offences("src/x.tsx", 'const k = "Roll-up";')).toHaveLength(1);
-    expect(offences("src/x.tsx", "playKindsFor(us)")).toHaveLength(1);
-    expect(offences("src/x.tsx", "playKindsFor(register)")).toEqual([]);
+    const seen = (code: string) => offences("src/x.tsx", code).length > 0;
+    // Each bad shape the review found, one control apiece.
+    expect(seen("const k = PLAY_KIND_KEYS;")).toBe(true);
+    expect(seen('const k = playKindWord("outing", r);')).toBe(true);
+    expect(seen('const k = "Roll-up";')).toBe(true);
+    expect(seen("<option>Roll-up</option>")).toBe(true);
+    expect(seen("<span>Society day</span>")).toBe(true);
+    expect(seen('const a = ["Charity golf day"];')).toBe(true);
+    expect(seen('const a = "Outing";')).toBe(true);
+    expect(seen('<option value="medal">Medal</option>')).toBe(true);
+    expect(seen("<option>Stroke play</option>")).toBe(true);
+    expect(seen('const o = { label: "Medal" };')).toBe(true);
+    expect(seen('<option value="rollup">x</option>')).toBe(true);
+    expect(seen('<option value={"society"}>x</option>')).toBe(true);
+    expect(seen('const o = [{ value: "charity", label: "x" }];')).toBe(true);
+    expect(seen('const ks = ["outing", "charity", "league"];')).toBe(true);
+    expect(seen('const o = "rollup";')).toBe(true);
+    expect(seen('playKindsFor("us")')).toBe(true);
+    expect(seen("playKindsFor(us)")).toBe(true);
+    expect(seen("playKindsFor(golfRegister(c))")).toBe(true);
+    // And what is allowed passes: a format called Medal in a sentence, the call with the identifier.
+    expect(seen('const fmt = a.scoring === "stroke" ? "Medal" : "Tournament";')).toBe(false);
+    expect(seen('<label><input />Stroke play</label>')).toBe(false);
+    expect(seen("playKindsFor(register, f.playKind)")).toBe(false);
+    expect(seen("playKindsFor(register)")).toBe(false);
   });
 
   it("the screens that print a kind ask eventWords", () => {

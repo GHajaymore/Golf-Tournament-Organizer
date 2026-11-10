@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GOLF_REGISTERS, GOLF_TERMS, countryRegister, type GolfRegister } from "../golf-terms";
-import { PLAY_KIND_KEYS, playKindsFor } from "../play-kind";
+import { playKindsFor } from "../play-kind";
 import { eventWords } from "../event-words";
 
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
@@ -10,16 +10,6 @@ const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
  * expectation reads the table's own entry for the register.
  */
 describe("the words of an event, in the club's country", () => {
-  it("says the general word 'Event' whatever the kind or country", () => {
-    for (const r of GOLF_REGISTERS) {
-      for (const k of PLAY_KIND_KEYS) {
-        const w = eventWords(k, r);
-        expect(w.general).toBe("Event");
-        expect(w.generalLower).toBe("event");
-      }
-    }
-  });
-
   it("names an outing, a charity day and a stroke-play day with the country's table word", () => {
     for (const r of GOLF_REGISTERS) {
       expect(eventWords("outing", r).kind, r).toBe(cap(GOLF_TERMS.outing[r]));
@@ -76,6 +66,16 @@ describe("the kinds a club is offered", () => {
       expect(new Set(l).size, r).toBe(l.length);
       for (const o of playKindsFor(r)) expect(o.result, `${r} ${o.key}`).toBe(`${o.label} result`);
     }
+  });
+
+  it("lists a word once when a saved kind shares it: a GB event saved as society", () => {
+    const options = playKindsFor("uk", "society");
+    expect(options.filter((o) => o.label === "Society day")).toHaveLength(1);
+    // The picker still carries the saved value, so it shows what is stored.
+    expect(options.find((o) => o.label === "Society day")?.key).toBe("society");
+    expect(new Set(options.map((o) => o.label)).size).toBe(options.length);
+    // An unsaved GB event offers the same word under the outing key.
+    expect(playKindsFor("uk").find((o) => o.label === "Society day")?.key).toBe("outing");
   });
 
   it("keeps a kind already saved on the event, even where the country is not offered it", () => {

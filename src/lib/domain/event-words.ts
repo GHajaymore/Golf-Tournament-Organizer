@@ -17,9 +17,6 @@ import { playKindWord } from "@/lib/domain/play-kind";
  * Nothing here changes how the golf is scored; these are words only.
  */
 export interface EventWords {
-  /** The general word, capitalised and lower case: "Event" / "event". */
-  general: string;
-  generalLower: string;
   /** The event's own kind, capitalised and lower case: "Charity outing" / "charity outing". */
   kind: string;
   kindLower: string;
@@ -30,8 +27,6 @@ export interface EventWords {
 export function eventWords(kind: string, register: GolfRegister): EventWords {
   const word = playKindWord(kind, register);
   return {
-    general: "Event",
-    generalLower: "event",
     kind: word,
     kindLower: word.toLowerCase(),
     resultHeading: `${word} result`,
