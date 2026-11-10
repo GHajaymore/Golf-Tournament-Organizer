@@ -147,7 +147,8 @@ export function AccessClient({
   };
 
   return (
-    <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
+    // The tournament's own staff: locked in an archived tournament wherever it is drawn (`archive-read-only.ts`).
+    <div className="page-split" data-this-tournament="" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm">
         <span className="card-title" style={{ fontSize: 15 }}>Accounts</span>
         <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>

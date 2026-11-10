@@ -1265,9 +1265,11 @@ export function ScoreEntryClient({
                 onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
                 placeholder="Search player, flight or round…"
                 aria-label="Search matches"
+                // Filters the list shown: live in an archived tournament (`archive-read-only.ts`).
+                data-reads=""
                 style={{ fontSize: 13 }}
               />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              <div data-reads="" style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                 {STATUS_ORDER.filter((k) => counts[k] > 0).map((k) => {
                   const on = filter.status === k;
                   return (

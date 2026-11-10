@@ -816,7 +816,8 @@ export function BracketClient({
         </div>
         {onDraw && !awaitingFlights && list.length > 1 && (
           // Wraps: a knockout in flights may have a dozen of these.
-          <div className="seg" style={{ flexWrap: "wrap" }}>
+          // Which flight's draw is shown: the view only, so live in an archived tournament.
+          <div className="seg" data-reads="" style={{ flexWrap: "wrap" }}>
             {list.map((d, i) => (
               <label className="seg-opt" key={d.label}>
                 <input type="radio" name="brk" checked={at === i} onChange={() => setTab(i)} />

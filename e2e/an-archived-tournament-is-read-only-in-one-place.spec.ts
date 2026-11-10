@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import type { Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { pressRadio } from "./press-radio";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
@@ -41,6 +42,7 @@ async function controlsOf(page: Page): Promise<{ disabled: number; pressable: st
     const viewOnly = (el: Element) =>
       el.closest("[data-reads]") !== null ||
       el.closest("[data-new-tournament]") !== null ||
+      // On a locked screen the tournament's own part is locked like the rest, so it is no exception here.
       el.getAttribute("role") === "tab" ||
       (el.tagName === "BUTTON" && el.hasAttribute("aria-expanded")) ||
       (el.tagName === "INPUT" && (el.getAttribute("type") ?? "").toLowerCase() === "search");
@@ -147,6 +149,142 @@ test("an archived tournament's working screens are read-only, say why once, and 
     if (ids.org) await prisma.organization.deleteMany({ where: { id: ids.org } });
     if (ids.event) await prisma.event.deleteMany({ where: { id: ids.event } });
     if (ids.user) await prisma.user.deleteMany({ where: { id: ids.user } });
-    await prisma.$disconnect();
   }
+});
+
+/**
+ * WHAT ONLY CHANGES THE VIEW STAYS LIVE, ON THE SCREENS PEOPLE READ (the Opus re-check,
+ * 2026-11-10): the board's Overall / By flight, and a flighted knockout's choice of flight,
+ * were locked with everything else — so an archive showed one flight and no way to the next.
+ * Here a lapsed club holds two archived tournaments: a medal in two flights, and a knockout
+ * drawn in two flights. On each the view control is ENABLED and pressing it CHANGES what is
+ * shown. Then the medal is taken out of the archive, and its board draws no read-only wrapper.
+ */
+test("in an archive the board's flights and a knockout's flights can still be switched, and a live tournament is not wrapped", async ({ browser, baseURL }, testInfo) => {
+  test.setTimeout(150_000);
+  const size = testInfo.project.name.replace(/[^a-z]/gi, "").toLowerCase();
+  const email = `zz-archive-views-${size}@example.invalid`;
+  const ids = { user: "", org: "", medal: "", knockout: "" };
+  const errors: string[] = [];
+  const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: { cookies: [], origins: [] } });
+  try {
+    await prisma.user.deleteMany({ where: { email } });
+    await prisma.organization.deleteMany({ where: { name: `zz-archive-views club ${size}` } });
+    const lapsedAt = new Date(Math.floor((Date.now() - 86_400_000) / 1000) * 1000);
+    const user = await prisma.user.create({ data: { email, name: "Zz Archive Viewer", password: "x:unusable" } });
+    ids.user = user.id;
+    const org = await prisma.organization.create({
+      data: {
+        name: `zz-archive-views club ${size}`,
+        kind: "club",
+        timeZone: "Europe/London",
+        locale: "en-GB",
+        subscription: {
+          create: {
+            plan: "free", status: "canceled", provider: "stripe", providerCustomerId: `cus_zz_archviews_${size}`,
+            providerSubscriptionId: `sub_zz_archviews_${size}`, planTermsApply: true, lapsedAt, currentPeriodEnd: lapsedAt,
+          },
+        },
+        members: { create: { userId: user.id, role: "owner" } },
+      },
+    });
+    ids.org = org.id;
+    const card = {
+      customPars: JSON.stringify(new Array(18).fill(4)),
+      customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+    };
+
+    // The medal: one round, two flights of two, every card in.
+    const medal = await prisma.event.create({
+      data: {
+        organizationId: org.id, name: `zz-archive-views medal ${size}`, dates: "", course: "Home", city: "", address: "", regDeadline: "",
+        status: "live", shape: "series", shareToken: `zz-archive-views-m-${size}-${Date.now()}`, archivedAt: lapsedAt, launchedAt: new Date(), ...card,
+      },
+    });
+    ids.medal = medal.id;
+    const round = await prisma.stage.create({ data: { eventId: medal.id, position: 0, type: "Stroke Play Round", format: "Individual Stroke Play", holes: 18, scoringBasis: "gross" } });
+    const flightA = await prisma.group.create({ data: { eventId: medal.id, name: "Flight A", position: 0 } });
+    const flightB = await prisma.group.create({ data: { eventId: medal.id, name: "Flight B", position: 1 } });
+    for (const [i, [name, groupId]] of ([["Zz Ada Fernsby", flightA.id], ["Zz Bram Oakhurst", flightA.id], ["Zz Cleo Marrow", flightB.id], ["Zz Dov Ellery", flightB.id]] as const).entries()) {
+      const p = await prisma.player.create({ data: { eventId: medal.id, name, email: `zz-archive-views-m${i}-${size}@example.invalid`, seed: i + 1, status: "confirmed", groupId } });
+      await prisma.scorecard.create({
+        data: { eventId: medal.id, stageId: round.id, playerId: p.id, strokes: JSON.stringify(new Array(18).fill(4 + (i % 2))), status: "approved", approvedBy: "zz", approvedAt: new Date() },
+      });
+    }
+    await prisma.account.create({ data: { eventId: medal.id, email, name: "Zz Archive Viewer", role: "admin" } });
+
+    // The knockout: drawn in two flights of two.
+    const knockout = await prisma.event.create({
+      data: {
+        organizationId: org.id, name: `zz-archive-views knockout ${size}`, dates: "", course: "Home", city: "", address: "", regDeadline: "",
+        status: "live", shape: "knockout", format: "match", bracketMode: "flights", shareToken: `zz-archive-views-k-${size}-${Date.now()}`,
+        archivedAt: lapsedAt, launchedAt: new Date(), ...card,
+      },
+    });
+    ids.knockout = knockout.id;
+    await prisma.stage.create({ data: { eventId: knockout.id, position: 0, type: "Bracket Stage", format: "Match Play", scoringBasis: "gross", holes: 18 } });
+    const ko: string[] = [];
+    for (const [i, name] of ["Zz Elm Hartley", "Zz Fern Coyle", "Zz Gale Pruett", "Zz Holt Varney"].entries()) {
+      const p = await prisma.player.create({ data: { eventId: knockout.id, name, email: `zz-archive-views-k${i}-${size}@example.invalid`, seed: i + 1, status: "confirmed", handicap: i * 2 } });
+      ko.push(p.id);
+    }
+    await prisma.event.update({
+      where: { id: knockout.id },
+      data: { bracketDraw: JSON.stringify({ v: 2, criterion: "handicap", flights: [{ name: "Flight A", playerIds: ko.slice(0, 2) }, { name: "Flight B", playerIds: ko.slice(2) }] }) },
+    });
+    await prisma.account.create({ data: { eventId: knockout.id, email, name: "Zz Archive Viewer", role: "admin" } });
+
+    const open = async (eventId: string, path: string) => {
+      await ctx.addCookies([
+        { name: "ng_session", value: sign(signedInNow(user.id)), url: baseURL! },
+        { name: "ng_active_event", value: sign(eventId), url: baseURL! },
+      ]);
+      await page.goto(`${path}${path.includes("?") ? "&" : "?"}bust=${Date.now()}`);
+      // Pressed only once the screen is alive: a radio pressed before its script has arrived proves nothing.
+      await page.waitForLoadState("networkidle").catch(() => {});
+    };
+    const page = await ctx.newPage();
+    watchPageErrors(page, errors);
+
+    // The board: locked, and its Overall / By flight still switches the view.
+    await open(medal.id, "/leaderboard");
+    await expect(page.locator("[data-archive-banner]"), "the board does not say it is read-only").toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("[data-archive-read-only]"), "the board is not wrapped read-only").toHaveCount(1);
+    // The lock has run (a writing control is disabled) before the view control is judged.
+    await expect.poll(async () => (await controlsOf(page)).pressable, { message: "/leaderboard: a control that writes is still pressable", timeout: 20_000 }).toEqual([]);
+    const byFlight = page.getByRole("radio", { name: "By flight" });
+    await expect(byFlight, "the board's By flight was locked in an archive").toBeEnabled({ timeout: 15_000 });
+    const tables = page.locator("[data-archive-read-only] table");
+    const before = await tables.count();
+    await pressRadio(byFlight);
+    await expect.poll(() => tables.count(), { message: "By flight did not change the board", timeout: 15_000 }).toBeGreaterThan(before);
+    await expect(page.getByText("Flight B", { exact: true }).first()).toBeVisible();
+
+    // The knockout's draw: locked, and its choice of flight still shows the next flight.
+    await open(knockout.id, "/bracket?view=draw");
+    await expect(page.locator("[data-archive-read-only]"), "the bracket is not wrapped read-only").toHaveCount(1, { timeout: 30_000 });
+    await expect.poll(async () => (await controlsOf(page)).pressable, { message: "/bracket: a control that writes is still pressable", timeout: 20_000 }).toEqual([]);
+    const flightBDraw = page.getByRole("radio", { name: /Flight B/ });
+    await expect(flightBDraw, "the knockout's choice of flight was locked in an archive").toBeEnabled({ timeout: 15_000 });
+    await expect(page.getByText("Zz Gale Pruett").first(), "Flight B's draw showed before it was chosen").toBeHidden();
+    await pressRadio(flightBDraw);
+    await expect(page.getByText("Zz Gale Pruett").first(), "choosing Flight B did not show its draw").toBeVisible({ timeout: 15_000 });
+
+    // Out of the archive, the same board draws no read-only wrapper and no banner.
+    await prisma.event.update({ where: { id: medal.id }, data: { archivedAt: null } });
+    await open(medal.id, "/leaderboard");
+    await expect(page.getByText("Zz Ada Fernsby").first(), "the live board did not load").toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("[data-archive-read-only]"), "a live tournament's screen was wrapped read-only").toHaveCount(0);
+    await expect(page.locator("[data-archive-banner]"), "a live tournament said it was read-only").toHaveCount(0);
+    expect(errors).toEqual([]);
+  } finally {
+    await ctx.close().catch(() => {});
+    if (ids.org) await prisma.organization.deleteMany({ where: { id: ids.org } });
+    for (const id of [ids.medal, ids.knockout]) if (id) await prisma.event.deleteMany({ where: { id } });
+    if (ids.user) await prisma.user.deleteMany({ where: { id: ids.user } });
+  }
+});
+
+test.afterAll(async () => {
+  await prisma.$disconnect();
 });

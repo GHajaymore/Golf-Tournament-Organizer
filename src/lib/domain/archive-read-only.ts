@@ -29,6 +29,19 @@
  * `[data-new-tournament]`, so `data-reads` stays a promise that nothing is
  * written at all.
  *
+ * THE CLUB'S SCREENS STAY OPEN (2026-11-10, the Opus re-check): an archived
+ * club still runs its club (`the-archive-is-asked-at-every-door.test.ts`, the
+ * "club" doors). A screen whose actions are the club's — the member list,
+ * seasons, Club settings — or that writes nothing in a tournament is not
+ * locked. The list below is DERIVED by its test from the screens' imports and
+ * that sweep's own list, so the two cannot drift. Where such a screen draws a
+ * part that is the tournament's own (its staff, its money, its settings), that
+ * part carries `[data-this-tournament]` and is locked there all the same.
+ *
+ * BEFORE THE SCREEN COMES ALIVE nothing here runs: the lock is applied as the
+ * page hydrates. A press in that instant (a plain HTML form sent before the
+ * scripts arrive) is answered only by the server's own refusal — the backstop.
+ *
  * Pure: the component asks these about each control and each screen, and the
  * test asks them the same questions with no browser.
  */
@@ -39,16 +52,35 @@ export const READS_ATTRIBUTE = "data-reads";
 /** The second opt-out: inside it, a control writes only a NEW tournament (Copy last event). */
 export const NEW_TOURNAMENT_ATTRIBUTE = "data-new-tournament";
 
+/** On a screen the archive leaves open, the tournament's own part, locked all the same. */
+export const THIS_TOURNAMENT_ATTRIBUTE = "data-this-tournament";
+
 /** The controls the archive disables. Links are not among them, on purpose. */
 export const ARCHIVE_LOCKED_CONTROLS = "button, input, select, textarea";
 
 /**
- * Screens of the console that are NOT the open tournament's, so the archive
- * does not lock them: the club's own settings (where "Resubscribe" is — the way
- * out must stay open), the list of the club's tournaments (to open another),
- * and the organizer's guide.
+ * Screens of the console the archive leaves OPEN: each one's actions are the
+ * club's, or it writes nothing in a tournament. Club settings is among them —
+ * where "Resubscribe" is, the way out — and so are the tournament list (to open
+ * another), the member list, seasons and the guide. DERIVED, not chosen:
+ * `the-archive-is-read-only-in-one-place.test.ts` works the list out from each
+ * screen's imports and the archive sweep's "club" doors and fails when this
+ * differs from it.
  */
-export const ARCHIVE_WRITABLE_SCREENS = ["/organization", "/tournaments", "/guide"] as const;
+export const ARCHIVE_WRITABLE_SCREENS = [
+  // Open, but everything on it is the tournament's staff (`AccessClient`, marked
+  // `data-this-tournament`), so its controls are locked all the same.
+  "/access",
+  "/guide",
+  "/member",
+  "/organization",
+  "/reports",
+  "/roster",
+  "/rules",
+  "/series",
+  "/tournaments",
+  "/week",
+] as const;
 
 /** Does the archive lock this console screen? */
 export function archiveLocksScreen(pathname: string): boolean {
@@ -69,6 +101,8 @@ export interface ControlFacts {
   reads: boolean;
   /** Is inside an element marked `data-new-tournament`. */
   makesNew: boolean;
+  /** Is inside an element marked `data-this-tournament` (the tournament's part of a club screen). */
+  thisTournament: boolean;
 }
 
 /**
@@ -85,8 +119,19 @@ export function archiveLeavesLive(c: ControlFacts): boolean {
 }
 
 /**
- * Events the archive refuses inside a locked screen, at the capture phase:
- * a form sent by any means, and a drag (moving a player between flights, a file
- * dropped on an import) — the two ways a change is made without a control.
+ * Does the archive disable this control? On a locked screen, every control
+ * that is not left live; on an open (club) screen, only the tournament's own
+ * part (`data-this-tournament`), and there too what only changes the view stays.
+ */
+export function archiveLocksControl(screenLocked: boolean, c: ControlFacts): boolean {
+  if (archiveLeavesLive(c)) return false;
+  return screenLocked || c.thisTournament;
+}
+
+/**
+ * Events the archive refuses inside a locked screen (and inside the tournament's
+ * part of an open one), at the capture phase: a form sent by any means, and a
+ * drag (moving a player between flights, a file dropped on an import) — the
+ * two ways a change is made without a control.
  */
 export const ARCHIVE_REFUSED_EVENTS = ["submit", "dragstart", "drop"] as const;

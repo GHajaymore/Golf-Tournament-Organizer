@@ -98,9 +98,13 @@ tournament money code entirely.
      screen in `ArchiveReadOnly` (`domain/archive-read-only.ts`), which disables
      each control that writes under the banner's one sentence; links, prints
      (the print kit too — `recordPrinted` records nothing in an archive),
-     exports, round pickers, Copy last event (it writes only the new copy) and
-     Club settings (the way out) stay live, and the actions still refuse as the
-     backstop. The
+     exports, round and flight pickers and Copy last event (it writes only the
+     new copy) stay live. The club's own screens stay usable — `/organization`
+     (the way out), `/tournaments`, `/guide`, the member list (`/roster`) and
+     seasons (`/series`) — with the tournament's own parts on them (its staff,
+     money, settings) still locked (`data-this-tournament`); the list is derived
+     by its test from the archive sweep's "club" doors. Before the page has
+     hydrated only the actions' own refusals cover a press — the backstop. The
      archive is not counted against Par's limits, and Par's 14/15-day sweep
      never touches it. The owners are emailed 30 days and 7 days before it is
      deleted (`sweepArchives`, in the daily cron), and nothing goes until 7 days
