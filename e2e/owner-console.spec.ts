@@ -5,6 +5,7 @@ import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { E2E_OWNER_EMAIL } from "./owner-email.mjs";
 import { EARLY_LIST, OWNER_CARD } from "../src/lib/go-live";
+import { PLANS, WORLD_REGION_ID, effectivePrice, parsePricingOverrides } from "../src/lib/plans";
 
 /**
  * THE OWNER CONSOLE, AS THE OWNER USES IT (2026-10-21).
@@ -198,7 +199,14 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     await page.getByRole("button", { name: "Save prices" }).click();
     await expect(page.getByText("Saved — live everywhere.").first()).toBeVisible({ timeout: 20_000 });
     const stored = await prisma.platformSetting.findUnique({ where: { key: "pricing" } });
-    expect(stored?.value ?? "", "the price was not stored").toMatch(/"id":"world"[^\]]*?"society":51/);
+    // Read the row as the app reads it, never with a pattern over its text: Rest of world's
+    // `"countries":[]` sits between its id and its prices, so a pattern that refuses `]` there can
+    // never match (it was red on a row holding the price). Rest of world's own figure, and what a
+    // club in a country of no region is quoted through the one reader.
+    const overrides = parsePricingOverrides(stored?.value);
+    const world = overrides.regions?.find((r) => r.id === WORLD_REGION_ID);
+    expect(world?.monthly.society, "the price was not stored as Rest of world's").toBe(51);
+    expect(effectivePrice(PLANS.society, overrides, "BR"), "a club in a country of no region is not quoted it").toBe(51);
     await open("plans");
     await expect(page.getByLabel("Rest of world Birdie price per month in USD")).toHaveValue("51");
   });

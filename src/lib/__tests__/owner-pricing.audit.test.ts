@@ -1,7 +1,10 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { parsePricingOverrides, parseOfferSettings, publicOffers, effectivePrice, effectiveAnnualPrice, planFor } from "@/lib/plans";
+import {
+  PLANS, WORLD_REGION_ID, defaultMonthly, effectiveRegions,
+  parsePricingOverrides, parseOfferSettings, publicOffers, effectivePrice, effectiveAnnualPrice, planFor,
+} from "@/lib/plans";
 
 /**
  * ONLY THE OWNER MAY CHANGE THE PRICE, AND WHEN THEY DO EVERY SURFACE MOVES.
@@ -130,6 +133,32 @@ describe("the owner's price control", () => {
     expect(effectivePrice(planFor("society"), overrides, "DE")).toBe(44);
     // CONTROL: a currency nobody overrode reads the plan's own set price.
     expect(effectivePrice(planFor("club"), overrides, "DE")).toBe(159);
+  });
+});
+
+describe("the Plans panel's own press: every region as it opens, one Rest of world price changed", () => {
+  it("stores Rest of world's price and quotes it to a country in no region, keeping every other region's", async () => {
+    session = sess(OWNER);
+    // Exactly what OwnerPricing sends on a first save: every default region but Rest of world, each box
+    // opened on its quoted default, and Rest of world's boxes with Birdie typed as 51.
+    const regions = effectiveRegions({ plans: {} })
+      .filter((r) => r.id !== WORLD_REGION_ID)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        currency: r.currency,
+        countries: r.countries,
+        monthly: { society: defaultMonthly(PLANS.society, r.currency) ?? null, club: defaultMonthly(PLANS.club, r.currency) ?? null },
+        annualMonths: null,
+      }));
+    const res = await saveTierPrices({ society: 51, club: 175 }, { regions, annualMonths: null });
+    expect(res).toEqual({ ok: true });
+    const overrides = parsePricingOverrides((await pricingRow())!.value);
+    expect(overrides.regions?.find((r) => r.id === WORLD_REGION_ID)?.monthly.society, "Rest of world's Birdie was not stored").toBe(51);
+    expect(effectivePrice(PLANS.society, overrides, "BR"), "a country in no region is not quoted it").toBe(51);
+    // CONTROL: the regions sent at their defaults kept their own prices; the dollar box moved only Rest of world.
+    expect(effectivePrice(PLANS.society, overrides, "GB")).toBe(PLANS.society.localMonthly.GBP);
+    expect(effectivePrice(PLANS.society, overrides, "US")).toBe(PLANS.society.priceMonthly);
   });
 });
 
