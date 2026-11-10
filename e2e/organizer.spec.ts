@@ -31,7 +31,7 @@ test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
  * short ASCII names was letting every width assertion pass without ever being
  * asked a hard question. See the note beside `names` in the fixture.
  */
-const FIELD = ["Aj Moore", "Marcus Webb", "Síle Ní Bhraonáin-O’Dwyer", "Sang-woo Kim"];
+const FIELD = ["Ned Calloway", "Marcus Webb", "Síle Ní Bhraonáin-O’Dwyer", "Sang-woo Kim"];
 
 test("an organizer lands in the console, not the player app", async ({ page }) => {
   await page.goto("/");
