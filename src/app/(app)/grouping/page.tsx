@@ -21,6 +21,7 @@ import Link from "next/link";
 import { lockFactsFor } from "@/lib/services/tournament-facts";
 import { tournamentFamily } from "@/lib/domain/tournament-status";
 import { flagsUnplaced, unplacedWords } from "@/lib/domain/field-change";
+import { acrossRoundsRefusal } from "@/lib/services/round-change";
 
 export const metadata = screenMetadata("/grouping");
 
@@ -69,6 +70,13 @@ export default async function GroupingPage() {
   const byFlightTees = flightTeeCounts(settingsOf(state.event).teePolicy);
   const roundTeeName = eventTees.find((t) => t.id === roundTee)?.name;
   const defaultTeeName = roundTeeName ? `${roundTeeName} (round’s)` : "The round’s tees";
+  /**
+   * Whether a flight's tees may change now, and if not why — the very call
+   * `setFlightTee` refuses with (the rounds rule, `field-tees`), so each
+   * flight's Tees box is drawn shut with the sentence rather than offered and
+   * then refused (the finding after round G594-1, 10 Nov).
+   */
+  const teesDoor = await acrossRoundsRefusal(session.eventId, { kind: "field-tees" });
 
   const cards = state.groups.map((g, i) => {
     const players = state.confirmed.filter((p) => p.groupId === g.id).sort((a, b) => a.handicap - b.handicap);
@@ -165,6 +173,7 @@ export default async function GroupingPage() {
           byFlightTees={byFlightTees}
           tees={eventTees.map((t) => ({ id: t.id, name: t.name }))}
           defaultTeeName={defaultTeeName}
+          teesDoor={teesDoor}
         />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
@@ -185,6 +194,7 @@ export default async function GroupingPage() {
                   tees={eventTees.map((t) => ({ id: t.id, name: t.name }))}
                   defaultTeeName={defaultTeeName}
                   disabled={locked || session.viewRole !== "admin"}
+                  teesDoor={teesDoor}
                 />
               )}
               {g.players.map((pl) => (

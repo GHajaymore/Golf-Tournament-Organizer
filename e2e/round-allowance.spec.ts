@@ -29,7 +29,7 @@ import { heldFromBoard } from "../src/lib/domain/board-hold";
  *                                 allowance for this format", with Change
  *   the rules sheet            → says 95% of course handicap, to the organizer
  *                                 and to a player, which it used not to say
- *   setup is locked            → Save is not offered; Unlock setup
+ *   launched, scores in        → Save IS offered (J12 PR 7b: the rounds rule, not the lock)
  *   Change → "9o", then 0      → refused beside the box, nothing stored
  *   Change → 100 → Save        → ASKED first, with the number of cards at stake;
  *                                 "Keep 95%" stores nothing
@@ -288,10 +288,12 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
     const changeButton = () =>
       card.locator("div", { has: page.locator("p", { hasText: /^Handicap allowance/ }) }).last().getByRole("button", { name: "Change", exact: true });
 
-    // Locked: the box opens, and Save is not offered to be pressed.
+    // NOT locked by launch (J12, state machine PR 7b): the allowance asks the rounds rule, and a round
+    // with scores in is asked first (below) — so Save is offered on the live medal.
     await changeButton().click();
     await expect(card.getByLabel("Handicap allowance percent")).toBeVisible();
-    await expect(card.getByRole("button", { name: "Save", exact: true }), "Save is offered on a locked round").toBeDisabled();
+    await expect(card.getByRole("button", { name: "Save", exact: true }), "the live medal's allowance is shut by launch").toBeEnabled();
+    // A committee correction to the rounds changes nothing for the allowance; kept, so the walk is the same with one open.
     await makeCommitteeCorrection(page);
     await expect
       .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).correctionScope, { message: "the committee correction stored nothing" })
@@ -322,7 +324,10 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
     const asked = card.locator("b", { hasText: /This round already has \d+ cards? entered\./ });
     await expect(asked, "the round was not asked about before being re-scored").toBeVisible();
     await expect(asked).toContainText(`This round already has ${cardsIn} cards entered.`);
-    await expect(card.getByText(/Each player receives a different number of strokes/)).toBeVisible();
+    // The Golf Pro's words (J12, PR 7b): a term changed after play, what is worked out again, and money.
+    await expect(
+      card.getByText(`This changes a term of the competition after play. Every net score in Round 1 (${cardsIn} cards) is worked out again. Money is final-only, so nothing paid changes.`),
+    ).toBeVisible();
     expect(await storedNow(), "the allowance was stored before the question was answered").toBe(0);
     await card.getByRole("button", { name: "Keep 95%", exact: true }).click();
     await expect(asked).toBeHidden();

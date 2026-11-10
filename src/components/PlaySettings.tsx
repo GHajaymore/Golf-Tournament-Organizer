@@ -91,6 +91,15 @@ interface Props {
   tees?: TeeOption[];
   /** The tournament's chosen set. Null falls back to the first by position. */
   defaultTeeId?: string | null;
+  /**
+   * Tournament mode only — why the tournament's tees cannot change now, or
+   * null: the rounds rule's sentence (`acrossRoundsRefusal(…, "field-tees")`,
+   * the very call `setEventDefaultTee` refuses with) — a scored round of cards
+   * would be reached, its handicaps frozen off its tees at its first card, or
+   * the tournament is completed. Played from is drawn shut with it, so it is
+   * never offered and then refused at Save (round G594-1, 10 Nov).
+   */
+  teesDoor?: string | null;
 }
 
 export interface TeeOption {
@@ -223,6 +232,7 @@ export function PlaySettings({
   eventName,
   tees = [],
   defaultTeeId = null,
+  teesDoor = null,
 }: Props) {
   const [form, setForm] = useState<TournamentSettings>(settings);
   const golf = useGolfTerms();
@@ -552,7 +562,8 @@ export function PlaySettings({
               id="default-tee"
               className="input"
               value={teeId ?? ""}
-              disabled={!canEdit || pending}
+              disabled={!canEdit || pending || !!teesDoor}
+              aria-describedby={teesDoor ? "default-tee-door" : undefined}
               onChange={(e) => {
                 setTeeId(e.target.value || null);
                 setSaved(false);
@@ -617,6 +628,14 @@ export function PlaySettings({
                 ));
               })()}
             </select>
+            {/* WHY IT IS SHUT, under it, before anybody presses (J12, PR 7b): the rounds rule's
+                own sentence, the one Save would be refused with. Said to whoever may edit; a
+                reader with no Save has nothing to be told. */}
+            {canEdit && teesDoor && (
+              <p id="default-tee-door" data-testid="default-tee-door" className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
+                <Icon name="lock-simple" /> {teesDoor}
+              </p>
+            )}
             {/* The rating IS the reason to choose one set over another, so an
                 unrated pick is worth saying out loud rather than leaving to be
                 discovered when the strokes come out the same off every tee. */}

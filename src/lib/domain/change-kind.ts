@@ -49,6 +49,9 @@ const ROUND_ACTIONS = [
   "pin-sheet", "pace-set",
   // Who enters a round's scores, and its end-of-round check (2026-11-04).
   "round.scoring",
+  // A term of a round changed after play — allowance, split, basis, tees — with what was
+  // worked out again; and a drawn round's format changed (J12, state machine PR 7b).
+  "round.recomputed", "round.format",
 ];
 const SETTINGS_ACTIONS = [
   "rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on",

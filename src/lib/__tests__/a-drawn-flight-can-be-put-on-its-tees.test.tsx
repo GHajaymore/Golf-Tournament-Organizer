@@ -20,10 +20,25 @@ const tees = [
   { id: "t-red", name: "Red" },
 ];
 
+describe("a drawn flight's tees once a scored round would be reached (the finding after round G594-1)", () => {
+  const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+  const select = (html: string) => html.match(/<select[^>]*>/)?.[0] ?? "";
+  it("is drawn shut with the rounds rule's sentence — the one `setFlightTee` refuses with — and open without it", () => {
+    const shut = renderToStaticMarkup(<FlightTeeSelect teesDoor={FROZEN} groupId="g3" label="Flight C" teeId={null} tees={tees} defaultTeeName="" />);
+    expect(select(shut), "a flight's Tees is offered while a scored round would be reached").toMatch(/\sdisabled=""/);
+    expect(select(shut)).toContain('aria-describedby="flight-tees-door-g3"');
+    expect(shut).toContain(FROZEN);
+    // CONTROL: open — pressable, nothing said.
+    const open = renderToStaticMarkup(<FlightTeeSelect teesDoor={null} groupId="g3" label="Flight C" teeId={null} tees={tees} defaultTeeName="" />);
+    expect(select(open)).not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
+  });
+});
+
 describe("the tees a drawn flight plays", () => {
   it("is a labelled choice of the course's sets, the round's own first", () => {
     const html = renderToStaticMarkup(
-      <FlightTeeSelect groupId="g3" label="Flight C" teeId="t-red" tees={tees} defaultTeeName="White (round’s)" />,
+      <FlightTeeSelect teesDoor={null} groupId="g3" label="Flight C" teeId="t-red" tees={tees} defaultTeeName="White (round’s)" />,
     );
     expect(html).toContain('aria-label="Tees for Flight C"');
     expect(html).toMatch(/<option value="">White \(round’s\)<\/option>/);
@@ -48,7 +63,7 @@ describe("the tees a drawn flight plays", () => {
     const page = readSource("src/app/(app)/grouping/page.tsx");
     expect(page).toMatch(/disabled=\{locked \|\| session\.viewRole !== "admin"\}/);
     const html = renderToStaticMarkup(
-      <FlightTeeSelect groupId="g3" label="Flight C" teeId={null} tees={tees} defaultTeeName="" disabled />,
+      <FlightTeeSelect teesDoor={null} groupId="g3" label="Flight C" teeId={null} tees={tees} defaultTeeName="" disabled />,
     );
     expect(html).toMatch(/<select[^>]*disabled=""/);
   });

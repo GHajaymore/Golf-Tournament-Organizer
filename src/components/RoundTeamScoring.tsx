@@ -68,6 +68,8 @@ type RescoreKind = "allowance" | "split" | "countBest";
 interface Rescore {
   kind: RescoreKind;
   cards: number;
+  /** The rounds rule's words, where it asked (a term changed after play — J12, PR 7b). */
+  says?: string;
   call: (force: boolean) => Promise<TeamResult>;
   close: () => void;
 }
@@ -76,15 +78,25 @@ export function RoundTeamScoring({
   stageId,
   info,
   locked = false,
+  allowanceDoor,
 }: {
   stageId: string;
   info: RoundScoringInfo;
-  /** Setup is locked. Every action here refuses it in words (`refuseIfLocked`, "rounds"), said under that setting's Save. */
+  /** Setup is locked. How many scores count and how they are recorded refuse it in words (`refuseIfLocked`, "rounds"), said under that setting's Save. */
   locked?: boolean;
+  /**
+   * THE ALLOWANCE AND THE SPLIT ASK THE ROUNDS RULE instead (J12, PR 7b;
+   * `roundDoors`): open after launch until the round's matches are recorded,
+   * and refused once completed. Its sentence, or null where open; left out,
+   * the setup lock answers for them too, as before.
+   */
+  allowanceDoor?: string | null;
 }) {
   const { pending: saving, error, setError, run, startTransition } = useAction();
   // Every control below is disabled on this, so the lock rides along with it.
   const pending = saving || locked;
+  // The allowance and the split: the rounds rule's door where one came, else the lock.
+  const pricing = saving || (allowanceDoor === undefined ? locked : allowanceDoor !== null);
   const [rescore, setRescore] = useState<Rescore | null>(null);
 
   /**
@@ -108,7 +120,7 @@ export function RoundTeamScoring({
       setRescore(null);
       const res = await call(false);
       if (res.needsConfirm) {
-        setRescore({ kind, cards: res.cards ?? 0, call, close });
+        setRescore({ kind, cards: res.cards ?? 0, says: res.says, call, close });
         return;
       }
       if (!res.ok) {
@@ -135,9 +147,9 @@ export function RoundTeamScoring({
     rescore?.kind === kind ? (
       <RescoreWarning
         cards={rescore.cards}
-        consequence={RESCORE_CONSEQUENCE[kind]}
+        consequence={rescore.says ?? RESCORE_CONSEQUENCE[kind]}
         keepLabel={keepLabel}
-        pending={pending}
+        pending={kind === "countBest" ? pending : pricing}
         onConfirm={confirmRescore}
         onCancel={() => {
           rescore.close();
@@ -255,6 +267,13 @@ export function RoundTeamScoring({
         </button>
       </div>
 
+      {/* Why the allowance and the split are shut (J12, PR 7b): recorded matches, or completed. */}
+      {allowanceDoor && (
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          {allowanceDoor}
+        </p>
+      )}
+
       {editingAllowance && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <input
@@ -273,7 +292,7 @@ export function RoundTeamScoring({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending}
+            disabled={pricing}
             onClick={() => {
               // A typed 0 used to be stored as "nothing said" and so changed
               // nothing; `parseInt` also read "9o" as 9. See `typedAllowance`.
@@ -291,7 +310,7 @@ export function RoundTeamScoring({
             <button
               type="button"
               className="btn btn-secondary"
-              disabled={pending}
+              disabled={pricing}
               onClick={() => {
                 save(
                   "allowance",
@@ -367,7 +386,7 @@ export function RoundTeamScoring({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending}
+            disabled={pricing}
             onClick={() => {
               // A box that holds no whole number goes as "not one" (the action
               // refuses −1 by name): `parseInt("2o")` was a share of 2.
@@ -390,7 +409,7 @@ export function RoundTeamScoring({
             <button
               type="button"
               className="btn btn-secondary"
-              disabled={pending}
+              disabled={pricing}
               onClick={() => {
                 save(
                   "split",

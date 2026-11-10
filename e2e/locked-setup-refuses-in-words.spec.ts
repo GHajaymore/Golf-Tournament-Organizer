@@ -22,13 +22,14 @@ import { makeCommitteeCorrection, CORRECTION_REASON } from "./committee-correcti
  *   Tournament details   Save                            → details
  *   Entries              Save entry terms                → the field
  *   Flights              Rename <the first flight> (Enter) → flights
- *   Rounds & formats     Delete Round 2                  → rounds
+ *   Rounds & formats     Round 1 · Cut the field for Round 2 → rounds
  *
  * (Round 2 is this spec's own: the seeded medal is one round, so an empty one is
- * added to this file's copy of the club before the walk.)
+ * added to this file's copy of the club before the walk. Deleting it was the
+ * press until J12 PR 7b opened deleting an undrawn round (and, 8 Nov, its holes) after launch.)
  *
  * Each is refused under the press in the scope's words — "Locked because the
- * tournament is live. Make a committee correction to delete a round." — nothing
+ * tournament is live. Make a committee correction to change the cut." — nothing
  * is written, the screen is still there, and it redraws with the banner naming
  * the scope and offering Make a committee correction.
  *
@@ -198,21 +199,31 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       },
     });
 
+    /**
+     * THE ROUNDS' PRESS IS THE CUT. Deleting an empty round was this press until J12 PR 7b, which
+     * judges a delete — and since 8 Nov a round's holes — by what it would invalidate (an undrawn round
+     * goes on one press, launched or not: `round-changes-after-scores.spec.ts`). So the press here is
+     * one the launch lock still holds: "Cut the field for <the added round>", on the card of the
+     * seeded round before it (the stroke cut is drawn there, on the round it is made out of).
+     */
     const round2 = added;
-    const deleteRound = async (p: Page) => {
-      const card = p.locator("main .card", { has: p.locator("button", { hasText: addedLabel }) }).first();
-      const del = card.getByRole("button", { name: `Delete ${addedLabel}`, exact: true });
-      if (!(await del.isVisible().catch(() => false))) await card.locator("button", { hasText: addedLabel }).first().click();
-      await del.click();
+    const lastLabel = `Round ${seeded.length}`;
+    const cutOn = async () => (await prisma.stage.findUniqueOrThrow({ where: { id: round2.id } })).cutEnabled;
+    const cutTheField = async (p: Page) => {
+      const card = p.locator("main .card", { has: p.locator("button", { hasText: lastLabel }) }).first();
+      const box = card.getByRole("checkbox", { name: `Cut the field for ${addedLabel}` });
+      if (!(await box.isVisible().catch(() => false))) await card.locator("button", { hasText: lastLabel }).first().click();
+      await box.click();
     };
+    expect(added.cutEnabled, "the added round already has a cut").toBe(false);
     await pressedAfterTheLock({
-      label: `Rounds & formats · Delete ${addedLabel}`,
+      label: `Rounds & formats · ${lastLabel} · Cut the field for ${addedLabel}`,
       path: "/stages",
       scope: "rounds",
       heading: /^Rounds & formats$/,
-      said: LIVE("delete a round"),
-      stored: () => prisma.stage.count({ where: { id: round2.id } }),
-      press: deleteRound,
+      said: LIVE("change the cut"),
+      stored: cutOn,
+      press: cutTheField,
     });
 
     // ── THE COMMITTEE CORRECTION, pressed on Rounds & formats' banner (TD Q2) ──
@@ -229,11 +240,10 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       (await prisma.auditLog.findMany({ where: { eventId: ev.id, action: "committee-correction" } })).map((l) => l.detail),
       "the record has no line for the correction",
     ).toEqual([expect.stringContaining(`opened rounds for a correction: ${CORRECTION_REASON}`)]);
-    // The same control now works — on an empty round, deleting is one press.
-    const before = await prisma.stage.count({ where: { id: round2.id } });
-    expect(before).toBe(1);
-    await deleteRound(page);
-    await expect.poll(() => prisma.stage.count({ where: { id: round2.id } }), { message: "the correction did not open the rounds" }).toBe(0);
+    // The same control now works — the cut into the added round is set on one press.
+    expect(await cutOn()).toBe(false);
+    await cutTheField(page);
+    await expect.poll(cutOn, { message: "the correction did not open the rounds" }).toBe(true);
     // Done closes it, on the record.
     await page.getByRole("button", { name: "Done" }).click();
     await expect.poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).correctionScope, { message: "Done did not close the correction" }).toBeNull();
