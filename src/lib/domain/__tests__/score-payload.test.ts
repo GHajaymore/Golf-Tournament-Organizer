@@ -173,6 +173,8 @@ describe("no action stores a card it did not validate", () => {
      */
     ["src/lib/services/scorecard-write.ts", "writeScorecard", "cleanStrokes"],
     ["src/app/actions/tournament.ts", "saveMatchScorecard", "cleanStrokes"],
+    // The cards a match save says it started from (2026-11-09): a list from the client too.
+    ["src/app/actions/tournament.ts", "saveMatchHoles", "cleanStartingCards"],
     ["src/app/actions/tournament.ts", "saveTeamScorecard", "cleanStrokes"],
   ] as const;
 

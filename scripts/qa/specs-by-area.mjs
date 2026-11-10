@@ -385,6 +385,8 @@ export const FULL_ONLY = [
   "e2e/sides-and-splits.spec.ts",
   "e2e/skins-pot.spec.ts",
   "e2e/slow-signal-scoring.spec.ts",
+  // G571-4: a hole save replayed after the committee's sign-off is refused; a save lost to no signal does not strand the next tap.
+  "e2e/stale-match-save.spec.ts",
   "e2e/staff-kept-cards.spec.ts",
   // The state machine's family walks (PR 3): the core lifecycle every tournament goes through.
   // PR 4: each action that now asks the machine, pressed once in the state it refuses (launch, complete, close a round, every door into scoring).
