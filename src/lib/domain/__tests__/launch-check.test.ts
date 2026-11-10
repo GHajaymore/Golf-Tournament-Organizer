@@ -96,7 +96,7 @@ describe("what launch only warns about", () => {
     const r = launchOf({ moneyAnswered: false, groups: 0, rounds: [medal({ teeSheetSaved: false })] });
     expect(r.refusal).toBeNull();
     expect(r.warnings).toEqual([
-      "There are no flights, so the whole field plays as one division. Make flights on Flights — after launch, this needs Unlock first.",
+      "There are no flights, so the whole field plays as one division. Make flights on Flights — after launch, this needs a committee correction first.",
       "Nobody has said how money works here, so the app is guessing. Answer it on Prizes & payouts — you can still do this after launch.",
       "Round 1 has no tee sheet saved, so nobody has a time to turn up for. Draw one on Tee sheet — you can still do this after launch.",
     ]);
@@ -120,7 +120,7 @@ describe("what launch only warns about", () => {
     const r = launchOf({ teams: { needed: true, sides: 2, unsided: 1 } });
     expect(r.refusal).toBeNull();
     expect(r.warnings).toEqual([
-      "1 player is not on a side yet. They have no side to score for. Put them on one on Teams & pairs — after launch, this needs Unlock first.",
+      "1 player is not on a side yet. They have no side to score for. Put them on one on Teams & pairs — after launch, this needs a committee correction first.",
     ]);
   });
 

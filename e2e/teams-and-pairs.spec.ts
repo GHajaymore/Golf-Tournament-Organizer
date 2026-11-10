@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { makeCommitteeCorrection } from "./committee-correction";
 
 /**
  * TEAMS & PAIRS, AS ITS SECRETARY USES IT ON A LIVE FOUR-BALL (2026-10-20).
@@ -92,10 +93,10 @@ test("a secretary renames a side, takes a player out and puts them back, and is 
 
   // Locked: the name box is there and nothing on the side can be pressed.
   await expect(page.getByRole("button", { name: `Remove ${out.name}` })).toBeDisabled();
-  await page.getByRole("button", { name: /^Unlock setup$/ }).first().click();
+  await makeCommitteeCorrection(page);
   await expect
-    .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).configUnlocked, { message: "Unlock setup stored nothing" })
-    .toBe(true);
+    .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).correctionScope, { message: "the committee correction stored nothing" })
+    .toBe("sides");
   await open(teamsPath);
 
   // ── rename, kept, and the board says it ─────────────────────────────────────

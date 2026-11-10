@@ -48,6 +48,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Tap [[Enter this tournament]].",
       "Full field? Tap [[Join the waiting list]] instead.",
       "You move up if somebody withdraws.",
+      "Once Round 1 has teed off, you stay on the list.",
+      "A drawn knockout keeps its list too.",
       "Entries closed? Ask your {organizer}. They may add you on the day.",
       "After the first card, only your {organizer} can add you.",
     ],

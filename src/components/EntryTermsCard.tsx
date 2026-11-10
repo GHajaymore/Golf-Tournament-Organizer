@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState, useTransition } from "react";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
 import { saveEntryTerms, setEntriesOpen, setRegistrationApproval } from "@/app/actions/tournament";
 import { formatDeadline, parseDeadlineIso, type EntriesOpen } from "@/lib/registration";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
@@ -57,6 +58,7 @@ export function EntryTermsCard({
 }) {
   const fid = useId();
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   const [opens, setOpens] = useState(parseDeadlineIso(regOpens));
   // A deadline saved before the date picker existed is free text and shows empty; it is kept unless a day is picked.
   const [closes, setCloses] = useState(regDeadline);
@@ -85,7 +87,7 @@ export function EntryTermsCard({
       setError("");
       setSaidSaved(false);
       try {
-        const res = await saveEntryTerms({ regOpens: opens, regDeadline: closes, capacity: cap });
+        const res = caughtUp(await saveEntryTerms({ regOpens: opens, regDeadline: closes, capacity: cap }));
         if (!res.ok) {
           setError(res.error ?? "That didn’t save. Try again.");
           return;
@@ -93,7 +95,7 @@ export function EntryTermsCard({
         setSaved({ opens, closes, cap });
         setSaidSaved(true);
       } catch {
-        setError("That change was not saved. Check the connection, and that setup is unlocked.");
+        setError("That change was not saved. Check the connection.");
       }
     });
 
@@ -223,7 +225,7 @@ export function EntryTermsCard({
         </button>
         {locked ? (
           <span className="text-muted" style={{ fontSize: 13 }}>
-            Setup is locked, so the terms are read-only. Unlock it at the top to change them.
+            The field is locked, so the terms are read-only. The banner at the top says why, and how an Organizer opens it.
           </span>
         ) : (
           !isAdmin && (
@@ -256,9 +258,10 @@ export function EntryTermsCard({
                     // Caught: these actions THROW on a refusal, and inside an async
                     // transition that goes to the error screen. The box falls back by itself.
                     try {
-                      await setRegistrationApproval(v);
+                      const res = caughtUp(await setRegistrationApproval(v));
+                      if (!res.ok) setError(res.error ?? "That change was not saved.");
                     } catch {
-                      setError("That change was not saved. Check the connection, and that setup is unlocked.");
+                      setError("That change was not saved. Check the connection.");
                     }
                   })
                 }

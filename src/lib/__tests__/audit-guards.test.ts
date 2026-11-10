@@ -3139,7 +3139,8 @@ describe("every field action asks the one field rule", () => {
     for (const a of fieldActions.filter((x) => MUST.includes(x.name))) {
       // `placeInFlight` asks through `intoFlight`, the body it shares with `movePlayerToGroup`
       // (whose slice holds it, and is asserted above to ask before the write).
-      const asks = a.name === "placeInFlight" ? /await intoFlight\(eventId, / : /await fieldRefusal\(eventId, /;
+      // `addSignup` asks for the whole verdict (`fieldVerdictFor`, J12): the same rule, with what a taken entry leaves to say.
+      const asks = a.name === "placeInFlight" ? /await intoFlight\(eventId, / : /await field(?:Refusal|VerdictFor)\(eventId, /;
       expect(a.body, `${a.name} must ask the one field rule`).toMatch(asks);
       expect(a.body, `${a.name} must not use an old lock spelling`).not.toMatch(/assertUnlocked\(|lockedRefusal\(|configurationLocked\(|select: \{ flightsConfirmed: true \}/);
     }

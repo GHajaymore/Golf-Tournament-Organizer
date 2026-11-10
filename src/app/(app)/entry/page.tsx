@@ -1,6 +1,7 @@
 import { byAddress } from "@/lib/domain/my-entry";
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
+import { scopeLockFor } from "@/lib/services/tournament-status";
 import { roundLabel } from "@/lib/domain/round-label";
 import { playedOnBy, clubCourses } from "@/lib/services/courses";
 import { pickedCardNote } from "@/lib/domain/picked-card";
@@ -1267,7 +1268,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
 
   const entry = (
     <EntryModes
-      setupLocked={isSetupLocked(state.event)}
+      // The rounds' lock (PR 5b) — the one `clearRoundScores` asks (`refuseIfLocked(…, "rounds")`).
+      setupLocked={(await scopeLockFor(session.eventId, "rounds")) !== null}
       meId={casualRound ? await hostPlayerId() : undefined}
       sessionNav={cupNav}
       cardScanAvailable={(await entitlementForEvent(session.eventId, "cardScan")).allowed}

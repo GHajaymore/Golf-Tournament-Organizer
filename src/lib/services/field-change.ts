@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { clubToday, clubWallClock } from "../domain/club-clock";
-import { fieldChangeAllowed, fieldFactsOf, lateEntryRound, type FieldChange, type FieldFacts, type LastTeeTime } from "../domain/field-change";
+import { fieldChangeAllowed, fieldFactsOf, lateEntryRound, type FieldChange, type FieldFacts, type FieldVerdict, type LastTeeTime } from "../domain/field-change";
 import { roundDayOf } from "../domain/round-dates";
 import { lastTeeTime, parseTeeSheet } from "../domain/tee-sheet";
 import type { TournamentFacts } from "../domain/tournament-status";
@@ -14,7 +14,8 @@ import { tournamentFactsFor } from "./tournament-facts";
  * Every action that changes who is in the field asks this — `addSignup`,
  * `addMembersToEvent`, `removeSignup`, `removeSignups`, `approveSignup`,
  * `reinstateWithdrawn`, `placeInFlight`, `movePlayerToGroup`, `updateSignup`
- * and `importCsvSignups` — so a refusal has one spelling and the four lock
+ * and `importCsvSignups`, and the waiting list's own promotion
+ * (`promoteFromWaitlist`, J12) — so a refusal has one spelling and the four lock
  * spellings those actions used (inline, `assertUnlocked`, `lockedRefusal`, the
  * confirmed-draw check) are gone from them. RETURNED, never thrown (state
  * machine J10): the person pressing is told something, and a production build
@@ -63,8 +64,17 @@ async function lastTeeFor(facts: TournamentFacts): Promise<LastTeeTime | null> {
 
 /** The refusal in a sentence, or null when the change may be made. */
 export async function fieldRefusal(eventId: string, change: FieldChange): Promise<string | null> {
-  const facts = await fieldFactsFor(eventId);
-  if (!facts) return "This tournament could not be found.";
-  const v = fieldChangeAllowed(facts, change);
+  const v = await fieldVerdictFor(eventId, change);
   return v.ok ? null : v.says;
+}
+
+/**
+ * THE WHOLE VERDICT — the refusal, or the change taken with what it leaves to
+ * say (the unplaced flag, a round robin's matches drawn; J12, PR 7a). For an
+ * action that tells the person pressing more than yes or no (`addSignup`).
+ */
+export async function fieldVerdictFor(eventId: string, change: FieldChange): Promise<FieldVerdict> {
+  const facts = await fieldFactsFor(eventId);
+  if (!facts) return { ok: false, scope: "field", says: "This tournament could not be found.", wayOut: { says: "Choose a tournament", href: "/" } };
+  return fieldChangeAllowed(facts, change);
 }

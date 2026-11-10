@@ -447,7 +447,7 @@ describe("the rail, the checklist and the journey read the machine (PR 3)", () =
 describe("locks: a scope, a reason and a way out", () => {
   it("live: today's blanket lock, by launch, correctable, with the way out", () => {
     const st = s(launched(FAMILY_FIXTURES.stroke()));
-    expect(st.locks.details).toEqual({ locked: true, by: "launch", because: "Locked because the tournament is live.", wayOut: { says: "Unlock it on the dashboard", href: "/dashboard" }, correctable: true });
+    expect(st.locks.details).toEqual({ locked: true, by: "launch", because: "Locked because the tournament is live.", wayOut: { says: "Make a committee correction", href: "/dashboard" }, correctable: true });
     // Money and the tee sheet were never under it.
     expect(st.locks.money.locked).toBe(false);
     expect(st.locks.teeSheet.locked).toBe(false);

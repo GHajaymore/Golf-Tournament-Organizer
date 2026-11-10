@@ -3,7 +3,7 @@ import { setThirdPlace, createThirdPlaceMatch } from "@/app/actions/tournament";
 import { THIRD_PLACE_HELP } from "@/lib/domain/third-place";
 import { Icon } from "./Icon";
 import { useOptimistic, useTransition } from "react";
-import { useAction } from "./useAction";
+import { useAction, useCaughtUp } from "./useAction";
 
 /**
  * Whether this knockout plays off for third, and making the match.
@@ -41,6 +41,7 @@ export function ThirdPlaceControl({
   locked?: boolean;
 }) {
   const { pending, error, setError, run } = useAction();
+  const caughtUp = useCaughtUp();
   /**
    * THE TICK FOLLOWS THE FINGER (2026-10-16). It waited for the server, so on
    * one bar a tap looked like nothing happened, and a second tap undid the first.
@@ -62,10 +63,10 @@ export function ThirdPlaceControl({
               setError("");
               showOn(next);
               try {
-                const res = await setThirdPlace(stageId, next);
+                const res = caughtUp(await setThirdPlace(stageId, next));
                 if (!res.ok) setError(res.error ?? "That change was not saved.");
               } catch {
-                setError("That change was not saved. Check the connection, and that setup is unlocked.");
+                setError("That change was not saved. Check the connection.");
               }
             });
           }}

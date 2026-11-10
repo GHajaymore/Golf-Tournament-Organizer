@@ -7,6 +7,7 @@ import { regenGroups } from "@/app/actions/tournament";
 import { formGroups, flightCountFor, type FormationRule, type Player } from "@/lib/domain";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
 import { plural } from "@/lib/format";
 import { flightLabel } from "@/lib/domain/flight-label";
 
@@ -97,6 +98,7 @@ export function GroupingControls({
   const [mode, setMode] = useState<"auto" | "count" | "perFlight">(currentMode);
   const [value, setValue] = useState<number>(currentValue || (currentMode === "perFlight" ? 4 : 8));
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   /** Number of scored matches a regenerate would destroy, once refused. */
   const [confirmScored, setConfirmScored] = useState<number | null>(null);
   /** A refusal from the action. Shown rather than swallowed — the action used
@@ -180,7 +182,7 @@ export function GroupingControls({
             onClick={() =>
               startTransition(async () => {
                 setError("");
-                const res = await regenGroups(rule, mode, value);
+                const res = caughtUp(await regenGroups(rule, mode, value));
                 // Refused because rebuilding would throw away real results —
                 // surface what's at stake instead of failing silently.
                 if (res.needsConfirm) setConfirmScored(res.scoredMatches ?? 0);
@@ -257,7 +259,7 @@ export function GroupingControls({
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
-                  const res = await regenGroups(rule, mode, value, true);
+                  const res = caughtUp(await regenGroups(rule, mode, value, true));
                   setConfirmScored(null);
                   if (!res.ok) setError(res.error ?? "Couldn't generate flights.");
                 })

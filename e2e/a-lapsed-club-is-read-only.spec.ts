@@ -16,7 +16,7 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
  *     (the dashboard, and the board, which still shows the field);
  *   - Complete tournament, pressed and confirmed, is refused IN WORDS beside the
  *     button — and the tournament is still live in the database;
- *   - Unlock configuration is not offered.
+ *   - Make a committee correction is not offered.
  *
  * Marked zz-, one club per screen size, deleted afterwards. WHAT IT CANNOT SEE:
  * the webhook itself and the sweep's notices and delete — the audit test
@@ -85,7 +85,7 @@ test("an organizer of a lapsed club sees the tournament read-only, and a press i
     await expect(banner).toContainText("kept read-only until");
     await expect(banner).toContainText("paused where it stands");
     await expect(banner.getByRole("link", { name: "Go to Your plan" })).toHaveAttribute("href", "/organization#plan");
-    await expect(page.getByRole("button", { name: /Unlock configuration/ }), "Unlock is offered on an archive").toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Make a committee correction/ }), "a committee correction is offered on an archive").toHaveCount(0);
 
     // A press: Complete, confirmed — refused, in words, beside the button.
     const complete = page.getByRole("button", { name: "Complete tournament" }).first();

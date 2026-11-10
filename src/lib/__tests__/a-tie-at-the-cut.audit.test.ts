@@ -391,10 +391,12 @@ describe("a play-off for the last place, as the secretary settles it", () => {
       ],
     });
     await as(t.eventId);
-    // Part of the cut's published terms, so it locks with setup at launch.
-    await expect(setStageCutTies(t.r2, "ties")).rejects.toThrow(/locked/);
+    // Part of the cut's published terms, so it locks with the rounds at launch — and the lock is
+    // RETURNED in words, never thrown (state machine PR 5b, J10: a throw is "This screen didn't load").
+    expect(await setStageCutTies(t.r2, "ties")).toMatchObject({ ok: false, error: expect.stringMatching(/^Locked because the tournament is live\./), lock: { scope: "rounds", by: "launch" } });
+    expect((await prisma.stage.findUnique({ where: { id: t.r2 }, select: { cutTies: true } }))?.cutTies, "a refused press wrote").toBe("playoff");
     await prisma.event.update({ where: { id: t.eventId }, data: { configUnlocked: true } });
-    await setStageCutTies(t.r2, "ties");
+    expect(await setStageCutTies(t.r2, "ties")).toEqual({ ok: true });
     expect((await prisma.stage.findUnique({ where: { id: t.r2 }, select: { cutTies: true } }))?.cutTies).toBe("ties");
     expect(await setRoundClosed(t.r1, true)).toEqual({ ok: true });
     expect(await prisma.scorecard.count({ where: { stageId: t.r2 } })).toBe(4);

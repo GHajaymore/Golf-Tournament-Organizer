@@ -83,15 +83,16 @@ describe("a confirmed draw", () => {
 describe("a launched tournament's flights board", () => {
   it("answers each press with a sentence rather than an error, and changes nothing", async () => {
     await prisma.event.update({ where: { id: ids.event }, data: { status: "live" } });
-    const want = { ok: false, error: "Configuration is locked. Unlock the tournament to change the flights." };
+    // The flights scope's lock, returned with its reason and way out (state machine PR 5b).
+    const want = (what: string) => ({ ok: false, error: `Locked because the tournament is live. Make a committee correction to ${what}.`, lock: { scope: "flights", by: "launch" } });
     // Moving a placed player asks the one field rule since day-of field changes (PR A): after
     // launch a placed player stays where they are, in the rule's words.
     await expect(movePlayerToGroup(ids.ann, ids.b, true)).resolves.toMatchObject({
       ok: false,
-      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can unlock the tournament on the dashboard.",
+      error: "Flights are fixed once the tournament is launched. To move a player, an Organizer can make a committee correction to the flights on the dashboard.",
     });
-    await expect(renameGroup(ids.a, "Renamed")).resolves.toMatchObject(want);
-    await expect(setFlightsConfirmed(true)).resolves.toMatchObject(want);
+    await expect(renameGroup(ids.a, "Renamed")).resolves.toMatchObject(want("rename a flight"));
+    await expect(setFlightsConfirmed(true)).resolves.toMatchObject(want("confirm or reopen the draw"));
     expect(await annIn()).toBe(ids.a);
     expect((await prisma.group.findUniqueOrThrow({ where: { id: ids.a } })).name).toBe("Flight A");
   });

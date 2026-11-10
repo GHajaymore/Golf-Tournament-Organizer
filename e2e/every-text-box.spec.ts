@@ -663,7 +663,7 @@ async function attempt(page: Page, path: string, was: Box, value: string, t: Try
         }
         // A launched tournament's setup is locked, and the bar holding the Save says so: that is an
         // answer, and the box is tried again on a tournament where it can be saved.
-        const said = (await page.locator("main").innerText().catch(() => "")).split("\n").map((l) => l.trim()).find((l) => /setup is locked|setup locked|unlock (it|setup)/i.test(l));
+        const said = (await page.locator("main").innerText().catch(() => "")).split("\n").map((l) => l.trim()).find((l) => /setup is locked|setup locked|unlock (it|setup)|committee correction|is locked, so/i.test(l));
         if (said) return { outcome: "blocked", note: `its "${b.save.label}" is disabled: ${said.slice(0, 120)}` };
         const invalid = await box.evaluate((el) => (el as HTMLInputElement).validationMessage).catch(() => "");
         return { outcome: "refused in view", note: `its "${b.save.label}" button will not press with this in the box${invalid ? ` · ${invalid}` : ""}` };

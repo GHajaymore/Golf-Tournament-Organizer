@@ -2,7 +2,7 @@ import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { formattingFor } from "@/lib/domain/locale";
 import { TournamentFormatting } from "@/components/TournamentFormatting";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
 import { roundCodeName } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { strandedEntrantCount } from "@/lib/services/round-codes";
@@ -14,9 +14,9 @@ import { clubCourses } from "@/lib/services/courses";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { EventSetupClient } from "@/components/EventSetupClient";
-import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor, tournamentStatusFor } from "@/lib/services/tournament-status";
+import { setupRailFor, tournamentStatusFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { railSpeaks } from "@/lib/domain/setup-flow";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { MoreInfo } from "@/components/MoreInfo";
@@ -91,7 +91,9 @@ export default async function EventPage({
   ]);
   if (!state) redirect("/");
   const e = state.event;
-  const locked = isSetupLocked(state.event);
+  // The machine's lock on the details (PR 5b) — the one `saveEvent` asks (`refuseIfLocked(…, "details")`).
+  const details = await screenLocksFor(session.eventId, ["details"]);
+  const locked = details.locks.length > 0;
   // The state machine's answer (PR 3): the checklist's rows and the journey card's phase.
   const told = await tournamentStatusFor(session.eventId, state.today);
   /**
@@ -232,7 +234,7 @@ export default async function EventPage({
       </div>
 
 
-      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
+      <ScopeLockBanner locks={details.locks} correction={details.correction} isAdmin={session.viewRole === "admin"} />
 
       {/* The checklist stays, but only once the guided rail above has stopped
           rendering — which it does the moment setup is complete.

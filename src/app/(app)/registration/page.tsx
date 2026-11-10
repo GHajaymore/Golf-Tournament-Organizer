@@ -1,5 +1,5 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import { ladiesTeeFor, ladiesTeeOn, teeIdFor } from "@/lib/domain/handicap";
@@ -17,13 +17,13 @@ import { phoneRequiredFor } from "@/lib/plans";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { fieldCapFor } from "@/lib/services/limits";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor } from "@/lib/services/tournament-status";
+import { setupRailFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { awaitingApproval } from "@/lib/registration";
 import { fieldFactsFor } from "@/lib/services/field-change";
-import { FIELD_CHANGES, fieldBanner, fieldDoors } from "@/lib/domain/field-change";
+import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, flagsUnplaced, reserveOffered, unplacedWords } from "@/lib/domain/field-change";
 import { WithdrawnList } from "@/components/WithdrawnList";
 
 export const metadata = screenMetadata("/registration");
@@ -32,7 +32,10 @@ export default async function RegistrationPage() {
   const session = await requireScreen("registration");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
-  const locked = isSetupLocked(state.event);
+  // The machine's lock on the field (PR 5b) — the one the entry terms ask (`refuseIfLocked(…, "field")`);
+  // the field's own day-of doors are `fieldDoors`, below.
+  const field = await screenLocksFor(session.eventId, ["field"]);
+  const locked = field.locks.length > 0;
   /**
    * THE FIELD'S DOORS — the one field rule (day-of field changes, PR A), from
    * the same facts the actions ask (`fieldFactsFor` → `fieldChangeAllowed`), so
@@ -44,6 +47,14 @@ export default async function RegistrationPage() {
     ? fieldDoors(fieldFacts)
     : (Object.fromEntries(FIELD_CHANGES.map((c) => [c, "This tournament could not be read."])) as ReturnType<typeof fieldDoors>);
   const underWay = fieldFacts ? fieldBanner(fieldFacts) : null;
+  /**
+   * THE UNPLACED FLAG (J04, state machine PR 7a): every confirmed player in no
+   * flight, by name, where flights are a division or the pairings — said for as
+   * long as it is true, outside a cup too. The "Choose a flight" beside each
+   * name is the way to put them in one.
+   */
+  const unplacedFlag =
+    fieldFacts && flagsUnplaced(fieldFacts.family, fieldFacts.flights) ? unplacedWords(state.confirmed.filter((p) => !p.groupId).map((p) => p.name)) : "";
   // Where this screen sits in setting the tournament up. Null for a match.
   const flow = await setupRailFor(session.eventId);
   const brand = await brandForEvent(session.eventId);
@@ -165,9 +176,14 @@ export default async function RegistrationPage() {
       waitlist={state.waitlist.map(asRow)}
       pendingEntries={awaitingApproval(state.players).map(asRow)}
       locked={locked}
+      fieldLocks={field.locks}
+      correction={field.correction}
       doors={doors}
       underWay={underWay}
       flights={state.groups.map((g, i) => ({ id: g.id, label: flightLabel(g.name, i) }))}
+      unplacedFlag={unplacedFlag}
+      addFlight={fieldFacts ? addFlightPick(fieldFacts) : null}
+      offerReserve={fieldFacts ? reserveOffered(fieldFacts) : false}
       isAdmin={session.viewRole === "admin"}
       roster={roster}
     />

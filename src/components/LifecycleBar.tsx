@@ -5,10 +5,11 @@ import { setEventStatus, launchTournament, setConfigUnlocked } from "@/app/actio
 import { LAUNCH_DOES, VISIBILITY_IS_ELSEWHERE } from "@/lib/domain/lifecycle-state";
 import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
 import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-check";
-import type { StatusCard } from "@/lib/domain/tournament-status";
+import type { CorrectionFacts, LockScope, StatusCard } from "@/lib/domain/tournament-status";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { RefusedAction } from "./RefusedAction";
+import { CorrectionButton, CorrectionOpenLine } from "./CommitteeCorrection";
 
 /**
  * WHAT THE STATE MACHINE SAYS ABOUT THIS TOURNAMENT, as this card draws it
@@ -42,9 +43,15 @@ export function LifecycleBar({
   keepOffer,
   closesOn,
   archived = false,
+  correction = null,
+  correctableScopes = [],
 }: {
-  /** In a lapsed club's read-only archive (`archiveRefusalFor`): Unlock is not offered. */
+  /** In a lapsed club's read-only archive (`archiveRefusalFor`): no correction is offered. */
   archived?: boolean;
+  /** The committee correction open now, if any (PR 5b) — said here, with Done. */
+  correction?: CorrectionFacts | null;
+  /** The locked scopes a correction may open (`correctable`): what the dialog offers. */
+  correctableScopes?: readonly LockScope[];
   /**
    * The upgrade that would keep it — "Birdie keeps every tournament for good —
    * $49 a month." — asked BEFORE anything is deleted, on the card from the
@@ -79,6 +86,7 @@ export function LifecycleBar({
    */
   status: LifecycleStatus;
   isAdmin: boolean;
+  /** The OLD blanket unlock, still read until PR 9: when on, the card says so and offers only to lock again. */
   configUnlocked: boolean;
   summary: LifecycleSummary;
   /**
@@ -184,7 +192,7 @@ export function LifecycleBar({
           )}
           {locked && (
             <span className="text-muted" style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 5 }}>
-              <Icon name="lock-simple" /> Configuration locked
+              <Icon name="lock-simple" /> Setup locked
             </span>
           )}
           <div style={{ flex: 1 }} />
@@ -282,20 +290,42 @@ export function LifecycleBar({
             <Link href="/organization#plan">Upgrade to keep it</Link>
           </p>
         )}
-        {/* Not offered on a lapsed club's read-only archive: there is nothing
-            to unlock it FOR, and the banner above every screen says why. */}
-        {isAdmin && launched && !archived && (
+        {/* THE COMMITTEE CORRECTION replaces "Unlock configuration" (PR 5b; TD Q2):
+            one scope, a reason in Recent changes, closed at Done or the end of the
+            club's day. Not offered on a lapsed club's read-only archive: there is
+            nothing to open it FOR, and the banner above every screen says why. */}
+        {isAdmin && launched && !completed && !archived && !configUnlocked && correctableScopes.length > 0 && (
+          <CorrectionButton scopes={correctableScopes} />
+        )}
+        {/* A tournament the OLD blanket unlock still holds open (a legacy
+            `configUnlocked`): said, with the one thing left to do about it. */}
+        {isAdmin && launched && !archived && configUnlocked && (
           <button
             type="button"
             className="btn btn-secondary"
             disabled={pending}
-            onClick={() => startTransition(() => setConfigUnlocked(!configUnlocked))}
+            onClick={() =>
+              startTransition(async () => {
+                const res = await setConfigUnlocked(false);
+                if (!res.ok) setRefused(res.error ?? "That could not be done.");
+              })
+            }
           >
-            <Icon name={configUnlocked ? "ph ph-lock-simple" : "ph ph-lock-simple-open"} />{" "}
-            {configUnlocked ? "Lock configuration" : "Unlock configuration"}
+            <Icon name="lock-simple" /> Lock setup again
           </button>
         )}
       </div>
+      {launched && !archived && configUnlocked && (
+        <p role="note" className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
+          <Icon name="lock-simple-open" /> Setup was unlocked as a whole, the old way, and stays open until it is locked again. From now on a
+          committee correction opens one part at a time, with a reason.
+        </p>
+      )}
+      {correction && (
+        <div style={{ marginTop: 4 }}>
+          <CorrectionOpenLine correction={correction} isAdmin={isAdmin} />
+        </div>
+      )}
 
       {/**
        * WHY THE NEXT STEP IS NOT AVAILABLE, said in full and in place.
@@ -519,7 +549,7 @@ export function LifecycleBar({
                   {launchRows(launchOpen.warnings).rows.map((w) => (
                     <li key={w.says} title={warningText(w)}>
                       {w.says} <Link href={w.href}>{w.fix}</Link>
-                      {w.afterLaunch === "unlock" ? " — after launch, this needs Unlock first." : " — you can still do this after launch."}
+                      {w.afterLaunch === "unlock" ? " — after launch, this needs a committee correction first." : " — you can still do this after launch."}
                     </li>
                   ))}
                   {launchRows(launchOpen.warnings).alsoOpen.length > 0 && (
