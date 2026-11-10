@@ -149,6 +149,8 @@ export const AREAS = {
       "e2e/round-handicap.spec.ts",
       // State machine PR 7b (J12): a round's format, allowance and delete judged by what they would invalidate.
       "e2e/round-changes-after-scores.spec.ts",
+      // …and a scored round's tees drawn shut with the reason on Score entry and Tournament details (round G594-1).
+      "e2e/tees-shut-once-frozen.spec.ts",
     ],
     // Every scenario builds its rounds through this screen.
     scenarios: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"],

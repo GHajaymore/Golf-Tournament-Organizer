@@ -3387,6 +3387,31 @@ describe("where this round was played", () => {
     expect(oneSet).not.toContain("Solo");
   });
 
+  it("draws the course and tees SHUT, with the rounds rule's sentence, once the round's handicaps are frozen (round G594-1)", async () => {
+    // Offered and then refused on every pick, on a scored medal — the crawl's finding. The
+    // door is the rule's own sentence (`roundRefusals`), handed in; the panel only draws it.
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const library = [
+      {
+        id: "c1",
+        name: "Bushwood",
+        tees: [
+          { id: "t1", courseId: "c1", name: "Blue", courseRating: 71.2, slopeRating: 128, par: 72, rated: true },
+          { id: "t2", courseId: "c1", name: "White", courseRating: 69.4, slopeRating: 117, par: 72, rated: true },
+        ],
+      },
+    ];
+    const selectOf = (html: string) => html.slice(html.indexOf("<select"), html.indexOf(">", html.indexOf("<select")) + 1);
+    const shut = await venue({ venues: [{ id: "c1", name: "Bushwood" }], library, teesDoor: FROZEN });
+    expect(selectOf(shut), "the Tees box is offered on a frozen round").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    expect(selectOf(shut)).toContain('aria-describedby="tees-door-s1"');
+    // CONTROL: the same panel with the round open — pressable, and nothing said.
+    const open = await venue({ venues: [{ id: "c1", name: "Bushwood" }], library, teesDoor: null });
+    expect(selectOf(open), "the Tees box is shut on an open round").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
+  });
+
   it("shows none of it to someone who cannot edit the tournament", async () => {
     // A player entering their own card does not set the venue for the field.
     expect(await venue({ venues: twoVenues, canEdit: false })).toBe("");
@@ -7607,6 +7632,26 @@ describe("play settings name one thing per heading", () => {
     expect(html).toContain("<optgroup");
     expect(html).toContain('label="Bushwood"');
     expect(html).toContain('label="Ridgeline"');
+  });
+
+  it("draws Played from SHUT, with the rounds rule's sentence, while a scored round would be reached (round G594-1)", async () => {
+    const { PlaySettings } = await import("@/components/PlaySettings");
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const tees = [tee("t1", "Blue", "Bushwood"), tee("t2", "White", "Bushwood")];
+    const draw = (teesDoor: string | null) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render(<PlaySettings mode="tournament" settings={settings as any} canEdit tees={tees as any} teesDoor={teesDoor} />);
+    const box = (html: string) => {
+      const at = html.indexOf('id="default-tee"');
+      return html.slice(html.lastIndexOf("<select", at), html.indexOf(">", at) + 1);
+    };
+    const shut = draw(FROZEN);
+    expect(box(shut), "Played from is offered while a scored round would be reached").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    // CONTROL: no refusal — pressable, and nothing said.
+    const open = draw(null);
+    expect(box(open), "Played from is shut with nothing refusing it").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
   });
 
   it("does not group a single-venue tournament", async () => {

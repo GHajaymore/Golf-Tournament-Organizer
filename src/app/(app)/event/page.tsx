@@ -26,6 +26,7 @@ import { isMatch } from "@/lib/tournament-shape";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { soleVenueCourse } from "@/lib/services/course-resolution";
 import { fieldCapFor } from "@/lib/services/limits";
+import { acrossRoundsRefusal } from "@/lib/services/round-change";
 
 
 export const metadata = screenMetadata("/event");
@@ -69,7 +70,7 @@ export default async function EventPage({
    * for it buys the other eleven their parallelism on every request that is
    * actually served.
    */
-  const [state, flow, eventTees, params, scanPlan, strandedCount] = await Promise.all([
+  const [state, flow, eventTees, params, scanPlan, strandedCount, teesDoor] = await Promise.all([
     loadEventState(session.eventId),
     // The rail, as the state machine draws it (PR 3).
     setupRailFor(session.eventId),
@@ -88,6 +89,13 @@ export default async function EventPage({
      * In this wave because it needs only the session, like the six above it.
      */
     strandedEntrantCount(session.eventId),
+    /**
+     * Whether the tournament's tees may change now, and if not why — the very
+     * call `setEventDefaultTee` refuses with (the rounds rule, `field-tees`), so
+     * Played from is drawn shut with the sentence rather than offered and then
+     * refused at Save (round G594-1, 10 Nov).
+     */
+    acrossRoundsRefusal(session.eventId, { kind: "field-tees" }),
   ]);
   if (!state) redirect("/");
   const e = state.event;
@@ -379,6 +387,7 @@ export default async function EventPage({
             rated: t.rated,
           }))}
           defaultTeeId={e.defaultTeeId}
+          teesDoor={teesDoor}
         />
       </SettingsSectionAnchor>
 

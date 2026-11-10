@@ -371,6 +371,26 @@ export function roundDoors(facts: RoundChangeFacts): RoundDoors {
   };
 }
 
+/**
+ * EVERY ROUND'S REFUSAL OF ONE CHANGE, by round id — the rounds that refuse it
+ * and nothing else (a round missing from the map is open). The ONE answer the
+ * action asks (`roundRefusal` in `services/round-change.ts` reads a round out of
+ * this map) and the one a screen draws its controls from before anybody
+ * presses them: Score entry's Tees and Played at (`round-tees`), so a round
+ * whose handicaps were frozen off its tees at its first card is drawn shut with
+ * that sentence rather than offered and then refused (round G594-1, 10 Nov).
+ * The cut is REQUIRED, as for `roundChangeFactsOf`.
+ */
+export function roundRefusals(f: Pick<TournamentFacts, "status" | "rounds">, ask: RoundChangeAsk, cutsMade: ReadonlySet<string>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const r of f.rounds) {
+    const one = roundChangeFactsOf(f, r.id, cutsMade);
+    const v = one ? roundChangeAllowed(one, ask) : null;
+    if (v && !v.ok) out.set(r.id, v.says);
+  }
+  return out;
+}
+
 /** One player's playing handicap in a round, before and after — as the round's handicap list prices it. */
 export interface PricedPlayer {
   playerId: string;

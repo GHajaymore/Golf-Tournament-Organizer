@@ -14,6 +14,7 @@ import {
   roundChangeAllowed,
   roundChangeFactsOf,
   roundDoors,
+  roundRefusals,
   roundStepOf,
   teesFrozenWords,
   type RoundChangeFacts,
@@ -282,6 +283,45 @@ describe("the doors the Rounds screen draws", () => {
     });
     const done = roundDoors(at(medal({ hasResult: true }), "completed"));
     expect(Object.values(done).every((d) => d !== null)).toBe(true);
+  });
+});
+
+describe("every round's refusal of one change — what Score entry draws its Tees from, and what setStageCourse refuses with", () => {
+  // Round G594-1 (10 Nov): Tees offered on a scored medal at Score entry, every pick refused.
+  // The words are written out here, not taken from `teesFrozenWords`, so a change to the
+  // sentence the organizer reads shows here first.
+  const R1_FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+  const two = (status: string, r1: Partial<ReturnType<typeof roundOf>>) =>
+    factsOf({ status, rounds: [roundOf({ id: "r1", position: 0, ...r1 }), roundOf({ id: "r2", position: 1 })] });
+
+  it("a round with a card is shut, with the sentence; the round beside it with none is open (absent from the map)", () => {
+    const shut = roundRefusals(two("live", { hasResult: true }), { kind: "round-tees" }, NONE);
+    expect([...shut]).toEqual([["r1", R1_FROZEN]]);
+    expect(shut.get("r2")).toBeUndefined();
+  });
+  it("no card anywhere: nothing is shut — drawn, launched or not", () => {
+    for (const status of ["draft", "registration", "ready", "live"]) {
+      expect(roundRefusals(two(status, { teeSheetSaved: true, matches: 2 }), { kind: "round-tees" }, NONE).size, status).toBe(0);
+    }
+  });
+  it("completed shuts every round, in the completed words", () => {
+    const done = roundRefusals(two("completed", {}), { kind: "round-tees" }, NONE);
+    expect(Object.fromEntries(done)).toEqual({ r1: COMPLETED_ROUNDS, r2: COMPLETED_ROUNDS });
+  });
+  it("a scored round of MATCHES is shut in the matches' words, not the frozen tees'", () => {
+    const m = roundRefusals(two("live", { type: "Round Robin", format: "Match Play", hasResult: true }), { kind: "round-tees" }, NONE);
+    expect(m.get("r1")).toBe("Round 1’s matches were played off these strokes. Clear its scores on Score entry first.");
+  });
+  it("is the one verdict, round by round: each entry is `roundChangeAllowed`'s own sentence, for every change it judges", () => {
+    // Round 1 scored, and a cut made out of it — so the allowance answers with the cut's words.
+    const f = two("live", { hasResult: true });
+    for (const ask of [{ kind: "round-tees" }, { kind: "allowance" }, { kind: "holes" }, { kind: "delete" }, { kind: "format", to: "Stableford" }] as const) {
+      const map = roundRefusals(f, ask, new Set(["r1"]));
+      for (const r of f.rounds) {
+        const v = roundChangeAllowed(roundChangeFactsOf(f, r.id, new Set(["r1"]))!, ask);
+        expect(map.get(r.id) ?? null, `${ask.kind} on ${r.id}`).toBe(v.ok ? null : v.says);
+      }
+    }
   });
 });
 

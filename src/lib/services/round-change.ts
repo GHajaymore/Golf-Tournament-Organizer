@@ -9,6 +9,7 @@ import {
   rescoreWords,
   roundChangeAllowed,
   roundChangeFactsOf,
+  roundRefusals,
   type PricedPlayer,
   type RoundChangeAsk,
   type RoundChangeRound,
@@ -86,13 +87,28 @@ export async function roundVerdictFor(eventId: string, stageId: string, ask: Rou
   return one ? { verdict: roundChangeAllowed(one, ask), round: one.round } : null;
 }
 
-/** The refusal in a sentence, or null when the change may be made (or the round is not this tournament's — the action says that itself). */
-export async function roundRefusal(eventId: string, stageId: string, ask: RoundChangeAsk): Promise<string | null> {
-  const r = await roundVerdictFor(eventId, stageId, ask);
-  return r && !r.verdict.ok ? r.verdict.says : null;
+/**
+ * EVERY ROUND'S REFUSAL OF ONE CHANGE, read once (`roundRefusals`): what a
+ * screen draws a control from BEFORE it is pressed — Score entry's Tees and
+ * Played at — so it is never offered and then refused. The action reads its
+ * own round out of the same map (`roundRefusal`), so the two cannot disagree.
+ */
+export async function roundRefusalsFor(eventId: string, ask: RoundChangeAsk): Promise<Map<string, string>> {
+  const facts = await roundsFactsFor(eventId);
+  return facts ? roundRefusals(facts, ask, facts.cutsMade) : new Map();
 }
 
-/** A change that reaches every round (`acrossRounds`): its refusal in a sentence, or null. */
+/** The refusal in a sentence, or null when the change may be made (or the round is not this tournament's — the action says that itself). */
+export async function roundRefusal(eventId: string, stageId: string, ask: RoundChangeAsk): Promise<string | null> {
+  return (await roundRefusalsFor(eventId, ask)).get(String(stageId)) ?? null;
+}
+
+/**
+ * A change that reaches every round (`acrossRounds`): its refusal in a
+ * sentence, or null. The action asks it (`setEventDefaultTee`, `setFlightTee`,
+ * `setPlayerTee`), and Tournament details draws Played from with it before it
+ * is pressed.
+ */
 export async function acrossRoundsRefusal(eventId: string, ask: Extract<RoundChangeAsk, { kind: "field-tees" | "day" }>): Promise<string | null> {
   const facts = await roundsFactsFor(eventId);
   if (!facts) return null;
