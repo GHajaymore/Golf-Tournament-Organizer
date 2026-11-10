@@ -5,7 +5,7 @@ import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import {
-  PLANS, LIMIT_KEYS, ANNUAL_MONTHS_CHARGED, effectiveRegions,
+  PLANS, LIMIT_KEYS, ANNUAL_MONTHS_CHARGED, effectiveRegions, hasSettablePrice,
   isValidPercentOff, keepsDataForever,
   type PlanKey, type LimitKey, type PriceRegion,
 } from "@/lib/plans";
@@ -216,7 +216,7 @@ export async function saveTierPrices(
   for (const [key, monthly] of Object.entries(prices)) {
     if (!(key in PLANS)) continue;
     // Par is free and Albatross is "Let's talk": neither has a price to set (`planQuote` holds that too).
-    if (PLANS[key as PlanKey].priceMonthly <= 0) continue;
+    if (!hasSettablePrice(key as PlanKey)) continue;
     const n = Number(monthly);
     if (!Number.isFinite(n) || n < 0) {
       return { ok: false, error: `${key}: a price is a number, zero or more.` };

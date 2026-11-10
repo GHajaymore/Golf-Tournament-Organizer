@@ -681,13 +681,18 @@ export interface PlanQuote {
  * (India in INR, say) quotes a tier it has no price for in Rest of world's dollars,
  * whole, so one quote is never in two currencies.
  */
+/** Whether a tier has a price anybody may set: not Par (free by definition), not Albatross ("Let's talk"). */
+export function hasSettablePrice(key: PlanKey): boolean {
+  return PLANS[key].priceMonthly > 0 && !PLANS[key].contactOnly;
+}
+
 export function planQuote(plan: Plan, overrides: PricingOverrides, country: string): PlanQuote {
   const region = regionFor(overrides, country);
   const world = effectiveRegions(overrides).find((r) => r.id === WORLD_REGION_ID) ?? defaultRegions()[7];
   // A tier with no published price (Par is free, Albatross is "Let's talk") is never priced by an
   // override: "Free stays free" is the panel's promise, and a stored row (or a hand-made call to
   // `saveTierPrices`) must not be able to break it.
-  const priced = plan.priceMonthly > 0;
+  const priced = hasSettablePrice(plan.key);
   const own = priced && isPrice(region.monthly[plan.key]) ? region.monthly[plan.key] : defaultMonthly(plan, region.currency);
   const used = own !== undefined ? region : world;
   const monthly = own ?? (priced && isPrice(world.monthly[plan.key]) ? world.monthly[plan.key]! : plan.priceMonthly);
