@@ -36,18 +36,25 @@ export function RoundAllowance({
   stageId,
   info,
   locked = false,
+  door = null,
 }: {
   stageId: string;
   info: RoundAllowanceInfo;
-  /** Setup is locked. The action refuses it in words (`refuseIfLocked`, "rounds"), said under the box like any refusal. */
+  /**
+   * The allowance is shut — by the rounds rule's door (J12, PR 7b: a round of
+   * recorded matches, or completed), handed in as a boolean beside the door's
+   * sentence. The action refuses it in words, said under the box like any refusal.
+   */
   locked?: boolean;
+  /** Why it is shut, in the rounds rule's words (`roundDoors`), said under the line. */
+  door?: string | null;
 }) {
   const { pending: saving, error, setError, run, startTransition } = useAction();
   const pending = saving || locked;
   const [editing, setEditing] = useState(false);
   const [typed, setTyped] = useState("");
-  /** The server asking before it re-scores: how many cards, and how to go ahead. */
-  const [asked, setAsked] = useState<{ cards: number; call: (force: boolean) => Promise<TeamResult> } | null>(null);
+  /** The server asking before it re-scores: how many cards, the rounds rule's words, and how to go ahead. */
+  const [asked, setAsked] = useState<{ cards: number; says?: string; call: (force: boolean) => Promise<TeamResult> } | null>(null);
 
   // Its own body rather than `run`, as in `RoundTeamScoring`: `needsConfirm` is
   // the server asking a question, neither a success nor a refusal, and the box
@@ -58,7 +65,7 @@ export function RoundAllowance({
       setAsked(null);
       const res = await call(false);
       if (res.needsConfirm) {
-        setAsked({ cards: res.cards ?? 0, call });
+        setAsked({ cards: res.cards ?? 0, says: res.says, call });
         return;
       }
       if (!res.ok) {
@@ -99,6 +106,11 @@ export function RoundAllowance({
           {editing ? "Cancel" : "Change"}
         </button>
       </div>
+      {door && (
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          {door}
+        </p>
+      )}
 
       {editing && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -133,9 +145,10 @@ export function RoundAllowance({
       {asked && (
         <RescoreWarning
           cards={asked.cards}
-          consequence={RESCORE_CONSEQUENCE.allowanceIndividual}
+          // The rounds rule's words: a term of the competition changed after play (Golf Pro, Q2).
+          consequence={asked.says ?? RESCORE_CONSEQUENCE.allowanceIndividual}
           keepLabel={`${info.allowance}%`}
-          pending={pending}
+          pending={saving}
           onConfirm={() =>
             run(
               () => asked.call(true),

@@ -166,6 +166,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Your index is the one your club entered.",
       "A live link to your handicap body is coming.",
       "In a four-ball the board lists each player's own playing handicap.",
+      "The committee may correct a round's allowance after you play.",
+      "Your Net and the board are then worked out again.",
     ],
   },
   {
@@ -192,6 +194,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "For the tournament, for your flight, or for you.",
       "Your card names the tees you are on.",
       "You cannot change them here. Ask your {organizer}.",
+      "A round you have played keeps the tees you played off.",
       "On a higher par than others? You get the difference as strokes.",
       "Not in Stableford, where par already counts.",
     ],

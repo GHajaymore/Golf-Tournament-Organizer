@@ -31,10 +31,10 @@ import {
  *
  *   format          a medal becomes a Stableford, which is off handicap and is
  *                   said so; a stroke round is not offered match play; a round
- *                   with a card in it ASKS first, beside the picker, and
- *                   "Keep Stroke Play" stores nothing
+ *                   with a card in it is REFUSED (J12, PR 7b), the picker shut
+ *                   and the reason said beneath it
  *   holes           a nine counts back over the last six, three and one —
- *                   not the last nine; a round with cards asks first
+ *                   not the last nine; a round with cards is REFUSED (8 Nov)
  *   played on       the day moves; on the free Par plan a second week is
  *                   refused beside the date, and the box goes back
  *   season dates    every undated round is dated a week apart in running
@@ -100,36 +100,26 @@ test("a round's format is changed on its card and kept, and a round with a card 
     await expect(card.getByText(/Off handicap — points are worked out after each player/)).toBeVisible();
     await expect(card.getByRole("radiogroup", { name: "Handicap for Round 1" }), "a Stableford is offered Gross").toHaveCount(0);
 
-    // ── a round with a card in it: asked, beside the picker, before anything is stored ──
+    // ── a round with a card in it: its format is NOT changed (J12, state machine PR 7b; the Golf Pro's
+    //    Q5 — refused both ways), and the reason is said under the picker, which is shut ──
     await returnCard(event.id, stages[1].id, players[0].id);
     await gotoStages(page);
     card = await openRound(page, stages[1].id);
     const second = card.getByLabel("Format for Round 2");
     await centre(second);
-    await second.selectOption("Stableford");
-    const asked = card.locator("b", { hasText: "This round already has 1 card entered." });
-    await expect(asked, "re-scoring a played round was not asked about").toBeVisible();
-    await expect(card.getByText(/Changing the format re-scores every one of them/)).toBeVisible();
-    await saidBeside(asked, second, "the format of a round with a card in it");
-    expect((await stored(1)).format, "the format was stored before the question was answered").toBe("Stroke Play");
-    await card.getByRole("button", { name: "Keep Stroke Play", exact: true }).click();
-    await expect(asked).toBeHidden();
-    await expect(second, "declining left the picker on a format the round does not have").toHaveValue("Stroke Play");
-    expect((await stored(1)).format, "declining stored the format").toBe("Stroke Play");
-
-    await second.selectOption("Stableford");
-    await card.getByRole("button", { name: "Change it anyway", exact: true }).click();
-    await expect.poll(async () => (await stored(1)).format, { message: "Change it anyway stored nothing" }).toBe("Stableford");
-    await gotoStages(page);
-    card = await openRound(page, stages[1].id);
-    await expect(card.getByLabel("Format for Round 2")).toHaveValue("Stableford");
+    await expect(second, "a played round's format is offered to be changed").toBeDisabled();
+    await expect(second).toHaveValue("Stroke Play");
+    const refused = card.getByTestId("format-door");
+    await expect(refused).toHaveText("Round 2 was scored as Stroke Play; its cards would mean something else. Clear its scores on Score entry first.");
+    await saidBeside(refused, second, "the format of a round with a card in it");
+    expect((await stored(1)).format, "a played round's format changed").toBe("Stroke Play");
   } finally {
     await dropClub(mark);
   }
   expect(errors, errors.join("\n")).toEqual([]);
 });
 
-test("a round made nine holes counts back over a nine, and a round with cards asks before it changes", async ({ page, context, baseURL }, testInfo) => {
+test("a round made nine holes counts back over a nine, and a round with cards keeps its length", async ({ page, context, baseURL }, testInfo) => {
   test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
   const errors: string[] = [];
   watchPageErrors(page, errors, "secretary");
@@ -161,18 +151,17 @@ test("a round made nine holes counts back over a nine, and a round with cards as
     await expect(tieLine(card), "a nine-hole round's countback").toContainText("the better last six, then the last three and the last hole");
     await expect(tieLine(card)).not.toContainText("last nine");
 
-    // ── the round with two cards in it ──
+    // ── the round with two cards in it: its holes are NOT changed (8 Nov, format-like under the
+    //    rounds rule) — the choice is shut, and the reason said beside it ──
     card = await openRound(page, stages[1].id);
-    const { label: nine } = await pick(card.getByRole("radiogroup", { name: "Holes for Round 2" }), "9");
-    const asked = card.locator("b", { hasText: "This round already has 2 cards entered." });
-    await expect(asked, "changing a played round's holes was not asked about").toBeVisible();
-    await expect(card.getByText(/the stroke index is re-ranked to the holes actually played/)).toBeVisible();
-    await saidBeside(asked, nine, "the holes of a round with cards in it");
-    expect(await holesOf(1), "the holes were stored before the question was answered").toBe(18);
-    await card.getByRole("button", { name: "Keep 18 holes", exact: true }).click();
-    await expect(asked).toBeHidden();
-    await expect(card.getByRole("radiogroup", { name: "Holes for Round 2" }).getByRole("radio", { name: "18", exact: true }), "declining left nine showing").toBeChecked();
-    expect(await holesOf(1), "declining stored nine holes").toBe(18);
+    const holes2 = card.getByRole("radiogroup", { name: "Holes for Round 2" });
+    await centre(holes2);
+    await expect(holes2.getByRole("radio", { name: "9", exact: true }), "a played round's holes are offered to be changed").toBeDisabled();
+    await expect(holes2.getByRole("radio", { name: "18", exact: true })).toBeChecked();
+    const refused = card.getByTestId("holes-door");
+    await expect(refused).toHaveText("Round 2 has scores; at another length its cards would mean something else. Clear its scores on Score entry first.");
+    await saidBeside(refused, holes2, "the holes of a round with cards in it");
+    expect(await holesOf(1), "a played round's holes changed").toBe(18);
   } finally {
     await dropClub(mark);
   }
@@ -307,7 +296,7 @@ test("cards are due on the club's day, and a live round's scoring is kept open, 
   testInfo.annotations.push({ type: "club clock", description: `${zone}: ${today} at the club, ${serverDay} at the server` });
   const club = await makeClub(mark, { timeZone: zone });
   try {
-    // Live, and played YESTERDAY at the club: setup is locked, and both days the walk moves the
+    // Live, played YESTERDAY at the club, and no card in yet: both days the walk moves the
     // deadline between are on or after the round's own day, which is all a deadline may be
     // (`dueBeforePlayed`, 2026-10-30).
     const { event, stages } = await makeEvent(club, "Monthly Medal", { status: "live", stages: [{ playedOn: yesterday, deadline: yesterday }] });
@@ -317,8 +306,14 @@ test("cards are due on the club's day, and a live round's scoring is kept open, 
 
     await gotoStages(page);
     let card = await openRound(page, stages[0].id);
-    // Locked: the format is not offered to be changed. The day's controls are.
-    await expect(card.getByLabel("Format for Round 1"), "a live tournament's format is offered for change").toBeDisabled();
+    // Launched, and nobody has scored: the round's format is still offered, and so are the day's
+    // controls. Until J12 PR 7b launch alone shut the format; now the rounds rule judges a change by
+    // what it would invalidate, and an unscored round's format invalidates nothing (the PR's
+    // decision 4). A SCORED round's format is shut, with its reason: the first test in this file,
+    // and `round-changes-after-scores.spec.ts`. What launch still holds is said on the banner.
+    await expect(card.getByLabel("Format for Round 1"), "launch alone shut an unscored round's format").toBeEnabled();
+    await expect(card.getByTestId("format-door"), "an unscored round's format gives a reason it is shut").toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Locked" }), "the launched Rounds screen does not say what stays locked").toContainText("Locked because the tournament is live.");
     await expect(tag(card), "cards were due yesterday at the club").toHaveText(/Closed — the deadline has passed/);
 
     // ── Cards in by: today at the club is still open there ──

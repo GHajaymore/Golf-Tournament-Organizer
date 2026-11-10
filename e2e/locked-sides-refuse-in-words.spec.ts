@@ -24,8 +24,10 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
  *                       dashboard to change teams.", brought into view; nothing
  *                       written; the screen catches up — the banner names the
  *                       reason and a padlock points at it
- *   Rounds & formats  the four-ball's Handicap allowance · Scores that count
+ *   Rounds & formats  the four-ball's Scores that count
  *                     → refused under that setting's Save, in the same shape
+ *                     (its Handicap allowance asks the rounds rule since J12 PR 7b:
+ *                     open after launch until the round has scores)
  *
  * WHAT IT CANNOT PRESS, and where each is proved instead: Generate matches (only a
  * round robin of sides has it, and the seeded club has none), a greensomes split
@@ -166,14 +168,9 @@ test("each control behind a locked side, pressed on a screen drawn before the lo
       card.locator("div", { has: page.locator("p", { hasText: words }) }).last().getByRole("button", { name: "Change", exact: true });
     const pricing = () => prisma.stage.findUniqueOrThrow({ where: { id: stage.id }, select: { handicapAllowance: true, countBest: true } });
 
+    // The allowance left this walk in J12 PR 7b: launch invalidates no allowance, so it asks the
+    // rounds rule (`round-changes-after-scores.spec.ts`). How many scores count stays locked.
     for (const step of [
-      {
-        label: "Handicap allowance",
-        words: /^Handicap allowance/,
-        control: "Handicap allowance percent",
-        set: async (card: ReturnType<typeof page.locator>) => card.getByLabel("Handicap allowance percent").fill("90"),
-        said: "Locked because the tournament is live. Make a committee correction to change a round’s handicap allowance.",
-      },
       {
         label: "Scores that count",
         words: /^Scores that count/,

@@ -30,9 +30,8 @@ const SITES: Record<string, { file: string; scope: string; what: string; except?
   removeTeamMember: { file: TEAMS, scope: "sides", what: "change teams" },
   generateTeamMatches: { file: TEAMS, scope: "sides", what: "change teams" },
   autoDrawTeams: { file: TEAMS, scope: "sides", what: "change teams" },
-  setStageAllowance: { file: TEAMS, scope: "rounds", what: "change a round’s handicap allowance" },
+  // The allowance and the split left for the rounds rule (J12, PR 7b): `round-changes-ask-the-rounds-rule.test.ts`.
   setStageCountBest: { file: TEAMS, scope: "rounds", what: "change how many scores count" },
-  setStageAllowanceWeights: { file: TEAMS, scope: "rounds", what: "change the handicap split" },
   // PR 5b: the 28 sites of tournament.ts (section 3's Lock column)
   saveEvent: { file: TOURNAMENT, scope: "details", what: "change the tournament’s details" },
   applyManualCount: { file: TOURNAMENT, scope: "field", what: "change the field limit" },
@@ -42,14 +41,12 @@ const SITES: Record<string, { file: string; scope: string; what: string; except?
   setQualifyPerGroup: { file: TOURNAMENT, scope: "rounds", what: "change who qualifies" },
   setStageCarry: { file: TOURNAMENT, scope: "rounds", what: "change the points carried forward" },
   setStageCut: { file: TOURNAMENT, scope: "rounds", what: "change the cut" },
-  setStageScoringBasis: { file: TOURNAMENT, scope: "rounds", what: "change how a round is scored" },
+  // The basis, the format and deleting a round ask the rounds rule instead (J12, PR 7b).
   setStageScoreInput: { file: TOURNAMENT, scope: "rounds", what: "change how scores are entered" },
   setStageMatchKeptBy: { file: TOURNAMENT, scope: "rounds", what: "change who keeps the match card" },
-  setStageFormat: { file: TOURNAMENT, scope: "rounds", what: "change a round’s format" },
-  setStageHoles: { file: TOURNAMENT, scope: "rounds", what: "change a round’s holes" },
+  // setStageHoles left on 8 Nov: holes are format-like and ask the rounds rule (refused after scores).
   saveTiebreakers: { file: TOURNAMENT, scope: "rounds", what: "change the tie-breakers" },
   setQualifyMode: { file: TOURNAMENT, scope: "rounds", what: "change who qualifies" },
-  removeStage: { file: TOURNAMENT, scope: "rounds", what: "delete a round" },
   // The ROUNDS' lock: a flighted knockout's draw stays open while live, and the arrangement must not (a-knockout-in-flights).
   setBracketMode: { file: TOURNAMENT, scope: "rounds", what: "change the bracket’s arrangement" },
   renameGroup: { file: TOURNAMENT, scope: "flights", what: "rename a flight", except: "draw" },
@@ -122,7 +119,8 @@ describe("the scoped locks return, never throw", () => {
     });
   }
 
-  it("thirty-six sites, and no other lock-asking action in the three files goes unlisted", () => {
+  // Thirty-six until PR 7b moved six to the rounds rule (allowance, split, basis, format, delete, and holes on 8 Nov).
+  it("thirty sites, and no other lock-asking action in the three files goes unlisted", () => {
     const listed = new Set(Object.keys(SITES));
     for (const file of FILES) {
       for (const part of readSource(file).split(/export async function /).slice(1)) {
@@ -130,7 +128,7 @@ describe("the scoped locks return, never throw", () => {
         if (/refuseIfLocked\(/.test(part)) expect(listed.has(name), `${name} asks a lock and is not pinned here`).toBe(true);
       }
     }
-    expect(listed.size).toBe(36);
+    expect(listed.size).toBe(30);
   });
 
   /**
@@ -196,7 +194,7 @@ describe("the screens draw the lock their actions ask", () => {
       expect(page, `${screen} still draws the blanket banner`).not.toMatch(/SetupLockBanner|isSetupLocked/);
     }
     expect(readSource("src", "app", "(app)", "event", "page.tsx")).toMatch(/<ScopeLockBanner locks=\{details\.locks\} correction=\{details\.correction\}/);
-    expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/<ScopeLockBanner locks=\{rounds\.locks\} correction=\{rounds\.correction\}/);
+    expect(readSource("src", "app", "(app)", "stages", "page.tsx")).toMatch(/<ScopeLockBanner\s+locks=\{rounds\.locks\}\s+correction=\{rounds\.correction\}/);
     expect(readSource("src", "components", "RegistrationClient.tsx")).toMatch(/<ScopeLockBanner locks=\{fieldLocks\} correction=\{correction\} isAdmin=\{isAdmin\} open=\{underWay\}/);
   });
 

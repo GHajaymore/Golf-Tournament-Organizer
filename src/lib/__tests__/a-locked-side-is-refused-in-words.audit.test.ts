@@ -152,9 +152,8 @@ const PRESSES: { name: string; scope: string; what: string; press: () => Promise
   { name: "removeTeamMember", scope: "sides", what: "change teams", press: () => removeTeamMember(teamId, memberId) },
   { name: "generateTeamMatches", scope: "sides", what: "change teams", press: () => generateTeamMatches(fourBall) },
   { name: "autoDrawTeams", scope: "sides", what: "change teams", press: () => autoDrawTeams(fourBall, true) },
-  { name: "setStageAllowance", scope: "rounds", what: "change a round’s handicap allowance", press: () => setStageAllowance(fourBall, 100, true) },
+  // The allowance and the split left this list in J12 PR 7b: they ask the rounds rule (below).
   { name: "setStageCountBest", scope: "rounds", what: "change how many scores count", press: () => setStageCountBest(fourBall, 2, true) },
-  { name: "setStageAllowanceWeights", scope: "rounds", what: "change the handicap split", press: () => setStageAllowanceWeights(greensomes, [50, 50], true) },
 ];
 
 /** The described tournament's rounds — refused ONLY once completed since PR 5b (TD ruling on 5a, Q2). */
@@ -169,6 +168,16 @@ describe("on a launched tournament, every structural press on sides and rounds i
       expect(await snapshot(), `${p.name} wrote while refused`).toEqual(before);
     });
   }
+
+  /**
+   * THE ALLOWANCE AND THE SPLIT ARE THE ROUNDS RULE'S (J12, state machine PR 7b):
+   * launch invalidates neither, so on a launched round with no cards they are
+   * taken — and once the tournament is completed they are refused with Reopen.
+   */
+  it("the allowance and the split are not refused by launch on a round with no cards (the rounds rule)", async () => {
+    expect(await setStageAllowance(fourBall, 100, true)).toEqual({ ok: true });
+    expect(await setStageAllowanceWeights(greensomes, [50, 50], true)).toEqual({ ok: true });
+  });
 
   it("a completed tournament's refusal names Reopen, the way out a completed one has — and only then are rounds refused to the described tournament", async () => {
     await prisma.event.update({ where: { id: eventId }, data: { status: "completed" } });

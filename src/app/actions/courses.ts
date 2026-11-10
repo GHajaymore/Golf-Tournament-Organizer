@@ -4,6 +4,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { playedOnBy } from "@/lib/services/courses";
 import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
+import { acrossRoundsRefusal, roundRefusal } from "@/lib/services/round-change";
 import { isDistanceUnit } from "@/lib/domain/distance-unit";
 import { getSession } from "@/lib/auth";
 import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
@@ -576,21 +577,24 @@ export async function setStageCourse(
   }
 
   /**
-   * A venue change RE-SCORES a round that already has cards.
+   * A venue or tee change WOULD RE-SCORE a round that already has cards: the
+   * shots are allocated off another stroke index, and every Course Handicap was
+   * frozen off the old tees at the first card.
    *
-   * Not a single stroke moves, which is why this needs saying out loud: the
-   * numbers all stay where they are and the results computed from them
-   * change underneath, because the shots are allocated off a different
-   * stroke index. Nothing on any screen would look different afterwards.
-   *
-   * Same shape as the field resize: refuse, say how much is affected, and
-   * let the organizer come back with force. An untouched round reports zero
-   * and changes without a fuss.
+   * ASKED OF THE ROUNDS RULE (J12, PR 7b; `domain/round-change.ts`), as the
+   * round's own tees: open until the round has scores (a change before them is
+   * frozen normally at the first card), and REFUSED once it has them — never
+   * re-frozen from today's index, since the index the round was frozen with is
+   * not stored (option C, 8 Nov) — and refused once completed. `force` no longer
+   * opens anything: there is nothing left to confirm.
    */
-  if (!force) {
-    const cards = await enteredCardCount(eventId, stageId);
-    if (cards > 0) return { ok: false, needsConfirm: true, cards };
-  }
+  void force;
+  const changed =
+    (courseId ?? null) !== (stage.courseId ?? null) ||
+    (courseId && teeId ? teeId : null) !== (stage.teeId ?? null) ||
+    (nine !== undefined && cleanNine(nine) !== stage.nine);
+  const refused = changed ? await roundRefusal(eventId, stageId, { kind: "round-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
 
   // Linked before the round points at it, so the tournament's venue list and
   // the round agree. Idempotent: choosing a venue it already has changes
@@ -810,6 +814,10 @@ export async function setEventDefaultTee(teeId: string | null): Promise<CourseRe
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
+  // The tournament's tees reach every round (J12, PR 7b): refused while a scored round of cards would be reached (option C, 8 Nov).
+  const was = await prisma.event.findUnique({ where: { id: eventId }, select: { defaultTeeId: true } });
+  const refused = (was?.defaultTeeId ?? null) !== (teeId ?? null) ? await acrossRoundsRefusal(eventId, { kind: "field-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
   await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: teeId } });
   await refresh();
   return { ok: true };
@@ -829,7 +837,7 @@ export async function setFlightTee(groupId: string, teeId: string | null): Promi
   const { eventId } = await requireOrganizerOrg();
   // A flight, not a match carrier — a carrier has no players to play off any
   // tees it claimed. See Group.stageId.
-  const flight = await prisma.group.findFirst({ where: { id: groupId, eventId, isCarrier: false }, select: { id: true } });
+  const flight = await prisma.group.findFirst({ where: { id: groupId, eventId, isCarrier: false }, select: { id: true, name: true, teeId: true } });
   if (!flight) return { ok: false, error: "Flight not found." };
   if (teeId) {
     // Scoped to this tournament's course, so another club's set can never
@@ -839,6 +847,9 @@ export async function setFlightTee(groupId: string, teeId: string | null): Promi
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
+  // A flight's tees reach its players in every round (J12, PR 7b): refused while a scored round of cards would be reached (option C, 8 Nov).
+  const refused = (flight.teeId ?? null) !== (teeId ?? null) ? await acrossRoundsRefusal(eventId, { kind: "field-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
   await prisma.group.update({ where: { id: groupId }, data: { teeId } });
   await refresh();
   return { ok: true };
@@ -900,6 +911,9 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
+  // A player's own tees reach them in every round (J12, PR 7b): refused while a scored round of cards would be reached (option C, 8 Nov).
+  const refused = (player.teeId ?? null) !== (teeId ?? null) ? await acrossRoundsRefusal(eventId, { kind: "field-tees" }) : null;
+  if (refused) return { ok: false, error: refused };
   await prisma.player.update({ where: { id: playerId }, data: { teeId } });
   await refresh();
   return { ok: true };
