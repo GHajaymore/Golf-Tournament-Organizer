@@ -85,7 +85,7 @@ describe("moving to regions changes no price a club sees today", () => {
   it("a club with no country is quoted by its currency, as it was before", () => {
     expect(quoteCurrency(NONE, quoteCountryFor(NONE, { country: "", currency: "GBP" }))).toBe("GBP");
     expect(quoteCurrency(NONE, quoteCountryFor(NONE, { country: "", currency: "JPY" }))).toBe("USD");
-    // A club that has said where it is is quoted by where it is, whatever its money.
+    // CURRENT BEHAVIOUR (COUNTRY_BEATS_CURRENCY = true; the owner is deciding): a club that has said where it is is quoted by where it is, whatever its money. Flipping that one constant restores currency-first.
     expect(quoteCurrency(NONE, quoteCountryFor(NONE, { country: "GB", currency: "USD" }))).toBe("GBP");
   });
 });

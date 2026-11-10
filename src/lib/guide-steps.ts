@@ -763,7 +763,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       { kind: "where", text: "The owner console, /owner → Content → Demo club" },
       {
         kind: "tip",
-        text: "The owner console is in four tabs, each at its own address: **Overview** (the numbers), **Plans & pricing** (prices by region, the months billed for a year, limits, event passes and the seasonal plan, a club's plan, discount codes), **Accounts & launch** (the go-live switch and who registered interest) and **Content** (the demo club and the course catalogue). A price changes what every screen and every new checkout quotes at once, with no deploy; a club already paying keeps the price it signed up at.",
+        text: "The owner console is in four tabs, each at its own address: **Overview** (the numbers), **Plans & pricing** (prices by region, the months billed for a year, limits, a club's plan, discount codes), **Accounts & launch** (the go-live switch and who registered interest) and **Content** (the demo club and the course catalogue). A price changes what every screen and every new checkout quotes at once, with no deploy; a club already paying keeps the price it signed up at.",
       },
       {
         kind: "steps",

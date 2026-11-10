@@ -169,14 +169,14 @@ describe("the club's plan panel quotes in the club's currency", () => {
   const text = (html: string) => html.replace(/<!--[^>]*-->/g, "").replace(/<[^>]+>/g, " ");
 
   it("a GBP club reads pounds, at the set price", () => {
-    const body = text(renderToStaticMarkup(<PlanPanel planKey="free" overrides={NONE} currency="GBP" locale="en-GB" />));
+    const body = text(renderToStaticMarkup(<PlanPanel country="" planKey="free" overrides={NONE} currency="GBP" locale="en-GB" />));
     expect(body).toContain("£139/mo · £1,390/yr");
     expect(body).toContain("£39/mo · £390/yr");
     expect(body, "a dollar price reached a sterling club").not.toContain("$");
   });
 
   it("a club in a currency with no price point reads dollars", () => {
-    const body = text(renderToStaticMarkup(<PlanPanel planKey="free" overrides={NONE} currency="JPY" />));
+    const body = text(renderToStaticMarkup(<PlanPanel country="" planKey="free" overrides={NONE} currency="JPY" />));
     expect(body).toContain("$175/mo · $1,750/yr");
     expect(body).not.toContain("¥");
   });

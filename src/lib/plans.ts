@@ -691,12 +691,24 @@ export function quoteCurrency(overrides: PricingOverrides, country: string): str
  * country of the region that trades in its currency, so a club that was quoted in pounds
  * for its currency alone is still quoted in pounds.
  */
+/**
+ * THE ONE SWITCH for a club whose country and currency disagree (country GB, currency USD).
+ * true  = the country wins: the club is quoted in its region's currency (pounds).
+ * false = the currency wins: the club is quoted as it was before regions (dollars).
+ * Undecided by the owner; true is how it behaves today. Flipping it is this one line.
+ */
+export const COUNTRY_BEATS_CURRENCY = true;
+
 export function quoteCountryFor(overrides: PricingOverrides, club: { country?: string | null; currency?: string | null }): string {
-  // The country decides only when it resolves to a region of its own; an unmapped name ("Germany" typed as text), or a country in no region, falls to the currency rule exactly as before regions.
-  if (regionFor(overrides, club.country ?? "").id !== WORLD_REGION_ID) return club.country as string;
   const cur = (club.currency ?? "").trim().toUpperCase();
-  const hit = effectiveRegions(overrides).find((r) => r.id !== WORLD_REGION_ID && r.currency === cur && r.countries.length > 0);
-  return hit?.countries[0] ?? "";
+  const byCurrency = () =>
+    effectiveRegions(overrides).find((r) => r.id !== WORLD_REGION_ID && r.currency === cur && r.countries.length > 0)?.countries[0] ?? "";
+  // The country decides only when it resolves to a region of its own; an unmapped name ("Germany" typed as text),
+  // or a country in no region, falls to the currency rule exactly as before regions.
+  const countryRegion = regionFor(overrides, club.country ?? "").id !== WORLD_REGION_ID;
+  if (COUNTRY_BEATS_CURRENCY) return countryRegion ? (club.country as string) : byCurrency();
+  if (cur) return byCurrency();
+  return countryRegion ? (club.country as string) : "";
 }
 
 /**
@@ -1280,8 +1292,8 @@ export function phoneRequiredFor(eventRequirePhone: boolean): boolean {
 /**
  * EVENT PASSES AND THE SEASONAL PLAN: DECIDED 10 NOV 2026, NOT ON SALE.
  *
- * Ajay's ruling: a one-event pass ($29, up to 64 players; $99, any field) and a
- * seasonal plan (Birdie for six months, $245) are the offers, and they are NOT
+ * Ajay's ruling: a one-event pass (priced per player cap, or any field) and a
+ * seasonal plan (one tier for a number of months) are the offers, and they are NOT
  * on sale until billing can sell them. Until then they exist in one place: the
  * Plans panel on /owner, where he can set them. They are stored beside the
  * pricing overrides (a `PlatformSetting` row, `services/platform-offers.ts`) and
@@ -1318,13 +1330,13 @@ export interface OfferSettings {
   seasonal: SeasonalPlan;
 }
 
-/** The decided passes. 64 is the Birdie field. */
+/** The decided passes (64 is the Birdie field). Owner-only code path: these figures are not public until On sale. */
 export const DEFAULT_EVENT_PASSES: readonly EventPass[] = [
   { name: "Event pass", prices: { world: 29 }, maxPlayers: 64 },
   { name: "Any-field pass", prices: { world: 99 }, maxPlayers: null },
 ];
 
-/** The decided seasonal plan: Birdie, six months, $245. */
+/** The decided seasonal plan. Owner-only code path: these figures are not public until On sale. */
 export const DEFAULT_SEASONAL: SeasonalPlan = { tier: "society", months: 6, prices: { world: 245 } };
 
 export const MAX_EVENT_PASSES = 8;

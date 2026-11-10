@@ -49,7 +49,7 @@ export function PlanPanel({
   /** The club's own currency. Quoted in it where a plan has a price there, else USD. */
   currency?: string;
   /** The club's country, which decides its region and so its prices; a club without one is quoted by its currency, else Rest of world. */
-  country?: string;
+  country: string;
   /** The club's locale, which decides how the number is written. */
   locale?: string;
   /** Online billing, when Stripe is configured. Absent or disabled: no buy buttons. */
