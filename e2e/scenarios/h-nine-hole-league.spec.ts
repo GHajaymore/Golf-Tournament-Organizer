@@ -2,6 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { seed, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
+import { expectLaunched, pressComplete } from "../end-early";
 
 /**
  * SCENARIO — tournament H: the Eagle club's Wednesday Nine, the Thursday league (G) again over nine holes. The
@@ -133,7 +134,7 @@ test("five H", async ({ page, context, baseURL }, testInfo) => {
       await open(page, "/dashboard");
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
       await open(page, "/event");
       await page.locator("label", { hasText: "Anyone with the link" }).first().click();
       await page.getByRole("button", { name: /^Save/ }).last().click();
@@ -292,7 +293,7 @@ test("five H", async ({ page, context, baseURL }, testInfo) => {
           }
         }
         await open(page, "/dashboard");
-        await page.getByRole("button", { name: "Complete tournament" }).first().click();
+        await pressComplete(page);
         await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
         await expect.poll(async () => (await eventFacts(G_NAME))!.status, { timeout: 20_000 }).toBe("completed");
       }

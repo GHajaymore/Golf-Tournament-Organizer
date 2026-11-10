@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
  * WHAT THE TOURNAMENT SAYS, ASKED OF EVERY PANEL THAT SAYS IT (state machine
@@ -62,7 +63,7 @@ export interface TournamentSays {
 const OWN_LINE = '[data-job="launch"], [data-job="schedule"], [data-job="draw"], [data-job="results"]';
 
 /** The dashboard's lifecycle buttons — never "Unlock configuration" or a quick action. */
-const LIFECYCLE = /^(Launch|Complete|Reopen|Generate|Set )/;
+const LIFECYCLE = /^(Launch|Complete|Reopen|Generate|Set |End this event early)/;
 
 export async function expectTournamentSays(page: Page, says: TournamentSays): Promise<void> {
   await page.goto(`/dashboard?bust=${Date.now()}`);
@@ -80,6 +81,13 @@ export async function expectTournamentSays(page: Page, says: TournamentSays): Pr
     await expect(card.getByRole("button", { name: LIFECYCLE }), "a next action is offered").toHaveCount(0);
     await expect(card.getByRole("link", { name: LIFECYCLE }), "a next action is offered").toHaveCount(0);
   } else {
+    // While golf remains to be played, completing is "End this event early…" behind the card's More
+    // (the PM, 10 Nov): open it first, as an organizer would.
+    if (says.nextAction === END_EARLY) {
+      const more = card.getByRole("button", { name: "More actions", exact: true });
+      await expect(more, "the card has no More to end the event early").toBeVisible();
+      if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
+    }
     const action = card.getByRole("button", { name: says.nextAction }).or(card.getByRole("link", { name: says.nextAction })).first();
     await expect(action, `the next action is not "${says.nextAction}"`).toBeVisible();
     if (says.refused) {
@@ -161,8 +169,13 @@ async function expectTimelineSays(page: Page, says: TournamentSays): Promise<voi
     await expect(lead, "the timeline leads with a next action the dashboard does not offer").toHaveCount(0);
     return;
   }
-  const action = lead.getByRole("button", { name: says.nextAction }).or(lead.getByRole("link", { name: says.nextAction })).first();
-  await expect(action, `the timeline's next action is not "${says.nextAction}"`).toBeVisible();
+  // The timeline (still behind its own `?view=timeline` switch) leads with the MACHINE's next action as
+  // it gives it; the lifecycle stepper's PR (B03) left it alone. So where the dashboard's card says
+  // "End this event early…" behind More, the timeline says the machine's own "Complete tournament",
+  // with the same refusal and way out.
+  const timelineSays = says.nextAction === END_EARLY ? "Complete tournament" : says.nextAction;
+  const action = lead.getByRole("button", { name: timelineSays }).or(lead.getByRole("link", { name: timelineSays })).first();
+  await expect(action, `the timeline's next action is not "${timelineSays}"`).toBeVisible();
   if (says.refused) {
     await expect(action, "the timeline's refused action looks pressable").toHaveAttribute("aria-disabled", "true");
     const reason = page.locator(`#${await action.getAttribute("aria-describedby")}`);
