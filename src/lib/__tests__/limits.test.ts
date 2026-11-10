@@ -13,7 +13,7 @@ describe("plan limits", () => {
     // Ajay, 10 Nov 2026: Birdie's field is 64 (was 50), price unchanged. The
     // blurb states the same figure, read from the same place.
     expect(planFor("society").limits.playersPerEvent).toBe(64);
-    expect(PLANS.society.blurb).toContain(`up to ${PLANS.society.limits.playersPerEvent} a field`);
+    expect(PLANS.society.blurb).toContain("up to 64 a field");
     // Eagle is the top tier, so its field is uncapped.
     expect(planFor("club").limits.playersPerEvent).toBeNull();
     // Whatever the caps are, they are never negative.

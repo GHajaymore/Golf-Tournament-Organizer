@@ -225,10 +225,8 @@ const EVERY_PLAN_WORDS: Record<IncludedKey | FeatureKey, string> = {
  * Birdie's field, in one place: the limit and the sentence that states it both
  * read this (Ajay, 10 Nov 2026: 64, up from 50; price unchanged).
  *
- * DECIDED 10 Nov, NOT SOLD UNTIL BILLING SHIPS — recorded here so nobody
- * re-asks, shown to nobody: an event pass ($29 up to 64 players, $99 any
- * field) and a six-month seasonal Birdie ($245). Neither is purchasable, so
- * neither appears on any screen, page, email or help topic.
+ * Event passes and a seasonal plan are decided (10 Nov), not sold until
+ * billing ships, so none appears on any screen, page, email or help topic.
  */
 const BIRDIE_FIELD = 64;
 
