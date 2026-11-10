@@ -526,12 +526,24 @@ function NextRoundTransition({
   // control takes a getter rather than an id.
   const ensureNextStageId = async (): Promise<string> => nextStage?.id ?? stageId;
 
+  /** A refused carry or a refused new round, said under the control that was pressed. */
+  const [carryRefused, setCarryRefused] = useState("");
+  const [addRefused, setAddRefused] = useState("");
+
   const commitCarry = (nextEnabled: boolean, nextPct: number) => {
+    const before = { enabled: carryEnabled, pct: carryPct };
     setCarryEnabled(nextEnabled);
     setCarryPct(nextPct);
+    setCarryRefused("");
     startTransition(async () => {
       const id = await ensureNextStageId();
-      caughtUp(await setStageCarry(id, nextEnabled, nextPct));
+      const res = caughtUp(await setStageCarry(id, nextEnabled, nextPct));
+      if (!res.ok) {
+        // Back to what is stored, and why — never a choice the round does not have.
+        setCarryEnabled(before.enabled);
+        setCarryPct(before.pct);
+        setCarryRefused(res.error ?? "Couldn't save that.");
+      }
     });
   };
 
@@ -568,12 +580,15 @@ function NextRoundTransition({
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                await addStage("Round Robin");
+                setAddRefused("");
+                const res = await addStage("Round Robin");
+                if (res.error) setAddRefused(res.error);
               })
             }
           >
             <Icon name="plus" /> Add the next round
           </button>
+          <Refused text={addRefused} />
         </div>
       </div>
     );
@@ -663,6 +678,7 @@ function NextRoundTransition({
               );
             })}
           </div>
+          <Refused text={carryRefused} />
           {carry.ask && (
             <p style={{ fontSize: 13, margin: 0 }}>
               <b>{carry.question}</b> <span className="text-muted">Until you choose, {roundLabel} starts fresh.</span>
@@ -727,6 +743,20 @@ function NextRoundTransition({
             draws, once the tournament is live — see `DrawRound`. */}
       </div>
     </div>
+  );
+}
+
+/** The round card's controls that can be refused, each with its own line. */
+type RefusedAt = "format" | "holes" | "venue" | "basis" | "input";
+type SaveAnswer = { ok: boolean; error?: string; needsConfirm?: boolean };
+
+/** A refused save, said under the control that was pressed (`role="alert"`, so it is read out). */
+function Refused({ text }: { text?: string }) {
+  if (!text) return null;
+  return (
+    <p className="form-error" role="alert" style={{ margin: "4px 0 0", fontSize: 13 }}>
+      {text}
+    </p>
   );
 }
 
@@ -935,29 +965,48 @@ function StageCard({
    * be missing exactly on the control nobody thought about.
    */
   const saveStatus = useSaveStatus(pending);
+  /**
+   * A REFUSED SAVE IS SAID BESIDE ITS CONTROL, AND THE CONTROL GOES BACK
+   * (2026-11-09). An archived tournament's refusal — and a lock's — came back
+   * as `{ ok: false, error }` and was dropped: the picker went on showing a
+   * value the round does not have, and nothing said why. One line per control,
+   * under it, in the server's words.
+   */
+  const [refused, setRefused] = useState<Partial<Record<RefusedAt, string>>>({});
+  const sayRefused = (at: RefusedAt, res: SaveAnswer | undefined): boolean => {
+    const no = !!res && !res.ok && !res.needsConfirm;
+    setRefused((r) => ({ ...r, [at]: no ? (res?.error ?? "Couldn't save that.") : "" }));
+    return no;
+  };
 
+  // Put a control back to what is actually stored, or it keeps showing a
+  // value the round does not have — the same trap the format warning names.
+  const putBack = (kind: "holes" | "basis" | "venue") => {
+    if (kind === "holes") setHoles(stage.holes);
+    else if (kind === "basis") setBasis(stage.scoringBasis);
+    else {
+      setCourseId(stage.courseId);
+      setNine(stage.nine);
+    }
+  };
   const confirmRescore = () => {
     const p = rescore;
     if (!p) return;
     setRescore(null);
     startTransition(async () => {
-      if (p.kind === "holes") caughtUp(await setStageHoles(stage.id, p.holes, true));
-      else if (p.kind === "venue") {
-        await setStageCourse(stage.id, p.course, p.nine, true);
-      } else caughtUp(await setStageScoringBasis(stage.id, p.basis, true));
+      const res =
+        p.kind === "holes"
+          ? caughtUp(await setStageHoles(stage.id, p.holes, true))
+          : p.kind === "venue"
+            ? await setStageCourse(stage.id, p.course, p.nine, true)
+            : caughtUp(await setStageScoringBasis(stage.id, p.basis, true));
+      if (sayRefused(p.kind, res)) putBack(p.kind);
     });
   };
   const cancelRescore = () => {
-    // Put the control back to what is actually stored, or it keeps showing a
-    // value the round does not have — the same trap the format warning names.
     const p = rescore;
     setRescore(null);
-    if (p?.kind === "holes") setHoles(stage.holes);
-    else if (p?.kind === "basis") setBasis(stage.scoringBasis);
-    else if (p?.kind === "venue") {
-      setCourseId(stage.courseId);
-      setNine(stage.nine);
-    }
+    if (p) putBack(p.kind);
   };
 
   const commitFormat = (v: string) => {
@@ -967,9 +1016,9 @@ function StageCard({
     // what they MEAN changes.
     startTransition(async () => {
       const res = caughtUp(await setStageFormat(stage.id, v));
-      if (res && "needsConfirm" in res) setFormatCards({ format: v, cards: res.cards ?? 0 });
-      // Refused outright: the picker goes back to what the round is.
-      else if (res && !res.ok) setFormat(stage.format);
+      if (res && "needsConfirm" in res && res.needsConfirm) setFormatCards({ format: v, cards: res.cards ?? 0 });
+      // Refused outright: the picker goes back to what the round is, and says why.
+      else if (sayRefused("format", res)) setFormat(stage.format);
     });
   };
   const confirmFormat = () => {
@@ -977,7 +1026,8 @@ function StageCard({
     if (!pendingChange) return;
     setFormatCards(null);
     startTransition(async () => {
-      caughtUp(await setStageFormat(stage.id, pendingChange.format, true));
+      const res = caughtUp(await setStageFormat(stage.id, pendingChange.format, true));
+      if (sayRefused("format", res)) setFormat(stage.format);
     });
   };
 
@@ -1004,6 +1054,7 @@ function StageCard({
     startTransition(async () => {
       const res = caughtUp(await setStageHoles(stage.id, v));
       if (res?.needsConfirm) setRescore({ kind: "holes", holes: v, cards: res.cards ?? 0 });
+      else if (sayRefused("holes", res)) putBack("holes");
     });
   };
   // Venue and nine travel together: the action takes both, and a round that
@@ -1023,7 +1074,7 @@ function StageCard({
       const res = await setStageCourse(stage.id, nextCourse, nine);
       if (res?.needsConfirm) {
         setRescore({ kind: "venue", course: nextCourse, nine, cards: res.cards ?? 0 });
-      }
+      } else if (sayRefused("venue", res)) putBack("venue");
     });
   };
   const commitBasis = (next: string) => {
@@ -1033,12 +1084,14 @@ function StageCard({
     startTransition(async () => {
       const res = caughtUp(await setStageScoringBasis(stage.id, next));
       if (res?.needsConfirm) setRescore({ kind: "basis", basis: next, cards: res.cards ?? 0 });
+      else if (sayRefused("basis", res)) putBack("basis");
     });
   };
   const commitScoreInput = (next: string) => {
+    const before = scoreInput;
     setScoreInput(next);
     startTransition(async () => {
-      caughtUp(await setStageScoreInput(stage.id, next));
+      if (sayRefused("input", caughtUp(await setStageScoreInput(stage.id, next)))) setScoreInput(before);
     });
   };
   // How players keep the matches (`matchKeptBy`). A refusal — a round with
@@ -1548,6 +1601,7 @@ function StageCard({
               );
             })}
           </select>
+          <Refused text={refused.format} />
           {/* WHAT THIS FORMAT IS, in one line under the choice (Ajay,
               2026-09-28: "keep most of it in the information button"). The
               first sentence only — "Partners play one ball, alternating
@@ -1662,6 +1716,7 @@ function StageCard({
               <input type="radio" name={`holes-${stage.id}`} checked={holes === 9} disabled={pending || locked} onChange={() => commitHoles(9)} />9
             </label>
           </div>
+          <Refused text={refused.holes} />
         </div>
     </>
   );
@@ -1772,6 +1827,12 @@ function StageCard({
             The organizer sets where this round is played.
           </span>
         )}
+        {/* Beside the venue and the nine, which save together (`commitVenue`). */}
+        {refused.venue && (
+          <div style={{ flexBasis: "100%", gridColumn: "1 / -1", minWidth: 0 }}>
+            <Refused text={refused.venue} />
+          </div>
+        )}
     </>
   );
   const faceDelete = (
@@ -1871,6 +1932,7 @@ function StageCard({
                 </label>
               ))}
             </div>
+            <Refused text={refused.basis} />
             {/* Only where the choice needs words (2026-10-16): Gross and Net say themselves. */}
             {basis === "both" && (
               <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
@@ -2288,6 +2350,7 @@ function StageCard({
                     );
                   })}
                 </div>
+                <Refused text={refused.input} />
               </div>
             )}
 

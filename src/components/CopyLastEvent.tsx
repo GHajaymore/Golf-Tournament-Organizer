@@ -42,7 +42,9 @@ export function CopyLastEvent({
   const missing = !name.trim() ? "Name the copy first." : !startOn ? "Pick the day it is played." : "";
 
   return (
-    <section aria-label="Copy last event" className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
+    // Copying MAKES a new tournament and never changes this one, so it stays usable on an
+    // archived tournament's dashboard (`archive-read-only.ts`, the `data-new-tournament` mark).
+    <section aria-label="Copy last event" className="card elev-sm" data-new-tournament="" style={{ marginBottom: 16, gap: 10 }}>
       <div>
         <span className="card-kicker">Copy last event</span>
         <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>

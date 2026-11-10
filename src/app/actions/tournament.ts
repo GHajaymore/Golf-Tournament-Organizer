@@ -243,6 +243,21 @@ async function adminEventOrRefusal(): Promise<{ eventId: string } | { refused: s
   }
 }
 
+/**
+ * The staff gate for a press that says its refusals. An archived tournament's
+ * refusal comes back as words to show where the press was, never thrown into
+ * the error screen ("This screen didn't load").
+ */
+async function staffEventOrRefusal(): Promise<{ eventId: string } | { refused: string }> {
+  try {
+    return { eventId: await requireStaffEvent() };
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { refused };
+    throw e;
+  }
+}
+
 /** Organizer or Assistant Organizer — operational tasks. */
 async function requireStaffEvent(): Promise<string> {
   const session = await getSession();
@@ -1979,7 +1994,9 @@ export async function regenGroups(
  * round's data and scores are left alone.
  */
 export async function generateNextRound(stageId: string) {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   /**
    * RUNNING THE COMPETITION, NOT SETTING IT UP (Ajay, 2026-09-27: "go with
    * what a golf pro would decide"). Drawing the next round from the results
@@ -2098,7 +2115,9 @@ export async function setQualifyPerGroup(n: number): Promise<{ ok: boolean; erro
 /* ── Stages ───────────────────────────────────────────────────────────── */
 
 export async function setStageDeadline(stageId: string, deadline: string): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   // Not behind the lock: moving the day scores are due is a decision made
   // during an event (rain, a late group) — Ajay, 2026-09-27.
   //
@@ -2205,7 +2224,9 @@ async function parRoundWindowRefusal(
 }
 
 export async function setStagePlayedOn(stageId: string, date: string): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const refusal = await parRoundWindowRefusal(eventId, [cleanIsoDate(date)], stageId);
   if (refusal) return { ok: false, error: refusal };
   /**
@@ -2268,7 +2289,9 @@ export async function dateUndatedRounds(
 }
 
 export async function setStageCarry(stageId: string, enabled: boolean, pct: number): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const locked = await refuseIfLocked(eventId, "rounds", "change the points carried forward");
   if (locked) return locked;
   await prisma.stage.updateMany({
@@ -2316,7 +2339,9 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
  * Same guard and same shape as `setStageFormat`, for the same reason.
  */
 export async function setStageScoringBasis(stageId: string, basis: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; error?: string; lock?: ScopeLock }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const locked = await refuseIfLocked(eventId, "rounds", "change how a round is scored");
   if (locked) return locked;
   const current = await prisma.stage.findFirst({
@@ -2359,7 +2384,9 @@ export async function setStageScoringBasis(stageId: string, basis: string, force
  * "final result only" on a Stableford round would be a shape no engine reads.
  */
 export async function setStageScoreInput(stageId: string, input: string): Promise<{ ok: boolean; error?: string; lock?: ScopeLock }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const locked = await refuseIfLocked(eventId, "rounds", "change how scores are entered");
   if (locked) return locked;
   const stage = await prisma.stage.findFirst({
@@ -2406,7 +2433,9 @@ export async function setStageScoreInput(stageId: string, input: string): Promis
  * any match in the round holds a hole or a card.
  */
 export async function setStageMatchKeptBy(stageId: string, kept: string): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const locked = await refuseIfLocked(eventId, "rounds", "change who keeps the match card");
   if (locked) return locked;
   const stage = await prisma.stage.findFirst({
@@ -2456,7 +2485,9 @@ export async function setStageScoring(
   stageId: string,
   input: { scoreKeeping?: string; endCheck?: string },
 ): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const stage = await prisma.stage.findFirst({
     where: { id: String(stageId), eventId },
     select: { id: true, scoreKeeping: true, endCheck: true },
@@ -2507,7 +2538,9 @@ async function roundHoldsAScore(stageId: string): Promise<boolean> {
 }
 
 export async function setStageFormat(stageId: string, format: string, force = false) {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const locked = await refuseIfLocked(eventId, "rounds", "change a round’s format");
   if (locked) return locked;
   /**
@@ -2578,7 +2611,9 @@ export async function setStageFormat(stageId: string, format: string, force = fa
  * the kind of thing that must ask first.
  */
 export async function setStageHoles(stageId: string, holes: number, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; error?: string; lock?: ScopeLock }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const locked = await refuseIfLocked(eventId, "rounds", "change a round’s holes");
   if (locked) return locked;
   const value = holesPlayed(holes);
@@ -2828,7 +2863,9 @@ export async function addStage(
   type: string,
   countOrOpts: number | AddStageOptions = 1,
 ): Promise<{ id?: string; error?: string; lock?: ScopeLock }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { error: gate.refused };
+  const { eventId } = gate;
   // Not behind the launch lock: a live league adds next week's round as it goes,
   // and a championship adds a play-off round when the field finishes level.
   // Adding is additive — the rounds already played are untouched (2026-09-27).
@@ -3036,7 +3073,9 @@ export async function addStage(
 }
 
 export async function removeStage(stageId: string, force = false): Promise<{ ok: boolean; needsConfirm?: boolean; cards?: number; stakes?: number; records?: number; refused?: string; error?: string; lock?: ScopeLock }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const locked = await refuseIfLocked(eventId, "rounds", "delete a round");
   if (locked) return locked;
 
@@ -5764,7 +5803,9 @@ async function launchNow(eventId: string): Promise<{ ok: boolean; error?: string
  * The flag itself is read as the legacy correction until PR 9.
  */
 export async function setConfigUnlocked(unlocked: boolean): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireAdminEvent();
+  const gate = await adminEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   if (unlocked) {
     return { ok: false, error: "Setup is no longer unlocked as a whole. Make a committee correction to open one part of it, with a reason." };
   }
@@ -6669,7 +6710,9 @@ export async function settleCutTie(
   tied: string[],
   through: string[],
 ): Promise<{ ok: boolean; error?: string; notice?: string }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const feeder = await prisma.stage.findFirst({
     where: { id: feederId, eventId },
     select: { id: true, closedAt: true },
@@ -7847,7 +7890,9 @@ export async function setRoundClosed(
   /** Must be true to close over a card not yet approved or signed (`roundCloseCheck` asks first). */
   confirmUnsigned = false,
 ): Promise<{ ok: boolean; error?: string; needsUnsignedConfirm?: boolean }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },

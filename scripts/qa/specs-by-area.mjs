@@ -272,6 +272,7 @@ export const AREAS = {
  * where a change is never targeted anyway — or a check of the test harness itself.
  */
 export const FULL_ONLY = [
+  "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
   "e2e/a-lapsed-club-is-read-only.spec.ts",
   "e2e/a-new-device-is-confirmed.spec.ts",
   "e2e/a-refusal-stays-put.spec.ts",
@@ -279,6 +280,8 @@ export const FULL_ONLY = [
   "e2e/access.spec.ts",
   "e2e/account.spec.ts",
   "e2e/an-address-is-proved.spec.ts",
+  // An archived tournament's console, read-only in one place: the layout's wrapper, on every screen.
+  "e2e/an-archived-tournament-is-read-only-in-one-place.spec.ts",
   // J26: an away week's halved match on the away card — leaderboard, week sheet, match record. Leagues: shared ground.
   "e2e/an-away-halve-on-the-away-card.spec.ts",
   "e2e/boards-by-the-rules.spec.ts",

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { NOINDEX } from "@/lib/site";
 import { DeniedNotice } from "@/components/DeniedNotice";
 import { ArchiveBanner } from "@/components/ArchiveBanner";
+import { ArchiveReadOnly } from "@/components/ArchiveReadOnly";
 import { archiveRefusalFor, paymentDueNoticeFor } from "@/lib/services/club-archive";
 import Link from "next/link";
 import { golfRegisterForEvent, golfRegisterForOrganization } from "@/lib/services/organization";
@@ -346,7 +347,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* A club with no time zone takes this organizer's, once. Only for
               somebody who may change it; the action re-checks that. */}
           {event && event.organization.timeZone === "" && session.role === "admin" && <ClubClockAdopter />}
-          {children}
+          {/* AND THE SCREEN ITSELF IS READ-ONLY, in one place (2026-11-09): every
+              control that writes is disabled under the banner, on every screen
+              of the archived tournament, so no press reaches an action that
+              would refuse it. Links, prints, exports and Club settings — where
+              the way out is — stay open (`domain/archive-read-only.ts`). */}
+          <ArchiveReadOnly archived={archived !== null}>{children}</ArchiveReadOnly>
         </main>
       </div>
       {!casualShell && (

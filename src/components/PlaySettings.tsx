@@ -327,7 +327,9 @@ export function PlaySettings({
   const codesOn = usesAccessCodes(form);
 
   return (
-    <div className="card elev-sm" style={{ gap: 14 }}>
+    // The tournament's own settings are locked in an archived tournament; the club's house
+    // defaults (the same card on Club settings) are the club's, and stay open (`archive-read-only.ts`).
+    <div className="card elev-sm" data-this-tournament={isTournament ? "" : undefined} style={{ gap: 14 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>
           {isTournament ? "Players & scoring" : "House defaults for new tournaments"}

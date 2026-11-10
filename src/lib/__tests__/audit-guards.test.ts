@@ -176,6 +176,9 @@ describe("every server action is guarded", () => {
      * the archive's refusal.
      */
     "adminEventOrRefusal",
+    /** The staff twin of the above (tournament.ts, play-status.ts), and attendance.ts's session form: the same try/catch around `requireStaffEvent` / `requireStaffSession`, returning only the archive's sentence. */
+    "staffEventOrRefusal",
+    "staffSessionOrRefusal",
     /**
      * handicap-policy.ts: `getSession`, then `organizationAccess`, then a
      * `canEdit` check — the same three steps `saveOrganizationDefaults` in
