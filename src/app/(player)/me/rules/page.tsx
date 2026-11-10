@@ -14,6 +14,7 @@ import {
   rulesInPlay,
   type RuleRef,
 } from "@/lib/rules";
+import { netCountbackMethodFor } from "@/lib/domain/stroke-countback";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
@@ -105,6 +106,7 @@ export default async function PlayRulesPage() {
         cutAfter: cutAfterRound(state.playRounds, stage.id),
         carryForwardEnabled: stage.carryForwardEnabled,
         carryForwardPct: stage.carryForwardPct,
+        netCountback: netCountbackMethodFor(state.event.createdAt),
       })
     : [];
 

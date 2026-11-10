@@ -267,6 +267,8 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     steps: [
       "Open Rules from Board or My card.",
       "It shows the format, handicaps and how ties are settled.",
+      "Ties count back over the last 9, 6, 3, 1 holes.",
+      "On net: less ½, ⅓, ⅙, 1/18 of your handicap.",
       "It says the allowance you play off, and whose it is.",
       "Local rules are your club's own words.",
     ],

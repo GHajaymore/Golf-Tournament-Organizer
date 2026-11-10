@@ -168,6 +168,9 @@ function fingerprint(): string {
   parts.push(`split:${splitExactly(1000, [1, 1, 1]).join(",")}`);
   parts.push(`split:${splitExactly(4001, [3, 2, 1]).join(",")}`);
   parts.push(`split:${splitExactly(7, [1, 1, 1, 1, 1]).join(",")}`);
+  // Equal remainders that floating point once told apart (2026-11-09): a $5
+  // skins game of three, skins 1 / 1 / 7, every remainder exactly two-thirds.
+  parts.push(`split:${splitExactly(1500, [1, 1, 7]).join(",")}`);
 
   // A side game between UNEVEN sides at an odd stake (8 Nov 2026): who takes
   // the odd cent when two share what one put in is a rule of its own, and the

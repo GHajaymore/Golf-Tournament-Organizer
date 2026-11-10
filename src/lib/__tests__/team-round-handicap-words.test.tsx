@@ -39,7 +39,7 @@ const rule = {
   tiebreakers: [],
   cutAfter: null,
   carryForwardEnabled: false,
-  carryForwardPct: 0,
+  carryForwardPct: 0, netCountback: "fractions" as const,
 };
 const sheet = (over: Partial<Parameters<typeof tournamentTerms>[0]> = {}) =>
   tournamentTerms({ ...rule, ...over }).find((t) => t.label === "Handicap allowance")?.value;

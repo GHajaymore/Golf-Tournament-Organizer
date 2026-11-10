@@ -8,6 +8,20 @@ import { resolveRoundHandicap, roundParStrokesOf, type ResolvedRoundHandicap, ty
 export const FOUR_BALL_STROKE_PLAY = 85;
 
 /**
+ * Appendix C: four-ball MATCH play, 90% — and what a Best Ball side plays at in
+ * a match (2026-11-09).
+ *
+ * A pair counting its better ball IS a four-ball, and Appendix C's only figure
+ * for a better ball in a match is this one. Best Ball's own 85% is the
+ * four-ball STROKE-play figure, and it was offered in a match as well, so a
+ * pair in a Best Ball round robin or knockout played five points of its
+ * handicap short (a course handicap of 20: 17 where the Rules give 18). The
+ * stroke-play figure is unchanged, and a committee's own figure still wins
+ * (`effectiveAllowance`): this is the recommendation only.
+ */
+export const FOUR_BALL_MATCH_PLAY = 90;
+
+/**
  * THE ALLOWANCE A ROUND PLAYS AT, WHICH DEPENDS ON THE ROUND AND NOT ONLY ON
  * ITS FORMAT.
  *
@@ -42,8 +56,10 @@ export const FOUR_BALL_STROKE_PLAY = 85;
 export function recommendedAllowance(format: string, stageType: string | null | undefined): number {
   const f = findFormat(format);
   if (f.name === "Four-Ball" && !isHeadToHead(stageType ?? "")) return FOUR_BALL_STROKE_PLAY;
+  if (f.name === "Best Ball" && isHeadToHead(stageType ?? "")) return FOUR_BALL_MATCH_PLAY;
   return f.allowance;
 }
+
 
 /** The allowance actually in force for a round: the committee's, or the
  *  recommendation for that format in that kind of round when they have set none. */
