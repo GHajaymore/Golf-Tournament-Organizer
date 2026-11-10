@@ -70,7 +70,7 @@ const NOT_A_DOOR: Record<string, string> = {
   updateSeries: "club", deleteSeries: "club", searchCourseDirectory: "club", importCourseFromDirectory: "club",
   readCourseCardPhoto: "club",
   // business
-  setAccountsOpen: "business", setClubPlan: "business", saveTierPrices: "business", saveTierLimits: "business",
+  setAccountsOpen: "business", setClubPlan: "business", saveTierPrices: "business", saveTierLimits: "business", saveOffers: "business",
   createDiscountCode: "business", setDiscountCodeActive: "business", sendEarlyListCodes: "business", refreshDemoClub: "business", loadCourseCatalogue: "business",
   // new
   createEvent: "new", createEventFromAnswers: "new", cloneEvent: "new", createMatch: "new",

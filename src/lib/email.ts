@@ -710,7 +710,7 @@ export async function sendInterestEmail(
           (who.note ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid ${EMAIL.flag}">${escapeHtml(who.note)}</blockquote>` : "") +
           `<p>${escapeHtml(told)}</p>`,
         "You're getting this because the /interest form on tourneyhq.club sends here.",
-        { preview: `${who.club || "A club"} — ${who.role || "interested"}.`, action: { label: "See every note", url: `${base}/owner#interest` } },
+        { preview: `${who.club || "A club"} — ${who.role || "interested"}.`, action: { label: "See every note", url: `${base}/owner?tab=accounts#interest` } },
       )),
     });
     if (error) {

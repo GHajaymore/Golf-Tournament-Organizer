@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { wipesOnClose, casualKeepRefusal, PLANS_THAT_DELETE } from "../domain/close-terms";
-import { PLANS, effectivePrice, planCurrency } from "../plans";
+import { PLANS, effectivePrice, quoteCountryFor, quoteCurrency } from "../plans";
 import { wholeMoney } from "../domain/money-format";
 import { storedPricingOverrides } from "./platform-pricing";
 
@@ -14,11 +14,13 @@ import { storedPricingOverrides } from "./platform-pricing";
 export async function keepItOffer(organizationId: string): Promise<string> {
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { currency: true, locale: true },
+    select: { currency: true, country: true, locale: true },
   });
   const keep = PLANS.society;
-  const currency = planCurrency(org?.currency);
-  const monthly = effectivePrice(keep, await storedPricingOverrides(), currency);
+  const overrides = await storedPricingOverrides();
+  const country = quoteCountryFor(overrides, { country: org?.country, currency: org?.currency });
+  const currency = quoteCurrency(overrides, country);
+  const monthly = effectivePrice(keep, overrides, country);
   return `${keep.name} keeps every tournament for good — ${wholeMoney(monthly, currency, org?.locale ?? undefined)} a month.`;
 }
 

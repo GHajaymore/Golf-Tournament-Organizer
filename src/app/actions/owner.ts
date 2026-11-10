@@ -4,7 +4,14 @@ import { prisma } from "@/lib/db";
 import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
-import { PLANS, LIMIT_KEYS, isValidPercentOff, keepsDataForever, type PlanKey, type LimitKey } from "@/lib/plans";
+import {
+  PLANS, LIMIT_KEYS, ANNUAL_MONTHS_CHARGED, effectiveRegions,
+  isValidPercentOff, keepsDataForever,
+  type PlanKey, type LimitKey, type PriceRegion,
+} from "@/lib/plans";
+import { cleanAnnualMonths, cleanOfferInput, cleanRegionInputs, type OfferInput, type RegionInput } from "@/lib/domain/plan-edit";
+import { saveOfferSettings } from "@/lib/services/platform-offers";
+import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { liftArchive } from "@/lib/services/club-archive";
 import { savePricingOverride } from "@/lib/services/platform-pricing";
 import { drainWaitlist } from "@/lib/services/waitlist";
@@ -172,9 +179,32 @@ export async function setClubPlan(clubName: string, plan: string): Promise<Owner
  * `savePricingOverride`, so nothing but a clean number reaches the row every
  * pricing surface renders from. An unknown plan key is ignored, never stored.
  */
-export async function saveTierPrices(prices: Record<string, number>): Promise<OwnerActionResult> {
+export async function saveTierPrices(
+  prices: Record<string, number>,
+  /**
+   * The rest of the Plans panel's prices, saved in the SAME press so a half-saved panel cannot happen:
+   * `regions` is every region but Rest of world with its prices (a blank or `null` is "the default");
+   * `annualMonths` is the months billed for a year in every region that has no figure of its own
+   * (`null` is "the default", 10).
+   */
+  more?: { regions?: RegionInput[]; annualMonths?: number | null },
+): Promise<OwnerActionResult> {
   const session = await getSession();
   if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+
+  let regions: PriceRegion[] | undefined;
+  if (more?.regions) {
+    const made = cleanRegionInputs(more.regions);
+    if (typeof made === "string") return { ok: false, error: made };
+    regions = made;
+  }
+
+  let annualMonths: number | null | undefined;
+  if (more && "annualMonths" in more) {
+    const m = cleanAnnualMonths(more.annualMonths);
+    if (typeof m === "string") return { ok: false, error: m };
+    annualMonths = m === ANNUAL_MONTHS_CHARGED ? null : m;
+  }
 
   const clean: Partial<Record<PlanKey, number>> = {};
   for (const [key, monthly] of Object.entries(prices)) {
@@ -186,11 +216,32 @@ export async function saveTierPrices(prices: Record<string, number>): Promise<Ow
     clean[key as PlanKey] = Math.round(n);
   }
 
-  await savePricingOverride(clean);
+  await savePricingOverride(clean, { regions, annualMonths });
   // Every price on the site is derived from this, so clear the whole router
   // cache — the landing page, the settings panel and the schema.org offer all
   // move together, which is the point of one source.
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Save the event passes, the seasonal plan and their "on sale" switch.
+ *
+ * Decided 10 Nov 2026 and NOT on sale until billing can sell them: `onSale` is
+ * false unless the owner turns it on here, and every surface but /owner reads
+ * the offers through `publicOffers`, which is empty while it is off. Validated
+ * by `cleanOfferInput` (no negative price, a cap of 1 or more or "any field",
+ * a paid tier for the season) and again by the parser inside the service.
+ */
+export async function saveOffers(input: OfferInput): Promise<OwnerActionResult> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+
+  const regionIds = effectiveRegions(await storedPricingOverrides()).map((r) => r.id);
+  const clean = cleanOfferInput(input, regionIds);
+  if (typeof clean === "string") return { ok: false, error: clean };
+  await saveOfferSettings(clean);
+  revalidatePath("/owner");
   return { ok: true };
 }
 

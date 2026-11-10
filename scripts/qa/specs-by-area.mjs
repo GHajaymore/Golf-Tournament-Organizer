@@ -105,6 +105,8 @@ export const AREAS = {
       "src/components/OwnerClubPlan.tsx",
       "src/components/OwnerDiscounts.tsx",
       "src/components/OwnerLimits.tsx",
+      "src/components/OwnerOffers.tsx",
+      "src/components/OwnerTabs.tsx",
       "src/components/OwnerPricing.tsx",
       "src/components/OwnerDemoClub.tsx",
       "src/components/OwnerCatalogue.tsx",

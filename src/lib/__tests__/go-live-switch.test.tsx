@@ -288,7 +288,7 @@ describe("the owner card says what one press will do, from the inventory", () =>
 describe("the free plan is offered nowhere while held, and everywhere once live", () => {
   const prices = landingPrices(editionFor("US"), parsePricingOverrides(undefined));
   const offers = (launch: LaunchState) => {
-    const data = siteStructuredData({ origin: "https://zz.example.invalid", launch }) as { "@graph": Array<{ offers?: Array<{ name: string; price: string }> }> };
+    const data = siteStructuredData({ origin: "https://zz.example.invalid", country: "US", launch }) as { "@graph": Array<{ offers?: Array<{ name: string; price: string }> }> };
     return data["@graph"].flatMap((n) => n.offers ?? []);
   };
 

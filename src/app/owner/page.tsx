@@ -6,14 +6,16 @@ import { ownerCounts, interestShown } from "@/lib/services/owner-counts";
 import { demoMark, demoStatus } from "@/lib/services/demo-club";
 import { OwnerDemoClub } from "@/components/OwnerDemoClub";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
-import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, planFor, planTagline, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { PLANS, PRICED_PLANS, planFor, planTagline, effectiveLimit, enforcementEnabled, LIMIT_KEYS, WORLD_REGION_ID, effectiveRegions, defaultMonthly, ANNUAL_MONTHS_CHARGED, seasonalTiers, type Plan, type PriceRegion } from "@/lib/plans";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
-import { wholeMoney } from "@/lib/domain/money-format";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
 import { listDiscountCodes } from "@/lib/services/platform-discounts";
 import { OwnerPricing } from "@/components/OwnerPricing";
 import { OwnerLimits } from "@/components/OwnerLimits";
+import { OwnerOffers } from "@/components/OwnerOffers";
+import { OwnerTabs, ownerTabFrom } from "@/components/OwnerTabs";
+import { storedOfferSettings } from "@/lib/services/platform-offers";
 import { OwnerClubPlan } from "@/components/OwnerClubPlan";
 import { peopleOwningSeveralParClubs } from "@/lib/services/close-terms";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
@@ -68,11 +70,12 @@ function shortDate(d: Date): string {
   return d.toLocaleDateString(DEFAULT_LOCALE, { day: "numeric", month: "short", year: "numeric" });
 }
 
-export default async function OwnerConsolePage() {
+export default async function OwnerConsolePage({ searchParams }: { searchParams: Promise<{ tab?: string | string[] }> }) {
   const session = await getSession();
   // Fail closed: no session, or a signed-in person who is not on the owner
   // allow-list, gets exactly what a non-existent page gives.
   if (!session || !isOwner(session.email)) notFound();
+  const tab = ownerTabFrom((await searchParams).tab);
 
   // Real clubs only: the demo club is in none of these (`services/owner-counts.ts`).
   const [{ totalOrgs, orgsByPlan, orgsByKind, eventsByStatus, totalPlayers, orgsWithNoEvents, recentOrgs, liveEvents }, severalParClubs, demo] =
@@ -96,23 +99,17 @@ export default async function OwnerConsolePage() {
     overrides,
   );
 
-  // Priced tiers only — Albatross is "Let's talk" and has no price to set.
-  const tiers = PRICED_PLANS.map((p) => ({
-    key: p.key,
-    name: p.name,
-    monthly: effectivePrice(p, overrides),
-    free: p.key === "free",
-  }));
-
-  // Every paid tier in every plan currency, through the same reader a club's
-  // settings panel quotes from, so this line and that panel cannot disagree.
-  const localTiers = Object.values(PLANS)
-    .filter((p) => p.priceMonthly > 0)
-    .map((p) => ({
-      key: p.key,
-      name: p.name,
-      prices: PLAN_CURRENCIES.map((c) => wholeMoney(effectivePrice(p, overrides, c), c, DEFAULT_LOCALE)),
-    }));
+  // PRICES BY REGION (Ajay, 2026-11-10). Priced tiers only: Par is free and Albatross is "Let's talk".
+  // Each box opens on what a club there is quoted NOW, through the same `planQuote` every screen reads.
+  const paidTiers = PRICED_PLANS.filter((p) => p.priceMonthly > 0).map((p) => ({ key: p.key, name: p.name }));
+  const regionList = effectiveRegions(overrides);
+  const worldRegion = regionList.find((r) => r.id === WORLD_REGION_ID)!;
+  const quotedIn = (r: PriceRegion, p: Plan) => {
+    const own = r.monthly[p.key];
+    return own !== undefined ? own : (defaultMonthly(p, r.currency) ?? null);
+  };
+  const offerSettings = await storedOfferSettings();
+  const offerRegions = [worldRegion, ...regionList.filter((r) => r.id !== WORLD_REGION_ID)].map((r) => ({ id: r.id, name: r.name, currency: r.currency }));
 
   // The tier LIMITS the owner can tune, and whether they're enforced at all —
   // the effective value per tier (an override if set, else the plan default),
@@ -177,6 +174,9 @@ export default async function OwnerConsolePage() {
         </p>
       </div>
 
+      <OwnerTabs current={tab} />
+
+      {tab === "accounts" && (<>
       {/* PEOPLE WHO REGISTERED INTEREST before launch (/interest, 2026-10-21),
           newest first — who to write to with their 25% code when it opens.
           First, because it is the list that grows while nothing else can. */}
@@ -233,7 +233,9 @@ export default async function OwnerConsolePage() {
           </div>
         )}
       </section>
+      </>)}
 
+      {tab === "overview" && (<>
       {/* Headline numbers */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "16px 0" }}>
         {stat("Organizations", m.totalOrgs.toLocaleString(DEFAULT_LOCALE), `${m.paidOrgs} paid · ${m.freeOrgs} free`)}
@@ -241,11 +243,15 @@ export default async function OwnerConsolePage() {
         {stat("Tournaments", m.totalEvents.toLocaleString(DEFAULT_LOCALE), `${m.liveEvents} live now`)}
         {stat("Players", m.totalPlayers.toLocaleString(DEFAULT_LOCALE), "across every event")}
       </div>
+      </>)}
 
+      {tab === "accounts" && (<>
       {/* The go-live switch first: the one control that decides who can get in, and what every
           public page says about it. */}
       <OwnerAccounts switchSays={sw.switchSays} liveSince={liveSince} rule={sw.rule} earlyList={earlyList} />
+      </>)}
 
+      {tab === "content" && (<>
       {/* The demo club a visitor can watch (2026-10-24): built and rebuilt from here, and nowhere else. */}
       <OwnerDemoClub
         built={demo.built}
@@ -257,32 +263,58 @@ export default async function OwnerConsolePage() {
 
       {/* The course catalogue, loaded from the export script's file through the app (J29). */}
       <OwnerCatalogue withCards={catalogue.withCards} lastLine={catalogue.lastLine} />
+      </>)}
 
-      {/* The controls that write: the price every screen quotes, and the caps
-          every entry gate reads. */}
-      <OwnerPricing tiers={tiers} />
-      {/* The local prices, read-only. They are set per currency rather than
-          converted, so the USD editor above does not move them. An override
-          goes in the same pricing row, under `byCurrency`. */}
-      <div className="card elev-sm" style={{ marginBottom: 16 }}>
-        <span className="card-title" style={{ fontSize: 15 }}>Local prices</span>
-        <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 8px" }}>
-          Monthly, set per currency rather than converted. A club is quoted in its own currency when it is one of these, otherwise in US dollars.
+      {tab === "plans" && (<>
+      {/* PLANS: the one place every plan figure is adjusted, with no code edit and no deploy. */}
+      <section aria-labelledby="plans-heading">
+        <h2 id="plans-heading" style={{ fontFamily: "var(--font-heading)", fontSize: 20, margin: "16px 0 4px" }}>Plans</h2>
+        <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "0 0 12px" }}>
+          Prices, limits, passes and the seasonal plan. Each card says what its change reaches and saves on its own button.
+          {" "}<strong>A change reaches every price shown and every new checkout at once. A club already paying keeps the price it
+          signed up at</strong>: nothing here edits a running subscription. The Est. MRR on the Overview is worked from today&rsquo;s
+          prices, not from what each club pays.
         </p>
-        {localTiers.map((t) => (
-          <p key={t.key} style={{ fontSize: 13, margin: "3px 0", fontVariantNumeric: "tabular-nums" }}>
-            <span style={{ fontWeight: 500 }}>{t.name}</span>
-            {": "}
-            {t.prices.join(" · ")}
-          </p>
-        ))}
-      </div>
+      </section>
+      {/* Prices by region (USD for Rest of world, local currencies beside it) and the months billed for a year. */}
+      <OwnerPricing
+        tiers={paidTiers}
+        world={{
+          name: worldRegion.name,
+          currency: worldRegion.currency,
+          monthly: Object.fromEntries(PRICED_PLANS.map((p) => [p.key, quotedIn(worldRegion, p) ?? p.priceMonthly])),
+          annualMonths: worldRegion.annualMonths ?? null,
+        }}
+        regions={regionList
+          .filter((r) => r.id !== WORLD_REGION_ID)
+          .map((r) => ({
+            id: r.id,
+            name: r.name,
+            currency: r.currency,
+            countries: r.countries,
+            monthly: Object.fromEntries(paidTiers.map((t) => [t.key, quotedIn(r, PLANS[t.key as keyof typeof PLANS])])),
+            annualMonths: r.annualMonths ?? null,
+          }))}
+        annualMonths={overrides.annualMonths ?? null}
+        defaultMonths={ANNUAL_MONTHS_CHARGED}
+      />
+      {/* Limits and the enforcement switch: what a tier includes, and whether it is held to it. */}
       <OwnerLimits tiers={limitTiers} enforce={enforcementEnabled(limitOverrides)} />
+      {/* Event passes and the seasonal plan: decided, NOT on sale. Shown nowhere else while "On sale" is off. */}
+      <OwnerOffers
+        regions={offerRegions}
+        passes={offerSettings.passes.map((p) => ({ name: p.name, prices: p.prices, maxPlayers: p.maxPlayers }))}
+        seasonal={offerSettings.seasonal}
+        onSale={offerSettings.onSale}
+        tiers={seasonalTiers().map((k) => ({ key: k, name: PLANS[k].name }))}
+      />
       {/* The owner's own screen belongs to no club, so the plans are named in
           the app's default golf — the US register. */}
       <OwnerClubPlan tiers={Object.values(PLANS).map((p) => ({ key: p.key, name: p.name, tagline: planTagline(p, golfTermsFor("us")) }))} />
       <OwnerDiscounts codes={discounts} />
+      </>)}
 
+      {tab === "overview" && (<>
       {/* Tier mix */}
       <div className="card elev-sm" style={{ marginBottom: 16 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Tier mix</span>
@@ -413,6 +445,7 @@ export default async function OwnerConsolePage() {
           </div>
         </div>
       )}
+      </>)}
     </main>
   );
 }

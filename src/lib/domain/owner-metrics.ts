@@ -84,7 +84,7 @@ export function ownerMetrics(input: OwnerMetricsInput, overrides?: PricingOverri
   const paidTiers: TierRow[] = input.orgsByPlan
     .map((r) => {
       const plan = planFor(r.plan);
-      const monthly = plan.contactOnly ? 0 : effectivePrice(plan, overrides);
+      const monthly = plan.contactOnly ? 0 : effectivePrice(plan, overrides ?? { plans: {} }, ""); // the dollar projection: Rest of world is in USD
       return { plan: plan.key, name: plan.name, count: r.count, monthly, mrr: monthly * r.count, contract: !!plan.contactOnly };
     })
     .filter((t) => t.monthly > 0 || t.contract)

@@ -362,6 +362,7 @@ export default async function OrganizationPage() {
           standing={standing}
           overrides={await storedPricingOverrides()}
           currency={org.currency}
+          country={org.country}
           locale={org.locale}
           terms={golfTermsFor(golfRegister(org.country, org.golfTerms))}
           billing={{

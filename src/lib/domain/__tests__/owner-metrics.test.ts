@@ -8,7 +8,7 @@ import { planFor, effectivePrice, PLANS } from "../../plans";
  * that summed clubs and called it money fails.
  */
 
-const clubPrice = effectivePrice(planFor("club"));
+const clubPrice = effectivePrice(planFor("club"), { plans: {} }, "");
 
 describe("owner metrics", () => {
   const base = {

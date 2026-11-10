@@ -760,7 +760,11 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "p",
         text: "This part is for the people who run TourneyHQ itself, not for a club. The **demo club** is an invented club with invented players that anybody can watch from the front door's **See a demo club's day**: a medal **playing now**, whose holes appear through the day by the club's own clock, and a finished championship with its event page and final report. Every page of it says **Demo club, invented players**.",
       },
-      { kind: "where", text: "The owner console, /owner → Demo club" },
+      { kind: "where", text: "The owner console, /owner → Content → Demo club" },
+      {
+        kind: "tip",
+        text: "The owner console is in four tabs, each at its own address: **Overview** (the numbers), **Plans & pricing** (prices by region, the months billed for a year, limits, event passes and the seasonal plan, a club's plan, discount codes), **Accounts & launch** (the go-live switch and who registered interest) and **Content** (the demo club and the course catalogue). A price changes what every screen and every new checkout quotes at once, with no deploy; a club already paying keeps the price it signed up at.",
+      },
       {
         kind: "steps",
         items: [

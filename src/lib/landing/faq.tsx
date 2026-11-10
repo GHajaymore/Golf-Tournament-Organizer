@@ -379,7 +379,7 @@ export const FAQ: FaqGroup[] = [
               <div><b>{PLANS.society.name}</b><span>{prices.society.monthly}/mo</span><small>up to {season.playersPerEvent} a field · unlimited events</small></div>
               <div><b>{PLANS.club.name}</b><span>{prices.club.monthly}/mo</span><small>any size of field · your branding</small></div>
             </div>
-            <p>Pay yearly and two months are free — {prices.society.yearly} a year or {prices.club.yearly} a year. A player never pays.</p>
+            <p>{prices.yearlyFree ? `Pay yearly and ${prices.yearlyFree} — ` : "Pay yearly: "}{prices.society.yearly} a year or {prices.club.yearly} a year. A player never pays.</p>
           </>
         ),
       },

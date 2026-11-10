@@ -31,6 +31,7 @@
  * `society` is Birdie and `enterprise` is Albatross.
  */
 import { ARCHIVE_MONTHS } from "./domain/club-archive";
+import { countryCode } from "./domain/country";
 import { inClubWords, type GolfWords } from "./domain/golf-terms";
 
 export type PlanKey = "free" | "society" | "club" | "enterprise";
@@ -443,11 +444,26 @@ export interface PlanPriceOverride {
 
 export interface PricingOverrides {
   plans: Partial<Record<PlanKey, PlanPriceOverride>>;
+  /**
+   * The months BILLED for a year, for every tier and currency: whole, 1 to 12.
+   * Absent means `ANNUAL_MONTHS_CHARGED`. Read only through `annualMonthsCharged`.
+   */
+  annualMonths?: number;
+  /**
+   * The owner's regions, once the panel has saved them: authoritative over `plans` above, which is then
+   * only what a row written before regions held. Read only through `effectiveRegions`.
+   */
+  regions?: PriceRegion[];
 }
 
 /** A price is a finite, non-negative number. "39", NaN, -1 and true are not. */
 function isPrice(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v) && v >= 0;
+}
+
+/** Months billed for a year: a whole number from 1 to 12 (twelve is no discount). */
+export function isAnnualMonths(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 12;
 }
 
 /** Whether a code is a plan currency OTHER than USD, exactly as written. */
@@ -466,10 +482,12 @@ export function parsePricingOverrides(stored: string | null | undefined): Pricin
     return empty;
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return empty;
-  const plans = (parsed as Record<string, unknown>).plans;
-  if (!plans || typeof plans !== "object" || Array.isArray(plans)) return empty;
+  const rawPlans = (parsed as Record<string, unknown>).plans;
+  const plans = rawPlans && typeof rawPlans === "object" && !Array.isArray(rawPlans) ? rawPlans : {};
 
   const out: PricingOverrides = { plans: {} };
+  const months = (parsed as Record<string, unknown>).annualMonths;
+  if (isAnnualMonths(months)) out.annualMonths = months;
   for (const [key, value] of Object.entries(plans as Record<string, unknown>)) {
     // A plan key nothing knows about is ignored rather than stored, exactly as
     // `featureOverrides` drops an unknown feature key.
@@ -493,7 +511,51 @@ export function parsePricingOverrides(stored: string | null | undefined): Pricin
 
     if (entry.monthly !== undefined || entry.byCurrency) out.plans[key as PlanKey] = entry;
   }
+  const regions = parseRegions((parsed as Record<string, unknown>).regions);
+  if (regions) out.regions = regions;
   return out;
+}
+
+export const WORLD_REGION_ID = "world";
+
+const REGION_ID = /^[a-z0-9-]{1,40}$/;
+
+function cleanRegion(raw: unknown): PriceRegion | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const name = typeof r.name === "string" ? r.name.trim().slice(0, 60) : "";
+  if (typeof r.id !== "string" || !REGION_ID.test(r.id) || !name) return null;
+  const currency = typeof r.currency === "string" ? r.currency.trim().toUpperCase() : "";
+  if (!/^[A-Z]{3}$/.test(currency)) return null;
+  const countries = Array.isArray(r.countries)
+    ? [...new Set(r.countries.filter((c): c is string => typeof c === "string" && /^[A-Za-z]{2}$/.test(c.trim())).map((c) => c.trim().toUpperCase()))]
+    : [];
+  const monthly: Partial<Record<PlanKey, number>> = {};
+  if (r.monthly && typeof r.monthly === "object" && !Array.isArray(r.monthly)) {
+    for (const [k, v] of Object.entries(r.monthly as Record<string, unknown>)) if (k in PLANS && isPrice(v)) monthly[k as PlanKey] = v;
+  }
+  const out: PriceRegion = r.id === WORLD_REGION_ID
+    ? { id: r.id, name, countries: [], currency: PLAN_CURRENCY, monthly }
+    : { id: r.id, name, countries, currency, monthly };
+  if (isAnnualMonths(r.annualMonths)) out.annualMonths = r.annualMonths;
+  return out;
+}
+
+/** The stored region list, or undefined when there is none worth keeping. A country in two regions stays in the first. */
+function parseRegions(raw: unknown): PriceRegion[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const seenId = new Set<string>();
+  const seenCountry = new Set<string>();
+  const out: PriceRegion[] = [];
+  for (const item of raw) {
+    const region = cleanRegion(item);
+    if (!region || seenId.has(region.id)) continue;
+    seenId.add(region.id);
+    region.countries = region.countries.filter((c) => !seenCountry.has(c));
+    region.countries.forEach((c) => seenCountry.add(c));
+    out.push(region);
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 /** Overrides from the environment. The owner console will later supply the same
@@ -511,24 +573,129 @@ export function pricingOverrides(): PricingOverrides {
  * finding, and the reason `retentionSummary` and `SEASON_LOCKED` are single
  * sources too. Every screen that shows a price goes through here.
  */
-export function effectivePrice(
-  plan: Plan,
-  overrides: PricingOverrides = pricingOverrides(),
-  currency: string = PLAN_CURRENCY,
-): number {
-  const code = planCurrency(currency);
-  const entry = overrides.plans[plan.key];
-  // Validated at the sink as well as in the parser: a caller other than
-  // `parsePricingOverrides` (the owner console, later) could hand in NaN,
-  // Infinity or a negative, and a price is a finite, non-negative number.
-  if (code === PLAN_CURRENCY) {
-    return isPrice(entry?.monthly) ? entry.monthly : plan.priceMonthly;
+export function effectivePrice(plan: Plan, overrides: PricingOverrides, country: string): number {
+  return planQuote(plan, overrides, country).monthly;
+}
+
+/**
+ * PRICE BY REGION (Ajay, 2026-11-10).
+ *
+ * A region is a named group of countries with ONE currency and its own prices:
+ * a monthly price per tier, optionally its own months-billed-for-a-year. A
+ * country is in at most one region; a country in none is in "Rest of world"
+ * (`WORLD_REGION_ID`, USD, which always exists and holds no countries of its
+ * own). A club is quoted by its country's region.
+ *
+ * ONE READER: `planQuote` takes the COUNTRY (required) and resolves
+ * region -> prices -> currency. A local price was SET, never converted, so a
+ * USD price never moves another region's price.
+ *
+ * The first regions are today's currencies (`DEFAULT_REGIONS`), and a pricing
+ * row written before regions existed (`plans.club.monthly` / `byCurrency`) is
+ * folded into them on read (`effectiveRegions`) without moving any price.
+ */
+
+export interface PriceRegion {
+  /** Stable, lower-case, never shown. */
+  id: string;
+  name: string;
+  /** ISO 3166-1 alpha-2, upper case. Empty for Rest of world. */
+  countries: string[];
+  /** ISO 4217. USD for Rest of world. */
+  currency: string;
+  /** The owner's monthly prices, whole units. A tier left out quotes this currency's default, if it has one. */
+  monthly: Partial<Record<PlanKey, number>>;
+  /** Months billed for a year here; absent = the all-regions figure. */
+  annualMonths?: number;
+}
+
+const EUROZONE = ["AT", "BE", "BG", "HR", "CY", "EE", "FI", "FR", "DE", "GR", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PT", "SK", "SI", "ES"];
+
+/** Today's currencies as regions, plus Rest of world. */
+export function defaultRegions(): PriceRegion[] {
+  const r = (id: string, name: string, countries: string[], currency: string): PriceRegion => ({ id, name, countries, currency, monthly: {} });
+  return [
+    r("us", "United States", ["US"], "USD"),
+    r("gb", "United Kingdom", ["GB"], "GBP"),
+    r("eu", "Eurozone", EUROZONE, "EUR"),
+    r("ca", "Canada", ["CA"], "CAD"),
+    r("au", "Australia", ["AU"], "AUD"),
+    r("nz", "New Zealand", ["NZ"], "NZD"),
+    r("za", "South Africa", ["ZA"], "ZAR"),
+    r(WORLD_REGION_ID, "Rest of world", [], "USD"),
+  ];
+}
+
+/** What a tier costs in a currency when nobody has set it: the plan's own default, or undefined (no default there). */
+export function defaultMonthly(plan: Plan, currency: string): number | undefined {
+  if (currency === PLAN_CURRENCY) return plan.priceMonthly;
+  return (plan.localMonthly as Record<string, number | undefined>)[currency];
+}
+
+/** The regions in force: the owner's list, else today's currencies with any older price override folded in. */
+export function effectiveRegions(overrides: PricingOverrides): PriceRegion[] {
+  const listed = overrides.regions;
+  if (listed && listed.length > 0) {
+    return listed.some((r) => r.id === WORLD_REGION_ID) ? listed : [...listed, ...defaultRegions().filter((r) => r.id === WORLD_REGION_ID)];
   }
-  // A USD override does NOT move a local price. The local prices were set,
-  // not converted, so there is no rate to carry a change across with. Each
-  // currency moves only when somebody sets it.
-  const local = entry?.byCurrency?.[code];
-  return isPrice(local) ? local : plan.localMonthly[code];
+  const base = defaultRegions();
+  for (const region of base) {
+    for (const [key, entry] of Object.entries(overrides.plans)) {
+      const v = region.currency === PLAN_CURRENCY ? entry?.monthly : entry?.byCurrency?.[region.currency as LocalPlanCurrency];
+      if (isPrice(v)) region.monthly[key as PlanKey] = v;
+    }
+  }
+  return base;
+}
+
+/** The region a country is quoted in. The country is whatever the caller holds (a code or a name); unknown or blank is Rest of world. */
+export function regionFor(overrides: PricingOverrides, country: string): PriceRegion {
+  const regions = effectiveRegions(overrides);
+  let code = countryCode(country);
+  if (code === "UK") code = "GB";
+  const world = regions.find((r) => r.id === WORLD_REGION_ID) ?? defaultRegions()[7];
+  return (code && regions.find((r) => r.id !== WORLD_REGION_ID && r.countries.includes(code))) || world;
+}
+
+export interface PlanQuote {
+  monthly: number;
+  yearly: number;
+  currency: string;
+  /** Months billed for a year here. */
+  months: number;
+  region: PriceRegion;
+}
+
+/**
+ * THE quote for a plan in a country. A region whose currency has no default price
+ * (India in INR, say) quotes a tier it has no price for in Rest of world's dollars,
+ * whole, so one quote is never in two currencies.
+ */
+export function planQuote(plan: Plan, overrides: PricingOverrides, country: string): PlanQuote {
+  const region = regionFor(overrides, country);
+  const world = effectiveRegions(overrides).find((r) => r.id === WORLD_REGION_ID) ?? defaultRegions()[7];
+  const own = isPrice(region.monthly[plan.key]) ? region.monthly[plan.key] : defaultMonthly(plan, region.currency);
+  const used = own !== undefined ? region : world;
+  const monthly = own ?? (isPrice(world.monthly[plan.key]) ? world.monthly[plan.key]! : plan.priceMonthly);
+  const months = isAnnualMonths(used.annualMonths) ? used.annualMonths : annualMonthsCharged(overrides);
+  return { monthly, yearly: monthly * months, currency: used.currency, months, region: used };
+}
+
+/** The currency a country is quoted in. */
+export function quoteCurrency(overrides: PricingOverrides, country: string): string {
+  return planQuote(PLANS.club, overrides, country).currency;
+}
+
+/**
+ * The country to quote a club by: its own country; and where it has not said, the first
+ * country of the region that trades in its currency, so a club that was quoted in pounds
+ * for its currency alone is still quoted in pounds.
+ */
+export function quoteCountryFor(overrides: PricingOverrides, club: { country?: string | null; currency?: string | null }): string {
+  if (countryCode(club.country ?? "")) return club.country as string;
+  const cur = (club.currency ?? "").trim().toUpperCase();
+  const hit = effectiveRegions(overrides).find((r) => r.id !== WORLD_REGION_ID && r.currency === cur && r.countries.length > 0);
+  return hit?.countries[0] ?? "";
 }
 
 /**
@@ -550,12 +717,32 @@ export const ANNUAL_MONTHS_CHARGED = 10;
  * here, so the "$290/yr" on the pricing page and the one on the settings panel
  * are the same number.
  */
-export function effectiveAnnualPrice(
-  plan: Plan,
-  overrides: PricingOverrides = pricingOverrides(),
-  currency: string = PLAN_CURRENCY,
-): number {
-  return effectivePrice(plan, overrides, currency) * ANNUAL_MONTHS_CHARGED;
+export function effectiveAnnualPrice(plan: Plan, overrides: PricingOverrides, country: string): number {
+  return planQuote(plan, overrides, country).yearly;
+}
+
+/**
+ * The months billed for a year NOW: the owner's figure when one is set (the
+ * Plans panel on /owner), else `ANNUAL_MONTHS_CHARGED`. The one reader of it:
+ * a yearly price, the owner's preview and the words "two months free" all come
+ * through here, so they cannot disagree.
+ */
+export function annualMonthsCharged(overrides: PricingOverrides): number {
+  return isAnnualMonths(overrides.annualMonths) ? overrides.annualMonths : ANNUAL_MONTHS_CHARGED;
+}
+
+const MONTH_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"];
+
+/**
+ * What paying yearly saves, in words, or null when it saves nothing (twelve
+ * months billed). "two months are free"; "one month is free". The FAQ and the
+ * owner's panel say it through this, so the sentence is true whatever figure
+ * the owner has set.
+ */
+export function yearlyFreeWords(overrides: PricingOverrides, country: string): string | null {
+  const free = 12 - planQuote(PLANS.club, overrides, country).months;
+  if (free <= 0) return null;
+  return free === 1 ? "one month is free" : `${MONTH_WORDS[free]} months are free`;
 }
 
 /**
@@ -1087,4 +1274,146 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
  */
 export function phoneRequiredFor(eventRequirePhone: boolean): boolean {
   return eventRequirePhone === true;
+}
+
+/**
+ * EVENT PASSES AND THE SEASONAL PLAN: DECIDED 10 NOV 2026, NOT ON SALE.
+ *
+ * Ajay's ruling: a one-event pass ($29, up to 64 players; $99, any field) and a
+ * seasonal plan (Birdie for six months, $245) are the offers, and they are NOT
+ * on sale until billing can sell them. Until then they exist in one place: the
+ * Plans panel on /owner, where he can set them. They are stored beside the
+ * pricing overrides (a `PlatformSetting` row, `services/platform-offers.ts`) and
+ * read with the same discipline: `parseOfferSettings` refuses to throw, and a
+ * value nobody could have meant falls back to the default.
+ *
+ * `onSale` is the separate switch, owner-only, OFF by default. EVERY surface
+ * that is not the owner's own console reads the offers through
+ * `publicOffers`, which hands back nothing while the switch is off, so the
+ * switch is the whole of "not on sale" (`offers-are-not-on-sale.test.ts`).
+ */
+export type OfferPrices = Record<string, number> & { world: number };
+
+export interface EventPass {
+  name: string;
+  /** Whole units, by region id. Rest of world is always there; a region without its own price is quoted Rest of world's. */
+  prices: OfferPrices;
+  /** The most players the pass covers, or null for any field. */
+  maxPlayers: number | null;
+}
+
+export interface SeasonalPlan {
+  /** The tier the season is on. */
+  tier: PlanKey;
+  /** How many months it runs. */
+  months: number;
+  prices: OfferPrices;
+}
+
+export interface OfferSettings {
+  /** Owner-only, off by default: whether anything below may be shown outside /owner. */
+  onSale: boolean;
+  passes: EventPass[];
+  seasonal: SeasonalPlan;
+}
+
+/** The decided passes. 64 is the Birdie field. */
+export const DEFAULT_EVENT_PASSES: readonly EventPass[] = [
+  { name: "Event pass", prices: { world: 29 }, maxPlayers: 64 },
+  { name: "Any-field pass", prices: { world: 99 }, maxPlayers: null },
+];
+
+/** The decided seasonal plan: Birdie, six months, $245. */
+export const DEFAULT_SEASONAL: SeasonalPlan = { tier: "society", months: 6, prices: { world: 245 } };
+
+export const MAX_EVENT_PASSES = 8;
+export const MAX_PASS_NAME = 60;
+export const MAX_SEASON_MONTHS = 24;
+
+/** The tiers a season may be on: those with a price. */
+export function seasonalTiers(): PlanKey[] {
+  return (Object.keys(PLANS) as PlanKey[]).filter((k) => PLANS[k].priceMonthly > 0 && !PLANS[k].contactOnly);
+}
+
+function cleanOfferPrices(raw: unknown): OfferPrices | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const out: Record<string, number> = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (REGION_ID.test(id) && isPrice(v)) out[id] = v;
+  }
+  return out.world === undefined ? null : (out as OfferPrices);
+}
+
+function cleanPass(raw: unknown): EventPass | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const name = typeof r.name === "string" ? r.name.trim().slice(0, MAX_PASS_NAME) : "";
+  const prices = cleanOfferPrices(r.prices);
+  if (!name || !prices) return null;
+  const cap = r.maxPlayers;
+  if (cap === null) return { name, prices, maxPlayers: null };
+  if (typeof cap === "number" && Number.isInteger(cap) && cap >= 1) return { name, prices, maxPlayers: cap };
+  return null;
+}
+
+function cleanSeasonal(raw: unknown): SeasonalPlan | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const prices = cleanOfferPrices(r.prices);
+  const months = r.months;
+  if (!prices || typeof months !== "number" || !Number.isInteger(months) || months < 1 || months > MAX_SEASON_MONTHS) return null;
+  if (typeof r.tier !== "string" || !seasonalTiers().includes(r.tier as PlanKey)) return null;
+  return { tier: r.tier as PlanKey, months, prices };
+}
+
+function defaultOffers(): OfferSettings {
+  return {
+    onSale: false,
+    passes: DEFAULT_EVENT_PASSES.map((p) => ({ ...p, prices: { ...p.prices } })),
+    seasonal: { ...DEFAULT_SEASONAL, prices: { ...DEFAULT_SEASONAL.prices } },
+  };
+}
+
+/**
+ * The offers as stored, or the defaults. NEVER THROWS. A list that is there
+ * (even an empty one: the owner may remove every pass) is kept, less any pass
+ * that is not a pass; a list that is missing falls back to the defaults.
+ */
+export function parseOfferSettings(stored: string | null | undefined): OfferSettings {
+  const out = defaultOffers();
+  const text = (stored ?? "").trim();
+  if (!text) return out;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return out;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return out;
+  const obj = parsed as Record<string, unknown>;
+  out.onSale = obj.onSale === true;
+  if (Array.isArray(obj.passes)) {
+    out.passes = obj.passes.map(cleanPass).filter((p): p is EventPass => p !== null).slice(0, MAX_EVENT_PASSES);
+  }
+  const seasonal = cleanSeasonal(obj.seasonal);
+  if (seasonal) out.seasonal = seasonal;
+  return out;
+}
+
+/**
+ * What a surface OUTSIDE the owner console may show: nothing while the switch is off.
+ * The one gate. A new place that quotes a pass or the season calls this, never the stored settings.
+ */
+export function publicOffers(settings: OfferSettings): { passes: EventPass[]; seasonal: SeasonalPlan | null } {
+  if (settings.onSale !== true) return { passes: [], seasonal: null };
+  return { passes: settings.passes, seasonal: settings.seasonal };
+}
+
+/** A pass's or season's price for a country: its region's price if one was set, else Rest of world's. */
+export function offerPrice(prices: OfferPrices, overrides: PricingOverrides, country: string): { amount: number; currency: string } {
+  const region = regionFor(overrides, country);
+  const set = prices[region.id];
+  if (isPrice(set)) return { amount: set, currency: region.currency };
+  const world = effectiveRegions(overrides).find((r) => r.id === WORLD_REGION_ID);
+  return { amount: prices.world, currency: world?.currency ?? PLAN_CURRENCY };
 }

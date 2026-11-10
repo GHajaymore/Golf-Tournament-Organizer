@@ -1,4 +1,4 @@
-import { PRICED_PLANS, effectivePrice, planCurrency, type PricingOverrides } from "@/lib/plans";
+import { PRICED_PLANS, effectivePrice, quoteCurrency, type PricingOverrides } from "@/lib/plans";
 import { freePlanWords, type LaunchState } from "@/lib/go-live";
 
 /**
@@ -27,11 +27,9 @@ export interface StructuredDataOptions {
   /** The owner's price overrides, so the crawler indexes the live price. */
   overrides?: PricingOverrides;
   /**
-   * The currency the PAGE quotes in, so the offer says the same thing. USD
-   * when omitted, and USD for any code a plan has no set price in: an offer
-   * reading "GBP" beside a dollar figure is worse than no offer.
+   * The country the PAGE quotes for (its region sets the currency), so the offer says the same thing.
    */
-  currency?: string;
+  country: string;
   /**
    * The go-live switch's answer, required. Held, the free plan is offered nowhere (Ajay: "I dont
    * want it until go live") — so a search engine is not told of a $0 plan the page has taken down.
@@ -39,10 +37,11 @@ export interface StructuredDataOptions {
   launch: LaunchState;
 }
 
-export function siteStructuredData({ origin, overrides, currency, launch }: StructuredDataOptions): Record<string, unknown> {
+export function siteStructuredData({ origin, overrides, country, launch }: StructuredDataOptions): Record<string, unknown> {
   const org = `${origin}/#organization`;
   /** ISO 4217, and always a currency the price below is actually set in. */
-  const CURRENCY = planCurrency(currency);
+  const priced: PricingOverrides = overrides ?? { plans: {} };
+  const CURRENCY = quoteCurrency(priced, country);
 
   return {
     "@context": "https://schema.org",
@@ -84,7 +83,7 @@ export function siteStructuredData({ origin, overrides, currency, launch }: Stru
         offers: PRICED_PLANS.filter((plan) => plan.key !== "free" || freePlanWords(launch).offered).map((plan) => {
           // The configurable price, not `priceMonthly` raw, so the offer a
           // crawler indexes and the number on the page are the same one.
-          const price = effectivePrice(plan, overrides, CURRENCY);
+          const price = effectivePrice(plan, priced, country);
           return {
             "@type": "Offer",
             name: plan.name,
