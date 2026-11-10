@@ -42,6 +42,7 @@ export function OwnerOffers({
   passes,
   seasonal,
   onSale: initialOnSale,
+  canBeBought,
   tiers,
 }: {
   /** Rest of world first, then the owner's regions. */
@@ -49,6 +50,8 @@ export function OwnerOffers({
   passes: PassRow[];
   seasonal: { tier: string; months: number; prices: Record<string, number | null> };
   onSale: boolean;
+  /** Whether billing can sell a pass at all (`OFFERS_CAN_BE_BOUGHT`). While not, On sale cannot be turned on. */
+  canBeBought: boolean;
   /** The paid tiers a season may be on. */
   tiers: { key: string; name: string }[];
 }) {
@@ -160,7 +163,7 @@ export function OwnerOffers({
       <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "8px 0 0" }}>
         A pass covers one tournament up to its player cap, or any field. The seasonal plan is one tier for a
         set number of months. Prices are per region; a region left blank is quoted Rest of world&rsquo;s.
-        These appear nowhere but here until you switch <strong>On sale</strong> on.
+        These appear nowhere but here while <strong>On sale</strong> is off.
       </p>
 
       <label
@@ -171,6 +174,7 @@ export function OwnerOffers({
           id="offers-on-sale"
           type="checkbox"
           checked={onSale}
+          disabled={!canBeBought && !onSale}
           onChange={(e) => {
             touch();
             setOnSale(e.target.checked);
@@ -180,8 +184,9 @@ export function OwnerOffers({
         <span style={{ fontSize: 13, lineHeight: 1.45 }}>
           <strong>On sale.</strong>{" "}
           <span className="text-muted">
-            Off by default. While it is off, no page but this one can show a pass or the season. Turn it on only
-            when billing can sell them.
+            {canBeBought
+              ? "Off by default. While it is off, no page but this one can show a pass or the season."
+              : "Off, and it cannot be turned on yet: nothing can sell a pass or the season until billing does. No page but this one shows them."}
           </span>
         </span>
       </label>

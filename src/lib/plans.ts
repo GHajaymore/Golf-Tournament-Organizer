@@ -684,9 +684,13 @@ export interface PlanQuote {
 export function planQuote(plan: Plan, overrides: PricingOverrides, country: string): PlanQuote {
   const region = regionFor(overrides, country);
   const world = effectiveRegions(overrides).find((r) => r.id === WORLD_REGION_ID) ?? defaultRegions()[7];
-  const own = isPrice(region.monthly[plan.key]) ? region.monthly[plan.key] : defaultMonthly(plan, region.currency);
+  // A tier with no published price (Par is free, Albatross is "Let's talk") is never priced by an
+  // override: "Free stays free" is the panel's promise, and a stored row (or a hand-made call to
+  // `saveTierPrices`) must not be able to break it.
+  const priced = plan.priceMonthly > 0;
+  const own = priced && isPrice(region.monthly[plan.key]) ? region.monthly[plan.key] : defaultMonthly(plan, region.currency);
   const used = own !== undefined ? region : world;
-  const monthly = own ?? (isPrice(world.monthly[plan.key]) ? world.monthly[plan.key]! : plan.priceMonthly);
+  const monthly = own ?? (priced && isPrice(world.monthly[plan.key]) ? world.monthly[plan.key]! : plan.priceMonthly);
   const months = isAnnualMonths(used.annualMonths) ? used.annualMonths : annualMonthsCharged(overrides);
   return { monthly, yearly: monthly * months, currency: used.currency, months, region: used };
 }
@@ -697,18 +701,19 @@ export function quoteCurrency(overrides: PricingOverrides, country: string): str
 }
 
 /**
+ * THE ONE SWITCH for a club whose country and currency disagree (country GB, currency USD).
+ * true  = the country wins: the club is quoted in its region's currency (pounds).
+ * false = the currency wins: the club is quoted as it was before regions (dollars).
+ * Decided by Ajay, 10 Nov 2026 ("go with the team's recommendation"): the country wins.
+ * Flipping it is this one line.
+ */
+export const COUNTRY_BEATS_CURRENCY = true;
+
+/**
  * The country to quote a club by: its own country; and where it has not said, the first
  * country of the region that trades in its currency, so a club that was quoted in pounds
  * for its currency alone is still quoted in pounds.
  */
-/**
- * THE ONE SWITCH for a club whose country and currency disagree (country GB, currency USD).
- * true  = the country wins: the club is quoted in its region's currency (pounds).
- * false = the currency wins: the club is quoted as it was before regions (dollars).
- * Undecided by the owner; true is how it behaves today. Flipping it is this one line.
- */
-export const COUNTRY_BEATS_CURRENCY = true;
-
 export function quoteCountryFor(overrides: PricingOverrides, club: { country?: string | null; currency?: string | null }): string {
   const cur = (club.currency ?? "").trim().toUpperCase();
   const byCurrency = () =>
@@ -1348,6 +1353,15 @@ export const DEFAULT_EVENT_PASSES: readonly EventPass[] = [
 
 /** The decided seasonal plan. Owner-only code path: these figures are not public until On sale. */
 export const DEFAULT_SEASONAL: SeasonalPlan = { tier: "society", months: 6, prices: { world: 245 } };
+
+/**
+ * WHETHER A PASS OR THE SEASON CAN BE BOUGHT AT ALL: no, not until billing sells them (a one-off
+ * Checkout, a per-tournament entitlement). "Not advertised until purchasable" (Ajay, 10 Nov), so
+ * while this is false the owner's On sale switch cannot be turned on (`cleanOfferInput` refuses it,
+ * the panel draws it shut and says why). The day a pass can be bought, this line and that switch
+ * are the whole change.
+ */
+export const OFFERS_CAN_BE_BOUGHT = false;
 
 export const MAX_EVENT_PASSES = 8;
 export const MAX_PASS_NAME = 60;

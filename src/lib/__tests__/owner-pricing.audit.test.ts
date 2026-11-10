@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { parsePricingOverrides, parseOfferSettings, publicOffers, effectivePrice, effectiveAnnualPrice, planFor } from "@/lib/plans";
 
@@ -34,14 +34,27 @@ const { saveTierPrices, saveOffers } = await import("@/app/actions/owner");
 const sess = (email: string): Session => ({ eventId: "e", email, name: "Zz", role: "admin", viewRole: "admin" });
 const pricingRow = () => prisma.platformSetting.findUnique({ where: { key: "pricing" } });
 
+// The development database's own prices and offers, put back exactly as they were when this file ends:
+// a test that wipes the rows every pricing surface reads leaves the next person's screens quoting defaults.
+const KEYS = ["pricing", "offers"];
+const before = new Map<string, string>();
+
+beforeAll(async () => {
+  for (const row of await prisma.platformSetting.findMany({ where: { key: { in: KEYS } } })) before.set(row.key, row.value);
+});
+
 beforeEach(async () => {
-  await prisma.platformSetting.deleteMany({ where: { key: { in: ["pricing", "offers"] } } });
+  await prisma.platformSetting.deleteMany({ where: { key: { in: KEYS } } });
   session = null;
 });
 
 afterAll(async () => {
-  await prisma.platformSetting.deleteMany({ where: { key: { in: ["pricing", "offers"] } } });
-  await prisma.$disconnect();
+  try {
+    await prisma.platformSetting.deleteMany({ where: { key: { in: KEYS } } });
+    for (const [key, value] of before) await prisma.platformSetting.create({ data: { key, value } });
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 
 describe("the owner's price control", () => {
@@ -152,6 +165,27 @@ describe("the owner's regions and yearly months", () => {
     expect(await pricingRow()).toBeNull();
   });
 
+  it("refuses what is not a price list or a regions object, in words, rather than throwing; writes nothing", async () => {
+    session = sess(OWNER);
+    const call = saveTierPrices as unknown as (a: unknown, b?: unknown) => Promise<{ ok: boolean; error?: string }>;
+    for (const [prices, more] of [[null, undefined], ["49", undefined], [{ club: 175 }, 5], [{ club: 175 }, "regions"], [{ club: 175 }, null]] as const) {
+      const res = await call(prices, more);
+      expect(res.ok, `${JSON.stringify(prices)} / ${JSON.stringify(more)}`).toBe(false);
+      expect(res.error).toMatch(/did not arrive/);
+    }
+    expect(await pricingRow()).toBeNull();
+  });
+
+  it("never prices Par or Albatross, even when a call names them", async () => {
+    session = sess(OWNER);
+    const res = await saveTierPrices({ free: 9, enterprise: 999, club: 170 });
+    expect(res.ok).toBe(true);
+    const overrides = parsePricingOverrides((await pricingRow())!.value);
+    expect(effectivePrice(planFor("free"), overrides, "US")).toBe(0);
+    expect(effectivePrice(planFor("enterprise"), overrides, "US")).toBe(0);
+    expect(effectivePrice(planFor("club"), overrides, "US"), "CONTROL: the paid price in the same press was stored").toBe(170);
+  });
+
   it("refuses months billed outside 1 to 12, and writes nothing", async () => {
     session = sess(OWNER);
     for (const bad of [0, 13, 9.5]) {
@@ -198,6 +232,14 @@ describe("the owner's event passes and seasonal plan", () => {
       expect(res.ok).toBe(false);
       expect(res.error).toMatch(/not found/i);
     }
+    expect(await offersRow()).toBeNull();
+  });
+
+  it("refuses even the owner turning On sale on while nothing can sell a pass, and writes nothing", async () => {
+    session = sess(OWNER);
+    const res = await saveOffers({ ...offers, onSale: true });
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/cannot be bought until billing sells them/);
     expect(await offersRow()).toBeNull();
   });
 

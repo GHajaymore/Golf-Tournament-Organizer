@@ -4,6 +4,7 @@ import { join, relative, sep } from "node:path";
 import {
   DEFAULT_EVENT_PASSES,
   DEFAULT_SEASONAL,
+  OFFERS_CAN_BE_BOUGHT,
   offerPrice,
   parseOfferSettings,
   parsePricingOverrides,
@@ -120,6 +121,13 @@ describe("what the owner may save", () => {
     expect(refuse({ seasonal: { ...ok.seasonal, tier: "free" } })).toMatch(/paid tier/);
     expect(refuse({ seasonal: { ...ok.seasonal, months: 0 } })).toMatch(/months/);
     expect(refuse({ seasonal: { ...ok.seasonal, prices: { world: -1 } } })).toMatch(/zero or more/);
+  });
+
+  it("On sale cannot be turned on while nothing can sell a pass (not advertised until purchasable)", () => {
+    expect(OFFERS_CAN_BE_BOUGHT, "a pass became buyable: this test, the panel's words and the guide move with it").toBe(false);
+    expect(cleanOfferInput({ ...ok, onSale: true }, regionIds)).toMatch(/cannot be bought until billing sells them/);
+    // CONTROL: the same offers with the switch off are accepted, so the refusal is the switch and nothing else.
+    expect(typeof cleanOfferInput(ok, regionIds)).toBe("object");
   });
 
   it("null is allowed where unlimited is meant (any field) and nowhere else", () => {

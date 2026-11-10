@@ -191,6 +191,12 @@ export async function saveTierPrices(
 ): Promise<OwnerActionResult> {
   const session = await getSession();
   if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  // A public endpoint: the types are erased, so a string or a number here must be refused, not thrown on
+  // (`"annualMonths" in 5` throws).
+  if (!prices || typeof prices !== "object" || Array.isArray(prices)) return { ok: false, error: "The prices did not arrive." };
+  if (more !== undefined && (more === null || typeof more !== "object" || Array.isArray(more))) {
+    return { ok: false, error: "The regions did not arrive." };
+  }
 
   let regions: PriceRegion[] | undefined;
   if (more?.regions) {
@@ -209,6 +215,8 @@ export async function saveTierPrices(
   const clean: Partial<Record<PlanKey, number>> = {};
   for (const [key, monthly] of Object.entries(prices)) {
     if (!(key in PLANS)) continue;
+    // Par is free and Albatross is "Let's talk": neither has a price to set (`planQuote` holds that too).
+    if (PLANS[key as PlanKey].priceMonthly <= 0) continue;
     const n = Number(monthly);
     if (!Number.isFinite(n) || n < 0) {
       return { ok: false, error: `${key}: a price is a number, zero or more.` };

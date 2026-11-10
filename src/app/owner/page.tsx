@@ -6,7 +6,7 @@ import { ownerCounts, interestShown } from "@/lib/services/owner-counts";
 import { demoMark, demoStatus } from "@/lib/services/demo-club";
 import { OwnerDemoClub } from "@/components/OwnerDemoClub";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
-import { PLANS, PRICED_PLANS, planFor, planTagline, effectiveLimit, enforcementEnabled, LIMIT_KEYS, WORLD_REGION_ID, effectiveRegions, defaultMonthly, ANNUAL_MONTHS_CHARGED, seasonalTiers, type Plan, type PriceRegion } from "@/lib/plans";
+import { PLANS, PRICED_PLANS, planFor, planTagline, effectiveLimit, enforcementEnabled, LIMIT_KEYS, WORLD_REGION_ID, effectiveRegions, defaultMonthly, ANNUAL_MONTHS_CHARGED, OFFERS_CAN_BE_BOUGHT, seasonalTiers, type Plan, type PriceRegion } from "@/lib/plans";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
@@ -306,6 +306,7 @@ export default async function OwnerConsolePage({ searchParams }: { searchParams:
         passes={offerSettings.passes.map((p) => ({ name: p.name, prices: p.prices, maxPlayers: p.maxPlayers }))}
         seasonal={offerSettings.seasonal}
         onSale={offerSettings.onSale}
+        canBeBought={OFFERS_CAN_BE_BOUGHT}
         tiers={seasonalTiers().map((k) => ({ key: k, name: PLANS[k].name }))}
       />
       {/* The owner's own screen belongs to no club, so the plans are named in

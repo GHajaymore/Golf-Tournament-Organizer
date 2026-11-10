@@ -2,6 +2,7 @@ import {
   MAX_EVENT_PASSES,
   MAX_PASS_NAME,
   MAX_SEASON_MONTHS,
+  OFFERS_CAN_BE_BOUGHT,
   PLANS,
   WORLD_REGION_ID,
   defaultMonthly,
@@ -157,6 +158,7 @@ export function cleanOfferInput(input: unknown, regionIds: readonly string[]): O
   if (!input || typeof input !== "object") return "The offers did not arrive.";
   const i = input as OfferInput;
   if (typeof i.onSale !== "boolean") return "On sale is on or off.";
+  if (i.onSale && !OFFERS_CAN_BE_BOUGHT) return "Not yet: a pass or the season cannot be bought until billing sells them, so they stay off sale.";
   if (!Array.isArray(i.passes)) return "The passes did not arrive as a list.";
   if (i.passes.length > MAX_EVENT_PASSES) return `At most ${MAX_EVENT_PASSES} passes.`;
   const passes: EventPass[] = [];

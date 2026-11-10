@@ -184,6 +184,27 @@ describe("the owner's regions", () => {
     expect(regionFor(o, "IE").id).toBe("b");
   });
 
+  it("Free stays free and Let's talk stays unpriced, whatever a row holds", () => {
+    // Every way a row could carry a price for the two tiers that have none: the old shape, a region, Rest of world.
+    const o = parsePricingOverrides(
+      JSON.stringify({
+        plans: { free: { monthly: 9, byCurrency: { GBP: 9 } }, enterprise: { monthly: 999 } },
+        regions: [
+          { id: "gb", name: "UK", countries: ["GB"], currency: "GBP", monthly: { free: 9, enterprise: 999 } },
+          { id: "in", name: "India", countries: ["IN"], currency: "INR", monthly: { society: 2999, club: 9999, free: 500 } },
+          { id: "world", name: "Rest of world", countries: [], currency: "USD", monthly: { free: 9, enterprise: 999 } },
+        ],
+      }),
+    );
+    for (const country of ["US", "GB", "IN", "JP", ""]) {
+      expect(effectivePrice(PLANS.free, o, country), `Par in ${country || "no country"}`).toBe(0);
+      expect(effectiveAnnualPrice(PLANS.free, o, country), `Par yearly in ${country || "no country"}`).toBe(0);
+      expect(effectivePrice(PLANS.enterprise, o, country), `Albatross in ${country || "no country"}`).toBe(0);
+    }
+    // CONTROL: the same row's paid prices are read, so the zeros above are the rule and not a row nobody read.
+    expect(effectivePrice(PLANS.club, o, "IN")).toBe(9999);
+  });
+
   it("once regions are saved they are the truth: an older row's byCurrency no longer applies", () => {
     const o = parsePricingOverrides(JSON.stringify({ plans: { club: { byCurrency: { GBP: 1 } } }, regions: [{ id: "gb", name: "UK", countries: ["GB"], currency: "GBP", monthly: {} }] }));
     expect(effectivePrice(PLANS.club, o, "GB")).toBe(PLANS.club.localMonthly.GBP);
