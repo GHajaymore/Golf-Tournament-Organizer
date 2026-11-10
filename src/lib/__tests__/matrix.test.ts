@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { TeamStandingsTable } from "@/components/TeamLeaderboard";
 import { tournamentTerms } from "@/lib/rules";
-import { recommendedAllowance } from "@/lib/round-allowance";
+import { recommendedAllowance, parStrokesApply, playingHandicapInRound } from "@/lib/round-allowance";
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_INPUT,
@@ -73,7 +73,7 @@ import {
   resolveRoundHandicap,
   roundHandicapKey,
 } from "@/lib/domain/round-handicap";
-import { playingHandicapFrom, courseHandicapMap, teeIdFor } from "@/lib/domain/handicap";
+import { playingHandicapFrom, courseHandicapMap, teeIdFor, courseHandicapExact, courseHandicap } from "@/lib/domain/handicap";
 import { TEE_POLICY } from "@/lib/tournament-settings";
 import {
   effectiveAllowance,
@@ -3152,5 +3152,164 @@ describe("an upstream edit to the field, every family × every step (J12)", () =
       says: "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. To draw it again, clear its results on the Bracket.",
       wayOut: { says: "Add them as a reserve on Entries", href: "/registration" },
     });
+  });
+});
+
+/**
+ * THE ALLOWANCE A ROUND PLAYS AT, ON EVERY FORMAT x EVERY STAGE TYPE x EVERY
+ * FIELD SIZE, AGAINST APPENDIX C HELD HERE (the accuracy sweep, 2026-11-09).
+ *
+ * The first block of this file sweeps every format on every stage type for
+ * COHERENCE and asserts no figure. `round-allowance.test.ts` pins Four-Ball's
+ * two figures and reads the rest off the format table — the code's own route.
+ * This cell holds the Rules of Handicapping, Appendix C (2024), as its OWN
+ * table, and asks the one reader (`recommendedAllowance(format, stage.type)`)
+ * for every cell: a four-ball is 85 in a medal and 90 in a match, and nothing
+ * else in the catalogue moves with the round.
+ *
+ * Then a VALUE at every field size from ONE: each individual net format,
+ * on every stage type, prices a field of decimal indexes (plus handicaps
+ * included) through `playingHandicapInRound` — what the board prices a round
+ * with — and every player must play off the Rule worked in WHOLE NUMBERS
+ * (an index in tenths, everything over 1130 x 100), sharing neither formula
+ * nor floating point with `domain/handicap.ts`.
+ *
+ * And which formats give the strokes for tees of a higher par (Rule 6.2b), by
+ * format and by the basis a round is set to.
+ */
+describe("the allowance a round plays at, on every format, stage type and field size, against Appendix C", () => {
+  /** Appendix C, held here. `match` is the figure where the round is head-to-head. */
+  const APPENDIX_C: Record<string, { stroke: number; match: number; weights?: Record<number, number[]> }> = {
+    "Match Play": { stroke: 100, match: 100 }, // individual match play
+    "Stroke Play": { stroke: 95, match: 95 }, // individual stroke play (a medal, wherever it is held)
+    Stableford: { stroke: 95, match: 95 }, // individual Stableford
+    "Modified Stableford": { stroke: 95, match: 95 }, // individual Stableford, a committee's table
+    Nassau: { stroke: 100, match: 100 }, // three individual matches
+    "Four-Ball": { stroke: 85, match: 90 }, // four-ball stroke play / match play
+    Foursomes: { stroke: 50, match: 50 }, // 50% of the combined
+    "Alternate Shot": { stroke: 50, match: 50 }, // foursomes by another name
+    Greensomes: { stroke: 100, match: 100, weights: { 2: [60, 40] } }, // 60% low + 40% high
+    "Chapman / Pinehurst": { stroke: 100, match: 100, weights: { 2: [60, 40] } },
+    Scramble: { stroke: 25, match: 25, weights: { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] } },
+    "Texas Scramble": { stroke: 25, match: 25, weights: { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] } },
+  };
+  /**
+   * Formats Appendix C does not name, at the figure the app states for them and
+   * says is a convention or carries no allowance of its own. Held so that a
+   * format added to the catalogue must be placed in one table or the other.
+   */
+  const NO_PUBLISHED_FIGURE: Record<string, number> = { Skins: 100, Shamble: 85, "Other (scored by hand)": 100 };
+  /**
+   * KNOWN DEPARTURES FROM APPENDIX C — asserted to be STILL THERE, so that the
+   * day one is fixed this list goes red and the cell moves into the table.
+   * Best Ball is played by sides of two to four counting one to four balls; a
+   * pair counting one is a four-ball (85% stroke, 90% match), best 1 of 4 is
+   * 75%, best 3 of 4 is 100%. The app plays every Best Ball at 85%
+   * (`docs/deferred-register.md`, "Best Ball plays at 85%"). Its stroke-play
+   * figure is right for a pair; in a MATCH a pair is owed 90.
+   */
+  const KNOWN_DEPARTURES: Array<{ format: string; headToHead: boolean; app: number; rules: number }> = [
+    { format: "Best Ball", headToHead: false, app: 85, rules: 85 },
+    { format: "Best Ball", headToHead: true, app: 85, rules: 90 },
+  ];
+
+  it("CONTROL: every format in the catalogue is in exactly one table, and both kinds of round exist", () => {
+    for (const f of FORMAT_NAMES) {
+      const placed =
+        Number(f in APPENDIX_C) + Number(f in NO_PUBLISHED_FIGURE) + Number(KNOWN_DEPARTURES.some((d) => d.format === f));
+      expect(placed, `${f} is placed ${placed} times`).toBe(1);
+    }
+    expect(STAGE_TYPES.some((t) => isHeadToHead(t))).toBe(true);
+    expect(STAGE_TYPES.some((t) => !isHeadToHead(t))).toBe(true);
+  });
+
+  for (const format of FORMAT_NAMES) {
+    for (const type of STAGE_TYPES) {
+      it(`${format} on a ${type}`, () => {
+        const h2h = isHeadToHead(type);
+        const got = recommendedAllowance(format, type);
+        const rule = APPENDIX_C[format];
+        if (rule) {
+          expect(got, `${format} on a ${type}`).toBe(h2h ? rule.match : rule.stroke);
+          expect(findFormat(format).weightsBySideSize, `${format}'s shares`).toEqual(rule.weights);
+          return;
+        }
+        if (format in NO_PUBLISHED_FIGURE) {
+          expect(got).toBe(NO_PUBLISHED_FIGURE[format]);
+          return;
+        }
+        const d = KNOWN_DEPARTURES.find((k) => k.format === format && k.headToHead === h2h)!;
+        expect(got, `${format} on a ${type}: if this now gives ${d.rules}, move it into APPENDIX_C`).toBe(d.app);
+      });
+    }
+  }
+
+  /** Round half up, in integers: floor((2 x num + den) / (2 x den)). */
+  const roundHalfUp = (num: number, den: number) => Math.floor((2 * num + den) / (2 * den));
+  /** Off 131 / 72.3 / par 72; indexes from plus 3.0, in tenths. */
+  const SLOPE = 131;
+  const CR10 = 723;
+  const PAR = 72;
+  const indexTenths = (i: number) => ((i * 137) % 420) - 30;
+  const INDIVIDUAL_NET = GOLF_FORMATS.filter((f) => f.sideSize === 1 && !f.manual).map((f) => f.name);
+
+  it("CONTROL: the field walks plus handicaps and decimals, and there are individual formats to price", () => {
+    const sample = FIELD_SIZES.flatMap((n) => Array.from({ length: n }, (_, i) => indexTenths(i)));
+    expect(sample.some((t) => t < 0)).toBe(true);
+    expect(sample.some((t) => t % 10 !== 0)).toBe(true);
+    expect(INDIVIDUAL_NET.length).toBeGreaterThanOrEqual(5);
+  });
+
+  for (const format of INDIVIDUAL_NET) {
+    for (const type of STAGE_TYPES) {
+      it(`${format} on a ${type}: every player at every field size plays off the Rule`, () => {
+        const pct = recommendedAllowance(format, type);
+        for (const n of FIELD_SIZES) {
+          for (let i = 0; i < n; i += 1) {
+            const t = indexTenths(i);
+            const rated = { slopeRating: SLOPE, courseRating: CR10 / 10, par: PAR };
+            const exact = courseHandicapExact(t / 10, rated);
+            const playing = playingHandicapInRound(
+              { format, type, scoringBasis: "net", handicapAllowance: 0 },
+              null,
+              { whole: courseHandicap(t / 10, rated), exact, parStrokes: 0 },
+            );
+            // Course Handicap x 1130 = t x Slope + (CR10 - 10 x Par) x 113; then x pct / 100.
+            const num = (t * SLOPE + (CR10 - 10 * PAR) * 113) * pct;
+            expect(playing, `${format}, ${type}, field of ${n}, index ${t / 10}`).toBe(roundHalfUp(num, 1130 * 100));
+          }
+        }
+      });
+    }
+  }
+
+  it("the strokes for a higher par (6.2b): stroke and match play in strokes, never points, never a shared ball", () => {
+    const GIVES: Record<string, boolean> = {
+      "Match Play": true,
+      "Stroke Play": true,
+      Stableford: false,
+      "Modified Stableford": false,
+      Skins: true,
+      Nassau: true,
+      "Four-Ball": true,
+      "Best Ball": true,
+      Shamble: true,
+      // A shared ball: not decided (`docs/deferred-register.md`), nought for now.
+      Foursomes: false,
+      "Alternate Shot": false,
+      "Chapman / Pinehurst": false,
+      Greensomes: false,
+      Scramble: false,
+      "Texas Scramble": false,
+      "Other (scored by hand)": false,
+    };
+    for (const format of FORMAT_NAMES) {
+      expect(format in GIVES, `${format} is not in the table`).toBe(true);
+      expect(parStrokesApply(format, "net"), `${format}, net`).toBe(GIVES[format]);
+      expect(parStrokesApply(format, "gross"), `${format}, gross`).toBe(GIVES[format]);
+      // Set to points, every round is counted against par and gives none (6.2b).
+      expect(parStrokesApply(format, "stableford"), `${format}, Stableford`).toBe(false);
+      expect(parStrokesApply(format, "modified-stableford"), `${format}, Modified Stableford`).toBe(false);
+    }
   });
 });
