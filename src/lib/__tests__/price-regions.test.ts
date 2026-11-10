@@ -90,6 +90,35 @@ describe("moving to regions changes no price a club sees today", () => {
   });
 });
 
+describe("a club's free-text country never moves its quote", () => {
+  const CURRENCIES = [...PLAN_CURRENCIES, "JPY", "SEK", ""];
+  /** Before regions: by currency alone. */
+  const before = (cur: string) => (PLAN_CURRENCIES as readonly string[]).includes(cur.toUpperCase()) ? cur.toUpperCase() : "USD";
+  const quoted = (country: string, currency: string) => quoteCurrency(NONE, quoteCountryFor(NONE, { country, currency }));
+
+  it("a name that maps to no region falls to the currency rule, exactly as before", () => {
+    for (const country of ["Deutschland", "Narnia", "", "  ", "Unknown", "Japan", "Sweden"]) {
+      for (const cur of CURRENCIES) expect(quoted(country, cur), `${country || "(blank)"} x ${cur || "(none)"}`).toBe(before(cur));
+    }
+  });
+
+  it("a name whose country trades in the club's currency is the same quote either way", () => {
+    const pairs: [string, string][] = [["Germany", "EUR"], ["germany", "EUR"], ["Ireland", "EUR"], ["Spain", "EUR"], ["England", "GBP"], ["Scotland", "GBP"], ["United Kingdom", "GBP"], ["Canada", "CAD"], ["Australia", "AUD"], ["New Zealand", "NZD"], ["South Africa", "ZAR"], ["United States", "USD"], ["USA", "USD"]];
+    for (const [country, cur] of pairs) {
+      expect(quoted(country, cur), `${country} x ${cur}`).toBe(cur);
+      expect(effectivePrice(PLANS.club, NONE, quoteCountryFor(NONE, { country, currency: cur }))).toBe(oldPrice(PLANS.club, NONE, cur));
+    }
+  });
+
+  it("a known country that is in no region does not drop a club's euros to dollars", () => {
+    expect(quoted("SE", "EUR")).toBe("EUR");
+  });
+
+  it("CONTROL: a mapped country in a region that differs from the currency is quoted by its country (the rule)", () => {
+    expect(quoted("Germany", "GBP")).toBe("EUR");
+  });
+});
+
 describe("the owner's regions", () => {
   const india = { name: "India", currency: "INR", countries: ["IN"], monthly: { society: 2999, club: 9999 }, annualMonths: null };
 

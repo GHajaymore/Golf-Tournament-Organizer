@@ -692,7 +692,8 @@ export function quoteCurrency(overrides: PricingOverrides, country: string): str
  * for its currency alone is still quoted in pounds.
  */
 export function quoteCountryFor(overrides: PricingOverrides, club: { country?: string | null; currency?: string | null }): string {
-  if (countryCode(club.country ?? "")) return club.country as string;
+  // The country decides only when it resolves to a region of its own; an unmapped name ("Germany" typed as text), or a country in no region, falls to the currency rule exactly as before regions.
+  if (regionFor(overrides, club.country ?? "").id !== WORLD_REGION_ID) return club.country as string;
   const cur = (club.currency ?? "").trim().toUpperCase();
   const hit = effectiveRegions(overrides).find((r) => r.id !== WORLD_REGION_ID && r.currency === cur && r.countries.length > 0);
   return hit?.countries[0] ?? "";
