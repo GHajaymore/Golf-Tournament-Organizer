@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession } from "./organizer-fixture.mjs";
 import { pressRadio } from "./press-radio";
+import { expectLaunched } from "./end-early";
 
 /**
  * A CLUB MATCH PLAY IN FLIGHTS, RUN FROM NOTHING BY A NEW ORGANIZER.
@@ -209,7 +210,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
 
     await open(page, "/bracket?view=draw");
     // The arrangement is locked with the rounds, and the line says how it is corrected: a committee

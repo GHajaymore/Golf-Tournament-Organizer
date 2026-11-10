@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { NOINDEX } from "@/lib/site";
 import { DeniedNotice } from "@/components/DeniedNotice";
 import { ArchiveBanner } from "@/components/ArchiveBanner";
+import { ArchiveReadOnly } from "@/components/ArchiveReadOnly";
 import { archiveRefusalFor, paymentDueNoticeFor } from "@/lib/services/club-archive";
 import Link from "next/link";
 import { golfRegisterForEvent, golfRegisterForOrganization } from "@/lib/services/organization";
@@ -12,6 +13,10 @@ import { MobileTopBar } from "@/components/MobileTopBar";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { EventContextBar } from "@/components/EventContextBar";
 import { BackToTheRound } from "@/components/BackToTheRound";
+import { LifecycleStepper } from "@/components/LifecycleStepper";
+import { LIFECYCLE_STEPPER_ON, lifecycleTrack, stepperShown } from "@/lib/domain/lifecycle-track";
+import { headers } from "next/headers";
+import { openTournamentJob } from "@/lib/services/whats-next";
 import { navForRole } from "@/lib/nav";
 import { loadEventState } from "@/lib/services/tournament";
 import { tournamentStatusFor } from "@/lib/services/tournament-status";
@@ -159,6 +164,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * details and Rounds & formats ask the same question under it for nothing.
    */
   const told = event && roundState ? await tournamentStatusFor(event.id, roundState.today) : null;
+  /**
+   * THE LIFECYCLE STEPPER (B03), from the same status as the chip — behind its switch: off until
+   * Ajay's OK, drawn meanwhile by `?stepper=1` (the middleware hands the query over, as a layout
+   * cannot read it). Which screen it sits on is the stepper's own question (`usePathname`): this
+   * layout is not drawn again as an organizer moves between its screens.
+   */
+  const asked = await headers();
+  const track =
+    event && roundState && told && stepperShown(asked.get("x-search") ?? "")
+      ? lifecycleTrack(told.status, await openTournamentJob(event.id, roundState.today))
+      : null;
   const boardRound = roundState?.boardStage ?? null;
   const roundName = boardRound
     ? roundNameFor(roundState!.playRounds, boardRound)
@@ -263,6 +279,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       // and a black calendar popup on a white page is the tell that a light
       // theme was bolted on.
       data-appearance={theme.appearance}
+      // The rail and the journey card stand aside while the stepper is drawn (lifecycle-stepper.css).
+      data-stepper={track ? "" : undefined}
       style={{
         display: "flex",
         minHeight: "100vh",
@@ -301,6 +319,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             }
             canSwitch={session.viewRole === "admin"}
             compact={casualShell}
+            // The stepper's head says the chip; the bar does not say it twice (the panel, 9 Nov).
+            chip={!track}
           />
         )}
         <main
@@ -323,10 +343,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </p>
           )}
           {casualShell && <BackToTheRound />}
+          <LifecycleStepper track={track} preview={!LIFECYCLE_STEPPER_ON} />
           {/* A club with no time zone takes this organizer's, once. Only for
               somebody who may change it; the action re-checks that. */}
           {event && event.organization.timeZone === "" && session.role === "admin" && <ClubClockAdopter />}
-          {children}
+          {/* AND THE SCREEN ITSELF IS READ-ONLY, in one place (2026-11-09): every
+              control that writes is disabled under the banner, on every screen
+              of the archived tournament, so no press reaches an action that
+              would refuse it. Links, prints, exports and Club settings — where
+              the way out is — stay open (`domain/archive-read-only.ts`). */}
+          <ArchiveReadOnly archived={archived !== null}>{children}</ArchiveReadOnly>
         </main>
       </div>
       {!casualShell && (

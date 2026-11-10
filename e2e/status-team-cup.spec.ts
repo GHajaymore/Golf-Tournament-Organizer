@@ -2,6 +2,8 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
+import { pressComplete } from "./end-early";
+import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
  * A TWO-TEAM CUP, WALKED THROUGH THE STATE MACHINE (J13; the team cup family).
@@ -83,7 +85,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
     await expectTournamentSays(page, {
       chip: "Live",
       chipDetail: null,
-      nextAction: "Complete tournament",
+      nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
 
@@ -102,7 +104,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
         holes: JSON.stringify(["A", "H", "H", ...new Array(15).fill(null)]),
       },
     });
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: "Complete tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // Both sessions closed by the Committee: play over. One match of a cup's points is in, so it is not decided.
     await prisma.stage.updateMany({ where: { eventId: f.eventId }, data: { closedAt: new Date() } });
@@ -114,7 +116,7 @@ test("a team cup says the same thing on every panel from the teams to the last s
     });
 
     await page.goto(`/dashboard?bust=${Date.now()}`);
-    await page.getByRole("button", { name: "Complete tournament" }).first().click();
+    await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });

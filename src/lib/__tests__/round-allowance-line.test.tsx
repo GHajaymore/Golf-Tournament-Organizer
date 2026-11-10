@@ -184,7 +184,8 @@ describe("what the line says", () => {
     expect(readSource("src/app/(app)/stages/page.tsx")).toContain("allowance: individualAllowanceFor(s),");
     const screen = readSource("src/components/StagesClient.tsx");
     expect(screen).toContain("{stage.allowance && (");
-    expect(screen).toContain("<RoundAllowance stageId={stage.id} info={stage.allowance} locked={locked} />");
+    // Shut by the rounds rule's door, not the setup lock (J12, PR 7b), and the door's sentence said with it.
+    expect(screen).toContain('<RoundAllowance stageId={stage.id} info={stage.allowance} locked={shut("allowance")} door={doors?.allowance ?? null} />');
   });
 });
 
@@ -200,7 +201,7 @@ describe("what a player is told on the rules sheet", () => {
       tiebreakers: [],
       cutAfter: null,
       carryForwardEnabled: false,
-      carryForwardPct: 0,
+      carryForwardPct: 0, netCountback: "fractions",
       ...over,
     }).find((t) => t.label === "Handicap allowance")?.value;
 

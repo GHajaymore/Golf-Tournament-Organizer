@@ -8,6 +8,7 @@ import { SaveState, useSaveStatus } from "./SaveState";
 import { useCaughtUp } from "./useAction";
 import { plural } from "@/lib/format";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { useKeptInView } from "@/lib/bring-into-view";
 
 export function CutControl({
   formId,
@@ -63,6 +64,10 @@ export function CutControl({
   const [sc, setSc] = useState(scope === "perFlight" ? "perFlight" : "overall");
   const [ties, setTies] = useState<CutTieRule>(cutTieRuleOf(tieRule));
   const [saving, startTransition] = useTransition();
+  const [refused, setRefused] = useState("");
+  // Said under the box, and still in view once the screen has caught up with the lock: the banner
+  // arrives above it, and at the top of the page nothing else holds the place (`useKeptInView`).
+  const refusedRef = useKeptInView(refused, locked);
   const caughtUp = useCaughtUp();
   // "and anyone tied" only where the ties DO go through.
   const allTied = tiesGoThrough && ties === "ties";
@@ -93,9 +98,16 @@ export function CutControl({
     setM(nextMode);
     setN(nextN);
     setPct(nextPct);
+    setRefused("");
     startTransition(async () => {
       const stageId = await getStageId();
-      caughtUp(await setStageCut(stageId, nextOn, nextMode, nextN, nextPct));
+      const res = caughtUp(await setStageCut(stageId, nextOn, nextMode, nextN, nextPct));
+      // Refused (the setup lock, drawn before it): the box goes back and the reason is said under it
+      // — it used to be caught up with and never said.
+      if (res && !res.ok) {
+        setOn(enabled);
+        setRefused(res.error ?? "That could not be changed.");
+      }
     });
   };
 
@@ -135,6 +147,11 @@ export function CutControl({
       </label>
       {/* Outside the label, so the checkbox's name is not "… Saved". */}
       <SaveState status={saveStatus} />
+      {refused && (
+        <p role="alert" className="form-error" style={{ margin: 0, fontSize: 13 }} ref={refusedRef}>
+          {refused}
+        </p>
+      )}
       {on && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <div className="seg" role="radiogroup" aria-label={`How the cut for ${roundLabel} is counted`}>

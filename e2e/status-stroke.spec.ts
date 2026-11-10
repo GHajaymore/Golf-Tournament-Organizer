@@ -2,6 +2,8 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
+import { pressComplete } from "./end-early";
+import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
  * A MEDAL, WALKED THROUGH EVERY STEP OF THE STATE MACHINE (PR 3; proposal 5c,
@@ -75,7 +77,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     await expectTournamentSays(page, {
       chip: "Live",
       chipDetail: null,
-      nextAction: "Complete tournament",
+      nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
       setup: null,
       journey: "Play",
@@ -99,7 +101,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     // dashboard, where the status card draws the button: `setup: null` ended the helper on
     // Tournament details, which has no lifecycle button.
     await page.goto(`/dashboard?bust=${Date.now()}`);
-    await page.getByRole("button", { name: "Complete tournament" }).first().click();
+    await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, setup: null, journey: "Finish" });

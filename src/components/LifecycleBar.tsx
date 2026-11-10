@@ -1,11 +1,13 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import Link from "next/link";
 import { setEventStatus, launchTournament, setConfigUnlocked } from "@/app/actions/tournament";
 import { LAUNCH_DOES, VISIBILITY_IS_ELSEWHERE } from "@/lib/domain/lifecycle-state";
 import { WIPE_ON_CLOSE, LIFESPAN_DAYS, KEPT_AFTER_COMPLETE_DAYS } from "@/lib/domain/close-terms";
 import { warningText, launchRows, type LaunchCheck } from "@/lib/domain/launch-check";
-import type { CorrectionFacts, LockScope, StatusCard } from "@/lib/domain/tournament-status";
+import type { CorrectionFacts, LockScope, NextAction, StatusCard } from "@/lib/domain/tournament-status";
+import type { TournamentJob } from "@/lib/domain/needs-you-now";
+import { cardPressOf, END_EARLY } from "@/lib/domain/lifecycle-track";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { RefusedAction } from "./RefusedAction";
@@ -45,7 +47,22 @@ export function LifecycleBar({
   archived = false,
   correction = null,
   correctableScopes = [],
+  job,
+  endEarly,
 }: {
+  /**
+   * THE TOURNAMENT'S ONE BUTTON (`tournamentJob`; the panel's ruling on the stepper, 9 Nov; for
+   * everyone, the PM, 10 Nov). A job that MOVES the status (Launch, Complete, Reopen) is pressed here
+   * as the machine's next action; any other is a link to where it is done ("Open score entry",
+   * "Close Round 1") or, waiting, no button at all — never "Complete tournament" while golf remains
+   * to be played. Absent (a test that hands none), the card offers `nextAction` as before.
+   */
+  job?: TournamentJob | null;
+  /**
+   * ENDING EARLY (`endEarlyOf`, the PM, 10 Nov): the machine's Complete, offered only behind a quiet
+   * "More" as "End this event early…", while any round remains to be played. Null otherwise.
+   */
+  endEarly?: NextAction | null;
   /** In a lapsed club's read-only archive (`archiveRefusalFor`): no correction is offered. */
   archived?: boolean;
   /** The committee correction open now, if any (PR 5b) — said here, with Done. */
@@ -109,6 +126,9 @@ export function LifecycleBar({
    * completed tournament offers its Reopen.
    */
   const [confirmingStatus, setConfirmingStatus] = useState<"completed" | "live" | null>(null);
+  /** The card's overflow, holding "End this event early…". */
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreId = useId();
   /** The unplayed-rounds question while it is open, and whether it has been answered "Complete anyway". */
   const [askingUnplayed, setAskingUnplayed] = useState("");
   const [unplayedConfirmed, setUnplayedConfirmed] = useState(false);
@@ -146,10 +166,41 @@ export function LifecycleBar({
    * inches. One function answers it now, and the dashboard reads the same one
    * to decide whether its own header still deserves a primary button.
    */
-  const action = status.nextAction;
-  /** What pressing it moves the status to — only Complete and Reopen move it here; Launch has its dialog. */
-  const to = action?.kind === "complete" ? "completed" : action?.kind === "reopen" ? "live" : null;
-  const unplayedAsk = action?.asks ?? undefined;
+  const press = cardPressOf(status.nextAction, job);
+  const action = press.kind === "move" ? press.action : null;
+  /** Ending early, behind "More" (`endEarlyOf`, composed in the page): never a Complete beside the job. */
+  const early = press.kind === "move" ? null : (endEarly ?? null);
+  /**
+   * PRESS A STATUS MOVE — Launch opens its dialog; Complete (the card's button, or "End this event
+   * early…") asks about a round nobody played first, then the free plan's keeping notice, then confirms;
+   * Reopen confirms. One path, so ending early asks exactly what completing asks.
+   */
+  const pressMove = (a: NextAction) => {
+    setRefused("");
+    if (a.kind === "launch") {
+      setConfirming(true);
+      return;
+    }
+    const to = a.kind === "complete" ? "completed" : a.kind === "reopen" ? "live" : null;
+    if (!to) return;
+    if (to === "completed" && a.asks) {
+      setUnplayedConfirmed(false);
+      setAskingUnplayed(a.asks);
+      return;
+    }
+    if (to === "completed" && deletesOnComplete) {
+      setConfirmingDelete(true);
+      return;
+    }
+    if (to === "completed" || (to === "live" && completed)) {
+      setConfirmingStatus(to);
+      return;
+    }
+    startTransition(async () => {
+      // The server asks too — it is the one that knows for certain.
+      answered(await setEventStatus(to));
+    });
+  };
 
   return (
     <>
@@ -196,6 +247,17 @@ export function LifecycleBar({
             </span>
           )}
           <div style={{ flex: 1 }} />
+          {/* The job's own line and its way there, when it is not a status move (the stepper's switch). */}
+          {press.kind !== "move" && press.text && (
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              {press.text}
+            </span>
+          )}
+          {isAdmin && press.kind === "link" && (
+            <Link href={press.href} className="btn btn-primary">
+              {press.label} <Icon name="arrow-right" />
+            </Link>
+          )}
           {isAdmin && action && action.enabled && (action.kind === "draw" || action.kind === "schedule") && (
             // A round owes its draw, or the league's next week its day (2e): the
             // way there, not a status change.
@@ -208,36 +270,44 @@ export function LifecycleBar({
               type="button"
               className={action.kind === "reopen" ? "btn btn-secondary" : "btn btn-primary"}
               disabled={pending}
-              onClick={() => {
-                setRefused("");
-                if (action.kind === "launch") {
-                  setConfirming(true);
-                  return;
-                }
-                if (!to) return;
-                if (to === "completed" && unplayedAsk) {
-                  setUnplayedConfirmed(false);
-                  setAskingUnplayed(unplayedAsk);
-                  return;
-                }
-                if (to === "completed" && deletesOnComplete) {
-                  setConfirmingDelete(true);
-                  return;
-                }
-                if (to === "completed" || (to === "live" && completed)) {
-                  setConfirmingStatus(to);
-                  return;
-                }
-                startTransition(async () => {
-                  // The server asks too — it is the one that knows for certain.
-                  answered(await setEventStatus(to));
-                });
-              }}
+              onClick={() => pressMove(action)}
             >
               {action.kind === "launch" && <Icon name="rocket-launch" />} {action.label}
             </button>
           )}
+          {/* THE OVERFLOW (the PM, 10 Nov): a quiet "More", holding the one early, destructive action. */}
+          {isAdmin && early && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              aria-expanded={moreOpen}
+              aria-controls={moreId}
+              // Named apart from the card's explanations (`MoreInfo`, each a button named "More"), and
+              // starting with the words it shows.
+              aria-label="More actions"
+              onClick={() => setMoreOpen((o) => !o)}
+            >
+              More <Icon name="caret-down" />
+            </button>
+          )}
         </div>
+
+        {isAdmin && early && moreOpen && (
+          <div id={moreId} role="group" aria-label="Ending this event" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, minWidth: 0 }}>
+            {early.enabled ? (
+              <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => pressMove(early)}>
+                {END_EARLY}
+              </button>
+            ) : (
+              // Refused in place, as every refused press is: the reason, word for word, and the way out.
+              <RefusedAction label={END_EARLY} reason={early.disabledBecause ?? ""} wayOut={early.wayOut} primary={false} />
+            )}
+            <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55, maxWidth: "68ch" }}>
+              Ends the tournament now, while golf is still to be played: it asks first and names any round nobody has played,
+              which then closes as not played, and the results are decided on the rounds played.
+            </p>
+          </div>
+        )}
 
         {/* REFUSED IN PLACE (PR 3, `RefusedAction`): the button the machine
             refuses, its reason directly under it, ending in the way out. It

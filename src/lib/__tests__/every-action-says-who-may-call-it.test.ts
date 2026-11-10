@@ -38,6 +38,9 @@ import { readSource } from "./source";
 const STAFF_GATES = [
   // `requireAdminEvent` with an archived tournament's refusal returned in words (tournament.ts).
   "adminEventOrRefusal(",
+  // The staff gates likewise (tournament.ts, play-status.ts; attendance.ts for its session form).
+  "staffEventOrRefusal(",
+  "staffSessionOrRefusal(",
   "requireStaffEvent(",
   "requireStaff(",
   "requireAdminEvent(",

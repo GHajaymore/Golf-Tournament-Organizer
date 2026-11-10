@@ -31,17 +31,29 @@
  */
 export function splitExactly(totalCents: number, weights: number[]): number[] {
   const total = Math.max(0, Math.round(totalCents));
-  const sum = weights.reduce((a, w) => a + Math.max(0, w), 0);
+  /**
+   * IN WHOLE NUMBERS, NOT FLOATS (2026-11-09). Each share is
+   * `floor(total x w / sum)` and its remainder `(total x w) mod sum` — an exact
+   * integer, so two remainders that are equal ARE equal and "ties broken by
+   * order" holds. It took `exact - Math.floor(exact)` in floating point, where
+   * 1166.67 - 1166 comes out a hair under 166.67 - 166: a $5 skins game of
+   * three, skins 1 / 1 / 7, every remainder exactly two-thirds, was paid
+   * 167 / 166 / 1167 where its own rule says 167 / 167 / 1166.
+   *
+   * Weights are whole numbers — skins won, shares of an expense, pots made —
+   * and are rounded to them here, since a remainder is only exact over integers.
+   */
+  const whole = weights.map((w) => (Number.isFinite(w) ? Math.max(0, Math.round(w)) : 0));
+  const sum = whole.reduce((a, w) => a + w, 0);
   if (sum <= 0 || total === 0) return weights.map(() => 0);
 
-  const exact = weights.map((w) => (total * Math.max(0, w)) / sum);
-  const floors = exact.map((e) => Math.floor(e));
+  const floors = whole.map((w) => (total * w - ((total * w) % sum)) / sum);
   let left = total - floors.reduce((a, f) => a + f, 0);
 
-  // Biggest fractional part first; index order settles a dead heat.
-  const order = exact
-    .map((e, i) => ({ i, frac: e - Math.floor(e) }))
-    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  // Biggest remainder first; index order settles a dead heat.
+  const order = whole
+    .map((w, i) => ({ i, rem: (total * w) % sum }))
+    .sort((a, b) => b.rem - a.rem || a.i - b.i);
 
   const out = [...floors];
   for (const { i } of order) {

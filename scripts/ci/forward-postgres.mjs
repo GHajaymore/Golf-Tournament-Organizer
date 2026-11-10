@@ -11,23 +11,73 @@
 // `@localhost:5432` exactly as it is in the jobs that do not use a container.
 //
 // It forwards TCP and nothing else: no credentials, no parsing.
+//
+// THE NAME IS RESOLVED ONCE (2026-11-09). Each `net.connect({ host: "postgres" })` asked Docker's
+// embedded DNS for the service's address again — once per connection, and Prisma's pool opens its
+// connections in a burst when a transaction waits for a second one. A lookup that is slow or
+// answers EAI_AGAIN under that burst is a connection that is slow to open, which is the shape of
+// the P2028 "Transaction already closed" the nightly of 2026-11-09 produced. So the name is looked
+// up at start, every connection goes to that address, and only if the address ever refuses does a
+// connection fall back to the name — the forwarder keeps working either way, and says which.
 import net from "node:net";
+import dns from "node:dns/promises";
 
-/** Start a forwarder; resolves with the listening server. */
-export function forward({ listenPort, host, port, listenHost = "127.0.0.1" }) {
-  const server = net.createServer((client) => {
-    const upstream = net.connect({ host, port });
-    client.pipe(upstream);
-    upstream.pipe(client);
-    const end = () => {
-      client.destroy();
-      upstream.destroy();
-    };
-    client.on("error", end);
-    upstream.on("error", end);
-    client.on("close", end);
-    upstream.on("close", end);
-  });
+/**
+ * The service's IPv4 address, looked up ONCE; the name itself when it is already an address or
+ * the lookup fails (connecting by name then behaves exactly as before, and the failure is said).
+ */
+export async function resolveOnce(host, lookup = (name) => dns.lookup(name, { family: 4 })) {
+  if (net.isIP(host)) return host;
+  try {
+    const { address } = await lookup(host);
+    return address;
+  } catch (e) {
+    console.error(`forwarder: could not resolve ${host} (${e.message}); connecting by name`);
+    return host;
+  }
+}
+
+/**
+ * One client connection, carried to the upstream. Tried at `address` first; when that is refused
+ * before it connects and `address` is not the name, tried once more by name.
+ */
+function carry(client, { address, host, port }) {
+  const end = (upstream) => () => {
+    client.destroy();
+    upstream.destroy();
+  };
+  client.on("error", () => client.destroy());
+  const attempt = (target, fallback) => {
+    const upstream = net.connect({ host: target, port });
+    const close = end(upstream);
+    // Node clears `upstream.connecting` before it emits the error of a refused connect, so a
+    // refusal is told apart from a later fault by whether 'connect' ever fired.
+    let connected = false;
+    upstream.once("connect", () => {
+      connected = true;
+      client.pipe(upstream);
+      upstream.pipe(client);
+      client.on("error", close);
+      client.on("close", close);
+      upstream.on("error", close);
+      upstream.on("close", close);
+    });
+    upstream.once("error", (e) => {
+      if (!connected && fallback) {
+        console.error(`forwarder: ${target}:${port} ${e.code ?? e.message}; connecting by name ${fallback}`);
+        upstream.destroy();
+        attempt(fallback, null);
+        return;
+      }
+      close();
+    });
+  };
+  attempt(address, address !== host ? host : null);
+}
+
+/** Start a forwarder; resolves with the listening server. `address` defaults to connecting by `host`. */
+export function forward({ listenPort, host, port, listenHost = "127.0.0.1", address = host }) {
+  const server = net.createServer((client) => carry(client, { address, host, port }));
   return new Promise((resolve, reject) => {
     server.once("error", reject);
     // IPv4 only, on purpose: every DATABASE_URL says `localhost`, which Node 17+ may resolve to
@@ -64,9 +114,12 @@ if (process.argv[1] && process.argv[1].endsWith("forward-postgres.mjs")) {
     process.exit(2);
   }
   const port = Number(portText);
-  waitForUpstream(host, port)
-    .then(() => forward({ listenPort: port, host, port }))
-    .then(() => console.log(`forwarding localhost:${port} to ${host}:${port}`))
+  resolveOnce(host)
+    .then(async (address) => {
+      await waitForUpstream(address, port);
+      await forward({ listenPort: port, host, port, address });
+      console.log(`forwarding localhost:${port} to ${host}:${port}${address !== host ? ` (${address}, resolved once)` : ""}`);
+    })
     .catch((e) => {
       console.error(`::error::${e.message}`);
       process.exit(1);

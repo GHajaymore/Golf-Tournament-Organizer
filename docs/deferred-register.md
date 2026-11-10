@@ -111,15 +111,15 @@ Measured on the seeded fixture, `/leaderboard`, mid-round:
 
 ```
 #   PLAYER                       THRU  GROSS  NET  TO PAR
-1   Aj Moore                        9     36   34   E
+1   Ned Calloway                        9     36   34   E
 2   Sang-woo Kim                   18     71   56   E
 3   Síle Ní Bhraonáin-O’Dwyer      18     71   60   E
 4   Marcus Webb                    18     71   63   E
 ```
 
-All four are level par. Aj Moore is first on **net 34 against net 56** — a
+All four are level par. Ned Calloway is first on **net 34 against net 56** — a
 number that is lower only because it covers nine holes rather than eighteen.
-The dashboard states it outright: *"Aj Moore leads at level par (net 34)."*
+The dashboard states it outright: *"Ned Calloway leads at level par (net 34)."*
 
 The mechanism is one line. `compareOnBasis` in `domain/stroke-countback.ts`
 compares `scoreOnBasis`, which is the raw `gross`, `net` or `points` total.
@@ -151,7 +151,7 @@ RANKED on". It returns `toParText(row.toPar)`, and `toPar` is
 So both boards read:
 
 ```
-1  Aj Moore                   thru 9   E
+1  Ned Calloway                   thru 9   E
 2  Sang-woo Kim               F        E
 3  Síle Ní Bhraonáin-O’Dwyer  F        E
 4  Marcus Webb                F        E
@@ -1397,7 +1397,11 @@ the table says nothing for a side of three. Recommended: work it from the side's
 size and the round's count where the table gives a figure, keep 85% and say
 "club convention" where it does not, and ask before cards are re-scored. Until
 then a committee running best 1 of 4 should set 75% itself, which the round's
-card lets it do.
+card lets it do. **In a MATCH, fixed 2026-11-09:** a Best Ball round on a
+head-to-head stage (round robin, knockout, cup session) is recommended 90%, four-ball
+match play (`FOUR_BALL_MATCH_PLAY`, `recommendedAllowance`); it had been offered the
+stroke-play 85%. A committee's own figure still wins. The stroke-play side sizes
+above are unchanged.
 
 And one thing that is deliberate: **a round frozen before 2026-10-13 keeps the
 strokes it was played off**, which were worked the old way. It holds the whole
@@ -1542,10 +1546,20 @@ used. Do it as a choice on the knockout's card ("If players tie for the last pla
 countback, then draw"), and with a play-off the draw waits until the committee names who went
 through. Test with a field where two players are level on every step of the ladder.
 
-**Net countback off a full handicap.** Committee Procedures 5A(6) suggests taking 1/2, 1/3 and
-1/6 of the handicap from the last nine, six and three where hole-by-hole net scores are not
-used. The engine counts back on hole-by-hole net, which the same section also allows; check
-which a club's terms of competition expect before changing anything.
+**Net countback off a full handicap. — DONE 2026-11-09 (the Golf Pro and the Tournament
+Director, on Ajay's "decide on best practice").** Committee Procedures 5A(7) recommends taking
+1/2, 1/3, 1/6 and 1/18 of the handicap off the last nine, six, three and one in a handicap
+stroke-play competition, and keeps the strokes "as they were applied" only where the stroke
+table scores the competition (four-ball stroke play, Stableford, par/bogey). An individual net
+stroke round now counts back by those fractions of the playing handicap the round actually gave
+(gross less net over the card), and a nine-hole round by 2/3, 1/3 and 1/9
+(`countbackCardOn` in `stroke-countback.ts`, used by the board, its cut, the report and a league
+night). An event CREATED before 2026-11-09 00:00 UTC keeps hole-by-hole net for its whole life
+(`netCountbackMethodFor`), because places are worked out on read and a finished event must not
+re-order itself. Left for later: a committee option on the round to choose hole-by-hole net
+(there is no stroke-countback setting to hang it on today), and the same fractions for a
+shared-ball team medal (foursomes, a scramble), whose countback in `services/teams.ts` is still
+the side's hole-by-hole net.
 
 **A halved round-robin match is half a point each**, with the all-square tiebreakers applied
 only where the organizer ticks them. Most leagues play it that way; some award no points.
@@ -1603,6 +1617,6 @@ the same fault as an intransitive sort) both use it. The `it.todo` is a real tes
 rule by hand in every entry order and sweeps for a second copy. Long form:
 `docs/claude/knockouts-and-leagues.md`, "A table's ties".
 
-**Net countback off a full handicap** (above) is unchanged, and the cut's countback is the
-board's: hole-by-hole net. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the
+**Net countback off a full handicap** (above) was unchanged then (fractions since 2026-11-09),
+and the cut's countback is the board's: hole-by-hole net at the time. `a-tie-at-the-cut.audit.test.ts` builds its net fixtures so the
 fractional method agrees, and says so.

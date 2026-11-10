@@ -87,7 +87,7 @@ test("a halved match's countback, pressed three ways, is what the tournament sto
   expect(errors, errors.join("\n")).toEqual([]);
 });
 
-test("deleting a round that holds a card: the warning, then 'Delete the round anyway' really deletes it", async ({ page, context, baseURL }, testInfo) => {
+test("deleting a round that holds a money record: the warning, then 'Delete the round anyway' really deletes it", async ({ page, context, baseURL }, testInfo) => {
   test.skip(!WALKED.includes(testInfo.project.name), "walked at laptop and phone size");
   const errors: string[] = [];
   watchPageErrors(page, errors, "secretary");
@@ -96,7 +96,9 @@ test("deleting a round that holds a card: the warning, then 'Delete the round an
   try {
     const { event, stages, players } = await makeEvent(club, "Autumn Medal", { stages: [{}, {}, {}], players: 4 });
     const [r1, r2] = stages;
-    await returnCard(event.id, r1.id, players[0].id);
+    // A round with a CARD is not deleted at all since J12 PR 7b ("Round 1 has scores. Clear them on Score
+    // entry first.", walked in `round-changes-after-scores.spec.ts`); a money record is what is asked about.
+    await prisma.expense.create({ data: { eventId: event.id, stageId: r1.id, description: "zz cart hire", amountCents: 1200, paidBy: players[0].id } });
     await signIn(context, baseURL!, club, event.id);
 
     await gotoStages(page);
@@ -104,8 +106,8 @@ test("deleting a round that holds a card: the warning, then 'Delete the round an
     const del = page.getByRole("button", { name: "Delete Round 1", exact: true });
     await centre(del);
     await del.click();
-    // The first press only warns: the round and its card are still there.
-    await expect(page.locator("b", { hasText: "Deleting this round destroys 1 entered card" })).toBeVisible();
+    // The first press only warns: the round and its record are still there.
+    await expect(page.locator("b", { hasText: "Deleting this round destroys 1 money record" })).toBeVisible();
     expect(await prisma.stage.count({ where: { id: r1.id } }), "the first press deleted the round").toBe(1);
 
     // The second is the one that is not awaited.

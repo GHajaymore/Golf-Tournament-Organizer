@@ -149,7 +149,10 @@ export function PrintKitClient({
   return (
     <>
       <style>{css}</style>
-      <div className="no-print pk-controls" style={{ display: "grid", gap: 14, marginBottom: 18, maxWidth: 760 }}>
+      {/* Choosing sheets and printing them changes no record in an archived tournament
+          (`recordPrinted` records nothing there), so these stay live under the archive's
+          read-only lock (`archive-read-only.ts`). */}
+      <div className="no-print pk-controls" data-reads="" style={{ display: "grid", gap: 14, marginBottom: 18, maxWidth: 760 }}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "end" }}>
           {kit.rounds.length > 1 && (
             <label style={{ display: "grid", gap: 4, fontSize: 13 }}>

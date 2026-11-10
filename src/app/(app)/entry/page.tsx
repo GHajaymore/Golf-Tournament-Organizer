@@ -50,6 +50,7 @@ import { CupSessionNav } from "@/components/CupSessionNav";
 import { CasualRoundScreen } from "@/components/CasualRoundScreen";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
+import { roundRefusalsFor } from "@/lib/services/round-change";
 import Link from "next/link";
 import { MatchKeeper } from "@/components/MatchKeeper";
 import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
@@ -57,7 +58,7 @@ import { matchCardFor } from "@/lib/services/match-card";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
 import { resolveMatch, matchIsOver } from "@/lib/domain/match";
-import { ConfirmMatchResult } from "@/components/ConfirmMatchResult";
+import { ConfirmMatchResult, ReopenMatchResult } from "@/components/ConfirmMatchResult";
 
 export const metadata = screenMetadata("/entry");
 
@@ -259,7 +260,16 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         }
         const resolved = resolveMatch(holes);
         const status = effectiveScoreStatus(r, autoConfirm);
-        return [r.id, { waiting: matchIsOver(holes) && status === "pending", disputed: status === "disputed", result: resolved.resultText }] as const;
+        return [
+          r.id,
+          {
+            waiting: matchIsOver(holes) && status === "pending",
+            disputed: status === "disputed",
+            // Signed off by the committee: taps no longer change it (`unanchoredMatchSave`), so it is reopened here.
+            signedOff: r.scoreStatus === "confirmed",
+            result: resolved.resultText,
+          },
+        ] as const;
       }),
     );
     const rowSignOff = row ? signOff.get(row.id) : undefined;
@@ -307,6 +317,9 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         {isStaff && row && rowSignOff?.waiting && (
           <ConfirmMatchResult key={row.id} matchId={row.id} result={rowSignOff.result} />
         )}
+        {session.viewRole === "admin" && row && rowSignOff?.signedOff && (
+          <ReopenMatchResult key={`reopen-${row.id}`} matchId={row.id} result={rowSignOff.result} />
+        )}
         {tapCard && row && (
           <DistanceUnitProvider unit={tapCard.unit}>
             <MatchKeeper
@@ -318,7 +331,6 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               cardStrokeIndex={tapCard.cardStrokeIndex}
               firstHole={tapCard.firstHole}
               matchShots={tapCard.matchShots}
-              voiceEntry={settingsOf(state.event).voiceEntry}
               stageId={stage.id}
               roundLabel={roundLabel(state.stages, stage.id)}
               eventName={state.event.name}
@@ -815,6 +827,13 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
    * Every one of them made the copy agree with the resolver about one more
    * thing. Deleting the copy is the version of that fix that stays fixed.
    */
+  /**
+   * WHICH ROUNDS' COURSE AND TEES ARE SHUT, and the sentence why — the rounds
+   * rule's own map (`roundRefusalsFor`), the one `setStageCourse` reads its
+   * refusal out of, so the Tees box is drawn shut rather than offered and then
+   * refused (round G594-1, 10 Nov). Staff only: nobody else is shown the box.
+   */
+  const teeDoors = isStaff ? await roundRefusalsFor(session.eventId, { kind: "round-tees" }) : new Map<string, string>();
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage) => {
       const holeCount = holesPlayed(stage.holes);
@@ -1033,6 +1052,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         scoringBasis: stage.scoringBasis,
         courseId: stage.courseId ?? "",
         teeId: stage.teeId ?? "",
+        teesDoor: teeDoors.get(stage.id) ?? null,
         /**
          * WHAT "THE TOURNAMENT'S" TEES ARE, for the picker's inherit option.
          *

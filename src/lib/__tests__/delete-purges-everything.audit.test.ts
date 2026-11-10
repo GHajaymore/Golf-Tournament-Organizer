@@ -173,6 +173,26 @@ afterAll(async () => {
   }
 });
 
+/**
+ * A ROUND WITH SCORES IS NOT DELETED (J12, state machine PR 7b; section 3,
+ * "Delete a round": "Round 2 has scores. Clear them on Score entry first.").
+ * Refused for anybody, force or not, before the money question — and once its
+ * cards are cleared the purge below takes everything else tied to it.
+ */
+describe("a round with scores is refused before anything is counted", () => {
+  it("refuses in the rule's words, force or not, and deletes nothing", async () => {
+    for (const force of [false, true]) {
+      expect(await removeStage(r2, force)).toMatchObject({ ok: false, refused: "Round 2 has scores. Clear them on Score entry first." });
+    }
+    expect(await prisma.stage.count({ where: { id: r2 } })).toBe(1);
+    expect(await rowsIn("Scorecard", "stageId", r2)).toBe(1);
+    expect(await rowsIn("Expense", "stageId", r2)).toBe(1);
+    // Cleared on Score entry: the cards go, and everything else stays for the purge to reach.
+    await prisma.scorecard.deleteMany({ where: { stageId: r2 } });
+    await prisma.teamScorecard.deleteMany({ where: { stageId: r2 } });
+  });
+});
+
 describe("who may delete a round that holds money records", () => {
   it("an Assistant is refused in plain words and nothing is deleted, even with force", async () => {
     session = { ...session!, role: "assistant" };
@@ -183,7 +203,7 @@ describe("who may delete a round that holds money records", () => {
       }
       expect(await prisma.stage.count({ where: { id: r2 } })).toBe(1);
       expect(await rowsIn("Expense", "stageId", r2)).toBe(1);
-      expect(await rowsIn("Scorecard", "stageId", r2)).toBe(1);
+      expect(await rowsIn("RoundHandicap", "stageId", r2)).toBe(1);
     } finally {
       session = { ...session!, role: "admin" };
     }
@@ -213,6 +233,9 @@ describe("deleting a knockout round", () => {
     await prisma.bracketReport.create({ data: { eventId, key: "winners-0-1", winnerId: ann, reportedById: ann } });
     await prisma.bracketWinner.create({ data: { eventId: otherEventId, key: "winners-0-0", winnerId: "zz" } });
     expect(await prisma.bracketWinner.count({ where: { eventId } })).toBe(1); // the control
+    // A knockout with a result is not deleted (J12, PR 7b): its results are cleared on the Bracket first.
+    expect(await removeStage(ko, true)).toMatchObject({ ok: false, refused: "Round 3 has results. Clear them on the Bracket first." });
+    await prisma.bracketWinner.deleteMany({ where: { eventId } });
     expect((await removeStage(ko, true)).ok).toBe(true);
     expect(await prisma.bracketWinner.count({ where: { eventId } })).toBe(0);
     expect(await prisma.bracketReport.count({ where: { eventId } })).toBe(0);
@@ -232,15 +255,16 @@ describe("deleting a knockout round", () => {
 });
 
 describe("removing a round", () => {
-  it("starts with the cards of both rounds counted — the control", async () => {
-    expect(await enteredCardCount(eventId)).toBe(4); // 2 stroke + 2 team
+  it("starts with the other round's cards counted — the control", async () => {
+    // Round 2's were cleared on Score entry above (J12, PR 7b): Round 1 keeps 1 stroke + 1 team.
+    expect(await enteredCardCount(eventId)).toBe(2);
     expect(await rowsIn("RoundHandicap", "eventId", eventId)).toBe(2);
   });
 
   it("leaves no table holding the round, and the other round and the players alone", async () => {
-    // Asked first, the confirm counts what will go: cards AND the money records.
+    // Asked first, the confirm counts what will go: the money records (its cards were cleared first).
     const ask = await removeStage(r2);
-    expect(ask).toMatchObject({ needsConfirm: true, cards: 2, records: 4 });
+    expect(ask).toMatchObject({ needsConfirm: true, cards: 0, records: 4 });
     const res = await removeStage(r2, true);
     expect(res.ok).toBe(true);
     expect(await prisma.stage.count({ where: { id: r2 } })).toBe(0);

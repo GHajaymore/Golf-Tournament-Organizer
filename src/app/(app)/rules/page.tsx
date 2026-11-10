@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { loadEventState, scoringFrom } from "@/lib/services/tournament";
 import { RULES, RULE_SOURCE_LABEL, TIER_LABEL, tournamentTerms, ruleFor } from "@/lib/rules";
+import { netCountbackMethodFor } from "@/lib/domain/stroke-countback";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -57,6 +58,7 @@ export default async function RulesPage() {
           cutAfter: cutAfterRound(state.playRounds, stage.id),
           carryForwardEnabled: stage.carryForwardEnabled,
           carryForwardPct: stage.carryForwardPct,
+          netCountback: netCountbackMethodFor(state.event.createdAt),
         })
       : [];
 

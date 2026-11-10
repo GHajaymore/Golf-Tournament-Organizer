@@ -52,7 +52,7 @@ describe("Entries shows the home club its Add form took", () => {
   it("on the row of the player it was typed for, and on no other", async () => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     const html = render(
-      <RegistrationClient doors={OPEN_DOORS}
+      <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[row("p1", "zz-Ann Visitor", "zz-Braeside Golf Club"), row("p2", "zz-Rob Member", "")]}
         waitlist={[row("p3", "zz-Cleo Waiting", "zz-Lochend Links")]}
         pendingEntries={[]} locked={false} isAdmin roster={[]} event={event} />,

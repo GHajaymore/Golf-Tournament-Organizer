@@ -220,11 +220,12 @@ test("deleting a round with a card in it is refused in the panel, and the refusa
     const del = panel.getByRole("button", { name: "Delete Round 1", exact: true });
     await centre(del);
     await del.click();
-    const said = panel.locator("b", { hasText: "Deleting this round destroys 1 entered card" });
+    // Refused outright since J12 PR 7b (section 3: a round with scores is not deleted), in the rule's words.
+    const said = panel.getByRole("alert").filter({ hasText: "Round 1 has scores. Clear them on Score entry first." });
     await saidBeside(said, del, "deleting a round holding a card, on the timeline");
 
-    // Out the safe way: the round and its card are still there.
-    await panel.getByRole("button", { name: "Keep it", exact: true }).click();
+    // Closed: the round and its card are still there.
+    await panel.getByRole("button", { name: "Close", exact: true }).click();
     await expect(said).toHaveCount(0);
     expect(await prisma.stage.count({ where: { id: r1.id } }), "Keep it deleted the round").toBe(1);
     expect(await prisma.scorecard.count({ where: { stageId: r1.id } }), "Keep it deleted the card").toBe(1);

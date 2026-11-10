@@ -58,6 +58,12 @@ export interface EntryRound {
   /** The name of the set "the tournament's" resolves to here, or "". */
   inheritedTeeName?: string;
   /**
+   * Why this round's course and tees cannot change now, or null — the rounds
+   * rule's sentence (`roundRefusalsFor(…, "round-tees")`, the map
+   * `setStageCourse` refuses from), so Tees is drawn shut, not offered and refused.
+   */
+  teesDoor: string | null;
+  /**
    * The card this round will actually be scored against, and whether that
    * card exists.
    *
@@ -458,6 +464,7 @@ export function EntryModes({
           venue={round.venue}
           teeId={round.teeId}
           inheritedTeeName={round.inheritedTeeName}
+          teesDoor={round.teesDoor}
           // Staff, as `setStageCourse` is (Ajay, 2026-09-27) — an assistant
           // sets the course and tees; only the directory search stays the
           // organizer's, since it spends the shared lookup allowance.

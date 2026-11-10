@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { TeamStandingsTable } from "@/components/TeamLeaderboard";
 import { tournamentTerms } from "@/lib/rules";
-import { recommendedAllowance } from "@/lib/round-allowance";
+import { recommendedAllowance, parStrokesApply, playingHandicapInRound } from "@/lib/round-allowance";
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_INPUT,
@@ -67,13 +67,14 @@ import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/d
 import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-agg";
 import { resolveMatch } from "@/lib/domain/match";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "@/lib/domain";
+import { countbackBetween, countbackCardOn } from "@/lib/domain/stroke-countback";
 import {
   handicapToFreeze,
   isReturnedCard,
   resolveRoundHandicap,
   roundHandicapKey,
 } from "@/lib/domain/round-handicap";
-import { playingHandicapFrom, courseHandicapMap, teeIdFor } from "@/lib/domain/handicap";
+import { playingHandicapFrom, courseHandicapMap, teeIdFor, courseHandicapExact, courseHandicap } from "@/lib/domain/handicap";
 import { TEE_POLICY } from "@/lib/tournament-settings";
 import {
   effectiveAllowance,
@@ -86,9 +87,11 @@ import { placesByValue } from "@/lib/domain/flight-places";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
 import type { HoleResult, Match, Player } from "@/lib/domain/types";
 import type { BracketView } from "@/lib/domain/bracket";
-import { tournamentStatus, drawFacts, type Family, type TournamentFacts } from "@/lib/domain/tournament-status";
+import { tournamentStatus, drawFacts, addRoundLockOf, locksFor, lockFactsOf, type Family, type TournamentFacts } from "@/lib/domain/tournament-status";
 import { FAMILY_FIXTURES as STATUS_FAMILIES, launched as launchedFacts } from "@/lib/domain/__tests__/tournament-facts-fixtures";
 import { fieldChangeAllowed, fieldFactsOf, fieldStepOf, partOf, type FieldChange, type FieldStep, type FieldVerdict } from "@/lib/domain/field-change";
+import { acrossRounds, handicapMoves, roundChangeAllowed, roundStepOf, teesFrozenWords, type RoundChangeAsk, type RoundChangeRound, type RoundStep, type RoundVerdict } from "@/lib/domain/round-change";
+import { formatFitsRound } from "@/lib/domain/round-choices";
 
 /**
  * The combination sweep.
@@ -2917,7 +2920,7 @@ describe("what a team board and the rules sheet say about handicap, on every tea
   const stated = (format: string, type: string) =>
     tournamentTerms({
       format, type, holes: 18, scoringBasis: "net", handicapAllowance: 0, countBest: 0,
-      tiebreakers: [], cutAfter: null, carryForwardEnabled: false, carryForwardPct: 0,
+      tiebreakers: [], cutAfter: null, carryForwardEnabled: false, carryForwardPct: 0, netCountback: "fractions",
     }).find((t) => t.label === "Handicap allowance")?.value;
   it("Appendix C: a four-ball stroke round states 85%", () => {
     expect(stated("Four-Ball", "Stroke Play Round")).toContain("85%");
@@ -2975,7 +2978,7 @@ describe("what a team board and the rules sheet say about handicap, on every tea
             tiebreakers: [],
             cutAfter: null,
             carryForwardEnabled: false,
-            carryForwardPct: 0,
+            carryForwardPct: 0, netCountback: "fractions",
           }).find((t) => t.label === "Handicap allowance")?.value;
           expect(words, "the rules sheet states no allowance").toBeTruthy();
           if (!format.weightsBySideSize) expect(words).toContain(`${recommendedAllowance(format.name, type)}%`);
@@ -3152,5 +3155,469 @@ describe("an upstream edit to the field, every family × every step (J12)", () =
       says: "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. To draw it again, clear its results on the Bracket.",
       wayOut: { says: "Add them as a reserve on Entries", href: "/registration" },
     });
+  });
+});
+
+/**
+ * AN UPSTREAM EDIT TO A ROUND, EVERY FORMAT × STAGE TYPE × STEP × FIELD SIZE
+ * (J12, state machine PR 7b; the proposal's test plan, "an upstream edit,
+ * every scope × every step", for the rounds-and-format rows).
+ *
+ * The expectation is worked HERE from section 3's table and the Golf Pro's
+ * answers, never read off the function:
+ *
+ *   allowance / basis                     open · open · WARN (confirm, recompute, log) · refuse
+ *     — except a round whose result is a MATCH: refused after scores, since a
+ *       decided match stands (Rule 3.2a(5)) and is not worked out again;
+ *   a round's tees or course (8 Nov, C)   open · open · REFUSE · refuse — its handicaps were
+ *                                         frozen off its tees, and the index they were frozen
+ *                                         with is not stored, so nothing is re-frozen;
+ *   the tournament's / a flight's tees    refused after scores where a round of CARDS is reached;
+ *                                         a round of matches keeps its frozen strokes, so open there;
+ *   format                                open · RE-DRAW if it now draws differently · refuse
+ *                                         both ways (Rule 21.1b vs 3.3b(3); Committee
+ *                                         Procedures 5A) · refuse;
+ *   holes (8 Nov, format-like)            open · open · refuse · refuse;
+ *   a cut made OUT of the round (8 Nov)   its allowance, basis and tees (and the tournament's) refused after
+ *                                         scores, the way out the cut's undo on Rounds & formats;
+ *   delete                                open · WARN (its draw goes with it) · refuse · refuse;
+ *   a round's day                         open · open · WARN (schedules) · refuse.
+ *
+ * Which rounds file MATCHES is written out by hand from the catalogue — a
+ * head-to-head round in any format not scored on strokes or points — not by
+ * the predicate the rule uses. Launch is not a step: every cell before
+ * completion runs both unlaunched and launched. Field sizes start at ONE: a
+ * head-to-head round of one has nobody to be drawn against, so it stays
+ * before the draw whatever happens around it. Invariants in every cell: the
+ * step meant; every refusal in words with a screen to go to; none offers a
+ * committee correction (a correction never opens over recorded scores — TD,
+ * panel 8.1); scores send to Score entry (a knockout's results to the Bracket), completion to the dashboard.
+ */
+describe("an upstream edit to a round, every format × stage type × step × field size (J12)", () => {
+  type Want = "open" | "warn" | "redraw" | "refuse";
+  const STEPS: RoundStep[] = ["before-draw", "after-draw", "after-scores", "completed"];
+  const HEAD_TO_HEAD = ["Round Robin", "Single Match Stage", "Bracket Stage", "Team Session"];
+  /** Scored on strokes or points, never hole by hole (the catalogue's stroke, Stableford and modified-Stableford games). */
+  const ON_CARDS = ["Stroke Play", "Stableford", "Modified Stableford"];
+  const matchesFiled = (type: string, format: string) => HEAD_TO_HEAD.includes(type) && !ON_CARDS.includes(format);
+
+  /** `cut`: a cut has been made OUT of this round — the next round's field was decided on its figures (8 Nov). */
+  function want(kind: RoundChangeAsk["kind"], step: RoundStep, matches: boolean, redraws: boolean, cut = false): Want {
+    if (step === "completed") return "refuse";
+    switch (kind) {
+      case "allowance":
+        return step === "after-scores" ? (matches || cut ? "refuse" : "warn") : "open";
+      case "round-tees":
+        // Option C (8 Nov): a scored round's handicaps were frozen off its tees, and the index is not stored.
+        return step === "after-scores" ? "refuse" : "open";
+      case "field-tees":
+        // A scored round of cards refuses; a round of matches keeps the strokes it was frozen at.
+        return step === "after-scores" && !matches ? "refuse" : "open";
+      case "format":
+        return step === "after-scores" ? "refuse" : step === "after-draw" && redraws ? "redraw" : "open";
+      case "holes":
+        // Format-like (8 Nov): another length makes the cards mean something else.
+        return step === "after-scores" ? "refuse" : "open";
+      case "delete":
+        return step === "after-scores" ? "refuse" : step === "after-draw" ? "warn" : "open";
+      case "day":
+        return step === "after-scores" ? "warn" : "open";
+    }
+  }
+  const kind = (v: RoundVerdict): Want => (!v.ok ? "refuse" : v.warn === null ? "open" : v.warn === "redraw" ? "redraw" : "warn");
+
+  /** A round of `type` in `format` at `step`, for a field of `n`. Head to head, the pairings are the field halved — none for one. */
+  function roundAt(type: string, format: string, step: RoundStep, n: number): { round: RoundChangeRound; meant: RoundStep } {
+    const h2h = HEAD_TO_HEAD.includes(type);
+    const pairings = h2h ? Math.floor(n / 2) : 0;
+    // A head-to-head round with nobody to draw has no draw and no result.
+    const undrawable = h2h && pairings === 0;
+    const drawn = step !== "before-draw" && !undrawable;
+    const played = (step === "after-scores" || step === "completed") && !undrawable;
+    const meant: RoundStep = step === "completed" ? "completed" : undrawable ? "before-draw" : step;
+    return {
+      round: { id: "r1", label: "Round 1", type, format, playing: true, hasResult: played, matches: drawn ? pairings : 0, teeSheetSaved: h2h ? null : drawn, cutMadeAfter: false },
+      meant,
+    };
+  }
+
+  const invariants = (v: RoundVerdict, at: string, type: string) => {
+    if (v.ok) return;
+    expect(v.says.trim().length, `${at}: a refusal in words`).toBeGreaterThan(10);
+    expect(v.wayOut.href, `${at}: a way out to a screen`).toMatch(/^\//);
+    expect(v.says, `${at}: never a correction over scores`).not.toMatch(/committee correction/i);
+    // A made cut is undone where it is made — reopening the round on Rounds & formats.
+    const scoresWayOut = /^The cut after /.test(v.says) ? "/stages" : type === "Bracket Stage" ? "/bracket" : "/entry";
+    expect(v.wayOut.href, `${at}: the way out of its step`).toBe(v.step === "completed" ? "/dashboard" : scoresWayOut);
+  };
+
+  const PAIRS = STAGE_TYPES.flatMap((type) => GOLF_FORMATS.filter((f) => formatFitsRound(type, f.name)).map((f) => ({ type, format: f.name })));
+
+  it("CONTROL: the sweep has both kinds of round to judge — cards and matches, in more than one type", () => {
+    expect(PAIRS.some((p) => matchesFiled(p.type, p.format))).toBe(true);
+    expect(PAIRS.some((p) => !matchesFiled(p.type, p.format))).toBe(true);
+    expect(new Set(PAIRS.map((p) => p.type)).size).toBeGreaterThan(2);
+  });
+
+  for (const { type, format } of PAIRS) {
+    const matches = matchesFiled(type, format);
+    const fitting = GOLF_FORMATS.filter((f) => f.name !== format && formatFitsRound(type, f.name)).map((f) => f.name);
+    // The format it would become: one of the OTHER draw where the type allows it (a re-draw), else one of the same.
+    const other = fitting.find((f) => matchesFiled(type, f) !== matches);
+    const to = other ?? fitting[0];
+    for (const step of STEPS) {
+      for (const n of [1, 2, 3, 8, 28]) {
+        it(`${type} · ${format} · ${step} · ${n} in the field`, () => {
+          const { round: base, meant } = roundAt(type, format, step, n);
+          // A cut can only have been made OUT of a played round of cards (`cutHasBeenMade`: individual stroke rounds, the feeder closed).
+          const cuts = base.hasResult && !matches ? [false, true] : [false];
+          for (const cut of cuts) {
+            const round = { ...base, cutMadeAfter: cut };
+            for (const status of step === "completed" ? ["completed"] : ["draft", "live"]) {
+              const facts = { status, round };
+              const at = `${status}${cut ? " · cut made after it" : ""}`;
+              expect(roundStepOf(facts), `${at}: the round stands in the step meant`).toBe(meant);
+              for (const k of ["allowance", "round-tees", "holes", "delete", "day"] as const) {
+                const v = roundChangeAllowed(facts, { kind: k });
+                expect(kind(v), `${at}: ${k}`).toBe(want(k, meant, matches, false, cut));
+                invariants(v, `${at}: ${k}`, type);
+              }
+              if (to) {
+                const v = roundChangeAllowed(facts, { kind: "format", to });
+                expect(kind(v), `${at}: format → ${to}`).toBe(want("format", meant, matches, other !== undefined, cut));
+                invariants(v, `${at}: format`, type);
+              }
+              // The tournament's tees, over a tournament of this one round.
+              const across = acrossRounds({ status, rounds: [{ ...STATUS_FAMILIES.stroke().rounds[0], ...round }] }, { kind: "field-tees" }, new Set(cut ? ["r1"] : []));
+              expect(kind(across), `${at}: field tees`).toBe(want("field-tees", meant, matches, false, cut));
+              // Never re-frozen (option C): a refusal names the round and the way out, in the rule's words.
+              if (!across.ok && meant === "after-scores") expect(across.says, `${at}: field tees refused in words`).toBe(teesFrozenWords("Round 1", type === "Bracket Stage" ? { what: "results", where: "on the Bracket" } : undefined));
+              invariants(across, `${at}: field tees`, type);
+            }
+          }
+        });
+      }
+    }
+  }
+
+  it("adding a round is refused only once completed, every family and step (section 3, 'Add a round')", () => {
+    for (const family of Object.keys(STATUS_FAMILIES) as Family[]) {
+      const base = STATUS_FAMILIES[family]();
+      const played = { ...launchedFacts(base), rounds: base.rounds.map((r) => ({ ...r, hasResult: true })) };
+      for (const [f, refused] of [
+        [{ ...base, status: "draft", configUnlocked: false }, false],
+        [launchedFacts(base), false],
+        [played, false],
+        [{ ...played, status: "completed" }, true],
+      ] as const) {
+        expect(addRoundLockOf(locksFor(lockFactsOf(f))) !== null, `${family} · ${f.status}`).toBe(refused);
+      }
+    }
+  });
+});
+
+/**
+ * "RECOMPUTE" IS THE RESOLVER'S OWN ANSWER, AND THE RULES' (J12, PR 7b; the
+ * Golf Pro's Q2: warn, recompute and log). After scores an allowance change
+ * re-prices every player off the figure FROZEN at the first card — the exact
+ * Course Handicap, the allowance taken of it, rounded ONCE (Rules of
+ * Handicapping, Rule 6.1 and 6.2, Appendix C) — and the moves the audit line
+ * names are exactly the players whose playing handicap changed.
+ *
+ * Worked by hand here from decimal indexes off one rated set (Slope 131,
+ * Course Rating 72.4, Par 71): Course Handicap = Index × Slope ÷ 113 +
+ * (Course Rating − Par), never rounded before the allowance. Every format that
+ * takes an individual allowance, on every type that plays it on cards, field
+ * sizes from one.
+ */
+describe("an allowance changed after play re-prices off the frozen figure, by the Rules (J12)", () => {
+  const SLOPE = 131;
+  const RATING = 72.4;
+  const PAR = 71;
+  const exactOf = (index: number) => (index * SLOPE) / 113 + (RATING - PAR);
+  /** Rounded once, .5 up (Rule 6.1 — the figure is never negative in these fields). */
+  const once = (x: number) => Math.floor(x + 0.5);
+  const indexes = (n: number) => Array.from({ length: n }, (_, i) => Number(((i % 10) * 4.3 + 0.6).toFixed(1)));
+
+  const CARDS = [
+    { type: "Stroke Play Round", format: "Stroke Play" },
+    { type: "Stroke Play Round", format: "Stableford" },
+    { type: "Round Robin", format: "Stroke Play" },
+  ];
+
+  for (const { type, format } of CARDS) {
+    for (const n of [1, 2, 3, 8, 28]) {
+      it(`${type} · ${format} · ${n} in the field: 95% → 85% moves exactly the players the Rules move`, () => {
+        // After scores, a round of cards: the rule asks and lets it through to be worked out again.
+        const v = roundChangeAllowed({ status: "live", round: { id: "r1", label: "Round 1", type, format, playing: true, hasResult: true, matches: 0, teeSheetSaved: true, cutMadeAfter: false } }, { kind: "allowance" });
+        expect(v).toEqual({ ok: true, scope: "rounds", step: "after-scores", warn: "rescore" });
+
+        const field = indexes(n).map((index, i) => {
+          const exact = exactOf(index);
+          return { playerId: `p${i}`, row: { frozen: once(exact), frozenExact: exact, frozenParStrokes: 0, override: null }, exact };
+        });
+        const priced = (allowance: number) =>
+          field.map((p) => ({
+            playerId: p.playerId,
+            // The member's live figures are deliberately wrong: a frozen round must not read them.
+            figure: playingHandicapInRound({ format, type, scoringBasis: "net", handicapAllowance: allowance }, p.row, { whole: 99, exact: 99, parStrokes: 7 }),
+          }));
+        const before = priced(95);
+        const after = priced(85);
+        expect(before.map((p) => p.figure)).toEqual(field.map((p) => once((p.exact * 95) / 100)));
+        expect(after.map((p) => p.figure)).toEqual(field.map((p) => once((p.exact * 85) / 100)));
+        const hand = field
+          .map((p) => ({ playerId: p.playerId, from: once((p.exact * 95) / 100), to: once((p.exact * 85) / 100) }))
+          .filter((m) => m.from !== m.to);
+        expect(handicapMoves(before, after)).toEqual(hand);
+      });
+    }
+  }
+
+  /**
+   * THE CONSTANT-OFFSET CHECK: one player whole, against the Rules by hand, so
+   * a re-pricing that rounded the Course Handicap first (16 → 85% = 13.6 → 14)
+   * or took the live figure instead of the frozen one cannot pass on the cells
+   * agreeing with each other. Index 12.4: 12.4 × 131 ÷ 113 = 14.3752…; + 1.4 =
+   * 15.7752…; 95% = 14.986… → 15; 85% = 13.408… → 13.
+   */
+  it("one row by hand: index 12.4 plays off 15 at 95% and 13 at 85%, and the move says 15 → 13", () => {
+    const row = { frozen: 16, frozenExact: 15.775221238938052, frozenParStrokes: 0, override: null };
+    const at = (allowance: number) => playingHandicapInRound({ format: "Stroke Play", type: "Stroke Play Round", scoringBasis: "net", handicapAllowance: allowance }, row, { whole: 0, exact: 0, parStrokes: 0 });
+    expect(at(95)).toBe(15);
+    expect(at(85)).toBe(13);
+    expect(handicapMoves([{ playerId: "p", figure: at(95) }], [{ playerId: "p", figure: at(85) }])).toEqual([{ playerId: "p", from: 15, to: 13 }]);
+  });
+});
+
+/**
+ * THE ALLOWANCE A ROUND PLAYS AT, ON EVERY FORMAT x EVERY STAGE TYPE x EVERY
+ * FIELD SIZE, AGAINST APPENDIX C HELD HERE (the accuracy sweep, 2026-11-09).
+ *
+ * The first block of this file sweeps every format on every stage type for
+ * COHERENCE and asserts no figure. `round-allowance.test.ts` pins Four-Ball's
+ * two figures and reads the rest off the format table — the code's own route.
+ * This cell holds the Rules of Handicapping, Appendix C (2024), as its OWN
+ * table, and asks the one reader (`recommendedAllowance(format, stage.type)`)
+ * for every cell: a four-ball is 85 in a medal and 90 in a match, and nothing
+ * else in the catalogue moves with the round.
+ *
+ * Then a VALUE at every field size from ONE: each individual net format,
+ * on every stage type, prices a field of decimal indexes (plus handicaps
+ * included) through `playingHandicapInRound` — what the board prices a round
+ * with — and every player must play off the Rule worked in WHOLE NUMBERS
+ * (an index in tenths, everything over 1130 x 100), sharing neither formula
+ * nor floating point with `domain/handicap.ts`.
+ *
+ * And which formats give the strokes for tees of a higher par (Rule 6.2b), by
+ * format and by the basis a round is set to.
+ */
+describe("the allowance a round plays at, on every format, stage type and field size, against Appendix C", () => {
+  /** Appendix C, held here. `match` is the figure where the round is head-to-head. */
+  const APPENDIX_C: Record<string, { stroke: number; match: number; weights?: Record<number, number[]> }> = {
+    "Match Play": { stroke: 100, match: 100 }, // individual match play
+    "Stroke Play": { stroke: 95, match: 95 }, // individual stroke play (a medal, wherever it is held)
+    Stableford: { stroke: 95, match: 95 }, // individual Stableford
+    "Modified Stableford": { stroke: 95, match: 95 }, // individual Stableford, a committee's table
+    Nassau: { stroke: 100, match: 100 }, // three individual matches
+    "Four-Ball": { stroke: 85, match: 90 }, // four-ball stroke play / match play
+    // A pair counting its better ball is a four-ball: 85 / 90 (moved here from the
+    // departures on 2026-11-09). Best 1 of 4 (75%) and 3 of 4 (100%) at stroke play
+    // still play 85 — `docs/deferred-register.md`, "Best Ball plays at 85%".
+    "Best Ball": { stroke: 85, match: 90 },
+    Foursomes: { stroke: 50, match: 50 }, // 50% of the combined
+    "Alternate Shot": { stroke: 50, match: 50 }, // foursomes by another name
+    Greensomes: { stroke: 100, match: 100, weights: { 2: [60, 40] } }, // 60% low + 40% high
+    "Chapman / Pinehurst": { stroke: 100, match: 100, weights: { 2: [60, 40] } },
+    Scramble: { stroke: 25, match: 25, weights: { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] } },
+    "Texas Scramble": { stroke: 25, match: 25, weights: { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] } },
+  };
+  /**
+   * Formats Appendix C does not name, at the figure the app states for them and
+   * says is a convention or carries no allowance of its own. Held so that a
+   * format added to the catalogue must be placed in one table or the other.
+   */
+  const NO_PUBLISHED_FIGURE: Record<string, number> = { Skins: 100, Shamble: 85, "Other (scored by hand)": 100 };
+  /**
+   * KNOWN DEPARTURES FROM APPENDIX C — asserted to be STILL THERE, so that the
+   * day one is fixed this list goes red and the cell moves into the table.
+   * Empty since 2026-11-09, when Best Ball in a match went to 90% (it held
+   * `{ format: "Best Ball", headToHead: true, app: 85, rules: 90 }`).
+   */
+  const KNOWN_DEPARTURES: Array<{ format: string; headToHead: boolean; app: number; rules: number }> = [];
+
+  it("CONTROL: every format in the catalogue is in exactly one table, and both kinds of round exist", () => {
+    for (const f of FORMAT_NAMES) {
+      const placed =
+        Number(f in APPENDIX_C) + Number(f in NO_PUBLISHED_FIGURE) + Number(KNOWN_DEPARTURES.some((d) => d.format === f));
+      expect(placed, `${f} is placed ${placed} times`).toBe(1);
+    }
+    expect(STAGE_TYPES.some((t) => isHeadToHead(t))).toBe(true);
+    expect(STAGE_TYPES.some((t) => !isHeadToHead(t))).toBe(true);
+  });
+
+  for (const format of FORMAT_NAMES) {
+    for (const type of STAGE_TYPES) {
+      it(`${format} on a ${type}`, () => {
+        const h2h = isHeadToHead(type);
+        const got = recommendedAllowance(format, type);
+        const rule = APPENDIX_C[format];
+        if (rule) {
+          expect(got, `${format} on a ${type}`).toBe(h2h ? rule.match : rule.stroke);
+          expect(findFormat(format).weightsBySideSize, `${format}'s shares`).toEqual(rule.weights);
+          return;
+        }
+        if (format in NO_PUBLISHED_FIGURE) {
+          expect(got).toBe(NO_PUBLISHED_FIGURE[format]);
+          return;
+        }
+        const d = KNOWN_DEPARTURES.find((k) => k.format === format && k.headToHead === h2h)!;
+        expect(got, `${format} on a ${type}: if this now gives ${d.rules}, move it into APPENDIX_C`).toBe(d.app);
+      });
+    }
+  }
+
+  /** Round half up, in integers: floor((2 x num + den) / (2 x den)). */
+  const roundHalfUp = (num: number, den: number) => Math.floor((2 * num + den) / (2 * den));
+  /** Off 131 / 72.3 / par 72; indexes from plus 3.0, in tenths. */
+  const SLOPE = 131;
+  const CR10 = 723;
+  const PAR = 72;
+  const indexTenths = (i: number) => ((i * 137) % 420) - 30;
+  const INDIVIDUAL_NET = GOLF_FORMATS.filter((f) => f.sideSize === 1 && !f.manual).map((f) => f.name);
+
+  it("CONTROL: the field walks plus handicaps and decimals, and there are individual formats to price", () => {
+    const sample = FIELD_SIZES.flatMap((n) => Array.from({ length: n }, (_, i) => indexTenths(i)));
+    expect(sample.some((t) => t < 0)).toBe(true);
+    expect(sample.some((t) => t % 10 !== 0)).toBe(true);
+    expect(INDIVIDUAL_NET.length).toBeGreaterThanOrEqual(5);
+  });
+
+  for (const format of INDIVIDUAL_NET) {
+    for (const type of STAGE_TYPES) {
+      it(`${format} on a ${type}: every player at every field size plays off the Rule`, () => {
+        const pct = recommendedAllowance(format, type);
+        for (const n of FIELD_SIZES) {
+          for (let i = 0; i < n; i += 1) {
+            const t = indexTenths(i);
+            const rated = { slopeRating: SLOPE, courseRating: CR10 / 10, par: PAR };
+            const exact = courseHandicapExact(t / 10, rated);
+            const playing = playingHandicapInRound(
+              { format, type, scoringBasis: "net", handicapAllowance: 0 },
+              null,
+              { whole: courseHandicap(t / 10, rated), exact, parStrokes: 0 },
+            );
+            // Course Handicap x 1130 = t x Slope + (CR10 - 10 x Par) x 113; then x pct / 100.
+            const num = (t * SLOPE + (CR10 - 10 * PAR) * 113) * pct;
+            expect(playing, `${format}, ${type}, field of ${n}, index ${t / 10}`).toBe(roundHalfUp(num, 1130 * 100));
+          }
+        }
+      });
+    }
+  }
+
+  it("the strokes for a higher par (6.2b): stroke and match play in strokes, never points, never a shared ball", () => {
+    const GIVES: Record<string, boolean> = {
+      "Match Play": true,
+      "Stroke Play": true,
+      Stableford: false,
+      "Modified Stableford": false,
+      Skins: true,
+      Nassau: true,
+      "Four-Ball": true,
+      "Best Ball": true,
+      Shamble: true,
+      // A shared ball: not decided (`docs/deferred-register.md`), nought for now.
+      Foursomes: false,
+      "Alternate Shot": false,
+      "Chapman / Pinehurst": false,
+      Greensomes: false,
+      Scramble: false,
+      "Texas Scramble": false,
+      "Other (scored by hand)": false,
+    };
+    for (const format of FORMAT_NAMES) {
+      expect(format in GIVES, `${format} is not in the table`).toBe(true);
+      expect(parStrokesApply(format, "net"), `${format}, net`).toBe(GIVES[format]);
+      expect(parStrokesApply(format, "gross"), `${format}, gross`).toBe(GIVES[format]);
+      // Set to points, every round is counted against par and gives none (6.2b).
+      expect(parStrokesApply(format, "stableford"), `${format}, Stableford`).toBe(false);
+      expect(parStrokesApply(format, "modified-stableford"), `${format}, Modified Stableford`).toBe(false);
+    }
+  });
+});
+
+/**
+ * A NET TIE COUNTED BACK BY FRACTIONS OF THE HANDICAP, AT EVERY FIELD SIZE AND
+ * BOTH HOLE COUNTS (2026-11-09).
+ *
+ * Committee Procedures 5A(7): in a handicap stroke-play competition the last 9,
+ * 6, 3 and 1 holes are compared after taking off ½, ⅓, ⅙ and 1/18 of the
+ * handicap; a nine-hole round's last 6, 3 and 1 take ⅔, ⅓ and 1/9 — holes
+ * counted over holes played. The FRACTIONS table below is written as the
+ * guidance writes it, not derived from the code's `n / holes`.
+ *
+ * Every player in a field finishes on the SAME net total (gross = par +
+ * playing handicap, the extra strokes spread differently per player), so every
+ * pair is a tie the countback must break. Handicaps run from plus 2 up, and the
+ * playing handicap is recovered from the card itself (gross less net), as the
+ * board does. Invariants: the order is the table's, it is antisymmetric, and a
+ * player is level with themselves. Control: somewhere in the sweep the
+ * hole-by-hole method gives a different answer, or the cell could not tell the
+ * two apart.
+ */
+describe("a net tie counted back by fractions of the handicap, at every field size and hole count", () => {
+  const FRACTIONS: Record<9 | 18, Array<[number, number]>> = {
+    18: [[9, 1 / 2], [6, 1 / 3], [3, 1 / 6], [1, 1 / 18]],
+    9: [[6, 2 / 3], [3, 1 / 3], [1, 1 / 9]],
+  };
+  let disagreements = 0;
+
+  for (const H of [18, 9] as const) {
+    // Stroke index 1..H spread round the card, as a club prints it.
+    const si = Array.from({ length: H }, (_, j) => ((j * 7) % H) + 1);
+    for (const n of FIELD_SIZES) {
+      it(`${n} level on net over ${H} holes`, () => {
+        const field = Array.from({ length: n }, (_, i) => {
+          const playing = ((i * 5) % (H + 2)) - 2;
+          const extra = Math.abs(playing);
+          const gross = Array.from({ length: H }, (_, j) =>
+            4 + (((j * 5 + i * 3) % H) < extra ? Math.sign(playing) : 0),
+          );
+          const net = gross.map((g, j) => g - holeStrokesReceived(playing, si[j], H));
+          return { id: `p${i}`, playing, gross, net };
+        });
+        const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+        for (const p of field) {
+          expect(sum(p.net), `${p.id} is level on net`).toBe(4 * H);
+          expect(countbackCardOn(p.id, { gross: p.gross, net: p.net, points: [] }, "net", "fractions").fractionOf).toBe(p.playing);
+        }
+        /** The guidance's order, negative when a is ahead: the first step whose figures differ. */
+        const byTable = (a: (typeof field)[number], b: (typeof field)[number]) => {
+          for (const [k, f] of FRACTIONS[H]) {
+            const va = sum(a.gross.slice(H - k)) - a.playing * f;
+            const vb = sum(b.gross.slice(H - k)) - b.playing * f;
+            if (Math.abs(va - vb) > 1e-9) return Math.sign(va - vb);
+          }
+          return 0;
+        };
+        const card = (p: (typeof field)[number], how: "fractions" | "hole-by-hole") =>
+          countbackCardOn(p.id, { gross: p.gross, net: p.net, points: [] }, "net", how);
+        for (const a of field) {
+          expect(countbackBetween(card(a, "fractions"), card(a, "fractions"), H).order).toBe(0);
+          for (const b of field) {
+            const ab = Math.sign(countbackBetween(card(a, "fractions"), card(b, "fractions"), H).order);
+            const ba = Math.sign(countbackBetween(card(b, "fractions"), card(a, "fractions"), H).order);
+            expect(ab, `${a.id} (${a.playing}) v ${b.id} (${b.playing}) over ${H}`).toBe(byTable(a, b));
+            expect(ab + ba, "antisymmetric").toBe(0);
+            if (Math.sign(countbackBetween(card(a, "hole-by-hole"), card(b, "hole-by-hole"), H).order) !== ab) disagreements += 1;
+          }
+        }
+      });
+    }
+  }
+
+  it("CONTROL: the sweep reaches ties the hole-by-hole countback decides differently", () => {
+    expect(disagreements).toBeGreaterThan(0);
   });
 });

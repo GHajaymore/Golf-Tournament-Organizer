@@ -2,6 +2,7 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
+import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
  * THE "COURSE DAY" TIMELINE SAYS WHAT THE DASHBOARD SAYS, AT EVERY STEP (state machine PR 5c, J16).
@@ -66,7 +67,7 @@ test("the timeline says what the dashboard says, at every step of a medal (J16)"
     await expectTournamentSays(page, {
       chip: "Live",
       chipDetail: null,
-      nextAction: "Complete tournament",
+      nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
       timeline: true,
     });

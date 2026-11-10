@@ -316,7 +316,9 @@ export function ReportsClient({
   ];
 
   return (
-    <div className="page-split" style={{ display: "grid", gridTemplateColumns: "360px minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
+    // Exports, opens and prints — nothing here writes (no action is imported), so the
+    // whole of it stays live in an archived tournament (`archive-read-only.ts`).
+    <div className="page-split" data-reads="" style={{ display: "grid", gridTemplateColumns: "360px minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm" style={{ gap: 10 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Exports</span>
         {exports.map((e) => (

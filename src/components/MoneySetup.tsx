@@ -203,7 +203,8 @@ export function MoneySetup({
   }
 
   return (
-    <section className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
+    // "Money in this tournament": the tournament's own part, locked in an archived tournament wherever it is drawn (`archive-read-only.ts`).
+    <section className="card elev-sm" data-this-tournament="" style={{ marginTop: 16, gap: 10 }}>
       <span className="card-title" style={{ fontSize: 15 }}>Money in this tournament</span>
       <MoreInfo short="TourneyHQ records money. It never moves it." style={{ margin: "-2px 0 4px" }}>
         TourneyHQ works money out and writes it down. It never moves it — there is no payment rail here,

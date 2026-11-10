@@ -56,8 +56,16 @@ export function FlightBoard({
   tees = [],
   byFlightTees = false,
   defaultTeeName = "",
+  teesDoor,
 }: {
   cards: FlightCard[];
+  /**
+   * WHY A FLIGHT'S TEES CANNOT CHANGE NOW, or null — the rounds rule's
+   * sentence (`acrossRoundsRefusal(…, "field-tees")`, the very call
+   * `setFlightTee` refuses with). REQUIRED, so each flight's Tees box is drawn
+   * shut with it rather than offered and then refused.
+   */
+  teesDoor: string | null;
   locked: boolean;
   canEdit: boolean;
   /**
@@ -99,6 +107,8 @@ export function FlightBoard({
   const [confirming, setConfirming] = useState<{ playerId: string; groupId: string; scored: number } | null>(null);
   const [pending, startTransition] = useTransition();
   const caughtUp = useCaughtUp();
+  /** The rounds rule's refusal of a flight's tees, or null: an empty sentence is never a reason to shut anything. */
+  const teesShutBy = teesDoor || null;
 
   // A confirmed draw is finished work. It stays visible and stays reopenable,
   // but it is no longer one stray drag from being different.
@@ -359,7 +369,8 @@ export function FlightBoard({
                   aria-label={`Tees for ${g.label}`}
                   style={{ width: "auto", fontSize: 13, padding: "2px 6px" }}
                   value={g.teeId ?? ""}
-                  disabled={locked || !canSetTees || pending}
+                  disabled={locked || !canSetTees || pending || teesShutBy !== null}
+                  aria-describedby={teesShutBy !== null ? `flight-tees-door-${g.id}` : undefined}
                   onChange={(e) => {
                     setError("");
                     const teeId = e.target.value || null;
@@ -375,6 +386,13 @@ export function FlightBoard({
                   ))}
                 </select>
               </label>
+            )}
+            {/* Why it is shut, under it, before anybody presses (J12, PR 7b). Not where a lock or a
+                role shuts it: the banner says the lock, and a reader with no press needs no reason. */}
+            {byFlightTees && tees.length > 0 && teesShutBy !== null && !locked && canSetTees && (
+              <span id={`flight-tees-door-${g.id}`} data-testid="flight-tees-door" className="text-muted" style={{ fontSize: 13, lineHeight: 1.45 }}>
+                <Icon name="lock-simple" /> {teesShutBy}
+              </span>
             )}
 
             {g.players.length === 0 && (

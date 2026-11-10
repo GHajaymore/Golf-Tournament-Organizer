@@ -176,6 +176,9 @@ describe("every server action is guarded", () => {
      * the archive's refusal.
      */
     "adminEventOrRefusal",
+    /** The staff twin of the above (tournament.ts, play-status.ts), and attendance.ts's session form: the same try/catch around `requireStaffEvent` / `requireStaffSession`, returning only the archive's sentence. */
+    "staffEventOrRefusal",
+    "staffSessionOrRefusal",
     /**
      * handicap-policy.ts: `getSession`, then `organizationAccess`, then a
      * `canEdit` check — the same three steps `saveOrganizationDefaults` in
@@ -1164,7 +1167,11 @@ describe("open (self-service) registration defends its own endpoint", () => {
     // person submitting over and over. Either alone leaves a hole — and both
     // must run before the database is touched, so a refusal costs no query and
     // reveals nothing about whether the event exists.
-    expect(body).toMatch(/checkRateLimit\("register-token", cleanToken\)/);
+    // The link's budget is the one rule's (`entryLinkBudget`, 2026-11-10),
+    // asked of the link by token — the limiter asks it only past the floor.
+    expect(body).toMatch(
+      /checkRateLimit\("register-token", cleanToken, \(\) => entryLinkBudgetFor\(cleanToken\)\)/,
+    );
     // Per person PER TOURNAMENT (2026-10-10) — see `entryLimitKey`.
     expect(body).toMatch(/checkRateLimit\("register-email", entryLimitKey\(person\.email, cleanToken\)\)/);
     // The event lookup comes after both checks.

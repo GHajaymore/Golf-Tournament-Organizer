@@ -1,12 +1,14 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { PLANS } from "../../src/lib/plans";
 import { seed, setPlanFor, names, indexes, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
+import { expectLaunched, pressComplete } from "../end-early";
 
 /**
  * SCENARIO — tournament A: a community golf society on Birdie ($49),
- * "Saturday Stableford". 110 members on the roster, a field capped at 50 by
- * the plan; members enter themselves from their phones. Net Stableford, 95%.
+ * "Saturday Stableford". 110 members on the roster, a field capped by
+ * the plan (Birdie, read from plans.ts); members enter themselves from their phones. Net Stableford, 95%.
  * Kept in the dev database afterwards (Ajay, 2026-10-09).
  */
 const PHASE = process.env.PHASE ?? "A1";
@@ -14,6 +16,9 @@ const OUT = process.env.PROBE_DIR!;
 const LOG = () => join(OUT, `five-${PHASE}.txt`);
 export const A_NAME = `${MARK} Saturday Stableford${process.env.RUN ? ` ${process.env.RUN}` : ""}`;
 export const ROSTER = 110;
+// The plan cap, read from the plan, never typed here; sign-ups run past it so the waiting list is real.
+const CAP = PLANS.society.limits.playersPerEvent!;
+const SIGNUPS = CAP + 8;
 const ORG_EMAIL = `${MARK}-community@example.invalid`;
 // Different names from the club's — a society is its own membership.
 const OFFSET = 200;
@@ -168,7 +173,7 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       await read(page, "/registration", "registration-link", 2500);
     });
 
-    await test.step("sixty members sign up through the link, on their phones", async () => {
+    await test.step("more members than the field holds sign up through the link, on their phones", async () => {
       const field = names(ROSTER, OFFSET);
       const idx = indexes(ROSTER, 23);
       const token = (await eventFacts(A_NAME))!.registrationToken;
@@ -177,7 +182,7 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       const p = await phone.newPage();
       p.on("pageerror", (e) => errors.push(`signup ${new URL(p.url()).pathname}: ${String(e)}`));
       const tally: Record<string, number> = {};
-      for (let i = 0; i < 60; i += 1) {
+      for (let i = 0; i < SIGNUPS; i += 1) {
         await phone.clearCookies();
         await open(p, `/register/${token}`);
         await p.getByLabel("Your name").fill(field[i]);
@@ -202,7 +207,7 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
         const words = (await p.locator("main").innerText()).replace(/\s+/g, " ");
         const outcome = /wait/i.test(words) && !/^Register/.test(label) ? "waitlisted" : /wait.?list/i.test(words) ? "waitlisted" : /registered|you.re in|confirmed/i.test(words) ? "in" : "other";
         tally[`${label} → ${outcome}`] = (tally[`${label} → ${outcome}`] ?? 0) + 1;
-        if (i === 0 || i === 49 || i === 50 || i === 59 || outcome === "other") note(`signup ${i + 1} ${field[i]}: "${label}" → ${outcome === "other" ? words : words.slice(0, 260)}`);
+        if (i === 0 || i === CAP - 1 || i === CAP || i === SIGNUPS - 1 || outcome === "other") note(`signup ${i + 1} ${field[i]}: "${label}" → ${outcome === "other" ? words : words.slice(0, 260)}`);
       }
       note(`tally: ${JSON.stringify(tally)}`);
       await phone.close();
@@ -210,13 +215,16 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       const by: Record<string, number> = {};
       for (const pl of facts!.players) by[pl.status] = (by[pl.status] ?? 0) + 1;
       note(`players by status: ${JSON.stringify(by)}`);
+      // The waiting list is real: the plan's cap fills the field, the rest wait.
+      expect(by.confirmed, `the field holds the plan's cap of ${CAP}`).toBe(CAP);
+      expect(by.waitlisted, "everyone past the cap is on the waiting list").toBe(SIGNUPS - CAP);
     });
 
     await test.step("what the secretary and two members read", async () => {
       await read(page, "/registration", "registration-full", 3000);
       await read(page, "/dashboard", "dashboard-full", 2500);
       const field = names(ROSTER, OFFSET);
-      for (const i of [10, 55]) {
+      for (const i of [10, CAP + 5]) {
         const phone = await context.browser()!.newContext({ viewport: { width: 393, height: 852 }, baseURL });
         await phone.addCookies([{ name: "ng_session", value: await memberSession(memberEmail(i), field[i]), url: baseURL! }]);
         const p = await phone.newPage();
@@ -232,7 +240,10 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
     const field = names(ROSTER, OFFSET);
     const statusOf = async (i: number) => (await eventFacts(A_NAME))!.players.find((p) => p.email === memberEmail(i))?.status;
     await test.step("a confirmed member can't make it, and withdraws from their phone", async () => {
-      note(`before: member 6 ${await statusOf(5)}, member 51 ${await statusOf(50)}, member 52 ${await statusOf(51)}`);
+      note(`before: member 6 ${await statusOf(5)}, member ${CAP + 1} ${await statusOf(CAP)}, member ${CAP + 2} ${await statusOf(CAP + 1)}`);
+      expect(await statusOf(5), "member 6 starts in the field").toBe("confirmed");
+      expect(await statusOf(CAP), "the first past the cap waits").toBe("waitlisted");
+      expect(await statusOf(CAP + 1), "the second past the cap waits").toBe("waitlisted");
       const phone = await context.browser()!.newContext({ viewport: { width: 393, height: 852 }, baseURL });
       await phone.addCookies([{ name: "ng_session", value: await memberSession(memberEmail(5), field[5]), url: baseURL! }]);
       const p = await phone.newPage();
@@ -245,13 +256,16 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       await p.waitForTimeout(2500);
       await read(p, "/me", "withdrawn-today", 900);
       await phone.close();
-      note(`after: member 6 ${await statusOf(5)}, member 51 ${await statusOf(50)}, member 52 ${await statusOf(51)}`);
+      note(`after: member 6 ${await statusOf(5)}, member ${CAP + 1} ${await statusOf(CAP)}, member ${CAP + 2} ${await statusOf(CAP + 1)}`);
+      expect(await statusOf(5), "member 6 withdrew").not.toBe("confirmed");
+      expect(await statusOf(CAP), "the first on the waiting list is promoted").toBe("confirmed");
+      expect(await statusOf(CAP + 1), "the next still waits").toBe("waitlisted");
     });
     await test.step("the first on the waiting list, on their phone", async () => {
       const phone = await context.browser()!.newContext({ viewport: { width: 393, height: 852 }, baseURL });
-      await phone.addCookies([{ name: "ng_session", value: await memberSession(memberEmail(50), field[50]), url: baseURL! }]);
+      await phone.addCookies([{ name: "ng_session", value: await memberSession(memberEmail(CAP), field[CAP]), url: baseURL! }]);
       const p = await phone.newPage();
-      p.on("pageerror", (e) => errors.push(`member 51 ${new URL(p.url()).pathname}: ${String(e)}`));
+      p.on("pageerror", (e) => errors.push(`member ${CAP + 1} ${new URL(p.url()).pathname}: ${String(e)}`));
       await read(p, "/me", "promoted-today", 900);
       await read(p, "/me/events", "promoted-events", 900);
       await phone.close();
@@ -283,7 +297,7 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       await open(page, "/dashboard");
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
       await open(page, "/event");
       await page.locator("label", { hasText: "Anyone with the link" }).first().click();
       await page.getByRole("button", { name: /^Save/ }).last().click();
@@ -395,7 +409,10 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       // Complete asks first (2026-10-10), and a completed tournament can be
       // reopened: complete, reopen, complete again — each confirmed.
       const settle = async (button: string, want: string) => {
-        await page.getByRole("button", { name: button }).first().click();
+        // Completing goes through what the card offers now (e2e/end-early.ts): Complete once play is
+        // over, after closing a round whose every card is in.
+        if (button === "Complete tournament") await pressComplete(page);
+        else await page.getByRole("button", { name: button }).first().click();
         const dialog = page.getByRole("alertdialog");
         await expect(dialog).toBeVisible({ timeout: 15_000 });
         note(`${button} dialog: ${(await dialog.innerText()).replace(/\s+/g, " ").slice(0, 300)}`);
