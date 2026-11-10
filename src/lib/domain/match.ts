@@ -361,10 +361,14 @@ export function parseResultTranscript(
   let winner: "A" | "B" | "H" | null = null;
   let margin = "";
 
-  // Halve / draw keywords take precedence.
-  if (t.split(/[^a-z]+/).some(isHalvedWord) || /\ball square\b/.test(t) || /^as$/.test(t)) {
+  // "All square" is a halved match whatever else is said.
+  if (/\ball square\b/.test(t) || /^as$/.test(t)) {
     return { winner: "H", margin: "AS" };
   }
+  // A halved WORD ("halved", "tie", "tied", "push") is a halve only when nobody is named as the
+  // winner and no margin is given: "Sam won the tie 3 and 2" is Sam's win (a "tie" is also a
+  // knockout fixture), and "Alex won 1 up after being tied on 17" is Alex's.
+  const saysHalved = t.split(/[^a-z]+/).some(isHalvedWord);
 
   // Whole-word match, longer name tried first. Substring matching credited
   // the wrong player whenever one first name prefixed the other: "Samantha
@@ -390,6 +394,7 @@ export function parseResultTranscript(
   if (amp) margin = `${amp[1]}&${amp[2]}`;
   else if (up) margin = `${up[1]} UP`;
 
+  if (saysHalved && winner === null && margin === "") return { winner: "H", margin: "AS" };
   return { winner, margin };
 }
 

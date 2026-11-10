@@ -624,6 +624,17 @@ describe("parseHolesTranscript — spoken hole-by-hole results", () => {
     expect([...HALVED_WORDS].sort()).toEqual(["half", "halve", "halved", "push", "tie", "tied"]);
   });
 
+  it("a halved word is a halved match only when nobody is named winner and no margin is given", () => {
+    expect(parseResultTranscript("the match was halved", "Sam", "Alex")).toEqual({ winner: "H", margin: "AS" });
+    // "a tie" is also a knockout fixture: Sam's win stands
+    expect(parseResultTranscript("Sam won the tie 3 and 2", "Sam", "Alex")).toEqual({ winner: "A", margin: "3&2" });
+    expect(parseResultTranscript("Alex won 1 up after being tied on 17", "Sam", "Alex")).toEqual({ winner: "B", margin: "1 UP" });
+    // a margin alone also outranks the word
+    expect(parseResultTranscript("tied then 2 up", "Sam", "Alex")).toEqual({ winner: null, margin: "2 UP" });
+    // a winner alone (no margin) also outranks it
+    expect(parseResultTranscript("Sam won the tie", "Sam", "Alex")).toEqual({ winner: "A", margin: "" });
+  });
+
   it("'halve' is a halved hole, not skipped", () => {
     expect(parseHolesTranscript("Ann halve Bob", "Ann", "Bob", 0, 18)).toEqual(card("AHB"));
   });
