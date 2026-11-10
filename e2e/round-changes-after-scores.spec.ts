@@ -124,8 +124,13 @@ test("a launched medal: an unplayed round changes, a played one asks first or re
     await card.getByRole("button", { name: "Change it anyway", exact: true }).click();
     await expect.poll(async () => (await stage(r1.id))?.handicapAllowance, { timeout: 20_000, message: "Change it anyway stored nothing" }).toBe(85);
     // Recomputed and logged: one line, saying what changed and how many cards were worked out again.
-    const line = await prisma.auditLog.findFirst({ where: { eventId, action: "round.recomputed" }, orderBy: { createdAt: "desc" } });
-    expect(line?.detail, "Recent changes has no line for the term changed after play").toContain(`Round 1: handicap allowance 95% → 85% after play. ${cards} cards in Round 1 worked out again`);
+    // POLLED: the action stores the allowance, THEN reads the round again and writes the line
+    // (`afterTermChange` needs the figures after the change), so the row above reads 85 a moment
+    // before the line exists. Read once, this lost that race on CI (run 42718807588, desktop 3/3).
+    const lastLine = async () => (await prisma.auditLog.findFirst({ where: { eventId, action: "round.recomputed" }, orderBy: { createdAt: "desc" } }))?.detail ?? "";
+    await expect
+      .poll(lastLine, { timeout: 20_000, message: "Recent changes has no line for the term changed after play" })
+      .toContain(`Round 1: handicap allowance 95% → 85% after play. ${cards} cards in Round 1 worked out again`);
 
     // ── Round 1's Delete: refused where the press was ───────────────────────
     await gotoStages(page);

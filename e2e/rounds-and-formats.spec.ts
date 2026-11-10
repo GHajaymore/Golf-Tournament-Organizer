@@ -296,7 +296,7 @@ test("cards are due on the club's day, and a live round's scoring is kept open, 
   testInfo.annotations.push({ type: "club clock", description: `${zone}: ${today} at the club, ${serverDay} at the server` });
   const club = await makeClub(mark, { timeZone: zone });
   try {
-    // Live, and played YESTERDAY at the club: setup is locked, and both days the walk moves the
+    // Live, played YESTERDAY at the club, and no card in yet: both days the walk moves the
     // deadline between are on or after the round's own day, which is all a deadline may be
     // (`dueBeforePlayed`, 2026-10-30).
     const { event, stages } = await makeEvent(club, "Monthly Medal", { status: "live", stages: [{ playedOn: yesterday, deadline: yesterday }] });
@@ -306,8 +306,14 @@ test("cards are due on the club's day, and a live round's scoring is kept open, 
 
     await gotoStages(page);
     let card = await openRound(page, stages[0].id);
-    // Locked: the format is not offered to be changed. The day's controls are.
-    await expect(card.getByLabel("Format for Round 1"), "a live tournament's format is offered for change").toBeDisabled();
+    // Launched, and nobody has scored: the round's format is still offered, and so are the day's
+    // controls. Until J12 PR 7b launch alone shut the format; now the rounds rule judges a change by
+    // what it would invalidate, and an unscored round's format invalidates nothing (the PR's
+    // decision 4). A SCORED round's format is shut, with its reason: the first test in this file,
+    // and `round-changes-after-scores.spec.ts`. What launch still holds is said on the banner.
+    await expect(card.getByLabel("Format for Round 1"), "launch alone shut an unscored round's format").toBeEnabled();
+    await expect(card.getByTestId("format-door"), "an unscored round's format gives a reason it is shut").toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Locked" }), "the launched Rounds screen does not say what stays locked").toContainText("Locked because the tournament is live.");
     await expect(tag(card), "cards were due yesterday at the club").toHaveText(/Closed — the deadline has passed/);
 
     // ── Cards in by: today at the club is still open there ──

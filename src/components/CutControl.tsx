@@ -8,6 +8,7 @@ import { SaveState, useSaveStatus } from "./SaveState";
 import { useCaughtUp } from "./useAction";
 import { plural } from "@/lib/format";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { useKeptInView } from "@/lib/bring-into-view";
 
 export function CutControl({
   formId,
@@ -64,6 +65,9 @@ export function CutControl({
   const [ties, setTies] = useState<CutTieRule>(cutTieRuleOf(tieRule));
   const [saving, startTransition] = useTransition();
   const [refused, setRefused] = useState("");
+  // Said under the box, and still in view once the screen has caught up with the lock: the banner
+  // arrives above it, and at the top of the page nothing else holds the place (`useKeptInView`).
+  const refusedRef = useKeptInView(refused, locked);
   const caughtUp = useCaughtUp();
   // "and anyone tied" only where the ties DO go through.
   const allTied = tiesGoThrough && ties === "ties";
@@ -144,7 +148,7 @@ export function CutControl({
       {/* Outside the label, so the checkbox's name is not "… Saved". */}
       <SaveState status={saveStatus} />
       {refused && (
-        <p role="alert" className="form-error" style={{ margin: 0, fontSize: 13 }}>
+        <p role="alert" className="form-error" style={{ margin: 0, fontSize: 13 }} ref={refusedRef}>
           {refused}
         </p>
       )}
