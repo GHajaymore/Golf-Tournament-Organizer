@@ -12,20 +12,36 @@
  * The resolver is handed the figures; it does not make them. So the worked numbers are the
  * inputs, and what is asserted is which of them the round keeps, and which whole number and
  * which exact figure come out the other end.
+ *
+ * RUN FIRST, EVERY CALL HELD TO A DEADLINE (2026-11-10). The floor these tests raised was first
+ * measured on a scratch config; the nightly measures COLD, with no incremental file, and a cold run
+ * reaches a mutant's covering tests in vitest's order — behind `matrix.test.ts` and the other slow
+ * files — so a kill made here can end instead as a plain timeout, which the ratchet counts as NOT
+ * caught (`scripts/qa/mutation-ratchet.mjs`). That is how the nightly of 10 Nov lost two kills on
+ * `handicap.ts`. So this file is named `*.ends.test.ts`, which the mutation run sorts FIRST
+ * (`vitest.mutation.config.ts`), and every function of the module below is called through
+ * `endsWithin`, as every file of that name must be (`mutation-ratchet.test.ts`).
  */
 
 import { describe, it, expect } from "vitest";
-import {
-  resolveRoundHandicap,
-  roundParStrokesOf,
-  roundHandicapExactOf,
-  handicapToFreeze,
-  exactHandicapToFreeze,
-  isReturnedCard,
-  roundHandicapKey,
-  acceptsHandicapChange,
-  FROZEN_HANDICAP_REFUSAL,
-} from "../round-handicap";
+import * as roundHandicap from "../round-handicap";
+import { endsWithin } from "../../__tests__/ends-within";
+
+/** The module's own function, every call held to a deadline. */
+const held =
+  <A extends unknown[], R>(fn: (...args: A) => R) =>
+  (...args: A): R =>
+    endsWithin(() => fn(...args));
+
+const resolveRoundHandicap = held(roundHandicap.resolveRoundHandicap);
+const roundParStrokesOf = held(roundHandicap.roundParStrokesOf);
+const roundHandicapExactOf = held(roundHandicap.roundHandicapExactOf);
+const handicapToFreeze = held(roundHandicap.handicapToFreeze);
+const exactHandicapToFreeze = held(roundHandicap.exactHandicapToFreeze);
+const isReturnedCard = held(roundHandicap.isReturnedCard);
+const roundHandicapKey = held(roundHandicap.roundHandicapKey);
+const acceptsHandicapChange = held(roundHandicap.acceptsHandicapChange);
+const { FROZEN_HANDICAP_REFUSAL } = roundHandicap;
 
 // Index 14.2, Slope 131, CR 72.4, Par 71:
 //   14.2 x 131 = 1860.2 ; 1860.2 / 113 = 16.461947 (113 x 16 = 1808, 52.2 / 113 = 0.461947)
