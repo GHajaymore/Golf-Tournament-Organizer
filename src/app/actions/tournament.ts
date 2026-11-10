@@ -5927,9 +5927,23 @@ async function lockEventForPrizes(tx: PrizeTx, eventId: string): Promise<void> {
   await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${eventId} FOR UPDATE`;
 }
 
-/** Players' names for a refusal that names them. */
-async function prizeWinnerNames(eventId: string, ids: string[]): Promise<Map<string, string>> {
-  const rows = await prisma.player.findMany({ where: { eventId, id: { in: ids } }, select: { id: true, name: true } });
+/**
+ * Players' names for a refusal that names them — read on the TRANSACTION's own
+ * connection (2026-11-09).
+ *
+ * This used to read through the bare `prisma` client from inside the open
+ * transaction, so the transaction held one pooled connection while the read
+ * waited for a second. In the nightly round (G26-1-nightly, Firefox) that read
+ * stalled past the transaction's five seconds; the commit then failed with
+ * P2028 "Transaction already closed", the action threw instead of answering,
+ * and the organizer's Prizes screen became "This screen didn't load" where the
+ * refusal in words should have been. A read inside a transaction goes on the
+ * transaction's client, and only there — the transaction then needs exactly one
+ * connection, and nothing it waits for is outside its own timeout.
+ */
+async function prizeWinnerNames(tx: PrizeTx, eventId: string, ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await tx.player.findMany({ where: { eventId, id: { in: ids } }, select: { id: true, name: true } });
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 
@@ -5951,7 +5965,7 @@ export async function setOnePrizePerPlayer(on: boolean): Promise<{ ok: boolean; 
     await lockEventForPrizes(tx, eventId);
     if (want) {
       const holdings = await prizeHoldings(tx, eventId);
-      const names = await prizeWinnerNames(eventId, holdings.flatMap((p) => (p.winnerId ? [p.winnerId] : [])));
+      const names = await prizeWinnerNames(tx, eventId, holdings.flatMap((p) => (p.winnerId ? [p.winnerId] : [])));
       const refusal = onePrizeTickRefusal(holdings, (pid) => names.get(pid) ?? "");
       if (refusal) return { ok: false, error: refusal };
     }
@@ -5981,7 +5995,7 @@ export async function setPrizeCounts(prizeId: string, counts: boolean): Promise<
     const prize = holdings.find((p) => p.id === prizeId);
     if (!prize) return { ok: false, error: "That prize isn't in this tournament." };
     if (want && event?.onePrizePerPlayer && prize.winnerId) {
-      const names = await prizeWinnerNames(eventId, [prize.winnerId]);
+      const names = await prizeWinnerNames(tx, eventId, [prize.winnerId]);
       const refusal = onePrizeRefusal({
         on: true,
         prizes: holdings.map((p) => (p.id === prizeId ? { ...p, counts: true } : p)),
