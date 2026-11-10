@@ -93,7 +93,12 @@ tournament money code entirely.
      It moves to Par for anything it makes from then on, and every tournament it
      held at that moment becomes a READ-ONLY ARCHIVE for 12 months from the end
      date (`Event.archivedAt`, `Subscription.lapsedAt`): viewable and
-     exportable, nothing changed or scored, an unfinished one paused. The
+     exportable, nothing changed or scored, an unfinished one paused. Its
+     console is read-only in ONE place (2026-11-09): the layout wraps every
+     screen in `ArchiveReadOnly` (`domain/archive-read-only.ts`), which disables
+     each control that writes under the banner's one sentence; links, prints,
+     exports, round pickers and Club settings (the way out) stay live, and the
+     actions still refuse as the backstop. The
      archive is not counted against Par's limits, and Par's 14/15-day sweep
      never touches it. The owners are emailed 30 days and 7 days before it is
      deleted (`sweepArchives`, in the daily cron), and nothing goes until 7 days

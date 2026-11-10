@@ -84,11 +84,21 @@ export function CasualRoundPanel({
   const [handicapRefusal, setHandicapRefusal] = useState("");
   const [edits, setEdits] = useState<Record<string, string>>({});
 
+  /**
+   * A refusal the action RETURNS — an archived tournament's, a lock's — is said
+   * here as well as one it throws (2026-11-09). It was dropped: the panel
+   * refreshed, the switch went back, and nothing said why.
+   */
+  const refusalOf = (res: unknown): string | null => {
+    const r = res as { ok?: boolean; error?: string; needsConfirm?: boolean } | undefined;
+    return r && r.ok === false && !r.needsConfirm ? (r.error ?? "Couldn't save that.") : null;
+  };
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
       setError("");
       try {
-        await fn();
+        const refused = refusalOf(await fn());
+        if (refused) setError(refused);
         router.refresh();
       } catch {
         setError("Couldn't save that.");
@@ -118,6 +128,8 @@ export function CasualRoundPanel({
           setAsk({ what, cards: res.cards ?? 0, apply: () => attempt(true) });
           return;
         }
+        const refused = refusalOf(res);
+        if (refused) setError(refused);
         router.refresh();
       } catch {
         setError("Couldn't save that.");
@@ -160,7 +172,7 @@ export function CasualRoundPanel({
       )}
 
       {error && (
-        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+        <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}

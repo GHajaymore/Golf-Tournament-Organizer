@@ -55,6 +55,8 @@ export function RoundPicker({
       className={className}
       style={style}
       aria-label={label}
+      // Changes which round is SHOWN, never a record: live in an archived tournament (`archive-read-only.ts`).
+      data-reads=""
       value={activeStageId}
       onChange={(e) => router.push(`${pathname}?round=${e.target.value}`)}
     >
