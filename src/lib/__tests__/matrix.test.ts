@@ -67,6 +67,7 @@ import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/d
 import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-agg";
 import { resolveMatch } from "@/lib/domain/match";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "@/lib/domain";
+import { countbackBetween, countbackCardOn } from "@/lib/domain/stroke-countback";
 import {
   handicapToFreeze,
   isReturnedCard,
@@ -2919,7 +2920,7 @@ describe("what a team board and the rules sheet say about handicap, on every tea
   const stated = (format: string, type: string) =>
     tournamentTerms({
       format, type, holes: 18, scoringBasis: "net", handicapAllowance: 0, countBest: 0,
-      tiebreakers: [], cutAfter: null, carryForwardEnabled: false, carryForwardPct: 0,
+      tiebreakers: [], cutAfter: null, carryForwardEnabled: false, carryForwardPct: 0, netCountback: "fractions",
     }).find((t) => t.label === "Handicap allowance")?.value;
   it("Appendix C: a four-ball stroke round states 85%", () => {
     expect(stated("Four-Ball", "Stroke Play Round")).toContain("85%");
@@ -2977,7 +2978,7 @@ describe("what a team board and the rules sheet say about handicap, on every tea
             tiebreakers: [],
             cutAfter: null,
             carryForwardEnabled: false,
-            carryForwardPct: 0,
+            carryForwardPct: 0, netCountback: "fractions",
           }).find((t) => t.label === "Handicap allowance")?.value;
           expect(words, "the rules sheet states no allowance").toBeTruthy();
           if (!format.weightsBySideSize) expect(words).toContain(`${recommendedAllowance(format.name, type)}%`);
@@ -3420,6 +3421,10 @@ describe("the allowance a round plays at, on every format, stage type and field 
     "Modified Stableford": { stroke: 95, match: 95 }, // individual Stableford, a committee's table
     Nassau: { stroke: 100, match: 100 }, // three individual matches
     "Four-Ball": { stroke: 85, match: 90 }, // four-ball stroke play / match play
+    // A pair counting its better ball is a four-ball: 85 / 90 (moved here from the
+    // departures on 2026-11-09). Best 1 of 4 (75%) and 3 of 4 (100%) at stroke play
+    // still play 85 — `docs/deferred-register.md`, "Best Ball plays at 85%".
+    "Best Ball": { stroke: 85, match: 90 },
     Foursomes: { stroke: 50, match: 50 }, // 50% of the combined
     "Alternate Shot": { stroke: 50, match: 50 }, // foursomes by another name
     Greensomes: { stroke: 100, match: 100, weights: { 2: [60, 40] } }, // 60% low + 40% high
@@ -3436,16 +3441,10 @@ describe("the allowance a round plays at, on every format, stage type and field 
   /**
    * KNOWN DEPARTURES FROM APPENDIX C — asserted to be STILL THERE, so that the
    * day one is fixed this list goes red and the cell moves into the table.
-   * Best Ball is played by sides of two to four counting one to four balls; a
-   * pair counting one is a four-ball (85% stroke, 90% match), best 1 of 4 is
-   * 75%, best 3 of 4 is 100%. The app plays every Best Ball at 85%
-   * (`docs/deferred-register.md`, "Best Ball plays at 85%"). Its stroke-play
-   * figure is right for a pair; in a MATCH a pair is owed 90.
+   * Empty since 2026-11-09, when Best Ball in a match went to 90% (it held
+   * `{ format: "Best Ball", headToHead: true, app: 85, rules: 90 }`).
    */
-  const KNOWN_DEPARTURES: Array<{ format: string; headToHead: boolean; app: number; rules: number }> = [
-    { format: "Best Ball", headToHead: false, app: 85, rules: 85 },
-    { format: "Best Ball", headToHead: true, app: 85, rules: 90 },
-  ];
+  const KNOWN_DEPARTURES: Array<{ format: string; headToHead: boolean; app: number; rules: number }> = [];
 
   it("CONTROL: every format in the catalogue is in exactly one table, and both kinds of round exist", () => {
     for (const f of FORMAT_NAMES) {
@@ -3545,5 +3544,80 @@ describe("the allowance a round plays at, on every format, stage type and field 
       expect(parStrokesApply(format, "stableford"), `${format}, Stableford`).toBe(false);
       expect(parStrokesApply(format, "modified-stableford"), `${format}, Modified Stableford`).toBe(false);
     }
+  });
+});
+
+/**
+ * A NET TIE COUNTED BACK BY FRACTIONS OF THE HANDICAP, AT EVERY FIELD SIZE AND
+ * BOTH HOLE COUNTS (2026-11-09).
+ *
+ * Committee Procedures 5A(7): in a handicap stroke-play competition the last 9,
+ * 6, 3 and 1 holes are compared after taking off ½, ⅓, ⅙ and 1/18 of the
+ * handicap; a nine-hole round's last 6, 3 and 1 take ⅔, ⅓ and 1/9 — holes
+ * counted over holes played. The FRACTIONS table below is written as the
+ * guidance writes it, not derived from the code's `n / holes`.
+ *
+ * Every player in a field finishes on the SAME net total (gross = par +
+ * playing handicap, the extra strokes spread differently per player), so every
+ * pair is a tie the countback must break. Handicaps run from plus 2 up, and the
+ * playing handicap is recovered from the card itself (gross less net), as the
+ * board does. Invariants: the order is the table's, it is antisymmetric, and a
+ * player is level with themselves. Control: somewhere in the sweep the
+ * hole-by-hole method gives a different answer, or the cell could not tell the
+ * two apart.
+ */
+describe("a net tie counted back by fractions of the handicap, at every field size and hole count", () => {
+  const FRACTIONS: Record<9 | 18, Array<[number, number]>> = {
+    18: [[9, 1 / 2], [6, 1 / 3], [3, 1 / 6], [1, 1 / 18]],
+    9: [[6, 2 / 3], [3, 1 / 3], [1, 1 / 9]],
+  };
+  let disagreements = 0;
+
+  for (const H of [18, 9] as const) {
+    // Stroke index 1..H spread round the card, as a club prints it.
+    const si = Array.from({ length: H }, (_, j) => ((j * 7) % H) + 1);
+    for (const n of FIELD_SIZES) {
+      it(`${n} level on net over ${H} holes`, () => {
+        const field = Array.from({ length: n }, (_, i) => {
+          const playing = ((i * 5) % (H + 2)) - 2;
+          const extra = Math.abs(playing);
+          const gross = Array.from({ length: H }, (_, j) =>
+            4 + (((j * 5 + i * 3) % H) < extra ? Math.sign(playing) : 0),
+          );
+          const net = gross.map((g, j) => g - holeStrokesReceived(playing, si[j], H));
+          return { id: `p${i}`, playing, gross, net };
+        });
+        const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+        for (const p of field) {
+          expect(sum(p.net), `${p.id} is level on net`).toBe(4 * H);
+          expect(countbackCardOn(p.id, { gross: p.gross, net: p.net, points: [] }, "net", "fractions").fractionOf).toBe(p.playing);
+        }
+        /** The guidance's order, negative when a is ahead: the first step whose figures differ. */
+        const byTable = (a: (typeof field)[number], b: (typeof field)[number]) => {
+          for (const [k, f] of FRACTIONS[H]) {
+            const va = sum(a.gross.slice(H - k)) - a.playing * f;
+            const vb = sum(b.gross.slice(H - k)) - b.playing * f;
+            if (Math.abs(va - vb) > 1e-9) return Math.sign(va - vb);
+          }
+          return 0;
+        };
+        const card = (p: (typeof field)[number], how: "fractions" | "hole-by-hole") =>
+          countbackCardOn(p.id, { gross: p.gross, net: p.net, points: [] }, "net", how);
+        for (const a of field) {
+          expect(countbackBetween(card(a, "fractions"), card(a, "fractions"), H).order).toBe(0);
+          for (const b of field) {
+            const ab = Math.sign(countbackBetween(card(a, "fractions"), card(b, "fractions"), H).order);
+            const ba = Math.sign(countbackBetween(card(b, "fractions"), card(a, "fractions"), H).order);
+            expect(ab, `${a.id} (${a.playing}) v ${b.id} (${b.playing}) over ${H}`).toBe(byTable(a, b));
+            expect(ab + ba, "antisymmetric").toBe(0);
+            if (Math.sign(countbackBetween(card(a, "hole-by-hole"), card(b, "hole-by-hole"), H).order) !== ab) disagreements += 1;
+          }
+        }
+      });
+    }
+  }
+
+  it("CONTROL: the sweep reaches ties the hole-by-hole countback decides differently", () => {
+    expect(disagreements).toBeGreaterThan(0);
   });
 });

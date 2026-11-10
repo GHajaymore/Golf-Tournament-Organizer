@@ -263,6 +263,8 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               key={w.stageId}
               type="button"
               onClick={() => router.push(`${pathname}?round=${w.stageId}`)}
+              // Changes which week is SHOWN, never a record: live in an archived tournament.
+              data-reads=""
               className={active ? "btn btn-primary" : "btn btn-ghost"}
               style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 13 }}
               aria-current={active ? "true" : undefined}

@@ -1556,6 +1556,8 @@ export function RegistrationClient({
             </p>
             <button
               type="button"
+              // A download writes nothing: live in an archived tournament (`archive-read-only.ts`).
+              data-reads=""
               onClick={downloadTemplate}
               style={{ background: "none", border: "none", padding: 0, minHeight: "var(--tap-min, 32px)", cursor: "pointer", fontSize: 13, color: "var(--color-accent-200)" }}
             >

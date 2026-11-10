@@ -156,7 +156,9 @@ export function TournamentJourney({
   const currentIndex = order.indexOf(journey);
 
   return (
-    <div className="card elev-sm">
+    // `tournament-journey`: the lifecycle stepper (B03) draws this journey from the machine
+    // step by step; while it is shown, this card stands aside (lifecycle-stepper.css).
+    <div className="card elev-sm tournament-journey">
       <span className="card-title" style={{ fontSize: 15 }}>
         How a tournament runs
       </span>

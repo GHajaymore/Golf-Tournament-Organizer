@@ -36,10 +36,10 @@ test("a member with no index does not read as a scratch golfer", async ({ page }
   // The list rendered at all — without this the assertions below pass on an
   // empty table, which is exactly the state this spec was written to end.
   const row = (name: string) => page.locator("tr", { hasText: name }).first();
-  await expect(row("Aj Moore")).toBeVisible();
+  await expect(row("Ned Calloway")).toBeVisible();
 
   // A claimed figure prints.
-  await expect(row("Aj Moore")).toContainText("12.4");
+  await expect(row("Ned Calloway")).toContainText("12.4");
 
   // A genuine scratch player still reads 0 — the direction a careless fix
   // breaks, told to the same secretary.

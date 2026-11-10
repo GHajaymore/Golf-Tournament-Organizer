@@ -58,7 +58,7 @@ import { matchCardFor } from "@/lib/services/match-card";
 import { matchKeptBy } from "@/lib/domain/match-kept-by";
 import { keepMyMatchHoles, keepMyMatchResult } from "@/app/actions/tournament";
 import { resolveMatch, matchIsOver } from "@/lib/domain/match";
-import { ConfirmMatchResult } from "@/components/ConfirmMatchResult";
+import { ConfirmMatchResult, ReopenMatchResult } from "@/components/ConfirmMatchResult";
 
 export const metadata = screenMetadata("/entry");
 
@@ -260,7 +260,16 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         }
         const resolved = resolveMatch(holes);
         const status = effectiveScoreStatus(r, autoConfirm);
-        return [r.id, { waiting: matchIsOver(holes) && status === "pending", disputed: status === "disputed", result: resolved.resultText }] as const;
+        return [
+          r.id,
+          {
+            waiting: matchIsOver(holes) && status === "pending",
+            disputed: status === "disputed",
+            // Signed off by the committee: taps no longer change it (`unanchoredMatchSave`), so it is reopened here.
+            signedOff: r.scoreStatus === "confirmed",
+            result: resolved.resultText,
+          },
+        ] as const;
       }),
     );
     const rowSignOff = row ? signOff.get(row.id) : undefined;
@@ -308,6 +317,9 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         {isStaff && row && rowSignOff?.waiting && (
           <ConfirmMatchResult key={row.id} matchId={row.id} result={rowSignOff.result} />
         )}
+        {session.viewRole === "admin" && row && rowSignOff?.signedOff && (
+          <ReopenMatchResult key={`reopen-${row.id}`} matchId={row.id} result={rowSignOff.result} />
+        )}
         {tapCard && row && (
           <DistanceUnitProvider unit={tapCard.unit}>
             <MatchKeeper
@@ -319,7 +331,6 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               cardStrokeIndex={tapCard.cardStrokeIndex}
               firstHole={tapCard.firstHole}
               matchShots={tapCard.matchShots}
-              voiceEntry={settingsOf(state.event).voiceEntry}
               stageId={stage.id}
               roundLabel={roundLabel(state.stages, stage.id)}
               eventName={state.event.name}

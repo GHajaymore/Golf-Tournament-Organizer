@@ -104,7 +104,7 @@ function norm(s: string): string {
 /**
  * Every way a known person might legitimately be referred to.
  *
- * A roster holds "Aj More" and a draft may say "More", "Aj", or "A. More" —
+ * A roster holds "Ned Calloway" and a draft may say "Calloway", "Ned", or "N. Calloway" —
  * all of them that person, none of them invented. Flagging those would train
  * an organizer to ignore the warnings, which is how a safety check stops
  * working.

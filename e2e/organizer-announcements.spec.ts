@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession, MEDAL_COURSE } from "./organizer-fixture.mjs";
+import { expectLaunched } from "./end-early";
 
 /**
  * A NOTICE, FROM THE SECRETARY'S KEYBOARD TO A MEMBER'S PHONE.
@@ -98,7 +99,7 @@ test("the secretary posts; a member sees the pinned one always and the rest once
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   await test.step("the secretary posts a pinned notice and an ordinary one", async () => {

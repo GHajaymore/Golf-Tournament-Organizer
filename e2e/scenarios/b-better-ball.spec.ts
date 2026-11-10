@@ -3,6 +3,7 @@ import { makeCommitteeCorrection } from "../committee-correction";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { seed, memberSession, eventFacts, eachKeepsTheirOwn, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
+import { expectLaunched, pressComplete } from "../end-early";
 
 /**
  * SCENARIO — tournament B: the Eagle club's Autumn Better-Ball. The
@@ -126,7 +127,7 @@ test("five B", async ({ page, context, baseURL }, testInfo) => {
       await open(page, "/dashboard");
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
       await open(page, "/event");
       await page.locator("label", { hasText: "Anyone with the link" }).first().click();
       await page.getByRole("button", { name: /^Save/ }).last().click();
@@ -335,7 +336,7 @@ test("five B", async ({ page, context, baseURL }, testInfo) => {
         await ready.getByRole("button", { name: /Close the round/ }).click();
         await page.waitForTimeout(3000);
       }
-      await page.getByRole("button", { name: "Complete tournament" }).first().click();
+      await pressComplete(page);
       await page.getByRole("alertdialog").getByRole("button", { name: "Complete tournament" }).click();
       await expect.poll(async () => (await eventFacts(B_NAME))!.status, { timeout: 20_000 }).toBe("completed");
       await page.waitForTimeout(1500);

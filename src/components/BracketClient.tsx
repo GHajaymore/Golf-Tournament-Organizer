@@ -373,7 +373,8 @@ export function BracketDrawing({
       )}
       {people.length > 0 && (
         <div style={{ padding: "12px 14px 0", display: "grid", gap: 8 }}>
-          <div className="no-print" style={{ display: "flex", justifyContent: "flex-end" }}>
+          {/* Print, find a player, clear — the view only: live in an archived tournament (`archive-read-only.ts`). */}
+          <div className="no-print" data-reads="" style={{ display: "flex", justifyContent: "flex-end" }}>
             <button
               type="button"
               className="btn btn-sm"
@@ -403,7 +404,7 @@ export function BracketDrawing({
             </span>
           </label>
           {matches.length > 0 && (
-            <ul id={`${idBase}-found`} aria-label="Players found" style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <ul id={`${idBase}-found`} aria-label="Players found" data-reads="" style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: 6 }}>
               {matches.map((p) => (
                 <li key={p.id}>
                   <button
@@ -431,7 +432,7 @@ export function BracketDrawing({
               <span>
                 <Icon name="map-pin" /> Showing <strong>{foundName}</strong>&rsquo;s path through the draw
               </span>
-              <button type="button" className="btn btn-sm" style={{ minHeight: 44 }} onClick={() => go({ p: null })}>
+              <button type="button" className="btn btn-sm" style={{ minHeight: 44 }} data-reads="" onClick={() => go({ p: null })}>
                 <Icon name="x" /> Clear
               </button>
             </p>
@@ -815,7 +816,8 @@ export function BracketClient({
         </div>
         {onDraw && !awaitingFlights && list.length > 1 && (
           // Wraps: a knockout in flights may have a dozen of these.
-          <div className="seg" style={{ flexWrap: "wrap" }}>
+          // Which flight's draw is shown: the view only, so live in an archived tournament.
+          <div className="seg" data-reads="" style={{ flexWrap: "wrap" }}>
             {list.map((d, i) => (
               <label className="seg-opt" key={d.label}>
                 <input type="radio" name="brk" checked={at === i} onChange={() => setTab(i)} />

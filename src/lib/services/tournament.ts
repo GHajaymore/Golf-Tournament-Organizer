@@ -49,6 +49,8 @@ import {
   countbackBetween as countbackDecision,
   countbackStep,
   countbackStepWords,
+  countbackCardOn,
+  netCountbackMethodFor,
   fromTheOtherSide,
   compareOnBasis,
   levelOnBasis,
@@ -2165,30 +2167,27 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    */
   const lastStrokeRound = strokeRounds[strokeRounds.length - 1] ?? null;
   const lastRoundHoles = holesPlayed(lastStrokeRound?.holes);
+  /**
+   * On the basis the competition was RANKED on, which for a points
+   * competition is points.
+   *
+   * This read net strokes for Stableford too. Points are capped — nothing
+   * worse than a net double bogey scores at all — so two cards level on
+   * points can be several net strokes apart, and separating them on strokes
+   * decides a Stableford competition by a measure it does not use. The
+   * player who blobbed the 17th and 18th is behind on net strokes and level
+   * on points, which is the whole point of the format.
+   *
+   * And on a NET basis, the handicap comes off in fractions of the playing
+   * handicap (Committee Procedures 5A(7)) for an event created from
+   * 2026-11-09; one created before keeps hole-by-hole net
+   * (`netCountbackMethodFor`). `countbackCardOn` is the one place it is built.
+   */
+  const netCountback = netCountbackMethodFor(event.createdAt);
   const cbCard = (playerId: string, basis: RankingBasis) => {
     const perStage = strokeAgg.get(playerId)?.holesByStage;
     const card = lastStrokeRound ? perStage?.get(lastStrokeRound.id) : undefined;
-    return {
-      playerId,
-      total: 0, // unused: this is only ever handed to countbackCompare
-      /**
-       * On the basis the competition was RANKED on, which for a points
-       * competition is points.
-       *
-       * This read net strokes for Stableford too. Points are capped — nothing
-       * worse than a net double bogey scores at all — so two cards level on
-       * points can be several net strokes apart, and separating them on strokes
-       * decides a Stableford competition by a measure it does not use. The
-       * player who blobbed the 17th and 18th is behind on net strokes and level
-       * on points, which is the whole point of the format.
-       */
-      holes:
-        (basis === "stableford"
-          ? card?.points
-          : basis === "gross"
-            ? card?.gross
-            : card?.net) ?? [],
-    };
+    return countbackCardOn(playerId, card, basis, netCountback);
   };
   // Points run the other way: most wins. See countbackCompare's `higherWins`.
   // The decision with its working (`countbackDecision`, the domain's

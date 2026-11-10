@@ -32,6 +32,18 @@ impossible. Extend these rather than working around them.
   `src/lib/__tests__/source.ts`, which strips comments. Swept per file, so a new test file is
   covered the day it is added. See below for why.
 
+Added after the move (the list above is the original, kept whole by `claude-md-is-whole.test.ts`):
+
+- `a-prize-transaction-reads-on-its-own-connection.test.ts` (2026-11-09) — while a prize action has
+  an interactive transaction open, every read is on the transaction's client (`tx`), never the bare
+  `prisma`. A read on the bare client from inside a transaction needs a SECOND pooled connection
+  while the transaction holds the first, and it is outside the transaction's timeout: in the nightly
+  of 2026-11-09 one such read stalled six seconds, the commit failed with P2028 "Transaction already
+  closed", the action threw instead of refusing, and the Prizes screen became "This screen didn't
+  load". The test's database is a fake that refuses the bare client the moment a transaction is
+  open, so it cannot pass on a free pool. The same shape — `prisma.` inside `$transaction(async (tx)
+  => …)`, or a helper called from there that uses it — is the thing to look for in any other action.
+
 **WHEN A CORRECT CHANGE MAKES AN EXISTING GUARD FAIL, READ THE GUARD BEFORE UPDATING IT.** A guard
 that goes red on a change you have already proven right was asserting something false, and the
 reflex — "update the test to match" — launders the old assertion into the new one. Three of these

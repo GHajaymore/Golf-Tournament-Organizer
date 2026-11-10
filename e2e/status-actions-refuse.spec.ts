@@ -4,6 +4,7 @@ import { actionShapes, type ActionShape } from "./action-shapes";
 import { watchPageErrors } from "./page-errors";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { completeControl } from "./end-early";
 
 /**
  * THE ACTIONS ASK THE STATE MACHINE (proposal 3 Nov, PR 4) — each changed
@@ -90,7 +91,7 @@ test("the organizer's presses are refused or asked in the machine's words", asyn
       const page = await f.ctx.newPage();
       watchPageErrors(page, errors);
       await page.goto(`/dashboard?bust=${Date.now()}`);
-      const complete = page.getByRole("button", { name: "Complete tournament" }).first();
+      const complete = await completeControl(page);
       await expect(complete).toBeVisible({ timeout: 20_000 });
       // The other side questions a card while the secretary has the dashboard open.
       await prisma.scorecard.updateMany({ where: { stageId: f.stageIds[0], playerId: f.playerIds[1] }, data: { status: "disputed" } });

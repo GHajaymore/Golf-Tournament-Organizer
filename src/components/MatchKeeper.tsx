@@ -2,6 +2,7 @@
 import { useEffect, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { usePendingCard } from "./usePendingCard";
+import { recoveredMatchCard, RECOVERED_MATCH_SUPERSEDED } from "@/lib/domain/pending-card";
 import type { HoleResult } from "@/lib/domain";
 import { countedHoles, marginRefusal, matchIsOverAfter, matchStandingText, resolveMatch } from "@/lib/domain/match";
 import { holeNumber } from "@/lib/domain/hole-number";
@@ -25,8 +26,6 @@ export interface MatchKeeperProps {
   cardStrokeIndex?: number[];
   /** The course's number for the card's first hole — 10 on a back nine. */
   firstHole?: number;
-  /** The organizer's "Voice entry" setting — off, the card offers no microphone. */
-  voiceEntry?: boolean;
   /** A net match's shots per hole, side A's and side B's. */
   matchShots?: { a: number[]; b: number[] } | null;
   /** The tournament takes the whole round at the end. */
@@ -115,18 +114,28 @@ export function MatchKeeper(props: MatchKeeperProps) {
     },
   });
   /**
-   * HOLES LEFT ON THE PHONE LAST TIME ARE TAKEN BACK UP AND SENT. The device
-   * copy only ever holds holes the server had not confirmed, so finding one
-   * means this phone has work nobody else has seen: it is picked up where it
-   * was left.
+   * HOLES LEFT ON THE PHONE LAST TIME ARE TAKEN BACK UP AND SENT — when they
+   * are holes the server does not have. A copy is also left when a save
+   * LANDED and its answer did not (the page was left, the signal went), and by
+   * the time this card is drawn again the committee may have corrected the
+   * match: sending that copy whole put their 5&4 back to the phone's one hole
+   * (2026-11-09, `stale-match-save.spec.ts`). So it is compared with the card
+   * as drawn first (`recoveredMatchCard`): sent only when it adds holes and
+   * changes none the server has; forgotten when the server already has all of
+   * it; forgotten and SAID when the two disagree.
    */
   const { recovered, clearRecovered, push } = matchQueue;
   useEffect(() => {
     if (!recovered) return;
-    setHoles(recovered);
+    const fate = recoveredMatchCard(recovered, drawn, holeCount);
     clearRecovered();
-    push(recovered);
-  }, [recovered, clearRecovered, push]);
+    if (fate === "send") {
+      setHoles(recovered);
+      push(recovered);
+    } else if (fate === "conflict") {
+      setError(RECOVERED_MATCH_SUPERSEDED);
+    }
+  }, [recovered, clearRecovered, push, drawn, holeCount]);
 
   const filled = holes.filter((h) => h !== null).length;
 
@@ -337,10 +346,6 @@ export function MatchKeeper(props: MatchKeeperProps) {
           strokeIndex={props.strokeIndex ?? []}
           shownStrokeIndex={props.cardStrokeIndex}
           firstHole={props.firstHole ?? 1}
-          // The mic listens for the first word of each answer — a player's
-          // first name, or a pair's first player's — which two can share.
-          canHearNames={sideA.split(" ")[0].toLowerCase() !== sideB.split(" ")[0].toLowerCase()}
-          showVoice={props.voiceEntry ?? true}
           shotsOn={props.matchShots ? (h) => ({ a: props.matchShots?.a[h] ?? 0, b: props.matchShots?.b[h] ?? 0 }) : undefined}
           marks={marks}
           // Where each hole's result is — on this phone, sent, or not sent — from the queue itself.
@@ -362,12 +367,6 @@ export function MatchKeeper(props: MatchKeeperProps) {
               : undefined
           }
           onPick={(i, v) => setHole(i, v)}
-          onSay={(start, values) => {
-            const next = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);
-            values.forEach((v, k) => { next[start + k] = v; });
-            setHoles(next);
-            matchQueue.push(next);
-          }}
         />
 
         {error && (

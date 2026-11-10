@@ -122,9 +122,9 @@ describe("finding the answer in a reply", () => {
 
 describe("what the model is asked", () => {
   it("asks for the round's own hole count and the player by name", () => {
-    const p = cardReadingPrompt(9, "Aj More");
+    const p = cardReadingPrompt(9, "Ned Calloway");
     expect(p).toContain("9 holes");
-    expect(p).toContain("Aj More");
+    expect(p).toContain("Ned Calloway");
   });
 
   it("asks for null rather than a guess", () => {

@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { assertEventWritable } from "@/lib/services/club-archive";
+import { archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { logAudit } from "@/lib/services/action-shared";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { sendPushToEmails } from "@/lib/services/push";
@@ -28,6 +28,17 @@ async function requireStaffEvent(): Promise<string> {
   }
   await assertEventWritable(session.eventId);
   return session.eventId;
+}
+
+/** The staff gate for a press that says its refusals: an archive's comes back as words, never thrown. */
+async function staffEventOrRefusal(): Promise<{ eventId: string } | { refused: string }> {
+  try {
+    return { eventId: await requireStaffEvent() };
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { refused };
+    throw e;
+  }
 }
 
 async function tellTheField(
@@ -65,7 +76,9 @@ export async function currentPlayStatus(): Promise<{ suspended: boolean; note: s
 }
 
 export async function suspendPlay(note: string): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { name: true, playSuspendedAt: true },
@@ -87,7 +100,9 @@ export async function suspendPlay(note: string): Promise<{ ok: boolean; error?: 
 }
 
 export async function resumePlay(): Promise<{ ok: boolean; error?: string }> {
-  const eventId = await requireStaffEvent();
+  const gate = await staffEventOrRefusal();
+  if ("refused" in gate) return { ok: false, error: gate.refused };
+  const { eventId } = gate;
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { name: true, playSuspendedAt: true },

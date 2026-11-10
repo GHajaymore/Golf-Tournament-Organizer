@@ -23,7 +23,7 @@ const medal = tournamentTerms({
   tiebreakers: ["toughest-6"],
   cutAfter: null,
   carryForwardEnabled: false,
-  carryForwardPct: 0,
+  carryForwardPct: 0, netCountback: "fractions",
 }).map((t) => t.rule);
 
 describe("the rules a tournament is under", () => {
@@ -82,7 +82,7 @@ describe("the Format line says the format once", () => {
       tiebreakers: [],
       cutAfter: null,
       carryForwardEnabled: false,
-      carryForwardPct: 0,
+      carryForwardPct: 0, netCountback: "fractions",
     }).find((t) => t.label === "Format")?.value;
 
   it("does not follow a stroke round's format with its type", () => {

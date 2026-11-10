@@ -3,6 +3,7 @@ import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { seed, setPlanFor, names, indexes, memberSession, eventFacts, eachKeepsTheirOwn, roundCards, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
+import { expectLaunched, pressComplete } from "../end-early";
 
 /**
  * SCENARIO — tournament C: a 36-hole Club Championship at an Eagle
@@ -169,7 +170,7 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
       await read(page, "/dashboard", "dashboard-before-launch", 4000);
       await page.getByRole("button", { name: "Launch tournament" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-      await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+      await expectLaunched(page);
     });
 
     await test.step("members' families follow the board: anyone with the link", async () => {
@@ -895,7 +896,7 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
         await page.waitForTimeout(3000);
       }
       await read(page, "/dashboard", "dashboard-r2-closed", 2500);
-      await page.getByRole("button", { name: "Complete tournament" }).first().click();
+      await pressComplete(page);
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toBeVisible({ timeout: 15_000 });
       appendFileSync(LOG(), `\n## complete-dialog\n${(await dialog.innerText()).replace(/\s+/g, " ").slice(0, 1200)}\n`);

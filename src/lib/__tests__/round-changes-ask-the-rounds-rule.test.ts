@@ -41,14 +41,20 @@ describe("the rounds-and-format actions ask the rounds rule (J12, PR 7b)", () =>
       const b = body(file, name);
       expect(b, `${name} still asks the setup lock`).not.toMatch(/refuseIfLocked\(/);
       expect(b).toMatch(/beforeTermChange\(eventId, stageId, \{ kind: "allowance" \}/);
-      expect(b).toMatch(/if \("refused" in gate\) return gate\.refused;\s*if \("asked" in gate\) return gate\.asked;/);
+      // Whatever the verdict is called (`gate`, or `term` where the archive's staff gate
+      // already holds that name — #1093): its refusal and its question are returned, and its
+      // `go` is what the log is given.
+      const bound = /const (\w+) = await beforeTermChange\(/.exec(b);
+      expect(bound, `${name} does not keep the rule's verdict`).not.toBeNull();
+      const v = bound![1];
+      expect(b).toMatch(new RegExp(`if \\("refused" in ${v}\\) return ${v}\\.refused;\\s*if \\("asked" in ${v}\\) return ${v}\\.asked;`));
       const asked = b.indexOf("beforeTermChange(");
       const write = b.search(FIRST_WRITE);
       expect(write, `${name} writes nothing`).toBeGreaterThan(-1);
       expect(asked, `${name} writes before it asks`).toBeLessThan(write);
       const after = b.lastIndexOf("afterTermChange(");
       expect(after, `${name} does not recompute and log`).toBeGreaterThan(write);
-      expect(b.slice(after)).toMatch(/afterTermChange\(eventId, gate\.go, `[^`]*`\);/);
+      expect(b.slice(after)).toMatch(new RegExp(`afterTermChange\\(eventId, ${v}\\.go, \`[^\`]*\`\\);`));
     });
   }
 

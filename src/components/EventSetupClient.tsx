@@ -3,7 +3,9 @@ import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useId, useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
-import { PLAY_KINDS, playNoun, resultHeading } from "@/lib/domain/play-kind";
+import { playKindsFor } from "@/lib/domain/play-kind";
+import { eventWords } from "@/lib/domain/event-words";
+import { useGolfRegister } from "@/components/GolfTermsProvider";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
@@ -157,6 +159,8 @@ export function EventSetupClient({
   const [f, setF] = useState<EventForm>(initial);
   // The club's golf words — "a league or golf group", "a league or society".
   const golfWords = useGolfTerms();
+  const register = useGolfRegister();
+  const words = eventWords(f.playKind, register);
   // Captions below are real <label>s for their controls (a screen reader said
   // an unnamed "edit text" for the name, dates, course and deadline).
   const fid = useId();
@@ -454,23 +458,23 @@ export function EventSetupClient({
             onChange={(e) => set("playKind", e.target.value)}
             style={{ minHeight: 46 }}
           >
-            {PLAY_KINDS.map((k) => (
+            {playKindsFor(register, f.playKind).map((k) => (
               <option key={k.key} value={k.key}>
                 {k.label}
               </option>
             ))}
           </select>
           {/* One line, the rest an ⓘ away (Ajay, 2026-10-05). */}
-          <MoreInfo short={<>Members see &ldquo;this {playNoun(f.playKind)}&rdquo;.</>} style={{ marginTop: 6 }}>
-            Members see this word: &ldquo;this {playNoun(f.playKind)}&rdquo;, and the results card
-            reads &ldquo;{resultHeading(f.playKind)}&rdquo;. It changes nothing about how the golf is
+          <MoreInfo short={<>Members see &ldquo;this {words.kindLower}&rdquo;.</>} style={{ marginTop: 6 }}>
+            Members see this word: &ldquo;this {words.kindLower}&rdquo;, and the results card
+            reads &ldquo;{words.resultHeading}&rdquo;. It changes nothing about how the golf is
             scored.
           </MoreInfo>
         </div>
         <div className="pair-grid">
           <div className="field">
             <label htmlFor={`${fid}-start`}>
-              Tournament dates{" "}
+              {words.kind} dates{" "}
               {!f.dates.trim() && <span style={{ color: "var(--color-accent-200)" }}>· required to launch</span>}
             </label>
             {/* `minWidth: 0` on the inputs, not just `flex: 1`.

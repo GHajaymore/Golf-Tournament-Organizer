@@ -8,7 +8,8 @@ import { Icon } from "./Icon";
  */
 export function PrintReportButton() {
   return (
-    <button type="button" className="btn" style={{ minHeight: 44 }} onClick={() => window.print()}>
+    // A print writes nothing: live in an archived tournament (`archive-read-only.ts`).
+    <button type="button" className="btn" style={{ minHeight: 44 }} data-reads="" onClick={() => window.print()}>
       <Icon name="printer" /> Print or save as PDF
     </button>
   );

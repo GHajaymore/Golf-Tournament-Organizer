@@ -2,6 +2,7 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession, ORGANIZER_EMAIL } from "./organizer-fixture.mjs";
+import { expectLaunched } from "./end-early";
 
 /**
  * "CAN I PLAY WITH BRIAR?" — ASKED FROM A PHONE, SEEN BY THE COMMITTEE, AND
@@ -148,7 +149,7 @@ test("a member asks to play with a friend, the committee sees it, and the draw k
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   /** Who is in each group on the committee's screen. */

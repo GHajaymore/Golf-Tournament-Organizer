@@ -15,7 +15,13 @@ export function EventContextBar({
   status,
   canSwitch,
   compact = false,
+  chip = true,
 }: {
+  /**
+   * Draw the status chip. False while the lifecycle stepper (B03) is drawn under this bar: its head
+   * says the same chip, and one screen says it once (the panel, 9 Nov).
+   */
+  chip?: boolean;
   /**
    * One line, whatever the name — a casual round's (2026-10-06). Its name IS
    * its players ("Ann Zed & Bea Zed v Cat Zed & Dot Zed"), every one of them
@@ -67,14 +73,16 @@ export function EventContextBar({
           {[dates, location].filter(Boolean).join(" · ")}
         </span>
       )}
-      <span className={`tag ${status.tag}`} style={{ fontSize: 13, flex: "none" }}>
-        {status.step === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 13, marginRight: 4 }} />}
-        {status.chip}
-      </span>
+      {chip && (
+        <span className={`tag ${status.tag}`} style={{ fontSize: 13, flex: "none" }}>
+          {status.step === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 13, marginRight: 4 }} />}
+          {status.chip}
+        </span>
+      )}
       {/* "Every round closed · results not released" — the second line the
           UI/UX panel asked for under "Play over" (8.3 Q5), in the secondary
           style, never a second chip. */}
-      {!compact && status.detail && (
+      {chip && !compact && status.detail && (
         <span className="text-muted" style={{ fontSize: 13 }}>
           {status.detail}
         </span>

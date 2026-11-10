@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession } from "./organizer-fixture.mjs";
 import { pressRadio } from "./press-radio";
+import { expectLaunched } from "./end-early";
 
 /**
  * A PLAYER REPORTS THEIR OWN KNOCKOUT TIE, AND THE COMMITTEE APPROVES IT.
@@ -93,7 +94,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   const duneCtx = await phoneOf(browser, testInfo, baseURL!, "Dune Quayle");
