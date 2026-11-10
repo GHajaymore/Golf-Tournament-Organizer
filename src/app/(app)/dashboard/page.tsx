@@ -28,7 +28,8 @@ import { RoundReadyCard } from "@/components/RoundReadyCard";
 import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
 import { NeedsYouNow, WhatsNext } from "@/components/NeedsYouNow";
 import { CopyLastEvent } from "@/components/CopyLastEvent";
-import { secretaryHomeFor } from "@/lib/services/whats-next";
+import { openTournamentJob, secretaryHomeFor } from "@/lib/services/whats-next";
+import { endEarlyOf } from "@/lib/domain/lifecycle-track";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { needsYouNow } from "@/lib/domain/needs-you-now";
@@ -40,7 +41,7 @@ import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { statusChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { tournamentStatusFor } from "@/lib/services/tournament-status";
-import { launchDialogOf, statusCardOf } from "@/lib/domain/tournament-status";
+import { launchDialogOf, statusCardOf, lockFactsOf, locksFor, scopeLockOf, LOCK_SCOPES } from "@/lib/domain/tournament-status";
 import { nothingDrawnWords } from "@/lib/domain/nothing-drawn";
 import { isMatch, reviewsScores } from "@/lib/tournament-shape";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
@@ -516,6 +517,14 @@ export default async function DashboardPage() {
    */
   const told = await tournamentStatusFor(session.eventId, state.today);
   const status = told?.status ?? null;
+  /**
+   * THE ONE BUTTON (B03; the panel, 9 Nov; the PM, 10 Nov: for everyone, not only behind the stepper's
+   * switch): `tournamentJob`, the job the lifecycle stepper marks and the home's first line for this
+   * tournament, composed here — never in `statusCardOf`. So the card never offers "Complete tournament"
+   * while golf is being played: the machine offers it from the first card, which at a two-day outing is
+   * one press from ending it before day 2.
+   */
+  const job = await openTournamentJob(session.eventId, state.today);
   const step = status?.step ?? "setting-up";
   const nextAction = status?.nextAction ?? null;
   /**
@@ -945,8 +954,14 @@ export default async function DashboardPage() {
       {isStaff && told && status && (
         <LifecycleBar
           status={statusCardOf(told.facts, status)}
+          job={job}
+          // Ending early, behind the card's "More" — never a Complete beside the job (the PM, 10 Nov).
+          endEarly={endEarlyOf(status, job)}
           isAdmin={isAdmin}
           configUnlocked={event.configUnlocked}
+          // The committee correction (PR 5b): which locked scopes it may open, and the one open now.
+          correctableScopes={LOCK_SCOPES.filter((s) => scopeLockOf(locksFor(lockFactsOf(told.facts)), s)?.correctable)}
+          correction={told.facts.correction}
           archived={!!event.archivedAt}
           // What the launch dialog says is still open — the machine's warnings.
           launchOpen={nextAction?.kind === "launch" ? launchDialogOf(status, false) : undefined}

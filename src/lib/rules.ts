@@ -1,4 +1,6 @@
-import { isStablefordFormat, isStablefordRound } from "./domain/week-basis";
+import { isStablefordFormat, isStablefordRound, weekBasis } from "./domain/week-basis";
+import { needsTeams } from "./formats";
+import type { NetCountbackMethod } from "./domain/stroke-countback";
 import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
 import { roundIsStroke, lookupStageType } from "@/lib/stage-types";
 import { cutRuleWords, type CutTieRule } from "@/lib/domain/cut-ready";
@@ -201,6 +203,11 @@ export interface TermsInput {
   cutAfter: { rule: CutRule; ties: boolean; tieRule?: CutTieRule | null; decidedOn?: CutLineKind | null; into?: string | null } | null;
   carryForwardEnabled: boolean;
   carryForwardPct: number;
+  /**
+   * How a net stroke round is counted back in THIS event — `netCountbackMethodFor(event.createdAt)`.
+   * Required, so the sheet cannot state the fractions for an event the board counts back hole by hole.
+   */
+  netCountback: NetCountbackMethod;
 }
 
 /** Which tier-1 rule a format is played under, where one names it directly. */
@@ -338,16 +345,46 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
    * number that was already equal.
    */
   if (roundIsStroke(input.type, input.format)) {
+    /**
+     * And on NET scores, what comes off each step (2026-11-09): an individual
+     * net medal counts back by fractions of the playing handicap (Committee
+     * Procedures 5A(7)) — ½, ⅓, ⅙ and 1/18 over eighteen; ⅔, ⅓ and 1/9 over
+     * nine. A team round keeps its hole-by-hole net (the strokes as the stroke
+     * index applied them, which the guidance keeps for four-ball stroke play),
+     * Stableford counts back on points, and an event created before the change
+     * keeps hole by hole (`netCountbackMethodFor`).
+     */
+    const byFractions =
+      input.netCountback === "fractions" &&
+      weekBasis(input.scoringBasis, input.format) === "net" &&
+      !needsTeams(input.format);
     out.push({
       label: "Ties",
       value:
         // Short enough to read on a phone (2026-10-06); the ladder itself is
         // unchanged, and still the one `stroke-countback.ts` applies.
-        input.holes === 9
-          ? "Countback: last 6 and 3 holes, then the final hole. A tie after that is shared."
-          : "Countback: last 9, 6 and 3 holes, then the final hole. A tie after that is shared.",
+        (input.holes === 9
+          ? "Countback: last 6 and 3 holes, then the final hole."
+          : "Countback: last 9, 6 and 3 holes, then the final hole.") +
+        " A tie after that is shared.",
       rule: "decidingTies",
     });
+    /**
+     * The fractions are their OWN line, not a second sentence of "Ties": the
+     * two together were 31 words in one block, past the player screens' limit
+     * (no sentence of 12 words, no block of 25 — `player-words.spec.ts`,
+     * round G584-1, 2026-11-10).
+     */
+    if (byFractions) {
+      out.push({
+        label: "Net countback",
+        value:
+          input.holes === 9
+            ? "With ⅔, ⅓ and 1/9 of the playing handicap off."
+            : "With ½, ⅓, ⅙ and 1/18 of the playing handicap off.",
+        rule: "decidingTies",
+      });
+    }
   } else if (input.tiebreakers.length) {
     out.push({
       label: "Ties",

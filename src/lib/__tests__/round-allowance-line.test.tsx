@@ -200,7 +200,7 @@ describe("what a player is told on the rules sheet", () => {
       tiebreakers: [],
       cutAfter: null,
       carryForwardEnabled: false,
-      carryForwardPct: 0,
+      carryForwardPct: 0, netCountback: "fractions",
       ...over,
     }).find((t) => t.label === "Handicap allowance")?.value;
 

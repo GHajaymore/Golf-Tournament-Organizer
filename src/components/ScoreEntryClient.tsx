@@ -4,13 +4,10 @@ import Link from "next/link";
 import {
   resolveMatch,
   matchIsOver,
-  parseResultTranscript,
-  parseHolesTranscript,
   parseStrokesTranscript,
   deriveNetHoles,
   matchStrokesGiven,
   matchStandingText,
-  namesAreDistinct,
   type HoleResult,
 } from "@/lib/domain";
 import { useFormatting } from "@/components/CurrencyProvider";
@@ -19,9 +16,10 @@ import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { HoleResultCard } from "@/components/HoleResultCard";
-import { firstName, distinctLabels, initials } from "@/lib/format";
+import { distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
-import { marginRefusal } from "@/lib/domain/match";
+import { marginRefusal, marginToHoles } from "@/lib/domain/match";
+import { MAX_STARTING_CARDS } from "@/lib/domain/pending-card";
 import { ScoreCell } from "@/components/ScorecardTable";
 import { declaredInput, inputOverrideApplies, resolveScoreInput } from "@/lib/formats";
 import {
@@ -395,6 +393,22 @@ export function ScoreEntryClient({
    * database. A ref is the only thing that is current in the same tick.
    */
   const latestHoles = useRef<Record<string, HoleResult[]>>({});
+  /**
+   * WHAT THE SERVER MIGHT BE HOLDING, as far as this screen knows (2026-11-09).
+   *
+   * A match save names the cards it may have started from, and the server
+   * refuses one that names none of what it holds (`overwritesUnseenFromAll`).
+   * On a course a save can fail with no signal (never stored) or land with its
+   * reply lost (stored, though this screen saw a failure), and the scorer taps
+   * on either way — so the list is the card the server last ACKNOWLEDGED (seeded
+   * from the cards this page was served, never from a later refresh: the screen
+   * still shows those), each card sent since whose outcome is unknown, and the
+   * card just before the tap (`startingCards`). A refusal in words is a known
+   * outcome — not stored — and is never added.
+   */
+  const ackedHoles = useRef<Record<string, HoleResult[]>>(Object.fromEntries(matches.map((m) => [m.id, m.holes])));
+  const unknownHoles = useRef<Record<string, { seq: number; card: HoleResult[] }[]>>({});
+  const saveSeq = useRef(0);
   const [statusById, setStatusById] = useState<Record<string, string>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.status])),
   );
@@ -541,18 +555,12 @@ export function ScoreEntryClient({
   const [margin, setMargin] = useState("");
   const [listening, setListening] = useState<string | null>(null);
   /**
-   * What the mic last heard. EMPTY until it has heard something.
+   * What the mic last heard. EMPTY until it has heard something; the idle
+   * prompt is said where the mic is.
    *
-   * It used to start as "Tap the mic and say e.g. “Sam wins 3 and 2”." — the
-   * prompt for the FINAL-RESULT panel, where dictating a margin is exactly
-   * what the mic does. This one string is rendered in two places, and the
-   * other is under the full scorecard, where the mic dictates STROKES: a
-   * scorer typing eighteen numbers was told to say "Sam wins 3 and 2", which
-   * is not a thing that screen can hear.
-   *
-   * So the state now holds only what was actually heard, and each site says
-   * its own idle prompt. The feedback stays shared, because it is about
-   * whichever mic just ran.
+   * The only mic on this screen is a player's STROKES on the full scorecard.
+   * Who won a hole and the final result are tapped and typed, never dictated
+   * (Ajay, 2026-11-09): see `match-play-is-tapped-not-dictated.test.ts`.
    */
   const [listenHint, setListenHint] = useState("");
   const recognitionRef = useRef<Dictation | null>(null);
@@ -628,8 +636,12 @@ export function ScoreEntryClient({
   const outstanding = useRef(0);
   const failedInBatch = useRef(false);
 
-  /** Run a write and report how it went. */
-  const save = (run: () => Promise<unknown>) => {
+  /**
+   * Run a write and report how it went. `onOutcome` hears whether the server
+   * took it ("ok"), refused it in words ("refused": not stored), or the answer
+   * never came back ("unknown": no signal, a lost reply — it may be stored).
+   */
+  const save = (run: () => Promise<unknown>, onOutcome?: (outcome: "ok" | "refused" | "unknown") => void) => {
     if (outstanding.current === 0) failedInBatch.current = false;
     outstanding.current += 1;
     setNoteAt("card");
@@ -637,11 +649,22 @@ export function ScoreEntryClient({
     setSaveNote("");
     startTransition(async () => {
       try {
-        await run();
+        const res = await run();
+        // A write that REFUSED in words (a match changed elsewhere since this
+        // screen loaded it) is said as it was given, not as an outage.
+        if (res && typeof res === "object" && "ok" in res && res.ok === false) {
+          failedInBatch.current = true;
+          const error = "error" in res && typeof res.error === "string" ? res.error : "";
+          if (error) setSaveNote(error);
+          onOutcome?.("refused");
+        } else {
+          onOutcome?.("ok");
+        }
       } catch {
         // Deliberately sticky: the entered value is still on screen and is
         // *not* stored, and clearing that warning on a timer would hide it.
         failedInBatch.current = true;
+        onOutcome?.("unknown");
       } finally {
         outstanding.current -= 1;
         if (outstanding.current === 0) setSaveState(failedInBatch.current ? "failed" : "saved");
@@ -693,18 +716,6 @@ export function ScoreEntryClient({
     () => (active ? distinctLabels([active.aName, active.bName], initials) : ["", ""]),
     [active],
   );
-  /**
-   * Whether a spoken name can identify anybody here. See namesAreDistinct.
-   *
-   * On the FIRST names, which is what a scorer actually says and what the
-   * parsers are given — never on the labels above. `distinctLabels` exists
-   * precisely to make those two differ, so asking it here would answer yes
-   * every time and quietly switch this guard off.
-   */
-  const canHearNames = active
-    ? namesAreDistinct(firstName(active.aName), firstName(active.bName))
-    : true;
-
   // The selected match's own card wins over the round-level one: in a league
   // with no fixed venue every pairing may be somewhere different.
   const pars = active?.pars?.length ? active.pars : parsProp;
@@ -766,10 +777,44 @@ export function ScoreEntryClient({
     setHolesById((prev) => ({ ...prev, [id]: next }));
   };
 
+  /** What a save's answer says about what the server holds — see `ackedHoles`. */
+  const settle = (id: string, seq: number, card: HoleResult[], outcome: "ok" | "refused" | "unknown") => {
+    const unknown = unknownHoles.current[id] ?? [];
+    if (outcome === "ok") {
+      // Stored: it supersedes every card sent before it.
+      ackedHoles.current[id] = card;
+      unknownHoles.current[id] = unknown.filter((u) => u.seq > seq);
+    } else if (outcome === "unknown") {
+      // Room for the acknowledged card and the card before the next tap.
+      unknownHoles.current[id] = [...unknown, { seq, card }].slice(-(MAX_STARTING_CARDS - 2));
+    }
+  };
+
+  /**
+   * The cards a save may have STARTED FROM: the acknowledged one, every one
+   * whose outcome is unknown, and `before` — the previous tap's card, which
+   * the server holds by the time this save reaches it (Next sends a page's
+   * actions one at a time) when that tap lands. Duplicates dropped.
+   */
+  const startingCards = (id: string, before: HoleResult[]): HoleResult[][] => {
+    const all = [ackedHoles.current[id] ?? [], ...(unknownHoles.current[id] ?? []).map((u) => u.card), before];
+    const seen = new Set<string>();
+    return all.filter((card) => {
+      const key = JSON.stringify(card);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
   const persist = (id: string, next: HoleResult[]) => {
+    // Read before `writeHoles`, which makes `next` the latest.
+    const before = latestHoles.current[id] ?? holesById[id] ?? matches.find((m) => m.id === id)?.holes ?? [];
+    const from = startingCards(id, before);
+    const seq = ++saveSeq.current;
     writeHoles(id, next);
     setStatusById((prev) => ({ ...prev, [id]: "pending" }));
-    save(() => saveMatchHoles(id, next));
+    save(() => saveMatchHoles(id, next, from), (outcome) => settle(id, seq, next, outcome));
   };
 
   const setStatus = (id: string, s: string) => setStatusById((prev) => ({ ...prev, [id]: s }));
@@ -908,10 +953,14 @@ export function ScoreEntryClient({
   const doApplyResult = () => {
     if (resultRefusal) return;
     const total = holes.length || 18;
-    save(() => applyMatchResult(active.id, winner, margin));
-    import("@/lib/domain").then(({ marginToHoles }) => {
-      writeHoles(active.id, marginToHoles(winner, margin, total));
-    });
+    const id = active.id;
+    // The card the server will store, set BEFORE the save goes: it was set
+    // when a dynamic import resolved, and a tap in between started from the
+    // card before the result (and was refused as changed elsewhere).
+    const card = marginToHoles(winner, margin, total);
+    const seq = ++saveSeq.current;
+    writeHoles(id, card);
+    save(() => applyMatchResult(id, winner, margin), (outcome) => settle(id, seq, card, outcome));
   };
 
   const doClear = () => {
@@ -924,18 +973,23 @@ export function ScoreEntryClient({
     setNoteAt("foot");
     setSaveState("saving");
     setSaveNote("");
+    const id = active.id;
+    const seq = ++saveSeq.current;
     startTransition(async () => {
       try {
-        const res = await clearMatch(active.id);
+        const res = await clearMatch(id);
         if (!res.ok) {
           setSaveState("failed");
           setSaveNote(res.error ?? "");
           return;
         }
-        writeHoles(active.id, empty);
-        setStatus(active.id, "pending");
+        settle(id, seq, empty, "ok");
+        writeHoles(id, empty);
+        setStatus(id, "pending");
         setSaveState("saved");
       } catch {
+        // It may have cleared: the next save names the blank card too.
+        settle(id, seq, empty, "unknown");
         setSaveState("failed");
       }
     });
@@ -1034,28 +1088,6 @@ export function ScoreEntryClient({
     setListening(key);
     setListenHint("Listening…");
   };
-
-  const toggleListenResult = () =>
-    startListen("result", (transcript) => {
-      const parsed = parseResultTranscript(transcript, firstName(active.aName), firstName(active.bName));
-      if (parsed.winner) setWinner(parsed.winner);
-      if (parsed.margin) setMargin(parsed.margin);
-      setListenHint(`Heard: “${transcript}” — review and Apply.`);
-    });
-
-  const toggleListenHoles = () =>
-    startListen("holes", (transcript) => {
-      const startIndex = Math.max(0, holes.findIndex((h) => h == null));
-      const parsed = parseHolesTranscript(transcript, firstName(active.aName), firstName(active.bName), startIndex, totalHoles);
-      if (parsed.length) {
-        const next = [...holes];
-        parsed.forEach((v, i) => { next[startIndex + i] = v; });
-        persist(active.id, next);
-        setListenHint(`Heard: “${transcript}” — filled ${parsed.length} hole${parsed.length === 1 ? "" : "s"}.`);
-      } else {
-        setListenHint(`Heard: “${transcript}” — say a player's first name or “half” per hole.`);
-      }
-    });
 
   const toggleListenStrokes = (slot: "A" | "B") =>
     startListen(`hcp-${slot}`, (transcript) => {
@@ -1190,9 +1222,11 @@ export function ScoreEntryClient({
                 onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
                 placeholder="Search player, flight or round…"
                 aria-label="Search matches"
+                // Filters the list shown: live in an archived tournament (`archive-read-only.ts`).
+                data-reads=""
                 style={{ fontSize: 13 }}
               />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              <div data-reads="" style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                 {STATUS_ORDER.filter((k) => counts[k] > 0).map((k) => {
                   const on = filter.status === k;
                   return (
@@ -1619,15 +1653,9 @@ export function ScoreEntryClient({
                 yards={yards}
                 strokeIndex={strokeIndex}
                 firstHole={firstHole}
-                canHearNames={canHearNames}
                 // The same allocation this screen's stroke card and grid use.
                 shotsOn={netMode ? (h) => ({ a: strokesGiven.toA[h] ?? 0, b: strokesGiven.toB[h] ?? 0 }) : undefined}
                 onPick={setHole}
-                onSay={(start, values) => {
-                  const next = [...(latestHoles.current[active.id] ?? holes)];
-                  values.forEach((v, k) => { next[start + k] = v; });
-                  persist(active.id, next);
-                }}
               />
             </div>
           )}
@@ -1647,34 +1675,6 @@ export function ScoreEntryClient({
                   <span className="sc-key-dot" style={{ background: "var(--color-accent-2)" }} />
                   {bLabel}
                 </span>
-                {/* Offered only when a spoken name could identify anybody.
-                    With two players called Dave there is nothing to say that
-                    tells them apart, and the parser now declines rather than
-                    crediting whichever side it checked first — so the button
-                    would listen carefully and record nothing. Saying why beats
-                    a control that appears to work. */}
-                {canHearNames ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={toggleListenHoles}
-                      style={listening === "holes" ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)" } : undefined}
-                    >
-                      <Icon name={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
-                      {listening === "holes" ? "Listening…" : "Voice entry"}
-                    </button>
-                    <span className="text-muted" style={{ fontSize: 13 }}>{listening === "holes" ? "Listening…" : `Say each hole's winner in order, e.g. “${aLabel}, half, ${bLabel}”.`}</span>
-                    {/* What the mic does. Both mics on this screen are covered
-                        by this one, which sits with the first of them. */}
-                    <MicNote style={{ flexBasis: "100%", marginTop: 4 }} />
-                  </>
-                ) : (
-                  <span className="text-muted" style={{ fontSize: 13 }}>
-                    <Icon name="microphone-slash" /> Both players are called {firstName(active.aName)}, so
-                    voice entry can&rsquo;t tell them apart. Tap the results below.
-                  </span>
-                )}
               </div>
 
               <div className="sc-wrap">
@@ -1776,33 +1776,14 @@ export function ScoreEntryClient({
               </div>
               <div className="field">
                 <label>Result (e.g. “3&2”, “1 UP”, “AS”)</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    className="input"
-                    value={margin}
-                    onChange={(e) => setMargin(e.target.value)}
-                    placeholder="3&2"
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-icon"
-                    onClick={toggleListenResult}
-                    title="Dictate result"
-                    style={listening === "result" ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)" } : undefined}
-                  >
-                    <Icon name={listening === "result" ? "ph-fill ph-microphone" : "ph ph-microphone"} />
-                  </button>
-                </div>
-                {/* The margin is still worth dictating — "3 and 2" means the
-                    same thing whoever said it — so unlike the hole-by-hole
-                    mic this one stays. Only the winner cannot be heard, and
-                    the scorer is told to pick it rather than left wondering
-                    why the name was ignored. */}
-                <div className="text-muted" style={{ fontSize: 13 }}>
-                  {canHearNames
-                    ? listenHint || "Tap the mic and say e.g. “Sam wins 3 and 2”."
-                    : `Both players are called ${firstName(active.aName)}, so the margin is heard but the winner isn't — pick it above.`}
-                </div>
+                {/* Typed, never dictated: the winner is a tap above and the
+                    margin a few characters here (Ajay, 2026-11-09). */}
+                <input
+                  className="input"
+                  value={margin}
+                  onChange={(e) => setMargin(e.target.value)}
+                  placeholder="3&2"
+                />
               </div>
               {/* A winner needs a margin: the server refuses the same thing,
                   and "Apply" with this box empty used to record a halved match. */}
@@ -2035,15 +2016,18 @@ export function ScoreEntryClient({
                 </table>
               </div>
               )}
-              {/* The prompt for THIS mic, which dictates strokes. See
-                  `listenHint`: the shared default used to advertise the
-                  final-result panel's phrasing on a screen that cannot hear
-                  it. */}
-              {/* Only beside the grid, where those mics are. */}
+              {/* The prompt for THIS mic, which dictates strokes, and what the
+                  mic does. Only beside the grid, where those mics are. The
+                  screen's one note used to sit with the hole-results mic (gone,
+                  2026-11-09), in a mode never shown with this one, so these
+                  mics had no note on screen at all. */}
               {cardView === "card" && (
-                <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
-                  {listenHint || "Tap a player's mic and read their scores in order, e.g. “four, par, birdie, six”."}
-                </p>
+                <>
+                  <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+                    {listenHint || "Tap a player's mic and read their scores in order, e.g. “four, par, birdie, six”."}
+                  </p>
+                  <MicNote style={{ marginTop: 4 }} />
+                </>
               )}
             </div>
           )}

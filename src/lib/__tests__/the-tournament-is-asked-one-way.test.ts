@@ -91,13 +91,9 @@ export function strays(src: string): string[] {
  * instead of `isSetupLocked`.
  */
 export const KNOWN_STRAYS: readonly string[] = [
-  "src/app/(app)/bracket/page.tsx",
-  "src/app/(app)/entry/page.tsx",
-  "src/app/(app)/event/page.tsx",
-  "src/app/(app)/grouping/page.tsx",
-  "src/app/(app)/registration/page.tsx",
-  "src/app/(app)/stages/page.tsx",
-  "src/app/actions/tournament.ts",
+  // PR 5b (7 Nov) cut the last seven: the six set-up screens read their scope's lock
+  // (`screenLocksFor` / `scopeLockFor`) and `actions/tournament.ts` asks `refuseIfLocked`;
+  // `isSetupLocked`, `assertUnlocked` and `lockedRefusal` are deleted. The list is EMPTY.
 ];
 
 /**

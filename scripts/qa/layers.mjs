@@ -578,8 +578,14 @@ export function partsFor(round, plan = {}) {
       }
     }
   }
-  return parts;
+  // `image`: the part runs in Playwright's container image (round.yml), which holds exactly its
+  // own three engines. Said ONCE here so the workflow reads a field and not four copies of a list;
+  // a part that drives the installed Chrome or Edge ("chromium chrome") or no browser stays on the runner.
+  return parts.map((p) => ({ ...p, image: IMAGE_ENGINES.includes(p.browsers) }));
 }
+
+/** The `browsers` values that Playwright's container image can run. */
+export const IMAGE_ENGINES = ["chromium", "firefox", "webkit"];
 
 /** Flags every scenario's own log is read for, whatever else that scenario adds. */
 const ALWAYS = "page errors: [1-9]|sideways=[1-9]|\\[5[0-9][0-9] →|Unknown player|Application error";
@@ -599,7 +605,7 @@ export const SCENARIOS = [
     key: "a",
     file: "e2e/scenarios/a-society-stableford.spec.ts",
     name: "A society's Saturday Stableford",
-    plays: "a society on the Birdie plan, 110 on the roster and a field the plan caps at 50; members enter from their own phones; net Stableford at 95%",
+    plays: "a society on the Birdie plan, 110 on the roster and a field the plan caps, with more sign-ups than it holds so the waiting list is real; members enter from their own phones; net Stableford at 95%",
     phases: ["A1", "A2", "A3", "A4", "A5", "A6", "A7"],
     flags: `${ALWAYS}|${ENTERED}|ROSTER MEMBER CANNOT SEE`,
   },

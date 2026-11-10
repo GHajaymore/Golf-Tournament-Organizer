@@ -142,7 +142,15 @@ export function computeStrokeCard(
   strokes: (number | null)[],
   pars: number[],
   handicap: number,
-  strokeIndex?: number[],
+  /**
+   * The card's stroke index for the holes in `strokes`. REQUIRED (2026-11-09):
+   * without one this used to spread the handicap evenly, a fraction of a
+   * stroke a hole, and a Stableford hole then scored 1.44 points — no hole in
+   * golf scores a fraction of a point (Rule 21.1b). Strokes are given by the
+   * stroke index (Rules of Handicapping 6.2) or not at all; `opts.shotsPerHole`
+   * still wins over it where the caller already holds the round's allocation.
+   */
+  strokeIndex: readonly number[],
   /**
    * What the ROUND says, where the caller knows it better than this function can.
    *
@@ -197,8 +205,8 @@ export function computeStrokeCard(
     if (i < 9) front += s;
     else back += s;
     // Allocate strokes per hole actually played, so net is accurate mid-round
-    // (not the full handicap subtracted against a partial gross). Falls back
-    // to a flat full-handicap split if course stroke-index data is unknown.
+    // (not the full handicap subtracted against a partial gross). Always a
+    // whole number of strokes on a hole: there is no even-split fallback.
     /**
      * The round's own allocation first, then this function's best guess.
      *
@@ -206,12 +214,9 @@ export function computeStrokeCard(
      * recomputed from an index here — that is precisely how the totals and the
      * dots on the entry card came to disagree.
      */
-    const holeStrokes =
-      opts?.shotsPerHole
-        ? (opts.shotsPerHole[i] ?? 0)
-        : strokeIndex
-          ? holeStrokesReceived(handicap, strokeIndex[i] ?? 18, allocationHoles(strokeIndex.length))
-          : Math.round(handicap) / strokes.length;
+    const holeStrokes = opts?.shotsPerHole
+      ? (opts.shotsPerHole[i] ?? 0)
+      : holeStrokesReceived(handicap, strokeIndex[i] ?? 18, allocationHoles(strokeIndex.length));
     strokesReceived += holeStrokes;
     points += pointsForHole(s, pars[i] ?? 0, holeStrokes);
   }
@@ -220,7 +225,7 @@ export function computeStrokeCard(
     front,
     back,
     played,
-    net: gross - Math.round(strokesReceived),
+    net: gross - strokesReceived,
     toPar: gross - parPlayed,
     points,
   };

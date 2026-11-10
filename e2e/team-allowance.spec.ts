@@ -3,6 +3,7 @@ import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { makeCommitteeCorrection } from "./committee-correction";
 
 /**
  * A COMMITTEE CHANGES A FOUR-BALL'S ALLOWANCE, AND THE BOARD IS RE-SCORED BY
@@ -268,12 +269,12 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   await expect(card.getByLabel("Handicap allowance percent")).toBeVisible();
   await expect(card.getByRole("button", { name: "Save", exact: true }), "Save is offered on a locked round").toBeDisabled();
 
-  await page.getByRole("button", { name: /^Unlock setup$/ }).first().click();
+  await makeCommitteeCorrection(page);
   await expect
-    .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).configUnlocked, {
-      message: "Unlock setup stored nothing",
+    .poll(async () => (await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).correctionScope, {
+      message: "the committee correction stored nothing",
     })
-    .toBe(true);
+    .toBe("rounds");
 
   // ── refused beside the box ─────────────────────────────────────────────────
   const change = async () => {

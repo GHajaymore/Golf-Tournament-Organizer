@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
-import { readSource } from "./source";
+import { ASKS, NOT_A_DOOR, ACTIONS, askingHelpers, functionsIn, serviceDoors } from "./archive-doors";
 
 /**
  * EVERY DOOR THAT EDITS A TOURNAMENT ASKS THE ARCHIVE (2026-10-21).
@@ -27,107 +25,6 @@ import { readSource } from "./source";
  * Read through `readSource` (comments stripped): the doc blocks name the gates
  * in prose, and prose must not satisfy the rule.
  */
-
-/** A call that asks the archive itself. */
-const ASKS = ["assertEventWritable(", "archiveRefusalFor("];
-
-/** Gates outside the action files that ask it — proved below, not trusted. */
-const SERVICE_GATES: Array<{ call: string; file: string[] }> = [
-  { call: "requirePotAccess(", file: ["src", "lib", "services", "game-access.ts"] },
-];
-
-/**
- * Why an action is not a door into a tournament.
- *
- *   person    a person's own account, sign-in or device — not a tournament
- *   club      the club itself (its settings, roster, staff, courses found in the
- *             directory, seasons, plan) — an archived club still runs its club
- *   business  the platform owner's console
- *   new       MAKES a tournament; after a lapse that is an ordinary Par one
- *   own data  deleting a tournament outright: the club's own data is the club's
- *             to remove, archived or not (the privacy policy promises it)
- *   reads     changes nothing in a tournament: a read, a preview, a draft, a
- *             read marker, getting in to look
- */
-const NOT_A_DOOR: Record<string, string> = {
-  // person
-  deleteMyAccount: "person", signInWithPassword: "person", claimPassword: "person", requestPasswordReset: "person",
-  resetPassword: "person", signUp: "person", signOutAction: "person", signOutEverywhereAction: "person",
-  verifyEmailCode: "person", resendEmailCode: "person",
-  savePushSubscription: "person", removePushSubscription: "person", getVapidPublicKey: "person",
-  setMyMessagesOptOut: "person", setMySmsOptIn: "person", registerInterest: "person", askToJoinNamesake: "person",
-  // club
-  checkDiscountCode: "club", startCheckout: "club", openBillingPortal: "club", deleteClub: "club",
-  saveHandicapPolicy: "club", saveScoreReporting: "club", approveJoinRequest: "club", declineJoinRequest: "club", dismissNamesakeNotice: "club",
-  setOrgMoneyMode: "club", addOrganizationMember: "club", setOrganizationMemberRole: "club",
-  removeOrganizationMember: "club", saveOrganizationBranding: "club", saveOrganizationTheme: "club",
-  saveOrganizationCurrency: "club", saveOrganizationSeason: "club", saveOrganizationLocale: "club",
-  saveOrganizationTimeZone: "club", adoptClubTimeZone: "club", saveOrganizationKind: "club",
-  saveOrganizationNoun: "club", saveOrganizationGolfTerms: "club", leaveOrganization: "club",
-  saveOrganizationDefaults: "club", addMember: "club", importCsvMembers: "club", updateMember: "club",
-  setMemberStatus: "club", deleteMember: "club", addFieldToRoster: "club", memberHandicapSuggestion: "club",
-  acceptClubHandicap: "club", confirmChampion: "club", removeFromHonours: "club", createSeries: "club",
-  updateSeries: "club", deleteSeries: "club", searchCourseDirectory: "club", importCourseFromDirectory: "club",
-  readCourseCardPhoto: "club",
-  // business
-  setAccountsOpen: "business", setClubPlan: "business", saveTierPrices: "business", saveTierLimits: "business",
-  createDiscountCode: "business", setDiscountCodeActive: "business", sendEarlyListCodes: "business", refreshDemoClub: "business", loadCourseCatalogue: "business",
-  // new
-  createEvent: "new", createEventFromAnswers: "new", cloneEvent: "new", createMatch: "new",
-  // own data
-  deleteEvent: "own data",
-  // reads
-  enterTournament: "reads", switchEvent: "reads", setPreviewAction: "reads", redeemRoundCode: "reads",
-  claimPlayerSlot: "reads", redeemRoundCodeForm: "reads", claimPlayerSlotForm: "reads", leavePlay: "reads", currentPlayStatus: "reads", readThread: "reads",
-  markThreadRead: "reads", previewSmsBroadcast: "reads", draftMessage: "reads",
-};
-
-interface Fn {
-  file: string;
-  name: string;
-  body: string;
-}
-
-/** A top-level function's body: up to its own closing brace at column 0. */
-function bodyOf(piece: string): string {
-  const end = piece.indexOf("\n}\n");
-  return end >= 0 ? piece.slice(0, end) : piece;
-}
-
-function functionsIn(file: string, src: string, marker: string): Fn[] {
-  return src
-    .split(marker)
-    .slice(1)
-    .map((piece) => ({ file, name: piece.slice(0, piece.indexOf("(")).trim(), body: bodyOf(piece) }));
-}
-
-const DIR = join(process.cwd(), "src", "app", "actions");
-const FILES = readdirSync(DIR).filter((f) => f.endsWith(".ts"));
-const SOURCES = FILES.map((file) => ({ file, src: readSource("src", "app", "actions", file).replace(/\r\n/g, "\n") }));
-
-const serviceDoors = SERVICE_GATES.filter((g) => ASKS.some((a) => readSource(...g.file).includes(a))).map((g) => g.call);
-
-/** The local helpers in a file that ask the archive, directly or through another that does. */
-function askingHelpers(src: string, file: string): string[] {
-  const helpers = [
-    ...functionsIn(file, "\n" + src, "\nasync function "),
-    ...functionsIn(file, "\n" + src, "\nfunction "),
-  ];
-  const asking = new Set<string>();
-  const direct = (body: string) => [...ASKS, ...serviceDoors].some((a) => body.includes(a));
-  for (const h of helpers) if (direct(h.body)) asking.add(h.name);
-  // One more pass, for a helper that goes through another (`adminEventOrRefusal` → `requireAdminEvent`).
-  for (const h of helpers) if ([...asking].some((n) => h.body.includes(`${n}(`))) asking.add(h.name);
-  return [...asking];
-}
-
-const ACTIONS = SOURCES.flatMap(({ file, src }) => {
-  const helpers = askingHelpers(src, file);
-  return functionsIn(file, src, "export async function ").map((a) => ({
-    ...a,
-    asks: [...ASKS, ...serviceDoors, ...helpers.map((h) => `${h}(`)].some((n) => a.body.includes(n)),
-  }));
-});
 
 describe("the archive is asked at every door", () => {
   it("every action asks it, or says why it is not a door into a tournament", () => {
@@ -168,5 +65,47 @@ describe("the archive is asked at every door", () => {
     // …and the same gate, asking, makes it a door.
     const asking = src.replace("  return session.eventId;", "  await assertEventWritable(session.eventId);\n  return session.eventId;");
     expect(askingHelpers(asking, "x.ts")).toEqual(["requireStaff"]);
+  });
+});
+
+/**
+ * A PRESS IN AN ARCHIVE IS REFUSED IN WORDS, NOT THROWN (2026-11-09).
+ *
+ * The staff gates THROW `ArchivedTournament`, which is right for an action
+ * whose caller cannot show words. But a button on the dashboard or the rounds
+ * screen awaits `{ ok, error }` and shows the error beside itself; a throw
+ * reaches it as the error screen, "This screen didn't load" (CI, desktop 1/3,
+ * `setRoundClosed`). So each action a person can press from those screens
+ * takes its gate through a helper that catches the archive's class
+ * (`staffEventOrRefusal`, `adminEventOrRefusal`, `staffSessionOrRefusal`) and
+ * returns the sentence.
+ *
+ * Extend PRESSED_WITH_WORDS when a new button on those screens calls an action.
+ */
+const PRESSED_WITH_WORDS = [
+  "setRoundClosed", "settleCutTie", "setEventStatus", "launchTournament", "setConfigUnlocked",
+  "setStageDeadline", "setStageCarry", "setStageScoringBasis", "setStageScoreInput", "setStageMatchKeptBy",
+  "setStageScoring", "setStageFormat", "setStageHoles", "setStagePlayedOn", "addStage", "removeStage",
+  "generateNextRound", "setStageOptDeadline", "setStageCourse", "suspendPlay", "resumePlay",
+];
+
+/** Does the body take a gate that throws, with nothing to catch it? */
+function throwsAtThePress(body: string): boolean {
+  const bare = /await (requireStaffEvent|requireAdminEvent|requireStaffSession|requireStaffOrg)\(\)/.test(body);
+  const catches = /(OrRefusal)\(\)|archiveRefusalOf\(/.test(body);
+  return bare && !catches;
+}
+
+describe("a press in an archive is refused in words", () => {
+  it("every action pressed from the dashboard or the rounds screen says the archive's refusal", () => {
+    const missing = PRESSED_WITH_WORDS.filter((n) => !ACTIONS.some((a) => a.name === n));
+    expect(missing, "renamed or gone — fix the list").toEqual([]);
+    const thrown = ACTIONS.filter((a) => PRESSED_WITH_WORDS.includes(a.name) && throwsAtThePress(a.body)).map((a) => `${a.file}: ${a.name}`);
+    expect(thrown, "take the gate through its OrRefusal helper and return { ok: false, error }").toEqual([]);
+  });
+
+  it("CONTROL: an action that takes a throwing gate bare is seen, and one that catches is not", () => {
+    expect(throwsAtThePress("  const eventId = await requireStaffEvent();\n  return { ok: true };")).toBe(true);
+    expect(throwsAtThePress('  const gate = await staffEventOrRefusal();\n  if ("refused" in gate) return { ok: false };')).toBe(false);
   });
 });

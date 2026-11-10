@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { prisma } from "../db";
 import type { Session } from "../auth";
 import { accessibleEvents } from "./access";
@@ -7,7 +8,8 @@ import { loadEventState } from "./tournament";
 import { todayForEvent } from "./club-clock";
 import { formattingForEvent } from "./organization";
 import { awaitingApproval, parseDeadlineIso } from "../registration";
-import { whatsNext, type ClubJob, type TournamentJobFacts } from "../domain/needs-you-now";
+import { tournamentJob, whatsNext, type ClubJob, type TournamentJob, type TournamentJobFacts } from "../domain/needs-you-now";
+import { shortDate } from "../domain/round-dates";
 import { isFinished } from "../domain/lifecycle-state";
 import { tournamentStatus, type TournamentStatus } from "../domain/tournament-status";
 import { tournamentFactsForMany } from "./tournament-facts";
@@ -153,28 +155,72 @@ export async function secretaryHomeFor(session: Session): Promise<SecretaryHome>
     const roundOpen = e.stages.some((s) => isPlayingRound(s.type) && s.closedAt == null);
     if (roundOpen && hasField.has(e.id)) {
       const state = await loadEventState(e.id);
-      if (state) {
-        const next = state.nextUnplayedRound;
-        facts.nextSheet =
-          next && state.confirmed.length > 0
-            ? { round: roundLabel(state.stages, next.id) || "The next round", day: next.playedOn, published: next.teeSheetPublished }
-            : null;
-        const b = state.boardStage;
-        facts.board = b
-          ? {
-              round: roundLabel(state.stages, b.id) || "The round",
-              day: b.playedOn,
-              closed: b.closedAt != null,
-              unit: state.boardProgress.unit,
-              started: state.boardProgress.started,
-              certified: state.boardProgress.certified,
-              total: state.boardProgress.total,
-            }
-          : null;
-      }
+      if (state) Object.assign(facts, roundJobFactsOf(state));
     }
     tournaments.push(facts);
   }
 
   return { jobs: whatsNext({ tournaments, today, locale: formatting.locale }), mayAct, copyable, today };
 }
+
+type EventState = NonNullable<Awaited<ReturnType<typeof loadEventState>>>;
+
+/**
+ * THE ROUND FACTS OF A TOURNAMENT'S JOBS — one builder, for the home's lines and for the open
+ * tournament's one button (`openTournamentJob`), so the two read the same figures: the round the tee
+ * sheet opens on, the board's round and its `boardProgress`, and the disputes `needsYouNow` counts.
+ */
+function roundJobFactsOf(state: EventState): Pick<TournamentJobFacts, "nextSheet" | "board" | "disputed"> {
+  const next = state.nextUnplayedRound;
+  const b = state.boardStage;
+  return {
+    nextSheet:
+      next && state.confirmed.length > 0
+        ? { roundId: next.id, round: roundLabel(state.stages, next.id) || "The next round", day: next.playedOn, published: next.teeSheetPublished }
+        : null,
+    board: b
+      ? {
+          roundId: b.id,
+          round: roundLabel(state.stages, b.id) || "The round",
+          day: b.playedOn,
+          closed: b.closedAt != null,
+          unit: state.boardProgress.unit,
+          started: state.boardProgress.started,
+          certified: state.boardProgress.certified,
+          total: state.boardProgress.total,
+        }
+      : null,
+    disputed: state.reviewing.disputed,
+  };
+}
+
+/**
+ * THE OPEN TOURNAMENT'S ONE BUTTON (the panel's ruling on the stepper, 9 Nov): `tournamentJob` of the
+ * same facts the home reads, from the status the layout and the dashboard already asked
+ * (`tournamentStatusFor`, request-cached on the club's day). The dashboard's status card presses it and
+ * the lifecycle stepper marks it. Null for a casual round, which has neither.
+ */
+export const openTournamentJob = cache(async (eventId: string, today: string): Promise<TournamentJob | null> => {
+  const [event, told, state, formatting] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId }, select: { name: true, regDeadline: true, startOn: true, endOn: true } }),
+    tournamentStatusFor(eventId, today),
+    loadEventState(eventId),
+    formattingForEvent(eventId),
+  ]);
+  if (!event || !told || !state) return null;
+  const entrants = await prisma.player.findMany({ where: { eventId }, select: { eventId: true, status: true } });
+  const facts: TournamentJobFacts = {
+    eventId,
+    name: event.name,
+    awaitingApproval: awaitingApproval(entrants).length,
+    entriesClose: parseDeadlineIso(event.regDeadline),
+    nextSheet: null,
+    board: null,
+    status: told.status,
+    startOn: event.startOn,
+    endOn: event.endOn,
+    // As the home reads them: a sheet to publish or a card to chase only with a field and a round open.
+    ...(state.confirmed.length > 0 && state.stages.some((s) => isPlayingRound(s.type) && s.closedAt == null) ? roundJobFactsOf(state) : {}),
+  };
+  return tournamentJob(facts, today, (iso) => shortDate(iso, formatting.locale));
+});

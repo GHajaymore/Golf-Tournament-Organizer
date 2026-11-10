@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession } from "./organizer-fixture.mjs";
 import { pressRadio } from "./press-radio";
+import { expectLaunched } from "./end-early";
 
 /**
  * A CLUB MATCH PLAY IN FLIGHTS, RUN FROM NOTHING BY A NEW ORGANIZER.
@@ -209,10 +210,16 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
 
     await open(page, "/bracket?view=draw");
-    await expect(page.getByText(/it is locked while setup is/)).toBeVisible();
+    // The arrangement is locked with the rounds, and the line says how it is corrected: a committee
+    // correction to the rounds, on the dashboard (state machine PR 5b; `BracketModePicker`).
+    const lockedLine = page.locator("main p", { hasText: "Changing this redraws who plays whom" });
+    await expect(lockedLine).toBeVisible();
+    await expect(lockedLine).toContainText("so it is locked with the rounds.");
+    await expect(lockedLine).toContainText("An Organizer can make a committee correction to the rounds");
+    await expect(lockedLine.getByRole("link", { name: "dashboard" })).toHaveAttribute("href", "/dashboard");
     await expect(page.getByRole("button", { name: "Change", exact: true })).toHaveCount(0);
     // The division is the draw: still the organizer's to adjust until somebody has played.
     await expect(page.getByRole("button", { name: "Start again" })).toBeVisible();

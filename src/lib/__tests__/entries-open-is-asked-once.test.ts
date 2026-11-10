@@ -191,7 +191,8 @@ describe("the entry terms are saved from Entries, together", () => {
     const body = fn("saveEntryTerms");
     expect(body.length).toBeGreaterThan(200);
     expect(body).toMatch(/requireAdminEvent\(\)/);
-    expect(body).toMatch(/await assertUnlocked\(/);
+    // The field's scoped lock, returned (state machine PR 5b).
+    expect(body).toMatch(/await refuseIfLocked\(eventId, "field", /);
     expect(body).toMatch(/drainWaitlist\(/);
     expect(body).toMatch(/closes < opens/);
   });

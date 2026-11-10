@@ -3,13 +3,16 @@ import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useId, useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
-import { PLAY_KINDS, playNoun, resultHeading } from "@/lib/domain/play-kind";
+import { playKindsFor } from "@/lib/domain/play-kind";
+import { eventWords } from "@/lib/domain/event-words";
+import { useGolfRegister } from "@/components/GolfTermsProvider";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
+import { useCaughtUp } from "./useAction";
 import { StickySave } from "./StickySave";
 import { TournamentJourney, type JourneyPhase } from "./TournamentJourney";
 import { overallResultLabel } from "@/lib/domain/overall-result";
@@ -156,6 +159,8 @@ export function EventSetupClient({
   const [f, setF] = useState<EventForm>(initial);
   // The club's golf words — "a league or golf group", "a league or society".
   const golfWords = useGolfTerms();
+  const register = useGolfRegister();
+  const words = eventWords(f.playKind, register);
   // Captions below are real <label>s for their controls (a screen reader said
   // an unnamed "edit text" for the name, dates, course and deadline).
   const fid = useId();
@@ -163,6 +168,7 @@ export function EventSetupClient({
   /** Scored matches a resize would destroy, once the action refuses. */
   const [resizeScored, setResizeScored] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   /** A refused "Save event", said beside it. */
   const [saveError, setSaveError] = useState("");
   // The button reflects real dirty state against the last-saved snapshot,
@@ -452,23 +458,23 @@ export function EventSetupClient({
             onChange={(e) => set("playKind", e.target.value)}
             style={{ minHeight: 46 }}
           >
-            {PLAY_KINDS.map((k) => (
+            {playKindsFor(register, f.playKind).map((k) => (
               <option key={k.key} value={k.key}>
                 {k.label}
               </option>
             ))}
           </select>
           {/* One line, the rest an ⓘ away (Ajay, 2026-10-05). */}
-          <MoreInfo short={<>Members see &ldquo;this {playNoun(f.playKind)}&rdquo;.</>} style={{ marginTop: 6 }}>
-            Members see this word: &ldquo;this {playNoun(f.playKind)}&rdquo;, and the results card
-            reads &ldquo;{resultHeading(f.playKind)}&rdquo;. It changes nothing about how the golf is
+          <MoreInfo short={<>Members see &ldquo;this {words.kindLower}&rdquo;.</>} style={{ marginTop: 6 }}>
+            Members see this word: &ldquo;this {words.kindLower}&rdquo;, and the results card
+            reads &ldquo;{words.resultHeading}&rdquo;. It changes nothing about how the golf is
             scored.
           </MoreInfo>
         </div>
         <div className="pair-grid">
           <div className="field">
             <label htmlFor={`${fid}-start`}>
-              Tournament dates{" "}
+              {words.kind} dates{" "}
               {!f.dates.trim() && <span style={{ color: "var(--color-accent-200)" }}>· required to launch</span>}
             </label>
             {/* `minWidth: 0` on the inputs, not just `flex: 1`.
@@ -744,8 +750,9 @@ export function EventSetupClient({
                 disabled={pending || locked}
                 onClick={() =>
                   startTransition(async () => {
-                    const res = await applyManualCount(manualTarget);
+                    const res = caughtUp(await applyManualCount(manualTarget));
                     if (res.needsConfirm) setResizeScored(res.scoredMatches ?? 0);
+                    else if (!res.ok) setSaveError(res.error ?? "That didn't save. Try again.");
                   })
                 }
               >
@@ -780,8 +787,9 @@ export function EventSetupClient({
                     disabled={pending}
                     onClick={() =>
                       startTransition(async () => {
-                        await applyManualCount(manualTarget, true);
+                        const res = caughtUp(await applyManualCount(manualTarget, true));
                         setResizeScored(null);
+                        if (!res.ok) setSaveError(res.error ?? "That didn't save. Try again.");
                       })
                     }
                   >
@@ -814,7 +822,7 @@ export function EventSetupClient({
           // (organizer.spec "each form's save follows only its own form").
           note={
             locked
-              ? "Unsaved changes to the tournament — setup is locked, so unlock it at the top to save them"
+              ? "Unsaved changes to the tournament — the details are locked, so make a committee correction at the top to save them"
               : "Unsaved changes to the tournament"
           }
         >
@@ -833,14 +841,14 @@ export function EventSetupClient({
               }
               const sent = f;
               startTransition(async () => {
-                const result = await saveEvent({
+                const result = caughtUp(await saveEvent({
                   name, playKind: sent.playKind, dates: sent.dates, datesTentative: sent.datesTentative,
                   // The calendar dates with their label — see `saveEvent`.
                   startOn: sent.startOn, endOn: sent.endOn,
                   format: sent.format, course: sent.course, courseId: sent.courseId, city: sent.city,
                   address: sent.address, playerCountMode: sent.playerCountMode,
                   courseMode: sent.courseMode,
-                });
+                }));
                 if (!result.ok) {
                   setSaveError(result.error ?? "That didn't save. Try again.");
                   return;

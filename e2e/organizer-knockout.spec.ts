@@ -2,6 +2,7 @@ import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail } from "./organizer-fixture.mjs";
+import { expectLaunched } from "./end-early";
 
 /**
  * A CLUB MATCH-PLAY KNOCKOUT, RUN FROM NOTHING BY A NEW ORGANIZER.
@@ -132,7 +133,7 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
     await open(page, "/dashboard");
     await page.getByRole("button", { name: "Launch tournament" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   await test.step("the draw is seeded on handicap: 1 v 4, 2 v 3", async () => {

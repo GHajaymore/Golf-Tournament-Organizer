@@ -105,6 +105,12 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * so the number is set well above a realistic burst and only bites a scripted
    * flood. The per-email budget below is what stops one person submitting over
    * and over; the two together are the "token and/or email" the design asks for.
+   *
+   * SIXTY IS THE FLOOR, NOT THE BUDGET (2026-11-10). A link's budget grows with
+   * what its field can take — `entryLinkBudget`, the one answer — because a
+   * club that opens entries at a set time fills a 64-player Birdie field in
+   * minutes, and a fixed sixty turned the sixty-first member away with places
+   * still left (round G583-1). Only an open link earns more than this.
    */
   "register-token": { limit: 60, windowMs: 15 * MINUTE },
   /**
@@ -237,9 +243,16 @@ const ALLOWED: RateLimitDecision = { allowed: true, retryAfterSeconds: 0, messag
  * asks afterwards, so two instances that both write get two different numbers
  * back and at most one of them is under the line.
  */
-export function decideRateLimit(kind: RateLimitKind, attempts: number, now: number): RateLimitDecision {
+export function decideRateLimit(
+  kind: RateLimitKind,
+  attempts: number,
+  now: number,
+  /** The budget, when it is not the kind's fixed one — only `register-token`'s
+   *  grows, and only by `entryLinkBudget`. The window is always the kind's. */
+  limit: number = RATE_LIMITS[kind].limit,
+): RateLimitDecision {
   const policy = RATE_LIMITS[kind];
-  if (attempts <= policy.limit) return ALLOWED;
+  if (attempts <= limit) return ALLOWED;
   const { endsAt } = windowFor(policy, now);
   // At least a second, so the message never reads "try again in 0 seconds".
   const retryAfterSeconds = Math.max(1, Math.ceil((endsAt - now) / 1000));
@@ -366,4 +379,48 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
  */
 export function entryLimitKey(email: string, tournament: string): string {
   return `${email.trim().toLowerCase()}|${tournament}`;
+}
+
+/**
+ * The biggest field one day of golf holds: a shotgun with two fourballs on
+ * each of eighteen holes (18 × 2 × 4). An open field — no number of its own and
+ * no plan cap over it — is budgeted as if it held this, so it is never infinite.
+ */
+export const LARGEST_DAY_FIELD = 144;
+
+/** A waiting list half as long as the field: past that, a reserve rarely gets a place. */
+const WAITING_SHARE = 0.5;
+
+/** Twice what the field and its list take, because a refused form (a mistyped
+ *  handicap, a double tap, a retry) spends a slot on the link just as an entry does. */
+const RETRY_FACTOR = 2;
+
+/**
+ * What the link leads to, as far as its budget cares. `live` is a real token on
+ * a tournament taking entries; anything else — an unknown token, entries off —
+ * is the floor, so a link that is not open earns nothing a bogus one does not.
+ */
+export type EntryLink =
+  | { live: false }
+  /** `fieldLimit`: what every door counts against (`fieldLimitFor`); 0 is open. */
+  | { live: true; fieldLimit: number };
+
+/**
+ * HOW MANY SIGN-UPS ONE ENTRY LINK MAY TAKE IN ONE `register-token` WINDOW.
+ * The one answer (docs/one-rule-one-place.md); the window and the words stay
+ * the kind's.
+ *
+ * Twice (the field, plus a waiting list half its size), never below the floor
+ * of sixty. So a 64-player field takes 2 × (64 + 32) = 192 in fifteen minutes:
+ * a whole field entering at the minute entries open, eight more on the list, and
+ * their typos, without anybody being told the form is busy while places remain.
+ * A script hammering one link still meets a finite number, and one person
+ * submitting over and over meets `register-email` long before.
+ */
+export function entryLinkBudget(link: EntryLink): number {
+  const floor = RATE_LIMITS["register-token"].limit;
+  if (!link.live) return floor;
+  const places = Number.isFinite(link.fieldLimit) && link.fieldLimit > 0 ? link.fieldLimit : LARGEST_DAY_FIELD;
+  const entrants = Math.ceil(places * (1 + WAITING_SHARE));
+  return Math.max(floor, RETRY_FACTOR * entrants);
 }

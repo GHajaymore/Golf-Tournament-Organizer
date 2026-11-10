@@ -2,7 +2,7 @@
 // scoring + tiebreaker chain, rank within groups and overall, and compute the
 // qualification cutoff. All values are derived on every call — never stored.
 
-import { resolveMatch, countedHoles } from "./match";
+import { resolveMatch, countedHoles, matchIsOver } from "./match";
 import { breakMatchTie, type MatchTiebreakKey } from "./match-tiebreak";
 import { toughestN, DEFAULT_TIEBREAKERS } from "./types";
 import { placeByPointsThenSteps, type LevelStep } from "./level-places";
@@ -148,19 +148,19 @@ export function aggregateStats(
       b.holesLost += r.holesWonA;
     }
 
-    if (r.complete) {
+    // How the match finished — from `decidedOutcome`, the one reader, so the
+    // table, the head-to-head and the member's record cannot disagree. Null is
+    // a match not over: still on the course, never started, or a result held
+    // in dispute (blanked to no holes by `onBoard`). A halved match is only
+    // halved if nothing decides it: the countback runs there, so the points
+    // follow the organizer's rule rather than the raw card.
+    const outcome = decidedOutcome(m, matchTiebreak);
+
+    if (outcome !== null) {
       if (a) a.playedForPoints += 1;
       if (b) b.playedForPoints += 1;
       if (a) a.played += 1;
       if (b) b.played += 1;
-      // A halved match is only halved if nothing decides it. The countback
-      // runs here so the points follow the organizer's rule rather than the
-      // raw card.
-      const decided =
-        r.winner === "H" && matchTiebreak?.sequence.length
-          ? breakMatchTie(m.holes, strokeIndexOfMatch(matchTiebreak.strokeIndex, m), matchTiebreak.sequence).winner
-          : null;
-      const outcome = decided ?? r.winner;
 
       if (outcome === "H") {
         if (a) a.ties += 1;
@@ -310,8 +310,23 @@ export function decidedOutcome(
   const conceded = forfeitWinnerSide(m);
   if (conceded) return conceded;
 
+  /**
+   * `matchIsOver`, NEVER `resolveMatch(...).complete` (2026-11-08, found by
+   * J49). An empty card has nothing left to play, so `resolveMatch([])` is
+   * complete AND halved — and an empty card is exactly what a result held in
+   * dispute becomes (`onBoard` blanks it to `"[]"`, "read as not yet played").
+   * Asking `.complete` here gave both players of a disputed match a halve on
+   * the table and in the head-to-head while the Committee had not ruled.
+   * Rule 3.2a(3): a match is decided when one side leads by more holes than
+   * remain; with no hole played, nothing has been decided.
+   *
+   * THE ONE PLACE: `aggregateStats` (the table's played, W/L/H and points),
+   * the mini-league head-to-head and the member's head-to-head record all
+   * take the outcome from here.
+   */
+  if (!matchIsOver(m.holes)) return null;
   const r = resolveMatch(m.holes);
-  if (!r.complete || !r.winner) return null;
+  if (!r.winner) return null;
   if (r.winner !== "H") return r.winner;
   if (!matchTiebreak?.sequence.length) return "H";
   return breakMatchTie(m.holes, strokeIndexOfMatch(matchTiebreak.strokeIndex, m), matchTiebreak.sequence).winner ?? "H";

@@ -2,6 +2,7 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
+import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
  * A STABLEFORD, WALKED THROUGH SETUP AND LAUNCH BY THE STATE MACHINE (PR 3;
@@ -73,7 +74,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
     await expectTournamentSays(page, {
       chip: "Live",
       chipDetail: null,
-      nextAction: "Complete tournament",
+      nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
       setup: null,
       journey: "Play",
