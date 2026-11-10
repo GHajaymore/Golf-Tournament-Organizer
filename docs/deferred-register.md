@@ -111,15 +111,15 @@ Measured on the seeded fixture, `/leaderboard`, mid-round:
 
 ```
 #   PLAYER                       THRU  GROSS  NET  TO PAR
-1   Aj Moore                        9     36   34   E
+1   Ned Calloway                        9     36   34   E
 2   Sang-woo Kim                   18     71   56   E
 3   Síle Ní Bhraonáin-O’Dwyer      18     71   60   E
 4   Marcus Webb                    18     71   63   E
 ```
 
-All four are level par. Aj Moore is first on **net 34 against net 56** — a
+All four are level par. Ned Calloway is first on **net 34 against net 56** — a
 number that is lower only because it covers nine holes rather than eighteen.
-The dashboard states it outright: *"Aj Moore leads at level par (net 34)."*
+The dashboard states it outright: *"Ned Calloway leads at level par (net 34)."*
 
 The mechanism is one line. `compareOnBasis` in `domain/stroke-countback.ts`
 compares `scoreOnBasis`, which is the raw `gross`, `net` or `points` total.
@@ -151,7 +151,7 @@ RANKED on". It returns `toParText(row.toPar)`, and `toPar` is
 So both boards read:
 
 ```
-1  Aj Moore                   thru 9   E
+1  Ned Calloway                   thru 9   E
 2  Sang-woo Kim               F        E
 3  Síle Ní Bhraonáin-O’Dwyer  F        E
 4  Marcus Webb                F        E

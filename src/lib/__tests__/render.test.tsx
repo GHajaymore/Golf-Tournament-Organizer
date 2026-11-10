@@ -4519,7 +4519,7 @@ describe("the organizer's Voice entry setting reaches the player's card", () => 
     const { PlayerCard } = await import("@/components/PlayerCard");
     return render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(null)}
@@ -4555,7 +4555,7 @@ describe("a Stableford card lets a player pick up (Rule 21.1b, 2026-10-08)", () 
     const { PlayerCard } = await import("@/components/PlayerCard");
     return render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(null)}
@@ -4565,7 +4565,7 @@ describe("a Stableford card lets a player pick up (Rule 21.1b, 2026-10-08)", () 
   };
 
   it("offers Picked up on a standard Stableford card", async () => {
-    expect(await card("standard")).toContain("A. Moore picked up on hole 1");
+    expect(await card("standard")).toContain("N. Calloway picked up on hole 1");
   });
 
   it("offers it on no medal card, and no modified Stableford card (controls)", async () => {
@@ -4596,7 +4596,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={nine()}
@@ -4617,7 +4617,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={nine()}
@@ -4638,7 +4638,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(4)}
@@ -4659,7 +4659,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(4)} signs={false}
@@ -4677,7 +4677,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Front nine"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Front nine"
         holes={9} pars={new Array(9).fill(4)} yards={new Array(9).fill(400)}
         strokeIndex={Array.from({ length: 9 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(5)}
@@ -4695,7 +4695,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="approved" initialStrokes={new Array(18).fill(4)}
@@ -4741,7 +4741,7 @@ describe("the player's own card opens on what is already there", () => {
       const { PlayerCard } = await import("@/components/PlayerCard");
       const html = render(
         <PlayerCard
-          stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+          stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
           holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
           strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
           status="entered" initialStrokes={new Array(18).fill(4)}
@@ -4759,7 +4759,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         shotsPerHole={new Array(18).fill(0)}
@@ -4780,7 +4780,7 @@ describe("the player's own card opens on what is already there", () => {
     const six: (number | null)[] = Array.from({ length: 18 }, (_, i) => (i < 6 ? 5 : null));
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         // A stroke on each of the six holes played, and on nothing else.
@@ -4801,7 +4801,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         // Complete, so Certify is on screen: it appears with the last hole.
@@ -4824,7 +4824,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 2"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 2"
         courseName="Machrihanish"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
@@ -4840,7 +4840,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={[]} yards={[]} strokeIndex={[]}
         status="entered" initialStrokes={nine()}
       />,
@@ -4865,7 +4865,7 @@ describe("the board answers 'where am I' first", () => {
     ranked: true,
     started: true,
     holesOwed: 18,
-    name: "A. Moore",
+    name: "N. Calloway",
     flight: "—",
     advancing: false,
     record: "2-0-0",
@@ -4884,7 +4884,7 @@ describe("the board answers 'where am I' first", () => {
   });
 
   const field = [
-    row({ id: "p1", rank: 1, name: "A. Moore", toPar: -4 }),
+    row({ id: "p1", rank: 1, name: "N. Calloway", toPar: -4 }),
     row({ id: "p2", rank: 2, name: "B. Ellis", toPar: -1 }),
     row({ id: "p3", rank: 3, name: "C. Reid", toPar: 3, thru: 14 }),
   ];
@@ -4902,7 +4902,7 @@ describe("the board answers 'where am I' first", () => {
     );
     const you = html.indexOf("You");
     expect(you, "your line renders").toBeGreaterThan(-1);
-    expect(you, "and it comes before the field").toBeLessThan(html.indexOf("A. Moore"));
+    expect(you, "and it comes before the field").toBeLessThan(html.indexOf("N. Calloway"));
     expect(html).toContain("thru 11");
   });
 
@@ -4940,7 +4940,7 @@ describe("the board answers 'where am I' first", () => {
    * component name and not checking which.)
    */
   const cutField = [
-    row({ id: "p1", rank: 1, name: "A. Moore", advancing: true }),
+    row({ id: "p1", rank: 1, name: "N. Calloway", advancing: true }),
     row({ id: "p2", rank: 2, name: "B. Ellis", advancing: true }),
     row({ id: "p3", rank: 3, name: "C. Reid", advancing: false }),
   ];
@@ -4993,7 +4993,7 @@ describe("the board answers 'where am I' first", () => {
     const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
     const html = render(<PlayerLeaderboard isStroke rows={field} holes={18} />);
     expect(html).not.toContain(">You<");
-    expect(html).toContain("A. Moore");
+    expect(html).toContain("N. Calloway");
     expect(html).toContain("C. Reid");
   });
 
@@ -5082,7 +5082,7 @@ describe("the board answers 'where am I' first", () => {
       <PlayerLeaderboard
         isStroke
         rows={[
-          row({ id: "p1", name: "A. Moore", toPar: -4 }),
+          row({ id: "p1", name: "N. Calloway", toPar: -4 }),
           row({ id: "p9", name: "D. Shaw", thru: 14, rank: 0, ranked: false, toPar: 2 }),
         ]}
         holes={18}
@@ -5142,8 +5142,8 @@ describe("the board answers 'where am I' first", () => {
     expect(empty, "no table over nothing").not.toContain("<th");
 
     // And a board WITH rows is untouched, or this is just "never render".
-    const full = render(<LeaderboardTable isStroke={false} rows={[row({ name: "A. Moore" })]} compact />);
-    expect(full).toContain("A. Moore");
+    const full = render(<LeaderboardTable isStroke={false} rows={[row({ name: "N. Calloway" })]} compact />);
+    expect(full).toContain("N. Calloway");
     expect(full).toContain("<th");
   });
 
@@ -5162,7 +5162,7 @@ describe("the board answers 'where am I' first", () => {
      */
     const { LeaderboardTable } = await import("@/components/LeaderboardTable");
     const noCard = render(
-      <LeaderboardTable isStroke rows={[row({ name: "A. Moore", gross: 71, toPar: 71, parKnown: false })]} />,
+      <LeaderboardTable isStroke rows={[row({ name: "N. Calloway", gross: 71, toPar: 71, parKnown: false })]} />,
     );
     expect(noCard).toContain("71");
     expect(noCard, "the gross wearing a plus sign").not.toContain("+71");
@@ -5175,7 +5175,7 @@ describe("the board answers 'where am I' first", () => {
      * looks most like nothing is the one somebody shot exactly to par.
      */
     const level = render(
-      <LeaderboardTable isStroke rows={[row({ name: "A. Moore", gross: 72, toPar: 0, parKnown: true })]} />,
+      <LeaderboardTable isStroke rows={[row({ name: "N. Calloway", gross: 72, toPar: 0, parKnown: true })]} />,
     );
     expect(level, "level par is a score, not a blank").toContain("E");
   });
@@ -5200,7 +5200,7 @@ describe("the board answers 'where am I' first", () => {
    * `me/card/page.tsx` passes `pars={known ? ... : []}` on purpose.
    */
   describe("a to-par is only printed where there is a par to be under", () => {
-    const noPar = row({ name: "A. Moore", gross: 71, net: 71, toPar: 71, parKnown: false });
+    const noPar = row({ name: "N. Calloway", gross: 71, net: 71, toPar: 71, parKnown: false });
 
     it("the player's own board says nothing rather than the gross", async () => {
       const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
@@ -5249,7 +5249,7 @@ describe("the board answers 'where am I' first", () => {
       // TWO, because one player takes the `solo` branch — a different pad with
       // no running total on it at all, so a single-player fixture would assert
       // the absence of a line that was never going to be there.
-      const players = [{ id: "p1", name: "A. Moore" }, { id: "p2", name: "B. Ellis" }];
+      const players = [{ id: "p1", name: "N. Calloway" }, { id: "p2", name: "B. Ellis" }];
       const cards = {
         p1: [5, 5, 5, 5, ...new Array(14).fill(null)] as (number | null)[],
         p2: new Array(18).fill(null) as (number | null)[],
@@ -5284,7 +5284,7 @@ describe("the board answers 'where am I' first", () => {
    *     2  Diego Alvarez        66        (gross 69)
    *     3  Sang-woo Kim         65        (gross 70)
    *     4  Elena Petrova        64        (gross 70)
-   *     5  AJ                   68        (gross 70)
+   *     5  Ned                 68        (gross 70)
    *
    * Nothing false — just a leaderboard whose only score column does not
    * descend, because the order is gross and the column is net. The other half
@@ -5294,12 +5294,12 @@ describe("the board answers 'where am I' first", () => {
   describe("the compact board shows the number the round is decided on", () => {
     /**
      * NO NUMBER APPEARS IN BOTH SETS. The first draft gave Ellis a net of 66
-     * and Moore a gross of 66, so "the column is not showing gross" could not
+     * and Calloway a gross of 66, so "the column is not showing gross" could not
      * be asserted without tripping over a legitimate net — a fixture that
      * cannot tell the two answers apart, which is the whole thing being tested.
      */
     const pair = [
-      row({ id: "p1", rank: 1, name: "A. Moore", gross: 66, net: 55, toPar: -6 }),
+      row({ id: "p1", rank: 1, name: "N. Calloway", gross: 66, net: 55, toPar: -6 }),
       row({ id: "p2", rank: 2, name: "B. Ellis", gross: 69, net: 58, toPar: -3 }),
     ];
     const scores = (html: string) =>
@@ -5371,7 +5371,7 @@ describe("the board answers 'where am I' first", () => {
       <LeaderboardTable
         isStroke
         rows={[
-          row({ id: "p1", name: "A. Moore", toPar: -4 }),
+          row({ id: "p1", name: "N. Calloway", toPar: -4 }),
           row({
             id: "p9",
             name: "D. Shaw",
