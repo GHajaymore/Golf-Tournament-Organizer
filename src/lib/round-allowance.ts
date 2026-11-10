@@ -293,10 +293,13 @@ export function teamAllowanceWords(s: { format: string; type: string; handicapAl
     const parts = sizes.map((n) => `${names[n] ?? n}: ${declared[n].join(" / ")}.`);
     return `Lowest handicap first. ${parts.join(" ")} The Rules' figure.`;
   }
-  // Best Ball plays 85% whatever the size of the side or the balls that count;
-  // Appendix C gives 85% only for a pair at stroke play (90% in a match, 75% for
-  // best 1 of 4, 100% for best 3 of 4 — J20, not done). Said truthfully.
-  if (f.name === "Best Ball") return `${recommended}% ${flatOf}. The app's default; the Rules' for a pair at stroke play.`;
+  // Best Ball plays 85% at stroke play whatever the size of the side or the balls
+  // that count, and 90% in a match (2026-11-09). Appendix C gives those figures
+  // to a PAIR only (75% for best 1 of 4, 100% for best 3 of 4 — J20, not done).
+  // Said truthfully, for the kind of round it is.
+  if (f.name === "Best Ball") {
+    return `${recommended}% ${flatOf}. The app's default; the Rules' for a pair ${isHeadToHead(s.type) ? "in a match" : "at stroke play"}.`;
+  }
   return f.allowanceIsConvention
     ? `${recommended}% ${flatOf}, club convention, not the Rules`
     : `${recommended}% ${flatOf}, the Rules' figure`;

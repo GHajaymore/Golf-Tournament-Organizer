@@ -106,6 +106,12 @@ describe("J21: the rules sheet always states a team round's allowance", () => {
     expect(sheet({ format: "Best Ball" })).not.toContain("the Rules' figure");
   });
 
+  it("Best Ball in a match says 90%, the Rules' figure for a pair in a match (Appendix C, four-ball match play)", () => {
+    expect(sheet({ format: "Best Ball", type: "Round Robin" })).toBe(
+      "90% of each player's handicap. The app's default; the Rules' for a pair in a match.",
+    );
+  });
+
   it("a split stored on a four-ball is not stated: the scoring ignores it", () => {
     expect(sheet({ allowanceWeights: [55, 45] })).toBe("85% of each player's handicap, the Rules' figure");
     expect(sheet({ handicapAllowance: 80, allowanceWeights: [55, 45] })).toBe(

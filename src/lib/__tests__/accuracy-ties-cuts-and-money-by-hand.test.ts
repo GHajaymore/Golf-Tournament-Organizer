@@ -3,6 +3,7 @@ import {
   countbackBetween,
   countbackCardOn,
   countbackSegments,
+  countbackStepWords,
   netCountbackMethodFor,
   NET_COUNTBACK_FRACTIONS_FROM,
 } from "../domain/stroke-countback";
@@ -349,7 +350,37 @@ describe("Net countback takes fractions of the playing handicap off the last 9, 
     expect(countbackCardOn("s", pts, "gross", "fractions")).toEqual({ playerId: "s", total: 0, holes: pts.gross });
   });
 
+  it("the order is the step's difference in strokes, and a decided countback is not incomplete", () => {
+    // A v B above: 35.5 against 36 on the last nine is half a stroke.
+    const r = countbackBetween(countbackCardOn("a", A, "net", "fractions"), countbackCardOn("b", B, "net", "fractions"), 18);
+    expect(r.order).toBe(-0.5);
+    expect(r.incomplete).toBe(false);
+    expect(r.levelOn).toEqual([]);
+  });
+
+  it("a card with a hole missing, or a short card, cannot be counted back (it is incomplete, not behind)", () => {
+    const gap = { gross: [...aGross.slice(0, 17), null], net: [...A.net.slice(0, 17), null], points: [] };
+    const r = countbackBetween(countbackCardOn("a", gap, "net", "fractions"), countbackCardOn("b", B, "net", "fractions"), 18);
+    expect(r).toEqual({ order: 0, decidedBy: null, levelOn: [], incomplete: true });
+    const short = { gross: aGross.slice(0, 5), net: A.net.slice(0, 5), points: [] };
+    expect(countbackBetween(countbackCardOn("a", short, "net", "fractions"), countbackCardOn("b", B, "net", "fractions"), 18).incomplete).toBe(true);
+    // A blank in a NET card is a hole without its strokes: those are not counted as given.
+    expect(countbackCardOn("x", { gross: [5, 5, 4], net: [4, null, 4], points: [] }, "net", "fractions").fractionOf).toBe(1);
+    expect(countbackCardOn("x", { gross: [5, Number.NaN, 4], net: [4, 4, 4], points: [] }, "net", "fractions").fractionOf).toBe(1);
+    // No card at all is an empty one.
+    expect(countbackCardOn("x", undefined, "net", "fractions")).toEqual({ playerId: "x", total: 0, holes: [] });
+  });
+
+  it("the ladder's words, and a round too short for any of it", () => {
+    expect(countbackStepWords(9, 18)).toBe("back 9");
+    expect(countbackStepWords(6, 18)).toBe("last 6");
+    expect(countbackStepWords(1, 9)).toBe("last hole");
+    expect(countbackSegments(5)).toEqual([1]);
+    expect(countbackSegments(1)).toEqual([]);
+  });
+
   it("which events: created from 2026-11-09 00:00 UTC by fractions, before it hole by hole", () => {
+    expect(netCountbackMethodFor(null)).toBe("fractions");
     expect(NET_COUNTBACK_FRACTIONS_FROM.toISOString()).toBe("2026-11-09T00:00:00.000Z");
     expect(netCountbackMethodFor(new Date("2026-11-08T23:59:59Z"))).toBe("hole-by-hole");
     expect(netCountbackMethodFor(new Date("2026-11-09T00:00:00Z"))).toBe("fractions");
