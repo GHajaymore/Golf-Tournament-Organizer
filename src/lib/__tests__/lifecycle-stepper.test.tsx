@@ -80,7 +80,7 @@ describe("the stepper, drawn", () => {
     const html = draw(track, "/event");
     const button = /<button type="button" class="ls-press-off" disabled="" aria-describedby="([^"]+)">Launch tournament<\/button>/.exec(html);
     expect(button, "a disabled Launch button described by its refusal").not.toBeNull();
-    const described = new RegExp(`id="${button![1].replace(/[:]/g, "\\:")}"[^>]*>([^<]*)<`).exec(html);
+    const described = new RegExp(`id="${button![1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>([^<]*)<`).exec(html);
     expect(described?.[1]).toBe(track.press.disabledBecause!.replace(/&/g, "&amp;"));
     expect(html).toMatch(/href="\/stages"[^>]*>Open Rounds &amp; formats/);
     expect(html).toContain(">Needs you<");
