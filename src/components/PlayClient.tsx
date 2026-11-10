@@ -1835,7 +1835,6 @@ function PlayScreens(props: Props) {
         strokeIndex={props.strokeIndex}
         cardStrokeIndex={props.cardStrokeIndex}
         firstHole={props.firstHole}
-        voiceEntry={props.voiceEntry}
         matchShots={props.matchShots}
         submitWhole={props.submitWhole}
         stageId={props.stageId}
