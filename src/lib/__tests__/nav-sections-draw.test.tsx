@@ -33,7 +33,7 @@ describe("the menu's one drawing", () => {
   it("switch off: the flat menu, exactly one plain link per screen, in order", () => {
     const html = renderToStaticMarkup(<NavSections sections={flat} pathname="/stages" />);
     expect(hrefs(html)).toEqual(flat.flatMap((s) => s.items.map((i) => i.href)));
-    for (const never of ["data-nav-stop", "data-nav-scope", "data-nav-heading", "data-state", 'aria-current="step"', "stepper=1", "padding-left"]) {
+    for (const never of ["data-nav-stop", "data-nav-scope", "data-nav-heading", "data-nav-beneath", "data-state", 'role="group"', "aria-label", 'aria-current="step"', "stepper=1", "padding-left"]) {
       expect(html, never).not.toContain(never);
     }
     // Here is the screen whose address this is, and only it.
@@ -61,6 +61,12 @@ describe("the menu's one drawing", () => {
     // Two doors to Entries, one mark: the screen beneath Players.
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
     expect(html).toMatch(/aria-current="page"[^>]*><span>Entries<\/span>/);
+    // The grouped screens are marked as beneath (a walk counts the entries by it), and a screen
+    // reader hears them as a group named for their entry; each stop is a group named for itself.
+    const beneath = menu.flatMap((s) => s.items.flatMap((i) => i.children ?? []));
+    expect(html.match(/data-nav-beneath/g)).toHaveLength(beneath.length);
+    expect(html).toMatch(/role="group" aria-label="Players"><a [^>]*href="\/registration\?stepper=1"/);
+    expect([...html.matchAll(/data-nav-stop="[a-z]+"[^>]*role="group" aria-label="([^"]+)"/g)].map((m) => m[1])).toEqual(menu.filter((s) => s.stop).map((s) => s.label));
     // And without the preview (the switch on for good) the links are plain.
     expect(hrefs(renderToStaticMarkup(<NavSections sections={menu} pathname="/registration" />)).filter((h) => h.includes("stepper"))).toEqual([]);
   });

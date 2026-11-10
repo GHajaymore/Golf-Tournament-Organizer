@@ -34,11 +34,14 @@ const ZONE = process.env.E2E_TZ || "America/New_York";
 
 /** The menu on this screen size: the sidebar, or the phone's drawer (opened). */
 async function menuOf(page: Page): Promise<Locator> {
+  // "Open menu", exactly: the drawer's own "Close menu" would match a looser name (money-nav.spec.ts).
   const opener = page.getByRole("button", { name: "Open menu" });
-  if (await opener.isVisible()) {
+  if (await opener.isVisible().catch(() => false)) {
     await opener.click();
     const drawer = page.locator(".m-drawer");
     await expect(drawer).toBeVisible();
+    // The drawer slides in over 220ms (`drawer-in`); a press inside that window lands on the backdrop.
+    await drawer.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)).then(() => undefined)).catch(() => undefined);
     return drawer;
   }
   const side = page.locator("aside.app-sidebar nav");
@@ -119,10 +122,21 @@ test("with the switch on the menu is the stepper's four stops, and every old des
     expect(after.filter((h) => !h.includes("stepper=1")), "a link that drops the preview").toEqual([]);
     const offered = new Set(after.map(plain));
     expect(before.filter((h) => !offered.has(h)), "screens the old menu reached and this one does not").toEqual([]);
-    // …and fewer doors do it: the grouped screens sit beneath an entry.
-    const topLevel = await menu.locator("a.side-link:has(svg)").count();
+    // …and fewer doors do it: the grouped screens sit beneath an entry (marked so by the drawing itself,
+    // not inferred from an icon), and the two kinds add up to every link drawn.
+    const topLevel = await menu.locator("a.side-link:not([data-nav-beneath])").count();
+    const beneathCount = await menu.locator("a.side-link[data-nav-beneath]").count();
+    expect(beneathCount, "nothing was grouped beneath an entry").toBeGreaterThan(0);
+    expect(topLevel + beneathCount).toBe(after.length);
     expect(topLevel, "the menu did not get shorter").toBeLessThan(before.length);
     expect(topLevel).toBeLessThanOrEqual(18);
+    // On a phone the three tabs keep the preview on too.
+    const tabs = page.locator("nav.m-tabbar a.m-tab");
+    if (await tabs.first().isVisible().catch(() => false)) {
+      const tabHrefs = await tabs.evaluateAll((as) => as.map((a) => a.getAttribute("href") ?? ""));
+      expect(tabHrefs.length, "the phone has no tabs").toBeGreaterThan(0);
+      expect(tabHrefs.filter((h) => !h.includes("stepper=1")), "a tab that drops the preview").toEqual([]);
+    }
     await noSidewaysScroll(page, "the dashboard, menu open");
 
     // …and every one of them OPENS for this organizer, on the screen it opened before: asked of the
@@ -172,7 +186,8 @@ test("a knockout's second stop reads Draw, with its bracket beneath Tee times & 
   const today = clubToday(ZONE);
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "menu-ko",
-    event: { dates: "A knockout", startOn: addDays(today, 3), endOn: addDays(today, 3) },
+    // A knockout as the app makes one (status-knockout.spec.ts): its shape and its one bracket, not only its round.
+    event: { dates: "A knockout", startOn: addDays(today, 3), endOn: addDays(today, 3), shape: "knockout", qualifyMode: "overall", qualifyOverall: 8, bracketMode: "single" },
     rounds: [{ type: "Bracket Stage", format: "Match Play", scoringBasis: "gross", playedOn: addDays(today, 3) }],
     players: 8,
   });

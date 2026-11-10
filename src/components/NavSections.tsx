@@ -53,6 +53,7 @@ export function NavSections({
       onClick={onNavigate}
       // Beneath its entry: set in by the icon's width and the gap, so it reads as part of it.
       style={beneath ? { paddingLeft: 40 } : undefined}
+      data-nav-beneath={beneath ? "" : undefined}
     >
       {!beneath && <Icon name={it.icon} />}
       <span>{it.label}</span>
@@ -62,7 +63,14 @@ export function NavSections({
   return (
     <>
       {sections.map((sec) => (
-        <div key={sec.stop?.key ?? (sec.label || sec.items[0]?.key)} data-nav-stop={sec.stop?.key} data-state={sec.stop?.state}>
+        <div
+          key={sec.stop?.key ?? (sec.label || sec.items[0]?.key)}
+          data-nav-stop={sec.stop?.key}
+          data-state={sec.stop?.state}
+          // A stop is a group a screen reader can name ("Set up"); the flat menu's sections stay plain divs.
+          role={sec.stop ? "group" : undefined}
+          aria-label={sec.stop ? sec.label : undefined}
+        >
           {sec.scope && (
             <div
               data-nav-scope=""
@@ -90,7 +98,10 @@ export function NavSections({
             it.children ? (
               <div key={it.key}>
                 {link(it, false)}
-                {it.children.map((c) => link(c, true))}
+                {/* Named for its entry, so "beneath Players" is heard as well as seen. */}
+                <div role="group" aria-label={it.label}>
+                  {it.children.map((c) => link(c, true))}
+                </div>
               </div>
             ) : (
               link(it, false)
