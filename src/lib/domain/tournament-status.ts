@@ -773,7 +773,7 @@ function locksOf(f: LockFacts, family: Family): Record<LockScope, Lock> {
    * and closes at the first result (`flightsOpenForChange`; knockouts doc; J07).
    */
   if (family === "flightedKnockout") {
-    const results = f.rounds.some((r) => isKnockoutRound(r.type) && r.hasResult);
+    const results = knockoutHasResults(f.rounds);
     out.draw = finished
       ? lock("completed", "Locked because the tournament is completed.", REOPEN_WAY_OUT)
       : results
@@ -785,6 +785,17 @@ function locksOf(f: LockFacts, family: Family): Record<LockScope, Lock> {
     if (l.locked && l.correctable) out[f.correction.scope] = open;
   }
   return out;
+}
+
+/**
+ * HAS THE KNOCKOUT A RESULT — the moment its draw is made. Until the first
+ * result the bracket re-seeds from the field; at it the draw is written down
+ * (`recordBracketWinner`). The flights lock of a flighted knockout and the
+ * field rule's "the draw is made" (`field-change.ts`, J12) both ask this, so
+ * they cannot disagree about when.
+ */
+export function knockoutHasResults(rounds: readonly Pick<RoundFacts, "type" | "hasResult">[]): boolean {
+  return rounds.some((r) => isKnockoutRound(r.type) && r.hasResult);
 }
 
 /* ------------------------------------------- the scoped locks (PR 5a) */

@@ -42,13 +42,22 @@ const row = (id: string, name: string) => ({
   id, name, handicap: 10, handicapType: "18", handicapSource: "manual", seed: 1, email: `${id}@example.invalid`, phone: "",
 });
 
-const reg = async (opts: { locked: boolean; doors: typeof OPEN_DOORS; underWay?: string[] | null; flights?: Array<{ id: string; label: string }> }) => {
+const reg = async (opts: {
+  locked: boolean;
+  doors: typeof OPEN_DOORS;
+  underWay?: string[] | null;
+  flights?: Array<{ id: string; label: string }>;
+  unplacedFlag?: string;
+  addFlight?: "offered" | "required" | null;
+  offerReserve?: boolean;
+}) => {
   const { RegistrationClient } = await import("@/components/RegistrationClient");
   return renderToStaticMarkup(
     <RegistrationClient
       confirmed={[row("p1", "zz-Ann Doyle")]} waitlist={[]} pendingEntries={[]} isAdmin
       roster={[{ id: "m1", name: "zz-Cleo Green", email: "m1@example.invalid", phone: "", handicap: 12, entered: false } as never]}
       locked={opts.locked} doors={opts.doors} underWay={opts.underWay ?? null} flights={opts.flights ?? []}
+      unplacedFlag={opts.unplacedFlag ?? ""} addFlight={opts.addFlight ?? null} offerReserve={opts.offerReserve ?? false}
       event={{
         name: "zz-April Medal", capacity: 32, status: "live", regDeadline: "", regOpens: "", today: "2026-06-01",
         // Closed by hand (true is "closed"), with the link published: the state
@@ -71,7 +80,7 @@ const isDisabled = (tag: string) => /\sdisabled=""/.test(tag);
 
 describe("Entries under way in a stroke field: the day-of doors are open", () => {
   const doors = liveDoors("stroke");
-  const underWay = fieldBanner({ status: "live", configUnlocked: false, correction: null, family: "stroke", playedRound: null, flightsConfirmed: false, ...NO_SHEET });
+  const underWay = fieldBanner({ status: "live", configUnlocked: false, correction: null, family: "stroke", playedRound: null, flightsConfirmed: false, flights: 0, knockoutDrawn: false, ...NO_SHEET });
 
   it("says it is under way and what is still open, not 'Setup locked'", async () => {
     const html = await reg({ locked: true, doors, underWay });
@@ -102,9 +111,11 @@ describe("Entries under way in a stroke field: the day-of doors are open", () =>
 
   it("the Add button's only refusal is the empty form (the control: a name typed would enable it)", () => {
     const src = readSource("src", "components", "RegistrationClient.tsx");
-    const at = src.indexOf("onClick={submitAdd}");
+    const at = src.indexOf("onClick={() => submitAdd()}");
     const button = src.slice(src.lastIndexOf("<button", at), at);
-    expect(button).toMatch(/disabled=\{pending \|\| !!doors\.add \|\|/);
+    // The door the press asks: the add door, or — with a flight chosen in the form — the add-with-a-flight door (J12).
+    expect(button).toMatch(/disabled=\{pending \|\| !!addRefusal \|\|/);
+    expect(src).toMatch(/const addRefusal = addFlight && addFlightId \? doors\["add-to-flight"\] : doors\.add;/);
     expect(src).toMatch(/type="file"[^>]*onChange=\{onFile\} disabled=\{pending \|\| !!doors\.bulk\}/);
     // The roster picker beside it follows the same add door, not the setup lock.
     expect(src).toMatch(/<RosterPicker [^>]*locked=\{!!doors\.add\}/);
@@ -117,7 +128,9 @@ describe("Entries under way in a knockout: the draw is the field", () => {
   it("refuses Add in the rule's words where the button is, and promises nothing", async () => {
     const html = await reg({ locked: true, doors, underWay: ["x"] });
     expect(isDisabled(tagBefore(html, "Add late entry"))).toBe(true);
-    expect(html).toContain("The draw is made, so the field is fixed. To change it, an Organizer can make a committee correction to the field on the dashboard.");
+    expect(html).toContain(
+      "The draw is made, so nobody can join the knockout. Add them as a reserve: they wait on the waiting list. An Organizer can open the field with a committee correction.",
+    );
     expect(html).not.toContain("You can still add players below");
     expect(html).toContain("While it is closed the sign-up link turns everyone away.");
     // Withdraw is still open: a withdrawal never reopens anything.
@@ -174,9 +187,61 @@ describe("the actions ask the one rule, in words", () => {
   const body = (name: string, len = 2500) => src.slice(src.indexOf(`export async function ${name}(`), src.indexOf(`export async function ${name}(`) + len);
 
   it("addSignup and importCsvSignups return the rule's refusal rather than throwing", () => {
-    expect(body("addSignup")).toMatch(/const refused = await fieldRefusal\(eventId, "add"\);\s*if \(refused\) return \{ ok: false, error: refused \};/);
+    // The whole verdict since J12 (PR 7a): an entry, an entry with a flight, or a reserve — refused in the rule's words.
+    expect(body("addSignup", 5000)).toMatch(
+      /const verdict = await fieldVerdictFor\(eventId, reserve \? "reserve" : flightId \? "add-to-flight" : "add"\);\s*if \(!verdict\.ok\) return \{ ok: false, error: verdict\.says \};/,
+    );
     expect(body("addSignup")).not.toMatch(/assertUnlocked|configurationLocked/);
     expect(body("importCsvSignups", 900)).toMatch(/fieldRefusal\(eventId, "bulk"\)/);
     expect(body("importCsvSignups", 900)).not.toMatch(/assertUnlocked|configurationLocked/);
+  });
+});
+
+/**
+ * THE UPSTREAM-CHANGE RULES ON ENTRIES (J12, state machine PR 7a), each family
+ * as the desk sees it. The doors are the one rule's (`liveDoors`); the
+ * screen's own props (`addFlight`, `offerReserve`, `unplacedFlag`) are the
+ * page's readings of the same rule, given here as the page would give them.
+ */
+describe("Entries under way, by family: the flag, the flight, the reserve (J12)", () => {
+  const flights = [{ id: "g1", label: "Flight A" }, { id: "g2", label: "Flight B" }];
+
+  it("stroke: a late entrant in no flight is flagged in the panel's words, and the add form offers a flight without forcing one", async () => {
+    const html = await reg({
+      locked: true,
+      doors: liveDoors("stroke"),
+      underWay: ["x"],
+      flights,
+      addFlight: "offered",
+      unplacedFlag: "zz-Sam Reed is in the field but in no flight. Put them in one.",
+    });
+    expect(html).toContain("zz-Sam Reed is in the field but in no flight. Put them in one.");
+    expect(html).toContain("· optional");
+    expect(html).toContain("No flight yet");
+    // Not forced: nothing says a flight is needed.
+    expect(html).not.toContain("In a round robin, a late entrant needs a flight.");
+  });
+
+  it("round robin: the flight is required — Add says why where it is, until one is chosen", async () => {
+    const html = await reg({ locked: true, doors: liveDoors("roundRobinFlights"), underWay: ["x"], flights, addFlight: "required" });
+    expect(html).toContain("· required in a round robin");
+    expect(html).toContain("Choose a flight");
+    expect(isDisabled(tagBefore(html, "Add late entry"))).toBe(true);
+    expect(html).toContain("In a round robin, a late entrant needs a flight. Without one they have no matches. Choose their flight in the Add form.");
+  });
+
+  it("knockout: Add is refused with the reserve as the way out, and Add as a reserve is one press away", async () => {
+    const html = await reg({ locked: true, doors: liveDoors("knockout"), underWay: ["x"], offerReserve: true });
+    expect(html).toContain("Add as a reserve");
+    expect(html).toContain("Add them as a reserve: they wait on the waiting list.");
+    // No flight in a knockout's add form.
+    expect(html).not.toContain("No flight yet");
+  });
+
+  it("CONTROL: before launch nothing is flagged, nothing required, no reserve offered", async () => {
+    const html = await reg({ locked: false, doors: OPEN_DOORS });
+    expect(html).not.toContain("in no flight");
+    expect(html).not.toContain("Add as a reserve");
+    expect(html).not.toContain("required in a round robin");
   });
 });

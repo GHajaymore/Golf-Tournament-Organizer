@@ -140,6 +140,9 @@ export function RegistrationClient({
   doors,
   underWay = null,
   flights = [],
+  unplacedFlag = "",
+  addFlight = null,
+  offerReserve = false,
   isAdmin,
   roster,
   tees = [],
@@ -200,6 +203,12 @@ export function RegistrationClient({
   underWay?: string[] | null;
   /** The flights a late entrant may be placed in, labelled as the field table labels them. */
   flights?: Array<{ id: string; label: string }>;
+  /** Who is in the field but in no flight, in the panel's words (`unplacedWords`); "" for nobody (J04). */
+  unplacedFlag?: string;
+  /** The add form's flight (`addFlightPick`): offered, required (a launched round robin), or not drawn. */
+  addFlight?: "offered" | "required" | null;
+  /** A knockout whose draw is made takes a reserve on the waiting list instead (`reserveOffered`). */
+  offerReserve?: boolean;
   isAdmin: boolean;
   /** The club's members, for filling the field without retyping anyone. */
   roster: RosterCandidate[];
@@ -459,7 +468,14 @@ export function RegistrationClient({
       if (res.ok) setFieldSaid("");
     });
 
-  const submitAdd = () => {
+  /**
+   * THE ADD FORM'S FLIGHT (panel Q3, PR 7a): offered in stroke play and
+   * Stableford, required in a launched round robin. With one chosen the press
+   * is a late entry WITH a flight, and the door it asks is that one.
+   */
+  const [addFlightId, setAddFlightId] = useState("");
+  const addRefusal = addFlight && addFlightId ? doors["add-to-flight"] : doors.add;
+  const submitAdd = (reserve = false) => {
     /**
      * THE THIRD PLACE THIS RULE WAS WRITTEN, and the one that made relaxing
      * the other two look like it had not worked.
@@ -507,12 +523,16 @@ export function RegistrationClient({
         homeClub,
         handicapSource: hSource,
         handicapType: newHandicapType,
+        // A reserve waits on the waiting list; a late entry with a flight goes straight into it.
+        flightId: !reserve && addFlight && addFlightId ? addFlightId : undefined,
+        reserve: reserve || undefined,
       });
       if (!result.ok) {
         setAddError(result.error ?? "Couldn't add that signup.");
         return;
       }
       setFieldSaid(result.said ?? "");
+      setAddFlightId("");
       setName("");
       setHandicap("");
       setEmail("");
@@ -993,6 +1013,14 @@ export function RegistrationClient({
           <Icon name="info" /> {fieldSaid}
         </p>
       )}
+      {/* THE UNPLACED FLAG (J04, PR 7a): who is in the field but in no flight,
+          by name, for as long as it is true — "Choose a flight" beside each
+          name below is the way to put them in one. */}
+      {unplacedFlag && (
+        <p className="card elev-sm" style={{ margin: "0 0 16px", fontSize: 14 }} data-testid="unplaced-flag">
+          <Icon name="warning" /> {unplacedFlag}
+        </p>
+      )}
 
       {gaps.lines.length > 0 && (
         <div
@@ -1439,14 +1467,38 @@ export function RegistrationClient({
           {/* Gated on the field's add door like the roster picker above —
               `addSignup` asks the same rule — and this was once the one button
               on the screen that still offered a refused add. */}
-          <button type="button" className="btn btn-primary btn-block" disabled={pending || !!doors.add || !name.trim() || (!addingGuest && phoneRequired && !phone.trim())} onClick={submitAdd}><Icon name="plus" /> {underWay ? "Add late entry" : "Add to field"}</button>
+          {/* THE FLIGHT, WITH THE ENTRY (panel Q3, PR 7a): offered where one
+              division is a complete setup, required in a launched round robin,
+              where a player in no flight has no matches. */}
+          {addFlight && flights.length > 0 && (
+            <div className="field">
+              <label htmlFor={`${fid}-flight`}>
+                Flight{" "}
+                <span style={{ color: "var(--color-accent-200)" }}>{addFlight === "required" ? "· required in a round robin" : "· optional"}</span>
+              </label>
+              <select id={`${fid}-flight`} className="input" value={addFlightId} onChange={(e) => setAddFlightId(e.target.value)}>
+                <option value="">{addFlight === "required" ? "Choose a flight" : "No flight yet"}</option>
+                {flights.map((f) => (
+                  <option key={f.id} value={f.id}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button type="button" className="btn btn-primary btn-block" disabled={pending || !!addRefusal || !name.trim() || (!addingGuest && phoneRequired && !phone.trim())} onClick={() => submitAdd()}><Icon name="plus" /> {underWay ? "Add late entry" : "Add to field"}</button>
           {/* Said HERE, where the dead button is — the banner is a screen and a
               half above a form somebody has just filled in. The rule's own words. */}
-          {doors.add && (
+          {addRefusal && (
             <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               {/* The rule's words already say who can unlock (an Organizer), true for either reader. */}
-              {doors.add}
+              {addRefusal}
             </p>
+          )}
+          {/* A KNOCKOUT WHOSE DRAW IS MADE takes a reserve instead (panel Q3):
+              the way out its refusal names, one press away. */}
+          {offerReserve && !doors.reserve && (
+            <button type="button" className="btn btn-secondary btn-block" disabled={pending || !name.trim()} onClick={() => submitAdd(true)}>
+              <Icon name="plus" /> Add as a reserve
+            </button>
           )}
           {addError && (
             <p className="form-error" role="alert" ref={bringIntoView}>

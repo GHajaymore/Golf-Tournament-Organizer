@@ -133,7 +133,7 @@ describe("DNS on the organizer's board and the results sheet", () => {
 describe("the Entries banner says when late entries close", () => {
   it("from Round 1's published last tee time, while it is still to come", () => {
     const lastTee = { round: "Round 1", day: NO_SHEET.now.day, time: "10:40 AM" };
-    const banner = fieldBanner({ status: "live", configUnlocked: false, correction: null, family: "stroke", playedRound: "Round 1", flightsConfirmed: false, lastTee, now: NO_SHEET.now });
+    const banner = fieldBanner({ status: "live", configUnlocked: false, correction: null, family: "stroke", playedRound: "Round 1", flightsConfirmed: false, flights: 0, knockoutDrawn: false, lastTee, now: NO_SHEET.now });
     expect(banner).toContain("Late entries close at Round 1’s last tee time, 10:40 AM.");
     // The doors agree: Add is open though Round 1's first card is in.
     expect(liveDoors("stroke", "Round 1", false, { lastTee }).add).toBeNull();

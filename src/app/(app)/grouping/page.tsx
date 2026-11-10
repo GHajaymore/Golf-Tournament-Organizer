@@ -17,6 +17,10 @@ import type { FormationRule } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { indexLabel } from "@/lib/domain/handicap-label";
+import Link from "next/link";
+import { lockFactsFor } from "@/lib/services/tournament-facts";
+import { tournamentFamily } from "@/lib/domain/tournament-status";
+import { flagsUnplaced, unplacedWords } from "@/lib/domain/field-change";
 
 export const metadata = screenMetadata("/grouping");
 
@@ -37,6 +41,17 @@ export default async function GroupingPage() {
   // Where this screen sits in setting the tournament up. Null for a match.
   const flow = await setupRailFor(session.eventId);
   const manual = state.event.formationRule === "manual";
+  /**
+   * THE UNPLACED FLAG (J04, state machine PR 7a), the same words Entries says:
+   * who is in the field but in no flight, where flights are a division or the
+   * pairings. Entries is where a late entrant is put in one ("Choose a flight"
+   * beside their name), so this points there.
+   */
+  const lockFacts = await lockFactsFor(session.eventId);
+  const unplacedFlag =
+    lockFacts && flagsUnplaced(tournamentFamily(lockFacts), state.groups.length)
+      ? unplacedWords(state.confirmed.filter((p) => !p.groupId).map((p) => p.name))
+      : "";
   // A handicap-balanced draw is balanced on Course Handicaps, so unrated tees
   // make it quietly uneven. The scoring warning on Rounds & format is about a
   // different consequence of the same gap and fires on a different trigger.
@@ -92,6 +107,15 @@ export default async function GroupingPage() {
       </div>
 
       <ScopeLockBanner locks={flightLocks} correction={flights.correction} isAdmin={session.viewRole === "admin"} />
+
+      {unplacedFlag && (
+        <p className="card elev-sm" style={{ margin: "0 0 14px", fontSize: 13, lineHeight: 1.5 }} data-testid="unplaced-flag">
+          <span>
+            <Icon name="warning" /> {unplacedFlag}{" "}
+            <Link href="/registration">Choose a flight beside their name on Entries</Link>
+          </span>
+        </p>
+      )}
 
       {drawWarning && (
         <p

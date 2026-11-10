@@ -23,7 +23,7 @@ import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { awaitingApproval } from "@/lib/registration";
 import { fieldFactsFor } from "@/lib/services/field-change";
-import { FIELD_CHANGES, fieldBanner, fieldDoors } from "@/lib/domain/field-change";
+import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, flagsUnplaced, reserveOffered, unplacedWords } from "@/lib/domain/field-change";
 import { WithdrawnList } from "@/components/WithdrawnList";
 
 export const metadata = screenMetadata("/registration");
@@ -47,6 +47,14 @@ export default async function RegistrationPage() {
     ? fieldDoors(fieldFacts)
     : (Object.fromEntries(FIELD_CHANGES.map((c) => [c, "This tournament could not be read."])) as ReturnType<typeof fieldDoors>);
   const underWay = fieldFacts ? fieldBanner(fieldFacts) : null;
+  /**
+   * THE UNPLACED FLAG (J04, state machine PR 7a): every confirmed player in no
+   * flight, by name, where flights are a division or the pairings — said for as
+   * long as it is true, outside a cup too. The "Choose a flight" beside each
+   * name is the way to put them in one.
+   */
+  const unplacedFlag =
+    fieldFacts && flagsUnplaced(fieldFacts.family, fieldFacts.flights) ? unplacedWords(state.confirmed.filter((p) => !p.groupId).map((p) => p.name)) : "";
   // Where this screen sits in setting the tournament up. Null for a match.
   const flow = await setupRailFor(session.eventId);
   const brand = await brandForEvent(session.eventId);
@@ -173,6 +181,9 @@ export default async function RegistrationPage() {
       doors={doors}
       underWay={underWay}
       flights={state.groups.map((g, i) => ({ id: g.id, label: flightLabel(g.name, i) }))}
+      unplacedFlag={unplacedFlag}
+      addFlight={fieldFacts ? addFlightPick(fieldFacts) : null}
+      offerReserve={fieldFacts ? reserveOffered(fieldFacts) : false}
       isAdmin={session.viewRole === "admin"}
       roster={roster}
     />
