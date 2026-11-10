@@ -2,6 +2,7 @@ import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE, organizerEvent, setRoundFormat } from "./organizer-fixture.mjs";
 import { pressRadio } from "./press-radio";
+import { expectLaunched, pressComplete } from "./end-early";
 
 /**
  * A CLUB MEDAL, RUN FROM NOTHING BY SOMEBODY WHO HAS NEVER USED THE APP.
@@ -170,7 +171,7 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await expect(page.getByRole("button", { name: "Complete tournament" })).toHaveCount(0);
     await setRoundFormat(stages[0].id, "Stroke Play");
     await dialog.getByRole("button", { name: "Launch tournament" }).click();
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
   });
 
   await test.step("type in each returned card", async () => {
@@ -272,7 +273,7 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
 
   await test.step("complete", async () => {
     await open(page, "/dashboard");
-    await page.getByRole("button", { name: "Complete tournament" }).click();
+    await pressComplete(page);
     const confirm = page.getByRole("alertdialog");
     // A free club's completed tournament is kept read-only for fifteen days and
     // then deleted (2026-10-21), so the warning offers the report first.

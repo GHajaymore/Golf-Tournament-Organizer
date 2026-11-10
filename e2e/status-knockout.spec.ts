@@ -2,6 +2,8 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
+import { pressComplete } from "./end-early";
+import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
  * AN EIGHT-PLAYER CLUB KNOCKOUT, WALKED THROUGH THE STATE MACHINE (J13; the
@@ -67,26 +69,26 @@ test("a knockout says the same thing on every panel from the draw to the Final (
     await expectTournamentSays(page, {
       chip: "Live",
       chipDetail: null,
-      nextAction: "Complete tournament",
+      nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
 
     // Two quarter-finals in (seed 1 beats 8, seed 4 beats 5): live, and Complete is allowed.
     await win("winners-0-0", p1, "3&2");
     await win("winners-0-1", p4, "1 up");
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: "Complete tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // All four quarter-finals: the semi-finals are drawn and unplayed, the Final is TBD. Still live.
     await win("winners-0-2", p3, "2&1");
     await win("winners-0-3", p2, "4&3");
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: "Complete tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // Both semi-finals (1 beats 4; 2 beats 3): the Final is drawn and unplayed. STILL live —
     // a knockout is not over until its Final is.
     await win("winners-1-0", p1, "2 up");
     await win("winners-1-1", p2, "1 up");
     // The secretary's home has nothing of this tournament's own to do while its Final is unplayed (PR 6).
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: "Complete tournament", refused: null, home: null });
+    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
 
     // The Final decided, and no round closed: Play over, said as a knockout says it — and the
     // secretary's home says it too (D3k: "every round closed" never could, nobody closes a Bracket Stage).
@@ -103,7 +105,7 @@ test("a knockout says the same thing on every panel from the draw to the Final (
 
     // Complete it, on the dashboard where the status card draws the button.
     await page.goto(`/dashboard?bust=${Date.now()}`);
-    await page.getByRole("button", { name: "Complete tournament" }).first().click();
+    await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });

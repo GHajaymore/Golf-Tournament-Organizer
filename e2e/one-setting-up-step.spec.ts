@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { expectLaunched } from "./end-early";
 
 /**
  * ONE "SETTING UP" STEP BEFORE LAUNCH (Ajay, 2026-10-31, gap G1), as the organizer meets it.
@@ -93,7 +94,7 @@ test("a draft with players says Setting up and offers Launch, refused in place w
     await launch.click();
     await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
     await expect.poll(status, { timeout: 20_000, message: "Launch did not launch the draft" }).toBe("live");
-    await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
+    await expectLaunched(page);
     expect(errors).toEqual([]);
   } finally {
     await ctx.close().catch(() => {});

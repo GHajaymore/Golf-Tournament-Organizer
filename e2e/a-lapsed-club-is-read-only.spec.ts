@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { completeControl } from "./end-early";
 
 /**
  * A LAPSED PAID CLUB'S TOURNAMENT IS A READ-ONLY ARCHIVE (2026-10-21,
@@ -69,6 +70,9 @@ test("an organizer of a lapsed club sees the tournament read-only, and a press i
     const wren = await prisma.player.create({ data: { eventId: event.id, name: "Wren Halloway", email: `zz-archive-wren-${size}@example.invalid`, seed: 1, status: "confirmed" } });
     // A card in, so Complete is offered at all (with nothing scored it is refused before the
     // archive is asked) and the refusal under test is the archive's.
+    // NOT yet approved, so golf remains and ending is "End this event early…" under the card's More
+    // (B03: the PM, 10 Nov). With every card in, the job would be closing the round instead, and
+    // nothing ends the event until it is closed — which an archive refuses before Complete is reached.
     await prisma.scorecard.create({ data: { eventId: event.id, stageId: round.id, playerId: wren.id, strokes: JSON.stringify(new Array(18).fill(4)) } });
     await prisma.account.create({ data: { eventId: event.id, email, name: "Zz Archive Owner", role: "admin" } });
     await ctx.addCookies([
@@ -87,8 +91,9 @@ test("an organizer of a lapsed club sees the tournament read-only, and a press i
     await expect(banner.getByRole("link", { name: "Go to Your plan" })).toHaveAttribute("href", "/organization#plan");
     await expect(page.getByRole("button", { name: /Make a committee correction/ }), "a committee correction is offered on an archive").toHaveCount(0);
 
-    // A press: Complete, confirmed — refused, in words, beside the button.
-    const complete = page.getByRole("button", { name: "Complete tournament" }).first();
+    // A press: ending it ("End this event early…" under More while golf remains), confirmed — refused,
+    // in words, beside the button.
+    const complete = await completeControl(page);
     await complete.scrollIntoViewIfNeeded();
     await complete.click();
     const dialog = page.getByRole("alertdialog");
