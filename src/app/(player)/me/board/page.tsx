@@ -41,7 +41,8 @@ import { formattingForEvent } from "@/lib/services/organization";
 import { MyKnockoutTie } from "@/components/MyKnockoutTie";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { bracketResults } from "@/lib/services/bracket-results";
-import { golfTermsForEvent } from "@/lib/services/organization";
+import { golfRegisterForEvent } from "@/lib/services/organization";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { cupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { PlayerPrizes } from "@/components/PlayerPrizes";
@@ -78,7 +79,8 @@ export default async function PlayBoardPage({
   const { round } = await searchParams;
   const state = withBoardRound(loaded, round);
   // The club's own golf words — organizer or organiser (`golf-terms.ts`).
-  const terms = await golfTermsForEvent(session.eventId);
+  const register = await golfRegisterForEvent(session.eventId);
+  const terms = golfTermsFor(register);
   // What the committee has said, under the heading of every state this screen has: an update is for the
   // field whether or not there is a board to rank yet. See `CommentaryFeed`.
   const said = <CommentaryFeed eventId={session.eventId} organizer={terms.organizer} />;
@@ -369,7 +371,7 @@ export default async function PlayBoardPage({
             standings has not published them, and listing each round's winner
             underneath would be the app overruling that. This branch is about
             the format, not about what the club has chosen to show. */}
-        <ResultLines lines={await resultLinesFor(state)} kind={state.event.playKind} />
+        <ResultLines lines={await resultLinesFor(state)} kind={state.event.playKind} register={register} />
         <PlayerPrizes prizes={prizes} />
         <WayForward
           links={[
@@ -488,7 +490,7 @@ export default async function PlayBoardPage({
           Headed with whatever the club called this one: "Outing result",
           "League result". Only where there is more than one round, because on
           a single-round medal the board below IS the result. */}
-      <ResultLines lines={lines} kind={state.event.playKind} />
+      <ResultLines lines={lines} kind={state.event.playKind} register={register} />
 
       {straightKnockout ? (
         drawSection ?? (

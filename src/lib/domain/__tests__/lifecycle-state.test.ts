@@ -299,6 +299,8 @@ describe("what the app says launching does", () => {
     // sentence should be rewritten to match it.
     expect(launch).not.toMatch(/leaderboardVisibility/);
     expect(LAUNCH_DOES).toMatch(/locks the configuration/);
+    // The refusal in `playRefusal` is the fact behind this sentence: no card is saved before launch.
+    expect(LAUNCH_DOES).toContain("Players can score only once it is launched; each round is closed on its own.");
   });
 
   it("points at the setting that really decides what the field sees", () => {

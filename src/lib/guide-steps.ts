@@ -188,7 +188,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "**Tournament name** and **Tournament dates** are required to launch; the name cannot be one another of your tournaments in play is using. Tick **These dates are tentative** if they may move; dates have their own [[Save dates]].",
+          "**Tournament name** and **Tournament dates** (the dates field takes the name of the event's kind, so an {outing} reads **{Outing} dates**) are required to launch; the name cannot be one another of your tournaments in play is using. Tick **These dates are tentative** if they may move; dates have their own [[Save dates]].",
           "**Overall result** — Match play or Stroke play — decides how season standings are worked out, not each round's format. It is asked once the tournament has a round; until then your first round decides it (a medal or Stableford round makes it stroke play), and a choice you make after that stays.",
           "**Golf course**: pick a course, **Other (enter manually)**, or **No fixed course — players choose**.",
           "Press [[Save event]]. When entries open and close, and how many places there are, are not set here: they are on **Entries**, with the switch that opens them.",
@@ -483,7 +483,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           (LIFECYCLE_STEPPER_ON ? STEPPER_GUIDE : "Work through the setup steps on the bar across the top of each Set-up screen — it is the one count of how far you are (for example **3 of 6 done**); the **How a tournament runs** panel on Tournament details marks where you are without a second count.") +
           " The tournament needs a name and its **dates**; a venue alone is not enough, because players cannot plan around a tournament with no day. Until you launch, the Dashboard keeps the steps still to do under **Still to set up**, even once your players are in.",
           "Some steps are **Optional** and never stop you: flights for a medal or a Stableford (one field is a complete setup, and the step reads **Optional — one field**), the answer on how money works, and a day for every round of a tournament played over several rounds. Tees that cannot give a Course Handicap also leave **Tournament details** unticked and Optional, and the **Ready to launch** card says why, for example “Add tees with their Course Rating and Slope, or players get strokes off their raw Handicap Index.”: add the tees and their Course Rating and Slope on Tournament details → Courses, or launch as it is. Once nothing stops a launch the bar reads **Ready to launch** and says how many parts are done, the rest optional.",
-          "Press the launch button on the status bar. **Launch “‹name›”?** first lists what setup still has open — no flights, no tee sheet, no answer on how money works, a tee with no Slope under a round that scores net or Stableford (its players are then scored on their raw Handicap Index), or a tee with a Slope but no Course Rating (scored on the Slope alone, without the Course Rating minus Par adjustment) — each with a link to the screen that fixes it and whether you can still do it after launch. Then it summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player.",
+          "Press the launch button on the status bar. **Launch “‹name›”?** first lists what setup still has open — no flights, no tee sheet, no answer on how money works, a tee with no Slope under a round that scores net or Stableford (its players are then scored on their raw Handicap Index), or a tee with a Slope but no Course Rating (scored on the Slope alone, without the Course Rating minus Par adjustment) — each with a link to the screen that fixes it and whether you can still do it after launch. Then it summarises dates, course, result, players, flights and rounds, and notes that every non-staff account becomes a Player, that players can score only once the tournament is launched, and that each round is closed on its own.",
           "Press [[Launch tournament]]. Setup locks; Part 3 lists what you can still change.",
         ],
       },
@@ -549,7 +549,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Press [[Approve N clean cards]]. Only approved cards are results.",
           "Work through **Needs attention** (for example “Incomplete — 14 of 18”) with [[Approve anyway]] where right. An {organizer} can [[Reopen]] an approved card.",
           "For match play, filter to Awaiting approval and press [[Approve N shown results]].",
-          "A team match round or a cup session kept by tapping who won each hole — the singles too — lists its matches with **Awaiting approval** beside any finished result still to be signed off; open it and press [[Confirm result]] above the card.",
+          "A team match round or a cup session kept by tapping who won each hole — the singles too — lists its matches with **Awaiting approval** beside any finished result still to be signed off; open it and press [[Confirm result]] above the card. Once signed off, taps on a phone or here no longer change it: to correct it, an {organizer} presses [[Reopen]] above the card, corrects the holes and confirms it again.",
         ],
       },
       { kind: "h", text: "Leaderboard and the unexpected" },
