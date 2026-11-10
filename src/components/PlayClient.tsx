@@ -1240,7 +1240,9 @@ function PlayScreens(props: Props) {
      * round. Modified Stableford is scored on the Modified table, which is why
      * the format is passed rather than inferred.
      */
-    const totals = computeStrokeCard(card, pars, 0, props.strokeIndex, {
+    // The handicap here is 0 and the strokes are the server's `shots`; a card
+    // without a stroke index gives none rather than a fraction of one a hole.
+    const totals = computeStrokeCard(card, pars, 0, props.strokeIndex ?? [], {
       shotsPerHole: props.shots,
       pointsForHole:
         boardKind(props.roundFormat ?? "") === "modified-stableford"

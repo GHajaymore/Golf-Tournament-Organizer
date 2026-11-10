@@ -408,7 +408,7 @@ describe("stroke play", () => {
   it("computes gross/net/to-par and nines", () => {
     const pars = [4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 4, 5, 4, 3, 4, 5]; // par 72
     const strokes = [4, 5, 3, 5, 4, 4, 3, 6, 4, 4, 4, 3, 5, 5, 4, 3, 4, 5]; // gross 75
-    const card = computeStrokeCard(strokes, pars, 8);
+    const card = computeStrokeCard(strokes, pars, 8, pars.map((_, i) => i + 1));
     expect(card.gross).toBe(75);
     expect(card.toPar).toBe(3);
     expect(card.net).toBe(67); // 75 - 8
@@ -417,7 +417,7 @@ describe("stroke play", () => {
   });
   it("handles partial rounds and formats to-par", () => {
     const pars = [4, 4, 3, 5];
-    const card = computeStrokeCard([4, 4, null, null], pars, 0);
+    const card = computeStrokeCard([4, 4, null, null], pars, 0, [1, 2, 3, 4]);
     expect(card.gross).toBe(8);
     expect(card.played).toBe(2);
     expect(card.toPar).toBe(0);

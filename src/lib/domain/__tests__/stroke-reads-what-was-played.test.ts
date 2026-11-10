@@ -64,7 +64,7 @@ describe("strokes received are counted on the holes actually played (WHS Rule 6.
 
 describe("a stroke card skips a figure that is not a number (Rule 3.1c / Definitions: a hole's score is the strokes made on it)", () => {
   it("a blank and a NaN are holes not yet scored, not holes of nought", () => {
-    const card = computeStrokeCard([4, null, Number.NaN, 5], [4, 4, 4, 4], 0);
+    const card = computeStrokeCard([4, null, Number.NaN, 5], [4, 4, 4, 4], 0, [1, 2, 3, 4]);
     // Two holes scored: 4 + 5 = 9 strokes, on two par-4s (8), so one over.
     expect(card.gross).toBe(9);
     expect(card.played).toBe(2);
