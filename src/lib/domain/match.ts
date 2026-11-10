@@ -319,6 +319,17 @@ export function marginToHoles(
   return holes;
 }
 
+/**
+ * The words a person says for a hole or a match that was halved (Rule 3.2b). ONE list for both
+ * dictation readers: when each kept its own, "halve" was a halved match to one and a word to skip
+ * in the other, and a skipped word shifts every later hole up by one.
+ */
+export const HALVED_WORDS: readonly string[] = ["half", "halve", "halved", "push", "tie", "tied"];
+
+function isHalvedWord(word: string): boolean {
+  return HALVED_WORDS.includes(word);
+}
+
 /** Parse a free-text/voice transcript into a winner + margin (see README voice spec). */
 /**
  * Whether these two spoken names can be told apart AT ALL.
@@ -350,10 +361,14 @@ export function parseResultTranscript(
   let winner: "A" | "B" | "H" | null = null;
   let margin = "";
 
-  // Halve / draw keywords take precedence.
-  if (/\bhalved?\b/.test(t) || /\ball square\b/.test(t) || /^as$/.test(t)) {
+  // "All square" is a halved match whatever else is said.
+  if (/\ball square\b/.test(t) || /^as$/.test(t)) {
     return { winner: "H", margin: "AS" };
   }
+  // A halved WORD ("halved", "tie", "tied", "push") is a halve only when nobody is named as the
+  // winner and no margin is given: "Sam won the tie 3 and 2" is Sam's win (a "tie" is also a
+  // knockout fixture), and "Alex won 1 up after being tied on 17" is Alex's.
+  const saysHalved = t.split(/[^a-z]+/).some(isHalvedWord);
 
   // Whole-word match, longer name tried first. Substring matching credited
   // the wrong player whenever one first name prefixed the other: "Samantha
@@ -379,6 +394,7 @@ export function parseResultTranscript(
   if (amp) margin = `${amp[1]}&${amp[2]}`;
   else if (up) margin = `${up[1]} UP`;
 
+  if (saysHalved && winner === null && margin === "") return { winner: "H", margin: "AS" };
   return { winner, margin };
 }
 
@@ -417,7 +433,7 @@ export function parseHolesTranscript(
     const t = tokens[j];
     if (a && t === a) { results.push("A"); hole += 1; }
     else if (b && t === b) { results.push("B"); hole += 1; }
-    else if (/^half(ved)?$/.test(t) || t === "push" || t === "tie" || t === "tied") { results.push("H"); hole += 1; }
+    else if (isHalvedWord(t)) { results.push("H"); hole += 1; }
   }
   return results;
 }
