@@ -8,6 +8,7 @@ import { upsertMember, memberGender } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { sendRegistrationEmail } from "@/lib/email";
 import { fieldLimitFor } from "@/lib/services/waitlist";
+import { entryLinkBudgetFor } from "@/lib/services/registration";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { phoneRequiredFor } from "@/lib/plans";
 import { clubDayForEvent } from "@/lib/services/club-clock";
@@ -68,7 +69,10 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
 
   // Both budgets, before anything is looked up. The token cap slows a script
   // hammering one link; the email cap stops one person submitting over and over.
-  const byToken = await checkRateLimit("register-token", cleanToken);
+  // The link's budget grows with its field (`entryLinkBudget`), and is looked up
+  // only once the count passes the floor — so a full 64-player field opening at
+  // a set time is never told the form is busy while places remain.
+  const byToken = await checkRateLimit("register-token", cleanToken, () => entryLinkBudgetFor(cleanToken));
   if (!byToken.allowed) return { ok: false, error: byToken.message };
   const byEmail = await checkRateLimit("register-email", entryLimitKey(person.email, cleanToken));
   if (!byEmail.allowed) return { ok: false, error: byEmail.message };

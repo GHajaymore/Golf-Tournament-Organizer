@@ -3,7 +3,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { checkRateLimit, clearRateLimit } from "../rate-limit";
-import { RATE_LIMITS } from "../domain/rate-limit";
+import { RATE_LIMITS, entryLinkBudget } from "../domain/rate-limit";
 
 /**
  * The limiter against the real database.
@@ -38,7 +38,7 @@ afterAll(async () => {
     // honest cleanup available. Delete anything already expired plus this
     // run's rows, found by re-deriving each key through the public API.
     for (const id of identifiers) {
-      for (const kind of ["signin", "round-code", "password-reset", "card-photo"] as const) {
+      for (const kind of ["signin", "round-code", "password-reset", "card-photo", "register-token"] as const) {
         await clearRateLimit(kind, id);
       }
     }
@@ -213,5 +213,51 @@ describe("attempts are counted in the database, not in this process", () => {
     await checkRateLimit("signin", email);
     const rows = await prisma.rateLimitHit.findMany({ where: { key: { contains: "@" } } });
     expect(rows).toEqual([]);
+  });
+});
+
+describe("an entry link's budget, asked through the real counter (2026-11-10)", () => {
+  /**
+   * Round G583-1: a 64-player field's link refused members 61 to 72 as "very
+   * busy". The budget now grows with the field (`entryLinkBudget`), and the
+   * limiter asks it only once the stored count passes the floor of sixty — so a
+   * link inside the floor costs no lookup before it is counted.
+   */
+  it("takes a 64-player field and eight waiting in one burst, asking the budget only past sixty", async () => {
+    const id = fresh("entry-link-64");
+    let asked = 0;
+    const budget = async () => {
+      asked += 1;
+      return entryLinkBudget({ live: true, fieldLimit: 64 });
+    };
+    for (let i = 1; i <= 72; i += 1) {
+      const d = await checkRateLimit("register-token", id, budget);
+      expect(d.allowed, `sign-up ${i} of 72`).toBe(true);
+    }
+    expect(asked, "asked once for each of sign-ups 61 to 72").toBe(72 - RATE_LIMITS["register-token"].limit);
+  });
+
+  it("stops a link that is not taking entries at the floor, in the kind's words", async () => {
+    const id = fresh("entry-link-closed");
+    const floor = RATE_LIMITS["register-token"].limit;
+    const budget = async () => entryLinkBudget({ live: false });
+    for (let i = 1; i <= floor; i += 1) await checkRateLimit("register-token", id, budget);
+    const d = await checkRateLimit("register-token", id, budget);
+    expect(d.allowed).toBe(false);
+    expect(d.message).toMatch(/^This entry form is very busy just now\./);
+  });
+
+  it("refuses, rather than guesses, when the budget cannot be read past the floor", async () => {
+    const id = fresh("entry-link-unreadable");
+    const floor = RATE_LIMITS["register-token"].limit;
+    const budget = async (): Promise<number> => {
+      throw new Error("zz-audit: the event could not be read");
+    };
+    for (let i = 1; i <= floor; i += 1) {
+      expect((await checkRateLimit("register-token", id, budget)).allowed, `inside the floor, ${i}`).toBe(true);
+    }
+    const d = await checkRateLimit("register-token", id, budget);
+    expect(d.allowed).toBe(false);
+    expect(d.message).toMatch(/couldn't check that just now/);
   });
 });
