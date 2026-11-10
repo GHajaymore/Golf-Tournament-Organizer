@@ -278,7 +278,7 @@ function invariants(name: string, t: Facts, today = TODAY) {
   if (t.status.step !== "setting-up" && j.key !== "entries") expect(c.phase, `${name}: ${j.key} on ${c.label}`).not.toBe("setup");
   // Four phases, in order, and the count is of the current stop's phase.
   expect(tr.phases.map((p) => p.key), name).toEqual(["setup", "draw", "day", "after"]);
-  expect(trackCount(tr), name).toMatch(/^(Set up|Tee times|Draw|Play|Results) · \d+ of \d+ done$/);
+  expect(trackCount(tr), name).toMatch(/^(Set up|Tee times|Draw|Lineups|This week|Play|Results) · \d+ of \d+ done$/);
   // The dashboard's press is the same job.
   const press = cardPressOf(t.status.nextAction, j);
   if (j.moves) expect(press.kind === "move" && press.action, name).toBe(t.status.nextAction);
@@ -298,16 +298,18 @@ describe("every shape renders sensibly, at every stage", () => {
     it(name, () => invariants(name, jobFacts(f, over)));
   }
 
-  it("a knockout is drawn, everything else gets tee times; three flights read as one track", () => {
+  it("a knockout is drawn, a cup names its lineups, a league works by the week, everything else gets tee times; three flights read as one track", () => {
     const ko = see(launched(FAMILY_FIXTURES.flightedKnockout()));
     expect(ko.track.phases[1].title).toBe("Draw");
     expect(ko.track.steps.find((s) => s.key === "draw")?.label).toBe("The draw");
     expect(ko.track.steps.filter((s) => s.phase === "day")).toHaveLength(1);
     const cup = see(FAMILY_FIXTURES.teamCup());
-    expect(cup.track.phases[1].title).toBe("Tee times");
+    expect(cup.track.phases[1].title).toBe("Lineups");
     expect(cup.track.steps.filter((s) => s.phase === "day").map((s) => s.label)).toEqual(["Round 1", "Round 2"]);
     const league = see(launched(FAMILY_FIXTURES.league()));
     expect(league.track.steps.filter((s) => s.phase === "day")).toHaveLength(3);
+    expect(league.track.phases[1].title).toBe("This week");
+    expect(see(FAMILY_FIXTURES.stroke()).track.phases[1].title).toBe("Tee times");
   });
 });
 

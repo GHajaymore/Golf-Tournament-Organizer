@@ -333,6 +333,8 @@ export const FULL_ONLY = [
   "e2e/league.spec.ts",
   // B03: the lifecycle stepper (behind ?stepper=1), the dashboard's button and the folded line agree at every step of a two-day medal.
   "e2e/lifecycle-stepper.spec.ts",
+  // Console structure, step 2: the menu follows the stepper's four stops (behind ?stepper=1); every address the old menu offered is still offered and opens.
+  "e2e/lifecycle-menu.spec.ts",
   // State machine PR 5a: each Teams & pairs control and each team round's pricing Save, pressed once on a stale screen after setup locked — refused in words, never thrown.
   "e2e/locked-sides-refuse-in-words.spec.ts",
   // State machine PR 5b: the rest of the app's locked controls (details, entry terms, flights, rounds, clear scores), pressed once each on a

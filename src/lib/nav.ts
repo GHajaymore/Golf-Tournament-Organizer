@@ -265,11 +265,23 @@ export interface NavItem {
    * the type makes forgetting a compile error rather than a wrong assertion.
    */
   tier: NavTier;
+  /**
+   * Screens grouped UNDER this entry — only in the menu that follows the lifecycle
+   * (`lifecycleNav`, nav-lifecycle.ts). `NAV` itself never nests: it is the flat map of
+   * the console's screens that `screenName`, the tiers and the tab bar read.
+   */
+  children?: NavItem[];
 }
 
 export interface NavSection {
   label: string;
   items: NavItem[];
+  /** Whose sections these are — "Event" — said once, over the first of them (`lifecycleNav` only). */
+  scope?: string;
+  /** The stepper's stop this section is, and where the tournament stands on it (`lifecycleNav` only). */
+  stop?: { key: string; state: "done" | "now" | "held" | "todo"; current: boolean };
+  /** Which round the stop's screens are about: "Round 2 of 4 · Stableford" (`lifecycleNav` only). */
+  detail?: string;
 }
 
 /**
