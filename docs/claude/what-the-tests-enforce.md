@@ -31,8 +31,11 @@ impossible. Extend these rather than working around them.
 - `source-guard.test.ts` — **a test that searches source reads it through `readSource`**, from
   `src/lib/__tests__/source.ts`, which strips comments. Swept per file, so a new test file is
   covered the day it is added. See below for why.
-- `a-prize-transaction-reads-on-its-own-connection.test.ts` — while a prize action has an
-  interactive transaction open, every read is on the transaction's client (`tx`), never the bare
+
+Added after the move (the list above is the original, kept whole by `claude-md-is-whole.test.ts`):
+
+- `a-prize-transaction-reads-on-its-own-connection.test.ts` (2026-11-09) — while a prize action has
+  an interactive transaction open, every read is on the transaction's client (`tx`), never the bare
   `prisma`. A read on the bare client from inside a transaction needs a SECOND pooled connection
   while the transaction holds the first, and it is outside the transaction's timeout: in the nightly
   of 2026-11-09 one such read stalled six seconds, the commit failed with P2028 "Transaction already
