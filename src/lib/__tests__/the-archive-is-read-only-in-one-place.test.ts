@@ -26,8 +26,11 @@ import {
  *      screen changes, and refuses a form and a drag;
  *   3. the rule: which screens it locks, and which controls stay live — only those
  *      that change the view;
- *   4. every `data-reads` mark (the opt-out) is listed here with what it reads, so a
- *      new one is a reviewed decision and never a way round the lock.
+ *   4. every `data-reads` and `data-new-tournament` mark (the opt-outs) is listed here
+ *      with what it does, so a new one is a reviewed decision and never a way round the
+ *      lock — and the two that ride on an action (the print kit, Copy last event) are
+ *      held to it: `recordPrinted` writes nothing in an archive, `cloneEvent` does not
+ *      refuse an archived source.
  *
  * Read through `readSource` (comments stripped): the layout's comment names the
  * wrapper in prose, and prose must not satisfy the rule.
@@ -86,7 +89,9 @@ describe("the rule: which screens, which controls", () => {
     expect([...ARCHIVE_WRITABLE_SCREENS]).toEqual(["/organization", "/tournaments", "/guide"]);
   });
 
-  const control = (over: Partial<ControlFacts>): ControlFacts => ({ tag: "button", type: "", role: "", expands: false, reads: false, ...over });
+  const control = (over: Partial<ControlFacts>): ControlFacts => ({
+    tag: "button", type: "", role: "", expands: false, reads: false, makesNew: false, ...over,
+  });
 
   it("disables every control that writes", () => {
     for (const c of [
@@ -115,12 +120,19 @@ describe("the rule: which screens, which controls", () => {
     expect(archiveLeavesLive(control({ tag: "select", reads: true }))).toBe(true);
     expect(archiveLeavesLive(control({ reads: true }))).toBe(true);
   });
+
+  it("and what writes only a NEW tournament: a data-new-tournament mark (Copy last event)", () => {
+    expect(archiveLeavesLive(control({ makesNew: true }))).toBe(true);
+    expect(archiveLeavesLive(control({ tag: "input", type: "date", makesNew: true }))).toBe(true);
+  });
 });
 
 /**
- * THE OPT-OUT, EVERY USE OF IT. `data-reads` says "this changes the view, never
- * a record", and the archive leaves what carries it live. A control that writes
- * must never carry it — so each file that marks one is named with what it reads.
+ * THE OPT-OUTS, EVERY USE OF THEM. `data-reads` says "this changes the view,
+ * never a record"; `data-new-tournament` says "this writes a new tournament,
+ * never this one". The archive leaves what carries either live, so a control
+ * that writes this tournament must never carry one — each file that marks one
+ * is named here with what it does.
  */
 const READS_MARKS: Record<string, string> = {
   "src/components/RoundPicker.tsx": "which round a board shows (a navigation)",
@@ -130,6 +142,10 @@ const READS_MARKS: Record<string, string> = {
   "src/components/SignUpPoster.tsx": "print the sign-up poster",
   "src/components/RegistrationClient.tsx": "download the entry-list template",
   "src/components/BracketClient.tsx": "print the draw, show a found player's path, clear it",
+  "src/components/print/PrintKitClient.tsx": "the print kit: choose sheets and print — `recordPrinted` records nothing in an archive",
+};
+const NEW_TOURNAMENT_MARKS: Record<string, string> = {
+  "src/components/CopyLastEvent.tsx": "Copy last event — `cloneEvent` reads the source and writes only the copy",
 };
 
 function sourceFiles(dir: string): string[] {
@@ -140,26 +156,74 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-/** The files under `src` that mark a control `data-reads`. */
-function marksIn(files: Array<{ file: string; src: string }>): string[] {
-  return files.filter((f) => /data-reads=/.test(f.src)).map((f) => f.file).sort();
+/** The files under `src` that mark a control with `attribute`. */
+function marksIn(files: Array<{ file: string; src: string }>, attribute: string): string[] {
+  return files.filter((f) => f.src.includes(`${attribute}=`)).map((f) => f.file).sort();
 }
 
-describe("every data-reads mark is a reviewed decision", () => {
+/** The body of one exported action, from its declaration to the next export. */
+function actionBody(src: string, name: string): string {
+  const start = src.indexOf(`export async function ${name}(`);
+  if (start < 0) return "";
+  const next = src.indexOf("\nexport ", start + 1);
+  return src.slice(start, next < 0 ? undefined : next);
+}
+
+/** Does an action refuse because ITS OWN tournament is archived — the gate, or the archive asked directly? */
+function refusesAnArchivedSource(body: string): boolean {
+  return /assertEventWritable\(|archiveRefusalFor\(|requireStaffEvent\(|requireAdminEvent\(|staffEventOrRefusal\(|adminEventOrRefusal\(/.test(body);
+}
+
+/** Does `recordPrinted` answer an archive with a print and NO write, before anything is saved? */
+function printsAnArchiveWithoutWriting(body: string): boolean {
+  const asked = body.indexOf("archiveRefusalFor(");
+  const answered = body.search(/if \(archived\) return \{ ok: true, stamps: \{\}, recorded: false \}/);
+  const saved = body.indexOf("savePrintLog(");
+  return asked >= 0 && answered > asked && saved > answered;
+}
+
+describe("every opt-out mark is a reviewed decision", () => {
   const files = sourceFiles(join(process.cwd(), "src")).map((p) => {
     const file = relative(process.cwd(), p).split(sep).join("/");
     return { file, src: readSource(file) };
   });
 
   it("the files that mark a control data-reads are exactly the ones listed, each with what it reads", () => {
-    expect(marksIn(files)).toEqual(Object.keys(READS_MARKS).sort());
+    expect(marksIn(files, "data-reads")).toEqual(Object.keys(READS_MARKS).sort());
+  });
+
+  it("the files that mark a control data-new-tournament are exactly the ones listed", () => {
+    expect(marksIn(files, "data-new-tournament")).toEqual(Object.keys(NEW_TOURNAMENT_MARKS).sort());
   });
 
   it("a screen marked data-reads as a whole imports no action", () => {
     expect(readSource("src", "components", "ReportsClient.tsx")).not.toMatch(/from "@\/app\/actions/);
   });
 
-  it("CONTROL: a new mark is seen", () => {
-    expect(marksIn([{ file: "x.tsx", src: '<button data-reads="" onClick={save}>' }, { file: "y.tsx", src: "<button>" }])).toEqual(["x.tsx"]);
+  it("the print kit is honest data-reads: its one action records nothing in an archive, and it calls no other", () => {
+    const kit = readSource("src", "components", "print", "PrintKitClient.tsx");
+    expect(kit.match(/from "@\/app\/actions[^"]*"/g)).toEqual(['from "@/app/actions/print-kit"']);
+    expect(kit).toMatch(/import \{ recordPrinted \} from "@\/app\/actions\/print-kit"/);
+    expect(printsAnArchiveWithoutWriting(actionBody(readSource("src", "app", "actions", "print-kit.ts"), "recordPrinted"))).toBe(true);
+  });
+
+  it("Copy last event is honest data-new-tournament: it calls cloneEvent alone, which does not refuse an archived source", () => {
+    const copy = readSource("src", "components", "CopyLastEvent.tsx");
+    expect(copy.match(/from "@\/app\/actions[^"]*"/g)).toEqual(['from "@/app/actions/tournament"']);
+    expect(copy).toMatch(/import \{ cloneEvent \} from "@\/app\/actions\/tournament"/);
+    const clone = actionBody(readSource("src", "app", "actions", "tournament.ts"), "cloneEvent");
+    expect(clone, "cloneEvent not found").not.toBe("");
+    expect(refusesAnArchivedSource(clone), "cloneEvent refuses an archived source: the copy would be refused in the error screen").toBe(false);
+  });
+
+  it("CONTROL: a new mark is seen, a refusing clone is seen, a print that writes first is seen", () => {
+    expect(marksIn([{ file: "x.tsx", src: '<button data-reads="" onClick={save}>' }, { file: "y.tsx", src: "<button>" }], "data-reads")).toEqual(["x.tsx"]);
+    expect(marksIn([{ file: "z.tsx", src: '<section data-new-tournament="">' }], "data-new-tournament")).toEqual(["z.tsx"]);
+    expect(refusesAnArchivedSource("export async function cloneEvent(id) {\n  await assertEventWritable(id);\n}")).toBe(true);
+    expect(refusesAnArchivedSource("export async function cloneEvent(id) {\n  const source = await prisma.event.findUnique({});\n}")).toBe(false);
+    const good = 'const archived = await archiveRefusalFor(e, "organizer");\n  if (archived) return { ok: true, stamps: {}, recorded: false };\n  await savePrintLog(e, s, log);';
+    expect(printsAnArchiveWithoutWriting(good)).toBe(true);
+    expect(printsAnArchiveWithoutWriting("await savePrintLog(e, s, log);\n" + good.replace("await savePrintLog(e, s, log);", ""))).toBe(false);
+    expect(printsAnArchiveWithoutWriting(good.replace("{ ok: true, stamps: {}, recorded: false }", "{ ok: false, error: archived }"))).toBe(false);
   });
 });

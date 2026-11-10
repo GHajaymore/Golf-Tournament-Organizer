@@ -40,6 +40,7 @@ async function controlsOf(page: Page): Promise<{ disabled: number; pressable: st
     // The view-only exceptions, as the rule states them (`archiveLeavesLive`).
     const viewOnly = (el: Element) =>
       el.closest("[data-reads]") !== null ||
+      el.closest("[data-new-tournament]") !== null ||
       el.getAttribute("role") === "tab" ||
       (el.tagName === "BUTTON" && el.hasAttribute("aria-expanded")) ||
       (el.tagName === "INPUT" && (el.getAttribute("type") ?? "").toLowerCase() === "search");

@@ -23,12 +23,21 @@
  * picker carries, saying "this changes the view, never a record". A control
  * that writes must never carry it.
  *
+ * AND WHAT MAKES A NEW TOURNAMENT (2026-11-10, the panel): "Copy last event"
+ * writes, but only the copy — a new tournament, never this one (`cloneEvent`
+ * reads the source and asks nothing of its archive). It carries its own mark,
+ * `[data-new-tournament]`, so `data-reads` stays a promise that nothing is
+ * written at all.
+ *
  * Pure: the component asks these about each control and each screen, and the
  * test asks them the same questions with no browser.
  */
 
 /** The marked opt-out: inside it, a control only changes what is shown. */
 export const READS_ATTRIBUTE = "data-reads";
+
+/** The second opt-out: inside it, a control writes only a NEW tournament (Copy last event). */
+export const NEW_TOURNAMENT_ATTRIBUTE = "data-new-tournament";
 
 /** The controls the archive disables. Links are not among them, on purpose. */
 export const ARCHIVE_LOCKED_CONTROLS = "button, input, select, textarea";
@@ -58,11 +67,17 @@ export interface ControlFacts {
   expands: boolean;
   /** Is inside an element marked `data-reads`. */
   reads: boolean;
+  /** Is inside an element marked `data-new-tournament`. */
+  makesNew: boolean;
 }
 
-/** Does a control stay pressable in an archived tournament? Only when it changes the view alone. */
+/**
+ * Does a control stay pressable in an archived tournament? Only when it changes
+ * the view alone, or writes nothing but a new tournament.
+ */
 export function archiveLeavesLive(c: ControlFacts): boolean {
   if (c.reads) return true;
+  if (c.makesNew) return true;
   if (c.role === "tab") return true;
   if (c.tag === "button" && c.expands) return true;
   if (c.tag === "input" && c.type === "search") return true;

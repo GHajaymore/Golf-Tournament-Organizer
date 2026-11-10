@@ -96,9 +96,11 @@ tournament money code entirely.
      exportable, nothing changed or scored, an unfinished one paused. Its
      console is read-only in ONE place (2026-11-09): the layout wraps every
      screen in `ArchiveReadOnly` (`domain/archive-read-only.ts`), which disables
-     each control that writes under the banner's one sentence; links, prints,
-     exports, round pickers and Club settings (the way out) stay live, and the
-     actions still refuse as the backstop. The
+     each control that writes under the banner's one sentence; links, prints
+     (the print kit too — `recordPrinted` records nothing in an archive),
+     exports, round pickers, Copy last event (it writes only the new copy) and
+     Club settings (the way out) stay live, and the actions still refuse as the
+     backstop. The
      archive is not counted against Par's limits, and Par's 14/15-day sweep
      never touches it. The owners are emailed 30 days and 7 days before it is
      deleted (`sweepArchives`, in the daily cron), and nothing goes until 7 days

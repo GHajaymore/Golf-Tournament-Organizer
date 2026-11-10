@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   ARCHIVE_LOCKED_CONTROLS,
   ARCHIVE_REFUSED_EVENTS,
+  NEW_TOURNAMENT_ATTRIBUTE,
   READS_ATTRIBUTE,
   archiveLeavesLive,
   archiveLocksScreen,
@@ -21,6 +22,7 @@ function lockControls(root: HTMLElement) {
       role: el.getAttribute("role") ?? "",
       expands: el.hasAttribute("aria-expanded"),
       reads: el.closest(`[${READS_ATTRIBUTE}]`) !== null,
+      makesNew: el.closest(`[${NEW_TOURNAMENT_ATTRIBUTE}]`) !== null,
     });
     if (!live) el.disabled = true;
   });
