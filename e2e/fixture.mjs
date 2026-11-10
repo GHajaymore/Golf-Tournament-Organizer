@@ -247,7 +247,7 @@ export async function seed() {
      * purpose: a field where EVERY name is long tests the wide case and quietly
      * stops testing the ordinary one.
      */
-    const names = ["Aj Moore", "Marcus Webb", "Síle Ní Bhraonáin-O’Dwyer", "Sang-woo Kim"];
+    const names = ["Ned Calloway", "Marcus Webb", "Síle Ní Bhraonáin-O’Dwyer", "Sang-woo Kim"];
     const players = [];
     for (const [i, name] of names.entries()) {
       players.push(
@@ -498,7 +498,7 @@ export async function seed() {
       data: [
         {
           organizationId: org.id,
-          name: "Aj Moore",
+          name: "Ned Calloway",
           email: `${MARK}-0@example.invalid`,
           handicap: 12.4,
           handicapType: "18",
@@ -542,10 +542,10 @@ export async function seed() {
     });
 
     const player = await prisma.user.create({
-      data: { email: `${MARK}-0@example.invalid`, name: "Aj Moore", password: "x:unusable" },
+      data: { email: `${MARK}-0@example.invalid`, name: "Ned Calloway", password: "x:unusable" },
     });
     await prisma.account.create({
-      data: { eventId: event.id, name: "Aj Moore", email: player.email, role: "player" },
+      data: { eventId: event.id, name: "Ned Calloway", email: player.email, role: "player" },
     });
 
     /**
