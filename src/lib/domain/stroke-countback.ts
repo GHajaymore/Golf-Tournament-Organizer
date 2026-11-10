@@ -340,7 +340,7 @@ export interface BasisScore {
  *
  *     rank 3  gross 70  net 64  Elena Petrova
  *     rank 4  gross 70  net 65  Sang-woo Kim
- *     rank 5  gross 70  net 68  AJ
+ *     rank 5  gross 70  net 68  Ned
  *
  * Three players level on gross, given three different places off their net
  * scores — in a scratch competition, where handicap is the thing the format

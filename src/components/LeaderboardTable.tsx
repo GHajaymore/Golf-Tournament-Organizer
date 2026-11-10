@@ -220,7 +220,7 @@ export function LeaderboardTable({
    *     2  Diego Alvarez        66
    *     3  Sang-woo Kim         65
    *     4  Elena Petrova        64
-   *     5  AJ                   68
+   *     5  Ned                 68
    *
    * — a leaderboard whose only score column does not descend, because the
    * order is gross and the column is net. Nothing is false; the column just

@@ -20,8 +20,21 @@ import { golfTermsFor, type GolfRegister, type GolfWords } from "@/lib/domain/go
  */
 const GolfTermsContext = createContext<GolfWords>(golfTermsFor("us"));
 
+/** What a component drawn with no provider answers: US, the app's default for a club that has not said (same as the words above). */
+export const NO_PROVIDER_REGISTER: GolfRegister = "us";
+const GolfRegisterContext = createContext<GolfRegister>(NO_PROVIDER_REGISTER);
+
 export function GolfTermsProvider({ register, children }: { register: GolfRegister; children: React.ReactNode }) {
-  return <GolfTermsContext.Provider value={golfTermsFor(register)}>{children}</GolfTermsContext.Provider>;
+  return (
+    <GolfRegisterContext.Provider value={register}>
+      <GolfTermsContext.Provider value={golfTermsFor(register)}>{children}</GolfTermsContext.Provider>
+    </GolfRegisterContext.Provider>
+  );
+}
+
+/** The register itself, for the few readers that need more than the words (the kinds of play a club is offered). */
+export function useGolfRegister(): GolfRegister {
+  return useContext(GolfRegisterContext);
 }
 
 export function useGolfTerms(): GolfWords {
