@@ -2,6 +2,8 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
+import { pressComplete } from "./end-early";
+import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
  * THE CLUB FINAL — ONE 18-HOLE MATCH BETWEEN TWO PLAYERS — WALKED THROUGH THE
@@ -77,13 +79,13 @@ test("a single match says the same thing on every panel from the draw to the las
     await expectTournamentSays(page, {
       chip: "Live",
       chipDetail: null,
-      nextAction: "Complete tournament",
+      nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
 
     // Three holes played (A wins the first, the next two halved): live — a match is not over until it cannot be caught.
     await prisma.match.update({ where: { id: match.id }, data: { holes: eighteen(["A", "H", "H"]), scoreStatus: "confirmed", confirmedBy: "zz" } });
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: "Complete tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // Won 3&2 with the round still open: the match is over, so play is over.
     await prisma.match.update({
@@ -100,7 +102,7 @@ test("a single match says the same thing on every panel from the draw to the las
     expect(round.closedAt, "the round was closed before Complete").toBeNull();
 
     await page.goto(`/dashboard?bust=${Date.now()}`);
-    await page.getByRole("button", { name: "Complete tournament" }).first().click();
+    await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });

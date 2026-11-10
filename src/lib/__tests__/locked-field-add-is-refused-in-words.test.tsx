@@ -53,7 +53,7 @@ const reg = async (opts: {
 }) => {
   const { RegistrationClient } = await import("@/components/RegistrationClient");
   return renderToStaticMarkup(
-    <RegistrationClient
+    <RegistrationClient teesDoor={null}
       confirmed={[row("p1", "zz-Ann Doyle")]} waitlist={[]} pendingEntries={[]} isAdmin
       roster={[{ id: "m1", name: "zz-Cleo Green", email: "m1@example.invalid", phone: "", handicap: 12, entered: false } as never]}
       locked={opts.locked} doors={opts.doors} underWay={opts.underWay ?? null} flights={opts.flights ?? []}

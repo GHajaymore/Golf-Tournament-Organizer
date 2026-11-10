@@ -1,7 +1,7 @@
 "use server";
 import { byAddress } from "@/lib/domain/my-entry";
 import { getSession, type Session } from "@/lib/auth";
-import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
+import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -55,6 +55,17 @@ async function requireStaffSession(): Promise<Session> {
   }
   await assertEventWritable(session.eventId);
   return session;
+}
+
+/** The staff gate for a press that says its refusals: an archive's comes back as words, never thrown. */
+async function staffSessionOrRefusal(): Promise<Session | { refused: string }> {
+  try {
+    return await requireStaffSession();
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { refused };
+    throw e;
+  }
 }
 
 /**
@@ -229,7 +240,8 @@ export async function setOwnAttendance(stageId: string, status: string): Promise
  * restructuring.
  */
 export async function setStageOptDeadline(stageId: string, date: string): Promise<AttendanceResult> {
-  const session = await requireStaffSession();
+  const session = await staffSessionOrRefusal();
+  if ("refused" in session) return { ok: false, error: session.refused };
   const clean = date.trim();
   if (clean !== "" && !isIsoDate(clean)) {
     return { ok: false, error: "Pick a date, or clear it to leave the window open." };

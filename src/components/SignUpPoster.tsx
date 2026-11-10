@@ -44,7 +44,7 @@ export function SignUpPoster({ url, name, when, where }: { url: string; name: st
           <Icon name="qr-code" /> {open ? "Hide QR code" : "Show QR code"}
         </button>
         {open && drawn && (
-          <button type="button" className="btn btn-primary" onClick={() => window.print()}>
+          <button type="button" className="btn btn-primary" data-reads="" onClick={() => window.print()}>
             <Icon name="printer" /> Print poster
           </button>
         )}

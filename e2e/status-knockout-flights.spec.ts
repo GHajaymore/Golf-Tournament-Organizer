@@ -2,6 +2,8 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
+import { pressComplete } from "./end-early";
+import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
  * A KNOCKOUT IN FLIGHTS, WALKED THROUGH THE STATE MACHINE (J13; the flighted
@@ -75,7 +77,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     await expectTournamentSays(page, {
       chip: "Live",
       chipDetail: null,
-      nextAction: "Complete tournament",
+      nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
 
@@ -87,17 +89,17 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     await expectTournamentSays(page, {
       chip: "Live",
       chipDetail: null,
-      nextAction: "Complete tournament",
+      nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
 
     // Flight A decided: one Final of three. Live, and Complete is allowed.
     await decide(0);
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: "Complete tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // Flights A and B: the third Final is still to play. Still live.
     await decide(1);
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: "Complete tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // All three Finals: play over, said for every final.
     await decide(2);
@@ -109,7 +111,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     });
 
     await page.goto(`/dashboard?bust=${Date.now()}`);
-    await page.getByRole("button", { name: "Complete tournament" }).first().click();
+    await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });

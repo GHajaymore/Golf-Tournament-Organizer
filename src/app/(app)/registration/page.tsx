@@ -25,6 +25,7 @@ import { awaitingApproval } from "@/lib/registration";
 import { fieldFactsFor } from "@/lib/services/field-change";
 import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, flagsUnplaced, reserveOffered, unplacedWords } from "@/lib/domain/field-change";
 import { WithdrawnList } from "@/components/WithdrawnList";
+import { acrossRoundsRefusal } from "@/lib/services/round-change";
 
 export const metadata = screenMetadata("/registration");
 
@@ -139,6 +140,10 @@ export default async function RegistrationPage() {
       // to, so the column never shows an empty box meaning "the round’s".
       tees={eventTees.map((t) => ({ id: t.id, name: t.name }))}
       teePolicy={settingsOf(state.event).teePolicy}
+      // Whether one player's tees may change now, and if not why — the very call `setPlayerTee`
+      // refuses with (the rounds rule, `field-tees`), so the Tees column is drawn shut with the
+      // sentence rather than offered and then refused (the finding after round G594-1, 10 Nov).
+      teesDoor={await acrossRoundsRefusal(session.eventId, { kind: "field-tees" })}
       needsEmail={entryNeedsEmail(settingsOf(state.event))}
       defaultTeeName={
         eventTees.find((t) => t.id === roundTee)?.name

@@ -478,7 +478,23 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
   const buttonsBefore = (await page.locator("main button:visible").allInnerTexts().catch(() => [])).map((t) => t.trim());
   const by = () => (fired.length ? [...new Set(fired)].join(", ") : "");
   try {
+    // A dropdown that sends the person to another address (`RoundPicker`) is a view, and the
+    // screen it opens takes as long as the server takes. Round G577-3: on a busy runner the
+    // new address had not arrived 700ms later, the "no request, same address" branch below
+    // went looking for a Save, found the pot card's, pressed it, and the reload to the bare
+    // path then showed the default round. Wait for the address, not for a guess.
+    const goes = c.kind === "select" && (await page.locator("main select").nth(c.nth).getAttribute("data-view-picker").catch(() => null)) === "url";
     await choose(page, c, choice);
+    if (goes) {
+      const arrived = await page.waitForURL((u) => u.href !== startUrl, { timeout: 20_000 }).then(() => true, () => false);
+      if (!arrived) return { outcome: "stuck", note: "chose another round and the address never changed in 20s" };
+      await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
+      if (new URL(page.url()).searchParams.get("round") !== choice) {
+        return { outcome: "moved", note: `chose round ${choice} and the address is ${new URL(page.url()).search}` };
+      }
+      // Not returned as a view here: the checks below call it a view only when NO action fired,
+      // so a picker that also saved something still goes on to the reload check.
+    }
     // Some screens save a choice as it is made.
     await page.waitForTimeout(700);
     if (picker) return { outcome: "view", note: `chooses ${picker}` };

@@ -8,6 +8,20 @@ import { resolveRoundHandicap, roundParStrokesOf, type ResolvedRoundHandicap, ty
 export const FOUR_BALL_STROKE_PLAY = 85;
 
 /**
+ * Appendix C: four-ball MATCH play, 90% — and what a Best Ball side plays at in
+ * a match (2026-11-09).
+ *
+ * A pair counting its better ball IS a four-ball, and Appendix C's only figure
+ * for a better ball in a match is this one. Best Ball's own 85% is the
+ * four-ball STROKE-play figure, and it was offered in a match as well, so a
+ * pair in a Best Ball round robin or knockout played five points of its
+ * handicap short (a course handicap of 20: 17 where the Rules give 18). The
+ * stroke-play figure is unchanged, and a committee's own figure still wins
+ * (`effectiveAllowance`): this is the recommendation only.
+ */
+export const FOUR_BALL_MATCH_PLAY = 90;
+
+/**
  * THE ALLOWANCE A ROUND PLAYS AT, WHICH DEPENDS ON THE ROUND AND NOT ONLY ON
  * ITS FORMAT.
  *
@@ -42,8 +56,10 @@ export const FOUR_BALL_STROKE_PLAY = 85;
 export function recommendedAllowance(format: string, stageType: string | null | undefined): number {
   const f = findFormat(format);
   if (f.name === "Four-Ball" && !isHeadToHead(stageType ?? "")) return FOUR_BALL_STROKE_PLAY;
+  if (f.name === "Best Ball" && isHeadToHead(stageType ?? "")) return FOUR_BALL_MATCH_PLAY;
   return f.allowance;
 }
+
 
 /** The allowance actually in force for a round: the committee's, or the
  *  recommendation for that format in that kind of round when they have set none. */
@@ -277,10 +293,13 @@ export function teamAllowanceWords(s: { format: string; type: string; handicapAl
     const parts = sizes.map((n) => `${names[n] ?? n}: ${declared[n].join(" / ")}.`);
     return `Lowest handicap first. ${parts.join(" ")} The Rules' figure.`;
   }
-  // Best Ball plays 85% whatever the size of the side or the balls that count;
-  // Appendix C gives 85% only for a pair at stroke play (90% in a match, 75% for
-  // best 1 of 4, 100% for best 3 of 4 — J20, not done). Said truthfully.
-  if (f.name === "Best Ball") return `${recommended}% ${flatOf}. The app's default; the Rules' for a pair at stroke play.`;
+  // Best Ball plays 85% at stroke play whatever the size of the side or the balls
+  // that count, and 90% in a match (2026-11-09). Appendix C gives those figures
+  // to a PAIR only (75% for best 1 of 4, 100% for best 3 of 4 — J20, not done).
+  // Said truthfully, for the kind of round it is.
+  if (f.name === "Best Ball") {
+    return `${recommended}% ${flatOf}. The app's default; the Rules' for a pair ${isHeadToHead(s.type) ? "in a match" : "at stroke play"}.`;
+  }
   return f.allowanceIsConvention
     ? `${recommended}% ${flatOf}, club convention, not the Rules`
     : `${recommended}% ${flatOf}, the Rules' figure`;

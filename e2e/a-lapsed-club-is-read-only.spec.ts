@@ -3,6 +3,7 @@ import { test, expect } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
+import { completeControl } from "./end-early";
 
 /**
  * A LAPSED PAID CLUB'S TOURNAMENT IS A READ-ONLY ARCHIVE (2026-10-21,
@@ -14,8 +15,9 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
  *
  *   - every screen says it is read-only, with the two dates and how to carry on
  *     (the dashboard, and the board, which still shows the field);
- *   - Complete tournament, pressed and confirmed, is refused IN WORDS beside the
- *     button — and the tournament is still live in the database;
+ *   - ending the tournament is DISABLED under the banner's words (the console is
+ *     read-only in one place, `ArchiveReadOnly`, since 2026-11-09) — nothing opens,
+ *     and the tournament is still live in the database;
  *   - Make a committee correction is not offered.
  *
  * Marked zz-, one club per screen size, deleted afterwards. WHAT IT CANNOT SEE:
@@ -28,7 +30,7 @@ import { signedInNow } from "../scripts/session-cookie.mjs";
 const prisma = new PrismaClient();
 const sign = (v: string) => `${v}.${createHmac("sha256", process.env.AUTH_SECRET ?? "dev-secret").update(v).digest("base64url")}`;
 
-test("an organizer of a lapsed club sees the tournament read-only, and a press is refused in words", async ({ browser, baseURL }, testInfo) => {
+test("an organizer of a lapsed club sees the tournament read-only, said in words, and cannot end it", async ({ browser, baseURL }, testInfo) => {
   test.setTimeout(120_000);
   const size = testInfo.project.name.replace(/[^a-z]/gi, "").toLowerCase();
   const email = `zz-archive-${size}@example.invalid`;
@@ -69,6 +71,9 @@ test("an organizer of a lapsed club sees the tournament read-only, and a press i
     const wren = await prisma.player.create({ data: { eventId: event.id, name: "Wren Halloway", email: `zz-archive-wren-${size}@example.invalid`, seed: 1, status: "confirmed" } });
     // A card in, so Complete is offered at all (with nothing scored it is refused before the
     // archive is asked) and the refusal under test is the archive's.
+    // NOT yet approved, so golf remains and ending is "End this event early…" under the card's More
+    // (B03: the PM, 10 Nov). With every card in, the job would be closing the round instead, and
+    // nothing ends the event until it is closed — which an archive refuses before Complete is reached.
     await prisma.scorecard.create({ data: { eventId: event.id, stageId: round.id, playerId: wren.id, strokes: JSON.stringify(new Array(18).fill(4)) } });
     await prisma.account.create({ data: { eventId: event.id, email, name: "Zz Archive Owner", role: "admin" } });
     await ctx.addCookies([
@@ -87,20 +92,16 @@ test("an organizer of a lapsed club sees the tournament read-only, and a press i
     await expect(banner.getByRole("link", { name: "Go to Your plan" })).toHaveAttribute("href", "/organization#plan");
     await expect(page.getByRole("button", { name: /Make a committee correction/ }), "a committee correction is offered on an archive").toHaveCount(0);
 
-    // A press: Complete, confirmed — refused, in words, beside the button.
-    const complete = page.getByRole("button", { name: "Complete tournament" }).first();
+    // Ending it ("End this event early…" under More while golf remains) is READ-ONLY, not refused after
+    // a press: the console is read-only in one place (`ArchiveReadOnly`, 2026-11-09), so the control is
+    // disabled under the banner that says why. More itself only opens the menu, so it still opens.
+    await expect(banner).toContainText(/This club.s subscription ended on .+, so this tournament is paused where it stands\./);
+    const complete = await completeControl(page);
     await complete.scrollIntoViewIfNeeded();
-    await complete.click();
-    const dialog = page.getByRole("alertdialog");
-    await expect(dialog).toBeVisible({ timeout: 15_000 });
-    await dialog.getByRole("button", { name: "Complete tournament" }).click();
-    // The card the lifecycle bar draws under its button (the banner says the same words higher up).
-    const refused = page.locator(".card").filter({ hasText: /^\s*Not yet/ }).filter({
-      hasText: /This club.s subscription ended on .+, so this tournament is paused where it stands\./,
-    });
-    await expect(refused, "the refusal was not said").toBeVisible({ timeout: 20_000 });
-    await expect(refused, "the refusal is not where the press was").toBeInViewport();
-    expect((await prisma.event.findUnique({ where: { id: event.id } }))?.status, "a refused Complete changed the tournament").toBe("live");
+    await expect(complete, "ending the tournament is pressable in an archive").toBeDisabled({ timeout: 15_000 });
+    await expect(page.getByRole("alertdialog"), "a disabled control opened its confirmation").toHaveCount(0);
+    await expect(page.getByText("This screen didn't load"), "the error screen came up").toHaveCount(0);
+    expect((await prisma.event.findUnique({ where: { id: event.id } }))?.status, "the archived tournament changed").toBe("live");
 
     // Still viewable: the board opens, shows the field, and says the same.
     await page.goto(`/leaderboard?bust=${Date.now()}`);

@@ -55,6 +55,11 @@ export function RoundPicker({
       className={className}
       style={style}
       aria-label={label}
+      // Changes which round is SHOWN, never a record: live in an archived tournament (`archive-read-only.ts`).
+      data-reads=""
+      /* Says "choosing here navigates": the console crawl waits for the new address before it
+         judges the choice, instead of guessing how long the screen takes to load (G577-3). */
+      data-view-picker="url"
       value={activeStageId}
       onChange={(e) => router.push(`${pathname}?round=${e.target.value}`)}
     >

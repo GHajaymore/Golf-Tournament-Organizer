@@ -57,7 +57,8 @@ export function LeaderboardBoard({
        * shape check would have left both exactly as they were.
        */}
       {flights.length > 1 && (
-        <div className="seg" style={{ width: "fit-content", marginBottom: 12 }}>
+        // Overall or by flight: the view only, so live in an archived tournament (`archive-read-only.ts`).
+        <div className="seg" data-reads="" style={{ width: "fit-content", marginBottom: 12 }}>
           <label className="seg-opt">
             <input type="radio" name="lbview" checked={view === "overall"} onChange={() => setView("overall")} />
             Overall

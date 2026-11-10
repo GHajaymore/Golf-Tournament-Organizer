@@ -147,6 +147,10 @@ export const AREAS = {
       "e2e/round-allowance.spec.ts",
       "e2e/team-allowance.spec.ts",
       "e2e/round-handicap.spec.ts",
+      // State machine PR 7b (J12): a round's format, allowance and delete judged by what they would invalidate.
+      "e2e/round-changes-after-scores.spec.ts",
+      // …and a scored round's tees drawn shut with the reason on Score entry and Tournament details (round G594-1).
+      "e2e/tees-shut-once-frozen.spec.ts",
     ],
     // Every scenario builds its rounds through this screen.
     scenarios: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"],
@@ -272,6 +276,7 @@ export const AREAS = {
  * where a change is never targeted anyway — or a check of the test harness itself.
  */
 export const FULL_ONLY = [
+  "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
   "e2e/a-lapsed-club-is-read-only.spec.ts",
   "e2e/a-new-device-is-confirmed.spec.ts",
   "e2e/a-refusal-stays-put.spec.ts",
@@ -279,6 +284,8 @@ export const FULL_ONLY = [
   "e2e/access.spec.ts",
   "e2e/account.spec.ts",
   "e2e/an-address-is-proved.spec.ts",
+  // An archived tournament's console, read-only in one place: the layout's wrapper, on every screen.
+  "e2e/an-archived-tournament-is-read-only-in-one-place.spec.ts",
   // J26: an away week's halved match on the away card — leaderboard, week sheet, match record. Leagues: shared ground.
   "e2e/an-away-halve-on-the-away-card.spec.ts",
   "e2e/boards-by-the-rules.spec.ts",
@@ -324,6 +331,8 @@ export const FULL_ONLY = [
   "e2e/landing-screens.spec.ts",
   "e2e/launch-reads-setup.spec.ts",
   "e2e/league.spec.ts",
+  // B03: the lifecycle stepper (behind ?stepper=1), the dashboard's button and the folded line agree at every step of a two-day medal.
+  "e2e/lifecycle-stepper.spec.ts",
   // State machine PR 5a: each Teams & pairs control and each team round's pricing Save, pressed once on a stale screen after setup locked — refused in words, never thrown.
   "e2e/locked-sides-refuse-in-words.spec.ts",
   // State machine PR 5b: the rest of the app's locked controls (details, entry terms, flights, rounds, clear scores), pressed once each on a
@@ -385,6 +394,8 @@ export const FULL_ONLY = [
   "e2e/sides-and-splits.spec.ts",
   "e2e/skins-pot.spec.ts",
   "e2e/slow-signal-scoring.spec.ts",
+  // G571-4: a hole save replayed after the committee's sign-off is refused; a save lost to no signal does not strand the next tap.
+  "e2e/stale-match-save.spec.ts",
   "e2e/staff-kept-cards.spec.ts",
   // The state machine's family walks (PR 3): the core lifecycle every tournament goes through.
   // PR 4: each action that now asks the machine, pressed once in the state it refuses (launch, complete, close a round, every door into scoring).

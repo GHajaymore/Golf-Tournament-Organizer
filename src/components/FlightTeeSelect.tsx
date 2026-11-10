@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setFlightTee } from "@/app/actions/courses";
+import { Icon } from "./Icon";
 
 /**
  * THE TEES A FLIGHT PLAYS, ON FLIGHTS THE APP DREW (2026-10-10).
@@ -23,8 +24,18 @@ export function FlightTeeSelect({
   tees,
   defaultTeeName,
   disabled = false,
+  teesDoor,
 }: {
   groupId: string;
+  /**
+   * WHY A FLIGHT'S TEES CANNOT CHANGE NOW, or null — the rounds rule's
+   * sentence (`acrossRoundsRefusal(…, "field-tees")`, the very call
+   * `setFlightTee` refuses with): a scored round of cards would be reached, its
+   * handicaps frozen off its tees at its first card, or the tournament is
+   * completed. REQUIRED, so the box is drawn shut with it rather than offered
+   * and then refused.
+   */
+  teesDoor: string | null;
   /** The flight's name, for the control's own label. */
   label: string;
   teeId: string | null;
@@ -36,6 +47,9 @@ export function FlightTeeSelect({
   const [value, setValue] = useState(teeId ?? "");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  /** The rounds rule's refusal, or null: an empty sentence is never a reason to shut anything. */
+  const shutBy = teesDoor || null;
+  const doorId = `flight-tees-door-${groupId}`;
   return (
     <>
       <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }}>
@@ -45,7 +59,8 @@ export function FlightTeeSelect({
           aria-label={`Tees for ${label}`}
           style={{ width: "auto", fontSize: 13, padding: "2px 6px" }}
           value={value}
-          disabled={disabled || pending}
+          disabled={disabled || pending || shutBy !== null}
+          aria-describedby={shutBy !== null ? doorId : undefined}
           onChange={(e) => {
             const next = e.target.value;
             setError("");
@@ -62,6 +77,13 @@ export function FlightTeeSelect({
           ))}
         </select>
       </label>
+      {/* Why it is shut, under it, before anybody presses (J12, PR 7b). Not where it is shut by a
+          lock or a role: the screen's banner says the lock, and a reader with no press needs no reason. */}
+      {shutBy !== null && !disabled && (
+        <span id={doorId} data-testid="flight-tees-door" className="text-muted" style={{ fontSize: 13, lineHeight: 1.45 }}>
+          <Icon name="lock-simple" /> {shutBy}
+        </span>
+      )}
       {error && <span className="form-error">{error}</span>}
     </>
   );

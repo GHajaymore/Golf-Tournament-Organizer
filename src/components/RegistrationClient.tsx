@@ -129,6 +129,9 @@ interface EventInfo {
   today: string;
 }
 
+/** The id of a table's "why the Tees are shut" line, so each Tees box can point at the one above it. */
+const teesDoorId = (title: string) => `player-tees-door-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
 export function RegistrationClient({
   event,
   confirmed,
@@ -148,6 +151,7 @@ export function RegistrationClient({
   tees = [],
   teePolicy = "own",
   defaultTeeName = "",
+  teesDoor,
   needsEmail = true,
   noFormatYet = false,
   handicapBody = { id: "ghin", label: "GHIN", prose: "GHIN", number: "GHIN number" },
@@ -183,6 +187,15 @@ export function RegistrationClient({
   tees?: Array<{ id: string; name: string }>;
   teePolicy?: string;
   defaultTeeName?: string;
+  /**
+   * WHY ONE PLAYER'S TEES CANNOT CHANGE NOW, or null — the rounds rule's
+   * sentence (`acrossRoundsRefusal(…, "field-tees")`, the very call
+   * `setPlayerTee` refuses with): a scored round of cards would be reached, its
+   * handicaps frozen off its tees at its first card, or the tournament is
+   * completed. REQUIRED, so the Tees column is drawn shut with it rather than
+   * offered and then refused.
+   */
+  teesDoor: string | null;
   waitlist: Signup[];
   /** Self-service entries awaiting the organizer's approval (approve mode). */
   pendingEntries: Signup[];
@@ -358,6 +371,8 @@ export function RegistrationClient({
    * own answer.
    */
   const showTees = tees.length > 0 && playerTeeCounts(teePolicy);
+  /** The rounds rule's refusal of a player's tees, or null: an empty sentence is never a reason to shut anything. */
+  const teesShutBy = teesDoor || null;
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -716,6 +731,14 @@ export function RegistrationClient({
           {anySelected && doors.bulk && (
             <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%" }}>{doors.bulk}</span>
           )}
+          {/* Why the Tees column is shut, above it, before anybody presses (J12, PR 7b): the rounds
+              rule's sentence, the one `setPlayerTee` would refuse with. Not under the field's lock,
+              which its banner already says. */}
+          {showTees && teesShutBy !== null && !locked && rows.length > 0 && (
+            <span id={teesDoorId(title)} data-testid="player-tees-door" className="text-muted" style={{ fontSize: 13, flexBasis: "100%" }}>
+              <Icon name="lock-simple" /> {teesShutBy}
+            </span>
+          )}
         </div>
         <div className="table-scroll">
           <table className="table" style={{ fontSize: 13 }}>
@@ -782,7 +805,8 @@ export function RegistrationClient({
                         className="input"
                         aria-label={`Tees for ${p.name}`}
                         value={p.teeId ?? ""}
-                        disabled={pending || locked}
+                        disabled={pending || locked || teesShutBy !== null}
+                        aria-describedby={teesShutBy !== null && !locked ? teesDoorId(title) : undefined}
                         // A FIXED width, not 100%. This table scrolls
                         // sideways, and a percentage let the column collapse
                         // to about thirty pixels: the control rendered as
@@ -1532,6 +1556,8 @@ export function RegistrationClient({
             </p>
             <button
               type="button"
+              // A download writes nothing: live in an archived tournament (`archive-read-only.ts`).
+              data-reads=""
               onClick={downloadTemplate}
               style={{ background: "none", border: "none", padding: 0, minHeight: "var(--tap-min, 32px)", cursor: "pointer", fontSize: 13, color: "var(--color-accent-200)" }}
             >

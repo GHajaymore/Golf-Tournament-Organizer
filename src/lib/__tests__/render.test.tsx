@@ -2470,7 +2470,7 @@ describe("flight board", () => {
   ];
 
   it("renders players and offers both ways to move them", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed={false} />);
     expect(html).toContain("Ann Doyle");
     expect(html).toContain("Drag a player onto another flight");
     // The keyboard/touch route: a select per row listing every flight.
@@ -2478,7 +2478,7 @@ describe("flight board", () => {
   });
 
   it("offers no way to move anything once setup is locked", () => {
-    const html = render(<FlightBoard cards={two} locked canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked canEdit confirmed={false} />);
     expect(html).toContain("Ann Doyle");
     expect(html).not.toContain("Drag a player");
     expect(html).not.toContain("Move Ann Doyle to another flight");
@@ -2486,14 +2486,14 @@ describe("flight board", () => {
   });
 
   it("offers no way to move anything to someone who can't edit", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit={false} confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit={false} confirmed={false} />);
     expect(html).not.toContain('draggable="true"');
     expect(html).not.toContain("Move Ann Doyle to another flight");
   });
 
   it("invites a drop on an empty flight rather than looking broken", () => {
     const html = render(
-      <FlightBoard cards={[two[0], card("g2", "Flight 2", [])]} locked={false} canEdit confirmed={false} />,
+      <FlightBoard teesDoor={null} cards={[two[0], card("g2", "Flight 2", [])]} locked={false} canEdit confirmed={false} />,
     );
     expect(html).toContain("Empty — drop a player here");
   });
@@ -2501,13 +2501,13 @@ describe("flight board", () => {
   it("hides the move menu when there is nowhere else to go", () => {
     // One flight means every option is the flight they are already in, so
     // neither the menu nor the drag invitation has anywhere to point.
-    const html = render(<FlightBoard cards={[two[0]]} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={[two[0]]} locked={false} canEdit confirmed={false} />);
     expect(html).not.toContain("Move Ann Doyle to another flight");
     expect(html).not.toContain("Drag a player");
   });
 
   it("renders with no flights at all", () => {
-    expect(() => render(<FlightBoard cards={[]} locked={false} canEdit confirmed={false} />)).not.toThrow();
+    expect(() => render(<FlightBoard teesDoor={null} cards={[]} locked={false} canEdit confirmed={false} />)).not.toThrow();
   });
 });
 
@@ -2591,14 +2591,14 @@ describe("confirming a manual draw", () => {
   ];
 
   it("offers Confirm while the draw is open", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed={false} />);
     expect(html).toContain("Confirm flights");
     expect(html).not.toContain("Edit flights");
     expect(html).toContain('draggable="true"');
   });
 
   it("locks dragging once confirmed, and offers Edit to reopen", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed />);
     expect(html).toContain("Draw confirmed");
     expect(html).toContain("Edit flights");
     expect(html).not.toContain("Confirm flights");
@@ -2610,32 +2610,32 @@ describe("confirming a manual draw", () => {
 
   it("still shows the players when confirmed", () => {
     // Confirmed is read-only, not hidden.
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed />);
     expect(html).toContain("Ann Doyle");
     expect(html).toContain("A Flight");
   });
 
   it("offers neither button to someone who can't edit", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit={false} confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit={false} confirmed={false} />);
     expect(html).not.toContain("Confirm flights");
     expect(html).not.toContain("Edit flights");
   });
 
   it("offers neither once setup is locked", () => {
-    const html = render(<FlightBoard cards={two} locked canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked canEdit confirmed={false} />);
     expect(html).not.toContain("Confirm flights");
     expect(html).not.toContain("Edit flights");
   });
 
   it("uses the club's own flight names", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed={false} />);
     expect(html).toContain("A Flight");
     expect(html).toContain("B Flight");
     expect(html).not.toContain("Flight 1");
   });
 
   it("offers a rename control per flight", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed={false} />);
     expect(html).toContain("Rename A Flight");
     expect(html).toContain("Rename B Flight");
   });
@@ -2643,13 +2643,33 @@ describe("confirming a manual draw", () => {
   it("offers rename even on a confirmed draw", () => {
     // Naming is labelling, not membership — correcting a typo shouldn't mean
     // reopening a signed-off draw.
-    const html = render(<FlightBoard cards={two} locked={false} canEdit confirmed />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit confirmed />);
     expect(html).toContain("Rename A Flight");
   });
 
   it("offers no rename to someone who can't edit", () => {
-    const html = render(<FlightBoard cards={two} locked={false} canEdit={false} confirmed={false} />);
+    const html = render(<FlightBoard teesDoor={null} cards={two} locked={false} canEdit={false} confirmed={false} />);
     expect(html).not.toContain("Rename A Flight");
+  });
+
+  it("draws each flight's Tees SHUT, with the rounds rule's sentence, while a scored round would be reached", () => {
+    // The finding after round G594-1: `setFlightTee` refuses a flight's tees once a scored round
+    // of cards would be reached; the board offered them. The door is the rule's own sentence
+    // (`acrossRoundsRefusal`), handed in; the board only draws it.
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const tees = [{ id: "t-white", name: "White" }, { id: "t-blue", name: "Blue" }];
+    const board = (teesDoor: string | null) =>
+      render(<FlightBoard teesDoor={teesDoor} cards={two} locked={false} canEdit canSetTees confirmed={false} byFlightTees tees={tees} defaultTeeName="White (round’s)" />);
+    const boxes = (html: string) => [...html.matchAll(/<select[^>]*aria-label="Tees for [^"]*"[^>]*>/g)].map((m) => m[0]);
+    const shut = board(FROZEN);
+    expect(boxes(shut), "a Tees box per flight").toHaveLength(2);
+    for (const b of boxes(shut)) expect(b, "a flight's Tees is offered while a scored round would be reached").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    expect(shut).toContain('aria-describedby="flight-tees-door-g1"');
+    // CONTROL: nothing refusing it — pressable, and nothing said.
+    const open = board(null);
+    for (const b of boxes(open)) expect(b, "a flight's Tees is shut with nothing refusing it").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
   });
 });
 
@@ -3385,6 +3405,31 @@ describe("where this round was played", () => {
       ],
     });
     expect(oneSet).not.toContain("Solo");
+  });
+
+  it("draws the course and tees SHUT, with the rounds rule's sentence, once the round's handicaps are frozen (round G594-1)", async () => {
+    // Offered and then refused on every pick, on a scored medal — the crawl's finding. The
+    // door is the rule's own sentence (`roundRefusals`), handed in; the panel only draws it.
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const library = [
+      {
+        id: "c1",
+        name: "Bushwood",
+        tees: [
+          { id: "t1", courseId: "c1", name: "Blue", courseRating: 71.2, slopeRating: 128, par: 72, rated: true },
+          { id: "t2", courseId: "c1", name: "White", courseRating: 69.4, slopeRating: 117, par: 72, rated: true },
+        ],
+      },
+    ];
+    const selectOf = (html: string) => html.slice(html.indexOf("<select"), html.indexOf(">", html.indexOf("<select")) + 1);
+    const shut = await venue({ venues: [{ id: "c1", name: "Bushwood" }], library, teesDoor: FROZEN });
+    expect(selectOf(shut), "the Tees box is offered on a frozen round").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    expect(selectOf(shut)).toContain('aria-describedby="tees-door-s1"');
+    // CONTROL: the same panel with the round open — pressable, and nothing said.
+    const open = await venue({ venues: [{ id: "c1", name: "Bushwood" }], library, teesDoor: null });
+    expect(selectOf(open), "the Tees box is shut on an open round").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
   });
 
   it("shows none of it to someone who cannot edit the tournament", async () => {
@@ -4519,7 +4564,7 @@ describe("the organizer's Voice entry setting reaches the player's card", () => 
     const { PlayerCard } = await import("@/components/PlayerCard");
     return render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(null)}
@@ -4555,7 +4600,7 @@ describe("a Stableford card lets a player pick up (Rule 21.1b, 2026-10-08)", () 
     const { PlayerCard } = await import("@/components/PlayerCard");
     return render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(null)}
@@ -4565,7 +4610,7 @@ describe("a Stableford card lets a player pick up (Rule 21.1b, 2026-10-08)", () 
   };
 
   it("offers Picked up on a standard Stableford card", async () => {
-    expect(await card("standard")).toContain("A. Moore picked up on hole 1");
+    expect(await card("standard")).toContain("N. Calloway picked up on hole 1");
   });
 
   it("offers it on no medal card, and no modified Stableford card (controls)", async () => {
@@ -4596,7 +4641,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={nine()}
@@ -4617,7 +4662,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={nine()}
@@ -4638,7 +4683,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(4)}
@@ -4659,7 +4704,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(4)} signs={false}
@@ -4677,7 +4722,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Front nine"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Front nine"
         holes={9} pars={new Array(9).fill(4)} yards={new Array(9).fill(400)}
         strokeIndex={Array.from({ length: 9 }, (_, i) => i + 1)}
         status="entered" initialStrokes={new Array(18).fill(5)}
@@ -4695,7 +4740,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         status="approved" initialStrokes={new Array(18).fill(4)}
@@ -4741,7 +4786,7 @@ describe("the player's own card opens on what is already there", () => {
       const { PlayerCard } = await import("@/components/PlayerCard");
       const html = render(
         <PlayerCard
-          stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+          stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
           holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
           strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
           status="entered" initialStrokes={new Array(18).fill(4)}
@@ -4759,7 +4804,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         shotsPerHole={new Array(18).fill(0)}
@@ -4780,7 +4825,7 @@ describe("the player's own card opens on what is already there", () => {
     const six: (number | null)[] = Array.from({ length: 18 }, (_, i) => (i < 6 ? 5 : null));
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         // A stroke on each of the six holes played, and on nothing else.
@@ -4801,7 +4846,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         // Complete, so Certify is on screen: it appears with the last hole.
@@ -4824,7 +4869,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 2"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 2"
         courseName="Machrihanish"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
@@ -4840,7 +4885,7 @@ describe("the player's own card opens on what is already there", () => {
     const { PlayerCard } = await import("@/components/PlayerCard");
     const html = render(
       <PlayerCard
-        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        stageId="s1" playerId="p1" playerName="N. Calloway" roundLabel="Round 1"
         holes={18} pars={[]} yards={[]} strokeIndex={[]}
         status="entered" initialStrokes={nine()}
       />,
@@ -4865,7 +4910,7 @@ describe("the board answers 'where am I' first", () => {
     ranked: true,
     started: true,
     holesOwed: 18,
-    name: "A. Moore",
+    name: "N. Calloway",
     flight: "—",
     advancing: false,
     record: "2-0-0",
@@ -4884,7 +4929,7 @@ describe("the board answers 'where am I' first", () => {
   });
 
   const field = [
-    row({ id: "p1", rank: 1, name: "A. Moore", toPar: -4 }),
+    row({ id: "p1", rank: 1, name: "N. Calloway", toPar: -4 }),
     row({ id: "p2", rank: 2, name: "B. Ellis", toPar: -1 }),
     row({ id: "p3", rank: 3, name: "C. Reid", toPar: 3, thru: 14 }),
   ];
@@ -4902,7 +4947,7 @@ describe("the board answers 'where am I' first", () => {
     );
     const you = html.indexOf("You");
     expect(you, "your line renders").toBeGreaterThan(-1);
-    expect(you, "and it comes before the field").toBeLessThan(html.indexOf("A. Moore"));
+    expect(you, "and it comes before the field").toBeLessThan(html.indexOf("N. Calloway"));
     expect(html).toContain("thru 11");
   });
 
@@ -4940,7 +4985,7 @@ describe("the board answers 'where am I' first", () => {
    * component name and not checking which.)
    */
   const cutField = [
-    row({ id: "p1", rank: 1, name: "A. Moore", advancing: true }),
+    row({ id: "p1", rank: 1, name: "N. Calloway", advancing: true }),
     row({ id: "p2", rank: 2, name: "B. Ellis", advancing: true }),
     row({ id: "p3", rank: 3, name: "C. Reid", advancing: false }),
   ];
@@ -4993,7 +5038,7 @@ describe("the board answers 'where am I' first", () => {
     const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
     const html = render(<PlayerLeaderboard isStroke rows={field} holes={18} />);
     expect(html).not.toContain(">You<");
-    expect(html).toContain("A. Moore");
+    expect(html).toContain("N. Calloway");
     expect(html).toContain("C. Reid");
   });
 
@@ -5082,7 +5127,7 @@ describe("the board answers 'where am I' first", () => {
       <PlayerLeaderboard
         isStroke
         rows={[
-          row({ id: "p1", name: "A. Moore", toPar: -4 }),
+          row({ id: "p1", name: "N. Calloway", toPar: -4 }),
           row({ id: "p9", name: "D. Shaw", thru: 14, rank: 0, ranked: false, toPar: 2 }),
         ]}
         holes={18}
@@ -5142,8 +5187,8 @@ describe("the board answers 'where am I' first", () => {
     expect(empty, "no table over nothing").not.toContain("<th");
 
     // And a board WITH rows is untouched, or this is just "never render".
-    const full = render(<LeaderboardTable isStroke={false} rows={[row({ name: "A. Moore" })]} compact />);
-    expect(full).toContain("A. Moore");
+    const full = render(<LeaderboardTable isStroke={false} rows={[row({ name: "N. Calloway" })]} compact />);
+    expect(full).toContain("N. Calloway");
     expect(full).toContain("<th");
   });
 
@@ -5162,7 +5207,7 @@ describe("the board answers 'where am I' first", () => {
      */
     const { LeaderboardTable } = await import("@/components/LeaderboardTable");
     const noCard = render(
-      <LeaderboardTable isStroke rows={[row({ name: "A. Moore", gross: 71, toPar: 71, parKnown: false })]} />,
+      <LeaderboardTable isStroke rows={[row({ name: "N. Calloway", gross: 71, toPar: 71, parKnown: false })]} />,
     );
     expect(noCard).toContain("71");
     expect(noCard, "the gross wearing a plus sign").not.toContain("+71");
@@ -5175,7 +5220,7 @@ describe("the board answers 'where am I' first", () => {
      * looks most like nothing is the one somebody shot exactly to par.
      */
     const level = render(
-      <LeaderboardTable isStroke rows={[row({ name: "A. Moore", gross: 72, toPar: 0, parKnown: true })]} />,
+      <LeaderboardTable isStroke rows={[row({ name: "N. Calloway", gross: 72, toPar: 0, parKnown: true })]} />,
     );
     expect(level, "level par is a score, not a blank").toContain("E");
   });
@@ -5200,7 +5245,7 @@ describe("the board answers 'where am I' first", () => {
    * `me/card/page.tsx` passes `pars={known ? ... : []}` on purpose.
    */
   describe("a to-par is only printed where there is a par to be under", () => {
-    const noPar = row({ name: "A. Moore", gross: 71, net: 71, toPar: 71, parKnown: false });
+    const noPar = row({ name: "N. Calloway", gross: 71, net: 71, toPar: 71, parKnown: false });
 
     it("the player's own board says nothing rather than the gross", async () => {
       const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
@@ -5249,7 +5294,7 @@ describe("the board answers 'where am I' first", () => {
       // TWO, because one player takes the `solo` branch — a different pad with
       // no running total on it at all, so a single-player fixture would assert
       // the absence of a line that was never going to be there.
-      const players = [{ id: "p1", name: "A. Moore" }, { id: "p2", name: "B. Ellis" }];
+      const players = [{ id: "p1", name: "N. Calloway" }, { id: "p2", name: "B. Ellis" }];
       const cards = {
         p1: [5, 5, 5, 5, ...new Array(14).fill(null)] as (number | null)[],
         p2: new Array(18).fill(null) as (number | null)[],
@@ -5284,7 +5329,7 @@ describe("the board answers 'where am I' first", () => {
    *     2  Diego Alvarez        66        (gross 69)
    *     3  Sang-woo Kim         65        (gross 70)
    *     4  Elena Petrova        64        (gross 70)
-   *     5  AJ                   68        (gross 70)
+   *     5  Ned                 68        (gross 70)
    *
    * Nothing false — just a leaderboard whose only score column does not
    * descend, because the order is gross and the column is net. The other half
@@ -5294,12 +5339,12 @@ describe("the board answers 'where am I' first", () => {
   describe("the compact board shows the number the round is decided on", () => {
     /**
      * NO NUMBER APPEARS IN BOTH SETS. The first draft gave Ellis a net of 66
-     * and Moore a gross of 66, so "the column is not showing gross" could not
+     * and Calloway a gross of 66, so "the column is not showing gross" could not
      * be asserted without tripping over a legitimate net — a fixture that
      * cannot tell the two answers apart, which is the whole thing being tested.
      */
     const pair = [
-      row({ id: "p1", rank: 1, name: "A. Moore", gross: 66, net: 55, toPar: -6 }),
+      row({ id: "p1", rank: 1, name: "N. Calloway", gross: 66, net: 55, toPar: -6 }),
       row({ id: "p2", rank: 2, name: "B. Ellis", gross: 69, net: 58, toPar: -3 }),
     ];
     const scores = (html: string) =>
@@ -5371,7 +5416,7 @@ describe("the board answers 'where am I' first", () => {
       <LeaderboardTable
         isStroke
         rows={[
-          row({ id: "p1", name: "A. Moore", toPar: -4 }),
+          row({ id: "p1", name: "N. Calloway", toPar: -4 }),
           row({
             id: "p9",
             name: "D. Shaw",
@@ -6801,7 +6846,7 @@ describe("registration and field", () => {
   const reg = async (over: Record<string, unknown> = {}) => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     return render(
-      <RegistrationClient doors={OPEN_DOORS}
+      <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
           name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
@@ -6812,6 +6857,39 @@ describe("registration and field", () => {
         }} />,
     );
   };
+
+  it("draws one player's Tees SHUT, with the rounds rule's sentence, while a scored round would be reached", async () => {
+    // The finding after round G594-1: `setPlayerTee` refuses a player's tees once a scored round of
+    // cards would be reached; Entries offered them. The door is the rule's own sentence, handed in.
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const one = { id: "p1", name: "zz-Ann Doyle", handicap: 10, handicapType: "18", handicapSource: "manual", seed: 1, email: "p1@example.invalid", phone: "", teeId: null, inheritedTee: "White (tournament’s)" };
+    const draw = (teesDoor: string | null) =>
+      render(
+        <RegistrationClient teesDoor={teesDoor} doors={OPEN_DOORS}
+          confirmed={[one as never]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
+          tees={[{ id: "t-white", name: "White" }, { id: "t-blue", name: "Blue" }]} teePolicy="own"
+          event={{
+            name: "zz-Club Championship", capacity: 32, status: "live", regDeadline: "", regOpens: "", today: "2026-06-01",
+            registrationOverride: null, inviteMessage: "", organizationName: "zz-Club",
+            dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+            requirePhone: false, registrationToken: "",
+          }} />,
+      );
+    const box = (html: string) => html.match(/<select[^>]*aria-label="Tees for zz-Ann Doyle"[^>]*>/)?.[0] ?? "";
+    const shut = draw(FROZEN);
+    expect(box(shut), "Entries draws no Tees box for the player").not.toBe("");
+    expect(box(shut), "a player's Tees is offered while a scored round would be reached").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    // The box points at the sentence, and the sentence is there under that id.
+    const said = box(shut).match(/aria-describedby="(player-tees-door-[^"]+)"/)?.[1];
+    expect(said, "the Tees box does not point at its reason").toBeTruthy();
+    expect(shut).toMatch(new RegExp(`id="${said}"[^>]*>[\\s\\S]*?frozen off its tees`));
+    // CONTROL: nothing refusing it — pressable, and nothing said.
+    const open = draw(null);
+    expect(box(open), "a player's Tees is shut with nothing refusing it").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
+  });
 
   it("keeps every control on the registration screen", async () => {
     const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
@@ -6864,7 +6942,7 @@ describe("registration and field", () => {
   it("tells staff who are not admins why the entry terms are read-only, instead of letting the server refuse", async () => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
     const html = render(
-      <RegistrationClient doors={OPEN_DOORS}
+      <RegistrationClient teesDoor={null} doors={OPEN_DOORS}
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin={false} roster={[]}
         event={{
           name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
@@ -7607,6 +7685,26 @@ describe("play settings name one thing per heading", () => {
     expect(html).toContain("<optgroup");
     expect(html).toContain('label="Bushwood"');
     expect(html).toContain('label="Ridgeline"');
+  });
+
+  it("draws Played from SHUT, with the rounds rule's sentence, while a scored round would be reached (round G594-1)", async () => {
+    const { PlaySettings } = await import("@/components/PlaySettings");
+    const FROZEN = "Round 1’s handicaps were frozen off its tees at its first card. Clear Round 1’s scores on Score entry first.";
+    const tees = [tee("t1", "Blue", "Bushwood"), tee("t2", "White", "Bushwood")];
+    const draw = (teesDoor: string | null) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render(<PlaySettings mode="tournament" settings={settings as any} canEdit tees={tees as any} teesDoor={teesDoor} />);
+    const box = (html: string) => {
+      const at = html.indexOf('id="default-tee"');
+      return html.slice(html.lastIndexOf("<select", at), html.indexOf(">", at) + 1);
+    };
+    const shut = draw(FROZEN);
+    expect(box(shut), "Played from is offered while a scored round would be reached").toMatch(/\sdisabled=""/);
+    expect(shut).toContain(FROZEN);
+    // CONTROL: no refusal — pressable, and nothing said.
+    const open = draw(null);
+    expect(box(open), "Played from is shut with nothing refusing it").not.toMatch(/\sdisabled=""/);
+    expect(open).not.toContain("frozen off its tees");
   });
 
   it("does not group a single-venue tournament", async () => {
