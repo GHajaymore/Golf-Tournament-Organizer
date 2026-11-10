@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import net from "node:net";
-import { forward, waitForUpstream } from "../../../scripts/ci/forward-postgres.mjs";
+import { forward, resolveOnce, waitForUpstream } from "../../../scripts/ci/forward-postgres.mjs";
 import { partsFor } from "../../../scripts/qa/layers.mjs";
 import { listeningInodes } from "../../../scripts/qa/free-port.mjs";
 
@@ -42,6 +42,66 @@ describe("forward-postgres: localhost reaches the service", () => {
       fwd.close();
       upstream.close();
     }
+  });
+
+  /**
+   * THE NAME IS RESOLVED ONCE (2026-11-09): every connection used to ask Docker's DNS for the
+   * service's address again, and a lookup slow under Prisma's connection burst is a connection
+   * slow to open. The forwarder is handed the address; a lookup that fails leaves the name, and
+   * an address that refuses falls back to the name — in every case the bytes still get through.
+   */
+  it("resolves the service's name once and hands connections the address", async () => {
+    const asked: string[] = [];
+    const address = await resolveOnce("postgres", async (name) => {
+      asked.push(name);
+      return { address: "127.0.0.1", family: 4 };
+    });
+    expect(address).toBe("127.0.0.1");
+    expect(asked).toEqual(["postgres"]);
+    const upstream = await listen((s) => s.on("data", (d) => s.write(`echo:${d}`)));
+    const fwd = await forward({ listenPort: 0, host: "postgres", port: portOf(upstream), address });
+    try {
+      // Three connections, and the lookup is still the one made at start: `postgres` is no host
+      // this machine knows, so had any connection gone by name it would have failed.
+      for (const word of ["one", "two", "three"]) expect(await exchange(portOf(fwd), word)).toBe(`echo:${word}`);
+      expect(asked).toEqual(["postgres"]);
+    } finally {
+      fwd.close();
+      upstream.close();
+    }
+  });
+
+  it("an address is its own answer, and a failed lookup falls back to the name and says so", async () => {
+    let lookups = 0;
+    expect(await resolveOnce("127.0.0.1", async () => ((lookups += 1), { address: "10.0.0.9", family: 4 }))).toBe("127.0.0.1");
+    expect(lookups).toBe(0);
+    const said: string[] = [];
+    const error = console.error;
+    console.error = (line: string) => said.push(line);
+    try {
+      expect(await resolveOnce("zz-no-such-service", async () => Promise.reject(new Error("EAI_AGAIN")))).toBe("zz-no-such-service");
+    } finally {
+      console.error = error;
+    }
+    expect(said).toEqual([expect.stringContaining("could not resolve zz-no-such-service (EAI_AGAIN); connecting by name")]);
+  });
+
+  it("an address that refuses falls back to the name for that connection", async () => {
+    const upstream = await listen((s) => s.on("data", (d) => s.write(`echo:${d}`)));
+    const port = portOf(upstream);
+    // 127.0.0.2 is loopback too, but nothing listens there on this port: refused at once.
+    const fwd = await forward({ listenPort: 0, host: "127.0.0.1", port, address: "127.0.0.2" });
+    const said: string[] = [];
+    const error = console.error;
+    console.error = (line: string) => said.push(line);
+    try {
+      expect(await exchange(portOf(fwd), "still")).toBe("echo:still");
+    } finally {
+      console.error = error;
+      fwd.close();
+      upstream.close();
+    }
+    expect(said).toEqual([expect.stringContaining(`127.0.0.2:${port} ECONNREFUSED; connecting by name 127.0.0.1`)]);
   });
 
   it("waits for an upstream and gives up with the address in the message", async () => {
