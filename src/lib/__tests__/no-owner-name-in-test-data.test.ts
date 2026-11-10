@@ -22,6 +22,8 @@ const FIRST = ["A", "j"].join("");
 const BANNED: { what: string; re: RegExp }[] = [
   { what: "the owner's full name", re: new RegExp(`\\b${FIRST}\\.?\\s+${SURNAME}\\b`, "i") },
   { what: "the owner's surname", re: new RegExp(`\\b${SURNAME}\\b`, "i") },
+  // The misspelling the seed and the draft/card tests once held.
+  { what: "the owner's short spelling", re: new RegExp(`\\b${FIRST}\\.?\\s+${SURNAME.slice(0, -1)}\\b`, "i") },
 ];
 
 const ROOT = process.cwd();
@@ -60,6 +62,9 @@ describe("the owner's real name is not test data", () => {
     expect(findOwnerName(`const f = ["${FIRST} ${SURNAME}"];`).length).toBeGreaterThan(0);
     expect(findOwnerName(`name: "${FIRST}. ${SURNAME}"`).length).toBeGreaterThan(0);
     expect(findOwnerName(`// ${SURNAME} led the field`).length).toBeGreaterThan(0);
+    const short = SURNAME.slice(0, -1);
+    expect(findOwnerName(`name: "${FIRST} ${short}"`)).toContain("line 1: the owner's short spelling");
+    expect(findOwnerName(`name: "${FIRST}. ${short}"`)).toContain("line 1: the owner's short spelling");
     expect(findOwnerName(`const f = ["Ned Calloway"];`)).toEqual([]);
   });
 
