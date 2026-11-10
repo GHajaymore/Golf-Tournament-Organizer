@@ -211,7 +211,6 @@ export default async function MyMatchPage({ searchParams }: { searchParams: Prom
         cardStrokeIndex={card.cardStrokeIndex}
         firstHole={card.firstHole}
         matchShots={card.matchShots}
-        voiceEntry={settings.voiceEntry}
         submitWhole={settings.scoreEntryWindow === "after"}
         stageId={match.stageId}
         roundLabel={stage ? roundCodeName(stages, stage) : ""}

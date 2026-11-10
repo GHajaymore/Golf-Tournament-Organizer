@@ -30,6 +30,7 @@ import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { formattingForEvent } from "./organization";
 import { standingsThroughRound } from "./standings-through";
 import { cardsOnBoard } from "../domain/board-hold";
+import { countbackCardOn, netCountbackMethodFor } from "../domain/stroke-countback";
 
 /**
  * One week of a league, gathered in the order a member reads it.
@@ -393,7 +394,10 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   const basis = weekBasis(stage.scoringBasis, stage.format);
   // A level night is broken by the SAME countback the leaderboard and `/live`
   // use — see `compareNight`. Each row carries this round's per-hole card on the
-  // night's basis so the tiebreak has something to count back over.
+  // night's basis so the tiebreak has something to count back over — built by
+  // the board's own `countbackCardOn`, net by fractions of the playing handicap
+  // in an event created from 2026-11-09 (Committee Procedures 5A(7)).
+  const netCountback = netCountbackMethodFor(state.event.createdAt);
   const scored = state.confirmed
     .map((p) => {
       const a = agg.get(p.id) ?? emptyAgg();
@@ -404,7 +408,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
         gross: a.gross,
         net: netOf(a),
         points: a.points,
-        cbHoles: (basis === "stableford" ? h?.points : basis === "gross" ? h?.gross : h?.net) ?? [],
+        countback: countbackCardOn(p.id, h, basis, netCountback),
         thru: a.thru,
         /**
          * The card is IN — not merely started.
@@ -443,7 +447,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   const ranked = ranksPlayers
     ? positionWithTies(scored, (a, b) => nightLevel(basis, stage.holes, a, b))
     : [];
-  // Exactly `WeekResult` — the countback card (`cbHoles`) is a ranking input, not
+  // Exactly `WeekResult` — the countback card (`countback`) is a ranking input, not
   // something the client needs, so it does not ride along in the payload.
   const results: WeekResult[] = ranked.map((r) => ({
     playerId: r.playerId,

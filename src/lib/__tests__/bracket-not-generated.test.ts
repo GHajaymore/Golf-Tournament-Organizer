@@ -62,7 +62,7 @@ const terms = (over: Partial<Parameters<typeof tournamentTerms>[0]> = {}) =>
     tiebreakers: [] as TiebreakerKey[],
     cutAfter: null,
     carryForwardEnabled: false,
-    carryForwardPct: 0,
+    carryForwardPct: 0, netCountback: "fractions",
     ...over,
   });
 
