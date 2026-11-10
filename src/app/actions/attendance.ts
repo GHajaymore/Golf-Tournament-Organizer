@@ -57,6 +57,17 @@ async function requireStaffSession(): Promise<Session> {
   return session;
 }
 
+/** The staff gate for a press that says its refusals: an archive's comes back as words, never thrown. */
+async function staffSessionOrRefusal(): Promise<Session | { refused: string }> {
+  try {
+    return await requireStaffSession();
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { refused };
+    throw e;
+  }
+}
+
 /**
  * The Player rows this signed-in person is, in this event — by email.
  *
@@ -219,17 +230,6 @@ export async function setOwnAttendance(stageId: string, status: string): Promise
   revalidatePath("/", "layout");
   boardChanged(player.eventId);
   return { ok: true };
-}
-
-/** The staff gate for a press that says its refusals: an archive's comes back as words, never thrown. */
-async function staffSessionOrRefusal(): Promise<Session | { refused: string }> {
-  try {
-    return await requireStaffSession();
-  } catch (e) {
-    const refused = archiveRefusalOf(e);
-    if (refused) return { refused };
-    throw e;
-  }
 }
 
 /**

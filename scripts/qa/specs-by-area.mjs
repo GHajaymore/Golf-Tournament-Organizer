@@ -272,6 +272,7 @@ export const AREAS = {
  * where a change is never targeted anyway — or a check of the test harness itself.
  */
 export const FULL_ONLY = [
+  "e2e/a-lapsed-club-cannot-close-a-round.spec.ts",
   "e2e/a-lapsed-club-is-read-only.spec.ts",
   "e2e/a-new-device-is-confirmed.spec.ts",
   "e2e/a-refusal-stays-put.spec.ts",
