@@ -8,7 +8,6 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  HALVED_WORDS,
   countedHoles,
   deriveNetHoles,
   marginRefusal,
@@ -17,9 +16,6 @@ import {
   matchIsOverAfter,
   matchStandingText,
   matchStrokesGiven,
-  namesAreDistinct,
-  parseHolesTranscript,
-  parseResultTranscript,
   resolveMatch,
   storedMatchIsOver,
 } from "../match";
@@ -460,205 +456,11 @@ describe("two-digit margins (a longer card than eighteen, or a society's 36-hole
   });
 });
 
-describe("parseResultTranscript — more of what is said", () => {
-  it("'halve' is a halved match too", () => {
-    expect(parseResultTranscript("they halve", "Sam", "Alex")).toEqual({ winner: "H", margin: "AS" });
-  });
-
-  it("'as' counts only when it is the whole of what was said", () => {
-    expect(parseResultTranscript("was", "Sam", "Alex")).toEqual({ winner: null, margin: "" });
-    expect(parseResultTranscript("as Sam wins 1 up", "Sam", "Alex")).toEqual({ winner: "A", margin: "1 UP" });
-  });
-
-  it("when both names are said and one is the start of the other, the longer name is the one that counts", () => {
-    expect(parseResultTranscript("Sam lost to Samantha 3 and 2", "Sam", "Samantha").winner).toBe("B");
-    expect(parseResultTranscript("Sam lost to Samantha 3 and 2", "Samantha", "Sam").winner).toBe("A");
-    expect(parseResultTranscript("Samantha lost to Sam 3 and 2", "Sam", "Samantha").winner).toBe("B");
-    expect(parseResultTranscript("Samantha lost to Sam 3 and 2", "Samantha", "Sam").winner).toBe("A");
-  });
-
-  it("reads margins of two digits", () => {
-    expect(parseResultTranscript("Sam 10 and 8", "Sam", "Alex").margin).toBe("10&8");
-    expect(parseResultTranscript("Sam 3 and 10", "Sam", "Alex").margin).toBe("3&10");
-    expect(parseResultTranscript("Sam 12 up", "Sam", "Alex").margin).toBe("12 UP");
-  });
-});
-
-describe("parseHolesTranscript — the round ends where it ends, whoever won the hole", () => {
-  it("B's holes and halves also stop at the last hole", () => {
-    expect(parseHolesTranscript("Alex Alex Alex Alex", "Sam", "Alex", 16, 18)).toEqual(card("BB"));
-    expect(parseHolesTranscript("half half half half", "Sam", "Alex", 16, 18)).toEqual(card("HH"));
-    expect(parseHolesTranscript("push tie tied", "Sam", "Alex", 16, 18)).toEqual(card("HH"));
-  });
-});
-
 describe("deriveNetHoles — nothing past the stated hole count", () => {
   it("scores recorded beyond the round's length are not made into extra holes", () => {
     const si18 = Array.from({ length: 18 }, (_, i) => i + 1);
     const h = deriveNetHoles([4, 4, 4, 4, 4], [5, 5, 5, 5, 5], 0, 0, si18, 3);
     expect(h).toEqual(["A", "A", "A"]);
-  });
-});
-
-describe("namesAreDistinct — two spoken first names that can be told apart", () => {
-  it("the same name, in any case or padded, cannot be told apart", () => {
-    expect(namesAreDistinct("Dave", "Dave")).toBe(false);
-    expect(namesAreDistinct("Dave", "dave")).toBe(false);
-    expect(namesAreDistinct(" Dave ", "dave")).toBe(false);
-    expect(namesAreDistinct("DAVE", "  dave")).toBe(false);
-  });
-
-  it("a name that is blank tells nothing", () => {
-    expect(namesAreDistinct("", "Sam")).toBe(false);
-    expect(namesAreDistinct("Sam", "")).toBe(false);
-    expect(namesAreDistinct("   ", "Sam")).toBe(false);
-    expect(namesAreDistinct("Sam", "  ")).toBe(false);
-    expect(namesAreDistinct("", "")).toBe(false);
-  });
-
-  it("different names are distinct, including one that prefixes the other", () => {
-    expect(namesAreDistinct("Sam", "Alex")).toBe(true);
-    expect(namesAreDistinct("Sam", "Samantha")).toBe(true);
-    expect(namesAreDistinct(" Sam", "Alex ")).toBe(true);
-  });
-});
-
-describe("parseResultTranscript — a spoken result", () => {
-  it("halved, all square, or 'as' alone is a halved match", () => {
-    expect(parseResultTranscript("the match was halved", "Sam", "Alex")).toEqual({ winner: "H", margin: "AS" });
-    expect(parseResultTranscript("They halved", "Sam", "Alex")).toEqual({ winner: "H", margin: "AS" });
-    expect(parseResultTranscript("all square", "Sam", "Alex")).toEqual({ winner: "H", margin: "AS" });
-    expect(parseResultTranscript("As", "Sam", "Alex")).toEqual({ winner: "H", margin: "AS" });
-    expect(parseResultTranscript("  as  ", "Sam", "Alex")).toEqual({ winner: "H", margin: "AS" });
-  });
-
-  it("'as' inside other words, or 'halved' inside a longer word, is not a halve", () => {
-    expect(parseResultTranscript("Sam wins as 2 up", "Sam", "Alex").winner).toBe("A");
-    expect(parseResultTranscript("alex has won", "Sam", "Alex").winner).toBe("B");
-    expect(parseResultTranscript("unhalved Sam 1 up", "Sam", "Alex")).toEqual({ winner: "A", margin: "1 UP" });
-  });
-
-  it("names the winner and reads 'N and M' as N&M", () => {
-    expect(parseResultTranscript("Sam wins 3 and 2", "Sam", "Alex")).toEqual({ winner: "A", margin: "3&2" });
-    expect(parseResultTranscript("Alex won 4 and 3", "Sam", "Alex")).toEqual({ winner: "B", margin: "4&3" });
-    expect(parseResultTranscript("ALEX WON 2&1", "Sam", "Alex")).toEqual({ winner: "B", margin: "2&1" });
-    expect(parseResultTranscript("Sam 3 & 1", "Sam", "Alex")).toEqual({ winner: "A", margin: "3&1" });
-    expect(parseResultTranscript("Sam 5and4", "Sam", "Alex")).toEqual({ winner: "A", margin: "5&4" });
-  });
-
-  it("reads 'N up' as N UP, and 'N and M' wins over 'up'", () => {
-    expect(parseResultTranscript("Alex wins 1 up", "Sam", "Alex")).toEqual({ winner: "B", margin: "1 UP" });
-    expect(parseResultTranscript("Sam two up 2up", "Sam", "Alex")).toEqual({ winner: "A", margin: "2 UP" });
-    expect(parseResultTranscript("Sam 3 and 2 up", "Sam", "Alex").margin).toBe("3&2");
-  });
-
-  it("a margin with no digits is not a margin, and no name leaves the winner for the screen to ask", () => {
-    expect(parseResultTranscript("wins by a mile", "Sam", "Alex")).toEqual({ winner: null, margin: "" });
-    expect(parseResultTranscript("won 3 and 2", "Sam", "Alex")).toEqual({ winner: null, margin: "3&2" });
-    expect(parseResultTranscript("Sam and Alex", "Sam", "Alex").margin).toBe("");
-  });
-
-  it("a first name that prefixes the other's goes to the whole word said (Samantha is not Sam)", () => {
-    expect(parseResultTranscript("Samantha wins 3 and 2", "Sam", "Samantha")).toEqual({ winner: "B", margin: "3&2" });
-    expect(parseResultTranscript("Samantha wins 3 and 2", "Samantha", "Sam")).toEqual({ winner: "A", margin: "3&2" });
-    expect(parseResultTranscript("Sam wins 3 and 2", "Sam", "Samantha")).toEqual({ winner: "A", margin: "3&2" });
-    expect(parseResultTranscript("Sam wins 3 and 2", "Samantha", "Sam")).toEqual({ winner: "B", margin: "3&2" });
-    // equal length: either order must still find the one said
-    expect(parseResultTranscript("Bo wins 1 up", "Al", "Bo").winner).toBe("B");
-    expect(parseResultTranscript("Al wins 1 up", "Al", "Bo").winner).toBe("A");
-  });
-
-  it("a name is a whole word, not a part of one", () => {
-    expect(parseResultTranscript("Samson wins 1 up", "Sam", "Alex").winner).toBeNull();
-    expect(parseResultTranscript("pressam wins 1 up", "Sam", "Alex").winner).toBeNull();
-  });
-
-  it("the names are matched as text, not as a pattern", () => {
-    // "." must not stand for any character: "axb" is not "a.b"
-    expect(parseResultTranscript("axb wins 2 up", "A.B", "Zed").winner).toBeNull();
-    expect(parseResultTranscript("a.b wins 2 up", "A.B", "Zed").winner).toBe("A");
-  });
-
-  it("two players with the same first name cannot be told apart: no winner, margin still read", () => {
-    expect(parseResultTranscript("Dave wins 3 and 2", "Dave", "Dave")).toEqual({ winner: null, margin: "3&2" });
-    expect(parseResultTranscript("dave wins 1 up", "Dave", "dave")).toEqual({ winner: null, margin: "1 UP" });
-  });
-});
-
-describe("parseHolesTranscript — spoken hole-by-hole results", () => {
-  it("reads each name and each halve word as one hole", () => {
-    expect(parseHolesTranscript("Sam, Alex, half, push, tie, tied, sam", "Sam", "Alex", 0, 18)).toEqual(
-      card("ABHHHHA"),
-    );
-  });
-
-  it("is case-insensitive and splits on commas and spaces", () => {
-    expect(parseHolesTranscript("SAM,alex   Sam", "Sam", "Alex", 0, 18)).toEqual(card("ABA"));
-    expect(parseHolesTranscript(",, Sam ,Alex", "Sam", "Alex", 0, 18)).toEqual(card("AB"));
-  });
-
-  it("ignores words it does not know without moving on a hole", () => {
-    expect(parseHolesTranscript("Sam um Alex the Sam samantha alexander", "Sam", "Alex", 0, 18)).toEqual(
-      card("ABA"),
-    );
-  });
-
-  it("refuses all of it when the two names are the same", () => {
-    expect(parseHolesTranscript("Dave half Dave", "Dave", "Dave", 0, 18)).toEqual([]);
-    expect(parseHolesTranscript("half half", "", "Sam", 0, 18)).toEqual([]);
-  });
-
-  it("stops at the last hole of the round, counting from where it starts", () => {
-    expect(parseHolesTranscript("Sam Sam Sam Sam", "Sam", "Alex", 16, 18)).toEqual(card("AA"));
-    expect(parseHolesTranscript("Sam Sam Sam", "Sam", "Alex", 0, 2)).toEqual(card("AA"));
-    expect(parseHolesTranscript("Sam Alex", "Sam", "Alex", 17, 18)).toEqual(card("A"));
-    expect(parseHolesTranscript("Sam Alex", "Sam", "Alex", 18, 18)).toEqual([]);
-    expect(parseHolesTranscript("Sam", "Sam", "Alex", 0, 0)).toEqual([]);
-  });
-
-  it("both dictation readers take the SAME halved words, so no word is a halve to one and skipped by the other", () => {
-    for (const word of HALVED_WORDS) {
-      expect(parseHolesTranscript(`Ann ${word} Bob`, "Ann", "Bob", 0, 18)).toEqual(card("AHB"));
-      expect(parseResultTranscript(`the match was ${word}`, "Ann", "Bob")).toEqual({ winner: "H", margin: "AS" });
-    }
-    expect([...HALVED_WORDS].sort()).toEqual(["half", "halve", "halved", "push", "tie", "tied"]);
-  });
-
-  it("a halved word is a halved match only when nobody is named winner and no margin is given", () => {
-    expect(parseResultTranscript("the match was halved", "Sam", "Alex")).toEqual({ winner: "H", margin: "AS" });
-    // "a tie" is also a knockout fixture: Sam's win stands
-    expect(parseResultTranscript("Sam won the tie 3 and 2", "Sam", "Alex")).toEqual({ winner: "A", margin: "3&2" });
-    expect(parseResultTranscript("Alex won 1 up after being tied on 17", "Sam", "Alex")).toEqual({ winner: "B", margin: "1 UP" });
-    // a margin alone also outranks the word
-    expect(parseResultTranscript("tied then 2 up", "Sam", "Alex")).toEqual({ winner: null, margin: "2 UP" });
-    // a winner alone (no margin) also outranks it
-    expect(parseResultTranscript("Sam won the tie", "Sam", "Alex")).toEqual({ winner: "A", margin: "" });
-  });
-
-  it("'halve' is a halved hole, not skipped", () => {
-    expect(parseHolesTranscript("Ann halve Bob", "Ann", "Bob", 0, 18)).toEqual(card("AHB"));
-  });
-
-  it("'halved' is a halved hole, and nothing after it shifts up (Rule 3.2b)", () => {
-    expect(parseHolesTranscript("halved", "Sam", "Alex", 0, 18)).toEqual(card("H"));
-    expect(parseHolesTranscript("Ann halved Bob", "Ann", "Bob", 0, 18)).toEqual(card("AHB"));
-    expect(parseHolesTranscript("Ann, Bob, halved, half, Ann", "Ann", "Bob", 0, 18)).toEqual(card("ABHHA"));
-  });
-
-  it("'halfved' is not a word and is not accepted", () => {
-    expect(parseHolesTranscript("halfved", "Sam", "Alex", 0, 18)).toEqual([]);
-    expect(parseHolesTranscript("Ann halfved Bob", "Ann", "Bob", 0, 18)).toEqual(card("AB"));
-  });
-
-  it("an empty transcript is no holes", () => {
-    expect(parseHolesTranscript("", "Sam", "Alex", 0, 18)).toEqual([]);
-    expect(parseHolesTranscript("   ", "Sam", "Alex", 0, 18)).toEqual([]);
-  });
-
-  it("'half', 'push', 'tie' and 'tied' are halves but 'halving' and 'halfway' are not", () => {
-    expect(parseHolesTranscript("halving halfway halves", "Sam", "Alex", 0, 18)).toEqual([]);
-    expect(parseHolesTranscript("xhalf halfx", "Sam", "Alex", 0, 18)).toEqual([]);
-    expect(parseHolesTranscript("pushed tiedx atie", "Sam", "Alex", 0, 18)).toEqual([]);
   });
 });
 

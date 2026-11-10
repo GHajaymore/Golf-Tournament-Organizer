@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { deriveNetHoles, marginToHoles, parseHolesTranscript, resolveMatch } from "../match";
+import { deriveNetHoles, marginToHoles, resolveMatch } from "../match";
 import { endsWithin } from "../../__tests__/ends-within";
 import type { HoleResult } from "../types";
 
 /**
  * THE LOOPS IN `match.ts` END (2026-11-09).
  *
- * Five mutants make a counting loop endless (`i -= 1` in `closeoutOf`, `deriveNetHoles` and
- * `marginToHoles`; `j -= 1` and `j < tokens.length` forced true in `parseHolesTranscript`). An
+ * Three mutants make a counting loop endless (`i -= 1` in `closeoutOf`, `deriveNetHoles` and
+ * `marginToHoles`; the spoken hole reader that made five is gone, 2026-11-09). An
  * assertion is never reached by an endless loop, and under Stryker the mutant would end as a plain
  * timeout, which the ratchet counts as NOT caught. Each call goes through `endsWithin`
  * (`src/lib/__tests__/ends-within.ts`), so each FAILS inside its deadline, and the answers are the
@@ -34,12 +34,5 @@ describe("match.ts loops end, and give the answer worked by hand", () => {
     const h = ends(() => marginToHoles("A", "2&1", 18));
     expect(h.slice(14)).toEqual(["H", "A", "A", null]);
     expect(h).toHaveLength(18);
-  });
-
-  it("a dictation ends with its words, and again at the last hole", () => {
-    expect(ends(() => parseHolesTranscript("Sam Alex", "Sam", "Alex", 0, 18))).toEqual(["A", "B"]);
-    expect(ends(() => parseHolesTranscript("", "Sam", "Alex", 0, 18))).toEqual([]);
-    expect(ends(() => parseHolesTranscript("Sam Sam Sam", "Sam", "Alex", 16, 18))).toEqual(["A", "A"]);
-    expect(ends(() => parseHolesTranscript("um um um", "Sam", "Alex", 0, 18))).toEqual([]);
   });
 });
