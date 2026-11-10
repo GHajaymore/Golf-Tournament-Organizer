@@ -22,6 +22,15 @@ describe("the crawl and the round picker", () => {
   it("the crawl reads that attribute and waits for the address before judging", () => {
     const spec = readSource("e2e/every-control.spec.ts");
     expect(spec).toMatch(/getAttribute\("data-view-picker"\)/);
-    expect(spec).toMatch(/waitForURL\(/);
+    const branch = spec.slice(spec.indexOf("if (goes) {"), spec.indexOf("if (picker) return"));
+    expect(branch).toMatch(/waitForURL\(/);
+    expect(branch).toMatch(/searchParams\.get\("round"\) !== choice/);
+  });
+
+  it("the branch never calls a navigating pick a view by itself: a pick that also saved still reaches the reload check", () => {
+    const spec = readSource("e2e/every-control.spec.ts");
+    const branch = spec.slice(spec.indexOf("if (goes) {"), spec.indexOf("if (picker) return"));
+    expect(branch).not.toMatch(/outcome: "view"/);
+    expect(spec).toMatch(/page\.url\(\) !== startUrl && fired\.length === 0\) return \{ outcome: "view"/);
   });
 });

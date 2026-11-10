@@ -489,7 +489,11 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
       const arrived = await page.waitForURL((u) => u.href !== startUrl, { timeout: 20_000 }).then(() => true, () => false);
       if (!arrived) return { outcome: "stuck", note: "chose another round and the address never changed in 20s" };
       await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
-      return { outcome: "view", note: new URL(page.url()).search };
+      if (new URL(page.url()).searchParams.get("round") !== choice) {
+        return { outcome: "moved", note: `chose round ${choice} and the address is ${new URL(page.url()).search}` };
+      }
+      // Not returned as a view here: the checks below call it a view only when NO action fired,
+      // so a picker that also saved something still goes on to the reload check.
     }
     // Some screens save a choice as it is made.
     await page.waitForTimeout(700);
