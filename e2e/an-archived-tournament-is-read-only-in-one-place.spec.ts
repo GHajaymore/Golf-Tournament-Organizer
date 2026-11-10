@@ -266,9 +266,15 @@ test("in an archive the board's flights and a knockout's flights can still be sw
     await expect.poll(async () => (await controlsOf(page)).pressable, { message: "/bracket: a control that writes is still pressable", timeout: 20_000 }).toEqual([]);
     const flightBDraw = page.getByRole("radio", { name: /Flight B/ });
     await expect(flightBDraw, "the knockout's choice of flight was locked in an archive").toBeEnabled({ timeout: 15_000 });
-    await expect(page.getByText("Zz Gale Pruett").first(), "Flight B's draw showed before it was chosen").toBeHidden();
+    // Read in the draw itself: the Flights card above it names every player too — in the
+    // "Move or add a player" list (an <option>, never visible) and in each flight's closed
+    // <details> — so a name read off the whole page is hidden before AND after the press.
+    const drawn = page.locator("#bracket-view-panel");
+    await expect(drawn.getByText("Zz Elm Hartley").first(), "Flight A's draw was not shown first").toBeVisible({ timeout: 15_000 });
+    await expect(drawn.getByText("Zz Gale Pruett"), "Flight B's draw showed before it was chosen").toHaveCount(0);
     await pressRadio(flightBDraw);
-    await expect(page.getByText("Zz Gale Pruett").first(), "choosing Flight B did not show its draw").toBeVisible({ timeout: 15_000 });
+    await expect(drawn.getByText("Zz Gale Pruett").first(), "choosing Flight B did not show its draw").toBeVisible({ timeout: 15_000 });
+    await expect(drawn.getByText("Zz Elm Hartley"), "Flight A's draw stayed after Flight B was chosen").toHaveCount(0);
 
     // Out of the archive, the same board draws no read-only wrapper and no banner.
     await prisma.event.update({ where: { id: medal.id }, data: { archivedAt: null } });
