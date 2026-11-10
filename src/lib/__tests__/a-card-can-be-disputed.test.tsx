@@ -28,7 +28,7 @@ const render = (over: Partial<Parameters<typeof PlayerCard>[0]> = {}) =>
     <PlayerCard
       stageId="s1"
       playerId="p1"
-      playerName="A. Moore"
+      playerName="N. Calloway"
       roundLabel="Round 1"
       holes={18}
       pars={new Array(18).fill(4)}
