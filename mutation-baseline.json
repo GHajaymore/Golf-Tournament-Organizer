@@ -3,7 +3,7 @@
   "rule": "a module's score may rise and never fall",
   "modules": {
     "src/lib/domain/handicap.ts": 83.94,
-    "src/lib/domain/round-handicap.ts": 70.59,
+    "src/lib/domain/round-handicap.ts": 95.29,
     "src/lib/round-allowance.ts": 87.59,
     "src/lib/domain/stroke.ts": 95.94,
     "src/lib/domain/stroke-agg.ts": 91.04,
