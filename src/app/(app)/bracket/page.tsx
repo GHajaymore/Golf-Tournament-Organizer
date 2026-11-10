@@ -1,5 +1,6 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
+import { scopeLockFor } from "@/lib/services/tournament-status";
 import { isFinished } from "@/lib/domain/lifecycle-state";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
@@ -324,7 +325,9 @@ export default async function BracketPage() {
 
   return (
     <>
-      <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={isSetupLocked(state.event)} />
+      {/* The rounds' lock (PR 5b) — the one `setBracketMode` asks (`refuseIfLocked(…, "rounds")`), and the one
+          the same picker on Rounds & formats draws. Never the draw's: a knockout in flights keeps that open while live. */}
+      <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={(await scopeLockFor(session.eventId, "rounds")) !== null} />
       <BracketReports rows={reports} />
       {mode === "flights" && (
         <BracketFlights

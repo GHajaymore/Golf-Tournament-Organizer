@@ -1,5 +1,4 @@
 import "server-only";
-import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { redirect } from "next/navigation";
 import { primaryOrganizationFor } from "@/lib/services/organization";
 import { headers } from "next/headers";
@@ -169,9 +168,13 @@ export async function requireState(): Promise<{ session: Session; state: EventSt
  * wrote the same sentence out by hand instead. That is the whole mechanism by
  * which one rule became five copies.
  */
-export function isSetupLocked(event: { status: string; configUnlocked: boolean }): boolean {
-  return configurationLocked(event);
-}
+/*
+ * `isSetupLocked` LIVED HERE until the state machine's PR 5b. Every set-up
+ * screen now asks its scope's lock (`screenLocksFor` / `scopeLockFor` in
+ * services/tournament-status.ts), the same answer the actions refuse with.
+ * Deleted rather than left beside it: a dead twin is a second copy waiting to
+ * be used.
+ */
 
 export function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);

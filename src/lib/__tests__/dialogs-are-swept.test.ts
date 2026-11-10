@@ -81,6 +81,8 @@ describe("every dialog is accounted for", () => {
     // measured at every width by `e2e/go-live-switch.spec.ts`, where it is opened.
     expect(found).toEqual([
       { file: "CardConflict.tsx", modal: false, announced: true },
+      // The committee correction's dialog (state machine PR 5b): which part of setup, and why.
+      { file: "CommitteeCorrection.tsx", modal: true, announced: true },
       { file: "LifecycleBar.tsx", modal: true, announced: true },
       { file: "OwnerAccounts.tsx", modal: true, announced: true },
       { file: "PlayerSignOut.tsx", modal: true, announced: true },

@@ -1,5 +1,5 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { requireScreen } from "@/lib/page-helpers";
 import { settingsOf } from "@/lib/services/tournament";
 import { flightTeeCounts } from "@/lib/tournament-settings";
 import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
@@ -7,9 +7,9 @@ import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { GroupingControls } from "@/components/GroupingControls";
 import { generatesPairings } from "@/lib/stage-types";
-import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
-import { setupRailFor } from "@/lib/services/tournament-status";
+import { setupRailFor, screenLocksFor } from "@/lib/services/tournament-status";
 import { FlightBoard } from "@/components/FlightBoard";
 import { FlightTeeSelect } from "@/components/FlightTeeSelect";
 import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
@@ -17,6 +17,10 @@ import type { FormationRule } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { indexLabel } from "@/lib/domain/handicap-label";
+import Link from "next/link";
+import { lockFactsFor } from "@/lib/services/tournament-facts";
+import { tournamentFamily } from "@/lib/domain/tournament-status";
+import { flagsUnplaced, unplacedWords } from "@/lib/domain/field-change";
 
 export const metadata = screenMetadata("/grouping");
 
@@ -24,10 +28,30 @@ export default async function GroupingPage() {
   const session = await requireScreen("grouping");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
-  const locked = isSetupLocked(state.event);
+  /**
+   * The machine's lock on the flights (PR 5b) — the one `regenGroups`,
+   * `renameGroup` and `setFlightsConfirmed` ask. A lock BY THE DRAW is left to
+   * the board, which already draws "confirmed" and the button that reopens it:
+   * this screen IS that lock's way out, so a banner sending people here would
+   * point at itself. Only a lock by launch or completion shuts the screen.
+   */
+  const flights = await screenLocksFor(session.eventId, ["flights"]);
+  const flightLocks = flights.locks.filter((l) => l.by !== "draw");
+  const locked = flightLocks.length > 0;
   // Where this screen sits in setting the tournament up. Null for a match.
   const flow = await setupRailFor(session.eventId);
   const manual = state.event.formationRule === "manual";
+  /**
+   * THE UNPLACED FLAG (J04, state machine PR 7a), the same words Entries says:
+   * who is in the field but in no flight, where flights are a division or the
+   * pairings. Entries is where a late entrant is put in one ("Choose a flight"
+   * beside their name), so this points there.
+   */
+  const lockFacts = await lockFactsFor(session.eventId);
+  const unplacedFlag =
+    lockFacts && flagsUnplaced(tournamentFamily(lockFacts), state.groups.length)
+      ? unplacedWords(state.confirmed.filter((p) => !p.groupId).map((p) => p.name))
+      : "";
   // A handicap-balanced draw is balanced on Course Handicaps, so unrated tees
   // make it quietly uneven. The scoring warning on Rounds & format is about a
   // different consequence of the same gap and fires on a different trigger.
@@ -82,7 +106,16 @@ export default async function GroupingPage() {
         </p>
       </div>
 
-      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
+      <ScopeLockBanner locks={flightLocks} correction={flights.correction} isAdmin={session.viewRole === "admin"} />
+
+      {unplacedFlag && (
+        <p className="card elev-sm" style={{ margin: "0 0 14px", fontSize: 13, lineHeight: 1.5 }} data-testid="unplaced-flag">
+          <span>
+            <Icon name="warning" /> {unplacedFlag}{" "}
+            <Link href="/registration">Choose a flight beside their name on Entries</Link>
+          </span>
+        </p>
+      )}
 
       {drawWarning && (
         <p

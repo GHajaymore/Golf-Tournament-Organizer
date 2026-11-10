@@ -212,7 +212,13 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await expect(page.getByRole("button", { name: "Complete tournament" })).toBeVisible({ timeout: 30_000 });
 
     await open(page, "/bracket?view=draw");
-    await expect(page.getByText(/it is locked while setup is/)).toBeVisible();
+    // The arrangement is locked with the rounds, and the line says how it is corrected: a committee
+    // correction to the rounds, on the dashboard (state machine PR 5b; `BracketModePicker`).
+    const lockedLine = page.locator("main p", { hasText: "Changing this redraws who plays whom" });
+    await expect(lockedLine).toBeVisible();
+    await expect(lockedLine).toContainText("so it is locked with the rounds.");
+    await expect(lockedLine).toContainText("An Organizer can make a committee correction to the rounds");
+    await expect(lockedLine.getByRole("link", { name: "dashboard" })).toHaveAttribute("href", "/dashboard");
     await expect(page.getByRole("button", { name: "Change", exact: true })).toHaveCount(0);
     // The division is the draw: still the organizer's to adjust until somebody has played.
     await expect(page.getByRole("button", { name: "Start again" })).toBeVisible();

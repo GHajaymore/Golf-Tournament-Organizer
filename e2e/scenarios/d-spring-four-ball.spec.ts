@@ -1,4 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
+import { makeCommitteeCorrection } from "../committee-correction";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { seed, memberSession, eventFacts, eachKeepsTheirOwn, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
@@ -306,10 +307,8 @@ test("five D", async ({ page, context, baseURL }, testInfo) => {
       if (already > 0) {
         // Drawn with Round 1 — nothing to do here.
       } else if ((await draw.count()) && !(await draw.isEnabled())) {
-        note("setup is locked after launch — unlocking to draw Round 2's sides");
-        await page.getByRole("button", { name: /^Unlock setup/ }).click();
-        const confirm = page.getByRole("button", { name: /^(Unlock|Yes, unlock|Unlock setup)/ }).last();
-        if (await confirm.count()) await confirm.click().catch(() => {});
+        note("the sides are locked after launch — a committee correction to draw Round 2's sides");
+        await makeCommitteeCorrection(page);
         await expect(draw).toBeEnabled({ timeout: 20_000 });
       }
       if (already === 0 && (await draw.count())) {

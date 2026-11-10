@@ -5,6 +5,7 @@ import { setStageCut, setStageCutScope, setStageCutTies } from "@/app/actions/to
 import { cutAdvancesEveryone, cutTieRuleOf, type CutTieRule, type CutLineKind } from "@/lib/domain/cut";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
+import { useCaughtUp } from "./useAction";
 import { plural } from "@/lib/format";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 
@@ -62,6 +63,7 @@ export function CutControl({
   const [sc, setSc] = useState(scope === "perFlight" ? "perFlight" : "overall");
   const [ties, setTies] = useState<CutTieRule>(cutTieRuleOf(tieRule));
   const [saving, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
   // "and anyone tied" only where the ties DO go through.
   const allTied = tiesGoThrough && ties === "ties";
 
@@ -69,7 +71,7 @@ export function CutControl({
     setTies(next);
     startTransition(async () => {
       const stageId = await getStageId();
-      await setStageCutTies(stageId, next);
+      caughtUp(await setStageCutTies(stageId, next));
     });
   };
   // The number saves when its box is left — said beside it, as every other
@@ -82,7 +84,7 @@ export function CutControl({
     setSc(next);
     startTransition(async () => {
       const stageId = await getStageId();
-      await setStageCutScope(stageId, next);
+      caughtUp(await setStageCutScope(stageId, next));
     });
   };
 
@@ -93,7 +95,7 @@ export function CutControl({
     setPct(nextPct);
     startTransition(async () => {
       const stageId = await getStageId();
-      await setStageCut(stageId, nextOn, nextMode, nextN, nextPct);
+      caughtUp(await setStageCut(stageId, nextOn, nextMode, nextN, nextPct));
     });
   };
 

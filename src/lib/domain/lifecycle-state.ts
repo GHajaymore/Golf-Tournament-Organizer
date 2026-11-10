@@ -284,7 +284,7 @@ export function openToMembers(event: { status: string; registrationOpen: boolean
  * One string, both readers, for the reason the constant above exists.
  */
 export const LAUNCH_DOES =
-  "Launching marks it live and locks the configuration until you unlock it again.";
+  "Launching marks it live and locks the configuration; after that an Organizer changes one part at a time with a committee correction.";
 
 /** And the half that was being attributed to launch by mistake. */
 export const VISIBILITY_IS_ELSEWHERE =

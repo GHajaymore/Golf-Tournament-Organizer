@@ -79,16 +79,17 @@ export interface LaunchWarning {
   screen: string;
   /**
    * Whether the fix can still be made once the tournament is live ("open"), or
-   * needs Unlock first because launching locks configuration ("unlock") — flights,
-   * sides and the name are structural; a round's day, the tee sheet and the money
-   * answer are not.
+   * needs a committee correction first because launching locks its scope
+   * ("unlock", the code's name for it; state machine PR 5b retired the blanket
+   * Unlock, and the words say "a committee correction") — flights, sides and the
+   * name are structural; a round's day, the tee sheet and the money answer are not.
    */
   afterLaunch: "open" | "unlock";
 }
 
 /** The warning as one line of text — what a screen reader and a test both read. */
 export function warningText(w: LaunchWarning): string {
-  return `${w.says} ${w.fix}${w.afterLaunch === "unlock" ? " — after launch, this needs Unlock first." : " — you can still do this after launch."}`;
+  return `${w.says} ${w.fix}${w.afterLaunch === "unlock" ? " — after launch, this needs a committee correction first." : " — you can still do this after launch."}`;
 }
 
 /**

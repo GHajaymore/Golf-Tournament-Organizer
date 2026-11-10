@@ -1516,7 +1516,18 @@ model Event {
 
   // Lifecycle
   status         String    @default("draft") // draft | registration | ready | live | completed
-  configUnlocked Boolean   @default(false) // organizer override to edit after launch
+  configUnlocked Boolean   @default(false) // the retired blanket unlock; read as a legacy correction until PR 9
+  /**
+   * THE COMMITTEE CORRECTION (state machine PR 5b; TD Q2). The Organizer opens
+   * ONE lock scope for a stated reason; it lapses at `correctionUntil` (the end
+   * of the club's day when it was opened) or when Done is pressed, which clears
+   * all four. All nullable: null means no correction is open. Read into the
+   * facts' `correction` only while `correctionUntil` is still ahead.
+   */
+  correctionScope  String?
+  correctionReason String?
+  correctionBy     String?
+  correctionUntil  DateTime?
   /**
    * Whether LAUNCHING this tournament gates player access to it.
    *

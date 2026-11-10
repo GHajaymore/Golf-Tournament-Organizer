@@ -16,8 +16,10 @@ import { roundsWithResultsFrom } from "../domain/rounds-with-results";
 import { stepOf, type TournamentStep } from "../domain/tournament-step";
 import {
   drawFacts,
+  openCorrectionOf,
   setupFactsOf,
   tournamentStatus,
+  type LockFacts,
   type RoundCloseFacts,
   type RoundFacts,
   type SetupSideFacts,
@@ -160,6 +162,86 @@ export async function setupSideFactsFor(eventId: string): Promise<SetupSideFacts
   return (await readOne(eventId))?.facts ?? null;
 }
 
+/**
+ * THE ORGANIZER MADE IT A LEAGUE — its kind, its league table or its weekly
+ * sign-up (PR 3). One spelling, read by the full batch and by `lockFactsFor`.
+ */
+function leagueOf(e: { playKind: string; leaguePoints: string; attendanceMode: string }): boolean {
+  return e.playKind === "league" || e.leaguePoints.trim() !== "" || (isAttendanceMode(e.attendanceMode) && tracksPerRound(e.attendanceMode));
+}
+
+/**
+ * THE FACTS A LOCK IS DECIDED ON, READ NARROWLY (PR 5b; the panel's cost ruling
+ * on 5a). An action asking `refuseIfLocked` is its own request, so the full
+ * batch — fifteen queries, every match's holes and strokes among them — bought it
+ * nothing a lock needs. This reads the tournament row, its rounds' kinds, and
+ * results ONLY where a lock turns on them: a knockout in flights, whose draw
+ * closes at the first result (`locksOf`). "Has a result" is still the one rule,
+ * `roundsWithResultsFrom`, over those rounds alone. `locksFor` of this equals
+ * `locksFor(lockFactsOf(setupSideFacts))` for every tournament
+ * (`a-locked-scope-is-refused-in-words.audit.test.ts`, its last describe), so
+ * the banner and the refusal cannot disagree. Request-cached, like the batch.
+ */
+export const lockFactsFor = cache(async (eventId: string): Promise<LockFacts | null> => {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      status: true,
+      configUnlocked: true,
+      correctionScope: true,
+      correctionReason: true,
+      correctionBy: true,
+      correctionUntil: true,
+      shape: true,
+      bracketMode: true,
+      flightsConfirmed: true,
+      playKind: true,
+      leaguePoints: true,
+      attendanceMode: true,
+    },
+  });
+  if (!event) return null;
+  const stages = await prisma.stage.findMany({
+    where: { eventId },
+    orderBy: { position: "asc" },
+    select: { id: true, type: true, format: true, scoringBasis: true },
+  });
+  const knockouts = stages.filter((s) => isKnockoutRound(s.type));
+  let played = new Set<string>();
+  if (event.bracketMode === "flights" && knockouts.length > 0) {
+    const ids = knockouts.map((s) => s.id);
+    const [cards, teamCards, matches, winners] = await Promise.all([
+      prisma.scorecard.groupBy({ by: ["stageId"], where: { eventId, stageId: { in: ids } } }),
+      prisma.teamScorecard.groupBy({ by: ["stageId"], where: { eventId, stageId: { in: ids } } }),
+      prisma.match.findMany({
+        where: { eventId, stageId: { in: ids } },
+        select: { id: true, eventId: true, stageId: true, round: true, playerAId: true, playerBId: true, holes: true, forfeitedBy: true },
+      }),
+      prisma.bracketWinner.count({ where: { eventId } }),
+    ]);
+    const matchCards = await prisma.matchScorecard.findMany({
+      where: { matchId: { in: matches.map((m) => m.id) } },
+      select: { eventId: true, matchId: true, slot: true, strokes: true },
+    });
+    played = roundsWithResultsFrom({ stages: knockouts, cards: [...cards, ...teamCards], matchCards, matches, bracketWinners: winners });
+  }
+  return {
+    status: event.status,
+    configUnlocked: event.configUnlocked,
+    correction: openCorrectionOf(event, new Date()),
+    flightsConfirmed: event.flightsConfirmed,
+    shape: event.shape,
+    league: leagueOf(event),
+    bracketMode: event.bracketMode,
+    rounds: stages.map((s) => ({
+      type: s.type,
+      playing: isPlayingRound(s.type),
+      stableford: isStablefordRound(s.scoringBasis, s.format),
+      hasResult: played.has(s.id),
+    })),
+  };
+});
+
 /** Rows grouped by tournament, in the order they came. */
 function byEvent<T extends { eventId: string }>(rows: readonly T[]): Map<string, T[]> {
   const out = new Map<string, T[]>();
@@ -194,6 +276,11 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
       shape: true,
       status: true,
       configUnlocked: true,
+      // The one open committee correction (PR 5b), read by `openCorrectionOf` while it has not lapsed.
+      correctionScope: true,
+      correctionReason: true,
+      correctionBy: true,
+      correctionUntil: true,
       moneyMode: true,
       bracketMode: true,
       flightsConfirmed: true,
@@ -361,12 +448,10 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
         status: event.status,
         legacyStatus: "",
         configUnlocked: event.configUnlocked,
-        correction: null,
+        // An instant against an instant: the correction lapses when the club's day ended (`endOfClubDay`).
+        correction: openCorrectionOf(event, new Date()),
         shape: event.shape,
-        league:
-          event.playKind === "league" ||
-          event.leaguePoints.trim() !== "" ||
-          (isAttendanceMode(event.attendanceMode) && tracksPerRound(event.attendanceMode)),
+        league: leagueOf(event),
         named: !isUnnamed(event.name),
         dated: !!event.dates.trim(),
         venued: !!event.course.trim() || venuesIn(id) > 0,

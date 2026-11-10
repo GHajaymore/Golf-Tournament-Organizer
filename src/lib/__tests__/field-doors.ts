@@ -15,25 +15,35 @@ export const NO_SHEET: FieldClock = { lastTee: null, now: { day: "2026-11-29", m
 export const OPEN_DOORS: Record<FieldChange, string | null> = fieldDoors({
   status: "draft",
   configUnlocked: false,
+  correction: null,
   family: "stroke",
   playedRound: null,
   flightsConfirmed: false,
+  flights: 0,
+  knockoutDrawn: false,
   ...NO_SHEET,
 });
 
-/** A launched tournament of the given family, with or without a round begun, a confirmed draw, or a published last tee time. */
+/**
+ * A launched tournament of the given family, with or without a round begun, a confirmed draw, or a published last tee time —
+ * and its flights (two unless told) and whether a knockout has a result (the draw made, J12).
+ */
 export function liveDoors(
   family: Parameters<typeof fieldDoors>[0]["family"],
   playedRound: string | null = null,
   flightsConfirmed = false,
   clock: { lastTee: LastTeeTime | null; minutes?: number } = { lastTee: null },
+  shape: { flights?: number; knockoutDrawn?: boolean } = {},
 ) {
   return fieldDoors({
     status: "live",
     configUnlocked: false,
+    correction: null,
     family,
     playedRound,
     flightsConfirmed,
+    flights: shape.flights ?? 2,
+    knockoutDrawn: shape.knockoutDrawn ?? false,
     lastTee: clock.lastTee,
     now: { day: NO_SHEET.now.day, minutes: clock.minutes ?? NO_SHEET.now.minutes },
   });

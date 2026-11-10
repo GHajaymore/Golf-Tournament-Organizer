@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setMatchTiebreakers } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
+import { useCaughtUp } from "./useAction";
 import {
   OFFERED_MATCH_TIEBREAKS,
   MATCH_TIEBREAK_LABELS,
@@ -35,10 +36,22 @@ export function MatchTiebreakControl({
 }) {
   const [seq, setSeq] = useState<MatchTiebreakKey[]>(selected);
   const [pending, startTransition] = useTransition();
+  const caughtUp = useCaughtUp();
+
+  const [refused, setRefused] = useState("");
 
   const commit = (next: MatchTiebreakKey[]) => {
+    const before = seq;
     setSeq(next);
-    startTransition(() => void setMatchTiebreakers(next));
+    setRefused("");
+    startTransition(async () => {
+      // Refused (the rounds are locked) is RETURNED: say it beside the control and put the ladder back (PR 5b).
+      const res = caughtUp(await setMatchTiebreakers(next));
+      if (!res.ok) {
+        setSeq(before);
+        setRefused(res.error ?? "That change could not be saved.");
+      }
+    });
   };
 
   const toggle = (key: MatchTiebreakKey) => {
@@ -76,6 +89,12 @@ export function MatchTiebreakControl({
           to be produced today.
         </p>
       </div>
+
+      {refused && (
+        <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
+          {refused}
+        </p>
+      )}
 
       {!locked && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

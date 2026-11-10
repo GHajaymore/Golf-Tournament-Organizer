@@ -133,6 +133,19 @@ export async function promoteFromWaitlist(eventId: string): Promise<string[]> {
     select: { id: true, email: true, name: true },
   });
   if (waiting.length === 0) return [];
+  /**
+   * A PROMOTION IS A LATE ENTRY, and asks the one field rule like any other
+   * (J12, state machine PR 7a). The queue never puts a reserve into a knockout
+   * whose draw is made (a bracket has no empty place past round one), a round
+   * robin's flights without a flight (no matches: a silent DNS), a drawn match
+   * or cup, or a stroke field after Round 1 has gone (no score for a round
+   * already played). Before launch, and while late entries are open, the queue
+   * moves exactly as before. Imported where it is used: the field rule reads
+   * the tournament's whole state, which this small module's other callers
+   * never need.
+   */
+  const { fieldRefusal } = await import("./field-change");
+  if (await fieldRefusal(eventId, "add")) return [];
 
   await prisma.player.updateMany({
     where: { id: { in: waiting.map((p) => p.id) } },
