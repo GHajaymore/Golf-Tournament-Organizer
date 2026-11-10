@@ -605,7 +605,7 @@ export const SCENARIOS = [
     key: "a",
     file: "e2e/scenarios/a-society-stableford.spec.ts",
     name: "A society's Saturday Stableford",
-    plays: "a society on the Birdie plan, 110 on the roster and a field the plan caps at 50; members enter from their own phones; net Stableford at 95%",
+    plays: "a society on the Birdie plan, 110 on the roster and a field the plan caps, with more sign-ups than it holds so the waiting list is real; members enter from their own phones; net Stableford at 95%",
     phases: ["A1", "A2", "A3", "A4", "A5", "A6", "A7"],
     flags: `${ALWAYS}|${ENTERED}|ROSTER MEMBER CANNOT SEE`,
   },

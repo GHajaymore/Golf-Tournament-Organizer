@@ -10,7 +10,10 @@ describe("plan limits", () => {
     // hobbyist's fourball stays free, a club's championship upgrades — and a
     // player still never pays, because the cap is the organizer's.
     expect(planFor("free").limits.playersPerEvent).toBe(10);
-    expect(planFor("society").limits.playersPerEvent).toBe(50);
+    // Ajay, 10 Nov 2026: Birdie's field is 64 (was 50), price unchanged. The
+    // blurb states the same figure, read from the same place.
+    expect(planFor("society").limits.playersPerEvent).toBe(64);
+    expect(PLANS.society.blurb).toContain("up to 64 a field");
     // Eagle is the top tier, so its field is uncapped.
     expect(planFor("club").limits.playersPerEvent).toBeNull();
     // Whatever the caps are, they are never negative.

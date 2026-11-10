@@ -518,7 +518,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
-          "**Players on their phones** — hole by hole or a full card, by tap or by voice. No Save button; holes are kept on the phone with no signal. Each hole says where its score is: **On your phone** (kept, not yet with you), **Sent** (the server read it back), or **Not sent** (refused, with the reason) — so a player who reaches the scorer's table with holes still on their phone knows it, and shows you the card. One phone can hold the group's cards (**Me / Group**). Players press [[Certify my card]] when done, or [[Something on this card is wrong]] to flag it.",
+          "**Players on their phones** — hole by hole or a full card, by tap or by voice for strokes; who won a match hole is one tap, never spoken. No Save button; holes are kept on the phone with no signal. Each hole says where its score is: **On your phone** (kept, not yet with you), **Sent** (the server read it back), or **Not sent** (refused, with the reason) — so a player who reaches the scorer's table with holes still on their phone knows it, and shows you the card. One phone can hold the group's cards (**Me / Group**). Players press [[Certify my card]] when done, or [[Something on this card is wrong]] to flag it.",
           "**Staff** on The round in play → Score entry, below.",
         ],
       },
@@ -655,6 +655,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Once results are in, pick each prize's **Winner** — the list shows finishing places to help. A prize for best gross or best net lists the field on that figure, with ties broken by countback (last nine, six, three, then the last hole) as the leaderboard breaks them.",
+          "**How a tie on the leaderboard is decided.** Players level on a stroke round are separated on the last nine holes, then the last six, the last three and the last hole — the last six, three and one on a nine-hole round. A gross round compares gross scores and a Stableford round points. On an individual net round, each player's gross over those holes has a fraction of their playing handicap taken off — a half for the last nine, a third for the last six, a sixth for the last three, an eighteenth for the last hole (two-thirds, a third and a ninth on a nine-hole round) — which is what the Rules' committee procedures recommend; a pairs or team round compares its net hole by hole. A tie that survives every step is shared. A tournament created before 9 November 2026 keeps the hole-by-hole net countback it was played under. The rules sheet says which.",
           "If nobody may take home two placing prizes, tick **One prize per player** above the list. The lines are then shown gross first: award the gross prizes first, and a player who wins one is skipped for the net. Each winner list puts anybody who already holds a prize last, saying which, and marks the next in line; choosing them anyway is refused beside the list. Skill prizes such as nearest the pin and longest drive don't count, so the same player can win one — each line has a **Counts** tick to say which kind it is. If somebody already holds two prizes, the tick is refused until you clear one.",
         ],
       },

@@ -221,6 +221,15 @@ const EVERY_PLAN_WORDS: Record<IncludedKey | FeatureKey, string> = {
   honours: "A board of every past champion",
 };
 
+/**
+ * Birdie's field, in one place: the limit and the sentence that states it both
+ * read this (Ajay, 10 Nov 2026: 64, up from 50; price unchanged).
+ *
+ * Event passes and a seasonal plan are decided (10 Nov), not sold until
+ * billing ships, so none appears on any screen, page, email or help topic.
+ */
+const BIRDIE_FIELD = 64;
+
 export const PLANS: Record<PlanKey, Plan> = {
   free: {
     key: "free",
@@ -254,7 +263,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // `planTagline` / `planBlurb` with the club's words, or the landing
     // edition's. Until that day this said "societies" to every US club.
     tagline: "Leagues and {golfGroups}",
-    blurb: "For a league or {golfGroup} running a full season — unlimited events, up to fifty a field.",
+    blurb: `For a league or {golfGroup} running a full season — unlimited events, up to ${BIRDIE_FIELD} a field.`,
     // The growth-engine rung between Free and Club — see the monetization
     // proposal. Priced here as the default; the number is configurable through
     // `effectivePrice` without a code edit, which is why $12 is a starting
@@ -270,8 +279,9 @@ export const PLANS: Record<PlanKey, Plan> = {
       // branding are what a CLUB (Eagle) pays the extra for.
       staffSeats: 3,
       // A society outing / league night. A full club championship field is
-      // bigger, which is where Eagle comes in.
-      playersPerEvent: 50,
+      // bigger, which is where Eagle comes in. Ajay, 10 Nov 2026: 64 (was 50),
+      // price unchanged.
+      playersPerEvent: BIRDIE_FIELD,
     },
     retentionHours: null,
     // Season table ON (it costs nothing per use and is the league product).

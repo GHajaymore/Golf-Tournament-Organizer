@@ -1,5 +1,5 @@
 import { lookupFormat } from "@/lib/formats";
-import { countbackCompare } from "./stroke-countback";
+import { countbackCompare, type CountbackCard } from "./stroke-countback";
 
 /**
  * What a league night is decided on, and what to call it.
@@ -192,16 +192,18 @@ export function compareOnBasis(
 /**
  * A NIGHT'S FIGURES PLUS THE CARD A COUNTBACK READS.
  *
- * `cbHoles` is this round's per-hole card on the night's own basis — net for a
- * net comp, points for Stableford, gross for gross — exactly as `holesByStage`
- * on the stroke aggregate holds it. Empty when there is no card to count back
- * over, which the countback reads as "cannot separate".
+ * `countback` is this round's card on the night's own basis, built by
+ * `countbackCardOn` from `holesByStage` exactly as the leaderboard builds it:
+ * points for Stableford, gross for gross, and for net the gross less fractions
+ * of the playing handicap (hole-by-hole net in an event created before
+ * 2026-11-09). Empty when there is no card to count back over, which the
+ * countback reads as "cannot separate".
  */
 export interface NightRow {
   gross: number;
   net: number;
   points: number;
-  cbHoles: (number | null)[];
+  countback: CountbackCard;
 }
 
 /** The figure a night is ranked on. */
@@ -226,8 +228,8 @@ export function compareNight(basis: WeekBasis, holeCount: number, a: NightRow, b
   const primary = basis === "stableford" ? fb - fa : fa - fb;
   if (primary !== 0) return primary;
   return countbackCompare(
-    { playerId: "", total: 0, holes: a.cbHoles },
-    { playerId: "", total: 0, holes: b.cbHoles },
+    a.countback,
+    b.countback,
     holeCount,
     basis === "stableford",
   );

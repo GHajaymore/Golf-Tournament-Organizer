@@ -42,6 +42,28 @@ const SI = [7, 3, 15, 1, 11, 5, 17, 13, 9, 8, 16, 2, 12, 4, 10, 18, 6, 14];
  */
 const CARD = [5, 4, 4, 6, 5, 5, 3, 5, 6, 5, 4, 9, 4, 5, 5, 3, 6, 5];
 
+describe("A card is never scored without a stroke index (Rules of Handicapping 6.2; Rule 21.1b)", () => {
+  it("the stroke index is a required argument: there is no even split to fall back on", () => {
+    // Compile-time: tsc fails this file if the argument becomes optional again.
+    const typeCheckOnly = () => {
+      // @ts-expect-error a stroke index (or the round's shots per hole) is required
+      computeStrokeCard(CARD, PARS, 10);
+    };
+    void typeCheckOnly;
+  });
+
+  it("every Stableford total is a whole number, however the handicap falls", () => {
+    // 18 fives on par 4s off 10 used to score 1.44 points a hole without a stroke index.
+    // With the card's: one stroke on SI 1-10 (net par, 2 points), none elsewhere (1 point): 10 x 2 + 8 x 1 = 28.
+    const fives = Array(18).fill(5);
+    const fours = Array(18).fill(4);
+    expect(computeStrokeCard(fives, fours, 10, SI).points).toBe(28);
+    for (let h = -5; h <= 40; h += 1) {
+      expect(Number.isInteger(computeStrokeCard(CARD, PARS, h, SI).points), `off ${h}`).toBe(true);
+    }
+  });
+});
+
 describe("Stroke play, gross and net (Rule 3.3; Rules of Handicapping 6.2)", () => {
   it("off a playing handicap of 14: gross 89, net 75, +17", () => {
     // 14 strokes on SI 1-14; none on SI 15 (hole 3), 16 (11), 17 (7), 18 (16).

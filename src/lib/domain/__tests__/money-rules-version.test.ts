@@ -26,7 +26,7 @@ import { moneyRulesVersion, moneyRulesFingerprint } from "@/lib/domain/money-rul
  * `moneyRulesVersion() === moneyRulesVersion()` passes forever and protects
  * nothing.
  */
-const RECORDED = "mlqxamd";
+const RECORDED = "mq0fwl1";
 
 const HISTORY: Array<{ version: string; note: string }> = [
   // { version: "m…", note: "2026-09-01 — remainder went to the largest share, not the first" },
@@ -37,6 +37,15 @@ const HISTORY: Array<{ version: string; note: string }> = [
       "(2 v 1 at $10.01: +500, +500, -1001); the larger side now shares the total by splitExactly, odd " +
       "cents to the lowest player id (+501, +500, -1001). The fingerprint now runs side games between " +
       "sides, which it never did, so this generation is the first that pins them.",
+  },
+  {
+    version: "mlqxamd",
+    note:
+      "2026-11-09 — splitExactly compared remainders in floating point, so remainders that were exactly " +
+      "equal could be told apart and the odd cent skipped the earlier player its own rule names: a $5 " +
+      "skins game of three, skins 1/1/7, paid 167/166/1167 where ties-by-order gives 167/167/1166. " +
+      "Remainders are whole numbers now ((total x w) mod sum). The fingerprint adds that split, which " +
+      "no earlier generation reached; every other figure in it is unchanged.",
   },
 ];
 

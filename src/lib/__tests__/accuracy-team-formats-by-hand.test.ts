@@ -11,6 +11,7 @@ import {
 import { playingHandicapFrom } from "../domain/handicap";
 import { resolveMatch } from "../domain/match";
 import { findFormat } from "../formats";
+import { effectiveAllowance, recommendedAllowance } from "../round-allowance";
 import { cupMatchState, cupTally, pointsToWin } from "../domain/cup";
 import type { HoleResult } from "../domain/types";
 
@@ -108,6 +109,20 @@ describe("Best balls of four (the same operation, counting N)", () => {
     const card = aggregateTeamCard(four, pars, si, 100, 4);
     expect(card.grossTotal).toBe(50);
     expect(card.toPar).toBe(2);
+  });
+});
+
+describe("Best Ball as a match is four-ball match play (Appendix C: 90%), as a medal four-ball stroke play (85%)", () => {
+  it("a course handicap of 20.0 plays off 18 in a match and 17 in a medal", () => {
+    // 20.0 x 0.90 = 18; 20.0 x 0.85 = 17.
+    expect(playingHandicapFrom(20.0, recommendedAllowance("Best Ball", "Round Robin"))).toBe(18);
+    expect(playingHandicapFrom(20.0, recommendedAllowance("Best Ball", "Bracket Stage"))).toBe(18);
+    expect(playingHandicapFrom(20.0, recommendedAllowance("Best Ball", "Stroke Play Round"))).toBe(17);
+  });
+
+  it("an allowance the committee set is kept: 85 stays 85 in a match", () => {
+    expect(effectiveAllowance("Best Ball", 85, "Round Robin")).toBe(85);
+    expect(effectiveAllowance("Best Ball", 0, "Round Robin")).toBe(90);
   });
 });
 

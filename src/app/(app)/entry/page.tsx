@@ -330,7 +330,6 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               cardStrokeIndex={tapCard.cardStrokeIndex}
               firstHole={tapCard.firstHole}
               matchShots={tapCard.matchShots}
-              voiceEntry={settingsOf(state.event).voiceEntry}
               stageId={stage.id}
               roundLabel={roundLabel(state.stages, stage.id)}
               eventName={state.event.name}
