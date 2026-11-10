@@ -43,6 +43,19 @@ Added after the move (the list above is the original, kept whole by `claude-md-i
   load". The test's database is a fake that refuses the bare client the moment a transaction is
   open, so it cannot pass on a free pool. The same shape — `prisma.` inside `$transaction(async (tx)
   => …)`, or a helper called from there that uses it — is the thing to look for in any other action.
+- `transactions-stay-on-their-own-connection.test.ts` (2026-11-09) — the class the test above found
+  one of, closed for every file under `src`. It reads the source (comments stripped, braces matched)
+  and finds every TRANSACTION SCOPE: the callback of each `$transaction(async (tx) => …)`, and every
+  function handed a client as a parameter (`tx: Tx`, `tx: PrizeTx`, `Prisma.TransactionClient`,
+  `db: Pick<typeof prisma, …>`). In each scope: the bare `prisma` is never named; everything awaited
+  is on the scope's client or is a call handed that client; a returned call to one of the module's
+  own functions is handed it too. The second and third rules are what close the INDIRECT shape — a
+  helper the callback waits on is itself a scope, so a bare read two helpers deep is found at the
+  helper and a helper that forgot to take the client is found at the call. It pins the count of
+  transactions it finds, so a finder that stopped seeing them cannot pass by seeing nothing, and it
+  plants each banned shape as a control. A legitimate await on something that is not the database
+  goes in `KNOWN_OFF_CLIENT` with its reason; nothing is there. On the `main` of that morning it
+  named exactly the nightly's defect, at the two calls that awaited `prizeWinnerNames` without `tx`.
 
 **WHEN A CORRECT CHANGE MAKES AN EXISTING GUARD FAIL, READ THE GUARD BEFORE UPDATING IT.** A guard
 that goes red on a change you have already proven right was asserting something false, and the
