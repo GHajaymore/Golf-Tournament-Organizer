@@ -403,14 +403,19 @@ describe("The rules sheet says how a net tie is counted back", () => {
       carryForwardPct: 0,
       netCountback: "fractions",
       ...over,
-    }).find((t) => t.label === "Ties")?.value ?? "";
-  const PLAIN = "Countback: last 9, 6 and 3 holes, then the final hole. A tie after that is shared.";
+    })
+      .filter((t) => t.label === "Ties" || t.label === "Net countback")
+      .map((t) => `${t.label}: ${t.value}`)
+      .join(" | ");
+  const PLAIN = "Ties: Countback: last 9, 6 and 3 holes, then the final hole. A tie after that is shared.";
 
-  it("an individual net medal names the fractions, over eighteen holes and nine", () => {
+  it("an individual net medal names the fractions, on their own short line, over eighteen holes and nine", () => {
     expect(ties({})).toBe(
-      "Countback: last 9, 6 and 3 holes, then the final hole. On net scores, ½, ⅓, ⅙ and 1/18 of the playing handicap come off. A tie after that is shared.",
+      `${PLAIN} | Net countback: With ½, ⅓, ⅙ and 1/18 of the playing handicap off.`,
     );
-    expect(ties({ holes: 9 })).toContain("⅔, ⅓ and 1/9 of the playing handicap");
+    expect(ties({ holes: 9 })).toBe(
+      "Ties: Countback: last 6 and 3 holes, then the final hole. A tie after that is shared. | Net countback: With ⅔, ⅓ and 1/9 of the playing handicap off.",
+    );
   });
 
   it("not for gross, Stableford, a team round, or an event that keeps hole by hole", () => {

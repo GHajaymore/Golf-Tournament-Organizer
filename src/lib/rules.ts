@@ -358,11 +358,6 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
       input.netCountback === "fractions" &&
       weekBasis(input.scoringBasis, input.format) === "net" &&
       !needsTeams(input.format);
-    const fractions = byFractions
-      ? input.holes === 9
-        ? " On net scores, ⅔, ⅓ and 1/9 of the playing handicap come off."
-        : " On net scores, ½, ⅓, ⅙ and 1/18 of the playing handicap come off."
-      : "";
     out.push({
       label: "Ties",
       value:
@@ -371,10 +366,25 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
         (input.holes === 9
           ? "Countback: last 6 and 3 holes, then the final hole."
           : "Countback: last 9, 6 and 3 holes, then the final hole.") +
-        fractions +
         " A tie after that is shared.",
       rule: "decidingTies",
     });
+    /**
+     * The fractions are their OWN line, not a second sentence of "Ties": the
+     * two together were 31 words in one block, past the player screens' limit
+     * (no sentence of 12 words, no block of 25 — `player-words.spec.ts`,
+     * round G584-1, 2026-11-10).
+     */
+    if (byFractions) {
+      out.push({
+        label: "Net countback",
+        value:
+          input.holes === 9
+            ? "With ⅔, ⅓ and 1/9 of the playing handicap off."
+            : "With ½, ⅓, ⅙ and 1/18 of the playing handicap off.",
+        rule: "decidingTies",
+      });
+    }
   } else if (input.tiebreakers.length) {
     out.push({
       label: "Ties",
