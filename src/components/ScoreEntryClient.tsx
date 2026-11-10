@@ -16,7 +16,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { HoleResultCard } from "@/components/HoleResultCard";
-import { firstName, distinctLabels, initials } from "@/lib/format";
+import { distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { marginRefusal } from "@/lib/domain/match";
 import { ScoreCell } from "@/components/ScorecardTable";
