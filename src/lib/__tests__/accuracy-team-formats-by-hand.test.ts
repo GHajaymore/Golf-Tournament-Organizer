@@ -59,10 +59,12 @@ describe("Four-ball stroke play (Appendix C: 85% each, better ball counts)", () 
     expect(card.holes[3].net).toBe(4);
   });
 
-  it("the stroke for the par of a higher tee is added AFTER the 85% (6.2b): net 61", () => {
-    // P1 on tees two par higher: 8 + 2 = 10 strokes, so two more net birdies (SI 9 and 10).
-    const card = aggregateTeamCard([{ ...members[0], parStrokes: 2 }, members[1]], PARS, SI, 85);
-    expect(card.netTotal).toBe(61);
+  it("the strokes for the par of a higher tee are added AFTER the 85% (6.2b): net 60", () => {
+    // A partner of exactly 10.0 on tees two par higher: 10 x 0.85 = 8.5 -> 9, + 2 = 11 strokes,
+    // net birdies on SI 1-11; P2 still takes the 16th. 72 - 11 - 1 = 60.
+    // (85% of 12.0 = 10.2 -> 10 would be 61.)
+    const card = aggregateTeamCard([{ ...members[0], courseHandicap: 10.0, parStrokes: 2 }, members[1]], PARS, SI, 85);
+    expect(card.netTotal).toBe(60);
   });
 
   it("a GROSS four-ball counts the better gross ball", () => {

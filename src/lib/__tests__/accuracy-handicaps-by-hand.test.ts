@@ -83,23 +83,25 @@ describe("Playing Handicap (Rule 6.2a, Appendix C): the allowance is taken of th
 });
 
 describe("Tees of a higher par (Rule 6.2b): the difference is added AFTER the allowance", () => {
-  // Men off the whites, par 71; ladies off the reds, par 73. Hand-worked above:
-  // the lady (20.2) is 22.4814 exactly and the man (20.0) 20.7469.
+  // Men off the whites, par 71; ladies off the reds, par 73. The man (20.0) is
+  // 20.7469 exactly (worked above). The lady (20.4): 204 x 128 = 26112;
+  // (726 - 730) x 113 = -452; 25660 / 1130 = 22.7080 -> 23.
   const tees = new Map([
     ["white", { ...tee(124, 69.8, 71), courseId: "c1" }],
     ["red", { ...tee(128, 72.6, 73), courseId: "c1" }],
   ]);
   const field = [
-    { id: "zz-lady", handicap: 20.2, teeId: "red", flightTeeId: null, gender: "F" },
+    { id: "zz-lady", handicap: 20.4, teeId: "red", flightTeeId: null, gender: "F" },
     { id: "zz-man", handicap: 20.0, teeId: null, flightTeeId: null, gender: "M" },
   ];
   const map = courseHandicapMap(field, tees, "white", 18, "own");
 
-  it("the lady is told 22 and given the 2 strokes for the par of her tees", () => {
-    expect(map.get("zz-lady")).toBe(22);
+  it("the lady is told 23 and given the 2 strokes for the par of her tees, outside the allowance: 24", () => {
+    expect(map.get("zz-lady")).toBe(23);
     expect(map.parStrokes("zz-lady")).toBe(2);
-    // 22.4814 x 0.95 = 21.357 -> 21, then + (73 - 71) = 23. Not 95% of (22 + 2).
-    expect(roundPlayingHandicap(map.exact("zz-lady")!, 95, map.parStrokes("zz-lady"))).toBe(23);
+    // 22.7080 x 0.95 = 21.5726 -> 22, then + (73 - 71) = 24.
+    // NOT 95% of (22.7080 + 2) = 23.47 -> 23: the allowance is not taken of the par strokes.
+    expect(roundPlayingHandicap(map.exact("zz-lady")!, 95, map.parStrokes("zz-lady"))).toBe(24);
   });
 
   it("the man on the lowest par is given none", () => {
