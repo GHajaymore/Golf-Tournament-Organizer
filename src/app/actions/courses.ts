@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isDistanceUnit } from "@/lib/domain/distance-unit";
 import { getSession } from "@/lib/auth";
-import { archiveRefusalFor, assertEventWritable } from "@/lib/services/club-archive";
+import { archiveRefusalFor, archiveRefusalOf, assertEventWritable } from "@/lib/services/club-archive";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { settingsOf } from "@/lib/services/tournament";
 import { playerTeeCounts } from "@/lib/tournament-settings";
@@ -548,7 +548,15 @@ export async function setStageCourse(
   teeId: string | null = null,
 ): Promise<CourseResult> {
   // Staff, not only the organizer: Ajay's decision of 2026-09-27.
-  const { eventId, organizationId } = await requireStaffOrg();
+  let gate: { organizationId: string; eventId: string };
+  try {
+    gate = await requireStaffOrg();
+  } catch (e) {
+    const refused = archiveRefusalOf(e);
+    if (refused) return { ok: false, error: refused };
+    throw e;
+  }
+  const { eventId, organizationId } = gate;
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
   if (!stage) return { ok: false, error: "Round not found." };
 

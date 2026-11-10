@@ -170,3 +170,45 @@ describe("the archive is asked at every door", () => {
     expect(askingHelpers(asking, "x.ts")).toEqual(["requireStaff"]);
   });
 });
+
+/**
+ * A PRESS IN AN ARCHIVE IS REFUSED IN WORDS, NOT THROWN (2026-11-09).
+ *
+ * The staff gates THROW `ArchivedTournament`, which is right for an action
+ * whose caller cannot show words. But a button on the dashboard or the rounds
+ * screen awaits `{ ok, error }` and shows the error beside itself; a throw
+ * reaches it as the error screen, "This screen didn't load" (CI, desktop 1/3,
+ * `setRoundClosed`). So each action a person can press from those screens
+ * takes its gate through a helper that catches the archive's class
+ * (`staffEventOrRefusal`, `adminEventOrRefusal`, `staffSessionOrRefusal`) and
+ * returns the sentence.
+ *
+ * Extend PRESSED_WITH_WORDS when a new button on those screens calls an action.
+ */
+const PRESSED_WITH_WORDS = [
+  "setRoundClosed", "settleCutTie", "setEventStatus", "launchTournament", "setConfigUnlocked",
+  "setStageDeadline", "setStageCarry", "setStageScoringBasis", "setStageScoreInput", "setStageMatchKeptBy",
+  "setStageScoring", "setStageFormat", "setStageHoles", "setStagePlayedOn", "addStage", "removeStage",
+  "generateNextRound", "setStageOptDeadline", "setStageCourse", "suspendPlay", "resumePlay",
+];
+
+/** Does the body take a gate that throws, with nothing to catch it? */
+function throwsAtThePress(body: string): boolean {
+  const bare = /await (requireStaffEvent|requireAdminEvent|requireStaffSession|requireStaffOrg)\(\)/.test(body);
+  const catches = /(OrRefusal)\(\)|archiveRefusalOf\(/.test(body);
+  return bare && !catches;
+}
+
+describe("a press in an archive is refused in words", () => {
+  it("every action pressed from the dashboard or the rounds screen says the archive's refusal", () => {
+    const missing = PRESSED_WITH_WORDS.filter((n) => !ACTIONS.some((a) => a.name === n));
+    expect(missing, "renamed or gone — fix the list").toEqual([]);
+    const thrown = ACTIONS.filter((a) => PRESSED_WITH_WORDS.includes(a.name) && throwsAtThePress(a.body)).map((a) => `${a.file}: ${a.name}`);
+    expect(thrown, "take the gate through its OrRefusal helper and return { ok: false, error }").toEqual([]);
+  });
+
+  it("CONTROL: an action that takes a throwing gate bare is seen, and one that catches is not", () => {
+    expect(throwsAtThePress("  const eventId = await requireStaffEvent();\n  return { ok: true };")).toBe(true);
+    expect(throwsAtThePress('  const gate = await staffEventOrRefusal();\n  if ("refused" in gate) return { ok: false };')).toBe(false);
+  });
+});
