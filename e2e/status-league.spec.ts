@@ -91,11 +91,12 @@ test("a league needs only its next week dated, and a medal of the same rounds is
     await prisma.stage.update({ where: { id: f.stageIds[0] }, data: { closedAt: new Date() } });
     await expectTournamentSays(page, { chip: "Live", nextAction: "Set Round 2’s day", refused: null, setup: null });
     // `setup: null` ends that helper on Tournament details (it checks the rail is gone), so the
-    // status card's link is read back on the dashboard, where the card is drawn.
+    // status card's link is read back on the dashboard, where the card is drawn. The card presses the
+    // tournament's one job (`tournamentJob`, B03), which opens the round concerned on Rounds & formats.
     await page.goto(`/dashboard?bust=${Date.now()}`);
     await expect(
       page.locator(".card").filter({ has: page.locator(".card-kicker", { hasText: "Tournament status" }) }).getByRole("link", { name: "Set Round 2’s day" }),
-    ).toHaveAttribute("href", "/stages");
+    ).toHaveAttribute("href", `/stages?round=${f.stageIds[1]}`);
     expect(errors).toEqual([]);
   } finally {
     await f.done();

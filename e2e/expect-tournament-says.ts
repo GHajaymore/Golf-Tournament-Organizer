@@ -169,8 +169,13 @@ async function expectTimelineSays(page: Page, says: TournamentSays): Promise<voi
     await expect(lead, "the timeline leads with a next action the dashboard does not offer").toHaveCount(0);
     return;
   }
-  const action = lead.getByRole("button", { name: says.nextAction }).or(lead.getByRole("link", { name: says.nextAction })).first();
-  await expect(action, `the timeline's next action is not "${says.nextAction}"`).toBeVisible();
+  // The timeline (still behind its own `?view=timeline` switch) leads with the MACHINE's next action as
+  // it gives it; the lifecycle stepper's PR (B03) left it alone. So where the dashboard's card says
+  // "End this event early…" behind More, the timeline says the machine's own "Complete tournament",
+  // with the same refusal and way out.
+  const timelineSays = says.nextAction === END_EARLY ? "Complete tournament" : says.nextAction;
+  const action = lead.getByRole("button", { name: timelineSays }).or(lead.getByRole("link", { name: timelineSays })).first();
+  await expect(action, `the timeline's next action is not "${timelineSays}"`).toBeVisible();
   if (says.refused) {
     await expect(action, "the timeline's refused action looks pressable").toHaveAttribute("aria-disabled", "true");
     const reason = page.locator(`#${await action.getAttribute("aria-describedby")}`);

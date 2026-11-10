@@ -147,7 +147,7 @@ export interface TournamentJobFacts {
    * step, the line under "Play over", whether results are in unlaunched, and
    * THE one next action with its refusal and way out. Never worked out here.
    */
-  status: Pick<TournamentStatus, "step" | "chipDetail" | "underWayUnlaunched" | "nextAction">;
+  status: Pick<TournamentStatus, "step" | "chipDetail" | "underWayUnlaunched" | "nextAction" | "rounds">;
   /** Its first and last day, `yyyy-mm-dd` or "" — when a launch falls due. */
   startOn: string;
   endOn: string;
@@ -388,7 +388,20 @@ function jobsOf(t: TournamentJobFacts, today: string, day: (iso: string) => stri
     }
 
     const own = lifecycleJob(t, today, day, window);
-    if (own) jobs.push(own);
+    if (own) {
+      /**
+       * LAUNCH BEFORE THE GOLF IT IS LATE FOR. A tournament still setting up with a round already being
+       * scored (D2, D5: results in, never launched) owed its launch before the first card: it is due no
+       * later than the oldest card, dispute or close it carries, and on that day Launch comes first
+       * (`JOB_ORDER`). Without this the cards outranked it by their earlier day, so the home's "Launch
+       * tournament" sent the secretary to a dashboard whose one button was "Settle it" — and nothing
+       * there launched it.
+       */
+      if (own.key === "launch") {
+        for (const j of jobs) if ((j.key === "settle" || j.key === "cards" || j.key === "close") && j.due < own.due) own.due = j.due;
+      }
+      jobs.push(own);
+    }
   }
   return jobs;
 }
@@ -445,7 +458,13 @@ export function tournamentJob(t: TournamentJobFacts, today: string, day: (iso: s
   if (own) return jobFrom(own, t);
 
   const st = t.status.step;
-  if (st === "live") {
+  /**
+   * NO GOLF TO PLAY AT ALL: a live tournament with no playing round has nothing left to be played, so
+   * the machine's own Complete is its button (below), as it was before B03 — never a "Play is under
+   * way" with no button and no More, which left it with no way to be completed from the dashboard.
+   */
+  const nothingToPlay = next.kind === "complete" && t.status.rounds.length === 0;
+  if (st === "live" && !nothingToPlay) {
     // Nothing to press: when the next round tees off, or that it is being played.
     const sheet = t.nextSheet;
     const b = t.board;
@@ -454,7 +473,7 @@ export function tournamentJob(t: TournamentJobFacts, today: string, day: (iso: s
     const roundId = (teesOff ? sheet!.roundId : b && !b.closed ? b.roundId : undefined) ?? null;
     return { key: "waiting", text, action: null, href: "/dashboard", enabled: true, disabledBecause: null, wayOut: null, moves: false, quiet: true, roundId };
   }
-  // The machine's own answer, as it gives it (never Complete while live: handled above).
+  // The machine's own answer, as it gives it (never Complete while live with golf to play: handled above).
   return {
     key: next.kind === "complete" ? "results" : next.kind === "reopen" ? "reopen" : next.kind === "launch" ? "launch" : next.kind,
     text: t.status.chipDetail || next.label,

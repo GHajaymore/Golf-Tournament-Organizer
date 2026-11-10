@@ -70,10 +70,10 @@ test("an organizer of a lapsed club sees the tournament read-only, and a press i
     const wren = await prisma.player.create({ data: { eventId: event.id, name: "Wren Halloway", email: `zz-archive-wren-${size}@example.invalid`, seed: 1, status: "confirmed" } });
     // A card in, so Complete is offered at all (with nothing scored it is refused before the
     // archive is asked) and the refusal under test is the archive's.
-    // Its card is IN (certified and approved): Complete is offered beside the job only once a round's cards are in (the panel and the PM, 9–10 Nov).
-    await prisma.scorecard.create({
-      data: { eventId: event.id, stageId: round.id, playerId: wren.id, strokes: JSON.stringify(new Array(18).fill(4)), status: "approved", certifiedBy: "zz", certifiedAt: new Date(), approvedBy: "zz", approvedAt: new Date() },
-    });
+    // NOT yet approved, so golf remains and ending is "End this event early…" under the card's More
+    // (B03: the PM, 10 Nov). With every card in, the job would be closing the round instead, and
+    // nothing ends the event until it is closed — which an archive refuses before Complete is reached.
+    await prisma.scorecard.create({ data: { eventId: event.id, stageId: round.id, playerId: wren.id, strokes: JSON.stringify(new Array(18).fill(4)) } });
     await prisma.account.create({ data: { eventId: event.id, email, name: "Zz Archive Owner", role: "admin" } });
     await ctx.addCookies([
       { name: "ng_session", value: sign(signedInNow(user.id)), url: baseURL! },

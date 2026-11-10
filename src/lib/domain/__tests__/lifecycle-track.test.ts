@@ -253,8 +253,8 @@ function invariants(name: string, t: Facts, today = TODAY) {
     expect(c.state, name).toBe("held");
     expect(c.reason, `${name}: the refusal, word for word`).toBe(j.disabledBecause);
   } else expect(c.state, name).toBe("now");
-  // Never Complete while golf is being played.
-  if (t.status.step === "live") {
+  // Never Complete while golf is being played (a live tournament with no playing round has none to play).
+  if (t.status.step === "live" && t.status.rounds.length > 0) {
     expect(j.key, name).not.toBe("results");
     // Nor as the dashboard card's button: while live, Complete is only ever "End this event early…".
     const card = cardPressOf(t.status.nextAction, j);
@@ -448,5 +448,37 @@ describe("ending early: behind More, while golf remains to be played (the PM, 10
     const early = offered(nothing)!;
     expect(early.enabled).toBe(false);
     expect(early.disabledBecause).toBe(tournamentStatus(nothing).refusals.complete);
+  });
+});
+
+/* ------------------------------------------- the dashboard is never a dead end */
+
+describe("the card always has the press the tournament needs (found by #1081's round)", () => {
+  it("results in on a tournament never launched, with a dispute and cards out: Launch is the button AND the home's first line", () => {
+    // Set up, Round 1 already being scored a day ago, a result disputed (D2, D5). The home used to put
+    // "Settle it" and the cards first by their earlier day, and its "Launch tournament" line sent the
+    // secretary to a dashboard whose one button was "Settle it": nothing there launched it.
+    const played = medal({ rounds: [r1({ hasResult: true }), r2()] });
+    const t = jobFacts(played, { board: board({ day: "2026-11-19" }), disputed: 1 });
+    expect(t.status.step, "CONTROL: still setting up").toBe("setting-up");
+    expect(t.status.underWayUnlaunched).toBe(true);
+    const job = tournamentJob(t, TODAY, day)!;
+    expect(job.key).toBe("launch");
+    expect(cardPressOf(t.status.nextAction, job)).toMatchObject({ kind: "move", action: { kind: "launch" } });
+    const home = whatsNext({ tournaments: [t], today: TODAY, locale: "en-GB" });
+    expect(home.map((j) => j.key)).toEqual(["launch", "settle", "cards"]);
+  });
+
+  it("a live tournament with no playing round has no golf left: the machine's Complete is the card's button", () => {
+    const t = jobFacts(launched(facts({ rounds: [] })));
+    expect(t.status.step, "CONTROL: the machine calls it live").toBe("live");
+    expect(t.status.nextAction?.kind, "CONTROL: and offers Complete").toBe("complete");
+    const job = tournamentJob(t, TODAY, day)!;
+    expect(job.moves, "Play is under way with no button and no More: nothing completes it").toBe(true);
+    expect(cardPressOf(t.status.nextAction, job)).toMatchObject({ kind: "move", action: { kind: "complete" } });
+    expect(endEarlyOf(t.status, job), "nothing to end early: Complete is the button").toBeNull();
+    // CONTROL: one round still to play keeps Complete off the card.
+    const one = jobFacts(launched(facts({ rounds: [r1()] })));
+    expect(tournamentJob(one, TODAY, day)!.moves).toBe(false);
   });
 });
