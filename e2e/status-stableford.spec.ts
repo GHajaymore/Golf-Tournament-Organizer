@@ -39,6 +39,11 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
  * (`tees-shut-once-frozen.spec.ts`).
  */
 
+/*
+ * Its own throwaway club (`zz-status-stableford-*`), deleted in `finally`; the late entrant is a row of
+ * that tournament and goes with it. Memory: one context and one page, about 150 MB.
+ */
+
 /** Invented, like every name here. */
 const LATE = "Idris Calloway";
 /** The rounds rule's sentences for a Stableford round with a card in (`round-change.ts`), written out. */
@@ -53,6 +58,8 @@ test("a Stableford says the same thing on every panel through setup and launch (
   const errors: string[] = [];
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "stableford",
+    // The late entry is typed and saved on Entries: a save spec blocks the service worker.
+    saves: true,
     rounds: [{ type: "Stroke Play Round", format: "Stableford", scoringBasis: "net" }],
   });
   try {

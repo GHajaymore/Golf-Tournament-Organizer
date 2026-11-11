@@ -49,6 +49,12 @@ export async function statusFixture(
     /** Each round, in order. */
     rounds: Array<{ type: string; format: string; scoringBasis?: string; playedOn?: string }>;
     players?: number;
+    /**
+     * A walk that SAVES through the app (a late entry typed on Entries) blocks the service
+     * worker, the save specs' rule on WebKit (`docs/claude/e2e-traps.md`). Off unless asked,
+     * so the walks that only read are opened exactly as they were.
+     */
+    saves?: boolean;
   },
 ): Promise<StatusFixture> {
   const size = testInfo.project.name.replace(/[^a-z]/gi, "").toLowerCase();
@@ -115,7 +121,12 @@ export async function statusFixture(
     playerIds.push(p.id);
   }
   await prisma.account.create({ data: { eventId: event.id, email, name: "Zz Status Organizer", role: "admin" } });
-  const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: { cookies: [], origins: [] } });
+  const ctx = await browser.newContext({
+    ...testInfo.project.use,
+    baseURL,
+    storageState: { cookies: [], origins: [] },
+    ...(opts.saves ? { serviceWorkers: "block" as const } : {}),
+  });
   await ctx.addCookies([
     { name: "ng_session", value: sign(signedInNow(user.id)), url: baseURL! },
     { name: "ng_active_event", value: sign(event.id), url: baseURL! },
