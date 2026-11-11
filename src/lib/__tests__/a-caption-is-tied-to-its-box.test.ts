@@ -69,65 +69,11 @@ function swept(): string[] {
   return keys.sort();
 }
 
-/** Today's set. Delete a line the day its caption is tied; never add one. */
-const KNOWN_BARE_CAPTIONS: string[] = [
-  "app/(app)/group-games/page.tsx :: Round",
-  "app/styleguide/page.tsx :: Format",
-  "app/styleguide/page.tsx :: Notes",
-  "app/styleguide/page.tsx :: Tournament name",
-  "components/AccessClient.tsx :: Role",
-  "components/CardImport.tsx :: City",
-  "components/CardImport.tsx :: Course name",
-  "components/CardImport.tsx :: Holes",
-  "components/CardImport.tsx :: Where it came from — optional",
-  "components/CardImport.tsx :: … …",
-  "components/CoursePicker.tsx :: …",
-  "components/CourseSearch.tsx :: Find a course",
-  "components/CourseSetupPrompt.tsx :: City",
-  "components/CourseSetupPrompt.tsx :: Course name",
-  "components/CourseSetupPrompt.tsx :: Paste the card — the whole table is fine; rows are",
-  "components/CourseSetupPrompt.tsx :: Your …&rsquo;s courses",
-  "components/DraftAssistant.tsx :: Anything to mention? (optional)",
-  "components/DraftAssistant.tsx :: What would you like drafted?",
-  "components/EntryTermsCard.tsx :: Places",
-  "components/EntryTermsCard.tsx :: When someone enters",
-  "components/EventSetupClient.tsx :: Player count",
-  "components/FoursomeMaker.tsx :: Group size",
-  "components/GroupingControls.tsx :: Flight size",
-  "components/GroupingControls.tsx :: …",
-  "components/MatchKeeper.tsx :: By how much",
-  "components/MoneyClient.tsx :: Split",
-  "components/MoneyClient.tsx :: Split between",
-  "components/NewMatchForm.tsx :: Are shots being given?",
-  "components/NewMatchForm.tsx :: Handicap",
-  "components/NewMatchForm.tsx :: How many holes?",
-  "components/NewMatchForm.tsx :: Player … … … …",
-  "components/NewMatchForm.tsx :: Playing for anything?",
-  "components/NewMatchForm.tsx :: What for?",
-  "components/NewMatchForm.tsx :: Who enters scores?",
-  "components/OrganizationAccess.tsx :: Role",
-  "components/OrganizationClient.tsx :: Name beside the logo",
-  "components/PlaySettings.tsx :: Voice entry",
-  "components/PlaySettings.tsx :: …",
-  "components/RegistrationClient.tsx :: Handicap is a…",
-  "components/RegistrationClient.tsx :: Handicap source",
-  "components/ResetPasswordForm.tsx :: Confirm password",
-  "components/ResetPasswordForm.tsx :: New password",
-  "components/ScoreEntryClient.tsx :: Result (e.g. “3&2”, “1 UP”, “AS”)",
-  "components/SideBetStart.tsx :: What to call it",
-  "components/SkinsPotClient.tsx :: What to call it",
-  "components/StrokePlayEntry.tsx :: Scoring",
-  "components/VenuePrompt.tsx :: Address",
-  "components/VenuePrompt.tsx :: City",
-  "components/VenuePrompt.tsx :: Golf course",
-  "components/VenuePrompt.tsx :: Par",
-  "components/VenuePrompt.tsx :: Paste the card, a row at a time",
-  "components/VenuePrompt.tsx :: Rating",
-  "components/VenuePrompt.tsx :: Slope",
-  "components/VenuePrompt.tsx :: Tees",
-  "components/VenuePrompt.tsx :: Which nine?",
-  "components/VenuePrompt.tsx :: … …",
-];
+/**
+ * Today's set: EMPTY (all 56 were tied, 2026-11-10). Never add a line; tie the caption instead
+ * (`htmlFor` + `id`, or a `span.field-caption` naming a `role="group"` with `aria-labelledby`).
+ */
+const KNOWN_BARE_CAPTIONS: string[] = [];
 
 describe("a caption names its box", () => {
   it("no caption is added to the set that is tied to nothing", () => {
@@ -154,7 +100,9 @@ describe("a caption names its box", () => {
   });
 
   it("CONTROL: the sweep reads files at all (a sweep of nothing reports nothing)", () => {
+    // The set is empty now, so a clean sweep is the right answer and cannot prove the sweep can see;
+    // the file count and the string controls above do (a bare caption in a string is found).
     expect(files(SRC).length).toBeGreaterThan(100);
-    expect(swept().length).toBeGreaterThan(0);
+    expect(Array.isArray(swept())).toBe(true);
   });
 });

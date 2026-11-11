@@ -456,8 +456,8 @@ export function OrganizationClient(props: Props) {
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: 6 }}>Name beside the logo</label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <span id={`${fid}-brand`} style={{ display: "block", marginBottom: 6 }}>Name beside the logo</span>
+            <div role="group" aria-labelledby={`${fid}-brand`} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {BRAND_DISPLAY.map((k) => {
                 const on = brandDisplay === k;
                 return (

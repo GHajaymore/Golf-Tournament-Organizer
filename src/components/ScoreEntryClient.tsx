@@ -1775,10 +1775,11 @@ export function ScoreEntryClient({
                 </div>
               </div>
               <div className="field">
-                <label>Result (e.g. “3&2”, “1 UP”, “AS”)</label>
+                <label htmlFor="score-entry-result-margin">Result (e.g. “3&2”, “1 UP”, “AS”)</label>
                 {/* Typed, never dictated: the winner is a tap above and the
                     margin a few characters here (Ajay, 2026-11-09). */}
                 <input
+                  id="score-entry-result-margin"
                   className="input"
                   value={margin}
                   onChange={(e) => setMargin(e.target.value)}

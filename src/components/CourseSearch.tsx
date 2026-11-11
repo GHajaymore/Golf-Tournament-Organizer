@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   searchCourseDirectory,
@@ -34,6 +34,7 @@ import { Icon } from "./Icon";
  */
 export function CourseSearch({ onImported }: { onImported?: (courseId: string) => void }) {
   const router = useRouter();
+  const fid = useId();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<DirectorySearchHit[] | null>(null);
   const [error, setError] = useState("");
@@ -169,9 +170,10 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", marginBottom: 6 }}>Find a course</label>
+      <label htmlFor={`${fid}-find`} style={{ display: "block", marginBottom: 6 }}>Find a course</label>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <input
+          id={`${fid}-find`}
           className="input"
           style={{ minWidth: 200, flex: 1 }}
           value={query}

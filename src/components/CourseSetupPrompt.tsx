@@ -1,7 +1,7 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { useClubDistanceWords } from "@/components/DistanceUnitProvider";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { saveCustomCourse } from "@/app/actions/tournament";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
@@ -50,6 +50,7 @@ export function CourseSetupPrompt({
 }) {
   // A society is not a club, and this screen says so. See OrgProfileProvider.
   const org = useOrgProfile();
+  const fid = useId();
   // A NEW course is saved without a unit, which resolves to the club's — so
   // its boxes are labelled in the club's unit. See DistanceUnitProvider.
   const distance = useClubDistanceWords();
@@ -173,10 +174,11 @@ export function CourseSetupPrompt({
 
   const paste = (
     <div className="field" style={{ flexBasis: "100%" }}>
-      <label>
+      <label htmlFor={`${fid}-paste`}>
         Paste the card <span className="text-muted">— the whole table is fine; rows are read by their labels</span>
       </label>
       <textarea
+        id={`${fid}-paste`}
         className="input"
         rows={3}
         value={pasteText}
@@ -252,8 +254,8 @@ export function CourseSetupPrompt({
 
       {saved.length > 0 && (
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", marginBottom: 6 }}>Your {org.noun}&rsquo;s courses</label>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <span id={`${fid}-saved`} style={{ display: "block", marginBottom: 6 }}>Your {org.noun}&rsquo;s courses</span>
+          <div role="group" aria-labelledby={`${fid}-saved`} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {saved.map((c) => (
               <button
                 key={c.id}
@@ -275,12 +277,12 @@ export function CourseSetupPrompt({
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
         <div className="field" style={{ minWidth: 220, flex: 1 }}>
-          <label>Course name</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pinehurst No. 2" />
+          <label htmlFor={`${fid}-name`}>Course name</label>
+          <input id={`${fid}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pinehurst No. 2" />
         </div>
         <div className="field" style={{ minWidth: 180, flex: 1 }}>
-          <label>City</label>
-          <input className="input" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Pinehurst, NC" />
+          <label htmlFor={`${fid}-city`}>City</label>
+          <input id={`${fid}-city`} className="input" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Pinehurst, NC" />
         </div>
         {paste}
       </div>

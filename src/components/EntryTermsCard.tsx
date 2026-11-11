@@ -186,9 +186,9 @@ export function EntryTermsCard({
           </p>
         </div>
         <div className="field">
-          <label>Places</label>
+          <span className="field-caption" id={`${fid}-places`}>Places</span>
           <div style={{ display: "flex", gap: 8 }}>
-            <div className="seg">
+            <div className="seg" role="group" aria-labelledby={`${fid}-places`}>
               <label className="seg-opt">
                 <input type="radio" name={`${fid}-capmode`} checked={cap > 0} disabled={pending || termsLocked} onChange={() => setCap(cap > 0 ? cap : 32)} />
                 Fixed
@@ -239,8 +239,8 @@ export function EntryTermsCard({
 
       {/* APPROVAL — auto-confirm to the places, or approve each entry. */}
       <div className="field">
-        <label>When someone enters</label>
-        <div className="seg" style={{ width: "100%" }}>
+        <span className="field-caption" id={`${fid}-approval`}>When someone enters</span>
+        <div className="seg" role="group" aria-labelledby={`${fid}-approval`} style={{ width: "100%" }}>
           {[
             ["auto", "Auto-confirm to capacity"],
             ["approve", "Approve each entry"],
