@@ -9,7 +9,7 @@ import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { useTransition } from "react";
 import { moveInTeeSheet, saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
 import { drawTimesFrom, sameSheet, sheetOnScreen, sheetStatusLine, startStyleOf, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
-import { applyMoves, groupStep, GROUPS_NOTE, moveKindsOf, playerMoveOptions, shortGroupWarnings, SIDES_NOTE, type MoveMode, type MoveOption, type SheetMove } from "@/lib/domain/tee-sheet-moves";
+import { applyMoves, emptiedGroups, groupStep, GROUPS_NOTE, moveKindsOf, playerMoveOptions, removalLines, shortGroupWarnings, SIDES_NOTE, type MoveMode, type MoveOption, type SheetMove } from "@/lib/domain/tee-sheet-moves";
 import { Icon } from "./Icon";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import { useFormatting } from "./CurrencyProvider";
@@ -883,7 +883,7 @@ export function FoursomeMaker({
               <span role="status" style={{ fontSize: 14, fontWeight: 600 }}>
                 {moves.length} {moves.length === 1 ? "change" : "changes"} not saved yet.
               </span>
-              {shortGroupWarnings(draft, fieldIds, terms).map((w) => (
+              {[...removalLines(draft, fieldIds, locks), ...shortGroupWarnings(draft, fieldIds, terms)].map((w) => (
                 <p key={w} className="text-muted" role="note" style={{ margin: 0, fontSize: 13 }}>
                   <Icon name="warning-circle" /> {w}
                 </p>
@@ -961,6 +961,11 @@ export function FoursomeMaker({
                     );
                   })()}
                 </div>
+              )}
+              {moving && emptiedGroups(draft, fieldIds, locks).includes(i) && (
+                <p role="note" className="text-muted" style={{ margin: 0, fontSize: 13 }}>
+                  No players left. It is removed when you save changes; move a later group up into it to take its time.
+                </p>
               )}
               {moving && locks[i] && (
                 <p role="note" className="text-muted" style={{ margin: 0, fontSize: 13 }}>

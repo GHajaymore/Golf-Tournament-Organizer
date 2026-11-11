@@ -12,7 +12,9 @@ import { PrismaClient } from "@prisma/client";
  *
  *   an assistant moves a player and a group   → the stored sheet is the one the rules give,
  *                                               the times stayed with the slots, still published
- *   a full group, a fifth, an emptied group    → refused, in words, nothing written
+ *   a full group, a fifth                      → refused, in words, nothing written
+ *   a group emptied by moving its players out   → allowed: removed on Save, the others keep their times;
+ *                                                 a later group moved up into the freed slot takes its time
  *   a sheet saved by somebody else since       → refused (compare-and-set), nothing written
  *   a card in Group 3                          → nobody moves in or out of it, and it stays
  *   the round's day passes (club's clock)      → every group has teed off: refused
@@ -152,19 +154,74 @@ describe("moveInTeeSheet", () => {
     expect((await stored()).teeSheetPublished).toBe(true);
   });
 
-  it("a fifth player, a player into a full group, and an emptied group are refused; nothing is written", async () => {
+  it("a fifth player and a player into a full group are refused; nothing is written", async () => {
     await reset();
     await as(assistantId);
     const before = (await stored()).teeSheet;
     expect(await moveInTeeSheet(stageId, SAVED, [{ kind: "player", playerId: ids.eve, toGroup: 0 }])).toEqual({ ok: false, error: "Group 1 is full. Choose a group with room." });
-    // Two moves in one Save: the first is fine, the second empties Group 3 (hal then ivy leave it) — the whole Save is refused.
+    // Two moves in one Save: the first fits Group 2 (three, so four), the second would make it five — the whole Save is refused.
     expect(
       await moveInTeeSheet(stageId, SAVED, [
         { kind: "player", playerId: ids.hal, toGroup: 1 },
         { kind: "player", playerId: ids.ivy, toGroup: 1 },
       ]),
-    ).toMatchObject({ ok: false });
+    ).toEqual({ ok: false, error: "Group 2 is full. Choose a group with room." });
     expect((await stored()).teeSheet, "a refused Save wrote").toBe(before);
+  });
+
+  async function fourGroups() {
+    await reset();
+    await prisma.stage.update({
+      where: { id: stageId },
+      data: {
+        teeSheet: JSON.stringify({
+          savedAt: SAVED,
+          startType: "tee",
+          groups: [
+            { name: "Group 1", startHole: 1, time: "8:00 AM", playerIds: [ids.ann, ids.bob, ids.cat] },
+            { name: "Group 2", startHole: 1, time: "8:10 AM", playerIds: [ids.dan, ids.eve] },
+            { name: "Group 3", startHole: 1, time: "8:20 AM", playerIds: [ids.fay, ids.gus, ids.hal] },
+            { name: "Group 4", startHole: 1, time: "8:30 AM", playerIds: [ids.ivy] },
+          ],
+        }),
+      },
+    });
+  }
+
+  it("a group emptied by moving its two players out is removed on Save; the others keep their own times", async () => {
+    await fourGroups();
+    await as(assistantId);
+    const res = await moveInTeeSheet(stageId, SAVED, [
+      { kind: "player", playerId: ids.dan, toGroup: 0 },
+      { kind: "player", playerId: ids.eve, toGroup: 2 },
+    ]);
+    expect(res).toEqual({ ok: true, said: "The sheet is saved. Group 2 removed (no players left)." });
+    const g = await groups();
+    expect(g.map((x) => x.playerIds)).toEqual([[ids.ann, ids.bob, ids.cat, ids.dan], [ids.fay, ids.gus, ids.hal, ids.eve], [ids.ivy]]);
+    expect(g.map((x) => x.time)).toEqual(["8:00 AM", "8:20 AM", "8:30 AM"]);
+    expect(g.map((x) => x.name)).toEqual(["Group 1", "Group 2", "Group 3"]);
+    expect((await stored()).teeSheetPublished).toBe(true);
+  });
+
+  it("then a later group moved up into the freed slot takes that slot's time; the slot it left goes", async () => {
+    await fourGroups();
+    await as(assistantId);
+    const res = await moveInTeeSheet(stageId, SAVED, [
+      { kind: "player", playerId: ids.dan, toGroup: 0 },
+      { kind: "player", playerId: ids.eve, toGroup: 2 },
+      { kind: "group", from: 3, to: 1 },
+    ]);
+    expect(res.ok).toBe(true);
+    const g = await groups();
+    expect(g.map((x) => x.playerIds)).toEqual([[ids.ann, ids.bob, ids.cat, ids.dan], [ids.ivy], [ids.fay, ids.gus, ids.hal, ids.eve]]);
+    expect(g.map((x) => x.time)).toEqual(["8:00 AM", "8:10 AM", "8:20 AM"]);
+  });
+
+  it("a locked group is never emptied: its only player cannot leave it", async () => {
+    await fourGroups();
+    await prisma.scorecard.create({ data: { eventId, stageId, playerId: ids.ivy, strokes: JSON.stringify(Array(18).fill(5)), status: "entered" } });
+    await as(assistantId);
+    expect(await moveInTeeSheet(stageId, SAVED, [{ kind: "player", playerId: ids.ivy, toGroup: 1 }])).toEqual({ ok: false, error: "Group 4 has a card in. Nobody moves out of it." });
   });
 
   it("a sheet saved by somebody else since is refused in a sentence, nothing written", async () => {
@@ -289,6 +346,41 @@ describe("the field a group's room is counted against (a league week)", () => {
     });
     await as(assistantId, leagueEvent);
     expect(await moveInTeeSheet(weekStage, SAVED_W, [{ kind: "player", playerId: lid.y, toGroup: 1 }])).toEqual({ ok: false, error: "Group 2 is full. Choose a group with room." });
+  });
+
+  it("two no-shows marked out leave a two-ball; its remaining two move into other groups and the group goes", async () => {
+    await prisma.roundAttendance.update({ where: { stageId_playerId: { stageId: weekStage, playerId: lid.x } }, data: { status: "in" } });
+    await prisma.stage.update({
+      where: { id: weekStage },
+      data: {
+        teeSheet: JSON.stringify({
+          savedAt: SAVED_W,
+          startType: "tee",
+          groups: [
+            { name: "Group 1", startHole: 1, time: "6:30 PM", playerIds: [lid.y, lid.z] },
+            { name: "Group 2", startHole: 1, time: "6:40 PM", playerIds: [lid.x, lid.p1, lid.p2, lid.p3] },
+          ],
+        }),
+      },
+    });
+    await as(assistantId, leagueEvent);
+    // p2 and p3 are marked out: Group 2 is a two-ball (x and p1). Move both into Group 1; Group 2 has nobody left and goes.
+    for (const k of ["p2", "p3"]) {
+      await prisma.roundAttendance.upsert({
+        where: { stageId_playerId: { stageId: weekStage, playerId: lid[k] } },
+        update: { status: "out" },
+        create: { eventId: leagueEvent, stageId: weekStage, playerId: lid[k], status: "out", decidedBy: "test" },
+      });
+    }
+    const res = await moveInTeeSheet(weekStage, SAVED_W, [
+      { kind: "player", playerId: lid.x, toGroup: 0 },
+      { kind: "player", playerId: lid.p1, toGroup: 0 },
+    ]);
+    expect(res.ok, JSON.stringify(res)).toBe(true);
+    const g = JSON.parse((await prisma.stage.findUniqueOrThrow({ where: { id: weekStage } })).teeSheet).groups as Array<{ name: string; time: string; playerIds: string[] }>;
+    expect(g.map((x) => x.time)).toEqual(["6:30 PM"]);
+    expect(g[0].playerIds).toEqual([lid.y, lid.z, lid.x, lid.p1]);
+    expect(g.some((x) => x.playerIds.includes(lid.p2)), "the marked-out players were kept in a group that stayed").toBe(false);
   });
 
   async function roundOf(type: string, format: string, withSides: boolean) {

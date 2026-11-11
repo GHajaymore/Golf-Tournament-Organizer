@@ -18,6 +18,9 @@ import { watchPageErrors } from "./page-errors";
  *                             locked and says so
  *   league week, organizer  → one player moves between groups and a group moves up, saved once
  *   league week, assistant  → the same, back again
+ *   league week, no-shows   → two players marked out leave a group of two; the organizer moves those two
+ *                             into other groups; the draft says the group will be removed; one Save, and
+ *                             the group is gone while the others keep their times
  *
  * The club's clock is told: UTC, and the round is tomorrow, so no group has teed off whatever the
  * hour. A teed-off group's rule is `tee-sheet-moves.test.ts` (it needs the club's wall clock).
@@ -160,7 +163,7 @@ test.describe("tee sheet moves: a league week", () => {
       status: "live",
       configUnlocked: false,
       stages: [{ playedOn: addDays(dayIn(ZONE), 1) }, { playedOn: addDays(dayIn(ZONE), 8) }],
-      players: 6,
+      players: 8,
       event: { attendanceMode: "opt-out" },
     });
     eventId = made.event.id;
@@ -232,5 +235,55 @@ test.describe("tee sheet moves: a league week", () => {
     // The assistant did the same on what the organizer left: the last of the new Group 1 (the same player) goes to the other group, which goes first — back as it began.
     expect(results[1]).toEqual([ids.slice(0, 4), ids.slice(4, 6)]);
     expect(errors, "the page threw").toEqual([]);
+  });
+
+  test("two no-shows leave a two-ball; the organizer moves the two into other groups, and the empty group is removed on Save", async ({ browser, baseURL }, testInfo) => {
+    test.setTimeout(180_000);
+    const errors: string[] = [];
+    // Fresh sheet: Group 2 holds four, two of whom (ids 5 and 6) are marked out for the week.
+    await prisma.stage.update({
+      where: { id: stageId },
+      data: {
+        teeSheetPublished: true,
+        teeSheet: JSON.stringify({
+          savedAt: new Date().toISOString(),
+          startType: "tee",
+          groups: [
+            { name: "Group 1", startHole: 1, time: "6:30 PM", playerIds: ids.slice(0, 3) },
+            { name: "Group 2", startHole: 1, time: "6:40 PM", playerIds: [ids[3], ids[4], ids[5], ids[6]] },
+            { name: "Group 3", startHole: 1, time: "6:50 PM", playerIds: [ids[7]] },
+          ],
+        }),
+      },
+    });
+    for (const out of [ids[5], ids[6]]) {
+      await prisma.roundAttendance.upsert({
+        where: { stageId_playerId: { stageId, playerId: out } },
+        update: { status: "out" },
+        create: { eventId, stageId, playerId: out, status: "out", decidedBy: "zz-sheetmoves" },
+      });
+    }
+    const context = await browser.newContext({ ...testInfo.project.use, baseURL, serviceWorkers: "block" });
+    await signIn(context, baseURL!, club, eventId);
+    try {
+      const page = await context.newPage();
+      watchPageErrors(page, errors, "organizer");
+      await open(page, stageId);
+      // The real gaps show at once: the players marked out are not on the card.
+      await expect(page.getByText(NAMES[5], { exact: false })).toHaveCount(0);
+      await page.getByLabel(`Move ${NAMES[3]} to`, { exact: true }).selectOption({ label: "Group 1 · 6:30 PM · 3 players" });
+      await page.getByLabel(`Move ${NAMES[4]} to`, { exact: true }).selectOption({ label: "Group 3 · 6:50 PM · 1 player" });
+      await expect(page.getByText("Group 2 will be removed (no players left).")).toBeVisible();
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await expect
+        .poll(async () => (await readSheet(stageId)).groups.map((g) => g.playerIds), { timeout: 20_000, message: "the moves were not saved" })
+        .toEqual([[ids[0], ids[1], ids[2], ids[3]], [ids[7], ids[4]]]);
+      const after = await readSheet(stageId);
+      expect(after.groups.map((g) => g.time), "the remaining groups kept their own times").toEqual(["6:30 PM", "6:50 PM"]);
+      expect(after.published).toBe(true);
+      expect(errors, "the page threw").toEqual([]);
+    } finally {
+      await context.close();
+    }
   });
 });

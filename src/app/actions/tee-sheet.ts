@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { GROUP_MOST, parseTeeSheet, placeInGroup, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
-import { applyMoves, GROUPS_NOTE, moveKindsOf, moveModeOf, SIDES_NOTE, type SheetMove } from "@/lib/domain/tee-sheet-moves";
+import { applyMoves, GROUPS_NOTE, moveKindsOf, moveModeOf, settleSheet, SIDES_NOTE, type SheetMove } from "@/lib/domain/tee-sheet-moves";
 import { sheetFieldFor } from "@/lib/services/sheet-field";
 import { slotLocksFor } from "@/lib/services/tee-sheet-locks";
 import { needsTeams } from "@/lib/formats";
@@ -293,7 +293,7 @@ const MOST_MOVES = 60;
  * drew the draft with — replayed here over the STORED sheet, so a caller sending
  * anything at all is held to the same words. Times and start holes stay with
  * the slots; a group that has teed off (the club's clock) or holds a card is
- * locked; nobody ends a group above four; an emptied group is refused.
+ * locked; nobody ends a group above four; a group left with nobody is removed on Save.
  *
  * WHO MAY CALL IT: staff of the tournament, an Assistant as much as the
  * Organizer, and only while the field rule allows (`place-in-group`). A player
@@ -370,7 +370,9 @@ export async function moveInTeeSheet(
   const locks = await slotLocksFor(session.eventId, stageId, sheet);
   const applied = applyMoves(sheet, clean, field, locks);
   if (!applied.ok) return { ok: false, error: applied.says };
-  const next: TeeSheet = { ...applied.sheet, savedAt: new Date().toISOString() };
+  // A group the moves left with nobody is removed; the others keep their own times.
+  const settled = settleSheet(applied.sheet, field, locks);
+  const next: TeeSheet = { ...settled.sheet, savedAt: new Date().toISOString() };
 
   const written = await prisma.stage.updateMany({
     where: { id: stageId, eventId: session.eventId, teeSheet: stage.teeSheet },
@@ -400,7 +402,7 @@ export async function moveInTeeSheet(
   }
 
   await refresh();
-  return { ok: true, said: "The sheet is saved with your changes." };
+  return { ok: true, said: settled.removed.length ? `The sheet is saved. ${settled.removed.join(", ")} removed (no players left).` : "The sheet is saved with your changes." };
 }
 
 /** The round's own sides, as the tee sheet goes out in them (`sidesByMatch`): whole pairs, or a match's four. */

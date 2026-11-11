@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TeeSheet } from "../tee-sheet";
 import { teeTimeNotices } from "../tee-time-notice";
-import { applyMove, applyMoves, groupStep, moveKindsOf, moveModeOf, playerMoveOptions, shortGroupWarnings, slotLocks } from "../tee-sheet-moves";
+import { applyMove, applyMoves, emptiedGroups, groupStep, moveKindsOf, moveModeOf, playerMoveOptions, removalLines, settleSheet, shortGroupWarnings, slotLocks } from "../tee-sheet-moves";
 import { readSource } from "../../__tests__/source";
 
 /**
@@ -47,10 +47,11 @@ describe("moving one player", () => {
     expect(ok(applyMove(sheet, { kind: "player", playerId: "e", toGroup: 0 }, f, {})).groups[0].playerIds).toEqual(["a", "b", "c", "d", "e"]);
   });
 
-  it("refuses to empty a group, and leaves the sheet untouched", () => {
+  it("moving the last player out is allowed: the group stays in the draft as an empty slot", () => {
     const one: TeeSheet = { ...sheet, groups: [{ ...sheet.groups[0], playerIds: ["a", "b"] }, { ...sheet.groups[1], playerIds: ["e"] }] };
-    const r = applyMove(one, { kind: "player", playerId: "e", toGroup: 0 }, field, {});
-    expect(r).toEqual({ ok: false, says: "Group 2 would have nobody in it. Leave one player there, or move the group instead." });
+    const next = ok(applyMove(one, { kind: "player", playerId: "e", toGroup: 0 }, field, {}));
+    expect(ids(next)).toEqual(["abe", ""]);
+    expect(removalLines(next, field, {})).toEqual(["Group 2 will be removed (no players left)."]);
   });
 
   it("refuses a player who is not on the sheet (they are put in a group first) and one outside the field", () => {
@@ -126,14 +127,57 @@ describe("moving a whole side", () => {
     const next = ok(applyMove(sheet, { kind: "side", playerIds: ["e", "f"], toGroup: 2 }, field, {}));
     expect(ids(next)).toEqual(["abcd", "g", "hief", "jklm"]);
   });
-  it("refuses when the pair will not fit (two into a three), and when it would empty its group", () => {
+  it("refuses when the pair will not fit (two into a three); a pair that is its whole group may go (the group is then removed)", () => {
     expect(applyMove(sheet, { kind: "side", playerIds: ["h", "i"], toGroup: 1 }, field, {})).toMatchObject({ ok: false, says: "Group 2 has no room for 2. Choose a group with room." });
     expect(applyMove(sheet, { kind: "side", playerIds: ["h", "i"], toGroup: 0 }, field, {})).toMatchObject({ ok: false });
     const f = new Set(field);
-    expect(applyMove({ ...sheet, groups: [sheet.groups[0], { ...sheet.groups[1], playerIds: ["e", "f"] }, sheet.groups[2]] }, { kind: "side", playerIds: ["e", "f"], toGroup: 2 }, f, {})).toEqual({
-      ok: false,
-      says: "Group 2 would have nobody in it. Move the group instead.",
-    });
+    const two = { ...sheet, groups: [sheet.groups[0], { ...sheet.groups[1], playerIds: ["e", "f"] }, sheet.groups[2]] };
+    expect(ids(ok(applyMove(two, { kind: "side", playerIds: ["e", "f"], toGroup: 2 }, f, {})))).toEqual(["abcd", "", "hief"]);
+  });
+});
+
+describe("a group the draft empties is removed on Save; the others keep their own times", () => {
+  // Group 2 (8:10) holds two, who are moved into Group 1 and Group 3; Group 4 (8:30) then moves up into the freed slot.
+  const four: TeeSheet = {
+    ...sheet,
+    groups: [
+      { ...sheet.groups[0], playerIds: ["a", "b", "c"] },
+      { ...sheet.groups[1], playerIds: ["e", "f"] },
+      { ...sheet.groups[2], playerIds: ["h", "i", "j"] },
+      { ...sheet.groups[3], playerIds: ["k", "l"] },
+    ],
+  };
+  const emptied = ok(applyMoves(four, [{ kind: "player", playerId: "e", toGroup: 0 }, { kind: "player", playerId: "f", toGroup: 2 }], field, {}));
+
+  it("two players moved out empty their group: it is removed, the rest keep 8:00, 8:20, 8:30 and are renumbered", () => {
+    expect(ids(emptied)).toEqual(["abce", "", "hijf", "kl"]);
+    expect(emptiedGroups(emptied, field, {})).toEqual([1]);
+    const s = settleSheet(emptied, field, {});
+    expect(s.removed).toEqual(["Group 2"]);
+    expect(ids(s.sheet)).toEqual(["abce", "hijf", "kl"]);
+    expect(times(s.sheet)).toEqual(["8:00 AM@1", "8:20 AM@1", "8:30 AM@1"]);
+    expect(s.sheet.groups.map((g) => g.name)).toEqual(["Group 1", "Group 2", "Group 3"]);
+  });
+
+  it("then a later group moved up into the freed slot takes that slot's time (8:10), and the last slot goes", () => {
+    const up = ok(applyMove(emptied, { kind: "group", from: 3, to: 1 }, field, {}));
+    expect(ids(up)).toEqual(["abce", "kl", "hijf", ""]);
+    const s = settleSheet(up, field, {});
+    expect(ids(s.sheet)).toEqual(["abce", "kl", "hijf"]);
+    expect(times(s.sheet)).toEqual(["8:00 AM@1", "8:10 AM@1", "8:20 AM@1"]);
+  });
+
+  it("a locked group is never emptied or removed, even when none of its players are in the field", () => {
+    const f = new Set([..."abcdefghijklm"].filter((x) => x !== "k" && x !== "l"));
+    expect(emptiedGroups(four, f, {})).toEqual([3]);
+    expect(emptiedGroups(four, f, { 3: "Group 4 has a card in." })).toEqual([]);
+    expect(settleSheet(four, f, { 3: "Group 4 has a card in." }).removed).toEqual([]);
+  });
+
+  it("players marked out of the field do not count: a group of two out-players is empty", () => {
+    const f = new Set([..."abcdefghijklm"].filter((x) => x !== "e" && x !== "f"));
+    expect(emptiedGroups(four, f, {})).toEqual([1]);
+    expect(shortGroupWarnings(four, f, { groupOfTwo: "two-ball", groupOfThree: "three-ball" })).toEqual(["Group 1 goes out as a three-ball.", "Group 3 goes out as a three-ball.", "Group 4 goes out as a two-ball."]);
   });
 });
 

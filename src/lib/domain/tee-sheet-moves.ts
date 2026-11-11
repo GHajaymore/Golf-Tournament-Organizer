@@ -97,12 +97,6 @@ export function applyMove(
       return { ok: false, says: `${nameOf(sheet, move.toGroup)} has no room for ${arriving}. Choose a group with room.` };
     }
     const leaving = new Set(ids);
-    for (const h of new Set(homes)) {
-      if (h === move.toGroup) continue;
-      if (sheet.groups[h].playerIds.filter((id) => field.has(id) && !leaving.has(id)).length === 0) {
-        return { ok: false, says: `${nameOf(sheet, h)} would have nobody in it. Move the group instead.` };
-      }
-    }
     return {
       ok: true,
       sheet: {
@@ -127,11 +121,8 @@ export function applyMove(
     if (inField(sheet.groups[move.toGroup], field) >= GROUP_MOST) {
       return { ok: false, says: `${nameOf(sheet, move.toGroup)} is full. Choose a group with room.` };
     }
-    // An emptied group is REFUSED, not removed: a slot is a tee time the field
-    // was given, and quietly deleting it is a change nobody asked for.
-    if (inField(sheet.groups[from], field) <= 1) {
-      return { ok: false, says: `${nameOf(sheet, from)} would have nobody in it. Leave one player there, or move the group instead.` };
-    }
+    // Moving the last player out is ALLOWED: the group stays in the draft as an empty slot
+    // (so a later group can be moved up into it) and is removed when the draft is saved (`settleSheet`).
     return {
       ok: true,
       sheet: {
@@ -151,6 +142,19 @@ export function applyMove(
   if (same(move, sheet)) return { ok: true, sheet };
   if (locks[move.from]) return { ok: false, says: `${locks[move.from]} It stays where it is.` };
   if (locks[move.to]) return { ok: false, says: `${locks[move.to]} Nothing moves into its place.` };
+  // Into a slot with nobody in it (a freed one) the group simply takes that slot and its time; the
+  // slot it leaves is the one left empty. Nothing else is re-timed.
+  if (inField(sheet.groups[move.to], field) === 0) {
+    return {
+      ok: true,
+      sheet: {
+        ...sheet,
+        groups: sheet.groups.map((g, i) =>
+          i === move.to ? { ...g, playerIds: sheet.groups[move.from].playerIds } : i === move.from ? { ...g, playerIds: sheet.groups[move.to].playerIds } : g,
+        ),
+      },
+    };
+  }
   // The players of the slots between, in order, skipping any locked slot:
   // the mover takes the target slot and the rest slide one place the other way.
   const lo = Math.min(move.from, move.to);
@@ -182,6 +186,35 @@ export function applyMoves(
     cur = r.sheet;
   }
   return { ok: true, sheet: cur };
+}
+
+/**
+ * THE GROUPS A DRAFT LEAVES WITH NOBODY IN THEM — to be removed on Save. Counted against the field, so a
+ * group whose only players are marked out for the week is empty too. A locked group (teed off, a card in)
+ * is never listed: it is never emptied and never removed.
+ */
+export function emptiedGroups(sheet: TeeSheet, field: ReadonlySet<string>, locks: SlotLocks): number[] {
+  return sheet.groups.flatMap((g, i) => (!locks[i] && inField(g, field) === 0 ? [i] : []));
+}
+
+/** Said in the draft bar for each group that will go: "Group 5 will be removed (no players left)." */
+export function removalLines(sheet: TeeSheet, field: ReadonlySet<string>, locks: SlotLocks): string[] {
+  return emptiedGroups(sheet, field, locks).map((i) => `${nameOf(sheet, i)} will be removed (no players left).`);
+}
+
+/**
+ * THE DRAFT AS IT IS SAVED: the emptied groups are removed. The groups that remain keep their OWN times and
+ * start holes (nothing is silently re-timed; the organizer closes a gap by moving a group up into the
+ * freed slot, which then carries that slot's time). A group still called by its number ("Group 4") is
+ * renumbered to its place, so the sheet does not read Group 1, 2, 4.
+ */
+export function settleSheet(sheet: TeeSheet, field: ReadonlySet<string>, locks: SlotLocks): { sheet: TeeSheet; removed: string[] } {
+  const gone = new Set(emptiedGroups(sheet, field, locks));
+  if (gone.size === 0) return { sheet, removed: [] };
+  const removed = [...gone].map((i) => nameOf(sheet, i));
+  const kept = sheet.groups.filter((_, i) => !gone.has(i));
+  const groups = kept.map((g, i) => (/^Group \d+$/.test(g.name) ? { ...g, name: `Group ${i + 1}` } : g));
+  return { sheet: { ...sheet, groups }, removed };
 }
 
 /** The slot a group's up (-1) or down (+1) arrow sends it to, skipping locked slots; null at the end. */
