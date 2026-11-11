@@ -16,7 +16,14 @@ import { statusFixture, cardsIn, prisma } from "./status-fixture";
  * lifecycle button — just created, a card in, the round closed — and at each
  * asserts (1) the dashboard lands on Score entry, (2) no Launch, Complete or
  * Reopen button is drawn on it or on Tournament details, and (3) no setup rail
- * ("Ready to launch", "N of M done") is offered.
+ * ("Ready to launch", "N of M done") is offered, (4) S: the event bar's chip says
+ * "Live" (live for ever), and (5) L: nothing is locked. A casual round has NO
+ * Rounds & formats screen to carry the lock banner (`/stages` and `/event` send
+ * it to Score entry: `TOURNAMENT_ONLY_SCREENS`), so "nothing locked" is asserted
+ * where the round is: those two screens are not drawn, and Score entry shows no
+ * "Locked" banner, no committee correction and no padlock. `locksOf` gives a
+ * casual round no lock, so any of these appearing is the app locking a round
+ * that has nothing to lock.
  *
  * WHAT IT CANNOT SEE: the play of a casual round (`casual-round.spec.ts`), and
  * the machine's own answer for it, held in `tournament-status-by-family.test.ts`
@@ -49,6 +56,22 @@ test("a casual round is never offered Launch, Complete or Reopen, at any stage (
       await expect(page.locator("main"), `${stage}: Tournament details offers launching`).not.toContainText("Ready to launch");
       await expect(page.getByRole("button", { name: LIFECYCLE_BUTTON }), `${stage}: a lifecycle button on Tournament details`).toHaveCount(0);
       expect(await f.status(), `${stage}: something changed the casual round's status`).toBe("live");
+
+      // S: the chip. Always "Live" — never "Setting up", "Play over" or "Completed".
+      await page.goto(`/entry?bust=${Date.now()}`);
+      await expect(page.locator("main h1").first(), `${stage}: Score entry did not draw`).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator(".event-context-bar .tag").first(), `${stage}: the round's chip is not Live`).toHaveText("Live", { timeout: 30_000 });
+
+      // L: nothing locked. The screens that would carry a lock's banner are not drawn for a casual
+      // round, and the one it has says none.
+      for (const path of ["/stages", "/event"]) {
+        await page.goto(`${path}?bust=${Date.now()}`);
+        await expect(page, `${stage}: ${path} is drawn for a casual round`).toHaveURL(/\/entry/, { timeout: 30_000 });
+      }
+      await expect(page.locator("main h1").first(), `${stage}: Score entry did not draw`).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole("region", { name: "Locked", exact: true }), `${stage}: Score entry says something is locked`).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Make a committee correction" }), `${stage}: a committee correction is offered with nothing locked`).toHaveCount(0);
+      await expect(page.getByLabel("Locked — see above"), `${stage}: a control carries a padlock`).toHaveCount(0);
     };
 
     await expectNoLifecycle("just created");
