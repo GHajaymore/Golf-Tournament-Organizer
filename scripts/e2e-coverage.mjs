@@ -4,6 +4,8 @@
  *     node scripts/e2e-coverage.mjs            # print the report
  *     node scripts/e2e-coverage.mjs --reset    # empty the ledger before a run
  *     node scripts/e2e-coverage.mjs --json     # the same, as JSON on stdout
+ *     node scripts/e2e-coverage.mjs --form-controls [--ledger=<folder>]
+ *                                              # form controls changed by a test, alone: needs no build
  *
  * The ledger is written by `e2e/coverage.ts` while specs run (.e2e/coverage/).
  * The lists it is held against come from the BUILD the tests ran on — every
@@ -14,15 +16,51 @@
  * action that was never called has not been tested by any browser test at
  * all, and that is the list this exists to print.
  */
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { joinFormControls, formControlsFigure, formControlsReport } from "./qa/form-controls.mjs";
 
 const DIST = process.env.NEXT_DIST_DIR ?? ".next-e2e";
-const LEDGER = join(".e2e", "coverage");
+const ledgerArg = process.argv.find((a) => a.startsWith("--ledger="));
+const LEDGER = ledgerArg ? ledgerArg.slice("--ledger=".length) : join(".e2e", "coverage");
 
 if (process.argv.includes("--reset")) {
   rmSync(LEDGER, { recursive: true, force: true });
   console.log("coverage ledger emptied");
+  process.exit(0);
+}
+
+/** Every `.txt` under the ledger's folder, however deep: a CI job hands it one folder per shard. */
+function ledgerFiles(dir) {
+  if (!existsSync(dir)) return [];
+  const out = [];
+  for (const name of readdirSync(dir).sort()) {
+    const at = join(dir, name);
+    if (statSync(at).isDirectory()) out.push(...ledgerFiles(at));
+    else if (name.endsWith(".txt")) out.push(at);
+  }
+  return out;
+}
+const ledgerLines = ledgerFiles(LEDGER).flatMap((file) => readFileSync(file, "utf8").split(/\r?\n/).filter(Boolean));
+
+// ── Form controls changed by a test ───────────────────────────────────────
+// The inventory is the console sweep's (e2e/console-sweep.spec.ts) and the changes are every
+// spec's (e2e/form-controls.ts); the join and its words are scripts/qa/form-controls.mjs.
+const formControls = joinFormControls(ledgerLines);
+
+/**
+ *     node scripts/e2e-coverage.mjs --form-controls [--ledger=<folder>] [--json]
+ *
+ * That figure alone, which needs no build: only the ledger. For a job that has
+ * every shard's ledger and nothing else (ci.yml's `e2e-cover`). It reports and
+ * never fails: a figure is not a gate until somebody decides its floor.
+ */
+if (process.argv.includes("--form-controls")) {
+  if (process.argv.includes("--json")) console.log(JSON.stringify({ ledger: LEDGER, ledgerLines: ledgerLines.length, formControls }, null, 1));
+  else {
+    console.log(`E2E REACH, form controls only: ledger ${LEDGER}, ${ledgerLines.length} lines`);
+    for (const line of formControlsReport(formControls)) console.log(line.startsWith("form controls") ? `  ${line}` : line);
+  }
   process.exit(0);
 }
 
@@ -73,39 +111,32 @@ const hitScreens = new Map();
 const outOfSight = new Map();
 /** Pages where the refusal watcher stopped on its own error — see `WATCH_STOPPED` in e2e/coverage.ts. */
 const watchStopped = new Map();
-let lines = 0;
-if (existsSync(LEDGER)) {
-  for (const name of readdirSync(LEDGER)) {
-    if (!name.endsWith(".txt")) continue;
-    for (const line of readFileSync(join(LEDGER, name), "utf8").split("\n")) {
-      if (!line) continue;
-      lines += 1;
-      if (line.startsWith("A ")) {
-        const id = line.slice(2).trim();
-        hitActions.set(id, (hitActions.get(id) ?? 0) + 1);
-      } else if (line.startsWith("P ")) {
-        const [, role, path] = line.split(" ");
-        const screen = screens.find((s) => s.pattern.test(path));
-        if (!screen) continue;
-        if (!hitScreens.has(screen.route)) hitScreens.set(screen.route, new Set());
-        hitScreens.get(screen.route).add(role);
-      } else if (line.startsWith("R ")) {
-        // R <role> <path> | pressed: <what> | <marked or red> | <the words>
-        const [head, pressed = "", kind = "", ...rest] = line.slice(2).split(" | ");
-        const path = head.split(" ").slice(1).join(" ");
-        const words = rest.join(" | ");
-        const screen = screens.find((s) => s.pattern.test(path));
-        const key = `${screen ? screen.route : path} | ${kind} | ${words}`;
-        const was = outOfSight.get(key) ?? { screen: screen ? screen.route : path, kind, words, pressed: new Set(), times: 0 };
-        was.pressed.add(pressed.replace("pressed: ", ""));
-        was.times += 1;
-        outOfSight.set(key, was);
-      } else if (line.startsWith("W ")) {
-        // W <path>: <the error>
-        const path = line.slice(2).split(":")[0].trim();
-        watchStopped.set(path, (watchStopped.get(path) ?? 0) + 1);
-      }
-    }
+const lines = ledgerLines.length;
+for (const line of ledgerLines) {
+  if (line.startsWith("A ")) {
+    const id = line.slice(2).trim();
+    hitActions.set(id, (hitActions.get(id) ?? 0) + 1);
+  } else if (line.startsWith("P ")) {
+    const [, role, path] = line.split(" ");
+    const screen = screens.find((s) => s.pattern.test(path));
+    if (!screen) continue;
+    if (!hitScreens.has(screen.route)) hitScreens.set(screen.route, new Set());
+    hitScreens.get(screen.route).add(role);
+  } else if (line.startsWith("R ")) {
+    // R <role> <path> | pressed: <what> | <marked or red> | <the words>
+    const [head, pressed = "", kind = "", ...rest] = line.slice(2).split(" | ");
+    const path = head.split(" ").slice(1).join(" ");
+    const words = rest.join(" | ");
+    const screen = screens.find((s) => s.pattern.test(path));
+    const key = `${screen ? screen.route : path} | ${kind} | ${words}`;
+    const was = outOfSight.get(key) ?? { screen: screen ? screen.route : path, kind, words, pressed: new Set(), times: 0 };
+    was.pressed.add(pressed.replace("pressed: ", ""));
+    was.times += 1;
+    outOfSight.set(key, was);
+  } else if (line.startsWith("W ")) {
+    // W <path>: <the error>
+    const path = line.slice(2).split(":")[0].trim();
+    watchStopped.set(path, (watchStopped.get(path) ?? 0) + 1);
   }
 }
 
@@ -136,6 +167,9 @@ const report = {
     .sort((a, b) => a.screen.localeCompare(b.screen) || a.words.localeCompare(b.words)),
   // Pages where the refusal watcher stopped: on these, "none seen" above means "not looked".
   refusalWatchStopped: [...watchStopped.entries()].map(([path, times]) => ({ path, times })).sort((a, b) => b.times - a.times),
+  // Of the form controls the console sweep saw on the organizer's screens, the ones a spec changed.
+  // `measured: false` means the sweep wrote no inventory into this ledger: there is no figure, not a zero.
+  formControls,
 };
 
 if (process.argv.includes("--json")) {
@@ -145,6 +179,7 @@ if (process.argv.includes("--json")) {
   console.log(`E2E REACH — build ${DIST}, ${lines} ledger lines`);
   console.log(`  server actions called: ${actionsHit} of ${actions.size} (${pct(actionsHit, actions.size)}%)`);
   console.log(`  screens opened:        ${screensHit} of ${screens.length} (${pct(screensHit, screens.length)}%)`);
+  console.log(`  ${formControlsFigure(formControls)}`);
   if (unknown) console.log(`  (${unknown} recorded action ids are not in this build — the ledger is from another build)`);
   console.log("\nNEVER CALLED BY ANY BROWSER TEST, by file:");
   for (const f of report.files) {
@@ -165,4 +200,6 @@ if (process.argv.includes("--json")) {
   for (const w of report.refusalWatchStopped) console.log(`  ${w.path} — ${w.times}x`);
   // More than a few is the watcher broken, not a page: say so loudly.
   if (report.refusalWatchStopped.length > 3) console.log("  !! The watcher stopped on more than 3 pages: the refusal list above is not a measurement.");
+  console.log("");
+  for (const line of formControlsReport(formControls)) console.log(line);
 }

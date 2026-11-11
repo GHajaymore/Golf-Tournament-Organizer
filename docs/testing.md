@@ -231,6 +231,7 @@ Asked twice by Ajay on 2026-10-12, and the answer he is owed each time is the me
 | Every screen opens, as organizer, member and signed out, on every seeded tournament | Yes — the lists are read from the app, so a new screen is included unasked |
 | Every dropdown, choice and tick-box is changed, saved and read back | Yes |
 | Every screen on the organizer's menu, setting up and live, at 320 wide: no sideways scroll, every greyed control says why (on the control, or in a sentence within 96px), one primary button to a row or card | Yes, as a RATCHET, since 2026-11-11 — `e2e/console-sweep.spec.ts` (J51). The screens are read from the menu (`navForRole`), so a new one is swept unasked. Today's violations are `e2e/console-sweep-known.json`, which may only shrink: a new one fails, and a fixed one fails until its line is deleted; the failing run prints the whole file ready to paste. Chromium at 320 only. It does not see a screen this medal's menu leaves out (Teams, Bracket, Team cup, This week), anything behind a press other than a tab, or the stages after live. The rules themselves are held without a browser by `console-sweep-rules.test.ts` |
+| **Every form control changed by a test** | **Measured, since 2026-11-11, not yet whole.** `node scripts/e2e-coverage.mjs` prints "form controls changed by a test: N of M" and names, by screen, each control no test changed. It replaces "382 of 711", which was counted once by hand on 2026-10-23 and could not move. M is the console sweep's inventory, so it is the organizer's menu screens at 320px, setting up and live, for one medal, and no more; and "changed" is not "saved and read back". See "Form controls changed by a test" below |
 | Every action is tried by the wrong person and refused | Yes |
 | Whole tournaments played from entry to payout | Yes — eleven |
 | **Every action done by the RIGHT person, with the result checked** | **No.** 36 of 263 on 2026-10-10; 127 of 272 in the first clean round (2026-10-13, commit `77d59567`), with 17 more performed by specs written after it. Every round re-measures it and names each action nothing performs |
@@ -262,6 +263,55 @@ within four seconds of a press, with none of them on the screen (`watchRefusals`
 `e2e/coverage.ts`); `scripts/e2e-coverage.mjs` lists them beside the reach. It is a list to read,
 not a count to fail on: an entry marked "red" was recognised by its colour alone, and a kitty
 that is short is red too.
+
+**Form controls changed by a test** (2026-11-11). The board's "form controls tested: 382 of 711"
+was one count on one day. It is now a figure a script prints, from two instruments:
+
+- **The inventory (M).** The console sweep (`e2e/console-sweep.spec.ts`) writes down every form
+  control drawn on each screen and section it measures: `input`, `select`, `textarea`, and anything
+  with the role `combobox`, `switch`, `checkbox` or `radio`. A control is its screen's address plus
+  `role "accessible name"`, with the fixture's invented names, figures, days and ids taken out the
+  way the sweep's known list takes them out (`controlSignature` in `e2e/form-controls.ts`). Forty
+  score boxes of one name on one screen are one control. It goes to
+  `.e2e/coverage/form-controls-inventory-<pid>.txt`.
+- **The changes (N).** Every browser context of every spec (`e2e/coverage.ts`, the one fixture every
+  spec imports) hears a control being changed: `fill`, `selectOption`, `check`, `uncheck`,
+  `setInputFiles`, typing, and a click on a radio, tick-box or switch. It writes
+  `C <screen> | <what it was left as> | <control>` to the ledger, once a worker for each control.
+  What it was left as is only what the browser can say honestly: `filled`, `empty`, `refused` (the
+  browser's own check, `validity.valid`), `on`, `off`, or `pressed` for a switch that is not a
+  native box. There is no "good, bad, long": the text-box crawl judges that, by trying each.
+
+`scripts/qa/form-controls.mjs` joins them and `node scripts/e2e-coverage.mjs` prints the figure,
+the controls no test changed by screen, and puts both in `--json` (`formControls`).
+`--form-controls --ledger=<folder>` prints it alone and needs no build.
+
+**What the figure is not**, and the line itself says the first of these every time it is printed:
+
+- M is the organizer's menu screens, at 320px, at two stages (setting up, live), for one medal. A
+  control that only another format, a later stage, a wider screen, a dialog, a folded panel, the
+  player's app or a public page shows is not in M. The report counts the changes on those screens
+  that matched nothing the sweep saw, so the size of that gap is printed, not guessed.
+- A control greyed or read-only at both stages is left out of M and counted beside it.
+- CHANGED is not "every choice made, saved and read back". One option of a dropdown chosen once
+  counts the dropdown. Saved-and-read-back is the console crawl's and the text-box crawl's claim,
+  for the controls they reach.
+- The inventory knows its own fixture's names and writes `<name>` for them; a spec with another
+  fixture has other names. So `<name>` in an inventory signature matches any words, which can
+  count "Remove <name>" as changed by a press on another "Remove …" on the same screen.
+- A custom dropdown whose options are pressed, not typed, is heard only when typed into.
+- No inventory in the ledger (the sweep runs on Chromium's small phone only) prints NOT MEASURED,
+  never 0 of 0.
+
+**Where to read it.** On a pull request: the `End-to-end shards cover the suite` job, step
+"Form controls changed by a test", and that job's summary; each shard hands in its ledger and the
+job adds them up. That is the pull request's suite on Chromium at three sizes. A round also runs
+the console crawl, which changes far more, so a round's `reach.json` (in its `verdict` artifact,
+under `formControls`) is the fuller figure; say which run a figure came from. The sweep's own log
+line, `[form-controls] inventory: …`, gives M alone, in the small phone's shard. It is a measure,
+not a gate: nothing fails on it until a floor is decided. Its controls: `form-controls-measure.test.ts`
+(the signature, the join and the words, without a browser) and `e2e/form-controls.spec.ts` (a page
+of its own with one box changed; the ledger must hold exactly that one).
 
 **Roughly thirteen actions cannot be performed here at all**, because they call a paid service
 that a test must not reach: reading a card from a photograph (3), drafting words with the AI

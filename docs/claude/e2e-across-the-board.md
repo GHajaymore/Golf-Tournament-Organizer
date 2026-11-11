@@ -27,6 +27,11 @@ nothing about the paths nobody walked, and nothing was measuring those.
   10,312 controls on screen across 267 screen-states of the seeded club — 117 distinct dropdowns,
   92 choice groups, 122 tick-boxes, 329 text boxes, 546 buttons.
 
+  Since 2026-11-11 the same report also prints "form controls changed by a test: N of M": M is
+  what the console sweep saw on the organizer's menu screens (320px, setting up and live, one
+  medal), N what any spec changed there. The scope is printed on the line; `docs/testing.md`,
+  "Form controls changed by a test", has what it leaves out.
+
 **The layers of the suite**, each of which says in its own header what it cannot see:
 
 - `e2e/everything.spec.ts` opens every console screen on every one of the seeded club's

@@ -1,8 +1,9 @@
 import { test as base, expect, type BrowserContext, type Page, type Request as PageRequest } from "@playwright/test";
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { explainHydration, keepWhatTheServerSent } from "./page-errors";
 import { actionsInFormPost } from "./form-post-action";
+import { CONTROL_CHANGED, changeLine, watchControls } from "./form-controls";
 
 /**
  * WHAT THE BROWSER TESTS ACTUALLY TOUCH, WRITTEN DOWN AS THEY RUN.
@@ -23,6 +24,13 @@ import { actionsInFormPost } from "./form-post-action";
  *   P <role> <path> a screen was opened, and as whom
  *   R <role> <path> … a refusal appeared after a press with none of it on the
  *                   screen (see `watchRefusals`)
+ *   C <path> | <class> | <control>
+ *                   a form control was CHANGED (see `form-controls.ts`); once a
+ *                   worker for each control and each state it was left in
+ *
+ * and the console sweep adds, in a file of its own beside this one, the form
+ * controls it SAW on the organizer's screens (`writeFormInventory`), which is
+ * what the changed ones are counted against.
  *
  * `scripts/e2e-coverage.mjs` reads the ledger against the app's own lists —
  * every action the build exports, every screen it routes — and prints what was
@@ -42,6 +50,33 @@ function note(line: string) {
     ready = true;
   }
   appendFileSync(FILE, line + "\n");
+}
+
+/** Where this worker's ledger is. For a control that reads back what was written (`form-controls.spec.ts`). */
+export const ledgerFile = (): string => FILE;
+
+// A control changed by forty specs is one line from this worker, not forty: the report asks only
+// whether it was ever changed, so the hook costs a write per control and not per press.
+const changesWritten = new Set<string>();
+function noteChange(said: string) {
+  const line = changeLine(said);
+  if (!line || changesWritten.has(line)) return;
+  changesWritten.add(line);
+  note(line);
+}
+
+/**
+ * THE INVENTORY: every form control the console sweep saw, as `S` and `I` lines
+ * (`form-controls.ts`), in a file of its own in the ledger's folder. Written
+ * whole: the walk that has just finished is the inventory, not that walk and
+ * an earlier one. A `.txt` like the rest, so a round's "Add them up" step
+ * carries it with the ledger without being told about it.
+ */
+export function writeFormInventory(lines: readonly string[]): string {
+  mkdirSync(DIR, { recursive: true });
+  const file = join(DIR, `form-controls-inventory-${process.pid}.txt`);
+  writeFileSync(file, [...new Set(lines)].sort().join("\n") + "\n");
+  return file;
 }
 
 const watched = new WeakSet<BrowserContext>();
@@ -305,6 +340,7 @@ export function recordCoverage(context: BrowserContext): void {
       // A watcher that stopped is said, not swallowed (the QA & Test Lead, 30 Oct): a watcher dead
       // on every page would otherwise read as "no refusals out of sight", which looks like clean.
       if (text.startsWith(WATCH_STOPPED)) note(`W ${text.slice(WATCH_STOPPED.length)}`);
+      if (text.startsWith(CONTROL_CHANGED)) noteChange(text.slice(CONTROL_CHANGED.length));
     });
   // Every page of every context explains a hydration mismatch if one lands on
   // it — see `explainHydration`. Here, because this is the one place every
@@ -374,6 +410,7 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
   context: async ({ context }, use) => {
     recordCoverage(context);
     await watchRefusals(context);
+    await watchControls(context);
     await noPushOnWebKit(context);
     await keepWhatTheServerSent(context);
     await use(context);
@@ -395,6 +432,7 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
           : make(...args));
         recordCoverage(context);
         await watchRefusals(context);
+        await watchControls(context);
         await noPushOnWebKit(context);
         await keepWhatTheServerSent(context);
         return context;
