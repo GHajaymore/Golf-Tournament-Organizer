@@ -17,6 +17,9 @@ import {
 import { buildBracket, flightKind } from "../bracket";
 import type { BracketKind, Player } from "../types";
 import { facts, round } from "./tournament-facts-fixtures";
+import { roundChangeFactsOf, roundDoors } from "../round-change";
+import { fieldChangeAllowed, fieldFactsOf } from "../field-change";
+import { isKnockoutRound } from "../../stage-types";
 
 /**
  * J13 — THE STATE MACHINE, FAMILY BY STAGE.
@@ -1048,6 +1051,101 @@ describe("what the next action may and may not offer — swept over every stage 
 
       it("reports one round state for each playing round", () => {
         expect(st.rounds).toHaveLength(stage.f.rounds.filter((r) => r.playing).length);
+      });
+    });
+  }
+});
+
+/**
+ * THE RULES THAT CAME AFTER THE WALKS WERE WRITTEN (state machine PR 5b, 7a, 7b),
+ * HELD AT EVERY STAGE OF EVERY WALK. `matrix.test.ts` holds each rule on its own
+ * axis (family × step); this asks them of the very tournaments walked above, so a
+ * stage added to any walk is asked too, and a rule that came to depend on the
+ * STATUS again — the fault each of those PRs ended — goes red at the stage that
+ * shows it.
+ *
+ * The expected answers are worked from the stage's facts by the director's
+ * route, never by calling the rule twice: a round is "played" when the fixture
+ * says it has a result; the sentences are written out here by hand.
+ */
+describe("the rules since the walks — the lock's words, a round's own settings, a late entrant — at every stage above", () => {
+  /** What each reason for a lock says and where it sends the organizer (PR 5b; the TD's ruling, panel 8.1). */
+  const SAID: Record<LockBy, { because: string; wayOut: string; href: string; correctable: boolean }> = {
+    launch: { because: "Locked because the tournament is live.", wayOut: "Make a committee correction", href: "/dashboard", correctable: true },
+    draw: { because: "Locked because the draw is confirmed.", wayOut: "Reopen the draw on Flights", href: "/grouping", correctable: true },
+    results: { because: "Locked because this knockout has results.", wayOut: "Clear the results on the Bracket", href: "/bracket", correctable: false },
+    completed: { because: "Locked because the tournament is completed.", wayOut: "Reopen it on the dashboard", href: "/dashboard", correctable: false },
+    // No walk above is locked by scores; the entry keeps the table whole for the day one is.
+    scores: { because: "", wayOut: "", href: "", correctable: false },
+  };
+  const COMPLETED_ROUNDS_SAID = "The tournament is completed, so its rounds are final. An Organizer can reopen it on the dashboard.";
+  const CLOCK = { lastTee: null, now: { day: "2026-01-01", minutes: 0 } };
+  /** The families whose late entrant is taken and FLAGGED where flights are a prize division (J04, panel Q3). */
+  const TAKES_LATE: Family[] = ["stroke", "stableford"];
+  /** The families whose draw IS the field: nobody joins once launched (field-change.ts, header). */
+  const DRAW_IS_FIELD: Family[] = ["match", "roundRobinFlights", "knockout", "flightedKnockout", "teamCup"];
+
+  for (const { family, stage } of ALL) {
+    describe(`${family} · ${stage.name}`, () => {
+      const f = stage.f;
+      const st = tournamentStatus(f);
+      const completed = f.status === "completed";
+      const launched = f.status === "live" || completed;
+      const locked = launched && !f.configUnlocked;
+
+      it("a locked scope says its reason in words and its way out — the committee correction after launch, never an Unlock (5b)", () => {
+        for (const scope of LOCK_SCOPES) {
+          const l = st.locks[scope];
+          if (!l.locked) continue;
+          expect(l.by, `${scope}: no walk is locked by scores`).not.toBe("scores");
+          expect({ because: l.because, wayOut: l.wayOut.says, href: l.wayOut.href, correctable: l.correctable }, scope).toEqual(SAID[l.by]);
+          expect(`${l.because} ${l.wayOut.says}`, scope).not.toMatch(/unlock/i);
+        }
+      });
+
+      it("a round's format, holes, tees and delete are open until ITS first result, whatever the launch; then shut with the reason (7b)", () => {
+        for (const r of f.rounds) {
+          const one = roundChangeFactsOf(f, r.id, new Set());
+          expect(one, r.id).not.toBeNull();
+          const doors = roundDoors(one!);
+          const four = [doors.format, doors.holes, doors["round-tees"], doors.delete];
+          if (completed) {
+            // Rule 20.2e: the result is final. Reopen is the deliberate route.
+            expect(four, `${r.id}, completed`).toEqual([COMPLETED_ROUNDS_SAID, COMPLETED_ROUNDS_SAID, COMPLETED_ROUNDS_SAID, COMPLETED_ROUNDS_SAID]);
+          } else if (r.hasResult) {
+            // Shut by its own play: the way out clears that play, where it is cleared — and is never a correction (TD, panel 8.1).
+            const wayOut = isKnockoutRound(r.type) ? "on the Bracket first." : "on Score entry first.";
+            for (const says of four) {
+              expect(says, `${r.id}: a played round's setting is offered`).not.toBeNull();
+              expect(says!.endsWith(wayOut), `${r.id}: "${says}"`).toBe(true);
+              expect(says).not.toMatch(/committee correction|unlock/i);
+            }
+          } else {
+            // Not played: launch invalidates nothing a round setting decides.
+            expect(four, `${r.id}, ${launched ? "launched" : "setting up"}, no result`).toEqual([null, null, null, null]);
+          }
+        }
+      });
+
+      it("a late entrant: taken and flagged where flights are a prize division, refused where the draw is the field (7a)", () => {
+        const v = fieldChangeAllowed(fieldFactsOf(f, CLOCK), "add");
+        const played = f.rounds.some((r) => r.hasResult);
+        if (completed) {
+          expect(v.ok).toBe(false);
+          if (!v.ok) expect(v.wayOut.href).toBe("/dashboard");
+          return;
+        }
+        if (TAKES_LATE.includes(family) && locked) {
+          if (!played) {
+            // No published sheet in these walks: open until the first card, and FLAGGED only where there are flights to be in.
+            expect(v).toMatchObject({ ok: true, warn: f.groups > 0 ? "unplaced" : null });
+          } else {
+            expect(v.ok, "a late entry after the first card").toBe(false);
+            if (!v.ok) expect(v.says).toContain("an Organizer can make a committee correction to the field");
+          }
+        }
+        if (TAKES_LATE.includes(family) && !launched) expect(v).toMatchObject({ ok: true, warn: null });
+        if (DRAW_IS_FIELD.includes(family) && locked) expect(v.ok, "somebody joined a drawn field").toBe(false);
       });
     });
   }

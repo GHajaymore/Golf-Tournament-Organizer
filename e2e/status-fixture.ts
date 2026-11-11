@@ -28,6 +28,8 @@ export function dayFromNow(days: number): string {
 
 export interface StatusFixture {
   ctx: BrowserContext;
+  /** The fixture's mark, `zz-status-<family>-<size>`: a row a spec adds through the app is named and addressed with it. */
+  mark: string;
   eventId: string;
   orgId: string;
   stageIds: string[];
@@ -47,6 +49,12 @@ export async function statusFixture(
     /** Each round, in order. */
     rounds: Array<{ type: string; format: string; scoringBasis?: string; playedOn?: string }>;
     players?: number;
+    /**
+     * A walk that SAVES through the app (a late entry typed on Entries) blocks the service
+     * worker, the save specs' rule on WebKit (`docs/claude/e2e-traps.md`). Off unless asked,
+     * so the walks that only read are opened exactly as they were.
+     */
+    saves?: boolean;
   },
 ): Promise<StatusFixture> {
   const size = testInfo.project.name.replace(/[^a-z]/gi, "").toLowerCase();
@@ -113,13 +121,19 @@ export async function statusFixture(
     playerIds.push(p.id);
   }
   await prisma.account.create({ data: { eventId: event.id, email, name: "Zz Status Organizer", role: "admin" } });
-  const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: { cookies: [], origins: [] } });
+  const ctx = await browser.newContext({
+    ...testInfo.project.use,
+    baseURL,
+    storageState: { cookies: [], origins: [] },
+    ...(opts.saves ? { serviceWorkers: "block" as const } : {}),
+  });
   await ctx.addCookies([
     { name: "ng_session", value: sign(signedInNow(user.id)), url: baseURL! },
     { name: "ng_active_event", value: sign(event.id), url: baseURL! },
   ]);
   return {
     ctx,
+    mark,
     eventId: event.id,
     orgId: org.id,
     stageIds,
@@ -134,9 +148,14 @@ export async function statusFixture(
   };
 }
 
-/** Every player's card for one round, in and approved — a round played, nothing waiting on sign-off. */
-export async function cardsIn(f: StatusFixture, stageId: string): Promise<void> {
-  for (const playerId of f.playerIds) {
+/**
+ * Every player's card for one round, in and approved — a round played, nothing waiting on sign-off.
+ * Given `playerIds`, only theirs: ONE card is "the round's first card", the moment the rounds rule
+ * shuts a round's format, holes, venue and tees (state machine PR 7b) with the rest of the field
+ * still out — the stage between "launched" and "round closed" these walks used to step over.
+ */
+export async function cardsIn(f: StatusFixture, stageId: string, playerIds: readonly string[] = f.playerIds): Promise<void> {
+  for (const playerId of playerIds) {
     await prisma.scorecard.create({
       data: {
         eventId: f.eventId, stageId, playerId, strokes: JSON.stringify(new Array(18).fill(4)),
