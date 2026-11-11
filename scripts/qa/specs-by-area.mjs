@@ -46,6 +46,10 @@ export const ALWAYS_ON = [
   "e2e/legible.spec.ts",
   "e2e/nothing-is-covered.spec.ts",
   "e2e/touch.spec.ts",
+  // The console sweep (J51): every screen on the organizer's menu, setting up and live, at 320: no sideways
+  // scroll, a reason beside every greyed control, one primary to a row or card. A ratchet
+  // (e2e/console-sweep-known.json); Chromium's small phone only, and it skips itself everywhere else.
+  "e2e/console-sweep.spec.ts",
   // The text-box crawl. It runs as its own layer (`text-boxes`, below), and skips itself in the suite's
   // run exactly as it does in a full round's, so listing it here changes nothing but the bookkeeping.
   "e2e/every-text-box.spec.ts",
