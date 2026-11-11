@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
 import { pressComplete } from "./end-early";
+import { expectScopeLock, LOCKED_LIVE } from "./expect-tournament-locks";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
@@ -80,6 +81,8 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
+    // And what launch shut says so, with the committee correction as the way out (J13's lock column; PR 5b).
+    await expectScopeLock(page, "/stages", { scope: "Rounds", because: LOCKED_LIVE, wayOut: "correction" });
 
     // The division made (after launch, as a qualifying round would): still live, nothing played.
     await prisma.event.update({

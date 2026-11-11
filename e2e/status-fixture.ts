@@ -28,6 +28,8 @@ export function dayFromNow(days: number): string {
 
 export interface StatusFixture {
   ctx: BrowserContext;
+  /** The fixture's mark, `zz-status-<family>-<size>`: a row a spec adds through the app is named and addressed with it. */
+  mark: string;
   eventId: string;
   orgId: string;
   stageIds: string[];
@@ -120,6 +122,7 @@ export async function statusFixture(
   ]);
   return {
     ctx,
+    mark,
     eventId: event.id,
     orgId: org.id,
     stageIds,
@@ -134,9 +137,14 @@ export async function statusFixture(
   };
 }
 
-/** Every player's card for one round, in and approved — a round played, nothing waiting on sign-off. */
-export async function cardsIn(f: StatusFixture, stageId: string): Promise<void> {
-  for (const playerId of f.playerIds) {
+/**
+ * Every player's card for one round, in and approved — a round played, nothing waiting on sign-off.
+ * Given `playerIds`, only theirs: ONE card is "the round's first card", the moment the rounds rule
+ * shuts a round's format, holes, venue and tees (state machine PR 7b) with the rest of the field
+ * still out — the stage between "launched" and "round closed" these walks used to step over.
+ */
+export async function cardsIn(f: StatusFixture, stageId: string, playerIds: readonly string[] = f.playerIds): Promise<void> {
+  for (const playerId of playerIds) {
     await prisma.scorecard.create({
       data: {
         eventId: f.eventId, stageId, playerId, strokes: JSON.stringify(new Array(18).fill(4)),

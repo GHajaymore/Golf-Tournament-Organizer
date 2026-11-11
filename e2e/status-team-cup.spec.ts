@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
 import { pressComplete } from "./end-early";
+import { expectScopeLock, LOCKED_LIVE } from "./expect-tournament-locks";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
@@ -88,6 +89,8 @@ test("a team cup says the same thing on every panel from the teams to the last s
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
+    // And what launch shut says so, with the committee correction as the way out (J13's lock column; PR 5b).
+    await expectScopeLock(page, "/stages", { scope: "Rounds", because: LOCKED_LIVE, wayOut: "correction" });
 
     // One singles match under way in the first session (Blues' first v Whites' first): live.
     const carrier = await prisma.group.create({

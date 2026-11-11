@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
 import { pressComplete } from "./end-early";
+import { expectScopeLock, LOCKED_LIVE } from "./expect-tournament-locks";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
@@ -82,6 +83,8 @@ test("a single match says the same thing on every panel from the draw to the las
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
+    // And what launch shut says so, with the committee correction as the way out (J13's lock column; PR 5b).
+    await expectScopeLock(page, "/stages", { scope: "Rounds", because: LOCKED_LIVE, wayOut: "correction" });
 
     // Three holes played (A wins the first, the next two halved): live — a match is not over until it cannot be caught.
     await prisma.match.update({ where: { id: match.id }, data: { holes: eighteen(["A", "H", "H"]), scoreStatus: "confirmed", confirmedBy: "zz" } });
