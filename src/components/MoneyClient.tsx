@@ -633,8 +633,8 @@ export function MoneyClient({
           )}
 
           <div className="field">
-            <label>Split between</label>
-            <div className="seg">
+            <span className="field-caption" id="exp-scope-caption">Split between</span>
+            <div className="seg" role="group" aria-labelledby="exp-scope-caption">
               {groupIds.length > 1 && (
                 <label className="seg-opt">
                   <input type="radio" name="scope" checked={scope === "group"} onChange={() => setScope("group")} />
@@ -682,8 +682,8 @@ export function MoneyClient({
               ways are now offered, because a weekend generates all four. */}
           {shareIds.length > 1 && (
             <div className="field">
-              <label>Split</label>
-              <div className="seg">
+              <span className="field-caption" id="exp-split-caption">Split</span>
+              <div className="seg" role="group" aria-labelledby="exp-split-caption">
                 {([
                   ["evenly", "Evenly"],
                   ["shares", "By shares"],

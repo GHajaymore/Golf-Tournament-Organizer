@@ -2,7 +2,7 @@
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import FieldInfo from "./FieldInfo";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { formGroups, type FormationRule, type Player } from "@/lib/domain";
 import { listNames } from "@/lib/format";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
@@ -120,6 +120,7 @@ export function FoursomeMaker({
    */
   rosterSize?: number;
 }) {
+  const fid = useId();
   const hasStandings = standings.length > 0;
   const [algo, setAlgo] = useState<Pairing>("random");
   const [order, setOrder] = useState<DrawOrder>("as-formed");
@@ -536,8 +537,8 @@ export function FoursomeMaker({
 
         <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div className="field" style={{ width: 180 }}>
-            <label>Group size</label>
-            <div className="seg" style={{ width: "100%" }}>
+            <span className="field-caption" id={`${fid}-size`}>Group size</span>
+            <div className="seg" role="group" aria-labelledby={`${fid}-size`} style={{ width: "100%" }}>
               {[2, 3, 4].map((n) => (
                 <label className="seg-opt" key={n} style={{ flex: 1, justifyContent: "center" }}>
                   <input type="radio" name="fssize" checked={size === n} onChange={() => setSize(n)} />{n}

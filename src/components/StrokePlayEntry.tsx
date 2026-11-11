@@ -666,8 +666,9 @@ export function StrokePlayEntry({
         <div style={{ marginTop: casual ? 0 : 14 }}>
           {teeGroups.length > 0 && !casual && (
             <div className="field" style={{ marginBottom: 14 }}>
-              <label>Scoring</label>
+              <label htmlFor={`${stageId}-entry-scoring`}>Scoring</label>
               <select
+                id={`${stageId}-entry-scoring`}
                 className="input"
                 value={groupIdx}
                 onChange={(e) => setGroupIdx(Number(e.target.value))}

@@ -227,8 +227,8 @@ export function AccessClient({
         <div className="field"><label htmlFor={`${fid}-name`}>Name</label><input id={`${fid}-name`} className="input" value={name} maxLength={PERSON_NAME_MAX} onChange={(e) => setName(e.target.value)} /></div>
         <div className="field"><label htmlFor={`${fid}-email`}>Email</label><input id={`${fid}-email`} className="input" type="email" maxLength={EMAIL_MAX} value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div className="field">
-          <label>Role</label>
-          <div className="seg">
+          <span className="field-caption" id={`${fid}-role`}>Role</span>
+          <div className="seg" role="group" aria-labelledby={`${fid}-role`}>
             {ROLE_OPTS.map((o) => (
               <label className="seg-opt" key={o.v}>
                 <input type="radio" name="newrole" checked={role === o.v} onChange={() => setRole(o.v)} />

@@ -34,6 +34,7 @@ export function RoundPicker({
   className = "input",
   style,
   label = "Round",
+  id,
 }: {
   rounds: PickableRound[];
   activeStageId: string;
@@ -41,6 +42,8 @@ export function RoundPicker({
   style?: React.CSSProperties;
   /** The accessible name. Visible labels are the caller's business. */
   label?: string;
+  /** Lets a visible caption name the box with `htmlFor`. */
+  id?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -52,6 +55,7 @@ export function RoundPicker({
 
   return (
     <select
+      id={id}
       className={className}
       style={style}
       aria-label={label}

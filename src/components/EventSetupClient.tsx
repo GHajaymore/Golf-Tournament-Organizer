@@ -731,8 +731,8 @@ export function EventSetupClient({
         </p>
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Where the field size comes from</span>
         <div className="field">
-          <label>Player count</label>
-          <div className="seg">
+          <span className="field-caption" id={`${fid}-pcmode`}>Player count</span>
+          <div className="seg" role="group" aria-labelledby={`${fid}-pcmode`}>
             <label className="seg-opt"><input type="radio" name="pcmode" checked={f.playerCountMode === "registration"} onChange={() => set("playerCountMode", "registration")} />From registrations</label>
             <label className="seg-opt"><input type="radio" name="pcmode" checked={f.playerCountMode === "manual"} onChange={() => set("playerCountMode", "manual")} />Manual</label>
           </div>

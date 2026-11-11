@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { usePendingCard } from "./usePendingCard";
 import { recoveredMatchCard, RECOVERED_MATCH_SUPERSEDED } from "@/lib/domain/pending-card";
@@ -64,6 +64,7 @@ export interface MatchKeeperProps {
  */
 export function MatchKeeper(props: MatchKeeperProps) {
   const m = props.match;
+  const fid = useId();
   // The round's own answer first. The card's length is a fallback for a caller
   // that has not been taught to send one, and 18 the last resort — but neither
   // of those is what decides how many holes a round is.
@@ -257,8 +258,9 @@ export function MatchKeeper(props: MatchKeeperProps) {
           </div>
           {resultWinner !== "H" && (
             <div className="field">
-              <label>By how much</label>
+              <label htmlFor={`${fid}-margin`}>By how much</label>
               <input
+                id={`${fid}-margin`}
                 className="input"
                 value={resultMargin}
                 onChange={(e) => setResultMargin(e.target.value)}

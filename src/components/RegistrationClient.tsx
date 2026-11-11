@@ -1464,8 +1464,8 @@ export function RegistrationClient({
             </button>
           )}
           <div className="field">
-            <label>Handicap source</label>
-            <div className="seg" style={{ width: "100%" }}>
+            <span className="field-caption" id={`${fid}-hsrc`}>Handicap source</span>
+            <div className="seg" style={{ width: "100%" }} role="radiogroup" aria-labelledby={`${fid}-hsrc`}>
               {[["ghin", bodyWords.label], ["manual", "Manual"], ["none", "None"]].map(([v, l]) => (
                 <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
                   <input type="radio" name="hsrc" checked={hSource === v} onChange={() => setHSource(v)} />{l}
@@ -1478,8 +1478,8 @@ export function RegistrationClient({
             <div className="field"><label htmlFor={`${fid}-ghin`}>{bodyWords.number.charAt(0).toUpperCase() + bodyWords.number.slice(1)}</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
           </div>
           <div className="field">
-            <label>Handicap is a…</label>
-            <div className="seg" style={{ width: "100%" }}>
+            <span className="field-caption" id={`${fid}-hctype`}>Handicap is a…</span>
+            <div className="seg" style={{ width: "100%" }} role="radiogroup" aria-labelledby={`${fid}-hctype`}>
               {[["18", "18-hole index"], ["9", "9-hole index"]].map(([v, l]) => (
                 <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
                   <input type="radio" name="hctype" checked={newHandicapType === v} onChange={() => setNewHandicapType(v)} disabled={hSource === "none"} />{l}

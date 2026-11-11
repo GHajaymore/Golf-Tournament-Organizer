@@ -432,8 +432,8 @@ export function OrganizationAccess({
             />
           </div>
           <div className="field">
-            <label>Role</label>
-            <div className="seg">
+            <span className="field-caption" id={`${fid}-role`}>Role</span>
+            <div className="seg" role="group" aria-labelledby={`${fid}-role`}>
               {ORG_ROLE_OPTS.map((o) => (
                 <label className="seg-opt" key={o.v}>
                   <input

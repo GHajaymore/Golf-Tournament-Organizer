@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { rankCourses, tierOf, Tier } from "@/lib/domain/course-ranking";
 import { Icon } from "./Icon";
 import { DIRECTORY_ATTRIBUTION } from "@/lib/domain/course-directory";
@@ -216,6 +216,7 @@ export function CoursePicker({
   showCardNote = true,
   onBusyChange,
 }: CoursePickerProps) {
+  const fid = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -489,8 +490,9 @@ export function CoursePicker({
 
   return (
     <div className="field" style={{ position: "relative" }}>
-      <label>{label}</label>
+      <label htmlFor={`${fid}-course`}>{label}</label>
       <input
+        id={`${fid}-course`}
         ref={inputRef}
         className="input"
         disabled={disabled}

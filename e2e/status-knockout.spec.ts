@@ -2,8 +2,7 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
-import { pressComplete } from "./end-early";
-import { expectScopeLock, LOCKED_LIVE } from "./expect-tournament-locks";
+import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
@@ -37,7 +36,7 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
  */
 
 test("a knockout says the same thing on every panel from the draw to the Final (J13)", async ({ browser, baseURL }, testInfo) => {
-  test.setTimeout(300_000);
+  test.setTimeout(420_000);
   const errors: string[] = [];
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "knockout",
@@ -55,6 +54,7 @@ test("a knockout says the same thing on every panel from the draw to the Final (
     // No dates: refused in place, with the way out.
     await expectTournamentSays(page, {
       chip: "Setting up",
+      lock: "open",
       nextAction: "Launch tournament",
       refused: { because: "This tournament has no dates", wayOut: { says: "Open Tournament details", href: "/event" } },
     });
@@ -63,41 +63,41 @@ test("a knockout says the same thing on every panel from the draw to the Final (
     // Dated: nothing else holds a knockout.
     const day = dayFromNow(10);
     await prisma.event.update({ where: { id: f.eventId }, data: { dates: "Club knockout", startOn: day, endOn: day } });
-    await expectTournamentSays(page, { chip: "Setting up", nextAction: "Launch tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
 
     // Launched (what the Launch press leaves behind): the draw is made, no tie played.
     await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", configUnlocked: false } });
     await expectTournamentSays(page, {
       chip: "Live",
+      lock: "live",
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
-    // And what launch shut says so, with the committee correction as the way out (J13's lock column; PR 5b).
-    await expectScopeLock(page, "/stages", { scope: "Rounds", because: LOCKED_LIVE, wayOut: "correction" });
 
     // Two quarter-finals in (seed 1 beats 8, seed 4 beats 5): live, and Complete is allowed.
     await win("winners-0-0", p1, "3&2");
     await win("winners-0-1", p4, "1 up");
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // All four quarter-finals: the semi-finals are drawn and unplayed, the Final is TBD. Still live.
     await win("winners-0-2", p3, "2&1");
     await win("winners-0-3", p2, "4&3");
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // Both semi-finals (1 beats 4; 2 beats 3): the Final is drawn and unplayed. STILL live —
     // a knockout is not over until its Final is.
     await win("winners-1-0", p1, "2 up");
     await win("winners-1-1", p2, "1 up");
     // The secretary's home has nothing of this tournament's own to do while its Final is unplayed (PR 6).
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, home: null });
 
     // The Final decided, and no round closed: Play over, said as a knockout says it — and the
     // secretary's home says it too (D3k: "every round closed" never could, nobody closes a Bracket Stage).
     await win("winners-2-0", p1, "19th");
     await expectTournamentSays(page, {
       chip: "Play over",
+      lock: "live",
       chipDetail: "Final decided · results not released",
       nextAction: "Complete tournament",
       refused: null,
@@ -111,7 +111,18 @@ test("a knockout says the same thing on every panel from the draw to the Final (
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+
+    // Reopened by the press (a result entered the wrong way round): the Final is still decided, so play is over again.
+    await pressReopen(page);
+    await expect.poll(f.status, { timeout: 20_000, message: "Reopen did not reopen it" }).toBe("live");
+    await expectTournamentSays(page, {
+      chip: "Play over",
+      lock: "live",
+      chipDetail: "Final decided · results not released",
+      nextAction: "Complete tournament",
+      refused: null,
+    });
     expect(errors).toEqual([]);
   } finally {
     await f.done();
