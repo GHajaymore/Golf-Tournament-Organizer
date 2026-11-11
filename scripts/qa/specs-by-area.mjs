@@ -50,6 +50,9 @@ export const ALWAYS_ON = [
   // scroll, a reason beside every greyed control, one primary to a row or card. A ratchet
   // (e2e/console-sweep-known.json); Chromium's small phone only, and it skips itself everywhere else.
   "e2e/console-sweep.spec.ts",
+  // The control on "form controls changed by a test" (scripts/e2e-coverage.mjs): the hook is on every
+  // context of every spec (e2e/coverage.ts), so its proof runs with whatever specs a round keeps.
+  "e2e/form-controls.spec.ts",
   // The text-box crawl. It runs as its own layer (`text-boxes`, below), and skips itself in the suite's
   // run exactly as it does in a full round's, so listing it here changes nothing but the bookkeeping.
   "e2e/every-text-box.spec.ts",
