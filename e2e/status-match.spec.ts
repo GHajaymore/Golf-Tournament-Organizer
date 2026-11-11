@@ -2,8 +2,7 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
-import { pressComplete } from "./end-early";
-import { expectScopeLock, LOCKED_LIVE } from "./expect-tournament-locks";
+import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
@@ -38,7 +37,7 @@ const eighteen = (first: Array<"A" | "B" | "H">): string =>
   JSON.stringify([...first, ...new Array(18 - first.length).fill(null)]);
 
 test("a single match says the same thing on every panel from the draw to the last green (J13)", async ({ browser, baseURL }, testInfo) => {
-  test.setTimeout(300_000);
+  test.setTimeout(420_000);
   const errors: string[] = [];
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "match",
@@ -53,6 +52,7 @@ test("a single match says the same thing on every panel from the draw to the las
     // No dates.
     await expectTournamentSays(page, {
       chip: "Setting up",
+      lock: "open",
       nextAction: "Launch tournament",
       refused: { because: "This tournament has no dates", wayOut: { says: "Open Tournament details", href: "/event" } },
     });
@@ -62,6 +62,7 @@ test("a single match says the same thing on every panel from the draw to the las
     await prisma.event.update({ where: { id: f.eventId }, data: { dates: "Club final", startOn: day, endOn: day } });
     await expectTournamentSays(page, {
       chip: "Setting up",
+      lock: "open",
       nextAction: "Launch tournament",
       refused: { because: "has no match made yet", wayOut: { says: "Open Rounds & formats", href: "/stages" } },
     });
@@ -73,22 +74,21 @@ test("a single match says the same thing on every panel from the draw to the las
     const match = await prisma.match.create({
       data: { eventId: f.eventId, stageId: f.stageIds[0], groupId: carrier.id, round: 1, playerAId: a, playerBId: b, holes: eighteen([]) },
     });
-    await expectTournamentSays(page, { chip: "Setting up", nextAction: "Launch tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
 
     // Launched, no hole played.
     await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", configUnlocked: false } });
     await expectTournamentSays(page, {
       chip: "Live",
+      lock: "live",
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
-    // And what launch shut says so, with the committee correction as the way out (J13's lock column; PR 5b).
-    await expectScopeLock(page, "/stages", { scope: "Rounds", because: LOCKED_LIVE, wayOut: "correction" });
 
     // Three holes played (A wins the first, the next two halved): live — a match is not over until it cannot be caught.
     await prisma.match.update({ where: { id: match.id }, data: { holes: eighteen(["A", "H", "H"]), scoreStatus: "confirmed", confirmedBy: "zz" } });
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // Won 3&2 with the round still open: the match is over, so play is over.
     await prisma.match.update({
@@ -97,6 +97,7 @@ test("a single match says the same thing on every panel from the draw to the las
     });
     await expectTournamentSays(page, {
       chip: "Play over",
+      lock: "live",
       chipDetail: "Every match over · results not released",
       nextAction: "Complete tournament",
       refused: null,
@@ -108,7 +109,18 @@ test("a single match says the same thing on every panel from the draw to the las
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+
+    // Reopened by the press (the result was wrong): the match is still over, so play is over and Complete is back.
+    await pressReopen(page);
+    await expect.poll(f.status, { timeout: 20_000, message: "Reopen did not reopen it" }).toBe("live");
+    await expectTournamentSays(page, {
+      chip: "Play over",
+      lock: "live",
+      chipDetail: "Every match over · results not released",
+      nextAction: "Complete tournament",
+      refused: null,
+    });
     expect(errors).toEqual([]);
   } finally {
     await f.done();

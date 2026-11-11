@@ -55,3 +55,18 @@ export async function pressComplete(page: Page): Promise<void> {
   await control.scrollIntoViewIfNeeded();
   await control.click();
 }
+
+/**
+ * REOPENING, AS AN ORGANIZER DOES IT: the completed tournament's status card offers "Reopen
+ * tournament", which asks first ("The boards stop reading Final…") and reopens on the second press.
+ * Opens the dashboard itself; the caller then reads the status back (`f.status`) before the screens.
+ */
+export async function pressReopen(page: Page): Promise<void> {
+  await page.goto(`/dashboard?bust=${Date.now()}`);
+  const reopen = statusCard(page).getByRole("button", { name: "Reopen tournament" });
+  await expect(reopen, "a completed tournament offers no Reopen").toBeVisible({ timeout: 30_000 });
+  await reopen.click();
+  const asked = page.getByRole("alertdialog");
+  await expect(asked, "Reopen did not ask first").toBeVisible({ timeout: 15_000 });
+  await asked.getByRole("button", { name: "Reopen tournament" }).click();
+}

@@ -41,6 +41,7 @@ test("the timeline says what the dashboard says, at every step of a medal (J16)"
     // No dates: Launch is refused on the dashboard AND at the head of the timeline's strip, in the same words.
     await expectTournamentSays(page, {
       chip: "Setting up",
+      lock: "open",
       chipDetail: null,
       nextAction: "Launch tournament",
       refused: { because: "This tournament has no dates, so nobody can plan around it.", wayOut: { says: "Open Tournament details", href: "/event" } },
@@ -59,13 +60,14 @@ test("the timeline says what the dashboard says, at every step of a medal (J16)"
     // Dated: Launch is offered on both.
     const day = dayFromNow(10);
     await prisma.event.update({ where: { id: f.eventId }, data: { dates: "Saturday medal", startOn: day, endOn: day } });
-    await expectTournamentSays(page, { chip: "Setting up", nextAction: "Launch tournament", refused: null, timeline: true });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null, timeline: true });
     await expect(page.locator(".rt-need-next").getByRole("link", { name: "Launch tournament" })).toHaveAttribute("href", "/dashboard");
 
     // Launched, nothing scored: Complete refused in place on both, with the way out to Score entry.
     await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", launchedAt: new Date(), configUnlocked: false } });
     await expectTournamentSays(page, {
       chip: "Live",
+      lock: "live",
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
@@ -79,6 +81,7 @@ test("the timeline says what the dashboard says, at every step of a medal (J16)"
     await prisma.stage.update({ where: { id: f.stageIds[0] }, data: { closedAt: new Date() } });
     await expectTournamentSays(page, {
       chip: "Play over",
+      lock: "live",
       chipDetail: "Every round closed · results not released",
       nextAction: "Complete tournament",
       refused: null,
@@ -88,7 +91,7 @@ test("the timeline says what the dashboard says, at every step of a medal (J16)"
 
     // Completed: the chip on both; the timeline leads with nothing.
     await prisma.event.update({ where: { id: f.eventId }, data: { status: "completed" } });
-    await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, timeline: true });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, timeline: true });
     expect(errors).toEqual([]);
   } finally {
     await f.done();
@@ -107,7 +110,7 @@ test("dates passed and never launched: Setting up on both, and the warning is in
   try {
     const page = await f.ctx.newPage();
     watchPageErrors(page, errors);
-    await expectTournamentSays(page, { chip: "Setting up", nextAction: "Launch tournament", refused: null, timeline: true });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null, timeline: true });
     const needs = page.getByRole("region", { name: /Needs you/ });
     await expect(needs, "the machine's dates-passed warning is not in the strip").toContainText("Its dates have passed and it was never launched.");
     await expect(needs.getByRole("link", { name: /Launch it or change its dates/ })).toHaveAttribute("href", "/event");

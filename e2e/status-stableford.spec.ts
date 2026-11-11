@@ -3,6 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
 import { expectRoundDoors, expectScopeLock, expectTeesDoor, LOCKED_LIVE } from "./expect-tournament-locks";
+import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
@@ -32,9 +33,10 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
  *                          sentence; late entries closed, the way out the Organizer's
  *                          committee correction to the field
  *   every card, closed     Play over · Every round closed · results not released
+ *   completed, reopened    Completed, locked by completion; then reopened by the press:
+ *                          play over again, locked by the launch again
  *
- * WHAT IT CANNOT SEE: completing and reopening, walked in `status-stroke.spec.ts`
- * (a Stableford completes on the same rule); the late entrant PLACED in a flight
+ * WHAT IT CANNOT SEE: the late entrant PLACED in a flight
  * (`day-of-field-changes.spec.ts`); a tee change stored on an unscored round
  * (`tees-shut-once-frozen.spec.ts`).
  */
@@ -54,7 +56,7 @@ const LATE_CLOSED =
   "The first card of Round 1 is in, so late entries are closed. To add someone anyway, an Organizer can make a committee correction to the field on the dashboard.";
 
 test("a Stableford says the same thing on every panel through setup and launch (D1, D4, J04)", async ({ browser, baseURL }, testInfo) => {
-  test.setTimeout(480_000);
+  test.setTimeout(600_000);
   const errors: string[] = [];
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "stableford",
@@ -69,6 +71,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
     // D4: no dates — held on Tournament details, refused in place with the way there.
     await expectTournamentSays(page, {
       chip: "Setting up",
+      lock: "open",
       nextAction: "Launch tournament",
       refused: { because: "This tournament has no dates", wayOut: { says: "Open Tournament details", href: "/event" } },
       setup: { holds: "Tournament details", done: 3, of: 5 },
@@ -80,6 +83,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
     await prisma.event.update({ where: { id: f.eventId }, data: { dates: "Sunday Stableford", startOn: day, endOn: day } });
     await expectTournamentSays(page, {
       chip: "Setting up",
+      lock: "open",
       nextAction: "Launch tournament",
       refused: null,
       setup: { ready: true, done: 4, of: 5, optional: ["Flights"] },
@@ -92,6 +96,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
     await prisma.player.updateMany({ where: { id: { in: f.playerIds.slice(0, 5) } }, data: { groupId: flight.id } });
     await expectTournamentSays(page, {
       chip: "Setting up",
+      lock: "open",
       nextAction: "Launch tournament",
       refused: null,
       setup: { ready: true, done: 4, of: 5, optional: ["Flights"] },
@@ -106,6 +111,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
 
     await expectTournamentSays(page, {
       chip: "Live",
+      lock: "live",
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
@@ -160,7 +166,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
 
     // ── the round's first card: its format, holes, venue and tees shut, each with the reason (PR 7b) ──
     await cardsIn(f, round1, f.playerIds.slice(0, 1));
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null, setup: null, journey: "Play" });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, setup: null, journey: "Play" });
     await expectRoundDoors(page, round1, "Round 1", { format: FORMAT_SHUT, holes: HOLES_SHUT });
     await expectTeesDoor(page, round1, TEES_FROZEN);
     // Late entries close at the first card (no sheet is published), and the way out is the correction.
@@ -173,14 +179,26 @@ test("a Stableford says the same thing on every panel through setup and launch (
     expect(others.length, "the field is not the six and the late entrant").toBe(6);
     await cardsIn(f, round1, others.map((p) => p.id));
     await prisma.stage.update({ where: { id: round1 }, data: { closedAt: new Date() } });
-    await expectTournamentSays(page, {
+    const over = {
       chip: "Play over",
+      lock: "live",
       chipDetail: "Every round closed · results not released",
       nextAction: "Complete tournament",
       refused: null,
       setup: null,
       journey: "Play",
-    });
+    } as const;
+    await expectTournamentSays(page, over);
+
+    // ── completed, then reopened by the press: the round is still closed, so play is over again ──
+    await page.goto(`/dashboard?bust=${Date.now()}`);
+    await pressComplete(page);
+    await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
+    await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, setup: null, journey: "Finish" });
+    await pressReopen(page);
+    await expect.poll(f.status, { timeout: 20_000, message: "Reopen did not reopen it" }).toBe("live");
+    await expectTournamentSays(page, over);
     expect(errors).toEqual([]);
   } finally {
     await f.done();
