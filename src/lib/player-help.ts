@@ -62,6 +62,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Open Today.",
       "Your tee time and group are at the top.",
       "Nothing there yet? The draw isn't published.",
+      "Moved? You get \"Your tee time has changed\". Today shows the new one.",
     ],
   },
   {

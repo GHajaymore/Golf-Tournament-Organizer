@@ -22,6 +22,7 @@ import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOf
 import { clubWallClock } from "@/lib/domain/club-clock";
 import { cleanIsoDate } from "@/lib/domain/round-dates";
 import { PlaceInGroup } from "@/components/PlaceInGroup";
+import { slotLocksFor } from "@/lib/services/tee-sheet-locks";
 import { fieldRefusal } from "@/lib/services/field-change";
 import { strokeCutField, strokeCutOutcomeOf, cutTieRefusal } from "@/lib/services/stroke-cut";
 import { cutFeederOf } from "@/lib/domain/cut-ready";
@@ -255,6 +256,14 @@ export default async function FoursomesPage({
   const undrawn = savedSheet && isStaff ? undrawnOn(savedSheet, fieldIds) : [];
   const placeDoor = undrawn.length > 0 ? await fieldRefusal(session.eventId, "place-in-group") : null;
   const nameOf = new Map(field.map((p) => [p.id, p.name]));
+  /**
+   * MOVING ON A SAVED SHEET (tee sheet moves): staff, while the field rule allows
+   * a change, with the slots that have begun and why — asked of the club's clock
+   * (`slotLocksFor`), the same reader the server action refuses on.
+   */
+  const canMove = !!(stage && savedSheet && isStaff);
+  const moveDoor = canMove ? await fieldRefusal(session.eventId, "place-in-group") : null;
+  const slotLocks = canMove && !moveDoor && stage && savedSheet ? await slotLocksFor(session.eventId, stage.id, savedSheet) : {};
   // The round's day at the club — its own, or the tournament's first day for
   // the first round (as the late-entry cutoff reads it) — for which groups are out.
   const roundDay = stage ? cleanIsoDate(stage.playedOn) || (stage.id === rounds[0]?.id ? cleanIsoDate(state.event.startOn) : "") : "";
@@ -420,6 +429,9 @@ export default async function FoursomesPage({
       )}
       <FoursomeMaker
         firstHole={firstHole}
+        canMove={canMove}
+        door={moveDoor}
+        locks={slotLocks}
         requests={requestClustersNow}
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}
         // The round's sides, so partners go out together — `groupBySides`.

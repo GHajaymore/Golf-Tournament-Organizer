@@ -4,7 +4,14 @@ import { assertEventWritable } from "@/lib/services/club-archive";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
-import { parseTeeSheet, placeInGroup, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
+import { GROUP_MOST, parseTeeSheet, placeInGroup, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
+import { applyMoves, SIDES_NOTE, type SheetMove } from "@/lib/domain/tee-sheet-moves";
+import { slotLocksFor } from "@/lib/services/tee-sheet-locks";
+import { needsTeams } from "@/lib/formats";
+import { roundIsStroke } from "@/lib/stage-types";
+import { teamsForStage } from "@/lib/services/teams";
+import { sidesByMatch } from "@/lib/domain/draw";
+import { holesPlayed } from "@/lib/domain/handicap";
 import { roundLabel } from "@/lib/domain/round-label";
 import { notifyTeeTimesPublished } from "@/lib/services/tee-time-notify";
 import { firstHoleForRound } from "@/lib/domain/hole-number";
@@ -278,4 +285,141 @@ export async function placeInTeeGroup(
   await refresh();
   const when = placed.group.time ? `, off at ${placed.group.time}` : "";
   return { ok: true, said: `${player.name} is in ${placed.group.name || "the group"}${when}.` };
+}
+
+/** The most moves one Save carries: a draft is a few taps, never a re-draw. */
+const MOST_MOVES = 60;
+
+/**
+ * MOVE PEOPLE AND GROUPS ON THE SAVED SHEET, WITHOUT A RE-DRAW (tee sheet moves).
+ *
+ * The screen keeps a draft of moves and sends them once, on Save. The rules
+ * are `applyMoves` (`domain/tee-sheet-moves.ts`) — the same function the screen
+ * drew the draft with — replayed here over the STORED sheet, so a caller sending
+ * anything at all is held to the same words. Times and start holes stay with
+ * the slots; a group that has teed off (the club's clock) or holds a card is
+ * locked; nobody ends a group above four; an emptied group is refused.
+ *
+ * WHO MAY CALL IT: staff of the tournament, an Assistant as much as the
+ * Organizer, and only while the field rule allows (`place-in-group`). A player
+ * is moved on his own only in an individual stroke round; where the round is
+ * played in sides or matches only a whole side (`kind: "side"`, exactly one of
+ * the round's own sides) or a whole group moves — partners are not split.
+ *
+ * `baseSavedAt` is the `savedAt` of the sheet the person was looking at: a
+ * sheet saved by anybody since is refused with a sentence and nothing written
+ * (compare-and-set, as `placeInTeeGroup`). The published state is kept; the
+ * players whose time changed are told ONCE, and only those.
+ */
+export async function moveInTeeSheet(
+  stageId: string,
+  baseSavedAt: string,
+  moves: SheetMove[],
+): Promise<TeeSheetResult & { said?: string }> {
+  const session = await requireStaffSession();
+  if (typeof stageId !== "string" || !stageId || typeof baseSavedAt !== "string" || !baseSavedAt) {
+    return { ok: false, error: "Look at the sheet again and choose." };
+  }
+  if (!Array.isArray(moves) || moves.length === 0) return { ok: false, error: "There is nothing to save." };
+  if (moves.length > MOST_MOVES) return { ok: false, error: "That is too many changes at once. Save, then carry on." };
+  const refused = await fieldRefusal(session.eventId, "place-in-group");
+  if (refused) return { ok: false, error: refused };
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId: session.eventId },
+    select: { id: true, teeSheet: true, teeSheetPublished: true, type: true, format: true, holes: true, handicapAllowance: true, allowanceWeights: true },
+  });
+  if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+  const sheet = parseTeeSheet(stage.teeSheet ?? "");
+  if (!sheet) return { ok: false, error: "Save a sheet for this round first." };
+  if (sheet.savedAt !== baseSavedAt) return { ok: false, error: "The sheet changed while you were choosing. Look again and choose." };
+
+  // Anything but a clean shape of move is refused before it is read further.
+  const clean: SheetMove[] = [];
+  for (const m of moves) {
+    if (m && m.kind === "player" && typeof m.playerId === "string" && Number.isInteger(m.toGroup)) clean.push({ kind: "player", playerId: m.playerId, toGroup: m.toGroup });
+    else if (m && m.kind === "group" && Number.isInteger(m.from) && Number.isInteger(m.to)) clean.push({ kind: "group", from: m.from, to: m.to });
+    else if (
+      m &&
+      m.kind === "side" &&
+      Array.isArray(m.playerIds) &&
+      m.playerIds.length > 0 &&
+      m.playerIds.length <= GROUP_MOST &&
+      m.playerIds.every((id) => typeof id === "string") &&
+      Number.isInteger(m.toGroup)
+    ) {
+      clean.push({ kind: "side", playerIds: [...m.playerIds], toGroup: m.toGroup });
+    } else return { ok: false, error: "That isn't a change to a tee sheet." };
+  }
+
+  // The round's units. A player moves alone only in an individual stroke round.
+  const inSides = needsTeams(stage.format) || !roundIsStroke(stage.type, stage.format);
+  if (inSides) {
+    if (clean.some((m) => m.kind === "player")) return { ok: false, error: SIDES_NOTE };
+    const sides = await sidesOfRound(session.eventId, stage);
+    const known = new Set(sides.map((s) => [...s].sort().join("|")));
+    if (clean.some((m) => m.kind === "side" && !known.has([...m.playerIds].sort().join("|")))) {
+      return { ok: false, error: "That isn't one of this round's sides." };
+    }
+  } else if (clean.some((m) => m.kind === "side")) {
+    return { ok: false, error: "This round is played one by one. Move a player, not a side." };
+  }
+
+  const confirmed = await prisma.player.findMany({
+    where: { eventId: session.eventId, status: "confirmed" },
+    select: { id: true },
+  });
+  const cutField = await strokeCutField(session.eventId, stageId);
+  const field = new Set(confirmed.map((p) => p.id).filter((id) => !cutField || cutField.has(id)));
+
+  const locks = await slotLocksFor(session.eventId, stageId, sheet);
+  const applied = applyMoves(sheet, clean, field, locks);
+  if (!applied.ok) return { ok: false, error: applied.says };
+  const next: TeeSheet = { ...applied.sheet, savedAt: new Date().toISOString() };
+
+  const written = await prisma.stage.updateMany({
+    where: { id: stageId, eventId: session.eventId, teeSheet: stage.teeSheet },
+    data: { teeSheet: JSON.stringify(next) },
+  });
+  if (written.count === 0) return { ok: false, error: "The sheet changed while you were choosing. Look again and choose." };
+
+  if (stage.teeSheetPublished) {
+    const [event, stages] = await Promise.all([
+      prisma.event.findUnique({ where: { id: session.eventId }, select: { name: true } }),
+      prisma.stage.findMany({
+        where: { eventId: session.eventId },
+        select: { id: true, type: true, holes: true, nine: true },
+        orderBy: { position: "asc" },
+      }),
+    ]);
+    await notifyTeeTimesPublished({
+      eventId: session.eventId,
+      stageId,
+      previous: sheet,
+      next,
+      firstPublish: false,
+      roundLabel: roundLabel(stages, stageId),
+      eventName: event?.name ?? "",
+      firstHole: firstHoleForRound(stages.find((s) => s.id === stageId)),
+    });
+  }
+
+  await refresh();
+  return { ok: true, said: "The sheet is saved with your changes." };
+}
+
+/** The round's own sides, as the tee sheet goes out in them (`sidesByMatch`): whole pairs, or a match's four. */
+async function sidesOfRound(
+  eventId: string,
+  stage: { id: string; format: string; holes: number | null; handicapAllowance: number; allowanceWeights: number[] },
+): Promise<string[][]> {
+  if (!needsTeams(stage.format)) return [];
+  const [teams, matches] = await Promise.all([
+    teamsForStage(eventId, stage.id, stage.format, stage.handicapAllowance, holesPlayed(stage.holes), stage.allowanceWeights),
+    prisma.match.findMany({ where: { eventId, stageId: stage.id }, select: { teamAId: true, teamBId: true } }),
+  ]);
+  return sidesByMatch(
+    teams.map((t) => ({ id: t.id, playerIds: t.members.map((m) => m.playerId) })),
+    matches.flatMap((m) => (m.teamAId && m.teamBId ? [{ teamAId: m.teamAId, teamBId: m.teamBId }] : [])),
+  );
 }
