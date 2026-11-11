@@ -52,10 +52,23 @@ export const STATE_WORD: Record<TrackState, string> = {
   todo: "To do",
 };
 
-/** What a golfer calls each phase (the UX Writer, 9 Nov): a knockout is drawn; everything else gets tee times. */
+/**
+ * What a golfer calls each phase (the UX Writer, 9 Nov): a knockout is drawn, a cup names its
+ * lineups, a league works week by week; everything else gets tee times (the console structure
+ * review, 9 Nov; the Golf Pro: "a knockout organizer says the draw").
+ *
+ * THE ONE PLACE THE STOPS ARE NAMED: the stepper's track reads it (`lifecycleTrack`), and the
+ * console's menu takes its headings from that track (`lifecycleNav`, nav-lifecycle.ts), so the
+ * stepper and the menu cannot call one stop two things.
+ */
 export function phaseTitle(key: PhaseKey, family: Family): string {
   if (key === "setup") return "Set up";
-  if (key === "draw") return family === "knockout" || family === "flightedKnockout" ? "Draw" : "Tee times";
+  if (key === "draw") {
+    if (family === "knockout" || family === "flightedKnockout") return "Draw";
+    if (family === "teamCup") return "Lineups";
+    if (family === "league") return "This week";
+    return "Tee times";
+  }
   if (key === "day") return "Play";
   return "Results";
 }
@@ -374,6 +387,19 @@ export const STEPPER_PREVIEW = "stepper";
 export function stepperShown(search: string): boolean {
   if (LIFECYCLE_STEPPER_ON) return true;
   return new URLSearchParams(search).get(STEPPER_PREVIEW) === "1";
+}
+
+/**
+ * A link that KEEPS THE PREVIEW ON: the console's layout is not drawn again as an organizer moves
+ * between its screens, but anything that draws it afresh (a reload, a saved form) reads the address,
+ * so every link the stepper and the menu draw while previewing carries the query (before a `#place`).
+ * Called only while previewing: once the switch is on, links are plain.
+ */
+export function keepPreview(href: string): string {
+  const at = href.indexOf("#");
+  const path = at === -1 ? href : href.slice(0, at);
+  const place = at === -1 ? "" : href.slice(at);
+  return `${path}${path.includes("?") ? "&" : "?"}${STEPPER_PREVIEW}=1${place}`;
 }
 
 /**

@@ -18,6 +18,7 @@ import { LIFECYCLE_STEPPER_ON, lifecycleTrack, stepperShown } from "@/lib/domain
 import { headers } from "next/headers";
 import { openTournamentJob } from "@/lib/services/whats-next";
 import { navForRole } from "@/lib/nav";
+import { lifecycleNav } from "@/lib/nav-lifecycle";
 import { loadEventState } from "@/lib/services/tournament";
 import { tournamentStatusFor } from "@/lib/services/tournament-status";
 import { STEP_TAG } from "@/lib/domain/tournament-status";
@@ -195,7 +196,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // the organizer's own would name one outfit after another.
   const orgNounNow = event ? event.organization.communityNoun : (ownedOrgs[0]?.communityNoun ?? "");
 
-  const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
+  const flatSections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
     hasTeamRound: teamRounds > 0,
     hasKnockout: knockoutRounds > 0,
     hasCup: cupRounds > 0,
@@ -215,6 +216,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     orgAdminWithoutEvent: !event && ownedOrgs.length > 0,
     roundName,
   });
+  /**
+   * THE MENU FOLLOWS THE LIFECYCLE wherever the stepper is drawn (the console structure review,
+   * 9 Nov) — the same switch, so nothing changes until Ajay has previewed it. Its sections are the
+   * track's own stops; which screens it lists is still `navForRole`'s answer above, rearranged
+   * (`lifecycleNav`). No track (the switch off, a casual round, no tournament open): the menu as it was.
+   */
+  const sections = track ? lifecycleNav(flatSections, track, { roundName }) : flatSections;
+  const menuPreview = track !== null && !LIFECYCLE_STEPPER_ON;
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
@@ -301,6 +310,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           initials={initials}
           brand={brand}
           organizer={organizer}
+          preview={menuPreview}
         />
       )}
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
@@ -364,6 +374,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           initials={initials}
           brand={brand}
           organizer={organizer}
+          preview={menuPreview}
         />
       )}
     </div>

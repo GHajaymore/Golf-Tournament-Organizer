@@ -7,6 +7,8 @@ import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import { LOGO_SIZE } from "./Logo";
 import { Icon } from "./Icon";
+import { NavSections } from "./NavSections";
+import { keepPreview } from "@/lib/domain/lifecycle-track";
 import { roleName } from "@/lib/roles";
 
 type Role = "admin" | "assistant" | "player";
@@ -21,9 +23,11 @@ interface Props {
   initials: string;
   /** Owning organization's branding; falls back to TourneyHQ when unset. */
   brand?: Brand | null;
+  /** The menu is the stepper's preview (`?stepper=1`): its links keep the preview on. */
+  preview?: boolean;
 }
 
-export function MobileTabBar({ sections, name, role, viewRole, initials, brand, organizer = "organizer" }: Props) {
+export function MobileTabBar({ sections, name, role, viewRole, initials, brand, organizer = "organizer", preview = false }: Props) {
   const roleLabel = (r: Role) => roleName(r, organizer);
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -42,7 +46,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand, 
         {tabs.map((t) => (
           <Link
             key={t.key}
-            href={t.href}
+            href={preview ? keepPreview(t.href) : t.href}
             className="m-tab"
             aria-current={pathname === t.href ? "page" : undefined}
           >
@@ -81,33 +85,8 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand, 
               </button>
             </div>
 
-            {sections.map((sec) => (
-              <div key={sec.label}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    letterSpacing: "0.13em",
-                    textTransform: "uppercase",
-                    color: "var(--color-neutral-500)",
-                    margin: "12px 8px 3px",
-                  }}
-                >
-                  {sec.label}
-                </div>
-                {sec.items.map((it) => (
-                  <Link
-                    key={it.key}
-                    href={it.href}
-                    className="side-link"
-                    aria-current={pathname === it.href ? "page" : undefined}
-                    onClick={() => setOpen(false)}
-                  >
-                    <Icon name={it.icon} />
-                    <span>{it.label}</span>
-                  </Link>
-                ))}
-              </div>
-            ))}
+            {/* The sidebar's own list, drawn by the one component (`NavSections`). */}
+            <NavSections sections={sections} pathname={pathname} preview={preview} onNavigate={() => setOpen(false)} headEmpty />
 
             <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid var(--color-divider)", display: "flex", flexDirection: "column", gap: 10 }}>
               {role === "admin" && (

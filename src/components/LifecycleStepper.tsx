@@ -7,7 +7,7 @@ import "./lifecycle-stepper.css";
 import { Icon } from "./Icon";
 import {
   STATE_WORD,
-  STEPPER_PREVIEW,
+  keepPreview,
   stepperOpenOn,
   trackCount,
   type LifecycleTrack,
@@ -59,7 +59,7 @@ export function LifecycleStepper({
   const here = told ?? path ?? "";
   const cur = track.steps[track.current];
   const press = track.press;
-  const keep = (href: string) => (preview ? `${href}${href.includes("?") ? "&" : "?"}${STEPPER_PREVIEW}=1` : href);
+  const keep = (href: string) => (preview ? keepPreview(href) : href);
   const jobScreen = press.href.split("?")[0];
   /** No action where the job is done, and none on the dashboard, whose status card holds the button. */
   const offered = here !== "/dashboard" && here !== jobScreen;
