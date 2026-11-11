@@ -5,10 +5,10 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { GROUP_MOST, parseTeeSheet, placeInGroup, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
-import { applyMoves, SIDES_NOTE, type SheetMove } from "@/lib/domain/tee-sheet-moves";
+import { applyMoves, GROUPS_NOTE, moveKindsOf, moveModeOf, SIDES_NOTE, type SheetMove } from "@/lib/domain/tee-sheet-moves";
+import { sheetFieldFor } from "@/lib/services/sheet-field";
 import { slotLocksFor } from "@/lib/services/tee-sheet-locks";
 import { needsTeams } from "@/lib/formats";
-import { roundIsStroke } from "@/lib/stage-types";
 import { teamsForStage } from "@/lib/services/teams";
 import { sidesByMatch } from "@/lib/domain/draw";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -240,14 +240,9 @@ export async function placeInTeeGroup(
   });
   if (!player) return { ok: false, error: "That player isn't in the field." };
 
-  // The round's field, as `saveTeeSheet` reads it: everyone confirmed, or those
-  // who made the cut into this round once one has been made.
-  const confirmed = await prisma.player.findMany({
-    where: { eventId: session.eventId, status: "confirmed" },
-    select: { id: true },
-  });
-  const cutField = await strokeCutField(session.eventId, stageId);
-  const field = new Set(confirmed.map((p) => p.id).filter((id) => !cutField || cutField.has(id)));
+  // The round's field, as the screen counts it (`sheetFieldFor`): confirmed, the week's attendees
+  // in a league, and those who made the cut once one has been made.
+  const field = (await sheetFieldFor(session.eventId, stageId)).ids;
 
   const placed = placeInGroup(sheet, player.id, groupIndex, field);
   if (!placed.ok) return { ok: false, error: placed.says };
@@ -302,7 +297,7 @@ const MOST_MOVES = 60;
  *
  * WHO MAY CALL IT: staff of the tournament, an Assistant as much as the
  * Organizer, and only while the field rule allows (`place-in-group`). A player
- * is moved on his own only in an individual stroke round; where the round is
+ * is moved on their own only in an individual stroke round; where the round is
  * played in sides or matches only a whole side (`kind: "side"`, exactly one of
  * the round's own sides) or a whole group moves — partners are not split.
  *
@@ -353,24 +348,24 @@ export async function moveInTeeSheet(
   }
 
   // The round's units. A player moves alone only in an individual stroke round.
-  const inSides = needsTeams(stage.format) || !roundIsStroke(stage.type, stage.format);
-  if (inSides) {
-    if (clean.some((m) => m.kind === "player")) return { ok: false, error: SIDES_NOTE };
+  // What may move is `moveModeOf`, the same answer the screen drew its controls from.
+  const mode = moveModeOf(stage);
+  const kinds = moveKindsOf(mode);
+  if (!kinds.player && clean.some((m) => m.kind === "player")) return { ok: false, error: mode === "sides" ? SIDES_NOTE : GROUPS_NOTE };
+  if (!kinds.side && clean.some((m) => m.kind === "side")) {
+    return { ok: false, error: mode === "groups" ? GROUPS_NOTE : "This round is played one by one. Move a player, not a side." };
+  }
+  if (kinds.side && clean.some((m) => m.kind === "side")) {
     const sides = await sidesOfRound(session.eventId, stage);
     const known = new Set(sides.map((s) => [...s].sort().join("|")));
     if (clean.some((m) => m.kind === "side" && !known.has([...m.playerIds].sort().join("|")))) {
       return { ok: false, error: "That isn't one of this round's sides." };
     }
-  } else if (clean.some((m) => m.kind === "side")) {
-    return { ok: false, error: "This round is played one by one. Move a player, not a side." };
   }
 
-  const confirmed = await prisma.player.findMany({
-    where: { eventId: session.eventId, status: "confirmed" },
-    select: { id: true },
-  });
-  const cutField = await strokeCutField(session.eventId, stageId);
-  const field = new Set(confirmed.map((p) => p.id).filter((id) => !cutField || cutField.has(id)));
+  // The round's field, as the screen counts it (`sheetFieldFor`): a player marked out for the week,
+  // or who missed the cut, leaves a place though their id is still stored in the group.
+  const field = (await sheetFieldFor(session.eventId, stageId)).ids;
 
   const locks = await slotLocksFor(session.eventId, stageId, sheet);
   const applied = applyMoves(sheet, clean, field, locks);

@@ -17,12 +17,14 @@ import { WeekField, type WeekFieldRow } from "@/components/WeekField";
 import { sidesByMatch, type Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
-import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
+import { type AttendanceMode } from "@/lib/domain/attendance";
+import { sheetFieldFor } from "@/lib/services/sheet-field";
 import { parseTeeSheet, teeSheetDrift, driftSentence, groupsWithRoom, markTeedOff, undrawnOn, DRIFT_PLACE_LINE } from "@/lib/domain/tee-sheet";
 import { clubWallClock } from "@/lib/domain/club-clock";
 import { cleanIsoDate } from "@/lib/domain/round-dates";
 import { PlaceInGroup } from "@/components/PlaceInGroup";
 import { slotLocksFor } from "@/lib/services/tee-sheet-locks";
+import { moveModeOf } from "@/lib/domain/tee-sheet-moves";
 import { fieldRefusal } from "@/lib/services/field-change";
 import { strokeCutField, strokeCutOutcomeOf, cutTieRefusal } from "@/lib/services/stroke-cut";
 import { cutFeederOf } from "@/lib/domain/cut-ready";
@@ -151,49 +153,22 @@ export default async function FoursomesPage({
    * nobody reads the day it is real.
    */
   const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
-  let field = state.confirmed;
   /**
-   * The week's list, as rows an organizer can change.
+   * THE FIELD OF THIS ROUND'S SHEET — `sheetFieldFor`, the one answer: confirmed,
+   * narrowed to the week's attendees in a league that asks each week, and to
+   * those who made the cut once a cut has been made into the round. The move
+   * action counts a group's room against the same field, so this screen never
+   * offers a move the server refuses.
    *
-   * It used to be a SENTENCE — "This week: 14 in · 6 out" — and nothing else,
-   * which was honest about the field and useless about it. There was no staff
-   * writer for attendance anywhere in the app, so the count was the end of the
-   * conversation: a player who missed the sign-up deadline could not be taken
-   * off by the committee, and under `captains` — where the help text promises
-   * the club enters the list its captains send in — nobody could be put ON.
-   * That mode resolved every player to out and drew from an empty field.
+   * The week's list comes back as rows an organizer can change (`WeekField`):
+   * it used to be a sentence and nothing else, and under `captains` nobody could
+   * be put ON.
    */
-  let weekRows: WeekFieldRow[] = [];
-  if (tracksPerRound(attendanceMode) && stage) {
-    const explicit = await prisma.roundAttendance.findMany({
-      where: { eventId: session.eventId, stageId: stage.id },
-    });
-    const resolved = resolveAttendance(
-      attendanceMode,
-      state.confirmed.map((p) => p.id),
-      explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
-    );
-    const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));
-    field = state.confirmed.filter((p) => inIds.has(p.id));
-    const nameById = new Map(state.confirmed.map((p) => [p.id, p.name]));
-    weekRows = resolved.rows.map((r) => ({
-      playerId: r.playerId,
-      name: nameById.get(r.playerId) ?? "",
-      status: r.status,
-      explicit: r.explicit,
-      decidedBy: r.decidedBy,
-    }));
-  }
-
-  /**
-   * AND A ROUND A CUT HAS BEEN MADE INTO IS DRAWN FROM THOSE WHO MADE IT
-   * (2026-10-09). Walked on a 120-player championship cut to 40: the Round 2
-   * sheet drew all 119, forty three-balls, and a player who missed the cut read
-   * "Missed the cut" over "Group 1 · 8:00 AM". `strokeCutField` is the field the
-   * cut made — the players holding a card for the round — and null before it.
-   */
+  const sheetField = stage ? await sheetFieldFor(session.eventId, stage.id) : null;
+  const field = sheetField ? state.confirmed.filter((p) => sheetField.ids.has(p.id)) : state.confirmed;
+  const weekRows: WeekFieldRow[] = sheetField?.weekRows ?? [];
+  // A cut, for the lines below that say who missed it (the field above is already narrowed by it).
   const cutField = stage ? await strokeCutField(session.eventId, stage.id) : null;
-  if (cutField) field = field.filter((p) => cutField.has(p.id));
   /**
    * AND A CUT WAITING ON A TIE SAYS SO, HERE (2026-10-23). Until the committee
    * records the play-off or the draw for the last place, the cut into this
@@ -431,6 +406,7 @@ export default async function FoursomesPage({
         firstHole={firstHole}
         canMove={canMove}
         door={moveDoor}
+        moveMode={stage ? moveModeOf(stage) : "groups"}
         locks={slotLocks}
         requests={requestClustersNow}
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}

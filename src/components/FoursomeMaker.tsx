@@ -9,7 +9,7 @@ import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { useTransition } from "react";
 import { moveInTeeSheet, saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
 import { drawTimesFrom, sameSheet, sheetOnScreen, sheetStatusLine, startStyleOf, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
-import { applyMoves, groupStep, playerMoveOptions, shortGroupWarnings, SIDES_NOTE, type MoveOption, type SheetMove } from "@/lib/domain/tee-sheet-moves";
+import { applyMoves, groupStep, GROUPS_NOTE, moveKindsOf, playerMoveOptions, shortGroupWarnings, SIDES_NOTE, type MoveMode, type MoveOption, type SheetMove } from "@/lib/domain/tee-sheet-moves";
 import { Icon } from "./Icon";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import { useFormatting } from "./CurrencyProvider";
@@ -77,7 +77,10 @@ export function FoursomeMaker({
   locks = {},
   canMove = false,
   door = null,
+  moveMode = "players",
 }: {
+  /** What may move in this round (`moveModeOf`, the answer the server refuses by): players, whole sides, or only whole groups. */
+  moveMode?: MoveMode;
   /** Why nobody can move anyone now (`fieldRefusal(…, "place-in-group")`), or null. The controls are not drawn while it is set. */
   door?: string | null;
   /** Saved slots that have begun (teed off, or a card in), with why — `slotLocks`. Index to sentence. */
@@ -873,7 +876,7 @@ export function FoursomeMaker({
       {moving && (
         <div role="region" aria-label="Move players and groups" style={{ display: "flex", flexDirection: "column", gap: 8, margin: "0 0 12px" }}>
           <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
-            {bySides ? SIDES_NOTE : "Move a player to another group, or a group earlier or later. The times stay with the slots."} Nothing is saved until you press Save changes.
+            {moveMode === "sides" ? SIDES_NOTE : moveMode === "groups" ? GROUPS_NOTE : "Move a player to another group, or a group earlier or later. The times stay with the slots."} Nothing is saved until you press Save changes.
           </p>
           {moves.length > 0 && (
             <div className="card elev-sm" style={{ display: "flex", flexDirection: "column", gap: 8, borderLeft: "3px solid var(--color-accent)" }}>
@@ -980,7 +983,7 @@ export function FoursomeMaker({
                     </span>
                     <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{indexLabel(p)}</span>
                   </div>
-                  {moving && !bySides && !locks[i] && (
+                  {moving && moveKindsOf(moveMode).player && !locks[i] && (
                     <select
                       aria-label={`Move ${p.name} to`}
                       className="input"
@@ -1000,7 +1003,7 @@ export function FoursomeMaker({
                   </div>
                 );
               })}
-              {moving && bySides && !locks[i] &&
+              {moving && moveKindsOf(moveMode).side && !locks[i] &&
                 playingSides
                   .filter((side) => side.every((id) => g.playerIds.includes(id)))
                   .map((side) => {

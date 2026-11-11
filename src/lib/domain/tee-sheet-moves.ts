@@ -21,6 +21,8 @@
  * change slot.
  */
 
+import { needsTeams } from "../formats";
+import { roundIsStroke } from "../stage-types";
 import { GROUP_MOST, markTeedOff, type GroupWithRoom, type TeeSheet, type TeeSheetGroup } from "./tee-sheet";
 
 export type SheetMove =
@@ -225,5 +227,26 @@ export function shortGroupWarnings(
   });
 }
 
+/**
+ * WHAT MAY MOVE IN A ROUND — the one answer, asked by the screen (which draws
+ * the controls) and by `moveInTeeSheet` (which refuses): "players" in an
+ * individual stroke round with no sides; "sides" where partners play together
+ * (a format with sides, whether stroke or match); "groups" where the pairings
+ * are the draw and nobody is a unit of their own (singles match play, a
+ * knockout) — only a whole group's slot moves.
+ */
+export type MoveMode = "players" | "sides" | "groups";
+
+export function moveModeOf(round: { type: string; format: string }): MoveMode {
+  if (needsTeams(round.format)) return "sides";
+  return roundIsStroke(round.type, round.format) ? "players" : "groups";
+}
+
+/** The kinds of move a mode takes. A whole group moves in every mode. */
+export function moveKindsOf(mode: MoveMode): { player: boolean; side: boolean; group: true } {
+  return { player: mode === "players", side: mode === "sides", group: true };
+}
+
 /** Said where a player cannot be moved on their own: a round played in sides or matches. */
+export const GROUPS_NOTE = "The pairings are the draw here, so a player can\u2019t be moved on their own. You can still move a whole group earlier or later.";
 export const SIDES_NOTE = "Partners play together here, so a player can’t be moved on their own. You can still move a whole group.";

@@ -18,6 +18,11 @@ import { PrismaClient } from "@prisma/client";
  *   the round's day passes (club's clock)      → every group has teed off: refused
  *   a stranger's id, a side move on a stroke round, a malformed move → refused
  *   a player's own session                     → not staff: refused before anything is read
+ *   a league week: a player marked OUT but still stored in Group 2 leaves a place (the move
+ *   is accepted); the same player marked IN → "Group 2 is full" (the screen counts the same
+ *   field: `sheetFieldFor`)
+ *   what may move, by round: individual stroke (players), four-ball pairs (whole sides),
+ *   singles match (whole groups only) — the server answers as `moveModeOf` says
  *
  *   npx vitest run --config vitest.audit.config.ts
  */
@@ -37,6 +42,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { moveInTeeSheet } from "@/app/actions/tee-sheet";
+import { GROUPS_NOTE, SIDES_NOTE } from "@/lib/domain/tee-sheet-moves";
 import { clubToday } from "@/lib/domain/club-clock";
 
 const prisma = new PrismaClient();
@@ -62,10 +68,10 @@ async function cleanup() {
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
 }
 
-async function as(userId: string) {
+async function as(userId: string, onEvent = eventId) {
   jar.clear();
   await createSession(userId);
-  await setActiveEvent(eventId);
+  await setActiveEvent(onEvent);
 }
 
 const stored = async () => prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { teeSheet: true, teeSheetPublished: true } });
@@ -206,5 +212,126 @@ describe("moveInTeeSheet", () => {
     await reset();
     await as(playerUserId);
     await expect(moveInTeeSheet(stageId, SAVED, [{ kind: "group", from: 1, to: 0 }])).rejects.toThrow(/Organizer access required/);
+  });
+});
+
+describe("the field a group's room is counted against (a league week)", () => {
+  let leagueEvent = "";
+  let weekStage = "";
+  const lid: Record<string, string> = {};
+  const SAVED_W = "2026-11-29T18:00:00.000Z";
+
+  beforeAll(async () => {
+    const e = await prisma.event.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} league`,
+        dates: "",
+        course: "",
+        city: "",
+        address: "",
+        regDeadline: "",
+        shareToken: `${TAG}-league-${Date.now()}`,
+        status: "live",
+        configUnlocked: false,
+        attendanceMode: "opt-out",
+      },
+    });
+    leagueEvent = e.id;
+    weekStage = (await prisma.stage.create({ data: { eventId: leagueEvent, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: clubDayFrom(1) } })).id;
+    await prisma.account.create({ data: { eventId: leagueEvent, email: at("assistant"), name: `${TAG} Assistant`, role: "assistant" } });
+    for (const [i, key] of ["x", "p1", "p2", "p3", "y", "z"].entries()) {
+      lid[key] = (await prisma.player.create({ data: { eventId: leagueEvent, name: `${TAG} L${key}`, email: at(`l${key}`), handicap: 10 + i, seed: i + 1, status: "confirmed" } })).id;
+    }
+    await prisma.stage.update({
+      where: { id: weekStage },
+      data: {
+        teeSheetPublished: true,
+        teeSheet: JSON.stringify({
+          savedAt: SAVED_W,
+          startType: "tee",
+          groups: [
+            { name: "Group 1", startHole: 1, time: "6:30 PM", playerIds: [lid.y, lid.z] },
+            { name: "Group 2", startHole: 1, time: "6:40 PM", playerIds: [lid.x, lid.p1, lid.p2, lid.p3] },
+          ],
+        }),
+      },
+    });
+  });
+
+  it("X marked out, still stored in Group 2: Group 2 has three of the field, so Y may join", async () => {
+    await prisma.roundAttendance.upsert({
+      where: { stageId_playerId: { stageId: weekStage, playerId: lid.x } },
+      update: { status: "out" },
+      create: { eventId: leagueEvent, stageId: weekStage, playerId: lid.x, status: "out", decidedBy: "test" },
+    });
+    await as(assistantId, leagueEvent);
+    const res = await moveInTeeSheet(weekStage, SAVED_W, [{ kind: "player", playerId: lid.y, toGroup: 1 }]);
+    expect(res).toMatchObject({ ok: true });
+    const g = JSON.parse((await prisma.stage.findUniqueOrThrow({ where: { id: weekStage } })).teeSheet).groups as Array<{ playerIds: string[] }>;
+    expect(g[1].playerIds).toEqual([lid.x, lid.p1, lid.p2, lid.p3, lid.y]);
+  });
+
+  it("the same with X marked in: four in the field, Group 2 is full", async () => {
+    await prisma.roundAttendance.update({ where: { stageId_playerId: { stageId: weekStage, playerId: lid.x } }, data: { status: "in" } });
+    await prisma.stage.update({
+      where: { id: weekStage },
+      data: {
+        teeSheet: JSON.stringify({
+          savedAt: SAVED_W,
+          startType: "tee",
+          groups: [
+            { name: "Group 1", startHole: 1, time: "6:30 PM", playerIds: [lid.y, lid.z] },
+            { name: "Group 2", startHole: 1, time: "6:40 PM", playerIds: [lid.x, lid.p1, lid.p2, lid.p3] },
+          ],
+        }),
+      },
+    });
+    await as(assistantId, leagueEvent);
+    expect(await moveInTeeSheet(weekStage, SAVED_W, [{ kind: "player", playerId: lid.y, toGroup: 1 }])).toEqual({ ok: false, error: "Group 2 is full. Choose a group with room." });
+  });
+
+  async function roundOf(type: string, format: string, withSides: boolean) {
+    const stage = await prisma.stage.create({ data: { eventId: leagueEvent, position: 5 + Math.floor(Math.random() * 1000), type, format, holes: 18, playedOn: clubDayFrom(1) } });
+    if (withSides) {
+      for (const [n, pair] of [["A", [lid.x, lid.p1]], ["B", [lid.p2, lid.p3]]] as const) {
+        const t = await prisma.team.create({ data: { eventId: leagueEvent, stageId: stage.id, name: `${TAG} ${n}` } });
+        for (const [k, id] of pair.entries()) await prisma.teamMember.create({ data: { teamId: t.id, playerId: id, position: k } });
+      }
+    }
+    await prisma.stage.update({
+      where: { id: stage.id },
+      data: {
+        teeSheetPublished: false,
+        teeSheet: JSON.stringify({
+          savedAt: SAVED_W,
+          startType: "tee",
+          groups: [
+            { name: "Group 1", startHole: 1, time: "7:00 AM", playerIds: [lid.x, lid.p1, lid.p2, lid.p3] },
+            { name: "Group 2", startHole: 1, time: "7:10 AM", playerIds: [lid.y, lid.z] },
+          ],
+        }),
+      },
+    });
+    return stage.id;
+  }
+
+  it("individual stroke moves players, not sides; four-ball pairs move whole sides, not players; singles match moves whole groups only", async () => {
+    await as(assistantId, leagueEvent);
+    // individual stroke (the control)
+    const stroke = await roundOf("Stroke Play Round", "Stroke Play", false);
+    expect(await moveInTeeSheet(stroke, SAVED_W, [{ kind: "side", playerIds: [lid.x, lid.p1], toGroup: 1 }])).toEqual({ ok: false, error: "This round is played one by one. Move a player, not a side." });
+    expect((await moveInTeeSheet(stroke, SAVED_W, [{ kind: "player", playerId: lid.x, toGroup: 1 }])).ok).toBe(true);
+    // four-ball pairs: the pair moves together (into Group 2, which has room for two); a lone player is refused
+    const pairs = await roundOf("Stroke Play Round", "Four-Ball", true);
+    expect(await moveInTeeSheet(pairs, SAVED_W, [{ kind: "player", playerId: lid.x, toGroup: 1 }])).toEqual({ ok: false, error: SIDES_NOTE });
+    expect(await moveInTeeSheet(pairs, SAVED_W, [{ kind: "side", playerIds: [lid.x, lid.y], toGroup: 1 }])).toEqual({ ok: false, error: "That isn't one of this round's sides." });
+    const moved = await moveInTeeSheet(pairs, SAVED_W, [{ kind: "side", playerIds: [lid.x, lid.p1], toGroup: 1 }]);
+    expect(moved.ok, JSON.stringify(moved)).toBe(true);
+    // singles match play (no sides): a player and a side are both refused; a whole group moves
+    const singles = await roundOf("Single Match Stage", "Match Play", false);
+    expect(await moveInTeeSheet(singles, SAVED_W, [{ kind: "player", playerId: lid.x, toGroup: 1 }])).toEqual({ ok: false, error: GROUPS_NOTE });
+    expect(await moveInTeeSheet(singles, SAVED_W, [{ kind: "side", playerIds: [lid.x, lid.p1], toGroup: 1 }])).toEqual({ ok: false, error: GROUPS_NOTE });
+    expect((await moveInTeeSheet(singles, SAVED_W, [{ kind: "group", from: 1, to: 0 }])).ok).toBe(true);
   });
 });

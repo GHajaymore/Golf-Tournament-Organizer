@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { TeeSheet } from "../tee-sheet";
 import { teeTimeNotices } from "../tee-time-notice";
-import { applyMove, applyMoves, groupStep, playerMoveOptions, shortGroupWarnings, slotLocks } from "../tee-sheet-moves";
+import { applyMove, applyMoves, groupStep, moveKindsOf, moveModeOf, playerMoveOptions, shortGroupWarnings, slotLocks } from "../tee-sheet-moves";
+import { readSource } from "../../__tests__/source";
 
 /**
  * Expected values are worked by hand from the sheet below, not from the code:
@@ -176,5 +177,44 @@ describe("which slots have begun — told the club's day and wall clock", () => 
   });
   it("no round day marks nobody teed off", () => {
     expect(slotLocks(sheet, { roundDay: "", now: { day: "2026-11-12", minutes: 900 }, cardsIn: new Set() })).toEqual({});
+  });
+});
+
+describe("what may move in a round: the screen and the server are held to one answer", () => {
+  it("individual stroke moves players; four-ball pairs move whole sides; singles match moves only whole groups", () => {
+    const stroke = moveModeOf({ type: "Stroke Play Round", format: "Stroke Play" });
+    const pairs = moveModeOf({ type: "Stroke Play Round", format: "Four-Ball" });
+    const singles = moveModeOf({ type: "Single Match Stage", format: "Match Play" });
+    expect([stroke, pairs, singles]).toEqual(["players", "sides", "groups"]);
+    expect(moveKindsOf(stroke)).toEqual({ player: true, side: false, group: true });
+    expect(moveKindsOf(pairs)).toEqual({ player: false, side: true, group: true });
+    expect(moveKindsOf(singles)).toEqual({ player: false, side: false, group: true });
+  });
+
+  it("both ask the same function: the action refuses by moveKindsOf(moveModeOf), the screen draws by moveKindsOf(moveMode) of the page's moveModeOf", () => {
+    const action = readSource("src", "app", "actions", "tee-sheet.ts");
+    const screen = readSource("src", "components", "FoursomeMaker.tsx");
+    const page = readSource("src", "app", "(app)", "foursomes", "page.tsx");
+    expect(action).toMatch(/moveKindsOf\(mode\)/);
+    expect(action).toMatch(/moveModeOf\(stage\)/);
+    expect(screen).toMatch(/moveKindsOf\(moveMode\)\.player/);
+    expect(screen).toMatch(/moveKindsOf\(moveMode\)\.side/);
+    expect(page).toMatch(/moveMode=\{stage \? moveModeOf\(stage\)/);
+  });
+
+  it("CONTROL: the screen draws no player or side select from anything but the mode", () => {
+    const screen = readSource("src", "components", "FoursomeMaker.tsx");
+    expect(screen).not.toMatch(/moving && !bySides/);
+    expect(screen).not.toMatch(/moving && bySides/);
+  });
+});
+
+describe("the field of a sheet is one service's answer, asked by the page and by the move", () => {
+  it("the page and both writers that count a group's room call sheetFieldFor, and none re-derives attendance", () => {
+    const action = readSource("src", "app", "actions", "tee-sheet.ts");
+    const page = readSource("src", "app", "(app)", "foursomes", "page.tsx");
+    expect(action.match(/sheetFieldFor\(session\.eventId, stageId\)/g)?.length).toBe(2);
+    expect(page).toMatch(/sheetFieldFor\(session\.eventId, stage\.id\)/);
+    expect(page).not.toMatch(/resolveAttendance\(/);
   });
 });
