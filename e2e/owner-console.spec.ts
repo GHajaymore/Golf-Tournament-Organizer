@@ -282,8 +282,10 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     expect(made.percentOff).toBe(15);
     expect(made.active).toBe(true);
 
-    await open();
+    // Listed after a fresh load, on the tab the codes live on (Plans & pricing; the bare address is the Overview).
+    await open("plans");
     const row = page.locator("tr", { hasText: made.code });
+    await expect(row, "the new code is not listed on Plans & pricing").toHaveCount(1);
     await row.getByRole("button", { name: "Turn off" }).click();
     await expect.poll(async () => (await prisma.discountCode.findUniqueOrThrow({ where: { code: made.code } })).active).toBe(false);
     await expect(row.getByRole("button", { name: "Turn on" })).toBeVisible({ timeout: 20_000 });
