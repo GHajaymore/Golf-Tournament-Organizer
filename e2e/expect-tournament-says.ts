@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
+import { expectScopeLock, LOCKED_COMPLETED, LOCKED_LIVE } from "./expect-tournament-locks";
 
 /**
  * WHAT THE TOURNAMENT SAYS, ASKED OF EVERY PANEL THAT SAYS IT (state machine
@@ -27,6 +28,18 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 export interface TournamentSays {
   /** The chip: "Setting up", "Setting up · results in", "Live", "Play over", "Completed". */
   chip: string;
+  /**
+   * THE LOCK, as Rounds & formats' banner says it at this stage (J13's third column; state
+   * machine PR 5b) — asked FIRST, so the helper still ends where it always did:
+   *   "open"       nothing is locked: no "Locked" banner, no correction offered (setting up);
+   *   "live"       "Rounds · Locked because the tournament is live." and the Organizer's
+   *                "Make a committee correction" (launched: live, or play over);
+   *   "completed"  "Rounds · Locked because the tournament is completed.", the way out a link
+   *                to Reopen on the dashboard, and NO correction offered (Rule 20.2e).
+   * The rounds are a scope the blanket covers in every family, so this one banner is the same
+   * question in each. A scope with its own rule (a flighted knockout's draw) is asked beside it.
+   */
+  lock?: "open" | "live" | "completed";
   /** The line under "Play over" — "Every round closed · results not released" — or null for none. */
   chipDetail?: string | null;
   /** THE one button's words on the dashboard's status card, or null for none. */
@@ -66,6 +79,17 @@ const OWN_LINE = '[data-job="launch"], [data-job="schedule"], [data-job="draw"],
 const LIFECYCLE = /^(Launch|Complete|Reopen|Generate|Set |End this event early)/;
 
 export async function expectTournamentSays(page: Page, says: TournamentSays): Promise<void> {
+  if (says.lock !== undefined) {
+    await expectScopeLock(
+      page,
+      "/stages",
+      says.lock === "open"
+        ? null
+        : says.lock === "live"
+          ? { scope: "Rounds", because: LOCKED_LIVE, wayOut: "correction" }
+          : { scope: "Rounds", because: LOCKED_COMPLETED, wayOut: { says: "Reopen it on the dashboard", href: "/dashboard" } },
+    );
+  }
   await page.goto(`/dashboard?bust=${Date.now()}`);
   const bar = page.locator(".event-context-bar");
   await expect(bar.locator(".tag").first(), "the context bar's chip").toHaveText(says.chip, { timeout: 30_000 });

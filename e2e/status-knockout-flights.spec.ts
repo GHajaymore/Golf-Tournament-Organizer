@@ -2,8 +2,7 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
-import { pressComplete } from "./end-early";
-import { expectScopeLock, LOCKED_LIVE } from "./expect-tournament-locks";
+import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
@@ -40,7 +39,7 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
  */
 
 test("a knockout in flights is over only when all three Finals are decided (J13)", async ({ browser, baseURL }, testInfo) => {
-  test.setTimeout(300_000);
+  test.setTimeout(420_000);
   const errors: string[] = [];
   const day = dayFromNow(10);
   const f = await statusFixture(browser, baseURL, testInfo, {
@@ -77,12 +76,11 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     // Launched with the division not yet made: live, nothing to complete.
     await expectTournamentSays(page, {
       chip: "Live",
+      lock: "live",
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
-    // And what launch shut says so, with the committee correction as the way out (J13's lock column; PR 5b).
-    await expectScopeLock(page, "/stages", { scope: "Rounds", because: LOCKED_LIVE, wayOut: "correction" });
 
     // The division made (after launch, as a qualifying round would): still live, nothing played.
     await prisma.event.update({
@@ -91,6 +89,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     });
     await expectTournamentSays(page, {
       chip: "Live",
+      lock: "live",
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
@@ -98,16 +97,17 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
 
     // Flight A decided: one Final of three. Live, and Complete is allowed.
     await decide(0);
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // Flights A and B: the third Final is still to play. Still live.
     await decide(1);
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
 
     // All three Finals: play over, said for every final.
     await decide(2);
     await expectTournamentSays(page, {
       chip: "Play over",
+      lock: "live",
       chipDetail: "Every final decided · results not released",
       nextAction: "Complete tournament",
       refused: null,
@@ -117,7 +117,18 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+
+    // Reopened by the press: every Final is still decided, so play is over again.
+    await pressReopen(page);
+    await expect.poll(f.status, { timeout: 20_000, message: "Reopen did not reopen it" }).toBe("live");
+    await expectTournamentSays(page, {
+      chip: "Play over",
+      lock: "live",
+      chipDetail: "Every final decided · results not released",
+      nextAction: "Complete tournament",
+      refused: null,
+    });
     expect(errors).toEqual([]);
   } finally {
     await f.done();
