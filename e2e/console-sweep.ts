@@ -366,3 +366,25 @@ export function ratchet(found: readonly string[], known: readonly string[]): { a
 export function knownFile(found: readonly string[]): string {
   return JSON.stringify([...new Set(found)].sort(), null, 2);
 }
+
+/**
+ * WHO WALKED, IN THE KNOWN LIST (the assistant's walk, `console-sweep-assistant.spec.ts`).
+ *
+ * One file holds both walks' lines. The assistant's stage is the organizer's with this in front
+ * ("assistant-live"), so a line says whose walk found it and KEY_SHAPE still takes it. Each walk
+ * is held to ITS OWN lines only: the organizer's ratchet must not call an assistant's line "gone",
+ * nor the assistant's call an organizer's.
+ */
+export const ASSISTANT_STAGE_PREFIX = "assistant-";
+
+export type Walker = "organizer" | "assistant";
+
+/** The stage name a walker's lines carry: the organizer's own, or the assistant's prefixed. */
+export function stageFor(walker: Walker, stage: string): string {
+  return walker === "assistant" ? `${ASSISTANT_STAGE_PREFIX}${stage}` : stage;
+}
+
+/** The lines of the known list that belong to one walker's ratchet. */
+export function knownFor(known: readonly string[], walker: Walker): string[] {
+  return known.filter((line) => line.startsWith(ASSISTANT_STAGE_PREFIX) === (walker === "assistant"));
+}

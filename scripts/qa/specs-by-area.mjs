@@ -50,6 +50,9 @@ export const ALWAYS_ON = [
   // scroll, a reason beside every greyed control, one primary to a row or card. A ratchet
   // (e2e/console-sweep-known.json); Chromium's small phone only, and it skips itself everywhere else.
   "e2e/console-sweep.spec.ts",
+  // The same sweep as an ASSISTANT (the club role that runs the day and may not reshape the tournament):
+  // the screens the assistant's menu offers, the same three rules; its known lines are "assistant-…" in the same file.
+  "e2e/console-sweep-assistant.spec.ts",
   // The control on "form controls changed by a test" (scripts/e2e-coverage.mjs): the hook is on every
   // context of every spec (e2e/coverage.ts), so its proof runs with whatever specs a round keeps.
   "e2e/form-controls.spec.ts",

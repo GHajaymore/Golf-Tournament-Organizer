@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { test, expect, writeFormInventory } from "./coverage";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
 import { navForRole } from "../src/lib/nav";
-import { sweep, keyOf, ratchet, knownFile, SWEEP_WIDTH, REASON_WITHIN_PX, type Violation } from "./console-sweep";
+import { sweep, keyOf, ratchet, knownFile, knownFor, SWEEP_WIDTH, REASON_WITHIN_PX, type Violation } from "./console-sweep";
 import { controlsOn, inventoryLine, screenLine } from "./form-controls";
 import { joinFormControls } from "../scripts/qa/form-controls.mjs";
 
@@ -60,7 +60,10 @@ import { joinFormControls } from "../scripts/qa/form-controls.mjs";
  * It SAVES once (the launch), so the service worker is blocked, the save
  * specs' rule. Memory: one browser context and one page, about 150 MB.
  */
-const KNOWN: string[] = JSON.parse(readFileSync(join(process.cwd(), "e2e", "console-sweep-known.json"), "utf8"));
+// The organizer's lines only: the assistant's walk (`console-sweep-assistant.spec.ts`) keeps its own in the same file.
+const WHOLE_LIST: string[] = JSON.parse(readFileSync(join(process.cwd(), "e2e", "console-sweep-known.json"), "utf8"));
+const KNOWN = knownFor(WHOLE_LIST, "organizer");
+const ASSISTANTS = knownFor(WHOLE_LIST, "assistant");
 
 const ONE_PLACE = "Chromium at 320 only: the known list is one engine's layout at one width";
 const elsewhere = (project: string, browserName: string) =>
@@ -254,7 +257,8 @@ test.describe("the console sweep", () => {
             "",
             "THE WHOLE FILE AS IT SHOULD BE NOW (paste over e2e/console-sweep-known.json):",
             "--- begin console-sweep-known.json ---",
-            knownFile([...found]),
+            // The assistant's walk's lines stay in the file this one prints: it holds no ratchet over them.
+            knownFile([...found, ...ASSISTANTS]),
             "--- end console-sweep-known.json ---",
             "",
           ].join("\n"),
