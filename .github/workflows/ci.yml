@@ -445,6 +445,16 @@ jobs:
           echo '{"project":"${{ matrix.project }}","shard":${{ matrix.shard }},"shards":${{ matrix.shards }}}' > shard-proof/shard.json
           npx playwright test --list --project=${{ matrix.project }} --reporter=json > /dev/null
 
+      - name: Hand in the ledger of what this shard reached
+        # The specs write `.e2e/coverage/*.txt` as they run (e2e/coverage.ts): among it, the form
+        # controls each spec CHANGED, and from the small phone's console sweep the form controls it
+        # SAW. No one shard has both halves, so each hands its ledger in with its proof and
+        # `e2e-cover` adds them up. A shard with no ledger hands in nothing, and is not red for it.
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p shard-proof/coverage
+          cp .e2e/coverage/*.txt shard-proof/coverage/ 2>/dev/null || echo "no ledger in this shard"
+
       - name: Hand in what this shard ran
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -499,6 +509,26 @@ jobs:
           path: shards
       - name: Every test ran in exactly one shard
         run: node scripts/qa/shards-cover.mjs shards
+      - name: Form controls changed by a test
+        # A MEASURE, NOT A GATE: of the form controls the console sweep saw on the organizer's
+        # screens, how many some spec of THIS run changed, and by name the ones none did
+        # (scripts/qa/form-controls.mjs). It reads only the shards' ledgers, needs no build, and
+        # exits 0 whatever it finds. This is a pull request's suite on Chromium at three sizes: a
+        # round also runs the console crawl, so its figure (reach.json) is the fuller one.
+        if: ${{ !cancelled() }}
+        run: |
+          # No pipe: a pipe would hide the script's own exit. If it cannot run, that is said, in yellow.
+          node scripts/e2e-coverage.mjs --form-controls --ledger=shards > form-controls.txt || echo "::warning::the form-control measure did not run (scripts/e2e-coverage.mjs --form-controls)"
+          cat form-controls.txt
+          {
+            echo "### Form controls changed by a test"
+            echo
+            echo '```'
+            head -n 6 form-controls.txt
+            echo '```'
+            echo
+            echo "The controls no test changed are listed by screen in the log of this step."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ── The gate ─────────────────────────────────────────────────────────────
   #

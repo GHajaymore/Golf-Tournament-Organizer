@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, expect } from "./coverage";
+import { test, expect, writeFormInventory } from "./coverage";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
 import { navForRole } from "../src/lib/nav";
 import { sweep, keyOf, ratchet, knownFile, SWEEP_WIDTH, REASON_WITHIN_PX, type Violation } from "./console-sweep";
+import { controlsOn, inventoryLine, screenLine } from "./form-controls";
+import { joinFormControls } from "../scripts/qa/form-controls.mjs";
 
 /**
  * THE CONSOLE SWEEP (master backlog J51, the part left unbuilt): every screen
@@ -48,6 +50,12 @@ import { sweep, keyOf, ratchet, knownFile, SWEEP_WIDTH, REASON_WITHIN_PX, type V
  * greyed only while a save is in the air; the stages after live (completed,
  * reopened). One line stands for every control of its kind on a screen, so a
  * second greyed box like one already listed is not news.
+ *
+ * AND IT TAKES THE INVENTORY (2026-11-11): on every screen and section it
+ * measures it also writes down each form control drawn there (`form-controls.ts`),
+ * which is what "form controls changed by a test: N of M" is counted against
+ * (`scripts/e2e-coverage.mjs`). Inventory only: it judges nothing, and the three
+ * rules and the known list are as they were.
  *
  * It SAVES once (the launch), so the service worker is blocked, the save
  * specs' rule. Memory: one browser context and one page, about 150 MB.
@@ -146,6 +154,8 @@ test.describe("the console sweep", () => {
       const said: string[] = [];
       const unreached: string[] = [];
       const seen = { disabled: 0, primaries: 0, screens: 0 };
+      // The form controls drawn on each screen measured, as ledger lines (the inventory; nothing is judged on it).
+      const inventory: string[] = [];
 
       const walk = async (stage: string) => {
         for (const path of screens) {
@@ -171,6 +181,9 @@ test.describe("the console sweep", () => {
               if (!found.has(key)) said.push(`${key}\n      ${v.detail}`);
               found.add(key);
             }
+            // A section's controls belong to its screen: the inventory is keyed by the address, not the tab.
+            inventory.push(screenLine(stage, path));
+            for (const control of await controlsOn(page)) inventory.push(inventoryLine(stage, path, control, names));
           };
           seen.screens += 1;
           await look(path);
@@ -207,6 +220,17 @@ test.describe("the console sweep", () => {
       expect(seen.screens, "screens measured").toBeGreaterThan(screens.length);
       expect(seen.primaries, "the walk saw no primary button on any screen").toBeGreaterThan(0);
       expect(seen.disabled - beforeLive.disabled, "the walk saw no disabled control on a live tournament").toBeGreaterThan(0);
+
+      // THE INVENTORY, written before anything below can fail: a walk that finds a new violation
+      // has still seen every control. Always said, so the size of the bottom of the fraction is
+      // in this job's log; the fraction itself needs every shard's ledger (scripts/e2e-coverage.mjs).
+      const inventoryFile = writeFormInventory(inventory);
+      const counted = joinFormControls(inventory);
+      console.log(
+        `[form-controls] inventory: ${counted.total} controls a person could change (and ${counted.neverEnabled} greyed or read-only at both stages) on ${counted.screensWalked} screens, ${counted.stages.join(" and ")}; written to ${inventoryFile}. ` +
+          "How many a test changed: node scripts/e2e-coverage.mjs",
+      );
+      expect(counted.total, "the walk saw no form control on any screen: the inventory would make every figure 0 of 0").toBeGreaterThan(0);
 
       const { added, gone } = ratchet([...found], KNOWN);
       if (added.length || gone.length || unreached.length) {

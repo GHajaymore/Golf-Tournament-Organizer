@@ -277,8 +277,13 @@ const WEEKDAY_BEFORE_DATE = /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,? <date>/g;
  * fixture's invented names and mark, database ids, figures and days. So the
  * KNOWN list names a control ("Withdraw <name>"), not a row, and is the same
  * list next month.
+ *
+ * `max` is how much of it is kept. The sweep's known list keys on 70 and that
+ * does not change; the form-control inventory (`form-controls.ts`) asks for
+ * more, because a signature cut short on one side of its join and not the
+ * other is two controls.
  */
-export function scrub(text: string, names: readonly string[] = []): string {
+export function scrub(text: string, names: readonly string[] = [], max = 70): string {
   let out = text;
   const tokens = [...new Set(names.flatMap((n) => [n, ...n.split(/\s+/).filter((w) => w.length >= 3)]))].sort((a, b) => b.length - a.length);
   for (const t of tokens) out = out.replace(new RegExp(`(?<![A-Za-z])${escapeForRegex(t)}(?![A-Za-z])`, "g"), "<name>");
@@ -290,7 +295,7 @@ export function scrub(text: string, names: readonly string[] = []): string {
     .replace(/<name>(?: <name>)+/g, "<name>")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 70);
+    .slice(0, max);
 }
 
 /** The rules, applied to a page's facts. Pure. */
