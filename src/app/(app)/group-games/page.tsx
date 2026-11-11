@@ -392,11 +392,11 @@ export default async function GroupGamesPage({
       {rounds.length > 1 && week && (
         <div className="card elev-sm" style={{ marginTop: 12 }}>
           <div className="field" style={{ maxWidth: 260 }}>
-            <label>Round</label>
+            <label htmlFor="group-games-round">Round</label>
             {/* Was `disabled`: it listed every round of the event, showed the
                 current one, and could not be changed — on a page that reads
                 `?round=` and renders whichever round it is given. */}
-            <RoundPicker rounds={rounds} activeStageId={week.id} />
+            <RoundPicker id="group-games-round" rounds={rounds} activeStageId={week.id} />
           </div>
         </div>
       )}

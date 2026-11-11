@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { screenName } from "@/lib/nav";
 import {
   saveTournamentSettings,
@@ -170,6 +170,7 @@ function Choice<T extends string>({
   disabled: boolean;
   onChange: (v: T) => void;
 }) {
+  const fid = useId();
   return (
     <div className="field">
       {/* Suppressed when the Group heading directly above already says it.
@@ -182,7 +183,7 @@ function Choice<T extends string>({
           options' explanations are. */}
       {label && (
         <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <label>{label}</label>
+          <span id={`${fid}-caption`}>{label}</span>
           {hint && <FieldInfo label={label}>{hint}</FieldInfo>}
         </span>
       )}
@@ -192,7 +193,11 @@ function Choice<T extends string>({
           nobody was choosing. The name is the short line; `FieldInfo`, the
           app's existing tap-to-open explainer, holds the rest. The explanation
           is still required for every option (`settings-explained.test.ts`). */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+      <div
+        role={label ? "group" : undefined}
+        aria-labelledby={label ? `${fid}-caption` : undefined}
+        style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}
+      >
         {options.map((opt) => (
           <div key={opt} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <label
@@ -523,7 +528,7 @@ export function PlaySettings({
           )}
 
           <div className="field">
-            <label>Voice entry</label>
+            <span className="field-caption">Voice entry</span>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
               <input
                 type="checkbox"

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { resetPassword } from "@/app/actions/auth";
 import { Icon } from "./Icon";
 import {
@@ -27,6 +27,7 @@ import {
  * Both fields now carry a live hint, and the checks run shortest-cause-first.
  */
 export function ResetPasswordForm({ token }: { token: string }) {
+  const fid = useId();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -79,8 +80,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
       </div>
 
       <div className="field">
-        <label>New password</label>
+        <label htmlFor={`${fid}-new`}>New password</label>
         <input
+          id={`${fid}-new`}
           className="input"
           type="password"
           value={password}
@@ -95,8 +97,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
       </div>
 
       <div className="field">
-        <label>Confirm password</label>
+        <label htmlFor={`${fid}-confirm`}>Confirm password</label>
         <input
+          id={`${fid}-confirm`}
           className="input"
           type="password"
           value={confirm}

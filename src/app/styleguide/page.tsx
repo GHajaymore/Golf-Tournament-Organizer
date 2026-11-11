@@ -148,20 +148,20 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
 
       <Section title="Form controls">
         <div className="field">
-          <label>Tournament name</label>
-          <input className="input" defaultValue="Spring Medal" />
+          <label htmlFor={`${id}-name`}>Tournament name</label>
+          <input id={`${id}-name`} className="input" defaultValue="Spring Medal" />
         </div>
         <div className="field">
-          <label>Format</label>
-          <select className="input" defaultValue="Four-Ball">
+          <label htmlFor={`${id}-format`}>Format</label>
+          <select id={`${id}-format`} className="input" defaultValue="Four-Ball">
             <option>Match Play</option>
             <option>Four-Ball</option>
             <option>Scramble</option>
           </select>
         </div>
         <div className="field">
-          <label>Notes</label>
-          <input className="input" placeholder="Placeholder text" />
+          <label htmlFor={`${id}-notes`}>Notes</label>
+          <input id={`${id}-notes`} className="input" placeholder="Placeholder text" />
         </div>
         <div className="seg">
           <label className="seg-opt"><input type="radio" name={`h-${id}`} defaultChecked />18 holes</label>

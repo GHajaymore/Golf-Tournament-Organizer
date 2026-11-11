@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { draftMessage } from "@/app/actions/draft-message";
 import { DRAFT_KIND_LABELS, DRAFT_KIND_TITLES, type DraftKind } from "@/lib/domain/draft-check";
 import FieldInfo from "@/components/FieldInfo";
@@ -32,6 +32,7 @@ export function DraftAssistant({
   /** False when this club's plan doesn't include drafting. */
   available?: boolean;
 }) {
+  const fid = useId();
   const [kind, setKind] = useState<DraftKind>("results");
   const [extra, setExtra] = useState("");
   const [draft, setDraft] = useState("");
@@ -86,8 +87,8 @@ export function DraftAssistant({
       </div>
 
       <div className="field">
-        <label>What would you like drafted?</label>
-        <select className="input" value={kind} onChange={(e) => setKind(e.target.value as DraftKind)}>
+        <label htmlFor={`${fid}-kind`}>What would you like drafted?</label>
+        <select id={`${fid}-kind`} className="input" value={kind} onChange={(e) => setKind(e.target.value as DraftKind)}>
           {(Object.keys(DRAFT_KIND_LABELS) as DraftKind[]).map((k) => (
             <option key={k} value={k}>{DRAFT_KIND_LABELS[k]}</option>
           ))}
@@ -95,8 +96,9 @@ export function DraftAssistant({
       </div>
 
       <div className="field">
-        <label>Anything to mention? (optional)</label>
+        <label htmlFor={`${fid}-extra`}>Anything to mention? (optional)</label>
         <input
+          id={`${fid}-extra`}
           className="input"
           placeholder="e.g. round two moved to Sunday after the frost delay"
           value={extra}
