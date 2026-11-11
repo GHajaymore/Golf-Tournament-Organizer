@@ -30,22 +30,31 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
  * each flight's `playerIds` are in seed order, so a flight of three is seed 1
  * (bye) against the winner of 2 v 3.
  *
- * WHAT IT CANNOT SEE: the draw's lock (open after launch, shut by the first
- * result, shut by completion) is held scope by scope in
- * `tournament-status-by-family.test.ts`, and the screen that moves players is
- * `organizer-knockout-flights.spec.ts`'s.
+ * It starts where a tournament starts: setting up, undated (Launch refused in
+ * place), then dated (Ready to launch), then launched by the press — the stages
+ * before launch, which the fixture used to skip by being born live.
+ *
+ * THE DRAW'S OWN LOCK (open after launch, shut by the first result, shut by
+ * completion): no banner names the draw scope today, so the walk asserts what the
+ * Bracket screen DOES show (`BracketFlights`): "Move or add a player" enabled and
+ * "until the first result is recorded" while it is open; the control gone and
+ * "Results are in, so the flights are fixed." once a result is in and after
+ * completion. The machine's own answer (`locks.draw`, by "results" or "completed",
+ * with its way out) is unit-only, in `tournament-status-by-family.test.ts`; the
+ * move itself is `organizer-knockout-flights.spec.ts`'s.
  *
  * Its own throwaway club (`zz-status-knockoutflights-*`), deleted in `finally`.
  */
 
 test("a knockout in flights is over only when all three Finals are decided (J13)", async ({ browser, baseURL }, testInfo) => {
-  test.setTimeout(420_000);
+  test.setTimeout(600_000);
   const errors: string[] = [];
   const day = dayFromNow(10);
   const f = await statusFixture(browser, baseURL, testInfo, {
     family: "knockoutflights",
     players: 8,
-    event: { shape: "knockout", bracketMode: "flights", dates: "Club championship", startOn: day, endOn: day, status: "live", configUnlocked: false },
+    // Set up, undated: the fixture's own start. The walk dates it, launches it by the press, then goes on.
+    event: { shape: "knockout", bracketMode: "flights" },
     rounds: [{ type: "Bracket Stage", format: "Match Play", scoringBasis: "gross" }],
   });
   try {
@@ -57,6 +66,44 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       data: { eventId: f.eventId, name: "Quill Anders", email: `zz-status-knockoutflights-9@example.invalid`, handicap: 18, seed: 9, status: "confirmed" },
     });
     const ids = [...f.playerIds, ninth.id];
+
+    // THE DRAW, as the Bracket screen draws it (`BracketFlights`): while it is the organizer's, the
+    // "Move or add a player" control is there and enabled, under the line that says it stays open
+    // until the first result; once a result is in, the control is gone and the line says the flights
+    // are fixed. (No banner names the draw scope today: this is what the screen shows.)
+    const expectDraw = async (stage: string, open: boolean) => {
+      await page.goto(`/bracket?view=draw&bust=${Date.now()}`);
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await expect(page.locator("main h1").first(), `${stage}: the Bracket did not draw`).toBeVisible({ timeout: 30_000 });
+      const mover = page.getByLabel("Move or add a player", { exact: true });
+      const line = page.locator("main p").filter({ hasText: /Each is its own knockout\./ });
+      if (open) {
+        await expect(mover, `${stage}: the draw is shut with no result in`).toBeEnabled({ timeout: 20_000 });
+        await expect(line.first(), `${stage}: the draw does not say it is open until the first result`).toContainText("until the first result is recorded");
+      } else {
+        await expect(line.first(), `${stage}: the draw does not say the flights are fixed`).toContainText("Results are in, so the flights are fixed.", { timeout: 20_000 });
+        await expect(mover, `${stage}: the draw can still be changed with a result in`).toHaveCount(0);
+      }
+    };
+
+    // Setting up, no dates: refused in place, with the way out (as the knockout walk).
+    await expectTournamentSays(page, {
+      chip: "Setting up",
+      lock: "open",
+      nextAction: "Launch tournament",
+      refused: { because: "This tournament has no dates", wayOut: { says: "Open Tournament details", href: "/event" } },
+    });
+    expect(await f.status(), "refusing changed the tournament").toBe("draft");
+
+    // Dated: nothing else holds a flighted knockout (the division is made after launch, by design).
+    await prisma.event.update({ where: { id: f.eventId }, data: { dates: "Club championship", startOn: day, endOn: day } });
+    await expectTournamentSays(page, { chip: "Setting up", lock: "open", nextAction: "Launch tournament", refused: null });
+
+    // Launched by the press, as the other walks do it.
+    await page.goto(`/dashboard?bust=${Date.now()}`);
+    await page.getByRole("button", { name: "Launch tournament" }).first().click();
+    await page.getByRole("dialog").getByRole("button", { name: "Launch tournament" }).click();
+    await expect.poll(f.status, { timeout: 20_000, message: "the press did not launch it" }).toBe("live");
     const flights = [
       { name: "Flight A", playerIds: ids.slice(0, 3), kind: "winners" },
       { name: "Flight B", playerIds: ids.slice(3, 6), kind: "consolation" },
@@ -95,9 +142,14 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
     });
 
+    // Division made, nothing played: the draw is still the organizer's.
+    await expectDraw("division made", true);
+
     // Flight A decided: one Final of three. Live, and Complete is allowed.
     await decide(0);
     await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null });
+    // The first result shut the draw (the machine's "results" lock): the screen says the flights are fixed.
+    await expectDraw("first result in", false);
 
     // Flights A and B: the third Final is still to play. Still live.
     await decide(1);
@@ -118,6 +170,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
+    await expectDraw("completed", false);
 
     // Reopened by the press: every Final is still decided, so play is over again.
     await pressReopen(page);
