@@ -99,7 +99,7 @@ test.describe("the console sweep", () => {
     expect(await look(pager("disabled", ""))).toEqual([]);
     expect(await look(pager("", "disabled"))).toEqual([]);
     // …and each thing that is not that shape is still caught: both ends dead, no named group, a lone Next, a third button, other words.
-    expect(rulesOf(await look(pager("disabled", "disabled")))).toEqual(["disabled-without-reason"]);
+    expect(rulesOf(await look(pager("disabled", "disabled")))).toEqual(["disabled-without-reason", "disabled-without-reason"]); // both dead: each is flagged
     expect(rulesOf(await look(pager("disabled", "", "")))).toEqual(["disabled-without-reason"]);
     expect(rulesOf(await look(pager("disabled", "", `role="group"`)))).toEqual(["disabled-without-reason"]);
     expect(rulesOf(await look(`<div role="group" aria-label="Steps"><button disabled>Next</button></div>`))).toEqual(["disabled-without-reason"]);
