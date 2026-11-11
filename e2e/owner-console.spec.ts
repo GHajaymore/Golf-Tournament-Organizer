@@ -5,6 +5,7 @@ import { watchPageErrors } from "./page-errors";
 import { signedInNow } from "../scripts/session-cookie.mjs";
 import { E2E_OWNER_EMAIL } from "./owner-email.mjs";
 import { EARLY_LIST, OWNER_CARD } from "../src/lib/go-live";
+import { PLANS, WORLD_REGION_ID, effectivePrice, parsePricingOverrides } from "../src/lib/plans";
 
 /**
  * THE OWNER CONSOLE, AS THE OWNER USES IT (2026-10-21).
@@ -17,6 +18,8 @@ import { EARLY_LIST, OWNER_CARD } from "../src/lib/go-live";
  *   a club's tier, for a name nobody has → refused, in words, beside the button
  *   a club's tier                         → the club's subscription is that tier
  *   Birdie's monthly price                → stored, and on the screen after a reload
+ *   a region, the months billed, passes   → stored; a country in two regions refused
+ *   each of the four tabs                 → opens by its own address
  *   a tier's limit                        → stored
  *   a discount code                       → made, shown, listed; turned off; on
  *   somebody who is not the owner         → /owner is not there for them
@@ -53,7 +56,7 @@ async function cleanup() {
 
 test.beforeAll(async () => {
   await cleanup();
-  for (const key of ["pricing", "limits", "signins"]) {
+  for (const key of ["pricing", "limits", "signins", "offers"]) {
     saved[key] = await prisma.platformSetting.findUnique({ where: { key }, select: { value: true } });
   }
   ids.org = (await prisma.organization.create({ data: { name: CLUB, kind: "club" } })).id;
@@ -68,7 +71,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   try {
     // The whole app's prices, limits and launch switch, back exactly as they were.
-    for (const key of ["pricing", "limits", "signins"]) {
+    for (const key of ["pricing", "limits", "signins", "offers"]) {
       const was = saved[key];
       if (was) await prisma.platformSetting.upsert({ where: { key }, update: { value: was.value }, create: { key, value: was.value } });
       else await prisma.platformSetting.deleteMany({ where: { key } });
@@ -83,8 +86,8 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
   test.setTimeout(180_000);
   const errors: string[] = [];
   watchPageErrors(page, errors, "owner");
-  const open = async () => {
-    await page.goto(`/owner?bust=${Date.now()}`);
+  const open = async (tab = "overview") => {
+    await page.goto(`/owner?tab=${tab}&bust=${Date.now()}`);
     await page.waitForLoadState("networkidle").catch(() => {});
   };
 
@@ -106,7 +109,7 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
   // What each held page then SAYS, both ways, is walked by `go-live-switch.spec.ts` on a server that holds.
   await test.step("the go-live switch: live, then held again — each asked first in a dialog, each said", async () => {
     await prisma.platformSetting.deleteMany({ where: { key: "signins" } });
-    await open();
+    await open("accounts");
     const card = page.locator("#accounts");
     await expect(card).toContainText(OWNER_CARD.held);
     await expect(card, "the card does not say this server never holds accounts").toContainText("never holds accounts");
@@ -116,7 +119,7 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     await page.getByRole("dialog", { name: OWNER_CARD.goLiveTitle }).getByRole("button", { name: OWNER_CARD.goLiveConfirm }).click();
     await expect(card.getByRole("status")).toContainText(OWNER_CARD.wentLive);
     await expect.poll(async () => (await prisma.platformSetting.findUnique({ where: { key: "signins" } }))?.value).toBe("open");
-    await open();
+    await open("accounts");
     await expect(page.locator("#accounts")).toContainText("Live since ");
     await page.locator("#accounts").getByRole("button", { name: OWNER_CARD.holdAgain }).click();
     await page.getByRole("dialog", { name: OWNER_CARD.holdTitle }).getByRole("button", { name: OWNER_CARD.holdConfirm }).click();
@@ -144,7 +147,7 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     await prisma.platformSetting.upsert({ where: { key: "signins" }, update: { value: "open" }, create: { key: "signins", value: "open" } });
     await prisma.$executeRaw`UPDATE "PlatformSetting" SET "updatedAt" = ${new Date("2000-01-01T00:00:00Z")} WHERE "key" = 'signins'`;
 
-    await open();
+    await open("accounts");
     const section = page.locator("#early-list");
     await expect(section, "somebody is owed a code, so the section is drawn").toBeVisible();
     await expect(section).toContainText("2 on the early list are waiting for their code");
@@ -163,12 +166,12 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     expect(made[0]).toMatchObject({ percentOff: EARLY_LIST.percentOff, maxRedemptions: 1, active: false });
 
     // Still owed, both of them: nothing was spent on a refusal.
-    await open();
+    await open("accounts");
     await expect(page.locator("#early-list")).toContainText("2 on the early list are waiting for their code");
   });
 
   await test.step("a club's tier: refused for a name nobody has, then set", async () => {
-    await open();
+    await open("plans");
     await page.locator("#owner-club-plan-name").fill(`${MARK} No Such Club`);
     await page.locator("#owner-club-plan-tier").selectOption("society");
     const setTier = page.getByRole("button", { name: "Set tier" });
@@ -190,19 +193,78 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
   });
 
   await test.step("Birdie's monthly price is stored and read back", async () => {
-    await open();
-    const price = page.getByLabel("Birdie price per month in dollars");
+    await open("plans");
+    const price = page.getByLabel("Rest of world Birdie price per month in USD");
     await price.fill("51");
     await page.getByRole("button", { name: "Save prices" }).click();
     await expect(page.getByText("Saved — live everywhere.").first()).toBeVisible({ timeout: 20_000 });
     const stored = await prisma.platformSetting.findUnique({ where: { key: "pricing" } });
-    expect(stored?.value ?? "", "the price was not stored").toMatch(/"society":\{"monthly":51\}/);
-    await open();
-    await expect(page.getByLabel("Birdie price per month in dollars")).toHaveValue("51");
+    // Read the row as the app reads it, never with a pattern over its text: Rest of world's
+    // `"countries":[]` sits between its id and its prices, so a pattern that refuses `]` there can
+    // never match (it was red on a row holding the price). Rest of world's own figure, and what a
+    // club in a country of no region is quoted through the one reader.
+    const overrides = parsePricingOverrides(stored?.value);
+    const world = overrides.regions?.find((r) => r.id === WORLD_REGION_ID);
+    expect(world?.monthly.society, "the price was not stored as Rest of world's").toBe(51);
+    expect(effectivePrice(PLANS.society, overrides, "BR"), "a club in a country of no region is not quoted it").toBe(51);
+    await open("plans");
+    await expect(page.getByLabel("Rest of world Birdie price per month in USD")).toHaveValue("51");
+  });
+
+  await test.step("a region is added with its own currency and prices, and the months billed for a year change", async () => {
+    await open("plans");
+    await page.getByRole("button", { name: "Add a region" }).click();
+    await page.getByLabel(/^Region \d+ name$/).last().fill(`${MARK} India`);
+    await page.getByLabel(/ currency$/).last().fill("INR");
+    await page.getByLabel(/ countries$/).last().fill("IN");
+    await page.getByLabel(/ Birdie price per month$/).last().fill("2999");
+    await page.getByLabel(/ Eagle price per month$/).last().fill("9999");
+    await page.getByLabel("Months billed for a year, every region without its own").fill("9");
+    await page.getByRole("button", { name: "Save prices" }).click();
+    await expect(page.getByText("Saved — live everywhere.").first()).toBeVisible({ timeout: 20_000 });
+    const stored = await prisma.platformSetting.findUnique({ where: { key: "pricing" } });
+    expect(stored?.value ?? "", "the region was not stored").toMatch(/"currency":"INR"/);
+    expect(stored?.value ?? "", "the months billed were not stored").toMatch(/"annualMonths":9/);
+    // A country already in a region is refused, beside the press, naming where it is.
+    await open("plans");
+    await page.getByLabel(/ countries$/).last().fill("IN, GB");
+    await page.getByRole("button", { name: "Save prices" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "is already in" })).toBeVisible({ timeout: 20_000 });
+  });
+
+  await test.step("event passes and the seasonal plan are saved, still not on sale, and shown nowhere public", async () => {
+    await open("plans");
+    await page.getByLabel("Seasonal plan price in Rest of world").fill("250");
+    await page.getByRole("button", { name: "Save passes and season" }).click();
+    await expect(page.getByText("Saved — still not on sale.")).toBeVisible({ timeout: 20_000 });
+    const row = await prisma.platformSetting.findUnique({ where: { key: "offers" } });
+    expect(row?.value ?? "", "the season was not stored").toMatch(/"world":250/);
+    expect(row?.value ?? "", "it went on sale on its own").toMatch(/"onSale":false/);
+    // The front door and the FAQ say nothing of a pass while the switch is off.
+    for (const path of ["/", "/faq"]) {
+      const html = await (await page.request.get(path)).text();
+      expect(html, `${path} shows an event pass`).not.toMatch(/Event pass|Any-field pass/);
+    }
+  });
+
+  await test.step("each tab opens as the owner, by its own address, and marks where you are", async () => {
+    const nav = () => page.getByRole("navigation", { name: "Owner console sections" });
+    for (const [tab, label] of [["overview", "Overview"], ["plans", "Plans & pricing"], ["accounts", "Accounts & launch"], ["content", "Content"]] as const) {
+      await open(tab);
+      await expect(nav().getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
+      await page.reload();
+      await expect(nav().getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
+    }
+    await open("plans");
+    await expect(page.getByRole("heading", { name: "Plans" })).toBeVisible();
+    await open("accounts");
+    await expect(page.locator("#accounts")).toBeVisible();
+    await open("content");
+    await expect(page.getByText("Demo club").first()).toBeVisible();
   });
 
   await test.step("a tier's limit is stored", async () => {
-    await open();
+    await open("plans");
     await page.getByLabel("Birdie Active events (blank for no cap)").fill("7");
     await page.getByRole("button", { name: "Save limits" }).click();
     await expect(page.getByText("Saved — live everywhere.").last()).toBeVisible({ timeout: 20_000 });
@@ -211,7 +273,7 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
   });
 
   await test.step("a discount code is made, listed, turned off and on again", async () => {
-    await open();
+    await open("plans");
     await page.getByLabel("Percent off").fill("15");
     await page.locator("#disc-label").fill(`${MARK} launch`);
     await page.getByRole("button", { name: "Generate" }).click();
@@ -220,8 +282,10 @@ test("the owner sets a club's tier, a price, a limit, and makes, pauses and rest
     expect(made.percentOff).toBe(15);
     expect(made.active).toBe(true);
 
-    await open();
+    // Listed after a fresh load, on the tab the codes live on (Plans & pricing; the bare address is the Overview).
+    await open("plans");
     const row = page.locator("tr", { hasText: made.code });
+    await expect(row, "the new code is not listed on Plans & pricing").toHaveCount(1);
     await row.getByRole("button", { name: "Turn off" }).click();
     await expect.poll(async () => (await prisma.discountCode.findUniqueOrThrow({ where: { code: made.code } })).active).toBe(false);
     await expect(row.getByRole("button", { name: "Turn on" })).toBeVisible({ timeout: 20_000 });

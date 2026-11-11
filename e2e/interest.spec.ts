@@ -119,7 +119,7 @@ test("a secretary registers interest, is thanked, and the owner sees them; a pla
 
   await test.step("the owner sees the note on the console", async () => {
     await page.context().addCookies([{ name: "ng_session", value: ownerCookie, url: baseURL! }]);
-    await page.goto(`/owner?bust=${Date.now()}`);
+    await page.goto(`/owner?tab=accounts&bust=${Date.now()}`);
     const list = page.getByRole("region", { name: "Registered interest" });
     await expect(list.getByRole("row", { name: new RegExp(email.replace(/[.+]/g, "\\$&")) })).toContainText("Club secretary or manager");
     await expect(list).toContainText("We run a Thursday draw.");

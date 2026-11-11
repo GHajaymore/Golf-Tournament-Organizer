@@ -253,7 +253,7 @@ describe("the colours and the plans fold, and what must be seen stays out", () =
   });
 
   it("the plan says what you're on, with the four tiers behind Compare plans", () => {
-    const html = plain(renderToStaticMarkup(<PlanPanel planKey="free" termsApply />));
+    const html = plain(renderToStaticMarkup(<PlanPanel country="" planKey="free" termsApply />));
     const fold = foldAt(html);
     expect(html.indexOf("You’re on")).toBeGreaterThan(-1);
     expect(html.indexOf("You’re on")).toBeLessThan(fold);

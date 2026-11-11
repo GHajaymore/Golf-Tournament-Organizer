@@ -118,7 +118,7 @@ const WHO: Record<string, string> = {
   setLeagueSettings: "organizer", cloneEvent: "organizer", deleteEvent: "organizer",
   broadcastToScope: "organizer", previewSmsBroadcast: "organizer", broadcastWithText: "organizer",
   // the business
-  setClubPlan: "the business", saveTierPrices: "the business", saveTierLimits: "the business",
+  setClubPlan: "the business", saveTierPrices: "the business", saveTierLimits: "the business", saveOffers: "the business",
   createDiscountCode: "the business", setDiscountCodeActive: "the business", setAccountsOpen: "the business", sendEarlyListCodes: "the business", refreshDemoClub: "the business",
   loadCourseCatalogue: "the business",
 };

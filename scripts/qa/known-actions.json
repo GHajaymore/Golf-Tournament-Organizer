@@ -406,6 +406,7 @@
   "app/actions/tournament.ts:openCorrection": "e2e/locked-setup-refuses-in-words.spec.ts",
   "app/actions/tournament.ts:endCorrection": "e2e/locked-setup-refuses-in-words.spec.ts",
   "app/actions/owner.ts:loadCourseCatalogue": "e2e/owner-catalogue-load.spec.ts",
-  "app/actions/join.ts:dismissNamesakeNotice": "e2e/namesake-notice.spec.ts"
+  "app/actions/join.ts:dismissNamesakeNotice": "e2e/namesake-notice.spec.ts",
+  "app/actions/owner.ts:saveOffers": "e2e/owner-console.spec.ts"
  }
 }

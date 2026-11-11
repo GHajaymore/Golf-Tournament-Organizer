@@ -67,7 +67,7 @@ test("the owner picks a catalogue file and reads what was loaded, skipped and re
   const errors: string[] = [];
   watchPageErrors(page, errors, "owner-catalogue");
   await page.context().addCookies([{ name: "ng_session", value: ownerCookie, url: baseURL! }]);
-  await page.goto(`/owner?bust=${Date.now()}`);
+  await page.goto(`/owner?tab=content&bust=${Date.now()}`);
   await page.waitForLoadState("networkidle").catch(() => {});
 
   await test.step("a first pick: one loaded, one skipped, one refused as GolfCourseAPI's", async () => {
@@ -90,7 +90,7 @@ test("the owner picks a catalogue file and reads what was loaded, skipped and re
 
   await test.step("somebody who is not signed in is told /owner is not there, and has no file control", async () => {
     await page.context().clearCookies();
-    const res = await page.goto(`/owner?bust=${Date.now()}`);
+    const res = await page.goto(`/owner?tab=content&bust=${Date.now()}`);
     expect(res?.status(), "a stranger was not refused /owner").toBe(404);
     await expect(page.locator("#catalogue-file")).toHaveCount(0);
   });

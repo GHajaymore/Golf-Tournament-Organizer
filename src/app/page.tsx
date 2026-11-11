@@ -255,8 +255,8 @@ export default async function LandingPage() {
   // What a year costs at each one's highest published plan, with its one-time
   // setup fee — the two figures each company prints, added. Ours beside them,
   // in the same dollars.
-  const eagleYear = effectiveAnnualPrice(PLANS.club, overrides, "USD");
-  const birdieYear = effectiveAnnualPrice(PLANS.society, overrides, "USD");
+  const eagleYear = effectiveAnnualPrice(PLANS.club, overrides, "US");
+  const birdieYear = effectiveAnnualPrice(PLANS.society, overrides, "US");
   const theirYear = (name: keyof typeof TOP_PUBLISHED) => TOP_PUBLISHED[name].year + TOP_PUBLISHED[name].setup;
   const bars = [
     { name: "Golf Genius", amount: theirYear("Golf Genius"), ours: false },
@@ -291,7 +291,7 @@ export default async function LandingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, currency: shown.currency, launch })),
+          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides, country: shown.country, launch })),
         }}
       />
       <LandingEffects />

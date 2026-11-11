@@ -325,7 +325,7 @@ describe("the demo club is left out of what is about real clubs — each with a 
 
   it("billing: the demo is refused a payment page before Stripe is asked; a real club is not refused for being the demo", async () => {
     const ask = (organizationId: string) =>
-      checkoutUrl({ organizationId, plan: "society", interval: "month", currency: "USD", overrides: pricingOverrides(), email: null, origin: "http://localhost" });
+      checkoutUrl({ organizationId, plan: "society", interval: "month", country: "US", overrides: pricingOverrides(), email: null, origin: "http://localhost" });
     expect(await ask(demo.orgId)).toEqual({ error: DEMO_NOT_BILLED });
     expect(await ask(real.orgId), "CONTROL").not.toEqual({ error: DEMO_NOT_BILLED });
     expect(await prisma.subscription.findUnique({ where: { organizationId: demo.orgId } }), "the demo was given a billing row").toBeNull();

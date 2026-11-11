@@ -1,4 +1,4 @@
-import { PLANS, planFor, planCurrency, effectivePrice, effectiveAnnualPrice, planBlurb, planTagline, upgradeBenefits, retentionNotice, retentionSummary, LAPSED_ARCHIVE_TERMS, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
+import { PLANS, planFor, quoteCountryFor, quoteCurrency, effectivePrice, effectiveAnnualPrice, planBlurb, planTagline, upgradeBenefits, retentionNotice, retentionSummary, LAPSED_ARCHIVE_TERMS, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
 import { wholeMoney } from "@/lib/domain/money-format";
 import { golfTermsFor, inClubWords, type GolfTerm } from "@/lib/domain/golf-terms";
 import type { OrgLimits } from "@/lib/services/limits";
@@ -31,6 +31,7 @@ export function PlanPanel({
   standing,
   overrides,
   currency,
+  country,
   locale,
   terms = golfTermsFor("us"),
   billing,
@@ -47,6 +48,8 @@ export function PlanPanel({
   terms?: Record<GolfTerm, string>;
   /** The club's own currency. Quoted in it where a plan has a price there, else USD. */
   currency?: string;
+  /** The club's country, which decides its region and so its prices; a club without one is quoted by its currency, else Rest of world. */
+  country: string;
   /** The club's locale, which decides how the number is written. */
   locale?: string;
   /** Online billing, when Stripe is configured. Absent or disabled: no buy buttons. */
@@ -64,7 +67,9 @@ export function PlanPanel({
   };
 }) {
   const current = planFor(planKey);
-  const quoteIn = planCurrency(currency);
+  const ov: PricingOverrides = overrides ?? { plans: {} };
+  const quoteCountry = quoteCountryFor(ov, { country, currency });
+  const quoteIn = quoteCurrency(ov, quoteCountry);
   const price = (amount: number) => wholeMoney(amount, quoteIn, locale);
   // In the club's golf: "up to ten organisers", "the honours board".
   const benefits = upgradeBenefits(planKey).map((b) => inClubWords(b, terms));
@@ -140,9 +145,9 @@ export function PlanPanel({
           You&rsquo;re on <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}>{current.name}</span>
           {current.contactOnly
             ? "."
-            : effectivePrice(current, overrides, quoteIn) === 0
+            : effectivePrice(current, ov, quoteCountry) === 0
               ? ", free."
-              : `, ${price(effectivePrice(current, overrides, quoteIn))} a month.`}
+              : `, ${price(effectivePrice(current, ov, quoteCountry))} a month.`}
         </p>
         <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0", lineHeight: 1.5 }}>
           {limitLine(current)}
@@ -228,8 +233,8 @@ export function PlanPanel({
             offers={PURCHASABLE_PLANS.filter((k) => k !== current.key).flatMap((k) => {
               const p = PLANS[k];
               return [
-                { plan: k, interval: "year" as const, label: `${p.name} · ${price(effectiveAnnualPrice(p, overrides, quoteIn))}/yr` },
-                { plan: k, interval: "month" as const, label: `${p.name} · ${price(effectivePrice(p, overrides, quoteIn))}/mo` },
+                { plan: k, interval: "year" as const, label: `${p.name} · ${price(effectiveAnnualPrice(p, ov, quoteCountry))}/yr` },
+                { plan: k, interval: "month" as const, label: `${p.name} · ${price(effectivePrice(p, ov, quoteCountry))}/mo` },
               ];
             })}
             hasSubscription={billing.hasSubscription}
@@ -283,9 +288,9 @@ export function PlanPanel({
                       set price there, never a converted one. */}
                   {p.contactOnly
                     ? "Let's talk"
-                    : effectivePrice(p, overrides, quoteIn) === 0
+                    : effectivePrice(p, ov, quoteCountry) === 0
                       ? "Free"
-                      : `${price(effectivePrice(p, overrides, quoteIn))}/mo · ${price(effectiveAnnualPrice(p, overrides, quoteIn))}/yr`}
+                      : `${price(effectivePrice(p, ov, quoteCountry))}/mo · ${price(effectiveAnnualPrice(p, ov, quoteCountry))}/yr`}
                 </span>
                 {mine && (
                   <span className="tag" style={{ fontSize: 13 }}>You are here</span>

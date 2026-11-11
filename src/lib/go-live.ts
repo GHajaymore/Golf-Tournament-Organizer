@@ -508,7 +508,7 @@ export const LAUNCH_SURFACES: readonly LaunchSurface[] = [
     held: "“Held until launch”, what Go live will change, and the Go live button",
     live: "“Live since …”, what Hold again will change, and the Hold again button",
     before: "wired",
-    probe: { path: "/owner", held: OWNER_CARD.willGoLive, live: OWNER_CARD.willHold, as: "owner" },
+    probe: { path: "/owner?tab=accounts", held: OWNER_CARD.willGoLive, live: OWNER_CARD.willHold, as: "owner" },
   },
 ];
 
