@@ -151,7 +151,13 @@ test("a countback pressed after the tournament was launched in another tab says 
     await centre(standard);
     await standard.click();
     // The lock's own words: "Locked because the tournament is live. ... to change the match tie-breakers."
-    await saidBeside(card.getByRole("alert").filter({ hasText: /Locked because the tournament is live/ }), standard, "a countback refused after launch");
+    // The refusal is measured against the tie row's own question, not the button: once the screen learns
+    // the tournament is live it draws no buttons in the row at all (seen on desktop in CI).
+    await saidBeside(
+      card.getByRole("alert").filter({ hasText: /Locked because the tournament is live/ }),
+      card.getByText("A match all square after 18").first(),
+      "a countback refused after launch",
+    );
     expect(await stored(event.id), "a refused save was stored").toEqual([]);
   } finally {
     await dropClub(mark);
@@ -226,10 +232,11 @@ test("deleting a round leaves none of its cards or handicaps behind", async ({ p
     // The round that holds a card is not deleted, so its card and handicaps cannot be orphaned.
     await gotoStages(page);
     const card2 = await openRound(page, r2.id);
-    const del2 = card2.getByRole("button", { name: "Delete Round 2", exact: true });
+    // Round 1 is gone, so this round is now drawn (and named) Round 1.
+    const del2 = card2.getByRole("button", { name: /^Delete Round \d+$/ });
     await centre(del2);
     await del2.click();
-    await expect(card2.getByRole("alert").filter({ hasText: "Round 2 has scores." })).toBeVisible();
+    await expect(card2.getByRole("alert").filter({ hasText: /Round \d+ has scores\. Clear them on Score entry first\./ })).toBeVisible();
     expect(await prisma.stage.count({ where: { id: r2.id } })).toBe(1);
     expect(await prisma.scorecard.count({ where: { stageId: r2.id } }), "a refused delete took the card").toBe(1);
     expect(await prisma.roundHandicap.count({ where: { stageId: r2.id } }), "a refused delete took the handicaps").toBe(1);
