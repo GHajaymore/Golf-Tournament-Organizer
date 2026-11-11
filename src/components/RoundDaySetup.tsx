@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { setPaceMinutes, setPinSheet } from "@/app/actions/round-day";
 import { MAX_PACES_OFF, MAX_PACES_ON, pinRowsPayload, type PinRow, type PinSheet, type PinSide } from "@/lib/domain/pin-sheet";
 import { DEFAULT_PACE_MINUTES, hoursAndMinutes, minutesPerHole } from "@/lib/domain/pace";
@@ -51,6 +51,7 @@ export function RoundDaySetup({
   const pins = useAction({ refresh: true });
   const paceAction = useAction();
   const words = useGolfTerms();
+  const centreWhyId = `${useId()}-centre-why`;
 
   const setRow = (i: number, patch: Partial<Row>) => {
     setSaved("");
@@ -168,6 +169,7 @@ export function RoundDaySetup({
                       style={{ width: "3.2em", padding: "4px 6px" }}
                       maxLength={2}
                       disabled={r.side === "C"}
+                      aria-describedby={r.side === "C" ? centreWhyId : undefined}
                       value={r.side === "C" ? "" : r.off}
                       onChange={(e) => setRow(i, { off: e.target.value.replace(/\D/g, "") })}
                     />
@@ -197,7 +199,9 @@ export function RoundDaySetup({
             </span>
           )}
           <span className="text-muted" style={{ fontSize: 13 }}>
-            Up to {MAX_PACES_ON} paces on and {MAX_PACES_OFF} from an edge.
+            Up to {MAX_PACES_ON} paces on and {MAX_PACES_OFF} from an edge.{" "}
+            {/* Why an "Off side" box is greyed, pointed at by each one that is (console sweep, J51). */}
+            <span id={centreWhyId}>A pin on C, the middle, has no off side.</span>
           </span>
         </div>
         {pins.error && (

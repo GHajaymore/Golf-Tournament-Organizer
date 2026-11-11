@@ -1,8 +1,8 @@
 /**
  * FORM CONTROLS CHANGED BY A TEST: the join and the words, with no browser in them.
  *
- * The status board carried "form controls tested: 382 of 711", counted once, by
- * hand, on 2026-10-23. No script produced it, so it could never move. This is
+ * The status board carried "form controls tested: 382 of 711", added from a crawl
+ * count (2026-10-13) and a count of the code (2026-10-10); no script re-reads it. This is
  * the script's half; `scripts/e2e-coverage.mjs` prints what it returns.
  *
  * TWO KINDS OF LEDGER LINE, both written under `.e2e/coverage/` while specs run:

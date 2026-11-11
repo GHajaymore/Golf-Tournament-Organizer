@@ -4,8 +4,8 @@ import { scrub } from "./console-sweep";
 /**
  * WHICH FORM CONTROLS A TEST HAS CHANGED, AND WHICH NONE HAS.
  *
- * The status board said "form controls tested: 382 of 711", counted once by
- * hand (2026-10-23). This is the browser half of the script that replaces it:
+ * The status board said "form controls tested: 382 of 711", added from a crawl
+ * count and a count of the code (Oct 2026). This is the browser half of the script that replaces it:
  *
  *   - `controlsOn(page)`: every form control DRAWN on the page as it stands,
  *     as a role and an accessible name. The console sweep

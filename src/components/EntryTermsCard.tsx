@@ -70,6 +70,21 @@ export function EntryTermsCard({
   const closed = !entries.open;
   // The terms are read-only for the setup lock and for anyone who is not an admin.
   const termsLocked = locked || !isAdmin;
+  /**
+   * WHY A TERM IS GREYED, ON THE TERM (console sweep, J51): the sentence beside
+   * the save button says it once, and every box it shuts points at it. On a
+   * phone the boxes stack and that sentence is a screen below the first of them.
+   */
+  const whyId = `${fid}-terms-why`;
+  const termsWhy = termsLocked ? whyId : undefined;
+  /**
+   * ONE FILLED BUTTON IN THIS CARD, AND IT IS THE NEXT PRESS (console sweep, J51).
+   * Terms changed and not saved: Save entry terms. Otherwise, with entries shut
+   * and openable: Open entries. Both were filled at once, so the card had no
+   * one thing to press; "Saved", with nothing to save, was a filled button too.
+   */
+  const opening = entries.action?.do === "open";
+  const savePrimary = dirty || !opening;
 
   const press = (open: boolean) =>
     startTransition(async () => {
@@ -141,7 +156,7 @@ export function EntryTermsCard({
         {entries.action && (
           <button
             type="button"
-            className={entries.action.do === "open" ? "btn btn-primary" : "btn btn-secondary"}
+            className={opening && !savePrimary ? "btn btn-primary" : "btn btn-secondary"}
             disabled={pending}
             onClick={() => press(entries.action!.do === "open")}
           >
@@ -162,6 +177,7 @@ export function EntryTermsCard({
             value={opens}
             max={parseDeadlineIso(closes) || undefined}
             disabled={pending || termsLocked}
+            aria-describedby={termsWhy}
             onChange={(e) => setOpens(e.target.value)}
           />
           <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
@@ -177,6 +193,7 @@ export function EntryTermsCard({
             value={parseDeadlineIso(closes)}
             min={opens || undefined}
             disabled={pending || termsLocked}
+            aria-describedby={termsWhy}
             onChange={(e) => setCloses(e.target.value)}
           />
           <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
@@ -190,11 +207,11 @@ export function EntryTermsCard({
           <div style={{ display: "flex", gap: 8 }}>
             <div className="seg" role="group" aria-labelledby={`${fid}-places`}>
               <label className="seg-opt">
-                <input type="radio" name={`${fid}-capmode`} checked={cap > 0} disabled={pending || termsLocked} onChange={() => setCap(cap > 0 ? cap : 32)} />
+                <input type="radio" name={`${fid}-capmode`} checked={cap > 0} disabled={pending || termsLocked} aria-describedby={termsWhy} onChange={() => setCap(cap > 0 ? cap : 32)} />
                 Fixed
               </label>
               <label className="seg-opt">
-                <input type="radio" name={`${fid}-capmode`} checked={cap <= 0} disabled={pending || termsLocked} onChange={() => setCap(0)} />
+                <input type="radio" name={`${fid}-capmode`} checked={cap <= 0} disabled={pending || termsLocked} aria-describedby={termsWhy} onChange={() => setCap(0)} />
                 Open
               </label>
             </div>
@@ -206,6 +223,7 @@ export function EntryTermsCard({
                 value={cap}
                 max={planLimit ?? undefined}
                 disabled={pending || termsLocked}
+                aria-describedby={termsWhy}
                 onChange={(e) => setCap(figureOr(readWhole(e.target.value), 0))}
                 style={{ width: 90 }}
               />
@@ -220,16 +238,16 @@ export function EntryTermsCard({
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-primary" disabled={pending || termsLocked || !dirty} onClick={save}>
+        <button type="button" className={savePrimary ? "btn btn-primary" : "btn btn-secondary"} disabled={pending || termsLocked || !dirty} onClick={save}>
           <Icon name="check" /> {dirty ? "Save entry terms" : "Saved"}
         </button>
         {locked ? (
-          <span className="text-muted" style={{ fontSize: 13 }}>
+          <span id={whyId} className="text-muted" style={{ fontSize: 13 }}>
             The field is locked, so the terms are read-only. The banner at the top says why, and how an Organizer opens it.
           </span>
         ) : (
           !isAdmin && (
-            <span className="text-muted" style={{ fontSize: 13 }}>
+            <span id={whyId} className="text-muted" style={{ fontSize: 13 }}>
               Only an organizer can change the entry terms. You can still open and close entries.
             </span>
           )
@@ -251,6 +269,7 @@ export function EntryTermsCard({
                 name={`${fid}-approval`}
                 checked={approveMode ? v === "approve" : v === "auto"}
                 disabled={pending || locked}
+                aria-describedby={locked ? whyId : undefined}
                 onChange={() =>
                   startTransition(async () => {
                     setError("");

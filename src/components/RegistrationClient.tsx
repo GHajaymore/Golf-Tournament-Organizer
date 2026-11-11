@@ -32,7 +32,7 @@ import {
 import { withdrawConfirmation, type FieldChange } from "@/lib/domain/field-change";
 import { setNameWithheld } from "@/app/actions/report-settings";
 import { SaveState, useSaveStatus } from "./SaveState";
-import { ScopeLockBanner } from "./ScopeLockBanner";
+import { ScopeLockBanner, SCOPE_LOCK_REASON_ID, scopeLockBannerDrawn } from "./ScopeLockBanner";
 import { useCaughtUp } from "./useAction";
 import type { CorrectionFacts, ScopeLock } from "@/lib/domain/tournament-status";
 import { RosterPicker } from "./RosterPicker";
@@ -373,6 +373,13 @@ export function RegistrationClient({
   const showTees = tees.length > 0 && playerTeeCounts(teePolicy);
   /** The rounds rule's refusal of a player's tees, or null: an empty sentence is never a reason to shut anything. */
   const teesShutBy = teesDoor || null;
+  /**
+   * WHERE A CONTROL SHUT BY THE FIELD'S LOCK POINTS FOR ITS REASON (console sweep,
+   * J51): the banner's own words, by `aria-describedby`. The reason is said once,
+   * at the top, and a sentence in every row of a table this dense would be noise;
+   * so the link is markup. Undefined when no banner is drawn, so nothing points at nothing.
+   */
+  const lockSaid = scopeLockBannerDrawn(fieldLocks, correction, underWay) ? SCOPE_LOCK_REASON_ID : undefined;
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -745,7 +752,10 @@ export function RegistrationClient({
             <thead>
               <tr>
                 <th style={{ width: 26 }}>
-                  <input type="checkbox" aria-label={`Select everyone in ${title}`} checked={allSelected} disabled={rows.length === 0} onChange={() => toggleSelectAll(rows)} />
+                  {/* Not drawn over an empty list: a greyed box with nobody to select said nothing (console sweep, J51). */}
+                  {rows.length > 0 && (
+                    <input type="checkbox" aria-label={`Select everyone in ${title}`} checked={allSelected} onChange={() => toggleSelectAll(rows)} />
+                  )}
                 </th>
                 <th style={{ width: 32 }}>#</th>
                 <th>Player</th>
@@ -806,7 +816,7 @@ export function RegistrationClient({
                         aria-label={`Tees for ${p.name}`}
                         value={p.teeId ?? ""}
                         disabled={pending || locked || teesShutBy !== null}
-                        aria-describedby={teesShutBy !== null && !locked ? teesDoorId(title) : undefined}
+                        aria-describedby={locked ? lockSaid : teesShutBy !== null ? teesDoorId(title) : undefined}
                         // A FIXED width, not 100%. This table scrolls
                         // sideways, and a percentage let the column collapse
                         // to about thirty pixels: the control rendered as
@@ -869,6 +879,7 @@ export function RegistrationClient({
                         className="input"
                         value={p.handicapType === "9" ? "9" : "18"}
                         disabled={pending || !!doors.edit}
+                        aria-describedby={doors.edit ? lockSaid : undefined}
                         style={{ width: 46, padding: "3px 2px", fontSize: 13 }}
                         onChange={(e) => commitUpdate(p.id, { handicapType: e.target.value })}
                         // The one static tooltip on this screen that was
@@ -899,6 +910,7 @@ export function RegistrationClient({
                       maxLength={EMAIL_MAX}
                       defaultValue={p.email ?? ""}
                       disabled={pending || !!doors.edit}
+                      aria-describedby={doors.edit ? lockSaid : undefined}
                       placeholder="Add email"
                       style={{
                         padding: "3px 6px",
@@ -1474,15 +1486,24 @@ export function RegistrationClient({
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div className="field"><label htmlFor={`${fid}-hcp`}>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input id={`${fid}-hcp`} className="input" type="text" inputMode="decimal" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.4" disabled={hSource === "none"} /></div>
-            <div className="field"><label htmlFor={`${fid}-ghin`}>{bodyWords.number.charAt(0).toUpperCase() + bodyWords.number.slice(1)}</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
+            <div className="field"><label htmlFor={`${fid}-hcp`}>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input id={`${fid}-hcp`} className="input" type="text" inputMode="decimal" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.4" disabled={hSource === "none"} aria-describedby={hSource === "none" ? `${fid}-hsrc-why` : undefined} /></div>
+            <div className="field"><label htmlFor={`${fid}-ghin`}>{bodyWords.number.charAt(0).toUpperCase() + bodyWords.number.slice(1)}</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} aria-describedby={hSource !== "ghin" ? `${fid}-hsrc-why` : undefined} /></div>
           </div>
+          {/* WHY A BOX HERE IS GREYED (console sweep, J51): the source chosen above
+              decides which of them apply, and the way to open one is to choose another. */}
+          {hSource !== "ghin" && (
+            <p id={`${fid}-hsrc-why`} className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+              {hSource === "none"
+                ? `Choose ${bodyWords.label} or Manual above to enter a handicap.`
+                : `Choose ${bodyWords.label} above to enter a ${bodyWords.number}.`}
+            </p>
+          )}
           <div className="field">
             <span className="field-caption" id={`${fid}-hctype`}>Handicap is a…</span>
             <div className="seg" style={{ width: "100%" }} role="radiogroup" aria-labelledby={`${fid}-hctype`}>
               {[["18", "18-hole index"], ["9", "9-hole index"]].map(([v, l]) => (
                 <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
-                  <input type="radio" name="hctype" checked={newHandicapType === v} onChange={() => setNewHandicapType(v)} disabled={hSource === "none"} />{l}
+                  <input type="radio" name="hctype" checked={newHandicapType === v} onChange={() => setNewHandicapType(v)} disabled={hSource === "none"} aria-describedby={hSource === "none" ? `${fid}-hsrc-why` : undefined} />{l}
                 </label>
               ))}
             </div>

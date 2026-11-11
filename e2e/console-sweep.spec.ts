@@ -16,7 +16,8 @@ import { joinFormControls } from "../scripts/qa/form-controls.mjs";
  *   disabled-without-reason    a greyed control says why, on the control
  *                              (`aria-describedby`) or in a sentence within
  *                              96px of it; a save button with nothing to save
- *                              is its own reason
+ *                              is its own reason, and so is a pager at one
+ *                              end of its run
  *   two-primaries              one filled button to a row or card
  *
  * The rules, why 96, what "primary", "row" and "card" mean in the markup, and
@@ -99,6 +100,19 @@ test.describe("the console sweep", () => {
     expect(await look(`<button disabled aria-describedby="why">Delete round</button><div style="height: 600px"></div><p id="why">Round 1 has scores, so it cannot be deleted.</p>`)).toEqual([]);
     expect(await look(`<button disabled>Delete round</button><p style="margin: 4px 0 0">Round 1 has scores, so it cannot be deleted.</p>`)).toEqual([]);
     expect(await look(`<div class="card"><button class="btn btn-primary" disabled>Saved</button></div><div style="height: 300px"></div><div class="card"><button class="btn btn-primary" disabled>Save changes</button></div>`)).toEqual([]);
+
+    // A pager at one end of its run is its own reason, by its whole shape: a labelled group of exactly Previous and Next, the other one alive.
+    const pager = (prev: string, next: string, group = `role="group" aria-label="Holes"`) =>
+      `<div ${group}><button class="btn btn-secondary" ${prev}>Previous</button><button class="btn btn-secondary" ${next}>Next</button></div>`;
+    expect(await look(pager("disabled", ""))).toEqual([]);
+    expect(await look(pager("", "disabled"))).toEqual([]);
+    // …and each thing that is not that shape is still caught: both ends dead, no named group, a lone Next, a third button, other words.
+    expect(rulesOf(await look(pager("disabled", "disabled")))).toEqual(["disabled-without-reason", "disabled-without-reason"]); // both dead: each is flagged
+    expect(rulesOf(await look(pager("disabled", "", "")))).toEqual(["disabled-without-reason"]);
+    expect(rulesOf(await look(pager("disabled", "", `role="group"`)))).toEqual(["disabled-without-reason"]);
+    expect(rulesOf(await look(`<div role="group" aria-label="Steps"><button disabled>Next</button></div>`))).toEqual(["disabled-without-reason"]);
+    expect(rulesOf(await look(`<div role="group" aria-label="Steps"><button>Previous</button><button disabled>Next</button><button>Skip</button></div>`))).toEqual(["disabled-without-reason"]);
+    expect(rulesOf(await look(`<div role="group" aria-label="Steps"><button>Back</button><button disabled>Continue</button></div>`))).toEqual(["disabled-without-reason"]);
 
     // Rule 3: two filled buttons in one card; one to a card, and one to a row, are fine.
     const two = await look(`<div class="card"><button class="btn btn-primary">Save event</button><button class="btn btn-primary">Launch tournament</button></div>`);

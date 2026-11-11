@@ -51,10 +51,21 @@ import { overflowing } from "./overflow";
  *    button's own label, "Saved", "Saving…" or "Save …", which IS the reason
  *    (there is nothing to save). So a disabled `button` whose label begins with
  *    the verb is exempt, whatever it saves, with no list of names.
+ *    EXEMPT, BY ITS MARKUP: a pager at one end of its run. "Previous" on the
+ *    first hole of a card is greyed because there is no hole before it, and a
+ *    sentence saying so on the scorer's screen would be noise where the pad
+ *    has to fit one hand. The mark is the whole shape, not the word: a
+ *    disabled `button` labelled exactly "Previous" or "Next", in a
+ *    `role="group"` that has an `aria-label` and holds exactly those two
+ *    buttons, whose OTHER button is not disabled. So a pager with both ends
+ *    dead (locked, or one page) is still a finding, and so is a lone greyed
+ *    "Next" (a form waiting for an answer), which must say what it waits for.
  *    CANNOT SEE: whether the sentence near a control is ABOUT that control (a
  *    hint under the next box counts); a save button shut by a lock rather than
- *    by having nothing to save; a control disabled only while a press is in
- *    the air (the walk presses nothing on the screens it measures).
+ *    by having nothing to save; a two-button "Previous" / "Next" group whose
+ *    "Next" waits on something other than the end of the run; a control
+ *    disabled only while a press is in the air (the walk presses nothing on
+ *    the screens it measures).
  *
  * 3. `two-primaries`: more than one visible `.btn-primary` (the filled button,
  *    `design-system.css`) in one row or card. The row or card is the button's
@@ -84,6 +95,11 @@ export interface DisabledControl {
   box: Box;
   /** One entry for each id in `aria-describedby`: the words drawn there, `""` when missing or not drawn. */
   describedBy: string[];
+  /**
+   * For a button that is one of exactly two in a labelled `role="group"`: the
+   * other button's words and whether it is disabled too. Absent otherwise.
+   */
+  pairedWith?: { label: string; disabled: boolean };
 }
 
 export interface Facts {
@@ -129,9 +145,10 @@ export async function collect(page: Page): Promise<Facts> {
     };
 
     // Rule 2: the disabled controls.
-    const disabled: Array<{ sig: string; label: string; tag: string; box: { x: number; y: number; w: number; h: number }; describedBy: string[] }> = [];
+    const disabled: Array<{ sig: string; label: string; tag: string; box: { x: number; y: number; w: number; h: number }; describedBy: string[]; pairedWith?: { label: string; disabled: boolean } }> = [];
+    const isOff = (el: Element) => el.matches(":disabled") || el.getAttribute("aria-disabled") === "true";
     for (const el of Array.from(document.querySelectorAll("button, input, select, textarea"))) {
-      const off = el.matches(":disabled") || el.getAttribute("aria-disabled") === "true";
+      const off = isOff(el);
       if (!off) continue;
       if (el.tagName === "INPUT" && (el as HTMLInputElement).type === "hidden") continue;
       // A segmented control's radio is drawn 0 by 0 (`.seg-opt input`): the thing a person sees greyed is its label.
@@ -161,7 +178,15 @@ export async function collect(page: Page): Promise<Facts> {
         const target = document.getElementById(i);
         return target && shown(target) ? words(target) : "";
       });
-      disabled.push({ sig: sigOf(el), label: label.replace(/\s+/g, " ").trim().slice(0, 80), tag: el.tagName.toLowerCase(), box: boxOf(r), describedBy });
+      // A button that is one of exactly two in a labelled group: the other one, as a fact (the pager exemption judges it).
+      let pairedWith: { label: string; disabled: boolean } | undefined;
+      const group = el.tagName === "BUTTON" ? el.parentElement : null;
+      if (group && group.getAttribute("role") === "group" && (group.getAttribute("aria-label") ?? "").trim()) {
+        const buttons = Array.from(group.querySelectorAll("button"));
+        const other = buttons.length === 2 ? buttons.find((b) => b !== el) : undefined;
+        if (other && shown(other)) pairedWith = { label: (other.getAttribute("aria-label") || words(other)).slice(0, 80), disabled: isOff(other) };
+      }
+      disabled.push({ sig: sigOf(el), label: label.replace(/\s+/g, " ").trim().slice(0, 80), tag: el.tagName.toLowerCase(), box: boxOf(r), describedBy, ...(pairedWith ? { pairedWith } : {}) });
     }
 
     // Rule 2: the words that could be a reason. Only looked for when something is disabled.
@@ -222,6 +247,19 @@ export function isSaveState(control: Pick<DisabledControl, "tag" | "label">): bo
   return control.tag === "button" && /^(Saved|Saving|Save)(?![a-z])/.test(control.label.trim());
 }
 
+const PAGER_PAIR: Record<string, string> = { Previous: "Next", Next: "Previous" };
+
+/**
+ * A pager at one end of its run: "Previous" or "Next", greyed, beside its
+ * counterpart, which still works. See rule 2. Both greyed is not an end of a
+ * run, and a button with no counterpart is not a pager.
+ */
+export function isPagerEnd(control: Pick<DisabledControl, "tag" | "label" | "pairedWith">): boolean {
+  if (control.tag !== "button" || !control.pairedWith) return false;
+  const counterpart = PAGER_PAIR[control.label.trim()];
+  return counterpart !== undefined && control.pairedWith.label.trim() === counterpart && !control.pairedWith.disabled;
+}
+
 /** The gap between two boxes as the crow flies; 0 when they touch or overlap. */
 export function gap(a: Box, b: Box): number {
   const dx = Math.max(0, a.x - (b.x + b.w), b.x - (a.x + a.w));
@@ -270,7 +308,7 @@ export function judge(facts: Facts, opts: { width: number; within?: number; name
   }
 
   for (const c of facts.disabled) {
-    if (isSaveState(c)) continue;
+    if (isSaveState(c) || isPagerEnd(c)) continue;
     if (c.describedBy.some((t) => t.trim().length > 0)) continue;
     if (facts.texts.some((t) => isReason(t.text) && gap(t.box, c.box) <= within)) continue;
     const nearest = facts.texts.filter((t) => isReason(t.text)).map((t) => Math.round(gap(t.box, c.box))).sort((a, b) => a - b)[0];

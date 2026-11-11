@@ -452,6 +452,7 @@ export function OrganizationAccess({
             type="button"
             className="btn btn-primary btn-block"
             disabled={!canEdit || pending || !email.trim()}
+            aria-describedby={!canEdit || !email.trim() ? `${fid}-add-why` : undefined}
             onClick={() =>
               press(
                 "add",
@@ -467,10 +468,17 @@ export function OrganizationAccess({
             <Icon name="plus" /> Add staff
           </button>
           {refusedAt("add")}
-          {!canEdit && (
-            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          {/* Why the button is greyed, under it (console sweep, J51): who may press it, or what it is waiting for. */}
+          {!canEdit ? (
+            <p id={`${fid}-add-why`} className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               Only a Commissioner or Admin can manage staff.
             </p>
+          ) : (
+            !email.trim() && (
+              <p id={`${fid}-add-why`} className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                Enter an email to add staff.
+              </p>
+            )
           )}
         </div>
       </div>
