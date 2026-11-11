@@ -241,6 +241,7 @@ export function AccessClient({
           type="button"
           className="btn btn-primary btn-block"
           disabled={pending || !name.trim() || !email.trim()}
+          aria-describedby={!name.trim() || !email.trim() ? `${fid}-add-why` : undefined}
           onClick={() => {
             setError("");
             setAddError("");
@@ -259,6 +260,12 @@ export function AccessClient({
         >
           <Icon name="plus" /> Add account
         </button>
+        {/* Why the button is greyed, under it, until it is not (console sweep, J51). */}
+        {(!name.trim() || !email.trim()) && (
+          <p id={`${fid}-add-why`} className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            Enter a name and an email to add an account.
+          </p>
+        )}
         {addError && (
           <p className="form-error" role="alert" style={{ margin: 0 }} ref={bringIntoView}>
             <Icon name="warning-circle" /> {addError}

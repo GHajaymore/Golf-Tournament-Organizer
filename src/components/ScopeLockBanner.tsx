@@ -33,6 +33,22 @@ import { Icon } from "./Icon";
 export const SCOPE_LOCK_BANNER_ID = "scope-lock-banner";
 
 /**
+ * THE BANNER'S WORDS, FOR A CONTROL IT SHUTS (console sweep, J51). The reason is
+ * said once, here; a control greyed by one of this screen's locks points at it
+ * with `aria-describedby={SCOPE_LOCK_REASON_ID}`, so a screen reader hears the
+ * reason on the control and the sweep's rule 2 is met by markup, not by distance.
+ * The words only: the correction button beside them is not part of the reason.
+ * Point at it only where the banner is drawn (`scopeLockBannerDrawn`): an id
+ * that names nothing describes nothing.
+ */
+export const SCOPE_LOCK_REASON_ID = "scope-lock-banner-reason";
+
+/** Whether `ScopeLockBanner` draws anything for these props: the one answer, asked by the banner itself. */
+export function scopeLockBannerDrawn(locks: readonly unknown[], correction: unknown, open: readonly string[] | null | undefined): boolean {
+  return locks.length > 0 || !!correction || !!open;
+}
+
+/**
  * THE BANNER IS NAMED FOR WHAT IT SAYS. A screen reader announces the region's
  * name before its words, so a banner whose only line is "Open for a correction"
  * must not be announced as "Locked" (round G567-2 found the screen drawn open
@@ -57,7 +73,7 @@ export function ScopeLockBanner({
   open?: readonly string[] | null;
 }) {
   const lines = locks.slice(0, 3);
-  if (lines.length === 0 && !correction && !open) return null;
+  if (!scopeLockBannerDrawn(locks, correction, open)) return null;
   const correctable = lines.filter((l) => l.correctable).map((l) => l.scope) as LockScope[];
   return (
     <section
@@ -76,7 +92,7 @@ export function ScopeLockBanner({
       }}
     >
       <Icon name={lines.length === 0 ? "lock-simple-open" : "lock-simple"} style={{ fontSize: 18, color: "var(--color-accent-200)" }} />
-      <div style={{ flex: 1, minWidth: 180, display: "flex", flexDirection: "column", gap: 4 }}>
+      <div id={SCOPE_LOCK_REASON_ID} style={{ flex: 1, minWidth: 180, display: "flex", flexDirection: "column", gap: 4 }}>
         {open && open.length > 0 && (
           <>
             <div style={{ fontWeight: 500, fontSize: 15 }}>Under way</div>

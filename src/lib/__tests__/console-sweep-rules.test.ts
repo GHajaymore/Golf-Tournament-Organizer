@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  judge, isReason, isSaveState, gap, scrub, keyOf, ratchet, knownFile,
+  judge, isReason, isSaveState, isPagerEnd, gap, scrub, keyOf, ratchet, knownFile,
   KEY_SHAPE, REASON_WITHIN_PX, SWEEP_WIDTH, RULES,
   type Facts, type DisabledControl,
 } from "../../../e2e/console-sweep";
@@ -90,6 +90,34 @@ describe("the console sweep's rules", () => {
     }
     // A box labelled "Saved" is a box, not a save button.
     expect(rules(facts({ disabled: [control({ tag: "input", sig: "input[type=text].input", label: "Saved" })] }))).toEqual(["disabled-without-reason"]);
+  });
+
+  it("rule 2: a pager at one end of its run is its own reason; a pager dead at both ends, or anything that is not a pager, is not", () => {
+    const prev = (over: Partial<DisabledControl> = {}) => control({ label: "Previous", pairedWith: { label: "Next", disabled: false }, ...over });
+    const next = (over: Partial<DisabledControl> = {}) => control({ label: "Next", pairedWith: { label: "Previous", disabled: false }, ...over });
+    // The first hole, and the last.
+    expect(isPagerEnd(prev())).toBe(true);
+    expect(isPagerEnd(next())).toBe(true);
+    expect(rules(facts({ disabled: [prev()] }))).toEqual([]);
+    expect(rules(facts({ disabled: [next()] }))).toEqual([]);
+    // CONTROL: both ends dead is a lock or a single page, and must say why.
+    const dead = [prev({ pairedWith: { label: "Next", disabled: true } }), next({ pairedWith: { label: "Previous", disabled: true } })];
+    expect(dead.map(isPagerEnd)).toEqual([false, false]);
+    expect(judge(facts({ disabled: dead }), { width: SWEEP_WIDTH }).map((v) => v.sig)).toEqual(['button.btn.btn-secondary "Previous"', 'button.btn.btn-secondary "Next"']);
+    // CONTROL: a greyed Next with no counterpart in a named group of two (the collector gives no pair) is a form waiting for an answer.
+    expect(rules(facts({ disabled: [control({ label: "Next" })] }))).toEqual(["disabled-without-reason"]);
+    // The pair is Previous with Next, by those words exactly; nothing else beside a live button is exempt.
+    for (const c of [
+      next({ pairedWith: { label: "Back", disabled: false } }),
+      next({ pairedWith: { label: "Next", disabled: false } }),
+      control({ label: "Continue", pairedWith: { label: "Previous", disabled: false } }),
+      control({ label: "Next round", pairedWith: { label: "Previous", disabled: false } }),
+      control({ label: "Delete round", pairedWith: { label: "Next", disabled: false } }),
+      next({ tag: "input", sig: "input[type=text].input" }),
+    ]) {
+      expect(isPagerEnd(c), c.label).toBe(false);
+      expect(rules(facts({ disabled: [c] })), c.label).toEqual(["disabled-without-reason"]);
+    }
   });
 
   it("rule 2: forty greyed boxes of one kind are one line, and two kinds are two", () => {

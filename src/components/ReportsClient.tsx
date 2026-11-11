@@ -328,7 +328,9 @@ export function ReportsClient({
               <div style={{ fontSize: 14, fontWeight: 500 }}>{e.label}</div>
               <div className="text-muted" style={{ fontSize: 13 }}>{e.desc}</div>
             </div>
-            <button type="button" className={`btn ${e.kind === "csv" ? "btn-primary" : "btn-secondary"}`} onClick={e.action}>
+            {/* Every export is an outline button (console sweep, J51): the rows are parallel, none
+                is THE thing to press, and its label already says whether it downloads or opens. */}
+            <button type="button" className="btn btn-secondary" onClick={e.action}>
               {e.kind === "csv" ? "Export CSV" : "Open"}
             </button>
           </div>

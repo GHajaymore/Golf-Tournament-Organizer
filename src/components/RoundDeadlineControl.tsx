@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { setStageDeadlineOverride } from "@/app/actions/tournament";
 import { dayAsDate, deadlineState } from "@/lib/deadline";
 import { Icon } from "./Icon";
@@ -42,6 +42,13 @@ export function RoundDeadlineControl({
 }) {
   const [current, setCurrent] = useState<boolean | null>(override);
   const [pending, startTransition] = useTransition();
+  /**
+   * The greyed button of the three is the choice in force, and the sentence
+   * under them says what that choice does: each greyed button points at it
+   * (console sweep, J51). On a phone the three wrap to three rows, and the
+   * sentence was further from "Follow the date" than a reason may be.
+   */
+  const inForceId = `${useId()}-in-force`;
 
   const status = deadlineState(deadline, current, dayAsDate(today));
 
@@ -79,6 +86,7 @@ export function RoundDeadlineControl({
           type="button"
           className="btn"
           disabled={locked || pending || current === null}
+          aria-describedby={current === null ? inForceId : undefined}
           style={{ fontSize: 13, padding: "3px 9px" }}
           onClick={() => set(null)}
         >
@@ -88,6 +96,7 @@ export function RoundDeadlineControl({
           type="button"
           className="btn"
           disabled={locked || pending || current === true}
+          aria-describedby={current === true ? inForceId : undefined}
           style={{ fontSize: 13, padding: "3px 9px" }}
           onClick={() => set(true)}
         >
@@ -97,6 +106,7 @@ export function RoundDeadlineControl({
           type="button"
           className="btn"
           disabled={locked || pending || current === false}
+          aria-describedby={current === false ? inForceId : undefined}
           style={{ fontSize: 13, padding: "3px 9px" }}
           onClick={() => set(false)}
         >
@@ -104,12 +114,15 @@ export function RoundDeadlineControl({
         </button>
       </div>
 
-      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.45, maxWidth: "62ch" }}>
+      <p id={inForceId} className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.45, maxWidth: "62ch" }}>
         {status.state === "extended"
           ? "Scores are still being accepted even though the date has passed. Set it back to follow the date once the last card is in."
           : status.state === "closed-manual"
             ? "No further scores for this round, whatever the date says."
-            : "Scoring follows the Play by date."}
+            : current === false
+              ? // Kept open BEFORE the date: nothing is extended yet, and it does not follow the date either.
+                "Scoring will stay open after the Play by date passes. Set it back to follow the date once the last card is in."
+              : "Scoring follows the Play by date."}
       </p>
     </div>
   );

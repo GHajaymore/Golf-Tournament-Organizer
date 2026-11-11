@@ -168,22 +168,33 @@ export function PlanBilling({
                 ) : null}
               </p>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {offers.map((o) => {
-                const key = `${o.plan}-${o.interval}`;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    className={o.interval === "year" ? "btn btn-primary" : "btn btn-secondary"}
-                    disabled={pending}
-                    onClick={() => go(() => startCheckout(o.plan, o.interval, code), key)}
-                  >
-                    {pending && chosen === key ? "Opening checkout…" : o.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* ONE PLAN TO A ROW (console sweep, J51). The plans are parallel
+                choices, so neither is made the lesser; within a plan the year
+                is the filled button and the month the outline. Four buttons in
+                one wrapping line drew two filled buttons side by side, and on
+                a phone a plan's month could wrap under the other plan's year. */}
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              {[...new Set(offers.map((o) => o.plan))].map((plan) => (
+                <li key={plan} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {offers
+                    .filter((o) => o.plan === plan)
+                    .map((o) => {
+                      const key = `${o.plan}-${o.interval}`;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          className={o.interval === "year" ? "btn btn-primary" : "btn btn-secondary"}
+                          disabled={pending}
+                          onClick={() => go(() => startCheckout(o.plan, o.interval, code), key)}
+                        >
+                          {pending && chosen === key ? "Opening checkout…" : o.label}
+                        </button>
+                      );
+                    })}
+                </li>
+              ))}
+            </ul>
             {/* The same reassurance the paying club reads under Manage billing,
                 said BEFORE the card is asked for, which is when it is wanted. */}
             <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.5 }}>

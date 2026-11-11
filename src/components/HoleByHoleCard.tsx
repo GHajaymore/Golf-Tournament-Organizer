@@ -730,7 +730,9 @@ export function HoleByHoleCard({
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+      {/* A named group of two: a screen reader hears what Previous and Next step through, and the
+          console sweep (`e2e/console-sweep.ts`, rule 2) knows a pager at the end of its run by this shape. */}
+      <div role="group" aria-label="Holes" style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button type="button" className="btn btn-secondary" onClick={() => go(hole - 1)} disabled={hole === 0} style={{ flex: 1, minHeight: 46 }}>
           <Icon name="caret-left" /> Previous
         </button>

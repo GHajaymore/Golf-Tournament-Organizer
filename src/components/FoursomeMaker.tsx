@@ -610,7 +610,8 @@ export function FoursomeMaker({
             {summary ? ` · ${summary}` : ""}
           </span>
           {(algo === "random" || order === "random") && (
-            <button type="button" className="btn btn-primary" onClick={() => setSeed((s) => s + 1)}>
+            // Outline, not filled (console sweep, J51): Save sheet is this card's one primary; another draw is a try, not the finish.
+            <button type="button" className="btn btn-secondary" onClick={() => setSeed((s) => s + 1)}>
               <Icon name="shuffle" /> Reshuffle
             </button>
           )}
