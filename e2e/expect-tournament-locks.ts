@@ -24,6 +24,14 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 /** A lock by launch, as the banner says it (`locksOf`). */
 export const LOCKED_LIVE = "Locked because the tournament is live.";
+/**
+ * The FIELD's lock by launch where a late entry is still taken (`fieldLockSaid`): what is locked, then what is
+ * open. Written out here by hand, not imported. Where late entries are refused the field says LOCKED_LIVE.
+ */
+export const FIELD_LOCKED_LATE_ENTRY_OPEN = "Players’ details and imports are locked because the tournament is live. A late entry can still be added here.";
+/** The same, in a round robin, which takes a late entrant only with a flight. */
+export const FIELD_LOCKED_LATE_ENTRY_WITH_FLIGHT =
+  "Players’ details and imports are locked because the tournament is live. A late entry can still be added here, with a flight.";
 /** A lock by completion. */
 export const LOCKED_COMPLETED = "Locked because the tournament is completed.";
 /** The rounds rule's sentence for every setting of a round once the tournament is completed (`COMPLETED_ROUNDS`). */
