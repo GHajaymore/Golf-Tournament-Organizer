@@ -7,6 +7,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }))
 
 const { ScopeLockBanner } = await import("@/components/ScopeLockBanner");
 const { locksFor, scopeLockOf } = await import("@/lib/domain/tournament-status");
+const bracketFlights = await import("@/lib/domain/bracket-flights");
 const { launched, FAMILY_FIXTURES } = await import("@/lib/domain/__tests__/tournament-facts-fixtures");
 
 /**
@@ -41,9 +42,30 @@ describe("the Bracket's draw lock", () => {
     expect(html).toContain('aria-label="Locked"');
   });
 
+  it("the flights panel's sentence and the banner come from one lock: they cannot disagree (open, results, completed with no results)", () => {
+    const { flightsNote } = bracketFlights;
+    const lockOf = (f: ReturnType<typeof fko>) => scopeLockOf(locksFor(f), "draw");
+    const lockBy = (l: ReturnType<typeof lockOf>) => (l && (l.by === "results" || l.by === "completed") ? l.by : null);
+    const done = (f: ReturnType<typeof fko>) => ({ ...f, status: "completed" as const, configUnlocked: false });
+    const cases = [
+      { name: "open", f: fko(), banner: null, panel: "Each is its own knockout. You can move players, reseed and rename until the first result is recorded." },
+      { name: "results", f: withResult(fko()), banner: "Locked because this knockout has results.", panel: "Results are in, so the flights are fixed. Each is its own knockout." },
+      { name: "completed, no results", f: done(fko()), banner: "Locked because the tournament is completed.", panel: "This tournament is completed, so the flights are fixed. Each is its own knockout." },
+    ];
+    for (const c of cases) {
+      const l = lockOf(c.f);
+      expect(l?.because ?? null, c.name).toBe(c.banner);
+      expect(flightsNote(lockBy(l)), c.name).toBe(c.panel);
+      expect(lockBy(l) !== null, `${c.name}: fixed iff the banner is drawn`).toBe(l !== null);
+    }
+  });
+
   it("the Bracket page reads the machine's draw lock and draws the one banner, and does not work the lock out itself", () => {
     const src = readSource("src/app/(app)/bracket/page.tsx");
     expect(src).toMatch(/scopeLockFor\(session\.eventId, "draw"\)/);
     expect(src).toMatch(/<ScopeLockBanner locks=\{drawLock \? \[drawLock\] : \[\]\}/);
+    // The panel is told what the lock says, never `drawFrozen` (a second copy of "has a result").
+    expect(src).toMatch(/lockBy=\{drawLock\?\.by/);
+    expect(src).not.toMatch(/drawFrozen/);
   });
 });

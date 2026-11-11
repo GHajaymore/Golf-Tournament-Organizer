@@ -344,7 +344,7 @@ export default async function BracketPage() {
           flights={flightSummaries}
           unplaced={(state.flights?.unplaced ?? []).map((p) => ({ id: p.id, name: p.name }))}
           departed={(state.flights?.departedIds ?? []).map((id) => state.players.find((p) => p.id === id)?.name ?? "A player")}
-          fixed={state.drawFrozen === true}
+          lockBy={drawLock?.by === "results" || drawLock?.by === "completed" ? drawLock.by : null}
           readOnly={!isAdmin}
           finished={isFinished(state.event.status)}
         />

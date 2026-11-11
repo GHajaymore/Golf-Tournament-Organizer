@@ -35,13 +35,13 @@ import { END_EARLY } from "../src/lib/domain/lifecycle-track";
  * before launch, which the fixture used to skip by being born live.
  *
  * THE DRAW'S OWN LOCK (open after launch, shut by the first result, shut by
- * completion): no banner names the draw scope today, so the walk asserts what the
- * Bracket screen DOES show (`BracketFlights`): "Move or add a player" enabled and
- * "until the first result is recorded" while it is open; the control gone and
- * "Results are in, so the flights are fixed." once a result is in and after
- * completion. The machine's own answer (`locks.draw`, by "results" or "completed",
- * with its way out) is unit-only, in `tournament-status-by-family.test.ts`; the
- * move itself is `organizer-knockout-flights.spec.ts`'s.
+ * completion): the Bracket draws the draw scope's banner from `locks.draw` — none
+ * while open, "The draw · Locked because this knockout has results." with its way
+ * out after the first result, the completed words after completion — and the flights
+ * panel's line is picked by the same answer: "Move or add a player" enabled and
+ * "until the first result is recorded" while open; the control gone and "Results are
+ * in, so the flights are fixed." (or "This tournament is completed, so ...") after.
+ * The move itself is `organizer-knockout-flights.spec.ts`'s.
  *
  * Its own throwaway club (`zz-status-knockoutflights-*`), deleted in `finally`.
  */
@@ -70,18 +70,33 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     // THE DRAW, as the Bracket screen draws it (`BracketFlights`): while it is the organizer's, the
     // "Move or add a player" control is there and enabled, under the line that says it stays open
     // until the first result; once a result is in, the control is gone and the line says the flights
-    // are fixed. (No banner names the draw scope today: this is what the screen shows.)
-    const expectDraw = async (stage: string, open: boolean) => {
+    // are fixed; the draw scope's banner says the same lock, with its way out.
+    const expectDraw = async (stage: string, open: boolean, by: "results" | "completed" = "results") => {
       await page.goto(`/bracket?view=draw&bust=${Date.now()}`);
       await page.waitForLoadState("networkidle").catch(() => {});
       await expect(page.locator("main h1").first(), `${stage}: the Bracket did not draw`).toBeVisible({ timeout: 30_000 });
       const mover = page.getByLabel("Move or add a player", { exact: true });
       const line = page.locator("main p").filter({ hasText: /Each is its own knockout\./ });
+      // The draw scope's banner (`locks.draw`, the same answer the panel's line is picked by): none while open;
+      // by results, the Bracket's own way out; by completion, Reopen. Sentences written by hand.
+      const banner = page.getByRole("region", { name: "Locked", exact: true });
+      if (open) {
+        await expect(banner, `${stage}: the Bracket says the draw is locked while it is open`).toHaveCount(0);
+      } else {
+        await expect(banner, `${stage}: the Bracket draws no draw-lock banner`).toBeVisible({ timeout: 20_000 });
+        const reason = by === "results" ? "Locked because this knockout has results." : "Locked because the tournament is completed.";
+        await expect(banner.locator("p").filter({ hasText: "The draw" }), `${stage}: the draw's reason is not said`).toContainText(`The draw · ${reason}`);
+        const way = banner.getByRole("link", { name: by === "results" ? "Clear the results on the Bracket" : /^Reopen/ });
+        await expect(way, `${stage}: the draw lock has no way out`).toBeVisible();
+      }
       if (open) {
         await expect(mover, `${stage}: the draw is shut with no result in`).toBeEnabled({ timeout: 20_000 });
         await expect(line.first(), `${stage}: the draw does not say it is open until the first result`).toContainText("until the first result is recorded");
       } else {
-        await expect(line.first(), `${stage}: the draw does not say the flights are fixed`).toContainText("Results are in, so the flights are fixed.", { timeout: 20_000 });
+        await expect(line.first(), `${stage}: the draw does not say the flights are fixed`).toContainText(
+          by === "results" ? "Results are in, so the flights are fixed." : "This tournament is completed, so the flights are fixed.",
+          { timeout: 20_000 },
+        );
         await expect(mover, `${stage}: the draw can still be changed with a result in`).toHaveCount(0);
       }
     };
@@ -170,7 +185,7 @@ test("a knockout in flights is over only when all three Finals are decided (J13)
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
     await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null });
-    await expectDraw("completed", false);
+    await expectDraw("completed", false, "completed");
 
     // Reopened by the press: every Final is still decided, so play is over again.
     await pressReopen(page);
