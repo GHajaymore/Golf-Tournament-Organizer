@@ -2,7 +2,7 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
-import { pressComplete } from "./end-early";
+import { pressComplete, pressReopen } from "./end-early";
 import { expectScopeLock, expectRoundDoors, LOCKED_LIVE, LOCKED_COMPLETED, ROUNDS_FINAL } from "./expect-tournament-locks";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
@@ -70,6 +70,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     // D4: a venue and no dates — the details step holds, and Launch is refused in place.
     await expectTournamentSays(page, {
       chip: "Setting up",
+      lock: "open",
       nextAction: "Launch tournament",
       refused: { because: "This tournament has no dates, so nobody can plan around it.", wayOut: { says: "Open Tournament details", href: "/event" } },
       setup: { holds: "Tournament details", done: 3, of: 5 },
@@ -78,7 +79,6 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     expect(await f.status(), "refusing changed the tournament").toBe("draft");
     // Setting up: nothing is locked, and the round's own settings are open.
     await expectScopeLock(page, "/event", null);
-    await expectScopeLock(page, "/stages", null);
     await expectRoundDoors(page, f.stageIds[0], "Round 1", { format: null, holes: null });
 
     // The dates set. D1: nothing else holds — Flights is optional, never "No flights yet".
@@ -86,6 +86,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     await prisma.event.update({ where: { id: f.eventId }, data: { dates: "Saturday medal", startOn: day, endOn: day } });
     await expectTournamentSays(page, {
       chip: "Setting up",
+      lock: "open",
       nextAction: "Launch tournament",
       refused: null,
       setup: { ready: true, done: 4, of: 5, optional: ["Flights"] },
@@ -105,6 +106,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     // Live, nothing scored: Complete is the button, refused in place with the way out.
     await expectTournamentSays(page, {
       chip: "Live",
+      lock: "live",
       chipDetail: null,
       nextAction: END_EARLY,
       refused: { because: "Nothing has been scored yet", wayOut: { says: "Open Score entry", href: "/entry" } },
@@ -126,7 +128,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     // THE ROUND'S FIRST CARD: one of six in, the round open. Still live, Complete now allowed —
     // and Round 1's format and holes are shut, each with the reason and the way out.
     await cardsIn(f, f.stageIds[0], f.playerIds.slice(0, 1));
-    await expectTournamentSays(page, { chip: "Live", chipDetail: null, nextAction: END_EARLY, refused: null, setup: null, journey: "Play" });
+    await expectTournamentSays(page, { chip: "Live", lock: "live", chipDetail: null, nextAction: END_EARLY, refused: null, setup: null, journey: "Play" });
     await expectRoundDoors(page, f.stageIds[0], "Round 1", { format: FORMAT_SHUT, holes: HOLES_SHUT });
 
     // Every card in and approved, and the committee closes the round: Play over (2d).
@@ -134,6 +136,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     await prisma.stage.update({ where: { id: f.stageIds[0] }, data: { closedAt: new Date() } });
     await expectTournamentSays(page, {
       chip: "Play over",
+      lock: "live",
       chipDetail: "Every round closed · results not released",
       nextAction: "Complete tournament",
       refused: null,
@@ -150,30 +153,25 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
     await pressComplete(page);
     await page.getByRole("alertdialog").getByRole("button", { name: /^(Complete tournament|Complete it)$/ }).click();
     await expect.poll(f.status, { timeout: 20_000, message: "Complete did not complete it" }).toBe("completed");
-    await expectTournamentSays(page, { chip: "Completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, setup: null, journey: "Finish" });
+    await expectTournamentSays(page, { chip: "Completed", lock: "completed", chipDetail: null, nextAction: "Reopen tournament", refused: null, setup: null, journey: "Finish" });
     // Completed: locked by completion, the way out Reopen — and no correction opens a final result.
     const reopenIt = { says: "Reopen it on the dashboard", href: "/dashboard" };
-    await expectScopeLock(page, "/stages", { scope: "Rounds", because: LOCKED_COMPLETED, wayOut: reopenIt });
     await expectScopeLock(page, "/event", { scope: "Details", because: LOCKED_COMPLETED, wayOut: reopenIt });
     await expectRoundDoors(page, f.stageIds[0], "Round 1", { format: ROUNDS_FINAL, holes: ROUNDS_FINAL });
 
     // REOPENED, by the press: live again with its round still closed, so play is over and
     // Complete is back; the lock is the launch's again, and Round 1 is still shut by its cards.
-    await page.goto(`/dashboard?bust=${Date.now()}`);
-    await page.getByRole("button", { name: "Reopen tournament" }).first().click();
-    const reopening = page.getByRole("alertdialog");
-    await expect(reopening).toBeVisible({ timeout: 15_000 });
-    await reopening.getByRole("button", { name: "Reopen tournament" }).click();
+    await pressReopen(page);
     await expect.poll(f.status, { timeout: 20_000, message: "Reopen did not reopen it" }).toBe("live");
     await expectTournamentSays(page, {
       chip: "Play over",
+      lock: "live",
       chipDetail: "Every round closed · results not released",
       nextAction: "Complete tournament",
       refused: null,
       setup: null,
       journey: "Play",
     });
-    await expectScopeLock(page, "/stages", { scope: "Rounds", because: LOCKED_LIVE, wayOut: "correction" });
     await expectRoundDoors(page, f.stageIds[0], "Round 1", { format: FORMAT_SHUT, holes: HOLES_SHUT });
     expect(errors).toEqual([]);
   } finally {
