@@ -7,6 +7,7 @@ import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { LOGO_SIZE } from "@/components/Logo";
 import { OrgBrand, type Brand } from "@/components/OrgBrand";
 import { Icon } from "./Icon";
+import { NavSections } from "./NavSections";
 import { roleName } from "@/lib/roles";
 
 type Role = "admin" | "assistant" | "player";
@@ -21,9 +22,11 @@ interface Props {
   initials: string;
   /** Owning organization's branding; falls back to TourneyHQ when unset. */
   brand?: Brand | null;
+  /** The menu is the stepper's preview (`?stepper=1`): its links keep the preview on. */
+  preview?: boolean;
 }
 
-export function Sidebar({ sections, name, role, viewRole, initials, brand, organizer = "organizer" }: Props) {
+export function Sidebar({ sections, name, role, viewRole, initials, brand, organizer = "organizer", preview = false }: Props) {
   const roleLabel = (r: Role) => roleName(r, organizer);
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
@@ -107,45 +110,11 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
           gap: 2,
         }}
       >
-        {sections.map((sec) => (
-          <div key={sec.label || sec.items[0]?.key}>
-            {/* An EMPTY label renders NO heading, which is what the dashboard
-                wants: it is home, and a one-item section under a word is a
-                heading apologising for itself. Rendering the div anyway would
-                leave 15px of blank space above the first link and read as a
-                heading that failed to load.
-
-                Keyed on the first item when there is no label, because the
-                label was the key and an empty string is not a unique one. */}
-            {sec.label && (
-              <div
-                style={{
-                  fontSize: 13,
-                  letterSpacing: "0.13em",
-                  textTransform: "uppercase",
-                  color: "var(--color-neutral-500)",
-                  margin: "12px 8px 3px",
-                }}
-              >
-                {sec.label}
-              </div>
-            )}
-            {sec.items.map((it) => {
-              const active = pathname === it.href;
-              return (
-                <Link
-                  key={it.key}
-                  href={it.href}
-                  className="side-link"
-                  aria-current={active ? "page" : undefined}
-                >
-                  <Icon name={it.icon} />
-                  <span>{it.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        {/* One drawing with the phone's drawer (`NavSections`). An EMPTY label renders NO heading,
+            which is what the dashboard wants: it is home, and a one-item section under a word is a
+            heading apologising for itself. Rendering the div anyway would leave 15px of blank
+            space above the first link and read as a heading that failed to load. */}
+        <NavSections sections={sections} pathname={pathname} preview={preview} />
       </nav>
 
       <div
