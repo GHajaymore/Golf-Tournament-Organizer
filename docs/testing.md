@@ -164,6 +164,7 @@ size). The always-on set, whatever the area (`ALWAYS_ON`):
 - every action against a stranger (`every-action-vs-a-stranger.spec`);
 - accessibility (`a11y.spec`) and fonts (`fonts.spec`);
 - layout and legibility (`layout`, `legible`, `nothing-is-covered`, `touch`);
+- the console sweep (`console-sweep.spec`), on Chromium's small phone only;
 - the reach check, held to `reach-baseline.json` for the area's own action files (the rest is
   printed, not held — most actions are not meant to be reached in a targeted round).
 
@@ -229,6 +230,7 @@ Asked twice by Ajay on 2026-10-12, and the answer he is owed each time is the me
 |---|---|
 | Every screen opens, as organizer, member and signed out, on every seeded tournament | Yes — the lists are read from the app, so a new screen is included unasked |
 | Every dropdown, choice and tick-box is changed, saved and read back | Yes |
+| Every screen on the organizer's menu, setting up and live, at 320 wide: no sideways scroll, every greyed control says why (on the control, or in a sentence within 96px), one primary button to a row or card | Yes, as a RATCHET, since 2026-11-11 — `e2e/console-sweep.spec.ts` (J51). The screens are read from the menu (`navForRole`), so a new one is swept unasked. Today's violations are `e2e/console-sweep-known.json`, which may only shrink: a new one fails, and a fixed one fails until its line is deleted; the failing run prints the whole file ready to paste. Chromium at 320 only. It does not see a screen this medal's menu leaves out (Teams, Bracket, Team cup, This week), anything behind a press other than a tab, or the stages after live. The rules themselves are held without a browser by `console-sweep-rules.test.ts` |
 | Every action is tried by the wrong person and refused | Yes |
 | Whole tournaments played from entry to payout | Yes — eleven |
 | **Every action done by the RIGHT person, with the result checked** | **No.** 36 of 263 on 2026-10-10; 127 of 272 in the first clean round (2026-10-13, commit `77d59567`), with 17 more performed by specs written after it. Every round re-measures it and names each action nothing performs |
