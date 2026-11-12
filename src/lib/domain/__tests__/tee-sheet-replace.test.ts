@@ -105,6 +105,12 @@ describe("who steps in", () => {
     expect(candidateWhy(people[1], "a", w)).toBe("Marked out for this week. Put them back in first.");
   });
 
+  it("a player on the sheet is never offered, even one the field no longer holds (stored in a group, outside the field)", () => {
+    const w: ReplaceWorld = { ...world, field: world.field.filter((id) => id !== "e") };
+    expect(candidateWhy(people[4], "a", w)).toBe("Already in Group 2.");
+    expect(replaceCandidates(people, "a", w).find((r) => r.id === "e")?.why).toBe("Already in Group 2.");
+  });
+
   it("missed the cut: refused once a cut has been made", () => {
     const w: ReplaceWorld = { ...world, cut: ["a", "b", "c", "d", "e", "f", "g", "h", "i"] };
     expect(candidateWhy(people[10], "a", w)).toBe("Missed the cut.");
