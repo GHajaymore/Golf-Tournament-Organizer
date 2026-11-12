@@ -145,7 +145,7 @@ test("each locked control, pressed on a screen drawn before the lock, is refused
       await expect(said, `${step.label}: the refusal is not in view`).toBeInViewport();
       await expect(page.getByRole("heading", { level: 1, name: step.heading }), `${step.label}: the screen was replaced by an error page`).toBeVisible();
       const banner = page.getByRole("region", { name: "Locked" });
-      await expect(banner, `${step.label}: the screen did not catch up with the lock`).toContainText("Locked because the tournament is live.", { timeout: 20_000 });
+      await expect(banner, `${step.label}: the screen did not catch up with the lock`).toContainText(/locked because the tournament is live\./i, { timeout: 20_000 });
       await expect(banner.getByRole("button", { name: "Make a committee correction" }), `${step.label}: the Organizer has no way out on the banner`).toBeVisible();
       expect(await step.stored(), `${step.label}: written while locked`).toEqual(before);
     };

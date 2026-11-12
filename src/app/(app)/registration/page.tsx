@@ -23,7 +23,7 @@ import { RecentChanges } from "@/components/RecentChanges";
 import { flightLabel } from "@/lib/domain/flight-label";
 import { awaitingApproval } from "@/lib/registration";
 import { fieldFactsFor } from "@/lib/services/field-change";
-import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, flagsUnplaced, reserveOffered, unplacedWords } from "@/lib/domain/field-change";
+import { FIELD_CHANGES, addFlightPick, fieldBanner, fieldDoors, fieldLockSaid, flagsUnplaced, reserveOffered, unplacedWords } from "@/lib/domain/field-change";
 import { WithdrawnList } from "@/components/WithdrawnList";
 import { acrossRoundsRefusal } from "@/lib/services/round-change";
 
@@ -181,7 +181,7 @@ export default async function RegistrationPage() {
       waitlist={state.waitlist.map(asRow)}
       pendingEntries={awaitingApproval(state.players).map(asRow)}
       locked={locked}
-      fieldLocks={field.locks}
+      fieldLocks={fieldFacts ? field.locks.map((l) => fieldLockSaid(fieldFacts, l)) : field.locks}
       correction={field.correction}
       doors={doors}
       underWay={underWay}

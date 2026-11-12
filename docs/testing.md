@@ -33,7 +33,7 @@ whether it can be read and used.
 
 `ci.yml` is not on this list because nobody runs it: it runs itself on every push, on one browser,
 and answers "did this change break something that was working". A round is a different question.
-Since 2026-11-04 its browser legs are shards (desktop in three, phone and small-phone in two each),
+Since 2026-11-04 its browser legs are shards (desktop and phone in three, small-phone in two, cut by measured time),
 and its `e2e-cover` job (`scripts/qa/shards-cover.mjs`) fails `verify` unless the shards together
 ran every test of every project — see `docs/claude/playwright-runs.md`.
 Nor are the **Nightly round**, the **Weekly round**, the hourly **Deploy** and the **Production
@@ -199,7 +199,7 @@ a held commit — a clean full `round/…` on that commit does not, because the 
 only. *Override freeze* overrides the freeze and nothing else.
 
 **The cap on parts at a time is counted at plan time** (`round-cap.mjs`): it sees the jobs running
-when the round's plan job ran, not the ones that start after, and it does not count queued jobs. So a
+when the round's plan job ran, not the ones that start after, and it does not count queued jobs (a part held back by its own round's max-parallel is one, and holds no runner). So a
 round planned on a quiet account can still crowd a CI run that starts later: watch the deploy job's
 queue time, by the panel's rule in `docs/release-strategy.md` step 9.
 
@@ -231,7 +231,7 @@ Asked twice by Ajay on 2026-10-12, and the answer he is owed each time is the me
 | Every screen opens, as organizer, member and signed out, on every seeded tournament | Yes — the lists are read from the app, so a new screen is included unasked |
 | Every dropdown, choice and tick-box is changed, saved and read back | Yes |
 | Every screen on the organizer's menu, setting up and live, at 320 wide: no sideways scroll, every greyed control says why (on the control, or in a sentence within 96px; an idle save button and a pager at one end of its run are their own reason), one primary button to a row or card | Yes, as a RATCHET, since 2026-11-11 — `e2e/console-sweep.spec.ts` (J51). The screens are read from the menu (`navForRole`), so a new one is swept unasked. Today's violations are `e2e/console-sweep-known.json`, which may only shrink: a new one fails, and a fixed one fails until its line is deleted; the failing run prints the whole file ready to paste. Chromium at 320 only. It does not see a screen this medal's menu leaves out (Teams, Bracket, Team cup, This week), anything behind a press other than a tab, or the stages after live. The rules themselves are held without a browser by `console-sweep-rules.test.ts`, and the screens fixed for the first day's 24 findings by `a-greyed-control-says-why.test.tsx` (a control shut by a screen's lock points at the banner's words with `aria-describedby={SCOPE_LOCK_REASON_ID}`; the distance was not widened). **Also as an ASSISTANT** (`e2e/console-sweep-assistant.spec.ts`, the role `assistant`: an `Account` on the tournament, no seat in the club, signed in with `signedInNow`): the same medal, stages and rules over `navForRole("assistant")`, which drops Tournament details, Staff & helpers, Club settings and Tournaments; it is where a control shut by the ROLE (not by a lock) must still say why. Its known lines are in the same file with `assistant-` in front of the stage (`assistant-live /grouping :: …`), each walk held to its own (`knownFor`), and the list started empty (the first CI run prints the lines to paste). It cannot see a flight's tees select (drawn only where tees are set by flight and the field is drawn), nor the screens the role has no menu entry for |
-| **Every form control changed by a test** | **Measured, since 2026-11-11, not yet whole.** `node scripts/e2e-coverage.mjs` prints "form controls changed by a test: N of M" and names, by screen, each control no test changed. It replaces "382 of 711", which no script re-reads: the console crawl's count of dropdowns, choices and tick-boxes (2026-10-13) plus the text boxes counted in the code (2026-10-10). The text-box crawl (#923) prints its own count in every round. M is the console sweep's inventory, so it is the organizer's menu screens at 320px, setting up and live, for one medal, and no more; and "changed" is not "saved and read back". See "Form controls changed by a test" below |
+| **Every form control changed by a test** | **Measured, since 2026-11-11, not yet whole.** `node scripts/e2e-coverage.mjs` prints "form controls changed by a test: N of M" and names, by screen, each control no test changed. It replaces "382 of 711", which no script re-reads: the console crawl's count of dropdowns, choices and tick-boxes (2026-10-13) plus the text boxes counted in the code (2026-10-10). The text-box crawl (#923) prints its own count in every round. M is the console sweep's inventory, so it is the organizer's menu screens at 320px (setting up and live, one medal) and at 1280px (setting up, that medal and one knockout), and no more; and "changed" is not "saved and read back". See "Form controls changed by a test" below |
 | Every action is tried by the wrong person and refused | Yes |
 | Whole tournaments played from entry to payout | Yes — eleven |
 | **Every action done by the RIGHT person, with the result checked** | **No.** 36 of 263 on 2026-10-10; 127 of 272 in the first clean round (2026-10-13, commit `77d59567`), with 17 more performed by specs written after it. Every round re-measures it and names each action nothing performs |
@@ -289,8 +289,9 @@ the controls no test changed by screen, and puts both in `--json` (`formControls
 
 **What the figure is not**, and the line itself says the first of these every time it is printed:
 
-- M is the organizer's menu screens, at 320px, at two stages (setting up, live), for one medal. A
-  control that only another format, a later stage, a wider screen, a dialog, a folded panel, the
+- M is the organizer's menu screens at 320px, at two stages (setting up, live), for one medal, and
+  at 1280px (`e2e/form-controls-reach.spec.ts`, Chromium desktop) setting up, for that medal and for
+  one knockout. A control that only another format (a cup, a league), a later stage, a dialog, a folded panel, the
   player's app or a public page shows is not in M. The report counts the changes on those screens
   that matched nothing the sweep saw, so the size of that gap is printed, not guessed.
 - A control greyed or read-only at both stages is left out of M and counted beside it.
@@ -303,6 +304,8 @@ the controls no test changed by screen, and puts both in `--json` (`formControls
 - A custom dropdown whose options are pressed, not typed, is heard only when typed into.
 - No inventory in the ledger (the sweep runs on Chromium's small phone only) prints NOT MEASURED,
   never 0 of 0.
+
+**Every round states it.** `scripts/qa/merge.mjs` writes `**Form controls:** form controls changed by a test: N of M …` into the round's `summary.md` (from the `formControls` the reach carries), or says it was not measured. `e2e/important-controls-are-changed.spec.ts` changes, with its effect read, controls the first report named as untouched: the 9/18-hole choice, two side-game stakes, the scoring picker and a selection.
 
 **Where to read it.** On a pull request: the `End-to-end shards cover the suite` job, step
 "Form controls changed by a test", and that job's summary; each shard hands in its ledger and the

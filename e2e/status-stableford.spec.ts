@@ -2,7 +2,7 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
-import { expectRoundDoors, expectScopeLock, expectTeesDoor, LOCKED_LIVE } from "./expect-tournament-locks";
+import { expectRoundDoors, expectScopeLock, expectTeesDoor, FIELD_LOCKED_LATE_ENTRY_OPEN, LOCKED_LIVE } from "./expect-tournament-locks";
 import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
@@ -129,7 +129,7 @@ test("a Stableford says the same thing on every panel through setup and launch (
     await prisma.tee.create({ data: { courseId: courseId!, name: "White", gender: "any", courseRating: 69.8, slopeRating: 119, par: 72, position: 1 } });
     await expectTeesDoor(page, round1, null);
     await expectRoundDoors(page, round1, "Round 1", { format: null, holes: null });
-    await expectScopeLock(page, "/registration", { scope: "The field", because: LOCKED_LIVE, wayOut: "correction" });
+    await expectScopeLock(page, "/registration", { scope: "The field", because: FIELD_LOCKED_LATE_ENTRY_OPEN, wayOut: "correction" });
 
     // ── a late entrant after the flights are made: taken, and flagged in no flight (J04, PR 7a) ──
     const entries = async () => {

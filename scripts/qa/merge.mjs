@@ -45,6 +45,7 @@ import { layersFor, partsFor, SCHEDULES, targetLine } from "./layers.mjs";
 import { AREAS } from "./specs-by-area.mjs";
 import { activeEntries, quarantinedBy, readQuarantine } from "./quarantine.mjs";
 import { infraReason } from "./infra.mjs";
+import { formControlsFigure } from "./form-controls.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
@@ -165,7 +166,7 @@ if (builds.length > 1) missing.push(`the parts ran on different builds (${builds
 const reach = value("reach") && existsSync(value("reach")) ? shape(JSON.parse(readFileSync(value("reach"), "utf8"))) : parts.length === 1 ? first.reach : null;
 function shape(report) {
   if (report.neverCalled) return report;
-  return { actions: report.actions, screens: report.screens, neverCalled: Object.fromEntries(report.files.filter((f) => f.neverCalled.length).map((f) => [f.file, f.neverCalled])), screensNeverOpened: report.screensNeverOpened, refusalsOutOfSight: report.refusalsOutOfSight ?? [] };
+  return { actions: report.actions, screens: report.screens, neverCalled: Object.fromEntries(report.files.filter((f) => f.neverCalled.length).map((f) => [f.file, f.neverCalled])), screensNeverOpened: report.screensNeverOpened, refusalsOutOfSight: report.refusalsOutOfSight ?? [], formControls: report.formControls };
 }
 const newlyUnreached = [];
 /** Actions the list still calls unreached that this round performed: the list can come down. */
@@ -332,6 +333,9 @@ const summary = [
   reach
     ? `**Reach:** ${reach.actions.reached} of ${reach.actions.total} server actions called through a real screen; ${reach.screens.reached} of ${reach.screens.total} screens opened.${reachHeld ? (heldFiles ? ` Held to \`reach-baseline.json\` for the area's own actions only (${heldFiles.length ? heldFiles.join(", ") : "none: the area has no action file of its own"}); the rest is printed, not held, in a targeted round.` : "") : " Not held to `reach-baseline.json`: the list was measured with the console crawl, and this round did not run it."}`
     : "**Reach:** not measured for this run.",
+  "",
+  // Every round states the figure, with its scope on the line; a reach without one says so and never a zero.
+  reach?.formControls ? `**Form controls:** ${formControlsFigure(reach.formControls)}. The controls no test changed are listed by screen in \`reach.json\` (\`formControls.screens\`).` : "**Form controls:** not measured for this run (the reach handed in carries no form-control figure).",
   "",
   ...(mutationLine ? [mutationLine, ""] : []),
   findings.length ? `## Findings\n\n${findings.map((f) => `- ${f}`).join("\n")}` : "No findings.",
