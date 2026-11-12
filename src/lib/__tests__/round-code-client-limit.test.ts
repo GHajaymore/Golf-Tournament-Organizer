@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   RATE_LIMITS,
   clientAddressFrom,
-  decideClientFailures,
+  decideRateLimit,
+  networkOf,
   throttleMessage,
 } from "../domain/rate-limit";
 import { readSource } from "./source";
@@ -15,17 +16,16 @@ describe("round-code-client rule", () => {
   const now = Date.UTC(2026, 10, 12, 10, 7, 0);
   const { limit } = RATE_LIMITS["round-code-client"];
 
-  it("is twenty failures in fifteen minutes", () => {
-    expect(limit).toBe(20);
+  it("is sixty failures in fifteen minutes", () => {
+    expect(limit).toBe(60);
     expect(RATE_LIMITS["round-code-client"].windowMs).toBe(15 * 60_000);
   });
-  it("is refused only once it HAS failed `limit` times", () => {
-    expect(decideClientFailures("round-code-client", 0, now).allowed).toBe(true);
-    expect(decideClientFailures("round-code-client", limit - 1, now).allowed).toBe(true);
-    expect(decideClientFailures("round-code-client", limit, now).allowed).toBe(false);
+  it("is refused only on the attempt after `limit`", () => {
+    expect(decideRateLimit("round-code-client", limit, now).allowed).toBe(true);
+    expect(decideRateLimit("round-code-client", limit + 1, now).allowed).toBe(false);
   });
   it("says the same words as the per-code limit, with a wait", () => {
-    const d = decideClientFailures("round-code-client", limit, now);
+    const d = decideRateLimit("round-code-client", limit + 1, now);
     expect(d.message).toBe(throttleMessage("round-code", d.retryAfterSeconds));
     expect(d.retryAfterSeconds).toBeGreaterThan(0);
   });
@@ -45,11 +45,25 @@ describe("clientAddressFrom", () => {
   });
 });
 
-describe("both round-code lookups ask the client gate and record only failures", () => {
+describe("networkOf: IPv6 by its /64, IPv4 whole", () => {
+  it("keeps an IPv4 address whole and unwraps an IPv4-mapped one", () => {
+    expect(networkOf("203.0.113.7")).toBe("203.0.113.7");
+    expect(networkOf("::ffff:203.0.113.7")).toBe("203.0.113.7");
+  });
+  it("gives every address in one /64 the same key, and another /64 another", () => {
+    const a = networkOf("2001:db8:1:2:aaaa:bbbb:cccc:dddd");
+    expect(networkOf("2001:0db8:0001:0002::1")).toBe(a);
+    expect(networkOf("2001:DB8:1:2:ffff::")).toBe(a);
+    expect(networkOf("2001:db8:1:3::1")).not.toBe(a);
+    expect(networkOf("::1")).toBe("0:0:0:0::/64");
+  });
+});
+
+describe("both round-code lookups ask the client gate and give back only successes", () => {
   const src = readSource("src/app/actions/play.ts");
   it("calls the gate once in each of redeemRoundCode and claimPlayerSlot, never clears it", () => {
-    expect(src.match(/clientGuessGate\("round-code-client"/g)?.length).toBe(2);
-    expect(src.match(/guess\.recordFailure\(\)/g)?.length).toBeGreaterThanOrEqual(3);
-    expect(src).not.toMatch(/clearRateLimit\("round-code-client"/);
+    expect(src.match(/clientGuessGate("round-code-client"/g)?.length).toBe(2);
+    expect(src.match(/guess.succeeded()/g)?.length).toBe(2);
+    expect(src).not.toMatch(/clearRateLimit("round-code-client"/);
   });
 });

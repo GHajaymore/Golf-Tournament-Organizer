@@ -104,7 +104,6 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
   // Same message whether the code is wrong or the tournament has since turned
   // code access off — no reason to confirm that a code was once real.
   if (!stage || !usesAccessCodes(settingsOf(stage.event))) {
-    await guess.recordFailure();
     return { ok: false, error: "That code isn't valid. Check it with your organizer." };
   }
 
@@ -122,6 +121,7 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     select: { id: true, type: true, format: true, holes: true, nine: true },
   });
 
+  await guess.succeeded();
   await clearRateLimit("round-code", code);
   return {
     ok: true,
@@ -311,7 +311,6 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
     include: { event: true },
   });
   if (!stage || !usesAccessCodes(settingsOf(stage.event))) {
-    await guess.recordFailure();
     return { ok: false, error: "That code isn't valid." };
   }
 
@@ -322,13 +321,11 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
   // Same message as a bad code. Saying "pick your name from the list" here
   // would confirm that the code was real — turning a failed claim into a
   // reliable oracle for which codes exist.
-  if (!player) {
-    await guess.recordFailure();
-    return { ok: false, error: "That code isn't valid." };
-  }
+  if (!player) return { ok: false, error: "That code isn't valid." };
 
   // A genuine claim resets the budget, so a fourball fumbling the code on the
   // first tee doesn't lock the group out of the round they're about to play.
+  await guess.succeeded();
   await clearRateLimit("round-code", code);
   // The stored code, not the typed one, so the session is bound to the row a
   // reissue will overwrite.

@@ -100,11 +100,11 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  the per-code limit cannot see (it caps guesses per code, so an enumerator
    *  spends one guess on each of a million codes and is never slowed). Counts
    *  only FAILED lookups, never successes, so forty players on a club's one wifi
-   *  address all entering the one real code count nothing. Twenty failures in
-   *  fifteen minutes: a fourball fumbling a card takes a handful, a field's worst
-   *  morning perhaps a dozen, while a script gets about 80 an hour from an
-   *  address instead of a thousand a second. See `clientGuessGate`. */
-  "round-code-client": { limit: 20, windowMs: 15 * MINUTE },
+   *  address all entering the one real code count nothing. Sixty failures in
+   *  fifteen minutes (Tournament Director, 12 Nov: a clubhouse's one wifi address
+   *  must survive an event morning of mistypes), still only 240 an hour for a
+   *  script against an 8-character code instead of a thousand a second. See `clientGuessGate`. */
+  "round-code-client": { limit: 60, windowMs: 15 * MINUTE },
   /** Discount codes, tried at sign-up or on a club's plan panel. A code is
    *  eight characters from 31, so this is not about guessing one — it is about
    *  a script trying to, and ten typos in fifteen minutes is a person who
@@ -442,16 +442,6 @@ export function entryLinkBudget(link: EntryLink): number {
 }
 
 /**
- * Allow or refuse a CLIENT, given how many FAILED lookups it has already made in
- * this window. Unlike `decideRateLimit`, `failures` does not include the attempt
- * being decided: a client is refused once it has failed `limit` times already,
- * and a success is never counted.
- */
-export function decideClientFailures(kind: RateLimitKind, failures: number, now: number): RateLimitDecision {
-  return decideRateLimit(kind, failures + 1, now);
-}
-
-/**
  * The client address out of a request's headers, or null when there is none.
  *
  * On Vercel `x-vercel-forwarded-for` is set by the platform and cannot be
@@ -463,7 +453,24 @@ export function decideClientFailures(kind: RateLimitKind, failures: number, now:
 export function clientAddressFrom(get: (name: string) => string | null | undefined): string | null {
   for (const name of ["x-vercel-forwarded-for", "x-forwarded-for", "x-real-ip"]) {
     const first = (get(name) ?? "").split(",")[0].trim();
-    if (first) return first;
+    if (first) return networkOf(first);
   }
   return null;
+}
+
+/**
+ * The unit a client is counted as: an IPv4 address whole, an IPv6 address as its
+ * /64 (one household or one phone is handed a whole /64, so the full address is
+ * a key an enumerator rotates at will). IPv4-mapped IPv6 counts as the IPv4.
+ */
+export function networkOf(address: string): string {
+  const a = address.toLowerCase();
+  const mapped = a.match(/^::ffff:(d+.d+.d+.d+)$/);
+  if (mapped) return mapped[1];
+  if (!a.includes(":")) return a;
+  const [head, tail] = a.split("::");
+  const front = head ? head.split(":") : [];
+  const back = tail === undefined ? [] : tail ? tail.split(":") : [];
+  const groups = tail === undefined ? front : [...front, ...Array(Math.max(0, 8 - front.length - back.length)).fill("0"), ...back];
+  return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":") + "::/64";
 }
