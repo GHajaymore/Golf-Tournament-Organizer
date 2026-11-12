@@ -103,7 +103,8 @@ test.describe("tee sheet replace: a league week", () => {
         const picker = page.getByLabel(`Who replaces ${NAMES[0]}`, { exact: true });
         // Somebody already playing is listed, greyed, with the reason.
         const busy = picker.locator("option", { hasText: NAMES[3] });
-        await expect(busy).toBeDisabled();
+        // An <option> has no ARIA disabled state Playwright reads: read the real property.
+        await expect(busy).toHaveJSProperty("disabled", true);
         await expect(busy).toContainText("Already in Group 2.");
         await picker.selectOption({ value: ids[6] });
         await expect(page.getByText(`${NAMES[6]} takes ${NAMES[0]}’s place in Group 1, 6:30 PM`, { exact: false })).toBeVisible();
