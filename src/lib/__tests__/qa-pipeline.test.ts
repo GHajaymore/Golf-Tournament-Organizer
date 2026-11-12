@@ -125,26 +125,25 @@ describe("targeted rounds (2026-11-01: specs-by-area.mjs)", () => {
 });
 
 describe("the round's own cap on parts at a time (Ajay, 2026-10-31)", () => {
-  it("is 40 − running − 6, held between 6 and 16, and 12 when nothing could be counted", () => {
+
+  it("is 40 − running − 10, held between 6 and 16, and 12 when nothing could be counted", () => {
     expect(roundCap(2).cap).toBe(16);
-    expect(roundCap(18).cap).toBe(16);
-    expect(roundCap(19).cap).toBe(15);
+    expect(roundCap(14).cap).toBe(16);
+    expect(roundCap(19).cap).toBe(11);
     expect(roundCap(19).reason).toContain("40 − 19 job(s) already running");
-    expect(roundCap(26).cap).toBe(8);
-    expect(roundCap(34).cap).toBe(6);
+    expect(roundCap(26).cap).toBe(6);
     expect(roundCap(60).cap).toBe(6);
     expect(roundCap(Number.NaN).cap).toBe(12);
     expect(roundCap(-1).cap).toBe(12);
   });
 
-  it("leaves room: a lone round gets 16, a second round beside it gets 15, and two rounds + two CIs + the deploy overshoot the account by at most one job", () => {
-    expect(roundCap(1).cap).toBe(16);
-    const second = roundCap(16 + 3).cap;
-    expect(second).toBe(15);
-    expect(16 + second).toBeLessThanOrEqual(ACCOUNT_JOBS - 6);
+  it("leaves room: with two rounds and ~3 other running jobs, one PR CI (9 jobs) and the deploy (1) still fit in the account", () => {
     const ci = 9;
-    const worstSecond = roundCap(16 + 2 * ci).cap;
-    expect(16 + worstSecond + 2 * ci + 1).toBeLessThanOrEqual(ACCOUNT_JOBS + 1);
+    const deploy = 1;
+    const other = 3;
+    const first = roundCap(1).cap;
+    const second = roundCap(first + other).cap;
+    expect(first + second + other + ci + deploy).toBeLessThanOrEqual(ACCOUNT_JOBS);
   });
 
   it("counts the in-progress jobs of in-progress runs, and throws (so the fallback is taken) when GitHub does not answer", () => {
