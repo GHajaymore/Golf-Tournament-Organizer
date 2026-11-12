@@ -3,7 +3,7 @@ import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, cardsIn, dayFromNow, prisma } from "./status-fixture";
 import { pressComplete, pressReopen } from "./end-early";
-import { expectScopeLock, expectRoundDoors, LOCKED_LIVE, LOCKED_COMPLETED, ROUNDS_FINAL } from "./expect-tournament-locks";
+import { expectScopeLock, expectRoundDoors, FIELD_LOCKED_LATE_ENTRY_OPEN, LOCKED_LIVE, LOCKED_COMPLETED, ROUNDS_FINAL } from "./expect-tournament-locks";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
 /**
@@ -122,7 +122,7 @@ test("a medal says the same thing on every panel at every step (D1, D4)", async 
       "Until a round has scores, its format, holes, allowance, tees and day can change.",
     );
     await expectScopeLock(page, "/event", { scope: "Details", because: LOCKED_LIVE, wayOut: "correction" });
-    await expectScopeLock(page, "/registration", { scope: "The field", because: LOCKED_LIVE, wayOut: "correction" });
+    await expectScopeLock(page, "/registration", { scope: "The field", because: FIELD_LOCKED_LATE_ENTRY_OPEN, wayOut: "correction" });
     await expectRoundDoors(page, f.stageIds[0], "Round 1", { format: null, holes: null });
 
     // THE ROUND'S FIRST CARD: one of six in, the round open. Still live, Complete now allowed —

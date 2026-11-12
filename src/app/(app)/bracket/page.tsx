@@ -12,6 +12,7 @@ import { stageTypeInfo } from "@/lib/stage-types";
 import { BracketClient } from "@/components/BracketClient";
 import { BracketModePicker } from "@/components/BracketModePicker";
 import { BracketFlights } from "@/components/BracketFlights";
+import { ScopeLockBanner } from "@/components/ScopeLockBanner";
 import { FLIGHT_CRITERIA, proposeShapes } from "@/lib/domain/bracket-flights";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { QualificationPanel } from "@/components/QualificationPanel";
@@ -92,6 +93,7 @@ export default async function BracketPage() {
   // only — offered to an assistant it was a Change button that always failed.
   // Entering results stays open to staff.
   const isAdmin = session.viewRole === "admin";
+  const drawLock = await scopeLockFor(session.eventId, "draw");
 
   // Results the players in a tie have reported, for staff to approve. Named
   // off the draw on screen, so the list and the bracket cannot disagree about
@@ -329,6 +331,10 @@ export default async function BracketPage() {
           the same picker on Rounds & formats draws. Never the draw's: a knockout in flights keeps that open while live. */}
       <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={(await scopeLockFor(session.eventId, "rounds")) !== null} />
       <BracketReports rows={reports} />
+      {/* THE DRAW'S LOCK, SAID WITH ITS WAY OUT (J13 finding 2). Open after launch, shut at the first result: the
+          machine's own `locks.draw` answer (`scopeLockFor`), never worked out here. The flights panel keeps its
+          sentence beside the control it greys; this is the way out. */}
+      {mode === "flights" && <ScopeLockBanner locks={drawLock ? [drawLock] : []} isAdmin={isAdmin} />}
       {mode === "flights" && (
         <BracketFlights
           fieldSize={state.qualifiers.length}
@@ -338,7 +344,7 @@ export default async function BracketPage() {
           flights={flightSummaries}
           unplaced={(state.flights?.unplaced ?? []).map((p) => ({ id: p.id, name: p.name }))}
           departed={(state.flights?.departedIds ?? []).map((id) => state.players.find((p) => p.id === id)?.name ?? "A player")}
-          fixed={state.drawFrozen === true}
+          lockBy={drawLock?.by === "results" || drawLock?.by === "completed" ? drawLock.by : null}
           readOnly={!isAdmin}
           finished={isFinished(state.event.status)}
         />
