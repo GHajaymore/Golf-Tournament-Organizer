@@ -6,7 +6,6 @@ import { cleanIsoDate } from "../domain/round-dates";
 import { slotLocks, type SlotLocks } from "../domain/tee-sheet-moves";
 import type { TeeSheet } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
-import { zoneOfEvent } from "./club-clock";
 
 /**
  * WHICH SLOTS OF A SAVED SHEET HAVE BEGUN, asked of the CLUB'S clock.
@@ -20,13 +19,15 @@ import { zoneOfEvent } from "./club-clock";
  * round with a stroke on it — a row with none is not a card anybody returned.
  */
 export async function slotLocksFor(eventId: string, stageId: string, sheet: TeeSheet, db: Prisma.TransactionClient = prisma): Promise<SlotLocks> {
-  const [zone, stage, firstRound, cards] = await Promise.all([
-    zoneOfEvent(eventId),
+  // The club's zone is read on the same client as the rest (the club's own `timeZone`, as `zoneOfEvent` reads it),
+  // so asked inside a transaction every read is on that transaction's connection.
+  const [event, stage, firstRound, cards] = await Promise.all([
+    db.event.findUnique({ where: { id: eventId }, select: { startOn: true, organization: { select: { timeZone: true } } } }),
     db.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } }),
     db.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: { id: true, type: true } }),
     db.scorecard.findMany({ where: { eventId, stageId }, select: { playerId: true, strokes: true } }),
   ]);
-  const event = await db.event.findUnique({ where: { id: eventId }, select: { startOn: true } });
+  const zone = event?.organization?.timeZone ?? "";
   const roundDay = cleanIsoDate(stage?.playedOn) || (firstRound.find((s) => isPlayingRound(s.type))?.id === stageId ? cleanIsoDate(event?.startOn) : "");
   const cardsIn = new Set(
     cards
@@ -39,5 +40,6 @@ export async function slotLocksFor(eventId: string, stageId: string, sheet: TeeS
       })
       .map((c) => c.playerId),
   );
-  return slotLocks(sheet, { roundDay, now: clubWallClock(zone), cardsIn });
+  const locks = slotLocks(sheet, { roundDay, now: clubWallClock(zone), cardsIn });
+  return locks;
 }

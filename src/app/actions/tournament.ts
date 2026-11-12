@@ -137,7 +137,7 @@ import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-l
 import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
-import { hasPlayingHistory, keepDefaultStakes, withdrawEntry } from "@/lib/services/playing-history";
+import { withdrawEntry } from "@/lib/services/playing-history";
 // Launch, Complete, Reopen, play and closing a round ask the state machine (PR 4).
 import { roundCloseCheck, statusRequestOf } from "@/lib/domain/tournament-status";
 import { playRefusedBecause, tournamentStatusNow, refuseIfLocked, refuseIfAddingARoundIsLocked } from "@/lib/services/tournament-status";

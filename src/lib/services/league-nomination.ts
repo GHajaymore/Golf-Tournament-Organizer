@@ -81,7 +81,6 @@ export async function nominationsFor(
   ]);
   if (!event || !club) return null;
 
-  const rosterIds = club.players.map((p) => p.id);
 
   /**
    * Availability through the round's own mode, so this screen and the player's
