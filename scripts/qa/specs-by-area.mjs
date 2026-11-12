@@ -209,12 +209,16 @@ export const AREAS = {
   },
   "tee-sheet": {
     name: "The tee sheet",
-    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts"],
+    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts"],
     specs: [
       "e2e/organizer-teesheet.spec.ts",
       "e2e/play-with.spec.ts",
       // Day-of field changes (PR B): put one late entry in a group with room, DNS, the late-entry cutoff.
       "e2e/day-of-tee-sheet.spec.ts",
+      // Move one player or a whole group on a saved sheet, and the league week's: a draft, one Save.
+      "e2e/tee-sheet-moves.spec.ts",
+      // Replace a player in a slot with a member or a guest: a no-show, a cancellation (B43).
+      "e2e/tee-sheet-replace.spec.ts",
     ],
     scenarios: [],
     // Tee times are read on the club's clock.
