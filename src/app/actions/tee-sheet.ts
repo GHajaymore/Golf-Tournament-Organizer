@@ -18,7 +18,7 @@ import { firstHoleForRound } from "@/lib/domain/hole-number";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { fieldRefusal } from "@/lib/services/field-change";
 import { revokePlayerAccount } from "@/lib/services/player-access";
-import { keepDefaultStakes, withdrawEntry } from "@/lib/services/playing-history";
+import { withdrawEntry } from "@/lib/services/playing-history";
 import { isLaunched } from "@/lib/domain/lifecycle-state";
 import { isMatch } from "@/lib/tournament-shape";
 import {
@@ -36,6 +36,7 @@ import {
   guestFigureRefusal,
   replaceRefusal,
   swapPairMember,
+  STAND_IN_MARK,
   voidedGamesWords,
 } from "@/lib/domain/tee-sheet-replace";
 import { replaceWorldFor, sidesHavePlay, voidSideEntries, type RoundSide } from "@/lib/services/tee-sheet-replace";
@@ -656,13 +657,11 @@ export async function replaceInTeeSheet(
           const others = stages.filter((s) => s.id !== stageId);
           if (others.length > 0) {
             await tx.roundAttendance.createMany({
-              data: others.map((s) => ({ eventId: session.eventId, stageId: s.id, playerId: subId, status: "out", decidedBy: `${session.name} (stand-in for ${round || "one round"} only)` })),
+              data: others.map((s) => ({ eventId: session.eventId, stageId: s.id, playerId: subId, status: "out", decidedBy: `${session.name} ${STAND_IN_MARK}${round || "one round"} only)` })),
               skipDuplicates: true,
             });
           }
         }
-        // The absentee's stakes are kept the way a withdrawal keeps them (`keepDefaultStakes`, the same path).
-        await keepDefaultStakes(session.eventId, absenteeId, tx);
       }
 
       // No weekly sign-up: the absentee leaves the field through the ONE keep path the Withdraw press uses

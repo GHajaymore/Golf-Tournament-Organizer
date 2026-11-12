@@ -28,7 +28,7 @@ export interface SheetField {
 export async function sheetFieldFor(eventId: string, stageId: string): Promise<SheetField> {
   const [event, confirmed] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId } }),
-    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true, standing: true } }),
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true } }),
   ]);
   let ids = confirmed.map((p) => p.id);
   let weekRows: SheetField["weekRows"] = [];

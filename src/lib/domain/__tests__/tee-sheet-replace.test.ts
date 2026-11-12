@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   applyReplace,
   candidateWhy,
+  STAND_IN_MARK,
   clubTimeWords,
   guestFigureRefusal,
   handicapUsedWords,
@@ -48,6 +49,12 @@ const world: ReplaceWorld = {
 };
 const noLocks = {};
 const facts = (day: string, minutes: number, cardsIn: string[] = []) => ({ roundDay: "2026-11-12", now: { day, minutes }, cardsIn: new Set(cardsIn) });
+
+describe("the stand-in's mark", () => {
+  it("is one constant the writer and the finder share; a wording change must be deliberate", () => {
+    expect(STAND_IN_MARK).toBe("(stand-in for ");
+  });
+});
 
 describe("until when: the absentee's group has not started", () => {
   it("before 8:00 the club's day, nothing is locked and the swap is allowed", () => {

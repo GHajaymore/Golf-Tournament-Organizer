@@ -65,6 +65,7 @@ vi.mock("@/lib/services/tee-sheet-locks", async (orig) => {
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { replaceInTeeSheet } from "@/app/actions/tee-sheet";
 import { addTeamMember } from "@/app/actions/teams";
+import { addStage } from "@/app/actions/tournament";
 import { REPLACE_EVERY_ROUND_NOTE, REPLACE_GROUPS_NOTE } from "@/lib/domain/tee-sheet-replace";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { clubToday } from "@/lib/domain/club-clock";
@@ -428,6 +429,15 @@ describe("replaceInTeeSheet — a guest and the handicap", () => {
     for (const wk of [wk1, wk2]) expect([...(await sheetFieldFor(eventId, wk)).ids], "the CSV guest dropped off a week").toContain(csv.id);
     expect([...(await sheetFieldFor(eventId, wk2)).ids], "the stand-in is out of the later week").not.toContain(standIn.id);
     expect(await prisma.roundAttendance.count({ where: { playerId: csv.id } }), "the CSV guest was given rows").toBe(0);
+
+    // A WEEK ADDED LATER: the stand-in is out of it too; the CSV guest and the member are in.
+    const added = await addStage("Stroke Play Round", 1);
+    expect(added.error, JSON.stringify(added)).toBeUndefined();
+    const wk3 = added.id!;
+    const field3 = [...(await sheetFieldFor(eventId, wk3)).ids];
+    expect(field3, "the stand-in turned up in a week added later").not.toContain(standIn.id);
+    expect(field3, "the CSV guest dropped off the added week").toContain(csv.id);
+    expect(field3).toContain(p.c1);
   });
 });
 
