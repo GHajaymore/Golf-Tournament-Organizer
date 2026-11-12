@@ -453,7 +453,7 @@ export function FoursomeMaker({
           field of eight has the same problem as a field of eighty: whatever
           the size, the builder is either the task or in the way of it, and
           which one it is depends on whether the round has been drawn. */}
-      {savedDraw && !showDrawControls && (
+      {savedDraw && !showDrawControls && !saveDoor && (
         <button
           type="button"
           onClick={() => setShowDrawControls(true)}
@@ -902,7 +902,7 @@ export function FoursomeMaker({
       )}
 
       {canMove && door && shown.source === "saved" && (
-        <p className="text-muted" style={{ margin: "0 0 12px", fontSize: 13 }}>{door}</p>
+        <p role="note" className="text-muted" style={{ margin: "0 0 12px", fontSize: 13 }}>{door}</p>
       )}
       {moving && (
         <div role="region" aria-label="Move players and groups" style={{ display: "flex", flexDirection: "column", gap: 8, margin: "0 0 12px" }}>

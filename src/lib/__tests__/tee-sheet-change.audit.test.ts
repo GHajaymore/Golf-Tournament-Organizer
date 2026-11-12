@@ -16,7 +16,7 @@ import { PrismaClient } from "@prisma/client";
  *   a round WITH SCORES      → a re-draw that changes the group with a card in is refused; one that
  *                              keeps it and moves the rest is made; a move in a group not yet started
  *                              is made; a LATER round's sheet is its own, open;
- *   taking the sheet back    → says it hid the sheet; nobody is told.
+ *   taking the sheet back    → says it hid the sheet; no alert goes out.
  *
  *   npx vitest run --config vitest.audit.config.ts src/lib/__tests__/tee-sheet-change.audit.test.ts
  */
@@ -149,18 +149,18 @@ describe("a published sheet is changed and the change is said", () => {
   it("a re-save that moves one player tells that player and nobody else, and says so", async () => {
     // Hal (Group 3, 8:20) moves to Group 2 (8:10): the only time that changes.
     const res = await saveTeeSheet(stageId, draft([["ann", "bob", "cat", "dan"], ["eve", "fay", "gus", "hal"], ["ivy"]]), true);
-    expect(res).toEqual({ ok: true, warning: "Players were already sent their times. 1 player has been told of the change." });
+    expect(res).toEqual({ ok: true, warning: "Players were already sent their times. 1 player’s time changed. Those with notifications on get an alert; everyone sees it in TourneyHQ." });
     expect(pushed.emails).toEqual([at("hal")]);
     expect((await row()).teeSheetPublished).toBe(true);
     const written = await lines();
-    expect(written).toEqual(["Round 1 tee sheet changed after publish: 1 player re-told."]);
+    expect(written).toEqual(["Round 1 tee sheet changed after it was published: 1 player’s time changed."]);
     expect(written[0]).not.toContain(TAG);
   });
 
   it("a move says it too, in the same words, and tells the moved player", async () => {
     const res = await moveInTeeSheet(stageId, SAVED, [{ kind: "player", playerId: ids.hal, toGroup: 1 }]);
     expect(res.ok).toBe(true);
-    expect(res.said).toContain("Players were already sent their times. 1 player has been told of the change.");
+    expect(res.said).toContain("Players were already sent their times. 1 player’s time changed. Those with notifications on get an alert; everyone sees it in TourneyHQ.");
     expect(pushed.emails).toEqual([at("hal")]);
   });
 
@@ -174,7 +174,7 @@ describe("a published sheet is changed and the change is said", () => {
 
   it("taking the sheet back says it hid the sheet, and tells nobody", async () => {
     const res = await setTeeSheetPublished(stageId, false);
-    expect(res).toEqual({ ok: true, warning: "Players were already sent their times. The sheet is now hidden from them, and nobody is told." });
+    expect(res).toEqual({ ok: true, warning: "Players were already sent their times. The sheet is now hidden from them." });
     expect((await row()).teeSheetPublished).toBe(false);
     expect(pushed.emails).toEqual([]);
   });
@@ -202,6 +202,22 @@ describe("a round with scores keeps its started groups, and nothing else", () =>
     await reset();
     await prisma.scorecard.create({ data: { eventId, stageId, playerId: ids.hal, strokes: JSON.stringify(Array(18).fill(5)), status: "entered" } });
     expect(await moveInTeeSheet(stageId, SAVED, [{ kind: "player", playerId: ids.hal, toGroup: 1 }])).toEqual({ ok: false, error: "Group 3 has a card in. Nobody moves out of it." });
+  });
+
+  it("a group that has teed off with NO card in survives a re-draw attempt: refused, nothing written", async () => {
+    // Today, and Group 1 at 12:01 AM: it has teed off by the club's clock whatever the hour; no scorecard exists.
+    const times = ["12:01 AM", "11:50 PM", "11:59 PM"];
+    await prisma.stage.update({
+      where: { id: stageId },
+      data: { playedOn: clubToday(ZONE), teeSheet: JSON.stringify({ ...draft([["ann", "bob", "cat", "dan"], ["eve", "fay", "gus"], ["hal", "ivy"]], times), savedAt: SAVED }) },
+    });
+    const before = await row();
+    const res = await saveTeeSheet(stageId, draft([["ann", "bob", "cat", "eve"], ["dan", "fay", "gus"], ["hal", "ivy"]], times), false);
+    expect(res).toEqual({ ok: false, error: "Group 1 teed off at 12:01 AM. Its players, time and hole stay as they are. Change the groups that have not started." });
+    expect(await row()).toEqual(before);
+    // The groups that have not started may be drawn again, the started one kept.
+    const kept = await saveTeeSheet(stageId, draft([["ann", "bob", "cat", "dan"], ["eve", "fay", "hal"], ["gus", "ivy"]], times), false);
+    expect(kept.ok).toBe(true);
   });
 
   it("a later round's sheet is its own, and open while this one has scores", async () => {

@@ -766,6 +766,8 @@ function locksOf(f: LockFacts, family: Family): Record<LockScope, Lock> {
       ? lock("completed", "Locked because the tournament is completed.", REOPEN_WAY_OUT)
       : lock("launch", "Locked because the tournament is live.", CORRECTION_WAY_OUT);
   }
+  // The tee sheet was never under the blanket lock; only a completed tournament shuts it (`teeSheetChangeAllowed`, PR 7c).
+  if (finished) out.teeSheet = lock("completed", "Locked because the tournament is completed.", REOPEN_WAY_OUT);
   // The confirmed draw — `movePlayerToGroup`'s second lock, asked after the first.
   if (!out.flights.locked && f.flightsConfirmed) {
     out.flights = lock("draw", "Locked because the draw is confirmed.", { says: "Reopen the draw on Flights", href: "/grouping" });

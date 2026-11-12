@@ -152,9 +152,10 @@ export async function saveTeeSheet(
   }
   const problems = validateTeeSheet(clean, new Set(field));
   if (problems.length) return { ok: false, error: problems[0] };
-  // A round with scores keeps every group that has started as it was; the rest may be drawn again.
+  // A group that has started (teed off by the club's clock, or a card in) stays as it was, scores or none, as the moves
+  // hold it; the rest may be drawn again.
   const before = parseTeeSheet(stage.teeSheet ?? "");
-  if (verdict?.ok && verdict.groupsDecide && before) {
+  if (verdict?.ok && before) {
     const kept = startedGroupsRefusal(before, clean, await slotLocksFor(session.eventId, stageId, before));
     if (kept) return { ok: false, error: kept };
   }

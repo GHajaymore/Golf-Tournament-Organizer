@@ -104,20 +104,29 @@ describe("every other step is open, and a published sheet says so", () => {
 });
 
 describe("what is said after a change to a published sheet", () => {
-  it("names how many players have been told, singular and plural", () => {
-    expect(teeSheetWarnWords("told", 1)).toBe("Players were already sent their times. 1 player has been told of the change.");
-    expect(teeSheetWarnWords("told", 3)).toBe("Players were already sent their times. 3 players have been told of the change.");
+  it("names how many players' times changed, singular and plural", () => {
+    expect(teeSheetWarnWords("told", 1)).toBe("Players were already sent their times. 1 player’s time changed. Those with notifications on get an alert; everyone sees it in TourneyHQ.");
+    expect(teeSheetWarnWords("told", 3)).toBe("Players were already sent their times. 3 players’ times changed. Those with notifications on get an alert; everyone sees it in TourneyHQ.");
   });
   it("says so when nobody is told, and when the sheet is hidden", () => {
-    expect(teeSheetWarnWords("told", 0)).toBe("Players were already sent their times. Nobody’s time or start hole moved, so nobody is told.");
-    expect(teeSheetWarnWords("hidden", 0)).toBe("Players were already sent their times. The sheet is now hidden from them, and nobody is told.");
+    expect(teeSheetWarnWords("told", 0)).toBe("Players were already sent their times. Nobody’s time or start hole moved.");
+    expect(teeSheetWarnWords("hidden", 0)).toBe("Players were already sent their times. The sheet is now hidden from them.");
   });
   it("never says locked where something is still allowed", () => {
     for (const w of [teeSheetWarnWords("told", 2), teeSheetWarnWords("hidden", 0), teeSheetWarnWords("told", 0)]) expect(w).not.toMatch(/lock/i);
   });
   it("the Recent changes line holds a count and no name", () => {
-    expect(teeSheetChangedLine("Round 1", 3)).toBe("Round 1 tee sheet changed after publish: 3 players re-told.");
-    expect(teeSheetChangedLine("", 1)).toBe("The tee sheet changed after publish: 1 player re-told.");
+    expect(teeSheetChangedLine("Round 1", 3)).toBe("Round 1 tee sheet changed after it was published: 3 players’ times changed.");
+    expect(teeSheetChangedLine("", 1)).toBe("The tee sheet changed after it was published: 1 player’s time changed.");
+  });
+});
+
+describe("the words never claim a count of people told", () => {
+  it("a push reaches only players with an email and notifications on, so no word says anybody was told", () => {
+    for (const warn of ["told", "hidden"] as const) {
+      for (const n of [0, 1, 2, 3, 28]) expect(teeSheetWarnWords(warn, n), `${warn} ${n}`).not.toMatch(/told|re-told|have been|has been/i);
+    }
+    for (const n of [0, 1, 3]) expect(teeSheetChangedLine("Round 1", n)).not.toMatch(/told|re-told/i);
   });
 });
 

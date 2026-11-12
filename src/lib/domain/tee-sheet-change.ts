@@ -17,7 +17,7 @@
  *
  *   - BEFORE AND AFTER THE DRAW: open. A sheet nobody has been sent is a draft.
  *   - A PUBLISHED SHEET: the change is made and SAID (`warn`): players were
- *     already sent their time, and how many have now been told of the change. It
+ *     already sent their time, and how many players' times changed (a push reaches only those with notifications on). It
  *     is a warning, not a refusal: a no-show at 9:00 is the everyday case.
  *   - AFTER SCORES IN THIS ROUND: open, and the GROUPS decide. A round with scores
  *     does not shut its whole sheet: a no-show at 9:00 while 7:30 is out playing
@@ -122,11 +122,15 @@ export function toldCount(previous: TeeSheet | null, next: TeeSheet): number {
   return teeTimeNotices(previous, next, false).length;
 }
 
-/** The warning, said after a change to a published sheet: players were sent their time; how many have been told now. */
+/**
+ * The warning, said after a change to a published sheet: players were sent their time; how many players' times
+ * changed. It never says how many were TOLD — a push reaches only a player with an email and notifications on, and
+ * a demo club's reaches nobody (`push.ts`) — so the count is of times changed, and the alert is said as a may.
+ */
 export function teeSheetWarnWords(warn: TeeSheetWarn, told: number): string {
-  if (warn === "hidden") return "Players were already sent their times. The sheet is now hidden from them, and nobody is told.";
-  if (told === 0) return "Players were already sent their times. Nobody’s time or start hole moved, so nobody is told.";
-  return `Players were already sent their times. ${told} ${told === 1 ? "player has" : "players have"} been told of the change.`;
+  if (warn === "hidden") return "Players were already sent their times. The sheet is now hidden from them.";
+  if (told === 0) return "Players were already sent their times. Nobody’s time or start hole moved.";
+  return `Players were already sent their times. ${told} ${told === 1 ? "player’s time" : "players’ times"} changed. Those with notifications on get an alert; everyone sees it in TourneyHQ.`;
 }
 
 /**
@@ -166,5 +170,5 @@ export function teeSheetDoors(facts: TeeSheetChangeFacts): TeeSheetDoors {
 /** The line Recent changes shows for a change to a published sheet: by count, so no name is stored. */
 export function teeSheetChangedLine(roundLabel: string, told: number): string {
   const r = roundLabel ? `${roundLabel} tee sheet` : "The tee sheet";
-  return `${r} changed after publish: ${told} ${told === 1 ? "player" : "players"} re-told.`;
+  return `${r} changed after it was published: ${told} ${told === 1 ? "player’s time" : "players’ times"} changed.`;
 }
