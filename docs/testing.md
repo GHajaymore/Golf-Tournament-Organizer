@@ -199,7 +199,7 @@ a held commit — a clean full `round/…` on that commit does not, because the 
 only. *Override freeze* overrides the freeze and nothing else.
 
 **The cap on parts at a time is counted at plan time** (`round-cap.mjs`): it sees the jobs running
-when the round's plan job ran, not the ones that start after, and it does not count queued jobs. So a
+when the round's plan job ran, not the ones that start after, and it does not count queued jobs (a part held back by its own round's max-parallel is one, and holds no runner). So a
 round planned on a quiet account can still crowd a CI run that starts later: watch the deploy job's
 queue time, by the panel's rule in `docs/release-strategy.md` step 9.
 
