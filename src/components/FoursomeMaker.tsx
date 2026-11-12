@@ -7,9 +7,12 @@ import { formGroups, type FormationRule, type Player } from "@/lib/domain";
 import { listNames } from "@/lib/format";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { useTransition } from "react";
-import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
+import { moveInTeeSheet, saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
 import { drawTimesFrom, sameSheet, sheetOnScreen, sheetStatusLine, startStyleOf, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
+import { applyMoves, emptiedGroups, groupStep, GROUPS_NOTE, moveKindsOf, playerMoveOptions, removalLines, shortGroupWarnings, SIDES_NOTE, type MoveMode, type MoveOption, type SheetMove } from "@/lib/domain/tee-sheet-moves";
 import { Icon } from "./Icon";
+import { ReplacePlayer } from "./ReplacePlayer";
+import type { ReplaceCandidate, ReplaceWorld } from "@/lib/domain/tee-sheet-replace";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import { useFormatting } from "./CurrencyProvider";
 import { usesTwentyFourHourClock } from "@/lib/domain/locale";
@@ -73,7 +76,25 @@ export function FoursomeMaker({
   terms = golfTermsFor("us"),
   requests = [],
   firstHole = 1,
+  locks = {},
+  canMove = false,
+  door = null,
+  moveMode = "players",
+  replace = null,
 }: {
+  /**
+   * "Replace…" beside each player of a group that has not started (B43): what the panel chooses from and
+   * the sentence it states. Null where nobody may be swapped (not staff, a round played as matches, a cup session).
+   */
+  replace?: { candidates: ReplaceCandidate[]; world: ReplaceWorld; inSides: boolean; weekly: boolean; scoringBasis: string } | null;
+  /** What may move in this round (`moveModeOf`, the answer the server refuses by): players, whole sides, or only whole groups. */
+  moveMode?: MoveMode;
+  /** Why nobody can move anyone now (`fieldRefusal(…, "place-in-group")`), or null. The controls are not drawn while it is set. */
+  door?: string | null;
+  /** Saved slots that have begun (teed off, or a card in), with why — `slotLocks`. Index to sentence. */
+  locks?: Record<number, string>;
+  /** Staff, on a saved sheet whose field rule allows a change: the move controls are drawn. */
+  canMove?: boolean;
   /** The course's number for the first hole on the round's card — 10 on a back nine. */
   firstHole?: number;
   /**
@@ -164,6 +185,13 @@ export function FoursomeMaker({
   const [firstTee, setFirstTee] = useState(savedTimes.firstTee ?? "08:00");
   const [interval, setInterval] = useState(savedTimes.interval ?? 10);
 
+  // The DRAFT of moves on the saved sheet: kept here, written once on Save changes.
+  const [moves, setMoves] = useState<SheetMove[]>([]);
+  const [moveError, setMoveError] = useState("");
+  // What a replacement said: the player replaced is off the sheet afterwards, so the screen holds it.
+  const [replaceSaid, setReplaceSaid] = useState("");
+  const [movePending, startMoveTransition] = useTransition();
+
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const positionOf = useMemo(() => positionLookup(standings), [standings]);
   const rng = useMemo(() => {
@@ -239,6 +267,43 @@ export function FoursomeMaker({
     playerIds: g.playerIds,
   }));
   const shown = sheetOnScreen(savedGroups, previewSheet, showDrawControls);
+
+  /**
+   * THE SAVED SHEET WITH THE DRAFT OF MOVES LAID OVER IT — the same function
+   * the server replays (`applyMoves`). Times stay with the slots.
+   */
+  const fieldIds = useMemo(() => new Set(players.map((p) => p.id)), [players]);
+  const moving = canMove && !door && !!savedAt && shown.source === "saved" && savedGroups.length > 0;
+  const baseSheet = useMemo(() => ({ savedAt, startType: savedStart || "tee", groups: [...savedGroups] }), [savedAt, savedStart, savedGroups]);
+  const draft = useMemo(() => {
+    const r = applyMoves(baseSheet, moves, fieldIds, locks);
+    return r.ok ? r.sheet : baseSheet;
+  }, [baseSheet, moves, fieldIds, locks]);
+  const draftGroups: readonly TeeSheetGroup[] = moving ? draft.groups : shown.groups;
+  const addMove = (m: SheetMove) => {
+    const r = applyMoves(draft, [m], fieldIds, locks);
+    if (!r.ok) {
+      setMoveError(r.says);
+      return;
+    }
+    setMoveError("");
+    setMoves((all) => [...all, m]);
+  };
+  const saveMoves = () => {
+    setMoveError("");
+    startMoveTransition(async () => {
+      const res = await moveInTeeSheet(stageId, savedAt, moves);
+      if (!res.ok) {
+        setMoveError(res.error ?? "Couldn’t save the changes.");
+        return;
+      }
+      setMoves([]);
+    });
+  };
+  // A number read out of a select the screen itself filled, read the one way (`readWhole`).
+  const slotOf = (v: string) => figureOr(readWhole(v), -1);
+  const optionText = (o: MoveOption) =>
+    `${o.name} · ${o.time ? `${o.time} · ` : ""}${o.players} ${o.players === 1 ? "player" : "players"}${o.disabled ? ` — ${o.disabled}` : ""}`;
 
   // Composition summary, e.g. "7 foursomes · 1 twosome".
   const sizes = groups.map((g) => g.playerIds.length);
@@ -815,8 +880,54 @@ export function FoursomeMaker({
         </div>
       )}
 
+      {canMove && door && shown.source === "saved" && (
+        <p className="text-muted" style={{ margin: "0 0 12px", fontSize: 13 }}>{door}</p>
+      )}
+      {moving && (
+        <div role="region" aria-label="Move players and groups" style={{ display: "flex", flexDirection: "column", gap: 8, margin: "0 0 12px" }}>
+          <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
+            {moveMode === "sides" ? SIDES_NOTE : moveMode === "groups" ? GROUPS_NOTE : "Move a player to another group, or a group earlier or later. The times stay with the slots."} Nothing is saved until you press Save changes.
+          </p>
+          {moves.length > 0 && (
+            <div className="card elev-sm" style={{ display: "flex", flexDirection: "column", gap: 8, borderLeft: "3px solid var(--color-accent)" }}>
+              <span role="status" style={{ fontSize: 14, fontWeight: 600 }}>
+                {moves.length} {moves.length === 1 ? "change" : "changes"} not saved yet.
+              </span>
+              {[...removalLines(draft, fieldIds, locks), ...shortGroupWarnings(draft, fieldIds, terms)].map((w) => (
+                <p key={w} className="text-muted" role="note" style={{ margin: 0, fontSize: 13 }}>
+                  <Icon name="warning-circle" /> {w}
+                </p>
+              ))}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button type="button" className="btn btn-primary" style={{ minHeight: 44 }} disabled={movePending} onClick={saveMoves}>
+                  <Icon name="floppy-disk" /> {movePending ? "Saving…" : "Save changes"}
+                </button>
+                <button type="button" className="btn btn-secondary" style={{ minHeight: 44 }} disabled={movePending} onClick={() => { setMoves([]); setMoveError(""); }}>
+                  Cancel
+                </button>
+              </div>
+              {saveState.published && (
+                <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
+                  The sheet stays published. Only the players whose time changes are told.
+                </p>
+              )}
+            </div>
+          )}
+          {moveError && (
+            <p className="form-error" role="alert" style={{ margin: 0 }}>
+              {moveError}
+            </p>
+          )}
+        </div>
+      )}
+
+      {replaceSaid && (
+        <p role="status" className="card elev-sm" style={{ margin: "0 0 12px", fontSize: 14 }}>
+          {replaceSaid}
+        </p>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
-        {shown.groups.map((g, i) => {
+        {draftGroups.map((g, i) => {
           // A player who has left the field since the sheet was saved has no
           // row to show; the drift banner above says who and what to do.
           const gp = g.playerIds.map((id) => byId.get(id)!).filter(Boolean);
@@ -830,11 +941,58 @@ export function FoursomeMaker({
                 <Icon name="clock" style={{ marginRight: 4 }} />
                 {`Hole ${startHoleNumber(g.startHole, firstHole)}${g.half ?? ""} · ${g.time}`}
               </div>
+              {moving && (
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+                  {(() => {
+                    const earlier = groupStep(draft, locks, i, -1);
+                    const later = groupStep(draft, locks, i, 1);
+                    const label = g.name || `Group ${i + 1}`;
+                    return (
+                      <>
+                        <button type="button" className="btn btn-secondary" style={{ minWidth: 44, minHeight: 44 }} aria-label={`Move ${label} earlier`} disabled={movePending || earlier === null} onClick={() => earlier !== null && addMove({ kind: "group", from: i, to: earlier })}>
+                          <Icon name="arrow-up" />
+                        </button>
+                        <button type="button" className="btn btn-secondary" style={{ minWidth: 44, minHeight: 44 }} aria-label={`Move ${label} later`} disabled={movePending || later === null} onClick={() => later !== null && addMove({ kind: "group", from: i, to: later })}>
+                          <Icon name="arrow-down" />
+                        </button>
+                        <select
+                          aria-label={`Move ${label} to position`}
+                          className="input"
+                          style={{ flex: "1 1 120px", minWidth: 0, minHeight: 44 }}
+                          value=""
+                          disabled={movePending || !!locks[i]}
+                          onChange={(e) => e.target.value !== "" && addMove({ kind: "group", from: i, to: slotOf(e.target.value) })}
+                        >
+                          <option value="">Move to position…</option>
+                          {draft.groups.map((_, k) =>
+                            k === i ? null : (
+                              <option key={k} value={String(k)} disabled={!!locks[k]}>
+                                {k + 1}{locks[k] ? ` — ${locks[k]}` : ""}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+              {moving && emptiedGroups(draft, fieldIds, locks).includes(i) && (
+                <p role="note" className="text-muted" style={{ margin: 0, fontSize: 13 }}>
+                  No players left. It is removed when you save changes; move a later group up into it to take its time.
+                </p>
+              )}
+              {moving && locks[i] && (
+                <p role="note" className="text-muted" style={{ margin: 0, fontSize: 13 }}>
+                  <Icon name="lock-simple" /> {locks[i]} It cannot be changed here.
+                </p>
+              )}
               {gp.map((p) => {
                 const pos = positionOf(p.id);
                 const ranked = hasStandings && pos !== Number.MAX_SAFE_INTEGER;
                 return (
-                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, padding: "3px 0", borderBottom: "1px solid var(--color-divider)" }}>
+                  <div key={p.id} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, padding: "3px 0", borderBottom: "1px solid var(--color-divider)" }}>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {ranked && (
                         <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums", marginRight: 6 }}>
@@ -845,8 +1003,76 @@ export function FoursomeMaker({
                     </span>
                     <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{indexLabel(p)}</span>
                   </div>
+                  {moving && moveKindsOf(moveMode).player && !locks[i] && (
+                    <select
+                      aria-label={`Move ${p.name} to`}
+                      className="input"
+                      style={{ minWidth: 0, minHeight: 44, margin: "4px 0" }}
+                      value=""
+                      disabled={movePending}
+                      onChange={(e) => e.target.value !== "" && addMove({ kind: "player", playerId: p.id, toGroup: slotOf(e.target.value) })}
+                    >
+                      <option value="">{`Move ${p.name} to…`}</option>
+                      {playerMoveOptions(draft, p.id, fieldIds, locks).map((o) => (
+                        <option key={o.index} value={String(o.index)} disabled={!!o.disabled}>
+                          {optionText(o)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {moving && replace && !locks[i] && (
+                    // Not while a draft of moves is open: the slot numbers it shows are not yet the saved sheet's.
+                    moves.length === 0 ? (
+                      <ReplacePlayer
+                        stageId={stageId}
+                        savedAt={savedAt}
+                        player={{ id: p.id, name: p.name }}
+                        group={{ name: g.name || `Group ${i + 1}`, time: g.time }}
+                        candidates={replace.candidates}
+                        world={replace.world}
+                        inSides={replace.inSides}
+                        weekly={replace.weekly}
+                        scoringBasis={replace.scoringBasis}
+                        disabled={movePending}
+                        door={door}
+                        onSaid={setReplaceSaid}
+                      />
+                    ) : null
+                  )}
+                  </div>
                 );
               })}
+              {moving && moveKindsOf(moveMode).side && !locks[i] &&
+                playingSides
+                  .filter((side) => side.every((id) => g.playerIds.includes(id)))
+                  .map((side) => {
+                    const names = side.map((id) => byId.get(id)?.name ?? "").filter(Boolean);
+                    const label = names.length > 1 ? `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}` : names[0] ?? "";
+                    return (
+                      <select
+                        key={side.join("|")}
+                        aria-label={`Move ${label} to`}
+                        className="input"
+                        style={{ minWidth: 0, minHeight: 44, margin: "4px 0" }}
+                        value=""
+                        disabled={movePending}
+                        onChange={(e) => e.target.value !== "" && addMove({ kind: "side", playerIds: side, toGroup: slotOf(e.target.value) })}
+                      >
+                        <option value="">{`Move ${label} to…`}</option>
+                        {draft.groups.map((dg, k) => {
+                          if (k === i) return null;
+                          const here = dg.playerIds.filter((id) => fieldIds.has(id)).length;
+                          const name = dg.name || `Group ${k + 1}`;
+                          const why = locks[k] ? locks[k] : here + side.length > 4 ? `${name} has no room for ${side.length}.` : "";
+                          return (
+                            <option key={k} value={String(k)} disabled={!!why}>
+                              {optionText({ index: k, name, time: dg.time, players: here, ...(why ? { disabled: why } : {}) })}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    );
+                  })}
             </div>
           );
         })}

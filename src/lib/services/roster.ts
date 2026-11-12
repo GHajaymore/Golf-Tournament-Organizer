@@ -1,5 +1,5 @@
 import "server-only";
-import type { Event } from "@prisma/client";
+import type { Event, Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { handicapPolicyOf, refuseHandByHand } from "../domain/handicap-policy";
 import { clubHandicapBody, homeBodyId } from "../domain/handicap-body";
@@ -248,6 +248,8 @@ export async function upsertMember(
   organizationId: string,
   input: MemberIdentity,
   writer: MemberWriter,
+  /** The client to write on: the shared one, or a transaction's, so a press that may be refused leaves nothing behind. */
+  db: Prisma.TransactionClient = prisma,
 ): Promise<string | null> {
   const name = input.name.trim();
   if (!organizationId || !name) return null;
@@ -259,11 +261,11 @@ export async function upsertMember(
     input.guest
       ? null
       : email
-        ? prisma.member.findFirst({ where: { organizationId, email } })
-        : prisma.member.findFirst({
+        ? db.member.findFirst({ where: { organizationId, email } })
+        : db.member.findFirst({
             where: { organizationId, name: { equals: name, mode: "insensitive" } },
           }),
-    prisma.organization.findUnique({
+    db.organization.findUnique({
       where: { id: organizationId },
       select: { handicapPolicy: true, handicapAuthorityId: true, country: true },
     }),
@@ -318,7 +320,7 @@ export async function upsertMember(
       fill.handicapSource = "manual";
     }
     if (Object.keys(fill).length > 0) {
-      await prisma.member.update({ where: { id: existing.id }, data: fill });
+      await db.member.update({ where: { id: existing.id }, data: fill });
     }
     return existing.id;
   }
@@ -347,7 +349,7 @@ export async function upsertMember(
    * had it arrived a moment later. Only an address can collide (the index is on
    * it), so only an address is looked up.
    */
-  const createdRow = await prisma.member
+  const createdRow = await db.member
     .create({
     data: {
       organizationId,
@@ -375,7 +377,7 @@ export async function upsertMember(
       const duplicateAddress =
         !!email && typeof err === "object" && err !== null && (err as { code?: string }).code === "P2002";
       if (!duplicateAddress) throw err;
-      const winner = await prisma.member.findFirst({ where: { organizationId, email }, select: { id: true } });
+      const winner = await db.member.findFirst({ where: { organizationId, email }, select: { id: true } });
       if (!winner) throw err;
       return winner;
     });
@@ -399,9 +401,9 @@ export async function upsertMember(
  * The roster's word, not the caller's: `upsertMember` has already filled a
  * blank gender from what this entry said, and never overwrites a stored one.
  */
-export async function memberGender(memberId: string | null | undefined): Promise<string> {
+export async function memberGender(memberId: string | null | undefined, db: Prisma.TransactionClient = prisma): Promise<string> {
   if (!memberId) return "";
-  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { gender: true } });
+  const m = await db.member.findUnique({ where: { id: memberId }, select: { gender: true } });
   return m?.gender ?? "";
 }
 

@@ -153,7 +153,7 @@ test("a member asks to play with a friend, the committee sees it, and the draw k
   });
 
   /** Who is in each group on the committee's screen. */
-  const group = (n: number) => page.locator(".card", { hasText: `Group ${n}` }).filter({ hasText: /Hole \d+ · / }).first();
+  const group = (n: number) => page.locator(".card").filter({ has: page.getByText(new RegExp(`^Group ${n}$`)) }).filter({ hasText: /Hole \d+ · / }).first();
   const sheet = async (): Promise<string[][]> => {
     const groups: string[][] = [];
     for (const n of [1, 2]) {
