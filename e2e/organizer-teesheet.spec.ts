@@ -155,7 +155,7 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
       }).toPass({ timeout: 20_000 });
 
       // The draw the secretary sees, group by group.
-      const group = (n: number) => page.locator(".card", { hasText: `Group ${n}` }).filter({ hasText: /Hole \d+ · / }).first();
+      const group = (n: number) => page.locator(".card").filter({ has: page.getByText(new RegExp(`^Group ${n}$`)) }).filter({ hasText: /Hole \d+ · / }).first();
       await expect(group(1)).toContainText("Hole 1 · 7:30 AM");
       for (const name of ["Alder Quayle", "Dune Quayle", "Elm Quayle"]) await expect(group(1)).toContainText(name);
       await expect(group(2)).toContainText("Hole 10 · 7:30 AM");

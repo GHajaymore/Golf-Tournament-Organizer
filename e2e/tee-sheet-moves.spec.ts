@@ -138,7 +138,7 @@ test.describe("tee sheet moves: a tournament", () => {
       // A card in locks its group: said on the row, and its players have no move.
       await returnCard(eventId, stageId, ids[4]);
       await open(page, stageId);
-      await expect(page.getByText("Group 3 has a card in.", { exact: false }).first()).toBeVisible();
+      await expect(page.getByRole("note").filter({ hasText: "Group 3 has a card in." })).toBeVisible();
       await expect(page.getByLabel(`Move ${NAMES[4]} to`, { exact: true })).toHaveCount(0);
       await expect(page.getByLabel(`Move ${NAMES[0]} to`, { exact: true }).locator("option", { hasText: "Group 3" })).toBeDisabled();
       expect(errors, "the page threw").toEqual([]);
