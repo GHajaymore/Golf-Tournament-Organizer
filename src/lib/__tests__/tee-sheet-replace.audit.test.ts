@@ -359,7 +359,7 @@ describe("replaceInTeeSheet — a tournament with no weekly sign-up", () => {
     expect((await prisma.player.findUniqueOrThrow({ where: { id: p.a3 } })).status).toBe("confirmed");
     expect(await confirmed()).toBe(2);
     const log = await prisma.auditLog.findMany({ where: { eventId }, select: { action: true, detail: true } });
-    expect(log.map((l) => l.action).sort()).toEqual(["removed", "replaced"]);
+    expect(log.map((l) => l.action).sort()).toEqual(["removed", "replaced", "tee-sheet.changed"]);
     expect(log.find((l) => l.action === "removed")?.detail).toBe(`${TAG} a1 was withdrawn from the field.`);
   });
 

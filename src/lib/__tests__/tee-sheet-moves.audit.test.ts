@@ -195,7 +195,7 @@ describe("moveInTeeSheet", () => {
       { kind: "player", playerId: ids.dan, toGroup: 0 },
       { kind: "player", playerId: ids.eve, toGroup: 2 },
     ]);
-    expect(res).toEqual({ ok: true, said: "The sheet is saved. Group 2 removed (no players left)." });
+    expect(res).toEqual({ ok: true, said: "The sheet is saved. Group 2 removed (no players left). Players were already sent their times. 2 players have been told of the change." });
     const g = await groups();
     expect(g.map((x) => x.playerIds)).toEqual([[ids.ann, ids.bob, ids.cat, ids.dan], [ids.fay, ids.gus, ids.hal, ids.eve], [ids.ivy]]);
     expect(g.map((x) => x.time)).toEqual(["8:00 AM", "8:20 AM", "8:30 AM"]);
