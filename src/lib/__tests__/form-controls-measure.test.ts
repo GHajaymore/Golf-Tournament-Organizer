@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { readVerbatim } from "./source";
 import { CONTROL_CHANGED, changeLine, controlSignature, installFormControls, inventoryLine, screenLine } from "../../../e2e/form-controls";
 import {
   FORM_CONTROLS_SCOPE, VALUE_CLASSES, formControlsFigure, formControlsReport, joinFormControls, parseFormControlLine, signatureMatches,
@@ -156,7 +157,7 @@ describe("N of M", () => {
 });
 
 describe("every round says the figure (the round's summary.md)", () => {
-  const merge = readFileSync("scripts/qa/merge.mjs", "utf8");
+  const merge = readVerbatim("scripts/qa/merge.mjs");
 
   it("merge.mjs carries the figure through the reach it shapes and writes it into the summary, with the scope", () => {
     expect(merge).toContain('import { formControlsFigure } from "./form-controls.mjs";');
