@@ -37,7 +37,7 @@ export async function sheetFieldFor(eventId: string, stageId: string): Promise<S
     const explicit = await prisma.roundAttendance.findMany({ where: { eventId, stageId } });
     const resolved = resolveAttendance(
       mode,
-      confirmed,
+      confirmed.map((p) => p.id),
       explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
     );
     const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));

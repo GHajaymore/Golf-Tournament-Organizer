@@ -1204,10 +1204,11 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
     const explicit = await prisma.roundAttendance.findMany({
       where: { eventId: session.eventId },
     });
+    const confirmedIds = state.confirmed.map((p) => p.id);
     for (const r of rounds) {
       const resolved = resolveAttendance(
         entryAttendanceMode,
-        state.confirmed,
+        confirmedIds,
         explicit
           .filter((e) => e.stageId === r.stageId)
           .map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),

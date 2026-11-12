@@ -198,7 +198,7 @@ async function withAttendance(
   eventId: string,
   state: {
     event: { attendanceMode?: string };
-    confirmed: { id: string; standing: string }[];
+    confirmed: { id: string }[];
     roundThru: (playerId: string, stageId: string) => number;
   },
   stageId: string,
@@ -210,7 +210,7 @@ async function withAttendance(
   const explicit = await prisma.roundAttendance.findMany({ where: { eventId, stageId } });
   const resolved = resolveAttendance(
     mode,
-    state.confirmed,
+    state.confirmed.map((p) => p.id),
     explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
   );
   const out = new Set(resolved.rows.filter((r) => r.status === "out").map((r) => r.playerId));

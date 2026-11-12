@@ -276,7 +276,7 @@ export default async function StagesPage({ searchParams }: { searchParams: Promi
       : (() => {
             const resolved = resolveAttendance(
               attendanceMode,
-              state.confirmed,
+              state.confirmed.map((p) => p.id),
               attendanceRows
                 .filter((r) => r.stageId === s.id)
                 .map((r) => ({ playerId: r.playerId, status: r.status, decidedBy: r.decidedBy })),

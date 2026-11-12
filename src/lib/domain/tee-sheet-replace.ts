@@ -96,7 +96,7 @@ export function candidateWhy(c: ReplaceCandidate, absenteeId: string, world: Rep
   if (world.out.includes(c.id)) return "Marked out for this week. Put them back in first.";
   if (world.cut && !world.cut.includes(c.id)) return "Missed the cut.";
   const at = groupOf(world.sheet, c.id);
-  if (at >= 0 && world.field.includes(c.id)) return `Already in ${groupName(world.sheet, at)}.`;
+  if (at >= 0) return `Already in ${groupName(world.sheet, at)}.`;
   const side = world.sides[c.id];
   if (side) return `Already playing in ${side}.`;
   if (world.sameFlight) {
@@ -205,19 +205,20 @@ export function replaceWillSay(args: { absentee: string; sub: string; group: str
 }
 
 /** What a side-game voiding says in the audit line. */
-export function voidedGamesWords(v: { contests: number; sideGames: number; skins: Array<{ cents: number; paid: boolean }>; paid: number }): string {
-  if (v.contests + v.sideGames + v.skins.length === 0) return "";
+export function voidedGamesWords(v: { contests: number; sideGames: number; kept: number; skins: Array<{ cents: number; paid: boolean }> }): string {
+  if (v.contests + v.sideGames + v.kept + v.skins.length === 0) return "";
   const parts = [
     v.contests ? `${v.contests} contest${v.contests === 1 ? "" : "s"}` : "",
     v.sideGames ? `${v.sideGames} side game${v.sideGames === 1 ? "" : "s"}` : "",
   ].filter(Boolean);
-  const out = parts.length ? `Marked the absentee out of ${parts.join(" and ")}, who paid left as it was` : "";
+  const out = parts.length ? `Marked the absentee out of ${parts.join(" and ")} they had not paid for` : "";
+  const kept = v.kept ? `Left ${v.kept} paid stake${v.kept === 1 ? "" : "s"} in the pot, as a withdrawal leaves it` : "";
   const skins = v.skins.length
     ? `Left the absentee’s stake in ${v.skins.length} skins pot${v.skins.length === 1 ? "" : "s"} on the record (${v.skins
         .map((s) => `${(s.cents / 100).toFixed(2)} ${s.paid ? "paid" : "not paid"}`)
         .join(", ")}), to be settled by hand`
     : "";
-  return `${[out, skins].filter(Boolean).join(". ")}.`;
+  return `${[out, kept, skins].filter(Boolean).join(". ")}.`;
 }
 
 /**

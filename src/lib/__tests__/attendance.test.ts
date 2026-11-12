@@ -59,29 +59,8 @@ describe("the opt deadline", () => {
   });
 });
 
-describe("a guest's silence is OUT, whatever the mode (a stand-in is not in every later week)", () => {
-  const field = [
-    { id: "m1", standing: "member" },
-    { id: "m2", standing: "" },
-    { id: "g1", standing: "guest" },
-  ];
-  it("in an opt-out league the members are in by default and the guest is not", () => {
-    const s = resolveAttendance("opt-out", field, []);
-    expect(s.rows.map((r) => [r.playerId, r.status])).toEqual([["m1", "in"], ["m2", "in"], ["g1", "out"]]);
-    expect(s.inByDefault).toBe(2);
-  });
-  it("said in the week, the guest is in; the default helpers agree", () => {
-    const s = resolveAttendance("opt-out", field, [{ playerId: "g1", status: "in", decidedBy: "Desk" }]);
-    expect(s.rows.find((r) => r.playerId === "g1")).toMatchObject({ status: "in", explicit: true });
-    expect(defaultStatus("opt-out", true)).toBe("out");
-    expect(defaultStatus("opt-out", false)).toBe("in");
-    // Where nothing is asked each week a guest is in, as everybody is.
-    expect(defaultStatus("everyone", true)).toBe("in");
-  });
-});
-
 describe("resolving a field for one round", () => {
-  const field = ["a", "b", "c", "d"].map((id) => ({ id, standing: "member" }));
+  const field = ["a", "b", "c", "d"];
 
   it("counts explicit and defaulted separately", () => {
     // Sixteen confirmed and eight silent is a different Wednesday from
@@ -163,7 +142,7 @@ describe("captains send the list and the club enters it", () => {
   });
 
   it("counts only the players staff have entered", () => {
-    const s = resolveAttendance("captains", ["a", "b", "c"].map((id) => ({ id, standing: "" })), [
+    const s = resolveAttendance("captains", ["a", "b", "c"], [
       { playerId: "a", status: "in", decidedBy: "Club office" },
       { playerId: "b", status: "in", decidedBy: "Club office" },
     ]);
@@ -175,7 +154,7 @@ describe("captains send the list and the club enters it", () => {
   });
 
   it("records who entered it, because 'why am I not playing' needs a name", () => {
-    const s = resolveAttendance("captains", [{ id: "a", standing: "" }], [
+    const s = resolveAttendance("captains", ["a"], [
       { playerId: "a", status: "in", decidedBy: "Club office" },
     ]);
     expect(s.rows[0]).toMatchObject({ status: "in", explicit: true, decidedBy: "Club office" });
@@ -312,5 +291,19 @@ describe("changing the weekly sign-up mode", () => {
         }
       }
     }
+  });
+});
+
+describe("the default is never asked WHO somebody is (one rule: a stand-in is made out by rows, not by a second default)", () => {
+  it("defaultStatus and effectiveStatus take the mode and the answer only, so the calendar, the sheet and the board cannot read a guest differently", () => {
+    expect(defaultStatus.length).toBe(1);
+    expect(effectiveStatus.length).toBe(2);
+    // Whoever somebody is, silence in an opt-out league is IN; an explicit answer wins.
+    expect(effectiveStatus("opt-out", null)).toBe("in");
+    expect(effectiveStatus("opt-out", "out")).toBe("out");
+  });
+  it("resolveAttendance reads the same rows for everybody: a guest with no row is in an opt-out league, one with an OUT row is out", () => {
+    const s = resolveAttendance("opt-out", ["member", "csv-guest", "stand-in"], [{ playerId: "stand-in", status: "out", decidedBy: "Desk" }]);
+    expect(s.rows.map((r) => [r.playerId, r.status])).toEqual([["member", "in"], ["csv-guest", "in"], ["stand-in", "out"]]);
   });
 });

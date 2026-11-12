@@ -487,7 +487,7 @@ async function roundFieldFor(
     const explicit = await prisma.roundAttendance.findMany({ where: { eventId, stageId } });
     const resolved = resolveAttendance(
       mode,
-      state.confirmed,
+      ids,
       explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
     );
     const out = new Set(resolved.rows.filter((r) => r.status === "out").map((r) => r.playerId));

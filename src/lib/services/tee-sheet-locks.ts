@@ -4,6 +4,7 @@ import { prisma } from "../db";
 import { clubWallClock } from "../domain/club-clock";
 import { cleanIsoDate } from "../domain/round-dates";
 import { slotLocks, type SlotLocks } from "../domain/tee-sheet-moves";
+import { zoneOfEventOn } from "./club-clock";
 import type { TeeSheet } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
 
@@ -19,15 +20,14 @@ import { isPlayingRound } from "../stage-types";
  * round with a stroke on it — a row with none is not a card anybody returned.
  */
 export async function slotLocksFor(eventId: string, stageId: string, sheet: TeeSheet, db: Prisma.TransactionClient = prisma): Promise<SlotLocks> {
-  // The club's zone is read on the same client as the rest (the club's own `timeZone`, as `zoneOfEvent` reads it),
-  // so asked inside a transaction every read is on that transaction's connection.
-  const [event, stage, firstRound, cards] = await Promise.all([
-    db.event.findUnique({ where: { id: eventId }, select: { startOn: true, organization: { select: { timeZone: true } } } }),
+  // The club's zone is `zoneOfEventOn`'s answer (`zoneOfEvent`'s one reader), on the same client as the rest.
+  const [zone, event, stage, firstRound, cards] = await Promise.all([
+    zoneOfEventOn(db, eventId),
+    db.event.findUnique({ where: { id: eventId }, select: { startOn: true } }),
     db.stage.findFirst({ where: { id: stageId, eventId }, select: { playedOn: true } }),
     db.stage.findMany({ where: { eventId }, orderBy: { position: "asc" }, select: { id: true, type: true } }),
     db.scorecard.findMany({ where: { eventId, stageId }, select: { playerId: true, strokes: true } }),
   ]);
-  const zone = event?.organization?.timeZone ?? "";
   const roundDay = cleanIsoDate(stage?.playedOn) || (firstRound.find((s) => isPlayingRound(s.type))?.id === stageId ? cleanIsoDate(event?.startOn) : "");
   const cardsIn = new Set(
     cards

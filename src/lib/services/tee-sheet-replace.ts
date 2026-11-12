@@ -115,21 +115,28 @@ export async function sidesHavePlay(eventId: string, stageId: string, teamIds: s
 /**
  * THE ABSENTEE'S SIDE-GAME ENTRIES FOR THIS ROUND, MARKED OUT — and never the record of who PAID
  * (Hard rule 7: the app records money, it never loses the record of it):
- *  - a contest or a side game: the entry is marked `excluded` (out, always, in either mode) and `confirmed`
- *    is left exactly as it was; in an opt-out one, where silence is "in and paid", an out row is written
- *    that says so (`confirmed` stays true, the mode's own reading of a stake held);
- *  - a skins pot has no out flag, so its entry is LEFT as it is (a stake taken stays taken, as a withdrawal
- *    leaves it: "paid but gone"); the amount and whether it was paid are returned for the audit line, for
- *    the committee to settle by hand.
+ * A REPLACED PLAYER IS TREATED EXACTLY AS A WITHDRAWAL IS (Finance Director, 11 Nov): a stake that was
+ * PAID stays in its pot as paid-but-gone (`potMembership`), so the pot total does not shrink and the record
+ * of who paid is never lost (Hard rule 7). Nothing is written for it, as `withdrawEntry` writes nothing for
+ * it (and where the absentee had played a card, `keepDefaultStakes` has already written their default stake
+ * down as taken). The only thing written here is for a stake NOT paid, which is voided so nobody is chased
+ * for money for a round they are not playing:
+ *  - a contest or a side game: an entry with `confirmed: false` is marked `excluded`; a paid one is LEFT
+ *    (`kept` counts them for the audit line); no row at all writes nothing (opt-in: not in; opt-out: out of
+ *    the round's field, as a withdrawn player is);
+ *  - a skins pot has no out flag, so its entry is LEFT as it is; the amount and whether it was paid are
+ *    returned for the audit line, for the committee to settle by hand.
  * The substitute is not entered in anything: they enter fresh, so nobody inherits a stake.
  */
 export interface VoidedEntries {
+  /** Contests the absentee had asked into but NOT paid, marked out. */
   contests: number;
+  /** Side games the absentee had asked into but NOT paid, marked out. */
   sideGames: number;
+  /** Paid contest and side-game stakes left in their pots as paid-but-gone. */
+  kept: number;
   /** Skins pots the absentee holds a stake in, left on the record: the stake in cents and whether it was paid. */
   skins: Array<{ cents: number; paid: boolean }>;
-  /** How many of all of these stakes were already paid (a default stake in an opt-out pot counts as paid). */
-  paid: number;
 }
 
 export async function voidSideEntries(
@@ -138,41 +145,34 @@ export async function voidSideEntries(
   stageId: string,
   playerId: string,
 ): Promise<VoidedEntries> {
-  let paid = 0;
   let contests = 0;
   let sideGames = 0;
+  let kept = 0;
   const skins: VoidedEntries["skins"] = [];
 
-  for (const c of await tx.contest.findMany({ where: { eventId, stageId }, select: { id: true, entryMode: true, entrants: { where: { playerId }, select: { id: true, confirmed: true, excluded: true } } } })) {
+  for (const c of await tx.contest.findMany({ where: { eventId, stageId }, select: { id: true, entrants: { where: { playerId }, select: { confirmed: true, excluded: true } } } })) {
     const row = c.entrants[0];
-    if (row?.excluded) continue;
-    if (!row && c.entryMode !== "opt-out") continue;
-    await tx.contestEntry.upsert({
-      where: { contestId_playerId: { contestId: c.id, playerId } },
-      // `confirmed` is NOT in the update: whether the stake was paid is left as it was.
-      update: { excluded: true },
-      create: { contestId: c.id, playerId, excluded: true, confirmed: true },
-    });
+    if (!row || row.excluded) continue;
+    if (row.confirmed) {
+      kept++;
+      continue;
+    }
+    await tx.contestEntry.update({ where: { contestId_playerId: { contestId: c.id, playerId } }, data: { excluded: true } });
     contests++;
-    if (!row || row.confirmed) paid++;
   }
-  for (const g of await tx.sideGame.findMany({ where: { eventId, stageId }, select: { id: true, entryMode: true, entrants: { where: { playerId }, select: { id: true, confirmed: true, excluded: true } } } })) {
+  for (const g of await tx.sideGame.findMany({ where: { eventId, stageId }, select: { id: true, entrants: { where: { playerId }, select: { confirmed: true, excluded: true } } } })) {
     const row = g.entrants[0];
-    if (row?.excluded) continue;
-    if (!row && g.entryMode !== "opt-out") continue;
-    await tx.sideGameEntry.upsert({
-      where: { sideGameId_playerId: { sideGameId: g.id, playerId } },
-      update: { excluded: true },
-      create: { sideGameId: g.id, playerId, excluded: true, confirmed: true },
-    });
+    if (!row || row.excluded) continue;
+    if (row.confirmed) {
+      kept++;
+      continue;
+    }
+    await tx.sideGameEntry.update({ where: { sideGameId_playerId: { sideGameId: g.id, playerId } }, data: { excluded: true } });
     sideGames++;
-    if (!row || row.confirmed) paid++;
   }
   for (const pot of await tx.skinsPot.findMany({ where: { eventId, stageId }, select: { buyInCents: true, entrants: { where: { playerId }, select: { confirmed: true } } } })) {
     const row = pot.entrants[0];
-    if (!row) continue;
-    skins.push({ cents: pot.buyInCents, paid: row.confirmed });
-    if (row.confirmed) paid++;
+    if (row) skins.push({ cents: pot.buyInCents, paid: row.confirmed });
   }
-  return { contests, sideGames, skins, paid };
+  return { contests, sideGames, kept, skins };
 }

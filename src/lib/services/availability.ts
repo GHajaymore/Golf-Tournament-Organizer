@@ -295,7 +295,7 @@ async function captainFlightsFor(
       r.id,
       resolveAttendance(
         mode,
-        state.confirmed,
+        state.confirmed.map((p) => p.id),
         explicit
           .filter((e) => e.stageId === r.id)
           .map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),

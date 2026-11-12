@@ -69,7 +69,7 @@ export async function nominationsFor(
     prisma.group.findFirst({
       where: { id: clubId, eventId, isCarrier: false },
       include: {
-        players: { select: { id: true, name: true, handicap: true, handicapType: true, handicapSource: true, standing: true } },
+        players: { select: { id: true, name: true, handicap: true, handicapType: true, handicapSource: true } },
         captain: { select: { name: true } },
       },
     }),
@@ -81,6 +81,7 @@ export async function nominationsFor(
   ]);
   if (!event || !club) return null;
 
+  const rosterIds = club.players.map((p) => p.id);
 
   /**
    * Availability through the round's own mode, so this screen and the player's
@@ -98,7 +99,7 @@ export async function nominationsFor(
   const attendance = tracked
     ? resolveAttendance(
         mode,
-        club.players,
+        rosterIds,
         explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
       )
     : null;

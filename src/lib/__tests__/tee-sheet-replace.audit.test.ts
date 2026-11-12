@@ -69,6 +69,7 @@ import { REPLACE_EVERY_ROUND_NOTE, REPLACE_GROUPS_NOTE } from "@/lib/domain/tee-
 import { recentChanges } from "@/lib/services/recent-changes";
 import { clubToday } from "@/lib/domain/club-clock";
 import { sheetFieldFor } from "@/lib/services/sheet-field";
+import { potMembership } from "@/lib/domain/pot-entry";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SHEETREPLACE";
@@ -197,9 +198,12 @@ describe("replaceInTeeSheet — an individual week (league that asks each week)"
 
   it("an assistant replaces Ann with Jon: same slot, one name changed, the week and the record say so, the absentee's side games are voided", async () => {
     await reset();
-    const contest = await prisma.contest.create({ data: { eventId, stageId, name: `${TAG} KP`, entryMode: "opt-in" } });
+    const contest = await prisma.contest.create({ data: { eventId, stageId, name: `${TAG} KP`, entryMode: "opt-in", buyInCents: 300 } });
     await prisma.contestEntry.create({ data: { contestId: contest.id, playerId: p.ann, confirmed: true } });
+    await prisma.contestEntry.create({ data: { contestId: contest.id, playerId: p.bob, confirmed: true } });
+    await prisma.contestEntry.create({ data: { contestId: contest.id, playerId: p.cat, confirmed: false } });
     const game = await prisma.sideGame.create({ data: { eventId, stageId, kind: "low-gross", entryMode: "opt-out", buyInCents: 500 } });
+    await prisma.sideGameEntry.create({ data: { sideGameId: game.id, playerId: p.ann, confirmed: true } });
     const pot = await prisma.skinsPot.create({ data: { eventId, stageId } });
     await prisma.skinsEntry.create({ data: { potId: pot.id, playerId: p.ann, confirmed: true } });
 
@@ -230,13 +234,25 @@ describe("replaceInTeeSheet — an individual week (league that asks each week)"
     expect(line!.actor).toBe(`${TAG} Assistant`);
     expect(line!.what).toContain(`Replaced ${TAG} ann with ${TAG} jon by ${TAG} Assistant at ${clubToday(ZONE)} `);
     expect(line!.what).toContain("Group 1, reason no-show, handicap used 19");
-    expect(line!.what).toContain("Marked the absentee out of 1 contest and 1 side game, who paid left as it was. Left the absentee’s stake in 1 skins pot on the record (0.00 paid), to be settled by hand.");
+    expect(line!.what).toContain("Left 2 paid stakes in the pot, as a withdrawal leaves it. Left the absentee’s stake in 1 skins pot on the record (0.00 paid), to be settled by hand.");
 
-    // Side games: the absentee is out of each (the opt-out game gets an OUT row — silence would be "in and paid"), the sub is in none.
-    // Out, but WHO PAID is left as it was (Hard rule 7): the contest stake stays confirmed, the opt-out game's out row says paid,
-    // and the skins stake is still on the record.
-    expect(await prisma.contestEntry.findUniqueOrThrow({ where: { contestId_playerId: { contestId: contest.id, playerId: p.ann } } })).toMatchObject({ excluded: true, confirmed: true });
-    expect(await prisma.sideGameEntry.findUniqueOrThrow({ where: { sideGameId_playerId: { sideGameId: game.id, playerId: p.ann } } })).toMatchObject({ excluded: true, confirmed: true });
+    // Side games: a replaced player who PAID is a withdrawal (Hard rule 7, Finance Director): the stake is left as it was, NOT
+    // marked out, and the sub is in none. The record of who paid is never lost.
+    expect(await prisma.contestEntry.findUniqueOrThrow({ where: { contestId_playerId: { contestId: contest.id, playerId: p.ann } } })).toMatchObject({ excluded: false, confirmed: true });
+    expect(await prisma.sideGameEntry.findUniqueOrThrow({ where: { sideGameId_playerId: { sideGameId: game.id, playerId: p.ann } } })).toMatchObject({ excluded: false, confirmed: true });
+    // THE POT TOTAL, worked by hand (not the flags). The closest-to-the-pin pays in 3.00. Before: Ann and Bob paid = 6.00, Cat owes.
+    // After Ann is replaced: her paid 3.00 stays in the pot as paid-but-gone, so it is STILL 6.00 (marking her out had made it 3.00).
+    const potCents = async () => {
+      const rows = await prisma.contestEntry.findMany({ where: { contestId: contest.id } });
+      const everyone = (await prisma.player.findMany({ where: { eventId }, select: { id: true } })).map((x) => x.id);
+      const m = potMembership("opt-in", [...(await sheetFieldFor(eventId, stageId)).ids], rows, everyone);
+      return { cents: m.entrants.length * 300, pending: m.pending };
+    };
+    expect(await potCents(), "Ann paid and was replaced: the pot lost her stake").toEqual({ cents: 600, pending: [p.cat] });
+    // Cat NEVER paid and is replaced too: she is marked out, nobody is chased, and the pot is still 6.00.
+    expect((await replaceInTeeSheet(stageId, (await sheetOf(stageId)).savedAt, p.cat, { kind: "member", playerId: p.kim }, "cancelled")).ok).toBe(true);
+    expect(await prisma.contestEntry.findUniqueOrThrow({ where: { contestId_playerId: { contestId: contest.id, playerId: p.cat } } })).toMatchObject({ excluded: true, confirmed: false });
+    expect(await potCents()).toEqual({ cents: 600, pending: [] });
     expect(await prisma.skinsEntry.findFirstOrThrow({ where: { potId: pot.id, playerId: p.ann } }), "the skins stake was erased").toMatchObject({ confirmed: true });
     expect(await prisma.contestEntry.count({ where: { playerId: p.jon } })).toBe(0);
     expect(await prisma.skinsEntry.count({ where: { playerId: p.jon } })).toBe(0);
@@ -393,6 +409,25 @@ describe("replaceInTeeSheet — a guest and the handicap", () => {
     const guest = await prisma.player.findFirstOrThrow({ where: { eventId, name: `${TAG} Weekguest` } });
     expect([...(await sheetFieldFor(eventId, wk1)).ids].sort(), "in this week").toEqual([guest.id, p.w2].sort());
     expect([...(await sheetFieldFor(eventId, wk2)).ids].sort(), "next week: the members in by silence, the guest not").toEqual([p.w1, p.w2].sort());
+    // The desk can still put the stand-in in for a later week by saying so.
+    await prisma.roundAttendance.update({ where: { stageId_playerId: { stageId: wk2, playerId: guest.id } }, data: { status: "in" } });
+    expect([...(await sheetFieldFor(eventId, wk2)).ids].sort()).toEqual([guest.id, p.w1, p.w2].sort());
+  });
+
+  it("a guest who is NOT a stand-in (a CSV-imported row: no email, no handicap id, no roster match) stays IN every week of an opt-out league", async () => {
+    const eventId = await makeEvent("csvguest", "opt-out");
+    const wk1 = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } })).id;
+    const wk2 = (await prisma.stage.create({ data: { eventId, position: 1, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: clubDayFrom(8) } })).id;
+    const p = await players(eventId, ["c1"]);
+    const csv = await prisma.player.create({ data: { eventId, name: `${TAG} Csvguest`, email: "", handicap: 20, seed: 9, status: "confirmed", standing: "guest" } });
+    // Replace C1 with a typed-in stand-in in week 1; the CSV guest has no attendance rows at all.
+    await setSheet(wk1, [["9:00 AM", [p.c1, csv.id]]]);
+    await as(adminId, eventId);
+    expect((await replaceInTeeSheet(wk1, SAVED, p.c1, { kind: "guest", name: `${TAG} Standin`, index: "" }, "no-show")).ok).toBe(true);
+    const standIn = await prisma.player.findFirstOrThrow({ where: { eventId, name: `${TAG} Standin` } });
+    for (const wk of [wk1, wk2]) expect([...(await sheetFieldFor(eventId, wk)).ids], "the CSV guest dropped off a week").toContain(csv.id);
+    expect([...(await sheetFieldFor(eventId, wk2)).ids], "the stand-in is out of the later week").not.toContain(standIn.id);
+    expect(await prisma.roundAttendance.count({ where: { playerId: csv.id } }), "the CSV guest was given rows").toBe(0);
   });
 });
 

@@ -125,6 +125,7 @@ export async function attendanceReport(state: EventState): Promise<AttendanceRep
   });
 
   const confirmed = state.confirmed;
+  const ids = confirmed.map((p) => p.id);
 
   // Resolved once per round for the whole field, rather than per player — a
   // twenty-week league against forty members is 800 cells and this keeps it
@@ -134,7 +135,7 @@ export async function attendanceReport(state: EventState): Promise<AttendanceRep
       r.id,
       resolveAttendance(
         mode,
-        confirmed,
+        ids,
         explicit
           .filter((e) => e.stageId === r.id)
           .map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),

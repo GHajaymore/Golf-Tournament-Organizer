@@ -1266,7 +1266,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     if (cached) return cached;
     const resolved = resolveAttendance(
       attendanceMode,
-      confirmed,
+      confirmed.map((p) => p.id),
       attendanceRows.filter((r) => r.stageId === stageId),
     );
     const out = new Set(resolved.rows.filter((r) => r.status === "out").map((r) => r.playerId));

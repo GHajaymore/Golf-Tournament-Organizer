@@ -18,7 +18,7 @@ import { firstHoleForRound } from "@/lib/domain/hole-number";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { fieldRefusal } from "@/lib/services/field-change";
 import { revokePlayerAccount } from "@/lib/services/player-access";
-import { withdrawEntry } from "@/lib/services/playing-history";
+import { keepDefaultStakes, withdrawEntry } from "@/lib/services/playing-history";
 import { isLaunched } from "@/lib/domain/lifecycle-state";
 import { isMatch } from "@/lib/tournament-shape";
 import {
@@ -648,6 +648,21 @@ export async function replaceInTeeSheet(
           update: { status: "in", decidedAt: new Date(), decidedBy: inn },
           create: { eventId: session.eventId, stageId, playerId: subId, status: "in", decidedBy: inn },
         });
+        // A STAND-IN IS IN THIS WEEK ONLY. Every other round of the season gets an explicit OUT for them, written
+        // now, so their silence never turns them up in a later week. Nobody else changes: a guest entered any
+        // other way (a CSV row, the entry form) is in by the mode's default exactly as before, because the
+        // default is never asked who somebody is. The desk can still put them in for a week by saying so.
+        if (guestToMake) {
+          const others = stages.filter((s) => s.id !== stageId);
+          if (others.length > 0) {
+            await tx.roundAttendance.createMany({
+              data: others.map((s) => ({ eventId: session.eventId, stageId: s.id, playerId: subId, status: "out", decidedBy: `${session.name} (stand-in for ${round || "one round"} only)` })),
+              skipDuplicates: true,
+            });
+          }
+        }
+        // The absentee's stakes are kept the way a withdrawal keeps them (`keepDefaultStakes`, the same path).
+        await keepDefaultStakes(session.eventId, absenteeId, tx);
       }
 
       // No weekly sign-up: the absentee leaves the field through the ONE keep path the Withdraw press uses

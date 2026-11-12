@@ -187,11 +187,11 @@ describe("the words", () => {
         group: "Group 2",
         reason: "no-show",
         handicap: handicapUsedWords("no index"),
-        games: voidedGamesWords({ contests: 1, sideGames: 0, skins: [{ cents: 500, paid: true }, { cents: 250, paid: false }], paid: 2 }),
+        games: voidedGamesWords({ contests: 1, sideGames: 0, kept: 1, skins: [{ cents: 500, paid: true }, { cents: 250, paid: false }] }),
       }),
     ).toBe(
       "Replaced Ann Doyle with Bea Ford by Sam Desk at 2026-11-12 07:05, Round 3, Group 2, reason no-show, handicap used no index (gross only). " +
-        "Marked the absentee out of 1 contest, who paid left as it was. Left the absentee’s stake in 2 skins pots on the record (5.00 paid, 2.50 not paid), to be settled by hand.",
+        "Marked the absentee out of 1 contest they had not paid for. Left 1 paid stake in the pot, as a withdrawal leaves it. Left the absentee’s stake in 2 skins pots on the record (5.00 paid, 2.50 not paid), to be settled by hand.",
     );
   });
 
@@ -204,7 +204,7 @@ describe("the words", () => {
   });
 
   it("nothing voided says nothing; a one-round tournament leaves the round out", () => {
-    expect(voidedGamesWords({ contests: 0, sideGames: 0, skins: [], paid: 0 })).toBe("");
+    expect(voidedGamesWords({ contests: 0, sideGames: 0, kept: 0, skins: [] })).toBe("");
     expect(replaceAuditLine({ absentee: "A", sub: "B", staff: "S", clubTime: "t", round: "", group: "Group 1", reason: "other", handicap: "12.4", games: "" })).toBe(
       "Replaced A with B by S at t, Group 1, reason other, handicap used 12.4.",
     );
