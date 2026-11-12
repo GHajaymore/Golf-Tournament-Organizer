@@ -387,6 +387,7 @@ export default async function OrganizationPage() {
         <OrganizationAccess
           report={report}
           canEdit={canEdit}
+          actorRole={isClubOwner ? "owner" : canEdit ? "admin" : null}
           asks={asks}
           namesakes={namesakes}
           seats={standing.staffSeats.current}

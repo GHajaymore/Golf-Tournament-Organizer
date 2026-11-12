@@ -15,6 +15,7 @@ import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
 import { roleName, orgRoleName } from "@/lib/roles";
+import { mayChangeMembership } from "@/lib/domain/membership-rule";
 import { describeOrgRoleChange } from "@/lib/access-roles";
 import { RoleChangeConfirm } from "./AccessClient";
 import { bringIntoView } from "@/lib/bring-into-view";
@@ -54,6 +55,7 @@ const ORG_ROLE_OPTS = ["owner", "admin", "member", "guest"].map((v) => ({ v, l: 
 export function OrganizationAccess({
   report,
   canEdit,
+  actorRole,
   asks,
   namesakes = [],
   seats,
@@ -63,6 +65,8 @@ export function OrganizationAccess({
   organizer?: string;
   report: AccessReport;
   canEdit: boolean;
+  /** The caller's own club role ("owner" = Commissioner), for greying what the server would refuse (`mayChangeMembership`). */
+  actorRole: string | null;
   /** People waiting to be let in. Empty for almost every club, almost always. */
   asks: PendingAsk[];
   /** Clubs of this name set up nearby, worded for this club. Empty for almost every club. */
@@ -134,6 +138,9 @@ export function OrganizationAccess({
   const staff = report.people.filter((p) => p.orgRole);
   // The count the server guards on, so "the only Commissioner" reads the same in the warning as in the refusal.
   const ownerCount = staff.filter((p) => p.orgRole === "owner").length;
+  /** The SAME rule the server asks, so a greyed control and a refusal never disagree. */
+  const mayDo = (current: string | null, next: string | null) =>
+    mayChangeMembership({ actorRole, targetCurrentRole: current, targetNewRole: next, commissionerCount: ownerCount });
   const eventOnly = report.people.filter((p) => !p.orgRole);
 
   return (
@@ -353,7 +360,7 @@ export function OrganizationAccess({
                               type="radio"
                               name={`orgrole-${p.memberId}`}
                               checked={(confirm?.memberId === p.memberId ? confirm.next : p.orgRole) === o.v}
-                              disabled={!canEdit || pending}
+                              disabled={!canEdit || pending || (p.orgRole !== o.v && !mayDo(p.orgRole, o.v).ok)}
                               // Re-picking the role they hold just withdraws the question.
                               onChange={() => setConfirm(p.orgRole === o.v ? null : { memberId: p.memberId!, next: o.v })}
                             />
@@ -380,6 +387,12 @@ export function OrganizationAccess({
                           ) : null;
                         })()}
                       {refusedAt(`row:${p.memberId}`)}
+                      {/* A reason beside every greyed control. */}
+                      {canEdit && p.orgRole === "owner" && !mayDo("owner", "admin").ok && (
+                        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
+                          {(() => { const v = mayDo("owner", "admin"); return v.ok ? null : v.reason; })()}
+                        </p>
+                      )}
                     </td>
                     <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
                       {Object.keys(p.access).length}
@@ -391,7 +404,7 @@ export function OrganizationAccess({
                         icon="x"
                         title="Remove from organization"
                         confirmLabel="Remove them"
-                        disabled={!canEdit || pending}
+                        disabled={!canEdit || pending || !mayDo(p.orgRole, null).ok}
                         onConfirm={() => press(`row:${p.memberId}`, () => removeOrganizationMember(p.memberId!))}
                       />
                     </td>
@@ -440,13 +453,18 @@ export function OrganizationAccess({
                     type="radio"
                     name="neworgrole"
                     checked={role === o.v}
-                    disabled={!canEdit || pending}
+                    disabled={!canEdit || pending || (o.v === "owner" && !mayDo(null, "owner").ok)}
                     onChange={() => setRole(o.v)}
                   />
                   {o.l}
                 </label>
               ))}
             </div>
+            {canEdit && !mayDo(null, "owner").ok && (
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
+                {(() => { const v = mayDo(null, "owner"); return v.ok ? null : v.reason; })()}
+              </p>
+            )}
           </div>
           <button
             type="button"
