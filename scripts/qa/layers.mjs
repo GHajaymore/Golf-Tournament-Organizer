@@ -483,6 +483,7 @@ export const TEXT_PARTS = 3;
 export const SHARDS = {
   "suite:desktop": 3,
   "suite:phone": 2,
+  "suite:small-phone": 2,
   "firefox:desktop": 2,
   "firefox:phone": 2,
   "firefox:small-phone": 2,

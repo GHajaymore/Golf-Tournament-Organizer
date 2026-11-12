@@ -343,9 +343,25 @@ jobs:
     # Each shard is a job of its own, so everything said above still holds per
     # shard: its own PostgreSQL service, its own `globalSetup` seed and
     # teardown, its own build, `workers: 1`. Two shards never share a database.
-    # A shard runs a contiguous run of whole spec files (with `fullyParallel`
-    # off, Playwright cuts at file boundaries, balancing by test COUNT), so the
-    # files inside a shard still run in the order they always did.
+    # A shard runs whole spec files, in name order.
+    #
+    # ── CUT BY TIME (2026-11-12) ────────────────────────────────────────────
+    #
+    # Playwright's `--shard=i/n` balanced test COUNT, and the tests are two
+    # seconds to nine minutes each: run 43117624853's second phone shard took
+    # 39.0 minutes and its second desktop shard 11.6, and a pull request waits
+    # for the slowest. So each shard is told its FILES by
+    # `scripts/qa/time-shard.mjs <project> <i> <n>`, which deals whole spec
+    # files out by measured seconds (`scripts/qa/spec-durations.json`; refresh
+    # it with `scripts/qa/spec-durations-refresh.mjs`, see its header), longest
+    # first onto the lightest shard. 162 minutes of tests over EIGHT machines
+    # (desktop 3, phone 3, small-phone 2) is about 20-21 minutes of tests each,
+    # 24-25 with the container, setup and build, against 38-39 before. Seven
+    # could not do better than about 27, because the three projects' minutes
+    # (61, 60, 41) do not divide into seven. No spec is dropped: the files of a
+    # project's shards are exactly the project's files
+    # (`ci-e2e-matrix.test.ts`), and `e2e-cover` still proves it from what
+    # Playwright listed and ran.
     #
     # What a cut can lose is a test — a shard that never started, a matrix line
     # deleted, a count changed here and not there — and every remaining job
@@ -366,8 +382,9 @@ jobs:
           - { project: desktop, shard: 1, shards: 3 }
           - { project: desktop, shard: 2, shards: 3 }
           - { project: desktop, shard: 3, shards: 3 }
-          - { project: phone, shard: 1, shards: 2 }
-          - { project: phone, shard: 2, shards: 2 }
+          - { project: phone, shard: 1, shards: 3 }
+          - { project: phone, shard: 2, shards: 3 }
+          - { project: phone, shard: 3, shards: 3 }
           - { project: small-phone, shard: 1, shards: 2 }
           - { project: small-phone, shard: 2, shards: 2 }
 
@@ -427,7 +444,10 @@ jobs:
         env:
           AUTH_SECRET: ci-e2e-secret
           PLAYWRIGHT_JSON_OUTPUT_FILE: shard-proof/ran.json
-        run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} --reporter=github,list,json
+        run: |
+          # A failed deal must stop here: an empty file list would make playwright run the WHOLE project.
+          files=$(node scripts/qa/time-shard.mjs ${{ matrix.project }} ${{ matrix.shard }} ${{ matrix.shards }}) || exit 1
+          npx playwright test --project=${{ matrix.project }} $files --reporter=github,list,json
 
       - name: List the whole project, for the proof that the shards cover it
         # WITHOUT `--shard`: every test of the project as the config and the

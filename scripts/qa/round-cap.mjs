@@ -8,18 +8,18 @@
  * too many beside another round, a CI run and the deploy job (the deploy queued). So the cap follows
  * what is already running:
  *
- *     cap = clamp(40 − running − 10 reserved, at least 6, at most 16)      (the floor was 4 until 2026-11-12)
+ *     cap = clamp(40 − running − 11 reserved, at least 6, at most 16)      (the floor was 4 until 2026-11-12)
  *
- * The ten reserved are for what must never wait behind a round: ONE PR's CI run (9 jobs at once: unit,
- * build, seven e2e shards) and the deploy job (1). Measured 2026-11-12 00:42 UTC: 26 jobs running, two
+ * The eleven reserved are for what must never wait behind a round: ONE PR's CI run (10 jobs at once: unit,
+ * build, eight e2e shards since 2026-11-12) and the deploy job (1). Measured 2026-11-12 00:42 UTC: 26 jobs running, two
  * rounds at 4 and 7 parts, ~14 runners idle, because the floor of 4 was a poor use of a busy account; the
  * floor is now 6. The arithmetic (account 40; the deploy 1):
- *   - one round alone: running ≈ 1 (this plan job) → 40 − 1 − 10 = 29 → 16 parts.
- *   - two rounds: the second plans beside the first's ≤16 and ~3 other running jobs → 40 − 19 − 10 = 11
- *     parts; 16 + 11 + 3 = 30 held, so one CI (9) and the deploy (1) still fit in 40.
+ *   - one round alone: running ≈ 1 (this plan job) → 40 − 1 − 11 = 28 → 16 parts.
+ *   - two rounds: the second plans beside the first's ≤16 and ~3 other running jobs → 40 − 19 − 11 = 10
+ *     parts; 16 + 10 + 3 = 29 held, so one CI (10) and the deploy (1) still fit in 40.
  *   - two rounds + two CIs + the deploy: the second CI queues behind them for minutes, and the deploy is
  *     a single job that finds a runner as the first job ends — not an hour (19 Oct), not behind a
- *     16-part round (31 Oct). A reserve of 6 would give 16 + 15 + 3 + 9 + 1 = 44 of 40: a CI queued.
+ *     16-part round (31 Oct). A reserve of 6 would give 16 + 15 + 3 + 10 + 1 = 45 of 40: a CI queued.
  *
  * WHAT "RUNNING" COUNTS: the jobs whose status is `in_progress` in this repository's runs that are
  * themselves in progress, asked of GitHub's API with the workflow's own token. A job is `queued` while it
@@ -37,7 +37,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ACCOUNT_JOBS = 40;
-export const RESERVED = 10;
+export const RESERVED = 11;
 export const CAP_MIN = 6;
 export const CAP_MAX = 16;
 export const CAP_FALLBACK = 12;

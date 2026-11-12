@@ -117,8 +117,8 @@ database that is not empty.
 
    **Since 2026-11-01 the cap adjusts itself** (Ajay approved 31 Oct). The
    round's plan job counts the jobs already running and sets
-   `max-parallel` to **clamp(40 − running − 10 reserved, at least 6, at most
-   16)** (floor was 4 until 12 Nov) — the ten reserved are one PR CI run (nine jobs at once: unit, build, seven e2e shards) and the deploy job (one), which
+   `max-parallel` to **clamp(40 − running − 11 reserved, at least 6, at most
+   16)** (floor was 4 until 12 Nov) — the eleven reserved are one PR CI run (ten jobs at once: unit, build, eight e2e shards) and the deploy job (one), which
    must never wait behind a round. "Running" is the `in_progress` jobs of this
    repository's in-progress runs, asked of GitHub with the workflow's own
    token (it cannot see another repository of the account, and it does not
