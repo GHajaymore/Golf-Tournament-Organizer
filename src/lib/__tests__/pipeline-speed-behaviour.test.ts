@@ -87,7 +87,7 @@ describe("a shard refuses a bundle that is not this run's", () => {
   it("exits 1 when BUILD_ID is missing (nothing was downloaded)", () => {
     const r = check({ BUILT_FROM: "sha-one\n" }, "sha-one");
     expect(r.status).toBe(1);
-    expect(r.out).toContain("BUILD_ID");
+    expect(r.out, "it must refuse by name, not crash later reading the file").toContain("BUILD_ID is missing");
   });
 
   it("exits 1 when the build carries no stamp, or the run has no commit", () => {

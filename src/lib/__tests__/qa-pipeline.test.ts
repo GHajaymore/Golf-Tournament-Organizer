@@ -328,7 +328,7 @@ describe("the machine is not the app (item D)", () => {
     const verdict = round.slice(round.indexOf("\n  verdict:"));
     expect(verdict).toMatch(/needs: \[plan, audit, build, part\]/);
     expect(verdict).toContain("--audit=${{ needs.audit.result }}");
-    expect(readVerbatim("scripts/qa/merge.mjs")).toMatch(/value\("audit"\) && value\("audit"\) !== "success"\) findings\.push/);
+    // (What merge.mjs does with the result is run, not read: pipeline-speed-behaviour.test.ts.)
     expect(readVerbatim("scripts/qa/round.mjs")).toContain('flag("audit-only") || (flag("build") && !flag("no-audit"))');
   });
 
