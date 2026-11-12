@@ -165,7 +165,7 @@ test.describe("tee sheet replace: a league week", () => {
       const page = await context.newPage();
       watchPageErrors(page, errors, "organizer");
       await open(page, stageId);
-      await expect(page.getByText("Group 2 has a card in.", { exact: false }).first()).toBeVisible();
+      await expect(page.getByRole("note").filter({ hasText: "Group 2 has a card in." })).toBeVisible();
       await expect(page.getByRole("button", { name: `Replace ${NAMES[4]}`, exact: true })).toHaveCount(0);
       await expect(page.getByRole("button", { name: `Replace ${NAMES[1]}`, exact: true })).toBeVisible();
     } finally {
