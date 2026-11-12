@@ -1,5 +1,9 @@
 import "server-only";
 import { prisma } from "../db";
+import type { Prisma } from "@prisma/client";
+
+/** The client a step runs on: the shared one, or a transaction's, so one press can be all-or-nothing. */
+type Db = Prisma.TransactionClient;
 
 /**
  * Whether removing this person would DESTROY something.
@@ -40,18 +44,18 @@ import { prisma } from "../db";
  * withdrawn row; and `RoundHandicap`, which is derived from the roster and
  * survives the delete as a plain column anyway.
  */
-export async function hasPlayingHistory(eventId: string, playerId: string): Promise<boolean> {
+export async function hasPlayingHistory(eventId: string, playerId: string, db: Db = prisma): Promise<boolean> {
   const [cards, matches, teamCards, teamMemberships, stakes, ties] = await Promise.all([
-    prisma.scorecard.count({ where: { eventId, playerId } }),
-    prisma.match.count({
+    db.scorecard.count({ where: { eventId, playerId } }),
+    db.match.count({
       where: { eventId, OR: [{ playerAId: playerId }, { playerBId: playerId }] },
     }),
     // Team golf's cards, which live in their own table.
-    prisma.teamScorecard.count({ where: { eventId, playerId } }),
+    db.teamScorecard.count({ where: { eventId, playerId } }),
     // Being on a side at all: removing them re-scores that side's card.
-    prisma.teamMember.count({ where: { playerId } }),
+    db.teamMember.count({ where: { playerId } }),
     // Money already collected. Cascades, so a delete destroys the record of it.
-    prisma.skinsEntry.count({ where: { playerId } }),
+    db.skinsEntry.count({ where: { playerId } }),
     /**
      * TIES WON IN A KNOCKOUT, which is the fourth result table and was not
      * counted. A Bracket Stage files no Scorecard, no TeamScorecard and no
@@ -64,7 +68,7 @@ export async function hasPlayingHistory(eventId: string, playerId: string): Prom
      * naming an id that resolves to nobody. That is the same "an opponent who
      * does not exist" shape as #525, arrived at from the other direction.
      */
-    prisma.bracketWinner.count({ where: { eventId, winnerId: playerId } }),
+    db.bracketWinner.count({ where: { eventId, winnerId: playerId } }),
   ]);
   return (
     cards > 0 ||
@@ -99,11 +103,11 @@ export async function hasPlayingHistory(eventId: string, playerId: string): Prom
  * The Nassau and the match bet are left out: they are settled by the match,
  * not a pot, and have no entrant list to write to.
  */
-export async function keepDefaultStakes(eventId: string, playerId: string): Promise<void> {
+export async function keepDefaultStakes(eventId: string, playerId: string, db: Db = prisma): Promise<void> {
   const [cards, teamCards, games] = await Promise.all([
-    prisma.scorecard.findMany({ where: { eventId, playerId }, select: { stageId: true, strokes: true } }),
-    prisma.teamScorecard.findMany({ where: { eventId, playerId }, select: { stageId: true, strokes: true } }),
-    prisma.sideGame.findMany({
+    db.scorecard.findMany({ where: { eventId, playerId }, select: { stageId: true, strokes: true } }),
+    db.teamScorecard.findMany({ where: { eventId, playerId }, select: { stageId: true, strokes: true } }),
+    db.sideGame.findMany({
       where: { eventId, entryMode: "opt-out", kind: { notIn: ["nassau", "match"] } },
       select: { id: true, stageId: true, entrants: { where: { playerId }, select: { id: true } } },
     }),
@@ -118,8 +122,36 @@ export async function keepDefaultStakes(eventId: string, playerId: string): Prom
   const playedIn = new Set([...cards, ...teamCards].filter((c) => hasHole(c.strokes)).map((c) => c.stageId));
   const toKeep = games.filter((g) => playedIn.has(g.stageId) && g.entrants.length === 0);
   if (toKeep.length === 0) return;
-  await prisma.sideGameEntry.createMany({
+  await db.sideGameEntry.createMany({
     data: toKeep.map((g) => ({ sideGameId: g.id, playerId, confirmed: true })),
     skipDuplicates: true,
   });
+}
+
+/**
+ * TAKING AN ENTRY OUT OF THE FIELD — the one keep path.
+ *
+ * `removeSignup` (the Withdraw press) and `replaceInTeeSheet` (a no-show replaced on the tee sheet) both
+ * end an entry, and must answer identically: a player with history, or any confirmed entry once the
+ * tournament is launched, is KEPT as `withdrawn` (their results and stakes stay on the record) and a stake
+ * they hold by default in a pot they have a card in is written down as taken (`keepDefaultStakes`); only an
+ * entry that never played, before launch, is deleted. `mustKeep` is for a caller that may never delete (a
+ * replacement: "never delete the absentee's row"). Runs on the client it is given, so a caller's
+ * transaction covers it. Returns what was done, for the audit line the caller writes.
+ */
+export async function withdrawEntry(
+  db: Db,
+  eventId: string,
+  player: { id: string; status: string },
+  opts: { launched: boolean; mustKeep?: boolean },
+): Promise<{ played: boolean; keep: boolean }> {
+  const played = await hasPlayingHistory(eventId, player.id, db);
+  const keep = !!opts.mustKeep || played || (opts.launched && player.status === "confirmed");
+  if (keep) {
+    await db.player.update({ where: { id: player.id }, data: { status: "withdrawn" } });
+    await keepDefaultStakes(eventId, player.id, db);
+  } else {
+    await db.player.delete({ where: { id: player.id } });
+  }
+  return { played, keep };
 }

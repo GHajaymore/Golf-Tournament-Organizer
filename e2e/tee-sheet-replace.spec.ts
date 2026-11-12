@@ -10,12 +10,12 @@ import { watchPageErrors } from "./page-errors";
  * sheet is the round's own, in an opt-out league, a day ahead (so no group has teed off whatever the hour,
  * on the club's UTC clock). Read back from the database: the stored sheet has one name changed and the
  * times, the other groups and the published state are as they were; the absentee is marked out "replaced
- * by" and the sub in; the guest is a guest entry with no index.
+ * by" and the sub in; the guest is a guest entry with the typed index (the round is net, so a blank is refused).
  *
  *   organizer  → "Replace…" opens a panel beside the name; somebody already in a group is listed greyed
  *                with the reason; a member is chosen; the confirm states in one sentence what will happen;
  *                the answer is said on the screen
- *   assistant  → the same press with "A guest (not a member)…", "Leave blank: they play gross only."
+ *   assistant  → the same press with "A guest (not a member)…", "Type the handicap the committee gives…" (net round)
  *   a card in  → the group with a card in draws no Replace at all
  *
  * Fixture facts are read from the fixture. Service workers blocked (a save spec's rule on WebKit).
@@ -86,7 +86,7 @@ test.describe("tee sheet replace: a league week", () => {
     }
   });
 
-  test("the organizer replaces a player with a member, and an assistant with a guest who has no index", async ({ browser, baseURL }, testInfo) => {
+  test("the organizer replaces a player with a member, and an assistant with a guest with a typed index", async ({ browser, baseURL }, testInfo) => {
     test.setTimeout(180_000);
     const errors: string[] = [];
     const before = await readSheet(stageId);
@@ -135,10 +135,13 @@ test.describe("tee sheet replace: a league week", () => {
         await open(page, stageId);
         await page.getByRole("button", { name: `Replace ${NAMES[5]}`, exact: true }).click();
         await page.getByLabel(`Who replaces ${NAMES[5]}`, { exact: true }).selectOption({ label: "A guest (not a member)…" });
-        await expect(page.getByText("Leave blank: they play gross only.")).toBeVisible();
+        await expect(page.getByText("this round is scored net.", { exact: false })).toBeVisible();
         await page.getByLabel(/Guest.s name/).fill("Hollis Verity");
+        // A round scored net takes a guest only with a figure: the button waits for it.
+        await expect(page.getByRole("button", { name: `Replace ${NAMES[5]}`, exact: true })).toBeDisabled();
+        await page.getByLabel("Handicap index").fill("14.2");
         await page.getByLabel(`Why ${NAMES[5]} is replaced`, { exact: true }).selectOption({ label: "Cancelled" });
-        await expect(page.getByText("playing off no index (gross only)", { exact: false })).toBeVisible();
+        await expect(page.getByText("playing off 14.2", { exact: false })).toBeVisible();
         await page.getByRole("button", { name: `Replace ${NAMES[5]}`, exact: true }).click();
         await expect(page.getByRole("status").filter({ hasText: "Hollis Verity is in Group 2, 6:40 PM" })).toBeVisible({ timeout: 20_000 });
       } finally {
@@ -146,11 +149,11 @@ test.describe("tee sheet replace: a league week", () => {
       }
       const guest = await prisma.player.findFirst({ where: { eventId, name: "Hollis Verity" } });
       expect(guest, "no guest entry").not.toBeNull();
-      expect(guest).toMatchObject({ standing: "guest", handicapSource: "none", email: "", status: "confirmed" });
+      expect(guest).toMatchObject({ standing: "guest", handicapSource: "manual", handicap: 14.2, email: "", status: "confirmed" });
       expect((await readSheet(stageId)).groups[1].playerIds).toEqual([ids[3], ids[4], guest!.id]);
       const line = await prisma.auditLog.findFirst({ where: { eventId, action: "replaced", detail: { contains: "Hollis Verity" } } });
       expect(line?.actor).toBe("Corin Abernethy");
-      expect(line?.detail).toContain("reason cancelled, handicap used no index (gross only)");
+      expect(line?.detail).toContain("reason cancelled, handicap used 14.2");
     }
 
     // 3. A card in Group 2: it has started, so its players draw no Replace.

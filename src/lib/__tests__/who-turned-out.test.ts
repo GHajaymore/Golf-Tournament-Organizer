@@ -141,7 +141,7 @@ describe("the grid and the weekly control read one answer", () => {
   it("prefers a stated answer over the default in every mode", () => {
     for (const mode of ATTENDANCE_MODES) {
       if (!tracksPerRound(mode)) continue;
-      const out = resolveAttendance(mode, ["p1", "p2"], [
+      const out = resolveAttendance(mode, ["p1", "p2"].map((id) => ({ id, standing: "" })), [
         { playerId: "p1", status: "out", decidedBy: "Ann" },
       ]);
       const p1 = out.rows.find((r) => r.playerId === "p1")!;

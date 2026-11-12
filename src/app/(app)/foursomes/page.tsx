@@ -254,6 +254,7 @@ export default async function FoursomesPage({
           world: r.world,
           inSides: replaceMode === "sides",
           weekly: tracksPerRound(attendanceMode),
+          scoringBasis: stage.scoringBasis,
         }))
       : null;
   // The round's day at the club — its own, or the tournament's first day for

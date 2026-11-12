@@ -137,7 +137,7 @@ import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-l
 import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
-import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
+import { hasPlayingHistory, keepDefaultStakes, withdrawEntry } from "@/lib/services/playing-history";
 // Launch, Complete, Reopen, play and closing a round ask the state machine (PR 4).
 import { roundCloseCheck, statusRequestOf } from "@/lib/domain/tournament-status";
 import { playRefusedBecause, tournamentStatusNow, refuseIfLocked, refuseIfAddingARoundIsLocked } from "@/lib/services/tournament-status";
@@ -1021,15 +1021,8 @@ export async function removeSignup(playerId: string): Promise<RemoveResult> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, shape: true } });
   const launched = !!event && isLaunched(event.status) && !isMatch(event.shape);
 
-  const played = await hasPlayingHistory(eventId, playerId);
-  const keep = played || (launched && player.status === "confirmed");
-
-  if (keep) {
-    await prisma.player.update({ where: { id: playerId }, data: { status: "withdrawn" } });
-    await keepDefaultStakes(eventId, playerId);
-  } else {
-    await prisma.player.delete({ where: { id: playerId } });
-  }
+  // The one keep path (`withdrawEntry`), shared with a replacement on the tee sheet.
+  const { played, keep } = await prisma.$transaction((tx) => withdrawEntry(tx, eventId, player, { launched }));
   if (player.email.trim()) await revokePlayerAccount(eventId, player.email);
   // On the record ("Recent changes to the field") — the organizer's removal, in
   // the same list as a member's own withdrawal.

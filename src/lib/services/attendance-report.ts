@@ -135,7 +135,7 @@ export async function attendanceReport(state: EventState): Promise<AttendanceRep
       r.id,
       resolveAttendance(
         mode,
-        ids,
+        confirmed,
         explicit
           .filter((e) => e.stageId === r.id)
           .map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),

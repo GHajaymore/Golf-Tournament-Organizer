@@ -18,6 +18,9 @@ import { firstHoleForRound } from "@/lib/domain/hole-number";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { fieldRefusal } from "@/lib/services/field-change";
 import { revokePlayerAccount } from "@/lib/services/player-access";
+import { withdrawEntry } from "@/lib/services/playing-history";
+import { isLaunched } from "@/lib/domain/lifecycle-state";
+import { isMatch } from "@/lib/tournament-shape";
 import {
   applyReplace,
   candidateWhy,
@@ -30,6 +33,7 @@ import {
   REPLACE_EVERY_ROUND_NOTE,
   REPLACE_GROUPS_NOTE,
   replaceAuditLine,
+  guestFigureRefusal,
   replaceRefusal,
   swapPairMember,
   voidedGamesWords,
@@ -436,6 +440,8 @@ export async function moveInTeeSheet(
 /** Who steps in: a member of the tournament, or a guest typed in on the spot (the index as typed, "" for none). */
 export type ReplaceWho = { kind: "member"; playerId: string } | { kind: "guest"; name: string; index: string };
 
+const STARTED_SIDE = "A card is in for this group, so it has started. A group that has started can’t have a player swapped in. If somebody has gone home, that is a withdrawal.";
+
 /** A refusal found inside the transaction: rolls everything back and is said as a sentence. */
 class ReplaceRefused extends Error {
   constructor(public says: string) {
@@ -459,10 +465,15 @@ class ReplaceRefused extends Error {
  * WHAT IS WRITTEN, IN ONE TRANSACTION (or nothing): the sheet (compare-and-set on `savedAt`, as the moves);
  * the guest's entry (`standing: guest`, no email stored, "no index" when blank — never a scratch golfer); the
  * pair's member; the week's attendance where the tournament asks one (out for the absentee, in for the sub,
- * each naming the other and the staff member); the absentee's side-game entries for this round, voided; and
- * the audit line. NOTHING IS DELETED: the absentee's player row stays, marked "replaced by" in the week's
- * attendance and on the record. In a tournament that asks nothing each week the absentee stays entered (a
- * withdrawal is its own press) and the answer says so.
+ * each naming the other and the staff member); the absentee's side-game entries for this round, marked out
+ * (never the record of who paid); and the audit line. NOTHING IS DELETED: the absentee's player row stays,
+ * marked "replaced by" in the week's attendance and on the record. In a tournament that asks nothing each
+ * week the absentee is WITHDRAWN in the same transaction (`withdrawEntry`, the one keep path the Withdraw
+ * press uses, never deleting), so the field holds the substitute and not both.
+ *
+ * A GUEST WITH NO FIGURE is refused in a round scored net (`guestFigureRefusal`): the handicap resolver reads
+ * the stored number, not "no index", and would play them off nought. The guest's roster row is made inside the
+ * transaction, and "has this group started" is read again inside it, so a refusal leaves nothing behind.
  */
 export async function replaceInTeeSheet(
   stageId: string,
@@ -483,7 +494,7 @@ export async function replaceInTeeSheet(
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId: session.eventId },
-    select: { id: true, type: true, format: true, teeSheet: true, teeSheetPublished: true },
+    select: { id: true, type: true, format: true, teeSheet: true, teeSheetPublished: true, scoringBasis: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
   const sheet = parseTeeSheet(stage.teeSheet ?? "");
@@ -494,7 +505,7 @@ export async function replaceInTeeSheet(
   if (mode === "groups") return { ok: false, error: REPLACE_GROUPS_NOTE };
   if (stage.type === TEAM_SESSION) return { ok: false, error: REPLACE_CUP_NOTE };
 
-  const absentee = await prisma.player.findFirst({ where: { id: absenteeId, eventId: session.eventId }, select: { id: true, name: true, email: true } });
+  const absentee = await prisma.player.findFirst({ where: { id: absenteeId, eventId: session.eventId }, select: { id: true, name: true, email: true, status: true } });
   if (!absentee) return { ok: false, error: "That player isn't in this tournament." };
 
   const locks = await slotLocksFor(session.eventId, stageId, sheet);
@@ -505,14 +516,14 @@ export async function replaceInTeeSheet(
   // Where partners play together, the pair the absentee holds a place in. A side's own card or a match's
   // holes are not a player's `Scorecard`, so the lock above cannot see them: they are read here.
   let pair: RoundSide | null = null;
+  let groupSideIds: string[] = [];
   if (mode === "sides") {
     pair = sides.find((t) => t.members.some((m) => m.playerId === absenteeId)) ?? null;
     if (pair && pair.stageId === null) return { ok: false, error: REPLACE_EVERY_ROUND_NOTE };
     const inGroup = new Set(sheet.groups[groupOf(sheet, absenteeId)].playerIds);
     const groupSides = sides.filter((t) => t.members.some((m) => inGroup.has(m.playerId))).map((t) => t.id);
-    if (await sidesHavePlay(session.eventId, stageId, groupSides)) {
-      return { ok: false, error: "A card is in for this group, so it has started. A group that has started can’t have a player swapped in. If somebody has gone home, that is a withdrawal." };
-    }
+    groupSideIds = groupSides;
+    if (await sidesHavePlay(session.eventId, stageId, groupSides)) return { ok: false, error: STARTED_SIDE };
   }
 
   // WHO STEPS IN, and the handicap they will play off.
@@ -535,6 +546,8 @@ export async function replaceInTeeSheet(
     const clash = await prisma.player.findFirst({ where: { eventId: session.eventId, name: { equals: name, mode: "insensitive" } }, select: { name: true } });
     if (clash) return { ok: false, error: `${clash.name} is already in this tournament. Choose them from the list.` };
     const index = typed.kind === "index" ? typed.value : null;
+    const needsFigure = guestFigureRefusal(stage.scoringBasis, name, index !== null);
+    if (needsFigure) return { ok: false, error: needsFigure };
     guestToMake = { name, index };
     sub = { id: "", name, index: index === null ? NO_INDEX : indexFigure(index) };
   }
@@ -556,20 +569,21 @@ export async function replaceInTeeSheet(
   const round = await roundWordsFor(session.eventId, stageId);
   const clubTime = clubTimeWords(clubWallClock(zone));
 
-  // A guest is a roster row of their own (never matched onto a member of the same name) and an entry.
-  let guestMemberId: string | null = null;
-  let guestGender = "";
-  if (guestToMake) {
-    guestMemberId = event.organizationId
-      ? await upsertMember(event.organizationId, { name: guestToMake.name, guest: true, handicap: guestToMake.index ?? undefined, handicapSource: guestToMake.index === null ? "none" : "manual" }, "staff")
-      : null;
-    guestGender = await memberGender(guestMemberId);
-  }
-
   const result = await prisma
     .$transaction(async (tx) => {
+      // THE GROUP HAS NOT STARTED — asked again, here, on this transaction's own reads, so a card or a hole
+      // that arrived since the checks above is not written over (and a refusal leaves nothing behind).
+      const lateRefusal = replaceRefusal(sheet, absenteeId, await slotLocksFor(session.eventId, stageId, sheet, tx));
+      if (lateRefusal) throw new ReplaceRefused(lateRefusal);
+      if (groupSideIds.length > 0 && (await sidesHavePlay(session.eventId, stageId, groupSideIds, tx))) throw new ReplaceRefused(STARTED_SIDE);
+
       let subId = sub.id;
       if (guestToMake) {
+        // A guest is a roster row of their own (never matched onto a member of the same name) and an entry.
+        const guestMemberId = event.organizationId
+          ? await upsertMember(event.organizationId, { name: guestToMake.name, guest: true, handicap: guestToMake.index ?? undefined, handicapSource: guestToMake.index === null ? "none" : "manual" }, "staff", tx)
+          : null;
+        const guestGender = await memberGender(guestMemberId, tx);
         const maxSeed = await tx.player.aggregate({ where: { eventId: session.eventId }, _max: { seed: true } });
         const made = await tx.player.create({
           select: { id: true },
@@ -636,10 +650,13 @@ export async function replaceInTeeSheet(
         });
       }
 
-      // No weekly sign-up: the absentee leaves the field (status withdrawn, row kept), as the Withdraw press does for a launched field.
+      // No weekly sign-up: the absentee leaves the field through the ONE keep path the Withdraw press uses
+      // (`withdrawEntry`: withdrawn, their stakes by default written down as taken), never deleted.
       if (!weekly) {
-        await tx.player.updateMany({ where: { id: absenteeId, eventId: session.eventId, status: "confirmed" }, data: { status: "withdrawn" } });
-        await tx.auditLog.create({ data: { eventId: session.eventId, actor: session.name, action: "removed", detail: `${absentee.name} was withdrawn from the field.` } });
+        const gone = await withdrawEntry(tx, session.eventId, { id: absenteeId, status: absentee.status }, { launched: isLaunched(event.status) && !isMatch(event.shape), mustKeep: true });
+        await tx.auditLog.create({
+          data: { eventId: session.eventId, actor: session.name, action: "removed", detail: gone.played ? `${absentee.name} was withdrawn from the field (their results are kept).` : `${absentee.name} was withdrawn from the field.` },
+        });
       }
 
       const voided = await voidSideEntries(tx, session.eventId, stageId, absenteeId);

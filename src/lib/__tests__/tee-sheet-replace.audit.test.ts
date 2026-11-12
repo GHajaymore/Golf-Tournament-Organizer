@@ -44,6 +44,23 @@ vi.mock("next/headers", () => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
+// A seam for ONE test: the second time the action asks "has this group started" it is inside its transaction
+// (it passes the transaction's client), and this lets the test make a card arrive between the two asks.
+const hook = vi.hoisted(() => ({ beforeTx: null as null | (() => Promise<void>) }));
+vi.mock("@/lib/services/tee-sheet-locks", async (orig) => {
+  const actual = await orig<typeof import("@/lib/services/tee-sheet-locks")>();
+  return {
+    ...actual,
+    slotLocksFor: async (...a: Parameters<typeof actual.slotLocksFor>) => {
+      if (a[3] && hook.beforeTx) {
+        const run = hook.beforeTx;
+        hook.beforeTx = null;
+        await run();
+      }
+      return actual.slotLocksFor(...a);
+    },
+  };
+});
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { replaceInTeeSheet } from "@/app/actions/tee-sheet";
@@ -51,6 +68,7 @@ import { addTeamMember } from "@/app/actions/teams";
 import { REPLACE_EVERY_ROUND_NOTE, REPLACE_GROUPS_NOTE } from "@/lib/domain/tee-sheet-replace";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { clubToday } from "@/lib/domain/club-clock";
+import { sheetFieldFor } from "@/lib/services/sheet-field";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SHEETREPLACE";
@@ -212,12 +230,14 @@ describe("replaceInTeeSheet — an individual week (league that asks each week)"
     expect(line!.actor).toBe(`${TAG} Assistant`);
     expect(line!.what).toContain(`Replaced ${TAG} ann with ${TAG} jon by ${TAG} Assistant at ${clubToday(ZONE)} `);
     expect(line!.what).toContain("Group 1, reason no-show, handicap used 19");
-    expect(line!.what).toContain("Voided the absentee’s entries in 1 contest, 1 side game, 1 skins pot (2 already paid");
+    expect(line!.what).toContain("Marked the absentee out of 1 contest and 1 side game, who paid left as it was. Left the absentee’s stake in 1 skins pot on the record (0.00 paid), to be settled by hand.");
 
     // Side games: the absentee is out of each (the opt-out game gets an OUT row — silence would be "in and paid"), the sub is in none.
-    expect((await prisma.contestEntry.findUniqueOrThrow({ where: { contestId_playerId: { contestId: contest.id, playerId: p.ann } } })).excluded).toBe(true);
-    expect((await prisma.sideGameEntry.findUniqueOrThrow({ where: { sideGameId_playerId: { sideGameId: game.id, playerId: p.ann } } })).excluded).toBe(true);
-    expect(await prisma.skinsEntry.count({ where: { potId: pot.id, playerId: p.ann } })).toBe(0);
+    // Out, but WHO PAID is left as it was (Hard rule 7): the contest stake stays confirmed, the opt-out game's out row says paid,
+    // and the skins stake is still on the record.
+    expect(await prisma.contestEntry.findUniqueOrThrow({ where: { contestId_playerId: { contestId: contest.id, playerId: p.ann } } })).toMatchObject({ excluded: true, confirmed: true });
+    expect(await prisma.sideGameEntry.findUniqueOrThrow({ where: { sideGameId_playerId: { sideGameId: game.id, playerId: p.ann } } })).toMatchObject({ excluded: true, confirmed: true });
+    expect(await prisma.skinsEntry.findFirstOrThrow({ where: { potId: pot.id, playerId: p.ann } }), "the skins stake was erased").toMatchObject({ confirmed: true });
     expect(await prisma.contestEntry.count({ where: { playerId: p.jon } })).toBe(0);
     expect(await prisma.skinsEntry.count({ where: { playerId: p.jon } })).toBe(0);
     await prisma.contest.delete({ where: { id: contest.id } });
@@ -336,6 +356,82 @@ describe("replaceInTeeSheet — a tournament with no weekly sign-up", () => {
     expect(res.ok, JSON.stringify(res)).toBe(true);
     expect(await prisma.player.count({ where: { eventId, status: "confirmed" } }), "the field grew past its size").toBe(3);
     expect((await prisma.player.findUniqueOrThrow({ where: { id: p.c2 } })).status).toBe("withdrawn");
+  });
+});
+
+describe("replaceInTeeSheet — a guest and the handicap", () => {
+  it("in a round scored net a guest with no figure is refused (never played off nought); with the committee's figure it is taken; gross allows a blank", async () => {
+    const eventId = await makeEvent("netguest", "opt-out");
+    const net = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "net" } })).id;
+    const gross = (await prisma.stage.create({ data: { eventId, position: 1, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "gross" } })).id;
+    const p = await players(eventId, ["n1", "n2", "n3"]);
+    await setSheet(net, [["9:00 AM", [p.n1, p.n2]]]);
+    await setSheet(gross, [["9:00 AM", [p.n1, p.n2]]]);
+    await as(adminId, eventId);
+    const before = await rawSheet(net);
+    expect(await replaceInTeeSheet(net, SAVED, p.n1, { kind: "guest", name: `${TAG} Netguest`, index: "" }, "no-show")).toEqual({
+      ok: false,
+      error: `Type the handicap the committee gives ${TAG} Netguest — this round is scored net.`,
+    });
+    expect(await rawSheet(net)).toBe(before);
+    expect(await prisma.player.count({ where: { eventId, standing: "guest" } })).toBe(0);
+    expect((await replaceInTeeSheet(net, SAVED, p.n1, { kind: "guest", name: `${TAG} Netguest`, index: "18.4" }, "no-show")).ok).toBe(true);
+    // Gross: a blank is allowed, and stored as no index.
+    const g = await replaceInTeeSheet(gross, SAVED, p.n2, { kind: "guest", name: `${TAG} Grossguest`, index: "" }, "other");
+    expect(g.ok, JSON.stringify(g)).toBe(true);
+    expect((await prisma.player.findFirstOrThrow({ where: { eventId, name: `${TAG} Grossguest` } })).handicapSource).toBe("none");
+  });
+
+  it("a guest stand-in is out of every later week unless somebody puts them in; the members stay in by default", async () => {
+    const eventId = await makeEvent("guestweeks", "opt-out");
+    const wk1 = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } })).id;
+    const wk2 = (await prisma.stage.create({ data: { eventId, position: 1, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: clubDayFrom(8) } })).id;
+    const p = await players(eventId, ["w1", "w2"]);
+    await setSheet(wk1, [["9:00 AM", [p.w1, p.w2]]]);
+    await as(adminId, eventId);
+    expect((await replaceInTeeSheet(wk1, SAVED, p.w1, { kind: "guest", name: `${TAG} Weekguest`, index: "" }, "no-show")).ok).toBe(true);
+    const guest = await prisma.player.findFirstOrThrow({ where: { eventId, name: `${TAG} Weekguest` } });
+    expect([...(await sheetFieldFor(eventId, wk1)).ids].sort(), "in this week").toEqual([guest.id, p.w2].sort());
+    expect([...(await sheetFieldFor(eventId, wk2)).ids].sort(), "next week: the members in by silence, the guest not").toEqual([p.w1, p.w2].sort());
+  });
+});
+
+describe("replaceInTeeSheet — one transaction", () => {
+  it("withdraws through the one keep path: an absentee who played round 1 keeps their default stake in its pot", async () => {
+    const eventId = await makeEvent("multiround");
+    const r1 = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: clubDayFrom(-1) } })).id;
+    const r2 = (await prisma.stage.create({ data: { eventId, position: 1, type: "Stroke Play Round", format: "Stroke Play", holes: 18, playedOn: clubDayFrom(1) } })).id;
+    const p = await players(eventId, ["q1", "q2", "q3"]);
+    // Round 1 is played, with a "everybody is in" pot: Q1 holds a stake by default (no entry row).
+    const pot = await prisma.sideGame.create({ data: { eventId, stageId: r1, kind: "low-gross", entryMode: "opt-out", buyInCents: 500 } });
+    await prisma.scorecard.create({ data: { eventId, stageId: r1, playerId: p.q1, strokes: JSON.stringify([4, 5, 4]) } });
+    await setSheet(r2, [["9:00 AM", [p.q1, p.q2]]]);
+    await as(adminId, eventId);
+    const res = await replaceInTeeSheet(r2, SAVED, p.q1, { kind: "member", playerId: p.q3 }, "no-show");
+    expect(res.ok, JSON.stringify(res)).toBe(true);
+    expect((await prisma.player.findUniqueOrThrow({ where: { id: p.q1 } })).status).toBe("withdrawn");
+    const kept = await prisma.sideGameEntry.findUnique({ where: { sideGameId_playerId: { sideGameId: pot.id, playerId: p.q1 } } });
+    expect(kept, "the round-1 stake was not written down as taken: the pot is short").toMatchObject({ confirmed: true, excluded: false });
+    expect((await prisma.auditLog.findFirstOrThrow({ where: { eventId, action: "removed" } })).detail).toBe(`${TAG} q1 was withdrawn from the field (their results are kept).`);
+  });
+
+  it("a card that arrives after the checks and before the write refuses the press, and leaves nothing: no guest, no roster row, the same sheet", async () => {
+    const eventId = await makeEvent("racing", "opt-out");
+    const stageId = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } })).id;
+    const p = await players(eventId, ["r1", "r2"]);
+    await setSheet(stageId, [["9:00 AM", [p.r1, p.r2]]]);
+    await as(adminId, eventId);
+    const before = await rawSheet(stageId);
+    hook.beforeTx = async () => {
+      await prisma.scorecard.create({ data: { eventId, stageId, playerId: p.r2, strokes: JSON.stringify([4]) } });
+    };
+    const res = await replaceInTeeSheet(stageId, SAVED, p.r1, { kind: "guest", name: `${TAG} Raceguest`, index: "" }, "no-show");
+    expect(res).toMatchObject({ ok: false });
+    expect(res.error).toContain("has a card in.");
+    expect(await rawSheet(stageId)).toBe(before);
+    expect(await prisma.player.count({ where: { eventId, name: `${TAG} Raceguest` } })).toBe(0);
+    expect(await prisma.member.count({ where: { organizationId: orgId, name: `${TAG} Raceguest` } }), "a refused press left a roster row").toBe(0);
+    expect(await prisma.roundAttendance.count({ where: { eventId } })).toBe(0);
   });
 });
 

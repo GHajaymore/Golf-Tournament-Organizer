@@ -1208,7 +1208,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
     for (const r of rounds) {
       const resolved = resolveAttendance(
         entryAttendanceMode,
-        confirmedIds,
+        state.confirmed,
         explicit
           .filter((e) => e.stageId === r.stageId)
           .map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),

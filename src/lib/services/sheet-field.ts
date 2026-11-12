@@ -28,7 +28,7 @@ export interface SheetField {
 export async function sheetFieldFor(eventId: string, stageId: string): Promise<SheetField> {
   const [event, confirmed] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId } }),
-    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true } }),
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true, standing: true } }),
   ]);
   let ids = confirmed.map((p) => p.id);
   let weekRows: SheetField["weekRows"] = [];
@@ -37,7 +37,7 @@ export async function sheetFieldFor(eventId: string, stageId: string): Promise<S
     const explicit = await prisma.roundAttendance.findMany({ where: { eventId, stageId } });
     const resolved = resolveAttendance(
       mode,
-      ids,
+      confirmed,
       explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
     );
     const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));

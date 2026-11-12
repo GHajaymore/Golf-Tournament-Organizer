@@ -96,11 +96,11 @@ function hasResult(json: string): boolean {
  * HAS ANY OF THESE SIDES PLAYED A STROKE? A side's card is not a player's `Scorecard`, so the slot lock
  * (which reads those) cannot see a one-ball side's score or a match's holes; this reads those places.
  */
-export async function sidesHavePlay(eventId: string, stageId: string, teamIds: string[]): Promise<boolean> {
+export async function sidesHavePlay(eventId: string, stageId: string, teamIds: string[], db: Prisma.TransactionClient = prisma): Promise<boolean> {
   if (teamIds.length === 0) return false;
   const [cards, matches] = await Promise.all([
-    prisma.teamScorecard.findMany({ where: { eventId, stageId, teamId: { in: teamIds } }, select: { strokes: true } }),
-    prisma.match.findMany({
+    db.teamScorecard.findMany({ where: { eventId, stageId, teamId: { in: teamIds } }, select: { strokes: true } }),
+    db.match.findMany({
       where: { eventId, stageId, OR: [{ teamAId: { in: teamIds } }, { teamBId: { in: teamIds } }] },
       select: { id: true, holes: true, forfeitedBy: true },
     }),
@@ -108,28 +108,40 @@ export async function sidesHavePlay(eventId: string, stageId: string, teamIds: s
   if (cards.some((c) => hasStroke(c.strokes))) return true;
   if (matches.some((m) => hasResult(m.holes) || m.forfeitedBy)) return true;
   if (matches.length === 0) return false;
-  const cardsOfMatches = await prisma.matchScorecard.findMany({ where: { eventId, matchId: { in: matches.map((m) => m.id) } }, select: { strokes: true } });
+  const cardsOfMatches = await db.matchScorecard.findMany({ where: { eventId, matchId: { in: matches.map((m) => m.id) } }, select: { strokes: true } });
   return cardsOfMatches.some((c) => hasStroke(c.strokes));
 }
 
 /**
- * THE ABSENTEE'S SIDE-GAME ENTRIES FOR THIS ROUND, VOIDED (never the money's record of who paid):
- *  - a contest or a side game: the entry is marked out (`excluded`, not owing, not a winner) — and in an
- *    opt-out one, where silence is "in and paid", an out row is written so they are not counted;
- *  - a skins pot, which has no out flag: the entry is removed, the way the app takes anybody out of one.
+ * THE ABSENTEE'S SIDE-GAME ENTRIES FOR THIS ROUND, MARKED OUT — and never the record of who PAID
+ * (Hard rule 7: the app records money, it never loses the record of it):
+ *  - a contest or a side game: the entry is marked `excluded` (out, always, in either mode) and `confirmed`
+ *    is left exactly as it was; in an opt-out one, where silence is "in and paid", an out row is written
+ *    that says so (`confirmed` stays true, the mode's own reading of a stake held);
+ *  - a skins pot has no out flag, so its entry is LEFT as it is (a stake taken stays taken, as a withdrawal
+ *    leaves it: "paid but gone"); the amount and whether it was paid are returned for the audit line, for
+ *    the committee to settle by hand.
  * The substitute is not entered in anything: they enter fresh, so nobody inherits a stake.
- * Counts what was voided and how many of those stakes were already paid, for the audit line.
  */
+export interface VoidedEntries {
+  contests: number;
+  sideGames: number;
+  /** Skins pots the absentee holds a stake in, left on the record: the stake in cents and whether it was paid. */
+  skins: Array<{ cents: number; paid: boolean }>;
+  /** How many of all of these stakes were already paid (a default stake in an opt-out pot counts as paid). */
+  paid: number;
+}
+
 export async function voidSideEntries(
   tx: Prisma.TransactionClient,
   eventId: string,
   stageId: string,
   playerId: string,
-): Promise<{ contests: number; sideGames: number; skins: number; paid: number }> {
+): Promise<VoidedEntries> {
   let paid = 0;
   let contests = 0;
   let sideGames = 0;
-  let skins = 0;
+  const skins: VoidedEntries["skins"] = [];
 
   for (const c of await tx.contest.findMany({ where: { eventId, stageId }, select: { id: true, entryMode: true, entrants: { where: { playerId }, select: { id: true, confirmed: true, excluded: true } } } })) {
     const row = c.entrants[0];
@@ -137,11 +149,12 @@ export async function voidSideEntries(
     if (!row && c.entryMode !== "opt-out") continue;
     await tx.contestEntry.upsert({
       where: { contestId_playerId: { contestId: c.id, playerId } },
-      update: { excluded: true, confirmed: false, won: false },
-      create: { contestId: c.id, playerId, excluded: true, confirmed: false },
+      // `confirmed` is NOT in the update: whether the stake was paid is left as it was.
+      update: { excluded: true },
+      create: { contestId: c.id, playerId, excluded: true, confirmed: true },
     });
     contests++;
-    if (row?.confirmed) paid++;
+    if (!row || row.confirmed) paid++;
   }
   for (const g of await tx.sideGame.findMany({ where: { eventId, stageId }, select: { id: true, entryMode: true, entrants: { where: { playerId }, select: { id: true, confirmed: true, excluded: true } } } })) {
     const row = g.entrants[0];
@@ -149,17 +162,16 @@ export async function voidSideEntries(
     if (!row && g.entryMode !== "opt-out") continue;
     await tx.sideGameEntry.upsert({
       where: { sideGameId_playerId: { sideGameId: g.id, playerId } },
-      update: { excluded: true, confirmed: false },
-      create: { sideGameId: g.id, playerId, excluded: true, confirmed: false },
+      update: { excluded: true },
+      create: { sideGameId: g.id, playerId, excluded: true, confirmed: true },
     });
     sideGames++;
-    if (row?.confirmed) paid++;
+    if (!row || row.confirmed) paid++;
   }
-  for (const pot of await tx.skinsPot.findMany({ where: { eventId, stageId }, select: { id: true, entrants: { where: { playerId }, select: { id: true, confirmed: true } } } })) {
+  for (const pot of await tx.skinsPot.findMany({ where: { eventId, stageId }, select: { buyInCents: true, entrants: { where: { playerId }, select: { confirmed: true } } } })) {
     const row = pot.entrants[0];
     if (!row) continue;
-    await tx.skinsEntry.delete({ where: { id: row.id } });
-    skins++;
+    skins.push({ cents: pot.buyInCents, paid: row.confirmed });
     if (row.confirmed) paid++;
   }
   return { contests, sideGames, skins, paid };

@@ -86,7 +86,7 @@ export function FoursomeMaker({
    * "Replace…" beside each player of a group that has not started (B43): what the panel chooses from and
    * the sentence it states. Null where nobody may be swapped (not staff, a round played as matches, a cup session).
    */
-  replace?: { candidates: ReplaceCandidate[]; world: ReplaceWorld; inSides: boolean; weekly: boolean } | null;
+  replace?: { candidates: ReplaceCandidate[]; world: ReplaceWorld; inSides: boolean; weekly: boolean; scoringBasis: string } | null;
   /** What may move in this round (`moveModeOf`, the answer the server refuses by): players, whole sides, or only whole groups. */
   moveMode?: MoveMode;
   /** Why nobody can move anyone now (`fieldRefusal(…, "place-in-group")`), or null. The controls are not drawn while it is set. */
@@ -1032,6 +1032,7 @@ export function FoursomeMaker({
                         world={replace.world}
                         inSides={replace.inSides}
                         weekly={replace.weekly}
+                        scoringBasis={replace.scoringBasis}
                         disabled={movePending}
                         door={door}
                         onSaid={setReplaceSaid}

@@ -3,6 +3,7 @@ import {
   applyReplace,
   candidateWhy,
   clubTimeWords,
+  guestFigureRefusal,
   handicapUsedWords,
   pairNameAfter,
   readReplaceReason,
@@ -186,16 +187,24 @@ describe("the words", () => {
         group: "Group 2",
         reason: "no-show",
         handicap: handicapUsedWords("no index"),
-        games: voidedGamesWords({ contests: 1, sideGames: 0, skins: 2, paid: 1 }),
+        games: voidedGamesWords({ contests: 1, sideGames: 0, skins: [{ cents: 500, paid: true }, { cents: 250, paid: false }], paid: 2 }),
       }),
     ).toBe(
       "Replaced Ann Doyle with Bea Ford by Sam Desk at 2026-11-12 07:05, Round 3, Group 2, reason no-show, handicap used no index (gross only). " +
-        "Voided the absentee’s entries in 1 contest, 2 skins pots (1 already paid, to be settled by hand).",
+        "Marked the absentee out of 1 contest, who paid left as it was. Left the absentee’s stake in 2 skins pots on the record (5.00 paid, 2.50 not paid), to be settled by hand.",
     );
   });
 
+  it("a guest with no figure is refused in a round scored net, allowed in a gross one", () => {
+    expect(guestFigureRefusal("net", "Rob Hale", false)).toBe("Type the handicap the committee gives Rob Hale — this round is scored net.");
+    expect(guestFigureRefusal("both", "Rob Hale", false)).not.toBeNull();
+    expect(guestFigureRefusal("stableford", "Rob Hale", false)).not.toBeNull();
+    expect(guestFigureRefusal("gross", "Rob Hale", false)).toBeNull();
+    expect(guestFigureRefusal("net", "Rob Hale", true)).toBeNull();
+  });
+
   it("nothing voided says nothing; a one-round tournament leaves the round out", () => {
-    expect(voidedGamesWords({ contests: 0, sideGames: 0, skins: 0, paid: 0 })).toBe("");
+    expect(voidedGamesWords({ contests: 0, sideGames: 0, skins: [], paid: 0 })).toBe("");
     expect(replaceAuditLine({ absentee: "A", sub: "B", staff: "S", clubTime: "t", round: "", group: "Group 1", reason: "other", handicap: "12.4", games: "" })).toBe(
       "Replaced A with B by S at t, Group 1, reason other, handicap used 12.4.",
     );
@@ -203,7 +212,7 @@ describe("the words", () => {
 
   it("the one sentence the confirm states", () => {
     expect(replaceWillSay({ absentee: "Ann", sub: "Bea", group: "Group 2", time: "8:10 AM", handicap: "12.4", inSides: false, weekly: true })).toBe(
-      "Bea takes Ann’s place in Group 2, 8:10 AM, playing off 12.4; Ann comes off the sheet and is marked out for the week, and their side-game entries for this round are voided.",
+      "Bea takes Ann’s place in Group 2, 8:10 AM, playing off 12.4; Ann comes off the sheet and is marked out for the week, and their side-game entries for this round are marked out (what they paid stays on the record).",
     );
     expect(replaceWillSay({ absentee: "Ann", sub: "Rob", group: "Group 1", time: "", handicap: "no index", inSides: true, weekly: false })).toContain("playing off no index (gross only), keeping the pair and its match; Ann comes off the sheet and is withdrawn from the field (the row is kept), and their side-game entries");
   });

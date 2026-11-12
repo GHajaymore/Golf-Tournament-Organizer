@@ -25,6 +25,7 @@
  */
 
 import { deadlinePassed } from "../deadline";
+import { isGuest } from "./entry-standing";
 
 export const ATTENDANCE_MODES = ["everyone", "opt-out", "opt-in", "captains"] as const;
 export type AttendanceMode = (typeof ATTENDANCE_MODES)[number];
@@ -87,7 +88,10 @@ export function playersAnswer(mode: AttendanceMode): boolean {
  * naming somebody, the club has not been told they are playing, and a tee
  * sheet that assumed them in would be inventing a pairing.
  */
-export function defaultStatus(mode: AttendanceMode): "in" | "out" {
+export function defaultStatus(mode: AttendanceMode, guest = false): "in" | "out" {
+  // A GUEST (a substitute, a visitor) is in only the week somebody put them in: never "in" by
+  // silence, whatever the mode, so a one-off stand-in does not turn up in every later week.
+  if (guest && tracksPerRound(mode)) return "out";
   return mode === "opt-in" || mode === "captains" ? "out" : "in";
 }
 
@@ -95,9 +99,10 @@ export function defaultStatus(mode: AttendanceMode): "in" | "out" {
 export function effectiveStatus(
   mode: AttendanceMode,
   explicit: "in" | "out" | null | undefined,
+  guest = false,
 ): "in" | "out" {
   if (explicit === "in" || explicit === "out") return explicit;
-  return defaultStatus(mode);
+  return defaultStatus(mode, guest);
 }
 
 /**
@@ -140,16 +145,17 @@ export interface AttendanceSummary {
  */
 export function resolveAttendance(
   mode: AttendanceMode,
-  confirmedPlayerIds: string[],
+  /** The confirmed field. `standing` is REQUIRED so every caller says it: a guest's silence is OUT (`defaultStatus`). */
+  confirmed: ReadonlyArray<{ id: string; standing: string | null }>,
   explicit: Array<{ playerId: string; status: string; decidedBy: string }>,
 ): AttendanceSummary {
   const byPlayer = new Map(explicit.map((e) => [e.playerId, e]));
-  const rows: AttendanceRow[] = confirmedPlayerIds.map((playerId) => {
+  const rows: AttendanceRow[] = confirmed.map(({ id: playerId, standing }) => {
     const e = byPlayer.get(playerId);
     const chosen = e && (e.status === "in" || e.status === "out") ? (e.status as "in" | "out") : null;
     return {
       playerId,
-      status: effectiveStatus(mode, chosen),
+      status: effectiveStatus(mode, chosen, isGuest({ standing })),
       explicit: chosen !== null,
       decidedBy: chosen !== null ? e!.decidedBy : "",
     };

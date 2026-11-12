@@ -5,6 +5,7 @@ import { NO_INDEX, readHandicapIndex, indexFigure } from "@/lib/domain/handicap-
 import {
   REPLACE_REASONS,
   REPLACE_REASON_WORDS,
+  guestFigureRefusal,
   replaceCandidates,
   replaceWillSay,
   type ReplaceCandidate,
@@ -32,6 +33,7 @@ export function ReplacePlayer({
   world,
   inSides,
   weekly,
+  scoringBasis,
   disabled = false,
   door = null,
   onSaid,
@@ -49,6 +51,8 @@ export function ReplacePlayer({
   inSides: boolean;
   /** The tournament asks each week, so the absentee is marked out for it. */
   weekly: boolean;
+  /** The round's `scoringBasis`: anything but "gross" uses handicaps, so a guest needs a figure. */
+  scoringBasis: string;
   disabled?: boolean;
   /** What the press did, said by the screen — this player is off the sheet afterwards, so it cannot say it here. */
   onSaid: (said: string) => void;
@@ -69,7 +73,9 @@ export function ReplacePlayer({
   const typed = readHandicapIndex(guestIndex);
   const guestIndexWords = typed.kind === "index" ? indexFigure(typed.value) : NO_INDEX;
   const guestBad = guest && (typed.kind === "unreadable" || typed.kind === "out-of-range");
-  const ready = !pending && (guest ? guestName.trim().length > 0 && !guestBad : !!member);
+  // In a round scored net a guest needs a figure (`guestFigureRefusal`): never played off nought.
+  const needsFigure = guest && !!guestFigureRefusal(scoringBasis, guestName.trim() || "the guest", typed.kind === "index");
+  const ready = !pending && (guest ? guestName.trim().length > 0 && !guestBad && !needsFigure : !!member);
   const subName = guest ? guestName.trim() : member?.name ?? "";
   const subIndex = guest ? guestIndexWords : member?.index ?? "";
 
@@ -139,7 +145,9 @@ export function ReplacePlayer({
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
             Handicap index
             <input className="input" style={{ minWidth: 0, minHeight: 44 }} inputMode="decimal" value={guestIndex} autoComplete="off" disabled={pending} onChange={(e) => setGuestIndex(e.target.value)} />
-            <span className="text-muted">Leave blank: they play gross only.</span>
+            <span className="text-muted">
+              {scoringBasis === "gross" ? "Leave blank: they play gross only." : `Type the handicap the committee gives ${guestName.trim() || "the guest"} — this round is scored net.`}
+            </span>
           </label>
           {guestBad && <p className="form-error" role="alert" style={{ margin: 0 }}>Enter the handicap as a number, like 12.4 — or +2.4 for a plus handicap.</p>}
         </>

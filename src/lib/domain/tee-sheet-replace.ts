@@ -200,20 +200,36 @@ export function replaceWillSay(args: { absentee: string; sub: string; group: str
   return (
     `${args.sub} takes ${args.absentee}’s place in ${slot}, playing off ${handicapUsedWords(args.handicap)}` +
     (args.inSides ? ", keeping the pair and its match" : "") +
-    `; ${args.absentee} comes off the sheet${args.weekly ? " and is marked out for the week" : " and is withdrawn from the field (the row is kept)"}, and their side-game entries for this round are voided.`
+    `; ${args.absentee} comes off the sheet${args.weekly ? " and is marked out for the week" : " and is withdrawn from the field (the row is kept)"}, and their side-game entries for this round are marked out (what they paid stays on the record).`
   );
 }
 
 /** What a side-game voiding says in the audit line. */
-export function voidedGamesWords(v: { contests: number; sideGames: number; skins: number; paid: number }): string {
-  const total = v.contests + v.sideGames + v.skins;
-  if (total === 0) return "";
+export function voidedGamesWords(v: { contests: number; sideGames: number; skins: Array<{ cents: number; paid: boolean }>; paid: number }): string {
+  if (v.contests + v.sideGames + v.skins.length === 0) return "";
   const parts = [
     v.contests ? `${v.contests} contest${v.contests === 1 ? "" : "s"}` : "",
     v.sideGames ? `${v.sideGames} side game${v.sideGames === 1 ? "" : "s"}` : "",
-    v.skins ? `${v.skins} skins pot${v.skins === 1 ? "" : "s"}` : "",
   ].filter(Boolean);
-  return `Voided the absentee’s entries in ${parts.join(", ")}${v.paid > 0 ? ` (${v.paid} already paid, to be settled by hand)` : ""}.`;
+  const out = parts.length ? `Marked the absentee out of ${parts.join(" and ")}, who paid left as it was` : "";
+  const skins = v.skins.length
+    ? `Left the absentee’s stake in ${v.skins.length} skins pot${v.skins.length === 1 ? "" : "s"} on the record (${v.skins
+        .map((s) => `${(s.cents / 100).toFixed(2)} ${s.paid ? "paid" : "not paid"}`)
+        .join(", ")}), to be settled by hand`
+    : "";
+  return `${[out, skins].filter(Boolean).join(". ")}.`;
+}
+
+/**
+ * A GUEST WITH NO FIGURE IS NOT PLAYED OFF NOUGHT. The handicap resolver reads the stored number and not
+ * "no index", so a blank guest in a round that uses handicaps would play as a scratch golfer. Until that is
+ * fixed at its root, a round scored net (net, both or Stableford — anything but gross) takes a guest only
+ * with a figure the committee has given them (the Rules of Handicapping allow one for a non-member).
+ * Gross: a blank is allowed. Returns the refusal, or null.
+ */
+export function guestFigureRefusal(scoringBasis: string, guestName: string, hasFigure: boolean): string | null {
+  if (hasFigure || scoringBasis === "gross") return null;
+  return `Type the handicap the committee gives ${guestName} — this round is scored net.`;
 }
 
 export const REPLACE_GROUPS_NOTE = "The pairings are the draw in this round, so a player can’t be swapped on the sheet. Re-draw, or withdraw the player and add the new one.";

@@ -59,8 +59,29 @@ describe("the opt deadline", () => {
   });
 });
 
+describe("a guest's silence is OUT, whatever the mode (a stand-in is not in every later week)", () => {
+  const field = [
+    { id: "m1", standing: "member" },
+    { id: "m2", standing: "" },
+    { id: "g1", standing: "guest" },
+  ];
+  it("in an opt-out league the members are in by default and the guest is not", () => {
+    const s = resolveAttendance("opt-out", field, []);
+    expect(s.rows.map((r) => [r.playerId, r.status])).toEqual([["m1", "in"], ["m2", "in"], ["g1", "out"]]);
+    expect(s.inByDefault).toBe(2);
+  });
+  it("said in the week, the guest is in; the default helpers agree", () => {
+    const s = resolveAttendance("opt-out", field, [{ playerId: "g1", status: "in", decidedBy: "Desk" }]);
+    expect(s.rows.find((r) => r.playerId === "g1")).toMatchObject({ status: "in", explicit: true });
+    expect(defaultStatus("opt-out", true)).toBe("out");
+    expect(defaultStatus("opt-out", false)).toBe("in");
+    // Where nothing is asked each week a guest is in, as everybody is.
+    expect(defaultStatus("everyone", true)).toBe("in");
+  });
+});
+
 describe("resolving a field for one round", () => {
-  const field = ["a", "b", "c", "d"];
+  const field = ["a", "b", "c", "d"].map((id) => ({ id, standing: "member" }));
 
   it("counts explicit and defaulted separately", () => {
     // Sixteen confirmed and eight silent is a different Wednesday from
@@ -142,7 +163,7 @@ describe("captains send the list and the club enters it", () => {
   });
 
   it("counts only the players staff have entered", () => {
-    const s = resolveAttendance("captains", ["a", "b", "c"], [
+    const s = resolveAttendance("captains", ["a", "b", "c"].map((id) => ({ id, standing: "" })), [
       { playerId: "a", status: "in", decidedBy: "Club office" },
       { playerId: "b", status: "in", decidedBy: "Club office" },
     ]);
@@ -154,7 +175,7 @@ describe("captains send the list and the club enters it", () => {
   });
 
   it("records who entered it, because 'why am I not playing' needs a name", () => {
-    const s = resolveAttendance("captains", ["a"], [
+    const s = resolveAttendance("captains", [{ id: "a", standing: "" }], [
       { playerId: "a", status: "in", decidedBy: "Club office" },
     ]);
     expect(s.rows[0]).toMatchObject({ status: "in", explicit: true, decidedBy: "Club office" });

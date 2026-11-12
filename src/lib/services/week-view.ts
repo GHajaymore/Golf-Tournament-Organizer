@@ -503,7 +503,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     });
     const resolved = resolveAttendance(
       attendanceMode,
-      state.confirmed.map((p) => p.id),
+      state.confirmed,
       explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
     );
     const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));
