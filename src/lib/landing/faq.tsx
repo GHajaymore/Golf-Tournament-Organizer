@@ -4,6 +4,7 @@ import { PLANS, retentionNotice } from "@/lib/plans";
 import { HANDICAP_EXAMPLE } from "./example";
 import type { LandingPrices } from "./pricing";
 import { faqWords, type LaunchState } from "@/lib/go-live";
+import { distinctScoredGames, SCORED_GAME_COUNT } from "@/lib/formats";
 
 /**
  * EVERY QUESTION THE FRONT DOOR ANSWERS, in one place.
@@ -47,12 +48,13 @@ const season = PLANS.society.limits;
 const club = PLANS.club.limits;
 const hc = HANDICAP_EXAMPLE;
 
-/** The sixteen format names, as the app names them. Never swapped for an edition. */
-export const FORMAT_NAMES = [
-  "Stroke Play", "Stableford", "Modified Stableford", "Match Play", "Four-Ball", "Best Ball", "Foursomes",
-  "Alternate Shot", "Greensomes", "Chapman / Pinehurst", "Shamble", "Scramble", "Texas Scramble", "Skins", "Nassau",
-  "Other, scored by hand",
-] as const;
+/**
+ * The format names the landing shows, as the app names them (never swapped for an
+ * edition): every game the app scores by itself, one entry each
+ * (`distinctScoredGames` in formats.ts), then the club's own format scored by hand.
+ * The count printed anywhere is `SCORED_GAME_COUNT`, never typed.
+ */
+export const FORMAT_NAMES: string[] = [...distinctScoredGames, "Other, scored by hand"];
 
 export const FAQ: FaqGroup[] = [
   {
@@ -74,7 +76,7 @@ export const FAQ: FaqGroup[] = [
       {
         id: "reuse",
         q: "Can I reuse last year's tournament?",
-        a: () => <p>Copy it in a click. Every setting — flights, rounds, format, prizes — carries over to a fresh event; last year&rsquo;s scores never do. You can also start from a template.</p>,
+        a: () => <p>Yes. Copy it and give the new event a first day: its settings, rounds and formats come across, and the entry window and rounds move to the new dates. Players, cards, results, money and prizes are not carried over, so the new event starts clean. You can also start from a template.</p>,
       },
       {
         id: "team",
@@ -176,7 +178,7 @@ export const FAQ: FaqGroup[] = [
         q: "What formats can we run?",
         a: () => (
           <>
-            <p>Sixteen. Fifteen are scored automatically, plus &lsquo;Other&rsquo; for a club&rsquo;s own format, scored by hand. All settle onto one leaderboard:</p>
+            <p>{SCORED_GAME_COUNT} are scored by the app (Foursomes is also called Alternate Shot), plus &lsquo;Other&rsquo; for any game of your own, scored by hand. All settle onto one leaderboard:</p>
             <div className="fmts" data-no-dialect="">
               {FORMAT_NAMES.map((f) => <span key={f}>{f}</span>)}
             </div>

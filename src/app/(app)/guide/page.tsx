@@ -77,6 +77,8 @@ const P = ({ children }: { children: React.ReactNode }) => (
   <p style={{ margin: 0, maxWidth: 720, fontSize: 14.5, lineHeight: 1.65 }}>{children}</p>
 );
 
+import { SCORED_GAME_COUNT } from "@/lib/formats";
+
 const FORMATS = [
   "Stroke Play", "Stableford", "Modified Stableford", "Match Play", "Four-Ball", "Best Ball", "Foursomes",
   "Alternate Shot", "Greensomes", "Chapman / Pinehurst", "Shamble", "Scramble", "Texas Scramble", "Skins",
@@ -164,7 +166,7 @@ export default async function GuidePage() {
           height={364}
           alt="Handicap index, then course handicap from the course's slope and rating, then playing handicap with the round's allowance, then strokes received on holes by stroke index, giving net scores, Stableford points, match holes and skins."
         />
-        <P>Sixteen formats settle onto one leaderboard. Fifteen are scored automatically; &ldquo;Other&rdquo; is a club&rsquo;s own format, scored by hand.</P>
+        <P>{SCORED_GAME_COUNT} formats settle onto one leaderboard, scored by the app (Foursomes is also called Alternate Shot); &ldquo;Other&rdquo; is a club&rsquo;s own game, scored by hand.</P>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {FORMATS.map((f) => (
             <span key={f} className="tag tag-outline">{f}</span>
