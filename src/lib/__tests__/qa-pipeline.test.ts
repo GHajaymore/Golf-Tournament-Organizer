@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose, as in qa-framework.test.ts: the pipeline runs on a bare runner.
 import { ABROAD, ARITHMETIC, ARITHMETIC_KEEPS_THREE_ROUNDS, CRAWL_PARTS, SCHEDULES, crawlNeeded, layersFor, partsFor, roundPlan, targetLine, tierOf } from "../../../scripts/qa/layers.mjs";
-import { countRunning, roundCap } from "../../../scripts/qa/round-cap.mjs";
+import { ACCOUNT_JOBS, countRunning, roundCap } from "../../../scripts/qa/round-cap.mjs";
 import { activeEntries, quarantineProblems, quarantinedBy, readQuarantine } from "../../../scripts/qa/quarantine.mjs";
 import { infraReason } from "../../../scripts/qa/infra.mjs";
 import { cleanNightlyShas, commitsWaiting, decideDeploy, mustSucceed, nightlyWait } from "../../../scripts/qa/deploy-rules.mjs";
@@ -125,15 +125,25 @@ describe("targeted rounds (2026-11-01: specs-by-area.mjs)", () => {
 });
 
 describe("the round's own cap on parts at a time (Ajay, 2026-10-31)", () => {
-  it("is 40 − running − 10, held between 4 and 16, and 12 when nothing could be counted", () => {
+
+  it("is 40 − running − 10, held between 6 and 16, and 12 when nothing could be counted", () => {
     expect(roundCap(2).cap).toBe(16);
     expect(roundCap(14).cap).toBe(16);
-    expect(roundCap(18).cap).toBe(12);
-    expect(roundCap(18).reason).toContain("40 − 18 job(s) already running");
-    expect(roundCap(26).cap).toBe(4);
-    expect(roundCap(60).cap).toBe(4);
+    expect(roundCap(19).cap).toBe(11);
+    expect(roundCap(19).reason).toContain("40 − 19 job(s) already running");
+    expect(roundCap(26).cap).toBe(6);
+    expect(roundCap(60).cap).toBe(6);
     expect(roundCap(Number.NaN).cap).toBe(12);
     expect(roundCap(-1).cap).toBe(12);
+  });
+
+  it("leaves room: with two rounds and ~3 other running jobs, one PR CI (9 jobs) and the deploy (1) still fit in the account", () => {
+    const ci = 9;
+    const deploy = 1;
+    const other = 3;
+    const first = roundCap(1).cap;
+    const second = roundCap(first + other).cap;
+    expect(first + second + other + ci + deploy).toBeLessThanOrEqual(ACCOUNT_JOBS);
   });
 
   it("counts the in-progress jobs of in-progress runs, and throws (so the fallback is taken) when GitHub does not answer", () => {

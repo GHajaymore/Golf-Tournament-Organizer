@@ -117,8 +117,8 @@ database that is not empty.
 
    **Since 2026-11-01 the cap adjusts itself** (Ajay approved 31 Oct). The
    round's plan job counts the jobs already running and sets
-   `max-parallel` to **clamp(40 − running − 10 reserved, at least 4, at most
-   16)** — the ten reserved are for a CI run's jobs and the deploy job, which
+   `max-parallel` to **clamp(40 − running − 10 reserved, at least 6, at most
+   16)** (floor was 4 until 12 Nov) — the ten reserved are one PR CI run (nine jobs at once: unit, build, seven e2e shards) and the deploy job (one), which
    must never wait behind a round. "Running" is the `in_progress` jobs of this
    repository's in-progress runs, asked of GitHub with the workflow's own
    token (it cannot see another repository of the account, and it does not
@@ -126,7 +126,7 @@ database that is not empty.
    falls back to **12**. The number and the reason are the first lines of the
    round's run summary (`scripts/qa/round-cap.mjs`, `round.yml`). A lone round
    on a quiet account gets sixteen; a round beside the nightly gets what is
-   left after the reserve, and never fewer than four.
+   left after the reserve, and never fewer than six.
 
    The panel's rule (31 Oct) still decides whether this stays, measured over
    the first three rounds under it (one beside the nightly): wall-clock,
@@ -134,7 +134,7 @@ database that is not empty.
    the peak of jobs at once. **Keep the upper bound of sixteen** only if a
    round beside the nightly kept every deploy queued under 5 minutes,
    INCOMPLETE parts did not rise, and the rounds that got more than twelve
-   saved about 20 minutes; **lower the bounds** (to 4/12, or back to a fixed
+   saved about 20 minutes; **lower the bounds** (to 6/12, or back to a fixed
    eight) if a deploy or `verify` waits over 10 minutes behind rounds, more
    than 2 parts a round are INCOMPLETE, or GitHub answers a 403 secondary rate
    limit. Changing the bounds is three numbers in `round-cap.mjs`.
