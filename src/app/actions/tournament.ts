@@ -30,6 +30,7 @@ import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount, roundRobinCutAfter } from "@/lib/services/regroup";
 import { applyStrokeCut, strokeCutField, strokeCutRefusal, strokeCutOutcomeOf } from "@/lib/services/stroke-cut";
+import { STAND_IN_MARK, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { settingsOf, effectiveScoreStatus, hasAnyHole, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
@@ -137,7 +138,7 @@ import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-l
 import { matchKeptBy, keptByScoreInput } from "@/lib/domain/match-kept-by";
 import { keptByRefusal } from "@/lib/services/match-kept-by";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
-import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
+import { withdrawEntry } from "@/lib/services/playing-history";
 // Launch, Complete, Reopen, play and closing a round ask the state machine (PR 4).
 import { roundCloseCheck, statusRequestOf } from "@/lib/domain/tournament-status";
 import { playRefusedBecause, tournamentStatusNow, refuseIfLocked, refuseIfAddingARoundIsLocked } from "@/lib/services/tournament-status";
@@ -1021,15 +1022,8 @@ export async function removeSignup(playerId: string): Promise<RemoveResult> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, shape: true } });
   const launched = !!event && isLaunched(event.status) && !isMatch(event.shape);
 
-  const played = await hasPlayingHistory(eventId, playerId);
-  const keep = played || (launched && player.status === "confirmed");
-
-  if (keep) {
-    await prisma.player.update({ where: { id: playerId }, data: { status: "withdrawn" } });
-    await keepDefaultStakes(eventId, playerId);
-  } else {
-    await prisma.player.delete({ where: { id: playerId } });
-  }
+  // The one keep path (`withdrawEntry`), shared with a replacement on the tee sheet.
+  const { played, keep } = await prisma.$transaction((tx) => withdrawEntry(tx, eventId, player, { launched }));
   if (player.email.trim()) await revokePlayerAccount(eventId, player.email);
   // On the record ("Recent changes to the field") — the organizer's removal, in
   // the same list as a member's own withdrawal.
@@ -3036,14 +3030,29 @@ export async function addStage(
   // Created one at a time rather than with createMany so the first round's id
   // can be returned — the screen scrolls to and opens the round it just made,
   // and losing that would make adding a round feel like nothing happened.
+  // A STAND-IN STAYS OUT OF A WEEK ADDED LATER: where the league asks each week, every player carrying the mark
+  // of a stand-in made by Replace (`STAND_IN_MARK`) is written OUT on each new round, in the same transaction.
+  const evFull = await prisma.event.findUnique({ where: { id: eventId } });
+  const asksWeekly = !!evFull && tracksPerRound(settingsOf(evFull).attendanceMode as AttendanceMode);
+  const standIns = asksWeekly
+    ? [...new Set((await prisma.roundAttendance.findMany({ where: { eventId, decidedBy: { contains: STAND_IN_MARK } }, select: { playerId: true } })).map((r) => r.playerId))]
+    : [];
   let firstId: string | undefined;
-  for (let i = 0; i < howMany; i += 1) {
-    const created = await prisma.stage.create({
-      // Who keeps the card and who checks it, for a new round (`scoringDefaults`).
-      data: { ...common, scoringBasis, position: position + i, playedOn: dates[i] ?? "", ...scoringDefaults(ev?.shape) },
-    });
-    if (i === 0) firstId = created.id;
-  }
+  await prisma.$transaction(async (tx) => {
+    for (let i = 0; i < howMany; i += 1) {
+      const created = await tx.stage.create({
+        // Who keeps the card and who checks it, for a new round (`scoringDefaults`).
+        data: { ...common, scoringBasis, position: position + i, playedOn: dates[i] ?? "", ...scoringDefaults(ev?.shape) },
+      });
+      if (i === 0) firstId = created.id;
+      if (standIns.length > 0) {
+        await tx.roundAttendance.createMany({
+          data: standIns.map((playerId) => ({ eventId, stageId: created.id, playerId, status: "out", decidedBy: `Desk ${STAND_IN_MARK}an earlier week only)` })),
+          skipDuplicates: true,
+        });
+      }
+    }
+  });
   // A medal's field divides by handicap unless somebody has chosen otherwise.
   await followFlightDefault(eventId, flightsBefore);
 
