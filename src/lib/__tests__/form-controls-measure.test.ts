@@ -3,9 +3,10 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { readVerbatim } from "./source";
 import { CONTROL_CHANGED, changeLine, controlSignature, installFormControls, inventoryLine, screenLine } from "../../../e2e/form-controls";
 import {
-  FORM_CONTROLS_SCOPE, VALUE_CLASSES, formControlsFigure, formControlsReport, joinFormControls, parseFormControlLine, signatureMatches,
+  FORM_CONTROLS_SCOPE, FORM_CONTROLS_SCOPE_320, VALUE_CLASSES, formControlsFigure, formControlsReport, joinFormControls, parseFormControlLine, signatureMatches,
 } from "../../../scripts/qa/form-controls.mjs";
 
 /**
@@ -155,6 +156,60 @@ describe("N of M", () => {
   });
 });
 
+describe("every round says the figure (the round's summary.md)", () => {
+  const merge = readVerbatim("scripts/qa/merge.mjs");
+
+  it("merge.mjs and the form-control scripts PARSE (a string match cannot see a syntax error)", () => {
+    for (const file of ["scripts/qa/merge.mjs", "scripts/qa/form-controls.mjs", "scripts/qa/specs-by-area.mjs"]) {
+      const run = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" });
+      expect(run.status, `${file}: ${run.stderr}`).toBe(0);
+    }
+  });
+
+  it("merge.mjs carries the figure through the reach it shapes and writes it into the summary, with the scope", () => {
+    expect(merge).toContain('import { formControlsFigure } from "./form-controls.mjs";');
+    expect(merge).toContain("formControls: report.formControls");
+    expect(merge).toContain("**Form controls:** ${formControlsFigure(reach.formControls)}");
+    // Said when there is none, never a zero.
+    expect(merge).toContain("**Form controls:** not measured for this run");
+  });
+
+  it("the sentence a round prints is the figure's own, scope on it, or NOT MEASURED", () => {
+    const r = joinFormControls(["S setting-up /event", 'I setting-up /event | on | textbox "Name"', 'C /event | filled | textbox "Name"']);
+    expect(formControlsFigure(r)).toBe(`form controls changed by a test: 1 of 1 (100%) (${FORM_CONTROLS_SCOPE_320})`);
+    // The desktop words only when a desktop stage was walked.
+    const wide = joinFormControls(["S medal-desktop-setting-up /event", 'I medal-desktop-setting-up /event | on | textbox "Name"']);
+    expect(formControlsFigure(wide)).toContain("1280px");
+    expect(formControlsFigure(r)).not.toContain("1280px");
+    expect(formControlsFigure(joinFormControls([]))).toContain("NOT MEASURED");
+  });
+});
+
+describe("the measure can fail: widening M and taking a change away both move the figure", () => {
+  const sweep = ["S setting-up /event", 'I setting-up /event | on | textbox "Name"', 'I setting-up /event | on | combobox "Format"'];
+  const changes = ['C /event | filled | textbox "Name"', 'C /event | filled | combobox "Format"'];
+
+  it("a control removed from a spec lowers N, and leaves M alone", () => {
+    const whole = joinFormControls([...sweep, ...changes]);
+    const without = joinFormControls([...sweep, changes[0]]);
+    expect([whole.changed, whole.total]).toEqual([2, 2]);
+    expect([without.changed, without.total]).toEqual([1, 2]);
+    expect(without.screens[0].neverChanged).toEqual(['combobox "Format"']);
+  });
+
+  it("a second world's controls raise M, so a control only that world draws is counted and named", () => {
+    const wider = joinFormControls([
+      ...sweep, ...changes,
+      "S knockout-desktop-setting-up /bracket", 'I knockout-desktop-setting-up /bracket | on | combobox "Seed order"',
+      // Seen at the first width too: still ONE control.
+      "S medal-desktop-setting-up /event", 'I medal-desktop-setting-up /event | on | textbox "Name"',
+    ]);
+    expect([wider.changed, wider.total]).toEqual([2, 3]);
+    expect(wider.screens.find((x) => x.screen === "/bracket")?.neverChanged).toEqual(['combobox "Seed order"']);
+    expect(wider.stages).toEqual(["knockout-desktop-setting-up", "medal-desktop-setting-up", "setting-up"]);
+  });
+});
+
 describe("the report", () => {
   const r = joinFormControls([
     "S setting-up /event", "S live /event", "S live /stages",
@@ -165,8 +220,8 @@ describe("the report", () => {
 
   it("the figure is never printed without what it leaves out", () => {
     const figure = formControlsFigure(r);
-    expect(figure).toBe(`form controls changed by a test: 2 of 6 (33%) (${FORM_CONTROLS_SCOPE})`);
-    for (const said of ["console sweep", "organizer's menu", "320px", "setting up and live", "one medal", "another format"]) expect(FORM_CONTROLS_SCOPE).toContain(said);
+    expect(figure).toBe(`form controls changed by a test: 2 of 6 (33%) (${FORM_CONTROLS_SCOPE_320})`);
+    for (const said of ["console sweep", "organizer's menu", "320px", "1280px", "setting up and live", "one medal", "one knockout", "another format"]) expect(FORM_CONTROLS_SCOPE).toContain(said);
     expect(formControlsReport(r)[0]).toBe(figure);
     expect(formControlsReport(r).join("\n")).toContain("CHANGED is not SAVED AND READ BACK");
   });
@@ -198,7 +253,7 @@ describe("the report", () => {
       const run = (...args: string[]) => spawnSync(process.execPath, ["scripts/e2e-coverage.mjs", "--form-controls", `--ledger=${dir}`, ...args], { encoding: "utf8" });
       const text = run();
       expect(text.status, text.stderr).toBe(0);
-      expect(text.stdout).toContain(`form controls changed by a test: 1 of 2 (50%) (${FORM_CONTROLS_SCOPE})`);
+      expect(text.stdout).toContain(`form controls changed by a test: 1 of 2 (50%) (${FORM_CONTROLS_SCOPE_320})`);
       expect(text.stdout).toContain('    combobox "Format"');
       const json = JSON.parse(run("--json").stdout);
       expect(json.formControls).toMatchObject({ measured: true, total: 2, changed: 1 });
