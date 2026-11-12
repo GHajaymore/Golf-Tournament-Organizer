@@ -371,7 +371,7 @@ export async function moveInTeeSheet(
   const applied = applyMoves(sheet, clean, field, locks);
   if (!applied.ok) return { ok: false, error: applied.says };
   // A group the moves left with nobody is removed; the others keep their own times.
-  const settled = settleSheet(applied.sheet, field, locks);
+  const settled = settleSheet(applied.sheet, field, locks, stage.teeSheetPublished);
   const next: TeeSheet = { ...settled.sheet, savedAt: new Date().toISOString() };
 
   const written = await prisma.stage.updateMany({

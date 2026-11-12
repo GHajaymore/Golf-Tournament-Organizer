@@ -199,8 +199,22 @@ describe("moveInTeeSheet", () => {
     const g = await groups();
     expect(g.map((x) => x.playerIds)).toEqual([[ids.ann, ids.bob, ids.cat, ids.dan], [ids.fay, ids.gus, ids.hal, ids.eve], [ids.ivy]]);
     expect(g.map((x) => x.time)).toEqual(["8:00 AM", "8:20 AM", "8:30 AM"]);
-    expect(g.map((x) => x.name)).toEqual(["Group 1", "Group 2", "Group 3"]);
+    // Published: the removed group leaves a gap; the others keep the names the papers were printed with.
+    expect(g.map((x) => x.name)).toEqual(["Group 1", "Group 3", "Group 4"]);
     expect((await stored()).teeSheetPublished).toBe(true);
+  });
+
+  it("UNPUBLISHED: the same Save renumbers, so the draft does not read Group 1, 3, 4", async () => {
+    await fourGroups();
+    await prisma.stage.update({ where: { id: stageId }, data: { teeSheetPublished: false } });
+    await as(assistantId);
+    const res = await moveInTeeSheet(stageId, SAVED, [
+      { kind: "player", playerId: ids.dan, toGroup: 0 },
+      { kind: "player", playerId: ids.eve, toGroup: 2 },
+    ]);
+    expect(res.ok).toBe(true);
+    expect((await groups()).map((x) => x.name)).toEqual(["Group 1", "Group 2", "Group 3"]);
+    expect((await stored()).teeSheetPublished).toBe(false);
   });
 
   it("then a later group moved up into the freed slot takes that slot's time; the slot it left goes", async () => {

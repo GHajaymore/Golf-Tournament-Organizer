@@ -152,7 +152,7 @@ describe("a group the draft empties is removed on Save; the others keep their ow
   it("two players moved out empty their group: it is removed, the rest keep 8:00, 8:20, 8:30 and are renumbered", () => {
     expect(ids(emptied)).toEqual(["abce", "", "hijf", "kl"]);
     expect(emptiedGroups(emptied, field, {})).toEqual([1]);
-    const s = settleSheet(emptied, field, {});
+    const s = settleSheet(emptied, field, {}, false);
     expect(s.removed).toEqual(["Group 2"]);
     expect(ids(s.sheet)).toEqual(["abce", "hijf", "kl"]);
     expect(times(s.sheet)).toEqual(["8:00 AM@1", "8:20 AM@1", "8:30 AM@1"]);
@@ -162,16 +162,24 @@ describe("a group the draft empties is removed on Save; the others keep their ow
   it("then a later group moved up into the freed slot takes that slot's time (8:10), and the last slot goes", () => {
     const up = ok(applyMove(emptied, { kind: "group", from: 3, to: 1 }, field, {}));
     expect(ids(up)).toEqual(["abce", "kl", "hijf", ""]);
-    const s = settleSheet(up, field, {});
+    const s = settleSheet(up, field, {}, false);
     expect(ids(s.sheet)).toEqual(["abce", "kl", "hijf"]);
     expect(times(s.sheet)).toEqual(["8:00 AM@1", "8:10 AM@1", "8:20 AM@1"]);
+  });
+
+  it("PUBLISHED: the removed group leaves a gap and the others keep their names (the printed papers still agree)", () => {
+    const s = settleSheet(emptied, field, {}, true);
+    expect(s.sheet.groups.map((g) => g.name)).toEqual(["Group 1", "Group 3", "Group 4"]);
+    expect(times(s.sheet)).toEqual(["8:00 AM@1", "8:20 AM@1", "8:30 AM@1"]);
+    // Unpublished, the same draft is renumbered.
+    expect(settleSheet(emptied, field, {}, false).sheet.groups.map((g) => g.name)).toEqual(["Group 1", "Group 2", "Group 3"]);
   });
 
   it("a locked group is never emptied or removed, even when none of its players are in the field", () => {
     const f = new Set([..."abcdefghijklm"].filter((x) => x !== "k" && x !== "l"));
     expect(emptiedGroups(four, f, {})).toEqual([3]);
     expect(emptiedGroups(four, f, { 3: "Group 4 has a card in." })).toEqual([]);
-    expect(settleSheet(four, f, { 3: "Group 4 has a card in." }).removed).toEqual([]);
+    expect(settleSheet(four, f, { 3: "Group 4 has a card in." }, false).removed).toEqual([]);
   });
 
   it("players marked out of the field do not count: a group of two out-players is empty", () => {

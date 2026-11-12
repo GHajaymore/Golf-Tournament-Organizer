@@ -205,15 +205,25 @@ export function removalLines(sheet: TeeSheet, field: ReadonlySet<string>, locks:
 /**
  * THE DRAFT AS IT IS SAVED: the emptied groups are removed. The groups that remain keep their OWN times and
  * start holes (nothing is silently re-timed; the organizer closes a gap by moving a group up into the
- * freed slot, which then carries that slot's time). A group still called by its number ("Group 4") is
- * renumbered to its place, so the sheet does not read Group 1, 2, 4.
+ * freed slot, which then carries that slot's time).
+ *
+ * NAMES: on a PUBLISHED sheet the others KEEP their names — the signs, scorecards and starting sheet are
+ * printed with group numbers and players were told "Group 4, 8:30", so a gap (Group 1, 2, 4) is normal at
+ * a starter's hut and renaming would make every printed paper disagree with the screen. On an unpublished
+ * sheet a group called by its number is renumbered to its place, so the draft does not read 1, 2, 4.
+ * `published` is REQUIRED: the caller must say which.
  */
-export function settleSheet(sheet: TeeSheet, field: ReadonlySet<string>, locks: SlotLocks): { sheet: TeeSheet; removed: string[] } {
+export function settleSheet(
+  sheet: TeeSheet,
+  field: ReadonlySet<string>,
+  locks: SlotLocks,
+  published: boolean,
+): { sheet: TeeSheet; removed: string[] } {
   const gone = new Set(emptiedGroups(sheet, field, locks));
   if (gone.size === 0) return { sheet, removed: [] };
   const removed = [...gone].map((i) => nameOf(sheet, i));
   const kept = sheet.groups.filter((_, i) => !gone.has(i));
-  const groups = kept.map((g, i) => (/^Group \d+$/.test(g.name) ? { ...g, name: `Group ${i + 1}` } : g));
+  const groups = published ? kept : kept.map((g, i) => (/^Group \d+$/.test(g.name) ? { ...g, name: `Group ${i + 1}` } : g));
   return { sheet: { ...sheet, groups }, removed };
 }
 
