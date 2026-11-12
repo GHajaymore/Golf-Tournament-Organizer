@@ -34,8 +34,15 @@
  * test altered the control, not that anything checked the result.
  */
 
+export const FORM_CONTROLS_SCOPE_320 =
+  "inventory from the console sweep: the organizer's menu screens at 320px, setting up and live, for one medal; a control only another format, stage, width or dialog shows is not counted";
+
+/** The scope WITH the desktop walk in it: said only when a desktop stage is in the ledger. */
 export const FORM_CONTROLS_SCOPE =
   "inventory from the console sweep: the organizer's menu screens at 320px, setting up and live, for one medal, and at 1280px, setting up, for that medal and for one knockout; a control only another format, stage or dialog shows is not counted";
+
+/** The scope of what was actually measured: the desktop words only when a desktop stage was walked. */
+export const formControlsScope = (stages) => (stages.some((s) => s.includes("desktop")) ? FORM_CONTROLS_SCOPE : FORM_CONTROLS_SCOPE_320);
 
 /** What a change may be recorded as. `refused` is the browser's own check (`validity.valid` false), nothing cleverer. */
 export const VALUE_CLASSES = ["filled", "empty", "refused", "on", "off", "pressed"];
@@ -146,7 +153,7 @@ export function joinFormControls(lines) {
 
   return {
     measured: screensWalked.size > 0,
-    scope: FORM_CONTROLS_SCOPE,
+    scope: formControlsScope([...stages]),
     stages: [...stages].sort(),
     screensWalked: screensWalked.size,
     total,

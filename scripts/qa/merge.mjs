@@ -335,7 +335,7 @@ const summary = [
     : "**Reach:** not measured for this run.",
   "",
   // Every round states the figure, with its scope on the line; a reach without one says so and never a zero.
-  reach?.formControls ? `**Form controls:** ${formControlsFigure(reach.formControls)}. The controls no test changed are listed by screen in `reach.json` (`formControls.screens`).` : "**Form controls:** not measured for this run (the reach handed in carries no form-control figure).",
+  reach?.formControls ? `**Form controls:** ${formControlsFigure(reach.formControls)}. The controls no test changed are listed by screen in \`reach.json\` (\`formControls.screens\`).` : "**Form controls:** not measured for this run (the reach handed in carries no form-control figure).",
   "",
   ...(mutationLine ? [mutationLine, ""] : []),
   findings.length ? `## Findings\n\n${findings.map((f) => `- ${f}`).join("\n")}` : "No findings.",

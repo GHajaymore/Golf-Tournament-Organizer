@@ -13,12 +13,12 @@ import { watchPageErrors } from "./page-errors";
  *   Entries      "Handicap index for <name> — 9-hole or 18-hole"   organizer   the player's handicap is a nine-hole one
  *   Prizes       "Stake for Low gross"                              organizer   a side game of 12.50 a head exists for the round
  *   Prizes       "Stake for Birdie pot"                             organizer   a second one, of 5, beside it, the first untouched
- *   Score entry  "Player" (the card's picker)                       organizer   the card is the OTHER player's: the option chosen is theirs
+ *   Score entry  "Player" (the card's picker)                       organizer   a card saved under it is the OTHER player's row, none for the first, read back
  *   Entries      "Select <name>"                                    organizer   the bulk bar counts one, then two, then goes; nobody is removed
  *
  * The first three save by themselves when left (a blur), so each is left with Tab and the row is polled for.
- * The fourth and fifth change nothing stored; their effect is what the screen says next, and a count of
- * players proves nothing was removed by ticking.
+ * The fourth saves a card, read from the database and back after a reload; the fifth stores nothing, so a
+ * count of players proves nothing was removed by ticking.
  *
  * WHAT IT CANNOT SEE: that the figure on a player's own screen follows (the money specs read that); that the
  * card shows the other player's holes (the score specs read the card). This spec is for the control.
@@ -45,6 +45,7 @@ test("the organizer changes the handicap type, two stakes, the scoring player an
 
     // ── Handicaps: Entries, the 9-hole / 18-hole choice beside the index ─────────────────────────
     await page.goto(`/registration?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
     const kind = page.getByLabel(new RegExp(`^Handicap index for ${first.name} `));
     await expect(kind).toHaveValue("18");
     await kind.selectOption("9");
@@ -58,6 +59,7 @@ test("the organizer changes the handicap type, two stakes, the scoring player an
 
     // ── Money: the two stakes on Prizes, each saved when its box is left ──────────────────────────
     await page.goto(`/prizes?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
     const stakeOf = (kindName: string) => prisma.sideGame.findFirst({ where: { eventId: f.eventId, stageId, kind: kindName }, select: { buyInCents: true } });
     expect(await stakeOf("low-gross"), "the fixture has no side game yet").toBeNull();
     const lowGross = page.getByLabel("Stake for Low gross");
@@ -73,6 +75,7 @@ test("the organizer changes the handicap type, two stakes, the scoring player an
 
     // ── Entries: ticking a player selects, and removes nobody ────────────────────────────────────
     await page.goto(`/registration?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
     const tick = (name: string) => page.getByLabel(`Select ${name}`, { exact: true });
     await expect(page.getByRole("button", { name: /Delete \d+ selected/ })).toHaveCount(0);
     await tick(second.name).check();
@@ -88,14 +91,26 @@ test("the organizer changes the handicap type, two stakes, the scoring player an
     const day = dayFromNow(0);
     await prisma.event.update({ where: { id: f.eventId }, data: { status: "live", dates: "Saturday medal", startOn: day, endOn: day } });
     await page.goto(`/entry?bust=${Date.now()}`);
-    const picker = page.locator("select[id$='-entry-player']");
+    await page.waitForLoadState("networkidle").catch(() => {});
+    const picker = page.getByLabel("Player", { exact: true });
     await expect(picker).toBeVisible();
     await picker.selectOption(second.id);
-    await expect(picker).toHaveValue(second.id);
-    // The option chosen is that player's, not the first's.
-    const chosen = await picker.evaluate((el) => (el as HTMLSelectElement).selectedOptions[0]?.textContent ?? "");
-    expect(chosen).toContain(second.name);
-    expect(chosen).not.toContain(first.name);
+    // The card now in front of us is the second player's: a score typed and saved lands on THEIR row.
+    const full = page.getByRole("button", { name: "Full card" });
+    if (await full.count()) await full.click();
+    for (let hole = 1; hole <= 18; hole += 1) await page.getByLabel(`Hole ${hole}, par 4`).fill("4");
+    await page.getByRole("button", { name: /^Save scorecard/ }).click();
+    await expect(page.getByText(/Saved/).first()).toBeVisible({ timeout: 20_000 });
+    const cardOf = (playerId: string) => prisma.scorecard.findFirst({ where: { eventId: f.eventId, stageId, playerId }, select: { strokes: true } });
+    await expect.poll(async () => (await cardOf(second.id)) !== null, { timeout: 20_000, message: "no scorecard was saved for the player picked" }).toBe(true);
+    expect(await cardOf(first.id), "the card was saved for the player NOT picked").toBeNull();
+    expect(JSON.parse((await cardOf(second.id))!.strokes)).toEqual(new Array(18).fill(4));
+    // Read back: after a reload the picker's player still has the card.
+    await page.goto(`/entry?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await picker.selectOption(second.id);
+    if (await full.count()) await full.click();
+    await expect(page.getByLabel("Hole 1, par 4")).toHaveValue("4");
 
     expect(errors, "a screen threw").toEqual([]);
   } finally {
