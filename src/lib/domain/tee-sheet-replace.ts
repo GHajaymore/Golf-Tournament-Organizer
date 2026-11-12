@@ -200,7 +200,7 @@ export function replaceWillSay(args: { absentee: string; sub: string; group: str
   return (
     `${args.sub} takes ${args.absentee}’s place in ${slot}, playing off ${handicapUsedWords(args.handicap)}` +
     (args.inSides ? ", keeping the pair and its match" : "") +
-    `; ${args.absentee} comes off the sheet${args.weekly ? " and is marked out for the week" : ""}, and their side-game entries for this round are voided.`
+    `; ${args.absentee} comes off the sheet${args.weekly ? " and is marked out for the week" : " and is withdrawn from the field (the row is kept)"}, and their side-game entries for this round are voided.`
   );
 }
 

@@ -26,7 +26,8 @@ import { PrismaClient } from "@prisma/client";
  *                                                    already in another pair are refused
  *   an interclub pair                              → the sub must play for the same club; a guest is given it
  *   singles match play                             → refused (the draw is the pairing)
- *   a tournament with no weekly sign-up            → no attendance rows; the answer says the absentee is still entered
+ *   a tournament with no weekly sign-up            → no attendance rows; the absentee is WITHDRAWN (row kept), so the field
+ *                                                    holds the sub and not both and a capped field stays at its cap
  *
  *   npx vitest run --config vitest.audit.config.ts
  */
@@ -304,17 +305,37 @@ describe("replaceInTeeSheet — an individual week (league that asks each week)"
 });
 
 describe("replaceInTeeSheet — a tournament with no weekly sign-up", () => {
-  it("writes no attendance and says the absentee is still entered", async () => {
+  it("writes no attendance and WITHDRAWS the absentee in the same press: the sub is in, the row is kept, the field holds one name for the slot", async () => {
     const eventId = await makeEvent("everyone");
     const stageId = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } })).id;
     const p = await players(eventId, ["a1", "a2", "a3"]);
     await setSheet(stageId, [["9:00 AM", [p.a1, p.a2]]]);
     await as(assistantId, eventId);
+    const confirmed = () => prisma.player.count({ where: { eventId, status: "confirmed" } });
+    expect(await confirmed()).toBe(3);
     const res = await replaceInTeeSheet(stageId, SAVED, p.a1, { kind: "member", playerId: p.a3 }, "no-show");
     expect(res.ok, JSON.stringify(res)).toBe(true);
-    expect(res.said).toContain("is still entered in the tournament");
+    expect(res.said).toContain("is withdrawn from the field (their row is kept)");
     expect((await sheetOf(stageId)).groups[0].playerIds).toEqual([p.a3, p.a2]);
     expect(await prisma.roundAttendance.count({ where: { eventId } })).toBe(0);
+    expect((await prisma.player.findUniqueOrThrow({ where: { id: p.a1 } })).status, "the absentee's row must be kept, withdrawn").toBe("withdrawn");
+    expect((await prisma.player.findUniqueOrThrow({ where: { id: p.a3 } })).status).toBe("confirmed");
+    expect(await confirmed()).toBe(2);
+    const log = await prisma.auditLog.findMany({ where: { eventId }, select: { action: true, detail: true } });
+    expect(log.map((l) => l.action).sort()).toEqual(["removed", "replaced"]);
+    expect(log.find((l) => l.action === "removed")?.detail).toBe(`${TAG} a1 was withdrawn from the field.`);
+  });
+
+  it("a guest sub keeps a capped field at its cap: three in, three in after", async () => {
+    const eventId = await makeEvent("capped");
+    const stageId = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } })).id;
+    const p = await players(eventId, ["c1", "c2", "c3"]);
+    await setSheet(stageId, [["9:00 AM", [p.c1, p.c2, p.c3]]]);
+    await as(adminId, eventId);
+    const res = await replaceInTeeSheet(stageId, SAVED, p.c2, { kind: "guest", name: `${TAG} Capguest`, index: "" }, "cancelled");
+    expect(res.ok, JSON.stringify(res)).toBe(true);
+    expect(await prisma.player.count({ where: { eventId, status: "confirmed" } }), "the field grew past its size").toBe(3);
+    expect((await prisma.player.findUniqueOrThrow({ where: { id: p.c2 } })).status).toBe("withdrawn");
   });
 });
 

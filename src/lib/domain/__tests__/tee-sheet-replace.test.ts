@@ -205,6 +205,6 @@ describe("the words", () => {
     expect(replaceWillSay({ absentee: "Ann", sub: "Bea", group: "Group 2", time: "8:10 AM", handicap: "12.4", inSides: false, weekly: true })).toBe(
       "Bea takes Ann’s place in Group 2, 8:10 AM, playing off 12.4; Ann comes off the sheet and is marked out for the week, and their side-game entries for this round are voided.",
     );
-    expect(replaceWillSay({ absentee: "Ann", sub: "Rob", group: "Group 1", time: "", handicap: "no index", inSides: true, weekly: false })).toContain("playing off no index (gross only), keeping the pair and its match; Ann comes off the sheet,");
+    expect(replaceWillSay({ absentee: "Ann", sub: "Rob", group: "Group 1", time: "", handicap: "no index", inSides: true, weekly: false })).toContain("playing off no index (gross only), keeping the pair and its match; Ann comes off the sheet and is withdrawn from the field (the row is kept), and their side-game entries");
   });
 });

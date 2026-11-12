@@ -17,6 +17,7 @@ import { notifyTeeTimesPublished } from "@/lib/services/tee-time-notify";
 import { firstHoleForRound } from "@/lib/domain/hole-number";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { fieldRefusal } from "@/lib/services/field-change";
+import { revokePlayerAccount } from "@/lib/services/player-access";
 import {
   applyReplace,
   candidateWhy,
@@ -493,7 +494,7 @@ export async function replaceInTeeSheet(
   if (mode === "groups") return { ok: false, error: REPLACE_GROUPS_NOTE };
   if (stage.type === TEAM_SESSION) return { ok: false, error: REPLACE_CUP_NOTE };
 
-  const absentee = await prisma.player.findFirst({ where: { id: absenteeId, eventId: session.eventId }, select: { id: true, name: true } });
+  const absentee = await prisma.player.findFirst({ where: { id: absenteeId, eventId: session.eventId }, select: { id: true, name: true, email: true } });
   if (!absentee) return { ok: false, error: "That player isn't in this tournament." };
 
   const locks = await slotLocksFor(session.eventId, stageId, sheet);
@@ -545,6 +546,13 @@ export async function replaceInTeeSheet(
   ]);
   if (!event) return { ok: false, error: "Tournament not found." };
   const weekly = tracksPerRound(settingsOf(event).attendanceMode as AttendanceMode);
+  // WHERE NOTHING IS ASKED EACH WEEK the absentee is WITHDRAWN in the same press, so the field holds the
+  // sub and not both ("one slot, one name"; the field cap does not overshoot). That is the Withdraw press's
+  // own rule (`fieldRefusal(…, "withdraw")`): where it refuses at this stage, so does the replace.
+  if (!weekly) {
+    const withdrawRefused = await fieldRefusal(session.eventId, "withdraw");
+    if (withdrawRefused) return { ok: false, error: withdrawRefused };
+  }
   const round = await roundWordsFor(session.eventId, stageId);
   const clubTime = clubTimeWords(clubWallClock(zone));
 
@@ -628,6 +636,12 @@ export async function replaceInTeeSheet(
         });
       }
 
+      // No weekly sign-up: the absentee leaves the field (status withdrawn, row kept), as the Withdraw press does for a launched field.
+      if (!weekly) {
+        await tx.player.updateMany({ where: { id: absenteeId, eventId: session.eventId, status: "confirmed" }, data: { status: "withdrawn" } });
+        await tx.auditLog.create({ data: { eventId: session.eventId, actor: session.name, action: "removed", detail: `${absentee.name} was withdrawn from the field.` } });
+      }
+
       const voided = await voidSideEntries(tx, session.eventId, stageId, absenteeId);
       await tx.auditLog.create({
         data: {
@@ -671,7 +685,9 @@ export async function replaceInTeeSheet(
 
   await refresh();
   const where = result.time ? `${result.groupName}, ${result.time}` : result.groupName;
-  const stays = weekly ? "" : ` ${absentee.name} is still entered in the tournament; withdraw them on Entries if they are not coming back.`;
+  // A withdrawn entry has no way in, as with the Withdraw press (an address still used by somebody in the field is kept).
+  if (!weekly && absentee.email.trim()) await revokePlayerAccount(session.eventId, absentee.email);
+  const stays = weekly ? "" : ` ${absentee.name} is withdrawn from the field (their row is kept).`;
   return { ok: true, said: `${sub.name} is in ${where}, in place of ${absentee.name}.${stays}` };
 }
 
