@@ -53,6 +53,7 @@ import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync,
 import { join } from "node:path";
 import { findingsSaid, layersFor, partFile, partsFor, SCENARIOS, SCHEDULES, targetLine } from "./layers.mjs";
 import { appId } from "./app-id.mjs";
+import { shardFiles } from "./time-shard.mjs";
 import { E2E_OWNER_EMAIL } from "../../e2e/owner-email.mjs";
 import { demoTestMark, E2E_DEMO_REPLAY_TOKEN } from "../../e2e/demo-fixture.mjs";
 
@@ -332,7 +333,15 @@ for (const layer of layers) {
   const log = join(OUT, `${partFile(layer.key, PART)}.log`);
   // A share of the crawl is that one spec; every other part runs the layer's own list.
   const specs = CRAWL_ONLY ? ["e2e/every-control.spec.ts"] : layer.specs;
-  const command = ["npx playwright test", ...specs, ...projects.map((p) => `--project=${p}`), SHARD ? `--shard=${SHARD}` : "", "--reporter=line"].filter(Boolean).join(" ");
+  // A share of a phone size's WHOLE suite is cut by measured time (scripts/qa/time-shard.mjs), not by
+  // Playwright's --shard, which balances test count: the small phone ran 41.6 minutes whole and the
+  // iPhone's second share 40.6 beside its first's 30.8. Whole spec files, every file in exactly one
+  // share (ci-e2e-matrix.test.ts holds that); the desktop keeps --shard (its console crawl is cut
+  // apart and its timings here are not the CI's).
+  const [shardNo, shardOf] = SHARD ? SHARD.split("/").map(Number) : [0, 0];
+  const timeCut = Boolean(SHARD) && !CRAWL_ONLY && specs.length === 0 && projects.length === 1 && projects[0] !== "desktop";
+  const shardArgs = !SHARD ? [] : timeCut ? shardFiles(projects[0], shardNo, shardOf) : [`--shard=${SHARD}`];
+  const command = ["npx playwright test", ...specs, ...projects.map((p) => `--project=${p}`), ...shardArgs, "--reporter=line"].filter(Boolean).join(" ");
   // What the layer's spec writes as it goes, emptied first so only this run's is kept.
   if (layer.keeps) rmSync(layer.keeps, { recursive: true, force: true });
   const code = await run(command, { env, log, minutes: layer.minutes });

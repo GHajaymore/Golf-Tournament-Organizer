@@ -103,15 +103,20 @@ RED, on an end-to-end test, and had been for twenty minutes. Running five of six
 It seeds a real fixture through `e2e/fixture.mjs` and tears it down afterwards, so it needs a
 database it may write to. Never point it at anything but the development one.
 
-**CI's browser legs are SHARDS (2026-11-04).** `ci.yml`'s `e2e` job is seven jobs: desktop cut in
-three, phone and small-phone in two each, by `--shard=i/n` within the project (desktop and phone are
-the cut a round makes, `SHARDS` in `scripts/qa/layers.mjs`). Each is its own machine with its own Postgres, seed
+**CI's browser legs are SHARDS (2026-11-04).** `ci.yml`'s `e2e` job is EIGHT jobs since 2026-11-12: desktop and phone cut in
+three, small-phone in two, BY TIME (below; it was seven, by `--shard=i/n`, which balanced test count and
+left phone 2/2 at 39 minutes beside desktop 2/3 at 12). Each is its own machine with its own Postgres, seed
 and build, so `workers: 1` and one fixture per process still hold. They read as
 `End-to-end (desktop 2/3)`; a red one names its shard, and its trace is
 `playwright-report-desktop-2of3`. To run one shard here exactly as CI does:
-`AUTH_SECRET=local-e2e-secret npx playwright test --project=desktop --shard=2/3` (a fixture turn,
-as above). With `fullyParallel` off Playwright cuts at file boundaries by test COUNT, so the shards
-are not equal in time; before the split the desktop leg was 44:31 (42.9 min of tests).
+`AUTH_SECRET=local-e2e-secret npx playwright test --project=desktop $(node scripts/qa/time-shard.mjs desktop 2 3)` (a fixture turn,
+as above). **The cut is by time:** `scripts/qa/time-shard.mjs` deals whole spec files out by the seconds
+in `scripts/qa/spec-durations.json` (longest first onto the lightest shard); `--plan <project> <n>`
+prints each shard's expected minutes. A spec the file has never seen costs the project's median and is
+still in exactly one shard, so a stale file only balances worse, never drops a test. **Refresh** the
+timings when the suite has grown: `scripts/qa/spec-durations-refresh.mjs` (header says how: the
+`gh run view --log` of every shard of one green CI run). Round parts of the phone sizes use the same cut.
+Before the first split the desktop leg was 44:31 (42.9 min of tests).
 
 Every shard hands in what it ran (`shard-proof/ran.json`) and the whole project's
 `--list` (`shard-proof/list.json`), and the `e2e-cover` job — `node scripts/qa/shards-cover.mjs` —
