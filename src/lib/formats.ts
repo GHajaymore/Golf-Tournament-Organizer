@@ -555,6 +555,40 @@ export function findFormat(name: string): GolfFormat {
 export const SCORED_FORMAT_NAMES = GOLF_FORMATS.filter((f) => f.scored).map((f) => f.name);
 
 /**
+ * Names the picker offers that are the same GAME as another entry (name -> the
+ * entry it repeats). "Alternate Shot" is Foursomes by another name (its own
+ * description says so); counting it would say the app scores a game it does
+ * not. A new alias goes here, and `distinctScoredGames` follows.
+ */
+export const SAME_GAME_AS: Readonly<Record<string, string>> = {
+  "Alternate Shot": "Foursomes",
+};
+
+/**
+ * The games the app scores by itself, one entry each: scored, and not an alias
+ * of another. The hand-scored "Other" is not one. This is the ONE source of
+ * every "N formats" the landing page, the FAQ, the guide and the features list
+ * print, so the number cannot drift from the table (CLAUDE.md "One rule, one place").
+ */
+export const distinctScoredGames: string[] = GOLF_FORMATS
+  .filter((f) => f.scored && !(f.name in SAME_GAME_AS))
+  .map((f) => f.name);
+
+/**
+ * The games as a person reads them, one label each: a game that is also sold
+ * under another name carries it in brackets ("Foursomes (Alternate Shot)", the
+ * Rules' own heading, Rule 22), so a reader who knows either name finds it.
+ * The FAQ pills and the guide's tags both render THIS list.
+ */
+export const SCORED_GAME_LABELS: string[] = distinctScoredGames.map((g) => {
+  const aliases = Object.entries(SAME_GAME_AS).filter(([, of]) => of === g).map(([alias]) => alias);
+  return aliases.length ? `${g} (${aliases.join(", ")})` : g;
+});
+
+/** `distinctScoredGames.length` as a word-free figure for copy. */
+export const SCORED_GAME_COUNT = distinctScoredGames.length;
+
+/**
  * Formats an organizer can actually run today — the ones the picker offers.
  *
  * Deliberately narrower than SCORED_FORMAT_NAMES. An engine that computes a

@@ -13,7 +13,7 @@ import { readVerbatim } from "./source";
 
 const ROUND = { id: 1, name: "Round", path: ".github/workflows/round.yml", head_branch: "round/x-1", head_sha: "a".repeat(40), html_url: "https://example.invalid/run/1" };
 const job = (name: string, status = "completed", conclusion: string | null = "success") => ({ name, status, conclusion });
-const fixed = (verdict: [string, string | null] = ["completed", "success"]) => [job("Plan"), job("Database suite and the one build"), job("The packages the browsers need"), job("Verdict", ...verdict)];
+const fixed = (verdict: [string, string | null] = ["completed", "success"]) => [job("Plan"), job("Database suite"), job("The one build"), job("The packages the browsers need"), job("Verdict", ...verdict)];
 
 describe("finished means the Verdict job finished, with every planned part done", () => {
   it("4 of 36 parts done is in flight, whatever else is quiet", () => {

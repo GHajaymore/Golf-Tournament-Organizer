@@ -19,7 +19,7 @@ import { watchPageErrors } from "./page-errors";
  *   the handicap sum   → five rows; each label on the same line as its figure,
  *                         to its left; the sum reads 12.4, then 14.86 played as
  *                         15, 90% of 14.86, and a playing handicap of 13
- *   the formats        → sixteen names, each in a box of its own, none touching
+ *   the formats        → fifteen names (14 scored games + Other), each in a box of its own, none touching
  *   the prices         → three cards, side by side on a laptop and stacked on a
  *                         phone; in each the name, the price and the terms sit
  *                         one under the other
@@ -106,7 +106,8 @@ test("the questions page lays out its handicap sum, its formats and its prices",
     const { answer, el } = await openAnswer(page, "scoring", "formats", "fmts");
     await fits(answer, el, "the list of formats");
     const pills = await boxes(page, "details.q#q-formats .fmts > span");
-    expect(pills, "the answer says sixteen formats").toHaveLength(16);
+    expect(pills, "14 scored games and Other").toHaveLength(15);
+    expect(pills.map((p) => p.text), "Alternate Shot is one pill, with Foursomes").toContain("Foursomes (Alternate Shot)");
     for (const [i, a] of pills.entries()) {
       expect(a.w, `"${a.text}" has no box of its own`).toBeGreaterThan(20);
       for (const b of pills.slice(i + 1)) {
