@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { navForRole } from "../nav";
 import {
-  judge, isReason, isSaveState, isPagerEnd, gap, scrub, keyOf, ratchet, knownFile,
+  judge, isReason, isSaveState, isPagerEnd, gap, scrub, keyOf, ratchet, knownFile, knownFor, stageFor, ASSISTANT_STAGE_PREFIX,
   KEY_SHAPE, REASON_WITHIN_PX, SWEEP_WIDTH, RULES,
   type Facts, type DisabledControl,
 } from "../../../e2e/console-sweep";
@@ -182,6 +183,37 @@ describe("the console sweep's rules", () => {
     expect(KEY_SHAPE.test(keyOf("live", "/organization#plan", { rule: "sideways-scroll", sig: "page" }))).toBe(true);
     expect(KEY_SHAPE.test("live /stages :: no-such-rule :: page")).toBe(false);
     expect(KEY_SHAPE.test("/stages :: sideways-scroll :: page")).toBe(false);
+  });
+
+  it("each walk is held to its own lines of the one known list: the assistant's carry their stage's prefix", () => {
+    const org = keyOf(stageFor("organizer", "live"), "/stages", { rule: "disabled-without-reason", sig: 'select.input "Format for Round #"' });
+    const asst = keyOf(stageFor("assistant", "live"), "/grouping", { rule: "disabled-without-reason", sig: 'select.input "Tees for <name>"' });
+    expect(asst).toBe('assistant-live /grouping :: disabled-without-reason :: select.input "Tees for <name>"');
+    expect(org.startsWith(ASSISTANT_STAGE_PREFIX)).toBe(false);
+    // A line of either walk is a line of the list.
+    expect(KEY_SHAPE.test(org)).toBe(true);
+    expect(KEY_SHAPE.test(asst)).toBe(true);
+    expect(KEY_SHAPE.test(keyOf(stageFor("assistant", "setting-up"), "/registration#entry", { rule: "sideways-scroll", sig: "page" }))).toBe(true);
+    const both = [org, asst];
+    expect(knownFor(both, "organizer")).toEqual([org]);
+    expect(knownFor(both, "assistant")).toEqual([asst]);
+    // So neither walk's ratchet calls the other's line "gone", and none is held by both.
+    expect(ratchet([org], knownFor(both, "organizer"))).toEqual({ added: [], gone: [] });
+    expect(ratchet([asst], knownFor(both, "assistant"))).toEqual({ added: [], gone: [] });
+    expect([...knownFor(both, "organizer"), ...knownFor(both, "assistant")].sort()).toEqual([...both].sort());
+  });
+
+  it("an assistant's menu is the Organizer's less the screens only an Organizer opens, and still a console", () => {
+    const hrefs = (role: "admin" | "assistant") => new Set(navForRole(role, undefined, {}).flatMap((s) => s.items.map((i) => i.href)));
+    const organizer = hrefs("admin");
+    const assistant = hrefs("assistant");
+    for (const h of assistant) expect(organizer.has(h), `${h} is on the assistant's menu and not the Organizer's`).toBe(true);
+    const lost = [...organizer].filter((h) => !assistant.has(h)).sort();
+    // The role shuts these at the door (SCREEN_ACCESS "admin" only). If this list empties, the second walk has nothing to teach.
+    expect(lost).toEqual(["/access", "/event", "/organization", "/tournaments"]);
+    // And what remains is a real console: the walk's control asks for more than ten screens.
+    expect(assistant.size).toBeGreaterThan(10);
+    for (const must of ["/dashboard", "/stages", "/registration", "/grouping", "/prizes"]) expect(assistant.has(must), must).toBe(true);
   });
 
   it("the known list is a sorted list of whole lines, each once (what the spec prints is what it takes)", () => {

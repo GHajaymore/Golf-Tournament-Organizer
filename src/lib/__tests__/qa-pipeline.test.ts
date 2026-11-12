@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose, as in qa-framework.test.ts: the pipeline runs on a bare runner.
 import { ABROAD, ARITHMETIC, ARITHMETIC_KEEPS_THREE_ROUNDS, CRAWL_PARTS, SCHEDULES, crawlNeeded, layersFor, partsFor, roundPlan, targetLine, tierOf } from "../../../scripts/qa/layers.mjs";
-import { countRunning, roundCap } from "../../../scripts/qa/round-cap.mjs";
+import { ACCOUNT_JOBS, RESERVED, countRunning, roundCap } from "../../../scripts/qa/round-cap.mjs";
 import { activeEntries, quarantineProblems, quarantinedBy, readQuarantine } from "../../../scripts/qa/quarantine.mjs";
 import { infraReason } from "../../../scripts/qa/infra.mjs";
 import { cleanNightlyShas, commitsWaiting, decideDeploy, mustSucceed, nightlyWait } from "../../../scripts/qa/deploy-rules.mjs";
@@ -125,15 +125,34 @@ describe("targeted rounds (2026-11-01: specs-by-area.mjs)", () => {
 });
 
 describe("the round's own cap on parts at a time (Ajay, 2026-10-31)", () => {
-  it("is 40 − running − 10, held between 4 and 16, and 12 when nothing could be counted", () => {
+
+  it("is 40 − running − 11, held between 6 and 16, and 12 when nothing could be counted", () => {
     expect(roundCap(2).cap).toBe(16);
-    expect(roundCap(14).cap).toBe(16);
-    expect(roundCap(18).cap).toBe(12);
-    expect(roundCap(18).reason).toContain("40 − 18 job(s) already running");
-    expect(roundCap(26).cap).toBe(4);
-    expect(roundCap(60).cap).toBe(4);
+    expect(roundCap(14).cap).toBe(15);
+    expect(roundCap(19).cap).toBe(10);
+    expect(roundCap(19).reason).toContain("40 − 19 job(s) already running");
+    expect(roundCap(26).cap).toBe(6);
+    expect(roundCap(60).cap).toBe(6);
     expect(roundCap(Number.NaN).cap).toBe(12);
     expect(roundCap(-1).cap).toBe(12);
+  });
+
+  it("leaves room: with two rounds and ~3 other running jobs, one PR CI (10 jobs) and the deploy (1) still fit in the account", () => {
+    // A PR's CI run is DERIVED from ci.yml (unit + build + one job per e2e matrix line), so adding a
+    // shard cannot leave the reserve behind. Comment lines are not jobs.
+    const yml = readVerbatim(".github/workflows/ci.yml")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("#"))
+      .join("\n");
+    const shards = (yml.match(/^\s*-\s*\{\s*project:/gm) ?? []).length;
+    expect(shards, "no e2e matrix found in ci.yml").toBeGreaterThan(0);
+    const ci = 2 + shards;
+    const deploy = 1;
+    const other = 3;
+    const first = roundCap(1).cap;
+    const second = roundCap(first + other).cap;
+    expect(first + second + other + ci + deploy).toBeLessThanOrEqual(ACCOUNT_JOBS);
+    expect(RESERVED, "the reserve no longer covers one CI run and the deploy").toBeGreaterThanOrEqual(ci + deploy);
   });
 
   it("counts the in-progress jobs of in-progress runs, and throws (so the fallback is taken) when GitHub does not answer", () => {

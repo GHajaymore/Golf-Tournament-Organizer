@@ -3,7 +3,7 @@ import { readVerbatim } from "./source";
 
 /**
  * CI runs end-to-end jobs per viewport — since 2026-11-04 per SHARD of a
- * viewport (desktop in three, phone and small-phone in two) — and the list of viewports is
+ * viewport (desktop and phone in three, small-phone in two, cut by time) — and the list of viewports is
  * written down twice.
  *
  * `playwright.config.ts` declares the projects; `ci.yml` fans out over a
@@ -105,7 +105,9 @@ describe("every viewport CI claims to test is actually tested", () => {
     expect(
       yamlCode(WORKFLOW),
       "the e2e job no longer passes --project and --shard, so one job runs more than its cut of one viewport",
-    ).toMatch(/playwright test --project=\$\{\{\s*matrix\.project\s*\}\} --shard=\$\{\{\s*matrix\.shard\s*\}\}\/\$\{\{\s*matrix\.shards\s*\}\}/);
+    ).toMatch(
+      /time-shard\.mjs \$\{\{\s*matrix\.project\s*\}\} \$\{\{\s*matrix\.shard\s*\}\} \$\{\{\s*matrix\.shards\s*\}\}\) \|\| exit 1[\s\S]*playwright test --project=\$\{\{\s*matrix\.project\s*\}\} \$files /,
+    );
     expect(
       CONFIG,
       "workers is no longer 1; parallel workers inside one run share the seeded fixture",
@@ -141,7 +143,7 @@ describe("every viewport CI claims to test is actually tested", () => {
     // The cut Security agreed to: the laptop in three, the phone in two — and the small phone in two
     // once the first two cuts left it the critical path (29:27 whole, 2026-11-04).
     expect(byProject.get("desktop")?.length, "the desktop leg is no longer three shards").toBe(3);
-    expect(byProject.get("phone")?.length, "the phone leg is no longer two shards").toBe(2);
+    expect(byProject.get("phone")?.length, "the phone leg is no longer three shards").toBe(3);
     expect(byProject.get("small-phone")?.length, "the small-phone leg is no longer two shards").toBe(2);
   });
 
@@ -159,5 +161,67 @@ describe("every viewport CI claims to test is actually tested", () => {
     expect(code).toContain("PLAYWRIGHT_JSON_OUTPUT_FILE: shard-proof/ran.json");
     expect(code).toMatch(/playwright test --list --project=\$\{\{\s*matrix\.project\s*\}\} --reporter=json/);
     expect(code).toContain("name: e2e-tests-${{ matrix.project }}-${{ matrix.shard }}of${{ matrix.shards }}");
+  });
+});
+
+/**
+ * THE TIME CUT LOSES NO SPEC (2026-11-12). CI's shards are handed their FILES by
+ * `scripts/qa/time-shard.mjs`, by measured seconds (`spec-durations.json`), where they used to be
+ * handed `--shard=i/n`. A deal that drops a file, or deals one twice, is a spec that never runs (or a
+ * fixture raced) with every job green; `e2e-cover` proves it from the run, and this says so before a
+ * machine is spent. `time-shard.mjs` is plain JS: the dynamic import is the only way to read it here.
+ */
+describe("the time cut deals every spec to exactly one shard", () => {
+  type Mod = {
+    specFiles: () => string[];
+    loadDurations: () => Record<string, Record<string, number>>;
+    shardFiles: (project: string, shard: number, shards: number, opts?: { files?: string[]; durations?: Record<string, Record<string, number>> }) => string[];
+    cut: (files: string[], perFile: Record<string, number>, shards: number) => { files: string[]; seconds: number }[];
+  };
+  const load = async () => (await import("../../../scripts/qa/time-shard.mjs")) as unknown as Mod;
+
+  it("deals the project's files out, each once, for every shard the matrix runs", async () => {
+    const { specFiles, shardFiles } = await load();
+    const all = specFiles();
+    expect(all.length, "no spec files found").toBeGreaterThan(100);
+    const byProject = new Map<string, number>();
+    for (const s of matrixShards()) byProject.set(s.project, s.shards);
+    expect(byProject.size).toBeGreaterThan(1);
+    for (const [project, n] of byProject) {
+      const dealt = Array.from({ length: n }, (_, i) => shardFiles(project, i + 1, n)).flat();
+      expect([...dealt].sort(), `${project}: the shards together are not exactly the spec files`).toEqual([...all].sort());
+      for (let i = 1; i <= n; i += 1) expect(shardFiles(project, i, n).length, `${project} ${i}/${n} holds nothing`).toBeGreaterThan(0);
+    }
+  });
+
+  it("deals a spec it has never timed too, and balances by seconds (no shard above 1.2 of the mean)", async () => {
+    const { specFiles, loadDurations, cut, shardFiles } = await load();
+    const all = [...specFiles(), "e2e/zz-brand-new.spec.ts"];
+    const dealt = Array.from({ length: 3 }, (_, i) => shardFiles("phone", i + 1, 3, { files: all })).flat();
+    expect(dealt.filter((f) => f === "e2e/zz-brand-new.spec.ts"), "a spec with no timing was dropped or doubled").toHaveLength(1);
+    const durations = loadDurations();
+    for (const [project, n] of [["desktop", 3], ["phone", 3], ["small-phone", 2]] as const) {
+      const bins = cut(specFiles(), durations[project], n);
+      const mean = bins.reduce((a, b) => a + b.seconds, 0) / n;
+      expect(Math.max(...bins.map((b) => b.seconds)), `${project}: the cut is lopsided`).toBeLessThan(mean * 1.2);
+    }
+  });
+
+  it("knows the whole suite's timings (no spec file missing from spec-durations.json by more than a few)", async () => {
+    const { specFiles, loadDurations } = await load();
+    const d = loadDurations();
+    for (const project of ["desktop", "phone", "small-phone"]) {
+      const missing = specFiles().filter((f) => !(f in d[project]));
+      expect(missing.length, `${project}: refresh scripts/qa/spec-durations.json (missing ${missing.slice(0, 5).join(", ")})`).toBeLessThanOrEqual(5);
+    }
+  });
+});
+
+describe("a round's longest part is not whole", () => {
+  it("cuts the small phone's whole suite (41.6 minutes on one machine, 2026-11-11) and the phone's", async () => {
+    const { SHARDS } = (await import("../../../scripts/qa/layers.mjs")) as unknown as { SHARDS: Record<string, number> };
+    expect(SHARDS["suite:small-phone"], "suite:small-phone is one machine again").toBeGreaterThanOrEqual(2);
+    expect(SHARDS["suite:phone"]).toBeGreaterThanOrEqual(2);
+    expect(SHARDS["iphone:phone"]).toBeGreaterThanOrEqual(2);
   });
 });

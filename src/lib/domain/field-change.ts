@@ -105,7 +105,7 @@
  */
 import { configurationLocked, isFinished, isLaunched } from "./lifecycle-state";
 import { minutesOfTeeTime } from "./tee-sheet";
-import { knockoutHasResults, tournamentFamily, type Family, type LockScope, type RoundFacts, type TournamentFacts, type WayOut } from "./tournament-status";
+import { knockoutHasResults, tournamentFamily, type Family, type LockScope, type RoundFacts, type ScopeLock, type TournamentFacts, type WayOut } from "./tournament-status";
 
 /**
  * The changes. `add-to-flight` is a late entry made WITH a flight (the add
@@ -530,6 +530,28 @@ export function fieldBanner(facts: FieldFacts): string[] | null {
     return ["You can withdraw a player, put one back or add a reserve.", add.says.split(/(?<=\.)\s+/)[0]];
   }
   return ["You can withdraw a player or put one back.", add.says];
+}
+
+/**
+ * THE FIELD'S LOCK, SAID TRUTHFULLY (UX Writer, from J13's finding). After launch
+ * the machine's blanket lock on "the field" reads "Locked because the tournament
+ * is live." — true of players' details, imports and moves between flights, but
+ * untrue as a summary where a late entry is still taken (the day-of rule above).
+ * So where the rule takes a late entry (`add`, or `add-to-flight` for a round
+ * robin) the lock's reason says what is locked and what is still open; where it
+ * does not, the lock is returned as it is. Asked of `fieldChangeAllowed`, the
+ * same verdict the Add button and the action ask, never a second copy of the
+ * rule. Only a lock by launch is reworded: a completed tournament takes nothing.
+ */
+export function fieldLockSaid(facts: FieldFacts, lock: ScopeLock): ScopeLock {
+  if (lock.scope !== "field" || lock.by !== "launch") return lock;
+  if (fieldChangeAllowed(facts, "add").ok) {
+    return { ...lock, because: "Players’ details and imports are locked because the tournament is live. A late entry can still be added here." };
+  }
+  if (fieldChangeAllowed(facts, "add-to-flight").ok) {
+    return { ...lock, because: "Players’ details and imports are locked because the tournament is live. A late entry can still be added here, with a flight." };
+  }
+  return lock;
 }
 
 /**

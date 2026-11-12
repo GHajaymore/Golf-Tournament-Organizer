@@ -50,9 +50,14 @@ export const ALWAYS_ON = [
   // scroll, a reason beside every greyed control, one primary to a row or card. A ratchet
   // (e2e/console-sweep-known.json); Chromium's small phone only, and it skips itself everywhere else.
   "e2e/console-sweep.spec.ts",
+  // The same sweep as an ASSISTANT (the club role that runs the day and may not reshape the tournament):
+  // the screens the assistant's menu offers, the same three rules; its known lines are "assistant-…" in the same file.
+  "e2e/console-sweep-assistant.spec.ts",
   // The control on "form controls changed by a test" (scripts/e2e-coverage.mjs): the hook is on every
   // context of every spec (e2e/coverage.ts), so its proof runs with whatever specs a round keeps.
   "e2e/form-controls.spec.ts",
+  // The inventory's wider world: the same figure measured at desktop width, for a medal and for a knockout (a measure, judges nothing).
+  "e2e/form-controls-reach.spec.ts",
   // The text-box crawl. It runs as its own layer (`text-boxes`, below), and skips itself in the suite's
   // run exactly as it does in a full round's, so listing it here changes nothing but the bookkeeping.
   "e2e/every-text-box.spec.ts",
@@ -333,6 +338,8 @@ export const FULL_ONLY = [
   "e2e/handicap-body.spec.ts",
   "e2e/honest-card.spec.ts",
   "e2e/hydration-recorder.spec.ts",
+  // The form controls no test changed, the most important first: handicap type, two stakes, the scoring picker, a selection — each changed, its effect read.
+  "e2e/important-controls-are-changed.spec.ts",
   "e2e/interclub-league.spec.ts",
   "e2e/joining-a-club-refusals.spec.ts",
   "e2e/joining-a-club.spec.ts",

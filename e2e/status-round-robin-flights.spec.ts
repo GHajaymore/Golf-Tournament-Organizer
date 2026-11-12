@@ -2,7 +2,7 @@ import { test, expect } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { expectTournamentSays } from "./expect-tournament-says";
 import { statusFixture, dayFromNow, prisma } from "./status-fixture";
-import { expectRoundDoors, expectScopeLock, LOCKED_LIVE } from "./expect-tournament-locks";
+import { expectRoundDoors, expectScopeLock, FIELD_LOCKED_LATE_ENTRY_WITH_FLIGHT, LOCKED_LIVE } from "./expect-tournament-locks";
 import { pressComplete, pressReopen } from "./end-early";
 import { END_EARLY } from "../src/lib/domain/lifecycle-track";
 
@@ -173,7 +173,7 @@ test("a round robin in flights says the same thing at every stage, and takes a l
     // ── a late entrant (7a): a flight is REQUIRED, and their matches are drawn against it ──
     const before = await drawn();
     expect(before.length).toBe(15);
-    await expectScopeLock(page, "/registration", { scope: "The field", because: LOCKED_LIVE, wayOut: "correction" });
+    await expectScopeLock(page, "/registration", { scope: "The field", because: FIELD_LOCKED_LATE_ENTRY_WITH_FLIGHT, wayOut: "correction" });
     await expect(page.getByText("You can withdraw a player, put one back or add a late entry with a flight.", { exact: false }).first()).toBeVisible();
     await page.getByLabel("Player name").fill(LATE);
     // The Add form's own box ("Email · …"), not a row's "Email for …".
