@@ -62,8 +62,8 @@ describe("networkOf: IPv6 by its /64, IPv4 whole", () => {
 describe("both round-code lookups ask the client gate and give back only successes", () => {
   const src = readSource("src/app/actions/play.ts");
   it("calls the gate once in each of redeemRoundCode and claimPlayerSlot, never clears it", () => {
-    expect(src.match(/clientGuessGate("round-code-client"/g)?.length).toBe(2);
-    expect(src.match(/guess.succeeded()/g)?.length).toBe(2);
-    expect(src).not.toMatch(/clearRateLimit("round-code-client"/);
+    expect(src.match(/clientGuessGate\("round-code-client"/g)?.length).toBe(2);
+    expect(src.match(/guess\.succeeded\(\)/g)?.length).toBe(2);
+    expect(src).not.toMatch(/clearRateLimit\("round-code-client"/);
   });
 });
