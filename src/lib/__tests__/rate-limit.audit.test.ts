@@ -2,7 +2,7 @@ import "dotenv/config";
 import { describe, it, expect, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
-import { checkRateLimit, clearRateLimit } from "../rate-limit";
+import { checkRateLimit, clearRateLimit, clientGuessGate } from "../rate-limit";
 import { RATE_LIMITS, entryLinkBudget } from "../domain/rate-limit";
 
 /**
@@ -259,5 +259,44 @@ describe("an entry link's budget, asked through the real counter (2026-11-10)", 
     const d = await checkRateLimit("register-token", id, budget);
     expect(d.allowed).toBe(false);
     expect(d.message).toMatch(/couldn't check that just now/);
+  });
+});
+
+describe("the per-client round-code limit (clientGuessGate)", () => {
+  // Invented documentation addresses; keys are HMACs of them, expiring with the window.
+  const stamp = Date.now();
+  const enumerator = `203.0.113.${stamp % 200}`;
+  const clubhouse = `198.51.100.${stamp % 200}`;
+  const lookup = (code: string) => code === "REAL-CODE"; // stands in for the accessCode lookup
+
+  async function tryCode(address: string, code: string) {
+    const gate = await clientGuessGate("round-code-client", address);
+    if (!gate.decision.allowed) return "refused";
+    if (lookup(code)) return "in";
+    await gate.recordFailure();
+    return "wrong";
+  }
+
+  it("refuses the 21st wrong code from one client while another client's correct code still works", async () => {
+    const results: string[] = [];
+    for (let i = 0; i < 21; i++) results.push(await tryCode(enumerator, `WRONG-${i}`));
+    expect(results.slice(0, 20).every((r) => r === "wrong")).toBe(true);
+    expect(results[20]).toBe("refused");
+    expect(await tryCode(enumerator, "REAL-CODE")).toBe("refused");
+    expect(await tryCode(clubhouse, "REAL-CODE")).toBe("in");
+  });
+
+  it("never counts a successful entry: forty players on one address all get in", async () => {
+    for (let i = 0; i < 40; i++) expect(await tryCode(clubhouse, "REAL-CODE")).toBe("in");
+    expect(await tryCode(clubhouse, "WRONG-X")).toBe("wrong");
+  });
+
+  it("stores no bare address", async () => {
+    const keys = (await prisma.rateLimitHit.findMany({ where: { key: { startsWith: "round-code-client:" } }, select: { key: true } })).map((r) => r.key);
+    expect(keys.length).toBeGreaterThan(0);
+    for (const k of keys) {
+      expect(k).not.toContain(enumerator);
+      expect(k).not.toContain(createHash("sha256").update(enumerator).digest("hex"));
+    }
   });
 });
