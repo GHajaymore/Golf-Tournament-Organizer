@@ -2,6 +2,7 @@ import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { expectLaunched } from "./end-early";
+import { addDays, dayIn } from "./rounds-fixture";
 
 /**
  * THE TEE SHEET, FROM THE SECRETARY'S DRAW TO A MEMBER'S PHONE.
@@ -62,7 +63,9 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
     await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
 
     await open(page, "/event");
-    const today = new Date().toISOString().slice(0, 10);
+    // Two days ahead, on the CLUB's clock (the club takes E2E_TZ): the sheet is saved at 07:30 and drawn again, and a group
+    // that has teed off is never redrawn (the tee-sheet rule, PR 7c) — today's 07:30 may have gone by where the club is.
+    const today = addDays(dayIn(process.env.E2E_TZ ?? ""), 2);
     await page.getByLabel("Tournament dates, first day").fill(today);
     await page.getByLabel("Tournament dates, last day").fill(today);
     const course = page.getByRole("combobox", { name: "Golf course" });

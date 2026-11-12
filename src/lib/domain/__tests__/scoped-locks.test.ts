@@ -94,6 +94,12 @@ describe("one locked scope, as plain values a screen is handed", () => {
     expect(scopeLockOf(locks, "money")).toBeNull();
     expect(scopeLockOf(locks, "teeSheet")).toBeNull();
   });
+
+  it("the tee sheet is shut by a completed tournament, and only by that, with Reopen the way out (PR 7c)", () => {
+    const lock = scopeLockOf(locksFor(completed(facts())), "teeSheet");
+    expect(lock?.by).toBe("completed");
+    expect(lock?.wayOut).toEqual({ says: "Reopen it on the dashboard", href: "/dashboard" });
+  });
 });
 
 describe("a refusal says the reason, then the way out with what the press was for — and knows who is reading", () => {

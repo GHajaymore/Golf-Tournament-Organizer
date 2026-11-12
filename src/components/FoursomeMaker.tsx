@@ -79,6 +79,7 @@ export function FoursomeMaker({
   locks = {},
   canMove = false,
   door = null,
+  saveDoor = null,
   moveMode = "players",
   replace = null,
 }: {
@@ -91,6 +92,8 @@ export function FoursomeMaker({
   moveMode?: MoveMode;
   /** Why nobody can move anyone now (`fieldRefusal(…, "place-in-group")`), or null. The controls are not drawn while it is set. */
   door?: string | null;
+  /** Why the sheet cannot be saved, published or taken back now (`teeSheetDoors`: a completed tournament), or null. The buttons are drawn shut and this is said beside them. */
+  saveDoor?: string | null;
   /** Saved slots that have begun (teed off, or a card in), with why — `slotLocks`. Index to sentence. */
   locks?: Record<number, string>;
   /** Staff, on a saved sheet whose field rule allows a change: the move controls are drawn. */
@@ -169,6 +172,8 @@ export function FoursomeMaker({
    */
   const [showDrawControls, setShowDrawControls] = useState(!savedAt);
   const [saveError, setSaveError] = useState("");
+  // What a change to a sheet players were already sent has said (`teeSheetWarnWords`), beside the button pressed.
+  const [saveWarning, setSaveWarning] = useState("");
   const [savePending, startSaveTransition] = useTransition();
   // Publishing shows the draw to every player, so it is a two-step, deliberate
   // act rather than one blue button next to Save. The confirm follows the app's
@@ -188,6 +193,8 @@ export function FoursomeMaker({
   // The DRAFT of moves on the saved sheet: kept here, written once on Save changes.
   const [moves, setMoves] = useState<SheetMove[]>([]);
   const [moveError, setMoveError] = useState("");
+  // What a saved set of moves said, including what a published sheet's players were told.
+  const [moveSaid, setMoveSaid] = useState("");
   // What a replacement said: the player replaced is off the sheet afterwards, so the screen holds it.
   const [replaceSaid, setReplaceSaid] = useState("");
   const [movePending, startMoveTransition] = useTransition();
@@ -291,12 +298,14 @@ export function FoursomeMaker({
   };
   const saveMoves = () => {
     setMoveError("");
+    setMoveSaid("");
     startMoveTransition(async () => {
       const res = await moveInTeeSheet(stageId, savedAt, moves);
       if (!res.ok) {
         setMoveError(res.error ?? "Couldn’t save the changes.");
         return;
       }
+      setMoveSaid(res.said ?? "");
       setMoves([]);
     });
   };
@@ -338,6 +347,7 @@ export function FoursomeMaker({
         setSaveError(res.error ?? "Couldn't save the sheet.");
         return;
       }
+      setSaveWarning(res.warning ?? "");
       setSavedSnapshot(sheet.groups);
       setSaveState({ savedAt: new Date().toISOString(), published: publish });
     });
@@ -376,6 +386,7 @@ export function FoursomeMaker({
         setSaveError(res.error ?? "Couldn't unpublish the sheet.");
         return;
       }
+      setSaveWarning(res.warning ?? "");
       setSaveState((s) => ({ savedAt: s.savedAt || new Date().toISOString(), published: false }));
     });
   };
@@ -442,7 +453,7 @@ export function FoursomeMaker({
           field of eight has the same problem as a field of eighty: whatever
           the size, the builder is either the task or in the way of it, and
           which one it is depends on whether the round has been drawn. */}
-      {savedDraw && !showDrawControls && (
+      {savedDraw && !showDrawControls && !saveDoor && (
         <button
           type="button"
           onClick={() => setShowDrawControls(true)}
@@ -691,7 +702,7 @@ export function FoursomeMaker({
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={savePending || groups.length === 0}
+                disabled={savePending || groups.length === 0 || !!saveDoor}
                 onClick={() => { setConfirmPublish(false); persist(false); }}
               >
                 <Icon name="floppy-disk" /> {savePending ? "Saving…" : "Save sheet"}
@@ -699,7 +710,7 @@ export function FoursomeMaker({
               <button
                 type="button"
                 className="btn btn-secondary"
-                disabled={savePending || groups.length === 0}
+                disabled={savePending || groups.length === 0 || !!saveDoor}
                 onClick={() => setConfirmPublish(true)}
               >
                 <Icon name="megaphone" /> Save &amp; publish
@@ -708,7 +719,7 @@ export function FoursomeMaker({
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  disabled={savePending}
+                  disabled={savePending || !!saveDoor}
                   onClick={() => { setConfirmPublish(false); unpublish(); }}
                 >
                   <Icon name="eye-slash" /> Unpublish
@@ -747,6 +758,11 @@ export function FoursomeMaker({
             GroupingControls already renders, with the same link to the same
             screen. A second copy would eventually disagree about what an empty
             field means. */}
+        {stageId && saveDoor && (
+          <p role="status" className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.5 }}>
+            <Icon name="info" /> {saveDoor}
+          </p>
+        )}
         {stageId && saveBlock && (
           <p
             style={{
@@ -836,6 +852,11 @@ export function FoursomeMaker({
           )}
         </p>
       )}
+      {saveWarning && !saveError && (
+        <p role="status" style={{ fontSize: 13, margin: "0 0 10px" }}>
+          <Icon name="megaphone" /> {saveWarning}
+        </p>
+      )}
 
       {/* A saved draft is published as it stands — see `publishSaved`. Only
           while the saved sheet is what is on screen, so what is published is
@@ -843,7 +864,7 @@ export function FoursomeMaker({
       {stageId && savedDraw && !saveState.published && shown.source === "saved" && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "0 0 14px" }}>
           {!confirmPublishSaved ? (
-            <button type="button" className="btn btn-primary" disabled={savePending} onClick={() => setConfirmPublishSaved(true)}>
+            <button type="button" className="btn btn-primary" disabled={savePending || !!saveDoor} onClick={() => setConfirmPublishSaved(true)}>
               <Icon name="megaphone" /> Publish this sheet
             </button>
           ) : (
@@ -881,7 +902,7 @@ export function FoursomeMaker({
       )}
 
       {canMove && door && shown.source === "saved" && (
-        <p className="text-muted" style={{ margin: "0 0 12px", fontSize: 13 }}>{door}</p>
+        <p role="note" className="text-muted" style={{ margin: "0 0 12px", fontSize: 13 }}>{door}</p>
       )}
       {moving && (
         <div role="region" aria-label="Move players and groups" style={{ display: "flex", flexDirection: "column", gap: 8, margin: "0 0 12px" }}>
@@ -919,6 +940,12 @@ export function FoursomeMaker({
             </p>
           )}
         </div>
+      )}
+
+      {moveSaid && (
+        <p role="status" className="card elev-sm" style={{ margin: "0 0 12px", fontSize: 14 }}>
+          {moveSaid}
+        </p>
       )}
 
       {replaceSaid && (

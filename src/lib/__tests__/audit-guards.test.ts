@@ -3163,10 +3163,11 @@ describe("every field action asks the one field rule", () => {
   });
 
   // PR B: the tee sheet's one-player placement is a change kind of the same rule, asked before the sheet is written.
-  it("the tee sheet's Put in group asks the rule (place-in-group) before it writes", () => {
+  // PR 7c moved it to the tee sheet's own rule (`teeSheetChangeAllowed`, kind "place"); the sweep over every writer is tee-sheet-writers-ask-the-rule.test.ts.
+  it("the tee sheet's Put in group asks the tee-sheet rule (place) before it writes", () => {
     const put = actions("tee-sheet.ts").find((a) => a.name === "placeInTeeGroup");
     expect(put, "placeInTeeGroup should be swept").toBeDefined();
-    const asks = put!.body.search(/await fieldRefusal\(session\.eventId, "place-in-group"\)/);
+    const asks = put!.body.search(/await teeSheetVerdictFor\(session\.eventId, stageId, \{ kind: "place" \}\)/);
     const writes = put!.body.search(/prisma\.stage\.updateMany\(/);
     expect(asks, "placeInTeeGroup must ask the one field rule").toBeGreaterThan(-1);
     expect(writes, "the write comes after the rule is asked").toBeGreaterThan(asks);

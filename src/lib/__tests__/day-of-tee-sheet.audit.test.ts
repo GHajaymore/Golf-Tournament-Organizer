@@ -172,7 +172,7 @@ describe("Put in group: one named player, one group with room", () => {
     expect(await placeInTeeGroup(stageId, ids.lee, 0)).toEqual({ ok: false, error: "Group 1 is full. Choose a group with room." });
     const before = await groups();
     const res = await placeInTeeGroup(stageId, ids.lee, 1);
-    expect(res).toEqual({ ok: true, said: `${TAG} lee is in Group 2, off at 8:10 AM.` });
+    expect(res).toEqual({ ok: true, said: `${TAG} lee is in Group 2, off at 8:10 AM. Players were already sent their times. 1 player’s time changed. Those with notifications on get an alert; everyone sees it in TourneyHQ.` });
     const after = await groups();
     expect(after[0]).toEqual(before[0]);
     expect(after[1]).toEqual({ ...before[1], playerIds: [ids.eve, ids.fay, ids.gus, ids.lee] });
@@ -292,7 +292,7 @@ describe("completed", () => {
       const walkIn = (await prisma.player.findFirstOrThrow({ where: { eventId: medal, email: at("walk-in") } })).id;
       expect(await placeInTeeGroup(stageId, walkIn, 0)).toEqual({
         ok: false,
-        error: "The tournament is completed, so its field is as it finished. An Organizer can reopen it on the dashboard.",
+        error: "The tournament is completed, so its tee sheets are final. An Organizer can reopen it on the dashboard.",
       });
     } finally {
       await prisma.event.update({ where: { id: medal }, data: { status: "live" } });

@@ -158,7 +158,7 @@ function compare(f: TournamentFacts): Array<{ reader: Reader; today: unknown; ma
     sides: blanket,
     cup: blanket,
     money: false,
-    teeSheet: false,
+    teeSheet: isFinished(f.status),
   };
   for (const scope of LOCK_SCOPES) add(`lock:${scope}`, todayLock[scope], st.locks[scope].locked);
   return out;

@@ -209,7 +209,7 @@ export const AREAS = {
   },
   "tee-sheet": {
     name: "The tee sheet",
-    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts"],
+    paths: ["src/app/(app)/foursomes/", "src/components/FoursomeMaker.tsx", "src/components/PairingRequests.tsx", "src/components/PlaceInGroup.tsx", "src/app/actions/tee-sheet.ts", "src/lib/domain/tee-sheet-moves.ts", "src/lib/services/tee-sheet-locks.ts", "src/components/ReplacePlayer.tsx", "src/lib/domain/tee-sheet-replace.ts", "src/lib/services/tee-sheet-replace.ts", "src/lib/domain/tee-sheet-change.ts", "src/lib/services/tee-sheet-change.ts"],
     specs: [
       "e2e/organizer-teesheet.spec.ts",
       "e2e/play-with.spec.ts",

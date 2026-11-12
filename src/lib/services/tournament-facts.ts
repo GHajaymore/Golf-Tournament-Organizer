@@ -321,6 +321,7 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
           deadline: true,
           cutEnabled: true,
           teeSheet: true,
+          teeSheetPublished: true,
           closedAt: true,
           thirdPlace: true,
         },
@@ -434,6 +435,7 @@ async function readCore(eventIds: readonly string[], opts: { setupChecks: boolea
         matchesOver: own.filter((m) => storedMatchIsOver(m)).length,
         // The launch dialog's own question: asked only of a round the field turns up for together.
         teeSheetSaved: strokeRound ? !!s.teeSheet.trim() : null,
+        teeSheetPublished: s.teeSheetPublished && !!s.teeSheet.trim(),
         hasResult: played.has(s.id),
         closed: s.closedAt != null,
       };

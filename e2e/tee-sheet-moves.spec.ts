@@ -134,6 +134,8 @@ test.describe("tee sheet moves: a tournament", () => {
       const after = await readSheet(stageId);
       expect(after.groups.map((g) => `${g.name}|${g.time}|${g.startHole}`), "the times did not stay with the slots").toEqual(before.groups.map((g) => `${g.name}|${g.time}|${g.startHole}`));
       expect(after.published, "the move unpublished the sheet").toBe(true);
+      // J12 (PR 7c): the sheet was published, so the press SAYS what players were told — beside the button, not in a log.
+      await expect(page.getByRole("status").filter({ hasText: "Players were already sent their times." })).toContainText(/players?’ times? changed./);
 
       // A card in locks its group: said on the row, and its players have no move.
       await returnCard(eventId, stageId, ids[4]);
@@ -141,6 +143,14 @@ test.describe("tee sheet moves: a tournament", () => {
       await expect(page.getByRole("note").filter({ hasText: "Group 3 has a card in." })).toBeVisible();
       await expect(page.getByLabel(`Move ${NAMES[4]} to`, { exact: true })).toHaveCount(0);
       await expect(page.getByLabel(`Move ${NAMES[0]} to`, { exact: true }).locator("option", { hasText: "Group 3" })).toBeDisabled();
+      // J12 (PR 7c): once the tournament is completed the sheet is final — said where the press was, no control drawn.
+      await prisma.event.update({ where: { id: eventId }, data: { status: "completed" } });
+      await open(page, stageId);
+      const final = "The tournament is completed, so its tee sheets are final. An Organizer can reopen it on the dashboard.";
+      await expect(page.getByRole("note").filter({ hasText: final })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+      await expect(page.getByLabel(`Move ${NAMES[0]} to`, { exact: true })).toHaveCount(0);
+      expect((await readSheet(stageId)).raw, "a completed tournament's sheet was written").toBe(after.raw);
       expect(errors, "the page threw").toEqual([]);
     } finally {
       await context.close();

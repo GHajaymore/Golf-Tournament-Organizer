@@ -117,7 +117,9 @@ test("a member asks to play with a friend, the committee sees it, and the draw k
     await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
 
     await open(page, "/event");
-    const today = new Date().toISOString().slice(0, 10);
+    // Two days on: the draw below is made at 07:30 and drawn AGAIN, and a group that has teed off by the club's clock is
+    // never redrawn (the tee-sheet rule, PR 7c). Today's 07:30 would have gone by, in whatever zone the club is in.
+    const today = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
     await page.getByLabel("Tournament dates, first day").fill(today);
     await page.getByLabel("Tournament dates, last day").fill(today);
     const course = page.getByRole("combobox", { name: "Golf course" });

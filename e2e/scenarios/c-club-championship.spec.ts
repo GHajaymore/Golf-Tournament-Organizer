@@ -4,6 +4,7 @@ import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs"
 import { join } from "node:path";
 import { seed, setPlanFor, names, indexes, memberSession, eventFacts, eachKeepsTheirOwn, roundCards, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
 import { expectLaunched, pressComplete } from "../end-early";
+import { addDays, dayIn } from "../rounds-fixture";
 
 /**
  * SCENARIO — tournament C: a 36-hole Club Championship at an Eagle
@@ -92,8 +93,10 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
 
     await test.step("date and course", async () => {
       await open(page, "/event");
-      const today = new Date().toISOString().slice(0, 10);
-      const next = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      // Round 1 two days ahead, Round 2 three, on the CLUB's clock (E2E_TZ): Round 2 is drawn at 08:00 and drawn again, and a
+      // group that has teed off is never redrawn (the tee-sheet rule, PR 7c), so neither day may be the club's today.
+      const today = addDays(dayIn(process.env.E2E_TZ ?? ""), 2);
+      const next = addDays(today, 1);
       await page.getByLabel("Tournament dates, first day").fill(today);
       await page.getByLabel("Tournament dates, last day").fill(next);
       const course = page.getByRole("combobox", { name: "Golf course" });
