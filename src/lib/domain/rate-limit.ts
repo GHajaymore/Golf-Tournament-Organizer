@@ -465,7 +465,7 @@ export function clientAddressFrom(get: (name: string) => string | null | undefin
  */
 export function networkOf(address: string): string {
   const a = address.toLowerCase();
-  const mapped = a.match(/^::ffff:(d+.d+.d+.d+)$/);
+  const mapped = a.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (mapped) return mapped[1];
   if (!a.includes(":")) return a;
   const [head, tail] = a.split("::");
