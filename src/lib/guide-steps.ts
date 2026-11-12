@@ -102,6 +102,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "The first time somebody you added signs in, they choose a password and we email a 6-digit code to the address you typed. The password only takes effect once they type that code back, so only the person who reads that inbox can take the seat. The code works for 15 minutes; **Send a new code** sends another.",
           "A role at the club is changed the same way as one on a tournament: pick it, then confirm. It reaches further — an **Admin** is an {organizer} on every tournament the club runs, and the confirmation says so before you agree.",
           "Anyone added can leave again themselves, from Your account → Your clubs. A club's only Commissioner can't leave until somebody else is one.",
+          "Only a **Commissioner** can make someone a Commissioner, change a Commissioner's role, remove one, or delete the club. An **Admin** can add, change and remove people up to Admin, and the buttons for anything more are greyed with the reason beside them. A club always keeps at least one Commissioner.",
         ],
       },
     ],
