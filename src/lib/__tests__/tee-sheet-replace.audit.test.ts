@@ -373,6 +373,10 @@ describe("replaceInTeeSheet — a tournament with no weekly sign-up", () => {
     expect(res.ok, JSON.stringify(res)).toBe(true);
     expect(await prisma.player.count({ where: { eventId, status: "confirmed" } }), "the field grew past its size").toBe(3);
     expect((await prisma.player.findUniqueOrThrow({ where: { id: p.c2 } })).status).toBe("withdrawn");
+    // B46: nothing is asked each week, but the stand-in is still MARKED (one row), so the season can tell them from a regular.
+    const guest = await prisma.player.findFirstOrThrow({ where: { eventId, name: `${TAG} Capguest` } });
+    const rows = await prisma.roundAttendance.findMany({ where: { eventId } });
+    expect(rows.map((r) => [r.playerId, r.decidedBy.includes("(stand-in for ")])).toEqual([[guest.id, true]]);
   });
 });
 
@@ -413,6 +417,36 @@ describe("replaceInTeeSheet — a guest and the handicap", () => {
     // The desk can still put the stand-in in for a later week by saying so.
     await prisma.roundAttendance.update({ where: { stageId_playerId: { stageId: wk2, playerId: guest.id } }, data: { status: "in" } });
     expect([...(await sheetFieldFor(eventId, wk2)).ids].sort()).toEqual([guest.id, p.w1, p.w2].sort());
+  });
+
+  it("a ONE-WEEK league: no other round exists to write an OUT row for, yet the stand-in is marked and a week added later does not let them in", async () => {
+    const eventId = await makeEvent("oneweek", "opt-out");
+    const wk1 = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } })).id;
+    const p = await players(eventId, ["o1", "o2"]);
+    await setSheet(wk1, [["9:00 AM", [p.o1, p.o2]]]);
+    await as(adminId, eventId);
+    expect((await replaceInTeeSheet(wk1, SAVED, p.o1, { kind: "guest", name: `${TAG} Oneweek`, index: "" }, "no-show")).ok).toBe(true);
+    const standIn = await prisma.player.findFirstOrThrow({ where: { eventId, name: `${TAG} Oneweek` } });
+    const mark = await prisma.roundAttendance.findUniqueOrThrow({ where: { stageId_playerId: { stageId: wk1, playerId: standIn.id } } });
+    expect(mark.decidedBy).toContain("(stand-in for ");
+    const added = await addStage("Stroke Play Round", 1);
+    expect(added.error, JSON.stringify(added)).toBeUndefined();
+    const field = [...(await sheetFieldFor(eventId, added.id!)).ids];
+    expect(field, "the stand-in turned up in a week added later").not.toContain(standIn.id);
+    expect(field).toContain(p.o1);
+    expect(field).toContain(p.o2);
+  });
+
+  it("a member picked to step in is a plain replacement: no stand-in mark on their row", async () => {
+    const eventId = await makeEvent("pickedmember", "opt-out");
+    const wk1 = (await prisma.stage.create({ data: { eventId, position: 0, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } })).id;
+    const p = await players(eventId, ["k1", "k2", "k3"]);
+    await setSheet(wk1, [["9:00 AM", [p.k1, p.k2]]]);
+    await as(adminId, eventId);
+    expect((await replaceInTeeSheet(wk1, SAVED, p.k1, { kind: "member", playerId: p.k3 }, "no-show")).ok).toBe(true);
+    const row = await prisma.roundAttendance.findUniqueOrThrow({ where: { stageId_playerId: { stageId: wk1, playerId: p.k3 } } });
+    expect(row.decidedBy).toContain("(replacing ");
+    expect(row.decidedBy).not.toContain("(stand-in for ");
   });
 
   it("a guest who is NOT a stand-in (a CSV-imported row: no email, no handicap id, no roster match) stays IN every week of an opt-out league", async () => {

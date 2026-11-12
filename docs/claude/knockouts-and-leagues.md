@@ -202,3 +202,7 @@ Three things to carry forward:
   The audit (`the-board-and-the-draw-agree-on-a-cut.audit.test.ts`) puts the
   cycle at a real cut line and holds the board and the draw to the same draw for
   the one place.
+
+## A guest who stands in scores no individual season points (B46, 12 Nov)
+
+Golf Pro + Tournament Director: a GUEST made by "Replace [player] with…" scores no individual season points; the pair's, team's and week's points still count; the absentee, with no card, scores none. The one place: `EventFinish.finishers[].standIn` (REQUIRED) is set in `finishOrderFor` from `isGuestStandIn(guest, decidedBy)` (`domain/attendance.ts`: only a guest CREATED by Replace carries `STAND_IN_MARK`, on their IN row and their OUT rows, written whether or not the club asks each week) and `seriesStandings` scores the eligible players among themselves (Golf Pro): a member behind the stand-in moves up, one tied with it takes the whole place, members tied with each other split. A guest picked from the field, or entered another way (CSV, form), has no mark and scores. A club setting to award guests points is a follow-up (no settings JSON on `Series`; it needs a column and a migration).

@@ -665,7 +665,9 @@ export async function replaceInTeeSheet(
       // The week: out for the absentee, in for the sub — each naming the other, and who pressed.
       if (weekly) {
         const out = `${session.name} (replaced by ${sub.name})`;
-        const inn = `${session.name} (replacing ${absentee.name})`;
+        // Only a guest CREATED by this press is a stand-in (B46): it carries the one mark. A member, or a guest picked from
+        // the field, is a plain "replacing" and scores as themselves.
+        const inn = guestToMake ? `${session.name} ${STAND_IN_MARK}${absentee.name})` : `${session.name} (replacing ${absentee.name})`;
         await tx.roundAttendance.upsert({
           where: { stageId_playerId: { stageId, playerId: absenteeId } },
           update: { status: "out", decidedAt: new Date(), decidedBy: out },
@@ -676,18 +678,27 @@ export async function replaceInTeeSheet(
           update: { status: "in", decidedAt: new Date(), decidedBy: inn },
           create: { eventId: session.eventId, stageId, playerId: subId, status: "in", decidedBy: inn },
         });
-        // A STAND-IN IS IN THIS WEEK ONLY. Every other round of the season gets an explicit OUT for them, written
-        // now, so their silence never turns them up in a later week. Nobody else changes: a guest entered any
-        // other way (a CSV row, the entry form) is in by the mode's default exactly as before, because the
-        // default is never asked who somebody is. The desk can still put them in for a week by saying so.
-        if (guestToMake) {
-          const others = stages.filter((s) => s.id !== stageId);
-          if (others.length > 0) {
-            await tx.roundAttendance.createMany({
-              data: others.map((s) => ({ eventId: session.eventId, stageId: s.id, playerId: subId, status: "out", decidedBy: `${session.name} ${STAND_IN_MARK}${round || "one round"} only)` })),
-              skipDuplicates: true,
-            });
-          }
+      } else if (guestToMake) {
+        // Nothing is asked each week, so nothing reads this row but the season table: it only MARKS the stand-in (B46),
+        // who is in by the mode's default as before. Every reader of the rows asks `tracksPerRound` first.
+        const inn = `${session.name} ${STAND_IN_MARK}${absentee.name})`;
+        await tx.roundAttendance.upsert({
+          where: { stageId_playerId: { stageId, playerId: subId } },
+          update: { status: "in", decidedAt: new Date(), decidedBy: inn },
+          create: { eventId: session.eventId, stageId, playerId: subId, status: "in", decidedBy: inn },
+        });
+      }
+      // A STAND-IN IS IN THIS WEEK ONLY. Every other round of the season gets an explicit OUT for them, written
+      // now, so their silence never turns them up in a later week. Nobody else changes: a guest entered any
+      // other way (a CSV row, the entry form) is in by the mode's default exactly as before, because the
+      // default is never asked who somebody is. The desk can still put them in for a week by saying so.
+      if (guestToMake) {
+        const others = stages.filter((s) => s.id !== stageId);
+        if (others.length > 0) {
+          await tx.roundAttendance.createMany({
+            data: others.map((s) => ({ eventId: session.eventId, stageId: s.id, playerId: subId, status: "out", decidedBy: `${session.name} ${STAND_IN_MARK}${round || "one round"} only)` })),
+            skipDuplicates: true,
+          });
         }
       }
 
