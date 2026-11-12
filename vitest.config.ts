@@ -21,6 +21,10 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["src/**/*.audit.test.ts", "**/node_modules/**"],
     environment: "node",
+    // Vitest 2 let a test that never gave up the thread run past its 5 s; vitest 3+ fails it at the
+    // deadline. Whole-source sweeps and property tests here take 4-9 s on a busy machine and are
+    // right, so the deadline is a harness figure, not a claim: it stops a hung test, no assertion moved.
+    testTimeout: 30_000,
     // Empties GOLFCOURSE_API_KEY: no test may spend the real allowance.
     setupFiles: ["./vitest.setup.ts"],
   },
