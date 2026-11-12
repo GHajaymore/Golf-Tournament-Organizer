@@ -150,7 +150,7 @@ describe("every viewport CI claims to test is actually tested", () => {
   it("does not let verify pass unless every shard and the shard cover succeeded", () => {
     const code = yamlCode(WORKFLOW);
     const verify = code.slice(code.indexOf("\n  verify:"), code.indexOf("\n  deploy:"));
-    expect(verify, "verify no longer needs every e2e shard and the cover").toMatch(/needs:\s*\[unit, build, e2e, e2e-cover\]/);
+    expect(verify, "verify no longer needs every e2e shard and the cover").toMatch(/needs:\s*\[unit, build, e2e-build, e2e, e2e-cover\]/);
     // Runs on a red need, and fails on anything but success: a skipped required check reads as passing.
     expect(verify).toMatch(/if:\s*\$\{\{\s*!cancelled\(\)\s*\}\}/);
     expect(verify).toContain('all(.[]; .result == "success")');
@@ -161,6 +161,46 @@ describe("every viewport CI claims to test is actually tested", () => {
     expect(code).toContain("PLAYWRIGHT_JSON_OUTPUT_FILE: shard-proof/ran.json");
     expect(code).toMatch(/playwright test --list --project=\$\{\{\s*matrix\.project\s*\}\} --reporter=json/);
     expect(code).toContain("name: e2e-tests-${{ matrix.project }}-${{ matrix.shard }}of${{ matrix.shards }}");
+  });
+});
+
+/**
+ * ONE BUILD, EVERY SHARD TAKES IT (2026-11-12). Eight shards each built the bundle they served (about
+ * 1.9 minutes each); now job `e2e-build` builds it once and the shards download it. What can go wrong
+ * is silent: a shard that quietly builds its own again (the saving gone, nothing red), or one that
+ * serves a missing or stale bundle (every test against the wrong app). So the guarantee is pinned here:
+ * the shards need the build job, take its artifact, tell the config not to build, the config then checks
+ * the build before serving it, and no shard step runs `npm run build`.
+ */
+describe("the browser-test bundle is built once and every shard takes it", () => {
+  const code = yamlCode(WORKFLOW);
+  const job = (name: string, next: string) => code.slice(code.indexOf(`\n  ${name}:`), code.indexOf(`\n  ${next}:`));
+
+  it("builds the bundle in one job, the way the config would, and stamps it with the commit", () => {
+    const build = job("e2e-build", "e2e");
+    expect(build, "the e2e-build job is gone").toContain("npm run build");
+    expect(build).toContain("NEXT_DIST_DIR: .next-e2e");
+    expect(build).toContain('NEXT_NO_STANDALONE: "1"');
+    expect(build).toContain('echo "${{ github.sha }}" > .next-e2e/BUILT_FROM');
+    expect(build).toContain("name: e2e-build");
+    expect(build, "an empty upload would let every shard fall over later").toContain("if-no-files-found: error");
+  });
+
+  it("makes every shard wait for it, take its artifact, and not build its own", () => {
+    const e2e = job("e2e", "e2e-cover");
+    expect(e2e, "a shard can start without the build").toMatch(/^    needs:\s*e2e-build\s*$/m);
+    expect(e2e).toMatch(/actions\/download-artifact@v4\s+with:\s+name: e2e-build\s+path: \.next-e2e/);
+    expect(e2e, "the shard no longer tells the config to serve the prebuilt bundle").toContain('E2E_PREBUILT: "1"');
+    expect(e2e, "a shard builds its own bundle again").not.toMatch(/npm run build|next build/);
+  });
+
+  it("has the config serve that build, after checking it is this commit's, and never build in that mode", () => {
+    const start = CONFIG.slice(CONFIG.indexOf("webServer:"));
+    expect(start).toContain('process.env.E2E_PREBUILT === "1" ? `node scripts/ci/check-prebuilt.mjs && npx next start --port ${PORT}`');
+    const check = readVerbatim("scripts/ci/check-prebuilt.mjs");
+    expect(check).toContain("GITHUB_SHA");
+    expect(check).toContain("BUILT_FROM");
+    expect(check).toContain("process.exit(1)");
   });
 });
 

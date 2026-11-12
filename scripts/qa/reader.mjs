@@ -34,7 +34,7 @@ import { pathToFileURL } from "node:url";
 export const STATUS_CONTEXT = "round-verdict";
 
 /** The round workflow's jobs that are not parts; every other job in a round run is one. */
-export const NOT_PARTS = ["Plan", "Database suite and the one build", "The packages the browsers need", "Verdict"];
+export const NOT_PARTS = ["Plan", "Database suite", "The one build", "The packages the browsers need", "Verdict"];
 
 /**
  * The commit status a round's verdict becomes. Only CLEAN is success: a round that

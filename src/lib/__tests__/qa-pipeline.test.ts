@@ -315,6 +315,23 @@ describe("the machine is not the app (item D)", () => {
     expect(merge).toContain('const INCOMPLETE = "INCOMPLETE — re-run";');
   });
 
+  it("the database suite runs beside the build, and a red one still fails the round", () => {
+    const round = readVerbatim(".github/workflows/round.yml").replace(/\r\n/g, "\n");
+    const audit = round.slice(round.indexOf("\n  audit:"), round.indexOf("\n  build:"));
+    const build = round.slice(round.indexOf("\n  build:"), round.indexOf("\n  browser-packages:"));
+    expect(audit).toContain("node scripts/qa/round.mjs audit --audit-only");
+    // BESIDE: neither job waits for the other (it ran before the build and held every part back).
+    expect(audit).not.toMatch(/^    needs:/m);
+    expect(build).not.toMatch(/^    needs:/m);
+    expect(build, "the build job runs the suite again, in front of the build").toContain("--build-only --no-audit");
+    // BINDING: the verdict waits for it and hands its result to the merge, which makes a red one NOT CLEAN.
+    const verdict = round.slice(round.indexOf("\n  verdict:"));
+    expect(verdict).toMatch(/needs: \[plan, audit, build, part\]/);
+    expect(verdict).toContain("--audit=${{ needs.audit.result }}");
+    // (What merge.mjs does with the result is run, not read: pipeline-speed-behaviour.test.ts.)
+    expect(readVerbatim("scripts/qa/round.mjs")).toContain('flag("audit-only") || (flag("build") && !flag("no-audit"))');
+  });
+
   it("the packages job cannot fail a round", () => {
     const round = readVerbatim(".github/workflows/round.yml");
     const job = round.slice(round.indexOf("  browser-packages:"), round.indexOf("  part:"));

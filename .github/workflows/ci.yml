@@ -88,7 +88,7 @@ env:
   # Keeps the build from trying to phone home during static generation.
   NEXT_TELEMETRY_DISABLED: "1"
   # The build's heap, said rather than left to Node's default (2026-11-04). Every browser
-  # shard builds its own bundle, and the build had grown to Node's default ceiling of about
+  # shard built its own bundle (one build now, `e2e-build`), and the build had grown to Node's default ceiling of about
   # 2 GB: three shards on the state-machine branch and one on a dependabot branch never
   # started their server ("Next.js build worker exited with … SIGABRT", the heap at 2,040 MB
   # when it gave up), so a run went red with no test run at all. A runner has 16 GB.
@@ -273,10 +273,69 @@ jobs:
           kill "$SERVER_PID" 2>/dev/null || true
           exit $STATUS
 
+  # ── The browser-test bundle, built ONCE (2026-11-12) ──────────────────────
+  #
+  # Every e2e shard used to build its own .next-e2e: eight builds of one commit, about 1.9 minutes each
+  # (run 43117624853), 15 machine-minutes for what one build gives. Rounds already build once and hand the
+  # bundle to every part (round.yml, job `build`); this does the same. The bundle is made exactly as
+  # playwright.config.ts's webServer made it (`npm run build` with NEXT_DIST_DIR=.next-e2e and
+  # NEXT_NO_STANDALONE=1, no compiler cache in the hand-off) and stamped with the commit it is of
+  # (BUILT_FROM). A shard that finds it missing, or of another commit, fails by name before it serves a
+  # page (scripts/ci/check-prebuilt.mjs, run by the config when E2E_PREBUILT=1).
+  #
+  # This job runs beside `unit` and `build`, so a shard waits only for it, about four minutes of setup
+  # and build, and a shard no longer spends its own 1.9. `e2e` needs it, so no shard can start without
+  # one, and `verify` needs it too.
+  e2e-build:
+    name: Build the browser-test bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Build
+        env:
+          NEXT_DIST_DIR: .next-e2e
+          NEXT_NO_STANDALONE: "1"
+          AUTH_SECRET: ci-e2e-secret
+        run: |
+          npm run build
+          test -f .next-e2e/BUILD_ID || { echo "::error::the build wrote no .next-e2e/BUILD_ID"; exit 1; }
+          echo "${{ github.sha }}" > .next-e2e/BUILT_FROM
+
+      - name: Hand the build to every shard
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-build
+          # Without the compiler's cache: it is most of the size and no shard compiles.
+          path: |
+            .next-e2e
+            !.next-e2e/cache
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 3
+
   # ── The slowest one, and the only net that sees a laid-out page ───────────
   e2e:
     name: End-to-end (${{ matrix.project }} ${{ matrix.shard }}/${{ matrix.shards }})
     runs-on: ubuntu-latest
+    needs: e2e-build
     # It installs a browser and builds a bundle of its own before it runs a
     # single test.
     #
@@ -342,7 +401,7 @@ jobs:
     #
     # Each shard is a job of its own, so everything said above still holds per
     # shard: its own PostgreSQL service, its own `globalSetup` seed and
-    # teardown, its own build, `workers: 1`. Two shards never share a database.
+    # teardown, `workers: 1` (and, since 2026-11-12, the ONE build of `e2e-build`). Two shards never share a database.
     # A shard runs whole spec files, in name order.
     #
     # ── CUT BY TIME (2026-11-12) ────────────────────────────────────────────
@@ -426,6 +485,14 @@ jobs:
         id: browser
         run: node scripts/ci/check-browsers-present.mjs chromium
 
+      - name: Take the build
+        # The bundle job `e2e-build` made, once. A shard that cannot get it is red here, by name: it never
+        # falls back to building its own (and the config checks it before serving, see below).
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-build
+          path: .next-e2e
+
       - name: End-to-end
         # The one net that was NOT here, and it rotted for eleven days as a
         # result: twelve tests were red and nothing said so, because the suite
@@ -434,8 +501,9 @@ jobs:
         # column, a target under the touch minimum, a card that opens blank
         # over a round already played — all of which shipped green once.
         #
-        # It builds its own bundle into .next-e2e (see playwright.config.ts),
-        # which is why this job does not run `npm run build` first.
+        # It serves the bundle of job `e2e-build`, downloaded into .next-e2e above:
+        # E2E_PREBUILT=1 makes playwright.config.ts start `next start` on it, after
+        # scripts/ci/check-prebuilt.mjs has proved it is this commit's, and not run `npm run build`.
         #
         # `--reporter` names the config's CI pair (github, list) and adds
         # `json`, written to shard-proof/ran.json: what THIS shard actually ran,
@@ -443,6 +511,7 @@ jobs:
         # config's list rather than adding to it, hence all three.
         env:
           AUTH_SECRET: ci-e2e-secret
+          E2E_PREBUILT: "1"
           PLAYWRIGHT_JSON_OUTPUT_FILE: shard-proof/ran.json
         run: |
           # A failed deal must stop here: an empty file list would make playwright run the WHOLE project.
@@ -571,7 +640,7 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
-    needs: [unit, build, e2e, e2e-cover]
+    needs: [unit, build, e2e-build, e2e, e2e-cover]
     if: ${{ !cancelled() }}
     timeout-minutes: 5
     steps:

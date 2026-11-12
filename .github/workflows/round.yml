@@ -14,7 +14,8 @@ name: Round
 # slowest part. Ajay, 2026-10-13: "make the testing efficient."
 #
 #   plan      reads the parts out of layers.mjs — the list is never kept here
-#   build     the database suite, then one production build, handed to every part
+#   audit     the database suite, BESIDE the build (2026-11-12: it ran first and held every part back ~3.4 min)
+#   build     one production build, handed to every part
 #   part      one per part: scripts/qa/round.mjs with that part's arguments
 #   verdict   scripts/qa/merge.mjs adds them up, by the same rules a one-machine
 #             round is judged by, and writes the table as this run's summary
@@ -214,8 +215,12 @@ jobs:
           REASON=$(grep -E '^capreason=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)
           echo "**Parts at a time: ${CAP:-12}** — ${REASON:-the cap script did not answer, so the fixed 12}" >> "$GITHUB_STEP_SUMMARY"
 
-  build:
-    name: Database suite and the one build
+  # The database suite, on its own machine beside the build. It ran in the build job before the build,
+  # so no part could start until it had finished (3.4 minutes of every round, run 43066673601). It is
+  # exactly as binding as it was: the verdict job reads this job's result and a red or missing one makes
+  # the verdict NOT CLEAN (merge.mjs `--audit=`), and the round's run is red.
+  audit:
+    name: Database suite
     runs-on: ubuntu-latest
     timeout-minutes: 40
     services:
@@ -234,8 +239,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - name: The database suite, then the build every part will run
-        run: node scripts/qa/round.mjs build --build --build-only
+      - name: The database suite
+        run: node scripts/qa/round.mjs audit --audit-only
+      - name: Keep the logs if it failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-logs
+          path: .qa/rounds/audit/
+          include-hidden-files: true
+          retention-days: 7
+
+  build:
+    name: The one build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: The build every part will run
+        run: node scripts/qa/round.mjs build --build --build-only --no-audit
       - name: Hand the build on
         uses: actions/upload-artifact@v4
         with:
@@ -483,7 +519,7 @@ jobs:
 
   verdict:
     name: Verdict
-    needs: [plan, build, part]
+    needs: [plan, audit, build, part]
     if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -541,7 +577,7 @@ jobs:
           # The plan's own arguments too, so a round whose every machine was lost still gets a
           # verdict (INCOMPLETE) rather than a usage error. Each part's job-status.json is under
           # parts/, and says which of them the machine stopped (scripts/qa/infra.mjs).
-          node scripts/qa/merge.mjs "$TAG" $(find parts -name part.json | sort) --expect-parts --reach=reach.json --statuses=parts --run-facts=run-facts.json --round=${{ needs.plan.outputs.round }} ${{ needs.plan.outputs.planargs }} || STATUS=$?
+          node scripts/qa/merge.mjs "$TAG" $(find parts -name part.json | sort) --expect-parts --audit=${{ needs.audit.result }} --reach=reach.json --statuses=parts --run-facts=run-facts.json --round=${{ needs.plan.outputs.round }} ${{ needs.plan.outputs.planargs }} || STATUS=$?
           cat ".qa/rounds/$TAG/summary.md" >> "$GITHUB_STEP_SUMMARY"
           exit $STATUS
       - name: Keep the verdict
