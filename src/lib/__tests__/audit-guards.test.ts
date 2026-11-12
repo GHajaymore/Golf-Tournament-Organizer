@@ -2492,7 +2492,7 @@ describe("a round's card is narrowed in exactly one place", () => {
     expect(page).not.toMatch(/teeSheetDrift\([^)]*state\.confirmed/);
     // `field` has to be resolved BEFORE the check, or it is the roster by
     // another name — this is what made the original a one-line fault.
-    const fieldAt = page.indexOf("let field =");
+    const fieldAt = page.indexOf("const field =");
     const driftAt = page.indexOf("teeSheetDrift(");
     expect(fieldAt, "field must be computed").toBeGreaterThan(-1);
     expect(fieldAt, "field must be resolved before the drift check").toBeLessThan(driftAt);

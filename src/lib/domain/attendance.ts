@@ -26,6 +26,13 @@
 
 import { deadlinePassed } from "../deadline";
 
+/**
+ * THE MARK A STAND-IN CARRIES: the start of the `decidedBy` of the OUT rows written for a guest made by Replace.
+ * One constant, so the writer (`replaceInTeeSheet`) and the finder (`addStage`, which keeps a stand-in out of
+ * a week added later) cannot drift apart.
+ */
+export const STAND_IN_MARK = "(stand-in for ";
+
 export const ATTENDANCE_MODES = ["everyone", "opt-out", "opt-in", "captains"] as const;
 export type AttendanceMode = (typeof ATTENDANCE_MODES)[number];
 

@@ -14,7 +14,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { ownWithdrawalOpen } from "@/lib/registration";
 import { clubDayForEvent } from "@/lib/services/club-clock";
-import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
+import { withdrawEntry } from "@/lib/services/playing-history";
 import { revokePlayerAccount } from "@/lib/services/player-access";
 import { drainWaitlist } from "@/lib/services/waitlist";
 import { logAudit } from "@/lib/services/action-shared";
@@ -417,13 +417,8 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
   }
 
   for (const row of mine) {
-    if (await hasPlayingHistory(eventId, row.id)) {
-      await prisma.player.update({ where: { id: row.id }, data: { status: "withdrawn" } });
-      // A stake paid by default stays paid — the same as the organizer's door.
-      await keepDefaultStakes(eventId, row.id);
-    } else {
-      await prisma.player.delete({ where: { id: row.id } });
-    }
+    // The one keep path, shared with the organizer's Withdraw press and a replacement on the tee sheet.
+    await prisma.$transaction((tx) => withdrawEntry(tx, eventId, row, { launched: false }));
   }
   await revokePlayerAccount(eventId, session.email);
 
