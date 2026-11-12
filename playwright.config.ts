@@ -261,7 +261,11 @@ export default defineConfig({
     // noise: see next.config.mjs. `NEXT_NO_STANDALONE` below turns the
     // standalone output off for THIS build only, so the server here is one
     // Next actually supports.
-    command: `npm run build && npx next start --port ${PORT}`,
+    //
+    // CI's shards set E2E_PREBUILT=1 (2026-11-12): job `e2e-build` in ci.yml builds the bundle ONCE and
+    // each shard downloads it into .next-e2e, so none builds its own. Then the server is started from
+    // that build, after scripts/ci/check-prebuilt.mjs has refused a missing or another commit's build.
+    command: process.env.E2E_PREBUILT === "1" ? `node scripts/ci/check-prebuilt.mjs && npx next start --port ${PORT}` : `npm run build && npx next start --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     // A round (scripts/qa/round.mjs) starts the server itself, once, from one build, and says so:
     // on CI this would otherwise build a second bundle and collide with it on the port.

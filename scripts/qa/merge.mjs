@@ -249,6 +249,10 @@ const textTried = textShares.reduce((n, m) => n + Number(m[3]), 0);
 if (textOf > 1 && new Set(textShares.map((m) => m[1])).size === textOf && textTried <= TEXT_BOXES_AT_LEAST) {
   findings.push(`text-boxes: the text-box crawl's ${textOf} shares tried ${textTried} boxes between them — the crawl tries more than ${TEXT_BOXES_AT_LEAST}`);
 }
+// The database suite runs in a job of its own, beside the build (round.yml `audit`); a red or missing one is the
+// app's finding, exactly as when it ran first and stopped the round. `--audit=<the job's result>`; absent for a
+// local round, whose `--build` ran the suite first.
+if (value("audit") && value("audit") !== "success") findings.push(`database suite: its job ended "${value("audit")}", so the round cannot be clean`);
 for (const n of newlyUnreached) findings.push(`reach: no screen test calls ${n} (not in reach-baseline.json: new, or its test was lost)`);
 if (baselineMissing) findings.push("reach: scripts/qa/reach-baseline.json is missing, so nothing checked for an action no screen test performs");
 

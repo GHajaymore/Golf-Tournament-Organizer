@@ -36,6 +36,11 @@ and answers "did this change break something that was working". A round is a dif
 Since 2026-11-04 its browser legs are shards (desktop and phone in three, small-phone in two, cut by measured time),
 and its `e2e-cover` job (`scripts/qa/shards-cover.mjs`) fails `verify` unless the shards together
 ran every test of every project — see `docs/claude/playwright-runs.md`.
+Since 2026-11-12 the browser-test bundle is built ONCE (job `e2e-build`, `NEXT_DIST_DIR=.next-e2e`, stamped with
+the commit in `BUILT_FROM`) and every shard downloads it as an artifact instead of building its own;
+`E2E_PREBUILT=1` makes `playwright.config.ts` start `next start` on it after `scripts/ci/check-prebuilt.mjs` has refused a
+missing build or another commit's. The job graph: `unit` · `build` (smoke) · `e2e-build` → eight `e2e` shards →
+`e2e-cover`; `verify` needs all of them.
 Nor are the **Nightly round**, the **Weekly round**, the hourly **Deploy** and the **Production
 canary**: they run themselves on main (see "Rounds, nights and weeks" and "Deploys").
 
@@ -468,7 +473,7 @@ account; `round/league-1`, 39 parts):
 | | |
 |---|---|
 | Wall clock for one round | 39 minutes, for the same checks and eight more |
-| The build and the database suite every part waits for | 6 minutes |
+| The build and the database suite every part waits for | 6 minutes (since 2026-11-12 the database suite is a job of its own, beside the build, so parts wait for the build alone: about 3 minutes; the verdict still reads the suite's result and a red one makes the round NOT CLEAN) |
 | Its longest part | 33 minutes: Firefox at laptop size |
 | Its next longest | Firefox phone 30, the iPhone 30, the iPad 27, Chrome 24, the Android tablet 23, Firefox small phone 22, Safari 21 |
 | A share of the console crawl, which had been 62 | 16 minutes |
